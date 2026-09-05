@@ -43,12 +43,14 @@ Epsilon evaluator.
 ## P2 - Gamma to Delta
 
 - **DELTA-COMPILER.** Complete
+  the Gamma source closure entered at
   `bootstrap/delta/compiler/delta_compiler.gamma` against the full Delta contract,
   including nominal types, exhaustiveness, checked arithmetic, proper-tail
   lowering, sealed profiles, deterministic failure selection, and canonical
   Gamma emission. DCREQ framing and `ConformanceBytesV1` are executable;
-  implement canonical DCOUT boundary failures without Delta-specific Gamma
-  primitives. Direct Epsilon-to-Alpha profile ID 2 is retired.
+  finish canonical DCOUT frontend/schema, resource, and internal failures
+  without Delta-specific Gamma primitives. Direct Epsilon-to-Alpha profile ID 2
+  is retired.
   The current Epsilon evaluator source plus a diagnostic entry
   compiles through the selected lower route;
   continue reducing general transformation costs rather than admitting a

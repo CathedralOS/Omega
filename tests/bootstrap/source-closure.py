@@ -1,4 +1,4 @@
-"""Byte-only closure custody tests for both bootstrap implementation languages."""
+"""Byte-only closure custody tests for manifested bootstrap source languages."""
 
 import hashlib
 import os
@@ -10,7 +10,11 @@ from pathlib import Path
 
 ROOT = Path(os.environ["OMEGA_REPO_ROOT"])
 TOOL = ROOT / "tools/bootstrap/source_closure.py"
-HEADERS = {"DeltaSourceClosureV1": ".delta", "EpsilonSourceClosureV1": ".epsilon"}
+HEADERS = {
+    "GammaSourceClosureV1": ".gamma",
+    "DeltaSourceClosureV1": ".delta",
+    "EpsilonSourceClosureV1": ".epsilon",
+}
 
 
 def member(identity, path, data):
@@ -18,9 +22,11 @@ def member(identity, path, data):
 
 
 class SourceClosure(unittest.TestCase):
-    def invoke(self, manifest, output):
+    def invoke(self, manifest, output, prefix=None):
         return subprocess.run(
-            ["python3", str(TOOL), str(manifest), str(output)], capture_output=True
+            ["python3", str(TOOL), str(manifest), str(output)]
+            + ([] if prefix is None else ["--prefix", str(prefix)]),
+            capture_output=True,
         )
 
     def fixture(self, directory, header):
@@ -57,12 +63,47 @@ class SourceClosure(unittest.TestCase):
                 self.assertEqual(result.returncode, 0, result.stderr)
                 self.assertEqual(output.read_bytes(), second.read_bytes() + first.read_bytes())
 
+    def test_prefix_order_and_failure_preservation(self):
+        for header in HEADERS:
+            for case in ("valid", "missing", "control", "nonascii", "symlink", "stale_member"):
+                with self.subTest(header=header, case=case), tempfile.TemporaryDirectory() as temporary:
+                    directory = Path(temporary)
+                    manifest, first, second, rows = self.fixture(directory, header)
+                    prefix = directory / ("entry" + HEADERS[header])
+                    prefix.write_bytes(b"; exact entry\r\n\t")
+                    expected = prefix.read_bytes() + first.read_bytes() + second.read_bytes()
+                    if case == "missing": prefix.unlink()
+                    elif case == "control": prefix.write_bytes(b"\x00")
+                    elif case == "nonascii": prefix.write_bytes(b"\x80")
+                    elif case == "symlink":
+                        target = directory / "real-entry"
+                        prefix.rename(target)
+                        prefix.symlink_to(target)
+                    elif case == "stale_member": first.write_bytes(b"changed")
+                    output = directory / "output"
+                    for existing in (False, True):
+                        if existing:
+                            output.write_bytes(b"keep prior output")
+                        result = self.invoke(manifest, output, prefix)
+                        if case == "valid":
+                            self.assertEqual(result.returncode, 0, result.stderr)
+                            self.assertEqual(output.read_bytes(), expected)
+                        else:
+                            self.assertNotEqual(result.returncode, 0)
+                            self.assertIn(b"source closure:", result.stderr)
+                            self.assertEqual(result.stdout, b"")
+                            if existing:
+                                self.assertEqual(output.read_bytes(), b"keep prior output")
+                            else:
+                                self.assertFalse(output.exists())
+
     def test_rejections_preserve_output(self):
         cases = [
             "header", "empty", "malformed", "reordered", "duplicate_identity",
             "duplicate_path", "length_spelling", "length", "digest", "missing",
-            "extra", "foreign_source", "wrong_suffix", "dot", "double_slash", "inner_dot",
-            "parent", "absolute", "backslash", "drive", "source_byte",
+            "extra", "foreign_source", "wrong_suffix", "wrong_language_member",
+            "dot", "double_slash", "inner_dot",
+            "parent", "absolute", "backslash", "drive", "source_byte", "source_nonascii",
             "manifest_ascii", "manifest_byte", "member_symlink",
             "directory_symlink", "manifest_symlink",
         ]
@@ -72,6 +113,7 @@ class SourceClosure(unittest.TestCase):
                     directory = Path(temporary)
                     manifest, first, second, rows = self.fixture(directory, header)
                     spelling = first.relative_to(manifest.parent).as_posix()
+                    foreign_suffix = ".epsilon" if HEADERS[header] == ".gamma" else ".gamma"
                     replacement_paths = {
                         "dot": "./" + spelling,
                         "double_slash": spelling.replace("/", "//"),
@@ -95,9 +137,14 @@ class SourceClosure(unittest.TestCase):
                     elif case == "digest": rows[1] = member(1, spelling, b"different")
                     elif case == "missing": first.unlink()
                     elif case == "extra": (manifest.parent / ("unlisted" + HEADERS[header])).write_bytes(b"")
-                    elif case == "foreign_source": (manifest.parent / "unlisted.gamma").write_bytes(b"")
-                    elif case == "source_byte":
-                        first.write_bytes(b"\x01")
+                    elif case == "foreign_source":
+                        (manifest.parent / ("unlisted" + foreign_suffix)).write_bytes(b"")
+                    elif case == "wrong_language_member":
+                        foreign = first.with_suffix(foreign_suffix)
+                        first.rename(foreign)
+                        rows[1] = member(1, foreign.relative_to(manifest.parent).as_posix(), foreign.read_bytes())
+                    elif case in ("source_byte", "source_nonascii"):
+                        first.write_bytes(b"\x01" if case == "source_byte" else b"\x80")
                         rows[1] = member(1, spelling, first.read_bytes())
                     elif case in ("member_symlink", "directory_symlink"):
                         target = first if case == "member_symlink" else first.parent
@@ -127,17 +174,23 @@ class SourceClosure(unittest.TestCase):
     def test_selected_compiler_closures(self):
         closures = [
             (ROOT / "tests/bootstrap/epsilon-source-closure/fixture.sources", 89,
-             "528f65b2e2d9666db1c1f3930c9f5784bbfc1497e3b7225b26cb3eee34d2924c"),
+             "528f65b2e2d9666db1c1f3930c9f5784bbfc1497e3b7225b26cb3eee34d2924c", None),
             (Path(os.environ["OMEGA_PATH_OMEGA_COMPILER_SOURCES"]), 464741,
-             "621f507b214f0f26ba3c9d4d36a1bb54a26bdeecbcdffcc24a2cb1a266ab8cde"),
+             "621f507b214f0f26ba3c9d4d36a1bb54a26bdeecbcdffcc24a2cb1a266ab8cde", None),
             (Path(os.environ["OMEGA_PATH_EPSILON_COMPILER_SOURCES"]), 564884,
-             "6771e44e15ccb8543f483ede4a4fe27e7c46c1948f40681ff1a25f20594161d8"),
+             "6771e44e15ccb8543f483ede4a4fe27e7c46c1948f40681ff1a25f20594161d8", None),
+            (Path(os.environ["OMEGA_PATH_DELTA_COMPILER_SOURCES"]), 91079,
+             "c28efd74ffd9a79fe097f6445f6dcac96af22c002178b2f5251b02a35beb5948",
+             Path(os.environ["OMEGA_PATH_DELTA_COMPILER_SOURCE"])),
+            (Path(os.environ["OMEGA_PATH_DELTA_COMPILER_SOURCES"]), 90862,
+             "f86c249249dea585d0bf19b3f55acccc1fe81c1d2aac45efb63f0c6611ed7a0a",
+             Path(os.environ["OMEGA_PATH_DELTA_COMPILER_DEVELOPMENT_ENTRY"])),
         ]
         with tempfile.TemporaryDirectory() as temporary:
             output = Path(temporary) / "output"
-            for manifest, length, digest in closures:
-                with self.subTest(manifest=manifest):
-                    result = self.invoke(manifest, output)
+            for manifest, length, digest, prefix in closures:
+                with self.subTest(manifest=manifest, prefix=prefix):
+                    result = self.invoke(manifest, output, prefix)
                     self.assertEqual(result.returncode, 0, result.stderr)
                     self.assertEqual(len(output.read_bytes()), length)
                     self.assertEqual(hashlib.sha256(output.read_bytes()).hexdigest(), digest)

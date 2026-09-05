@@ -1,0 +1,181 @@
+(def require_constructor_metadata
+  ((name Int) (name_end Int) (globals Int)) Int
+  (let found Int
+    (name_trie_find_option (global_constructors globals) name_end name)
+    (if (first found) (second found) (fail))))
+
+(def catalog_type_constructors
+  ((index Int) (count Int) (has_payload Int)) Int
+  (let item Int (skip index)
+    (if (eq (source_read item) 41)
+      (if (eq count 0)
+        (fail)
+        (pair (token_end item) (pair count has_payload)))
+      (let constructor Int (skip (token_end item))
+        (let constructor_end Int (token_end constructor)
+          (if (upper_name_valid constructor constructor_end)
+            (let arity Int (constructor_shape_arity_at constructor_end)
+              (catalog_type_constructors
+                (constructor_shape_after constructor_end)
+                (+ count 1) (+ has_payload arity)))
+            (fail)))))))
+
+(def catalog_global_data ((form Int) (type_rows Int)) Int
+  (let head Int (form_head form)
+    (let type_name Int (skip (token_end head))
+      (let type_end Int (token_end type_name)
+        (if (upper_name_valid type_name type_end)
+          (let result Int
+            (catalog_type_constructors (skip type_end) 0 0)
+            (let summary Int (second result)
+              (let metadata Int
+                (pair (+ form 1) (pair (first summary) (second summary)))
+                (pair (first result)
+                  (name_trie_insert
+                    type_rows type_end type_name metadata)))))
+          (fail))))))
+
+(def catalog_global_types
+  ((index Int) (type_rows Int)) Int
+  (let form Int (skip index)
+    (if (eq form (source_length))
+      type_rows
+      (if (eq (source_read form) 40)
+        (let head Int (form_head form)
+          (let head_end Int (token_end head)
+            (if (token_data head head_end)
+              (let result Int (catalog_global_data form type_rows)
+                (catalog_global_types (first result) (second result)))
+              (if (token_def head head_end)
+                type_rows
+                (fail)))))
+        (fail)))))
+
+(def catalog_function_parameters
+  ((index Int) (locals Int) (type_rows Int) (count Int)
+   (reversed_types Int)) Int
+  (let item Int (skip index)
+    (if (eq (source_read item) 41)
+      (pair (token_end item)
+        (pair count (pair reversed_types locals)))
+      (if (eq (source_read item) 40)
+        (let name Int (skip (token_end item))
+          (let name_end Int (token_end name)
+            (let type_name Int (skip name_end)
+              (let type_end Int (token_end type_name)
+                (let close Int (skip type_end)
+                  (if (eq (source_read close) 41)
+                    (let checked Int
+                      (validate_local_declaration
+                        name name_end type_name type_end type_rows)
+                      (let declared_type Int
+                        (resolve_type type_name type_end type_rows)
+                        (catalog_function_parameters
+                          (token_end close)
+                          (name_trie_insert
+                            locals name_end name declared_type)
+                          type_rows (+ count 1)
+                          (parameter_types_prepend
+                            declared_type reversed_types))))
+                    (fail)))))))
+        (fail)))))
+
+(def catalog_function_signature
+  ((form Int) (name_end Int) (type_rows Int)) Int
+  (let open Int (skip name_end)
+    (if (eq (source_read open) 40)
+      (let parameters Int
+        (catalog_function_parameters
+          (token_end open) (empty_name_trie) type_rows 0
+          (empty_parameter_types))
+        (let details Int (second parameters)
+          (let tail Int (second details)
+            (let result_name Int (skip (first parameters))
+              (let result_end Int (token_end result_name)
+                (let result_type Int
+                  (resolve_type result_name result_end type_rows)
+                  (pair (+ form 1)
+                    (pair (first details)
+                      (pair result_type
+                        (pair
+                          (reverse_parameter_types
+                            (first tail) (first details)
+                            (empty_parameter_types))
+                          (pair (second tail) (skip result_end))))))))))))
+      (fail))))
+
+(def validate_global_data
+  ((form Int) (type_rows Int) (constructor_rows Int)) Int
+  (let head Int (form_head form)
+    (let type_name Int (skip (token_end head))
+      (let type_end Int (token_end type_name)
+        (let found Int (name_trie_find_option type_rows type_end type_name)
+          (if (first found)
+            (validate_global_constructors
+              (skip type_end) (second found) type_rows constructor_rows 0)
+            (fail)))))))
+
+(def validate_global_constructors
+  ((index Int) (type_metadata Int) (type_rows Int)
+   (constructor_rows Int) (count Int)) Int
+  (let item Int (skip index)
+    (if (eq (source_read item) 41)
+      (if (eq count (type_metadata_constructor_count type_metadata))
+        (pair (token_end item) constructor_rows)
+        (fail))
+      (let constructor Int (skip (token_end item))
+        (let constructor_end Int (token_end constructor)
+          (if (upper_name_valid constructor constructor_end)
+            (let arity Int
+              (constructor_arity_at constructor_end type_rows)
+              (let metadata Int
+                (pair type_metadata
+                  (pair (+ count 1) (pair arity constructor_end)))
+                (validate_global_constructors
+                  (constructor_after constructor_end type_rows)
+                  type_metadata type_rows
+                  (name_trie_insert
+                    constructor_rows constructor_end constructor metadata)
+                  (+ count 1))))
+            (fail)))))))
+
+(def validate_global_program
+  ((index Int) (saw_function Int) (function_count Int) (main_count Int)
+   (type_rows Int) (constructor_rows Int) (function_rows Int)) Int
+  (let form Int (skip index)
+    (if (eq form (source_length))
+      (if (eq function_count 0)
+        (fail)
+        (if (eq main_count 1)
+          (pair type_rows (pair constructor_rows function_rows))
+          (fail)))
+      (if (eq (source_read form) 40)
+        (let head Int (form_head form)
+          (let head_end Int (token_end head)
+            (if (token_data head head_end)
+              (if saw_function
+                (fail)
+                (let result Int
+                  (validate_global_data form type_rows constructor_rows)
+                  (validate_global_program
+                    (first result) 0 function_count main_count
+                    type_rows (second result) function_rows)))
+              (if (token_def head head_end)
+                (let name Int (skip head_end)
+                  (let name_end Int (token_end name)
+                    (if (value_name_valid name name_end)
+                      (let metadata Int
+                        (catalog_function_signature form name_end type_rows)
+                        (validate_global_program
+                          (skip_expression form) 1 (+ function_count 1)
+                          (+ main_count (token_main name name_end))
+                          type_rows constructor_rows
+                          (name_trie_insert
+                            function_rows name_end name metadata)))
+                      (fail))))
+                (fail)))))
+        (fail)))))
+
+; Negative types are exact builtins. Positive types are exact nominal
+; declaration owners. Zero is reserved as an absent lookup or as the first-arm
+; result sentinel.

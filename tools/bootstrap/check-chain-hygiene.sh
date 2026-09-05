@@ -68,7 +68,9 @@ done
 [ -f "$OMEGA_PATH_CONCATENATIVE_GAMMA_COMPILER_TAPE" ] ||
   fail "downgraded concatenative Gamma compiler tape is absent"
 [ -f "$OMEGA_PATH_DELTA_COMPILER_SOURCE" ] ||
-  fail "Gamma-authored staged Delta compiler source is absent"
+  fail "Gamma-authored staged Delta compiler entry is absent"
+[ -f "$OMEGA_PATH_DELTA_COMPILER_SOURCES" ] ||
+  fail "Gamma-authored staged Delta compiler source manifest is absent"
 [ -f "$OMEGA_PATH_DELTA_COMPILER_COMPOSED" ] ||
   fail "staged Delta composed identity is absent"
 [ -x "$OMEGA_REPO_ROOT/tools/bootstrap/check-chain-hygiene.sh" ] ||
@@ -146,6 +148,9 @@ bootstrap/epsilon/compiler/epsilon_compiler.delta'
 
 PACKED_DIR=$(mktemp -d)
 trap 'rm -rf -- "$PACKED_DIR"' EXIT HUP INT TERM
+python3 "$OMEGA_REPO_ROOT/tools/bootstrap/source_closure.py" \
+  "$OMEGA_PATH_DELTA_COMPILER_SOURCES" "$PACKED_DIR/compiler.gamma" \
+  --prefix "$OMEGA_PATH_DELTA_COMPILER_SOURCE"
 python3 "$OMEGA_REPO_ROOT/tools/bootstrap/source_closure.py" \
   "$OMEGA_PATH_EPSILON_COMPILER_SOURCES" "$PACKED_DIR/evaluator.delta"
 python3 "$OMEGA_REPO_ROOT/tools/bootstrap/source_closure.py" \

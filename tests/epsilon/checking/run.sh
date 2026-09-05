@@ -16,6 +16,9 @@ CHECKING_TMP=$(mktemp -d)
 trap 'rm -rf -- "$CHECKING_TMP"' EXIT HUP INT TERM
 python3 "$OMEGA_REPO_ROOT/tools/bootstrap/source_closure.py" \
     "$OMEGA_PATH_EPSILON_COMPILER_SOURCES" "$CHECKING_TMP/epsilon_compiler.delta"
+python3 "$OMEGA_REPO_ROOT/tools/bootstrap/source_closure.py" \
+    "$OMEGA_PATH_DELTA_COMPILER_SOURCES" "$CHECKING_TMP/delta_compiler.gamma" \
+    --prefix "$OMEGA_PATH_DELTA_COMPILER_SOURCE"
 materialize_gamma_evaluator "$CHECKING_TMP/evaluator" >/dev/null
 
 GATE_DIR="$GATE_DIR" CHECKING_TMP="$CHECKING_TMP" python3 - <<'PY'
@@ -65,7 +68,7 @@ def evaluate(program, sealed_input, timeout=300):
 
 subject = source + driver
 request = b"DCREQ\x01\x00\x00" + struct.pack("<II", 1, len(subject)) + subject
-compiler = Path(os.environ["OMEGA_PATH_DELTA_COMPILER_SOURCE"]).read_bytes()
+compiler = (temporary / "delta_compiler.gamma").read_bytes()
 status, receipt = evaluate(compiler, request)
 digest = hashlib.sha256(receipt).hexdigest()
 observed_identity = f"{len(receipt)} bytes, SHA-256 {digest}"

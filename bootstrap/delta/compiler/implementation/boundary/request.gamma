@@ -1,0 +1,49 @@
+; D30/D33: complete header, first wrong header byte, profile, provision, body.
+; Complete admission is (pair 0 profile); all other results are failure values.
+(def request_u32 ((index Int)) Int
+  (+ (read index)
+    (+ (* (read (+ index 1)) 256)
+      (+ (* (read (+ index 2)) 65536)
+        (* (read (+ index 3)) 16777216)))))
+
+(def request_header_difference ((index Int) (packed Int)) Int
+  (if (eq index 8)
+    8
+    (if (eq (read index) (% packed 256))
+      (request_header_difference (+ index 1) (/ packed 256))
+      index)))
+
+(def request_malformed ((coordinate Int)) Int
+  (compiler_failure 1 4 1 coordinate 0 0))
+
+(def request_unknown_profile () Int
+  (compiler_failure 1 4 2 8 0 0))
+
+(def request_source_incomplete ((requested Int)) Int
+  (compiler_failure 2 4 1 12 4194304 requested))
+
+(def request_admit_body ((length Int) (profile Int)) Int
+  (let expected Int (+ 16 length)
+    (if (lt (input) expected)
+      (request_malformed (input))
+      (if (lt expected (input))
+        (request_malformed expected)
+        (pair 0 profile)))))
+
+(def request_admit_profile () Int
+  (let profile Int (request_u32 8)
+    (if (eq profile 1)
+      (let length Int (request_u32 12)
+        (if (lt 4194304 length)
+          (request_source_incomplete length)
+          (request_admit_body length profile)))
+      (request_unknown_profile))))
+
+(def validate_compilation_request () Int
+  (if (lt (input) 16)
+    (request_malformed (input))
+    ; Little-endian bytes D C R E Q 01 00 00.
+    (let difference Int (request_header_difference 0 1448566997828)
+      (if (eq difference 8)
+        (request_admit_profile)
+        (request_malformed difference)))))

@@ -1,9 +1,39 @@
 # Selected staged Delta compiler
 
-`delta_compiler.gamma` is the first selected Gamma-authored Delta stage. It is a
-source transformer executed by the selected Beta-authored Gamma evaluator.
-`delta_compiler.composed` binds those exact source and evaluator-tape identities
-under `GammaComposedV1`.
+`delta_compiler.gamma` is the canonical request entry of the selected
+Gamma-authored Delta stage. It admits DCREQ, runs the shared compiler pipeline,
+and publishes either the successful Gamma receipt or an owned request-failure
+frame through the selected Beta-authored Gamma evaluator.
+`delta_compiler.composed` binds the complete entry-plus-implementation bytes and
+evaluator-tape identity under `GammaComposedV1`, not the entry file alone.
+
+## Source organization
+
+Start at `delta_compiler.gamma`, then follow `implementation/pipeline.gamma`.
+The latter sequences source checking, catalogs, typing, profile validation,
+and emission. Concept-owned members are grouped below it:
+
+- `implementation/boundary/`: bounded request admission and DCOUT publication;
+- `implementation/checking/`: source tokens, exact-name catalogs, declarations,
+  expression types, and application schema;
+- `implementation/emission/`: program structure, matches, value representation,
+  checked arithmetic, byte helpers/adapters, and textual output.
+
+`implementation/implementation.gamma.sources` selects all 14 shared members
+with exact lengths, digests, and ordered identities. The byte-only source
+materializer validates that closed inventory and prefixes the explicitly
+selected entry. For the canonical entry, its application marker is therefore
+the first declaration. Callers use the role registry's
+`OMEGA_PATH_DELTA_COMPILER_SOURCES` and `OMEGA_PATH_DELTA_COMPILER_SOURCE`.
+Reading the entrance alone does not reconstruct the compiler.
+
+The separate `tests/delta/staged-compiler/development_driver.gamma` entry
+invokes these same shared bytes as an unmarked raw-source transformer. It
+exists only for frontend/lowering diagnostics and does not select a compiler
+application profile. The canonical entry never detects raw source, guesses a
+profile from its first byte, or falls back to that diagnostic entry.
+
+## Implemented semantics
 
 The current stage accepts the Gamma-shaped scalar core, immutable `Bytes`, and
 finite data whose constructors carry any finite number of `Int`, `Bytes`, or
@@ -66,9 +96,10 @@ The complete type-check pass finishes before the first output byte. Emission
 therefore consumes that established preflight instead of revalidating data
 declarations, parameter annotations, function results, or `let` annotations.
 It still parses every source coordinate needed to construct canonical Gamma.
-The malformed-source gate requires every rejected program to leave output
-empty, including programs whose defects occur after otherwise emit-capable
-declarations.
+The frontend malformed-source gate requires every rejected program to leave
+output empty, including defects after otherwise emit-capable declarations.
+Owned request failures instead publish their complete DCOUT frame before any
+frontend or emitter work begins.
 
 Each match check retains its seen constructors in another immutable exact-name
 trie. Same-owner validation plus duplicate rejection and exact constructor-count
@@ -108,22 +139,26 @@ mention only the `Bytes` type receive no unused runtime helper.
 `ConformanceBytesV1` now accepts canonical DCREQ framing, validates exact
 `main : Bytes -> Bytes`, emits a marked nullary Gamma application adapter, and
 owns empty/nonempty publication plus authored-trap, input-extent, and
-output-extent statuses. Raw source remains a development-only pure-transform
-entry for the existing frontend gates. Canonical DCOUT compiler-failure frames
-remain open. Calls emitted in tail position remain in Gamma tail position through
+output-extent statuses. Strict request admission publishes canonical DCOUT for
+malformed framing, unknown profiles, and source-length refusal; see
+[`implementation/boundary/README.md`](implementation/boundary/README.md).
+Frontend, schema, later resource accounting, and internal-failure DCOUT outcomes
+remain open. Their current evaluator-owned failures are not compiler verdicts.
+Calls emitted in tail position remain in Gamma tail position through
 `if`, `let`, and lowered `match`; the selected evaluator executes a 100,000-node
 construction and traversal in bounded call context. Static acceptance of the
 scalar/nominal slice is not full-language admission.
 
-The executable gate is
-[`../../../tests/delta/staged-compiler/`](../../../tests/delta/staged-compiler/).
+Run `sh tests/delta/staged-compiler/run.sh` for lowering and generated execution,
+`sh tests/delta/request-boundary/run.sh` for exact request outcomes, and
+`sh tests/gamma/composed-artifact.sh` for composed identity and publication.
 The downgraded full compiler remains separate under
 [`../bootstrap/concatenative-compiler/`](../bootstrap/concatenative-compiler/).
 
 ## Measurements
 
 ```text
-2,206-line / 89,429-byte Gamma source
+2,236-line / 91,079-byte canonical entry plus shared Gamma implementation
 7-line / 195-byte nullary-ADT Delta fixture
   -> 3-line / 165-byte Gamma receipt
   -> selected Gamma evaluation produces byte 9

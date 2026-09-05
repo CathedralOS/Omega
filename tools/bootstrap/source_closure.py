@@ -8,7 +8,11 @@ import tempfile
 from pathlib import Path, PurePosixPath
 
 
-HEADERS = {"DeltaSourceClosureV1": ".delta", "EpsilonSourceClosureV1": ".epsilon"}
+HEADERS = {
+    "GammaSourceClosureV1": ".gamma",
+    "DeltaSourceClosureV1": ".delta",
+    "EpsilonSourceClosureV1": ".epsilon",
+}
 SOURCE_SUFFIXES = {".beta", ".gamma", ".delta", ".epsilon", ".omg"}
 IDENTITY = re.compile(r"[0-9a-f]{64}")
 DECIMAL = re.compile(r"0|[1-9][0-9]*")
@@ -70,7 +74,7 @@ def materialize(manifest_path: Path) -> bytes:
     if any(byte not in (9, 10, 13) and not 32 <= byte <= 126 for byte in manifest_bytes):
         fail("manifest contains a forbidden byte")
     if not lines or lines[0] not in HEADERS:
-        fail("manifest header is not DeltaSourceClosureV1 or EpsilonSourceClosureV1")
+        fail(f"manifest header must be one of: {', '.join(HEADERS)}")
     suffix = HEADERS[lines[0]]
     if len(lines) == 1:
         fail("manifest has no members")
@@ -127,13 +131,19 @@ def write_atomic(path: Path, data: bytes) -> None:
 
 
 def main() -> None:
-    if len(sys.argv) != 3:
-        fail("usage: source_closure.py MANIFEST OUTPUT")
+    if len(sys.argv) not in (3, 5) or (len(sys.argv) == 5 and sys.argv[3] != "--prefix"):
+        fail("usage: source_closure.py MANIFEST OUTPUT [--prefix ENTRY]")
     manifest_path = Path(sys.argv[1])
     if manifest_path.is_symlink() or not manifest_path.is_file():
         fail("manifest is not a regular file")
     try:
-        write_atomic(Path(sys.argv[2]), materialize(manifest_path))
+        data = materialize(manifest_path)
+        if len(sys.argv) == 5:
+            prefix = Path(sys.argv[4])
+            if prefix.is_symlink() or not prefix.is_file():
+                fail("prefix is not a regular file")
+            data = source_bytes(prefix, str(prefix)) + data
+        write_atomic(Path(sys.argv[2]), data)
     except OSError as error:
         fail(str(error))
 
