@@ -15,8 +15,8 @@ firewall directly rather than extending undifferentiated booleans and bitsets.
 
 ### Domains
 
-`symbol-resolved-trees/src/domain.rs` and
-`typed-trees/src/domain.rs` represent every domain as one
+`symbol-resolved-trees/src/symbol_resolved_trees/declarations/domain.rs` and
+`typed-trees/src/typed_trees/declarations/domain.rs` represent every domain as one
 `DomainDefinition` containing independent predicate-body, semantic-role,
 establishment-route, alias, fact, and operator records. Operator-bearing source
 declarations are projected once during syntax-to-resolved lowering into the
