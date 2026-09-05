@@ -195,8 +195,22 @@ pub fn declared_place_type_raw(
         handle = inner.target;
     }
 
-    let members: Vec<String> = collect_member_path(program, handle)?;
-    declared_member_path_type(program, current_machine, current_state, &members)
+    if let Some(members) = collect_member_path(program, handle) {
+        return declared_member_path_type(program, current_machine, current_state, &members);
+    }
+    match program.expression_table.expression(handle) {
+        ExpressionNode::Call(call) => crate::calls::resolved_call_result_type(program, call),
+        ExpressionNode::Member(member) => {
+            let receiver =
+                declared_place_type_raw(program, current_machine, current_state, member.receiver)?;
+            let data = data_definition_for_type(program, receiver)?;
+            data_field_or_payload_type(program, data, member.member.as_str())
+        }
+        ExpressionNode::Indexed(_) => {
+            declared_indexed_projection_type_raw(program, current_machine, current_state, handle)
+        }
+        _ => None,
+    }
 }
 
 /// Resolve the exact declaration symbol at the leaf of a retained named/member
@@ -298,11 +312,9 @@ pub(crate) use member_paths::{
 /// (`[u8; N]`, `usize`, a data name) is inspectable.
 /// The declared leaf type of an indexed assignment target (`self.xs[i]`,
 /// `buf[k]`, or `self.rows[i].field`), unwrapped like [`declared_place_type`].
-/// `collect_member_path` stops at an `Indexed` node, so `declared_place_type`
-/// returns `None` for these places -- which used to exempt indexed stores from
-/// the cross-class / narrowing / nominal store checks. This resolves the
+/// This is also the indexed branch of `declared_place_type`: it resolves the
 /// collection's `[T; N]` / `[T]` element and then walks any projected fields so
-/// those checks see the real destination type.
+/// cross-class, narrowing, and nominal store checks see the destination type.
 /// `None` for a non-indexed target, an unresolvable collection, or a collection
 /// that is not an array/slice.
 pub(crate) fn declared_indexed_projection_type(

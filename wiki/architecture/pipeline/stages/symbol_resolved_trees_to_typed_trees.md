@@ -42,6 +42,11 @@ Must own:
 
 - Type identity, type compatibility, and signature compatibility.
 - Typed call, transition, operator, domain, effect, and boundary surfaces.
+- Method candidates on call-produced receivers follow the producer's exact
+  declared return type after receiver children lower. Member and array/slice
+  projections retain their nominal declaration identity; a same-spelled foreign
+  declaration cannot select an attached method. This supplies a previously
+  unresolved target, not a proof of receiver origin, effects, or borrow legality.
 - Enough value/type information for checked trees to build durable facts without
   reverse-engineering source syntax.
 - Typed machine contracts retain the optional named evidence binding separately
@@ -115,6 +120,9 @@ surfaces visible by file:
   typed boolean fact expressions.
 - `expression/name_paths.rs` lowers typed name-path members and preserves the
   head/final symbol handles needed by later place and call checks.
+- `call_results.rs` owns exact declared-state lookup shared by call-result
+  temporary typing and computed-receiver method selection. Method selection
+  consumes declaration types, never a callee-body or returned-place proof.
 - `expression/operators.rs` owns resolved-to-typed operator-kind mapping.
 - `expression/tests.rs` owns expression-table lowering canaries.
 - `type_reference.rs` owns type-reference shape lowering for reference, slice,

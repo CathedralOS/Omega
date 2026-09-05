@@ -21,20 +21,6 @@ pub(super) struct FramePlaceOrigin {
     pub(super) precision: FramePathPrecision,
 }
 
-/// Receiver lookup spelling and storage precision travel together. An indexed
-/// receiver's collection path is not authority for signature-by-name lookup.
-pub(super) fn receiver_frame_origin(
-    program: &TypedTrees,
-    receiver: ExpressionHandle,
-) -> Option<(Vec<String>, Option<FramePlaceOrigin>)> {
-    if !receiver.is_valid() {
-        return Some((Vec::new(), None));
-    }
-    let origin = frame_place_path(program, receiver)?;
-    let members = origin.path.split('.').map(str::to_owned).collect();
-    Some((members, Some(origin)))
-}
-
 pub(super) fn split_place_root(path: &str) -> (&str, &str) {
     let boundary = path.find(['.', '[']).unwrap_or(path.len());
     path.split_at(boundary)

@@ -29,6 +29,7 @@ mod local_aliases;
 mod parameter_aliases;
 mod path_instantiation;
 mod place_paths;
+mod reference_origins;
 mod state_paths;
 mod transition_equations;
 mod transition_topology;
@@ -69,8 +70,9 @@ use parameter_aliases::{
 use path_instantiation::{instantiate_written_path, instantiate_written_path_with_origins};
 use place_paths::{
     FramePathPrecision, FramePlaceOrigin, append_place_suffix, coarse_place_path, frame_place_path,
-    receiver_frame_origin, split_place_root,
+    split_place_root,
 };
+use reference_origins::receiver_frame_origin;
 use state_paths::{
     expression_forwards_exact_symbol, normalize_state_relative_path, push_visible_frame_path,
     relative_state_path_is_visible,
