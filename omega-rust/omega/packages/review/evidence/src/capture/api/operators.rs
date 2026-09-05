@@ -105,6 +105,7 @@ pub(crate) fn project_public_operators(
             domain_symbol: None,
             data_symbol: None,
             lifetime_binders: &declaration.lifetime_parameters,
+            lifetime_substitutions: &[],
             selection_exposure: psi_language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure::PublicInterface,
         };
         let contracts = project_contracts(

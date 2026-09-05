@@ -9,6 +9,9 @@ mod member_expression;
 mod operator_forms;
 mod value_forms;
 
+#[cfg(test)]
+mod lifetime_tests;
+
 use super::casts::project_contract_cast;
 use super::names::project_contract_name_expression;
 use crate::capture::contracts::facts::ContractProjectionContext;

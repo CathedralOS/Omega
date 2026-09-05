@@ -16,23 +16,30 @@ impl PackagePolicyClosedConformanceApplication {
         let mut encoder = Encoder::policy_bounded(4 * 1024 * 1024);
         encoder.fixed_bytes(CONFORMANCE_POLICY_MAGIC);
         encoder.u16(PACKAGE_CONFORMANCE_POLICY_VERSION);
-        encode_nominal(&mut encoder, &self.declaration)?;
-        encoder.sequence(&self.lifetime_arguments, ordinal)?;
-        encoder.sequence(&self.type_arguments, type_identity)?;
-        encoder.sequence(&self.const_arguments, const_argument)?;
-        encoder.sequence(&self.machine_arguments, encode_nominal)?;
-        encoder.option(self.subject.as_ref(), type_identity)?;
-        encode_nominal(&mut encoder, &self.trait_identity)?;
-        encoder.sequence(&self.trait_lifetime_arguments, ordinal)?;
-        encoder.sequence(&self.trait_arguments, type_identity)?;
-        encoder.sequence(&self.rows, |encoder, row| {
-            encode_nominal(encoder, &row.declaring_trait)?;
-            encode_nominal(encoder, &row.requirement)?;
-            encode_nominal(encoder, &row.realization_machine)?;
-            encode_nominal(encoder, &row.realization_state)
-        })?;
+        encode_application(&mut encoder, self)?;
         encoder.finish()
     }
+}
+
+pub(crate) fn encode_application(
+    encoder: &mut Encoder,
+    application: &PackagePolicyClosedConformanceApplication,
+) -> Result<(), PackageReviewEncodingError> {
+    encode_nominal(encoder, &application.declaration)?;
+    encoder.sequence(&application.lifetime_arguments, ordinal)?;
+    encoder.sequence(&application.type_arguments, type_identity)?;
+    encoder.sequence(&application.const_arguments, const_argument)?;
+    encoder.sequence(&application.machine_arguments, encode_nominal)?;
+    encoder.option(application.subject.as_ref(), type_identity)?;
+    encode_nominal(encoder, &application.trait_identity)?;
+    encoder.sequence(&application.trait_lifetime_arguments, ordinal)?;
+    encoder.sequence(&application.trait_arguments, type_identity)?;
+    encoder.sequence(&application.rows, |encoder, row| {
+        encode_nominal(encoder, &row.declaring_trait)?;
+        encode_nominal(encoder, &row.requirement)?;
+        encode_nominal(encoder, &row.realization_machine)?;
+        encode_nominal(encoder, &row.realization_state)
+    })
 }
 
 fn ordinal(encoder: &mut Encoder, ordinal: &u32) -> Result<(), PackageReviewEncodingError> {

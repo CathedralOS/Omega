@@ -4,7 +4,7 @@ use super::super::super::behavior::{
 };
 use super::super::super::contracts::facts::{ContractProjectionContext, project_contracts};
 use super::super::declarations::{nominal_identity, trait_requirement_identity};
-use super::super::types::{project_data_properties, review_signature_type_identity_with_binders};
+use super::super::types::project_data_properties;
 use crate::record::{
     PackageReviewCrashRoute, PackageReviewMachineParameterContract,
     PackageReviewMachineParameterSignature, PackageReviewMachineParameterValue,
@@ -14,6 +14,68 @@ use crate::record::{
 use omega_compiler::CheckedCompilation;
 use psi_diagnostics::Diagnostic;
 use psi_symbols::SymbolHandle;
+
+#[derive(Clone, Copy)]
+struct Projection<'a> {
+    public_nominals: bool,
+    substitutions: &'a [(SymbolHandle, psi_typed_trees::types::TypeReferenceHandle)],
+    checked_source: Option<&'a CheckedCompilation>,
+    contract_scopes: &'a [CallingContractScope],
+}
+
+/// Temporary source custody for expressions in a clone-instantiated contract.
+pub(crate) struct CallingContractScope {
+    pub parameter_symbol: SymbolHandle,
+    pub signature_symbol: SymbolHandle,
+    /// Outer-first; the last matching source name is the lexical binder.
+    pub lifetime_substitutions: Vec<(
+        psi_typed_trees::name::Identifier,
+        psi_typed_trees::name::Identifier,
+    )>,
+    pub parameters: Vec<psi_typed_trees::signature::StateParameter>,
+}
+
+impl Projection<'_> {
+    fn value_type(
+        self,
+        compilation: &CheckedCompilation,
+        reference: psi_typed_trees::types::TypeReferenceHandle,
+        binders: &[(SymbolHandle, String)],
+        lifetimes: &[psi_typed_trees::name::Identifier],
+    ) -> Result<crate::record::PackageReviewTypeIdentity, Vec<Diagnostic>> {
+        super::super::types::review_signature_type_identity_with_binders_and_substitutions_and_lifetimes(
+            compilation, reference, binders, lifetimes, self.substitutions, &[],
+        )
+    }
+}
+
+pub(crate) fn project_calling_type_parameters(
+    compilation: &CheckedCompilation,
+    checked_source: &CheckedCompilation,
+    parameters: &[psi_typed_trees::data::TypeParameter],
+    declaration_path: &str,
+    lifetime_binders: &[psi_typed_trees::name::Identifier],
+    inherited_binders: &[(SymbolHandle, String)],
+    substitutions: &[(SymbolHandle, psi_typed_trees::types::TypeReferenceHandle)],
+    contract_scopes: &[CallingContractScope],
+) -> Result<(Vec<(SymbolHandle, String)>, Vec<PackageReviewTypeParameter>), Vec<Diagnostic>> {
+    project_type_parameters_inner(
+        compilation,
+        parameters,
+        "calling requirement",
+        declaration_path,
+        inherited_binders,
+        0,
+        lifetime_binders,
+        0,
+        Projection {
+            public_nominals: false,
+            substitutions,
+            checked_source: Some(checked_source),
+            contract_scopes,
+        },
+    )
+}
 
 pub(crate) fn project_type_parameters(
     compilation: &CheckedCompilation,
@@ -44,6 +106,36 @@ pub(crate) fn project_type_parameters_after(
     lifetime_binders: &[psi_typed_trees::name::Identifier],
     depth: usize,
 ) -> Result<(Vec<(SymbolHandle, String)>, Vec<PackageReviewTypeParameter>), Vec<Diagnostic>> {
+    project_type_parameters_inner(
+        compilation,
+        parameters,
+        declaration_kind,
+        declaration_path,
+        preceding_binders,
+        ordinal_offset,
+        lifetime_binders,
+        depth,
+        Projection {
+            public_nominals: true,
+            substitutions: &[],
+            checked_source: None,
+            contract_scopes: &[],
+        },
+    )
+}
+
+#[allow(clippy::too_many_arguments)]
+fn project_type_parameters_inner(
+    compilation: &CheckedCompilation,
+    parameters: &[psi_typed_trees::data::TypeParameter],
+    declaration_kind: &str,
+    declaration_path: &str,
+    preceding_binders: &[(SymbolHandle, String)],
+    ordinal_offset: usize,
+    lifetime_binders: &[psi_typed_trees::name::Identifier],
+    depth: usize,
+    projection: Projection<'_>,
+) -> Result<(Vec<(SymbolHandle, String)>, Vec<PackageReviewTypeParameter>), Vec<Diagnostic>> {
     if depth >= 64 {
         return Err(vec![Diagnostic::error(format!(
             "public {declaration_kind} `{declaration_path}` static-machine contract exceeds the package-review depth limit",
@@ -61,7 +153,7 @@ pub(crate) fn project_type_parameters_after(
         let kind = match &parameter.kind {
             psi_typed_trees::data::TypeParameterKind::Type => PackageReviewTypeParameterKind::Type,
             psi_typed_trees::data::TypeParameterKind::Const { type_reference } => {
-                PackageReviewTypeParameterKind::Const(review_signature_type_identity_with_binders(
+                PackageReviewTypeParameterKind::Const(projection.value_type(
                     compilation,
                     *type_reference,
                     &binders,
@@ -69,7 +161,7 @@ pub(crate) fn project_type_parameters_after(
                 )?)
             }
             psi_typed_trees::data::TypeParameterKind::Machine { contract } => {
-                PackageReviewTypeParameterKind::Machine(project_machine_parameter_contract(
+                PackageReviewTypeParameterKind::Machine(project_machine_parameter_contract_inner(
                     compilation,
                     parameter.symbol,
                     contract,
@@ -79,6 +171,7 @@ pub(crate) fn project_type_parameters_after(
                     ordinal_offset + parameters.len(),
                     lifetime_binders,
                     depth + 1,
+                    projection,
                 )?)
             }
             psi_typed_trees::data::TypeParameterKind::Proposition { contract } => {
@@ -97,7 +190,7 @@ pub(crate) fn project_type_parameters_after(
                         ))]);
                     }
                     projected_parameters.push(PackageReviewPropositionParameterValue {
-                        type_identity: review_signature_type_identity_with_binders(
+                        type_identity: projection.value_type(
                             compilation,
                             value_parameter.type_reference,
                             &binders,
@@ -132,6 +225,38 @@ pub(crate) fn project_machine_parameter_contract(
     outer_lifetime_binders: &[psi_typed_trees::name::Identifier],
     depth: usize,
 ) -> Result<PackageReviewMachineParameterContract, Vec<Diagnostic>> {
+    project_machine_parameter_contract_inner(
+        compilation,
+        parameter_symbol,
+        contract,
+        declaration_kind,
+        declaration_path,
+        outer_binders,
+        nested_ordinal_offset,
+        outer_lifetime_binders,
+        depth,
+        Projection {
+            public_nominals: true,
+            substitutions: &[],
+            checked_source: None,
+            contract_scopes: &[],
+        },
+    )
+}
+
+#[allow(clippy::too_many_arguments)]
+fn project_machine_parameter_contract_inner(
+    compilation: &CheckedCompilation,
+    parameter_symbol: SymbolHandle,
+    contract: &psi_typed_trees::data::MachineParameterContract,
+    declaration_kind: &str,
+    declaration_path: &str,
+    outer_binders: &[(SymbolHandle, String)],
+    nested_ordinal_offset: usize,
+    outer_lifetime_binders: &[psi_typed_trees::name::Identifier],
+    depth: usize,
+    projection: Projection<'_>,
+) -> Result<PackageReviewMachineParameterContract, Vec<Diagnostic>> {
     match contract {
         psi_typed_trees::data::MachineParameterContract::RequirementIdentity => {
             Ok(PackageReviewMachineParameterContract::RequirementIdentity)
@@ -144,7 +269,7 @@ pub(crate) fn project_machine_parameter_contract(
             }
             let mut lifetime_binders = outer_lifetime_binders.to_vec();
             lifetime_binders.extend(signature.lifetime_parameters.iter().cloned());
-            let (binders, type_parameters) = project_type_parameters_after(
+            let (binders, type_parameters) = project_type_parameters_inner(
                 compilation,
                 compilation.state_signature_type_parameters(signature),
                 declaration_kind,
@@ -153,8 +278,20 @@ pub(crate) fn project_machine_parameter_contract(
                 nested_ordinal_offset,
                 &lifetime_binders,
                 depth,
+                projection,
             )?;
             let parameters = compilation.state_signature_parameters(signature);
+            let mut scopes = projection.contract_scopes.iter().filter(|scope| {
+                scope.parameter_symbol == parameter_symbol
+                    && scope.signature_symbol == signature.symbol
+            });
+            let scope = scopes.next();
+            if scopes.next().is_some() || (projection.checked_source.is_some() && scope.is_none()) {
+                return Err(vec![Diagnostic::error(
+                    "calling static contract has no unique exact source scope",
+                )]);
+            }
+            let checked_source = projection.checked_source.unwrap_or(compilation);
             let context = ContractProjectionContext {
                 subject_kind: "public static-machine parameter",
                 subject_name: declaration_path,
@@ -166,15 +303,16 @@ pub(crate) fn project_machine_parameter_contract(
                     machine_symbol: parameter_symbol,
                     state_symbol: signature.symbol,
                 },
-                parameters,
+                parameters: scope.map_or(parameters, |scope| scope.parameters.as_slice()),
                 domain_symbol: None,
                 data_symbol: None,
                 lifetime_binders: &lifetime_binders,
+                lifetime_substitutions: scope.map_or(&[], |scope| scope.lifetime_substitutions.as_slice()),
                 selection_exposure: psi_language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure::PublicInterface,
             };
             let contracts = project_contracts(
-                compilation,
-                compilation.state_signature_contracts(signature),
+                checked_source,
+                checked_source.state_signature_contracts(signature),
                 &context,
                 &binders,
             )?;
@@ -194,7 +332,7 @@ pub(crate) fn project_machine_parameter_contract(
                         .map(|parameter| {
                             Ok(PackageReviewMachineParameterValue {
                                 name: parameter.name.as_str().to_owned(),
-                                type_identity: review_signature_type_identity_with_binders(
+                                type_identity: projection.value_type(
                                     compilation,
                                     parameter.type_reference,
                                     &binders,
@@ -206,7 +344,7 @@ pub(crate) fn project_machine_parameter_contract(
                             })
                         })
                         .collect::<Result<Vec<_>, Vec<Diagnostic>>>()?,
-                    return_type: review_signature_type_identity_with_binders(
+                    return_type: projection.value_type(
                         compilation,
                         signature.return_type,
                         &binders,
@@ -258,7 +396,7 @@ pub(crate) fn project_machine_parameter_contract(
                     trait_definition.name,
                 ))]);
             };
-            if !trait_definition.is_public {
+            if projection.public_nominals && !trait_definition.is_public {
                 return Err(vec![Diagnostic::error(format!(
                     "public {declaration_kind} `{declaration_path}` exposes non-public trait `{}` through a static-machine contract",
                     trait_definition.name,

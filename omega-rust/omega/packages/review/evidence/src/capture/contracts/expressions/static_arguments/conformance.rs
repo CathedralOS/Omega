@@ -183,6 +183,7 @@ pub(super) fn project_contract_conformance_application(
             argument,
             binders,
             context.lifetime_binders,
+            context.lifetime_substitutions,
             context.subject_kind,
             context.subject_name,
         )?;

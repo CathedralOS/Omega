@@ -3,7 +3,7 @@ use crate::capture::contracts::expressions::static_arguments::{
     ContractCallStaticParameterKind, contract_call_static_parameter_kind, project_static_argument,
 };
 use crate::capture::semantics::declarations::nominal_identity;
-use crate::capture::semantics::types::lifetimes::lifetime_binder_ordinal;
+use crate::capture::semantics::types::lifetimes::substituted_lifetime_binder_ordinal;
 use crate::capture::semantics::types::{
     review_signature_type_identity_with_binders,
     review_signature_type_identity_with_binders_and_substitutions_and_lifetimes,
@@ -125,6 +125,10 @@ pub(crate) fn project_selected_conformance_application(
     selected: &psi_typed_trees::expression::StaticMachineArgument,
     binders: &[(SymbolHandle, String)],
     lifetime_binders: &[psi_typed_trees::name::Identifier],
+    scoped_lifetime_substitutions: &[(
+        psi_typed_trees::name::Identifier,
+        psi_typed_trees::name::Identifier,
+    )],
     declaration_kind: &str,
     declaration_path: &str,
 ) -> Result<ProjectedSelectedConformanceApplication, Vec<Diagnostic>> {
@@ -180,6 +184,7 @@ pub(crate) fn project_selected_conformance_application(
                 declaration_path,
                 binders,
                 lifetime_binders,
+                scoped_lifetime_substitutions,
                 argument,
                 contract_call_static_parameter_kind(parameter),
                 0,
@@ -194,9 +199,10 @@ pub(crate) fn project_selected_conformance_application(
         })
         .iter()
         .map(|lifetime| {
-            lifetime_binder_ordinal(
+            substituted_lifetime_binder_ordinal(
                 lifetime,
                 lifetime_binders,
+                scoped_lifetime_substitutions,
                 "selected conformance application",
             )
         })
@@ -282,12 +288,21 @@ pub(crate) fn project_selected_conformance_application(
         .map_or(&[][..], |application| {
             application.lifetime_arguments.as_ref()
         });
-    let lifetime_substitutions = declaration
-        .lifetime_parameters
-        .iter()
-        .cloned()
-        .zip(selected_lifetimes.iter().cloned())
-        .collect::<Vec<_>>();
+    let mut lifetime_substitutions = scoped_lifetime_substitutions.to_vec();
+    lifetime_substitutions.extend(declaration.lifetime_parameters.iter().cloned().zip(
+        selected_lifetimes.iter().map(|lifetime| {
+            scoped_lifetime_substitutions
+                .iter()
+                .rev()
+                .find_map(|(source, normalized)| (source == lifetime).then_some(normalized))
+                .unwrap_or(lifetime)
+                .clone()
+        }),
+    ));
+    // Keep these source spellings for the checked closure comparison below.
+    // Their ordinal projection applies the scoped mapping exactly once; the
+    // already-normalized declaration substitution targets above do not pass
+    // through that mapping again.
     let selected_trait_lifetimes = declaration
         .trait_lifetime_arguments
         .iter()
@@ -308,9 +323,10 @@ pub(crate) fn project_selected_conformance_application(
     let trait_lifetime_arguments = selected_trait_lifetimes
         .iter()
         .map(|selected| {
-            lifetime_binder_ordinal(
+            substituted_lifetime_binder_ordinal(
                 selected,
                 lifetime_binders,
+                scoped_lifetime_substitutions,
                 "selected conformance target trait application",
             )
         })

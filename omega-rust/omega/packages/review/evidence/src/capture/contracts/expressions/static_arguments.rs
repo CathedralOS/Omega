@@ -4,7 +4,7 @@ mod const_values;
 use super::names::portable_parameter_position;
 use crate::capture::contracts::facts::ContractProjectionContext;
 use crate::capture::semantics::declarations::nominal_identity;
-use crate::capture::semantics::types::lifetimes::lifetime_binder_ordinal;
+use crate::capture::semantics::types::lifetimes::substituted_lifetime_binder_ordinal;
 use crate::capture::semantics::types::missing_exact_toolchain_type_owner;
 use crate::record::{PackageReviewContractStaticArgument, PackageReviewTypeIdentity};
 use omega_compiler::CheckedCompilation;
@@ -152,6 +152,7 @@ pub(crate) fn project_contract_static_argument(
         context.subject_name,
         binders,
         context.lifetime_binders,
+        context.lifetime_substitutions,
         argument,
         parameter_kind,
         depth,
@@ -236,6 +237,10 @@ pub(crate) fn project_static_argument(
     subject_name: &str,
     binders: &[(SymbolHandle, String)],
     lifetime_binders: &[psi_typed_trees::name::Identifier],
+    lifetime_substitutions: &[(
+        psi_typed_trees::name::Identifier,
+        psi_typed_trees::name::Identifier,
+    )],
     argument: &psi_typed_trees::expression::StaticMachineArgument,
     parameter_kind: ContractCallStaticParameterKind,
     depth: usize,
@@ -307,6 +312,7 @@ pub(crate) fn project_static_argument(
                     subject_name,
                     binders,
                     lifetime_binders,
+                    lifetime_substitutions,
                     argument,
                     contract_call_static_parameter_kind(parameter),
                     depth + 1,
@@ -317,7 +323,12 @@ pub(crate) fn project_static_argument(
             .lifetime_arguments
             .iter()
             .map(|lifetime| {
-                lifetime_binder_ordinal(lifetime, lifetime_binders, "contract-call nested type")
+                substituted_lifetime_binder_ordinal(
+                    lifetime,
+                    lifetime_binders,
+                    lifetime_substitutions,
+                    "contract-call nested type",
+                )
             })
             .collect::<Result<Vec<_>, _>>()?;
         return Ok(PackageReviewContractStaticArgument::GenericType {

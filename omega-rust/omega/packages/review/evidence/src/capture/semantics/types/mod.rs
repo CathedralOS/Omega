@@ -8,7 +8,7 @@ mod validation;
 
 pub(crate) use fields::project_data_field;
 pub(crate) use identity::{
-    review_signature_type_identity_with_binders,
+    review_signature_const_argument_identity, review_signature_type_identity_with_binders,
     review_signature_type_identity_with_binders_and_substitutions_and_lifetimes,
     review_type_identity_with_binders, review_type_identity_with_binders_and_substitutions,
 };

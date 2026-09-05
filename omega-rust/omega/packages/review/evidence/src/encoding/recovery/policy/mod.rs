@@ -6,6 +6,7 @@
 //! representations or reconstructing proofs.
 
 mod behavior;
+mod calling_application;
 mod conformance;
 mod contracts;
 mod expressions;

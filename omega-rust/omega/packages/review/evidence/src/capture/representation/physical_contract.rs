@@ -15,7 +15,7 @@ use crate::record::{
 use omega_compiler::CheckedCompilation;
 use psi_diagnostics::Diagnostic;
 
-pub(super) fn project_representation_origin(
+pub(crate) fn project_representation_origin(
     origin: omega_representation_planning::OpaqueRepresentationApplicationOrigin,
 ) -> PackageReviewOpaqueRepresentationApplicationOrigin {
     match origin {
@@ -25,7 +25,7 @@ pub(super) fn project_representation_origin(
     }
 }
 
-pub(super) fn project_representation_lifecycle(
+pub(crate) fn project_representation_lifecycle(
     lifecycle: omega_representation_planning::OpaqueRepresentationLifecycleDisposition,
 ) -> PackageReviewOpaqueRepresentationLifecycleDisposition {
     match lifecycle {
@@ -35,7 +35,7 @@ pub(super) fn project_representation_lifecycle(
     }
 }
 
-pub(super) fn project_representation_copy_disposition(
+pub(crate) fn project_representation_copy_disposition(
     disposition: omega_representation_planning::OpaqueRepresentationCopyDisposition,
 ) -> PackageReviewOpaqueRepresentationCopyDisposition {
     match disposition {
@@ -48,7 +48,7 @@ pub(super) fn project_representation_copy_disposition(
     }
 }
 
-pub(super) fn project_representation_target(
+pub(crate) fn project_representation_target(
     compilation: &CheckedCompilation,
 ) -> Result<PackageReviewRepresentationTarget, Vec<Diagnostic>> {
     let profile = compilation.selected_target_profile().ok_or_else(|| {
@@ -112,7 +112,7 @@ pub(super) fn project_representation_target(
     })
 }
 
-pub(super) fn project_boundary_shape_graph(
+pub(crate) fn project_boundary_shape_graph(
     signature: &omega_provider_planning::calling_policy_plans::MaterializedBoundarySignature,
 ) -> PackageReviewBoundaryShapeGraph {
     PackageReviewBoundaryShapeGraph {
