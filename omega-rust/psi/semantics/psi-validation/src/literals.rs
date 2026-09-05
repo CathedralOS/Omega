@@ -13,9 +13,9 @@ pub(crate) use literal_widths::validate_literal_widths;
 /// behavior) let a wrong suffix mean nothing; silently honoring it would
 /// steer signedness/width decisions against the declared type. Domain is NOT
 /// checked (a suffix lands the TYPE; the destination's arithmetic domain is
-/// contextual and governs its own folds). Checked at the same destination
-/// positions the width gate enumerates: let initializers, assignments, and
-/// struct-literal fields, with the literal read through `Mutable` wrappers.
+/// contextual and governs its own folds). Concrete destinations include
+/// declared storage, resolved call parameters, and state results, with the
+/// literal read through borrow wrappers.
 /// CR4 (suffixed-magnitude fit): a width suffix is the literal's OWN claim of
 /// type, so the spelled value must fit that type's range wherever the literal
 /// sits -- `200i8` is a loud error even in an anonymous position. Runs after
@@ -75,7 +75,14 @@ mod integer_landing;
 pub(crate) use integer_landing::{anonymous_integer_value, land_integer_value};
 pub use integer_landing::{has_anonymous_operator_meaning, land_anonymous_integer_expression};
 
-pub(crate) fn validate_suffix_landings(program: &TypedTrees, diagnostics: &mut Vec<Diagnostic>) {
+/// Check an already-landed literal against one exact declared destination.
+/// Explicit casts are conversions, not transparent literal wrappers.
+pub(crate) fn validate_suffix_landing(
+    program: &TypedTrees,
+    value: ExpressionHandle,
+    declared: psi_typed_trees::types::TypeReferenceHandle,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
     use psi_numerics::literals::LandedIntegerType;
 
     let landed_of_primitive = |primitive: PrimitiveType| -> Option<LandedIntegerType> {
@@ -128,51 +135,49 @@ pub(crate) fn validate_suffix_landings(program: &TypedTrees, diagnostics: &mut V
         }
     };
 
-    let check = |value: ExpressionHandle,
-                 declared: psi_typed_trees::types::TypeReferenceHandle,
-                 diagnostics: &mut Vec<Diagnostic>| {
-        let Some(unwrapped) = crate::places::unwrapped_type_reference(program, declared) else {
-            return;
-        };
-        let Some(primitive) = program.primitive_type_reference(unwrapped) else {
-            return;
-        };
-        if let Some((literal_handle, suffix_type)) = literal_landing(value) {
-            let Some(declared_type) = landed_of_primitive(primitive) else {
-                return;
-            };
-            if declared_type != suffix_type {
-                let literal = program.expression_table.display_name(literal_handle);
-                diagnostics.push(Diagnostic::error(format!(
-                    "literal `{literal}` is suffixed `{suffix}` but lands in a `{declared}` place -- \
-                     a width suffix chooses the literal's type at the spelling, so it must agree \
-                     with the destination's declared type (drop the suffix or fix one side)",
-                    suffix = suffix_type.name(),
-                    declared = primitive.name(),
-                )));
-            }
-            return;
-        }
-        if let Some((literal_handle, suffix_format)) = float_landing(value) {
-            use psi_numerics::literals::FloatFormat;
-            let declared_format = match primitive {
-                PrimitiveType::F32 => FloatFormat::F32,
-                PrimitiveType::F64 => FloatFormat::F64,
-                _ => return,
-            };
-            if declared_format != suffix_format {
-                let literal = program.expression_table.display_name(literal_handle);
-                diagnostics.push(Diagnostic::error(format!(
-                    "literal `{literal}` is suffixed `{suffix}` but lands in a `{declared}` place -- \
-                     a width suffix chooses the literal's format at the spelling, so it must agree \
-                     with the destination's declared type (drop the suffix or fix one side)",
-                    suffix = suffix_format.name(),
-                    declared = primitive.name(),
-                )));
-            }
-        }
+    let Some(unwrapped) = crate::places::unwrapped_type_reference(program, declared) else {
+        return;
     };
+    let Some(primitive) = program.primitive_type_reference(unwrapped) else {
+        return;
+    };
+    if let Some((literal_handle, suffix_type)) = literal_landing(value) {
+        let Some(declared_type) = landed_of_primitive(primitive) else {
+            return;
+        };
+        if declared_type != suffix_type {
+            let literal = program.expression_table.display_name(literal_handle);
+            diagnostics.push(Diagnostic::error(format!(
+                "literal `{literal}` is suffixed `{suffix}` but lands in a `{declared}` place -- \
+                 a width suffix chooses the literal's type at the spelling, so it must agree \
+                 with the destination's declared type (drop the suffix or fix one side)",
+                suffix = suffix_type.name(),
+                declared = primitive.name(),
+            )));
+        }
+        return;
+    }
+    if let Some((literal_handle, suffix_format)) = float_landing(value) {
+        use psi_numerics::literals::FloatFormat;
+        let declared_format = match primitive {
+            PrimitiveType::F32 => FloatFormat::F32,
+            PrimitiveType::F64 => FloatFormat::F64,
+            _ => return,
+        };
+        if declared_format != suffix_format {
+            let literal = program.expression_table.display_name(literal_handle);
+            diagnostics.push(Diagnostic::error(format!(
+                "literal `{literal}` is suffixed `{suffix}` but lands in a `{declared}` place -- \
+                 a width suffix chooses the literal's format at the spelling, so it must agree \
+                 with the destination's declared type (drop the suffix or fix one side)",
+                suffix = suffix_format.name(),
+                declared = primitive.name(),
+            )));
+        }
+    }
+}
 
+pub(crate) fn validate_suffix_landings(program: &TypedTrees, diagnostics: &mut Vec<Diagnostic>) {
     for (_, node) in program.expression_table.expression_entries() {
         let ExpressionNode::StructLiteral(literal) = node else {
             continue;
@@ -193,7 +198,7 @@ pub(crate) fn validate_suffix_landings(program: &TypedTrees, diagnostics: &mut V
             ) else {
                 continue;
             };
-            check(field.value, field_type, diagnostics);
+            validate_suffix_landing(program, field.value, field_type, diagnostics);
         }
     }
 
@@ -201,6 +206,9 @@ pub(crate) fn validate_suffix_landings(program: &TypedTrees, diagnostics: &mut V
         for state in program.machine_states(machine) {
             for statement in program.statement_table.statements(state.statement_nodes) {
                 match statement {
+                    StatementNode::Expression(value) if state.return_type.is_valid() => {
+                        validate_suffix_landing(program, *value, state.return_type, diagnostics);
+                    }
                     StatementNode::Assignment(assignment) => {
                         if let Some(declared) = crate::places::declared_place_type_raw(
                             program,
@@ -208,13 +216,39 @@ pub(crate) fn validate_suffix_landings(program: &TypedTrees, diagnostics: &mut V
                             Some(state),
                             assignment.target,
                         ) {
-                            check(assignment.value, declared, diagnostics);
+                            validate_suffix_landing(
+                                program,
+                                assignment.value,
+                                declared,
+                                diagnostics,
+                            );
                         }
                     }
                     StatementNode::LocalData(local)
                         if local.initial_value.is_valid() && local.type_reference.is_valid() =>
                     {
-                        check(local.initial_value, local.type_reference, diagnostics);
+                        validate_suffix_landing(
+                            program,
+                            local.initial_value,
+                            local.type_reference,
+                            diagnostics,
+                        );
+                    }
+                    StatementNode::Transition(transition) if state.return_type.is_valid() => {
+                        for target in [transition.target, transition.continuation] {
+                            if target.is_valid()
+                                && let psi_typed_trees::statement::TransitionTargetNode::Value(
+                                    value,
+                                ) = program.statement_table.transition_target(target)
+                            {
+                                validate_suffix_landing(
+                                    program,
+                                    *value,
+                                    state.return_type,
+                                    diagnostics,
+                                );
+                            }
+                        }
                     }
                     _ => {}
                 }

@@ -5,6 +5,8 @@ use psi_typed_trees::types::{PrimitiveType, TypeReferenceHandle};
 
 type FloatLandingPair = (ExpressionHandle, TypeReferenceHandle);
 
+mod call_destinations;
+
 /// F2b -- float DESTINATION stamping (ch5 two-phase constants, the float
 /// half): an UNSUFFIXED float literal initializing a declared `f32`/`f64`
 /// place lands that format ON ITS VALUE. A wholly anonymous literal-arithmetic
@@ -17,9 +19,9 @@ type FloatLandingPair = (ExpressionHandle, TypeReferenceHandle);
 /// transitional f64-then-narrow route (double rounding; the
 /// 8388609.499999999999999 witness lands on the wrong side of the tie).
 ///
-/// The walk enumerates EXACTLY the destinations of `validate_suffix_landings`
-/// below (struct-literal fields, assignments, let locals) -- keep the two in
-/// lockstep. Already-landed (suffixed) literals are untouched: their landing
+/// Declared storage, call arguments, and returned values supply destinations.
+/// Suffix agreement is checked at storage/return sites and by the resolved
+/// call validators. Already-landed (suffixed) literals are untouched: their landing
 /// was chosen at the spelling, and the suffix-vs-destination check owns any
 /// disagreement. Comparisons against a typed named value, including a
 /// proposition parameter, likewise land the opposite literal tree to that
@@ -145,6 +147,14 @@ pub fn land_float_literal_destinations(program: &mut TypedTrees) {
             );
             for statement in program.statement_table.statements(state.statement_nodes) {
                 match statement {
+                    // A machine/state's direct terminal expression delivers
+                    // its result without a TransitionTargetNode::Value wrapper.
+                    StatementNode::Expression(value) if state.return_type.is_valid() => {
+                        pairs.push((*value, state.return_type));
+                    }
+                    StatementNode::Call(call) => {
+                        call_destinations::collect(program, machine, call, &mut pairs);
+                    }
                     StatementNode::Assignment(assignment) => {
                         if let Some(declared) = crate::places::declared_place_type_raw(
                             program,

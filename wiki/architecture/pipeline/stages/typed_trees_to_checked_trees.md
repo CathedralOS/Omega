@@ -210,6 +210,14 @@ for a receiver absent from the current state.
 Must own:
 
 - Proof obligations and whether current facts discharge them.
+- Literal destination checks use exact resolved storage, parameter, and return
+  types. Integer and float suffixes retain their chosen type or format through
+  statement calls, expression calls, state transitions, and returned values;
+  incompatible destinations reject rather than erase the suffix. Anonymous
+  float arguments land at the selected parameter's format, excluding implicit
+  receivers from the argument pairing. Direct terminal expressions and
+  transition-value returns likewise use the declared result format. Explicit
+  casts remain conversion boundaries.
 - Borrow facts, accesses, loans, activations, weakenings, and overlap failures.
 - The two-ledger borrow join: resource facts retain owner lineage, polarity,
   temporal containment, and restoration, while proposition-derived rows prove
