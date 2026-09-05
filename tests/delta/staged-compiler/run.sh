@@ -73,8 +73,8 @@ forward_expected = Path(os.environ["FORWARD_EXPECTED"]).read_bytes()
 epsilon_source = Path(os.environ["EPSILON_SOURCE"]).read_bytes()
 
 for name, data, lines, size, digest in (
-    ("development compiler", compiler, 2228, 90862, "f86c249249dea585d0bf19b3f55acccc1fe81c1d2aac45efb63f0c6611ed7a0a"),
-    ("canonical compiler", canonical_compiler, 2236, 91079, "c28efd74ffd9a79fe097f6445f6dcac96af22c002178b2f5251b02a35beb5948"),
+    ("development compiler", compiler, 2312, 95701, "037d7815864593149b9b0ecbc54064fe1b0ed2bfd99ba718b8671dd4a9d63030"),
+    ("canonical compiler", canonical_compiler, 2319, 95924, "729e687035b63687da2c5325068f0f47e22af33db67b2d2cea633d99d7d04f45"),
     ("source", source, 7, 195, "3fb6a3ef60b54c8b77b066edeec32a4c77fd9fb5ede8a64c997cbc8b7a9a1fec"),
     ("receipt", expected, 3, 165, "23cbae7abf00860445e72b9075d189adb841cf165bf8103f7f7bcd5c81aed74f"),
     ("payload source", payload_source, 7, 186, "31affd043cd04144a6a6adf5353ef4080eaf34524cfc64d0d08f0c60d12c7802"),
@@ -101,7 +101,11 @@ for retired_scanner in (
     if retired_scanner in compiler:
         raise SystemExit("whole-source nominal lookup scanner returned")
 
+evaluation_count = 0
+
 def evaluate(program, sealed_input=b""):
+    global evaluation_count
+    evaluation_count += 1
     request = struct.pack("<I", len(program)) + program + sealed_input
     process = subprocess.Popen(
         [os.environ["EVALUATOR"]], stdin=subprocess.PIPE,
@@ -112,7 +116,11 @@ def evaluate(program, sealed_input=b""):
     except subprocess.TimeoutExpired:
         os.killpg(process.pid, signal.SIGKILL)
         process.wait()
-        raise SystemExit("selected Gamma evaluation timed out")
+        raise SystemExit(
+            f"selected Gamma evaluation {evaluation_count} timed out after 30s; "
+            f"program={len(program)} bytes sha256={hashlib.sha256(program).hexdigest()}; "
+            f"input={len(sealed_input)} bytes sha256={hashlib.sha256(sealed_input).hexdigest()}"
+        )
     return process.returncode, output
 
 def dcreq(profile, delta_source):

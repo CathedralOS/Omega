@@ -33,7 +33,7 @@ identity = (
     len(compiler.splitlines()), len(compiler), hashlib.sha256(compiler).hexdigest()
 )
 if identity != (
-    2236, 91079, "c28efd74ffd9a79fe097f6445f6dcac96af22c002178b2f5251b02a35beb5948"
+    2319, 95924, "729e687035b63687da2c5325068f0f47e22af33db67b2d2cea633d99d7d04f45"
 ):
     raise SystemExit(f"Delta compiler identity changed: {identity}")
 
@@ -68,10 +68,10 @@ def framed(source):
     return header(length=len(source)) + source
 
 
-def failure(tag, code, coordinate, limit=0, requested=0):
+def failure(tag, code, coordinate, limit=0, requested=0, space=4):
     # Common D13/D30 layout, with D33's DCREQ coordinate space and ordering.
     frame = struct.pack(
-        "<8sBBHIQQQ", OUTCOME_MAGIC, tag, 4, 0, code, coordinate, limit, requested
+        "<8sBBHIQQQ", OUTCOME_MAGIC, tag, space, 0, code, coordinate, limit, requested
     )
     assert len(frame) == 40
     return tag, frame
@@ -131,7 +131,8 @@ for source in (identity_source, b"; raw Delta is not a request\n" + identity_sou
 # A full exact-size request reaches the frontend; its first source byte then
 # deliberately fails. This tests request admission, not 4-MiB frontend closure.
 exact_body = b"\x00" + b" " * (SOURCE_LIMIT - 1)
-cases.append(("full exact source extent reaches frontend", framed(exact_body), (249, b"")))
+cases.append(("full exact source extent reaches frontend", framed(exact_body),
+              failure(1, 3, 0, space=1)))
 malformed("full exact source extent with trailing byte", framed(exact_body) + b"x",
           16 + SOURCE_LIMIT)
 cases.append((
@@ -139,14 +140,18 @@ cases.append((
     failure(2, 1, 12, SOURCE_LIMIT, SOURCE_LIMIT + 1),
 ))
 
-# The unfinished frontend/schema paths remain evaluator-owned failures. They
-# must not be relabeled as one of the newly implemented DCOUT request failures.
+# Source-envelope and accepted-frontend schema judgments have their own DCOUT
+# reasons and source coordinates, separate from DCREQ admission coordinates.
+cases.append(("invalid source byte", framed(b"\x00"), failure(1, 3, 0, space=1)))
+cases.append(("wrong entry schema", framed(b"(def main () Int 7)\n"),
+              failure(1, 20, 5, space=1)))
+
+# Unfinished syntax/type/body paths remain evaluator-owned failures rather
+# than being relabeled as canonical compiler rejections.
 for name, source in (
     ("empty source", b""),
-    ("invalid source byte", b"\x00"),
     ("invalid syntax", b"("),
     ("unknown local", b"(def main ((source Bytes)) Bytes missing)\n"),
-    ("wrong entry schema", b"(def main () Int 7)\n"),
 ):
     cases.append((name, framed(source), (249, b"")))
 

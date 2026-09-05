@@ -1,0 +1,105 @@
+; Global identity collection precedes every declaration-type resolution.
+; Syntax and unmigrated frontend failures remain evaluator-owned staging traps.
+(def catalog_type_constructors
+  ((index Int) (count Int) (has_payload Int)) Int
+  (let item Int (skip index)
+    (if (eq (source_read item) 41)
+      (if (eq count 0)
+        (fail)
+        (pair (token_end item) (pair count has_payload)))
+      (let constructor Int (skip (token_end item))
+        (let constructor_end Int (token_end constructor)
+          (if (upper_name_valid constructor constructor_end)
+            (let arity Int (constructor_shape_arity_at constructor_end)
+              (catalog_type_constructors
+                (constructor_shape_after constructor_end)
+                (+ count 1) (+ has_payload arity)))
+            (fail)))))))
+
+(def collect_constructor_identities
+  ((index Int) (type_metadata Int) (constructor_rows Int) (count Int)) Int
+  (let item Int (skip index)
+    (if (eq (source_read item) 41)
+      (if (eq count (type_metadata_constructor_count type_metadata))
+        (compiler_complete constructor_rows)
+        (fail))
+      (let constructor Int (skip (token_end item))
+        (let constructor_end Int (token_end constructor)
+          (let prior Int
+            (name_trie_find_option constructor_rows constructor_end constructor)
+            (if (first prior)
+              (compiler_source_rejection 7 constructor)
+              (let arity Int (constructor_shape_arity_at constructor_end)
+                (let metadata Int
+                  (pair type_metadata
+                    (pair (+ count 1) (pair arity constructor_end)))
+                  (collect_constructor_identities
+                    (constructor_shape_after constructor_end) type_metadata
+                    (name_trie_insert
+                      constructor_rows constructor_end constructor metadata)
+                    (+ count 1)))))))))))
+
+(def collect_data_identity
+  ((form Int) (function_count Int) (type_rows Int)
+   (constructor_rows Int) (function_rows Int)) Int
+  (let type_name Int (skip (token_end (form_head form)))
+    (let type_end Int (token_end type_name)
+      (if (upper_name_valid type_name type_end)
+        (let prior Int (name_trie_find_option type_rows type_end type_name)
+          (if (first prior)
+            (compiler_source_rejection 6 type_name)
+            (let result Int (catalog_type_constructors (skip type_end) 0 0)
+              (let summary Int (second result)
+                (let metadata Int
+                  (pair (+ form 1) (pair (first summary) (second summary)))
+                  (let constructors Int
+                    (collect_constructor_identities
+                      (skip type_end) metadata constructor_rows 0)
+                    (if (eq (first constructors) 0)
+                      (collect_global_identities
+                        (first result) 0 function_count
+                        (name_trie_insert type_rows type_end type_name metadata)
+                        (second constructors) function_rows)
+                      constructors)))))))
+        (fail)))))
+
+(def collect_function_identity
+  ((form Int) (function_count Int) (type_rows Int)
+   (constructor_rows Int) (function_rows Int)) Int
+  (let name Int (skip (token_end (form_head form)))
+    (let name_end Int (token_end name)
+      (if (value_name_valid name name_end)
+        (let prior Int (name_trie_find_option function_rows name_end name)
+          (if (first prior)
+            (compiler_source_rejection 8 name)
+            (collect_global_identities
+              (skip_expression form) 1 (+ function_count 1)
+              type_rows constructor_rows
+              (name_trie_insert function_rows name_end name
+                (pair (+ form 1) name_end)))))
+        (fail)))))
+
+; Visit declarations in authored order across all three distinct namespaces.
+; At least one function is grammatical; presence and shape of main are not
+; collection premises and belong to profile checking after an accepted frontend.
+(def collect_global_identities
+  ((index Int) (saw_function Int) (function_count Int)
+   (type_rows Int) (constructor_rows Int) (function_rows Int)) Int
+  (let form Int (skip index)
+    (if (eq form (source_length))
+      (if (eq function_count 0)
+        (fail)
+        (compiler_complete (pair type_rows (pair constructor_rows function_rows))))
+      (if (eq (source_read form) 40)
+        (let head Int (form_head form)
+          (let head_end Int (token_end head)
+            (if (token_data head head_end)
+              (if saw_function
+                (fail)
+                (collect_data_identity
+                  form function_count type_rows constructor_rows function_rows))
+              (if (token_def head head_end)
+                (collect_function_identity
+                  form function_count type_rows constructor_rows function_rows)
+                (fail)))))
+        (fail)))))

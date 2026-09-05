@@ -28,7 +28,7 @@ The retained controls check:
   application.
 
 The full exact-size source-body control deliberately begins with an invalid
-source byte. Its evaluator-owned failure proves that DCREQ admission completed;
+source byte. Its code-3 source rejection proves that DCREQ admission completed;
 it does not claim complete frontend conformance at the 4-MiB source maximum.
 The adjacent full-size body instead produces the exact source-provision frame.
 
@@ -40,9 +40,12 @@ and the [current Delta boundary contract](../../../bootstrap/delta/LANGUAGE.md#c
 The compiler owns the serialized constants; the gate's expected bytes are
 comparators, not a runtime metadata input.
 
-Frontend and profile-schema failures are still unfinished DCOUT paths. Their
-current status 249 with empty stdout remains an evaluator-owned failure, not a
-canonical compiler rejection or a ConformanceBytesV1 application observation.
-The gate pins that distinction without translating traps into guessed reasons.
-It does not close the Delta compiler edge, its resource conformance, or later
-failure publication.
+Source-envelope failures now use Reject code 3 in Delta-source coordinate
+space 1, and an otherwise valid wrong entry signature uses Reject code 20 at
+the `main` declaration name. The gate checks 53 exact DCOUT frames and keeps
+three unfinished syntax/body failures at evaluator status 249 with empty
+stdout. It does not translate those failures into guessed reasons or generated
+ConformanceBytesV1 application observations. The adjacent
+[frontend-boundary gate](../frontend-boundary/README.md) covers global duplicate
+collection and frontend-before-schema ordering. Neither gate closes the Delta
+compiler edge, its resource conformance, or later failure publication.
