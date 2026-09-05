@@ -107,8 +107,8 @@ pub use float_projection_bindings::{
 /// typed-trees machine-monomorphization pass's param-position inference.
 pub use literals::land_float_literal_destinations;
 pub use machine_parameters::{
-    ValidatedNominalMachineUse, ValidatedNominalMachineUseSite, validate_static_machine_selections,
-    validate_static_machine_selections_with_facts,
+    ValidatedNominalMachineUse, ValidatedNominalMachineUseSite, closed_static_call_type_bindings,
+    validate_static_machine_selections, validate_static_machine_selections_with_facts,
 };
 pub use machine_specialization_identity::{
     machine_specialization_matches_template_identity,

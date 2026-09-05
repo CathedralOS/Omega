@@ -72,6 +72,36 @@ pub(super) fn carried_lifetimes(
     .then_some(output)
 }
 
+/// Exact call substitutions may prove that a formerly dependent result has
+/// no carried views. A closed nonempty frontier still requires per-call loan
+/// attribution and cannot use this deliberately narrower result.
+pub(crate) fn substituted_result_is_view_free(
+    program: &TypedTrees,
+    reference: TypeReferenceHandle,
+    substitutions: &[(SymbolHandle, TypeReferenceHandle)],
+) -> bool {
+    if substitutions.iter().any(|(_, reference)| {
+        reference.is_valid()
+            && !program
+                .type_reference_table
+                .contains_type_reference(*reference)
+    }) {
+        return false;
+    }
+    let mut output = Vec::new();
+    collect_type(
+        program,
+        reference,
+        &[],
+        substitutions,
+        &[],
+        &mut Vec::new(),
+        &mut output,
+        false,
+        &mut TemplateFrontier::default(),
+    ) && output.is_empty()
+}
+
 /// A nongeneric recursive result can retain one whole input loan under ordinary
 /// elision. Repeated declarations need no repeated path expansion here, because
 /// no projected frontier is published. Explicit lifetimes or substitutions
@@ -106,6 +136,15 @@ fn collect_type(
     whole_elided_contract: bool,
     template: &mut TemplateFrontier<'_>,
 ) -> bool {
+    // Zero remains the ordinary absence/Unit convention. A stale nonzero
+    // generational handle resolving to the same dummy node is not a type.
+    if reference.is_valid()
+        && !program
+            .type_reference_table
+            .contains_type_reference(reference)
+    {
+        return false;
+    }
     if program.primitive_type_reference(reference).is_some() {
         return true;
     }

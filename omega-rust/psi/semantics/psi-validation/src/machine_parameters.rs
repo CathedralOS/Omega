@@ -7,6 +7,8 @@
 //! contract.
 
 mod callable_shape;
+mod closed_types;
+pub use closed_types::closed_static_call_type_bindings;
 mod contract_facts;
 mod nominal_admission;
 mod type_refinement;
