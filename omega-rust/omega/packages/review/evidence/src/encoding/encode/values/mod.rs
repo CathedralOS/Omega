@@ -7,7 +7,7 @@ pub(super) mod crashes;
 pub(super) mod declarations;
 pub(super) mod effects;
 pub(super) mod expressions;
-mod external_policy;
+pub(super) mod external_policy;
 pub(super) mod identity;
 pub(super) mod physical_calling_policy;
 pub(super) mod providers;

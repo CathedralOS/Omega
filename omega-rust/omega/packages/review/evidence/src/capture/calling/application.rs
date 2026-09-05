@@ -1,7 +1,7 @@
 //! Rejoin checked source custody before discarding realization-only receipts.
 
 mod native;
-mod signature;
+pub(crate) mod signature;
 
 use super::{callbacks, opaque};
 use crate::capture::representation::physical_contract::{
@@ -58,14 +58,27 @@ pub fn project_checked_calling_policy(
         return Err(rejected("stale calling application custody"));
     }
     let semantic = signature::project(compilation, realization)?;
+    let semantic_parameters = semantic
+        .semantic_parameters
+        .iter()
+        .zip(materialized.parameters())
+        .map(
+            |(parameter, shape_root)| crate::record::PackagePolicyCallingParameter {
+                name: parameter.name.clone(),
+                value_type: parameter.type_identity.clone(),
+                is_mutable: parameter.is_mutable,
+                is_const: parameter.is_const,
+                shape_root: *shape_root,
+            },
+        )
+        .collect::<Vec<_>>();
     let callbacks = callbacks::project_callback_policy(
         compilation,
         materialized,
         &validated,
         &semantic.lifetime_binders,
     )?;
-    let native_parameters =
-        native::project(materialized, &semantic.semantic_parameters, &callbacks)?;
+    let native_parameters = native::project(materialized, &semantic_parameters, &callbacks)?;
     let opaque_uses = opaque::project(compilation, realization, &validated)?;
     let policy = PackagePolicyCallingPlan {
         boundary_trait: semantic.boundary_trait,
@@ -79,7 +92,7 @@ pub fn project_checked_calling_policy(
         static_parameters: semantic.static_parameters,
         target: project_representation_target(compilation)?,
         shape_graph: project_boundary_shape_graph(materialized),
-        semantic_parameters: semantic.semantic_parameters,
+        semantic_parameters,
         semantic_result: semantic.semantic_result,
         native_parameters,
         callbacks,

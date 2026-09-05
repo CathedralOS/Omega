@@ -20,6 +20,7 @@ mod terminal_authority_permissions;
 
 pub use calling::project_checked_calling_policy;
 pub use package::project_checked_package_review;
+pub use providers::project_checked_selected_provider_policy;
 pub use quotients::project_non_executable_quotient_package_review;
 pub use representation::project_checked_representation_policy;
 pub use semantics::conformances::project_checked_conformance_policy;

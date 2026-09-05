@@ -112,7 +112,9 @@ fn target(reader: &mut Reader<'_>) -> Result<String, Error> {
     Ok(name)
 }
 
-fn producer(reader: &mut Reader<'_>) -> Result<PackagePolicyEvaluatedBindingProducer, Error> {
+pub(super) fn producer(
+    reader: &mut Reader<'_>,
+) -> Result<PackagePolicyEvaluatedBindingProducer, Error> {
     Ok(PackagePolicyEvaluatedBindingProducer {
         declaration: nominal(reader)?,
         package: reader.option(package)?,
@@ -120,7 +122,7 @@ fn producer(reader: &mut Reader<'_>) -> Result<PackagePolicyEvaluatedBindingProd
     })
 }
 
-fn locator(reader: &mut Reader<'_>) -> Result<PackageReviewForeignLocator, Error> {
+pub(super) fn locator(reader: &mut Reader<'_>) -> Result<PackageReviewForeignLocator, Error> {
     Ok(match reader.byte()? {
         0 => PackageReviewForeignLocator::PeByName {
             library: reader.bytes()?,

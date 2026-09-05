@@ -2962,8 +2962,24 @@ retained selection collection is empty. That build has no static or lifetime
 telescope; selected conformance lifetimes cannot bind to a called requirement's
 telescope. Recovery checks selection ownership, producer associations, and
 complete per-application opaque-demand coverage under the shared resource budget.
-Complete provider policy must still join selected-provider associations and
-retain service contracts; complete baseline composition remains separate.
+Selected-provider policy rejoins the complete selected plan set to its checked
+typed schema and realization provenance. It reharvests the authoritative build's
+provider selections and grants before replacing receipt-dependent links. Every
+service retains its structured signature and full contract-bearing static
+parameters, including services without a calling plan. An inherited requirement
+keeps its declaring owner and arguments distinct from the selecting schema.
+Service reach, direct invocations, progress profiles, subject projections, and
+establishment requirements also retain exact source owners; equal readable names
+from different packages cannot establish equal policy.
+Evaluated bindings retain their exact producer and physical locator or syscall
+meaning without evaluator accounting. Plain and evaluated syscalls remain
+distinct. Table bindings retain the exact attached data declaration. Grants
+belong to their complete normalized plan, and atomic family coordinates refer
+to the canonical plan index rather than a compiler report or receipt digest.
+Generic family declaration coverage does not invent an actual application or
+standalone D29 realization claim. Bounded recovery checks these associations
+under the same resource budget as nested calling and signature values.
+Complete baseline composition remains separate.
 These components alone are not a package baseline or an acceptance decision.
 
 The project normally commits the lock and trusts whoever lands its changes.
