@@ -157,6 +157,7 @@ pub struct ExactIntegerCastFact {
 }
 
 pub use contract_entailment::integer_embedding_sources_equal;
+pub use contract_entailment::transparent_proposition_application_entailed;
 pub use float_projection_invocations::{
     ValidatedFloatMeaningEqualityProposition, ValidatedFloatMeaningProjectionInvocation,
 };
@@ -241,6 +242,44 @@ pub fn collect_contract_entailment_stand_downs(
     });
     stand_downs.dedup();
     stand_downs
+}
+
+/// Rejudge the exact Boolean postconditions proved by the entailment engines
+/// for one checked-body machine. This is a local validation result, not a PCC
+/// certificate or an admission grant. Callers must already have completed
+/// ordinary program validation, including the recursion checks that justify
+/// structural induction. Unknown/stand-down goals never enter the result.
+/// Judgments may use entry requirements; an exit consumer must separately
+/// establish that their subjects have not changed revision. This result does
+/// not substitute for checked mutation frames or path-local exit facts.
+///
+/// Rejudging the current typed program preserves expression identity after
+/// specialization; proof from a different template or program is not reused.
+pub fn proven_machine_contract_expressions(
+    program: &TypedTrees,
+    machine_symbol: psi_symbols::SymbolHandle,
+) -> Vec<psi_typed_trees::expression::ExpressionHandle> {
+    let Some(machine) = program.machines().iter().find(|machine| {
+        machine.symbol == machine_symbol
+            && machine.supply_mode == psi_language_semantics::MachineSupplyMode::CheckedBody
+    }) else {
+        return Vec::new();
+    };
+    let mut proven = Vec::new();
+    let mut diagnostics = Vec::new();
+    contract_entailment::validate_machine_contract_entailment_with_outcomes(
+        program,
+        machine,
+        &mut diagnostics,
+        &mut Vec::new(),
+        &mut proven,
+    );
+    if diagnostics.is_empty() && contract_entailment::entailment_covers_all_exits(program, machine)
+    {
+        proven
+    } else {
+        Vec::new()
+    }
 }
 
 pub fn validate_program(program: &TypedTrees) -> Result<(), Vec<Diagnostic>> {
