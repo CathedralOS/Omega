@@ -13,24 +13,17 @@ needed for independent replay through publication.
 
 ## Immediate gate
 
-- **PIPELINE-PHASE-INTEGRATION.** Complete the migration in
-  [`optimization_phases.md`](wiki/architecture/pipeline/optimization_phases.md).
-  Resume from the [ownership audit and work breakdown](wiki/architecture/pipeline/ownership_cleanup.md)
-  (A-D: current outputs, outer convergence, stage owners, and Psi roots/passes).
-  The audit's [goal-ready scope](wiki/architecture/pipeline/ownership_cleanup.md#goal-ready-scope)
-  records the discussion's boundary rules and remaining implementation choices.
-  Replace public stage-ancestry wrappers with representation-owned program data;
-  consolidate per-rule packages into their owning phases; remove optimization-
-  history routing from allocation, machine optimization, and realization.
-  Converge the outer Terminal-to-native ordinary/ranked assigned-plan arms and
-  completed optimized arm at one physical postcondition, retaining each role's
-  authority. Port applicable target-neutral passes to the pre-Terminal entrance.
-  Acceptance: empty and nonempty selections, standalone Terminal production,
-  resumed lowering under a separate authority, and every native continuation
-  traverse one stage graph with no optimization bypass or fallback. Each program
-  representation has one named root and coherent subordinate concept owners;
-  physical pipeline stages consume current representations and explicit policy,
-  never reach backward through earlier stage objects to recover inputs.
+- **PIPELINE-PHASE-INTEGRATION.** Execute the four
+  [ownership cleanup packages](wiki/architecture/pipeline/ownership_cleanup.md):
+  (1) replace competing physical routes with one pipeline; (2) consolidate the
+  crate graph and remove umbrella/catch-all owners; (3) finish current-data
+  ownership and all representation roots; (4) make selected pre-Terminal Psi
+  optimization real. Prioritize whole-route and whole-owner removal over helper
+  extractions. Keep discoveries within these packages, not new top-level tasks.
+  Acceptance: the plan's complete checklist passes, including preserved ordinary,
+  ranked and callback behavior, empty/nonempty selection on one graph, standalone
+  Psi and separately authorized resumed lowering, and independent replay.
+  Folder renames, common wrappers and identity-only passes do not close this item.
 
 - **CHECKED-TREE-PRODUCT-PRUNING.** After all authored code has been checked,
   add an exact opt-in checked-tree phase for whole-product/root selection and
