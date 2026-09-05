@@ -177,6 +177,7 @@ fn ordinary_compilation_handoff_belongs_to_resolution_not_review() {
 
     for path in [
         manager.join("src/operations/prepare_project.rs"),
+        manager.join("src/operations/recover_locked_sources.rs"),
         compiler_input,
     ] {
         let source = fs::read_to_string(&path)

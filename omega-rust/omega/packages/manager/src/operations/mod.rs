@@ -2,12 +2,15 @@
 //!
 //! [`prepare_local_project`] is the ordinary compiler entrance for a project
 //! with `build.omg`. [`inspect_source`] acquires and inspects one source without
-//! admitting it. Future install and update transactions belong beside these
-//! operations rather than in the command-line binary.
+//! admitting it. [`recover_locked_sources`] reacquires a retained exact source
+//! graph without reusing its policy as fresh review. Install and update
+//! transactions belong beside these operations rather than in the command-line
+//! binary.
 
 mod compile_project;
 pub mod inspect_source;
 mod prepare_project;
+mod recover_locked_sources;
 
 pub use compile_project::{
     CompilePreparedLocalProjectNativeError, LocalProjectRootPolicy,
@@ -19,3 +22,6 @@ pub use inspect_source::{
     inspect_package_source_locator,
 };
 pub use prepare_project::{PrepareLocalProjectError, PreparedLocalProject, prepare_local_project};
+pub use recover_locked_sources::{
+    LockedSourceRecoveryOptions, RecoverLockedSourcesError, recover_locked_sources,
+};

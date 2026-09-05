@@ -20,6 +20,7 @@ pub use resolved_closure::{
 
 #[cfg(test)]
 pub(crate) use resolution::resolve_package_source_closure;
+pub(crate) use resolution::resolve_package_source_closure_with_indexed_limits;
 pub(crate) use resolution::resolve_package_source_closure_with_limits;
 
 #[cfg(test)]

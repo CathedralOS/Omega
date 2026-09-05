@@ -9,6 +9,7 @@ mod dependencies;
 mod errors;
 mod external_local;
 mod git;
+mod locked;
 mod workspace;
 
 pub use errors::{
@@ -23,6 +24,9 @@ pub use git::{
     resolve_git_package_closure_with_storage, resolve_git_project_closure_with_storage,
     resolve_selected_git_package_closure_with_storage,
     resolve_selected_git_project_closure_with_storage,
+};
+pub use locked::{
+    ResolveLockedPackageClosureError, resolve_locked_package_source_closure_with_storage,
 };
 pub use workspace::{
     resolve_workspace_package_closure_in_context_with_storage,
