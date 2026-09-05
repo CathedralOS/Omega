@@ -1,6 +1,8 @@
 use super::checks::check_program;
 use crate::borrow::view_link::{DeclarationLifetimeFrontier, declaration_lifetime_frontier};
 
+mod static_calls;
+
 const CARRIERS: &str = r#"
     data DecodeResult<T> { case Invalid; case Sound(value: T); }
     data Remainder { bytes: &[u8]; }

@@ -23,6 +23,34 @@ pub(super) fn required_type_matches(
     bindings: &mut Vec<TypeBinding>,
     binder_bindings: &[BinderBinding],
 ) -> bool {
+    required_type_matches_inner::<false>(
+        program,
+        actual,
+        required,
+        generic_types,
+        bindings,
+        binder_bindings,
+    )
+}
+
+pub(super) fn required_type_matches_exact(
+    program: &TypedTrees,
+    actual: TypeReferenceHandle,
+    required: TypeReferenceHandle,
+    generic_types: &[&TypeParameter],
+    bindings: &mut Vec<TypeBinding>,
+) -> bool {
+    required_type_matches_inner::<true>(program, actual, required, generic_types, bindings, &[])
+}
+
+fn required_type_matches_inner<const EXACT: bool>(
+    program: &TypedTrees,
+    actual: TypeReferenceHandle,
+    required: TypeReferenceHandle,
+    generic_types: &[&TypeParameter],
+    bindings: &mut Vec<TypeBinding>,
+    binder_bindings: &[BinderBinding],
+) -> bool {
     if !actual.is_valid() || !required.is_valid() {
         return actual.is_valid() == required.is_valid();
     }
@@ -40,13 +68,13 @@ pub(super) fn required_type_matches(
         }
         if let Some(parameter) = generic_types.iter().find(|parameter| {
             (parameter.symbol.is_valid() && parameter.symbol == *symbol)
-                || parameter.name.as_str() == name.as_str()
+                || (!EXACT && parameter.name.as_str() == name.as_str())
         }) {
             if let Some(binding) = bindings
                 .iter()
                 .find(|binding| binding.symbol == parameter.symbol)
             {
-                return required_type_matches(
+                return required_type_matches_inner::<EXACT>(
                     program,
                     actual,
                     binding.actual,
@@ -80,7 +108,7 @@ pub(super) fn required_type_matches(
             },
         ) => {
             actual_access == required_access
-                && required_type_matches(
+                && required_type_matches_inner::<EXACT>(
                     program,
                     *actual_inner,
                     *required_inner,
@@ -98,7 +126,7 @@ pub(super) fn required_type_matches(
                 base_type: required_base,
                 ..
             },
-        ) => required_type_matches(
+        ) => required_type_matches_inner::<EXACT>(
             program,
             *actual_base,
             *required_base,
@@ -117,7 +145,7 @@ pub(super) fn required_type_matches(
             },
         ) => {
             fixed_array_lengths_match(actual_length, required_length, binder_bindings)
-                && required_type_matches(
+                && required_type_matches_inner::<EXACT>(
                     program,
                     *actual_element,
                     *required_element,
@@ -133,7 +161,7 @@ pub(super) fn required_type_matches(
             TypeReferenceNode::Slice {
                 element_type: required_element,
             },
-        ) => required_type_matches(
+        ) => required_type_matches_inner::<EXACT>(
             program,
             *actual_element,
             *required_element,
@@ -158,7 +186,7 @@ pub(super) fn required_type_matches(
             let same_base = if actual_base.is_valid() && required_base.is_valid() {
                 actual_base == required_base
             } else {
-                actual_name == required_name
+                !EXACT && actual_name == required_name
             };
             let actual_arguments = program
                 .type_reference_table
@@ -172,7 +200,7 @@ pub(super) fn required_type_matches(
                     .iter()
                     .zip(required_arguments)
                     .all(|(actual, required)| {
-                        required_type_matches(
+                        required_type_matches_inner::<EXACT>(
                             program,
                             *actual,
                             *required,
@@ -182,6 +210,14 @@ pub(super) fn required_type_matches(
                         )
                     })
         }
+        (
+            TypeReferenceNode::Named { symbol: actual, .. },
+            TypeReferenceNode::Named {
+                symbol: required, ..
+            },
+        ) if EXACT => actual.is_valid() && actual == required,
+        (TypeReferenceNode::Unit, TypeReferenceNode::Unit) if EXACT => true,
+        _ if EXACT => actual == required,
         _ => crate::type_references::type_references_match(program, actual, required),
     }
 }

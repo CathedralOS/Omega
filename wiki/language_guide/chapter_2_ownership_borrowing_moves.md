@@ -629,11 +629,15 @@ caller's private carrier storage.
 A generic trait requirement may declare a returned carrier whose structural
 lifetime frontier depends on its own type parameters. This is a
 template-dependent frontier, not evidence that the carrier contains no views.
-The current checker rejects executable calls that still select such an
-uninstantiated requirement, including calls whose result is discarded. A
-concrete callable must retain the complete result-to-input lifetime check.
-General caller-side substitution of these generic returned-carrier frontiers
-remains unsupported; unrelated incomplete concrete frontiers are not deferred.
+The checker permits a call when its exact selected static callable signatures
+and runtime arguments close the type substitution and the complete resulting
+carrier contains no views. This also covers direct nongeneric record
+constructors with the exact selected carrier identity. Otherwise calls that
+still select the uninstantiated requirement are rejected, including calls
+whose result is discarded. A concrete view-returning callable must retain the
+complete result-to-input lifetime check. General caller-side substitution and
+loan attribution for generic returned views remain unsupported; unrelated
+incomplete concrete frontiers are not deferred.
 
 The same mapping survives when that helper result, or a moved
 borrow-carrying local, initializes a field or fixed-array element of another
