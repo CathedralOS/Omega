@@ -15,6 +15,38 @@ use std::path::Path;
 use std::path::PathBuf;
 use std::time::{Duration, Instant};
 
+/// Retain which ceiling supplied the child deadline, including its cleanup
+/// reserve. Cleanup can complete before the resolution's wall-clock deadline.
+#[derive(Debug, Clone, Copy)]
+pub(crate) struct GitCommandDeadline {
+    timeout: Duration,
+    resolution_timeout: Option<Duration>,
+}
+
+impl GitCommandDeadline {
+    pub(crate) fn new(remaining: Duration, resolution_timeout: Duration) -> Self {
+        Self {
+            timeout: GIT_COMMAND_TIMEOUT.min(remaining),
+            resolution_timeout: (remaining <= GIT_COMMAND_TIMEOUT).then_some(resolution_timeout),
+        }
+    }
+
+    pub(crate) fn duration(self) -> Duration {
+        self.timeout
+    }
+
+    pub(crate) fn project_error(self, error: SourceResolveError) -> SourceResolveError {
+        match (error, self.resolution_timeout) {
+            (SourceResolveError::GitTimedOut { .. }, Some(timeout)) => {
+                SourceResolveError::GitResolutionTimedOut {
+                    timeout_millis: duration_millis(timeout),
+                }
+            }
+            (error, _) => error,
+        }
+    }
+}
+
 #[derive(Debug)]
 pub(crate) struct GitExecutor {
     pub(crate) execution_transport: GitExecutionTransport,
@@ -130,7 +162,7 @@ impl GitExecutor {
         })
     }
 
-    pub(crate) fn begin_launch(&self) -> Result<Duration, SourceResolveError> {
+    pub(crate) fn begin_launch(&self) -> Result<GitCommandDeadline, SourceResolveError> {
         self.verify_budget()?;
         let launches = self.launches.get();
         if launches >= self.maximum_launches {
@@ -139,7 +171,10 @@ impl GitExecutor {
             });
         }
         self.launches.set(launches + 1);
-        Ok(GIT_COMMAND_TIMEOUT.min(self.remaining_time()?))
+        Ok(GitCommandDeadline::new(
+            self.remaining_time()?,
+            self.timeout,
+        ))
     }
 
     pub(crate) fn verify_budget(&self) -> Result<(), SourceResolveError> {

@@ -144,7 +144,7 @@ fn execute_git_blob_batch(
         repository,
         ResolverExecutionPhase::RepositoryInspection,
     )?;
-    let command_timeout = executor.begin_launch()?;
+    let deadline = executor.begin_launch()?;
     command.args([OsStr::new("cat-file"), OsStr::new("--batch")]);
     let result = run_command_bounded_with_stdin_and_budget(
         command,
@@ -152,9 +152,10 @@ fn execute_git_blob_batch(
         "cat-file --batch",
         stdout_limit,
         GIT_STDERR_LIMIT,
-        command_timeout,
+        deadline.duration(),
         executor.captured_output_budget.clone(),
-    );
+    )
+    .map_err(|error| deadline.project_error(error));
     let output = reconcile_git_command_result(result, executor.verify_budget())?;
     if !output.status.success() {
         return Err(SourceResolveError::Git {
