@@ -9,7 +9,7 @@ use super::workspace::{
 use crate::declarations::dependencies::read::PackageSelection;
 use crate::resolution::source::{ResolvePackageSourceError, ResolvedPackageSource};
 use omega_package_source::git::resolution::{
-    resolve_git_source_in_lane, resolve_git_workspace_member_from_pin_in_lanes,
+    resolve_git_source_from_pin_in_lane, resolve_git_workspace_member_from_pin_in_lanes,
 };
 use omega_package_source::storage::RetainedStorageLane;
 use omega_package_source::{
@@ -29,12 +29,13 @@ pub fn resolve_git_package_source(
 
 fn resolve_git_root_package_source_in_lane(
     request: &GitSourceRequest,
+    pin: Option<&GitAcquisitionPin>,
     lane: &RetainedStorageLane,
     limits: LocalSourceLimits,
     application_root_allowed: bool,
 ) -> Result<ResolvedPackageSource<ResolvedGitSource>, ResolvePackageSourceError> {
     let limits = limits.compiler_bounded();
-    let source = resolve_git_source_in_lane(request, lane, limits)?;
+    let source = resolve_git_source_from_pin_in_lane(request, pin, lane, limits)?;
     bind_git_root_package_source(source, application_root_allowed)
 }
 
@@ -99,6 +100,7 @@ fn resolve_selected_git_declared_source_from_pin_in_lanes(
     match request.selection() {
         PackageSelection::Root => resolve_git_root_package_source_in_lane(
             request.acquisition(),
+            pin,
             git_lane,
             limits,
             application_root_allowed,

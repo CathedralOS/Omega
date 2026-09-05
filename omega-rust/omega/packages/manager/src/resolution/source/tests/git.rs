@@ -8,6 +8,8 @@ use omega_package_source::{ExternalSourceContext, GitSourceRequest, LocalSourceL
 use std::path::Path;
 use std::process::Command;
 
+mod pinned_root;
+
 fn write_workspace(root: &Path, members: &[&str]) {
     std::fs::create_dir_all(root).expect("create workspace root");
     let declarations = members
