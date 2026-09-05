@@ -119,6 +119,14 @@ pub(super) fn parse_machine_clauses<'tokens, 'source>(
             ));
         }
 
+        if input.at_contextual("increases") {
+            return Err(input.error_here(
+                "a standalone `increases` clause is retired (decision 23): \
+                 select a bounded ranking view with `terminates by \
+                 <subject> -> Nat::IncreasingTo(<bound>);`",
+            ));
+        }
+
         if input.at_contextual("effects") {
             return Err(input.error_here(
                 "the `effects` reach clause is retired; write `reaches <Service> + ...`",

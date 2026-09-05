@@ -1,1 +1,1 @@
-block-form `terminates { decreases ...; }` is retired
+`terminates { decreases ...; }` block form is retired
