@@ -26,7 +26,7 @@ Alpha VM seed + beta_compiler_bytecode.tape
   -> gamma_evaluator.beta -> gamma_evaluator_bytecode.tape
   -> Gamma-authored staged source transformers
   -> Delta compiler edge (open)
-  -> epsilon_compiler.delta -> canonical Delta -> interpreted omega_compiler.epsilon
+  -> epsilon_compiler.delta -> canonical Delta -> interpreted Omega D closure
   -> interpreted D + build.omg/main.omg + alpha_bootstrap -> omega0_compiler_bytecode.tape
   -> omega0 + build.omg/main.omg + alpha_bootstrap -> omega_compiler_bytecode.tape
 ```

@@ -11,8 +11,8 @@ The normative contract is
 [`source/epsilon/LANGUAGE.md`](../../../../source/epsilon/LANGUAGE.md). The
 Delta-written evaluator source at `source/epsilon/compiler/epsilon_compiler.delta`
 is incomplete and has no final composed artifact. Epsilon's sole language-chain customer
-is the first full Omega compiler closure `D` at
-`source/omega/omega_compiler.epsilon`.
+is the first full Omega compiler closure `D` selected by
+`source/omega/omega_compiler.epsilon.sources`.
 
 Epsilon does not compile itself or own an Alpha backend. Its feature ledger
 admits a facility only for D or a measured reduction in the complete chain.

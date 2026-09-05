@@ -1,0 +1,1753 @@
+
+machine OmegaLexScan::reset(&mut self, cursor: i32) {
+    self.accepted = 1;
+    self.has_token = 0;
+    self.internal_failure = 0;
+    self.numeric_empty_digits = 0;
+    self.numeric_has_suffix = 0;
+    self.numeric_has_exponent = 0;
+    self.numeric_empty_exponent = 0;
+    self.decoded_length = 0;
+    self.diagnostic_start = 0;
+    self.diagnostic_end = 0;
+    transition cursor >= 0 {
+        true -> valid()
+        _ -> invalid()
+    }
+
+    state valid() {
+        self.token_start = cursor;
+        self.token_end = cursor;
+        self.next_cursor = cursor;
+    }
+
+    state invalid() {
+        self.token_start = 0;
+        self.token_end = 0;
+        self.next_cursor = 0;
+        self.fail_stage();
+    }
+}
+
+// Epsilon D17 has no private machine visibility. Every factored scanner stage is
+// therefore callable, even though only scan_at and validate_lexical are lexical
+// judgments. View-accepting stages reject invalid cursor/extent shapes before
+// indexing; construction helpers enforce their local arithmetic invariants.
+// Calling a stage directly does not establish UTF-8 or token-boundary custody.
+machine OmegaLexScan::fail_stage(&mut self) {
+    self.accepted = 0;
+    self.has_token = 0;
+    self.internal_failure = 1;
+}
+
+machine OmegaLexScan::reject(
+    &mut self,
+    code: OmegaLexDiagnosticCode,
+    start: i32,
+    end: i32
+) {
+    transition start >= 0 {
+        true -> check_order()
+        _ -> self.fail_stage()
+    }
+
+    state check_order() {
+        transition end > start {
+            true -> commit()
+            _ -> self.fail_stage()
+        }
+    }
+
+    state commit() {
+        self.accepted = 0;
+        self.has_token = 0;
+        self.diagnostic_code = code;
+        self.diagnostic_start = start;
+        self.diagnostic_end = end;
+    }
+}
+
+machine OmegaLexScan::emit(
+    &mut self,
+    kind: OmegaTokenKind,
+    end: i32
+) {
+    transition self.token_start >= 0 {
+        true -> check_order()
+        _ -> self.fail_stage()
+    }
+
+    state check_order() {
+        transition end > self.token_start {
+            true -> commit()
+            _ -> self.fail_stage()
+        }
+    }
+
+    state commit() {
+        self.token_kind = kind;
+        self.token_end = end;
+        self.next_cursor = end;
+        self.has_token = 1;
+    }
+}
+
+machine OmegaLexScan::span_equals(
+    &mut self,
+    source: &[u8],
+    start: i32,
+    end: i32,
+    candidate: &[u8]
+) -> i32 {
+    transition (start >= 0) && (end >= start) && (end <= source.len) {
+        true -> check_length()
+        _ -> return 0
+    }
+
+    state check_length() {
+        transition end - start == candidate.len {
+            true -> compare(0)
+            _ -> return 0
+        }
+    }
+
+    state compare(index: i32) {
+        transition index < candidate.len {
+            true -> compare_byte(index)
+            _ -> return 1
+        }
+    }
+
+    state compare_byte(index: i32) {
+        transition source[start + index] == candidate[index] {
+            true -> compare(index + 1)
+            _ -> return 0
+        }
+    }
+}
+
+machine OmegaLexScan::set_keyword(&mut self, keyword: OmegaKeywordKind) {
+    self.keyword = keyword;
+    self.emit(OmegaTokenKind::Keyword, self.token_end);
+}
+
+machine OmegaLexScan::classify_keyword(
+    &mut self,
+    source: &[u8]
+) {
+    transition self.token_start >= 0 {
+        true -> check_order()
+        _ -> self.fail_stage()
+    }
+
+    state check_order() {
+        transition self.token_end >= self.token_start {
+            true -> check_extent()
+            _ -> self.fail_stage()
+        }
+    }
+
+    state check_extent() {
+        transition self.token_end <= source.len {
+            true -> classify()
+            _ -> self.fail_stage()
+        }
+    }
+
+    state classify() {
+        transition self.span_equals(source, self.token_start, self.token_end, "as") {
+            1 -> self.set_keyword(OmegaKeywordKind::As)
+            _ -> calling_convention()
+        }
+    }
+
+    state calling_convention() {
+        transition self.span_equals(
+            source,
+            self.token_start,
+            self.token_end,
+            "calling_convention"
+        ) {
+            1 -> self.set_keyword(OmegaKeywordKind::CallingConvention)
+            _ -> capability()
+        }
+    }
+
+    state capability() {
+        transition self.span_equals(source, self.token_start, self.token_end, "capability") {
+            1 -> self.set_keyword(OmegaKeywordKind::Capability)
+            _ -> contains()
+        }
+    }
+
+    state contains() {
+        transition self.span_equals(source, self.token_start, self.token_end, "contains") {
+            1 -> self.set_keyword(OmegaKeywordKind::Contains)
+            _ -> data_word()
+        }
+    }
+
+    state data_word() {
+        transition self.span_equals(source, self.token_start, self.token_end, "data") {
+            1 -> self.set_keyword(OmegaKeywordKind::Data)
+            _ -> else_word()
+        }
+    }
+
+    state else_word() {
+        transition self.span_equals(source, self.token_start, self.token_end, "else") {
+            1 -> self.set_keyword(OmegaKeywordKind::Else)
+            _ -> enum_word()
+        }
+    }
+
+    state enum_word() {
+        transition self.span_equals(source, self.token_start, self.token_end, "enum") {
+            1 -> self.set_keyword(OmegaKeywordKind::Enum)
+            _ -> false_word()
+        }
+    }
+
+    state false_word() {
+        transition self.span_equals(source, self.token_start, self.token_end, "false") {
+            1 -> self.set_keyword(OmegaKeywordKind::False)
+            _ -> foreign()
+        }
+    }
+
+    state foreign() {
+        transition self.span_equals(source, self.token_start, self.token_end, "foreign") {
+            1 -> self.set_keyword(OmegaKeywordKind::Foreign)
+            _ -> host()
+        }
+    }
+
+    state host() {
+        transition self.span_equals(source, self.token_start, self.token_end, "host") {
+            1 -> self.set_keyword(OmegaKeywordKind::Host)
+            _ -> if_word()
+        }
+    }
+
+    state if_word() {
+        transition self.span_equals(source, self.token_start, self.token_end, "if") {
+            1 -> self.set_keyword(OmegaKeywordKind::If)
+            _ -> let_word()
+        }
+    }
+
+    state let_word() {
+        transition self.span_equals(source, self.token_start, self.token_end, "let") {
+            1 -> self.set_keyword(OmegaKeywordKind::Let)
+            _ -> library()
+        }
+    }
+
+    state library() {
+        transition self.span_equals(source, self.token_start, self.token_end, "library") {
+            1 -> self.set_keyword(OmegaKeywordKind::Library)
+            _ -> loop_word()
+        }
+    }
+
+    state loop_word() {
+        transition self.span_equals(source, self.token_start, self.token_end, "loop") {
+            1 -> self.set_keyword(OmegaKeywordKind::Loop)
+            _ -> machine_word()
+        }
+    }
+
+    state machine_word() {
+        transition self.span_equals(source, self.token_start, self.token_end, "machine") {
+            1 -> self.set_keyword(OmegaKeywordKind::Machine)
+            _ -> match_word()
+        }
+    }
+
+    state match_word() {
+        transition self.span_equals(source, self.token_start, self.token_end, "match") {
+            1 -> self.set_keyword(OmegaKeywordKind::Match)
+            _ -> owns()
+        }
+    }
+
+    state owns() {
+        transition self.span_equals(source, self.token_start, self.token_end, "owns") {
+            1 -> self.set_keyword(OmegaKeywordKind::Owns)
+            _ -> platform()
+        }
+    }
+
+    state platform() {
+        transition self.span_equals(source, self.token_start, self.token_end, "platform") {
+            1 -> self.set_keyword(OmegaKeywordKind::Platform)
+            _ -> pub_word()
+        }
+    }
+
+    state pub_word() {
+        transition self.span_equals(source, self.token_start, self.token_end, "pub") {
+            1 -> self.set_keyword(OmegaKeywordKind::Pub)
+            _ -> return_word()
+        }
+    }
+
+    state return_word() {
+        transition self.span_equals(source, self.token_start, self.token_end, "return") {
+            1 -> self.set_keyword(OmegaKeywordKind::Return)
+            _ -> self_type()
+        }
+    }
+
+    state self_type() {
+        transition self.span_equals(source, self.token_start, self.token_end, "Self") {
+            1 -> self.set_keyword(OmegaKeywordKind::SelfType)
+            _ -> self_value()
+        }
+    }
+
+    state self_value() {
+        transition self.span_equals(source, self.token_start, self.token_end, "self") {
+            1 -> self.set_keyword(OmegaKeywordKind::SelfValue)
+            _ -> state_word()
+        }
+    }
+
+    state state_word() {
+        transition self.span_equals(source, self.token_start, self.token_end, "state") {
+            1 -> self.set_keyword(OmegaKeywordKind::State)
+            _ -> struct_word()
+        }
+    }
+
+    state struct_word() {
+        transition self.span_equals(source, self.token_start, self.token_end, "struct") {
+            1 -> self.set_keyword(OmegaKeywordKind::Struct)
+            _ -> target()
+        }
+    }
+
+    state target() {
+        transition self.span_equals(source, self.token_start, self.token_end, "target") {
+            1 -> self.set_keyword(OmegaKeywordKind::Target)
+            _ -> transition_word()
+        }
+    }
+
+    state transition_word() {
+        transition self.span_equals(source, self.token_start, self.token_end, "transition") {
+            1 -> self.set_keyword(OmegaKeywordKind::Transition)
+            _ -> true_word()
+        }
+    }
+
+    state true_word() {
+        transition self.span_equals(source, self.token_start, self.token_end, "true") {
+            1 -> self.set_keyword(OmegaKeywordKind::True)
+            _ -> use_word()
+        }
+    }
+
+    state use_word() {
+        transition self.span_equals(source, self.token_start, self.token_end, "use") {
+            1 -> self.set_keyword(OmegaKeywordKind::Use)
+            _ -> when_word()
+        }
+    }
+
+    state when_word() {
+        transition self.span_equals(source, self.token_start, self.token_end, "when") {
+            1 -> self.set_keyword(OmegaKeywordKind::When)
+            _ -> while_word()
+        }
+    }
+
+    state while_word() {
+        transition self.span_equals(source, self.token_start, self.token_end, "while") {
+            1 -> self.set_keyword(OmegaKeywordKind::While)
+            _ -> case_word()
+        }
+    }
+
+    state case_word() {
+        transition self.span_equals(source, self.token_start, self.token_end, "case") {
+            1 -> self.set_keyword(OmegaKeywordKind::Case)
+            _ -> copy_word()
+        }
+    }
+
+    state copy_word() {
+        transition self.span_equals(source, self.token_start, self.token_end, "copy") {
+            1 -> self.set_keyword(OmegaKeywordKind::Copy)
+            _ -> self.emit(OmegaTokenKind::Identifier, self.token_end)
+        }
+    }
+}
+
+machine OmegaLexScan::scan_whitespace(
+    &mut self,
+    source: &[u8],
+    cursor: i32
+) {
+    transition cursor >= 0 {
+        true -> check_extent()
+        _ -> self.fail_stage()
+    }
+
+    state check_extent() {
+        transition cursor < source.len {
+            true -> check_first()
+            _ -> self.fail_stage()
+        }
+    }
+
+    state check_first() {
+        transition omega_is_whitespace(source[cursor]) {
+            1 -> begin()
+            _ -> self.fail_stage()
+        }
+    }
+
+    state begin() {
+        self.token_start = cursor;
+        transition true {
+            true -> scan(cursor)
+        }
+    }
+
+    state scan(index: i32) {
+        transition index < source.len {
+            true -> classify(index)
+            _ -> finish(index)
+        }
+    }
+
+    state classify(index: i32) {
+        transition omega_is_whitespace(source[index]) {
+            1 -> scan(index + 1)
+            _ -> finish(index)
+        }
+    }
+
+    state finish(index: i32) {
+        self.emit(OmegaTokenKind::Whitespace, index);
+    }
+}
+
+machine OmegaLexScan::scan_identifier(
+    &mut self,
+    source: &[u8],
+    cursor: i32
+) {
+    transition cursor >= 0 {
+        true -> check_extent()
+        _ -> self.fail_stage()
+    }
+
+    state check_extent() {
+        transition cursor < source.len {
+            true -> check_first()
+            _ -> self.fail_stage()
+        }
+    }
+
+    state check_first() {
+        transition omega_is_identifier_start(source[cursor]) {
+            1 -> begin()
+            _ -> self.fail_stage()
+        }
+    }
+
+    state begin() {
+        self.token_start = cursor;
+        transition true {
+            true -> scan(cursor + 1)
+        }
+    }
+
+    state scan(index: i32) {
+        transition index < source.len {
+            true -> classify(index)
+            _ -> finish(index)
+        }
+    }
+
+    state classify(index: i32) {
+        transition omega_is_identifier_continue(source[index]) {
+            1 -> scan(index + 1)
+            _ -> finish(index)
+        }
+    }
+
+    state finish(index: i32) {
+        self.token_end = index;
+        self.next_cursor = index;
+        self.classify_keyword(source);
+    }
+}
+
+machine OmegaLexScan::scan_line_comment(
+    &mut self,
+    source: &[u8],
+    cursor: i32
+) {
+    transition cursor >= 0 {
+        true -> check_extent()
+        _ -> self.fail_stage()
+    }
+
+    state check_extent() {
+        transition cursor < source.len {
+            true -> check_width()
+            _ -> self.fail_stage()
+        }
+    }
+
+    state check_width() {
+        transition source.len - cursor >= 2 {
+            true -> check_open()
+            _ -> self.fail_stage()
+        }
+    }
+
+    state check_open() {
+        transition (source[cursor] == 47) && (source[cursor + 1] == 47) {
+            true -> begin()
+            _ -> self.fail_stage()
+        }
+    }
+
+    state begin() {
+        self.token_start = cursor;
+        transition true {
+            true -> scan(cursor + 2)
+        }
+    }
+
+    state scan(index: i32) {
+        transition index < source.len {
+            true -> newline(index)
+            _ -> finish(index)
+        }
+    }
+
+    state newline(index: i32) {
+        transition source[index] {
+            10 -> consume_newline(index)
+            _ -> scan(index + 1)
+        }
+    }
+
+    state consume_newline(index: i32) {
+        self.token_kind = OmegaTokenKind::LineComment;
+        self.token_end = index;
+        self.next_cursor = index + 1;
+        self.has_token = 1;
+    }
+
+    state finish(index: i32) {
+        self.emit(OmegaTokenKind::LineComment, index);
+    }
+}
+
+machine OmegaLexScan::scan_block_comment(
+    &mut self,
+    source: &[u8],
+    cursor: i32
+) {
+    transition cursor >= 0 {
+        true -> check_extent()
+        _ -> self.fail_stage()
+    }
+
+    state check_extent() {
+        transition cursor < source.len {
+            true -> check_width()
+            _ -> self.fail_stage()
+        }
+    }
+
+    state check_width() {
+        transition source.len - cursor >= 2 {
+            true -> check_open()
+            _ -> self.fail_stage()
+        }
+    }
+
+    state check_open() {
+        transition (source[cursor] == 47) && (source[cursor + 1] == 42) {
+            true -> begin()
+            _ -> self.fail_stage()
+        }
+    }
+
+    state begin() {
+        self.token_start = cursor;
+        transition true {
+            true -> scan(cursor + 2, 1)
+        }
+    }
+
+    state scan(index: i32, depth: i32) {
+        transition index < source.len {
+            true -> pair_extent(index, depth)
+            _ -> unterminated()
+        }
+    }
+
+    state pair_extent(index: i32, depth: i32) {
+        transition source.len - index >= 2 {
+            true -> open(index, depth)
+            _ -> scan(index + 1, depth)
+        }
+    }
+
+    state open(index: i32, depth: i32) {
+        transition (source[index] == 47) && (source[index + 1] == 42) {
+            true -> scan(index + 2, depth + 1)
+            _ -> close(index, depth)
+        }
+    }
+
+    state close(index: i32, depth: i32) {
+        transition (source[index] == 42) && (source[index + 1] == 47) {
+            true -> close_depth(index, depth)
+            _ -> scan(index + 1, depth)
+        }
+    }
+
+    state close_depth(index: i32, depth: i32) {
+        transition depth {
+            1 -> finish(index + 2)
+            _ -> scan(index + 2, depth - 1)
+        }
+    }
+
+    state finish(index: i32) {
+        self.emit(OmegaTokenKind::BlockComment, index);
+    }
+
+    state unterminated() {
+        self.reject(
+            OmegaLexDiagnosticCode::UnterminatedBlockComment,
+            self.token_start,
+            source.len
+        );
+    }
+}
+
+machine OmegaLexScan::scan_string(
+    &mut self,
+    source: &[u8],
+    cursor: i32
+) {
+    transition cursor >= 0 {
+        true -> check_extent()
+        _ -> self.fail_stage()
+    }
+
+    state check_extent() {
+        transition cursor < source.len {
+            true -> check_quote()
+            _ -> self.fail_stage()
+        }
+    }
+
+    state check_quote() {
+        transition source[cursor] {
+            34 -> begin()
+            _ -> self.fail_stage()
+        }
+    }
+
+    state begin() {
+        self.token_start = cursor;
+        self.decoded_length = 0;
+        transition true {
+            true -> scan(cursor + 1)
+        }
+    }
+
+    state scan(index: i32) {
+        transition index < source.len {
+            true -> classify(index)
+            _ -> unterminated()
+        }
+    }
+
+    state classify(index: i32) {
+        transition source[index] {
+            34 -> finish(index + 1)
+            10 -> outside_line(index)
+            13 -> outside_line(index)
+            92 -> escape_extent(index)
+            _ -> copy(index)
+        }
+    }
+
+    state copy(index: i32) {
+        self.decoded_length = self.decoded_length + 1;
+        transition true {
+            true -> scan(index + 1)
+        }
+    }
+
+    state escape_extent(index: i32) {
+        transition source.len - index >= 2 {
+            true -> escape(index)
+            _ -> unterminated_escape()
+        }
+    }
+
+    state escape(index: i32) {
+        transition source[index + 1] {
+            34 -> simple_escape(index)
+            92 -> simple_escape(index)
+            110 -> simple_escape(index)
+            114 -> simple_escape(index)
+            116 -> simple_escape(index)
+            48 -> simple_escape(index)
+            120 -> hex_extent(index)
+            117 -> outside_escape(index)
+            _ -> unsupported_escape(index)
+        }
+    }
+
+    state simple_escape(index: i32) {
+        self.decoded_length = self.decoded_length + 1;
+        transition true {
+            true -> scan(index + 2)
+        }
+    }
+
+    state hex_extent(index: i32) {
+        transition source.len - index >= 4 {
+            true -> hex_first(index)
+            _ -> hex_unterminated(index)
+        }
+    }
+
+    state hex_first(index: i32) {
+        let first: i32 = omega_hex_value(source[index + 2]);
+        transition first >= 0 {
+            true -> hex_second(index)
+            _ -> hex_invalid_first(index)
+        }
+    }
+
+    state hex_second(index: i32) {
+        let second: i32 = omega_hex_value(source[index + 3]);
+        transition second >= 0 {
+            true -> hex_emit(index)
+            _ -> hex_invalid_second(index)
+        }
+    }
+
+    state hex_emit(index: i32) {
+        self.decoded_length = self.decoded_length + 1;
+        transition true {
+            true -> scan(index + 4)
+        }
+    }
+
+    state finish(index: i32) {
+        self.emit(OmegaTokenKind::StringLiteral, index);
+    }
+
+    state unterminated() {
+        self.reject(
+            OmegaLexDiagnosticCode::UnterminatedStringLiteral,
+            self.token_start,
+            source.len
+        );
+    }
+
+    state unterminated_escape() {
+        self.reject(
+            OmegaLexDiagnosticCode::UnterminatedStringEscape,
+            self.token_start,
+            source.len
+        );
+    }
+
+    state unsupported_escape(index: i32) {
+        self.reject(
+            OmegaLexDiagnosticCode::UnsupportedEscape,
+            index,
+            index + 2
+        );
+    }
+
+    state hex_unterminated(index: i32) {
+        self.reject(
+            OmegaLexDiagnosticCode::UnterminatedHexEscape,
+            index,
+            source.len
+        );
+    }
+
+    state hex_invalid_first(index: i32) {
+        self.reject(
+            OmegaLexDiagnosticCode::InvalidHexEscapeDigit,
+            index + 2,
+            index + 3
+        );
+    }
+
+    state hex_invalid_second(index: i32) {
+        self.reject(
+            OmegaLexDiagnosticCode::InvalidHexEscapeDigit,
+            index + 3,
+            index + 4
+        );
+    }
+
+    state outside_escape(index: i32) {
+        self.reject(
+            OmegaLexDiagnosticCode::OutsideLexicalProfile,
+            index,
+            index + 2
+        );
+    }
+
+    state outside_line(index: i32) {
+        self.reject(
+            OmegaLexDiagnosticCode::OutsideLexicalProfile,
+            index,
+            index + 1
+        );
+    }
+}
+
+machine OmegaLexScan::consume_digits(
+    &mut self,
+    source: &[u8],
+    cursor: i32
+) {
+    self.predicate_result = 0;
+    transition cursor >= 0 {
+        true -> check_extent()
+        _ -> self.fail_stage()
+    }
+
+    state check_extent() {
+        transition cursor <= source.len {
+            true -> scan(cursor)
+            _ -> self.fail_stage()
+        }
+    }
+
+    state scan(index: i32) {
+        transition index < source.len {
+            true -> classify(index)
+            _ -> finish(index)
+        }
+    }
+
+    state classify(index: i32) {
+        transition source[index] {
+            95 -> scan(index + 1)
+            _ -> digit(index)
+        }
+    }
+
+    state digit(index: i32) {
+        transition omega_digit_in_base(source[index], self.numeric_base) {
+            1 -> consume(index)
+            _ -> finish(index)
+        }
+    }
+
+    state consume(index: i32) {
+        self.predicate_result = 1;
+        transition true {
+            true -> scan(index + 1)
+        }
+    }
+
+    state finish(index: i32) {
+        self.next_cursor = index;
+    }
+}
+
+machine OmegaLexScan::consume_suffix(
+    &mut self,
+    source: &[u8],
+    cursor: i32
+) {
+    self.numeric_has_suffix = 0;
+    transition cursor >= 0 {
+        true -> check_extent()
+        _ -> self.fail_stage()
+    }
+
+    state check_extent() {
+        transition cursor <= source.len {
+            true -> check_end()
+            _ -> self.fail_stage()
+        }
+    }
+
+    state check_end() {
+        transition cursor < source.len {
+            true -> first(cursor)
+            _ -> finish(cursor)
+        }
+    }
+
+    state first(index: i32) {
+        transition omega_is_identifier_start(source[index]) {
+            1 -> consume(index)
+            _ -> finish(index)
+        }
+    }
+
+    state consume(index: i32) {
+        self.numeric_has_suffix = 1;
+        transition true {
+            true -> rest(index + 1)
+        }
+    }
+
+    state rest(index: i32) {
+        transition index < source.len {
+            true -> continue_suffix(index)
+            _ -> finish(index)
+        }
+    }
+
+    state continue_suffix(index: i32) {
+        transition omega_is_identifier_continue(source[index]) {
+            1 -> rest(index + 1)
+            _ -> finish(index)
+        }
+    }
+
+    state finish(index: i32) {
+        self.next_cursor = index;
+    }
+}
+
+machine OmegaLexScan::dot_starts_float(
+    &mut self,
+    source: &[u8],
+    cursor: i32
+) -> i32 {
+    transition cursor >= 0 {
+        true -> check_extent()
+        _ -> invalid()
+    }
+
+    state check_extent() {
+        transition cursor < source.len {
+            true -> check_dot()
+            _ -> invalid()
+        }
+    }
+
+    state check_dot() {
+        transition source[cursor] {
+            46 -> check_next()
+            _ -> invalid()
+        }
+    }
+
+    state check_next() {
+        transition source.len - cursor >= 2 {
+            true -> classify(source[cursor + 1])
+            _ -> return 1
+        }
+    }
+
+    state classify(next: i32) {
+        transition (next >= 48) && (next <= 57) {
+            true -> return 1
+            _ -> dot(next)
+        }
+    }
+
+    state dot(next: i32) {
+        transition next {
+            46 -> return 0
+            _ -> identifier(next)
+        }
+    }
+
+    state identifier(next: i32) {
+        transition omega_is_identifier_start(next) {
+            1 -> return 0
+            _ -> return 1
+        }
+    }
+
+    state invalid() {
+        self.fail_stage();
+        return 0;
+    }
+}
+
+machine OmegaLexScan::scan_number(
+    &mut self,
+    source: &[u8],
+    cursor: i32
+) {
+    transition cursor >= 0 {
+        true -> check_extent()
+        _ -> self.fail_stage()
+    }
+
+    state check_extent() {
+        transition cursor < source.len {
+            true -> classify_first()
+            _ -> self.fail_stage()
+        }
+    }
+
+    state classify_first() {
+        let first: i32 = source[cursor];
+        transition first {
+            46 -> check_leading_dot()
+            _ -> check_digit(first)
+        }
+    }
+
+    state check_leading_dot() {
+        transition source.len - cursor >= 2 {
+            true -> check_leading_digit()
+            _ -> self.fail_stage()
+        }
+    }
+
+    state check_leading_digit() {
+        let next: i32 = source[cursor + 1];
+        transition (next >= 48) && (next <= 57) {
+            true -> begin()
+            _ -> self.fail_stage()
+        }
+    }
+
+    state check_digit(first: i32) {
+        transition (first >= 48) && (first <= 57) {
+            true -> begin()
+            _ -> self.fail_stage()
+        }
+    }
+
+    state begin() {
+        self.token_start = cursor;
+        self.numeric_base = OmegaNumericBase::Decimal;
+        self.numeric_empty_digits = 0;
+        self.numeric_has_suffix = 0;
+        self.numeric_has_exponent = 0;
+        self.numeric_empty_exponent = 0;
+        transition source[cursor] {
+            46 -> leading_dot(cursor)
+            _ -> integer_begin(cursor)
+        }
+    }
+
+    state leading_dot(index: i32) {
+        self.token_kind = OmegaTokenKind::Float;
+        self.consume_digits(source, index + 1);
+        transition true {
+            true -> exponent_check(self.next_cursor)
+        }
+    }
+
+    state integer_begin(index: i32) {
+        self.token_kind = OmegaTokenKind::Integer;
+        transition source[index] {
+            48 -> prefix_bound(index + 1)
+            _ -> decimal_digits(index + 1)
+        }
+    }
+
+    state prefix_bound(index: i32) {
+        transition index < source.len {
+            true -> prefix(index)
+            _ -> dot_check(index)
+        }
+    }
+
+    state prefix(index: i32) {
+        transition source[index] {
+            98 -> binary_prefix(index + 1)
+            66 -> binary_prefix(index + 1)
+            111 -> octal_prefix(index + 1)
+            79 -> octal_prefix(index + 1)
+            120 -> hex_prefix(index + 1)
+            88 -> hex_prefix(index + 1)
+            _ -> decimal_digits(index)
+        }
+    }
+
+    state binary_prefix(index: i32) {
+        self.numeric_base = OmegaNumericBase::Binary;
+        transition true {
+            true -> based_digits(index)
+        }
+    }
+
+    state octal_prefix(index: i32) {
+        self.numeric_base = OmegaNumericBase::Octal;
+        transition true {
+            true -> based_digits(index)
+        }
+    }
+
+    state hex_prefix(index: i32) {
+        self.numeric_base = OmegaNumericBase::Hexadecimal;
+        transition true {
+            true -> based_digits(index)
+        }
+    }
+
+    state based_digits(index: i32) {
+        self.consume_digits(source, index);
+        transition self.predicate_result {
+            1 -> based_suffix(self.next_cursor)
+            _ -> empty_based_suffix(self.next_cursor)
+        }
+    }
+
+    state empty_based_suffix(index: i32) {
+        self.numeric_empty_digits = 1;
+        transition true {
+            true -> based_suffix(index)
+        }
+    }
+
+    state based_suffix(index: i32) {
+        self.consume_suffix(source, index);
+        transition true {
+            true -> finish_integer(self.next_cursor)
+        }
+    }
+
+    state decimal_digits(index: i32) {
+        self.consume_digits(source, index);
+        transition true {
+            true -> dot_check(self.next_cursor)
+        }
+    }
+
+    state dot_check(index: i32) {
+        transition index < source.len {
+            true -> dot_byte(index)
+            _ -> exponent_check(index)
+        }
+    }
+
+    state dot_byte(index: i32) {
+        transition source[index] {
+            46 -> dot_decision(index)
+            _ -> exponent_check(index)
+        }
+    }
+
+    state dot_decision(index: i32) {
+        transition self.dot_starts_float(source, index) {
+            1 -> dot_consume(index + 1)
+            _ -> exponent_check(index)
+        }
+    }
+
+    state dot_consume(index: i32) {
+        self.token_kind = OmegaTokenKind::Float;
+        self.consume_digits(source, index);
+        transition true {
+            true -> exponent_check(self.next_cursor)
+        }
+    }
+
+    state exponent_check(index: i32) {
+        transition self.numeric_base {
+            OmegaNumericBase::Decimal -> exponent_extent(index)
+            _ -> suffix(index)
+        }
+    }
+
+    state exponent_extent(index: i32) {
+        transition index < source.len {
+            true -> exponent_byte(index)
+            _ -> suffix(index)
+        }
+    }
+
+    state exponent_byte(index: i32) {
+        transition source[index] {
+            101 -> exponent_begin(index + 1)
+            69 -> exponent_begin(index + 1)
+            _ -> suffix(index)
+        }
+    }
+
+    state exponent_begin(index: i32) {
+        self.token_kind = OmegaTokenKind::Float;
+        self.numeric_has_exponent = 1;
+        transition index < source.len {
+            true -> exponent_sign(index)
+            _ -> exponent_digits(index)
+        }
+    }
+
+    state exponent_sign(index: i32) {
+        transition source[index] {
+            43 -> exponent_digits(index + 1)
+            45 -> exponent_digits(index + 1)
+            _ -> exponent_digits(index)
+        }
+    }
+
+    state exponent_digits(index: i32) {
+        self.numeric_base = OmegaNumericBase::Decimal;
+        self.consume_digits(source, index);
+        transition self.predicate_result {
+            1 -> suffix(self.next_cursor)
+            _ -> empty_exponent(self.next_cursor)
+        }
+    }
+
+    state empty_exponent(index: i32) {
+        self.numeric_empty_exponent = 1;
+        transition true {
+            true -> suffix(index)
+        }
+    }
+
+    state suffix(index: i32) {
+        self.consume_suffix(source, index);
+        transition self.token_kind {
+            OmegaTokenKind::Float -> finish_float(self.next_cursor)
+            _ -> finish_integer(self.next_cursor)
+        }
+    }
+
+    state finish_float(index: i32) {
+        self.emit(OmegaTokenKind::Float, index);
+    }
+
+    state finish_integer(index: i32) {
+        self.emit(OmegaTokenKind::Integer, index);
+    }
+}
+
+machine OmegaLexScan::set_punctuation(
+    &mut self,
+    punctuation: OmegaPunctuationKind,
+    length: i32
+) {
+    transition length >= 1 {
+        true -> check_length()
+        _ -> self.fail_stage()
+    }
+
+    state check_length() {
+        transition length <= 3 {
+            true -> check_start()
+            _ -> self.fail_stage()
+        }
+    }
+
+    state check_start() {
+        transition self.token_start >= 0 {
+            true -> check_sum()
+            _ -> self.fail_stage()
+        }
+    }
+
+    state check_sum() {
+        transition self.token_start <= 2147483647 - length {
+            true -> commit()
+            _ -> self.fail_stage()
+        }
+    }
+
+    state commit() {
+        self.punctuation = punctuation;
+        self.emit(OmegaTokenKind::Punctuation, self.token_start + length);
+    }
+}
+
+machine OmegaLexScan::scan_punctuation(
+    &mut self,
+    source: &[u8],
+    cursor: i32
+) {
+    transition cursor >= 0 {
+        true -> check_extent()
+        _ -> self.fail_stage()
+    }
+
+    state check_extent() {
+        transition cursor < source.len {
+            true -> begin()
+            _ -> self.fail_stage()
+        }
+    }
+
+    state begin() {
+        self.token_start = cursor;
+        let first: i32 = source[cursor];
+        transition source.len - cursor {
+            1 -> classify(first, -1, -1)
+            2 -> second(first)
+            _ -> third(first)
+        }
+    }
+
+    state second(first: i32) {
+        transition true {
+            true -> classify(first, source[self.token_start + 1], -1)
+        }
+    }
+
+    state third(first: i32) {
+        transition true {
+            true -> classify(
+                first,
+                source[self.token_start + 1],
+                source[self.token_start + 2]
+            )
+        }
+    }
+
+    state classify(first: i32, second: i32, third: i32) {
+        transition first {
+            38 -> ampersand(second)
+            39 -> self.set_punctuation(OmegaPunctuationKind::Apostrophe, 1)
+            42 -> asterisk(second)
+            94 -> self.set_punctuation(OmegaPunctuationKind::Caret, 1)
+            58 -> colon(second)
+            44 -> self.set_punctuation(OmegaPunctuationKind::Comma, 1)
+            46 -> dot(second, third)
+            61 -> equal(second)
+            33 -> exclamation(second)
+            62 -> greater(second)
+            35 -> self.set_punctuation(OmegaPunctuationKind::Hash, 1)
+            123 -> self.set_punctuation(OmegaPunctuationKind::LeftBrace, 1)
+            91 -> self.set_punctuation(OmegaPunctuationKind::LeftBracket, 1)
+            40 -> self.set_punctuation(OmegaPunctuationKind::LeftParen, 1)
+            60 -> less(second)
+            45 -> minus(second)
+            37 -> percent(second)
+            124 -> pipe(second)
+            43 -> plus(second)
+            125 -> self.set_punctuation(OmegaPunctuationKind::RightBrace, 1)
+            93 -> self.set_punctuation(OmegaPunctuationKind::RightBracket, 1)
+            41 -> self.set_punctuation(OmegaPunctuationKind::RightParen, 1)
+            59 -> self.set_punctuation(OmegaPunctuationKind::Semicolon, 1)
+            47 -> slash(second)
+            126 -> self.set_punctuation(OmegaPunctuationKind::Tilde, 1)
+            _ -> unsupported()
+        }
+    }
+
+    state ampersand(second: i32) {
+        transition second {
+            38 -> self.set_punctuation(OmegaPunctuationKind::AndAnd, 2)
+            _ -> self.set_punctuation(OmegaPunctuationKind::Ampersand, 1)
+        }
+    }
+
+    state asterisk(second: i32) {
+        transition second {
+            61 -> self.set_punctuation(OmegaPunctuationKind::AsteriskEqual, 2)
+            _ -> self.set_punctuation(OmegaPunctuationKind::Asterisk, 1)
+        }
+    }
+
+    state colon(second: i32) {
+        transition second {
+            58 -> self.set_punctuation(OmegaPunctuationKind::ColonColon, 2)
+            _ -> self.set_punctuation(OmegaPunctuationKind::Colon, 1)
+        }
+    }
+
+    state dot(second: i32, third: i32) {
+        transition second {
+            46 -> dotdot(third)
+            _ -> self.set_punctuation(OmegaPunctuationKind::Dot, 1)
+        }
+    }
+
+    state dotdot(third: i32) {
+        transition third {
+            61 -> self.set_punctuation(OmegaPunctuationKind::DotDotEqual, 3)
+            _ -> self.set_punctuation(OmegaPunctuationKind::DotDot, 2)
+        }
+    }
+
+    state equal(second: i32) {
+        transition second {
+            61 -> self.set_punctuation(OmegaPunctuationKind::EqualEqual, 2)
+            _ -> self.set_punctuation(OmegaPunctuationKind::Equal, 1)
+        }
+    }
+
+    state exclamation(second: i32) {
+        transition second {
+            61 -> self.set_punctuation(OmegaPunctuationKind::ExclamationEqual, 2)
+            _ -> self.set_punctuation(OmegaPunctuationKind::Exclamation, 1)
+        }
+    }
+
+    state greater(second: i32) {
+        transition second {
+            62 -> self.set_punctuation(OmegaPunctuationKind::GreaterGreater, 2)
+            61 -> self.set_punctuation(OmegaPunctuationKind::GreaterEqual, 2)
+            _ -> self.set_punctuation(OmegaPunctuationKind::Greater, 1)
+        }
+    }
+
+    state less(second: i32) {
+        transition second {
+            60 -> self.set_punctuation(OmegaPunctuationKind::LessLess, 2)
+            61 -> self.set_punctuation(OmegaPunctuationKind::LessEqual, 2)
+            _ -> self.set_punctuation(OmegaPunctuationKind::Less, 1)
+        }
+    }
+
+    state minus(second: i32) {
+        transition second {
+            62 -> self.set_punctuation(OmegaPunctuationKind::Arrow, 2)
+            61 -> self.set_punctuation(OmegaPunctuationKind::MinusEqual, 2)
+            _ -> self.set_punctuation(OmegaPunctuationKind::Minus, 1)
+        }
+    }
+
+    state percent(second: i32) {
+        transition second {
+            61 -> self.set_punctuation(OmegaPunctuationKind::PercentEqual, 2)
+            _ -> self.set_punctuation(OmegaPunctuationKind::Percent, 1)
+        }
+    }
+
+    state pipe(second: i32) {
+        transition second {
+            124 -> self.set_punctuation(OmegaPunctuationKind::PipePipe, 2)
+            _ -> self.set_punctuation(OmegaPunctuationKind::Pipe, 1)
+        }
+    }
+
+    state plus(second: i32) {
+        transition second {
+            61 -> self.set_punctuation(OmegaPunctuationKind::PlusEqual, 2)
+            _ -> self.set_punctuation(OmegaPunctuationKind::Plus, 1)
+        }
+    }
+
+    state slash(second: i32) {
+        transition second {
+            61 -> self.set_punctuation(OmegaPunctuationKind::SlashEqual, 2)
+            _ -> self.set_punctuation(OmegaPunctuationKind::Slash, 1)
+        }
+    }
+
+    state unsupported() {
+        self.reject(
+            OmegaLexDiagnosticCode::OutsideLexicalProfile,
+            self.token_start,
+            self.token_start + 1
+        );
+    }
+}
+
+machine omega_utf8_lead_width(byte: i32) -> i32 {
+    transition byte < 128 {
+        true -> return 1
+        _ -> two()
+    }
+
+    state two() {
+        transition byte <= 223 {
+            true -> return 2
+            _ -> three()
+        }
+    }
+
+    state three() {
+        transition byte <= 239 {
+            true -> return 3
+            _ -> return 4
+        }
+    }
+}
+
+machine OmegaLexScan::raw_candidate_end(
+    &mut self,
+    source: &[u8],
+    cursor: i32
+) -> i32 {
+    transition cursor >= 0 {
+        true -> check_extent()
+        _ -> invalid()
+    }
+
+    state check_extent() {
+        transition cursor < source.len {
+            true -> check_raw()
+            _ -> invalid()
+        }
+    }
+
+    state check_raw() {
+        transition source[cursor] {
+            114 -> scan(cursor + 1)
+            _ -> invalid()
+        }
+    }
+
+    state scan(index: i32) {
+        transition index < source.len {
+            true -> classify(index)
+            _ -> return -1
+        }
+    }
+
+    state classify(index: i32) {
+        transition source[index] {
+            35 -> scan(index + 1)
+            34 -> return index + 1
+            _ -> return -1
+        }
+    }
+
+    state invalid() {
+        self.fail_stage();
+        return -1;
+    }
+}
+
+// Factored token stage invoked only inside a canonical operation immediately
+// after that operation preflights the exact source view. It is nevertheless
+// total and memory-bounded for every direct call because D17 cannot make the
+// stage private. It is not a transferable preflight token or a standalone
+// lexical judgment; scan_at below owns that boundary.
+machine OmegaLexScan::scan_preflighted_stage(
+    &mut self,
+    source: &[u8],
+    cursor: i32
+) {
+    self.reset(cursor);
+    transition cursor >= 0 {
+        true -> check_high()
+        _ -> internal()
+    }
+
+    state check_high() {
+        transition cursor <= source.len {
+            true -> check_end()
+            _ -> internal()
+        }
+    }
+
+    state check_end() {
+        transition cursor < source.len {
+            true -> first()
+            _ -> return
+        }
+    }
+
+    state first() {
+        let byte: i32 = source[cursor];
+        transition byte >= 128 {
+            true -> outside_non_ascii(byte)
+            _ -> whitespace(byte)
+        }
+    }
+
+    state outside_non_ascii(byte: i32) {
+        transition byte >= 194 {
+            true -> check_scalar_ceiling(byte)
+            _ -> internal()
+        }
+    }
+
+    state check_scalar_ceiling(byte: i32) {
+        transition byte <= 244 {
+            true -> check_scalar_extent(byte)
+            _ -> internal()
+        }
+    }
+
+    state check_scalar_extent(byte: i32) {
+        let width: i32 = omega_utf8_lead_width(byte);
+        transition width <= source.len - cursor {
+            true -> outside_scalar(width)
+            _ -> internal()
+        }
+    }
+
+    state outside_scalar(width: i32) {
+        self.reject(
+            OmegaLexDiagnosticCode::OutsideLexicalProfile,
+            cursor,
+            cursor + width
+        );
+    }
+
+    state whitespace(byte: i32) {
+        transition omega_is_whitespace(byte) {
+            1 -> self.scan_whitespace(source, cursor)
+            _ -> comment_extent(byte)
+        }
+    }
+
+    state comment_extent(byte: i32) {
+        transition (byte == 47) && (source.len - cursor >= 2) {
+            true -> comment_second()
+            _ -> raw(byte)
+        }
+    }
+
+    state comment_second() {
+        transition source[cursor + 1] {
+            47 -> self.scan_line_comment(source, cursor)
+            42 -> self.scan_block_comment(source, cursor)
+            _ -> raw(47)
+        }
+    }
+
+    state raw(byte: i32) {
+        transition byte {
+            114 -> raw_candidate()
+            _ -> identifier(byte)
+        }
+    }
+
+    state raw_candidate() {
+        let end: i32 = self.raw_candidate_end(source, cursor);
+        transition end >= 0 {
+            true -> raw_reject(end)
+            _ -> identifier(114)
+        }
+    }
+
+    state raw_reject(end: i32) {
+        self.reject(
+            OmegaLexDiagnosticCode::OutsideLexicalProfile,
+            cursor,
+            end
+        );
+    }
+
+    state identifier(byte: i32) {
+        transition omega_is_identifier_start(byte) {
+            1 -> self.scan_identifier(source, cursor)
+            _ -> number(byte)
+        }
+    }
+
+    state number(byte: i32) {
+        transition (byte >= 48) && (byte <= 57) {
+            true -> self.scan_number(source, cursor)
+            _ -> leading_dot(byte)
+        }
+    }
+
+    state leading_dot(byte: i32) {
+        transition (byte == 46) && (source.len - cursor >= 2) {
+            true -> leading_dot_second()
+            _ -> string(byte)
+        }
+    }
+
+    state leading_dot_second() {
+        let next: i32 = source[cursor + 1];
+        transition (next >= 48) && (next <= 57) {
+            true -> self.scan_number(source, cursor)
+            _ -> string(46)
+        }
+    }
+
+    state string(byte: i32) {
+        transition byte {
+            34 -> self.scan_string(source, cursor)
+            _ -> self.scan_punctuation(source, cursor)
+        }
+    }
+
+    state internal() {
+        self.fail_stage();
+    }
+}
+
+// Canonical standalone one-token query. InvalidUtf8 retains whole-view priority
+// even when malformed bytes occur after the requested token.
+machine OmegaLexScan::scan_at(
+    &mut self,
+    source: &[u8],
+    cursor: i32
+) {
+    self.reset(0);
+    self.utf8.validate(source);
+    transition self.utf8.valid {
+        1 -> scan_validated()
+        _ -> invalid_utf8()
+    }
+
+    state scan_validated() {
+        self.scan_preflighted_stage(source, cursor);
+    }
+
+    state invalid_utf8() {
+        self.reject(
+            OmegaLexDiagnosticCode::InvalidUtf8,
+            self.utf8.error_offset,
+            self.utf8.error_offset + 1
+        );
+    }
+}
+
+// Validate the complete view before any parser can stop at an early token.
+// Success leaves accepted=1, has_token=0, and next_cursor=source.len.
+machine OmegaLexScan::validate_lexical(
+    &mut self,
+    source: &[u8]
+) {
+    self.reset(0);
+    self.utf8.validate(source);
+    transition self.utf8.valid {
+        1 -> scan(0)
+        _ -> invalid_utf8()
+    }
+
+    state scan(cursor: i32) {
+        transition cursor < source.len {
+            true -> token(cursor)
+            _ -> complete()
+        }
+    }
+
+    state token(cursor: i32) {
+        self.scan_preflighted_stage(source, cursor);
+        transition self.accepted {
+            1 -> check_progress(cursor)
+            _ -> return
+        }
+    }
+
+    state check_progress(cursor: i32) {
+        transition (self.has_token == 1) && (self.next_cursor > cursor) {
+            true -> scan(self.next_cursor)
+            _ -> internal()
+        }
+    }
+
+    state complete() {
+        self.reset(source.len);
+    }
+
+    state invalid_utf8() {
+        self.reject(
+            OmegaLexDiagnosticCode::InvalidUtf8,
+            self.utf8.error_offset,
+            self.utf8.error_offset + 1
+        );
+    }
+
+    state internal() {
+        self.fail_stage();
+    }
+}

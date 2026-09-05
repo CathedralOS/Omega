@@ -1,0 +1,1083 @@
+// Epsilon-written Omega compiler D: final boundary-independent foundations.
+//
+// This source intentionally has no Main yet. The canonical sealed Omega
+// compilation request and publication boundary are fixed by D18. This
+// incomplete unit currently owns exact Alpha tape construction, the settled
+// outer OCREQ envelope, strict source UTF-8 framing, complete source-neutral
+// lexical scanning, and source-shaped slices of the one-invocation parser. It
+// owns no invented inner request, source-unit, or package boundary.
+//
+// status is sticky: 0 open, 1 construction capacity, 2 internal misuse.
+// failure_offset is a payload-relative byte offset. failure_requested is the
+// rejected instruction width or invalid scalar supplied by the caller.
+
+data AlphaTapeBuffer {
+    bytes: [u8; 16777212];
+    instruction_starts: [u8; 16777212];
+    label_offsets: [i32; 16777212];
+    label_defined: [u8; 16777212];
+    fixup_labels: [i32; 1864134];
+    fixup_instructions: [i32; 1864134];
+    fixup_operands: [i32; 1864134];
+    fixup_resolved: [u8; 1864134];
+    length: i32;
+    label_count: i32;
+    fixup_count: i32;
+    status: i32;
+    failure_offset: i32;
+    failure_requested: i32;
+    finalized: i32;
+}
+
+data OmegaUtf8Validation {
+    valid: i32;
+    error_offset: i32;
+}
+
+// D25's settled outer OCREQ envelope only. A complete result retains two
+// nonoverlapping exact spans inside the same immutable request view. It does
+// not claim that either section has the still-unfixed canonical inner wire,
+// bind a package/source identity, or authorize source parsing.
+data OmegaRequestEnvelope {
+    complete: i32;
+    subject_start: i32;
+    subject_end: i32;
+    invocation_start: i32;
+    invocation_end: i32;
+}
+
+data OmegaNumericBase {
+    case Binary;
+    case Octal;
+    case Decimal;
+    case Hexadecimal;
+}
+
+data OmegaKeywordKind {
+    case As;
+    case CallingConvention;
+    case Capability;
+    case Contains;
+    case Data;
+    case Else;
+    case Enum;
+    case False;
+    case Foreign;
+    case Host;
+    case If;
+    case Let;
+    case Library;
+    case Loop;
+    case Machine;
+    case Match;
+    case Owns;
+    case Platform;
+    case Pub;
+    case Return;
+    case SelfType;
+    case SelfValue;
+    case State;
+    case Struct;
+    case Target;
+    case Transition;
+    case True;
+    case Use;
+    case When;
+    case While;
+    case Case;
+    case Copy;
+}
+
+data OmegaPunctuationKind {
+    case Ampersand;
+    case AndAnd;
+    case Apostrophe;
+    case Arrow;
+    case Asterisk;
+    case Caret;
+    case Colon;
+    case ColonColon;
+    case Comma;
+    case Dot;
+    case DotDot;
+    case DotDotEqual;
+    case Equal;
+    case EqualEqual;
+    case Exclamation;
+    case ExclamationEqual;
+    case Greater;
+    case GreaterEqual;
+    case GreaterGreater;
+    case Hash;
+    case LeftBrace;
+    case LeftBracket;
+    case LeftParen;
+    case Less;
+    case LessEqual;
+    case LessLess;
+    case Minus;
+    case Percent;
+    case Pipe;
+    case PipePipe;
+    case Plus;
+    case PlusEqual;
+    case MinusEqual;
+    case AsteriskEqual;
+    case SlashEqual;
+    case PercentEqual;
+    case RightBrace;
+    case RightBracket;
+    case RightParen;
+    case Semicolon;
+    case Slash;
+    case Tilde;
+}
+
+data OmegaTokenKind {
+    case Identifier;
+    case Integer;
+    case Float;
+    case StringLiteral;
+    case Keyword;
+    case Punctuation;
+    case Whitespace;
+    case LineComment;
+    case BlockComment;
+}
+
+data OmegaLexDiagnosticCode {
+    case InvalidUtf8;
+    case OutsideLexicalProfile;
+    case UnterminatedBlockComment;
+    case UnterminatedStringLiteral;
+    case UnterminatedStringEscape;
+    case UnsupportedEscape;
+    case UnterminatedHexEscape;
+    case InvalidHexEscapeDigit;
+}
+
+// One source-neutral current-token observation. No source view, token ledger,
+// or decoded literal bytes are retained. Only scan_at is the standalone token
+// judgment; validate_lexical owns its whole-view walk without exporting a
+// preflight token capability that another same-sized view could counterfeit.
+data OmegaLexScan {
+    utf8: OmegaUtf8Validation;
+    accepted: i32;
+    has_token: i32;
+    internal_failure: i32;
+    token_kind: OmegaTokenKind;
+    keyword: OmegaKeywordKind;
+    punctuation: OmegaPunctuationKind;
+    numeric_base: OmegaNumericBase;
+    token_start: i32;
+    token_end: i32;
+    next_cursor: i32;
+    numeric_empty_digits: i32;
+    numeric_has_suffix: i32;
+    numeric_has_exponent: i32;
+    numeric_empty_exponent: i32;
+    decoded_length: i32;
+    diagnostic_code: OmegaLexDiagnosticCode;
+    diagnostic_start: i32;
+    diagnostic_end: i32;
+    predicate_result: i32;
+    digit_value: i32;
+}
+
+// Parser results remain relative to the one immutable source view supplied to
+// parse_view. D18 binds that view to a package-owned source
+// identity and an outer outcome; neither identity nor wire tags are guessed
+// here. These fixed tables are private compiler budgets, not Omega limits.
+data OmegaRelativeSpan {
+    start: i32;
+    end: i32;
+}
+
+data OmegaUseSyntax {
+    first_member: i32;
+    member_count: i32;
+    start: i32;
+    end: i32;
+}
+
+data OmegaRootKind {
+    case Use;
+    case Data;
+    case Machine;
+}
+
+data OmegaRootSyntax {
+    kind: OmegaRootKind;
+    item_index: i32;
+}
+
+data OmegaDataMultiplicity {
+    case Affine;
+    case Unrestricted;
+}
+
+data OmegaDataMemberKind {
+    case Field;
+    case Case;
+}
+
+data OmegaTypeConsumer {
+    case DirectDataField;
+    case CasePayloadField;
+    case MachineParameter;
+    case MachineReturn;
+    case LocalData;
+    case Cast;
+}
+
+data OmegaPathDestination {
+    case Use;
+    case Machine;
+}
+
+data OmegaTypeReferenceKind {
+    case Named;
+    case SelfType;
+    case Unit;
+    case Constrained;
+    case FixedArray;
+    case Slice;
+    case Reference;
+}
+
+data OmegaTypeBaseKind {
+    case Named;
+    case SelfType;
+    case Unit;
+}
+
+data OmegaReferenceAccess {
+    case Shared;
+    case Mutable;
+    case WriteOnly;
+}
+
+data OmegaTypeArrayKind {
+    case FixedArray;
+    case Slice;
+}
+
+// Compact tagged type node. Payload interpretation is owned by kind:
+// Named uses payload0/payload1 as its name span; Constrained uses payload0 as
+// its base node and payload1/payload2 as its constraint span; FixedArray uses
+// payload0 for its element and payload1/payload2 for the exact length span;
+// Slice uses payload0 for its element.
+// Reference uses payload0 for its referee, payload1 for access (0 shared,
+// 1 mutable, 2 write-only), payload2 as has-lifetime, and payload3/payload4 for
+// the exact optional lifetime span. SelfType and Unit have no payload.
+// Remaining words are reserved for final recursive type variants without
+// parallel node arenas. Words not selected by kind have no meaning and need
+// not be cleared.
+data OmegaTypeReferenceSyntax {
+    kind: OmegaTypeReferenceKind;
+    payload0: i32;
+    payload1: i32;
+    payload2: i32;
+    payload3: i32;
+    payload4: i32;
+    payload5: i32;
+}
+
+data OmegaTypeConstraintKind {
+    case Domain;
+    case InclusiveRange;
+}
+
+// Kind-selected constraint payload. Domain uses payload0/payload1 as its path
+// span. InclusiveRange uses payload0..payload3 as the exact minimum/maximum
+// literal spans; payload4/payload5 are reserved for their eventual expression
+// handles, while Domain can use them for its argument span. Unselected words
+// have no meaning and need not be cleared.
+data OmegaTypeConstraintSyntax {
+    kind: OmegaTypeConstraintKind;
+    payload0: i32;
+    payload1: i32;
+    payload2: i32;
+    payload3: i32;
+    payload4: i32;
+    payload5: i32;
+}
+
+data OmegaTypeArrayFrame {
+    kind: OmegaTypeArrayKind;
+    length_start: i32;
+    length_end: i32;
+}
+
+data OmegaDataFieldSyntax {
+    name: OmegaRelativeSpan;
+    type_reference: i32;
+    start: i32;
+    end: i32;
+}
+
+data OmegaDataCaseSyntax {
+    name: OmegaRelativeSpan;
+    first_payload_field: i32;
+    payload_field_count: i32;
+    start: i32;
+    end: i32;
+}
+
+data OmegaDataMemberSyntax {
+    kind: OmegaDataMemberKind;
+    item_index: i32;
+}
+
+data OmegaDataSyntax {
+    name: OmegaRelativeSpan;
+    first_member: i32;
+    member_count: i32;
+    first_field: i32;
+    field_count: i32;
+    first_case: i32;
+    case_count: i32;
+    multiplicity: OmegaDataMultiplicity;
+    is_public: i32;
+    start: i32;
+    end: i32;
+}
+
+data OmegaMachineStateNameKind {
+    case GeneratedEntry;
+    case FinalPathMember;
+    case Authored;
+}
+
+data OmegaMachineParameterSyntax {
+    name: OmegaRelativeSpan;
+    type_reference: i32;
+    is_const: i32;
+    is_mutable: i32;
+    is_self: i32;
+}
+
+data OmegaMachineClauseKind {
+    case Satisfies;
+    case Reaches;
+    case Terminates;
+}
+
+data OmegaExternalBindingKind {
+    case CompilerIntrinsic;
+}
+
+// Satisfies owns exactly Trait::requirement and may own one closed external
+// binding. This slice admits the payload-free Binding::CompilerIntrinsic case
+// and retains each authored component separately. Reaches owns one or more
+// source-ordered service identifiers. Terminates owns one path-shaped
+// subject in first_member/member_count and one qualified ranking-view path in
+// first_view_member/view_member_count; it is a private witness, not the bare
+// public termination guarantee. All three reuse the path-member arena and
+// preserve one source-ordered machine-clause ledger.
+data OmegaMachineClauseSyntax {
+    kind: OmegaMachineClauseKind;
+    first_member: i32;
+    member_count: i32;
+    first_view_member: i32;
+    view_member_count: i32;
+    by_keyword: OmegaRelativeSpan;
+    arrow: OmegaRelativeSpan;
+    has_external_binding: i32;
+    external_binding_kind: OmegaExternalBindingKind;
+    via_keyword: OmegaRelativeSpan;
+    binding_root: OmegaRelativeSpan;
+    binding_case: OmegaRelativeSpan;
+    start: i32;
+    end: i32;
+}
+
+data OmegaStatementKind {
+    case Call;
+    case Assignment;
+    case Transition;
+    case Expression;
+    case LocalData;
+}
+
+// Call, Assignment, Transition, and LocalData select their dedicated row with
+// item_index. Expression selects the shared expression arena directly.
+data OmegaStatementSyntax {
+    kind: OmegaStatementKind;
+    item_index: i32;
+}
+
+data OmegaCallStatementSyntax {
+    first_receiver_member: i32;
+    receiver_member_count: i32;
+    receiver_starts_at_self: i32;
+    target_member: i32;
+    first_machine_argument: i32;
+    machine_argument_count: i32;
+    first_argument: i32;
+    argument_count: i32;
+    start: i32;
+    end: i32;
+}
+
+data OmegaCallExpressionSyntax {
+    has_receiver: i32;
+    receiver: i32;
+    target: OmegaRelativeSpan;
+    first_machine_argument: i32;
+    machine_argument_count: i32;
+    first_argument: i32;
+    argument_count: i32;
+    start: i32;
+    end: i32;
+}
+
+data OmegaCastExpressionSyntax {
+    value: i32;
+    target_type: i32;
+    has_domain: i32;
+    domain: OmegaRelativeSpan;
+    start: i32;
+    end: i32;
+}
+
+data OmegaStaticMachineArgumentKind {
+    case Path;
+}
+
+data OmegaStaticMachineArgumentSyntax {
+    kind: OmegaStaticMachineArgumentKind;
+    first_path_member: i32;
+    path_member_count: i32;
+    start: i32;
+    end: i32;
+    payload0: i32;
+    payload1: i32;
+}
+
+data OmegaAssignmentStatementSyntax {
+    target: i32;
+    value: i32;
+    start: i32;
+    end: i32;
+}
+
+data OmegaLocalDataStatementSyntax {
+    name: OmegaRelativeSpan;
+    type_reference: i32;
+    has_initial_value: i32;
+    initial_value: i32;
+    is_mutable: i32;
+    start: i32;
+    end: i32;
+}
+
+data OmegaTransitionGuardKind {
+    case Always;
+    case Boolean;
+    case Integer;
+    case Path;
+    case Destructure;
+}
+
+data OmegaTransitionPatternFieldKind {
+    case Bind;
+    case Match;
+}
+
+data OmegaTransitionPatternFieldSyntax {
+    member: i32;
+    kind: OmegaTransitionPatternFieldKind;
+    binding: OmegaRelativeSpan;
+    value: i32;
+    start: i32;
+    end: i32;
+}
+
+// The first transition slice retains zero or one subject and expands every arm
+// into one ordinary statement, matching the canonical syntax tree. Guard
+// spelling stays source-shaped. Qualified case paths and their optional braces
+// retain a contiguous field ledger; shorthand fields bind their own names and
+// fixed path values remain ordinary expressions. Richer subjects, patterns,
+// and targets remain parser-incomplete.
+data OmegaTransitionStatementSyntax {
+    has_subject: i32;
+    subject: i32;
+    guard_kind: OmegaTransitionGuardKind;
+    guard_boolean: i32;
+    guard_start: i32;
+    guard_end: i32;
+    guard_first_path_member: i32;
+    guard_path_member_count: i32;
+    guard_first_pattern_field: i32;
+    guard_pattern_field_count: i32;
+    guard_has_rest: i32;
+    target: OmegaRelativeSpan;
+    first_argument: i32;
+    argument_count: i32;
+    start: i32;
+    end: i32;
+}
+
+data OmegaExpressionKind {
+    case Path;
+    case Boolean;
+    case Integer;
+    case String;
+    case StructLiteral;
+    case Binary;
+    case Indexed;
+    case Range;
+    case Call;
+    case Cast;
+    case Unary;
+    case Membership;
+}
+
+data OmegaBinaryOperatorKind {
+    case Add;
+    case Subtract;
+    case Equal;
+    case NotEqual;
+    case Less;
+    case LessEqual;
+    case Greater;
+    case GreaterEqual;
+    case And;
+    case Or;
+    case Multiply;
+    case Divide;
+    case Modulo;
+    case ShiftLeft;
+    case ShiftRight;
+    case BitwiseAnd;
+    case BitwiseOr;
+    case BitwiseXor;
+}
+
+data OmegaBinaryExpressionSyntax {
+    left: i32;
+    operator: OmegaBinaryOperatorKind;
+    operator_start: i32;
+    operator_end: i32;
+    right: i32;
+}
+
+data OmegaUnaryOperatorKind {
+    case BitwiseNot;
+    case LogicalNot;
+    case Negate;
+}
+
+data OmegaUnaryExpressionSyntax {
+    operator: OmegaUnaryOperatorKind;
+    operator_start: i32;
+    operator_end: i32;
+    operand: i32;
+}
+
+data OmegaIndexedExpressionSyntax {
+    // Repeated postfix indexes form a chain through base; they are never
+    // flattened into a second child ledger.
+    base: i32;
+    index: i32;
+    start: i32;
+    end: i32;
+}
+
+// Range bounds are ordinary expression handles. Bound presence and end
+// inclusivity are retained independently so all six canonical index-range
+// shapes share one representation.
+data OmegaRangeExpressionSyntax {
+    has_start: i32;
+    start: i32;
+    has_end: i32;
+    end: i32;
+    end_inclusive: i32;
+    operator_start: i32;
+    operator_end: i32;
+}
+
+data OmegaPathExpressionKind {
+    case Name;
+    case SelfValue;
+    case Member;
+}
+
+data OmegaExpressionConsumer {
+    case CallArgument;
+    case AssignmentValue;
+    case StructFieldValue;
+    case TransitionSubject;
+    case ExpressionStatement;
+    case TransitionTargetArgument;
+    case LocalDataInitialValue;
+    case CastValue;
+    case IndexedBase;
+    case IndexedIndex;
+    case TransitionPatternFieldValue;
+}
+
+// Nested index operands suspend one in-progress outer bracket while the same
+// postfix builder retains the inner indexed expression. The frame owns every
+// outer-builder coordinate that the inner bracket may overwrite; expression
+// result and scan custody stay live outside the frame so the completed inner
+// expression can become the outer index operand without copying syntax rows.
+data OmegaIndexedExpressionFrame {
+    base_expression: i32;
+    index_expression: i32;
+    result_consumer: OmegaExpressionConsumer;
+    start: i32;
+    is_value: i32;
+    index_is_range_start: i32;
+    range_has_start: i32;
+    range_start_expression: i32;
+    range_has_end: i32;
+    range_end_expression: i32;
+    range_end_inclusive: i32;
+    range_parsing_end: i32;
+    range_operator_start: i32;
+    range_operator_end: i32;
+}
+
+data OmegaStructLiteralFieldSyntax {
+    name: OmegaRelativeSpan;
+    value: i32;
+    start: i32;
+    end: i32;
+}
+
+data OmegaStructLiteralSyntax {
+    first_type_member: i32;
+    type_member_count: i32;
+    first_field: i32;
+    field_count: i32;
+    start: i32;
+    end: i32;
+}
+
+// Path payload0/payload1 are the member span, payload2 records whether the path
+// starts at `self`, and payload3 records the qualified-Name prefix length before
+// any runtime member chain; path_kind distinguishes Name, bare SelfValue, and
+// Member. Boolean payload0 is its value and payload1/payload2 retain the
+// authored span. Integer payload0/payload1 retain its authored span; this first
+// numeric slice admits only unsuffixed nonnegative decimal spelling. String
+// payload0/payload1 retain the authored token span and payload2 its decoded
+// byte length. Membership uses payload0 for the value expression, payload1/
+// payload2 for the domain path-member span, and payload3/payload4 for the exact
+// contextual `in` span. StructLiteral, Binary, Indexed, Range, Call, Cast, and
+// Unary payload0 select their dedicated rows.
+// Remaining words are reserved for richer nodes.
+data OmegaExpressionSyntax {
+    kind: OmegaExpressionKind;
+    path_kind: OmegaPathExpressionKind;
+    payload0: i32;
+    payload1: i32;
+    payload2: i32;
+    payload3: i32;
+    payload4: i32;
+    payload5: i32;
+}
+
+data OmegaMachineStateSyntax {
+    name_kind: OmegaMachineStateNameKind;
+    name: OmegaRelativeSpan;
+    first_parameter: i32;
+    parameter_count: i32;
+    has_return_type: i32;
+    return_type: i32;
+    first_statement: i32;
+    statement_count: i32;
+}
+
+data OmegaMachineSyntax {
+    first_path_member: i32;
+    path_member_count: i32;
+    first_state: i32;
+    state_count: i32;
+    first_clause: i32;
+    clause_count: i32;
+    is_public: i32;
+    is_bodyless: i32;
+    has_target: i32;
+    target: OmegaRelativeSpan;
+    start: i32;
+    end: i32;
+}
+
+data OmegaParserStatus {
+    case Parsing;
+    case Complete;
+    case LexicalFailure;
+    case SyntaxFailure;
+    case Incomplete;
+    case ResourceFailure;
+    case InternalFailure;
+}
+
+// Internal parser distinctions have no D18 outcome-code identity. The scanner
+// retains the exact lexical diagnostic when status is LexicalFailure.
+data OmegaParseDiagnosticCode {
+    case None;
+    case ExpectedPathMember;
+    case ExpectedPathSeparatorOrSemicolon;
+    case ExpectedDataName;
+    case ExpectedDataBody;
+    case ExpectedDataProperty;
+    case ExpectedDataPropertyEnd;
+    case ExpectedDataMemberOrEnd;
+    case ExpectedDataCaseName;
+    case ExpectedDataCaseEnd;
+    case ExpectedDataPayloadFieldOrEnd;
+    case ExpectedDataFieldColon;
+    case ExpectedDataFieldType;
+    case ExpectedTypeDomain;
+    case ExpectedTypeRangeOperator;
+    case ExpectedTypeRangeBound;
+    case ExpectedTypeRangeEnd;
+    case ExpectedArrayElementType;
+    case ExpectedArraySeparatorOrEnd;
+    case ExpectedArrayLength;
+    case ExpectedArrayEnd;
+    case ExpectedMachineParameterOrEnd;
+    case ExpectedMachineParameter;
+    case ExpectedMachineParameterColon;
+    case ExpectedMachineParameterType;
+    case ExpectedMachineParameterEnd;
+    case ExpectedMachineReturnType;
+    case ExpectedMachineReturnEnd;
+    case ExpectedReferenceLifetime;
+    case ExpectedUnitTypeEnd;
+    case ExpectedMachineBody;
+    case ExpectedMachineBodyEnd;
+    case ExpectedExpressionPathMember;
+    case ExpectedCallPathTail;
+    case ExpectedCallArgument;
+    case ExpectedCallArgumentEnd;
+    case ExpectedCallSemicolon;
+    case ExpectedAssignmentValue;
+    case ExpectedAssignmentSemicolon;
+    case ExpectedStaticArgument;
+    case ExpectedStaticArgumentEnd;
+    case ExpectedStaticCallOpen;
+    case ExpectedStructLiteralFieldOrEnd;
+    case ExpectedStructLiteralFieldColon;
+    case ExpectedStructLiteralValue;
+    case ExpectedStructLiteralFieldEnd;
+    case ExpectedStateName;
+    case ExpectedStateBody;
+    case ExpectedTransitionSubject;
+    case ExpectedTransitionArm;
+    case ExpectedTransitionArrow;
+    case ExpectedTransitionTarget;
+    case ExpectedTransitionTargetOpen;
+    case ExpectedTransitionTargetClose;
+    case ExpectedSatisfiesTrait;
+    case ExpectedSatisfiesRequirement;
+    case ExpectedExternalBinding;
+    case ExpectedExternalLeafEnd;
+    case ExpectedReachService;
+    case ExpectedTerminationBy;
+    case ExpectedTerminationSubject;
+    case ExpectedTerminationArrow;
+    case ExpectedTerminationView;
+    case ExpectedTerminationEnd;
+    case ExpectedIndexedIndex;
+    case ExpectedIndexedRangeEnd;
+    case ExpectedIndexedTail;
+    case ExpectedLocalDataName;
+    case ExpectedLocalDataColon;
+    case ExpectedLocalDataType;
+    case ExpectedLocalDataEnd;
+    case ExpectedLocalDataInitialValue;
+    case ExpectedCastType;
+    case ExpectedCastDomain;
+    case ExpectedCastEnd;
+    case ExpectedMembershipDomain;
+    case ExpectedMembershipEnd;
+    case ExpectedDataFieldEnd;
+}
+
+data OmegaParserResource {
+    case None;
+    case Roots;
+    case States;
+    case PathMembers;
+    case DataMembers;
+    case TypeNodes;
+    case TypeDepth;
+    case ExpressionDepth;
+    case Statements;
+    case Expressions;
+}
+
+data OmegaParser {
+    scan: OmegaLexScan;
+    // Only Complete authorizes consumers to inspect rows below the matching
+    // count. Failure/incomplete may leave unowned prefixes; reset invalidates
+    // prior rows by zeroing counts rather than clearing arrays.
+    roots: [OmegaRootSyntax; 4096];
+    members: [OmegaRelativeSpan; 16384];
+    uses: [OmegaUseSyntax; 4096];
+    data_items: [OmegaDataSyntax; 4096];
+    machine_items: [OmegaMachineSyntax; 4096];
+    machine_states: [OmegaMachineStateSyntax; 4096];
+    machine_parameters: [OmegaMachineParameterSyntax; 16384];
+    machine_clauses: [OmegaMachineClauseSyntax; 16384];
+    statements: [OmegaStatementSyntax; 16384];
+    call_statements: [OmegaCallStatementSyntax; 16384];
+    call_expressions: [OmegaCallExpressionSyntax; 16384];
+    cast_expressions: [OmegaCastExpressionSyntax; 16384];
+    assignment_statements: [OmegaAssignmentStatementSyntax; 16384];
+    local_data_statements: [OmegaLocalDataStatementSyntax; 16384];
+    transition_statements: [OmegaTransitionStatementSyntax; 16384];
+    transition_pattern_fields: [OmegaTransitionPatternFieldSyntax; 16384];
+    static_machine_arguments: [OmegaStaticMachineArgumentSyntax; 16384];
+    expressions: [OmegaExpressionSyntax; 16384];
+    binary_expressions: [OmegaBinaryExpressionSyntax; 16384];
+    unary_expressions: [OmegaUnaryExpressionSyntax; 16384];
+    indexed_expressions: [OmegaIndexedExpressionSyntax; 16384];
+    // Every range row owns one expression row, so Expressions dominates this
+    // equal-sized arena.
+    range_expressions: [OmegaRangeExpressionSyntax; 16384];
+    call_arguments: [i32; 16384];
+    struct_literals: [OmegaStructLiteralSyntax; 16384];
+    struct_literal_fields: [OmegaStructLiteralFieldSyntax; 16384];
+    data_members: [OmegaDataMemberSyntax; 16384];
+    data_fields: [OmegaDataFieldSyntax; 16384];
+    // Every payload field owns at least one type-reference row. The shared
+    // 16,384-row type-reference bound therefore fails before this equal-sized
+    // arena can.
+    data_payload_fields: [OmegaDataFieldSyntax; 16384];
+    data_cases: [OmegaDataCaseSyntax; 16384];
+    type_references: [OmegaTypeReferenceSyntax; 16384];
+    type_constraints: [OmegaTypeConstraintSyntax; 16384];
+    type_array_frames: [OmegaTypeArrayFrame; 128];
+    expression_frame_values: [i32; 128];
+    expression_frame_value_starts: [i32; 128];
+    expression_frame_value_ends: [i32; 128];
+    expression_frame_operators: [OmegaBinaryOperatorKind; 128];
+    expression_frame_precedences: [i32; 128];
+    expression_frame_operator_starts: [i32; 128];
+    expression_frame_operator_ends: [i32; 128];
+    expression_prefix_operators: [OmegaUnaryOperatorKind; 128];
+    expression_prefix_operator_starts: [i32; 128];
+    expression_prefix_operator_ends: [i32; 128];
+    expression_group_value_bases: [i32; 128];
+    expression_group_operator_bases: [i32; 128];
+    expression_group_prefix_bases: [i32; 128];
+    expression_group_starts: [i32; 128];
+    indexed_expression_frames: [OmegaIndexedExpressionFrame; 128];
+    root_count: i32;
+    member_count: i32;
+    use_count: i32;
+    data_count: i32;
+    machine_count: i32;
+    machine_state_count: i32;
+    machine_parameter_count: i32;
+    machine_clause_count: i32;
+    statement_count: i32;
+    call_statement_count: i32;
+    call_expression_count: i32;
+    cast_expression_count: i32;
+    assignment_statement_count: i32;
+    local_data_statement_count: i32;
+    transition_statement_count: i32;
+    transition_pattern_field_count: i32;
+    static_machine_argument_count: i32;
+    expression_count: i32;
+    binary_expression_count: i32;
+    unary_expression_count: i32;
+    indexed_expression_count: i32;
+    range_expression_count: i32;
+    call_argument_count: i32;
+    struct_literal_count: i32;
+    struct_literal_field_count: i32;
+    data_member_count: i32;
+    data_field_count: i32;
+    data_payload_field_count: i32;
+    data_case_count: i32;
+    type_reference_count: i32;
+    type_constraint_count: i32;
+    cursor: i32;
+    item_start: i32;
+    first_member: i32;
+    path_destination: OmegaPathDestination;
+    data_name_start: i32;
+    data_name_end: i32;
+    data_first_member: i32;
+    data_first_field: i32;
+    data_first_case: i32;
+    data_is_public: i32;
+    data_multiplicity: OmegaDataMultiplicity;
+    type_subject_start: i32;
+    type_subject_name_start: i32;
+    type_subject_name_end: i32;
+    type_consumer: OmegaTypeConsumer;
+    type_name_start: i32;
+    type_name_end: i32;
+    type_end: i32;
+    // 0 is a bare base, 1 an unqualified domain, and 2 a literal range.
+    type_constraint_mode: i32;
+    type_domain_name_start: i32;
+    type_domain_name_end: i32;
+    type_range_minimum_start: i32;
+    type_range_minimum_end: i32;
+    type_range_maximum_start: i32;
+    type_range_maximum_end: i32;
+    type_root: i32;
+    type_allows_range: i32;
+    type_array_frame_count: i32;
+    type_array_depth: i32;
+    type_required_nodes: i32;
+    type_array_emit_index: i32;
+    case_start: i32;
+    case_keyword_end: i32;
+    case_name_start: i32;
+    case_name_end: i32;
+    case_body_end: i32;
+    case_first_payload_field: i32;
+    machine_first_state: i32;
+    machine_first_clause: i32;
+    state_first_parameter: i32;
+    machine_parameter_has_more: i32;
+    machine_path_member_count: i32;
+    machine_is_public: i32;
+    machine_has_target: i32;
+    machine_target_start: i32;
+    machine_target_end: i32;
+    state_has_return_type: i32;
+    state_return_type: i32;
+    state_first_statement: i32;
+    state_has_body_syntax: i32;
+    state_is_explicit: i32;
+    state_name_start: i32;
+    state_name_end: i32;
+    machine_clause_first_member: i32;
+    machine_clause_first_view_member: i32;
+    machine_clause_subject_member_count: i32;
+    machine_clause_start: i32;
+    machine_is_bodyless: i32;
+    machine_parameter_is_const: i32;
+    machine_parameter_is_leading_mutable: i32;
+    machine_parameter_is_mutable: i32;
+    machine_parameter_is_self: i32;
+    machine_parameter_has_binding_reference: i32;
+    machine_parameter_binding_access: OmegaReferenceAccess;
+    type_base_kind: OmegaTypeBaseKind;
+    type_has_reference: i32;
+    type_reference_access: OmegaReferenceAccess;
+    type_reference_is_exclusive: i32;
+    type_reference_has_lifetime: i32;
+    type_reference_lifetime_start: i32;
+    type_reference_lifetime_end: i32;
+    statement_start: i32;
+    statement_first_path_member: i32;
+    statement_path_member_count: i32;
+    statement_starts_at_self: i32;
+    call_first_machine_argument: i32;
+    call_first_argument: i32;
+    call_is_expression: i32;
+    call_result_consumer: OmegaExpressionConsumer;
+    call_first_path_member: i32;
+    call_path_member_count: i32;
+    call_starts_at_self: i32;
+    call_name_member_count: i32;
+    call_start: i32;
+    call_has_receiver: i32;
+    call_receiver_expression: i32;
+    static_argument_first_path_member: i32;
+    static_argument_path_member_count: i32;
+    static_argument_start: i32;
+    argument_first_path_member: i32;
+    argument_path_member_count: i32;
+    argument_starts_at_self: i32;
+    argument_name_member_count: i32;
+    argument_path_kind: OmegaPathExpressionKind;
+    expression_consumer: OmegaExpressionConsumer;
+    expression_result: i32;
+    expression_result_start: i32;
+    expression_end: i32;
+    assignment_target_expression: i32;
+    assignment_target_name_member_count: i32;
+    assignment_target_path_kind: OmegaPathExpressionKind;
+    assignment_value_expression: i32;
+    indexed_base_expression: i32;
+    indexed_index_expression: i32;
+    indexed_result_consumer: OmegaExpressionConsumer;
+    indexed_start: i32;
+    indexed_is_value: i32;
+    indexed_index_is_range_start: i32;
+    indexed_range_has_start: i32;
+    indexed_range_start_expression: i32;
+    indexed_range_has_end: i32;
+    indexed_range_end_expression: i32;
+    indexed_range_end_inclusive: i32;
+    indexed_range_parsing_end: i32;
+    indexed_range_operator_start: i32;
+    indexed_range_operator_end: i32;
+    local_data_start: i32;
+    local_data_name_start: i32;
+    local_data_name_end: i32;
+    local_data_is_mutable: i32;
+    local_data_type_reference: i32;
+    local_data_has_initial_value: i32;
+    local_data_initial_value: i32;
+    local_data_end: i32;
+    cast_value_expression: i32;
+    cast_result_consumer: OmegaExpressionConsumer;
+    cast_start: i32;
+    cast_type_reference: i32;
+    cast_has_domain: i32;
+    cast_domain_start: i32;
+    cast_domain_end: i32;
+    cast_end: i32;
+    struct_literal_consumer: OmegaExpressionConsumer;
+    struct_literal_first_type_member: i32;
+    struct_literal_type_member_count: i32;
+    struct_literal_first_field: i32;
+    struct_literal_start: i32;
+    struct_field_name_start: i32;
+    struct_field_name_end: i32;
+    struct_field_value: i32;
+    struct_field_value_end: i32;
+    transition_has_subject: i32;
+    transition_subject_expression: i32;
+    transition_guard_kind: OmegaTransitionGuardKind;
+    transition_guard_boolean: i32;
+    transition_guard_start: i32;
+    transition_guard_end: i32;
+    transition_guard_first_path_member: i32;
+    transition_guard_path_member_count: i32;
+    transition_guard_first_pattern_field: i32;
+    transition_guard_pattern_field_count: i32;
+    transition_guard_has_rest: i32;
+    transition_pattern_member_start: i32;
+    transition_pattern_member_end: i32;
+    transition_pattern_member: i32;
+    transition_pattern_value_expression: i32;
+    transition_arrow_start: i32;
+    transition_arrow_end: i32;
+    transition_target_start: i32;
+    transition_target_end: i32;
+    transition_first_argument: i32;
+    expression_frame_value_count: i32;
+    expression_frame_operator_count: i32;
+    expression_group_count: i32;
+    expression_prefix_count: i32;
+    indexed_expression_frame_count: i32;
+    expression_pending_operator: OmegaBinaryOperatorKind;
+    expression_pending_precedence: i32;
+    expression_pending_operator_start: i32;
+    expression_pending_operator_end: i32;
+    membership_domain_active: i32;
+    status: OmegaParserStatus;
+    diagnostic_code: OmegaParseDiagnosticCode;
+    diagnostic_start: i32;
+    diagnostic_end: i32;
+    incomplete_start: i32;
+    incomplete_end: i32;
+    resource: OmegaParserResource;
+    resource_limit: i32;
+    resource_requested: i32;
+}

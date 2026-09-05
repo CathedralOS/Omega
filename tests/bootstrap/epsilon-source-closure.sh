@@ -22,7 +22,10 @@ python3 "$TOOL" "$FIXTURE_DIR/fixture.sources" "$TMP/fixture.epsilon"
     "528f65b2e2d9666db1c1f3930c9f5784bbfc1497e3b7225b26cb3eee34d2924c" ]
 
 python3 "$TOOL" "$OMEGA_PATH_OMEGA_COMPILER_SOURCES" "$TMP/omega_compiler.epsilon"
-cmp "$OMEGA_PATH_OMEGA_COMPILER_SOURCE" "$TMP/omega_compiler.epsilon"
+[ "$(wc -l < "$TMP/omega_compiler.epsilon" | tr -d ' ')" -eq 13572 ]
+[ "$(wc -c < "$TMP/omega_compiler.epsilon" | tr -d ' ')" -eq 464741 ]
+[ "$(shasum -a 256 "$TMP/omega_compiler.epsilon" | awk '{print $1}')" = \
+    "621f507b214f0f26ba3c9d4d36a1bb54a26bdeecbcdffcc24a2cb1a266ab8cde" ]
 
 cp "$FIXTURE_DIR/first.epsilon" "$FIXTURE_DIR/second.epsilon" "$TMP/"
 cat > "$TMP/reversed.sources" <<'EOF'
