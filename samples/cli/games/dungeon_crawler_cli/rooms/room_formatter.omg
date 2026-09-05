@@ -8,11 +8,14 @@ data RoomFormatter {
     lookup: RoomLookup;
 }
 
+// Writers replace the whole output buffer. Its incoming bytes need not be
+// text; each postcondition establishes Utf8 for the produced line.
+
 machine RoomFormatter::write_current_cell(
     &mut self,
     level: Level,
     cell: CellId,
-    out_line: &mut [u8; 128] in Utf8
+    out_line: &mut [u8; 128]
 )
 ensures out_line in Utf8
 {
@@ -23,14 +26,14 @@ ensures out_line in Utf8
 
     state gate_title(
         &mut self,
-        out_line: &mut [u8; 128] in Utf8
+        out_line: &mut [u8; 128]
     ) {
         out_line = "== Gate ==";
     }
 
     state branch_title(
         &mut self,
-        out_line: &mut [u8; 128] in Utf8
+        out_line: &mut [u8; 128]
     ) {
         out_line = "== Branch Room ==";
     }
@@ -40,7 +43,7 @@ machine RoomFormatter::write_room_info(
     &mut self,
     level: Level,
     cell: CellId,
-    out_line: &mut [u8; 128] in Utf8
+    out_line: &mut [u8; 128]
 )
 ensures out_line in Utf8
 {
@@ -53,7 +56,7 @@ machine RoomFormatter::write_room_event(
     &mut self,
     level: Level,
     cell: CellId,
-    out_line: &mut [u8; 128] in Utf8
+    out_line: &mut [u8; 128]
 )
 ensures out_line in Utf8
 {
@@ -71,21 +74,21 @@ ensures out_line in Utf8
 
     state describe_fountain(
         &mut self,
-        out_line: &mut [u8; 128] in Utf8
+        out_line: &mut [u8; 128]
     ) {
         out_line = "A fountain of life glows here. Type use to drink.";
     }
 
     state describe_treasure(
         &mut self,
-        out_line: &mut [u8; 128] in Utf8
+        out_line: &mut [u8; 128]
     ) {
         out_line = "A treasure cache rests against the wall. Type use to claim it.";
     }
 
     state describe_gold(
         &mut self,
-        out_line: &mut [u8; 128] in Utf8
+        out_line: &mut [u8; 128]
     ) {
         out_line = "Loose gold glitters in the dust. Type use to collect it.";
     }
@@ -93,14 +96,14 @@ ensures out_line in Utf8
     state describe_enemy(
         &mut self,
         enemy_name: [u8; 24] in Utf8,
-        out_line: &mut [u8; 128] in Utf8
+        out_line: &mut [u8; 128]
     ) {
         out_line = enemy_name + " blocks the way. Type fight.";
     }
 
     state quiet_room(
         &mut self,
-        out_line: &mut [u8; 128] in Utf8
+        out_line: &mut [u8; 128]
     ) {
         out_line = "The room is quiet.";
     }
@@ -110,7 +113,7 @@ machine RoomFormatter::write_adjacent_rooms(
     &mut self,
     level: Level,
     cell: CellId,
-    out_line: &mut [u8; 128] in Utf8
+    out_line: &mut [u8; 128]
 )
 ensures out_line in Utf8
 {
@@ -129,56 +132,56 @@ ensures out_line in Utf8
 
     state gate_paths(
         &mut self,
-        out_line: &mut [u8; 128] in Utf8
+        out_line: &mut [u8; 128]
     ) {
         out_line = "[Paths] north";
     }
 
     state room_one_paths(
         &mut self,
-        out_line: &mut [u8; 128] in Utf8
+        out_line: &mut [u8; 128]
     ) {
         out_line = "[Paths] south | north | east";
     }
 
     state room_two_paths(
         &mut self,
-        out_line: &mut [u8; 128] in Utf8
+        out_line: &mut [u8; 128]
     ) {
         out_line = "[Paths] south | north | west";
     }
 
     state room_three_paths(
         &mut self,
-        out_line: &mut [u8; 128] in Utf8
+        out_line: &mut [u8; 128]
     ) {
         out_line = "[Paths] south | north | east";
     }
 
     state room_four_paths(
         &mut self,
-        out_line: &mut [u8; 128] in Utf8
+        out_line: &mut [u8; 128]
     ) {
         out_line = "[Paths] south";
     }
 
     state side_east_paths(
         &mut self,
-        out_line: &mut [u8; 128] in Utf8
+        out_line: &mut [u8; 128]
     ) {
         out_line = "[Paths] west";
     }
 
     state side_west_paths(
         &mut self,
-        out_line: &mut [u8; 128] in Utf8
+        out_line: &mut [u8; 128]
     ) {
         out_line = "[Paths] east";
     }
 
     state no_paths(
         &mut self,
-        out_line: &mut [u8; 128] in Utf8
+        out_line: &mut [u8; 128]
     ) {
         out_line = "[Paths] none";
     }
@@ -187,7 +190,7 @@ ensures out_line in Utf8
 machine RoomFormatter::write_inventory(
     &mut self,
     player: Player,
-    out_line: &mut [u8; 128] in Utf8
+    out_line: &mut [u8; 128]
 )
 ensures out_line in Utf8
 {
@@ -199,7 +202,7 @@ ensures out_line in Utf8
     state inventory_twenty_four_check(
         &mut self,
         player: Player,
-        out_line: &mut [u8; 128] in Utf8
+        out_line: &mut [u8; 128]
     ) {
         transition player.inventory.gold >= 24 {
             true -> inventory_twenty_four(player, out_line)
@@ -210,7 +213,7 @@ ensures out_line in Utf8
     state inventory_six_check(
         &mut self,
         player: Player,
-        out_line: &mut [u8; 128] in Utf8
+        out_line: &mut [u8; 128]
     ) {
         transition player.inventory.gold >= 6 {
             true -> inventory_six(player, out_line)
@@ -221,7 +224,7 @@ ensures out_line in Utf8
     state inventory_zero(
         &mut self,
         player: Player,
-        out_line: &mut [u8; 128] in Utf8
+        out_line: &mut [u8; 128]
     ) {
         transition player.inventory.item_count > 0 {
             true -> inventory_zero_with_item(out_line)
@@ -231,14 +234,14 @@ ensures out_line in Utf8
 
     state inventory_zero_empty(
         &mut self,
-        out_line: &mut [u8; 128] in Utf8
+        out_line: &mut [u8; 128]
     ) {
         out_line = "Inv: 0 gold. Pack empty.";
     }
 
     state inventory_zero_with_item(
         &mut self,
-        out_line: &mut [u8; 128] in Utf8
+        out_line: &mut [u8; 128]
     ) {
         out_line = "Inv: 0 gold. Pack holds a charm.";
     }
@@ -246,7 +249,7 @@ ensures out_line in Utf8
     state inventory_six(
         &mut self,
         player: Player,
-        out_line: &mut [u8; 128] in Utf8
+        out_line: &mut [u8; 128]
     ) {
         transition player.inventory.item_count > 0 {
             true -> inventory_six_with_item(out_line)
@@ -256,14 +259,14 @@ ensures out_line in Utf8
 
     state inventory_six_only(
         &mut self,
-        out_line: &mut [u8; 128] in Utf8
+        out_line: &mut [u8; 128]
     ) {
         out_line = "Inv: 6 gold. A few scavenged coins.";
     }
 
     state inventory_six_with_item(
         &mut self,
-        out_line: &mut [u8; 128] in Utf8
+        out_line: &mut [u8; 128]
     ) {
         out_line = "Inv: 6 gold. A few coins and a charm.";
     }
@@ -271,7 +274,7 @@ ensures out_line in Utf8
     state inventory_twenty_four(
         &mut self,
         player: Player,
-        out_line: &mut [u8; 128] in Utf8
+        out_line: &mut [u8; 128]
     ) {
         transition player.inventory.item_count > 0 {
             true -> inventory_twenty_four_with_item(out_line)
@@ -281,21 +284,21 @@ ensures out_line in Utf8
 
     state inventory_twenty_four_only(
         &mut self,
-        out_line: &mut [u8; 128] in Utf8
+        out_line: &mut [u8; 128]
     ) {
         out_line = "Inv: 24 gold. A rich little haul.";
     }
 
     state inventory_twenty_four_with_item(
         &mut self,
-        out_line: &mut [u8; 128] in Utf8
+        out_line: &mut [u8; 128]
     ) {
         out_line = "Inv: 24 gold. A rich haul and a charm.";
     }
 
     state inventory_thirty(
         &mut self,
-        out_line: &mut [u8; 128] in Utf8
+        out_line: &mut [u8; 128]
     ) {
         out_line = "Inv: 30 gold. Purse heavy, charm secured.";
     }
@@ -303,7 +306,7 @@ ensures out_line in Utf8
     state inventory_items(
         &mut self,
         player: Player,
-        out_line: &mut [u8; 128] in Utf8
+        out_line: &mut [u8; 128]
     ) {
         transition player.inventory.item_count > 0 {
             true -> stocked_inventory(out_line)
@@ -313,21 +316,21 @@ ensures out_line in Utf8
 
     state wealthy_inventory(
         &mut self,
-        out_line: &mut [u8; 128] in Utf8
+        out_line: &mut [u8; 128]
     ) {
         out_line = "Inv: purse heavy and gear secured.";
     }
 
     state stocked_inventory(
         &mut self,
-        out_line: &mut [u8; 128] in Utf8
+        out_line: &mut [u8; 128]
     ) {
         out_line = "Inv: a few coins and some gear.";
     }
 
     state light_inventory(
         &mut self,
-        out_line: &mut [u8; 128] in Utf8
+        out_line: &mut [u8; 128]
     ) {
         out_line = "Inv: nearly empty.";
     }
@@ -336,7 +339,7 @@ ensures out_line in Utf8
 machine RoomFormatter::write_character(
     &mut self,
     player: Player,
-    out_line: &mut [u8; 128] in Utf8
+    out_line: &mut [u8; 128]
 )
 ensures out_line in Utf8
 {
@@ -349,7 +352,7 @@ ensures out_line in Utf8
     state character_experience(
         &mut self,
         player: Player,
-        out_line: &mut [u8; 128] in Utf8
+        out_line: &mut [u8; 128]
     ) {
         transition player.level >= 3 {
             true -> seasoned_character(out_line)
@@ -359,21 +362,21 @@ ensures out_line in Utf8
 
     state wounded_character(
         &mut self,
-        out_line: &mut [u8; 128] in Utf8
+        out_line: &mut [u8; 128]
     ) {
         out_line = "Character: wounded, stubborn, still standing.";
     }
 
     state seasoned_character(
         &mut self,
-        out_line: &mut [u8; 128] in Utf8
+        out_line: &mut [u8; 128]
     ) {
         out_line = "Character: seasoned enough to worry the dungeon.";
     }
 
     state ready_character(
         &mut self,
-        out_line: &mut [u8; 128] in Utf8
+        out_line: &mut [u8; 128]
     ) {
         out_line = "Character: ready for trouble.";
     }

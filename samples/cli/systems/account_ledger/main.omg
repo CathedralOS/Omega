@@ -211,19 +211,19 @@ machine Main::do_unfreeze(&mut self, idx: i32 in Wrapping) {
 // Read frozen flag (value-returning).
 machine Main::is_frozen(&mut self, idx: i32 in Wrapping) -> i32 {
     transition idx == 0 {
-        true -> (self.accounts[0].frozen)
+        true -> (self.accounts[0].frozen as i32)
         _ -> try_f1(idx)
     }
     state try_f1(&mut self, idx: i32 in Wrapping) {
         transition idx == 1 {
-            true -> (self.accounts[1].frozen)
+            true -> (self.accounts[1].frozen as i32)
             _ -> try_f2(idx)
         }
     }
     state try_f2(&mut self, idx: i32 in Wrapping) {
         transition idx == 2 {
-            true -> (self.accounts[2].frozen)
-            _ -> (self.accounts[3].frozen)
+            true -> (self.accounts[2].frozen as i32)
+            _ -> (self.accounts[3].frozen as i32)
         }
     }
 }

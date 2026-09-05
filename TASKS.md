@@ -69,23 +69,11 @@ the [Rust Compiler Completion Contract](wiki/releases/rust_compiler_completion_c
   construction of that closure belongs in `TASKS_BOOTSTRAP.md`.
 
 - **SAMPLE-CORPUS.** `mbx test -p omega-compiler --test samples_compile` is red.
-  Two `all_samples_reach_checked_trees` failures are one compiler defect:
-  `psi-typed-trees-to-checked-trees` leaves an authored selection late-bound and
-  its post-check completeness scan then rejects a program that checked cleanly.
-  `cli/systems/wire_protocol` needs member access whose receiver is itself a
-  member access on a captured entry-block local (`decoded.header.room_id`);
-  `authored_selections.rs` recovers a captured local's own type but not the type
-  of one of its fields. `cli/proofs/math_proofs` needs a declaration selection
+  `cli/proofs/math_proofs` needs a declaration selection
   for the compiler-installed proof term `Bag(...)`, whose Call occurrence is
   never recorded; the sample's own comment already calls `Bag` lowering future
-  work.
-
-  Three samples predate stricter checking rules and need their authored source
-  brought up to them: `cli/systems/account_ledger` weakens a `Wrapping` domain
-  where an explicit `as` is now required, `cli/simulation/game_of_life` relies on
-  a target `in Wrapping` to re-domain a value expression that decision 17 now
-  leaves operand-driven, and `cli/games/dungeon_crawler_cli` mutates a
-  `[u8; N] in Utf8` line buffer and then passes it where that domain must hold.
+  work. The post-check completeness scan rejects its remaining late-bound
+  authored Call selection after semantic checking succeeds.
 
   `samples_with_documented_exit_run_correctly` is blocked for every `cli/text/*`
   sample, every `stdin_*` sample, and `gui/window_demo` by one
@@ -350,11 +338,27 @@ Owners include
   used premise is reconstructed for the exact subject and no qualification or
   similarly shaped row mints one implicitly.
 
+- **UNIT-EXIT-POSTCONDITIONS.** Reject false postconditions on resultless
+  writers in Psi contract checking. A `&mut [u8; 4]` writer currently accepts
+  `ensures out_line in Utf8` after assigning `[255, 0, 0, 0]`, so its text-output
+  contract is not established. Acceptance: invalid and unwritten output
+  predicates reject at every normal Unit exit, while whole valid-text
+  replacement establishes the output predicate without requiring it on input.
+
 - **CML4.** Complete `EdgeCleanupPlan` after outgoing materialization and
   transfer commitment, including structural sums, nested projections, cycles,
   calls, and partial initialization. Cleanup follows reverse establishment and
   exact residual custody; trap/abort edges clean nothing. Acceptance: no affine
   occurrence disappears, duplicates, or is cleaned after transfer.
+
+- **STATE-LOCAL-VALUE-FRONTIER.** Enforce chapter 4's explicit state parameters
+  in Psi name resolution and checking. Entry locals and parameters must not
+  become ambient values in sibling states; existing capture acceptance and
+  captured-entry authored-selection fallbacks contradict the settled rule.
+  Migrate affected source and canaries to explicit transition arguments, then
+  remove the capture paths. Acceptance: implicit cross-state use rejects, while
+  explicit renamed transfers retain exact field selection, ownership and cleanup
+  without requiring a runtime copy.
 
 - **CLEANUP-HOOK-SELECTION-AND-ERASED-OWNERSHIP.** Finish ordinary generic
   `drop<T>` and runtime cleanup invocation after exact owner-attached hook

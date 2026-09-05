@@ -30,8 +30,10 @@
 use omega_language_std::console;
 
 data Grid [copy] {
-    board: [i32; 16];
-    next: [i32; 16];
+    // Cells are dead or alive; these bounds also prove neighbor sums and
+    // the sixteen-cell checksum fit Exact i32 arithmetic.
+    board: [i32 [0..=1]; 16];
+    next: [i32 [0..=1]; 16];
     offset: i32 in Wrapping;
 }
 

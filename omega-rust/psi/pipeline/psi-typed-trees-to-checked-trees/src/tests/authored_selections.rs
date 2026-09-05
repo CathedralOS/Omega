@@ -34,6 +34,63 @@ fn successful_checking_rejects_any_unresolved_authored_selection() {
 }
 
 #[test]
+fn explicit_state_arguments_finalize_nested_record_member_selections() {
+    let source = r#"
+        data Header { room_id: u32; }
+        data Packet { header: Header; }
+        data Main {}
+        machine Main::main(&mut self) {
+            let decoded: Packet = Packet { header: Header { room_id: 300 } };
+            transition { _ -> inspect(decoded) }
+            state inspect(&mut self, packet: Packet) {
+                transition packet.header.room_id == 300 {
+                    true -> {}
+                    _ -> {}
+                }
+            }
+        }
+    "#;
+    let tokens = Lexer::new(source).tokenize().expect("tokenize");
+    let syntax = parse_syntax_trees(&tokens).expect("parse");
+    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
+    let checked = lower_typed_trees(typed).expect("explicit state transfer checks");
+    let selections = checked.authored_declaration_selections();
+    let selected = selections
+        .iter()
+        .filter_map(|selection| {
+            if selection.kind() != AuthoredDeclarationSelectionKind::MemberAccess {
+                return None;
+            }
+            let AuthoredDeclarationSelectionTarget::Resolved(target) = selection.target() else {
+                panic!("member selection must resolve");
+            };
+            Some(target.selected_symbol())
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(selected.len(), 2);
+    for (owner, name) in [("Packet", "header"), ("Header", "room_id")] {
+        let definition = checked
+            .data_definitions()
+            .iter()
+            .find(|definition| definition.name.as_str() == owner)
+            .expect("nominal owner");
+        let field = checked
+            .data_members(definition)
+            .iter()
+            .find_map(|member| match member {
+                psi_typed_trees::data::DataMember::Field(field) if field.name.as_str() == name => {
+                    Some(field.symbol)
+                }
+                _ => None,
+            })
+            .expect("declared field");
+        assert!(selected.contains(&field));
+    }
+    assert!(selections.all_finalized());
+}
+
+#[test]
 fn successful_checking_finalizes_authored_call_occurrences() {
     let source = r#"
         machine identity(value: u32) -> u32 { value }
