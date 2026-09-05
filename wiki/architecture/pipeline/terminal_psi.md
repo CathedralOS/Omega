@@ -2951,9 +2951,10 @@ computation plans, separate from the pure scalar expressions consumed by proof.
 Their value leaves use the source state's checked scalar namespace; call nodes
 retain exact flow-call handles and authored occurrence ordinals; conditional
 nodes select one result; pure application templates consume only their computed
-operands. Builtin Boolean composition and nested free scalar calls lower to
-private typed blocks. Each completed argument is carried before the next one
-starts, and only the selected `&&`/`||` RHS executes. No source state, source
+operands. Builtin Boolean composition, fixed-integer arithmetic/comparisons,
+and nested free scalar calls lower to private typed blocks. Each completed
+argument is carried before the next one starts, and only the selected `&&`/`||`
+RHS executes. No source state, source
 local, or new Terminal operation is manufactured. Invalid handles, cycles,
 duplicate roots/call occurrences, and mismatched carriers or invocation
 coordinates reject before publication.
@@ -2964,8 +2965,19 @@ ordinary staged calls. The checker row still supplies exact target-contract
 identity; Terminal verification independently reconstructs route coverage.
 Declared crash ceilings may remain even when every crashing branch is skipped.
 
-Effectful arithmetic/casts, other expression destinations, borrowed/projected
-operands, and named runtime proof outputs still need execution-plan extensions.
+Integer applications share operation construction with pure checked expressions.
+Each operand retains its own arithmetic policy; a resolved callee's declared
+result type supplies its carrier and policy, not the enclosing destination.
+Comparison normalization may reverse completed values for `>` or `>=` but never
+reverses their evaluation. Widening and occurrence-proved exact casts use the
+same pure templates after evaluating their operand once. Cast range obligations
+must still be reconstructed by independent Terminal verification.
+
+Remaining numeric policies and selected operator calls, other expression
+destinations, borrowed/projected operands, and named runtime proof outputs still
+need execution-plan extensions. Nested narrowing that requires callee-result
+postcondition bounds needs additional value-fact transport; a call's carrier
+alone never proves a partial conversion.
 The older flat guarded-argument normalization remains on uncovered paths and
 must be retired as those paths move to checked computation planning; this work
 remains in `STATE-LOCAL-VALUE-FRONTIER`.

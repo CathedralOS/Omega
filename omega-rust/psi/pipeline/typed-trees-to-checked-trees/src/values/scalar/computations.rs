@@ -7,6 +7,7 @@ use checked_trees::{
 };
 use symbols::SymbolHandle;
 
+mod integers;
 #[cfg(test)]
 mod tests;
 
@@ -202,6 +203,18 @@ impl Builder<'_, '_> {
         ) {
             return Some(self.insert(expected_type, CheckedScalarComputationKind::Value(value)));
         }
+        if is_integer(expected_type)
+            && !matches!(
+                self.program.expression_table.expression(expression),
+                ExpressionNode::Call(_)
+            )
+        {
+            let integer = self.integer_operand(expression)?;
+            if scalar_expression_type(&integer.value)? != expected_type {
+                return None;
+            }
+            return self.materialize_integer(integer);
+        }
         match self.program.expression_table.expression(expression).clone() {
             ExpressionNode::Call(call) => {
                 if call.receiver.is_valid()
@@ -317,10 +330,24 @@ impl Builder<'_, '_> {
                 if expected_type == PrimitiveType::Bool
                     && matches!(
                         binary.operator,
-                        BinaryOperator::Equal | BinaryOperator::NotEqual
+                        BinaryOperator::Equal
+                            | BinaryOperator::NotEqual
+                            | BinaryOperator::Less
+                            | BinaryOperator::LessOrEqual
+                            | BinaryOperator::Greater
+                            | BinaryOperator::GreaterOrEqual
                     )
                     && operator_is_builtin(self.operators, expression) =>
             {
+                if let Some(comparison) = self.integer_comparison(&binary) {
+                    return Some(comparison);
+                }
+                if !matches!(
+                    binary.operator,
+                    BinaryOperator::Equal | BinaryOperator::NotEqual
+                ) {
+                    return None;
+                }
                 let left = self.expression(binary.left, PrimitiveType::Bool)?;
                 let right = self.expression(binary.right, PrimitiveType::Bool)?;
                 let operands = self.plans.operands.insert_many([left, right]);

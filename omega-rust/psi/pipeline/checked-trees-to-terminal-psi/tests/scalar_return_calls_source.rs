@@ -11,6 +11,9 @@ use terminal_interpreter::{
 use tokens_to_syntax_trees::parse_syntax_trees;
 use typed_trees_to_checked_trees::lower_typed_trees;
 
+#[path = "scalar_return_calls_source/integer_computations.rs"]
+mod integer_computations;
+
 fn encoded(source: &str) -> (Vec<u8>, Vec<u8>) {
     encoded_arms(source, false)
 }

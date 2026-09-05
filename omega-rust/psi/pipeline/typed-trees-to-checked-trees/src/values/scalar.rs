@@ -2248,66 +2248,7 @@ fn lower_scalar_expression(
                 locals,
                 exact_integer_casts,
             )?;
-            let source_type = scalar_expression_type(&operand);
-            if source_type.is_none()
-                && cast.domain == ArithmeticDomain::Exact
-                && target_type != PrimitiveType::Addr
-                && let Some(literal) = retag_exact_integer_literal(&operand, target_type)
-            {
-                return Some((literal, cast.domain));
-            }
-            let source_type = source_type?;
-            if source_type == target_type {
-                return Some((operand, cast.domain));
-            }
-            // A compile-known exact conversion does not need a runtime cast
-            // operation or a carried flow assumption: validation has already
-            // proved the spelling denotes a target value, and the checked
-            // carrier can retain that value directly at its new landing. Keep
-            // address conversions out of this fixed-integer slice; addr is a
-            // distinct carrier even when its current representation is u64.
-            if cast.domain == ArithmeticDomain::Exact
-                && source_type != PrimitiveType::Addr
-                && target_type != PrimitiveType::Addr
-                && let Some(literal) = retag_exact_integer_literal(&operand, target_type)
-            {
-                return Some((literal, cast.domain));
-            }
-            // A full-carrier inclusion needs no occurrence proof. Preserve it
-            // as widening even when validation also retained a bounded range
-            // for this spelling; exact-cast obligations are only necessary for
-            // partial fixed-integer conversions.
-            if integer_widen_is_total(source_type, target_type) {
-                return Some((
-                    CheckedScalarExpression::IntegerWiden {
-                        primitive_type: target_type,
-                        operand: Box::new(operand),
-                    },
-                    cast.domain,
-                ));
-            }
-            if cast.domain == ArithmeticDomain::Exact
-                && let Some(fact) = exact_integer_casts
-                    .iter()
-                    .find(|fact| fact.expression == expression)
-                && fact.source_type == source_type
-                && fact.target_type == target_type
-            {
-                return Some((
-                    CheckedScalarExpression::IntegerExactCast {
-                        primitive_type: target_type,
-                        operand: Box::new(operand),
-                        range: CheckedIntegerRange {
-                            minimum: fact.minimum.clone(),
-                            maximum: fact.maximum.clone(),
-                        },
-                    },
-                    cast.domain,
-                ));
-            }
-            // All remaining cast shapes fail closed at this source-independent
-            // boundary: no total conversion and no retained occurrence proof.
-            None
+            construct_integer_cast(program, expression, operand, exact_integer_casts)
         }
         ExpressionNode::Unary(unary)
             if unary.operator == UnaryOperator::BitwiseNot
@@ -2322,17 +2263,10 @@ fn lower_scalar_expression(
                 locals,
                 exact_integer_casts,
             )?;
-            let primitive_type = scalar_expression_type(&operand)?;
-            is_integer(primitive_type).then_some((
-                CheckedScalarExpression::IntegerBitwiseNot {
-                    primitive_type,
-                    operand: Box::new(operand),
-                },
-                domain,
-            ))
+            construct_integer_bitwise_not(operand, domain)
         }
         ExpressionNode::Binary(binary) if operator_is_builtin(operators, expression) => {
-            let (mut left, left_domain) = lower_scalar_expression(
+            let (left, left_domain) = lower_scalar_expression(
                 program,
                 operators,
                 binary.left,
@@ -2341,7 +2275,7 @@ fn lower_scalar_expression(
                 locals,
                 exact_integer_casts,
             )?;
-            let (mut right, right_domain) = lower_scalar_expression(
+            let (right, right_domain) = lower_scalar_expression(
                 program,
                 operators,
                 binary.right,
@@ -2350,55 +2284,161 @@ fn lower_scalar_expression(
                 locals,
                 exact_integer_casts,
             )?;
-            let shift = matches!(
-                binary.operator,
-                BinaryOperator::ShiftLeft | BinaryOperator::ShiftRight
-            );
-            let domain = if shift {
-                left_domain
-            } else {
-                combine_arithmetic_domains(left_domain, right_domain)?
-            };
-            let kind = checked_integer_binary_kind(binary.operator, domain)?;
-            let mut left_type = scalar_expression_type(&left);
-            let mut right_type = scalar_expression_type(&right);
-            // Unary `-value` is parsed as a compiler-generated anonymous
-            // `0 - value`. That zero has no parse-site suffix from which the
-            // ordinary literal stamper can learn a carrier, so retain the
-            // binary expression's already-checked operand carrier here. This
-            // is contextual literal landing, not a new negation meaning.
-            if binary.operator == BinaryOperator::Subtract && left_type.is_none() {
-                left = land_anonymous_zero(left, right_type?)?;
-                left_type = scalar_expression_type(&left);
-            }
-            if left_type.is_none() {
-                left = land_contextual_integer_literal(left, right_type?)?;
-                left_type = scalar_expression_type(&left);
-            }
-            if right_type.is_none() {
-                right = land_contextual_integer_literal(right, left_type?)?;
-                right_type = scalar_expression_type(&right);
-            }
-            let primitive_type = left_type?;
-            let right_type = right_type?;
-            if !is_integer(primitive_type)
-                || !is_integer(right_type)
-                || (!shift && right_type != primitive_type)
-            {
-                return None;
-            }
-            Some((
-                CheckedScalarExpression::IntegerBinary {
-                    kind,
-                    primitive_type,
-                    left: Box::new(left),
-                    right: Box::new(right),
-                },
-                domain,
-            ))
+            construct_integer_binary(binary.operator, left, left_domain, right, right_domain)
         }
         _ => None,
     }
+}
+
+/// Construct one selected builtin operation from operands whose evaluation
+/// order has already been retained by either the pure tree or computation plan.
+fn construct_integer_binary(
+    operator: BinaryOperator,
+    mut left: CheckedScalarExpression,
+    left_domain: ArithmeticDomain,
+    mut right: CheckedScalarExpression,
+    right_domain: ArithmeticDomain,
+) -> Option<(CheckedScalarExpression, ArithmeticDomain)> {
+    let shift = matches!(
+        operator,
+        BinaryOperator::ShiftLeft | BinaryOperator::ShiftRight
+    );
+    let domain = if shift {
+        left_domain
+    } else {
+        combine_arithmetic_domains(left_domain, right_domain)?
+    };
+    let kind = checked_integer_binary_kind(operator, domain)?;
+    let mut left_type = scalar_expression_type(&left);
+    let mut right_type = scalar_expression_type(&right);
+    // Unary `-value` is parsed as a compiler-generated anonymous
+    // `0 - value`. That zero has no parse-site suffix from which the
+    // ordinary literal stamper can learn a carrier, so retain the
+    // binary expression's already-checked operand carrier here. This
+    // is contextual literal landing, not a new negation meaning.
+    if operator == BinaryOperator::Subtract && left_type.is_none() {
+        left = land_anonymous_zero(left, right_type?)?;
+        left_type = scalar_expression_type(&left);
+    }
+    if left_type.is_none() {
+        left = land_contextual_integer_literal(left, right_type?)?;
+        left_type = scalar_expression_type(&left);
+    }
+    if right_type.is_none() {
+        right = land_contextual_integer_literal(right, left_type?)?;
+        right_type = scalar_expression_type(&right);
+    }
+    let primitive_type = left_type?;
+    let right_type = right_type?;
+    if !is_integer(primitive_type)
+        || !is_integer(right_type)
+        || (!shift && right_type != primitive_type)
+    {
+        return None;
+    }
+    Some((
+        CheckedScalarExpression::IntegerBinary {
+            kind,
+            primitive_type,
+            left: Box::new(left),
+            right: Box::new(right),
+        },
+        domain,
+    ))
+}
+
+fn construct_integer_bitwise_not(
+    operand: CheckedScalarExpression,
+    domain: ArithmeticDomain,
+) -> Option<(CheckedScalarExpression, ArithmeticDomain)> {
+    let primitive_type = scalar_expression_type(&operand)?;
+    is_integer(primitive_type).then_some((
+        CheckedScalarExpression::IntegerBitwiseNot {
+            primitive_type,
+            operand: Box::new(operand),
+        },
+        domain,
+    ))
+}
+
+/// Retain cast meaning and any partial-conversion proof at the original source
+/// occurrence even when the operand is a completed computation-plan value.
+fn construct_integer_cast(
+    program: &TypedTrees,
+    expression: ExpressionHandle,
+    operand: CheckedScalarExpression,
+    exact_integer_casts: &[validation::ExactIntegerCastFact],
+) -> Option<(CheckedScalarExpression, ArithmeticDomain)> {
+    let ExpressionNode::Cast(cast) = program.expression_table.expression(expression) else {
+        return None;
+    };
+    if cast.form.is_recast() || !cast.semantic_domain.is_empty() {
+        return None;
+    }
+    let target_type = program.primitive_type_reference(cast.target_type)?;
+    if !is_integer(target_type) {
+        return None;
+    }
+    let source_type = scalar_expression_type(&operand);
+    if source_type.is_none()
+        && cast.domain == ArithmeticDomain::Exact
+        && target_type != PrimitiveType::Addr
+        && let Some(literal) = retag_exact_integer_literal(&operand, target_type)
+    {
+        return Some((literal, cast.domain));
+    }
+    let source_type = source_type?;
+    if source_type == target_type {
+        return Some((operand, cast.domain));
+    }
+    // A compile-known exact conversion does not need a runtime cast
+    // operation or a carried flow assumption: validation has already
+    // proved the spelling denotes a target value, and the checked
+    // carrier can retain that value directly at its new landing. Keep
+    // address conversions out of this fixed-integer slice; addr is a
+    // distinct carrier even when its current representation is u64.
+    if cast.domain == ArithmeticDomain::Exact
+        && source_type != PrimitiveType::Addr
+        && target_type != PrimitiveType::Addr
+        && let Some(literal) = retag_exact_integer_literal(&operand, target_type)
+    {
+        return Some((literal, cast.domain));
+    }
+    // A full-carrier inclusion needs no occurrence proof. Preserve it
+    // as widening even when validation also retained a bounded range
+    // for this spelling; exact-cast obligations are only necessary for
+    // partial fixed-integer conversions.
+    if integer_widen_is_total(source_type, target_type) {
+        return Some((
+            CheckedScalarExpression::IntegerWiden {
+                primitive_type: target_type,
+                operand: Box::new(operand),
+            },
+            cast.domain,
+        ));
+    }
+    if cast.domain == ArithmeticDomain::Exact
+        && let Some(fact) = exact_integer_casts
+            .iter()
+            .find(|fact| fact.expression == expression)
+        && fact.source_type == source_type
+        && fact.target_type == target_type
+    {
+        return Some((
+            CheckedScalarExpression::IntegerExactCast {
+                primitive_type: target_type,
+                operand: Box::new(operand),
+                range: CheckedIntegerRange {
+                    minimum: fact.minimum.clone(),
+                    maximum: fact.maximum.clone(),
+                },
+            },
+            cast.domain,
+        ));
+    }
+    // All remaining cast shapes fail closed at this source-independent
+    // boundary: no total conversion and no retained occurrence proof.
+    None
 }
 
 /// Reclose the one source-level slice view whose length is already fixed by
@@ -2624,8 +2664,8 @@ fn lower_boolean_expression(
                     | BinaryOperator::GreaterOrEqual
             ) && operator_is_builtin(operators, expression) =>
         {
-            let integer_operands = (|| {
-                let (mut left, _) = lower_scalar_expression(
+            let integer_comparison = (|| {
+                let (left, _) = lower_scalar_expression(
                     program,
                     operators,
                     binary.left,
@@ -2634,7 +2674,7 @@ fn lower_boolean_expression(
                     locals,
                     exact_integer_casts,
                 )?;
-                let (mut right, _) = lower_scalar_expression(
+                let (right, _) = lower_scalar_expression(
                     program,
                     operators,
                     binary.right,
@@ -2643,56 +2683,14 @@ fn lower_boolean_expression(
                     locals,
                     exact_integer_casts,
                 )?;
-                match (
-                    scalar_expression_type(&left),
-                    scalar_expression_type(&right),
-                ) {
-                    (Some(primitive_type), None) => {
-                        right = land_contextual_integer_literal(right, primitive_type)?;
-                    }
-                    (None, Some(primitive_type)) => {
-                        left = land_contextual_integer_literal(left, primitive_type)?;
-                    }
-                    (Some(_), Some(_)) => {}
-                    (None, None) => return None,
-                }
-                let left_type = scalar_expression_type(&left)?;
-                (is_integer(left_type) && scalar_expression_type(&right)? == left_type)
-                    .then_some((left, right))
+                construct_integer_comparison(binary.operator, left, right)
             })();
             if !matches!(
                 binary.operator,
                 BinaryOperator::Equal | BinaryOperator::NotEqual
-            ) || integer_operands.is_some()
+            ) || integer_comparison.is_some()
             {
-                let (mut left, mut right) = integer_operands?;
-                let (kind, negated) = match binary.operator {
-                    BinaryOperator::Equal => (CheckedIntegerComparisonKind::Equal, false),
-                    BinaryOperator::NotEqual => (CheckedIntegerComparisonKind::Equal, true),
-                    BinaryOperator::Less => (CheckedIntegerComparisonKind::LessThan, false),
-                    BinaryOperator::LessOrEqual => {
-                        (CheckedIntegerComparisonKind::LessOrEqual, false)
-                    }
-                    BinaryOperator::Greater => {
-                        std::mem::swap(&mut left, &mut right);
-                        (CheckedIntegerComparisonKind::LessThan, false)
-                    }
-                    BinaryOperator::GreaterOrEqual => {
-                        std::mem::swap(&mut left, &mut right);
-                        (CheckedIntegerComparisonKind::LessOrEqual, false)
-                    }
-                    _ => return None,
-                };
-                let comparison = CheckedBooleanExpression::IntegerComparison {
-                    kind,
-                    left: Box::new(left),
-                    right: Box::new(right),
-                };
-                return Some(if negated {
-                    CheckedBooleanExpression::Not(Box::new(comparison))
-                } else {
-                    comparison
-                });
+                return integer_comparison;
             }
             let equality = CheckedBooleanExpression::Equal {
                 left: Box::new(lower_boolean_expression(
@@ -2750,6 +2748,57 @@ fn lower_boolean_expression(
         }
         _ => None,
     }
+}
+
+/// Comparison normalization may swap completed values for `>` and `>=`; it
+/// does not change the source operand evaluation order retained by the caller.
+fn construct_integer_comparison(
+    operator: BinaryOperator,
+    mut left: CheckedScalarExpression,
+    mut right: CheckedScalarExpression,
+) -> Option<CheckedBooleanExpression> {
+    match (
+        scalar_expression_type(&left),
+        scalar_expression_type(&right),
+    ) {
+        (Some(primitive_type), None) => {
+            right = land_contextual_integer_literal(right, primitive_type)?;
+        }
+        (None, Some(primitive_type)) => {
+            left = land_contextual_integer_literal(left, primitive_type)?;
+        }
+        (Some(_), Some(_)) => {}
+        (None, None) => return None,
+    }
+    let left_type = scalar_expression_type(&left)?;
+    if !is_integer(left_type) || scalar_expression_type(&right)? != left_type {
+        return None;
+    }
+    let (kind, negated) = match operator {
+        BinaryOperator::Equal => (CheckedIntegerComparisonKind::Equal, false),
+        BinaryOperator::NotEqual => (CheckedIntegerComparisonKind::Equal, true),
+        BinaryOperator::Less => (CheckedIntegerComparisonKind::LessThan, false),
+        BinaryOperator::LessOrEqual => (CheckedIntegerComparisonKind::LessOrEqual, false),
+        BinaryOperator::Greater => {
+            std::mem::swap(&mut left, &mut right);
+            (CheckedIntegerComparisonKind::LessThan, false)
+        }
+        BinaryOperator::GreaterOrEqual => {
+            std::mem::swap(&mut left, &mut right);
+            (CheckedIntegerComparisonKind::LessOrEqual, false)
+        }
+        _ => return None,
+    };
+    let comparison = CheckedBooleanExpression::IntegerComparison {
+        kind,
+        left: Box::new(left),
+        right: Box::new(right),
+    };
+    Some(if negated {
+        CheckedBooleanExpression::Not(Box::new(comparison))
+    } else {
+        comparison
+    })
 }
 
 fn lower_boolean_guard(
