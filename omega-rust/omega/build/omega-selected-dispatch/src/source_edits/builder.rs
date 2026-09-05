@@ -78,6 +78,10 @@ impl SourceEditBuilder {
                 self.roots.push(unary.operand);
                 None
             }
+            ExpressionNode::Indexed(indexed) => {
+                self.roots.extend([indexed.collection, indexed.index]);
+                None
+            }
             _ => {
                 self.unsupported = true;
                 None
