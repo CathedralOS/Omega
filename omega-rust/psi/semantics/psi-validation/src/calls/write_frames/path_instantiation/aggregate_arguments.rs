@@ -3,7 +3,9 @@
 //! storage is private, while coarse collection demand visits every element.
 
 use super::{FramePathPrecision, FramePlaceOrigin, append_place_suffix, split_place_root};
-use crate::calls::write_frames::isolation::struct_literal_matches_expected_type;
+use crate::calls::write_frames::isolation::{
+    concrete_nominal_type, struct_literal_matches_expected_type,
+};
 use crate::calls::write_frames::reference_origins::{
     exclusive_reference_origin, referent_has_only_owned_storage,
 };
@@ -115,14 +117,29 @@ pub(in crate::calls::write_frames) fn reference_leaves_with_origins(
             program.expression_table.expression(expression),
             ExpressionNode::StructLiteral(_) | ExpressionNode::ArrayLiteral(_)
         ) && program.primitive_type_reference(reference).is_none()
-            && matches!(
-                program.type_reference_table.type_reference(reference),
-                TypeReferenceNode::Named { .. } | TypeReferenceNode::FixedArray { .. }
-            )
+            && (concrete_nominal_type(program.type_reference_table.type_reference(reference))
+                .is_some()
+                || matches!(
+                    program.type_reference_table.type_reference(reference),
+                    TypeReferenceNode::FixedArray { .. }
+                ))
         {
             // Declaration transfer supplies frozen evidence; raw calls retain
             // symbolic source leaves for their existing caller-prefix closure.
-            let moved = resolve_origins(expression, reference)?;
+            let moved = if let ExpressionNode::Call(call) =
+                program.expression_table.expression(expression)
+            {
+                super::super::aggregate_results::call_result_origins(
+                    program,
+                    caller_machine,
+                    call,
+                    reference,
+                    symbols,
+                    active_states,
+                )?
+            } else {
+                resolve_origins(expression, reference)?
+            };
             if !demand_is_declared(program, reference, suffix) {
                 return None;
             }
@@ -218,9 +235,10 @@ pub(in crate::calls::write_frames) fn reference_leaves_with_origins(
                     ));
                 }
             }
-            TypeReferenceNode::Named { symbol, .. }
-                if program.primitive_type_reference(reference).is_none() =>
+            node if program.primitive_type_reference(reference).is_none()
+                && concrete_nominal_type(node).is_some() =>
             {
+                let (symbol, _) = concrete_nominal_type(node)?;
                 let ExpressionNode::StructLiteral(literal) =
                     program.expression_table.expression(expression)
                 else {
@@ -228,14 +246,14 @@ pub(in crate::calls::write_frames) fn reference_leaves_with_origins(
                 };
                 if !struct_literal_matches_expected_type(program, literal, reference)
                     || !symbol.is_valid()
-                    || (literal.type_symbol.is_valid() && literal.type_symbol != *symbol)
+                    || (literal.type_symbol.is_valid() && literal.type_symbol != symbol)
                 {
                     return None;
                 }
                 let definition = program
                     .data_definitions()
                     .iter()
-                    .find(|definition| definition.symbol == *symbol)?;
+                    .find(|definition| definition.symbol == symbol)?;
                 let mut fields = Vec::new();
                 let mut local_segments = local_segments;
                 if let Some(case) = literal.case_name.as_ref() {

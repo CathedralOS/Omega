@@ -20,10 +20,26 @@ pub(super) fn caller_binding_type(
     let ExpressionNode::Name(name) = program.expression_table.expression(argument) else {
         return None;
     };
-    let [member] = program.expression_table.name_path_members(name.members) else {
+    let [_] = program.expression_table.name_path_members(name.members) else {
         return None;
     };
-    if !name.symbol.is_valid() || name.head_symbol != name.symbol {
+    caller_name_root_type(program, current_machine, argument)
+}
+
+/// Validate the root declaration of a retained name path without treating a
+/// projected member as a standalone reference binding.
+pub(super) fn caller_name_root_type(
+    program: &TypedTrees,
+    current_machine: &Machine,
+    argument: ExpressionHandle,
+) -> Option<super::TypeReferenceHandle> {
+    let ExpressionNode::Name(name) = program.expression_table.expression(argument) else {
+        return None;
+    };
+    let members = program.expression_table.name_path_members(name.members);
+    let member = members.first()?;
+    let root = name.head_symbol;
+    if !root.is_valid() || (members.len() == 1 && root != name.symbol) {
         return None;
     }
     let (state, _, index) = caller_statement_at_site(
@@ -31,12 +47,12 @@ pub(super) fn caller_binding_type(
         current_machine,
         CallerWriteSite::Expression(argument),
     )?;
-    let declaration = program.symbols.get(name.symbol);
+    let declaration = program.symbols.get(root);
     // Typed `self` paths retain the owning machine identity, not the synthetic
     // state parameter identity. Only that exact machine may select this state's
     // unique receiver declaration.
     if member.as_str() == "self"
-        && name.symbol == current_machine.symbol
+        && root == current_machine.symbol
         && declaration.kind == psi_symbols::SymbolKind::Machine
     {
         let mut receivers = program
@@ -47,7 +63,7 @@ pub(super) fn caller_binding_type(
         return (receivers.next().is_none() && receiver.type_reference.is_valid())
             .then_some(receiver.type_reference);
     }
-    if declaration.parent != state.symbol || program.symbols.name(name.symbol) != member.as_str() {
+    if declaration.parent != state.symbol || program.symbols.name(root) != member.as_str() {
         return None;
     }
     let reference = match declaration.kind {
@@ -55,14 +71,14 @@ pub(super) fn caller_binding_type(
             program
                 .state_parameters(state)
                 .iter()
-                .find(|parameter| parameter.symbol == name.symbol)?
+                .find(|parameter| parameter.symbol == root)?
                 .type_reference
         }
         psi_symbols::SymbolKind::Local => {
             let local = program.statement_table.statements(state.statement_nodes)[..index]
                 .iter()
                 .find_map(|statement| match statement {
-                    StatementNode::LocalData(local) if local.symbol == name.symbol => Some(local),
+                    StatementNode::LocalData(local) if local.symbol == root => Some(local),
                     _ => None,
                 })?;
             local.type_reference

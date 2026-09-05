@@ -14,6 +14,7 @@ use psi_typed_trees::statement::TableLocalData;
 mod projections;
 mod type_origins;
 
+pub(super) use projections::reference_leaves_before_statement;
 pub(super) use projections::symbolic_reference_leaves;
 pub(super) use type_origins::demand_is_declared;
 
@@ -131,7 +132,7 @@ pub(super) fn expression_borrows_carrier_binding(
     })
 }
 
-fn canonical_origins(
+pub(super) fn canonical_origins(
     origin: &FramePlaceOrigin,
     aliases: &[(String, FramePlaceOrigin)],
     stored: &[StoredLocalOrigins],

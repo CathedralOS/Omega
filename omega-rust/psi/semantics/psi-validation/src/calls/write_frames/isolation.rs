@@ -10,7 +10,25 @@ use psi_symbols::SymbolHandle;
 use psi_typed_trees::TypedTrees;
 use psi_typed_trees::data::DataMember;
 use psi_typed_trees::expression::TableStructLiteral;
+use psi_typed_trees::name::Identifier;
 use psi_typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
+
+/// Lifetime applications retain borrow-region checking but do not require
+/// type substitution to inspect their declared storage fields.
+pub(super) fn concrete_nominal_type(
+    reference: &TypeReferenceNode,
+) -> Option<(SymbolHandle, &Identifier)> {
+    match reference {
+        TypeReferenceNode::Named { symbol, name } => Some((*symbol, name)),
+        TypeReferenceNode::Generic {
+            base_symbol,
+            base_name,
+            arguments,
+            ..
+        } if arguments.is_empty() => Some((*base_symbol, base_name)),
+        _ => None,
+    }
+}
 
 pub(super) fn struct_literal_field_type(
     program: &TypedTrees,
@@ -40,8 +58,8 @@ pub(super) fn struct_literal_matches_expected_type(
     else {
         return false;
     };
-    let TypeReferenceNode::Named { symbol, name } =
-        program.type_reference_table.type_reference(expected_type)
+    let Some((symbol, name)) =
+        concrete_nominal_type(program.type_reference_table.type_reference(expected_type))
     else {
         return false;
     };
@@ -55,7 +73,7 @@ pub(super) fn struct_literal_matches_expected_type(
     definitions.next().is_none()
         && definition.type_parameters.is_empty()
         && if symbol.is_valid() {
-            definition.symbol == *symbol
+            definition.symbol == symbol
         } else {
             definition.name == *name
         }

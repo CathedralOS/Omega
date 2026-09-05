@@ -2,6 +2,7 @@
 //! FactPlan supplies selectors; exact declarations and selector-owned types
 //! establish whether those selectors can transport the retained leaves.
 
+use super::super::isolation::concrete_nominal_type;
 use super::super::path_instantiation::aggregate_arguments::{AggregateOrigins, ReferenceLeaf};
 use super::StoredLocalOrigins;
 use psi_facts::{FactPlan, PlaceRoot, PlaceSegment};
@@ -49,7 +50,7 @@ pub(in crate::calls::write_frames) fn symbolic_reference_leaves(
     reference_leaves_before_statement(program, state, before, expression, expected, None)
 }
 
-fn reference_leaves_before_statement(
+pub(in crate::calls::write_frames) fn reference_leaves_before_statement(
     program: &TypedTrees,
     state: &State,
     before: &StatementNode,
@@ -218,7 +219,8 @@ fn projected_type(
             program.type_reference_table.type_reference(reference),
             segment,
         ) {
-            (TypeReferenceNode::Named { symbol, .. }, PlaceSegment::Case { variant }) => {
+            (node, PlaceSegment::Case { variant }) if concrete_nominal_type(node).is_some() => {
+                let (symbol, _) = concrete_nominal_type(node)?;
                 if selected_case.is_some()
                     || program.symbols.get(*variant).kind != SymbolKind::Variant
                 {
@@ -227,7 +229,7 @@ fn projected_type(
                 let definition = program
                     .data_definitions()
                     .iter()
-                    .find(|definition| definition.symbol == *symbol)?;
+                    .find(|definition| definition.symbol == symbol)?;
                 selected_case =
                     program
                         .data_members(definition)
@@ -240,7 +242,10 @@ fn projected_type(
                         });
                 selected_case?;
             }
-            (TypeReferenceNode::Named { symbol, .. }, PlaceSegment::Field { symbol: field }) => {
+            (node, PlaceSegment::Field { symbol: field })
+                if concrete_nominal_type(node).is_some() =>
+            {
+                let (symbol, _) = concrete_nominal_type(node)?;
                 if program.symbols.get(*field).kind != SymbolKind::Field {
                     return None;
                 }
@@ -254,7 +259,7 @@ fn projected_type(
                     let definition = program
                         .data_definitions()
                         .iter()
-                        .find(|definition| definition.symbol == *symbol)?;
+                        .find(|definition| definition.symbol == symbol)?;
                     program
                         .data_members(definition)
                         .iter()

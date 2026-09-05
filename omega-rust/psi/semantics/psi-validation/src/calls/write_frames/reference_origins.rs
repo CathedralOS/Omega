@@ -43,6 +43,7 @@ pub(super) fn exclusive_reference_origin(
 ) -> Option<FramePlaceOrigin> {
     match program.expression_table.expression(argument) {
         ExpressionNode::Borrow(place) if place.access.is_exclusive() => {
+            declared_origin_root(program, current_machine, place.target)?;
             frame_place_path(program, place.target)
         }
         ExpressionNode::Name(_) => Some(FramePlaceOrigin {
@@ -98,6 +99,37 @@ pub(super) fn exclusive_reference_origin(
     }
 }
 
+/// Raw borrowed paths retain a real caller declaration before their string
+/// footprint can select a formal origin. In particular, a stale or foreign
+/// root with the same spelling cannot be exported through a helper result.
+pub(super) fn declared_origin_root(
+    program: &TypedTrees,
+    machine: &Machine,
+    mut expression: ExpressionHandle,
+) -> Option<()> {
+    loop {
+        expression = match program.expression_table.expression(expression) {
+            ExpressionNode::Name(name) => {
+                let members = program.expression_table.name_path_members(name.members);
+                if name.head_symbol == machine.symbol
+                    && (members.len() != 1 || name.symbol == machine.symbol)
+                    && program.symbols.get(machine.symbol).kind == psi_symbols::SymbolKind::Machine
+                    && members
+                        .first()
+                        .is_some_and(|member| member.as_str() == "self")
+                {
+                    return Some(());
+                }
+                return super::caller_aliases::caller_name_root_type(program, machine, expression)
+                    .map(|_| ());
+            }
+            ExpressionNode::Member(member) => member.receiver,
+            ExpressionNode::Indexed(indexed) => indexed.collection,
+            _ => return None,
+        };
+    }
+}
+
 fn exclusive_reference_has_owned_storage(
     program: &TypedTrees,
     reference: TypeReferenceHandle,
@@ -106,7 +138,7 @@ fn exclusive_reference_has_owned_storage(
         .is_some_and(|referee| referent_has_only_owned_storage(program, referee))
 }
 
-fn exclusive_reference_referee(
+pub(super) fn exclusive_reference_referee(
     program: &TypedTrees,
     reference: TypeReferenceHandle,
 ) -> Option<TypeReferenceHandle> {
@@ -121,7 +153,7 @@ fn exclusive_reference_referee(
     }
 }
 
-fn owned_receiver_origin(
+pub(super) fn owned_receiver_origin(
     program: &TypedTrees,
     current_machine: &Machine,
     expression: ExpressionHandle,
