@@ -3073,6 +3073,15 @@ a certificate proving that the lock deserves trust. A mismatch between current
 analysis and the recorded baseline is reported; it never disappears because
 the lock says the package is accepted.
 
+The root `omega.lock` of a mutable local package is project control state, not
+source input. Local capture excludes it, including ASCII case variants, so
+publishing the lock does not change the source identity recorded inside it.
+Symlinks into that excluded root control file reject. Nested lock-named files
+remain ordinary source; exact materialized repository trees retain their full
+content, including lock files. The manager still loads the accepted lock
+separately and compares its policy with fresh compiler findings. This source
+exclusion is not permission to ignore edits to the accepted baseline.
+
 Locked compilation never silently re-resolves a mutable selector. Missing cached
 source may be acquired at the exact pin when network use is allowed; offline
 failure leaves the graph unchanged. Unsupported lock formats fail with recovery

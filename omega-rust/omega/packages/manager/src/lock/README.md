@@ -16,6 +16,13 @@ projections, and selected dependency edges. Only target-sensitive baseline and
 decision state may differ. The format lists explicitly supplied targets; it
 does not discover a deployment set or establish a support matrix.
 
+For mutable local packages, root `omega.lock` is excluded from source capture:
+writing acceptance state cannot change the source pin stored inside that state.
+Nested lock-named source files and exact repository materializations still
+participate in their source identities. The manager reads the accepted lock
+separately, so edits to its retained policy still affect comparison with fresh
+compiler findings even when the source identity is unchanged.
+
 Every concrete package owner retained anywhere in the complete policy must
 belong to that target's exact transitive source graph. Evidence owns this
 enumeration, including compiler canonical type and callable identities; the

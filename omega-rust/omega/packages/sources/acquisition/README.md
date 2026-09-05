@@ -53,6 +53,15 @@ for exact snapshot work, and `storage::RetainedStorageLane` for lane custody.
 These are deliberate public seams; cache machinery, native process assembly,
 object verification, and publication internals remain private.
 
+Mutable local package capture excludes `.git`, root `build/`, and root
+`omega.lock` (including ASCII case variants). The lock is project control state,
+not an input to its own recorded source identity. Creating or updating it must
+not invalidate the local pins it records. A nested `src/omega.lock` remains
+ordinary source. Symlinks into excluded control state reject, so a captured link
+cannot depend on a file omitted from its snapshot. Exact materialized trees,
+including Git snapshots, retain and hash all their lock files; verification does
+not apply mutable-worktree exclusions to already published source.
+
 Whole-root and named-member acquisition both accept an operation-local
 `GitAcquisitionPin` through their `from_pin_in_lane(s)` entrances. Reuse checks
 the exact original request, retained cache, commit and root tree without

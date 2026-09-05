@@ -24,6 +24,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 mod capture;
 mod identity;
 mod limits;
+mod lock_file;
 mod observation;
 mod path_policy;
 mod snapshots;

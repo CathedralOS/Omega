@@ -35,7 +35,7 @@ pub(super) fn visit_directory(
     let remaining_entries = limits.max_entries.saturating_sub(entries.len());
     let excluded_entry_allowance = match policy {
         SourceTreePolicy::ExactMaterialized => 0,
-        SourceTreePolicy::LocalPackage if logical_dir.as_os_str().is_empty() => 2,
+        SourceTreePolicy::LocalPackage if logical_dir.as_os_str().is_empty() => 3,
         SourceTreePolicy::LocalPackage => 1,
     };
     let directory_listing_limit = remaining_entries.saturating_add(excluded_entry_allowance);
@@ -60,7 +60,8 @@ pub(super) fn visit_directory(
     for name in entry_names {
         if policy == SourceTreePolicy::LocalPackage
             && (name == ".git"
-                || (logical_dir.as_os_str().is_empty() && name == DEFAULT_BUILD_OUTPUT_DIRECTORY))
+                || (logical_dir.as_os_str().is_empty()
+                    && (name == DEFAULT_BUILD_OUTPUT_DIRECTORY || is_lock_file(&name))))
         {
             continue;
         }
@@ -170,9 +171,13 @@ fn read_and_validate_symlink_target(
         }
     })?;
     if policy == SourceTreePolicy::LocalPackage
-        && relative_target
+        && (relative_target
             .components()
             .any(|component| component.as_os_str() == ".git")
+            || relative_target
+                .components()
+                .next()
+                .is_some_and(|component| is_lock_file(component.as_os_str())))
     {
         return Err(SourceResolveError::SymlinkTargetsExcludedMetadata {
             link: link.to_path_buf(),
@@ -191,6 +196,12 @@ fn read_and_validate_symlink_target(
         });
     }
     Ok(raw_target)
+}
+
+fn is_lock_file(name: &OsStr) -> bool {
+    // Project acceptance state cannot be an input to its own source hash.
+    // Reserve case variants too so the rule agrees on case-folding filesystems.
+    name.as_encoded_bytes().eq_ignore_ascii_case(b"omega.lock")
 }
 
 fn push_entry(
