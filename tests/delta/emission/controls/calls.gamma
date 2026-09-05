@@ -1,0 +1,11 @@
+; Source-span and generated heads are ordinary fallback paths, even when the
+; source spelling matches a cached fixed word. Counts select zero/two arguments.
+(def emission_test_calls ((mode Int)) Int
+  (if (eq mode 8)
+    (emission_test_unary (gamma_literal (syntax_node 0 5 -1 0)) (gamma_integer 9))
+    (if (eq mode 9)
+      (emission_test_unary (gamma_generated 'h' 3) (gamma_integer 9))
+      (if (eq mode 10)
+        (gamma_call (gamma_word 120 1) 0 0)
+        (gamma_call (gamma_word 120 1) 2
+          (pair (gamma_integer 1) (pair (gamma_integer 2) 0)))))))

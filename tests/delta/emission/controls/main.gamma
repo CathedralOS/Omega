@@ -1,0 +1,16 @@
+; Private Gamma-plan diagnostic, not a Delta source-admission entrance.
+(def main () Int
+  (let mode Int (read 0)
+    (if (eq mode 18)
+      (let negative Int (emission_test_negative_word)
+        (write_unsigned_little_endian negative 4))
+      (let node Int
+        (if (lt mode 8) (emission_test_words mode)
+          (if (lt mode 12) (emission_test_calls mode)
+            (if (lt mode 16) (emission_test_ordering mode)
+              (emission_test_rebuilt mode))))
+        (emission_test_observe node)))))
+
+(def source_length () Int (- (input) 1))
+(def source_read ((index Int)) Int (read (+ index 1)))
+(def compilation_profile () Int 0)

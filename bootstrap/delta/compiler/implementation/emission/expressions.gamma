@@ -14,9 +14,14 @@
   (let kind Int (gamma_kind node)
     (let payload Int (gamma_payload node)
       (if (eq kind 7)
-        (let head Int (emission_call_prefix (first payload) 1 written)
-          (emission_arguments (first (second payload)) (second (second payload))
-            depth frames closes head))
+        (let unary_word Int (gamma_unary_word node)
+          (if unary_word
+            (let prefix Int (emission_write_unary_word unary_word written)
+              (emission_visit (first (second (second payload))) depth frames
+                (+ closes 1) prefix))
+            (let head Int (emission_call_prefix (first payload) 1 written)
+              (emission_arguments (first (second payload)) (second (second payload))
+                depth frames closes head))))
         (if (eq kind 8)
           (let initializer_space Int (emission_let_prefix (first payload) 1 written)
             (emission_visit (first (second payload)) (+ depth 1)
