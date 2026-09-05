@@ -1,102 +1,94 @@
 # Tasks: Package Manager
 
 Remaining work for repository install/update and compiler-derived capability
-review. Design: [Build And Package Model](wiki/design_briefs/build_and_package_model.md).
-Subsystem entrance: [packages/README.md](omega-rust/omega/packages/README.md).
+review. [Scope](wiki/design_briefs/package_manager_first_draft.md) ·
+[Build model](wiki/design_briefs/build_and_package_model.md) ·
+[Source map](omega-rust/omega/packages/README.md).
 
 The project trusts whoever lands its dependency and lock changes. `omega.lock`
-records exact resolutions and the capabilities/assumptions the project accepted.
-It does not certify packages, prove an audit occurred, or authenticate its own
-acceptance. Compiler proof and reachability checking still apply to the selected
-source. Native artifact verification belongs to compilation.
+records selected sources and accepted capabilities/assumptions, not proof of an
+audit. Use the existing compiler to check code; native artifact verification,
+host credentials, and organizational review policy have separate owners.
 
-Deliver a complete transaction for the supported package surface. Reject a
-candidate when its authority cannot be checked or represented; unrelated
-backend work and future artifact classes do not block supported candidates.
+## Required integration
 
-Security work must name a concrete compiler or package invariant. Host
-credential policy and audit seriousness belong to the operator, not Omega.
-Escalate a genuinely unclear authority boundary to an owner question before
-adding machinery; do not invent proof-of-review or host-security requirements.
+- [ ] **PACKAGE-REVIEW-PROJECTION.** In `review/evidence/` and
+  `manager/src/review/`, close gaps in the compiler report for supported source
+  dependencies: package-qualified unsafe/public APIs, declared and inferred
+  reach, reachable implementation authority, selected providers, opaque
+  supplies, and explicit assumptions. Include transitive dependency paths.
+  Acceptance: false reach ceilings, spoofed identities, invalid proofs, and
+  omitted transitive authority reject. Unsupported analysis is explicit, never
+  an empty capability set. Use the earliest checked compiler representation
+  that establishes each fact; generic effects remain conservative.
 
-## 1. Resolve and check the candidate
+- [ ] **BUILD-REVIEW-INTEGRATION.** In candidate checking, verify the existing
+  scoped build evaluator and generated-source handoff end to end. Dependency
+  discovery precedes build execution; generated code receives final checking.
+  Acceptance: builds cannot obtain resolver credentials, change dependency
+  discovery through I/O, write outside supplied output roots, or hide generated
+  authority. Package-source reads, staged-output writes, and build logging use
+  the existing compiler facets; do not invent broader build services to finish
+  this task. Detect relevant source/build drift before publication.
 
-- [ ] **PACKAGE-REVIEW-PROJECTION.** Finish the compiler-to-manager report
-  needed for supported source dependencies: package-qualified public APIs,
-  declared and inferred reach, reachable implementation authority, selected
-  providers, opaque external supplies, and explicit accepted assumptions.
-  Include transitive dependency paths and relevant build/generated-source
-  authority. Use the earliest checked compiler representation that establishes
-  each fact; no additional IR or native binary is required.
-  Acceptance: false reach ceilings, spoofed boundary identities, unresolved
-  proof obligations, and omitted transitive authority reject; unsupported
-  candidates produce a specific diagnostic. Generic effects must remain
-  conservative until concrete substitutions are checked.
+- [ ] **SOURCE-DIFF-INTEGRATION.** Connect the existing source-diff renderer to
+  `manager/src/operations/package_commands/`. Obtain exact old source when
+  available; otherwise retain lock-based policy comparison and explain that
+  only standalone candidate audit is available. Keep hostile source separate
+  from compiler-rendered capability findings.
+  Acceptance: install/update reports the available diff or why it is absent;
+  initial dangerous authority requires a decision, and retained dangerous
+  authority on upgrades recommends audit even without a capability change.
+  No model service, review receipt, or proof-of-review requirement.
 
-- [ ] **BUILD-REVIEW-INTEGRATION.** Reuse the existing scoped build execution
-  and generated-source handoff during candidate checking. Resolve dependencies
-  before running dependency build code; obtain required project decisions
-  before supplying dangerous build capabilities. Include generated code in
-  final review and detect relevant source/build drift before committing.
-  Acceptance: a dependency cannot gain resolver credentials, alter its
-  dependency graph during execution, write outside admitted output roots, or
-  hide authority in generated code. Installing source does not publish a native
-  executable.
+- [ ] **OMEGA-AUDIT-PACKAGES.** Expose graph and authority inspection through the
+  CLI using the existing manager report. Show exact pins, accepted policy,
+  freshly checked reach/API/assumption findings, and dependency paths.
+  Acceptance: users can identify which package and API introduces authority;
+  unavailable analysis and historical acceptance are not presented as fresh
+  compiler findings or proof of an audit.
 
-## 2. Complete review integration
+- [ ] **PACKAGE-MANAGER-RELEASE-AUDIT.** Exercise the actual commands with pure,
+  dangerous, capability-changing, same-name/different-source, transitive, and
+  generated-source fixtures. Refresh remote fixtures/pins with retired target
+  syntax. Prove remote root/named-member install, selected update, and default
+  alias import. Test HTTPS and SSH independently where credentials permit.
+  Cover missing baselines/old source, invalid proofs, spoofed boundaries,
+  concurrent edits, and interruption recovery. Run relevant package, resolver,
+  compiler-handoff, and architecture checks; report unavailable platforms or
+  credentials explicitly.
+  Acceptance: successful commands produce usable dependencies; failed stages
+  preserve or recover accepted files. Reuse bounded-process tests for helper
+  failure/cleanup rather than making OS hardening a package feature.
 
-- [ ] **EXPLICIT-DEPENDENCY-REPLACEMENT.** Preserve command-authored replacement
-  intent when both alias and source change, through planning, review resume,
-  and publication in `manager/src/operations/package_commands/`. Graph
-  comparison must not infer pairing from package names or authored positions.
-  Acceptance: one explicit replacement is reported alongside its policy deltas;
-  unrelated additions/removals are not paired, and stale decisions reject.
+## Optional conveniences
 
-- [ ] **AUDIT-RESULT-INTEGRATION.** Connect source-code changes and optional
-  audit advice to install/update review. Obtain exact old source when available;
-  if unavailable, retain the accepted policy comparison and offer standalone
-  candidate audit. Keep package-authored source/prose separate from compiler
-  capability triage. Advisory service failure cannot suppress compiler findings
-  or replace per-change decisions. Acceptance: a source upgrade exposes its
-  available code diff or explicit unavailability, retained dangerous authority
-  still recommends audit, and the flow works without an advisory service.
-  No Y/N approval prompt, audit receipt, or proof-of-review requirement.
-
-## 3. Commands and integration tests
+These do not block the supported online install/update workflow.
 
 - [ ] **OFFLINE-COMMAND-SELECTION.** Expose existing offline exact-pin recovery
-  through command options for locked compilation and package operations where
-  applicable. Acceptance: cached accepted/proposed pins work without network;
-  missing required content fails clearly without selector refresh or accepted
-  file mutation. Do not add a new credential or host-isolation framework.
+  through locked compilation and applicable package command options.
+  Acceptance: cached accepted/proposed pins work without network; missing
+  content fails clearly without selector refresh or accepted-file mutation.
 
-- [ ] **OMEGA-AUDIT-PACKAGES.** Render the selected graph, exact pins, accepted
-  baseline, freshly checked reach/API/assumption findings, and dependency paths.
-  Clearly distinguish accepted policy from current compiler findings and
-  unavailable analysis. Acceptance: users can identify which package and API
-  introduces dangerous authority; the output makes no claim that lock authors
-  performed an audit.
+- [ ] **OPTIONAL-AUDIT-ADVICE.** If connecting the existing `review/advisory/`
+  adapter, keep provider configuration with CLI/tooling. It may recommend a
+  closer audit, never suppress compiler findings or accept decisions.
+  Acceptance: the complete core workflow works with no model configured and
+  when advisory invocation fails. No built-in auditing infrastructure is needed.
 
-- [ ] **PACKAGE-MANAGER-RELEASE-AUDIT.** Exercise install/update through the
-  real command and network adapters using pure, dangerous, capability-changing,
-  same-name/different-source, transitive-authority, and generated-source
-  fixtures. Refresh the remote fixture sources and exact pins that still use
-  retired target declarations; then prove remote root/named-member install,
-  selected update, and import through the default alias. Run HTTPS coverage where the private
-  fixtures' credentials are configured, independently of SSH coverage.
-  Cover missing baselines/old source, invalid proofs, spoofed
-  boundaries, concurrent edits, and interruption recovery.
-  Run relevant package, resolver, compiler-handoff, and architecture checks.
-  On supported Windows workers run process-tree cleanup and Job Object
-  resource-limit canaries, reporting unavailable platforms explicitly.
-  Acceptance: successful commands publish usable dependencies and every failed
-  stage preserves or recovers the previously accepted state.
+## Ownership and limits
 
-## Compiler integration ownership
+`TASKS.md` owns generic/representation composition, opaque ABI/lifecycle,
+native publication, and std migration. `TASKS_OPTIMIZER.md` owns optimization
+and physical replay. Their results enter review when relevant; completing all
+of them is not a source-package prerequisite. Process resource/lifecycle
+mechanisms belong to `omega-rust/omega/tooling/bounded-process/`; stronger host isolation,
+SSH credentials, and audit seriousness belong to the operator.
 
-`TASKS.md` owns independently compiled generic/representation composition,
-opaque ABI and lifecycle, native publication, and ordinary std migration.
-`TASKS_OPTIMIZER.md` owns allocation, frames, optimization, and physical replay.
-Their results enter package review when relevant, but completing all of them
-is not a prerequisite for source install/update. A lock decision cannot excuse
-an invalid program or an unsupported native guarantee.
+Changing both a dependency's source and alias may appear as removal plus
+addition, with the new package checked in full. A special paired-replacement
+command is not required. Never infer common identity from names or row order.
+
+Any further security task must name a concrete invariant Omega can enforce.
+Escalate an ambiguous boundary before adding machinery; do not invent lock
+certification, proof of review, or protection from the project author.

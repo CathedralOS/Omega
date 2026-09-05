@@ -68,6 +68,10 @@ work.
 
 ## Encoding and ledger
 
+The [normalized policy baseline contract](POLICY_BASELINE.md) describes the
+receipt-free components retained in the lock. Detailed encoding belongs here;
+it does not add an audit or certification workflow to installation.
+
 `encoding/` owns canonical framing and bounded recovery. It consumes only
 stable records and does not inspect compiler IR. `ledger/` owns the distinct
 local reconstruction question: recovered producer rows remain inert until the
