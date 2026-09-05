@@ -56,6 +56,8 @@ const PROOF_ADMISSION_JUDGMENT_SOURCE: &[u8] =
     include_bytes!("../../psi-proof-admission/src/kernel.rs");
 const PROOF_ADMISSION_PROOF_SOURCE: &[u8] =
     include_bytes!("../../psi-proof-admission/src/proof.rs");
+const PROOF_ADMISSION_TRAVERSAL_SOURCE: &[u8] =
+    include_bytes!("../../psi-proof-admission/src/proof/traversal.rs");
 const PROOF_ADMISSION_INTEGER_AFFINE_SOURCE: &[u8] =
     include_bytes!("../../psi-proof-admission/src/integer_affine.rs");
 const PROOF_ADMISSION_INTEGER_CAST_SOURCE: &[u8] =
@@ -65,6 +67,8 @@ const PROOF_ADMISSION_INTEGER_FORBIDDEN_ROOT_SOURCE: &[u8] =
 const PROOF_CODEC_SOURCE: &[u8] = include_bytes!("proof_bundle.rs");
 const OBLIGATION_LEDGER_CODEC_SOURCE: &[u8] = include_bytes!("obligation_ledger.rs");
 const PROPOSITION_SOURCE: &[u8] = include_bytes!("../../../foundation/psi-core/src/proposition.rs");
+const PROPOSITION_VALUE_IDS_SOURCE: &[u8] =
+    include_bytes!("../../../foundation/psi-core/src/proposition/value_ids.rs");
 const TERMINAL_REPRESENTATION_SOURCE_CLOSURE: &[u8] = include_bytes!(concat!(
     env!("OUT_DIR"),
     "/psi-terminal-representation-source-closure.bin"

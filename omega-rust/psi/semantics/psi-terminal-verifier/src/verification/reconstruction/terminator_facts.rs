@@ -52,9 +52,12 @@ pub(super) fn append_terminator(
             when_true,
             when_false,
         } => {
-            let true_fact = path_facts::true_condition_fact(*condition, &axioms, value_term);
-            for (successor, condition_fact) in [(when_true, true_fact.as_ref()), (when_false, None)]
-            {
+            let true_fact = path_facts::condition_fact(*condition, true, &axioms, value_term);
+            let false_fact = path_facts::condition_fact(*condition, false, &axioms, value_term);
+            for (successor, condition_fact) in [
+                (when_true, true_fact.as_ref()),
+                (when_false, false_fact.as_ref()),
+            ] {
                 if ignored_backedges.contains(&successor.edge) {
                     continue;
                 }
@@ -76,7 +79,6 @@ pub(super) fn append_terminator(
                         target_block,
                         &successor.arguments,
                         value_term,
-                        !ignored_backedges.is_empty(),
                     );
                 }
                 incoming

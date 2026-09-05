@@ -37,6 +37,9 @@ use psi_terminal_verifier::{
     reconstruct_terminal_obligations, validate_module, verify_module,
 };
 
+#[path = "straight_line/false_edge_custody.rs"]
+mod false_edge_custody;
+
 #[test]
 fn unit_machine_is_a_value_less_normal_return() {
     let module = unit_module();

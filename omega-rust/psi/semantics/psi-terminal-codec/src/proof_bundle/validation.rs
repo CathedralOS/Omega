@@ -99,6 +99,16 @@ fn validate_proof_node(node: &ProofNode, depth: usize) -> Result<(), ProofCodecE
         ProofRule::DisjunctionIntroduction { disjunct, .. } => {
             validate_proof_node(disjunct, depth + 1)
         }
+        ProofRule::DisjunctionElimination {
+            disjunction,
+            branches,
+        } => {
+            validate_proof_node(disjunction, depth + 1)?;
+            for branch in branches {
+                validate_proof_node(branch, depth + 1)?;
+            }
+            Ok(())
+        }
         ProofRule::ImplicationElimination {
             implication,
             premise,

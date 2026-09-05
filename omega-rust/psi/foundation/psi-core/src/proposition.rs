@@ -5,6 +5,8 @@ use crate::{
     StructuralCaseId, StructuralFieldId, StructuralPlaceKind, ValueId,
 };
 
+mod value_ids;
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum IntegerSign {
     Signed,
