@@ -100,6 +100,8 @@
                       (epsilon_resolve_local_value_name source expressionValue
                         name active pending scan))))))))))))
 
+; An invalid value application has no result to propagate through grouping.
+; Inspect its core head, but retain the authored outer continuation anchor.
 (def epsilon_local_scan_transition_result_candidate
   ((expressionValue EpsilonExpression) (continuationStart Int)
    (scan EpsilonLocalResolutionScan)) EpsilonLocalResolutionScan
@@ -121,7 +123,7 @@
                   (epsilon_call_head_core expressionValue))
                 scan))))
         (NoEpsilonExpressionResult
-          (match expressionValue
+          (match (epsilon_call_head_core expressionValue)
             ((EpsilonCallExpression start end base arguments)
               (match (epsilon_find_expression_result base types)
                 (NoEpsilonExpressionResult scan)

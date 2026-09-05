@@ -16,8 +16,8 @@ Delta-written Epsilon evaluator + exact Epsilon-written Omega D
 The gate requires the Omega product build to bind exactly one
 `alpha_bootstrap::ProgramEntry`, requires Omega D to retain its Alpha tape
 construction, and rejects any `EpsilonAlpha`/`epsilon_alpha_` backend residue in
-the Delta-written Epsilon implementation. The evaluator is currently 11,188
-lines / 564,044 bytes, authored in 75 explicitly manifested members.
+the Delta-written Epsilon implementation. The evaluator is currently 11,201
+lines / 564,884 bytes, authored in 75 explicitly manifested members.
 
 The executable slice runs the current checking pipeline, locates `Main::main`,
 and executes an empty entry, scalar `let` and local/parameter assignment,
@@ -68,8 +68,8 @@ Any retained `Unsupported` staging outcome is not an Epsilon observation and
 cannot survive in the final evaluator.
 
 The gate compiles the exact evaluator plus `execution_driver.delta` through the
-selected Delta route and pins the 675,465-byte Gamma receipt, SHA-256
-`4e6102a2f8fdcaef851dcb42198d5d61dffe4cec8a768d3a42c8c1a2b84b39cd`.
+selected Delta route and pins the 675,696-byte Gamma receipt, SHA-256
+`cdd865843bb854f2c78606a138ad3c2979e371f7f4b9956d587b9b4bec3618ed`.
 The original 108 ordinary controls cover
 success, local, receiver-field, and fixed-array values, repeated mutation,
 output, comparisons, bitwise/shift/division behavior, short-circuiting, bounds
@@ -172,8 +172,10 @@ This control does not bless `Unsupported` as language behavior.
 
 The inventory specifies 128 language/customer observations (124 ordinary
 fixtures and four whole-member D customers), one explicit staging refusal,
-and six private-framing controls. A focused run passed all 17 sum controls and
-the whole D numeric-base customer; the full regression gate is being rerun.
+and six private-framing controls. The companion
+[checking gate](../checking/README.md) pins exact checker reasons and coordinates
+without executing Epsilon programs; this gate retains execution and whole-D
+customer evidence.
 
 This is executable boundary evidence, not a completed interpreter edge.
 Acceptance still requires execution of all Epsilon statements, expressions,

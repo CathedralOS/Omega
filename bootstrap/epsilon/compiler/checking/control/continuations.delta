@@ -149,6 +149,8 @@
                 (epsilon_add_transition_pattern_bindings patternValue active)
                 machineValue returnType flow patternScan))))))))
 
+; D53 retains child checking after never, but subject admission and sum coverage
+; cannot contribute transition-parent judgments once block flow has ended.
 (def epsilon_resolve_local_terminal ((source Bytes)
   (terminalValue EpsilonOptionalTerminal) (active EpsilonLocalBindingList)
   (machineValue EpsilonDeclaration) (returnType EpsilonOptionalType)
@@ -163,11 +165,20 @@
             (epsilon_resolve_local_expression source subject active
               NoEpsilonLocalBindings scan)
             (let classifiedScan EpsilonLocalResolutionScan
-              (epsilon_local_scan_transition_subject source terminal subject
-                subjectScan)
-              (epsilon_local_scan_transition_coverage terminal arms
+              (match flow
+                (EpsilonStatementSequenceOpen
+                  (epsilon_local_scan_transition_subject source terminal subject
+                    subjectScan))
+                (EpsilonStatementSequenceEndedByNever subjectScan)
+                (EpsilonStatementSequenceInvalidAfterNever subjectScan))
+              (let armsScan EpsilonLocalResolutionScan
                 (epsilon_resolve_local_arms source terminal arms active
-                  machineValue returnType flow classifiedScan)))))
+                  machineValue returnType flow classifiedScan)
+                (match flow
+                  (EpsilonStatementSequenceOpen
+                    (epsilon_local_scan_transition_coverage terminal arms armsScan))
+                  (EpsilonStatementSequenceEndedByNever armsScan)
+                  (EpsilonStatementSequenceInvalidAfterNever armsScan))))))
         ((EpsilonReturnTerminal start end expressionValue)
           (let expressionScan EpsilonLocalResolutionScan
             (epsilon_resolve_local_optional_expression source expressionValue
