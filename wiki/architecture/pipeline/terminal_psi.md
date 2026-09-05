@@ -2936,6 +2936,23 @@ reach cannot replace that selected row. Missing, duplicate, stale, or
 coordinate-mismatched applications fail closed; neither planning nor
 production scans conformances for a uniquely shaped realization.
 
+Guarded free return calls use the existing arm-local continuation normalization.
+The continuation captures referenced state parameters and explicitly typed
+primitive local values, including the current value of mutable local storage.
+It evaluates the original scalar arguments and invokes the callee only after
+the arm is selected. Repeated references share one captured value; argument
+order, short-circuit scalar expressions, and partial arithmetic stay inside the
+selected continuation. Local places, borrows, recasts, and nested calls are not
+converted to value captures by this normalization. No additional Terminal
+call or return representation is introduced.
+
+The older guarded named-argument normalization can emit only a flat prefix of
+calls. It therefore leaves targets containing calls on a short-circuit RHS
+unmodified, and the unsupported computation rejects before Terminal
+publication. Executable support for these cases requires a typed evaluation
+graph with conditional RHS blocks and captured earlier arguments; it is tracked
+in `STATE-LOCAL-VALUE-FRONTIER`, not treated as completed short-circuit support.
+
 Structural-operand Unit composition is a distinct checked operation, not a
 widened scalar `Call`. One free or hosted Unit body may bind a primitive result
 from one selected operator whose structural operands are an exact permutation

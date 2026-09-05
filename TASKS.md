@@ -472,6 +472,13 @@ Owners include
   Finish executable lowering for state arguments whose evaluation invokes
   effects; materialize effectful returns and earlier call arguments at their exact
   evaluation points and activate staged loans at their evaluation points.
+  Replace flat guarded-argument call hoisting with a typed evaluation graph:
+  calls on a short-circuit RHS remain unlowered because an unconditional call
+  prefix changes execution. Preserve `&&`/`||` selection and capture each
+  earlier argument before a later effect. Owning area: argument normalization
+  and checked scalar computation lowering. Acceptance: selected arguments
+  execute left-to-right once, skipped calls never execute, and dynamic RHS
+  calls serialize, independently verify, and execute with their exact guards.
   Extend guarded scalar control to crash arms and longer dispatches. Complete
   anonymous integer landing for argument and aggregate-element destinations
   and the remaining numeric operator/policy surface, so proof and execution

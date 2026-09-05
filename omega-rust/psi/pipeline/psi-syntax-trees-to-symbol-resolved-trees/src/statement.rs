@@ -18,6 +18,8 @@ use psi_symbol_resolved_trees::types::TypeReference;
 use psi_symbols::SymbolHandle;
 use psi_syntax_trees::{self as syntax, SyntaxTrees};
 
+mod guarded_call_arguments;
+
 /// Lowers a syntax statement to one or more symbol-resolved statements.
 ///
 /// Most statements lower one-to-one. Assignments and local-data declarations
@@ -1109,14 +1111,10 @@ fn hoist_terminal_value_machine_call(
     }))
 }
 
-/// GUARDED-ARM VALUE-CALL REWRITE (task #45): when a guarded (or
-/// continuation) arm's target is a free user value-machine call whose every
-/// argument is a bare NAME of an enclosing state parameter, rewrite the arm
-/// to a Named target on a synthesized continuation state (recorded on the
-/// lowerer; the machine lowering appends it after the authored states). The
-/// synthesized state re-declares the SAME-named parameters, so the original
-/// call expression's Names resolve against them verbatim. Anything outside
-/// the gate returns unchanged and keeps the honest backend fence.
+/// Keep a guarded return call inside its selected arm. The continuation
+/// captures referenced values, then evaluates the original arguments and call.
+/// Place-dependent and nested effectful arguments need their own evaluation
+/// plans and are not moved by this value-only normalization.
 fn rewrite_guarded_call_arm(lowerer: &mut Lowerer, target: TransitionTarget) -> TransitionTarget {
     let TransitionTarget::Value(expression) = target else {
         return target;
@@ -1128,29 +1126,21 @@ fn rewrite_guarded_call_arm(lowerer: &mut Lowerer, target: TransitionTarget) -> 
     if call.receiver.is_valid() || matches!(call.target.as_str(), "min" | "max" | "sqrt") {
         return TransitionTarget::Value(expression);
     }
-    let argument_handles = expressions.expression_handles(call.arguments).to_vec();
-    let mut parameters: Vec<(String, TypeReference)> = Vec::new();
-    for argument in &argument_handles {
-        let ExpressionNode::Name(path) = expressions.expression(*argument) else {
-            return TransitionTarget::Value(expression);
-        };
-        let members = expressions.name_path_members(path.members);
-        let [single] = members else {
-            return TransitionTarget::Value(expression);
-        };
-        let Some((name, type_reference, _)) = lowerer
-            .current_state_parameters
+    // Parentheses do not turn an authored state edge into a value call.
+    // Resolution must retain its tail-transition classification, especially
+    // for measured recursion; a generated let would make it non-tail.
+    if lowerer.current_machine_name.as_deref() == Some(call.target.as_str())
+        || lowerer
+            .current_machine_state_names
             .iter()
-            .find(|(name, _, _)| name == single.as_str())
-        else {
-            return TransitionTarget::Value(expression);
-        };
-        // Dedup: `call(x, x)` declares ONE parameter x; both body Names
-        // resolve to it, and the target passes it once.
-        if !parameters.iter().any(|(existing, _)| existing == name) {
-            parameters.push((name.clone(), type_reference.clone()));
-        }
+            .any(|name| name == call.target.as_str())
+    {
+        return TransitionTarget::Value(expression);
     }
+    let argument_handles = expressions.expression_handles(call.arguments).to_vec();
+    let Some(parameters) = guarded_call_arguments::capture(lowerer, &argument_handles) else {
+        return TransitionTarget::Value(expression);
+    };
     let Some(return_type) = lowerer.current_state_return_type.clone() else {
         return TransitionTarget::Value(expression);
     };
@@ -1219,7 +1209,9 @@ fn rewrite_guarded_transition_argument_calls(
     let argument_handles = expressions.expression_handles(named.storage.arguments);
     let mut calls = Vec::new();
     for argument in argument_handles {
-        collect_synthesizable_argument_calls(lowerer, *argument, &mut calls);
+        if collect_synthesizable_argument_calls(lowerer, *argument, &mut calls).is_none() {
+            return TransitionTarget::Named(named);
+        }
     }
     if calls.is_empty() {
         return TransitionTarget::Named(named);
@@ -1318,64 +1310,72 @@ fn rewrite_guarded_transition_argument_calls(
 
 /// Collect direct free/`self` machine calls in evaluation order. Children are
 /// visited first so a nested call result is materialized before its enclosing
-/// call, and sibling operands retain left-to-right order.
+/// call. A flat call prefix cannot represent conditional evaluation: refuse
+/// to rewrite the entire target if a call belongs to a short-circuit RHS.
 fn collect_synthesizable_argument_calls(
     lowerer: &Lowerer,
     expression: ExpressionHandle,
     calls: &mut Vec<ExpressionHandle>,
-) {
+) -> Option<()> {
     let expressions = &lowerer.symbol_resolved_trees.tables.bodies.expressions;
     let mut visit = |child| collect_synthesizable_argument_calls(lowerer, child, calls);
     match expressions.expression(expression) {
-        ExpressionNode::Atomic(atomic) => visit(atomic.value),
+        ExpressionNode::Atomic(atomic) => visit(atomic.value)?,
         ExpressionNode::ArrayLiteral(values) => {
             for value in expressions.expression_handles(*values) {
-                visit(*value);
+                visit(*value)?;
             }
         }
         ExpressionNode::Binary(binary) => {
-            visit(binary.left);
-            visit(binary.right);
+            visit(binary.left)?;
+            let mut right_calls = Vec::new();
+            collect_synthesizable_argument_calls(lowerer, binary.right, &mut right_calls)?;
+            if matches!(binary.operator, BinaryOperator::And | BinaryOperator::Or)
+                && !right_calls.is_empty()
+            {
+                return None;
+            }
+            calls.extend(right_calls);
         }
         ExpressionNode::Call(call) => {
             if call.receiver.is_valid() {
-                visit(call.receiver);
+                visit(call.receiver)?;
             }
             for argument in expressions.expression_handles(call.arguments) {
-                visit(*argument);
+                visit(*argument)?;
             }
             if matches!(call.target.as_str(), "min" | "max" | "sqrt") {
-                return;
+                return Some(());
             }
             if call.receiver.is_valid() {
                 let ExpressionNode::Name(path) = expressions.expression(call.receiver) else {
-                    return;
+                    return Some(());
                 };
                 if !matches!(expressions.name_path_members(path.members), [member] if member.as_str() == "self")
                 {
-                    return;
+                    return Some(());
                 }
             }
             calls.push(expression);
         }
-        ExpressionNode::Cast(cast) => visit(cast.value),
+        ExpressionNode::Cast(cast) => visit(cast.value)?,
         ExpressionNode::Indexed(indexed) => {
-            visit(indexed.collection);
-            visit(indexed.index);
+            visit(indexed.collection)?;
+            visit(indexed.index)?;
         }
-        ExpressionNode::Member(member) => visit(member.receiver),
-        ExpressionNode::Membership(membership) => visit(membership.value),
-        ExpressionNode::Borrow(inner) => visit(inner.target),
+        ExpressionNode::Member(member) => visit(member.receiver)?,
+        ExpressionNode::Membership(membership) => visit(membership.value)?,
+        ExpressionNode::Borrow(inner) => visit(inner.target)?,
         ExpressionNode::Range(range) => {
-            visit(range.start);
-            visit(range.end);
+            visit(range.start)?;
+            visit(range.end)?;
         }
         ExpressionNode::StructLiteral(literal) => {
             for field in expressions.struct_fields(literal.fields) {
-                visit(field.value);
+                visit(field.value)?;
             }
         }
-        ExpressionNode::Unary(unary) => visit(unary.operand),
+        ExpressionNode::Unary(unary) => visit(unary.operand)?,
         ExpressionNode::Boolean(_)
         | ExpressionNode::Float(_)
         | ExpressionNode::Integer(_)
@@ -1383,6 +1383,7 @@ fn collect_synthesizable_argument_calls(
         | ExpressionNode::String(_)
         | ExpressionNode::ZeroValue(_) => {}
     }
+    Some(())
 }
 
 fn collect_synthesized_argument_captures(

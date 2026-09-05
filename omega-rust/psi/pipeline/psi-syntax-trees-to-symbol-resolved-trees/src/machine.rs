@@ -28,6 +28,12 @@ pub(crate) fn lower_machine_into(
     lowerer.current_machine_is_boundary = machine.boundary;
     lowerer.current_machine_root_index = Some(lowerer.symbol_resolved_trees.machines.len());
     lowerer.current_machine_name = Some(machine.name.as_str().to_owned());
+    lowerer.current_machine_state_names = syntax_trees
+        .items
+        .state_handles(machine.states)
+        .iter()
+        .map(|state| syntax_trees.items.state(*state).name.as_str().to_owned())
+        .collect();
     lowerer.current_evidence_term_names = syntax_trees
         .items
         .capability_contracts(machine.contracts)
@@ -42,6 +48,7 @@ pub(crate) fn lower_machine_into(
     lowerer.current_machine_is_boundary = false;
     lowerer.current_machine_root_index = None;
     lowerer.current_machine_name = None;
+    lowerer.current_machine_state_names.clear();
     lowerer.current_state_name = None;
     lowerer.current_evidence_term_names.clear();
     let type_parameters = lower_type_parameters(lowerer, syntax_trees, machine.type_parameters)?;

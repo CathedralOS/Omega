@@ -284,6 +284,8 @@ pub(crate) struct Lowerer {
     /// classify bare-name assignments before ordinary value resolution.
     pub(crate) current_machine_root_index: Option<usize>,
     pub(crate) current_machine_name: Option<String>,
+    /// Authored state names remain transition candidates until resolution.
+    pub(crate) current_machine_state_names: Vec<String>,
     pub(crate) current_state_name: Option<String>,
     pub(crate) current_evidence_term_names: Vec<String>,
     /// Maps a match SUBJECT syntax expression handle to the name of the single
@@ -415,6 +417,7 @@ impl Lowerer {
             current_machine_is_boundary: false,
             current_machine_root_index: None,
             current_machine_name: None,
+            current_machine_state_names: Vec::new(),
             current_state_name: None,
             current_evidence_term_names: Vec::new(),
             match_subject_temps: std::collections::HashMap::new(),
