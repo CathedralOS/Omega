@@ -1088,7 +1088,7 @@ fn compiler_builtins_never_masquerade_as_provider_execution_evidence() {
     .expect("read target-operation execution roles");
     assert!(target.contains("CompilerBuiltin(CompilerBuiltinExecution)"));
     let physical = std::fs::read_to_string(
-        root.join("omega-rust/omega/representations/omega-machine-code/src/lib.rs"),
+        root.join("omega-rust/omega/representations/omega-machine-code/src/machine_code/boundary/execution.rs"),
     )
     .expect("read machine-code execution roles");
     assert!(physical.contains("CompilerBuiltin(CompilerBuiltinExecution)"));
@@ -5175,7 +5175,7 @@ fn native_provider_execution_compact_coordinates_are_report_only() {
         "target-operation provider coordinates must be explicitly non-authoritative reports",
     );
 
-    let machine_path = root.join("omega-rust/omega/representations/omega-machine-code/src/lib.rs");
+    let machine_path = root.join("omega-rust/omega/representations/omega-machine-code/src/machine_code/boundary/execution.rs");
     let machine = std::fs::read_to_string(&machine_path)
         .unwrap_or_else(|error| panic!("failed to read {}: {error}", machine_path.display()));
     assert!(

@@ -830,6 +830,7 @@ name = "omega-isa-x86_64"
 version = "0.1.0"
 dependencies = [
  "omega-calling-conventions",
+ "omega-machine-code",
  "omega-optimization-core",
  "omega-optimization-unit",
  "omega-register-model",
@@ -1358,6 +1359,7 @@ dependencies = [
  "omega-calling-conventions",
  "omega-isa-aarch64",
  "omega-isa-x86_64",
+ "omega-machine-code",
  "omega-machine-optimizer",
  "omega-optimization-core",
  "omega-physical-instructions",

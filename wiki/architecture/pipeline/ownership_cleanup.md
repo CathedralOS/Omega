@@ -5,9 +5,10 @@
 
 Status: implementation audit and proposed work breakdown, recorded 2026-09-04.
 This is the continuation reference for `PIPELINE-PHASE-INTEGRATION`, not a
-claim that the target architecture has landed. The audit examined `2e8c31bd52`;
-the subsequent update to `d7eb11c68f` changed boundary checking/lowering, not the
-ownership findings below. Recheck the named code before implementation.
+claim that the target architecture has landed. The original audit examined
+`2e8c31bd52`; the current reference includes the allocation, physical-instruction,
+and machine-code ownership changes. Recheck the named code and incoming changes
+before implementation; these changes do not establish completion of sections A-D.
 
 ## Discussion summary
 
@@ -113,11 +114,15 @@ separately with exact bindings. Replay may require prior inputs, but execution
 must not recover its current program by traversing those inputs. Do not discard
 proof inputs merely to make the ownership graph look smaller.
 
-In particular, the resolved-layout carrier still embeds x86 encoding/footprint
-types and optimizer-specific evidence. Separate those from reusable layout data
-before moving that carrier down a layer; moving it wholesale would introduce
-backend dependencies into representations. The physical instruction root alone
-does not close this emission-boundary work.
+Raw x86 structural-call footprint and fixup records live in
+`omega-machine-code/src/machine_code/calls/structural.rs`;
+ISA encoding, decoding, and private validated wrappers stay in the backend.
+This removes that particular backend-type dependency, not the whole layout
+ownership problem. The resolved-layout carrier still includes pipeline-owned
+encoding identities and optimizer-specific evidence. Separate reusable layout
+data from producer/admission wrappers before moving the remaining carrier down
+a layer. Neither the physical instruction root nor the raw-data move
+closes the emission-boundary work.
 
 Acceptance: downstream allocation, layout, and emission APIs consume current
 representations and explicit policy/evidence. No production consumer selects
@@ -149,6 +154,12 @@ and broad stage re-exports in addition to coordination. It is not yet a thin
 sequence of phase calls. `omega-regalloc`, `omega-machine-optimizer`,
 `omega-optimization-policy`, and `omega-optimization-validation` mix or expose
 responsibilities that need classification before another directory move.
+
+The machine-code representation supplies `machine_code.rs` as its
+program root, with functions, calls, storage, control flow, ownership, boundary,
+provenance, instruction, and fragment areas. Its raw encoding records do not
+grant backend admission. This organization does not complete the coordinator
+cleanup or establish that all representation roots are done.
 
 Candidate internal substeps include callee-saved requirement derivation, save
 storage assignment, spill/frame requirement derivation, and frame protocol

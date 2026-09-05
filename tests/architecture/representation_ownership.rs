@@ -82,6 +82,22 @@ fn selected_program_has_one_representation_entrance() {
 fn program_representations_have_named_roots_and_concept_owners() {
     for (package, module, program, areas) in [
         (
+            "omega-machine-code",
+            "machine_code",
+            "MachineCodePlan",
+            &[
+                "functions",
+                "calls",
+                "storage",
+                "control_flow",
+                "ownership",
+                "boundary",
+                "provenance",
+                "instructions",
+                "fragments",
+            ][..],
+        ),
+        (
             "omega-physical-instructions",
             "physical_instructions",
             "PostAllocationMachinePlan",
@@ -230,6 +246,58 @@ fn physical_instruction_data_is_independent_of_optimizer_authority() {
     let manifest = std::fs::read_to_string(owner.join("Cargo.toml")).unwrap();
     assert!(!manifest.contains("omega-machine-optimizer"));
     assert!(!manifest.contains("omega-regalloc"));
+    assert!(!manifest.contains("/pipeline/"));
+}
+
+#[test]
+fn structural_call_encoding_data_does_not_require_the_isa_implementation() {
+    let root = repository();
+    let representation =
+        rust_source(&root.join("omega-rust/omega/representations/omega-machine-code/src"));
+    let isa = rust_source(
+        &root.join("omega-rust/omega/backend/instruction_set_architectures/omega-isa-x86_64/src"),
+    );
+    for declaration in [
+        "pub enum X86_64StructuralUnitInternalControlFixupKind {",
+        "pub enum X86_64StructuralUnitInternalControlFixupState {",
+        "pub struct X86_64StructuralUnitInternalControlFixup {",
+        "pub enum X86_64StructuralUnitInternalControlResolutionState {",
+        "pub struct X86_64ResolvedStructuralUnitInternalControlFixup {",
+        "pub struct X86_64StructuralUnitRootRead {",
+        "pub struct X86_64StructuralUnitCallerCopyWrite {",
+        "pub struct X86_64StructuralUnitArgumentPointerWrite {",
+        "pub struct X86_64SelectedStructuralUnitCallFootprint {",
+    ] {
+        assert_eq!(
+            representation.matches(declaration).count(),
+            1,
+            "{declaration}"
+        );
+        assert!(!isa.contains(declaration), "ISA still owns {declaration}");
+    }
+    for admitted in [
+        "pub struct ValidatedX86_64SelectedStructuralUnitCallTemplate {",
+        "pub struct ValidatedX86_64ResolvedStructuralUnitCall {",
+    ] {
+        assert!(isa.contains(admitted), "target admission lost {admitted}");
+        assert!(
+            !representation.contains(admitted),
+            "data owner grants target admission"
+        );
+    }
+    for path in [
+        "omega-rust/omega/pipeline/omega-post-allocation-machine-to-selected-form-encoding/src/model.rs",
+        "omega-rust/omega/pipeline/omega-optimization-pipeline/src/stages/layout/resolved_selected_form_layout/model.rs",
+    ] {
+        let source = std::fs::read_to_string(root.join(path)).unwrap();
+        assert!(source.contains("use omega_machine_code::{"));
+        assert!(!source.contains("use omega_isa_x86_64::{"));
+    }
+    let manifest = std::fs::read_to_string(
+        root.join("omega-rust/omega/representations/omega-machine-code/Cargo.toml"),
+    )
+    .unwrap();
+    assert!(!manifest.contains("/backend/"));
     assert!(!manifest.contains("/pipeline/"));
 }
 

@@ -1,4 +1,4 @@
-use omega_isa_x86_64::{
+use omega_machine_code::{
     X86_64StructuralUnitInternalControlFixup, X86_64StructuralUnitInternalControlFixupKind,
     X86_64StructuralUnitInternalControlFixupState,
 };
@@ -259,8 +259,10 @@ mod tests {
         X86_64_STRUCTURAL_UNIT_CALL_NEXT_INSTRUCTION_OFFSET,
         X86_64_STRUCTURAL_UNIT_CALL_OPCODE_OFFSET, X86_64_STRUCTURAL_UNIT_CALL_REL32_FIELD_OFFSET,
         X86_64_STRUCTURAL_UNIT_CALL_REL32_FIELD_WIDTH,
-        X86_64_STRUCTURAL_UNIT_CALL_TEMPLATE_BYTE_COUNT, X86_64StructuralUnitInternalControlFixup,
-        X86_64StructuralUnitInternalControlFixupKind,
+        X86_64_STRUCTURAL_UNIT_CALL_TEMPLATE_BYTE_COUNT,
+    };
+    use omega_machine_code::{
+        X86_64StructuralUnitInternalControlFixup, X86_64StructuralUnitInternalControlFixupKind,
         X86_64StructuralUnitInternalControlFixupState,
     };
     use omega_machine_optimizer::Aarch64MovnMaterializationIdentity;

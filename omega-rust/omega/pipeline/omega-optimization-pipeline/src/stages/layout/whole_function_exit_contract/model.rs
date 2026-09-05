@@ -1,4 +1,4 @@
-use omega_isa_x86_64::X86_64StructuralUnitInternalControlFixup;
+use omega_machine_code::X86_64StructuralUnitInternalControlFixup;
 use omega_machine_optimizer::{Aarch64CbnzFusionIdentity, Aarch64MovnMaterializationIdentity};
 use omega_optimization_core::Optimization;
 use omega_register_model::{RegisterUnitId, RegisterViewId};

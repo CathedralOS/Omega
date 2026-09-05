@@ -1,175 +1,25 @@
-use omega_abstract_operations::ValueBinding;
+//! Canonical identity of the complete fragment program, including zero-code rows.
+
+use super::{
+    FunctionFragmentConditionalBranchEvidence, FunctionFragmentConditionalBranchPredicate,
+    FunctionFragmentControlProvenance, FunctionFragmentEmissionPlan,
+    FunctionFragmentInstructionSpan, FunctionFragmentInternalMachineFixup,
+    FunctionFragmentInternalMachineFixupKind, FunctionFragmentInternalMachineFixupState,
+    FunctionFragmentSuccessorProvenance,
+};
 use omega_optimization_core::FunctionFragmentEmissionIdentity;
 use omega_optimization_unit::{FuelSettlement, PsiProvenance};
-use omega_register_model::RegisterViewId;
 use omega_selected_instructions::{
     MachineAlternativeFamily, MachineAlternativeKey, MachineEncodedControlEffect,
     MachineEncodedEffects, MachineEncodedMemoryEffect, MachineEncodedStackEffect,
-    MachineEncodedTrapBehavior, SelectedBlockId, SelectedInstructionId,
-    SelectedInstructionPlanIdentity, SelectedInstructionProvenance,
+    MachineEncodedTrapBehavior, SelectedInstructionProvenance,
 };
 use omega_target::{Architecture, NativeTarget, ObjectFormat};
 use omega_target_operations::TerminalPsiProvenance;
-use psi_core::{
-    BlockId, EdgeId, FuelScheduleIdentity, IntegerCarrier, IntegerSign, MachineId, OperationId,
-    ScalarType,
-};
-use psi_terminal::TerminalPsiIdentity;
+use psi_core::{IntegerCarrier, IntegerSign, ScalarType};
 use sha2::{Digest, Sha256};
 
 const FRAGMENT_SCHEMA: &[u8] = b"omega.terminal.function-fragment-emission.v5";
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct FunctionFragmentEmissionPlan {
-    pub identity: FunctionFragmentEmissionIdentity,
-    pub psi: TerminalPsiIdentity,
-    pub fuel_schedule: FuelScheduleIdentity,
-    pub selected: SelectedInstructionPlanIdentity,
-    pub target: NativeTarget,
-    pub entry: MachineId,
-    pub functions: Vec<FunctionFragment>,
-    pub structural_unit_functions: Vec<StructuralUnitFunctionFragment>,
-}
-
-/// Function fragment for the structural-ABI Unit lane. Its call bytes remain
-/// non-executable until whole-text placement discharges every typed fixup.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct StructuralUnitFunctionFragment {
-    pub machine: MachineId,
-    pub attachment: Option<psi_core::StructuralTypeId>,
-    pub provenance: TerminalPsiProvenance,
-    pub byte_count: u64,
-    pub bytes: Vec<u8>,
-    pub block: StructuralUnitFunctionFragmentBlockSpan,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct StructuralUnitFunctionFragmentBlockSpan {
-    pub block: SelectedBlockId,
-    pub offset: u64,
-    pub byte_count: u64,
-    pub call: Option<StructuralUnitCallFragmentSpan>,
-    pub return_instruction: FunctionFragmentInstructionSpan,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct StructuralUnitCallFragmentSpan {
-    pub instruction: SelectedInstructionId,
-    pub operation: OperationId,
-    pub callee: MachineId,
-    pub offset: u64,
-    pub bytes: Vec<u8>,
-    pub provenance: SelectedInstructionProvenance,
-    pub fixup: FunctionFragmentInternalMachineFixup,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum FunctionFragmentInternalMachineFixupKind {
-    X86Relative32FromNextInstructionToInternalMachineV1,
-    Aarch64BranchLinkImmediate26FromInstructionToInternalMachineV1,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum FunctionFragmentInternalMachineFixupState {
-    UnresolvedZeroFieldV1,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct FunctionFragmentInternalMachineFixup {
-    pub kind: FunctionFragmentInternalMachineFixupKind,
-    pub state: FunctionFragmentInternalMachineFixupState,
-    pub callee: MachineId,
-    pub opcode_function_offset: u64,
-    /// Start of the encoded storage region changed by resolution.
-    pub patch_function_offset: u64,
-    /// Architecture-defined PC-relative reference coordinate.
-    pub reference_function_offset: u64,
-    pub patch_byte_width: u8,
-    pub addend: i64,
-}
-
-impl FunctionFragmentEmissionPlan {
-    pub fn recomputed_identity(&self) -> FunctionFragmentEmissionIdentity {
-        function_fragment_emission_identity(self)
-    }
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct FunctionFragment {
-    pub machine: MachineId,
-    pub attachment: Option<psi_core::StructuralTypeId>,
-    pub provenance: TerminalPsiProvenance,
-    pub byte_count: u64,
-    pub bytes: Vec<u8>,
-    pub blocks: Vec<FunctionFragmentBlockSpan>,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct FunctionFragmentBlockSpan {
-    pub block: SelectedBlockId,
-    pub offset: u64,
-    pub byte_count: u64,
-    pub instructions: Vec<FunctionFragmentInstructionSpan>,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct FunctionFragmentInstructionSpan {
-    pub instruction: SelectedInstructionId,
-    pub alternative: MachineAlternativeKey,
-    pub offset: u64,
-    pub bytes: Vec<u8>,
-    pub branch: Option<Box<FunctionFragmentConditionalBranchEvidence>>,
-    pub internal_machine_fixup: Option<FunctionFragmentInternalMachineFixup>,
-    pub provenance: SelectedInstructionProvenance,
-    pub control: FunctionFragmentControlProvenance,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum FunctionFragmentControlProvenance {
-    None,
-    DirectInternalCall {
-        callee: MachineId,
-    },
-    ConditionalBranch {
-        predicate: FunctionFragmentConditionalBranchPredicate,
-        when_taken: FunctionFragmentSuccessorProvenance,
-        when_fallthrough: FunctionFragmentSuccessorProvenance,
-    },
-    Return {
-        psi_return_edge: EdgeId,
-    },
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum FunctionFragmentConditionalBranchPredicate {
-    NonZeroV1,
-    U64LessThanV1,
-    I64LessThanV1,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct FunctionFragmentSuccessorProvenance {
-    pub psi_edge: EdgeId,
-    pub block: SelectedBlockId,
-    pub source_target: BlockId,
-    pub bindings: Vec<ValueBinding>,
-    pub fuel: Vec<FuelSettlement>,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct FunctionFragmentConditionalBranchEvidence {
-    pub predicate: FunctionFragmentConditionalBranchPredicate,
-    pub source_block: SelectedBlockId,
-    pub when_taken_edge: EdgeId,
-    pub when_taken_block: SelectedBlockId,
-    pub when_taken_offset: u64,
-    pub when_fallthrough_edge: EdgeId,
-    pub when_fallthrough_block: SelectedBlockId,
-    pub when_fallthrough_offset: u64,
-    pub byte_displacement: i64,
-    pub decoded_register_reads: Vec<RegisterViewId>,
-    pub decoded_effects: MachineEncodedEffects,
-}
 
 pub fn function_fragment_emission_identity(
     plan: &FunctionFragmentEmissionPlan,
@@ -540,74 +390,5 @@ fn encode_u16s(hasher: &mut Sha256, values: &[u16]) {
     hasher.update((values.len() as u64).to_le_bytes());
     for value in values {
         hasher.update(value.to_le_bytes());
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use psi_core::ValueId;
-
-    fn zero_span_plan() -> FunctionFragmentEmissionPlan {
-        let mut plan = FunctionFragmentEmissionPlan {
-            identity: FunctionFragmentEmissionIdentity::from_canonical_bytes(b"pending"),
-            psi: TerminalPsiIdentity {
-                vocabulary_marker: psi_terminal::VocabularyMarker::CURRENT,
-                program_fingerprint: psi_terminal::SemanticFingerprint::from_bytes([1; 32]),
-            },
-            fuel_schedule: FuelScheduleIdentity::new(1).unwrap(),
-            selected: SelectedInstructionPlanIdentity::from_bytes([2; 32]),
-            target: NativeTarget::linux_x64(),
-            entry: MachineId::new(1).unwrap(),
-            functions: vec![FunctionFragment {
-                machine: MachineId::new(1).unwrap(),
-                attachment: None,
-                provenance: TerminalPsiProvenance::default(),
-                byte_count: 0,
-                bytes: Vec::new(),
-                blocks: vec![FunctionFragmentBlockSpan {
-                    block: SelectedBlockId(0),
-                    offset: 0,
-                    byte_count: 0,
-                    instructions: vec![FunctionFragmentInstructionSpan {
-                        instruction: SelectedInstructionId(0),
-                        alternative: MachineAlternativeKey {
-                            family: MachineAlternativeFamily::CompareI64Zero,
-                            variant: 0,
-                        },
-                        offset: 0,
-                        bytes: Vec::new(),
-                        branch: None,
-                        internal_machine_fixup: None,
-                        provenance: SelectedInstructionProvenance::default(),
-                        control: FunctionFragmentControlProvenance::None,
-                    }],
-                }],
-            }],
-            structural_unit_functions: Vec::new(),
-        };
-        plan.identity = plan.recomputed_identity();
-        plan
-    }
-
-    #[test]
-    fn fragment_identity_binds_zero_spans_aggregate_bytes_and_provenance() {
-        let original = zero_span_plan();
-        assert_eq!(original.identity, original.recomputed_identity());
-
-        let mut changed = original.clone();
-        changed.functions[0].bytes.push(0x90);
-        assert_ne!(changed.recomputed_identity(), original.identity);
-
-        let mut changed = original.clone();
-        changed.functions[0].blocks[0].instructions[0]
-            .provenance
-            .values
-            .push(ValueId::new(7).unwrap());
-        assert_ne!(changed.recomputed_identity(), original.identity);
-
-        let mut changed = original.clone();
-        changed.functions[0].blocks[0].instructions.clear();
-        assert_ne!(changed.recomputed_identity(), original.identity);
     }
 }
