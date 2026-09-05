@@ -21,7 +21,21 @@ use super::super::facts::RangeFacts;
 use super::super::proofs::{unknown_length_index_is_proven, unknown_length_range_is_proven};
 use super::super::types::{
     expression_enforced_declared_range, expression_is_slice, expression_is_unsigned_integer,
+    expression_type_reference,
 };
+
+#[cfg(test)]
+mod tests;
+
+/// A successful element judgment is distinct from a valid range window and
+/// from syntax delegated to another checker. Silence is not bounds evidence.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(super) enum BoundsCheckResult {
+    ProvenScalar,
+    ProvenRange,
+    Rejected,
+    Unsupported,
+}
 
 /// The proof obligation for an `items[i]` / `items[a..b]` access, sourced from
 /// the spelled boundary operator that governs the access.
@@ -114,7 +128,7 @@ pub(super) fn check_indexed_access(
     facts: &RangeFacts<'_>,
     indexed: &TableIndexedExpression,
     diagnostics: &mut Vec<Diagnostic>,
-) {
+) -> BoundsCheckResult {
     // Bounds-from-operator seam: the `[]` / `[..]` obligation is sourced from
     // the governing boundary operator's `requires` contract and discharged by
     // the length/bounds proof logic below. We pick the spelling from the index
@@ -136,7 +150,12 @@ pub(super) fn check_indexed_access(
     // attributed to the governing operator contract (e.g. `Slice::range`).
     let attribution = obligation.attribution.as_deref();
 
-    if let Some(length) = expression_indexable_length(program, facts, indexed.collection) {
+    let length = expression_indexable_length(program, facts, indexed.collection).or_else(|| {
+        expression_type_reference(program, machine, state, indexed.collection).and_then(
+            |type_reference| super::super::arrays::fixed_array_type_length(program, type_reference),
+        )
+    });
+    let proven = if let Some(length) = length {
         check_known_length_index(
             program,
             machine,
@@ -147,7 +166,7 @@ pub(super) fn check_indexed_access(
             length,
             attribution,
             diagnostics,
-        );
+        )
     } else if expression_is_slice(program, machine, state, indexed.collection) {
         check_unknown_length_slice_index(
             program,
@@ -158,7 +177,20 @@ pub(super) fn check_indexed_access(
             indexed.index,
             attribution,
             diagnostics,
-        );
+        )
+    } else {
+        return if obligation.operator_without_requires {
+            BoundsCheckResult::Rejected
+        } else {
+            BoundsCheckResult::Unsupported
+        };
+    };
+    if !proven || obligation.operator_without_requires {
+        BoundsCheckResult::Rejected
+    } else if spelling == OperatorSpelling::Range {
+        BoundsCheckResult::ProvenRange
+    } else {
+        BoundsCheckResult::ProvenScalar
     }
 }
 
@@ -251,7 +283,7 @@ fn check_known_length_index(
     length: usize,
     attribution: Option<&str>,
     diagnostics: &mut Vec<Diagnostic>,
-) {
+) -> bool {
     match program.expression_table.expression(index) {
         ExpressionNode::Range(range) => check_known_length_range_index(
             program,
@@ -292,7 +324,7 @@ fn check_known_length_index(
                     ),
                     attribution,
                 )));
-                return;
+                return false;
             }
             let Some(index_value) = expression_integer_value(program, facts, index) else {
                 let collection_label = program.expression_table.display_name(collection);
@@ -342,7 +374,7 @@ fn check_known_length_index(
                                 || facts.non_negative_is_proven_via_ordering(label)
                         });
                 if upper_bound_proven && lower_bound_proven {
-                    return;
+                    return true;
                 }
                 // Tailor the diagnostic to the half that is missing, naming
                 // the user's spelling when the index is a hoisted temp.
@@ -359,7 +391,7 @@ fn check_known_length_index(
                     )
                 };
                 diagnostics.push(Diagnostic::error(with_attribution(message, attribution)));
-                return;
+                return false;
             };
             let valid =
                 index_value >= 0 && usize::try_from(index_value).is_ok_and(|index| index < length);
@@ -373,6 +405,7 @@ fn check_known_length_index(
                     attribution,
                 )));
             }
+            valid
         }
     }
 }
@@ -386,11 +419,11 @@ fn check_unknown_length_slice_index(
     index: ExpressionHandle,
     attribution: Option<&str>,
     diagnostics: &mut Vec<Diagnostic>,
-) {
+) -> bool {
     match program.expression_table.expression(index) {
         ExpressionNode::Range(range) => {
             if unknown_length_range_is_proven(program, facts, collection, range) {
-                return;
+                return true;
             }
             let failure = unknown_length_range_failure(program, facts, collection, range);
             diagnostics.push(Diagnostic::error(with_attribution(
@@ -406,7 +439,7 @@ fn check_unknown_length_slice_index(
             let collection_label = program.expression_table.display_name(collection);
             let index_label = program.expression_table.display_name(index);
             if unknown_length_index_is_proven(program, facts, collection, index) {
-                return;
+                return true;
             }
             diagnostics.push(Diagnostic::error(with_attribution(
                 format!(
@@ -417,6 +450,7 @@ fn check_unknown_length_slice_index(
             )));
         }
     }
+    false
 }
 
 fn check_known_length_range_index(
@@ -430,7 +464,7 @@ fn check_known_length_range_index(
     length: usize,
     attribution: Option<&str>,
     diagnostics: &mut Vec<Diagnostic>,
-) {
+) -> bool {
     let Some((start, end)) = provable_range_bounds(program, facts, range) else {
         // The bounds do not fold to constants, but a symbolic bound may still
         // be a carried fact (e.g. a `requires self.length <= self.items.len`
@@ -439,7 +473,7 @@ fn check_known_length_range_index(
         // independent of the collection's concrete extent), so fall back to it
         // before reporting a failure.
         if unknown_length_range_is_proven(program, facts, collection, range) {
-            return;
+            return true;
         }
         // A runtime end on a KNOWN-length array (`buffer[0..n]` where `n <= N` was
         // established by a dominating `transition n <= N` guard) is proven from the
@@ -449,7 +483,7 @@ fn check_known_length_range_index(
         if known_length_range_via_index_bounds_is_proven(
             program, machine, state, facts, range, length,
         ) {
-            return;
+            return true;
         }
         let failure = known_length_range_value_failure(program, facts, range);
         diagnostics.push(Diagnostic::error(with_attribution(
@@ -461,7 +495,7 @@ fn check_known_length_range_index(
             ),
             attribution,
         )));
-        return;
+        return false;
     };
 
     if let Some(failure) = known_length_range_bound_failure(start, end, length) {
@@ -474,7 +508,9 @@ fn check_known_length_range_index(
             ),
             attribution,
         )));
+        return false;
     }
+    true
 }
 
 /// A subslice `[a..b]` on a KNOWN-length (`N`) array whose END is a RUNTIME value
