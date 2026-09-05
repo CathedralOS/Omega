@@ -114,6 +114,12 @@ impl TypeReferenceTable {
         self.type_references.get(handle)
     }
 
+    /// Whether an exact generational handle still names a live type node.
+    /// A stale reference resolving to dummy Unit is not retained type custody.
+    pub fn contains_type_reference(&self, handle: TypeReferenceHandle) -> bool {
+        self.type_references.is_valid(handle)
+    }
+
     /// Every fixed-array type reference in the table, as `(handle, length)`
     /// pairs. The orchestration const-eval pass scans these for `ConstCall`
     /// lengths to substitute before checking/layout.
