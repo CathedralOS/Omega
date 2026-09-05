@@ -76,17 +76,149 @@ pub(crate) fn normalized_event_place_root(
         return root;
     };
 
-    for machine in program.machines() {
-        for state in program.machine_states(machine) {
-            if program
+    let metadata = program.symbols.get(symbol);
+    if metadata.kind != psi_symbols::SymbolKind::Parameter {
+        return root;
+    }
+    let parent = program.symbols.get(metadata.parent);
+    let (machine_symbol, state_symbol) = match parent.kind {
+        psi_symbols::SymbolKind::Machine => (metadata.parent, SymbolHandle::invalid()),
+        psi_symbols::SymbolKind::State => (parent.parent, metadata.parent),
+        _ => return root,
+    };
+    let Some(machine) = program
+        .machines()
+        .iter()
+        .find(|machine| machine.symbol == machine_symbol)
+    else {
+        return root;
+    };
+    // Authored and specialized state parameters retain exact symbol parents.
+    // Some generated entry parameters are direct machine children. Check the
+    // matching declaration roster in that owner, never every state's roster
+    // in the program for each fact comparison. Names do not establish `self`.
+    if program.machine_states(machine).iter().any(|state| {
+        (!state_symbol.is_valid() || state.symbol == state_symbol)
+            && program
                 .state_parameters(state)
                 .iter()
                 .any(|parameter| parameter.is_self && parameter.symbol == symbol)
-            {
-                return psi_facts::PlaceRoot::Symbol(machine.symbol);
-            }
+    }) {
+        psi_facts::PlaceRoot::Symbol(machine.symbol)
+    } else {
+        root
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use psi_symbols::{SymbolKind, SymbolNameRef, SymbolTableBuilder};
+    use psi_typed_trees::{machine::Machine, signature::StateParameter, state::State};
+
+    fn program_with_self_parameter(
+        machine_parent: bool,
+        parameter_kind: SymbolKind,
+        is_self: bool,
+        stored_in_foreign_machine: bool,
+    ) -> (psi_typed_trees::TypedTrees, SymbolHandle, SymbolHandle) {
+        let mut symbols = SymbolTableBuilder::new();
+        let root = symbols.insert_root(SymbolKind::Root, SymbolNameRef::Borrowed("root"));
+        let machines = symbols.insert_children(
+            root,
+            [
+                (SymbolKind::Machine, SymbolNameRef::Borrowed("first")),
+                (SymbolKind::Machine, SymbolNameRef::Borrowed("second")),
+            ],
+        );
+        let mut machines = SymbolTableBuilder::child_handles(machines);
+        let machine_symbol = machines.next().expect("first machine");
+        let foreign_machine = machines.next().expect("second machine");
+        let children = symbols.insert_children(
+            machine_symbol,
+            std::iter::once((SymbolKind::State, SymbolNameRef::Borrowed("run")))
+                .chain(machine_parent.then_some((parameter_kind, SymbolNameRef::Borrowed("self")))),
+        );
+        let mut children = SymbolTableBuilder::child_handles(children);
+        let state_symbol = children.next().expect("state");
+        let parameter = if machine_parent {
+            children.next().expect("machine parameter")
+        } else {
+            let parameters = symbols.insert_children(
+                state_symbol,
+                [(parameter_kind, SymbolNameRef::Borrowed("self"))],
+            );
+            SymbolTableBuilder::child_handles(parameters)
+                .next()
+                .expect("state parameter")
+        };
+        let mut program = psi_typed_trees::TypedTrees {
+            symbols: symbols.finish(),
+            ..Default::default()
+        };
+        let mut state = State {
+            symbol: state_symbol,
+            ..Default::default()
+        };
+        program.push_state_parameter(
+            &mut state,
+            StateParameter {
+                symbol: parameter,
+                is_self,
+                ..Default::default()
+            },
+        );
+        let mut machine = Machine {
+            symbol: if stored_in_foreign_machine {
+                foreign_machine
+            } else {
+                machine_symbol
+            },
+            ..Default::default()
+        };
+        program.push_machine_state(&mut machine, state);
+        program.push_machine(machine);
+        (program, machine_symbol, parameter)
+    }
+
+    #[test]
+    fn self_event_roots_use_exact_state_or_machine_parent() {
+        for machine_parent in [false, true] {
+            let (program, machine, parameter) =
+                program_with_self_parameter(machine_parent, SymbolKind::Parameter, true, false);
+            assert_eq!(
+                normalized_event_place_root(&program, psi_facts::PlaceRoot::Symbol(parameter)),
+                psi_facts::PlaceRoot::Symbol(machine)
+            );
         }
     }
 
-    root
+    #[test]
+    fn self_event_roots_require_live_metadata_and_owned_self_roster() {
+        for (kind, is_self, foreign) in [
+            (SymbolKind::Parameter, false, false),
+            (SymbolKind::Local, true, false),
+            (SymbolKind::Field, true, false),
+            (SymbolKind::Parameter, true, true),
+        ] {
+            let (program, _, parameter) =
+                program_with_self_parameter(false, kind, is_self, foreign);
+            let root = psi_facts::PlaceRoot::Symbol(parameter);
+            assert_eq!(normalized_event_place_root(&program, root), root);
+        }
+        let (program, machine, parameter) =
+            program_with_self_parameter(false, SymbolKind::Parameter, true, false);
+        for symbol in [
+            SymbolHandle::invalid(),
+            machine,
+            SymbolHandle::from_parts(parameter.arena_index(), parameter.generation() + 1),
+        ] {
+            let root = psi_facts::PlaceRoot::Symbol(symbol);
+            assert_eq!(normalized_event_place_root(&program, root), root);
+        }
+        assert_eq!(
+            normalized_event_place_root(&program, psi_facts::PlaceRoot::Unknown),
+            psi_facts::PlaceRoot::Unknown
+        );
+    }
 }
