@@ -12,7 +12,7 @@ data Finder {
     values: [i32; 5];
 }
 
-machine Finder::find_max(&mut self, s: &[i32], current: i32) -> i32 {
+machine Finder::find_max(&self, s: &[i32], current: i32) -> i32 {
     transition s.len > 0 {
         true -> find_max(s[1..], max(current, s[0]))
         false -> (current)

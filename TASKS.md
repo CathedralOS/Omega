@@ -68,6 +68,31 @@ the [Rust Compiler Completion Contract](wiki/releases/rust_compiler_completion_c
   deterministic manifest of every transitive compiler/build input. Bootstrap
   construction of that closure belongs in `TASKS_BOOTSTRAP.md`.
 
+- **SAMPLE-CORPUS.** `mbx test -p omega-compiler --test samples_compile` is red.
+  `all_samples_reach_checked_trees` names six samples. Two are plain sample
+  defects: `cli/proofs/math_proofs` cannot discharge the `u64` exact-arithmetic
+  obligation in `multiply_distributes`, and `cli/proofs/structural_proofs` calls
+  the resultless library machine `add_zero_right` as a value. Three predate a
+  stricter checking rule and need their authored source brought up to it:
+  `cli/systems/account_ledger` weakens a `Wrapping` domain where an explicit `as`
+  is now required, `cli/simulation/game_of_life` relies on a target `in Wrapping`
+  to re-domain a value expression that decision 17 now leaves operand-driven, and
+  `cli/games/dungeon_crawler_cli` mutates a `[u8; N] in Utf8` line buffer and
+  then passes it where that domain must still hold. The sixth,
+  `cli/systems/wire_protocol`, reports `authored MemberAccess declaration
+  selection occurrence 33 remained unresolved after successful checking
+  (CheckedMember)` for the nested access `decoded.header.room_id`, which is a
+  `psi-typed-trees-to-checked-trees` invariant failure rather than a sample
+  defect.
+
+  `samples_with_documented_exit_run_correctly` is blocked for every
+  `cli/text/*` sample, every `stdin_*` sample, and `gui/window_demo` by one
+  `psi-checked-trees-to-terminal` fence in `src/attached_unit/call_closure.rs`:
+  `attached Unit closure is missing a checked transitive machine plan`.
+
+  Acceptance: both tests pass, with every maintained sample reaching checked
+  trees and every documented exit oracle observed on its matching host.
+
 `omega-rust/` remains the production implementation until that contract
 closes. It may remain afterward as a differential implementation while it finds
 real bugs, but Rust agreement is not bootstrap authority and Rust-specific

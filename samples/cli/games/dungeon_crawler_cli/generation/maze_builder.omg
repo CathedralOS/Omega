@@ -170,7 +170,7 @@ machine MazeBuilder::force_quiet_room(
     level: &mut Level,
     cell: CellId
 ) {
-    let room: &mut Room = self.room_mut(level, cell);
+    let room: &mut Room = level.room_mut(cell);
     self.clear_event(&mut room.event);
 }
 
@@ -287,7 +287,7 @@ machine MazeBuilder::carve_room(
     depth: u32 in Wrapping,
     branch_id: u32 in Wrapping
 ) {
-    let room: &mut Room = self.room_mut(level, cell);
+    let room: &mut Room = level.room_mut(cell);
     let index: u64 in Wrapping = self.cell_index(cell);
     room.cell = cell;
     room.depth = depth;
@@ -308,104 +308,12 @@ machine MazeBuilder::connect(
     to: CellId,
     direction: Direction
 ) {
-    let from_room: &mut Room = self.room_mut(level, from);
-    self.append_exit(from_room, self.direction_command(direction), direction, to);
+    let from_room: &mut Room = level.room_mut(from);
+    from_room.append_exit(self.direction_command(direction), direction, to);
 
-    let to_room: &mut Room = self.room_mut(level, to);
-    self.append_exit(to_room, self.direction_command(self.opposite(direction)), self.opposite(direction), from);
-}
-
-machine MazeBuilder::room_mut(
-    &mut self,
-    level: &mut Level,
-    cell: CellId
-) -> &mut Room {
-    let rooms: &mut [Room] = level.rooms.as_mut_slice();
-
-    transition cell {
-        CellId::R00 -> &mut rooms[0]
-        CellId::R01 -> &mut rooms[1]
-        CellId::R02 -> &mut rooms[2]
-        CellId::R03 -> &mut rooms[3]
-        CellId::R04 -> &mut rooms[4]
-        CellId::R05 -> &mut rooms[5]
-        CellId::R06 -> &mut rooms[6]
-        CellId::R07 -> &mut rooms[7]
-        CellId::R08 -> &mut rooms[8]
-        CellId::R09 -> &mut rooms[9]
-        CellId::R10 -> &mut rooms[10]
-        CellId::R11 -> &mut rooms[11]
-        CellId::R12 -> &mut rooms[12]
-        CellId::R13 -> &mut rooms[13]
-        CellId::R14 -> &mut rooms[14]
-        CellId::R15 -> &mut rooms[15]
-        _ -> &mut rooms[0]
-    }
-}
-
-machine MazeBuilder::append_exit(
-    &mut self,
-    room: &mut Room,
-    command: [u8; 8] in Utf8,
-    direction: Direction,
-    destination: CellId
-) {
-    transition room.exit_count {
-        0 -> append_exit_slot_0(room, command, direction, destination)
-        1 -> append_exit_slot_1(room, command, direction, destination)
-        2 -> append_exit_slot_2(room, command, direction, destination)
-        3 -> append_exit_slot_3(room, command, direction, destination)
-        _ -> {}
-    }
-
-
-    state append_exit_slot_0(
-        &mut self,
-        room: &mut Room,
-        command: [u8; 8] in Utf8,
-        direction: Direction,
-        destination: CellId
-    ) {
-        let exits: &mut [Exit] = room.exits.as_mut_slice();
-        exits[0] = Exit { command: command, direction: direction, destination: destination };
-        room.exit_count = 1;
-    }
-
-    state append_exit_slot_1(
-        &mut self,
-        room: &mut Room,
-        command: [u8; 8] in Utf8,
-        direction: Direction,
-        destination: CellId
-    ) {
-        let exits: &mut [Exit] = room.exits.as_mut_slice();
-        exits[1] = Exit { command: command, direction: direction, destination: destination };
-        room.exit_count = 2;
-    }
-
-    state append_exit_slot_2(
-        &mut self,
-        room: &mut Room,
-        command: [u8; 8] in Utf8,
-        direction: Direction,
-        destination: CellId
-    ) {
-        let exits: &mut [Exit] = room.exits.as_mut_slice();
-        exits[2] = Exit { command: command, direction: direction, destination: destination };
-        room.exit_count = 3;
-    }
-
-    state append_exit_slot_3(
-        &mut self,
-        room: &mut Room,
-        command: [u8; 8] in Utf8,
-        direction: Direction,
-        destination: CellId
-    ) {
-        let exits: &mut [Exit] = room.exits.as_mut_slice();
-        exits[3] = Exit { command: command, direction: direction, destination: destination };
-        room.exit_count = 4;
-    }
+    let back_direction: Direction = self.opposite(direction);
+    let to_room: &mut Room = level.room_mut(to);
+    to_room.append_exit(self.direction_command(back_direction), back_direction, from);
 }
 
 machine MazeBuilder::next_unused_cell(
