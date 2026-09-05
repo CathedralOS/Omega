@@ -119,10 +119,20 @@ exactly one `main`, and unique type, constructor, and function declarations in
 their separate namespaces. Exact source-byte names are retained in persistent
 bytewise tries whose nodes store only present child edges, so this check has
 neither hash collisions, absent-edge trees, nor repeated whole-source lookup.
-Type and constructor names may still share a spelling, as
-required by Delta's grammar-distinguished namespaces. Name recursion advances
-once per complete byte; a 200-byte identifier witness guards practical Gamma
-call-context headroom, while the Epsilon customer currently tops out at 58.
+Type and constructor names may still share a spelling, as required by Delta's
+grammar-distinguished namespaces. Insertion builds a missing suffix from its
+end toward its start with tail calls. Existing edges are traversed with a
+counted ancestor spine, then rebuilt from the inserted terminal outward.
+Exact terminal options distinguish a complete key from its prefixes; unchanged
+children and prior roots remain persistent. Identifier length no longer adds
+one Gamma return context per byte during insertion.
+
+The ancestor spine costs one additional immutable pair per traversed existing
+edge. It shares prior nodes rather than copying names or introducing a dense
+alphabet or hash table. Gamma's cumulative pair arena still bounds physical
+construction, and its exhaustion is not yet a compiler-owned resource frame.
+This change adds no identifier-length limit or new language/resource code and
+does not establish complete compiler resource conformance.
 
 The frontend validates identifier spelling at declarations, types, parameters,
 local binders, constructor patterns, atoms, and application heads.
@@ -249,7 +259,7 @@ The downgraded full compiler remains separate under
 ## Measurements
 
 ```text
-2,591-line / 109,334-byte canonical entry plus shared Gamma implementation
+2,620-line / 110,660-byte canonical entry plus shared Gamma implementation
 7-line / 195-byte nullary-ADT Delta fixture
   -> 3-line / 165-byte Gamma receipt
   -> selected Gamma evaluation produces byte 9

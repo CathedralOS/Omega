@@ -11,7 +11,7 @@ The normative contract is
 [`bootstrap/delta/LANGUAGE.md`](../../../../bootstrap/delta/LANGUAGE.md). The canonical
 compiler must be written in Gamma and emit canonical Gamma source. The selected
 Beta-authored Gamma evaluator executes that compiler over Delta source and can
-execute the resulting canonical Gamma receipt. The selected 2,591-line source
+execute the resulting canonical Gamma receipt. The selected 2,620-line source
 is one canonical request entry plus 40 manifested shared implementation members.
 It enforces Delta's textual-ASCII byte envelope, identifier and
 reserved-name grammar, signed-literal range, and exact global function
@@ -25,7 +25,11 @@ precedes declaration-type resolution and body checking, so later global
 duplicates are not hidden by earlier type defects. Immutable metadata catalogs
 preserve forward and mutual declarations without repeated whole-source lookup. Function metadata
 likewise retains ordered resolved signatures and typed parameter environments
-once for all calls. Sparse bytewise tries store only present child edges. Its
+once for all calls. Sparse bytewise tries store only present child edges.
+Insertion tail-builds missing suffixes and rebuilds traversed existing edges
+from a counted immutable ancestor spine, preserving exact terminal options and
+prior roots without identifier-length-dependent Gamma call depth. The extra
+ancestor pairs still consume Gamma's finite arena. Its
 immutable exact-name environments reject unknown locals and
 duplicate active parameter, `let`, or pattern binders while preserving reuse
 across disjoint scopes. The same pass checks the scalar/nominal expression,

@@ -7,7 +7,7 @@ Python frames requests, invokes those source-owned stages, and compares exact
 observations. It neither parses Delta nor selects diagnostic reasons or source
 coordinates.
 
-The 225 exact 40-byte DCOUT controls cover the frontend phases:
+The 235 exact 40-byte DCOUT controls cover the frontend phases:
 
 - Source-byte rejection uses code 3 and Delta-source coordinate space 1. Invalid
   bytes, including bytes inside comments and a Unicode BOM, precede syntax and
@@ -85,7 +85,7 @@ balanced parsing precede depth accounting; earlier grammar defects retain
 priority, while depth refusal precedes grammar judgment at the refused node
 and the later global census and semantic phases.
 
-Twenty-six accepted programs exercise identity compilation, exact entry selection
+Thirty-six accepted programs exercise identity compilation, exact entry selection
 after `main_suffix`, cross-namespace spelling reuse, forward and mutual data
 visibility, forward and mutual function visibility, and the admitted ASCII
 whitespace/comment boundaries. They include both exact signed integer limits,
@@ -102,6 +102,15 @@ exact types. Negative controls reject wrong first, middle, and last payload
 arguments and wrongly used pattern binders. Each compiles
 twice to identical bytes; its generated application preserves an exact binary
 input including NUL and high bytes.
+
+The sibling `name_fixtures.py` adds 1,024-byte type, constructor, function, and
+local names. Shared-prefix controls insert terminals before and after their
+extensions, observe distinct function payloads, and retain sibling nominal
+owners. Scoped local roots preserve outer bindings while disjoint scopes and
+match arms reuse long spellings. Exact long-name duplicates retain codes 6,
+7, 8, 9, and 10 at the later name; unknown shorter prefixes, longer extensions,
+and escaped locals retain exact unknown-name diagnostics. These are authored
+byte constructions, not a host implementation of the exact-name trie.
 
 The expected coordinates are literal authored fixture facts or lengths of
 explicit fixture-construction prefixes, never source searches. Whole-frame
