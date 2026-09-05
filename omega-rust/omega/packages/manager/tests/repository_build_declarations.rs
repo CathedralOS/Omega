@@ -568,7 +568,7 @@ fn arithmetic_canaries_declare_only_their_consumed_standard_library_edges() {
 fn call_canaries_declare_only_their_consumed_standard_library_edges() {
     assert_mixed_canary_category_standard_library_edges(
         &repository_root().join("tests/omega/pass/calls"),
-        171,
+        172,
         166,
         &[
             "runtime_guarded_effectful_transition_argument_exit",

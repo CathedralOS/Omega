@@ -150,10 +150,10 @@ the [Rust Compiler Completion Contract](wiki/releases/rust_compiler_completion_c
   own breakage from the standing state. Acceptance: every remaining red canary
   is attributed to a named entry on a board, and this entry is replaced by those.
 
-- **CANARY-ROSTER-DERIVATION.** Complete reverse corpus reconciliation in
+- **CANARY-ROSTER-DERIVATION.** Complete reverse negative-corpus reconciliation in
   `omega-rust/omega/compiler/compiler/tests/canary_suite/roster.rs`:
-  nonempty `unregistered` differences must fail once every dedicated owner is
-  represented. Move remaining dedicated execution tables into shared
+  nonempty negative `unregistered` differences must fail once every dedicated
+  owner is represented. Move remaining dedicated execution tables into shared
   `tests/fixture_rosters/` leaves consumed by both their executing tests and
   the inventory. Preserve each owner's checked/native stage, target, and
   inline/file diagnostic contract; target-routing annotations alone are not
@@ -196,6 +196,16 @@ the [Rust Compiler Completion Contract](wiki/releases/rust_compiler_completion_c
   constraints and rejecting the floor-excluding case as unproved. Preserve the
   private-witness/public-guarantee split described in chapter 3 and the
   [termination brief](wiki/design_briefs/termination_ranking_and_progress.md).
+
+- **INDEX-OPERATOR-ASSOCIATION.** Rejoin imported indexing operators to their
+  checked declaration-selection disposition in
+  `typed-trees-to-checked-trees/src/authored_selections.rs` and the indexing
+  checker. `operators/slice_index_bounds_from_operator_contract` rejects with
+  an unresolved `CheckedOperator` occurrence even though its fixed-array index
+  is within bounds. Acceptance: that fixture reaches checked trees using the
+  selected operator's exact bounds contract; invalid indexes and unrelated
+  unresolved or substituted operator selections still reject. Do not bypass
+  the authored-selection guard or infer authority from the operator's spelling.
 
 `omega-rust/` remains the production implementation until that contract
 closes. It may remain afterward as a differential implementation while it finds

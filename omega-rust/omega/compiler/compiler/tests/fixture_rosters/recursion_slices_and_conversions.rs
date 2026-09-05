@@ -115,6 +115,8 @@ pub const RUNTIME_MUTABLE_MACHINE_OWNED_PARAMETER_WRITE_EXIT: &str =
     "calls/runtime_mutable_machine_owned_parameter_write_exit";
 pub const RUNTIME_MUTABLE_LOCAL_PARAMETER_WRITE_EXIT: &str =
     "calls/runtime_mutable_local_parameter_write_exit";
+pub const RUNTIME_MUTABLE_LOCAL_PARAMETER_WRITE_COMPILE: &str =
+    "calls/runtime_mutable_local_parameter_write_compile";
 pub const RUNTIME_MUTABLE_PARAMETER_READ_MODIFY_WRITE_EXIT: &str =
     "calls/runtime_mutable_parameter_read_modify_write_exit";
 
@@ -195,6 +197,7 @@ pub const PASS_CANARIES: &[&str] = &[
     RUNTIME_MACHINE_OWNED_DOUBLE_INDEXED_STRING_FIELD_CONCAT_EXIT,
     RUNTIME_MUTABLE_MACHINE_OWNED_PARAMETER_WRITE_EXIT,
     RUNTIME_MUTABLE_LOCAL_PARAMETER_WRITE_EXIT,
+    RUNTIME_MUTABLE_LOCAL_PARAMETER_WRITE_COMPILE,
     RUNTIME_MUTABLE_PARAMETER_READ_MODIFY_WRITE_EXIT,
 ];
 

@@ -2252,6 +2252,22 @@ fn runtime_mutable_machine_owned_parameter_write_exit_canary_runs() {
 }
 
 #[test]
+fn mutable_local_parameter_write_loop_reaches_native_artifact() {
+    // This original compile regression loops forever. Its separate exit
+    // companion owns runtime observation; this owner must never execute it.
+    let canary = pass_canary(fixture_roster::RUNTIME_MUTABLE_LOCAL_PARAMETER_WRITE_COMPILE);
+    let scratch = unique_no_output_build_dir();
+    let compilation = compile_rooted_canary_for_native_host(&canary, scratch.clone())
+        .expect("mutable local parameter write loop should reach native code");
+    compilation
+        .retained_native_artifact()
+        .expect("mutable parameter write loop should retain its native artifact")
+        .validate()
+        .expect("mutable parameter write loop artifact should replay");
+    let _ = fs::remove_dir_all(&scratch);
+}
+
+#[test]
 fn runtime_mutable_local_parameter_write_exit_canary_runs() {
     let canary = pass_canary(fixture_roster::RUNTIME_MUTABLE_LOCAL_PARAMETER_WRITE_EXIT);
     let build_dir = std::env::temp_dir().join(format!(
