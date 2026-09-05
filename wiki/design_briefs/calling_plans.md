@@ -448,7 +448,7 @@ supported path. Admitted leaves join only through explicit accepted rows with
 their own provider provenance. Static and dynamically loaded artifacts use the
 same certificate and checker boundary.
 
-The current envelope is a typed `omega-image` value rather than a report-only
+The current envelope is a typed `image` value rather than a report-only
 JSON convention. Its closed class vocabulary, normalized coverage rows,
 completeness flags, final placement binding, compiler-text derivation, and
 region inventory all enter one replayed identity. The current producer is
@@ -1601,7 +1601,7 @@ dynamic installation is checked against the artifact-wide bound. Per-machine
 validation alone cannot answer those questions.
 
 The provider-neutral installation ledger is live in the orchestration crate
-`omega-external-roots`.
+`external-roots`.
 Each admitted record retains the complete evaluated plan and exact
 provider/effect/receipt, stack/nesting/acknowledgement, resource, artifact, and
 component-version identities. Its stack, structural-work, and machine-state
@@ -1662,7 +1662,7 @@ reportable. Exact validated compiler-selected plans survive checked lowering
 in one canonical fact set. External-root candidates bind the retained plan
 identity before validation; normalized root identity covers it, and execution
 inherits it rather than accepting a second plan input. The ledger's
-deterministic fingerprint and the `omega-artifacts` `external_roots.json`
+deterministic fingerprint and the `artifacts` `external_roots.json`
 projection report these facts and the complete boundary plan without leaking
 numeric entry addresses or private ranking/codegen proofs.
 
@@ -1700,7 +1700,7 @@ realized facts, and validation receipts; private rankings and codegen proofs sta
 behind the evidence firewall. Maximum logical work proves only a finite admitted
 operation path, not target WCET. The current schedule-keyed fixed-fuel
 provider-summary composer and logical-fuel provision now use the dependency-light
-`psi-core` schedule identity directly. Local-evidence rows distinguish
+`semantic-vocabulary` schedule identity directly. Local-evidence rows distinguish
 recomputable terminal-Psi entry/segment certificates from admitted opaque-
 provider unit claims, and the external-root report retains that distinction.
 Whole-entry certificate rows now bind exact relocation-free frozen executable
@@ -1753,7 +1753,7 @@ mechanism validator and generic emitter.
 
 ## Current implementation
 
-`omega-calling-conventions` owns normalized `CallPlan`, `StatePlan`, and
+`calling-conventions` owns normalized `CallPlan`, `StatePlan`, and
 `BoundaryEntryPlan` records. It evaluates the supported MS x64, SysV x64,
 AAPCS64, Linux syscall, firmware, and interrupt-policy slices and rejects
 unclassified shapes, invalid placement, incompatible regimes, unsaved state,

@@ -4,28 +4,28 @@ use crate::record::{
     PackageReviewByteSequencePredicate, PackageReviewCollectionViewOperation,
     PackageReviewContractCallTarget,
 };
-use omega_compiler::CheckedCompilation;
-use psi_diagnostics::Diagnostic;
-use psi_symbols::SymbolHandle;
+use compiler::CheckedCompilation;
+use diagnostics::Diagnostic;
+use symbols::SymbolHandle;
 
 pub(crate) fn resolved_contract_call_symbol(
     compilation: &CheckedCompilation,
-    call: &psi_typed_trees::expression::TableCallExpression,
+    call: &typed_trees::expression::TableCallExpression,
 ) -> Option<SymbolHandle> {
     call.target_symbol
         .is_valid()
         .then_some(call.target_symbol)
         .or_else(|| {
-            psi_typed_trees::operator::resolve_named_expression_call(&compilation.typed, call)
+            typed_trees::operator::resolve_named_expression_call(&compilation.typed, call)
                 .map(|operator| operator.symbol)
         })
 }
 
 pub(crate) fn contract_call_value_receiver(
     compilation: &CheckedCompilation,
-    call: &psi_typed_trees::expression::TableCallExpression,
+    call: &typed_trees::expression::TableCallExpression,
     target: Option<SymbolHandle>,
-) -> Option<psi_typed_trees::expression::ExpressionHandle> {
+) -> Option<typed_trees::expression::ExpressionHandle> {
     if !call.receiver.is_valid() {
         return None;
     }
@@ -36,8 +36,8 @@ pub(crate) fn contract_call_value_receiver(
     }
     if !call.target_symbol.is_valid()
         && let Some(operator) =
-            psi_typed_trees::operator::resolve_named_expression_call(&compilation.typed, call)
-        && let psi_typed_trees::expression::ExpressionNode::Name(path) =
+            typed_trees::operator::resolve_named_expression_call(&compilation.typed, call)
+        && let typed_trees::expression::ExpressionNode::Name(path) =
             compilation.expression_table.expression(call.receiver)
     {
         let receiver = compilation.expression_table.name_path_members(path.members);
@@ -69,7 +69,7 @@ fn contract_call_target_has_self_parameter(
 fn contract_call_target_parameter_sets(
     compilation: &CheckedCompilation,
     target: SymbolHandle,
-) -> Vec<&[psi_typed_trees::signature::StateParameter]> {
+) -> Vec<&[typed_trees::signature::StateParameter]> {
     let mut candidates = compilation
         .machines()
         .iter()
@@ -107,7 +107,7 @@ pub(crate) fn require_exact_contract_call_reference_arguments(
     compilation: &CheckedCompilation,
     context: &ContractProjectionContext<'_>,
     target: SymbolHandle,
-    call: &psi_typed_trees::expression::TableCallExpression,
+    call: &typed_trees::expression::TableCallExpression,
 ) -> Result<(), Vec<Diagnostic>> {
     let candidates = contract_call_target_parameter_sets(compilation, target);
     let [parameters] = candidates.as_slice() else {
@@ -134,8 +134,8 @@ pub(crate) fn require_exact_contract_call_reference_arguments(
     for (argument, parameter) in arguments.iter().zip(parameters) {
         if matches!(
             compilation.expression_table.expression(*argument),
-            psi_typed_trees::expression::ExpressionNode::Borrow(_)
-        ) && !psi_validation::checked_argument_matches_type_reference(
+            typed_trees::expression::ExpressionNode::Borrow(_)
+        ) && !validation::checked_argument_matches_type_reference(
             &compilation.typed,
             *argument,
             parameter.type_reference,
@@ -152,11 +152,11 @@ pub(crate) fn require_exact_contract_call_reference_arguments(
 pub(crate) fn exact_fact_call_projection<'compilation>(
     compilation: &'compilation CheckedCompilation,
     context: &ContractProjectionContext<'_>,
-    projection_expression: psi_typed_trees::expression::ExpressionHandle,
-    call_expression: psi_typed_trees::expression::ExpressionHandle,
-    member: &psi_typed_trees::expression::TableMemberExpression,
-) -> Result<&'compilation psi_checked_trees::CheckedFactCallProjection, Vec<Diagnostic>> {
-    use psi_typed_trees::expression::ExpressionNode;
+    projection_expression: typed_trees::expression::ExpressionHandle,
+    call_expression: typed_trees::expression::ExpressionHandle,
+    member: &typed_trees::expression::TableMemberExpression,
+) -> Result<&'compilation checked_trees::CheckedFactCallProjection, Vec<Diagnostic>> {
+    use typed_trees::expression::ExpressionNode;
 
     let ExpressionNode::Call(call) = compilation.expression_table.expression(call_expression)
     else {
@@ -210,10 +210,8 @@ pub(crate) fn exact_fact_call_projection<'compilation>(
         .type_reference_table
         .type_reference(projection.result_type)
     {
-        psi_typed_trees::types::TypeReferenceNode::Named { symbol, .. } => Some(*symbol),
-        psi_typed_trees::types::TypeReferenceNode::Generic { base_symbol, .. } => {
-            Some(*base_symbol)
-        }
+        typed_trees::types::TypeReferenceNode::Named { symbol, .. } => Some(*symbol),
+        typed_trees::types::TypeReferenceNode::Generic { base_symbol, .. } => Some(*base_symbol),
         _ => None,
     };
     let field_rejoins = data_symbol
@@ -225,7 +223,7 @@ pub(crate) fn exact_fact_call_projection<'compilation>(
         })
         .and_then(|data| {
             compilation.data_members(data).iter().find_map(|candidate| {
-                let psi_typed_trees::data::DataMember::Field(field) = candidate else {
+                let typed_trees::data::DataMember::Field(field) = candidate else {
                     return None;
                 };
                 (field.name.as_str() == member.member.as_str()).then_some(field.symbol)
@@ -244,10 +242,10 @@ pub(crate) fn exact_fact_call_projection<'compilation>(
 pub(crate) fn exact_checked_contract_call_target(
     compilation: &CheckedCompilation,
     context: &ContractProjectionContext<'_>,
-    expression: psi_typed_trees::expression::ExpressionHandle,
-    call: &psi_typed_trees::expression::TableCallExpression,
+    expression: typed_trees::expression::ExpressionHandle,
+    call: &typed_trees::expression::TableCallExpression,
 ) -> Result<PackageReviewContractCallTarget, Vec<Diagnostic>> {
-    use psi_language_semantics::declaration_selection::{
+    use language_semantics::declaration_selection::{
         AuthoredDeclarationSelectionKind, AuthoredDeclarationSelectionTarget,
     };
 
@@ -276,7 +274,7 @@ pub(crate) fn exact_checked_contract_call_target(
         ))]);
     }
     let retained_symbol = resolved_contract_call_symbol(compilation, call);
-    let owner_derived_symbol = psi_typed_trees_to_checked_trees::derive_checked_nominal_call_target(
+    let owner_derived_symbol = typed_trees_to_checked_trees::derive_checked_nominal_call_target(
         &compilation.typed,
         &compilation.facts,
         expression,
@@ -313,31 +311,31 @@ pub(crate) fn exact_checked_contract_call_target(
             context.subject_kind, context.subject_name
         ))]),
         AuthoredDeclarationSelectionTarget::Intrinsic(
-            psi_language_semantics::declaration_selection::AuthoredDeclarationSelectionIntrinsic::ByteSequencePredicate(
+            language_semantics::declaration_selection::AuthoredDeclarationSelectionIntrinsic::ByteSequencePredicate(
                 predicate,
             ),
         ) if !call.target_symbol.is_valid()
             && !call.receiver.is_valid()
-            && psi_language_semantics::byte_predicates::ByteSequencePredicate::from_name(
+            && language_semantics::byte_predicates::ByteSequencePredicate::from_name(
                 call.target.as_str(),
             ) == Some(predicate) => Ok(PackageReviewContractCallTarget::ByteSequencePredicate(
                 match predicate {
-                    psi_language_semantics::byte_predicates::ByteSequencePredicate::ValidUtf8 => {
+                    language_semantics::byte_predicates::ByteSequencePredicate::ValidUtf8 => {
                         PackageReviewByteSequencePredicate::ValidUtf8
                     }
-                    psi_language_semantics::byte_predicates::ByteSequencePredicate::NoNul => {
+                    language_semantics::byte_predicates::ByteSequencePredicate::NoNul => {
                         PackageReviewByteSequencePredicate::NoNul
                     }
-                    psi_language_semantics::byte_predicates::ByteSequencePredicate::AsciiOnly => {
+                    language_semantics::byte_predicates::ByteSequencePredicate::AsciiOnly => {
                         PackageReviewByteSequencePredicate::AsciiOnly
                     }
-                    psi_language_semantics::byte_predicates::ByteSequencePredicate::NonEmpty => {
+                    language_semantics::byte_predicates::ByteSequencePredicate::NonEmpty => {
                         PackageReviewByteSequencePredicate::NonEmpty
                     }
                 },
             )),
         AuthoredDeclarationSelectionTarget::Intrinsic(
-            psi_language_semantics::declaration_selection::AuthoredDeclarationSelectionIntrinsic::CollectionView(
+            language_semantics::declaration_selection::AuthoredDeclarationSelectionIntrinsic::CollectionView(
                 selected_operation,
             ),
         ) => {
@@ -356,7 +354,7 @@ pub(crate) fn exact_checked_contract_call_target(
                 ))]);
             };
             let Some(expected) =
-                psi_typed_trees_to_checked_trees::derive_checked_collection_view_intrinsic(
+                typed_trees_to_checked_trees::derive_checked_collection_view_intrinsic(
                     &compilation.typed,
                     &compilation.facts,
                     expression,
@@ -369,7 +367,7 @@ pub(crate) fn exact_checked_contract_call_target(
             };
             if retained.intrinsic != expected
                 || expected
-                    != psi_language_semantics::declaration_selection::AuthoredDeclarationSelectionIntrinsic::CollectionView(
+                    != language_semantics::declaration_selection::AuthoredDeclarationSelectionIntrinsic::CollectionView(
                         selected_operation,
                     )
             {
@@ -380,10 +378,10 @@ pub(crate) fn exact_checked_contract_call_target(
             }
             Ok(PackageReviewContractCallTarget::CollectionView(
                 match selected_operation {
-                    psi_language_semantics::declaration_selection::CollectionViewOperation::SharedSlice => PackageReviewCollectionViewOperation::SharedSlice,
-                    psi_language_semantics::declaration_selection::CollectionViewOperation::MutableSlice => PackageReviewCollectionViewOperation::MutableSlice,
-                    psi_language_semantics::declaration_selection::CollectionViewOperation::TextView => PackageReviewCollectionViewOperation::TextView,
-                    psi_language_semantics::declaration_selection::CollectionViewOperation::Bytes => PackageReviewCollectionViewOperation::Bytes,
+                    language_semantics::declaration_selection::CollectionViewOperation::SharedSlice => PackageReviewCollectionViewOperation::SharedSlice,
+                    language_semantics::declaration_selection::CollectionViewOperation::MutableSlice => PackageReviewCollectionViewOperation::MutableSlice,
+                    language_semantics::declaration_selection::CollectionViewOperation::TextView => PackageReviewCollectionViewOperation::TextView,
+                    language_semantics::declaration_selection::CollectionViewOperation::Bytes => PackageReviewCollectionViewOperation::Bytes,
                 },
             ))
         }

@@ -1,5 +1,5 @@
 use crate::support::*;
-use omega_target::TargetProfile;
+use target::TargetProfile;
 
 pub(super) const BUILD: &str = r#"machine build(builder: &mut Build) {
     builder.package("review-fixture");
@@ -39,14 +39,12 @@ impl Fixture {
             .typed
             .machine_trait_conformances
             .span_mut_or_empty(conformances)[0]
-            .via_expression = psi_typed_trees::expression::ExpressionHandle::invalid();
+            .via_expression = typed_trees::expression::ExpressionHandle::invalid();
         changed
     }
 
     pub fn changed_build_target(&self, prefix: &str, replacement: &str) -> CheckedCompilation {
-        use psi_typed_trees::{
-            expression::ExpressionNode, name::Identifier, statement::StatementNode,
-        };
+        use typed_trees::{expression::ExpressionNode, name::Identifier, statement::StatementNode};
         let mut changed = self.checked.clone();
         let build = changed
             .machines()

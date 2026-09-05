@@ -1,0 +1,339 @@
+use super::*;
+
+#[allow(clippy::too_many_arguments)]
+pub(super) fn append_state_statement_flow_facts(
+    program: &typed_trees::TypedTrees,
+    borrow: &BorrowFacts,
+    proof: &ProofFacts,
+    semantic: &mut FactPlan,
+    domains: &DomainFacts,
+    ctx: &mut FlowBuildContext,
+    machine: &typed_trees::machine::Machine,
+    state: &typed_trees::state::State,
+    active_contexts: &mut arena::HandleSpan<FlowSemanticContextRef>,
+    active_constraints: &mut arena::HandleSpan<FlowConstraintRef>,
+    borrow_state: &StateBorrowFact,
+) -> arena::HandleSpan<FlowCallFact> {
+    let mut state_calls = arena::HandleSpan::empty();
+    let borrow_calls = borrow.calls.span_or_empty(borrow_state.calls);
+    let borrow_loans = borrow.loans.span_or_empty(borrow_state.loans);
+    let mut call_index = 0usize;
+    let mut loan_index = 0usize;
+
+    for (statement_index, statement) in program
+        .statement_table
+        .statements(state.statement_nodes)
+        .iter()
+        .enumerate()
+    {
+        append_proof_output_ensures(
+            proof,
+            semantic,
+            ctx,
+            machine.symbol,
+            state.symbol,
+            statement_index,
+            active_contexts,
+            active_constraints,
+        );
+        *active_constraints = filter_expired_borrow_loans(
+            &mut ctx.borrow_lifetimes.weakenings,
+            &mut ctx.contexts.constraint_refs,
+            *active_constraints,
+            borrow,
+            statement_index,
+            FlowBorrowWeakeningReason::LastUseExpired,
+        );
+        ctx.control.statements.append(FlowStatementFact {
+            statement_index,
+            entry_semantic_contexts: *active_contexts,
+            entry_constraints: *active_constraints,
+        });
+        if matches!(statement, StatementNode::Transition(_))
+            && proof.outcome_specific_arms.iter().any(|(_, arm)| {
+                arm.caller_machine_symbol == machine.symbol
+                    && arm.caller_state_symbol == state.symbol
+                    && arm.statement_index == statement_index
+            })
+        {
+            let point = ProgramPoint::Statement {
+                machine_symbol: machine.symbol,
+                state_symbol: state.symbol,
+                statement_index,
+            };
+            *active_contexts =
+                clone_flow_contexts(&mut ctx.contexts.semantic_context_refs, *active_contexts);
+            *active_constraints =
+                clone_constraint_refs(&mut ctx.contexts.constraint_refs, *active_constraints);
+            append_flow_contexts_for_points(
+                semantic,
+                &mut ctx.contexts.semantic_context_refs,
+                active_contexts,
+                &[point],
+            );
+            append_semantic_constraints_for_points(
+                semantic,
+                &mut ctx.contexts.constraint_refs,
+                active_constraints,
+                &[point],
+            );
+        }
+        // A multi-arm transition desugars to a SEQUENCE of guarded transition
+        // statements (an if/elseif chain): statement N is taken when its guard
+        // holds (and the state exits), else control falls through to statement
+        // N+1. A guarded transition's TARGET call exits the state, so threading
+        // its (empty) exit context to the next statement is wrong -- the next
+        // statement is the FALLTHROUGH (this guard was false), which never ran the
+        // branch, so it must keep the PRE-transition context. Without this, an
+        // else-arm call (`false -> consume(text)`) saw 0 entry contexts and a
+        // forwarded domain fact never reached it. Snapshot the entry context so we
+        // can restore it for the fallthrough after this statement is flowed.
+        let mut fallthrough_contexts = *active_contexts;
+        let mut fallthrough_constraints = *active_constraints;
+        if let StatementNode::Transition(transition) = statement {
+            let start = call_index;
+            while borrow_calls
+                .get(call_index)
+                .is_some_and(|call| call.statement_index == statement_index)
+            {
+                call_index += 1;
+            }
+            super::exits::append_transition_flow_facts(
+                program,
+                borrow,
+                proof,
+                semantic,
+                domains,
+                ctx,
+                machine,
+                state,
+                statement_index,
+                transition,
+                &borrow_calls[start..call_index],
+                &mut state_calls,
+                active_contexts,
+                active_constraints,
+            );
+            fallthrough_contexts = *active_contexts;
+            fallthrough_constraints = *active_constraints;
+        }
+        if !matches!(statement, StatementNode::Transition(_)) {
+            let start = call_index;
+            while borrow_calls
+                .get(call_index)
+                .is_some_and(|call| call.statement_index == statement_index)
+            {
+                call_index += 1;
+            }
+            super::expression::append_statement_calls(
+                program,
+                borrow,
+                proof,
+                semantic,
+                domains,
+                ctx,
+                machine,
+                state,
+                statement_index,
+                statement,
+                &borrow_calls[start..call_index],
+                &mut state_calls,
+                active_contexts,
+                active_constraints,
+            );
+        }
+
+        // Assignment evaluates its RHS under the entry loans above, then
+        // overwrites the target. Retire loans carried by the old value before
+        // activating loans carried by the replacement below; otherwise the
+        // replacement spuriously conflicts with the value it is replacing.
+        *active_constraints = filter_reassigned_borrow_loans(
+            &mut ctx.borrow_lifetimes.weakenings,
+            &mut ctx.contexts.constraint_refs,
+            *active_constraints,
+            borrow,
+            program,
+            state.symbol,
+            statement_index,
+            statement,
+        );
+
+        while let Some(loan) = borrow_loans.get(loan_index) {
+            if loan.statement_index != statement_index {
+                break;
+            }
+            loan_index += 1;
+            let loan_handle = Handle::from_parts(
+                borrow_state
+                    .loans
+                    .start()
+                    .arena_index()
+                    .saturating_add((loan_index - 1) as u32),
+                borrow_state.loans.start().generation(),
+            );
+
+            ctx.borrow_lifetimes
+                .activations
+                .append(FlowBorrowActivationFact {
+                    source: FlowInvalidationSource::Statement { statement_index },
+                    loan: loan_handle,
+                });
+
+            append_constraint_ref(
+                &mut ctx.contexts.constraint_refs,
+                active_constraints,
+                FlowConstraintKind::BorrowLoan { loan: loan_handle },
+            );
+        }
+
+        let storage_writes = statement_storage_writes(
+            program,
+            machine.symbol,
+            state.symbol,
+            statement_index,
+            statement,
+        );
+        if storage_writes.is_none() {
+            *active_contexts = HandleSpan::empty();
+            *active_constraints = project_constraint_refs_to_active_contexts(
+                &mut ctx.contexts.constraint_refs,
+                *active_constraints,
+                *active_contexts,
+                &ctx.contexts.semantic_context_refs,
+            );
+        }
+        // RHS calls have already contributed their effects. Preserve only
+        // their surviving facts while the assignment still reads its old
+        // source value, before invalidating the overwritten destination.
+        let assignment_source_contexts = *active_contexts;
+        let mut mutated_places = storage_writes.unwrap_or_default();
+        if let StatementNode::Call(call) = statement {
+            mutated_places.extend(operator_statement_call_mutated_places(
+                program,
+                machine.symbol,
+                state.symbol,
+                statement_index,
+                call,
+            ));
+        }
+        if !mutated_places.is_empty() {
+            *active_contexts = filter_contexts_after_place_mutations(
+                program,
+                semantic,
+                domains,
+                &mut ctx.contexts.semantic_context_refs,
+                &mut ctx.invalidations.segments,
+                &mut ctx.invalidations.events,
+                *active_contexts,
+                &mutated_places,
+                FlowInvalidationSource::Statement { statement_index },
+            );
+            *active_constraints = project_constraint_refs_to_active_contexts(
+                &mut ctx.contexts.constraint_refs,
+                *active_constraints,
+                *active_contexts,
+                &ctx.contexts.semantic_context_refs,
+            );
+        }
+
+        if let StatementNode::Call(call) = statement {
+            append_operator_statement_ensures(
+                program,
+                semantic,
+                ctx,
+                machine.symbol,
+                state.symbol,
+                statement_index,
+                call,
+                active_contexts,
+                active_constraints,
+            );
+        }
+
+        propagate_statement_transfers(
+            program,
+            semantic,
+            ctx,
+            machine.symbol,
+            state.symbol,
+            statement_index,
+            statement,
+            assignment_source_contexts,
+            active_contexts,
+            active_constraints,
+        );
+
+        // Restore the pre-transition context for the fallthrough path (see the
+        // snapshot above). A guarded transition either takes its branch and exits
+        // -- so its exit context belongs to the target state's flow, not to the
+        // sibling fallthrough -- or its guard is false and control continues to the
+        // next statement with the context unchanged by the (untaken) branch.
+        if matches!(
+            statement,
+            typed_trees::statement::StatementNode::Transition(_)
+        ) {
+            *active_contexts = fallthrough_contexts;
+            *active_constraints = fallthrough_constraints;
+        }
+    }
+
+    append_proof_output_ensures(
+        proof,
+        semantic,
+        ctx,
+        machine.symbol,
+        state.symbol,
+        program
+            .statement_table
+            .statements(state.statement_nodes)
+            .len(),
+        active_contexts,
+        active_constraints,
+    );
+
+    state_calls
+}
+
+#[allow(clippy::too_many_arguments)]
+fn append_proof_output_ensures(
+    proof: &ProofFacts,
+    semantic: &FactPlan,
+    ctx: &mut FlowBuildContext,
+    machine_symbol: symbols::SymbolHandle,
+    state_symbol: symbols::SymbolHandle,
+    statement_index: usize,
+    active_contexts: &mut arena::HandleSpan<FlowSemanticContextRef>,
+    active_constraints: &mut arena::HandleSpan<FlowConstraintRef>,
+) {
+    let has_proof_only_binding = proof.proof_output_calls.iter().any(|(_, invocation)| {
+        invocation.caller_machine_symbol == machine_symbol
+            && invocation.caller_state_symbol == state_symbol
+            && invocation.statement_index == statement_index
+            && invocation.runtime_call.is_none()
+    });
+    if !has_proof_only_binding {
+        return;
+    }
+    *active_contexts =
+        clone_flow_contexts(&mut ctx.contexts.semantic_context_refs, *active_contexts);
+    *active_constraints =
+        clone_constraint_refs(&mut ctx.contexts.constraint_refs, *active_constraints);
+    let point = ProgramPoint::CallEnsures {
+        machine_symbol,
+        state_symbol,
+        statement_index,
+        call_ordinal: 0,
+    };
+    append_flow_contexts_for_points(
+        semantic,
+        &mut ctx.contexts.semantic_context_refs,
+        active_contexts,
+        &[point],
+    );
+    append_semantic_constraints_for_points(
+        semantic,
+        &mut ctx.contexts.constraint_refs,
+        active_constraints,
+        &[point],
+    );
+}

@@ -6,8 +6,8 @@ use crate::declarations::dependencies::read::{DependencySourceRequest, Projected
 use crate::resolution::source::{
     PackageSourceMaterialization, PackageSourceNavigation, PackageSourceSelectionEvidence,
 };
-use omega_package_source::ImmutableSourceResolution;
-use omega_package_source::LocalSourceLimits;
+use package_source::ImmutableSourceResolution;
+use package_source::LocalSourceLimits;
 use std::path::{Path, PathBuf};
 
 /// Immutable package source after acquisition, declaration extraction, and

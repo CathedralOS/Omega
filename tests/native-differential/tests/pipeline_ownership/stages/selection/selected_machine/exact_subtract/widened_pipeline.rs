@@ -144,7 +144,7 @@ fn widened_u8_exact_subtract_reaches_verified_register_and_machine_pipelines() {
                     .iter()
                     .all(|operand| operand.tied_to.is_none())
             );
-            if target.architecture == omega_target::Architecture::X86_64 {
+            if target.architecture == target::Architecture::X86_64 {
                 assert!(!subtract.clobbers.is_empty());
             } else {
                 assert!(subtract.clobbers.is_empty());
@@ -186,7 +186,7 @@ fn widened_u8_exact_subtract_reaches_verified_register_and_machine_pipelines() {
             assert_eq!(subtract.barrier, MachineBarrier::None);
             assert_eq!(
                 subtract.alternatives.len(),
-                if target.architecture == omega_target::Architecture::X86_64 {
+                if target.architecture == target::Architecture::X86_64 {
                     4
                 } else {
                     1
@@ -275,7 +275,7 @@ fn widened_u8_exact_subtract_reaches_verified_register_and_machine_pipelines() {
             .flat_map(|block| &block.instructions)
             .filter(|instruction| {
                 instruction.alternative.key.family
-                    == omega_selected_instructions::MachineAlternativeFamily::ExactSubtractI64
+                    == selected_instructions::MachineAlternativeFamily::ExactSubtractI64
             })
             .collect::<Vec<_>>();
         assert_eq!(post_subtracts.len(), 2);

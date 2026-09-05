@@ -1,0 +1,16 @@
+[package]
+name = "image-elf"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[lib]
+name = "image_elf"
+path = "src/lib.rs"
+
+[dependencies]
+arena = { path = "../../../../psi/foundation/arena" }
+diagnostics = { path = "../../../../psi/foundation/diagnostics" }
+image = { path = "../image" }
+object-file = { path = "../../object/object-file" }
+target = { path = "../../../representations/target" }

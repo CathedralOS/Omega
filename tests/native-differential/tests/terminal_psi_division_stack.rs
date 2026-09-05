@@ -1,22 +1,22 @@
-use omega_image_emission::{
+use image_emission::{
     build_installation_record, build_object_artifact, decode_installation_record,
     derive_installation_stack_demand, derive_stack_demand, emit_executable_image,
     emit_object_container, encode_installation_record,
 };
-use omega_machine_code::ScalarControlFlowEvidence;
-use omega_machine_emission::emit_machine_code;
-use omega_target::{Architecture, NativeTarget};
-use omega_target_operations::{
+use machine_code::ScalarControlFlowEvidence;
+use machine_emission::emit_machine_code;
+use semantic_vocabulary::{
+    EdgeId, IntegerSign, IntegerType, IntegerValue, MachineId, OperationId, ProfileDecisionId,
+    ValueId,
+};
+use target::{Architecture, NativeTarget};
+use target_operations::{
     MachineRegister, ScalarParameterLocation, TargetBooleanExpression, TargetCallArgument,
     TargetConditionalIntegerArm, TargetFunction, TargetIntegerControl, TargetIntegerExpression,
     TargetOperation, TargetOperationPlan, TargetScalarExpression, TerminalPsiProvenance,
 };
-use omega_target_operations_to_assigned_target_operations::assign_registers;
-use psi_core::{
-    EdgeId, IntegerSign, IntegerType, IntegerValue, MachineId, OperationId, ProfileDecisionId,
-    ValueId,
-};
-use psi_terminal::{CrashCause, SemanticFingerprint, TerminalPsiIdentity, VocabularyMarker};
+use target_operations_to_assigned_target_operations::assign_registers;
+use terminal_psi::{CrashCause, SemanticFingerprint, TerminalPsiIdentity, VocabularyMarker};
 
 #[test]
 fn division_argument_stack_facts_survive_assignment_emission_object_and_image() {
@@ -512,7 +512,7 @@ fn conditional_call_argument_division_plan(target: NativeTarget) -> TargetOperat
                         requirement_obligations: Vec::new(),
                         crash_continuations: Vec::new(),
                         arguments: vec![TargetCallArgument {
-                            scalar_type: psi_core::ScalarType::Boolean,
+                            scalar_type: semantic_vocabulary::ScalarType::Boolean,
                             location: argument_location,
                             expression: TargetScalarExpression::Boolean(
                                 TargetBooleanExpression::IntegerEqual {
@@ -520,7 +520,8 @@ fn conditional_call_argument_division_plan(target: NativeTarget) -> TargetOperat
                                     scalar_type,
                                     left: Box::new(TargetIntegerExpression::WrappingDivide {
                                         psi_operation: operation_id(1),
-                                        obligation: psi_core::ObligationId::new(1).unwrap(),
+                                        obligation: semantic_vocabulary::ObligationId::new(1)
+                                            .unwrap(),
                                         left: Box::new(immediate(2, 24)),
                                         right: Box::new(immediate(3, 3)),
                                     }),
@@ -542,13 +543,16 @@ fn conditional_call_argument_division_plan(target: NativeTarget) -> TargetOperat
                                 requirement_obligations: Vec::new(),
                                 crash_continuations: Vec::new(),
                                 arguments: vec![TargetCallArgument {
-                                    scalar_type: psi_core::ScalarType::Integer(scalar_type),
+                                    scalar_type: semantic_vocabulary::ScalarType::Integer(
+                                        scalar_type,
+                                    ),
                                     location: argument_location,
                                     expression: TargetScalarExpression::Integer {
                                         scalar_type,
                                         expression: TargetIntegerExpression::ExactRemainder {
                                             psi_operation: operation_id(4),
-                                            obligation: psi_core::ObligationId::new(1).unwrap(),
+                                            obligation: semantic_vocabulary::ObligationId::new(1)
+                                                .unwrap(),
                                             left: Box::new(immediate(6, 43)),
                                             right: Box::new(immediate(7, 6)),
                                         },
@@ -641,7 +645,7 @@ fn conditional_condition_division_plan(target: NativeTarget) -> TargetOperationP
                     scalar_type,
                     left: Box::new(TargetIntegerExpression::WrappingDivide {
                         psi_operation: operation_id(1),
-                        obligation: psi_core::ObligationId::new(1).unwrap(),
+                        obligation: semantic_vocabulary::ObligationId::new(1).unwrap(),
                         left: Box::new(immediate(2, 24)),
                         right: Box::new(immediate(3, 3)),
                     }),
@@ -705,7 +709,7 @@ fn conditional_arm_division_plan(target: NativeTarget, signed: bool) -> TargetOp
                         source_value: value_id(2),
                         expression: TargetIntegerExpression::WrappingDivide {
                             psi_operation: operation_id(1),
-                            obligation: psi_core::ObligationId::new(1).unwrap(),
+                            obligation: semantic_vocabulary::ObligationId::new(1).unwrap(),
                             left: Box::new(immediate(3, if signed { i64::MIN } else { 24 })),
                             right: Box::new(immediate(4, if signed { -1 } else { 3 })),
                         },
@@ -718,7 +722,7 @@ fn conditional_arm_division_plan(target: NativeTarget, signed: bool) -> TargetOp
                         source_value: value_id(5),
                         expression: TargetIntegerExpression::ExactRemainder {
                             psi_operation: operation_id(2),
-                            obligation: psi_core::ObligationId::new(1).unwrap(),
+                            obligation: semantic_vocabulary::ObligationId::new(1).unwrap(),
                             left: Box::new(immediate(6, 29)),
                             right: Box::new(immediate(7, 5)),
                         },
@@ -763,13 +767,13 @@ fn division_argument_plan(target: NativeTarget) -> TargetOperationPlan {
                         requirement_obligations: Vec::new(),
                         crash_continuations: Vec::new(),
                         arguments: vec![TargetCallArgument {
-                            scalar_type: psi_core::ScalarType::Integer(scalar_type),
+                            scalar_type: semantic_vocabulary::ScalarType::Integer(scalar_type),
                             location: ScalarParameterLocation::Register(argument_register),
                             expression: TargetScalarExpression::Integer {
                                 scalar_type,
                                 expression: TargetIntegerExpression::WrappingDivide {
                                     psi_operation: operation_id(1),
-                                    obligation: psi_core::ObligationId::new(1).unwrap(),
+                                    obligation: semantic_vocabulary::ObligationId::new(1).unwrap(),
                                     left: Box::new(TargetIntegerExpression::Immediate {
                                         source_value: value_id(2),
                                         value: IntegerValue::Signed(i64::MIN.into()),

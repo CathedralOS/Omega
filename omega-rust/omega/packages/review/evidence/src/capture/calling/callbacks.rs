@@ -7,13 +7,13 @@ use crate::record::{
     PackagePolicyCallbackDemand, PackagePolicyCallbackDestination,
     PackagePolicyCallbackMaterialization, PackagePolicyCallbacks,
 };
-use omega_calling_conventions::{NativePlace, ValidatedBoundaryEntryPlan};
-use omega_compiler::CheckedCompilation;
-use omega_provider_planning::calling_policy_plans::{
+use calling_conventions::{NativePlace, ValidatedBoundaryEntryPlan};
+use compiler::CheckedCompilation;
+use diagnostics::Diagnostic;
+use provider_planning::calling_policy_plans::{
     BoundaryNativeParameterOrigin, MaterializedBoundarySignature,
 };
-use psi_diagnostics::Diagnostic;
-use psi_typed_trees::name::Identifier;
+use typed_trees::name::Identifier;
 
 /// Called only after the containing owner replays the complete validated
 /// application. Compact identifiers are transient exact joins, never output.

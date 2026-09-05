@@ -29,15 +29,15 @@ use super::{
 use crate::declarations::PackageKey;
 use crate::resolution::graph::ExactTargetPackageSourceClosure;
 use crate::resolution::{package_compilation_inputs_for, reachable_package_keys};
-use omega_compiler::compile_to_checked_with_packages_in_sponsored_build_session;
-use omega_package_compilation::{AcceptedSemanticBinding, PackageCompilationInputError};
-use omega_package_evidence::ledger::{
+use checked_interpreter::{BuildEvaluationSponsor, FilesystemSponsor};
+use compiler::compile_to_checked_with_packages_in_sponsored_build_session;
+use diagnostics::Diagnostic;
+use package_compilation::{AcceptedSemanticBinding, PackageCompilationInputError};
+use package_evidence::ledger::{
     ordinary_package_obligation_ledger_from_compiler_rows,
     reconstruct_ordinary_package_obligation_results,
 };
-use omega_package_evidence::project_checked_package_review;
-use psi_checked_interpreter::{BuildEvaluationSponsor, FilesystemSponsor};
-use psi_diagnostics::Diagnostic;
+use package_evidence::project_checked_package_review;
 use std::collections::BTreeMap;
 use std::path::Path;
 
@@ -107,7 +107,7 @@ pub fn compile_resolved_package_candidate_for_production_with_semantic_bindings(
 ) -> Result<ReviewedPackageProductionCandidate, CompileResolvedPackageReviewsError> {
     let closure = target_closure.source_closure();
     let root = closure.graph().root().clone();
-    if closure.root_role() != omega_package_compilation::BuildDeclarationKind::Application {
+    if closure.root_role() != package_compilation::BuildDeclarationKind::Application {
         return Err(
             CompileResolvedPackageReviewsError::InvalidProductionRootRole {
                 package: root,
@@ -183,7 +183,7 @@ pub fn compile_resolved_package_reviews_with_semantic_bindings(
 
 struct CompiledPackageReviews {
     reviews: CompilerIssuedPackageReviewSet,
-    checked_root: Option<omega_compiler::CheckedCompilation>,
+    checked_root: Option<compiler::CheckedCompilation>,
 }
 
 fn compile_resolved_package_reviews_in_session(

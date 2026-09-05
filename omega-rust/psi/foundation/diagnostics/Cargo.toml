@@ -1,0 +1,12 @@
+[package]
+name = "diagnostics"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[lib]
+name = "diagnostics"
+path = "src/lib.rs"
+
+[dependencies]
+source = { path = "../source" }

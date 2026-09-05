@@ -17,7 +17,7 @@ fn runtime_u64_parameter_less_or_equal_selects_reversed_compare_on_both_isas() {
             &staged.optimized_target().target_operations().functions[0].operation,
             TargetOperation::ReturnIntegerExpressionConditionalControl {
                 condition_source,
-                condition: omega_target_operations::TargetBooleanExpression::IntegerLessOrEqual {
+                condition: target_operations::TargetBooleanExpression::IntegerLessOrEqual {
                     psi_operation,
                     scalar_type,
                     left: target_left,
@@ -54,7 +54,7 @@ fn runtime_u64_parameter_less_or_equal_selects_reversed_compare_on_both_isas() {
             legalized.recipe,
             LegalizationRecipe::ReturnU64IntegerLessOrEqualParametersConditionalV1
         );
-        let omega_legalized_operations::LegalizedCondition::IntegerLessOrEqualParametersV1 {
+        let legalized_operations::LegalizedCondition::IntegerLessOrEqualParametersV1 {
             operation,
             left: legalized_left,
             right: legalized_right,
@@ -104,14 +104,11 @@ fn runtime_u64_parameter_less_or_equal_selects_reversed_compare_on_both_isas() {
         );
         assert_eq!(instruction.provenance.values, [condition]);
         assert_eq!(when_less.psi_edge, false_edge);
-        assert_eq!(
-            when_less.block,
-            omega_selected_instructions::SelectedBlockId(2)
-        );
+        assert_eq!(when_less.block, selected_instructions::SelectedBlockId(2));
         assert_eq!(when_not_less.psi_edge, true_edge);
         assert_eq!(
             when_not_less.block,
-            omega_selected_instructions::SelectedBlockId(1)
+            selected_instructions::SelectedBlockId(1)
         );
         assert_eq!(when_less.fuel[0].site, PsiProvenance::Edge(false_edge));
         assert_eq!(when_not_less.fuel[0].site, PsiProvenance::Edge(true_edge));

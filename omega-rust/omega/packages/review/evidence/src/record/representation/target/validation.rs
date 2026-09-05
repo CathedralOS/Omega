@@ -11,11 +11,11 @@ impl Target {
     pub(crate) fn validate_canonical_structure(self) -> Result<(), &'static str> {
         let target = self;
         let profile = match target.profile {
-            Profile::LinuxArm64 => omega_target::TargetProfile::LinuxArm64,
-            Profile::LinuxX64 => omega_target::TargetProfile::LinuxX64,
-            Profile::MacosArm64 => omega_target::TargetProfile::MacosArm64,
-            Profile::WindowsX64 => omega_target::TargetProfile::WindowsX64,
-            Profile::UefiX64 => omega_target::TargetProfile::UefiX64,
+            Profile::LinuxArm64 => target::TargetProfile::LinuxArm64,
+            Profile::LinuxX64 => target::TargetProfile::LinuxX64,
+            Profile::MacosArm64 => target::TargetProfile::MacosArm64,
+            Profile::WindowsX64 => target::TargetProfile::WindowsX64,
+            Profile::UefiX64 => target::TargetProfile::UefiX64,
             Profile::CrossPlatformCli | Profile::LocalUnchecked => {
                 // These profiles capture the producer's host target. Comparing to
                 // this process's host would reject portable historical policy.
@@ -28,13 +28,13 @@ impl Target {
         };
         let expected = profile.native_target();
         let architecture = match target.architecture {
-            Architecture::Aarch64 => omega_target::Architecture::Aarch64,
-            Architecture::X86_64 => omega_target::Architecture::X86_64,
+            Architecture::Aarch64 => target::Architecture::Aarch64,
+            Architecture::X86_64 => target::Architecture::X86_64,
         };
         let object_format = match target.object_format {
-            ObjectFormat::Elf => omega_target::ObjectFormat::Elf,
-            ObjectFormat::MachO => omega_target::ObjectFormat::MachO,
-            ObjectFormat::Coff => omega_target::ObjectFormat::Coff,
+            ObjectFormat::Elf => target::ObjectFormat::Elf,
+            ObjectFormat::MachO => target::ObjectFormat::MachO,
+            ObjectFormat::Coff => target::ObjectFormat::Coff,
         };
         if architecture != expected.architecture
             || object_format != expected.object_format

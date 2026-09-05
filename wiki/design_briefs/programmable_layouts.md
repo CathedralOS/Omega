@@ -65,12 +65,12 @@ remains limited to the reflected common/record fields; tagged case placement
 belongs to the next closed-vocabulary extension.
 
 The compiler's existing conventional sum representation has a separate
-read-only report for constant materialization. `omega-layout` projects its
+read-only report for constant materialization. `layout` projects its
 fixed four-byte tag, authored-order ordinals, all-case payload overlay, and
 total geometry; Psi revalidates that report before staging one active case.
 This report is not a `LayoutPlan`, cannot be authored by a layout policy, and
 does not settle the deferred tagged/untagged programmable placement vocabulary.
-For direct nested constant materialization, `omega-layout` pairs that report
+For direct nested constant materialization, `layout` pairs that report
 with a whole-field outer `LayoutPlanReport` projected from the same target
 runtime layout for the complete nonempty authored-order set of direct pure-sum
 fields in one closed `[copy]` record. A separate bounded rung admits the complete
@@ -354,12 +354,12 @@ schema cardinality from `AccessPlan::inaccessible(schema)` and keyed functional
 replacement. The compiler evaluates `Access::plan` against a reified validated
 layout, derives transfer widths from that geometry, and evaluates
 `Placement::plan` into one normalized layout/access/reach identity. The
-target-neutral service lives in `psi-build-time-evaluation`; Omega schedules it
+target-neutral service lives in `build-time-evaluation`; Omega schedules it
 and consumes its sealed Psi plan carriers for target realization but does not
 own those language semantics. Plan-laid type desugaring and `Placed<P, T>`
 probe/evaluation/exact-accessor synthesis live in that service as paired
 pre-resolution and post-typing passes as well. The
-`psi-access-plans` bootstrap validates geometry, exact widths,
+`access-plans` bootstrap validates geometry, exact widths,
 observation/operation compatibility, borrow polarity, atomic orderings, exact
 internal loan facts, and sealed lowering requests. Stable, External, and Atomic
 consumers narrow those requests without reauthoring geometry and return the

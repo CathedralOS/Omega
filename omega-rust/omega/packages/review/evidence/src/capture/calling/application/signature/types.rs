@@ -1,11 +1,11 @@
 //! Scope-aware projection-only instantiation of checked signature types.
 
 use super::rejected;
-use omega_compiler::CheckedCompilation;
-use psi_diagnostics::Diagnostic;
-use psi_symbols::SymbolHandle;
-use psi_typed_trees::name::Identifier;
-use psi_typed_trees::types::{TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode};
+use compiler::CheckedCompilation;
+use diagnostics::Diagnostic;
+use symbols::SymbolHandle;
+use typed_trees::name::Identifier;
+use typed_trees::types::{TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode};
 
 pub(super) fn instantiate(
     compilation: &mut CheckedCompilation,

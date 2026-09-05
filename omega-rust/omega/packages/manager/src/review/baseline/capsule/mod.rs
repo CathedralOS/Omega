@@ -9,8 +9,8 @@ use crate::resolution::graph::ResolvedPackageClosure;
 use crate::review::candidate::{
     PackageReviewEvidence, ReviewOnlyCanonicalRow, ReviewOnlySourceConsumptionCommitment,
 };
-use omega_build_evaluation::ReviewOnlyBuildFilesystemReplayRecord;
-use omega_package_source::ImmutableSourceResolution;
+use build_evaluation::ReviewOnlyBuildFilesystemReplayRecord;
+use package_source::ImmutableSourceResolution;
 
 /// One package's exact comparison evidence recovered from a review-only
 /// baseline capsule.

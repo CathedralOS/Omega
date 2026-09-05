@@ -1,0 +1,370 @@
+//! Construction-prefix cleanup through machine, object, image, and installation custody.
+
+use crate::tests::fixtures::checked_source::checked;
+
+fn construction_prefix_source(prefix_length: usize) -> String {
+    let array_length = prefix_length + 1;
+    let assignments = (0..prefix_length)
+        .map(|index| format!("        values[{index}] = Empty {{}};"))
+        .collect::<Vec<_>>()
+        .join("\n");
+    format!(
+        "data Empty {{}}\ndata Root {{}}\nmachine Root::cleanup_prefix() {{\n    let mut values: [Empty; {array_length}];\n{assignments}\n}}"
+    )
+}
+
+#[test]
+fn construction_prefix_reaches_native_image_and_installation_custody() {
+    for prefix_length in 2_usize..=25 {
+        let source = construction_prefix_source(prefix_length);
+        let checked = checked(&source);
+        let terminal = checked_trees_to_terminal_psi::produce_terminal_artifact(
+            &checked,
+            "Root::cleanup_prefix",
+        )
+        .expect("canonical construction-prefix artifact");
+        let abstract_plan = terminal_psi_to_abstract_operations::lower_artifact_sections(
+            terminal.semantic_bytes(),
+            terminal.proof_bytes(),
+            &proof_admission::AdmissionProfile::default(),
+        )
+        .expect("verified construction prefix enters Omega");
+
+        for target in [
+            target::NativeTarget::linux_x64(),
+            target::NativeTarget::linux_arm64(),
+        ] {
+            let target_plan = abstract_operations_to_target_operations::
+            lower_to_target_operations_with_provider_executions(&abstract_plan, target, &[])
+            .expect("construction prefix reaches target operations");
+            let assigned =
+                target_operations_to_assigned_target_operations::assign_registers(&target_plan)
+                    .expect("construction prefix has no ABI local assignment");
+            let mut invalid_assigned = assigned.clone();
+            let assigned_target_operations::AssignedOperation::UnitBody(body) =
+                &mut invalid_assigned.functions[0].operation
+            else {
+                unreachable!()
+            };
+            let assigned_target_operations::AssignedUnitOperation::EstablishTrivialAffineLocal {
+                place,
+                ..
+            } = &mut body.operations[0]
+            else {
+                unreachable!()
+            };
+            let semantic_vocabulary::StructuralPlaceKind::TrivialAffineLocal {
+                construction: Some(construction),
+                ..
+            } = &mut place.kind
+            else {
+                unreachable!()
+            };
+            let root_structural_type = construction.root_structural_type;
+            construction.index = 1;
+            assert!(machine_emission::emit_machine_code(&invalid_assigned).is_err());
+            let mut redirected_root = assigned.clone();
+            let assigned_target_operations::AssignedOperation::UnitBody(body) =
+                &mut redirected_root.functions[0].operation
+            else {
+                unreachable!()
+            };
+            let assigned_target_operations::AssignedUnitOperation::EstablishTrivialAffineLocal {
+                place,
+                ..
+            } = &mut body.operations[prefix_length - 1]
+            else {
+                unreachable!()
+            };
+            let semantic_vocabulary::StructuralPlaceKind::TrivialAffineLocal {
+                structural_type,
+                construction: Some(construction),
+                ..
+            } = &mut place.kind
+            else {
+                unreachable!()
+            };
+            construction.root_structural_type = *structural_type;
+            assert!(machine_emission::emit_machine_code(&redirected_root).is_err());
+            let mut reordered_establishments = assigned.clone();
+            let assigned_target_operations::AssignedOperation::UnitBody(body) =
+                &mut reordered_establishments.functions[0].operation
+            else {
+                unreachable!()
+            };
+            body.operations.swap(0, 1);
+            assert!(machine_emission::emit_machine_code(&reordered_establishments).is_err());
+            let mut wrong_root_length = assigned.clone();
+            let assigned_target_operations::AssignedOperation::UnitBody(body) =
+                &mut wrong_root_length.functions[0].operation
+            else {
+                unreachable!()
+            };
+            let terminal_psi::StructuralTypeShape::FixedArray { length, .. } = &mut body
+                .structural_types
+                .iter_mut()
+                .find(|declaration| declaration.id == root_structural_type)
+                .expect("construction root type")
+                .shape
+            else {
+                unreachable!()
+            };
+            *length = u64::try_from(prefix_length).expect("bounded prefix length");
+            assert!(machine_emission::emit_machine_code(&wrong_root_length).is_err());
+
+            if prefix_length == 25 {
+                let mut fenced_successor = assigned.clone();
+                let function = &mut fenced_successor.functions[0];
+                let assigned_target_operations::AssignedOperation::UnitBody(body) =
+                    &mut function.operation
+                else {
+                    unreachable!()
+                };
+                let mut successor_operation = body.operations[prefix_length - 1].clone();
+                let assigned_target_operations::AssignedUnitOperation::EstablishTrivialAffineLocal {
+                    psi_operation,
+                    place,
+                    ..
+                } = &mut successor_operation
+                else {
+                    unreachable!()
+                };
+                *psi_operation = semantic_vocabulary::OperationId::new(psi_operation.get() + 1)
+                    .expect("successor operation");
+                place.id =
+                    semantic_vocabulary::PlaceId::new(place.id.get() + 1).expect("successor place");
+                let semantic_vocabulary::StructuralPlaceKind::TrivialAffineLocal {
+                    declaration_ordinal,
+                    construction: Some(construction),
+                    ..
+                } = &mut place.kind
+                else {
+                    unreachable!()
+                };
+                *declaration_ordinal = 25;
+                construction.index = 25;
+                let successor_operation_id = *psi_operation;
+                let successor_place = place.id;
+                body.operations.insert(prefix_length, successor_operation);
+                let assigned_target_operations::AssignedUnitOperation::Return {
+                    cleanup_actions,
+                    ..
+                } = body.operations.last_mut().expect("Unit return")
+                else {
+                    unreachable!()
+                };
+                cleanup_actions.insert(
+                    0,
+                    terminal_psi::TerminalAffineCleanupAction::DiscardRoot(successor_place),
+                );
+                let terminal_psi::StructuralTypeShape::FixedArray { length, .. } = &mut body
+                    .structural_types
+                    .iter_mut()
+                    .find(|declaration| declaration.id == root_structural_type)
+                    .expect("construction root type")
+                    .shape
+                else {
+                    unreachable!()
+                };
+                *length = 27;
+                function.provenance.operations.push(successor_operation_id);
+                assert!(machine_emission::emit_machine_code(&fenced_successor).is_err());
+            }
+
+            let emitted = machine_emission::emit_machine_code(&assigned)
+                .expect("construction prefix reaches native cleanup emission");
+            let function = &emitted.functions[0];
+            let cleanup = function
+                .unit_affine_cleanup
+                .as_ref()
+                .expect("native function retains Unit cleanup custody");
+            assert_eq!(cleanup.locals.len(), prefix_length);
+            assert!(cleanup.locals.iter().enumerate().all(
+                |(index, (_, place, element_type))| matches!(
+                    place.kind,
+                    semantic_vocabulary::StructuralPlaceKind::TrivialAffineLocal {
+                        declaration_ordinal,
+                        structural_type,
+                        construction: Some(construction),
+                    } if usize::try_from(declaration_ordinal) == Ok(index)
+                        && structural_type == element_type.id
+                        && usize::try_from(construction.index) == Ok(index)
+                )
+            ));
+            assert_eq!(
+                cleanup.actions,
+                cleanup
+                    .locals
+                    .iter()
+                    .rev()
+                    .map(|(_, place, _)| {
+                        terminal_psi::TerminalAffineCleanupAction::DiscardRoot(place.id)
+                    })
+                    .collect::<Vec<_>>()
+            );
+            assert_eq!(function.semantic_code_attribution.len(), prefix_length + 1);
+
+            if prefix_length == 25 {
+                let mut fenced_successor = emitted.clone();
+                let function = &mut fenced_successor.functions[0];
+                let cleanup = function
+                    .unit_affine_cleanup
+                    .as_mut()
+                    .expect("native function retains Unit cleanup custody");
+                let mut successor_local = cleanup
+                    .locals
+                    .last()
+                    .expect("construction-prefix local")
+                    .clone();
+                successor_local.0 =
+                    semantic_vocabulary::OperationId::new(successor_local.0.get() + 1)
+                        .expect("successor operation");
+                successor_local.1.id =
+                    semantic_vocabulary::PlaceId::new(successor_local.1.id.get() + 1)
+                        .expect("successor place");
+                let semantic_vocabulary::StructuralPlaceKind::TrivialAffineLocal {
+                    declaration_ordinal,
+                    construction: Some(construction),
+                    ..
+                } = &mut successor_local.1.kind
+                else {
+                    unreachable!()
+                };
+                *declaration_ordinal = 25;
+                construction.index = 25;
+                let successor_operation = successor_local.0;
+                let successor_place = successor_local.1.id;
+                cleanup.locals.push(successor_local);
+                cleanup.actions.insert(
+                    0,
+                    terminal_psi::TerminalAffineCleanupAction::DiscardRoot(successor_place),
+                );
+                let terminal_psi::StructuralTypeShape::FixedArray { length, .. } = &mut cleanup
+                    .structural_types
+                    .iter_mut()
+                    .find(|declaration| declaration.id == root_structural_type)
+                    .expect("construction root type")
+                    .shape
+                else {
+                    unreachable!()
+                };
+                *length = 27;
+                function.provenance.operations.push(successor_operation);
+                let mut successor_attribution =
+                    function.semantic_code_attribution[prefix_length - 1];
+                successor_attribution.site =
+                    machine_code::SemanticCodeSite::Operation(successor_operation);
+                successor_attribution.operation_ordinal = prefix_length;
+                function
+                    .semantic_code_attribution
+                    .insert(prefix_length, successor_attribution);
+                let return_attribution = function
+                    .semantic_code_attribution
+                    .last_mut()
+                    .expect("Unit return attribution");
+                assert!(matches!(
+                    return_attribution.site,
+                    machine_code::SemanticCodeSite::Edge(_)
+                ));
+                return_attribution.operation_ordinal += 1;
+                assert!(image_emission::build_object_artifact(&fenced_successor).is_err());
+            }
+
+            let object = image_emission::build_object_artifact(&emitted)
+                .expect("object validation reconstructs construction cleanup");
+            let image = image_emission::emit_executable_image(&object, 0)
+                .expect("image retains construction cleanup custody");
+            image_emission::validate_executable_image(&object, &image)
+                .expect("image independently validates construction cleanup");
+            let installation = image_emission::build_installation_record(
+                &image,
+                semantic_vocabulary::ProfileDecisionId::new(1).expect("profile decision"),
+            )
+            .expect("construction cleanup enters installation custody");
+            let bytes = image_emission::encode_installation_record(&installation)
+                .expect("construction installation encodes");
+            let decoded = image_emission::decode_installation_record(&bytes)
+                .expect("construction installation decodes");
+            assert_eq!(
+                decoded.functions()[0].unit_affine_cleanup,
+                Some(cleanup.clone())
+            );
+            image_emission::validate_installation_record(&decoded, &image)
+                .expect("decoded installation binds construction image");
+
+            let mut wrong_index = emitted.clone();
+            let semantic_vocabulary::StructuralPlaceKind::TrivialAffineLocal {
+                construction: Some(construction),
+                ..
+            } = &mut wrong_index.functions[0]
+                .unit_affine_cleanup
+                .as_mut()
+                .unwrap()
+                .locals[0]
+                .1
+                .kind
+            else {
+                unreachable!()
+            };
+            construction.index = 1;
+            assert!(image_emission::build_object_artifact(&wrong_index).is_err());
+
+            let mut redirected_root = emitted.clone();
+            let (_, place, _) = &mut redirected_root.functions[0]
+                .unit_affine_cleanup
+                .as_mut()
+                .unwrap()
+                .locals[prefix_length - 1];
+            let semantic_vocabulary::StructuralPlaceKind::TrivialAffineLocal {
+                structural_type,
+                construction: Some(construction),
+                ..
+            } = &mut place.kind
+            else {
+                unreachable!()
+            };
+            construction.root_structural_type = *structural_type;
+            assert!(image_emission::build_object_artifact(&redirected_root).is_err());
+
+            let mut wrong_root_length = emitted.clone();
+            let root = wrong_root_length.functions[0]
+                .unit_affine_cleanup
+                .as_ref()
+                .unwrap()
+                .locals[0]
+                .1
+                .kind;
+            let semantic_vocabulary::StructuralPlaceKind::TrivialAffineLocal {
+                construction: Some(construction),
+                ..
+            } = root
+            else {
+                unreachable!()
+            };
+            let cleanup = wrong_root_length.functions[0]
+                .unit_affine_cleanup
+                .as_mut()
+                .unwrap();
+            let terminal_psi::StructuralTypeShape::FixedArray { length, .. } = &mut cleanup
+                .structural_types
+                .iter_mut()
+                .find(|declaration| declaration.id == construction.root_structural_type)
+                .expect("construction root type")
+                .shape
+            else {
+                unreachable!()
+            };
+            *length = u64::try_from(prefix_length).expect("bounded prefix length");
+            assert!(image_emission::build_object_artifact(&wrong_root_length).is_err());
+
+            let mut reordered_cleanup = emitted.clone();
+            reordered_cleanup.functions[0]
+                .unit_affine_cleanup
+                .as_mut()
+                .unwrap()
+                .actions
+                .swap(0, 1);
+            assert!(image_emission::build_object_artifact(&reordered_cleanup).is_err());
+        }
+    }
+}

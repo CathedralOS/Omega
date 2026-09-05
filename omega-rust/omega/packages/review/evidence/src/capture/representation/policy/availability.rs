@@ -4,9 +4,9 @@ use super::rejected;
 use crate::capture::api::policy::conformances as project_public_conformances;
 use crate::capture::semantics::declarations::{nominal_identity, reviewed_package_owns};
 use crate::record::{PackagePolicyRepresentationAvailability, PackageReviewConformanceSubject};
-use omega_compiler::CheckedCompilation;
-use psi_core::PackageKeyIdentity;
-use psi_diagnostics::Diagnostic;
+use compiler::CheckedCompilation;
+use diagnostics::Diagnostic;
+use semantic_vocabulary::PackageKeyIdentity;
 
 pub(super) fn project(
     compilation: &CheckedCompilation,
@@ -19,7 +19,7 @@ pub(super) fn project(
     let mut rows = Vec::new();
     for declaration in compilation.conformances().iter().filter(|declaration| {
         declaration.is_public
-            && omega_representation_planning::is_compiler_owned_opaque_representation_trait(
+            && representation_planning::is_compiler_owned_opaque_representation_trait(
                 &compilation.typed,
                 declaration.trait_symbol,
             )
@@ -57,7 +57,7 @@ pub(super) fn project(
             ));
         };
         if !opaque.is_public
-            || opaque.supply_mode != psi_language_semantics::DataSupplyMode::BoundaryOpaque
+            || opaque.supply_mode != language_semantics::DataSupplyMode::BoundaryOpaque
         {
             return Err(rejected(
                 "producer does not expose a public boundary-opaque declaration",
@@ -74,7 +74,7 @@ pub(super) fn project(
             ));
         };
         if !carrier.is_public
-            || carrier.supply_mode != psi_language_semantics::DataSupplyMode::CheckedShape
+            || carrier.supply_mode != language_semantics::DataSupplyMode::CheckedShape
         {
             return Err(rejected(
                 "producer does not expose an ordinary public checked carrier",

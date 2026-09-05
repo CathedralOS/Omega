@@ -23,7 +23,7 @@ silently reconstruct the environment.
 
 ## Implementation Map
 
-- `pipeline/omega-target-to-register-environment/src/lib.rs` owns construction
+- `pipeline/target-to-register-environment/src/lib.rs` owns construction
   and the public validation entrances.
 - `src/catalog.rs` selects target-owned physical models, constraints, and the
   conservative baseline reservation profile.

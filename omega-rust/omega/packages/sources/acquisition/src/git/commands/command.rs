@@ -4,7 +4,7 @@ use crate::SourceResolveError;
 use crate::git::executable::executor::GitExecutor;
 use crate::git::request::GitExecutionTransport;
 use crate::tree::filesystem::io_error;
-use omega_resolver_execution::{ResolverExecutionPhase, ResolverPreparedExecution};
+use resolver_execution::{ResolverExecutionPhase, ResolverPreparedExecution};
 use std::path::Path;
 
 pub(crate) fn sealed_git_command(

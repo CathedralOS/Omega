@@ -1,23 +1,23 @@
 //! Reauthenticated ordinary-callable record and nested-subrecord mutations.
 
 use crate::tests::*;
-use omega_calling_conventions::{CallingPolicy, MachineRegister};
-use omega_object_file::ObjectLocalSymbolId;
-use omega_optimization_core::{
+use calling_conventions::{CallingPolicy, MachineRegister};
+use object_file::ObjectLocalSymbolId;
+use optimization_core::{
     OptimizationSelectionIdentity, OptimizedObjectArtifactIdentity,
     OptimizedObjectArtifactManifestIdentity, RelocationFreeObjectContainerIdentity,
     RelocationFreeObjectPlanIdentity,
 };
-use omega_register_model::{
+use register_model::{
     PhysicalRegisterModelIdentity, RegisterClassId, RegisterUnitId, RegisterViewId,
 };
-use omega_selected_instructions::{
+use selected_instructions::{
     SelectedInstructionId, SelectedInstructionPlanIdentity, VirtualRegisterId,
 };
-use omega_selected_instructions_to_register_homes::RegisterHomeIdentity;
-use omega_target::{Architecture, ObjectFormat};
-use psi_core::{EdgeId, ScalarType, ValueId};
-use psi_terminal::SemanticFingerprint;
+use selected_instructions_to_register_homes::RegisterHomeIdentity;
+use semantic_vocabulary::{EdgeId, ScalarType, ValueId};
+use target::{Architecture, ObjectFormat};
+use terminal_psi::SemanticFingerprint;
 
 use super::fixture::staged_callable;
 
@@ -209,9 +209,7 @@ fn every_representable_ordinary_callable_record_field_rejects_after_reauthentica
 
     *staged.entry_mut() = baseline;
     staged.entry_mut().identity =
-        omega_optimization_core::OptimizedTerminalOrdinaryCallableEntryIdentity::from_bytes(
-            [0xe7; 32],
-        );
+        optimization_core::OptimizedTerminalOrdinaryCallableEntryIdentity::from_bytes([0xe7; 32]);
     assert_eq!(
         validate_optimized_ordinary_callable_entry(&staged),
         Err(OptimizedOrdinaryCallableEntryError::RecordMismatch),

@@ -1,0 +1,30 @@
+[package]
+name = "compilation-report"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[lib]
+name = "compilation_report"
+path = "src/lib.rs"
+
+[dependencies]
+build-evaluation = { path = "../../build/build-evaluation" }
+boundary-applications = { path = "../../representations/boundary-applications" }
+backend-plan = { path = "../../backend/plans/backend-plan" }
+calling-conventions = { path = "../../representations/calling-conventions" }
+effects = { path = "../../representations/effects" }
+function-identity = { path = "../../representations/function-identity" }
+image = { path = "../../backend/images/image" }
+native-artifact = { path = "../../backend/artifacts/native-artifact" }
+package-compilation = { path = "../../build/package-compilation" }
+program-entry-plan = { path = "../../backend/plans/program-entry-plan" }
+optimization-core = { path = "../../representations/optimization-core" }
+target = { path = "../../representations/target" }
+target-operations = { path = "../../representations/target-operations" }
+trust-model = { path = "../../build/trust-model" }
+terminal-codec = { path = "../../../psi/semantics/terminal-codec" }
+semantic-vocabulary = { path = "../../../psi/foundation/semantic-vocabulary" }
+terminal-psi = { path = "../../../psi/representations/terminal-psi" }
+checked-trees-to-terminal-psi = { path = "../../../psi/pipeline/checked-trees-to-terminal-psi" }
+sha2 = "0.10.9"

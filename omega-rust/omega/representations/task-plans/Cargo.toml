@@ -1,0 +1,14 @@
+[package]
+name = "task-plans"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[lib]
+name = "task_plans"
+path = "src/lib.rs"
+
+[dependencies]
+semantic-vocabulary = { path = "../../../psi/foundation/semantic-vocabulary" }
+symbols = { path = "../../../psi/foundation/symbols" }
+sha2 = "0.10.9"

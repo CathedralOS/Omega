@@ -24,7 +24,7 @@ fn public_machine_visibility_survives_checked_compilation_and_strict_empty_contr
     assert!(machine.is_public);
     assert_eq!(
         machine.supply_mode,
-        psi_language_semantics::MachineSupplyMode::CheckedBody
+        language_semantics::MachineSupplyMode::CheckedBody
     );
 
     let service = checked
@@ -34,7 +34,7 @@ fn public_machine_visibility_survives_checked_compilation_and_strict_empty_contr
         .expect("checked service contract");
     assert!(matches!(
         service.interface,
-        psi_language_semantics::ServiceReachInterface::PublishedCeiling(_)
+        language_semantics::ServiceReachInterface::PublishedCeiling(_)
     ));
     let invocation = checked
         .facts
@@ -43,7 +43,7 @@ fn public_machine_visibility_survives_checked_compilation_and_strict_empty_contr
         .expect("checked invocation contract");
     assert_eq!(
         invocation.interface,
-        psi_language_semantics::SynchronousInvocationInterface::PublishedCeiling
+        language_semantics::SynchronousInvocationInterface::PublishedCeiling
     );
     assert!(matches!(
         checked
@@ -52,7 +52,7 @@ fn public_machine_visibility_survives_checked_compilation_and_strict_empty_contr
             .for_machine(machine.symbol)
             .expect("checked suspension contract")
             .interface,
-        psi_language_semantics::SuspensionInterface::PublishedMaySuspend(false)
+        language_semantics::SuspensionInterface::PublishedMaySuspend(false)
     ));
     assert!(matches!(
         checked
@@ -61,7 +61,7 @@ fn public_machine_visibility_survives_checked_compilation_and_strict_empty_contr
             .for_machine(machine.symbol)
             .expect("checked blocking contract")
             .interface,
-        psi_language_semantics::BlockingInterface::PublishedMayBlock(false)
+        language_semantics::BlockingInterface::PublishedMayBlock(false)
     ));
     assert_eq!(
         checked
@@ -71,7 +71,7 @@ fn public_machine_visibility_survives_checked_compilation_and_strict_empty_contr
             .expect("checked contract")
             .crash
             .interface(),
-        psi_checked_trees::CrashInterface::PublishedCeiling
+        checked_trees::CrashInterface::PublishedCeiling
     );
 }
 

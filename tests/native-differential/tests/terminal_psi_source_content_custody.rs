@@ -2,35 +2,35 @@
 
 use std::path::{Path, PathBuf};
 
-use omega_abstract_operations::AbstractOperation;
-use omega_abstract_operations_to_target_operations::{
+use abstract_operations::AbstractOperation;
+use abstract_operations_to_target_operations::{
     AdmittedBoundarySettlement, lower_to_target_operations_with_provider_executions,
 };
-use omega_calling_conventions::{CallSignature, ValueShape};
-use omega_image_emission::{
+use calling_conventions::{CallSignature, ValueShape};
+use checked_trees_to_terminal_psi::lower_machine;
+use image_emission::{
     build_installation_record_with_provider_executions, build_object_artifact,
     decode_installation_record, emit_executable_image, encode_installation_record,
     validate_installation_record,
 };
-use omega_machine_emission::emit_machine_code;
+use machine_emission::emit_machine_code;
 use omega_native_differential_test::admit_native_provider;
-use omega_optimization_validation::validate_verified_psi_optimization_unit;
-use omega_psi_to_abstract_operations::{
+use optimization_validation::validate_verified_psi_optimization_unit;
+use proof_admission::AdmissionProfile;
+use semantic_vocabulary::{ContentAlgebraKind, ProfileDecisionId};
+use source_files_to_tokens::Lexer;
+use symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
+use syntax_trees_to_symbol_resolved_trees::lower_syntax_trees;
+use target_operations::{BoundaryRealization, DirectPortReadU8Realization};
+use target_operations_to_assigned_target_operations::assign_registers;
+use terminal_codec::{encode_module, encode_proof_bundle};
+use terminal_fuel::TerminalFuelSchedule;
+use terminal_psi_to_abstract_operations::{
     build_verified_psi_optimization_unit, lower_artifact_sections,
     lower_artifact_sections_for_optimization,
 };
-use omega_target_operations::{BoundaryRealization, DirectPortReadU8Realization};
-use omega_target_operations_to_assigned_target_operations::assign_registers;
-use psi_checked_trees_to_terminal::lower_machine;
-use psi_core::{ContentAlgebraKind, ProfileDecisionId};
-use psi_proof_admission::AdmissionProfile;
-use psi_source_files_to_tokens::Lexer;
-use psi_symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
-use psi_syntax_trees_to_symbol_resolved_trees::lower_syntax_trees;
-use psi_terminal_codec::{encode_module, encode_proof_bundle};
-use psi_terminal_fuel::TerminalFuelSchedule;
-use psi_tokens_to_syntax_trees::parse_syntax_trees;
-use psi_typed_trees_to_checked_trees::lower_typed_trees;
+use tokens_to_syntax_trees::parse_syntax_trees;
+use typed_trees_to_checked_trees::lower_typed_trees;
 
 fn source_canary() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR"))
@@ -126,7 +126,7 @@ fn source_whole_content_custody_exit_reaches_canonical_installation() {
         panic!("bodyless requirement must retain its exact PortIo service")
     };
     let execution = admit_native_provider(
-        omega_target::NativeTarget::linux_x64(),
+        target::NativeTarget::linux_x64(),
         &boundary_declaration.identity,
         0xc017_0000,
         CallSignature {
@@ -136,10 +136,9 @@ fn source_whole_content_custody_exit_reaches_canonical_installation() {
     );
     let settlement = AdmittedBoundarySettlement {
         boundary,
-        execution:
-            omega_abstract_operations_to_target_operations::AdmittedBoundaryExecution::Provider(
-                &execution,
-            ),
+        execution: abstract_operations_to_target_operations::AdmittedBoundaryExecution::Provider(
+            &execution,
+        ),
         realization: BoundaryRealization::DirectPortReadU8(DirectPortReadU8Realization {
             service: *service,
             port: 0x60,
@@ -162,16 +161,16 @@ fn source_whole_content_custody_exit_reaches_canonical_installation() {
     assert!(matches!(
         lower_to_target_operations_with_provider_executions(
             &unbound_linear_input,
-            omega_target::NativeTarget::linux_x64(),
+            target::NativeTarget::linux_x64(),
             std::slice::from_ref(&settlement),
         ),
         Err(
-            omega_abstract_operations_to_target_operations::LoweringError::UnsupportedOperationInScalarFunction(_)
+            abstract_operations_to_target_operations::LoweringError::UnsupportedOperationInScalarFunction(_)
         )
     ));
     let target = lower_to_target_operations_with_provider_executions(
         &abstract_plan,
-        omega_target::NativeTarget::linux_x64(),
+        target::NativeTarget::linux_x64(),
         &[settlement],
     )
     .expect("bind exact provider and lower source-derived custody exit");
@@ -203,15 +202,15 @@ fn source_whole_content_custody_exit_reaches_canonical_installation() {
         .expect_err("missing content source must reject");
     assert!(matches!(
         missing_content_error,
-        omega_image_emission::ObjectError::InvalidCompletionProviderCustody { .. }
+        image_emission::ObjectError::InvalidCompletionProviderCustody { .. }
     ));
 
     let mut substituted_receipt = machine.clone();
     substituted_receipt.functions[0].boundary_settlements[0].completion_receipts[0].claim =
-        psi_core::ClaimId::new(source.claim.get() + 1).expect("substituted claim");
+        semantic_vocabulary::ClaimId::new(source.claim.get() + 1).expect("substituted claim");
     assert!(matches!(
         build_object_artifact(&substituted_receipt),
-        Err(omega_image_emission::ObjectError::InvalidCompletionReceiptCustody { .. })
+        Err(image_emission::ObjectError::InvalidCompletionReceiptCustody { .. })
     ));
 
     let mut substituted_provider = machine.clone();
@@ -220,7 +219,7 @@ fn source_whole_content_custody_exit_reaches_canonical_installation() {
         .provider_plan_report_identity ^= 1;
     assert!(matches!(
         build_object_artifact(&substituted_provider),
-        Err(omega_image_emission::ObjectError::InvalidCompletionProviderCustody { .. })
+        Err(image_emission::ObjectError::InvalidCompletionProviderCustody { .. })
     ));
 
     let object = build_object_artifact(&machine).expect("build terminal object");

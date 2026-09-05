@@ -99,7 +99,7 @@ fn allocation_legality_is_phase_exact_and_exposes_fixed_view_transitions() {
             )
             .unwrap();
             let reduced_legality =
-                omega_selected_instructions_to_register_homes::analyze_allocation_legality(
+                selected_instructions_to_register_homes::analyze_allocation_legality(
                     staged.live_range_stage().ranges(),
                     &reduced_availability,
                     reduced_identity,

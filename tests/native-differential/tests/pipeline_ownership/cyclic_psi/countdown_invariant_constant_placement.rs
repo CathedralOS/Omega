@@ -2,13 +2,13 @@
 
 use super::*;
 
-use omega_abstract_operations_optimizer::{
+use abstract_operations_to_abstract_operations::{
     CountdownInvariantConstantPlacementAnalysisError,
     CountdownInvariantConstantPlacementAnalysisSnapshot, CountdownInvariantConstantRole,
 };
-use omega_optimization_unit::recompute_psi_optimization_unit_identity;
-use omega_optimization_validation::validate_transformed_psi_optimization_unit;
-use psi_core::{IntegerSign, IntegerType, IntegerValue, MachineId, ScalarType};
+use optimization_unit::recompute_psi_optimization_unit_identity;
+use optimization_validation::validate_transformed_psi_optimization_unit;
+use semantic_vocabulary::{IntegerSign, IntegerType, IntegerValue, MachineId, ScalarType};
 
 #[test]
 fn source_countdown_yields_exact_preheader_destinations_and_consumers() {
@@ -92,7 +92,7 @@ fn placement_snapshot_replay_rejects_every_retained_axis() {
     let corruptions: Vec<Box<dyn Fn(&mut CountdownInvariantConstantPlacementAnalysisSnapshot)>> = vec![
         Box::new(|snapshot| {
             snapshot.terminal_psi.program_fingerprint =
-                psi_terminal::SemanticFingerprint::from_bytes([0xB7; 32]);
+                terminal_psi::SemanticFingerprint::from_bytes([0xB7; 32]);
         }),
         Box::new(|snapshot| snapshot.loops.clear()),
         Box::new(|snapshot| {
@@ -228,7 +228,7 @@ fn stale_placement_revision_fails_typed() {
         .expect("derive placement facts")
         .snapshot()
         .clone();
-    stale.revision = omega_optimization_core::OptimizationUnitIdentity::from_canonical_bytes(
+    stale.revision = optimization_core::OptimizationUnitIdentity::from_canonical_bytes(
         b"stale countdown placement revision",
     );
     assert_eq!(

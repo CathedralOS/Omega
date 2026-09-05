@@ -55,8 +55,8 @@ pub(super) fn encode_row(
 }
 
 pub(crate) fn encode_subject_row(
-    package: psi_core::PackageKeyIdentity,
-    target: omega_target::TargetProfile,
+    package: semantic_vocabulary::PackageKeyIdentity,
+    target: target::TargetProfile,
     limits: PackageReviewEncodingLimits,
     kind: PackageReviewCanonicalRowKind,
     risk: PackageReviewCanonicalRowRisk,

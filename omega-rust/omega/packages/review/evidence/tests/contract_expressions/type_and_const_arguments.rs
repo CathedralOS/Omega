@@ -176,9 +176,9 @@ ensures result == constant<LIMIT, OTHER>();
         .filter(|selection| {
             matches!(
                 selection.target(),
-                psi_language_semantics::declaration_selection::AuthoredDeclarationSelectionTarget::Resolved(target)
+                language_semantics::declaration_selection::AuthoredDeclarationSelectionTarget::Resolved(target)
                     if checked.symbols.get(target.selected_symbol()).kind
-                        == psi_symbols::SymbolKind::Const
+                        == symbols::SymbolKind::Const
             )
         })
         .collect::<Vec<_>>();
@@ -189,9 +189,9 @@ ensures result == constant<LIMIT, OTHER>();
     );
     assert!(const_selections.iter().all(|selection| {
         selection.kind()
-            == psi_language_semantics::declaration_selection::AuthoredDeclarationSelectionKind::StaticArgument
+            == language_semantics::declaration_selection::AuthoredDeclarationSelectionKind::StaticArgument
             && selection.exposure()
-                == psi_language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure::PublicInterface
+                == language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure::PublicInterface
     }));
     assert!(checked.authored_declaration_selections().all_finalized());
 
@@ -246,19 +246,19 @@ ensures result == constant<LIMIT, OTHER>();
         .expression_table
         .iter_expressions()
         .find_map(|(expression, node)| match node {
-            psi_typed_trees::expression::ExpressionNode::Call(call)
+            typed_trees::expression::ExpressionNode::Call(call)
                 if call.target.as_str() == "constant"
                     && call.machine_arguments.len() == 2
                     && call.machine_arguments[0].symbol.is_valid()
                     && tampered.symbols.get(call.machine_arguments[0].symbol).kind
-                        == psi_symbols::SymbolKind::Const =>
+                        == symbols::SymbolKind::Const =>
             {
                 Some(expression)
             }
             _ => None,
         })
         .expect("named const contract call expression");
-    let psi_typed_trees::expression::ExpressionNode::Call(call) = tampered
+    let typed_trees::expression::ExpressionNode::Call(call) = tampered
         .typed
         .expression_table
         .expression_mut(call_expression)
@@ -1030,7 +1030,7 @@ ensures result == tag<Card, FieldOrder<Card, RANK, MARKER>>();
     assert!(
         retained.const_arguments.iter().all(|argument| matches!(
             argument,
-            psi_typed_trees::typed_trees::ClosedConformanceConstArgument::Evaluated { .. }
+            typed_trees::typed_trees::ClosedConformanceConstArgument::Evaluated { .. }
         )),
         "checked closure must retain exact carriers and canonical values",
     );
@@ -1092,7 +1092,7 @@ ensures result == tag<Card, FieldOrder<Card, RANK, MARKER>>();
         .expect("OTHER declaration")
         .declared_type;
     let mut carrier_drift = checked.clone();
-    let psi_typed_trees::typed_trees::ClosedConformanceConstArgument::Evaluated {
+    let typed_trees::typed_trees::ClosedConformanceConstArgument::Evaluated {
         declared_carrier,
         ..
     } = &mut carrier_drift
@@ -1264,12 +1264,12 @@ ensures result == tag<Card, FieldOrder<Card, 7>>();
         .contract_expression_static_conformance_applications[0]
         .application
         .const_arguments[0];
-    let psi_typed_trees::typed_trees::ClosedConformanceConstArgument::Evaluated { value, .. } =
+    let typed_trees::typed_trees::ClosedConformanceConstArgument::Evaluated { value, .. } =
         retained
     else {
         panic!("integer literal must retain one evaluated const argument")
     };
-    value.encoding = psi_language_semantics::const_value::CanonicalConstIdentity::integer(
+    value.encoding = language_semantics::const_value::CanonicalConstIdentity::integer(
         value.type_name.clone(),
         8,
     )
@@ -1404,7 +1404,7 @@ ensures result == tag<Card, FieldOrder<Card>>();
         .proof
         .contract_expression_static_conformance_applications[0]
         .application
-        .declaration = psi_symbols::SymbolHandle::invalid();
+        .declaration = symbols::SymbolHandle::invalid();
     let diagnostics = project_checked_package_review(&substituted)
         .expect_err("a substituted closed application must reject");
     assert!(diagnostics.iter().any(|diagnostic| {
@@ -1430,7 +1430,7 @@ ensures result == tag<Card, FieldOrder<Card>>();
         .proof
         .contract_expression_static_conformance_applications[0]
         .expression;
-    let psi_typed_trees::expression::ExpressionNode::Call(mut call) = selection_drift
+    let typed_trees::expression::ExpressionNode::Call(mut call) = selection_drift
         .expression_table
         .expression(expression)
         .clone()
@@ -1438,7 +1438,7 @@ ensures result == tag<Card, FieldOrder<Card>>();
         panic!("checked occurrence rejoins its contract call")
     };
     call.machine_arguments[1].symbol = alternate;
-    let closed = psi_typed_trees_to_checked_trees::close_conformance_application(
+    let closed = typed_trees_to_checked_trees::close_conformance_application(
         &selection_drift.typed,
         &call.machine_arguments[1],
     )
@@ -1446,7 +1446,7 @@ ensures result == tag<Card, FieldOrder<Card>>();
     *selection_drift
         .typed
         .expression_table
-        .expression_mut(expression) = psi_typed_trees::expression::ExpressionNode::Call(call);
+        .expression_mut(expression) = typed_trees::expression::ExpressionNode::Call(call);
     selection_drift
         .facts
         .proof

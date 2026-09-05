@@ -8,7 +8,7 @@ use super::{
     RECONSTRUCTION_QUESTION_MAGIC,
 };
 use crate::resolution::graph::CanonicalSourceClosureSubject;
-use omega_package_evidence::ledger::{
+use package_evidence::ledger::{
     decode_ordinary_package_obligation_ledger, encode_ordinary_package_obligation_ledger,
 };
 use sha2::{Digest, Sha256};

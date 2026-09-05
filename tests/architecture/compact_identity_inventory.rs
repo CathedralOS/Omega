@@ -276,8 +276,9 @@ fn every_u64_fingerprint_accessor_requires_explicit_classification() {
 #[test]
 fn checked_machine_contract_compact_coordinates_are_reports_beside_strong_authority() {
     let root = workspace_root();
-    let plans_path =
-        root.join("omega-rust/psi/representations/psi-checked-trees/src/checked_trees/facts/contract_plans.rs");
+    let plans_path = root.join(
+        "omega-rust/psi/representations/checked-trees/src/checked_trees/facts/contract_plans.rs",
+    );
     let plans = fs::read_to_string(&plans_path)
         .unwrap_or_else(|error| panic!("failed to read {}: {error}", plans_path.display()));
     assert!(
@@ -291,9 +292,8 @@ fn checked_machine_contract_compact_coordinates_are_reports_beside_strong_author
         "checked contract plans must label compact coordinates as reports and reject empty strong commitments",
     );
 
-    let terminal_path = root.join(
-        "omega-rust/psi/representations/psi-checked-trees/src/checked_trees/flow/terminal.rs",
-    );
+    let terminal_path = root
+        .join("omega-rust/psi/representations/checked-trees/src/checked_trees/flow/terminal.rs");
     let terminal = fs::read_to_string(&terminal_path)
         .unwrap_or_else(|error| panic!("failed to read {}: {error}", terminal_path.display()));
     for required in [
@@ -313,7 +313,7 @@ fn checked_machine_contract_compact_coordinates_are_reports_beside_strong_author
     assert!(!terminal.contains("pub contract_fingerprint: u64"));
 
     let attached_path =
-        root.join("omega-rust/psi/pipeline/psi-checked-trees-to-terminal/src/attached_unit.rs");
+        root.join("omega-rust/psi/pipeline/checked-trees-to-terminal-psi/src/attached_unit.rs");
     let attached = fs::read_to_string(&attached_path)
         .unwrap_or_else(|error| panic!("failed to read {}: {error}", attached_path.display()));
     assert!(
@@ -326,7 +326,7 @@ fn checked_machine_contract_compact_coordinates_are_reports_beside_strong_author
 #[test]
 fn machine_specialization_compact_coordinate_is_report_only_beside_strong_authority() {
     let root = workspace_root();
-    let typed_path = root.join("omega-rust/psi/representations/psi-typed-trees/src/typed_trees.rs");
+    let typed_path = root.join("omega-rust/psi/representations/typed-trees/src/typed_trees.rs");
     let typed = fs::read_to_string(&typed_path)
         .unwrap_or_else(|error| panic!("failed to read {}: {error}", typed_path.display()));
     assert!(
@@ -341,7 +341,7 @@ fn machine_specialization_compact_coordinate_is_report_only_beside_strong_author
     );
 
     let lowering_path =
-        root.join("omega-rust/psi/pipeline/psi-checked-trees-to-terminal/src/evidence_lowering.rs");
+        root.join("omega-rust/psi/pipeline/checked-trees-to-terminal-psi/src/evidence_lowering.rs");
     let lowering = fs::read_to_string(&lowering_path)
         .unwrap_or_else(|error| panic!("failed to read {}: {error}", lowering_path.display()));
     assert!(
@@ -354,7 +354,7 @@ fn machine_specialization_compact_coordinate_is_report_only_beside_strong_author
 #[test]
 fn provider_grants_and_persisted_trust_admissions_retain_strong_exact_authority() {
     let root = workspace_root();
-    let grants_path = root.join("omega-rust/omega/build/omega-trust-model/src/provider_grants.rs");
+    let grants_path = root.join("omega-rust/omega/build/trust-model/src/provider_grants.rs");
     let grants = fs::read_to_string(&grants_path)
         .unwrap_or_else(|error| panic!("failed to read {}: {error}", grants_path.display()));
     for required in [
@@ -371,7 +371,7 @@ fn provider_grants_and_persisted_trust_admissions_retain_strong_exact_authority(
     }
     assert!(!grants.contains("pub selected_plan_identity: u64"));
 
-    let admissions_path = root.join("omega-rust/omega/build/omega-trust-model/src/admissions.rs");
+    let admissions_path = root.join("omega-rust/omega/build/trust-model/src/admissions.rs");
     let admissions = fs::read_to_string(&admissions_path)
         .unwrap_or_else(|error| panic!("failed to read {}: {error}", admissions_path.display()));
     assert!(
@@ -386,7 +386,7 @@ fn provider_grants_and_persisted_trust_admissions_retain_strong_exact_authority(
         "owner admission must compare human commitment plus strong subject digest and exclude compact reports from authority",
     );
 
-    let ledger_path = root.join("omega-rust/omega/build/omega-trust-ledger/src/custody.rs");
+    let ledger_path = root.join("omega-rust/omega/build/trust-ledger/src/custody.rs");
     let ledger = fs::read_to_string(&ledger_path)
         .unwrap_or_else(|error| panic!("failed to read {}: {error}", ledger_path.display()));
     assert!(
@@ -402,7 +402,7 @@ fn provider_grants_and_persisted_trust_admissions_retain_strong_exact_authority(
 fn private_authority_carriers_retain_strong_subject_commitments() {
     let root = workspace_root();
 
-    let access_path = root.join("omega-rust/psi/foundation/psi-access-plans/src/lib.rs");
+    let access_path = root.join("omega-rust/psi/foundation/access-plans/src/lib.rs");
     let access = fs::read_to_string(&access_path)
         .unwrap_or_else(|error| panic!("failed to read {}: {error}", access_path.display()));
     assert!(
@@ -414,7 +414,7 @@ fn private_authority_carriers_retain_strong_subject_commitments() {
     );
 
     let checked_path = root
-        .join("omega-rust/psi/representations/psi-checked-trees/src/checked_trees/facts/nominal_machine_uses.rs");
+        .join("omega-rust/psi/representations/checked-trees/src/checked_trees/facts/nominal_machine_uses.rs");
     let checked = fs::read_to_string(&checked_path)
         .unwrap_or_else(|error| panic!("failed to read {}: {error}", checked_path.display()));
     assert!(
@@ -424,13 +424,12 @@ fn private_authority_carriers_retain_strong_subject_commitments() {
         "checked callback resource receipts must retain the exact selected machine contract",
     );
 
-    let stack_path = root.join(
-        "omega-rust/omega/representations/omega-calling-conventions/src/stack_realizations.rs",
-    );
+    let stack_path =
+        root.join("omega-rust/omega/representations/calling-conventions/src/stack_realizations.rs");
     let stack = fs::read_to_string(&stack_path)
         .unwrap_or_else(|error| panic!("failed to read {}: {error}", stack_path.display()));
-    let roots_path = root
-        .join("omega-rust/omega/backend/runtime/omega-external-roots/src/epoch_stack_demand.rs");
+    let roots_path =
+        root.join("omega-rust/omega/backend/runtime/external-roots/src/epoch_stack_demand.rs");
     let roots = fs::read_to_string(&roots_path)
         .unwrap_or_else(|error| panic!("failed to read {}: {error}", roots_path.display()));
     assert!(
@@ -447,7 +446,7 @@ fn private_authority_carriers_retain_strong_subject_commitments() {
 fn checked_nominal_machine_use_reports_retain_strong_contract_and_plan_authority() {
     let root = workspace_root();
     let checked_path = root
-        .join("omega-rust/psi/representations/psi-checked-trees/src/checked_trees/facts/nominal_machine_uses.rs");
+        .join("omega-rust/psi/representations/checked-trees/src/checked_trees/facts/nominal_machine_uses.rs");
     let checked = fs::read_to_string(&checked_path)
         .unwrap_or_else(|error| panic!("failed to read {}: {error}", checked_path.display()));
     assert!(
@@ -462,7 +461,7 @@ fn checked_nominal_machine_use_reports_retain_strong_contract_and_plan_authority
     );
 
     let planning_path =
-        root.join("omega-rust/omega/build/omega-provider-planning/src/calling_policy_plans.rs");
+        root.join("omega-rust/omega/build/provider-planning/src/calling_policy_plans.rs");
     let planning = fs::read_to_string(&planning_path)
         .unwrap_or_else(|error| panic!("failed to read {}: {error}", planning_path.display()));
     assert!(
@@ -480,8 +479,8 @@ fn checked_nominal_machine_use_reports_retain_strong_contract_and_plan_authority
 #[test]
 fn checked_operator_provider_reports_retain_strong_plan_authority() {
     let root = workspace_root();
-    let checked_path = root
-        .join("omega-rust/psi/representations/psi-checked-trees/src/checked_trees/operators.rs");
+    let checked_path =
+        root.join("omega-rust/psi/representations/checked-trees/src/checked_trees/operators.rs");
     let checked = fs::read_to_string(&checked_path)
         .unwrap_or_else(|error| panic!("failed to read {}: {error}", checked_path.display()));
     assert!(
@@ -492,7 +491,7 @@ fn checked_operator_provider_reports_retain_strong_plan_authority() {
         "checked operator uses must classify compact plan coordinates as reports beside exact commitments",
     );
 
-    let planning_path = root.join("omega-rust/omega/build/omega-provider-planning/src/plans.rs");
+    let planning_path = root.join("omega-rust/omega/build/provider-planning/src/plans.rs");
     let planning = fs::read_to_string(&planning_path)
         .unwrap_or_else(|error| panic!("failed to read {}: {error}", planning_path.display()));
     assert!(
@@ -502,8 +501,8 @@ fn checked_operator_provider_reports_retain_strong_plan_authority() {
     );
 
     for relative in [
-        "omega-rust/omega/build/omega-selected-dispatch/src/operator_adapter.rs",
-        "omega-rust/omega/build/omega-selected-dispatch/src/float_intrinsic.rs",
+        "omega-rust/omega/build/selected-dispatch/src/operator_adapter.rs",
+        "omega-rust/omega/build/selected-dispatch/src/float_intrinsic.rs",
     ] {
         let path = root.join(relative);
         let dispatch = fs::read_to_string(&path)
@@ -529,23 +528,23 @@ fn residual_identity_named_compact_hashes_are_explicit_reports() {
     let root = workspace_root();
     let cases = [
         (
-            "omega-rust/psi/foundation/psi-layout-plans/src/lib.rs",
+            "omega-rust/psi/foundation/layout-plans/src/lib.rs",
             &["pub schema_identity: u64"][..],
         ),
         (
-            "omega-rust/omega/representations/omega-effects/src/selected_provider_plans.rs",
+            "omega-rust/omega/representations/effects/src/selected_provider_plans.rs",
             &["plan_by_identity"][..],
         ),
         (
-            "omega-rust/omega/representations/omega-target/src/uefi_system_table.rs",
+            "omega-rust/omega/representations/target/src/uefi_system_table.rs",
             &["fn layout_identity(&self) -> u64"][..],
         ),
         (
-            "omega-rust/omega/tooling/omega-artifacts/src/lib.rs",
+            "omega-rust/omega/tooling/artifacts/src/lib.rs",
             &["normalized_foreign_locator_identity"][..],
         ),
         (
-            "omega-rust/omega/build/omega-provider-planning/src/task_plans.rs",
+            "omega-rust/omega/build/provider-planning/src/task_plans.rs",
             &[
                 "fn stack_representation_identity",
                 "fn signature_layout_identity",
@@ -554,11 +553,11 @@ fn residual_identity_named_compact_hashes_are_explicit_reports() {
             ][..],
         ),
         (
-            "omega-rust/omega/representations/omega-calling-conventions/src/callback_materializations.rs",
+            "omega-rust/omega/representations/calling-conventions/src/callback_materializations.rs",
             &["fn callback_nominal_identity"][..],
         ),
         (
-            "omega-rust/omega/build/omega-provider-planning/src/calling_policy_plans.rs",
+            "omega-rust/omega/build/provider-planning/src/calling_policy_plans.rs",
             &["fn callback_plan_identity"][..],
         ),
     ];
@@ -579,31 +578,31 @@ fn residual_identity_named_compact_hashes_are_explicit_reports() {
 #[test]
 fn trust_tooling_compact_coordinates_retain_strong_evidence_and_report_labels() {
     let root = workspace_root();
-    let carrier_path = root.join("omega-rust/omega/tooling/omega-artifacts/src/lib.rs");
-    let report_path = root.join("omega-rust/omega/tooling/omega-artifacts/src/trust_report.rs");
+    let carrier_path = root.join("omega-rust/omega/tooling/artifacts/src/lib.rs");
+    let report_path = root.join("omega-rust/omega/tooling/artifacts/src/trust_report.rs");
     let carrier = fs::read_to_string(&carrier_path)
         .unwrap_or_else(|error| panic!("failed to read {}: {error}", carrier_path.display()));
     let report = fs::read_to_string(&report_path)
         .unwrap_or_else(|error| panic!("failed to read {}: {error}", report_path.display()));
     let visualization_path =
-        root.join("omega-rust/omega/tooling/omega-visualizations/src/checked_trees.rs");
+        root.join("omega-rust/omega/tooling/visualizations/src/checked_trees.rs");
     let visualization = fs::read_to_string(&visualization_path)
         .unwrap_or_else(|error| panic!("failed to read {}: {error}", visualization_path.display()));
 
     for required in [
         "provider_plan_report_fingerprint: u64",
-        "provider_plan_digest: omega_effects::provider_plan::ProviderPlanDigest",
+        "provider_plan_digest: effects::provider_plan::ProviderPlanDigest",
         "template_report_fingerprint: u64",
         "instance_report_fingerprint: u64",
         "instance_contract_report_fingerprint: u64",
-        "instance_contract_commitment: psi_checked_trees::MachineContractCommitment",
+        "instance_contract_commitment: checked_trees::MachineContractCommitment",
         "machine_contract_report_fingerprint: Option<u64>",
-        "machine_contract_commitment: Option<psi_checked_trees::MachineContractCommitment>",
+        "machine_contract_commitment: Option<checked_trees::MachineContractCommitment>",
         "machine_template_report_fingerprint: Option<u64>",
         "machine_argument_contract_report_fingerprints: Vec<u64>",
         "conformance_argument_report_fingerprints: Vec<u64>",
         "selected_provider_closure_report_fingerprint: u64",
-        "selected_provider_closure_digest: omega_effects::SelectedProviderClosureDigest",
+        "selected_provider_closure_digest: effects::SelectedProviderClosureDigest",
     ] {
         assert!(
             carrier.contains(required),
@@ -640,8 +639,8 @@ fn trust_tooling_compact_coordinates_retain_strong_evidence_and_report_labels() 
 #[test]
 fn provider_service_calling_plan_reports_retain_strong_commitments() {
     let root = workspace_root();
-    let provider_path = root
-        .join("omega-rust/omega/representations/omega-effects/src/capabilities/provider_plan.rs");
+    let provider_path =
+        root.join("omega-rust/omega/representations/effects/src/capabilities/provider_plan.rs");
     let provider = fs::read_to_string(&provider_path)
         .unwrap_or_else(|error| panic!("failed to read {}: {error}", provider_path.display()));
     assert!(provider.contains("pub calling_plan_report_fingerprint: Option<u64>"));

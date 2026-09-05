@@ -2,7 +2,7 @@
 //! designated identity fields enter here; strings in literals/paths are opaque.
 
 use super::{Observer, PackagePolicyMembershipError as Error, visitor::Visitor};
-use psi_core::PackageKeyIdentity;
+use semantic_vocabulary::PackageKeyIdentity;
 
 struct Fields<'a>(&'a str);
 impl<'a> Fields<'a> {

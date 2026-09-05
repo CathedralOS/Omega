@@ -105,7 +105,7 @@ where proposition OtherRelation(value: Carrier);
         panic!("one RelationLaw contract")
     };
     let fact_handle = contract.facts.start();
-    let psi_typed_trees::domain::ProofFact::Proposition(application) =
+    let typed_trees::domain::ProofFact::Proposition(application) =
         checked.proof_facts.get(fact_handle)
     else {
         panic!("generic proposition fact")
@@ -127,7 +127,7 @@ where proposition OtherRelation(value: Carrier);
         panic!("OtherLaw carrier and proposition parameters")
     };
     let other_relation_symbol = other_relation.symbol;
-    let psi_typed_trees::data::TypeParameterKind::Proposition { contract } = &other_relation.kind
+    let typed_trees::data::TypeParameterKind::Proposition { contract } = &other_relation.kind
     else {
         panic!("OtherRelation signature")
     };
@@ -137,7 +137,7 @@ where proposition OtherRelation(value: Carrier);
     let other_value_symbol = other_value.symbol;
 
     let mut endpoint_spoof = checked.clone();
-    let psi_typed_trees::domain::ProofFact::Proposition(application) =
+    let typed_trees::domain::ProofFact::Proposition(application) =
         endpoint_spoof.typed.proof_facts.get_mut(fact_handle)
     else {
         panic!("generic proposition fact")
@@ -152,7 +152,7 @@ where proposition OtherRelation(value: Carrier);
     }));
 
     let mut value_spoof = checked;
-    let psi_typed_trees::expression::ExpressionNode::Name(path) = value_spoof
+    let typed_trees::expression::ExpressionNode::Name(path) = value_spoof
         .typed
         .expression_table
         .expression_mut(argument_handle)

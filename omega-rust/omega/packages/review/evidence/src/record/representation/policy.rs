@@ -9,7 +9,7 @@ use crate::record::{
     PackageReviewOpaqueRepresentationCopyDisposition,
     PackageReviewOpaqueRepresentationLifecycleDisposition, PackageReviewRepresentationTarget,
 };
-use psi_core::PackageKeyIdentity;
+use semantic_vocabulary::PackageKeyIdentity;
 
 /// Declarations and producer candidates do not accept a selection. Selected
 /// availability includes unused choices; only actual crossings create demands.

@@ -1,8 +1,8 @@
 //! Graph membership of owners embedded in genuine compiled policy identities.
 
 use super::*;
-use omega_package_evidence::encoding::PackagePolicyTextRecoveryLimits;
-use omega_package_evidence::record::{PackagePolicyBaseline, PackagePolicyCallableRole};
+use package_evidence::encoding::PackagePolicyTextRecoveryLimits;
+use package_evidence::record::{PackagePolicyBaseline, PackagePolicyCallableRole};
 
 fn resolve_chain(tree: &TempTree) -> ResolvedPackageSourceClosure {
     let sources = tree.path("sources");
@@ -38,7 +38,7 @@ fn resolve_chain(tree: &TempTree) -> ResolvedPackageSourceClosure {
     .unwrap()
 }
 
-fn hex_digest(value: psi_core::PackageKeyIdentity) -> String {
+fn hex_digest(value: semantic_vocabulary::PackageKeyIdentity) -> String {
     use std::fmt::Write;
     let mut text = String::new();
     for byte in value.digest() {
@@ -89,7 +89,7 @@ fn lock_rejects_absent_owners_inside_canonical_types_and_callable_coordinates() 
         .key()
         .identity();
     let owner_text = hex_digest(type_owner);
-    let absent = psi_core::PackageKeyIdentity::from_digest([239; 32]).unwrap();
+    let absent = semantic_vocabulary::PackageKeyIdentity::from_digest([239; 32]).unwrap();
     assert!(
         source
             .packages()

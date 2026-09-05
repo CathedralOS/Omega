@@ -2,11 +2,11 @@
 
 mod support;
 
-use omega_package_evidence::project_checked_conformance_policy;
-use omega_package_evidence::record::PackagePolicyConformanceConstArgument;
-use psi_typed_trees::name::Identifier;
-use psi_typed_trees::typed_trees::ClosedConformanceConstArgument;
+use package_evidence::project_checked_conformance_policy;
+use package_evidence::record::PackagePolicyConformanceConstArgument;
 use support::*;
+use typed_trees::name::Identifier;
+use typed_trees::typed_trees::ClosedConformanceConstArgument;
 
 fn checked(source: &str) -> (TempPackage, CheckedCompilation) {
     let package = TempPackage::new();
@@ -89,13 +89,11 @@ ensures result == tag<Card, FieldOrder<Card, 7>>();
     let mut changed = application.clone();
     let mut nested = changed.arguments[0].clone();
     for _ in 0..65 {
-        nested = psi_typed_trees::expression::StaticMachineArgument {
-            application: Some(Box::new(
-                psi_typed_trees::expression::StaticSymbolApplication {
-                    lifetime_arguments: Box::new([]),
-                    arguments: vec![nested].into_boxed_slice(),
-                },
-            )),
+        nested = typed_trees::expression::StaticMachineArgument {
+            application: Some(Box::new(typed_trees::expression::StaticSymbolApplication {
+                lifetime_arguments: Box::new([]),
+                arguments: vec![nested].into_boxed_slice(),
+            })),
             ..changed.arguments[0].clone()
         };
     }
@@ -182,11 +180,8 @@ where Element satisfies Card::Encoding<Output, Rank>
                 .selected_conformance
                 .as_ref()
                 .unwrap();
-            psi_typed_trees_to_checked_trees::close_conformance_application(
-                &checked.typed,
-                selected,
-            )
-            .unwrap()
+            typed_trees_to_checked_trees::close_conformance_application(&checked.typed, selected)
+                .unwrap()
         })
         .collect::<Vec<_>>();
     for index in 0..2 {
@@ -237,7 +232,7 @@ Primary: Card satisfies Shape {
                 .is_some_and(|name| name.as_str() == "Primary")
         })
         .unwrap();
-    let selected = psi_typed_trees::expression::StaticMachineArgument {
+    let selected = typed_trees::expression::StaticMachineArgument {
         symbol: declaration.symbol,
         path: vec![declaration.alias.clone().unwrap()].into_boxed_slice(),
         application: None,
@@ -245,7 +240,7 @@ Primary: Card satisfies Shape {
         evidence_projection: None,
     };
     let application =
-        psi_typed_trees_to_checked_trees::close_conformance_application(&checked.typed, &selected)
+        typed_trees_to_checked_trees::close_conformance_application(&checked.typed, &selected)
             .unwrap();
     assert_eq!(application.rows.len(), 3);
     let policy = project_checked_conformance_policy(&checked, &application, &[]).unwrap();

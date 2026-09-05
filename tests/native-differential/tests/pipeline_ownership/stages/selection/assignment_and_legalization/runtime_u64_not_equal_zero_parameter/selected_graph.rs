@@ -30,7 +30,7 @@ fn u64_parameter_not_equal_zero_selects_exact_compare_zero_graph_on_both_isas() 
             legalized.recipe,
             LegalizationRecipe::ReturnU64NotEqualZeroParameterConditionalV1
         );
-        let omega_legalized_operations::LegalizedCondition::U64NotEqualZeroParameterV1 {
+        let legalized_operations::LegalizedCondition::U64NotEqualZeroParameterV1 {
             equality_operation: legalized_equality,
             equality_result,
             boolean_not_operation: legalized_not,
@@ -83,13 +83,10 @@ fn u64_parameter_not_equal_zero_selects_exact_compare_zero_graph_on_both_isas() 
         assert_eq!(when_nonzero.psi_edge, true_edge);
         assert_eq!(
             when_nonzero.block,
-            omega_selected_instructions::SelectedBlockId(1)
+            selected_instructions::SelectedBlockId(1)
         );
         assert_eq!(when_zero.psi_edge, false_edge);
-        assert_eq!(
-            when_zero.block,
-            omega_selected_instructions::SelectedBlockId(2)
-        );
+        assert_eq!(when_zero.block, selected_instructions::SelectedBlockId(2));
     }
 }
 

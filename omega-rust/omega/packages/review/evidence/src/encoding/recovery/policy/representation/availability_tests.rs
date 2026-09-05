@@ -11,7 +11,7 @@ fn value(canonical: &str) -> PackageReviewTypeIdentity {
 
 fn properties() -> PackageReviewDataProperties {
     PackageReviewDataProperties {
-        multiplicity: psi_language_semantics::Multiplicity::Unrestricted,
+        multiplicity: language_semantics::Multiplicity::Unrestricted,
         carry: None,
     }
 }

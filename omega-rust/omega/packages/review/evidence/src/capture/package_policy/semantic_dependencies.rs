@@ -4,16 +4,16 @@ use crate::capture::semantics::conformances::policy_callable_identity;
 use crate::capture::semantics::declarations::{nominal_identity, reviewed_package_owns};
 use crate::capture::semantics::facts::exactly_one;
 use crate::record::*;
-use omega_compiler::CheckedCompilation;
-use psi_core::PackageKeyIdentity;
-use psi_diagnostics::Diagnostic;
+use compiler::CheckedCompilation;
+use diagnostics::Diagnostic;
+use semantic_vocabulary::PackageKeyIdentity;
 
 pub(super) fn project(
     compilation: &CheckedCompilation,
     package: PackageKeyIdentity,
     callables: &PackagePolicyCallables,
 ) -> Result<Vec<PackagePolicySemanticDependency>, Vec<Diagnostic>> {
-    let derived = psi_typed_trees_to_checked_trees::derive_checked_semantic_dependencies(
+    let derived = typed_trees_to_checked_trees::derive_checked_semantic_dependencies(
         &compilation.typed,
         &compilation.facts,
     );
@@ -40,7 +40,7 @@ pub(super) fn project(
             || machine.supply_mode.is_boundary_declaration()
             || matches!(
                 machine.supply_mode,
-                psi_language_semantics::MachineSupplyMode::ExternalRealization { .. }
+                language_semantics::MachineSupplyMode::ExternalRealization { .. }
             )
             || compilation.selected_build_machine_symbol() == Some(machine.symbol)
         {
@@ -57,7 +57,7 @@ pub(super) fn project(
             PackagePolicySemanticDependencyConsumer::Callable(identity)
         } else {
             if fact.exposure
-                != psi_checked_trees::CheckedSemanticDependencyExposure::PrivateImplementation
+                != checked_trees::CheckedSemanticDependencyExposure::PrivateImplementation
             {
                 return Err(super::rejected(
                     "private semantic consumer has public interface exposure",
@@ -65,41 +65,40 @@ pub(super) fn project(
             }
             PackagePolicySemanticDependencyConsumer::PackageImplementation
         };
-        let dependency = if fact.kind
-            == psi_checked_trees::CheckedSemanticDependencyKind::AutomaticCleanupMachine
-        {
-            // The checked dependency owner selected this exact attached drop
-            // declaration; its overload coordinate is source semantics, not a
-            // private intermediate state or generated call-site label.
-            policy_callable_identity(compilation, fact.dependency)?
-        } else {
-            nominal_identity(compilation, fact.dependency)?
-        };
+        let dependency =
+            if fact.kind == checked_trees::CheckedSemanticDependencyKind::AutomaticCleanupMachine {
+                // The checked dependency owner selected this exact attached drop
+                // declaration; its overload coordinate is source semantics, not a
+                // private intermediate state or generated call-site label.
+                policy_callable_identity(compilation, fact.dependency)?
+            } else {
+                nominal_identity(compilation, fact.dependency)?
+            };
         rows.push(PackagePolicySemanticDependency {
             consumer,
             dependency,
             exposure: match fact.exposure {
-                psi_checked_trees::CheckedSemanticDependencyExposure::PrivateImplementation => {
+                checked_trees::CheckedSemanticDependencyExposure::PrivateImplementation => {
                     PackageReviewSemanticDependencyExposure::PrivateImplementation
                 }
-                psi_checked_trees::CheckedSemanticDependencyExposure::PublicInterface => {
+                checked_trees::CheckedSemanticDependencyExposure::PublicInterface => {
                     PackageReviewSemanticDependencyExposure::PublicInterface
                 }
             },
             kind: match fact.kind {
-                psi_checked_trees::CheckedSemanticDependencyKind::NominalIdentity => {
+                checked_trees::CheckedSemanticDependencyKind::NominalIdentity => {
                     PackageReviewSemanticDependencyKind::NominalIdentity
                 }
-                psi_checked_trees::CheckedSemanticDependencyKind::Layout => {
+                checked_trees::CheckedSemanticDependencyKind::Layout => {
                     PackageReviewSemanticDependencyKind::Layout
                 }
-                psi_checked_trees::CheckedSemanticDependencyKind::OwnershipBehavior => {
+                checked_trees::CheckedSemanticDependencyKind::OwnershipBehavior => {
                     PackageReviewSemanticDependencyKind::OwnershipBehavior
                 }
-                psi_checked_trees::CheckedSemanticDependencyKind::AutomaticCleanup => {
+                checked_trees::CheckedSemanticDependencyKind::AutomaticCleanup => {
                     PackageReviewSemanticDependencyKind::AutomaticCleanup
                 }
-                psi_checked_trees::CheckedSemanticDependencyKind::AutomaticCleanupMachine => {
+                checked_trees::CheckedSemanticDependencyKind::AutomaticCleanupMachine => {
                     PackageReviewSemanticDependencyKind::AutomaticCleanupMachine
                 }
             },

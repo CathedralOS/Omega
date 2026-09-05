@@ -5,9 +5,9 @@ mod signatures;
 
 use crate::capture::semantics::conformances::policy_callable_identity;
 use crate::record::{PackagePolicyExternalBinding, PackagePolicyExternalExecutableSupply};
-use omega_compiler::CheckedCompilation;
-use psi_diagnostics::Diagnostic;
-use psi_symbols::SymbolHandle;
+use compiler::CheckedCompilation;
+use diagnostics::Diagnostic;
+use symbols::SymbolHandle;
 
 /// A legacy review row cannot recover result absence or nested static policy.
 /// Resolve the exact checked leaf and project those fields from their owners.

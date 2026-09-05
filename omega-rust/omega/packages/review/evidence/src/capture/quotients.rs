@@ -5,19 +5,19 @@ use crate::record::{
     NonExecutableQuotientPackageReview, PackageReviewCanonicalRowSource,
     PackageReviewSourceLocationRole,
 };
-use omega_target::TargetProfile;
-use psi_core::PackageKeyIdentity;
-use psi_diagnostics::Diagnostic;
-use psi_language_semantics::quotient_correspondence::{
+use diagnostics::Diagnostic;
+use language_semantics::quotient_correspondence::{
     CanonicalQuotientCorrespondence, QuotientCorrespondenceOperationKind,
     QuotientTheoremCorrespondence, QuotientTheoremRole as CanonicalQuotientTheoremRole,
 };
-use psi_typed_trees::TypedTrees;
-use psi_typed_trees::expression::{
+use semantic_vocabulary::PackageKeyIdentity;
+use target::TargetProfile;
+use typed_trees::TypedTrees;
+use typed_trees::expression::{
     ExpressionNode, QuotientOperationKind, QuotientOperationRequest,
     QuotientTheoremRole as TypedQuotientTheoremRole,
 };
-use psi_typed_trees::statement::StatementNode;
+use typed_trees::statement::StatementNode;
 
 /// Project the complete bounded proof-only direct quotient batch into package
 /// review without admitting any executable quotient operation.
@@ -30,7 +30,7 @@ pub fn project_non_executable_quotient_package_review(
     package: PackageKeyIdentity,
     target: TargetProfile,
 ) -> Result<NonExecutableQuotientPackageReview, Vec<Diagnostic>> {
-    let extracted = psi_validation::extract_non_executable_quotient_correspondences(program)?
+    let extracted = validation::extract_non_executable_quotient_correspondences(program)?
         .into_correspondences();
     project_replayed_batch(program, package, target, &extracted)
 }
@@ -41,7 +41,7 @@ fn project_replayed_batch(
     target: TargetProfile,
     supplied: &[CanonicalQuotientCorrespondence],
 ) -> Result<NonExecutableQuotientPackageReview, Vec<Diagnostic>> {
-    let rederived = psi_validation::extract_non_executable_quotient_correspondences(program)?
+    let rederived = validation::extract_non_executable_quotient_correspondences(program)?
         .into_correspondences();
     if supplied != rederived {
         return Err(vec![Diagnostic::error(
@@ -150,7 +150,7 @@ fn supported_source_request(
             matches!(
                 certificate.theorem_evidence.as_slice(),
                 [
-                    psi_language_semantics::quotient_correspondence::QuotientTheoremEvidence {
+                    language_semantics::quotient_correspondence::QuotientTheoremEvidence {
                         role: CanonicalQuotientTheoremRole::Congruence,
                         correspondence: QuotientTheoremCorrespondence::Congruence(_),
                         ..
@@ -169,12 +169,12 @@ fn supported_source_request(
             matches!(
                 certificate.theorem_evidence.as_slice(),
                 [
-                    psi_language_semantics::quotient_correspondence::QuotientTheoremEvidence {
+                    language_semantics::quotient_correspondence::QuotientTheoremEvidence {
                         role: CanonicalQuotientTheoremRole::Congruence,
                         correspondence: QuotientTheoremCorrespondence::Congruence(_),
                         ..
                     },
-                    psi_language_semantics::quotient_correspondence::QuotientTheoremEvidence {
+                    language_semantics::quotient_correspondence::QuotientTheoremEvidence {
                         role: CanonicalQuotientTheoremRole::ForwardPreconditionTransport,
                         correspondence: QuotientTheoremCorrespondence::ForwardPreconditionTransport(
                             _
@@ -198,7 +198,7 @@ fn supported_source_request(
 fn exact_operation<'program>(
     program: &'program TypedTrees,
     certificate: &CanonicalQuotientCorrespondence,
-) -> Result<&'program psi_typed_trees::machine::Machine, Vec<Diagnostic>> {
+) -> Result<&'program typed_trees::machine::Machine, Vec<Diagnostic>> {
     let matches = program
         .machines()
         .iter()

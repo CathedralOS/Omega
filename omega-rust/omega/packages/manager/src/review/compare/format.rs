@@ -4,12 +4,12 @@ use super::model::{
     ReviewOnlyCapabilityConflictChange, ReviewOnlyCapabilityConflictSet,
     ReviewOnlyPackageCapabilityConflicts, ReviewSetRole,
 };
-use omega_package_evidence::record::{
+use package_evidence::record::{
     PackageReviewCanonicalRowKind, PackageReviewCanonicalRowRisk, PackageReviewCanonicalRowSource,
     PackageReviewSourceLocationOwner, PackageReviewSourceLocationRole,
     PackageReviewSyntheticSourceKind,
 };
-use omega_package_source::ImmutableSourceResolution;
+use package_source::ImmutableSourceResolution;
 use sha2::{Digest, Sha256};
 
 const CONFLICT_RENDER_SCHEMA: &str = "OMEGA_PACKAGE_CAPABILITY_CONFLICTS_V20\n";

@@ -111,8 +111,8 @@ pub(crate) fn scalar_call_unit_artifact() -> (Vec<u8>, Vec<u8>) {
         evidence: Vec::new(),
     };
     (
-        psi_terminal_codec::encode_module(&module).unwrap(),
-        psi_terminal_codec::encode_proof_bundle(&proof).unwrap(),
+        terminal_codec::encode_module(&module).unwrap(),
+        terminal_codec::encode_proof_bundle(&proof).unwrap(),
     )
 }
 

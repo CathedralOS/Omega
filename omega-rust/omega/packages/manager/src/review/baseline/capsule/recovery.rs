@@ -15,7 +15,7 @@ use crate::review::baseline::{
     ReviewOnlyBaselineLimits, VERSION,
 };
 use crate::review::candidate::{ReviewOnlyCanonicalRow, ReviewOnlySourceConsumptionCommitment};
-use omega_package_evidence::encoding::decode_package_review_canonical_row_with_limits;
+use package_evidence::encoding::decode_package_review_canonical_row_with_limits;
 
 impl ReviewOnlyBaselineCapsule {
     pub fn decode(

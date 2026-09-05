@@ -69,9 +69,9 @@ pub(crate) fn encode_compiler_intrinsic_execution(
 
 fn encode_primitive_float_binary_operation(
     encoder: &mut Encoder,
-    operation: omega_provider_planning::plans::CompilerPrimitiveFloatBinaryOperation,
+    operation: provider_planning::plans::CompilerPrimitiveFloatBinaryOperation,
 ) {
-    use omega_provider_planning::plans::CompilerPrimitiveFloatBinaryOperation;
+    use provider_planning::plans::CompilerPrimitiveFloatBinaryOperation;
 
     match operation {
         CompilerPrimitiveFloatBinaryOperation::Add => encoder.tag("add", 0),
@@ -87,18 +87,18 @@ fn encode_primitive_float_binary_operation(
     };
 }
 
-fn encode_float_format(encoder: &mut Encoder, format: psi_numerics::literals::FloatFormat) {
+fn encode_float_format(encoder: &mut Encoder, format: numerics::literals::FloatFormat) {
     match format {
-        psi_numerics::literals::FloatFormat::F32 => encoder.tag("f32", 0),
-        psi_numerics::literals::FloatFormat::F64 => encoder.tag("f64", 1),
+        numerics::literals::FloatFormat::F32 => encoder.tag("f32", 0),
+        numerics::literals::FloatFormat::F64 => encoder.tag("f64", 1),
     };
 }
 
 fn encode_compiler_numeric_type(
     encoder: &mut Encoder,
-    numeric_type: omega_provider_planning::plans::CompilerNumericType,
+    numeric_type: provider_planning::plans::CompilerNumericType,
 ) {
-    use omega_provider_planning::plans::CompilerNumericType;
+    use provider_planning::plans::CompilerNumericType;
 
     match numeric_type {
         CompilerNumericType::I8 => encoder.tag("i8", 0),
@@ -116,9 +116,9 @@ fn encode_compiler_numeric_type(
 
 fn encode_compiler_arithmetic_domain(
     encoder: &mut Encoder,
-    domain: psi_numerics::arithmetic::ArithmeticDomain,
+    domain: numerics::arithmetic::ArithmeticDomain,
 ) {
-    use psi_numerics::arithmetic::ArithmeticDomain;
+    use numerics::arithmetic::ArithmeticDomain;
 
     match domain {
         ArithmeticDomain::Exact => encoder.tag("exact", 0),

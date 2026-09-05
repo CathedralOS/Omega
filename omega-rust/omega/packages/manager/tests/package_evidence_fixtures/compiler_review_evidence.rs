@@ -17,7 +17,7 @@ fn local_fixtures_issue_compiler_review_evidence_from_resolver_custody() {
         )
         .unwrap_or_else(|error| panic!("{package} source closure should resolve: {error}"));
         let reviews = compile_resolved_package_candidate_reviews(
-            &closure.for_exact_target(omega_target::TargetProfile::WindowsX64),
+            &closure.for_exact_target(target::TargetProfile::WindowsX64),
             &cache.join("compiler-build"),
         )
         .unwrap_or_else(|error| panic!("{package} package reviews should close: {error:#?}"));
@@ -221,7 +221,7 @@ fn local_fixtures_issue_compiler_review_evidence_from_resolver_custody() {
         assert_fixture_evidence(package, root_review.projection());
         let initial_conflicts = compare_review_only_initial_capabilities(
             &reviews,
-            &closure.for_exact_target(omega_target::TargetProfile::WindowsX64),
+            &closure.for_exact_target(target::TargetProfile::WindowsX64),
             ReviewOnlyCapabilityConflictLimits::default(),
         )
         .unwrap_or_else(|error| panic!("{package} initial conflicts should close: {error}"));
@@ -244,7 +244,7 @@ fn local_fixtures_issue_compiler_review_evidence_from_resolver_custody() {
                 assert!(conflicts.conflicts().iter().any(|conflict| {
                     conflict.kind() == kind
                         && conflict.change()
-                            == omega_package_manager::review::ReviewOnlyCapabilityConflictChange::Added
+                            == package_manager::review::ReviewOnlyCapabilityConflictChange::Added
                         && conflict.is_blocking()
                 }));
             }
@@ -289,7 +289,7 @@ fn local_fixtures_issue_compiler_review_evidence_from_resolver_custody() {
         let initial_review = assemble_initial_source_review(
             &reviews,
             &closure,
-            omega_package_manager::review::PackageSourceReviewLimits::default(),
+            package_manager::review::PackageSourceReviewLimits::default(),
         )
         .expect("initial review input joins compiler rows to exact source custody");
         assert_eq!(
@@ -326,7 +326,7 @@ fn local_fixtures_issue_compiler_review_evidence_from_resolver_custody() {
             &reviews,
             closure.custodies(),
             &closure,
-            omega_package_manager::review::PackageSourceReviewLimits::default(),
+            package_manager::review::PackageSourceReviewLimits::default(),
         )
         .expect("unchanged review input joins exact baseline and candidate custody");
         assert!(
@@ -350,7 +350,7 @@ fn local_fixtures_issue_compiler_review_evidence_from_resolver_custody() {
             &reviews,
             &[],
             &closure,
-            omega_package_manager::review::PackageSourceReviewLimits::default(),
+            package_manager::review::PackageSourceReviewLimits::default(),
         )
         .expect("missing old source retains compiler baseline and renders candidate custody");
         let unavailable_patch = unavailable_review
@@ -393,7 +393,7 @@ fn local_fixtures_issue_compiler_review_evidence_from_resolver_custody() {
                 &reviews,
                 closure.custodies(),
                 &closure,
-                omega_package_manager::review::PackageSourceReviewLimits::default(),
+                package_manager::review::PackageSourceReviewLimits::default(),
             )
             .expect("recovered baseline joins available old custody");
             assert_eq!(recovered_unchanged, unchanged_review);
@@ -402,7 +402,7 @@ fn local_fixtures_issue_compiler_review_evidence_from_resolver_custody() {
                 &reviews,
                 &[],
                 &closure,
-                omega_package_manager::review::PackageSourceReviewLimits::default(),
+                package_manager::review::PackageSourceReviewLimits::default(),
             )
             .expect("recovered baseline survives unavailable old source");
             assert_eq!(recovered_unavailable, unavailable_review);
@@ -453,14 +453,14 @@ fn local_fixtures_issue_compiler_review_evidence_from_resolver_custody() {
                     compare_review_only_capabilities_from_baseline(
                         &reopened,
                         &reviews,
-                        &closure.for_exact_target(omega_target::TargetProfile::WindowsX64),
+                        &closure.for_exact_target(target::TargetProfile::WindowsX64),
                         ReviewOnlyCapabilityConflictLimits::default(),
                     )
                     .expect("reopened baseline comparison"),
                     compare_review_only_capabilities(
                         &reviews,
                         &reviews,
-                        &closure.for_exact_target(omega_target::TargetProfile::WindowsX64),
+                        &closure.for_exact_target(target::TargetProfile::WindowsX64),
                         ReviewOnlyCapabilityConflictLimits::default(),
                     )
                     .expect("live baseline comparison")
@@ -476,7 +476,7 @@ fn local_fixtures_issue_compiler_review_evidence_from_resolver_custody() {
                         &reviews,
                         &[],
                         &closure,
-                        omega_package_manager::review::PackageSourceReviewLimits::default(),
+                        package_manager::review::PackageSourceReviewLimits::default(),
                     )
                     .expect("reopened baseline preserves standalone source review"),
                     unavailable_review
@@ -614,7 +614,7 @@ fn process_exit_fixture_retains_exact_closed_console_leaves_and_unresolved_sibli
     .expect("process-exit source closure should resolve");
 
     let reviews = compile_resolved_package_candidate_reviews(
-        &closure.for_exact_target(omega_target::TargetProfile::LinuxX64),
+        &closure.for_exact_target(target::TargetProfile::LinuxX64),
         &cache.join("compiler-build"),
     )
     .expect(
@@ -640,16 +640,12 @@ fn process_exit_fixture_retains_exact_closed_console_leaves_and_unresolved_sibli
     };
     assert_eq!(
         execution_for("exit_process"),
-        Some(
-            omega_package_evidence::record::PackageReviewCompilerIntrinsicExecution::LinuxExitGroupI32,
-        ),
+        Some(package_evidence::record::PackageReviewCompilerIntrinsicExecution::LinuxExitGroupI32,),
         "process-exit retains the exact closed Linux execution identity",
     );
     assert_eq!(
         execution_for("read_byte"),
-        Some(
-            omega_package_evidence::record::PackageReviewCompilerIntrinsicExecution::LinuxReadByte,
-        ),
+        Some(package_evidence::record::PackageReviewCompilerIntrinsicExecution::LinuxReadByte,),
         "Console read_byte retains its exact closed Linux execution identity",
     );
     // Unlike bundled std, host-services still declares write_byte with legacy

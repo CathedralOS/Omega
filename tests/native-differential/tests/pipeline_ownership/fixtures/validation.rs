@@ -4,12 +4,12 @@ use crate::tests::*;
 
 pub(crate) fn validate_raw_selection(
     staged: &StagedOptimizedSelectedInstructions,
-    raw: omega_selected_instructions::SelectedInstructionPlan,
+    raw: selected_instructions::SelectedInstructionPlan,
 ) -> Result<
-    omega_target_operations_to_selected_instructions::ValidatedSelectedInstructions,
+    target_operations_to_selected_instructions::ValidatedSelectedInstructions,
     SelectedInstructionError,
 > {
-    let constraints = omega_target_operations_to_selected_instructions::selection_constraints(
+    let constraints = target_operations_to_selected_instructions::selection_constraints(
         staged.legalized(),
         staged.register_environment(),
     );
@@ -25,10 +25,10 @@ pub(crate) fn validate_raw_selection(
 pub(crate) fn validate_raw_post_allocation(
     source: &StagedOptimizedRegisterHomes,
     staged: &StagedOptimizedPostAllocationMachinePlan,
-    raw: omega_physical_instructions::PostAllocationMachinePlan,
+    raw: physical_instructions::PostAllocationMachinePlan,
 ) -> Result<
-    omega_register_homes_to_post_allocation_machine::ValidatedPostAllocationMachinePlan,
-    omega_register_homes_to_post_allocation_machine::PostAllocationMachineError,
+    register_homes_to_post_allocation_machine::ValidatedPostAllocationMachinePlan,
+    register_homes_to_post_allocation_machine::PostAllocationMachineError,
 > {
     let selected = source
         .legality_stage()
@@ -36,7 +36,7 @@ pub(crate) fn validate_raw_post_allocation(
         .liveness_stage()
         .selected_stage();
     let environment = selected.register_environment();
-    omega_register_homes_to_post_allocation_machine::validate_post_allocation_machine_plan(
+    register_homes_to_post_allocation_machine::validate_post_allocation_machine_plan(
         selected.selected(),
         staged.effects(),
         source.legality_stage().live_range_stage().ranges(),

@@ -195,7 +195,7 @@ machine build(builder: &mut Build) {{
             .unwrap()
             .clone();
         let reference = changed.typed.type_reference_table.insert(
-            psi_typed_trees::types::TypeReferenceNode::Named {
+            typed_trees::types::TypeReferenceNode::Named {
                 symbol: copy.symbol,
                 name: copy.name,
             },

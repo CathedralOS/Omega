@@ -2,7 +2,7 @@
 
 use super::{GitWorkspaceMemberBuild, GitWorkspaceSelectionPlan, account_declaration_bytes};
 use crate::resolution::source::PackageSourceSelectionEvidenceError;
-use omega_build_declarations::WorkspaceMemberPath;
+use build_declarations::WorkspaceMemberPath;
 
 /// Raw authenticated declarations retained separately from the selected
 /// member's compilation root.

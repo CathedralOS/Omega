@@ -2,7 +2,7 @@
 
 use super::{fixtures, tests::recover};
 use crate::record::*;
-use omega_calling_conventions::{
+use calling_conventions::{
     CallSignature, CallingPolicy, ValueShape, evaluate_ordinary_boundary_entry_plan,
 };
 

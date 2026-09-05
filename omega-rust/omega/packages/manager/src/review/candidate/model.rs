@@ -1,14 +1,14 @@
 use super::rows::ReviewOnlyCanonicalRow;
 use crate::declarations::PackageKey;
-use omega_build_evaluation::{BuildEvaluationUsage, BuildObservationSummary};
-use omega_package_compilation::{
+use build_evaluation::{BuildEvaluationUsage, BuildObservationSummary};
+use package_compilation::{
     AcceptedSemanticBinding, PackageGeneratedSourceBundle, PackageSourceConsumptionCommitment,
 };
-use omega_package_evidence::ledger::{
+use package_evidence::ledger::{
     OrdinaryPackageObligationLedger, OrdinaryPackageObligationResultSet,
 };
-use omega_package_evidence::record::{CheckedPackageReviewProjection, PackageReviewCanonicalRow};
-use omega_package_source::ImmutableSourceResolution;
+use package_evidence::record::{CheckedPackageReviewProjection, PackageReviewCanonicalRow};
+use package_source::ImmutableSourceResolution;
 use std::path::PathBuf;
 
 use super::semantic_bindings::SemanticBindingReviewCandidate;
@@ -30,7 +30,7 @@ pub struct CompilerIssuedPackageReview {
     pub(super) semantic_binding_candidates: Vec<SemanticBindingReviewCandidate>,
     pub(super) generated_source_bundle: PackageGeneratedSourceBundle,
     pub(super) projection: CheckedPackageReviewProjection,
-    pub(super) policy: omega_package_evidence::record::PackagePolicyBaseline,
+    pub(super) policy: package_evidence::record::PackagePolicyBaseline,
     pub(super) canonical_review_bytes: Vec<u8>,
     pub(super) canonical_rows: Vec<PackageReviewCanonicalRow>,
     pub(super) obligations: OrdinaryPackageObligationLedger,
@@ -98,7 +98,7 @@ impl CompilerIssuedPackageReview {
     /// Complete normalized comparison meaning from this same checked package,
     /// target, and consumed source. This is not an accepted lock or a new
     /// authorization; legacy comparison and obligation evidence remain separate.
-    pub const fn policy(&self) -> &omega_package_evidence::record::PackagePolicyBaseline {
+    pub const fn policy(&self) -> &package_evidence::record::PackagePolicyBaseline {
         &self.policy
     }
 
@@ -149,9 +149,9 @@ pub struct ReviewedPackageProductionCandidate {
     pub(super) reviews: CompilerIssuedPackageReviewSet,
     pub(super) root: PackageKey,
     pub(super) root_path: PathBuf,
-    pub(super) root_role: omega_package_compilation::BuildDeclarationKind,
-    pub(super) target_profile: omega_target::TargetProfile,
-    pub(super) checked_root: omega_compiler::CheckedCompilation,
+    pub(super) root_role: package_compilation::BuildDeclarationKind,
+    pub(super) target_profile: target::TargetProfile,
+    pub(super) checked_root: compiler::CheckedCompilation,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -179,15 +179,15 @@ impl ReviewedPackageProductionCandidate {
         &self.root
     }
 
-    pub const fn root_role(&self) -> omega_package_compilation::BuildDeclarationKind {
+    pub const fn root_role(&self) -> package_compilation::BuildDeclarationKind {
         self.root_role
     }
 
-    pub const fn target_profile(&self) -> omega_target::TargetProfile {
+    pub const fn target_profile(&self) -> target::TargetProfile {
         self.target_profile
     }
 
-    pub(crate) const fn checked_root(&self) -> &omega_compiler::CheckedCompilation {
+    pub(crate) const fn checked_root(&self) -> &compiler::CheckedCompilation {
         &self.checked_root
     }
 
@@ -196,7 +196,7 @@ impl ReviewedPackageProductionCandidate {
     ) -> (
         CompilerIssuedPackageReviewSet,
         PathBuf,
-        omega_compiler::CheckedCompilation,
+        compiler::CheckedCompilation,
     ) {
         (self.reviews, self.root_path, self.checked_root)
     }

@@ -97,8 +97,7 @@ fn inherited_service_keeps_selecting_schema_and_declaring_requirement_owners() {
         .unwrap();
     assert_eq!(
         calling,
-        &omega_package_evidence::project_checked_calling_policy(&fixture.checked, realization)
-            .unwrap()
+        &package_evidence::project_checked_calling_policy(&fixture.checked, realization).unwrap()
     );
 
     let changed_source = fixtures::INHERITED.replace(

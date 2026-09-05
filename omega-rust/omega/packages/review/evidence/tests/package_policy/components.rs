@@ -25,11 +25,9 @@ pub machine ping_leaf() satisfies Host::ping via import_binding();
         .iter()
         .find(|machine| machine.name.as_str() == "ping_leaf")
         .unwrap();
-    let expected = omega_package_evidence::project_checked_external_supply_policy(
-        &fixture.checked,
-        machine.symbol,
-    )
-    .unwrap();
+    let expected =
+        package_evidence::project_checked_external_supply_policy(&fixture.checked, machine.symbol)
+            .unwrap();
     assert_eq!(policy.external_supplies(), expected);
     assert_eq!(
         policy.selected_providers(),

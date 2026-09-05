@@ -3,6 +3,70 @@
 version = 4
 
 [[package]]
+name = "abstract-operations"
+version = "0.1.0"
+dependencies = [
+ "semantic-vocabulary",
+ "terminal-psi",
+]
+
+[[package]]
+name = "abstract-operations-to-abstract-operations"
+version = "0.1.0"
+dependencies = [
+ "abstract-operations",
+ "optimization",
+ "optimization-core",
+ "optimization-unit",
+ "optimization-validation",
+ "proof-admission",
+ "semantic-vocabulary",
+ "terminal-codec",
+ "terminal-fuel",
+ "terminal-psi",
+ "terminal-psi-to-abstract-operations",
+ "terminal-semantics",
+ "terminal-verifier",
+]
+
+[[package]]
+name = "abstract-operations-to-target-operations"
+version = "0.1.0"
+dependencies = [
+ "abstract-operations",
+ "abstract-operations-to-abstract-operations",
+ "access-plans",
+ "calling-conventions",
+ "checked-trees-to-terminal-psi",
+ "effects",
+ "function-identity",
+ "installation-evidence",
+ "proof-admission",
+ "semantic-vocabulary",
+ "source-files-to-tokens",
+ "symbol-resolved-trees-to-typed-trees",
+ "symbols",
+ "syntax-trees-to-symbol-resolved-trees",
+ "target",
+ "target-operations",
+ "terminal-codec",
+ "terminal-psi",
+ "terminal-psi-to-abstract-operations",
+ "tokens-to-syntax-trees",
+ "typed-trees-to-checked-trees",
+]
+
+[[package]]
+name = "access-plans"
+version = "0.1.0"
+dependencies = [
+ "extents",
+ "language-core",
+ "layout-plans",
+ "sha2",
+]
+
+[[package]]
 name = "ambient-authority"
 version = "0.0.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -18,6 +82,57 @@ dependencies = [
 ]
 
 [[package]]
+name = "arena"
+version = "0.1.0"
+dependencies = [
+ "arc-swap",
+]
+
+[[package]]
+name = "artifacts"
+version = "0.1.0"
+dependencies = [
+ "calling-conventions",
+ "checked-trees",
+ "core",
+ "diagnostics",
+ "effects",
+ "executable-installation",
+ "extents",
+ "external-roots",
+ "layout-plans",
+ "semantic-vocabulary",
+ "serde_json",
+ "target",
+ "terminal-psi",
+ "typed-trees",
+]
+
+[[package]]
+name = "assigned-target-operations"
+version = "0.1.0"
+dependencies = [
+ "calling-conventions",
+ "semantic-vocabulary",
+ "target",
+ "target-operations",
+ "terminal-psi",
+]
+
+[[package]]
+name = "backend-plan"
+version = "0.1.0"
+dependencies = [
+ "arena",
+ "calling-conventions",
+ "checked-trees",
+ "function-identity",
+ "layout-plans",
+ "symbols",
+ "target",
+]
+
+[[package]]
 name = "bitflags"
 version = "2.13.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -30,6 +145,105 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3078c7629b62d3f0439517fa394996acacc5cbc91c5a20d8c658e77abd503a71"
 dependencies = [
  "generic-array",
+]
+
+[[package]]
+name = "boundary-applications"
+version = "0.1.0"
+dependencies = [
+ "effects",
+ "semantic-vocabulary",
+ "sha2",
+ "terminal-psi",
+]
+
+[[package]]
+name = "bounded-process"
+version = "0.1.0"
+dependencies = [
+ "command-group",
+ "libc",
+ "rustix",
+ "windows-sys 0.61.2",
+]
+
+[[package]]
+name = "build-declarations"
+version = "0.1.0"
+dependencies = [
+ "source-files-to-tokens",
+ "syntax-trees",
+ "tokens-to-syntax-trees",
+]
+
+[[package]]
+name = "build-evaluation"
+version = "0.1.0"
+dependencies = [
+ "build-output",
+ "build-time-evaluation",
+ "calling-conventions",
+ "checked-interpreter",
+ "diagnostics",
+ "effects",
+ "flow-effects",
+ "language-semantics",
+ "layout-plans",
+ "optimization-core",
+ "package-compilation",
+ "program-entry-plan",
+ "provider-planning",
+ "representation-planning",
+ "sha2",
+ "source",
+ "symbols",
+ "target",
+ "trust-model",
+ "typed-trees",
+ "typed-trees-to-checked-trees",
+]
+
+[[package]]
+name = "build-output"
+version = "0.1.0"
+dependencies = [
+ "checked-interpreter",
+ "diagnostics",
+ "sha2",
+]
+
+[[package]]
+name = "build-time-evaluation"
+version = "0.1.0"
+dependencies = [
+ "access-plans",
+ "arena",
+ "checked-interpreter",
+ "diagnostics",
+ "flow-effects",
+ "language-core",
+ "language-semantics",
+ "layout-plans",
+ "numerics",
+ "semantic-vocabulary",
+ "source",
+ "source-files-to-tokens",
+ "symbol-resolved-trees",
+ "symbol-resolved-trees-to-typed-trees",
+ "symbols",
+ "syntax-trees",
+ "syntax-trees-to-symbol-resolved-trees",
+ "tokens-to-syntax-trees",
+ "typed-trees",
+ "typed-trees-to-checked-trees",
+]
+
+[[package]]
+name = "calling-conventions"
+version = "0.1.0"
+dependencies = [
+ "sha2",
+ "target",
 ]
 
 [[package]]
@@ -81,6 +295,76 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9330f8b2ff13f34540b44e946ef35111825727b38d33286ef986142615121801"
 
 [[package]]
+name = "checked-interpreter"
+version = "0.1.0"
+dependencies = [
+ "arena",
+ "checked-trees",
+ "language-core",
+ "language-semantics",
+ "layout-plans",
+ "numerics",
+ "source",
+ "source-files-to-tokens",
+ "symbol-resolved-trees-to-typed-trees",
+ "symbols",
+ "syntax-trees-to-symbol-resolved-trees",
+ "tokens-to-syntax-trees",
+ "typed-trees",
+ "typed-trees-to-checked-trees",
+]
+
+[[package]]
+name = "checked-trees"
+version = "0.1.0"
+dependencies = [
+ "access-plans",
+ "arena",
+ "facts",
+ "flow-effects",
+ "language-core",
+ "language-semantics",
+ "numerics",
+ "semantic-vocabulary",
+ "sha2",
+ "source",
+ "symbols",
+ "typed-trees",
+]
+
+[[package]]
+name = "checked-trees-to-terminal-psi"
+version = "0.1.0"
+dependencies = [
+ "arena",
+ "checked-trees",
+ "facts",
+ "language-core",
+ "language-semantics",
+ "numerics",
+ "optimization",
+ "proof-admission",
+ "semantic-vocabulary",
+ "sha2",
+ "source",
+ "source-files-to-tokens",
+ "symbol-resolved-trees-to-typed-trees",
+ "symbols",
+ "syntax-trees",
+ "syntax-trees-to-symbol-resolved-trees",
+ "terminal-codec",
+ "terminal-fixed-fuel",
+ "terminal-fuel",
+ "terminal-interpreter",
+ "terminal-psi",
+ "terminal-verifier",
+ "tokens-to-syntax-trees",
+ "typed-trees",
+ "typed-trees-to-checked-trees",
+ "validation",
+]
+
+[[package]]
 name = "command-group"
 version = "5.0.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -89,6 +373,164 @@ dependencies = [
  "nix",
  "winapi",
 ]
+
+[[package]]
+name = "compilation-report"
+version = "0.1.0"
+dependencies = [
+ "backend-plan",
+ "boundary-applications",
+ "build-evaluation",
+ "calling-conventions",
+ "checked-trees-to-terminal-psi",
+ "effects",
+ "function-identity",
+ "image",
+ "native-artifact",
+ "optimization-core",
+ "package-compilation",
+ "program-entry-plan",
+ "semantic-vocabulary",
+ "sha2",
+ "target",
+ "target-operations",
+ "terminal-codec",
+ "terminal-psi",
+ "trust-model",
+]
+
+[[package]]
+name = "compiler"
+version = "0.1.0"
+dependencies = [
+ "abstract-operations-to-target-operations",
+ "access-plans",
+ "arena",
+ "artifacts",
+ "backend-plan",
+ "boundary-applications",
+ "bounded-process",
+ "build-declarations",
+ "build-evaluation",
+ "build-output",
+ "build-time-evaluation",
+ "calling-conventions",
+ "checked-interpreter",
+ "checked-trees",
+ "checked-trees-to-terminal-psi",
+ "compilation-report",
+ "core",
+ "diagnostics",
+ "effects",
+ "executable-installation",
+ "extents",
+ "external-roots",
+ "facts",
+ "flow-effects",
+ "image-emission",
+ "installation-evidence",
+ "language-core",
+ "language-semantics",
+ "layout",
+ "layout-plans",
+ "machine-code",
+ "machine-emission",
+ "numerics",
+ "object-file",
+ "optimization-core",
+ "package-compilation",
+ "program-entry-plan",
+ "proof-admission",
+ "provider-planning",
+ "representation-planning",
+ "selected-dispatch",
+ "semantic-vocabulary",
+ "serde",
+ "serde_json",
+ "sha2",
+ "source",
+ "source-files-to-tokens",
+ "symbol-resolved-trees",
+ "symbol-resolved-trees-to-typed-trees",
+ "symbols",
+ "syntax-trees",
+ "syntax-trees-to-symbol-resolved-trees",
+ "target",
+ "target-operations",
+ "target-operations-to-assigned-target-operations",
+ "task-plans",
+ "terminal-codec",
+ "terminal-interpreter",
+ "terminal-psi",
+ "terminal-psi-to-abstract-operations",
+ "terminal-psi-to-native-artifact",
+ "terminal-verifier",
+ "tokens",
+ "tokens-to-syntax-trees",
+ "trust-model",
+ "typed-trees",
+ "typed-trees-to-checked-trees",
+ "validation",
+ "visualizations",
+]
+
+[[package]]
+name = "component-candidate"
+version = "0.1.0"
+dependencies = [
+ "effects",
+ "image-emission",
+ "native-artifact",
+ "target",
+ "terminal-codec",
+]
+
+[[package]]
+name = "component-deployment"
+version = "0.1.0"
+dependencies = [
+ "calling-conventions",
+ "component-candidate",
+ "component-publication",
+ "effects",
+ "executable-installation",
+ "extents",
+ "external-roots",
+ "image-emission",
+ "installation-evidence",
+ "layout-plans",
+ "semantic-vocabulary",
+ "target",
+]
+
+[[package]]
+name = "component-publication"
+version = "0.1.0"
+dependencies = [
+ "calling-conventions",
+ "effects",
+ "executable-installation",
+ "extents",
+ "external-roots",
+ "function-identity",
+ "image-emission",
+ "installation-evidence",
+ "isa-x86_64",
+ "layout-plans",
+ "machine-code",
+ "machine-emission",
+ "semantic-vocabulary",
+ "symbols",
+ "target",
+ "target-operations",
+ "target-operations-to-assigned-target-operations",
+ "terminal-fuel",
+ "terminal-psi",
+]
+
+[[package]]
+name = "core"
+version = "0.1.0"
 
 [[package]]
 name = "cpufeatures"
@@ -110,6 +552,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "diagnostics"
+version = "0.1.0"
+dependencies = [
+ "source",
+]
+
+[[package]]
 name = "digest"
 version = "0.10.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -117,6 +566,28 @@ checksum = "9ed9a281f7bc9b7576e61468ba615a66a5c8cfdff42420a70aa82701a3b1e292"
 dependencies = [
  "block-buffer",
  "crypto-common",
+]
+
+[[package]]
+name = "effects"
+version = "0.1.0"
+dependencies = [
+ "diagnostics",
+ "flow-effects",
+ "installation-evidence",
+ "language-core",
+ "language-semantics",
+ "numerics",
+ "semantic-vocabulary",
+ "sha2",
+ "source-files-to-tokens",
+ "symbol-resolved-trees-to-typed-trees",
+ "symbols",
+ "syntax-trees",
+ "syntax-trees-to-symbol-resolved-trees",
+ "target",
+ "tokens-to-syntax-trees",
+ "typed-trees",
 ]
 
 [[package]]
@@ -130,6 +601,67 @@ dependencies = [
 ]
 
 [[package]]
+name = "executable-installation"
+version = "0.1.0"
+dependencies = [
+ "extents",
+ "installation-evidence",
+ "layout-plans",
+ "sha2",
+ "target",
+]
+
+[[package]]
+name = "extents"
+version = "0.1.0"
+
+[[package]]
+name = "external-roots"
+version = "0.1.0"
+dependencies = [
+ "calling-conventions",
+ "effects",
+ "executable-installation",
+ "extents",
+ "installation-evidence",
+ "isa-x86_64",
+ "language-semantics",
+ "layout-plans",
+ "numerics",
+ "program-entry-plan",
+ "proof-admission",
+ "semantic-vocabulary",
+ "sha2",
+ "symbols",
+ "target",
+ "terminal-codec",
+ "terminal-fixed-fuel",
+ "terminal-psi",
+ "terminal-verifier",
+]
+
+[[package]]
+name = "facts"
+version = "0.1.0"
+dependencies = [
+ "arena",
+ "language-semantics",
+ "numerics",
+ "symbols",
+ "typed-trees",
+]
+
+[[package]]
+name = "flow-effects"
+version = "0.1.0"
+dependencies = [
+ "arena",
+ "language-semantics",
+ "symbols",
+ "typed-trees",
+]
+
+[[package]]
 name = "fs-set-times"
 version = "0.20.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -138,6 +670,13 @@ dependencies = [
  "io-lifetimes 2.0.4",
  "rustix",
  "windows-sys 0.59.0",
+]
+
+[[package]]
+name = "function-identity"
+version = "0.1.0"
+dependencies = [
+ "symbols",
 ]
 
 [[package]]
@@ -157,6 +696,112 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7c447cff8c7f384a7d4f741cfcff32f75f3ad02b406432e8d6c878d56b1edf6b"
 dependencies = [
  "lazy_static",
+]
+
+[[package]]
+name = "image"
+version = "0.1.0"
+dependencies = [
+ "arena",
+ "calling-conventions",
+ "diagnostics",
+ "function-identity",
+ "object-file",
+ "sha2",
+ "target",
+]
+
+[[package]]
+name = "image-elf"
+version = "0.1.0"
+dependencies = [
+ "arena",
+ "diagnostics",
+ "image",
+ "object-file",
+ "target",
+]
+
+[[package]]
+name = "image-emission"
+version = "0.1.0"
+dependencies = [
+ "abstract-operations",
+ "abstract-operations-to-target-operations",
+ "assigned-target-operations",
+ "calling-conventions",
+ "checked-trees-to-terminal-psi",
+ "diagnostics",
+ "executable-installation",
+ "extents",
+ "function-identity",
+ "iced-x86",
+ "image",
+ "image-elf",
+ "image-macho",
+ "image-pe",
+ "installation-evidence",
+ "isa-aarch64",
+ "isa-x86_64",
+ "layout-plans",
+ "machine-code",
+ "machine-emission",
+ "object-file",
+ "proof-admission",
+ "semantic-vocabulary",
+ "sha2",
+ "source-files-to-tokens",
+ "symbol-resolved-trees-to-typed-trees",
+ "symbols",
+ "syntax-trees-to-symbol-resolved-trees",
+ "target",
+ "target-operations",
+ "target-operations-to-assigned-target-operations",
+ "task-plans",
+ "terminal-codec",
+ "terminal-fixed-fuel",
+ "terminal-fuel",
+ "terminal-psi",
+ "terminal-psi-to-abstract-operations",
+ "terminal-verifier",
+ "tokens-to-syntax-trees",
+ "typed-trees-to-checked-trees",
+ "x86-encoding",
+]
+
+[[package]]
+name = "image-macho"
+version = "0.1.0"
+dependencies = [
+ "arena",
+ "calling-conventions",
+ "diagnostics",
+ "image",
+ "object-file",
+ "sha2",
+ "target",
+]
+
+[[package]]
+name = "image-pe"
+version = "0.1.0"
+dependencies = [
+ "arena",
+ "calling-conventions",
+ "diagnostics",
+ "image",
+ "object-file",
+ "target",
+]
+
+[[package]]
+name = "installation-evidence"
+version = "0.1.0"
+dependencies = [
+ "semantic-vocabulary",
+ "sha2",
+ "target",
+ "terminal-psi",
 ]
 
 [[package]]
@@ -188,16 +833,104 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6a756c3fac73139e83f14c2d742155dd2b78d3ee56597b419a0579b7bdd6dd78"
 
 [[package]]
+name = "isa-aarch64"
+version = "0.1.0"
+dependencies = [
+ "calling-conventions",
+ "diagnostics",
+ "layout-plans",
+ "optimization-core",
+ "register-model",
+ "selected-instructions",
+ "semantic-vocabulary",
+ "target",
+]
+
+[[package]]
+name = "isa-x86_64"
+version = "0.1.0"
+dependencies = [
+ "calling-conventions",
+ "diagnostics",
+ "layout-plans",
+ "machine-code",
+ "optimization-core",
+ "optimization-unit",
+ "register-model",
+ "selected-instructions",
+ "semantic-vocabulary",
+ "target",
+]
+
+[[package]]
 name = "itoa"
 version = "1.0.18"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8f42a60cbdf9a97f5d2305f08a87dc4e09308d1276d28c869c684d7777685682"
 
 [[package]]
+name = "language-core"
+version = "0.1.0"
+
+[[package]]
+name = "language-semantics"
+version = "0.1.0"
+dependencies = [
+ "language-core",
+ "numerics",
+ "semantic-vocabulary",
+ "source",
+ "symbols",
+]
+
+[[package]]
+name = "layout"
+version = "0.1.0"
+dependencies = [
+ "arena",
+ "build-time-evaluation",
+ "calling-conventions",
+ "checked-trees",
+ "diagnostics",
+ "language-semantics",
+ "layout-plans",
+ "numerics",
+ "representation-selections",
+ "runtime-abi",
+ "source-files-to-tokens",
+ "symbol-resolved-trees-to-typed-trees",
+ "symbols",
+ "syntax-trees-to-symbol-resolved-trees",
+ "target",
+ "tokens-to-syntax-trees",
+ "typed-trees",
+]
+
+[[package]]
+name = "layout-plans"
+version = "0.1.0"
+
+[[package]]
 name = "lazy_static"
 version = "1.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "bbd2bcb4c963f2ddae06a2efc7e9f3591312473c50c6685e1f298068316e66fe"
+
+[[package]]
+name = "legalized-operations"
+version = "0.1.0"
+dependencies = [
+ "abstract-operations",
+ "calling-conventions",
+ "optimization-core",
+ "optimization-unit",
+ "semantic-vocabulary",
+ "sha2",
+ "target",
+ "target-operations",
+ "terminal-codec",
+ "terminal-psi",
+]
 
 [[package]]
 name = "libc"
@@ -212,6 +945,73 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "32a66949e030da00e8c7d4434b251670a91556f4144941d37452769c25d58a53"
 
 [[package]]
+name = "machine-code"
+version = "0.1.0"
+dependencies = [
+ "abstract-operations",
+ "calling-conventions",
+ "function-identity",
+ "optimization-core",
+ "optimization-unit",
+ "physical-instructions",
+ "register-homes",
+ "register-model",
+ "selected-instructions",
+ "semantic-vocabulary",
+ "sha2",
+ "target",
+ "target-operations",
+ "task-plans",
+ "terminal-psi",
+]
+
+[[package]]
+name = "machine-emission"
+version = "0.1.0"
+dependencies = [
+ "abstract-operations",
+ "abstract-operations-to-target-operations",
+ "assigned-target-operations",
+ "calling-conventions",
+ "checked-trees-to-terminal-psi",
+ "diagnostics",
+ "iced-x86",
+ "installation-evidence",
+ "isa-aarch64",
+ "isa-x86_64",
+ "machine-code",
+ "optimization-core",
+ "optimization-validation",
+ "physical-instructions",
+ "post-allocation-machine-to-frame-layout",
+ "post-allocation-machine-to-post-allocation-machine",
+ "post-allocation-machine-to-selected-form-encoding",
+ "proof-admission",
+ "register-homes-to-post-allocation-machine",
+ "register-model",
+ "selected-form-encoding-to-resolved-layout",
+ "selected-instructions",
+ "selected-instructions-to-register-homes",
+ "semantic-vocabulary",
+ "sha2",
+ "source-files-to-tokens",
+ "symbol-resolved-trees-to-typed-trees",
+ "syntax-trees-to-symbol-resolved-trees",
+ "target",
+ "target-operations",
+ "target-operations-to-assigned-target-operations",
+ "target-to-register-environment",
+ "task-plans",
+ "terminal-codec",
+ "terminal-fuel",
+ "terminal-psi",
+ "terminal-psi-to-abstract-operations",
+ "tokens-to-syntax-trees",
+ "typed-trees-to-checked-trees",
+ "x86-encoding",
+]
+
+[[package]]
 name = "maybe-owned"
 version = "0.3.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -222,6 +1022,34 @@ name = "memchr"
 version = "2.8.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "cf8baf1c55e62ffcace7a9f06f4bd9cd3f0c4beb022d3b367256b91b87513d98"
+
+[[package]]
+name = "native-artifact"
+version = "0.1.0"
+dependencies = [
+ "abstract-operations",
+ "boundary-applications",
+ "calling-conventions",
+ "effects",
+ "function-identity",
+ "image",
+ "image-emission",
+ "installation-evidence",
+ "isa-aarch64",
+ "isa-x86_64",
+ "machine-code",
+ "object-file",
+ "optimization-core",
+ "register-model",
+ "selected-instructions",
+ "selected-instructions-to-register-homes",
+ "semantic-vocabulary",
+ "sha2",
+ "target",
+ "target-operations",
+ "terminal-codec",
+ "terminal-psi",
+]
 
 [[package]]
 name = "nix"
@@ -235,1509 +1063,401 @@ dependencies = [
 ]
 
 [[package]]
+name = "numerics"
+version = "0.1.0"
+dependencies = [
+ "sha2",
+]
+
+[[package]]
+name = "object-file"
+version = "0.1.0"
+dependencies = [
+ "arena",
+ "core",
+ "function-identity",
+ "machine-code",
+ "machine-emission",
+ "optimization-core",
+ "selected-instructions",
+ "semantic-vocabulary",
+ "sha2",
+ "target",
+ "terminal-codec",
+ "terminal-psi",
+ "terminal-psi-to-abstract-operations",
+]
+
+[[package]]
 name = "omega"
 version = "0.1.0"
 dependencies = [
  "cap-std",
- "omega-compiler",
- "omega-core",
- "omega-package-compilation",
- "omega-package-manager",
- "omega-package-source",
- "omega-resolver-execution",
- "omega-target",
- "omega-trust-ledger",
- "psi-checked-interpreter",
- "psi-checked-trees-to-terminal",
- "psi-core",
- "psi-diagnostics",
- "psi-proof-admission",
- "psi-terminal",
- "psi-terminal-fixed-fuel",
- "psi-terminal-verifier",
-]
-
-[[package]]
-name = "omega-abstract-operations"
-version = "0.1.0"
-dependencies = [
- "psi-core",
- "psi-terminal",
-]
-
-[[package]]
-name = "omega-abstract-operations-optimizer"
-version = "0.1.0"
-dependencies = [
- "omega-abstract-operations",
- "omega-optimization-core",
- "omega-optimization-unit",
- "omega-optimization-validation",
- "omega-psi-to-abstract-operations",
- "psi-core",
- "psi-optimization",
- "psi-proof-admission",
- "psi-terminal",
- "psi-terminal-codec",
- "psi-terminal-fuel",
- "psi-terminal-semantics",
- "psi-terminal-verifier",
-]
-
-[[package]]
-name = "omega-abstract-operations-to-target-operations"
-version = "0.1.0"
-dependencies = [
- "omega-abstract-operations",
- "omega-abstract-operations-optimizer",
- "omega-calling-conventions",
- "omega-effects",
- "omega-function-identity",
- "omega-installation-evidence",
- "omega-psi-to-abstract-operations",
- "omega-target",
- "omega-target-operations",
- "psi-access-plans",
- "psi-checked-trees-to-terminal",
- "psi-core",
- "psi-proof-admission",
- "psi-source-files-to-tokens",
- "psi-symbol-resolved-trees-to-typed-trees",
- "psi-symbols",
- "psi-syntax-trees-to-symbol-resolved-trees",
- "psi-terminal",
- "psi-terminal-codec",
- "psi-tokens-to-syntax-trees",
- "psi-typed-trees-to-checked-trees",
+ "checked-interpreter",
+ "checked-trees-to-terminal-psi",
+ "compiler",
+ "core",
+ "diagnostics",
+ "package-compilation",
+ "package-manager",
+ "package-source",
+ "proof-admission",
+ "resolver-execution",
+ "semantic-vocabulary",
+ "target",
+ "terminal-fixed-fuel",
+ "terminal-psi",
+ "terminal-verifier",
+ "trust-ledger",
 ]
 
 [[package]]
 name = "omega-architecture-test"
 version = "0.1.0"
 dependencies = [
- "omega-effects",
- "psi-arena",
- "psi-diagnostics",
- "psi-effects",
- "psi-language-core",
- "psi-language-semantics",
- "psi-source-files-to-tokens",
- "psi-symbol-resolved-trees-to-typed-trees",
- "psi-symbols",
- "psi-syntax-trees",
- "psi-syntax-trees-to-symbol-resolved-trees",
- "psi-tokens-to-syntax-trees",
- "psi-typed-trees",
- "psi-typed-trees-to-checked-trees",
- "psi-validation",
+ "arena",
+ "diagnostics",
+ "effects",
+ "flow-effects",
+ "language-core",
+ "language-semantics",
  "serde_json",
-]
-
-[[package]]
-name = "omega-artifacts"
-version = "0.1.0"
-dependencies = [
- "omega-calling-conventions",
- "omega-core",
- "omega-effects",
- "omega-executable-installation",
- "omega-external-roots",
- "omega-target",
- "psi-checked-trees",
- "psi-core",
- "psi-diagnostics",
- "psi-extents",
- "psi-layout-plans",
- "psi-terminal",
- "psi-typed-trees",
- "serde_json",
-]
-
-[[package]]
-name = "omega-assigned-target-operations"
-version = "0.1.0"
-dependencies = [
- "omega-calling-conventions",
- "omega-target",
- "omega-target-operations",
- "psi-core",
- "psi-terminal",
-]
-
-[[package]]
-name = "omega-backend-plan"
-version = "0.1.0"
-dependencies = [
- "omega-calling-conventions",
- "omega-function-identity",
- "omega-target",
- "psi-arena",
- "psi-checked-trees",
- "psi-layout-plans",
- "psi-symbols",
-]
-
-[[package]]
-name = "omega-boundary-applications"
-version = "0.1.0"
-dependencies = [
- "omega-effects",
- "psi-core",
- "psi-terminal",
- "sha2",
-]
-
-[[package]]
-name = "omega-bounded-process"
-version = "0.1.0"
-dependencies = [
- "command-group",
- "libc",
- "rustix",
- "windows-sys 0.61.2",
-]
-
-[[package]]
-name = "omega-build-declarations"
-version = "0.1.0"
-dependencies = [
- "psi-source-files-to-tokens",
- "psi-syntax-trees",
- "psi-tokens-to-syntax-trees",
-]
-
-[[package]]
-name = "omega-build-evaluation"
-version = "0.1.0"
-dependencies = [
- "omega-build-output",
- "omega-calling-conventions",
- "omega-effects",
- "omega-optimization-core",
- "omega-package-compilation",
- "omega-program-entry-plan",
- "omega-provider-planning",
- "omega-representation-planning",
- "omega-target",
- "omega-trust-model",
- "psi-build-time-evaluation",
- "psi-checked-interpreter",
- "psi-diagnostics",
- "psi-effects",
- "psi-language-semantics",
- "psi-layout-plans",
- "psi-source",
- "psi-symbols",
- "psi-typed-trees",
- "psi-typed-trees-to-checked-trees",
- "sha2",
-]
-
-[[package]]
-name = "omega-build-output"
-version = "0.1.0"
-dependencies = [
- "psi-checked-interpreter",
- "psi-diagnostics",
- "sha2",
-]
-
-[[package]]
-name = "omega-calling-conventions"
-version = "0.1.0"
-dependencies = [
- "omega-target",
- "sha2",
-]
-
-[[package]]
-name = "omega-compilation-report"
-version = "0.1.0"
-dependencies = [
- "omega-backend-plan",
- "omega-boundary-applications",
- "omega-build-evaluation",
- "omega-calling-conventions",
- "omega-effects",
- "omega-function-identity",
- "omega-image",
- "omega-native-artifact",
- "omega-optimization-core",
- "omega-package-compilation",
- "omega-program-entry-plan",
- "omega-target",
- "omega-target-operations",
- "omega-trust-model",
- "psi-checked-trees-to-terminal",
- "psi-core",
- "psi-terminal",
- "psi-terminal-codec",
- "sha2",
-]
-
-[[package]]
-name = "omega-compiler"
-version = "0.1.0"
-dependencies = [
- "omega-abstract-operations-to-target-operations",
- "omega-artifacts",
- "omega-backend-plan",
- "omega-boundary-applications",
- "omega-bounded-process",
- "omega-build-declarations",
- "omega-build-evaluation",
- "omega-build-output",
- "omega-calling-conventions",
- "omega-compilation-report",
- "omega-core",
- "omega-effects",
- "omega-executable-installation",
- "omega-external-roots",
- "omega-image-emission",
- "omega-installation-evidence",
- "omega-layout",
- "omega-machine-code",
- "omega-machine-emission",
- "omega-object-file",
- "omega-optimization-core",
- "omega-package-compilation",
- "omega-program-entry-plan",
- "omega-provider-planning",
- "omega-psi-to-abstract-operations",
- "omega-representation-planning",
- "omega-selected-dispatch",
- "omega-target",
- "omega-target-operations",
- "omega-target-operations-to-assigned-target-operations",
- "omega-task-plans",
- "omega-terminal-psi-to-native-artifact",
- "omega-trust-model",
- "omega-visualizations",
- "psi-access-plans",
- "psi-arena",
- "psi-build-time-evaluation",
- "psi-checked-interpreter",
- "psi-checked-trees",
- "psi-checked-trees-to-terminal",
- "psi-core",
- "psi-diagnostics",
- "psi-effects",
- "psi-extents",
- "psi-facts",
- "psi-language-core",
- "psi-language-semantics",
- "psi-layout-plans",
- "psi-numerics",
- "psi-proof-admission",
- "psi-source",
- "psi-source-files-to-tokens",
- "psi-symbol-resolved-trees",
- "psi-symbol-resolved-trees-to-typed-trees",
- "psi-symbols",
- "psi-syntax-trees",
- "psi-syntax-trees-to-symbol-resolved-trees",
- "psi-terminal",
- "psi-terminal-codec",
- "psi-terminal-interpreter",
- "psi-terminal-verifier",
- "psi-tokens",
- "psi-tokens-to-syntax-trees",
- "psi-typed-trees",
- "psi-typed-trees-to-checked-trees",
- "psi-validation",
- "serde",
- "serde_json",
- "sha2",
-]
-
-[[package]]
-name = "omega-component-candidate"
-version = "0.1.0"
-dependencies = [
- "omega-effects",
- "omega-image-emission",
- "omega-native-artifact",
- "omega-target",
- "psi-terminal-codec",
-]
-
-[[package]]
-name = "omega-component-deployment"
-version = "0.1.0"
-dependencies = [
- "omega-calling-conventions",
- "omega-component-candidate",
- "omega-component-publication",
- "omega-effects",
- "omega-executable-installation",
- "omega-external-roots",
- "omega-image-emission",
- "omega-installation-evidence",
- "omega-target",
- "psi-core",
- "psi-extents",
- "psi-layout-plans",
-]
-
-[[package]]
-name = "omega-component-publication"
-version = "0.1.0"
-dependencies = [
- "omega-calling-conventions",
- "omega-effects",
- "omega-executable-installation",
- "omega-external-roots",
- "omega-function-identity",
- "omega-image-emission",
- "omega-installation-evidence",
- "omega-isa-x86_64",
- "omega-machine-code",
- "omega-machine-emission",
- "omega-target",
- "omega-target-operations",
- "omega-target-operations-to-assigned-target-operations",
- "psi-core",
- "psi-extents",
- "psi-layout-plans",
- "psi-symbols",
- "psi-terminal",
- "psi-terminal-fuel",
-]
-
-[[package]]
-name = "omega-core"
-version = "0.1.0"
-
-[[package]]
-name = "omega-effects"
-version = "0.1.0"
-dependencies = [
- "omega-installation-evidence",
- "omega-target",
- "psi-core",
- "psi-diagnostics",
- "psi-effects",
- "psi-language-core",
- "psi-language-semantics",
- "psi-numerics",
- "psi-source-files-to-tokens",
- "psi-symbol-resolved-trees-to-typed-trees",
- "psi-symbols",
- "psi-syntax-trees",
- "psi-syntax-trees-to-symbol-resolved-trees",
- "psi-tokens-to-syntax-trees",
- "psi-typed-trees",
- "sha2",
-]
-
-[[package]]
-name = "omega-executable-installation"
-version = "0.1.0"
-dependencies = [
- "omega-installation-evidence",
- "omega-target",
- "psi-extents",
- "psi-layout-plans",
- "sha2",
-]
-
-[[package]]
-name = "omega-external-roots"
-version = "0.1.0"
-dependencies = [
- "omega-calling-conventions",
- "omega-effects",
- "omega-executable-installation",
- "omega-installation-evidence",
- "omega-isa-x86_64",
- "omega-program-entry-plan",
- "omega-target",
- "psi-core",
- "psi-extents",
- "psi-language-semantics",
- "psi-layout-plans",
- "psi-numerics",
- "psi-proof-admission",
- "psi-symbols",
- "psi-terminal",
- "psi-terminal-codec",
- "psi-terminal-fixed-fuel",
- "psi-terminal-verifier",
- "sha2",
-]
-
-[[package]]
-name = "omega-function-identity"
-version = "0.1.0"
-dependencies = [
- "psi-symbols",
-]
-
-[[package]]
-name = "omega-image"
-version = "0.1.0"
-dependencies = [
- "omega-calling-conventions",
- "omega-function-identity",
- "omega-object-file",
- "omega-target",
- "psi-arena",
- "psi-diagnostics",
- "sha2",
-]
-
-[[package]]
-name = "omega-image-elf"
-version = "0.1.0"
-dependencies = [
- "omega-image",
- "omega-object-file",
- "omega-target",
- "psi-arena",
- "psi-diagnostics",
-]
-
-[[package]]
-name = "omega-image-emission"
-version = "0.1.0"
-dependencies = [
- "iced-x86",
- "omega-abstract-operations",
- "omega-abstract-operations-to-target-operations",
- "omega-assigned-target-operations",
- "omega-calling-conventions",
- "omega-executable-installation",
- "omega-function-identity",
- "omega-image",
- "omega-image-elf",
- "omega-image-macho",
- "omega-image-pe",
- "omega-installation-evidence",
- "omega-isa-aarch64",
- "omega-isa-x86_64",
- "omega-machine-code",
- "omega-machine-emission",
- "omega-object-file",
- "omega-psi-to-abstract-operations",
- "omega-target",
- "omega-target-operations",
- "omega-target-operations-to-assigned-target-operations",
- "omega-task-plans",
- "omega-x86-encoding",
- "psi-checked-trees-to-terminal",
- "psi-core",
- "psi-diagnostics",
- "psi-extents",
- "psi-layout-plans",
- "psi-proof-admission",
- "psi-source-files-to-tokens",
- "psi-symbol-resolved-trees-to-typed-trees",
- "psi-symbols",
- "psi-syntax-trees-to-symbol-resolved-trees",
- "psi-terminal",
- "psi-terminal-codec",
- "psi-terminal-fixed-fuel",
- "psi-terminal-fuel",
- "psi-terminal-verifier",
- "psi-tokens-to-syntax-trees",
- "psi-typed-trees-to-checked-trees",
- "sha2",
-]
-
-[[package]]
-name = "omega-image-macho"
-version = "0.1.0"
-dependencies = [
- "omega-calling-conventions",
- "omega-image",
- "omega-object-file",
- "omega-target",
- "psi-arena",
- "psi-diagnostics",
- "sha2",
-]
-
-[[package]]
-name = "omega-image-pe"
-version = "0.1.0"
-dependencies = [
- "omega-calling-conventions",
- "omega-image",
- "omega-object-file",
- "omega-target",
- "psi-arena",
- "psi-diagnostics",
-]
-
-[[package]]
-name = "omega-installation-evidence"
-version = "0.1.0"
-dependencies = [
- "omega-target",
- "psi-core",
- "psi-terminal",
- "sha2",
-]
-
-[[package]]
-name = "omega-isa-aarch64"
-version = "0.1.0"
-dependencies = [
- "omega-calling-conventions",
- "omega-optimization-core",
- "omega-register-model",
- "omega-selected-instructions",
- "omega-target",
- "psi-core",
- "psi-diagnostics",
- "psi-layout-plans",
-]
-
-[[package]]
-name = "omega-isa-x86_64"
-version = "0.1.0"
-dependencies = [
- "omega-calling-conventions",
- "omega-machine-code",
- "omega-optimization-core",
- "omega-optimization-unit",
- "omega-register-model",
- "omega-selected-instructions",
- "omega-target",
- "psi-core",
- "psi-diagnostics",
- "psi-layout-plans",
-]
-
-[[package]]
-name = "omega-layout"
-version = "0.1.0"
-dependencies = [
- "omega-calling-conventions",
- "omega-representation-selections",
- "omega-runtime-abi",
- "omega-target",
- "psi-arena",
- "psi-build-time-evaluation",
- "psi-checked-trees",
- "psi-diagnostics",
- "psi-language-semantics",
- "psi-layout-plans",
- "psi-numerics",
- "psi-source-files-to-tokens",
- "psi-symbol-resolved-trees-to-typed-trees",
- "psi-symbols",
- "psi-syntax-trees-to-symbol-resolved-trees",
- "psi-tokens-to-syntax-trees",
- "psi-typed-trees",
-]
-
-[[package]]
-name = "omega-legalized-operations"
-version = "0.1.0"
-dependencies = [
- "omega-abstract-operations",
- "omega-calling-conventions",
- "omega-optimization-core",
- "omega-optimization-unit",
- "omega-target",
- "omega-target-operations",
- "psi-core",
- "psi-terminal",
- "psi-terminal-codec",
- "sha2",
-]
-
-[[package]]
-name = "omega-machine-code"
-version = "0.1.0"
-dependencies = [
- "omega-abstract-operations",
- "omega-calling-conventions",
- "omega-function-identity",
- "omega-optimization-core",
- "omega-optimization-unit",
- "omega-physical-instructions",
- "omega-register-homes",
- "omega-register-model",
- "omega-selected-instructions",
- "omega-target",
- "omega-target-operations",
- "omega-task-plans",
- "psi-core",
- "psi-terminal",
- "sha2",
-]
-
-[[package]]
-name = "omega-machine-emission"
-version = "0.1.0"
-dependencies = [
- "iced-x86",
- "omega-abstract-operations",
- "omega-abstract-operations-to-target-operations",
- "omega-assigned-target-operations",
- "omega-calling-conventions",
- "omega-installation-evidence",
- "omega-isa-aarch64",
- "omega-isa-x86_64",
- "omega-machine-code",
- "omega-optimization-core",
- "omega-optimization-validation",
- "omega-physical-instructions",
- "omega-post-allocation-machine-to-frame-layout",
- "omega-post-allocation-machine-to-optimized-machine",
- "omega-post-allocation-machine-to-selected-form-encoding",
- "omega-psi-to-abstract-operations",
- "omega-register-homes-to-post-allocation-machine",
- "omega-register-model",
- "omega-selected-form-encoding-to-resolved-layout",
- "omega-selected-instructions",
- "omega-selected-instructions-to-register-homes",
- "omega-target",
- "omega-target-operations",
- "omega-target-operations-to-assigned-target-operations",
- "omega-target-to-register-environment",
- "omega-task-plans",
- "omega-x86-encoding",
- "psi-checked-trees-to-terminal",
- "psi-core",
- "psi-diagnostics",
- "psi-proof-admission",
- "psi-source-files-to-tokens",
- "psi-symbol-resolved-trees-to-typed-trees",
- "psi-syntax-trees-to-symbol-resolved-trees",
- "psi-terminal",
- "psi-terminal-codec",
- "psi-terminal-fuel",
- "psi-tokens-to-syntax-trees",
- "psi-typed-trees-to-checked-trees",
- "sha2",
-]
-
-[[package]]
-name = "omega-native-artifact"
-version = "0.1.0"
-dependencies = [
- "omega-abstract-operations",
- "omega-boundary-applications",
- "omega-calling-conventions",
- "omega-effects",
- "omega-function-identity",
- "omega-image",
- "omega-image-emission",
- "omega-installation-evidence",
- "omega-isa-aarch64",
- "omega-isa-x86_64",
- "omega-machine-code",
- "omega-object-file",
- "omega-optimization-core",
- "omega-register-model",
- "omega-selected-instructions",
- "omega-selected-instructions-to-register-homes",
- "omega-target",
- "omega-target-operations",
- "psi-core",
- "psi-terminal",
- "psi-terminal-codec",
- "sha2",
+ "source-files-to-tokens",
+ "symbol-resolved-trees-to-typed-trees",
+ "symbols",
+ "syntax-trees",
+ "syntax-trees-to-symbol-resolved-trees",
+ "tokens-to-syntax-trees",
+ "typed-trees",
+ "typed-trees-to-checked-trees",
+ "validation",
 ]
 
 [[package]]
 name = "omega-native-differential-test"
 version = "0.1.0"
 dependencies = [
- "omega-abstract-operations",
- "omega-abstract-operations-optimizer",
- "omega-abstract-operations-to-target-operations",
- "omega-artifacts",
- "omega-assigned-target-operations",
- "omega-calling-conventions",
- "omega-compiler",
- "omega-component-candidate",
- "omega-component-deployment",
- "omega-component-publication",
- "omega-effects",
- "omega-executable-installation",
- "omega-external-roots",
- "omega-image-emission",
- "omega-installation-evidence",
- "omega-isa-aarch64",
- "omega-isa-x86_64",
- "omega-legalized-operations",
- "omega-machine-code",
- "omega-machine-emission",
- "omega-native-artifact",
- "omega-object-file",
- "omega-optimization-core",
- "omega-optimization-unit",
- "omega-optimization-validation",
- "omega-physical-instructions",
- "omega-post-allocation-machine-to-frame-layout",
- "omega-post-allocation-machine-to-optimized-machine",
- "omega-post-allocation-machine-to-selected-form-encoding",
- "omega-program-entry-plan",
- "omega-provider-planning",
- "omega-psi-to-abstract-operations",
- "omega-register-homes-to-post-allocation-machine",
- "omega-register-model",
- "omega-selected-form-encoding-to-resolved-layout",
- "omega-selected-instructions",
- "omega-selected-instructions-to-machine-effects",
- "omega-selected-instructions-to-register-homes",
- "omega-target",
- "omega-target-operations",
- "omega-target-operations-to-assigned-target-operations",
- "omega-target-operations-to-selected-instructions",
- "omega-target-to-register-environment",
- "omega-terminal-psi-to-native-artifact",
- "omega-x86-encoding",
- "psi-arena",
- "psi-checked-interpreter",
- "psi-checked-trees",
- "psi-checked-trees-to-terminal",
- "psi-core",
- "psi-diagnostics",
- "psi-extents",
- "psi-language-core",
- "psi-language-semantics",
- "psi-layout-plans",
- "psi-numerics",
- "psi-proof-admission",
- "psi-source-files-to-tokens",
- "psi-symbol-resolved-trees-to-typed-trees",
- "psi-symbols",
- "psi-syntax-trees-to-symbol-resolved-trees",
- "psi-terminal",
- "psi-terminal-codec",
- "psi-terminal-fixed-fuel",
- "psi-terminal-fuel",
- "psi-terminal-interpreter",
- "psi-terminal-verifier",
- "psi-tokens-to-syntax-trees",
- "psi-typed-trees",
- "psi-typed-trees-to-checked-trees",
+ "abstract-operations",
+ "abstract-operations-to-abstract-operations",
+ "abstract-operations-to-target-operations",
+ "arena",
+ "artifacts",
+ "assigned-target-operations",
+ "calling-conventions",
+ "checked-interpreter",
+ "checked-trees",
+ "checked-trees-to-terminal-psi",
+ "compiler",
+ "component-candidate",
+ "component-deployment",
+ "component-publication",
+ "diagnostics",
+ "effects",
+ "executable-installation",
+ "extents",
+ "external-roots",
+ "image-emission",
+ "installation-evidence",
+ "isa-aarch64",
+ "isa-x86_64",
+ "language-core",
+ "language-semantics",
+ "layout-plans",
+ "legalized-operations",
+ "machine-code",
+ "machine-emission",
+ "native-artifact",
+ "numerics",
+ "object-file",
+ "optimization-core",
+ "optimization-unit",
+ "optimization-validation",
+ "physical-instructions",
+ "post-allocation-machine-to-frame-layout",
+ "post-allocation-machine-to-post-allocation-machine",
+ "post-allocation-machine-to-selected-form-encoding",
+ "program-entry-plan",
+ "proof-admission",
+ "provider-planning",
+ "register-homes-to-post-allocation-machine",
+ "register-model",
+ "selected-form-encoding-to-resolved-layout",
+ "selected-instructions",
+ "selected-instructions-to-register-homes",
+ "semantic-vocabulary",
  "sha2",
+ "source-files-to-tokens",
+ "symbol-resolved-trees-to-typed-trees",
+ "symbols",
+ "syntax-trees-to-symbol-resolved-trees",
+ "target",
+ "target-operations",
+ "target-operations-to-assigned-target-operations",
+ "target-operations-to-selected-instructions",
+ "target-to-register-environment",
+ "terminal-codec",
+ "terminal-fixed-fuel",
+ "terminal-fuel",
+ "terminal-interpreter",
+ "terminal-psi",
+ "terminal-psi-to-abstract-operations",
+ "terminal-psi-to-native-artifact",
+ "terminal-verifier",
+ "tokens-to-syntax-trees",
+ "typed-trees",
+ "typed-trees-to-checked-trees",
+ "x86-encoding",
 ]
-
-[[package]]
-name = "omega-object-file"
-version = "0.1.0"
-dependencies = [
- "omega-core",
- "omega-function-identity",
- "omega-machine-code",
- "omega-machine-emission",
- "omega-optimization-core",
- "omega-psi-to-abstract-operations",
- "omega-selected-instructions",
- "omega-target",
- "psi-arena",
- "psi-core",
- "psi-terminal",
- "psi-terminal-codec",
- "sha2",
-]
-
-[[package]]
-name = "omega-optimization-core"
-version = "0.1.0"
-dependencies = [
- "psi-optimization",
- "sha2",
-]
-
-[[package]]
-name = "omega-optimization-policy-offline"
-version = "0.1.0"
-dependencies = [
- "omega-optimization-core",
- "sha2",
-]
-
-[[package]]
-name = "omega-optimization-unit"
-version = "0.1.0"
-dependencies = [
- "omega-abstract-operations",
- "omega-optimization-core",
- "psi-core",
- "psi-terminal",
-]
-
-[[package]]
-name = "omega-optimization-validation"
-version = "0.1.0"
-dependencies = [
- "omega-abstract-operations",
- "omega-optimization-core",
- "omega-optimization-unit",
- "omega-psi-to-abstract-operations",
- "psi-checked-trees-to-terminal",
- "psi-core",
- "psi-language-semantics",
- "psi-proof-admission",
- "psi-source-files-to-tokens",
- "psi-symbol-resolved-trees-to-typed-trees",
- "psi-syntax-trees-to-symbol-resolved-trees",
- "psi-terminal",
- "psi-terminal-codec",
- "psi-terminal-fuel",
- "psi-terminal-semantics",
- "psi-terminal-verifier",
- "psi-tokens-to-syntax-trees",
- "psi-typed-trees-to-checked-trees",
-]
-
-[[package]]
-name = "omega-package-advisory"
-version = "0.1.0"
-dependencies = [
- "omega-package-manager",
-]
-
-[[package]]
-name = "omega-package-compilation"
-version = "0.1.0"
-dependencies = [
- "omega-build-declarations",
- "omega-build-output",
- "omega-effects",
- "omega-target",
- "psi-build-time-evaluation",
- "psi-checked-interpreter",
- "psi-checked-trees",
- "psi-core",
- "psi-diagnostics",
- "psi-source",
- "sha2",
-]
-
-[[package]]
-name = "omega-package-evidence"
-version = "0.1.0"
-dependencies = [
- "omega-build-evaluation",
- "omega-calling-conventions",
- "omega-compiler",
- "omega-effects",
- "omega-layout",
- "omega-package-compilation",
- "omega-provider-planning",
- "omega-representation-planning",
- "omega-selected-dispatch",
- "omega-target",
- "omega-trust-model",
- "psi-arena",
- "psi-checked-trees",
- "psi-core",
- "psi-diagnostics",
- "psi-effects",
- "psi-facts",
- "psi-language-core",
- "psi-language-semantics",
- "psi-numerics",
- "psi-source",
- "psi-source-files-to-tokens",
- "psi-symbol-resolved-trees-to-typed-trees",
- "psi-symbols",
- "psi-syntax-trees-to-symbol-resolved-trees",
- "psi-tokens-to-syntax-trees",
- "psi-typed-trees",
- "psi-typed-trees-to-checked-trees",
- "psi-validation",
- "sha2",
-]
-
-[[package]]
-name = "omega-package-manager"
-version = "0.1.0"
-dependencies = [
- "cap-fs-ext",
- "cap-std",
- "omega-boundary-applications",
- "omega-build-declarations",
- "omega-build-evaluation",
- "omega-compiler",
- "omega-effects",
- "omega-optimization-core",
- "omega-package-compilation",
- "omega-package-evidence",
- "omega-package-source",
- "omega-platform-custody",
- "omega-target",
- "omega-terminal-psi-to-native-artifact",
- "psi-arena",
- "psi-checked-interpreter",
- "psi-core",
- "psi-diagnostics",
- "psi-language-semantics",
- "psi-proof-admission",
- "psi-source",
- "psi-source-files-to-tokens",
- "psi-syntax-trees",
- "psi-tokens",
- "psi-tokens-to-syntax-trees",
- "sha2",
-]
-
-[[package]]
-name = "omega-package-source"
-version = "0.1.0"
-dependencies = [
- "cap-fs-ext",
- "cap-std",
- "nix",
- "omega-bounded-process",
- "omega-platform-custody",
- "omega-resolver-execution",
- "sha1-checked",
- "sha2",
-]
-
-[[package]]
-name = "omega-physical-instructions"
-version = "0.1.0"
-dependencies = [
- "omega-optimization-core",
- "omega-optimization-unit",
- "omega-register-homes",
- "omega-register-model",
- "omega-selected-instructions",
- "omega-target",
- "omega-target-operations",
- "psi-core",
- "psi-terminal",
- "sha2",
-]
-
-[[package]]
-name = "omega-platform-custody"
-version = "0.1.0"
-dependencies = [
- "cap-fs-ext",
- "cap-std",
-]
-
-[[package]]
-name = "omega-post-allocation-machine-to-frame-layout"
-version = "0.1.0"
-dependencies = [
- "omega-machine-code",
- "omega-optimization-core",
- "omega-physical-instructions",
- "omega-register-homes-to-post-allocation-machine",
- "omega-register-model",
- "omega-selected-instructions",
- "omega-selected-instructions-to-register-homes",
- "omega-target",
- "omega-target-to-register-environment",
- "psi-core",
- "sha2",
-]
-
-[[package]]
-name = "omega-post-allocation-machine-to-optimized-machine"
-version = "0.1.0"
-dependencies = [
- "omega-isa-aarch64",
- "omega-isa-x86_64",
- "omega-optimization-core",
- "omega-optimization-unit",
- "omega-physical-instructions",
- "omega-register-homes-to-post-allocation-machine",
- "omega-register-model",
- "omega-selected-instructions",
- "omega-selected-instructions-to-register-homes",
- "omega-target",
- "omega-target-operations",
- "psi-core",
- "psi-terminal",
- "sha2",
-]
-
-[[package]]
-name = "omega-post-allocation-machine-to-selected-form-encoding"
-version = "0.1.0"
-dependencies = [
- "omega-calling-conventions",
- "omega-isa-aarch64",
- "omega-isa-x86_64",
- "omega-machine-code",
- "omega-optimization-core",
- "omega-physical-instructions",
- "omega-post-allocation-machine-to-optimized-machine",
- "omega-register-homes-to-post-allocation-machine",
- "omega-register-model",
- "omega-selected-instructions",
- "omega-selected-instructions-to-register-homes",
- "omega-target",
- "psi-core",
- "sha2",
-]
-
-[[package]]
-name = "omega-program-entry-plan"
-version = "0.1.0"
-dependencies = [
- "omega-calling-conventions",
- "omega-effects",
- "omega-executable-installation",
- "omega-function-identity",
- "omega-isa-aarch64",
- "omega-isa-x86_64",
- "omega-layout",
- "omega-target",
- "psi-arena",
- "psi-checked-trees",
- "psi-diagnostics",
- "psi-language-semantics",
- "psi-layout-plans",
- "psi-symbols",
- "sha2",
-]
-
-[[package]]
-name = "omega-provider-planning"
-version = "0.1.0"
-dependencies = [
- "omega-backend-plan",
- "omega-calling-conventions",
- "omega-effects",
- "omega-executable-installation",
- "omega-external-roots",
- "omega-layout",
- "omega-package-compilation",
- "omega-program-entry-plan",
- "omega-representation-planning",
- "omega-target",
- "omega-task-plans",
- "omega-trust-model",
- "omega-visualizations",
- "psi-arena",
- "psi-build-time-evaluation",
- "psi-checked-trees",
- "psi-core",
- "psi-diagnostics",
- "psi-effects",
- "psi-facts",
- "psi-language-core",
- "psi-language-semantics",
- "psi-layout-plans",
- "psi-numerics",
- "psi-source",
- "psi-source-files-to-tokens",
- "psi-symbol-resolved-trees-to-typed-trees",
- "psi-symbols",
- "psi-syntax-trees-to-symbol-resolved-trees",
- "psi-tokens-to-syntax-trees",
- "psi-typed-trees",
- "psi-typed-trees-to-checked-trees",
- "psi-validation",
- "sha2",
-]
-
-[[package]]
-name = "omega-psi-to-abstract-operations"
-version = "0.1.0"
-dependencies = [
- "omega-abstract-operations",
- "omega-installation-evidence",
- "omega-optimization-unit",
- "omega-optimization-validation",
- "psi-checked-trees-to-terminal",
- "psi-core",
- "psi-proof-admission",
- "psi-source-files-to-tokens",
- "psi-symbol-resolved-trees-to-typed-trees",
- "psi-syntax-trees-to-symbol-resolved-trees",
- "psi-terminal",
- "psi-terminal-codec",
- "psi-terminal-fixed-fuel",
- "psi-terminal-fuel",
- "psi-terminal-interpreter",
- "psi-terminal-verifier",
- "psi-tokens-to-syntax-trees",
- "psi-typed-trees-to-checked-trees",
-]
-
-[[package]]
-name = "omega-register-homes"
-version = "0.1.0"
-dependencies = [
- "omega-register-model",
- "omega-selected-instructions",
- "psi-core",
- "sha2",
-]
-
-[[package]]
-name = "omega-register-homes-to-post-allocation-machine"
-version = "0.1.0"
-dependencies = [
- "omega-isa-x86_64",
- "omega-optimization-core",
- "omega-physical-instructions",
- "omega-register-model",
- "omega-selected-instructions",
- "omega-selected-instructions-to-machine-effects",
- "omega-selected-instructions-to-register-homes",
- "omega-target-to-register-environment",
- "psi-core",
-]
-
-[[package]]
-name = "omega-register-model"
-version = "0.1.0"
-dependencies = [
- "omega-target",
- "sha2",
-]
-
-[[package]]
-name = "omega-representation-planning"
-version = "0.1.0"
-dependencies = [
- "omega-representation-selections",
- "psi-diagnostics",
- "psi-language-semantics",
- "psi-source",
- "psi-symbols",
- "psi-typed-trees",
- "psi-typed-trees-to-checked-trees",
-]
-
-[[package]]
-name = "omega-representation-selections"
-version = "0.1.0"
-dependencies = [
- "psi-source",
- "psi-symbols",
- "psi-typed-trees",
- "sha2",
-]
-
-[[package]]
-name = "omega-resolver-execution"
-version = "0.1.0"
-dependencies = [
- "omega-bounded-process",
-]
-
-[[package]]
-name = "omega-runtime-abi"
-version = "0.1.0"
-dependencies = [
- "omega-target",
-]
-
-[[package]]
-name = "omega-selected-dispatch"
-version = "0.1.0"
-dependencies = [
- "omega-effects",
- "omega-package-compilation",
- "omega-program-entry-plan",
- "omega-provider-planning",
- "psi-arena",
- "psi-checked-trees",
- "psi-core",
- "psi-diagnostics",
- "psi-language-core",
- "psi-language-semantics",
- "psi-numerics",
- "psi-source",
- "psi-source-files-to-tokens",
- "psi-symbol-resolved-trees-to-typed-trees",
- "psi-symbols",
- "psi-syntax-trees-to-symbol-resolved-trees",
- "psi-tokens-to-syntax-trees",
- "psi-typed-trees",
- "psi-typed-trees-to-checked-trees",
- "psi-validation",
-]
-
-[[package]]
-name = "omega-selected-form-encoding-to-resolved-layout"
-version = "0.1.0"
-dependencies = [
- "omega-calling-conventions",
- "omega-isa-aarch64",
- "omega-isa-x86_64",
- "omega-machine-code",
- "omega-optimization-core",
- "omega-physical-instructions",
- "omega-post-allocation-machine-to-optimized-machine",
- "omega-post-allocation-machine-to-selected-form-encoding",
- "omega-register-homes-to-post-allocation-machine",
- "omega-register-model",
- "omega-selected-instructions",
- "omega-selected-instructions-to-register-homes",
- "omega-target",
- "psi-core",
- "sha2",
-]
-
-[[package]]
-name = "omega-selected-instructions"
-version = "0.1.0"
-dependencies = [
- "omega-abstract-operations",
- "omega-calling-conventions",
- "omega-legalized-operations",
- "omega-optimization-core",
- "omega-optimization-unit",
- "omega-register-model",
- "omega-target",
- "omega-target-operations",
- "psi-core",
- "psi-terminal",
- "sha2",
-]
-
-[[package]]
-name = "omega-selected-instructions-to-machine-effects"
-version = "0.1.0"
-dependencies = [
- "omega-isa-aarch64",
- "omega-isa-x86_64",
- "omega-register-model",
- "omega-selected-instructions",
- "omega-selected-instructions-to-register-homes",
- "omega-target",
- "omega-target-to-register-environment",
- "psi-core",
-]
-
-[[package]]
-name = "omega-selected-instructions-to-register-homes"
-version = "0.1.0"
-dependencies = [
- "omega-abstract-operations",
- "omega-abstract-operations-to-target-operations",
- "omega-calling-conventions",
- "omega-isa-aarch64",
- "omega-isa-x86_64",
- "omega-legalized-operations",
- "omega-optimization-core",
- "omega-optimization-unit",
- "omega-register-homes",
- "omega-register-model",
- "omega-selected-instructions",
- "omega-target",
- "omega-target-operations",
- "omega-target-operations-to-selected-instructions",
- "omega-target-to-register-environment",
- "psi-core",
- "psi-terminal",
- "psi-terminal-codec",
- "sha2",
-]
-
-[[package]]
-name = "omega-target"
-version = "0.1.0"
-dependencies = [
- "psi-diagnostics",
- "sha2",
-]
-
-[[package]]
-name = "omega-target-operations"
-version = "0.1.0"
-dependencies = [
- "omega-abstract-operations",
- "omega-calling-conventions",
- "omega-function-identity",
- "omega-target",
- "omega-task-plans",
- "psi-core",
- "psi-terminal",
-]
-
-[[package]]
-name = "omega-target-operations-to-assigned-target-operations"
-version = "0.1.0"
-dependencies = [
- "omega-abstract-operations-to-target-operations",
- "omega-assigned-target-operations",
- "omega-calling-conventions",
- "omega-function-identity",
- "omega-psi-to-abstract-operations",
- "omega-runtime-abi",
- "omega-target",
- "omega-target-operations",
- "omega-task-plans",
- "psi-checked-trees-to-terminal",
- "psi-core",
- "psi-proof-admission",
- "psi-source-files-to-tokens",
- "psi-symbol-resolved-trees-to-typed-trees",
- "psi-symbols",
- "psi-syntax-trees-to-symbol-resolved-trees",
- "psi-terminal",
- "psi-terminal-codec",
- "psi-tokens-to-syntax-trees",
- "psi-typed-trees-to-checked-trees",
-]
-
-[[package]]
-name = "omega-target-operations-to-selected-instructions"
-version = "0.1.0"
-dependencies = [
- "omega-abstract-operations",
- "omega-abstract-operations-to-target-operations",
- "omega-calling-conventions",
- "omega-isa-x86_64",
- "omega-legalized-operations",
- "omega-optimization-core",
- "omega-optimization-unit",
- "omega-optimization-validation",
- "omega-register-model",
- "omega-selected-instructions",
- "omega-target",
- "omega-target-operations",
- "omega-target-to-register-environment",
- "psi-core",
- "psi-terminal",
-]
-
-[[package]]
-name = "omega-target-to-register-environment"
-version = "0.1.0"
-dependencies = [
- "omega-isa-aarch64",
- "omega-isa-x86_64",
- "omega-register-model",
- "omega-selected-instructions",
- "omega-target",
- "omega-target-operations",
-]
-
-[[package]]
-name = "omega-task-plans"
-version = "0.1.0"
-dependencies = [
- "psi-core",
- "psi-symbols",
- "sha2",
-]
-
-[[package]]
-name = "omega-terminal-psi-to-native-artifact"
-version = "0.1.0"
-dependencies = [
- "omega-abstract-operations",
- "omega-abstract-operations-optimizer",
- "omega-abstract-operations-to-target-operations",
- "omega-assigned-target-operations",
- "omega-boundary-applications",
- "omega-calling-conventions",
- "omega-effects",
- "omega-function-identity",
- "omega-image-emission",
- "omega-installation-evidence",
- "omega-isa-aarch64",
- "omega-isa-x86_64",
- "omega-machine-code",
- "omega-machine-emission",
- "omega-native-artifact",
- "omega-object-file",
- "omega-optimization-core",
- "omega-optimization-validation",
- "omega-post-allocation-machine-to-frame-layout",
- "omega-post-allocation-machine-to-optimized-machine",
- "omega-program-entry-plan",
- "omega-provider-planning",
- "omega-psi-to-abstract-operations",
- "omega-register-homes-to-post-allocation-machine",
- "omega-selected-dispatch",
- "omega-selected-form-encoding-to-resolved-layout",
- "omega-selected-instructions",
- "omega-selected-instructions-to-register-homes",
- "omega-target",
- "omega-target-operations",
- "omega-target-operations-to-assigned-target-operations",
- "omega-target-operations-to-selected-instructions",
- "omega-target-to-register-environment",
- "omega-task-plans",
- "psi-checked-trees",
- "psi-checked-trees-to-terminal",
- "psi-core",
- "psi-diagnostics",
- "psi-language-semantics",
- "psi-numerics",
- "psi-optimization",
- "psi-proof-admission",
- "psi-source-files-to-tokens",
- "psi-symbol-resolved-trees-to-typed-trees",
- "psi-symbols",
- "psi-syntax-trees-to-symbol-resolved-trees",
- "psi-terminal",
- "psi-terminal-codec",
- "psi-terminal-fuel",
- "psi-terminal-interpreter",
- "psi-terminal-verifier",
- "psi-tokens-to-syntax-trees",
- "psi-typed-trees-to-checked-trees",
- "sha2",
-]
-
-[[package]]
-name = "omega-trust-ledger"
-version = "0.1.0"
-dependencies = [
- "omega-compiler",
- "omega-effects",
- "omega-trust-model",
- "psi-diagnostics",
-]
-
-[[package]]
-name = "omega-trust-model"
-version = "0.1.0"
-dependencies = [
- "omega-artifacts",
- "omega-effects",
- "omega-target",
- "psi-checked-trees",
- "psi-core",
- "psi-diagnostics",
- "psi-language-semantics",
- "psi-source",
- "psi-symbols",
- "psi-typed-trees",
- "psi-typed-trees-to-checked-trees",
- "sha2",
-]
-
-[[package]]
-name = "omega-visualizations"
-version = "0.1.0"
-dependencies = [
- "omega-effects",
- "omega-target",
- "omega-task-plans",
- "psi-arena",
- "psi-checked-trees",
- "psi-core",
- "psi-effects",
- "psi-facts",
- "psi-language-semantics",
- "psi-numerics",
- "psi-symbols",
- "psi-typed-trees",
-]
-
-[[package]]
-name = "omega-x86-encoding"
-version = "0.1.0"
 
 [[package]]
 name = "once_cell"
 version = "1.21.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9f7c3e4beb33f85d45ae3e3a1792185706c8e16d043238c593331cc7cd313b50"
+
+[[package]]
+name = "optimization"
+version = "0.1.0"
+dependencies = [
+ "sha2",
+]
+
+[[package]]
+name = "optimization-core"
+version = "0.1.0"
+dependencies = [
+ "optimization",
+ "sha2",
+]
+
+[[package]]
+name = "optimization-policy-offline"
+version = "0.1.0"
+dependencies = [
+ "optimization-core",
+ "sha2",
+]
+
+[[package]]
+name = "optimization-unit"
+version = "0.1.0"
+dependencies = [
+ "abstract-operations",
+ "optimization-core",
+ "semantic-vocabulary",
+ "terminal-psi",
+]
+
+[[package]]
+name = "optimization-validation"
+version = "0.1.0"
+dependencies = [
+ "abstract-operations",
+ "checked-trees-to-terminal-psi",
+ "language-semantics",
+ "optimization-core",
+ "optimization-unit",
+ "proof-admission",
+ "semantic-vocabulary",
+ "source-files-to-tokens",
+ "symbol-resolved-trees-to-typed-trees",
+ "syntax-trees-to-symbol-resolved-trees",
+ "terminal-codec",
+ "terminal-fuel",
+ "terminal-psi",
+ "terminal-psi-to-abstract-operations",
+ "terminal-semantics",
+ "terminal-verifier",
+ "tokens-to-syntax-trees",
+ "typed-trees-to-checked-trees",
+]
+
+[[package]]
+name = "package-advisory"
+version = "0.1.0"
+dependencies = [
+ "package-manager",
+]
+
+[[package]]
+name = "package-compilation"
+version = "0.1.0"
+dependencies = [
+ "build-declarations",
+ "build-output",
+ "build-time-evaluation",
+ "checked-interpreter",
+ "checked-trees",
+ "diagnostics",
+ "effects",
+ "semantic-vocabulary",
+ "sha2",
+ "source",
+ "target",
+]
+
+[[package]]
+name = "package-evidence"
+version = "0.1.0"
+dependencies = [
+ "arena",
+ "build-evaluation",
+ "calling-conventions",
+ "checked-trees",
+ "compiler",
+ "diagnostics",
+ "effects",
+ "facts",
+ "flow-effects",
+ "language-core",
+ "language-semantics",
+ "layout",
+ "numerics",
+ "package-compilation",
+ "provider-planning",
+ "representation-planning",
+ "selected-dispatch",
+ "semantic-vocabulary",
+ "sha2",
+ "source",
+ "source-files-to-tokens",
+ "symbol-resolved-trees-to-typed-trees",
+ "symbols",
+ "syntax-trees-to-symbol-resolved-trees",
+ "target",
+ "tokens-to-syntax-trees",
+ "trust-model",
+ "typed-trees",
+ "typed-trees-to-checked-trees",
+ "validation",
+]
+
+[[package]]
+name = "package-manager"
+version = "0.1.0"
+dependencies = [
+ "arena",
+ "boundary-applications",
+ "build-declarations",
+ "build-evaluation",
+ "cap-fs-ext",
+ "cap-std",
+ "checked-interpreter",
+ "compiler",
+ "diagnostics",
+ "effects",
+ "language-semantics",
+ "optimization-core",
+ "package-compilation",
+ "package-evidence",
+ "package-source",
+ "platform-custody",
+ "proof-admission",
+ "semantic-vocabulary",
+ "sha2",
+ "source",
+ "source-files-to-tokens",
+ "syntax-trees",
+ "target",
+ "terminal-psi-to-native-artifact",
+ "tokens",
+ "tokens-to-syntax-trees",
+]
+
+[[package]]
+name = "package-source"
+version = "0.1.0"
+dependencies = [
+ "bounded-process",
+ "cap-fs-ext",
+ "cap-std",
+ "nix",
+ "platform-custody",
+ "resolver-execution",
+ "sha1-checked",
+ "sha2",
+]
+
+[[package]]
+name = "physical-instructions"
+version = "0.1.0"
+dependencies = [
+ "optimization-core",
+ "optimization-unit",
+ "register-homes",
+ "register-model",
+ "selected-instructions",
+ "semantic-vocabulary",
+ "sha2",
+ "target",
+ "target-operations",
+ "terminal-psi",
+]
+
+[[package]]
+name = "platform-custody"
+version = "0.1.0"
+dependencies = [
+ "cap-fs-ext",
+ "cap-std",
+]
+
+[[package]]
+name = "post-allocation-machine-to-frame-layout"
+version = "0.1.0"
+dependencies = [
+ "machine-code",
+ "optimization-core",
+ "physical-instructions",
+ "register-homes-to-post-allocation-machine",
+ "register-model",
+ "selected-instructions",
+ "selected-instructions-to-register-homes",
+ "semantic-vocabulary",
+ "sha2",
+ "target",
+ "target-to-register-environment",
+]
+
+[[package]]
+name = "post-allocation-machine-to-post-allocation-machine"
+version = "0.1.0"
+dependencies = [
+ "isa-aarch64",
+ "isa-x86_64",
+ "optimization-core",
+ "optimization-unit",
+ "physical-instructions",
+ "register-homes-to-post-allocation-machine",
+ "register-model",
+ "selected-instructions",
+ "selected-instructions-to-register-homes",
+ "semantic-vocabulary",
+ "sha2",
+ "target",
+ "target-operations",
+ "terminal-psi",
+]
+
+[[package]]
+name = "post-allocation-machine-to-selected-form-encoding"
+version = "0.1.0"
+dependencies = [
+ "calling-conventions",
+ "isa-aarch64",
+ "isa-x86_64",
+ "machine-code",
+ "optimization-core",
+ "physical-instructions",
+ "post-allocation-machine-to-post-allocation-machine",
+ "register-homes-to-post-allocation-machine",
+ "register-model",
+ "selected-instructions",
+ "selected-instructions-to-register-homes",
+ "semantic-vocabulary",
+ "sha2",
+ "target",
+]
 
 [[package]]
 name = "proc-macro2"
@@ -1749,463 +1469,86 @@ dependencies = [
 ]
 
 [[package]]
-name = "psi-access-plans"
+name = "program-entry-plan"
 version = "0.1.0"
 dependencies = [
- "psi-extents",
- "psi-language-core",
- "psi-layout-plans",
+ "arena",
+ "calling-conventions",
+ "checked-trees",
+ "diagnostics",
+ "effects",
+ "executable-installation",
+ "function-identity",
+ "isa-aarch64",
+ "isa-x86_64",
+ "language-semantics",
+ "layout",
+ "layout-plans",
  "sha2",
+ "symbols",
+ "target",
 ]
 
 [[package]]
-name = "psi-arena"
+name = "proof"
 version = "0.1.0"
 dependencies = [
- "arc-swap",
+ "arena",
+ "diagnostics",
+ "language-semantics",
+ "numerics",
+ "symbols",
+ "syntax-trees",
+ "typed-trees",
+ "validation",
 ]
 
 [[package]]
-name = "psi-build-time-evaluation"
+name = "proof-admission"
 version = "0.1.0"
 dependencies = [
- "psi-access-plans",
- "psi-arena",
- "psi-checked-interpreter",
- "psi-core",
- "psi-diagnostics",
- "psi-effects",
- "psi-language-core",
- "psi-language-semantics",
- "psi-layout-plans",
- "psi-numerics",
- "psi-source",
- "psi-source-files-to-tokens",
- "psi-symbol-resolved-trees",
- "psi-symbol-resolved-trees-to-typed-trees",
- "psi-symbols",
- "psi-syntax-trees",
- "psi-syntax-trees-to-symbol-resolved-trees",
- "psi-tokens-to-syntax-trees",
- "psi-typed-trees",
- "psi-typed-trees-to-checked-trees",
+ "numerics",
+ "semantic-vocabulary",
 ]
 
 [[package]]
-name = "psi-checked-interpreter"
+name = "provider-planning"
 version = "0.1.0"
 dependencies = [
- "psi-arena",
- "psi-checked-trees",
- "psi-language-core",
- "psi-language-semantics",
- "psi-layout-plans",
- "psi-numerics",
- "psi-source",
- "psi-source-files-to-tokens",
- "psi-symbol-resolved-trees-to-typed-trees",
- "psi-symbols",
- "psi-syntax-trees-to-symbol-resolved-trees",
- "psi-tokens-to-syntax-trees",
- "psi-typed-trees",
- "psi-typed-trees-to-checked-trees",
-]
-
-[[package]]
-name = "psi-checked-trees"
-version = "0.1.0"
-dependencies = [
- "psi-access-plans",
- "psi-arena",
- "psi-core",
- "psi-effects",
- "psi-facts",
- "psi-language-core",
- "psi-language-semantics",
- "psi-numerics",
- "psi-source",
- "psi-symbols",
- "psi-typed-trees",
+ "arena",
+ "backend-plan",
+ "build-time-evaluation",
+ "calling-conventions",
+ "checked-trees",
+ "diagnostics",
+ "effects",
+ "executable-installation",
+ "external-roots",
+ "facts",
+ "flow-effects",
+ "language-core",
+ "language-semantics",
+ "layout",
+ "layout-plans",
+ "numerics",
+ "package-compilation",
+ "program-entry-plan",
+ "representation-planning",
+ "semantic-vocabulary",
  "sha2",
-]
-
-[[package]]
-name = "psi-checked-trees-to-terminal"
-version = "0.1.0"
-dependencies = [
- "psi-arena",
- "psi-checked-trees",
- "psi-core",
- "psi-facts",
- "psi-language-core",
- "psi-language-semantics",
- "psi-numerics",
- "psi-optimization",
- "psi-proof-admission",
- "psi-source",
- "psi-source-files-to-tokens",
- "psi-symbol-resolved-trees-to-typed-trees",
- "psi-symbols",
- "psi-syntax-trees",
- "psi-syntax-trees-to-symbol-resolved-trees",
- "psi-terminal",
- "psi-terminal-codec",
- "psi-terminal-fixed-fuel",
- "psi-terminal-fuel",
- "psi-terminal-interpreter",
- "psi-terminal-verifier",
- "psi-tokens-to-syntax-trees",
- "psi-typed-trees",
- "psi-typed-trees-to-checked-trees",
- "psi-validation",
- "sha2",
-]
-
-[[package]]
-name = "psi-core"
-version = "0.1.0"
-
-[[package]]
-name = "psi-diagnostics"
-version = "0.1.0"
-dependencies = [
- "psi-source",
-]
-
-[[package]]
-name = "psi-effects"
-version = "0.1.0"
-dependencies = [
- "psi-arena",
- "psi-language-semantics",
- "psi-symbols",
- "psi-typed-trees",
-]
-
-[[package]]
-name = "psi-extents"
-version = "0.1.0"
-
-[[package]]
-name = "psi-facts"
-version = "0.1.0"
-dependencies = [
- "psi-arena",
- "psi-language-semantics",
- "psi-numerics",
- "psi-symbols",
- "psi-typed-trees",
-]
-
-[[package]]
-name = "psi-language-core"
-version = "0.1.0"
-
-[[package]]
-name = "psi-language-semantics"
-version = "0.1.0"
-dependencies = [
- "psi-core",
- "psi-language-core",
- "psi-numerics",
- "psi-source",
- "psi-symbols",
-]
-
-[[package]]
-name = "psi-layout-plans"
-version = "0.1.0"
-
-[[package]]
-name = "psi-numerics"
-version = "0.1.0"
-dependencies = [
- "sha2",
-]
-
-[[package]]
-name = "psi-optimization"
-version = "0.1.0"
-dependencies = [
- "sha2",
-]
-
-[[package]]
-name = "psi-proof"
-version = "0.1.0"
-dependencies = [
- "psi-arena",
- "psi-diagnostics",
- "psi-language-semantics",
- "psi-numerics",
- "psi-symbols",
- "psi-syntax-trees",
- "psi-typed-trees",
- "psi-validation",
-]
-
-[[package]]
-name = "psi-proof-admission"
-version = "0.1.0"
-dependencies = [
- "psi-core",
- "psi-numerics",
-]
-
-[[package]]
-name = "psi-source"
-version = "0.1.0"
-dependencies = [
- "psi-core",
-]
-
-[[package]]
-name = "psi-source-files-to-tokens"
-version = "0.1.0"
-dependencies = [
- "psi-source",
- "psi-tokens",
-]
-
-[[package]]
-name = "psi-symbol-resolved-trees"
-version = "0.1.0"
-dependencies = [
- "psi-arena",
- "psi-diagnostics",
- "psi-language-core",
- "psi-language-semantics",
- "psi-numerics",
- "psi-source",
- "psi-symbols",
- "serde",
- "serde_json",
-]
-
-[[package]]
-name = "psi-symbol-resolved-trees-to-typed-trees"
-version = "0.1.0"
-dependencies = [
- "psi-arena",
- "psi-checked-trees",
- "psi-diagnostics",
- "psi-language-core",
- "psi-language-semantics",
- "psi-numerics",
- "psi-source",
- "psi-source-files-to-tokens",
- "psi-symbol-resolved-trees",
- "psi-symbols",
- "psi-syntax-trees-to-symbol-resolved-trees",
- "psi-tokens-to-syntax-trees",
- "psi-typed-trees",
-]
-
-[[package]]
-name = "psi-symbols"
-version = "0.1.0"
-dependencies = [
- "psi-arena",
- "psi-core",
- "psi-source",
-]
-
-[[package]]
-name = "psi-syntax-trees"
-version = "0.1.0"
-dependencies = [
- "psi-arena",
- "psi-diagnostics",
- "psi-language-core",
- "psi-numerics",
- "psi-source",
- "serde",
- "serde_json",
-]
-
-[[package]]
-name = "psi-syntax-trees-to-symbol-resolved-trees"
-version = "0.1.0"
-dependencies = [
- "psi-arena",
- "psi-diagnostics",
- "psi-language-semantics",
- "psi-numerics",
- "psi-source",
- "psi-source-files-to-tokens",
- "psi-symbol-resolved-trees",
- "psi-symbols",
- "psi-syntax-trees",
- "psi-tokens-to-syntax-trees",
-]
-
-[[package]]
-name = "psi-terminal"
-version = "0.1.0"
-dependencies = [
- "psi-core",
- "psi-language-core",
- "psi-language-semantics",
- "sha2",
-]
-
-[[package]]
-name = "psi-terminal-codec"
-version = "0.1.0"
-dependencies = [
- "psi-core",
- "psi-language-semantics",
- "psi-numerics",
- "psi-optimization",
- "psi-proof-admission",
- "psi-terminal",
- "psi-terminal-semantics",
- "psi-terminal-verifier",
- "sha2",
-]
-
-[[package]]
-name = "psi-terminal-fixed-fuel"
-version = "0.1.0"
-dependencies = [
- "psi-core",
- "psi-proof-admission",
- "psi-terminal",
- "psi-terminal-codec",
- "psi-terminal-fuel",
- "psi-terminal-verifier",
-]
-
-[[package]]
-name = "psi-terminal-fuel"
-version = "0.1.0"
-dependencies = [
- "psi-core",
- "psi-terminal",
-]
-
-[[package]]
-name = "psi-terminal-interpreter"
-version = "0.1.0"
-dependencies = [
- "psi-core",
- "psi-numerics",
- "psi-proof-admission",
- "psi-terminal",
- "psi-terminal-codec",
- "psi-terminal-fixed-fuel",
- "psi-terminal-fuel",
- "psi-terminal-verifier",
-]
-
-[[package]]
-name = "psi-terminal-semantics"
-version = "0.1.0"
-dependencies = [
- "psi-core",
- "psi-numerics",
- "psi-terminal",
-]
-
-[[package]]
-name = "psi-terminal-verifier"
-version = "0.1.0"
-dependencies = [
- "psi-core",
- "psi-language-semantics",
- "psi-numerics",
- "psi-proof-admission",
- "psi-terminal",
- "psi-terminal-semantics",
- "sha2",
-]
-
-[[package]]
-name = "psi-tokens"
-version = "0.1.0"
-dependencies = [
- "psi-source",
-]
-
-[[package]]
-name = "psi-tokens-to-syntax-trees"
-version = "0.1.0"
-dependencies = [
- "psi-arena",
- "psi-language-core",
- "psi-numerics",
- "psi-source",
- "psi-source-files-to-tokens",
- "psi-syntax-trees",
- "psi-tokens",
-]
-
-[[package]]
-name = "psi-typed-trees"
-version = "0.1.0"
-dependencies = [
- "psi-access-plans",
- "psi-arena",
- "psi-diagnostics",
- "psi-language-core",
- "psi-language-semantics",
- "psi-layout-plans",
- "psi-numerics",
- "psi-source",
- "psi-symbols",
- "serde",
- "serde_json",
-]
-
-[[package]]
-name = "psi-typed-trees-to-checked-trees"
-version = "0.1.0"
-dependencies = [
- "psi-arena",
- "psi-checked-trees",
- "psi-core",
- "psi-diagnostics",
- "psi-effects",
- "psi-facts",
- "psi-language-core",
- "psi-language-semantics",
- "psi-numerics",
- "psi-proof",
- "psi-proof-admission",
- "psi-source",
- "psi-source-files-to-tokens",
- "psi-symbol-resolved-trees-to-typed-trees",
- "psi-symbols",
- "psi-syntax-trees-to-symbol-resolved-trees",
- "psi-tokens-to-syntax-trees",
- "psi-typed-trees",
- "psi-validation",
- "sha2",
-]
-
-[[package]]
-name = "psi-validation"
-version = "0.1.0"
-dependencies = [
- "psi-access-plans",
- "psi-arena",
- "psi-checked-trees",
- "psi-core",
- "psi-diagnostics",
- "psi-effects",
- "psi-facts",
- "psi-language-core",
- "psi-language-semantics",
- "psi-layout-plans",
- "psi-numerics",
- "psi-source",
- "psi-source-files-to-tokens",
- "psi-symbol-resolved-trees-to-typed-trees",
- "psi-symbols",
- "psi-syntax-trees-to-symbol-resolved-trees",
- "psi-tokens-to-syntax-trees",
- "psi-typed-trees",
- "sha2",
+ "source",
+ "source-files-to-tokens",
+ "symbol-resolved-trees-to-typed-trees",
+ "symbols",
+ "syntax-trees-to-symbol-resolved-trees",
+ "target",
+ "task-plans",
+ "tokens-to-syntax-trees",
+ "trust-model",
+ "typed-trees",
+ "typed-trees-to-checked-trees",
+ "validation",
+ "visualizations",
 ]
 
 [[package]]
@@ -2215,6 +1558,75 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "1fbf4db142a473a8d80c26bbf18454ed458bf8d26c8219c331daecfdbd079001"
 dependencies = [
  "proc-macro2",
+]
+
+[[package]]
+name = "register-homes"
+version = "0.1.0"
+dependencies = [
+ "register-model",
+ "selected-instructions",
+ "semantic-vocabulary",
+ "sha2",
+]
+
+[[package]]
+name = "register-homes-to-post-allocation-machine"
+version = "0.1.0"
+dependencies = [
+ "isa-x86_64",
+ "optimization-core",
+ "physical-instructions",
+ "register-model",
+ "selected-instructions",
+ "selected-instructions-to-register-homes",
+ "semantic-vocabulary",
+ "target-to-register-environment",
+]
+
+[[package]]
+name = "register-model"
+version = "0.1.0"
+dependencies = [
+ "sha2",
+ "target",
+]
+
+[[package]]
+name = "representation-planning"
+version = "0.1.0"
+dependencies = [
+ "diagnostics",
+ "language-semantics",
+ "representation-selections",
+ "source",
+ "symbols",
+ "typed-trees",
+ "typed-trees-to-checked-trees",
+]
+
+[[package]]
+name = "representation-selections"
+version = "0.1.0"
+dependencies = [
+ "sha2",
+ "source",
+ "symbols",
+ "typed-trees",
+]
+
+[[package]]
+name = "resolver-execution"
+version = "0.1.0"
+dependencies = [
+ "bounded-process",
+]
+
+[[package]]
+name = "runtime-abi"
+version = "0.1.0"
+dependencies = [
+ "target",
 ]
 
 [[package]]
@@ -2245,6 +1657,99 @@ name = "rustversion"
 version = "1.0.23"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "cf54715a573b99ac80df0bc206da022bcd442c974952c7b9720069370852e21f"
+
+[[package]]
+name = "selected-dispatch"
+version = "0.1.0"
+dependencies = [
+ "arena",
+ "checked-trees",
+ "diagnostics",
+ "effects",
+ "language-core",
+ "language-semantics",
+ "numerics",
+ "package-compilation",
+ "program-entry-plan",
+ "provider-planning",
+ "semantic-vocabulary",
+ "source",
+ "source-files-to-tokens",
+ "symbol-resolved-trees-to-typed-trees",
+ "symbols",
+ "syntax-trees-to-symbol-resolved-trees",
+ "tokens-to-syntax-trees",
+ "typed-trees",
+ "typed-trees-to-checked-trees",
+ "validation",
+]
+
+[[package]]
+name = "selected-form-encoding-to-resolved-layout"
+version = "0.1.0"
+dependencies = [
+ "calling-conventions",
+ "isa-aarch64",
+ "isa-x86_64",
+ "machine-code",
+ "optimization-core",
+ "physical-instructions",
+ "post-allocation-machine-to-post-allocation-machine",
+ "post-allocation-machine-to-selected-form-encoding",
+ "register-homes-to-post-allocation-machine",
+ "register-model",
+ "selected-instructions",
+ "selected-instructions-to-register-homes",
+ "semantic-vocabulary",
+ "sha2",
+ "target",
+]
+
+[[package]]
+name = "selected-instructions"
+version = "0.1.0"
+dependencies = [
+ "abstract-operations",
+ "calling-conventions",
+ "legalized-operations",
+ "optimization-core",
+ "optimization-unit",
+ "register-model",
+ "semantic-vocabulary",
+ "sha2",
+ "target",
+ "target-operations",
+ "terminal-psi",
+]
+
+[[package]]
+name = "selected-instructions-to-register-homes"
+version = "0.1.0"
+dependencies = [
+ "abstract-operations",
+ "abstract-operations-to-target-operations",
+ "calling-conventions",
+ "isa-aarch64",
+ "isa-x86_64",
+ "legalized-operations",
+ "optimization-core",
+ "optimization-unit",
+ "register-homes",
+ "register-model",
+ "selected-instructions",
+ "semantic-vocabulary",
+ "sha2",
+ "target",
+ "target-operations",
+ "target-operations-to-selected-instructions",
+ "target-to-register-environment",
+ "terminal-codec",
+ "terminal-psi",
+]
+
+[[package]]
+name = "semantic-vocabulary"
+version = "0.1.0"
 
 [[package]]
 name = "serde"
@@ -2322,6 +1827,64 @@ dependencies = [
 ]
 
 [[package]]
+name = "source"
+version = "0.1.0"
+dependencies = [
+ "semantic-vocabulary",
+]
+
+[[package]]
+name = "source-files-to-tokens"
+version = "0.1.0"
+dependencies = [
+ "source",
+ "tokens",
+]
+
+[[package]]
+name = "symbol-resolved-trees"
+version = "0.1.0"
+dependencies = [
+ "arena",
+ "diagnostics",
+ "language-core",
+ "language-semantics",
+ "numerics",
+ "serde",
+ "serde_json",
+ "source",
+ "symbols",
+]
+
+[[package]]
+name = "symbol-resolved-trees-to-typed-trees"
+version = "0.1.0"
+dependencies = [
+ "arena",
+ "checked-trees",
+ "diagnostics",
+ "language-core",
+ "language-semantics",
+ "numerics",
+ "source",
+ "source-files-to-tokens",
+ "symbol-resolved-trees",
+ "symbols",
+ "syntax-trees-to-symbol-resolved-trees",
+ "tokens-to-syntax-trees",
+ "typed-trees",
+]
+
+[[package]]
+name = "symbols"
+version = "0.1.0"
+dependencies = [
+ "arena",
+ "semantic-vocabulary",
+ "source",
+]
+
+[[package]]
 name = "syn"
 version = "3.0.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2330,6 +1893,380 @@ dependencies = [
  "proc-macro2",
  "quote",
  "unicode-ident",
+]
+
+[[package]]
+name = "syntax-trees"
+version = "0.1.0"
+dependencies = [
+ "arena",
+ "diagnostics",
+ "language-core",
+ "numerics",
+ "serde",
+ "serde_json",
+ "source",
+]
+
+[[package]]
+name = "syntax-trees-to-symbol-resolved-trees"
+version = "0.1.0"
+dependencies = [
+ "arena",
+ "diagnostics",
+ "language-semantics",
+ "numerics",
+ "source",
+ "source-files-to-tokens",
+ "symbol-resolved-trees",
+ "symbols",
+ "syntax-trees",
+ "tokens-to-syntax-trees",
+]
+
+[[package]]
+name = "target"
+version = "0.1.0"
+dependencies = [
+ "diagnostics",
+ "sha2",
+]
+
+[[package]]
+name = "target-operations"
+version = "0.1.0"
+dependencies = [
+ "abstract-operations",
+ "calling-conventions",
+ "function-identity",
+ "semantic-vocabulary",
+ "target",
+ "task-plans",
+ "terminal-psi",
+]
+
+[[package]]
+name = "target-operations-to-assigned-target-operations"
+version = "0.1.0"
+dependencies = [
+ "abstract-operations-to-target-operations",
+ "assigned-target-operations",
+ "calling-conventions",
+ "checked-trees-to-terminal-psi",
+ "function-identity",
+ "proof-admission",
+ "runtime-abi",
+ "semantic-vocabulary",
+ "source-files-to-tokens",
+ "symbol-resolved-trees-to-typed-trees",
+ "symbols",
+ "syntax-trees-to-symbol-resolved-trees",
+ "target",
+ "target-operations",
+ "task-plans",
+ "terminal-codec",
+ "terminal-psi",
+ "terminal-psi-to-abstract-operations",
+ "tokens-to-syntax-trees",
+ "typed-trees-to-checked-trees",
+]
+
+[[package]]
+name = "target-operations-to-selected-instructions"
+version = "0.1.0"
+dependencies = [
+ "abstract-operations",
+ "abstract-operations-to-target-operations",
+ "calling-conventions",
+ "isa-x86_64",
+ "legalized-operations",
+ "optimization-core",
+ "optimization-unit",
+ "optimization-validation",
+ "register-model",
+ "selected-instructions",
+ "semantic-vocabulary",
+ "target",
+ "target-operations",
+ "target-to-register-environment",
+ "terminal-psi",
+]
+
+[[package]]
+name = "target-to-register-environment"
+version = "0.1.0"
+dependencies = [
+ "isa-aarch64",
+ "isa-x86_64",
+ "register-model",
+ "selected-instructions",
+ "target",
+ "target-operations",
+]
+
+[[package]]
+name = "task-plans"
+version = "0.1.0"
+dependencies = [
+ "semantic-vocabulary",
+ "sha2",
+ "symbols",
+]
+
+[[package]]
+name = "terminal-codec"
+version = "0.1.0"
+dependencies = [
+ "language-semantics",
+ "numerics",
+ "optimization",
+ "proof-admission",
+ "semantic-vocabulary",
+ "sha2",
+ "terminal-psi",
+ "terminal-semantics",
+ "terminal-verifier",
+]
+
+[[package]]
+name = "terminal-fixed-fuel"
+version = "0.1.0"
+dependencies = [
+ "proof-admission",
+ "semantic-vocabulary",
+ "terminal-codec",
+ "terminal-fuel",
+ "terminal-psi",
+ "terminal-verifier",
+]
+
+[[package]]
+name = "terminal-fuel"
+version = "0.1.0"
+dependencies = [
+ "semantic-vocabulary",
+ "terminal-psi",
+]
+
+[[package]]
+name = "terminal-interpreter"
+version = "0.1.0"
+dependencies = [
+ "numerics",
+ "proof-admission",
+ "semantic-vocabulary",
+ "terminal-codec",
+ "terminal-fixed-fuel",
+ "terminal-fuel",
+ "terminal-psi",
+ "terminal-verifier",
+]
+
+[[package]]
+name = "terminal-psi"
+version = "0.1.0"
+dependencies = [
+ "language-core",
+ "language-semantics",
+ "semantic-vocabulary",
+ "sha2",
+]
+
+[[package]]
+name = "terminal-psi-to-abstract-operations"
+version = "0.1.0"
+dependencies = [
+ "abstract-operations",
+ "checked-trees-to-terminal-psi",
+ "installation-evidence",
+ "optimization-unit",
+ "optimization-validation",
+ "proof-admission",
+ "semantic-vocabulary",
+ "source-files-to-tokens",
+ "symbol-resolved-trees-to-typed-trees",
+ "syntax-trees-to-symbol-resolved-trees",
+ "terminal-codec",
+ "terminal-fixed-fuel",
+ "terminal-fuel",
+ "terminal-interpreter",
+ "terminal-psi",
+ "terminal-verifier",
+ "tokens-to-syntax-trees",
+ "typed-trees-to-checked-trees",
+]
+
+[[package]]
+name = "terminal-psi-to-native-artifact"
+version = "0.1.0"
+dependencies = [
+ "abstract-operations",
+ "abstract-operations-to-abstract-operations",
+ "abstract-operations-to-target-operations",
+ "assigned-target-operations",
+ "boundary-applications",
+ "calling-conventions",
+ "checked-trees",
+ "checked-trees-to-terminal-psi",
+ "diagnostics",
+ "effects",
+ "function-identity",
+ "image-emission",
+ "installation-evidence",
+ "isa-aarch64",
+ "isa-x86_64",
+ "language-semantics",
+ "machine-code",
+ "machine-emission",
+ "native-artifact",
+ "numerics",
+ "object-file",
+ "optimization",
+ "optimization-core",
+ "optimization-validation",
+ "post-allocation-machine-to-frame-layout",
+ "post-allocation-machine-to-post-allocation-machine",
+ "program-entry-plan",
+ "proof-admission",
+ "provider-planning",
+ "register-homes-to-post-allocation-machine",
+ "selected-dispatch",
+ "selected-form-encoding-to-resolved-layout",
+ "selected-instructions",
+ "selected-instructions-to-register-homes",
+ "semantic-vocabulary",
+ "sha2",
+ "source-files-to-tokens",
+ "symbol-resolved-trees-to-typed-trees",
+ "symbols",
+ "syntax-trees-to-symbol-resolved-trees",
+ "target",
+ "target-operations",
+ "target-operations-to-assigned-target-operations",
+ "target-operations-to-selected-instructions",
+ "target-to-register-environment",
+ "task-plans",
+ "terminal-codec",
+ "terminal-fuel",
+ "terminal-interpreter",
+ "terminal-psi",
+ "terminal-psi-to-abstract-operations",
+ "terminal-verifier",
+ "tokens-to-syntax-trees",
+ "typed-trees-to-checked-trees",
+]
+
+[[package]]
+name = "terminal-semantics"
+version = "0.1.0"
+dependencies = [
+ "numerics",
+ "semantic-vocabulary",
+ "terminal-psi",
+]
+
+[[package]]
+name = "terminal-verifier"
+version = "0.1.0"
+dependencies = [
+ "language-semantics",
+ "numerics",
+ "proof-admission",
+ "semantic-vocabulary",
+ "sha2",
+ "terminal-psi",
+ "terminal-semantics",
+]
+
+[[package]]
+name = "tokens"
+version = "0.1.0"
+dependencies = [
+ "source",
+]
+
+[[package]]
+name = "tokens-to-syntax-trees"
+version = "0.1.0"
+dependencies = [
+ "arena",
+ "language-core",
+ "numerics",
+ "source",
+ "source-files-to-tokens",
+ "syntax-trees",
+ "tokens",
+]
+
+[[package]]
+name = "trust-ledger"
+version = "0.1.0"
+dependencies = [
+ "compiler",
+ "diagnostics",
+ "effects",
+ "trust-model",
+]
+
+[[package]]
+name = "trust-model"
+version = "0.1.0"
+dependencies = [
+ "artifacts",
+ "checked-trees",
+ "diagnostics",
+ "effects",
+ "language-semantics",
+ "semantic-vocabulary",
+ "sha2",
+ "source",
+ "symbols",
+ "target",
+ "typed-trees",
+ "typed-trees-to-checked-trees",
+]
+
+[[package]]
+name = "typed-trees"
+version = "0.1.0"
+dependencies = [
+ "access-plans",
+ "arena",
+ "diagnostics",
+ "language-core",
+ "language-semantics",
+ "layout-plans",
+ "numerics",
+ "serde",
+ "serde_json",
+ "source",
+ "symbols",
+]
+
+[[package]]
+name = "typed-trees-to-checked-trees"
+version = "0.1.0"
+dependencies = [
+ "arena",
+ "checked-trees",
+ "diagnostics",
+ "facts",
+ "flow-effects",
+ "language-core",
+ "language-semantics",
+ "numerics",
+ "proof",
+ "proof-admission",
+ "semantic-vocabulary",
+ "sha2",
+ "source",
+ "source-files-to-tokens",
+ "symbol-resolved-trees-to-typed-trees",
+ "symbols",
+ "syntax-trees-to-symbol-resolved-trees",
+ "tokens-to-syntax-trees",
+ "typed-trees",
+ "validation",
 ]
 
 [[package]]
@@ -2345,10 +2282,53 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e6e4313cd5fcd3dad5cafa179702e2b244f760991f45397d14d4ebf38247da75"
 
 [[package]]
+name = "validation"
+version = "0.1.0"
+dependencies = [
+ "access-plans",
+ "arena",
+ "checked-trees",
+ "diagnostics",
+ "facts",
+ "flow-effects",
+ "language-core",
+ "language-semantics",
+ "layout-plans",
+ "numerics",
+ "semantic-vocabulary",
+ "sha2",
+ "source",
+ "source-files-to-tokens",
+ "symbol-resolved-trees-to-typed-trees",
+ "symbols",
+ "syntax-trees-to-symbol-resolved-trees",
+ "tokens-to-syntax-trees",
+ "typed-trees",
+]
+
+[[package]]
 name = "version_check"
 version = "0.9.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0b928f33d975fc6ad9f86c8f283853ad26bdd5b10b7f1542aa2fa15e2289105a"
+
+[[package]]
+name = "visualizations"
+version = "0.1.0"
+dependencies = [
+ "arena",
+ "checked-trees",
+ "effects",
+ "facts",
+ "flow-effects",
+ "language-semantics",
+ "numerics",
+ "semantic-vocabulary",
+ "symbols",
+ "target",
+ "task-plans",
+ "typed-trees",
+]
 
 [[package]]
 name = "winapi"
@@ -2543,6 +2523,10 @@ dependencies = [
  "bitflags",
  "windows-sys 0.59.0",
 ]
+
+[[package]]
+name = "x86-encoding"
+version = "0.1.0"
 
 [[package]]
 name = "zmij"

@@ -1,6 +1,6 @@
-use omega_compiler::CheckedCompilation;
-use psi_diagnostics::Diagnostic;
-use psi_symbols::SymbolHandle;
+use compiler::CheckedCompilation;
+use diagnostics::Diagnostic;
+use symbols::SymbolHandle;
 
 use crate::capture::semantics::declarations::nominal_identity;
 use crate::capture::semantics::types::{
@@ -17,11 +17,11 @@ use super::evidence::project_evidence_interface;
 
 pub(crate) fn project_proposition_endpoint(
     compilation: &CheckedCompilation,
-    declaration: &psi_typed_trees::proposition::PropositionDefinition,
+    declaration: &typed_trees::proposition::PropositionDefinition,
     binder_arguments: Vec<PackageReviewPropositionBinderArgument>,
     arguments: Vec<PackageReviewContractExpression>,
 ) -> Result<PackageReviewPropositionApplication, Vec<Diagnostic>> {
-    use psi_typed_trees::proposition::PropositionBody;
+    use typed_trees::proposition::PropositionBody;
 
     let (binders, parameter_types) = project_proposition_signature(compilation, declaration)?;
     let binder_symbols = compilation
@@ -49,7 +49,7 @@ pub(crate) fn project_proposition_endpoint(
 
 pub(crate) fn project_proposition_signature(
     compilation: &CheckedCompilation,
-    declaration: &psi_typed_trees::proposition::PropositionDefinition,
+    declaration: &typed_trees::proposition::PropositionDefinition,
 ) -> Result<
     (
         Vec<PackageReviewPropositionBinder>,
@@ -57,7 +57,7 @@ pub(crate) fn project_proposition_signature(
     ),
     Vec<Diagnostic>,
 > {
-    use psi_typed_trees::proposition::PropositionBinderKind;
+    use typed_trees::proposition::PropositionBinderKind;
 
     let declaration_binders = compilation.proposition_binders(declaration);
     let binder_symbols = declaration_binders

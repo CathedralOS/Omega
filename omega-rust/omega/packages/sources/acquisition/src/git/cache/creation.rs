@@ -10,7 +10,7 @@ use cap_std::fs::{Dir as CapabilityDirectory, OpenOptions as CapabilityOpenOptio
 use cap_std::fs::{
     OpenOptionsExt as CapabilityOpenOptionsExt, PermissionsExt as CapabilityPermissionsExt,
 };
-use omega_resolver_execution::ResolverExecutionPhase;
+use resolver_execution::ResolverExecutionPhase;
 
 use crate::SourceResolveError;
 use crate::custody::platform::verify_capability_cache_node_owner_and_mode;

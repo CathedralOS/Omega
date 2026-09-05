@@ -23,83 +23,68 @@ const MINIMUM_ANCHOR_HEADER_LINES: usize = 4;
 /// Exact no-growth ratchets for crate anchors that predate the bound.
 const ANCHOR_HEADER_EXCEPTIONS: &[(&str, usize)] = &[
     (
-        "omega-rust/omega/backend/instruction_set_architectures/omega-x86-encoding/src/lib.rs",
+        "omega-rust/omega/backend/instruction_set_architectures/x86-encoding/src/lib.rs",
         2,
     ),
-    ("omega-rust/omega/backend/omega-layout/src/lib.rs", 0),
+    ("omega-rust/omega/backend/layout/src/lib.rs", 0),
+    ("omega-rust/omega/backend/machine-emission/src/lib.rs", 2),
     (
-        "omega-rust/omega/backend/omega-machine-emission/src/lib.rs",
-        2,
-    ),
-    (
-        "omega-rust/omega/backend/plans/omega-program-entry-plan/src/lib.rs",
+        "omega-rust/omega/backend/plans/program-entry-plan/src/lib.rs",
         3,
     ),
-    ("omega-rust/omega/build/omega-build-output/src/lib.rs", 1),
+    ("omega-rust/omega/build/build-output/src/lib.rs", 1),
+    ("omega-rust/omega/build/package-compilation/src/lib.rs", 1),
+    ("omega-rust/omega/compiler/compiler/src/lib.rs", 1),
     (
-        "omega-rust/omega/build/omega-package-compilation/src/lib.rs",
-        1,
-    ),
-    ("omega-rust/omega/compiler/omega-compiler/src/lib.rs", 1),
-    (
-        "omega-rust/omega/pipeline/omega-abstract-operations-to-target-operations/src/lib.rs",
+        "omega-rust/omega/pipeline/abstract-operations-to-target-operations/src/lib.rs",
         1,
     ),
     (
-        "omega-rust/omega/representations/omega-calling-conventions/src/lib.rs",
+        "omega-rust/omega/representations/calling-conventions/src/lib.rs",
         0,
     ),
+    ("omega-rust/omega/representations/target/src/lib.rs", 0),
+    ("omega-rust/psi/foundation/arena/src/lib.rs", 1),
+    ("omega-rust/psi/foundation/diagnostics/src/lib.rs", 1),
+    ("omega-rust/psi/foundation/language-core/src/lib.rs", 1),
+    ("omega-rust/psi/foundation/numerics/src/lib.rs", 1),
+    ("omega-rust/psi/foundation/source/src/lib.rs", 1),
+    ("omega-rust/psi/foundation/symbols/src/lib.rs", 1),
     (
-        "omega-rust/omega/representations/omega-target/src/lib.rs",
+        "omega-rust/psi/pipeline/source-files-to-tokens/src/lib.rs",
+        1,
+    ),
+    (
+        "omega-rust/psi/pipeline/symbol-resolved-trees-to-typed-trees/src/lib.rs",
+        1,
+    ),
+    (
+        "omega-rust/psi/pipeline/syntax-trees-to-symbol-resolved-trees/src/lib.rs",
+        1,
+    ),
+    (
+        "omega-rust/psi/pipeline/tokens-to-syntax-trees/src/lib.rs",
+        1,
+    ),
+    (
+        "omega-rust/psi/pipeline/typed-trees-to-checked-trees/src/lib.rs",
         0,
     ),
-    ("omega-rust/psi/foundation/psi-arena/src/lib.rs", 1),
-    ("omega-rust/psi/foundation/psi-diagnostics/src/lib.rs", 1),
-    ("omega-rust/psi/foundation/psi-language-core/src/lib.rs", 1),
-    ("omega-rust/psi/foundation/psi-numerics/src/lib.rs", 1),
-    ("omega-rust/psi/foundation/psi-source/src/lib.rs", 1),
-    ("omega-rust/psi/foundation/psi-symbols/src/lib.rs", 1),
+    ("omega-rust/psi/representations/flow-effects/src/lib.rs", 1),
+    ("omega-rust/psi/representations/facts/src/lib.rs", 1),
     (
-        "omega-rust/psi/pipeline/psi-source-files-to-tokens/src/lib.rs",
+        "omega-rust/psi/representations/symbol-resolved-trees/src/lib.rs",
         1,
     ),
+    ("omega-rust/psi/representations/syntax-trees/src/lib.rs", 1),
+    ("omega-rust/psi/representations/tokens/src/lib.rs", 1),
+    ("omega-rust/psi/representations/typed-trees/src/lib.rs", 1),
     (
-        "omega-rust/psi/pipeline/psi-symbol-resolved-trees-to-typed-trees/src/lib.rs",
+        "omega-rust/psi/semantics/build-time-evaluation/src/lib.rs",
         1,
     ),
-    (
-        "omega-rust/psi/pipeline/psi-syntax-trees-to-symbol-resolved-trees/src/lib.rs",
-        1,
-    ),
-    (
-        "omega-rust/psi/pipeline/psi-tokens-to-syntax-trees/src/lib.rs",
-        1,
-    ),
-    (
-        "omega-rust/psi/pipeline/psi-typed-trees-to-checked-trees/src/lib.rs",
-        0,
-    ),
-    ("omega-rust/psi/representations/psi-effects/src/lib.rs", 1),
-    ("omega-rust/psi/representations/psi-facts/src/lib.rs", 1),
-    (
-        "omega-rust/psi/representations/psi-symbol-resolved-trees/src/lib.rs",
-        1,
-    ),
-    (
-        "omega-rust/psi/representations/psi-syntax-trees/src/lib.rs",
-        1,
-    ),
-    ("omega-rust/psi/representations/psi-tokens/src/lib.rs", 1),
-    (
-        "omega-rust/psi/representations/psi-typed-trees/src/lib.rs",
-        1,
-    ),
-    (
-        "omega-rust/psi/semantics/psi-build-time-evaluation/src/lib.rs",
-        1,
-    ),
-    ("omega-rust/psi/semantics/psi-proof/src/lib.rs", 1),
-    ("omega-rust/psi/semantics/psi-validation/src/lib.rs", 0),
+    ("omega-rust/psi/semantics/proof/src/lib.rs", 1),
+    ("omega-rust/psi/semantics/validation/src/lib.rs", 0),
 ];
 
 fn workspace_root() -> PathBuf {

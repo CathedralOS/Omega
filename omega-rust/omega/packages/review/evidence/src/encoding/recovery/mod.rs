@@ -19,8 +19,8 @@ pub use policy::{
     PackagePolicyTextRecoveryLimits,
 };
 
-use omega_target::TargetProfile;
-use psi_core::PackageKeyIdentity;
+use semantic_vocabulary::PackageKeyIdentity;
+use target::TargetProfile;
 
 pub use envelope::{
     decode_package_review_canonical_row, decode_package_review_canonical_row_with_limits,

@@ -9,7 +9,7 @@ use super::errors::ResolveGitPackageClosureError;
 use crate::resolution::source::{
     GitPackageSourceRequest, PackageSourceNavigation, ResolvePackageSourceError,
 };
-use omega_package_source::{
+use package_source::{
     GitSourceRequest, LocalSourceLimits, ResolvedGitSource, SourceResolverStorage,
 };
 use std::collections::BTreeMap;

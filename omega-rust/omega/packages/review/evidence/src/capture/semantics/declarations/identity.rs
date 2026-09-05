@@ -1,8 +1,8 @@
 use crate::capture::semantics::declarations::nominal_owner;
 use crate::record::PackageReviewNominalIdentity;
-use omega_compiler::CheckedCompilation;
-use psi_diagnostics::Diagnostic;
-use psi_symbols::SymbolHandle;
+use compiler::CheckedCompilation;
+use diagnostics::Diagnostic;
+use symbols::SymbolHandle;
 
 pub(crate) fn nominal_identity(
     compilation: &CheckedCompilation,

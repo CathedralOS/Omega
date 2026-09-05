@@ -1,8 +1,8 @@
 //! Exact named-const values used by reviewed contract calls.
 
-use omega_compiler::CheckedCompilation;
-use psi_diagnostics::Diagnostic;
-use psi_language_semantics::const_value::{CanonicalConstValue, DecodedCanonicalConstValue};
+use compiler::CheckedCompilation;
+use diagnostics::Diagnostic;
+use language_semantics::const_value::{CanonicalConstValue, DecodedCanonicalConstValue};
 
 use crate::capture::semantics::types::review_type_identity_with_binders;
 use crate::record::PackageReviewContractStaticArgument;
@@ -11,7 +11,7 @@ pub(super) fn project_named_const_static_argument(
     compilation: &CheckedCompilation,
     subject_kind: &str,
     subject_name: &str,
-    declaration: &psi_typed_trees::constant::ConstDeclaration,
+    declaration: &typed_trees::constant::ConstDeclaration,
 ) -> Result<PackageReviewContractStaticArgument, Vec<Diagnostic>> {
     let rejected = |reason: &str| {
         vec![Diagnostic::error(format!(
@@ -24,7 +24,7 @@ pub(super) fn project_named_const_static_argument(
     let Some(decoded) = decode_canonical_const_value(encoding) else {
         return Err(rejected("with a malformed canonical value encoding"));
     };
-    psi_validation::validate_exact_const_value_encoding(
+    validation::validate_exact_const_value_encoding(
         &compilation.typed,
         declaration.declared_type,
         encoding,

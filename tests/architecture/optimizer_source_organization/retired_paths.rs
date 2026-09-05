@@ -12,7 +12,7 @@ pub(crate) fn check(audit: &mut Audit) {
     let violations = &mut audit.violations;
 
     let psi_pass_root =
-        "omega-rust/omega/pipeline/omega-abstract-operations-optimizer/src/rules/passes/";
+        "omega-rust/omega/pipeline/abstract-operations-to-abstract-operations/src/rules/passes/";
     for path in source_lines.keys().filter(|path| {
         path.starts_with(psi_pass_root)
             && !is_test_source(path)
@@ -32,72 +32,72 @@ pub(crate) fn check(audit: &mut Audit) {
         "omega-rust/omega/pipeline/omega-optimization-policy/src/lib.rs",
         "omega-rust/omega/pipeline/omega-optimization-pipeline/Cargo.toml",
         "omega-rust/omega/pipeline/omega-optimization-pipeline/src/lib.rs",
-        "omega-rust/omega/representations/omega-optimization-core/src/manifest.rs",
-        "omega-rust/omega/representations/omega-legalized-operations/src/validation/call_source.rs",
-        "omega-rust/omega/representations/omega-optimization-unit/src/identity/operation_encoding.rs",
-        "omega-rust/omega/pipeline/omega-optimization-validation/src/candidates/sparse_conditional_constant_propagation/candidate_validation.rs",
-        "omega-rust/omega/pipeline/omega-optimization-validation/src/candidates/sparse_conditional_constant_propagation/boolean_evaluation/integer_comparisons.rs",
-        "omega-rust/omega/pipeline/omega-optimization-validation/src/candidates/sparse_conditional_constant_propagation/range_comparisons.rs",
-        "omega-rust/omega/pipeline/omega-abstract-operations-optimizer/src/rules/passes/copy_propagation/redundant_block_parameter.rs",
-        "omega-rust/omega/pipeline/omega-optimization-validation/src/candidates/global_value_numbering/expression_keys.rs",
-        "omega-rust/omega/pipeline/omega-optimization-validation/src/tests/structural_catalog.rs",
-        "omega-rust/omega/pipeline/omega-selected-instructions-to-register-homes/src/analyses/live_ranges/validate/replay.rs",
-        "omega-rust/omega/pipeline/omega-selected-instructions-to-register-homes/src/analyses/live_ranges/validate/tests.rs",
-        "omega-rust/omega/representations/omega-optimization-unit/src/ledger.rs",
+        "omega-rust/omega/representations/optimization-core/src/manifest.rs",
+        "omega-rust/omega/representations/legalized-operations/src/validation/call_source.rs",
+        "omega-rust/omega/representations/optimization-unit/src/identity/operation_encoding.rs",
+        "omega-rust/omega/pipeline/optimization-validation/src/candidates/sparse_conditional_constant_propagation/candidate_validation.rs",
+        "omega-rust/omega/pipeline/optimization-validation/src/candidates/sparse_conditional_constant_propagation/boolean_evaluation/integer_comparisons.rs",
+        "omega-rust/omega/pipeline/optimization-validation/src/candidates/sparse_conditional_constant_propagation/range_comparisons.rs",
+        "omega-rust/omega/pipeline/abstract-operations-to-abstract-operations/src/rules/passes/copy_propagation/redundant_block_parameter.rs",
+        "omega-rust/omega/pipeline/optimization-validation/src/candidates/global_value_numbering/expression_keys.rs",
+        "omega-rust/omega/pipeline/optimization-validation/src/tests/structural_catalog.rs",
+        "omega-rust/omega/pipeline/selected-instructions-to-register-homes/src/analyses/live_ranges/validate/replay.rs",
+        "omega-rust/omega/pipeline/selected-instructions-to-register-homes/src/analyses/live_ranges/validate/tests.rs",
+        "omega-rust/omega/representations/optimization-unit/src/ledger.rs",
         "tests/native-differential/tests/pipeline_ownership/stages/allocation/register_allocation.rs",
         "tests/native-differential/tests/pipeline_ownership/stages/machine/selected_lowering.rs",
-        "omega-rust/omega/pipeline/omega-abstract-operations-to-target-operations/src/lowering/scalar/conditional_control.rs",
-        "omega-rust/omega/pipeline/omega-terminal-psi-to-native-artifact/src/realization/providers/settlements.rs",
-        "omega-rust/omega/pipeline/omega-selected-instructions-to-machine-effects/src/facts/codec.rs",
-        "omega-rust/omega/pipeline/omega-post-allocation-machine-to-optimized-machine/src/rules/aarch64/materialize_i64_movn/compute.rs",
-        "omega-rust/omega/pipeline/omega-target-operations-to-selected-instructions/src/selection/validation/blocks.rs",
-        "omega-rust/omega/pipeline/omega-target-operations-to-selected-instructions/src/legalization/source/leaves.rs",
-        "omega-rust/omega/representations/omega-optimization-unit/src/rewrite/model.rs",
-        "omega-rust/omega/representations/omega-optimization-unit/src/construction.rs",
-        "omega-rust/omega/backend/omega-machine-emission/src/function_realization/codec.rs",
-        "omega-rust/omega/pipeline/omega-abstract-operations-optimizer/src/rules/passes/control_flow_cleanup/block_merging.rs",
-        "omega-rust/omega/pipeline/omega-abstract-operations-optimizer/src/rules/passes/control_flow_cleanup/empty_block_threading.rs",
-        "omega-rust/omega/pipeline/omega-optimization-validation/src/candidates/control_flow_cleanup/block_merging.rs",
-        "omega-rust/omega/pipeline/omega-optimization-validation/src/candidates/control_flow_cleanup/empty_block_threading.rs",
-        "omega-rust/omega/pipeline/omega-optimization-validation/src/candidates/control_flow_cleanup/constant_conditionals.rs",
-        "omega-rust/omega/pipeline/omega-optimization-validation/src/candidates/control_flow_cleanup/shared_jump_fusion.rs",
-        "omega-rust/omega/pipeline/omega-optimization-validation/src/candidates/control_flow_cleanup/unreachable_private_machines.rs",
-        "omega-rust/omega/pipeline/omega-optimization-validation/src/candidates/control_flow_cleanup/empty_block_threading/linear.rs",
-        "omega-rust/omega/pipeline/omega-optimization-validation/src/candidates/control_flow_cleanup/empty_block_threading/path_qualified.rs",
-        "omega-rust/omega/pipeline/omega-optimization-validation/src/candidates/control_flow_cleanup/block_merging/adjacent.rs",
-        "omega-rust/omega/pipeline/omega-optimization-validation/src/candidates/control_flow_cleanup/block_merging/non_adjacent.rs",
-        "omega-rust/omega/pipeline/omega-abstract-operations-optimizer/src/rules/passes/global_value_numbering/accounting.rs",
-        "omega-rust/omega/pipeline/omega-abstract-operations-optimizer/src/rules/passes/proof_check_elision/identity_rewrite.rs",
-        "omega-rust/omega/pipeline/omega-abstract-operations-optimizer/src/rules/passes/dead_scalar_elimination/proof_certified/mod.rs",
-        "omega-rust/omega/pipeline/omega-abstract-operations-optimizer/src/rules/passes/dead_scalar_elimination/family.rs",
-        "omega-rust/omega/pipeline/omega-abstract-operations-optimizer/src/rules/passes/dead_scalar_elimination/proposal.rs",
-        "omega-rust/omega/pipeline/omega-abstract-operations-optimizer/src/rules/passes/dead_scalar_elimination/shapes.rs",
-        "omega-rust/omega/pipeline/omega-abstract-operations-optimizer/src/rules/passes/dead_scalar_elimination/accounting.rs",
-        "omega-rust/omega/pipeline/omega-abstract-operations-optimizer/src/rules/passes/sparse_conditional_constant_propagation/constant_evaluation/boolean.rs",
-        "omega-rust/omega/pipeline/omega-abstract-operations-optimizer/src/rules/passes/sparse_conditional_constant_propagation/constant_evaluation/integer/cast.rs",
-        "omega-rust/omega/pipeline/omega-abstract-operations-optimizer/src/rules/passes/sparse_conditional_constant_propagation/constant_evaluation/integer/unary.rs",
-        "omega-rust/omega/pipeline/omega-abstract-operations-optimizer/src/rules/passes/sparse_conditional_constant_propagation/constant_evaluation/integer/binary/arithmetic.rs",
-        "omega-rust/omega/pipeline/omega-abstract-operations-optimizer/src/rules/passes/sparse_conditional_constant_propagation/constant_evaluation/integer/binary/quotient.rs",
-        "omega-rust/omega/pipeline/omega-abstract-operations-optimizer/src/rules/passes/sparse_conditional_constant_propagation/constant_evaluation/integer/binary/shifts.rs",
-        "omega-rust/omega/pipeline/omega-abstract-operations-optimizer/src/rules/passes/sparse_conditional_constant_propagation/constant_evaluation/integer/binary/bitwise.rs",
-        "omega-rust/omega/pipeline/omega-abstract-operations-optimizer/src/rules/passes/sparse_conditional_constant_propagation/range_comparisons.rs",
-        "omega-rust/omega/pipeline/omega-abstract-operations-optimizer/src/rules/passes/tests/sparse_conditional_constant_propagation.rs",
-        "omega-rust/omega/pipeline/omega-abstract-operations-optimizer/src/rules/passes/tests/sparse_conditional_constant_propagation/constant_evaluation.rs",
-        "omega-rust/omega/pipeline/omega-abstract-operations-optimizer/src/rules/passes/tests/sparse_conditional_constant_propagation/constant_evaluation/integer.rs",
-        "omega-rust/omega/pipeline/omega-abstract-operations-optimizer/src/rules/passes/tests/global_value_numbering/identities.rs",
-        "omega-rust/omega/pipeline/omega-abstract-operations-optimizer/src/rules/passes/tests/global_value_numbering/multiply_zero.rs",
-        "omega-rust/omega/pipeline/omega-abstract-operations-optimizer/src/rules/passes/tests/global_value_numbering/saturating_neutral.rs",
-        "omega-rust/omega/pipeline/omega-abstract-operations-optimizer/src/rules/passes/tests/global_value_numbering/saturating_multiply_zero.rs",
-        "omega-rust/omega/pipeline/omega-abstract-operations-optimizer/src/rules/passes/tests/global_value_numbering/bitwise_neutral.rs",
-        "omega-rust/omega/pipeline/omega-abstract-operations-optimizer/src/rules/passes/tests/global_value_numbering/bitwise_absorbing.rs",
-        "omega-rust/omega/pipeline/omega-abstract-operations-optimizer/src/rules/passes/tests/global_value_numbering/same_block.rs",
-        "omega-rust/omega/pipeline/omega-abstract-operations-optimizer/src/rules/passes/tests/global_value_numbering/dominating.rs",
-        "omega-rust/omega/pipeline/omega-abstract-operations-optimizer/src/rules/passes/tests/global_value_numbering/phi_translated.rs",
-        "omega-rust/omega/pipeline/omega-abstract-operations-optimizer/src/rules/passes/tests/global_value_numbering/compatible_policy.rs",
-        "omega-rust/omega/pipeline/omega-abstract-operations-optimizer/src/rules/passes/tests/global_value_numbering/contract_custody.rs",
-        "omega-rust/omega/pipeline/omega-abstract-operations-optimizer/src/rules/passes/tests/dead_scalar_elimination.rs",
-        "omega-rust/omega/pipeline/omega-selected-instructions-to-register-homes/src/rewrites/allocation_recovery/fixed_view_copy/validate.rs",
-        "omega-rust/omega/pipeline/omega-psi-to-abstract-operations/src/lowering/machine/operation.rs",
+        "omega-rust/omega/pipeline/abstract-operations-to-target-operations/src/lowering/scalar/conditional_control.rs",
+        "omega-rust/omega/pipeline/terminal-psi-to-native-artifact/src/realization/providers/settlements.rs",
+        "omega-rust/omega/pipeline/selected-instructions-to-register-homes/src/analyses/machine_effects/facts/codec.rs",
+        "omega-rust/omega/pipeline/post-allocation-machine-to-post-allocation-machine/src/rules/aarch64/materialize_i64_movn/compute.rs",
+        "omega-rust/omega/pipeline/target-operations-to-selected-instructions/src/selection/validation/blocks.rs",
+        "omega-rust/omega/pipeline/target-operations-to-selected-instructions/src/legalization/source/leaves.rs",
+        "omega-rust/omega/representations/optimization-unit/src/rewrite/model.rs",
+        "omega-rust/omega/representations/optimization-unit/src/construction.rs",
+        "omega-rust/omega/backend/machine-emission/src/function_realization/codec.rs",
+        "omega-rust/omega/pipeline/abstract-operations-to-abstract-operations/src/rules/passes/control_flow_cleanup/block_merging.rs",
+        "omega-rust/omega/pipeline/abstract-operations-to-abstract-operations/src/rules/passes/control_flow_cleanup/empty_block_threading.rs",
+        "omega-rust/omega/pipeline/optimization-validation/src/candidates/control_flow_cleanup/block_merging.rs",
+        "omega-rust/omega/pipeline/optimization-validation/src/candidates/control_flow_cleanup/empty_block_threading.rs",
+        "omega-rust/omega/pipeline/optimization-validation/src/candidates/control_flow_cleanup/constant_conditionals.rs",
+        "omega-rust/omega/pipeline/optimization-validation/src/candidates/control_flow_cleanup/shared_jump_fusion.rs",
+        "omega-rust/omega/pipeline/optimization-validation/src/candidates/control_flow_cleanup/unreachable_private_machines.rs",
+        "omega-rust/omega/pipeline/optimization-validation/src/candidates/control_flow_cleanup/empty_block_threading/linear.rs",
+        "omega-rust/omega/pipeline/optimization-validation/src/candidates/control_flow_cleanup/empty_block_threading/path_qualified.rs",
+        "omega-rust/omega/pipeline/optimization-validation/src/candidates/control_flow_cleanup/block_merging/adjacent.rs",
+        "omega-rust/omega/pipeline/optimization-validation/src/candidates/control_flow_cleanup/block_merging/non_adjacent.rs",
+        "omega-rust/omega/pipeline/abstract-operations-to-abstract-operations/src/rules/passes/global_value_numbering/accounting.rs",
+        "omega-rust/omega/pipeline/abstract-operations-to-abstract-operations/src/rules/passes/proof_check_elision/identity_rewrite.rs",
+        "omega-rust/omega/pipeline/abstract-operations-to-abstract-operations/src/rules/passes/dead_scalar_elimination/proof_certified/mod.rs",
+        "omega-rust/omega/pipeline/abstract-operations-to-abstract-operations/src/rules/passes/dead_scalar_elimination/family.rs",
+        "omega-rust/omega/pipeline/abstract-operations-to-abstract-operations/src/rules/passes/dead_scalar_elimination/proposal.rs",
+        "omega-rust/omega/pipeline/abstract-operations-to-abstract-operations/src/rules/passes/dead_scalar_elimination/shapes.rs",
+        "omega-rust/omega/pipeline/abstract-operations-to-abstract-operations/src/rules/passes/dead_scalar_elimination/accounting.rs",
+        "omega-rust/omega/pipeline/abstract-operations-to-abstract-operations/src/rules/passes/sparse_conditional_constant_propagation/constant_evaluation/boolean.rs",
+        "omega-rust/omega/pipeline/abstract-operations-to-abstract-operations/src/rules/passes/sparse_conditional_constant_propagation/constant_evaluation/integer/cast.rs",
+        "omega-rust/omega/pipeline/abstract-operations-to-abstract-operations/src/rules/passes/sparse_conditional_constant_propagation/constant_evaluation/integer/unary.rs",
+        "omega-rust/omega/pipeline/abstract-operations-to-abstract-operations/src/rules/passes/sparse_conditional_constant_propagation/constant_evaluation/integer/binary/arithmetic.rs",
+        "omega-rust/omega/pipeline/abstract-operations-to-abstract-operations/src/rules/passes/sparse_conditional_constant_propagation/constant_evaluation/integer/binary/quotient.rs",
+        "omega-rust/omega/pipeline/abstract-operations-to-abstract-operations/src/rules/passes/sparse_conditional_constant_propagation/constant_evaluation/integer/binary/shifts.rs",
+        "omega-rust/omega/pipeline/abstract-operations-to-abstract-operations/src/rules/passes/sparse_conditional_constant_propagation/constant_evaluation/integer/binary/bitwise.rs",
+        "omega-rust/omega/pipeline/abstract-operations-to-abstract-operations/src/rules/passes/sparse_conditional_constant_propagation/range_comparisons.rs",
+        "omega-rust/omega/pipeline/abstract-operations-to-abstract-operations/src/rules/passes/tests/sparse_conditional_constant_propagation.rs",
+        "omega-rust/omega/pipeline/abstract-operations-to-abstract-operations/src/rules/passes/tests/sparse_conditional_constant_propagation/constant_evaluation.rs",
+        "omega-rust/omega/pipeline/abstract-operations-to-abstract-operations/src/rules/passes/tests/sparse_conditional_constant_propagation/constant_evaluation/integer.rs",
+        "omega-rust/omega/pipeline/abstract-operations-to-abstract-operations/src/rules/passes/tests/global_value_numbering/identities.rs",
+        "omega-rust/omega/pipeline/abstract-operations-to-abstract-operations/src/rules/passes/tests/global_value_numbering/multiply_zero.rs",
+        "omega-rust/omega/pipeline/abstract-operations-to-abstract-operations/src/rules/passes/tests/global_value_numbering/saturating_neutral.rs",
+        "omega-rust/omega/pipeline/abstract-operations-to-abstract-operations/src/rules/passes/tests/global_value_numbering/saturating_multiply_zero.rs",
+        "omega-rust/omega/pipeline/abstract-operations-to-abstract-operations/src/rules/passes/tests/global_value_numbering/bitwise_neutral.rs",
+        "omega-rust/omega/pipeline/abstract-operations-to-abstract-operations/src/rules/passes/tests/global_value_numbering/bitwise_absorbing.rs",
+        "omega-rust/omega/pipeline/abstract-operations-to-abstract-operations/src/rules/passes/tests/global_value_numbering/same_block.rs",
+        "omega-rust/omega/pipeline/abstract-operations-to-abstract-operations/src/rules/passes/tests/global_value_numbering/dominating.rs",
+        "omega-rust/omega/pipeline/abstract-operations-to-abstract-operations/src/rules/passes/tests/global_value_numbering/phi_translated.rs",
+        "omega-rust/omega/pipeline/abstract-operations-to-abstract-operations/src/rules/passes/tests/global_value_numbering/compatible_policy.rs",
+        "omega-rust/omega/pipeline/abstract-operations-to-abstract-operations/src/rules/passes/tests/global_value_numbering/contract_custody.rs",
+        "omega-rust/omega/pipeline/abstract-operations-to-abstract-operations/src/rules/passes/tests/dead_scalar_elimination.rs",
+        "omega-rust/omega/pipeline/selected-instructions-to-register-homes/src/rewrites/allocation_recovery/fixed_view_copy/validate.rs",
+        "omega-rust/omega/pipeline/terminal-psi-to-abstract-operations/src/lowering/machine/operation.rs",
     ] {
         if repository.join(obsolete).exists() {
             violations.insert(format!(
@@ -142,8 +142,8 @@ pub(crate) fn check(audit: &mut Audit) {
     }
 
     for obsolete in [
-        "omega-rust/omega/pipeline/omega-abstract-operations-optimizer/src/rules/passes/global_value_numbering/identities/rule.rs",
-        "omega-rust/omega/pipeline/omega-abstract-operations-optimizer/src/rules/passes/global_value_numbering/identities/shapes.rs",
+        "omega-rust/omega/pipeline/abstract-operations-to-abstract-operations/src/rules/passes/global_value_numbering/identities/rule.rs",
+        "omega-rust/omega/pipeline/abstract-operations-to-abstract-operations/src/rules/passes/global_value_numbering/identities/shapes.rs",
     ] {
         if repository.join(obsolete).exists() {
             violations.insert(format!(
@@ -152,7 +152,7 @@ pub(crate) fn check(audit: &mut Audit) {
         }
     }
 
-    let obsolete_post_allocation_manifest = "omega-rust/omega/pipeline/omega-selected-instructions-to-register-homes/src/assignment/post_allocation_manifest.rs";
+    let obsolete_post_allocation_manifest = "omega-rust/omega/pipeline/selected-instructions-to-register-homes/src/assignment/post_allocation_manifest.rs";
     if repository.join(obsolete_post_allocation_manifest).exists() {
         violations.insert(format!(
             "register allocation retains the mixed post-allocation manifest file: {obsolete_post_allocation_manifest}"
@@ -160,9 +160,9 @@ pub(crate) fn check(audit: &mut Audit) {
     }
 
     for obsolete in [
-        "omega-rust/omega/pipeline/omega-selected-instructions-to-register-homes/src/assignment/home_assignment/compute.rs",
-        "omega-rust/omega/pipeline/omega-selected-instructions-to-register-homes/src/assignment/home_assignment/validate.rs",
-        "omega-rust/omega/pipeline/omega-selected-instructions-to-register-homes/src/assignment/home_assignment/compute_tests.rs",
+        "omega-rust/omega/pipeline/selected-instructions-to-register-homes/src/assignment/home_assignment/compute.rs",
+        "omega-rust/omega/pipeline/selected-instructions-to-register-homes/src/assignment/home_assignment/validate.rs",
+        "omega-rust/omega/pipeline/selected-instructions-to-register-homes/src/assignment/home_assignment/compute_tests.rs",
     ] {
         if repository.join(obsolete).exists() {
             violations.insert(format!(
@@ -172,11 +172,11 @@ pub(crate) fn check(audit: &mut Audit) {
     }
 
     for obsolete in [
-        "omega-rust/omega/pipeline/omega-selected-instructions-to-register-homes/src/assignment/logical_spill_operations.rs",
-        "omega-rust/omega/pipeline/omega-selected-instructions-to-register-homes/src/assignment/logical_spill_operations/compute.rs",
-        "omega-rust/omega/pipeline/omega-selected-instructions-to-register-homes/src/assignment/logical_spill_operations/validate.rs",
-        "omega-rust/omega/pipeline/omega-selected-instructions-to-register-homes/src/assignment/logical_spill_operations/codec.rs",
-        "omega-rust/omega/pipeline/omega-selected-instructions-to-register-homes/src/assignment/logical_spill_operations/tests.rs",
+        "omega-rust/omega/pipeline/selected-instructions-to-register-homes/src/assignment/logical_spill_operations.rs",
+        "omega-rust/omega/pipeline/selected-instructions-to-register-homes/src/assignment/logical_spill_operations/compute.rs",
+        "omega-rust/omega/pipeline/selected-instructions-to-register-homes/src/assignment/logical_spill_operations/validate.rs",
+        "omega-rust/omega/pipeline/selected-instructions-to-register-homes/src/assignment/logical_spill_operations/codec.rs",
+        "omega-rust/omega/pipeline/selected-instructions-to-register-homes/src/assignment/logical_spill_operations/tests.rs",
     ] {
         if repository.join(obsolete).exists() {
             violations.insert(format!(
@@ -186,8 +186,8 @@ pub(crate) fn check(audit: &mut Audit) {
     }
 
     for obsolete in [
-        "omega-rust/omega/pipeline/omega-selected-instructions-to-register-homes/src/rewrites/allocation_recovery/fixed_view_copy/codec.rs",
-        "omega-rust/omega/pipeline/omega-selected-instructions-to-register-homes/src/rewrites/allocation_recovery/fixed_view_copy/codec_tests.rs",
+        "omega-rust/omega/pipeline/selected-instructions-to-register-homes/src/rewrites/allocation_recovery/fixed_view_copy/codec.rs",
+        "omega-rust/omega/pipeline/selected-instructions-to-register-homes/src/rewrites/allocation_recovery/fixed_view_copy/codec_tests.rs",
     ] {
         if repository.join(obsolete).exists() {
             violations.insert(format!(
@@ -197,14 +197,14 @@ pub(crate) fn check(audit: &mut Audit) {
     }
 
     for obsolete in [
-        "omega-rust/omega/pipeline/omega-abstract-operations-to-target-operations/src/tests/translation_validation.rs",
-        "omega-rust/omega/pipeline/omega-abstract-operations-to-target-operations/src/tests/translation_validation_boolean.rs",
-        "omega-rust/omega/pipeline/omega-abstract-operations-to-target-operations/src/tests/translation_validation_crash.rs",
-        "omega-rust/omega/pipeline/omega-abstract-operations-to-target-operations/src/tests/translation_validation_integer_bitwise_not_parameter.rs",
-        "omega-rust/omega/pipeline/omega-abstract-operations-to-target-operations/src/tests/translation_validation_integer_less_or_equal_parameters.rs",
+        "omega-rust/omega/pipeline/abstract-operations-to-target-operations/src/tests/translation_validation.rs",
+        "omega-rust/omega/pipeline/abstract-operations-to-target-operations/src/tests/translation_validation_boolean.rs",
+        "omega-rust/omega/pipeline/abstract-operations-to-target-operations/src/tests/translation_validation_crash.rs",
+        "omega-rust/omega/pipeline/abstract-operations-to-target-operations/src/tests/translation_validation_integer_bitwise_not_parameter.rs",
+        "omega-rust/omega/pipeline/abstract-operations-to-target-operations/src/tests/translation_validation_integer_less_or_equal_parameters.rs",
         "tests/native-differential/tests/pipeline_ownership/stages/selection/optimized_target_operations/comparison.rs",
         "tests/native-differential/tests/pipeline_ownership/stages/selection/optimized_target_operations/unary.rs",
-        "omega-rust/omega/pipeline/omega-abstract-operations-to-target-operations/src/tests/parameter_translation_fixture/bitwise.rs",
+        "omega-rust/omega/pipeline/abstract-operations-to-target-operations/src/tests/parameter_translation_fixture/bitwise.rs",
         "tests/native-differential/tests/pipeline_ownership/fixtures/target_translation/bitwise.rs",
         "tests/native-differential/tests/pipeline_ownership/stages/selection/optimized_target_operations/bitwise.rs",
     ] {
@@ -215,7 +215,7 @@ pub(crate) fn check(audit: &mut Audit) {
         }
     }
 
-    let obsolete_selected_lowering_schedule = "omega-rust/omega/pipeline/omega-terminal-psi-to-native-artifact/src/stages/machine/literal_folds/schedule.rs";
+    let obsolete_selected_lowering_schedule = "omega-rust/omega/pipeline/terminal-psi-to-native-artifact/src/stages/machine/literal_folds/schedule.rs";
     if repository
         .join(obsolete_selected_lowering_schedule)
         .exists()
@@ -225,7 +225,7 @@ pub(crate) fn check(audit: &mut Audit) {
         ));
     }
 
-    let post_allocation_dispatch = "omega-rust/omega/pipeline/omega-post-allocation-machine-to-optimized-machine/src/execution/dispatch.rs";
+    let post_allocation_dispatch = "omega-rust/omega/pipeline/post-allocation-machine-to-post-allocation-machine/src/execution/dispatch.rs";
     match fs::read_to_string(repository.join(post_allocation_dispatch)) {
         Ok(contents)
             if [
@@ -250,7 +250,7 @@ pub(crate) fn check(audit: &mut Audit) {
         }
     }
 
-    let cbnz_root = "omega-rust/omega/pipeline/omega-post-allocation-machine-to-optimized-machine/src/rules/aarch64/compare_zero_branch_nonzero";
+    let cbnz_root = "omega-rust/omega/pipeline/post-allocation-machine-to-post-allocation-machine/src/rules/aarch64/compare_zero_branch_nonzero";
     let cbnz_compute = format!("{cbnz_root}/compute.rs");
     let cbnz_validate = format!("{cbnz_root}/validate.rs");
     match fs::read_to_string(repository.join(&cbnz_compute)) {
@@ -284,7 +284,7 @@ pub(crate) fn check(audit: &mut Audit) {
     }
 
     let machine_rule_root =
-        "omega-rust/omega/pipeline/omega-post-allocation-machine-to-optimized-machine/src/rules/";
+        "omega-rust/omega/pipeline/post-allocation-machine-to-post-allocation-machine/src/rules/";
     for path in source_lines.keys().filter(|path| {
         path.starts_with(machine_rule_root)
             && !is_test_source(path)
@@ -294,7 +294,7 @@ pub(crate) fn check(audit: &mut Audit) {
             Ok(contents)
                 if [
                     "crate::costs",
-                    "omega_physical_instructions::costs",
+                    "physical_instructions::costs",
                     "target_cost_model",
                     "TargetCostModel",
                     "NonAuthoritativeMachineCost",
@@ -316,15 +316,15 @@ pub(crate) fn check(audit: &mut Audit) {
     }
 
     let obsolete_external_policy_schema =
-        "omega-rust/omega/representations/omega-optimization-core/src/decisions/external_schema.rs";
+        "omega-rust/omega/representations/optimization-core/src/decisions/external_schema.rs";
     if repository.join(obsolete_external_policy_schema).exists() {
         violations.insert(format!(
             "external policy retains the mixed flat schema beside its governed entrance: {obsolete_external_policy_schema}"
         ));
     }
     for obsolete in [
-        "omega-rust/omega/pipeline/omega-target-operations-to-selected-instructions/src/selection/construction/plan.rs",
-        "omega-rust/omega/pipeline/omega-target-operations-to-selected-instructions/src/selection/construction/scalar.rs",
+        "omega-rust/omega/pipeline/target-operations-to-selected-instructions/src/selection/construction/plan.rs",
+        "omega-rust/omega/pipeline/target-operations-to-selected-instructions/src/selection/construction/scalar.rs",
     ] {
         if repository.join(obsolete).exists() {
             violations.insert(format!(
@@ -335,9 +335,9 @@ pub(crate) fn check(audit: &mut Audit) {
     for path in source_lines.keys().filter(|path| {
         !is_test_source(path)
             && (path.starts_with(
-                "omega-rust/omega/pipeline/omega-selected-instructions-to-register-homes/src/rewrites/",
+                "omega-rust/omega/pipeline/selected-instructions-to-register-homes/src/rewrites/",
             ) || path.starts_with(
-                "omega-rust/omega/pipeline/omega-terminal-psi-to-native-artifact/src/stages/machine/literal_folds/",
+                "omega-rust/omega/pipeline/terminal-psi-to-native-artifact/src/stages/machine/literal_folds/",
             ))
     }) {
         match fs::read_to_string(repository.join(path)) {

@@ -1,4 +1,4 @@
-use omega_package_source::{GitSourceRequest, GitSourceRequestError, SourceResolveError};
+use package_source::{GitSourceRequest, GitSourceRequestError, SourceResolveError};
 use std::path::PathBuf;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

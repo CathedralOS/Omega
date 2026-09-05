@@ -17,7 +17,7 @@ fn runtime_u64_parameter_equality_selects_exact_three_block_graph_on_both_isas()
             &staged.optimized_target().target_operations().functions[0].operation,
             TargetOperation::ReturnIntegerExpressionConditionalControl {
                 condition_source,
-                condition: omega_target_operations::TargetBooleanExpression::IntegerEqual {
+                condition: target_operations::TargetBooleanExpression::IntegerEqual {
                     psi_operation,
                     scalar_type,
                     left: target_left,
@@ -60,7 +60,7 @@ fn runtime_u64_parameter_equality_selects_exact_three_block_graph_on_both_isas()
             legalized.recipe,
             LegalizationRecipe::ReturnU64IntegerEqualParametersConditionalV1
         );
-        let omega_legalized_operations::LegalizedCondition::IntegerEqualParametersV1 {
+        let legalized_operations::LegalizedCondition::IntegerEqualParametersV1 {
             operation,
             fuel,
             left: legalized_left,
@@ -135,14 +135,11 @@ fn runtime_u64_parameter_equality_selects_exact_three_block_graph_on_both_isas()
         assert!(instruction.provenance.operations.is_empty());
         assert!(instruction.provenance.fuel.is_empty());
         assert_eq!(when_zero.psi_edge, true_edge);
-        assert_eq!(
-            when_zero.block,
-            omega_selected_instructions::SelectedBlockId(1)
-        );
+        assert_eq!(when_zero.block, selected_instructions::SelectedBlockId(1));
         assert_eq!(when_nonzero.psi_edge, false_edge);
         assert_eq!(
             when_nonzero.block,
-            omega_selected_instructions::SelectedBlockId(2)
+            selected_instructions::SelectedBlockId(2)
         );
         assert_eq!(when_zero.fuel.len(), 1);
         assert_eq!(when_zero.fuel[0].site, PsiProvenance::Edge(true_edge));

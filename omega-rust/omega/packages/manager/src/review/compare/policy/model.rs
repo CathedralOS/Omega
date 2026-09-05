@@ -2,9 +2,9 @@ use super::PackagePolicySourceReplacement;
 use crate::declarations::PackageKey;
 use crate::resolution::graph::CanonicalSourceClosureSubjectFingerprint;
 use crate::review::compare::model::ReviewOnlyRootRoleChange;
-use omega_package_evidence::record::{PackagePolicyRow, PackagePolicyRowKind};
-use omega_package_source::ImmutableSourceResolution;
-use psi_core::PackageKeyIdentity;
+use package_evidence::record::{PackagePolicyRow, PackagePolicyRowKind};
+use package_source::ImmutableSourceResolution;
+use semantic_vocabulary::PackageKeyIdentity;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub enum PackagePolicyChangeKind {

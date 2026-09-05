@@ -14,9 +14,9 @@ use crate::record::{
     CheckedPackageProviderRowIdentity, PackageReviewProviderGrantSelectorKind,
     PackageReviewSelectedProviderGrant,
 };
-use omega_compiler::CheckedCompilation;
-use omega_target::TargetProfile;
-use psi_diagnostics::Diagnostic;
+use compiler::CheckedCompilation;
+use diagnostics::Diagnostic;
+use target::TargetProfile;
 
 pub(super) struct ProjectedProviders {
     pub(super) selected: Vec<CheckedPackageProviderReview>,
@@ -28,7 +28,7 @@ pub(super) struct ProjectedProviders {
 pub(super) fn project_selected_providers(
     compilation: &CheckedCompilation,
     target: TargetProfile,
-    package: psi_core::PackageKeyIdentity,
+    package: semantic_vocabulary::PackageKeyIdentity,
 ) -> Result<ProjectedProviders, Vec<Diagnostic>> {
     let selected_plans = compilation.selected_provider_plans().plans();
     let selected_provider_provenance = compilation.selected_provider_provenance();
@@ -188,10 +188,10 @@ pub(super) fn project_selected_providers(
             .filter(|grant| grant.grant.replays_selected_plan(plan))
             .map(|grant| PackageReviewSelectedProviderGrant {
                 selector_kind: match grant.grant.selector_kind {
-                    omega_trust_model::ProviderGrantSelectorKind::PlanName => {
+                    trust_model::ProviderGrantSelectorKind::PlanName => {
                         PackageReviewProviderGrantSelectorKind::PlanName
                     }
-                    omega_trust_model::ProviderGrantSelectorKind::ProviderSlot => {
+                    trust_model::ProviderGrantSelectorKind::ProviderSlot => {
                         PackageReviewProviderGrantSelectorKind::ProviderSlot
                     }
                 },
@@ -252,10 +252,10 @@ pub(super) fn project_selected_providers(
 
 fn validate_selected_requirement_lifetime_partition(
     compilation: &CheckedCompilation,
-    plan: &omega_effects::provider_plan::ProviderPlan,
-    row: &omega_effects::provider_plan::ProviderPlanRow,
-    requirement: psi_symbols::SymbolHandle,
-    realization: psi_symbols::SymbolHandle,
+    plan: &effects::provider_plan::ProviderPlan,
+    row: &effects::provider_plan::ProviderPlanRow,
+    requirement: symbols::SymbolHandle,
+    realization: symbols::SymbolHandle,
 ) -> Result<(), Vec<Diagnostic>> {
     let declaring_traits = compilation
         .traits()
@@ -308,7 +308,7 @@ fn validate_selected_requirement_lifetime_partition(
                 applications.len(),
             ))]);
         };
-        let replayed = psi_typed_trees::machine::normalize_requirement_lifetime_partition(
+        let replayed = typed_trees::machine::normalize_requirement_lifetime_partition(
             &application.trait_lifetime_arguments,
         );
         if replayed != row.requirement_lifetime_partition {

@@ -1,0 +1,32 @@
+[package]
+name = "component-publication"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[lib]
+name = "component_publication"
+path = "src/lib.rs"
+
+[dependencies]
+effects = { path = "../../../representations/effects" }
+executable-installation = { path = "../executable-installation" }
+external-roots = { path = "../external-roots" }
+image-emission = { path = "../../images/image-emission", features = ["installed-artifact"] }
+
+[dev-dependencies]
+calling-conventions = { path = "../../../representations/calling-conventions" }
+function-identity = { path = "../../../representations/function-identity" }
+target = { path = "../../../representations/target" }
+installation-evidence = { path = "../../../representations/installation-evidence" }
+isa-x86_64 = { path = "../../instruction_set_architectures/isa-x86_64" }
+machine-code = { path = "../../../representations/machine-code" }
+machine-emission = { path = "../../machine-emission" }
+target-operations = { path = "../../../representations/target-operations" }
+target-operations-to-assigned-target-operations = { path = "../../../pipeline/target-operations-to-assigned-target-operations" }
+semantic-vocabulary = { path = "../../../../psi/foundation/semantic-vocabulary" }
+extents = { path = "../../../../psi/foundation/extents" }
+layout-plans = { path = "../../../../psi/foundation/layout-plans" }
+symbols = { path = "../../../../psi/foundation/symbols" }
+terminal-psi = { path = "../../../../psi/representations/terminal-psi" }
+terminal-fuel = { path = "../../../../psi/semantics/terminal-fuel" }

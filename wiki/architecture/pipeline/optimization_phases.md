@@ -26,6 +26,13 @@ execution, validation, and transformation custody. Types such as
 `PreOptimizedPsi` and `PostOptimizedPsi` are not created merely to record that
 some bytes changed.
 
+Pipeline folders name both endpoints literally, including identical endpoints:
+`abstract-operations-to-abstract-operations` and
+`post-allocation-machine-to-post-allocation-machine`. There is no
+`-optimizer` naming exception. The visible sequence is `X-to-Y`, `Y-to-Y`,
+`Y-to-Z`; individual passes and analyses are modules within the owning phase,
+not additional apparent program routes. Empty selections preserve that sequence.
+
 Real boundaries retain distinct representations. Checked-tree lowering changes
 vocabulary when it constructs Psi. Terminalization strengthens the contract by
 sealing an immutable, self-contained Psi product. Terminal-to-abstract lowering
@@ -68,7 +75,10 @@ run only when their exact names are selected.
 
 ## Allocation and frame ownership
 
-Allocation owns ABI-preserved-register discovery. Frame layout owns abstract
+Allocation owns machine-effect analysis and ABI-preserved-register discovery.
+Machine effects describe the current selected program and are not a competing
+program stage; both construction and replay live in allocation's analyses.
+Frame layout owns abstract
 callee-save storage and spill requirements; machine emission owns packing the
 resulting prologue/epilogue bytes. These calculations are modules of their
 consuming phases, not separately scheduled public pipeline stages. Retained
@@ -139,15 +149,15 @@ branched.
 ## Selection ownership
 
 Native phase sequencing and report assembly live in
-`omega-terminal-psi-to-native-artifact/src/native_pipeline`. Function realization,
-fragment emission and placement admission live in `omega-machine-emission`;
-object publication lives in `omega-object-file`, and callable-entry admission
-in `omega-native-artifact`. These owners retain replay inputs explicitly without
+`terminal-psi-to-native-artifact/src/native_pipeline`. Function realization,
+fragment emission and placement admission live in `machine-emission`;
+object publication lives in `object-file`, and callable-entry admission
+in `native-artifact`. These owners retain replay inputs explicitly without
 reopening source/frontend state. Build evaluation consumes report-request data
-from `omega-optimization-core`, not an executable optimization coordinator.
+from `optimization-core`, not an executable optimization coordinator.
 
 The pass manager owns baseline candidate selection. Baseline decision logs and
-the external decision schema live in `omega-optimization-core/src/decisions`;
+the external decision schema live in `optimization-core/src/decisions`;
 their record-only builder and codecs never choose a rewrite. Offline policy
 tools consume this data directly, without depending on the executing optimizer.
 
@@ -228,7 +238,7 @@ encoding are selected-representation-owned; analysis and admission remain
 pipeline-owned.
 
 Allocation analyses, rewrites, reanalysis, and assignment now share the
-`omega-selected-instructions-to-register-homes` phase owner. Its sealed
+`selected-instructions-to-register-homes` phase owner. Its sealed
 allocation boundary independently reconstructs retained evidence and exposes
 one immutable current-program view, with policy and evidence separate from the
 program's identity. Both machine-plan construction and post-allocation machine
@@ -333,11 +343,11 @@ remaining realization replay carriers are transitional, not new canonical IRs.
    now ordinary pipeline stage crates rather than children of the transitional
    `pipeline/optimization` island. That directory is now removed rather than
    preserved as an architectural layer. The remaining
-   `omega-terminal-psi-to-native-artifact` crate is a transitional cross-stage
+   `terminal-psi-to-native-artifact` crate is a transitional cross-stage
    coordinator to split and delete, not the replacement layer. Deterministic
    optimization policy likewise lives at pipeline rank beside its consumers,
    as does the independent optimization-unit validator. The former
-   `omega-psi-optimizer` is now named `omega-abstract-operations-optimizer`:
+   `omega-psi-optimizer` is now named `abstract-operations-to-abstract-operations`:
    its units are reconstructed from Terminal Psi and it runs after publication,
    so it cannot stand in for the still-distinct portable Psi phase.
 6. Add checked-tree pruning only after its product-root identity, ownership,

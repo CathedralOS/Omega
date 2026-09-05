@@ -42,7 +42,7 @@ fn replay_rejects_every_root_and_retained_storage_field_corruption() {
 
     let mut catalog = canonical.clone();
     catalog.register_environment =
-        omega_register_model::TargetRegisterEnvironmentIdentity::from_bytes([0x62; 32]);
+        register_model::TargetRegisterEnvironmentIdentity::from_bytes([0x62; 32]);
     assert_eq!(
         validate_non_authoritative_callee_save_storage(&requirements, &environment, catalog),
         Err(NonAuthoritativeCalleeSaveStorageError::RootMismatch)
@@ -50,7 +50,7 @@ fn replay_rejects_every_root_and_retained_storage_field_corruption() {
 
     let mut physical = canonical.clone();
     physical.physical_register_model =
-        omega_register_model::PhysicalRegisterModelIdentity::from_bytes([0x63; 32]);
+        register_model::PhysicalRegisterModelIdentity::from_bytes([0x63; 32]);
     assert_eq!(
         validate_non_authoritative_callee_save_storage(&requirements, &environment, physical),
         Err(NonAuthoritativeCalleeSaveStorageError::RootMismatch)
@@ -58,7 +58,7 @@ fn replay_rejects_every_root_and_retained_storage_field_corruption() {
 
     let mut storage_catalog = canonical.clone();
     storage_catalog.preservation_storage_catalog =
-        omega_register_model::PreservationStorageCatalogIdentity::from_bytes([0x64; 32]);
+        register_model::PreservationStorageCatalogIdentity::from_bytes([0x64; 32]);
     assert_eq!(
         validate_non_authoritative_callee_save_storage(
             &requirements,
@@ -115,7 +115,7 @@ fn replay_rejects_every_root_and_retained_storage_field_corruption() {
         },
         |plan: &mut NonAuthoritativeCalleeSaveStoragePlan| {
             modified_function!(plan).slots[0].storage_group =
-                omega_register_model::PreservationStorageGroupId(u16::MAX);
+                register_model::PreservationStorageGroupId(u16::MAX);
         },
         |plan: &mut NonAuthoritativeCalleeSaveStoragePlan| {
             modified_function!(plan).slots[0].storage_view = RegisterViewId(u16::MAX);
@@ -132,7 +132,7 @@ fn replay_rejects_every_root_and_retained_storage_field_corruption() {
         |plan: &mut NonAuthoritativeCalleeSaveStoragePlan| {
             modified_function!(plan).slots[0].modified_units[0].witnesses[0] =
                 CalleeSavedModificationWitness::ImplicitClobber {
-                    block: omega_selected_instructions::SelectedBlockId(999),
+                    block: selected_instructions::SelectedBlockId(999),
                     instruction: SelectedInstructionId(999),
                 };
         },

@@ -49,14 +49,14 @@ fn relocation_free_cbnz_text_section_preserves_zero_span_and_alignment() {
         .iter()
         .find(|row| {
             row.alternative.family
-                == omega_selected_instructions::MachineAlternativeFamily::CompareI64Zero
+                == selected_instructions::MachineAlternativeFamily::CompareI64Zero
         })
         .unwrap();
     let branch = rows
         .iter()
         .find(|row| {
             row.alternative.family
-                == omega_selected_instructions::MachineAlternativeFamily::ConditionalBranchNonZero
+                == selected_instructions::MachineAlternativeFamily::ConditionalBranchNonZero
         })
         .unwrap();
     assert_eq!(compare.byte_count, 0);

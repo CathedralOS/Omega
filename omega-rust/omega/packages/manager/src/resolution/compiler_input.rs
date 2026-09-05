@@ -1,7 +1,7 @@
 //! Revalidated package-aware inputs handed from source custody to the compiler.
 
 use crate::resolution::graph::ResolvedPackageSourceClosure;
-use omega_package_compilation::{
+use package_compilation::{
     PackageCompilationInputError, PackageCompilationInputs, PackageDependencyBinding,
     PackageSourceBinding,
 };
@@ -77,7 +77,7 @@ fn binding_with_canonical_source_metadata(
     custody: &crate::resolution::source::PackageSourceCustody,
     binding: PackageSourceBinding,
 ) -> Result<PackageSourceBinding, PackageCompilationInputError> {
-    omega_package_source::local::operations::capture_verified_package_source_snapshot(
+    package_source::local::operations::capture_verified_package_source_snapshot(
         custody.snapshot_root(),
         custody.materialization().content(),
         custody.source_limits(),
@@ -139,15 +139,15 @@ mod tests {
     use crate::resolution::graph::PackageRootSourceRequest;
     use crate::resolution::graph::reconcile::resolve_package_source_closure;
     use crate::resolution::source::PackageSourceCustody;
-    use omega_package_source::{GitCommitId, GitTreeId, ImmutableSourceResolution, SourceLineage};
     #[cfg(unix)]
-    use psi_checked_interpreter::CanonicalFilesystemMetadataRowKind;
+    use checked_interpreter::CanonicalFilesystemMetadataRowKind;
+    use package_source::{GitCommitId, GitTreeId, ImmutableSourceResolution, SourceLineage};
     use std::path::PathBuf;
     use std::time::{SystemTime, UNIX_EPOCH};
 
     fn root_request(root: &PackageSourceCustody) -> PackageRootSourceRequest {
         PackageRootSourceRequest::Git(crate::resolution::source::GitPackageSourceRequest::root(
-            omega_package_source::GitSourceRequest::new(
+            package_source::GitSourceRequest::new(
                 format!(
                     "https://github.com/CathedralOS/{}.git",
                     root.key().name().as_str()
@@ -179,9 +179,9 @@ mod tests {
         let source_root = source_root
             .canonicalize()
             .expect("retain the canonical synthetic source root");
-        let source = omega_package_source::resolve_local_source(
+        let source = package_source::resolve_local_source(
             &source_root,
-            omega_package_source::LocalSourceLimits::default(),
+            package_source::LocalSourceLimits::default(),
         )
         .expect("derive synthetic source identity");
         #[cfg(unix)]
@@ -211,7 +211,7 @@ mod tests {
             source_root,
             crate::resolution::source::PackageSourceNavigation::Root,
             crate::resolution::source::PackageSourceSelectionEvidence::Root,
-            omega_package_source::LocalSourceLimits::default(),
+            package_source::LocalSourceLimits::default(),
             dependency_requests,
         )
     }

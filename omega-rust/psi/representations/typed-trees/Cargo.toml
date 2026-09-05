@@ -1,0 +1,22 @@
+[package]
+name = "typed-trees"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[lib]
+name = "typed_trees"
+path = "src/lib.rs"
+
+[dependencies]
+access-plans = { path = "../../foundation/access-plans" }
+arena = { path = "../../foundation/arena" }
+diagnostics = { path = "../../foundation/diagnostics" }
+language-core = { path = "../../foundation/language-core" }
+language-semantics = { path = "../../foundation/language-semantics" }
+layout-plans = { path = "../../foundation/layout-plans" }
+numerics = { path = "../../foundation/numerics" }
+source = { path = "../../foundation/source" }
+symbols = { path = "../../foundation/symbols" }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"

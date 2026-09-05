@@ -1,17 +1,15 @@
 //! Live normalized findings are retained independently of review replay data.
 
-use omega_package_evidence::{
-    encoding::PackagePolicyRecoveryLimits, record::PackagePolicyBaseline,
-};
-use omega_package_manager::resolution::graph::{
+use package_evidence::{encoding::PackagePolicyRecoveryLimits, record::PackagePolicyBaseline};
+use package_manager::resolution::graph::{
     PackageSourceClosureLimits, resolve_external_local_package_closure_with_storage,
 };
-use omega_package_manager::review::compile_resolved_package_candidate_reviews;
-use omega_package_source::{ExternalSourceContext, LocalSourceLimits, SourceResolverStorage};
-use omega_target::TargetProfile;
+use package_manager::review::compile_resolved_package_candidate_reviews;
+use package_source::{ExternalSourceContext, LocalSourceLimits, SourceResolverStorage};
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::time::{SystemTime, UNIX_EPOCH};
+use target::TargetProfile;
 
 struct Tree(PathBuf);
 impl Tree {

@@ -4,10 +4,10 @@ use crate::declarations::dependencies::read::model::DependencySourceRequest;
 use crate::declarations::dependencies::read::source_literal::{
     project_alias_literal, project_source_literal,
 };
-use psi_syntax_trees::SyntaxTrees;
-use psi_syntax_trees::expression::ExpressionHandle;
-use psi_syntax_trees::item::{StateHandle, StateParameterHandle};
-use psi_syntax_trees::statement::{StatementHandle, StatementNode};
+use syntax_trees::SyntaxTrees;
+use syntax_trees::expression::ExpressionHandle;
+use syntax_trees::item::{StateHandle, StateParameterHandle};
+use syntax_trees::statement::{StatementHandle, StatementNode};
 
 pub(super) struct ProjectedDirectDependencies {
     pub requests: Vec<DependencySourceRequest>,

@@ -1,18 +1,18 @@
 use crate::capture::contracts::facts::ContractProjectionContext;
 use crate::capture::semantics::declarations::{nominal_identity, reviewed_package_owns};
 use crate::record::{PackageReviewConstructorField, PackageReviewContractExpression};
-use omega_compiler::CheckedCompilation;
-use psi_diagnostics::Diagnostic;
+use compiler::CheckedCompilation;
+use diagnostics::Diagnostic;
 
 pub(crate) fn project_contract_constructor_expression(
     compilation: &CheckedCompilation,
     context: &ContractProjectionContext<'_>,
-    literal: &psi_typed_trees::expression::TableStructLiteral,
+    literal: &typed_trees::expression::TableStructLiteral,
     child: &impl Fn(
-        psi_typed_trees::expression::ExpressionHandle,
+        typed_trees::expression::ExpressionHandle,
     ) -> Result<PackageReviewContractExpression, Vec<Diagnostic>>,
 ) -> Result<PackageReviewContractExpression, Vec<Diagnostic>> {
-    use psi_typed_trees::data::DataMember;
+    use typed_trees::data::DataMember;
 
     let matching_data = compilation
         .data_definitions()

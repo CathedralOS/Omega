@@ -1,7 +1,7 @@
 //! Package, application, and workspace roles declared by `build.omg`.
 
 use crate::declarations::PackageName;
-use omega_build_declarations as shared;
+use build_declarations as shared;
 use std::path::Path;
 
 pub use shared::BuildDeclarationError;
@@ -43,7 +43,7 @@ pub struct WorkspaceDeclaration {
 /// Project the package-authored human name from the immutable package root.
 ///
 /// This preserves the package-manager identity-bearing API while the syntax
-/// authority lives in `omega-build-declarations`.
+/// authority lives in `build-declarations`.
 pub fn extract_package_declaration(
     package_root: impl AsRef<Path>,
 ) -> Result<PackageDeclaration, BuildDeclarationError> {

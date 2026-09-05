@@ -14,36 +14,34 @@ use std::{
 #[cfg(unix)]
 static SCRATCH_SEQUENCE: AtomicU64 = AtomicU64::new(0);
 
-use omega_abstract_operations::{AbstractOperation, AbstractOperationPlan};
-use omega_abstract_operations_to_target_operations::lower_to_target_operations;
-use omega_image_emission::{
+use abstract_operations::{AbstractOperation, AbstractOperationPlan};
+use abstract_operations_to_target_operations::lower_to_target_operations;
+use image_emission::{
     build_installation_record, build_object_artifact, decode_installation_record,
     emit_executable_image, emit_object_container, encode_installation_record,
     validate_installation_record,
 };
-use omega_machine_emission::emit_machine_code;
-use omega_psi_to_abstract_operations::{ArtifactLoweringError, lower_artifact_sections};
-use omega_target::NativeTarget;
-use omega_target_operations_to_assigned_target_operations::assign_registers;
-use psi_core::{
+use machine_emission::emit_machine_code;
+use proof_admission::AdmissionProfile;
+use semantic_vocabulary::{
     BlockId, ContractId, EdgeId, IntegerSign, IntegerType, IntegerValue, MachineId, OperationId,
     ProfileDecisionId, ScalarType, ValueId,
 };
-use psi_proof_admission::AdmissionProfile;
-use psi_terminal::{
-    Block, MachineContract, Operation, OperationKind, TerminalMachine, TerminalMachineResult,
-    TerminalModule, Terminator, ValueDeclaration, VocabularyMarker,
-};
-use psi_terminal_codec::{
-    decode_module, encode_module, encode_proof_bundle, terminal_psi_identity,
-};
-use psi_terminal_fixed_fuel::{derive_fixed_entry_fuel, validate_fixed_entry_fuel};
-use psi_terminal_fuel::{FuelChargeSite, TerminalFuelSchedule};
-use psi_terminal_interpreter::{
+use target::NativeTarget;
+use target_operations_to_assigned_target_operations::assign_registers;
+use terminal_codec::{decode_module, encode_module, encode_proof_bundle, terminal_psi_identity};
+use terminal_fixed_fuel::{derive_fixed_entry_fuel, validate_fixed_entry_fuel};
+use terminal_fuel::{FuelChargeSite, TerminalFuelSchedule};
+use terminal_interpreter::{
     MeasuredTerminalExecution, TerminalArtifactInterpretError, TerminalExecutionResult,
     TerminalScalarValue, interpret_terminal_artifact_measured,
 };
-use psi_terminal_verifier::{ProofBundle, VerifiedTerminalModule, verify_module};
+use terminal_psi::{
+    Block, MachineContract, Operation, OperationKind, TerminalMachine, TerminalMachineResult,
+    TerminalModule, Terminator, ValueDeclaration, VocabularyMarker,
+};
+use terminal_psi_to_abstract_operations::{ArtifactLoweringError, lower_artifact_sections};
+use terminal_verifier::{ProofBundle, VerifiedTerminalModule, verify_module};
 
 fn interpret_verified_artifact(
     verified: &VerifiedTerminalModule<'_>,
@@ -125,7 +123,7 @@ fn boolean_reaches_owned_object_image_and_native_execution() {
                 parameters: Vec::new(),
                 operations: vec![Operation {
                     id: operation,
-                    result: psi_terminal::OperationResult::Scalar(ValueDeclaration {
+                    result: terminal_psi::OperationResult::Scalar(ValueDeclaration {
                         id: constant,
                         scalar_type: ScalarType::Boolean,
                     }),
@@ -299,7 +297,7 @@ fn wrapping_add_reaches_owned_object_image_and_native_execution() {
                 operations: vec![
                     Operation {
                         id: left_operation,
-                        result: psi_terminal::OperationResult::Scalar(ValueDeclaration {
+                        result: terminal_psi::OperationResult::Scalar(ValueDeclaration {
                             id: left,
                             scalar_type,
                         }),
@@ -309,7 +307,7 @@ fn wrapping_add_reaches_owned_object_image_and_native_execution() {
                     },
                     Operation {
                         id: right_operation,
-                        result: psi_terminal::OperationResult::Scalar(ValueDeclaration {
+                        result: terminal_psi::OperationResult::Scalar(ValueDeclaration {
                             id: right,
                             scalar_type,
                         }),
@@ -319,7 +317,7 @@ fn wrapping_add_reaches_owned_object_image_and_native_execution() {
                     },
                     Operation {
                         id: add_operation,
-                        result: psi_terminal::OperationResult::Scalar(ValueDeclaration {
+                        result: terminal_psi::OperationResult::Scalar(ValueDeclaration {
                             id: sum,
                             scalar_type,
                         }),
@@ -500,7 +498,7 @@ fn saturating_add_reaches_owned_object_image_and_native_execution() {
                 operations: vec![
                     Operation {
                         id: left_operation,
-                        result: psi_terminal::OperationResult::Scalar(ValueDeclaration {
+                        result: terminal_psi::OperationResult::Scalar(ValueDeclaration {
                             id: left,
                             scalar_type,
                         }),
@@ -510,7 +508,7 @@ fn saturating_add_reaches_owned_object_image_and_native_execution() {
                     },
                     Operation {
                         id: right_operation,
-                        result: psi_terminal::OperationResult::Scalar(ValueDeclaration {
+                        result: terminal_psi::OperationResult::Scalar(ValueDeclaration {
                             id: right,
                             scalar_type,
                         }),
@@ -520,7 +518,7 @@ fn saturating_add_reaches_owned_object_image_and_native_execution() {
                     },
                     Operation {
                         id: add_operation,
-                        result: psi_terminal::OperationResult::Scalar(ValueDeclaration {
+                        result: terminal_psi::OperationResult::Scalar(ValueDeclaration {
                             id: sum,
                             scalar_type,
                         }),
@@ -707,7 +705,7 @@ fn signed_i64_saturating_subtract_matches_both_bounds_natively() {
                 parameters: Vec::new(),
                 operations: vec![Operation {
                     id: operation,
-                    result: psi_terminal::OperationResult::Scalar(ValueDeclaration {
+                    result: terminal_psi::OperationResult::Scalar(ValueDeclaration {
                         id: difference,
                         scalar_type,
                     }),
@@ -871,7 +869,7 @@ fn wrapping_subtract_matches_interpretation_and_native_execution() {
                 parameters: Vec::new(),
                 operations: vec![Operation {
                     id: operation,
-                    result: psi_terminal::OperationResult::Scalar(ValueDeclaration {
+                    result: terminal_psi::OperationResult::Scalar(ValueDeclaration {
                         id: difference,
                         scalar_type,
                     }),
@@ -1042,7 +1040,7 @@ fn wrapping_multiply_matches_interpretation_and_native_execution() {
                 parameters: Vec::new(),
                 operations: vec![Operation {
                     id: operation,
-                    result: psi_terminal::OperationResult::Scalar(ValueDeclaration {
+                    result: terminal_psi::OperationResult::Scalar(ValueDeclaration {
                         id: product,
                         scalar_type,
                     }),
@@ -1213,7 +1211,7 @@ fn saturating_multiply_matches_interpretation_and_native_execution() {
                 parameters: Vec::new(),
                 operations: vec![Operation {
                     id: operation,
-                    result: psi_terminal::OperationResult::Scalar(ValueDeclaration {
+                    result: terminal_psi::OperationResult::Scalar(ValueDeclaration {
                         id: product,
                         scalar_type,
                     }),
@@ -1379,7 +1377,7 @@ fn nested_runtime_arithmetic_uses_register_and_stack_parameters_natively() {
                 operations: vec![
                     Operation {
                         id: wrapping_operation,
-                        result: psi_terminal::OperationResult::Scalar(ValueDeclaration {
+                        result: terminal_psi::OperationResult::Scalar(ValueDeclaration {
                             id: wrapped,
                             scalar_type,
                         }),
@@ -1390,7 +1388,7 @@ fn nested_runtime_arithmetic_uses_register_and_stack_parameters_natively() {
                     },
                     Operation {
                         id: saturating_operation,
-                        result: psi_terminal::OperationResult::Scalar(ValueDeclaration {
+                        result: terminal_psi::OperationResult::Scalar(ValueDeclaration {
                             id: saturated,
                             scalar_type,
                         }),
@@ -1546,7 +1544,7 @@ fn signed_i64_runtime_saturation_matches_both_bounds_natively() {
                 parameters: Vec::new(),
                 operations: vec![Operation {
                     id: operation,
-                    result: psi_terminal::OperationResult::Scalar(ValueDeclaration {
+                    result: terminal_psi::OperationResult::Scalar(ValueDeclaration {
                         id: sum,
                         scalar_type,
                     }),

@@ -1,17 +1,17 @@
 use std::path::PathBuf;
 use std::sync::Arc;
 
-use omega_target::TargetProfile;
-use psi_core::PackageKeyIdentity;
-use psi_language_semantics::quotient_correspondence::{
+use language_semantics::quotient_correspondence::{
     QuotientForwardPreconditionTransportFact, QuotientPositionalRelation,
     QuotientTheoremApplicationSide, QuotientTheoremCorrespondence,
 };
-use psi_source::{SourceMap, SourceOrigin};
-use psi_source_files_to_tokens::Lexer;
-use psi_symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
-use psi_syntax_trees_to_symbol_resolved_trees::lower_syntax_trees_with_sources;
-use psi_tokens_to_syntax_trees::{parse_syntax_trees_into_with_id, parse_syntax_trees_with_id};
+use semantic_vocabulary::PackageKeyIdentity;
+use source::{SourceMap, SourceOrigin};
+use source_files_to_tokens::Lexer;
+use symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
+use syntax_trees_to_symbol_resolved_trees::lower_syntax_trees_with_sources;
+use target::TargetProfile;
+use tokens_to_syntax_trees::{parse_syntax_trees_into_with_id, parse_syntax_trees_with_id};
 
 use super::*;
 
@@ -186,7 +186,7 @@ fn try_quotient_program(sources: &[([u8; 32], &str, String)]) -> Result<TypedTre
             || machine.name.as_str().contains("admitted")
         {
             machine.termination_plan.checked_summary =
-                psi_language_semantics::TerminationGuarantee::Terminates {
+                language_semantics::TerminationGuarantee::Terminates {
                     premises: Vec::new(),
                 };
         }
@@ -208,7 +208,7 @@ fn try_single_program(source: String) -> Result<TypedTrees, ()> {
 
 fn transport_correspondence(
     certificate: &mut CanonicalQuotientCorrespondence,
-) -> &mut psi_language_semantics::quotient_correspondence::QuotientForwardPreconditionTransportCorrespondence
+) -> &mut language_semantics::quotient_correspondence::QuotientForwardPreconditionTransportCorrespondence
 {
     let QuotientTheoremCorrespondence::ForwardPreconditionTransport(transport) =
         &mut certificate.theorem_evidence[1].correspondence
@@ -220,7 +220,7 @@ fn transport_correspondence(
 
 fn congruence_correspondence(
     certificate: &mut CanonicalQuotientCorrespondence,
-) -> &mut psi_language_semantics::quotient_correspondence::QuotientCongruenceCorrespondence {
+) -> &mut language_semantics::quotient_correspondence::QuotientCongruenceCorrespondence {
     let QuotientTheoremCorrespondence::Congruence(congruence) =
         &mut certificate.theorem_evidence[0].correspondence
     else {
@@ -233,11 +233,11 @@ fn congruence_correspondence(
 fn total_direct_define_projects_one_deterministic_recoverable_review_row() {
     let program = single_program(TOTAL_DIRECT_DEFINE.to_owned());
     assert!(
-        psi_validation::validate_program(&program).is_err(),
+        validation::validate_program(&program).is_err(),
         "ordinary executable validation must remain fail closed"
     );
     assert!(
-        psi_typed_trees_to_checked_trees::lower_typed_trees(program.clone()).is_err(),
+        typed_trees_to_checked_trees::lower_typed_trees(program.clone()).is_err(),
         "ordinary checked lowering must not admit the proof-only request"
     );
 
@@ -276,11 +276,11 @@ fn total_direct_define_projects_one_deterministic_recoverable_review_row() {
 fn transport_backed_lift_projects_one_deterministic_recoverable_review_row() {
     let program = single_program(TRANSPORT_BACKED_LIFT.to_owned());
     assert!(
-        psi_validation::validate_program(&program).is_err(),
+        validation::validate_program(&program).is_err(),
         "ordinary executable validation must remain fail closed"
     );
     assert!(
-        psi_typed_trees_to_checked_trees::lower_typed_trees(program.clone()).is_err(),
+        typed_trees_to_checked_trees::lower_typed_trees(program.clone()).is_err(),
         "ordinary checked lowering must not admit the proof-only request"
     );
 
@@ -301,13 +301,13 @@ fn transport_backed_lift_projects_one_deterministic_recoverable_review_row() {
     assert!(matches!(
         certificate.theorem_evidence.as_slice(),
         [
-            psi_language_semantics::quotient_correspondence::QuotientTheoremEvidence {
-                role: psi_language_semantics::quotient_correspondence::QuotientTheoremRole::Congruence,
+            language_semantics::quotient_correspondence::QuotientTheoremEvidence {
+                role: language_semantics::quotient_correspondence::QuotientTheoremRole::Congruence,
                 correspondence: QuotientTheoremCorrespondence::Congruence(_),
                 ..
             },
-            psi_language_semantics::quotient_correspondence::QuotientTheoremEvidence {
-                role: psi_language_semantics::quotient_correspondence::QuotientTheoremRole::ForwardPreconditionTransport,
+            language_semantics::quotient_correspondence::QuotientTheoremEvidence {
+                role: language_semantics::quotient_correspondence::QuotientTheoremRole::ForwardPreconditionTransport,
                 correspondence: QuotientTheoremCorrespondence::ForwardPreconditionTransport(_),
                 ..
             }
@@ -363,7 +363,7 @@ fn source_replay_rejects_theorem_relation_and_batch_drift() {
         "{TOTAL_DIRECT_DEFINE}\n\npub machine admitted_second(value: EquivalenceClass) -> EquivalenceClass {{\n    Quotient::define<representative, representative_respects>(value)\n}}\n"
     );
     let program = single_program(two);
-    let expected = psi_validation::extract_non_executable_quotient_correspondences(&program)
+    let expected = validation::extract_non_executable_quotient_correspondences(&program)
         .expect("extract two rows")
         .into_correspondences();
     assert_eq!(expected.len(), 2);
@@ -394,7 +394,7 @@ fn source_replay_rejects_theorem_relation_and_batch_drift() {
     rejects(&wrong_relation);
 
     let mut wrong_fact_coordinate = expected.clone();
-    let psi_language_semantics::quotient_correspondence::QuotientTheoremCorrespondence::Congruence(
+    let language_semantics::quotient_correspondence::QuotientTheoremCorrespondence::Congruence(
         congruence,
     ) = &mut wrong_fact_coordinate[0].theorem_evidence[0].correspondence
     else {
@@ -419,7 +419,7 @@ fn transport_source_replay_binds_kind_roles_fact_coordinates_and_complete_batch(
         "{TRANSPORT_BACKED_LIFT}\n\npub machine admitted_second(value: EquivalenceClass) -> EquivalenceClass\nrequires value == value\n{{\n    Quotient::lift<\n        representative,\n        representative_respects,\n        representative_transports\n    >(value)\n}}\n"
     );
     let program = single_program(two);
-    let expected = psi_validation::extract_non_executable_quotient_correspondences(&program)
+    let expected = validation::extract_non_executable_quotient_correspondences(&program)
         .expect("extract two transport rows")
         .into_correspondences();
     assert_eq!(expected.len(), 2);
@@ -439,7 +439,7 @@ fn transport_source_replay_binds_kind_roles_fact_coordinates_and_complete_batch(
 
     let mut wrong_role = expected.clone();
     wrong_role[0].theorem_evidence[1].role =
-        psi_language_semantics::quotient_correspondence::QuotientTheoremRole::Congruence;
+        language_semantics::quotient_correspondence::QuotientTheoremRole::Congruence;
     rejects(&wrong_role);
 
     let mut wrong_selected_transport = expected.clone();
@@ -613,7 +613,7 @@ fn canonical_rows_bind_transport_kind_roles_applications_and_q_p_coordinates() {
         }),
         ("transport role", |certificate| {
             certificate.theorem_evidence[1].role =
-                psi_language_semantics::quotient_correspondence::QuotientTheoremRole::Congruence
+                language_semantics::quotient_correspondence::QuotientTheoremRole::Congruence
         }),
         ("theorem role order", |certificate| {
             certificate.theorem_evidence.swap(0, 1)
@@ -757,7 +757,7 @@ fn mixed_package_projection_selects_only_the_requested_packages_rows() {
         (PACKAGE, "review", TRANSPORT_BACKED_LIFT.to_owned()),
         (FOREIGN_PACKAGE, "foreign", foreign),
     ]);
-    let complete = psi_validation::extract_non_executable_quotient_correspondences(&program)
+    let complete = validation::extract_non_executable_quotient_correspondences(&program)
         .expect("extract complete mixed-package batch");
     assert_eq!(complete.len(), 2);
 

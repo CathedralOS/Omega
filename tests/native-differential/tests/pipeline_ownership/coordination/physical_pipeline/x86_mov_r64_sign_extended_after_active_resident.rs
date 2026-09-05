@@ -1,7 +1,7 @@
 //! Exact active-resident recovery followed by x86 MOV-r64-imm32 realization.
 
 use crate::FunctionFragmentReplayInputs;
-use omega_isa_x86_64::encode_x86_64_mov_r64_imm32_sign_extended_i64_materialization;
+use isa_x86_64::encode_x86_64_mov_r64_imm32_sign_extended_i64_materialization;
 
 use crate::tests::*;
 
@@ -32,7 +32,7 @@ fn active_resident_composes_with_sign_extended_mov_through_publication() {
             panic!("the admitted pair must reach the generic post-allocation realization")
         });
     let allocation = realization.allocation().current();
-    let omega_selected_instructions_to_register_homes::AllocationEvidence::ActiveResidentRematerialization(recovery_custody) = allocation.evidence() else {
+    let selected_instructions_to_register_homes::AllocationEvidence::ActiveResidentRematerialization(recovery_custody) = allocation.evidence() else {
         panic!("allocation must retain independently replayed rematerialization evidence")
     };
     let rematerialization = realization

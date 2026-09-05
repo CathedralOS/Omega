@@ -1,0 +1,16 @@
+[package]
+name = "component-candidate"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[lib]
+name = "component_candidate"
+path = "src/lib.rs"
+
+[dependencies]
+effects = { path = "../../../representations/effects" }
+native-artifact = { path = "../native-artifact" }
+target = { path = "../../../representations/target" }
+image-emission = { path = "../../images/image-emission" }
+terminal-codec = { path = "../../../../psi/semantics/terminal-codec" }

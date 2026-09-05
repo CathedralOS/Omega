@@ -56,8 +56,8 @@ impl PackageReviewContractEntailmentOpenObligation {
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub struct PackageReviewContractEntailmentAssumptionDischarge {
     pub(crate) obligation: PackageReviewContractEntailmentOpenObligation,
-    pub(crate) assumptions: Vec<psi_core::Proposition>,
-    pub(crate) goal: psi_core::Proposition,
+    pub(crate) assumptions: Vec<semantic_vocabulary::Proposition>,
+    pub(crate) goal: semantic_vocabulary::Proposition,
     pub(crate) selected_assumption_position: u32,
 }
 
@@ -66,11 +66,11 @@ impl PackageReviewContractEntailmentAssumptionDischarge {
         &self.obligation
     }
 
-    pub fn assumptions(&self) -> &[psi_core::Proposition] {
+    pub fn assumptions(&self) -> &[semantic_vocabulary::Proposition] {
         &self.assumptions
     }
 
-    pub const fn goal(&self) -> &psi_core::Proposition {
+    pub const fn goal(&self) -> &semantic_vocabulary::Proposition {
         &self.goal
     }
 

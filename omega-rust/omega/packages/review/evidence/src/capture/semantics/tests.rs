@@ -6,11 +6,11 @@ use super::types::{
 use crate::record::{
     PackageReviewNominalIdentity, PackageReviewNominalOwner, PackageReviewToolchainSourceIdentity,
 };
-use psi_core::PackageKeyIdentity;
-use psi_source::{SourceFile, SourceId, SourceMap, SourceOrigin, SourceSpan, Span};
-use psi_symbols::{SymbolHandle, SymbolKind, SymbolNameRef, SymbolTable, SymbolTableBuilder};
+use semantic_vocabulary::PackageKeyIdentity;
+use source::{SourceFile, SourceId, SourceMap, SourceOrigin, SourceSpan, Span};
 use std::path::PathBuf;
 use std::sync::Arc;
+use symbols::{SymbolHandle, SymbolKind, SymbolNameRef, SymbolTable, SymbolTableBuilder};
 
 #[test]
 fn selected_provider_declaration_ownership_is_exact_and_fail_closed() {
@@ -70,14 +70,14 @@ fn selected_provider_declaration_ownership_is_exact_and_fail_closed() {
 
 #[test]
 fn package_type_identity_rejects_textual_and_unselected_fallbacks() {
-    use psi_typed_trees::expression::{BinaryOperator, ExpressionNode, TableBinaryExpression};
-    use psi_typed_trees::name::Identifier;
-    use psi_typed_trees::types::{
+    use typed_trees::expression::{BinaryOperator, ExpressionNode, TableBinaryExpression};
+    use typed_trees::name::Identifier;
+    use typed_trees::types::{
         DomainConstraint, DomainConstraintSubject, FixedArrayLength, TypeConstraintNode,
         TypeReferenceNode,
     };
 
-    let mut program = psi_typed_trees::TypedTrees::default();
+    let mut program = typed_trees::TypedTrees::default();
     let element_type = program.type_reference_table.insert(TypeReferenceNode::Unit);
     let residual = program
         .type_reference_table
@@ -102,11 +102,8 @@ fn package_type_identity_rejects_textual_and_unselected_fallbacks() {
         .expect_err("unresolved source spelling must reject package evidence");
     assert!(error[0].message.contains("without exact semantic identity"));
 
-    let misplaced_const = psi_language_semantics::const_value::CanonicalConstValue::new(
-        "u32",
-        "integer3:u321:7",
-        "7",
-    );
+    let misplaced_const =
+        language_semantics::const_value::CanonicalConstValue::new("u32", "integer3:u321:7", "7");
     let misplaced_const = program
         .type_reference_table
         .insert(TypeReferenceNode::Named {
@@ -131,10 +128,10 @@ fn package_type_identity_rejects_textual_and_unselected_fallbacks() {
     assert!(error[0].message.contains("exact telescope identity"));
 
     let left = program.expression_table.insert(ExpressionNode::Integer(
-        psi_numerics::literals::IntegerLiteral::zero(),
+        numerics::literals::IntegerLiteral::zero(),
     ));
     let right = program.expression_table.insert(ExpressionNode::Integer(
-        psi_numerics::literals::IntegerLiteral::zero(),
+        numerics::literals::IntegerLiteral::zero(),
     ));
     let binary = program
         .expression_table
@@ -184,7 +181,7 @@ fn package_type_identity_rejects_textual_and_unselected_fallbacks() {
                 name: Identifier::generated("diagnostic-only"),
                 arguments: vec![element_type],
                 subject: DomainConstraintSubject::Carry(
-                    psi_language_semantics::CarryPermission::AnyCpu,
+                    language_semantics::CarryPermission::AnyCpu,
                 ),
                 ..DomainConstraint::default()
             })]);
@@ -211,7 +208,7 @@ fn namespaced_toolchain_source(namespace: &str, relative_path: &str, source: &st
         package_root,
         package_identity: None,
         origin: SourceOrigin::Toolchain,
-        resolution_stratum: psi_source::SourceResolutionStratum::Base,
+        resolution_stratum: source::SourceResolutionStratum::Base,
         source: Arc::from(source),
     }
 }
@@ -223,7 +220,7 @@ fn virtual_toolchain_source(path: &str, source: &str) -> SourceFile {
         package_root: PathBuf::from("toolchain/std"),
         package_identity: None,
         origin: SourceOrigin::Toolchain,
-        resolution_stratum: psi_source::SourceResolutionStratum::Base,
+        resolution_stratum: source::SourceResolutionStratum::Base,
         source: Arc::from(source),
     }
 }

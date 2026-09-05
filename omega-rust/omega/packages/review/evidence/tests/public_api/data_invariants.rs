@@ -281,7 +281,7 @@ where count <= len,
         .semantic
         .facts
         .get_mut(semantic_fact)
-        .origin = psi_facts::FactOrigin::Unknown;
+        .origin = facts::FactOrigin::Unknown;
     assert_rejects(&wrong_origin, "data invariant evidence");
 
     let mut missing_dependency = compile();
@@ -348,14 +348,14 @@ where count <= len,
         .next()
         .map(|(_, record)| record.semantic_fact)
         .expect("data semantic fact");
-    orphan_ref.facts.semantic.refs.append(psi_facts::FactRef {
+    orphan_ref.facts.semantic.refs.append(facts::FactRef {
         fact: semantic_fact,
     });
     assert_rejects(&orphan_ref, "data invariant evidence");
 
     let mut dangling_ref = compile();
-    dangling_ref.facts.semantic.refs.append(psi_facts::FactRef {
-        fact: psi_arena::Handle::from_parts(u32::MAX, 1),
+    dangling_ref.facts.semantic.refs.append(facts::FactRef {
+        fact: arena::Handle::from_parts(u32::MAX, 1),
     });
     assert_rejects(&dangling_ref, "data invariant evidence");
 
@@ -364,9 +364,9 @@ where count <= len,
         .facts
         .semantic
         .contexts
-        .append(psi_facts::FactContext {
-            point: psi_facts::ProgramPoint::Global,
-            facts: psi_arena::HandleSpan::from_parts(psi_arena::Handle::from_parts(u32::MAX, 1), 1),
+        .append(facts::FactContext {
+            point: facts::ProgramPoint::Global,
+            facts: arena::HandleSpan::from_parts(arena::Handle::from_parts(u32::MAX, 1), 1),
         });
     assert_rejects(&malformed_extra_context, "data invariant evidence");
 
@@ -377,7 +377,7 @@ where count <= len,
         .contexts
         .iter()
         .find_map(|(handle, context)| {
-            matches!(context.point, psi_facts::ProgramPoint::Definition { .. }).then_some(handle)
+            matches!(context.point, facts::ProgramPoint::Definition { .. }).then_some(handle)
         })
         .expect("data fact context");
     assert!(missing_context.facts.semantic.contexts.free(context));
@@ -445,7 +445,6 @@ where N <= 8,
         .semantic
         .places
         .get_mut(binder_place)
-        .segments =
-        psi_arena::HandleSpan::from_parts(psi_arena::Handle::from_parts(u32::MAX, 1), 1);
+        .segments = arena::HandleSpan::from_parts(arena::Handle::from_parts(u32::MAX, 1), 1);
     assert_rejects(&malformed_empty_path, "data invariant evidence");
 }

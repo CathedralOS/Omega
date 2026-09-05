@@ -5,7 +5,7 @@ mod validation;
 use super::{
     PackageReviewExternalBinding, PackageReviewForeignLocator, PackageReviewNominalIdentity,
 };
-use psi_core::PackageKeyIdentity;
+use semantic_vocabulary::PackageKeyIdentity;
 pub use signatures::{PackagePolicyExternalCallableSignature, PackagePolicyExternalRequirement};
 
 /// Exact producer identity retained independently of its evaluation history.

@@ -1,5 +1,5 @@
 use crate::tests::*;
-use omega_legalized_operations::LegalizedCondition;
+use legalized_operations::LegalizedCondition;
 
 use super::fixture::staged_equal_zero_parameter;
 
@@ -26,8 +26,8 @@ fn reversed_or_nonzero_source_is_outside_the_equal_zero_family() {
         let mut machine = conditional_u64_equal_zero_parameter_machine(20_100, [7, 9]);
         mutate(&mut machine);
         let module = conditional_immediate_module(machine.id, vec![machine]);
-        let semantic = psi_terminal_codec::encode_module(&module).unwrap();
-        let proof = psi_terminal_codec::encode_proof_bundle(&ProofBundle::default()).unwrap();
+        let semantic = terminal_codec::encode_module(&module).unwrap();
+        let proof = terminal_codec::encode_proof_bundle(&ProofBundle::default()).unwrap();
 
         for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
             let optimized = optimize_artifact_sections(

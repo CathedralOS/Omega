@@ -7,7 +7,7 @@ use crate::resolution::source::{
     resolve_selected_git_package_source_from_pin_in_lanes,
     resolve_selected_git_project_source_from_pin_in_lanes,
 };
-use omega_package_source::{
+use package_source::{
     GitAcquisitionPin, GitSourceRequest, LocalSourceLimits, ResolvedGitSource, SourceResolveError,
     SourceResolverStorage,
 };

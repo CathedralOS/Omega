@@ -1,7 +1,7 @@
 use super::*;
-use omega_package_evidence::encoding::PackagePolicyTextRecoveryLimits;
-use omega_package_evidence::record::PackagePolicyBaseline;
-use omega_package_manager::operations::{
+use package_evidence::encoding::PackagePolicyTextRecoveryLimits;
+use package_evidence::record::PackagePolicyBaseline;
+use package_manager::operations::{
     LockedSourceRecoveryOptions, check_locked_sources, recover_locked_sources,
 };
 

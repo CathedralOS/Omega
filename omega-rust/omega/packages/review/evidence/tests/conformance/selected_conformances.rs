@@ -423,10 +423,10 @@ pub machine Main::inspect(&self) -> i32 {
         .iter()
         .filter(|selection| {
             selection.kind()
-                == psi_language_semantics::declaration_selection::AuthoredDeclarationSelectionKind::Conformance
+                == language_semantics::declaration_selection::AuthoredDeclarationSelectionKind::Conformance
                 && matches!(
                     selection.target(),
-                    psi_language_semantics::declaration_selection::AuthoredDeclarationSelectionTarget::Resolved(target)
+                    language_semantics::declaration_selection::AuthoredDeclarationSelectionTarget::Resolved(target)
                         if target.selected_symbol() == selected_conformance
                 )
         })
@@ -436,7 +436,7 @@ pub machine Main::inspect(&self) -> i32 {
     };
     assert_eq!(
         selection.exposure(),
-        psi_language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure::PrivateImplementation
+        language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure::PrivateImplementation
     );
 
     let review = project_checked_package_review(&checked)

@@ -32,13 +32,13 @@ fn optimized_cbnz_object_artifact_retains_zero_span_and_rejects_detached_proof()
     let placed = stage_optimized_relocation_free_text_section(emitted).unwrap();
     let object = stage_optimized_relocation_free_object_container(placed).unwrap();
 
-    let module = psi_terminal_codec::decode_module(&semantic).unwrap();
-    let mut detached_proof = psi_terminal_codec::decode_proof_bundle(&proof).unwrap();
+    let module = terminal_codec::decode_module(&semantic).unwrap();
+    let mut detached_proof = terminal_codec::decode_proof_bundle(&proof).unwrap();
     detached_proof.evidence.pop();
     let optimization =
-        psi_terminal_codec::build_identity_optimization_execution_record(&module, &detached_proof)
+        terminal_codec::build_identity_optimization_execution_record(&module, &detached_proof)
             .unwrap();
-    let detached = psi_terminal_codec::CanonicalTerminalArtifact::from_parts(
+    let detached = terminal_codec::CanonicalTerminalArtifact::from_parts(
         &module,
         &detached_proof,
         &optimization,

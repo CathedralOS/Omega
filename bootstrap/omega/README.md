@@ -43,7 +43,7 @@ closure is tracked in [`../../TASKS_BOOTSTRAP.md`](../../TASKS_BOOTSTRAP.md).
 
 | Retained file | Canonical role | Deletion condition |
 | --- | --- | --- |
-| `omega_compiler.epsilon.sources` | Canonical ordered membership, byte lengths, and SHA-256 identities of Epsilon-written compiler closure `D`. | Delete only when an adjacent compiler input format carries and verifies the same source-member custody directly. |
+| `compiler.epsilon.sources` | Canonical ordered membership, byte lengths, and SHA-256 identities of Epsilon-written compiler closure `D`. | Delete only when an adjacent compiler input format carries and verifies the same source-member custody directly. |
 | `compiler/*.epsilon` | Six members of `D`, separated into representations, request/UTF-8 validation, lexical classification, lexing, parsing, and Alpha tape construction. | Replace a completed component only atomically with an equally complete final Epsilon implementation and synchronized manifest identity. |
 
 Target identity is an exact immutable compiler-invocation input. `build.omg`

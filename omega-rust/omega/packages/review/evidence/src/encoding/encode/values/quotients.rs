@@ -1,6 +1,6 @@
 use super::super::PackageReviewEncodingError;
 use super::super::encoder::Encoder;
-use psi_language_semantics::quotient_correspondence::{
+use language_semantics::quotient_correspondence::{
     CanonicalQuotientCorrespondence, QuotientCallableIdentity, QuotientContractFactCoordinate,
     QuotientContractOwner, QuotientCorrespondenceOperationKind, QuotientCrashCertificate,
     QuotientForwardPreconditionTransportFact, QuotientMachineApplication,
@@ -164,7 +164,7 @@ fn encode_application(
 
 fn encode_relation(
     encoder: &mut Encoder,
-    relation: &psi_language_semantics::quotient_correspondence::QuotientRelationIdentity,
+    relation: &language_semantics::quotient_correspondence::QuotientRelationIdentity,
 ) -> Result<(), PackageReviewEncodingError> {
     encoder.string(&relation.quotient_declaration)?;
     encoder.string(&relation.quotient_type)?;

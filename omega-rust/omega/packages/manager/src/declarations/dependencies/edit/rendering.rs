@@ -12,7 +12,7 @@ pub fn canonical_dependency_statement(request: &DependencySourceRequest) -> Stri
             "depend_as",
             format!(
                 "{}, ",
-                psi_source::display_literal_bytes(alias.as_str().as_bytes())
+                source::display_literal_bytes(alias.as_str().as_bytes())
             ),
         ),
         None => ("depend", String::new()),
@@ -20,7 +20,7 @@ pub fn canonical_dependency_statement(request: &DependencySourceRequest) -> Stri
     let source = match request {
         DependencySourceRequest::Path { location, .. } => format!(
             "Source::Path {{ location: {} }}",
-            psi_source::display_literal_bytes(location.as_bytes())
+            source::display_literal_bytes(location.as_bytes())
         ),
         DependencySourceRequest::Git {
             repository,
@@ -32,13 +32,13 @@ pub fn canonical_dependency_statement(request: &DependencySourceRequest) -> Stri
                 PackageSelection::Root => String::new(),
                 PackageSelection::Named(package) => format!(
                     ", selection: PackageSelection::Named {{ package: {} }}",
-                    psi_source::display_literal_bytes(package.as_str().as_bytes())
+                    source::display_literal_bytes(package.as_str().as_bytes())
                 ),
             };
             format!(
                 "Source::Git {{ repository: {}, revision: {}{selection} }}",
-                psi_source::display_literal_bytes(repository.as_bytes()),
-                psi_source::display_literal_bytes(revision.as_bytes())
+                source::display_literal_bytes(repository.as_bytes()),
+                source::display_literal_bytes(revision.as_bytes())
             )
         }
     };

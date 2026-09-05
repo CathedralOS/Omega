@@ -12,19 +12,19 @@ test = false
 
 [dependencies]
 cap-std = "4.0.3"
-omega-compiler = { path = "compiler/omega-compiler" }
-omega-core = { path = "representations/omega-core" }
-omega-package-manager = { path = "packages/manager" }
-omega-package-source = { path = "packages/sources/acquisition" }
-omega-package-compilation = { path = "build/omega-package-compilation" }
-omega-resolver-execution = { path = "packages/sources/execution" }
-omega-target = { path = "representations/omega-target" }
-omega-trust-ledger = { path = "build/omega-trust-ledger" }
-psi-checked-trees-to-terminal = { path = "../psi/pipeline/psi-checked-trees-to-terminal" }
-psi-core = { path = "../psi/foundation/psi-core" }
-psi-diagnostics = { path = "../psi/foundation/psi-diagnostics" }
-psi-checked-interpreter = { path = "../psi/semantics/psi-checked-interpreter" }
-psi-proof-admission = { path = "../psi/semantics/psi-proof-admission" }
-psi-terminal = { path = "../psi/representations/psi-terminal" }
-psi-terminal-fixed-fuel = { path = "../psi/semantics/psi-terminal-fixed-fuel" }
-psi-terminal-verifier = { path = "../psi/semantics/psi-terminal-verifier" }
+compiler = { path = "compiler/compiler" }
+core = { path = "representations/core" }
+package-manager = { path = "packages/manager" }
+package-source = { path = "packages/sources/acquisition" }
+package-compilation = { path = "build/package-compilation" }
+resolver-execution = { path = "packages/sources/execution" }
+target = { path = "representations/target" }
+trust-ledger = { path = "build/trust-ledger" }
+checked-trees-to-terminal-psi = { path = "../psi/pipeline/checked-trees-to-terminal-psi" }
+semantic-vocabulary = { path = "../psi/foundation/semantic-vocabulary" }
+diagnostics = { path = "../psi/foundation/diagnostics" }
+checked-interpreter = { path = "../psi/semantics/checked-interpreter" }
+proof-admission = { path = "../psi/semantics/proof-admission" }
+terminal-psi = { path = "../psi/representations/terminal-psi" }
+terminal-fixed-fuel = { path = "../psi/semantics/terminal-fixed-fuel" }
+terminal-verifier = { path = "../psi/semantics/terminal-verifier" }

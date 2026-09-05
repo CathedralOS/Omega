@@ -15,7 +15,7 @@
 //! Exit code: the PROBE's native exit code (so shell `$?` composes), 200 on
 //! compile failure, 201 on native/interp disagreement under `--both`.
 
-use omega_compiler::{
+use compiler::{
     ArtifactEmissionPolicy, CompileOptions, CompileRequest, compile, compile_to_checked,
 };
 use std::process::Command;
@@ -54,7 +54,7 @@ pub(super) fn run(arguments: impl Iterator<Item = std::ffi::OsString>) -> ! {
             build_dir: Some(build_dir.clone()),
             target_name: target_name.clone(),
         })
-        .with_requested_product(omega_compiler::RequestedCompileProduct::NativeArtifact)
+        .with_requested_product(compiler::RequestedCompileProduct::NativeArtifact)
         .with_artifact_policy(artifact_policy),
     ) {
         Ok(report) => report,
@@ -96,7 +96,7 @@ pub(super) fn run(arguments: impl Iterator<Item = std::ffi::OsString>) -> ! {
     if both {
         let selected_target = target_name
             .as_deref()
-            .unwrap_or_else(|| omega_target::TargetProfile::host().target_name());
+            .unwrap_or_else(|| target::TargetProfile::host().target_name());
         match compile_to_checked(&main_path, Some(selected_target)) {
             Ok(checked) => {
                 let Some(entry) = checked.selected_program_entry_machine() else {
@@ -108,7 +108,7 @@ pub(super) fn run(arguments: impl Iterator<Item = std::ffi::OsString>) -> ! {
                     }
                     std::process::exit(201);
                 };
-                let outcome = psi_checked_interpreter::interpret_entry(&checked, entry, &[]);
+                let outcome = checked_interpreter::interpret_entry(&checked, entry, &[]);
                 if let Some(reason) = &outcome.error {
                     eprintln!("interp: DECLINED ({reason})");
                 } else {

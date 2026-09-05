@@ -1,0 +1,32 @@
+[package]
+name = "program-entry-plan"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[lib]
+name = "program_entry_plan"
+path = "src/lib.rs"
+
+[features]
+default = []
+installed-writer = ["dep:executable-installation"]
+
+[dependencies]
+calling-conventions = { path = "../../../representations/calling-conventions" }
+executable-installation = { path = "../../runtime/executable-installation", optional = true }
+effects = { path = "../../../representations/effects" }
+function-identity = { path = "../../../representations/function-identity" }
+isa-aarch64 = { path = "../../instruction_set_architectures/isa-aarch64" }
+isa-x86_64 = { path = "../../instruction_set_architectures/isa-x86_64" }
+layout = { path = "../../layout" }
+target = { path = "../../../representations/target" }
+diagnostics = { path = "../../../../psi/foundation/diagnostics" }
+layout-plans = { path = "../../../../psi/foundation/layout-plans" }
+symbols = { path = "../../../../psi/foundation/symbols" }
+language-semantics = { path = "../../../../psi/foundation/language-semantics" }
+sha2 = "0.10.9"
+
+[dev-dependencies]
+arena = { path = "../../../../psi/foundation/arena" }
+checked-trees = { path = "../../../../psi/representations/checked-trees" }

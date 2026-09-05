@@ -42,7 +42,7 @@ fn checked_source_exact_multiply_uses_known_factor_bound() {
             &missing_multiply_proof,
             &AdmissionProfile::default()
         ),
-        Err(psi_terminal_verifier::VerificationError::MissingEvidence(missing))
+        Err(terminal_verifier::VerificationError::MissingEvidence(missing))
             if missing == obligation
     ));
 

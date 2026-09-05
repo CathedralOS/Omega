@@ -244,8 +244,8 @@ mbx run -p omega -- --target macos_arm64 samples/cli/basics/cli_mvp/main.omg
 Run focused compiler acceptance groups:
 
 ```bash
-mbx test -p omega-compiler --test canary_suite entry_and_abi::pass_canaries_compile
-mbx test -p omega-compiler --test canary_suite proof_and_float_suites::fail_canaries_reject_with_expected_diagnostic_fragment
+mbx test -p compiler --test canary_suite entry_and_abi::pass_canaries_compile
+mbx test -p compiler --test canary_suite proof_and_float_suites::fail_canaries_reject_with_expected_diagnostic_fragment
 ```
 
 ## Design Notes

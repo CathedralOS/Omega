@@ -12,9 +12,7 @@ use crate::review::{
     ReviewOnlyRootPolicyResolution, ReviewOnlyRootPolicyResolutionError,
     compare_review_only_initial_capabilities, resolve_review_only_root_policy_decisions,
 };
-use omega_package_evidence::record::{
-    PackageReviewCanonicalRowKind, PackageReviewCanonicalRowRisk,
-};
+use package_evidence::record::{PackageReviewCanonicalRowKind, PackageReviewCanonicalRowRisk};
 use std::fmt;
 
 /// Freshly reconstructed obligations whose exact blocking review rows have

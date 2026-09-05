@@ -18,8 +18,7 @@ fn source(relative: &str) -> String {
 
 #[test]
 fn native_inventory_compact_coordinates_are_report_only_and_publication_keeps_the_digest() {
-    let inventory =
-        source("omega-rust/omega/backend/images/omega-image/src/model/executable_regions.rs");
+    let inventory = source("omega-rust/omega/backend/images/image/src/model/executable_regions.rs");
     for report_field in [
         "byte_report_fingerprint: u64",
         "text_report_fingerprint: u64",
@@ -46,7 +45,7 @@ fn native_inventory_compact_coordinates_are_report_only_and_publication_keeps_th
         "native inventory must retain its domain-separated strong identity"
     );
 
-    let output = source("omega-rust/omega/backend/images/omega-image/src/output.rs");
+    let output = source("omega-rust/omega/backend/images/image/src/output.rs");
     assert!(
         output.contains("pub fn evidence_report_fingerprint(self) -> u64")
             && !output.contains("pub fn evidence_fingerprint(self) -> u64"),
@@ -99,8 +98,7 @@ fn native_inventory_compact_coordinates_are_report_only_and_publication_keeps_th
         "report coordinates must remain beside exact or strong native-image custody"
     );
 
-    let certificate =
-        source("omega-rust/omega/backend/images/omega-image/src/footprint_certificate.rs");
+    let certificate = source("omega-rust/omega/backend/images/image/src/footprint_certificate.rs");
     assert!(
         certificate.contains("boundary_contract_report_fingerprint: Option<u64>")
             && certificate.contains("callback_placement_identity_report_fingerprint: u64")
@@ -109,10 +107,9 @@ fn native_inventory_compact_coordinates_are_report_only_and_publication_keeps_th
         "final-footprint certificate must label compact coordinates and retain strong custody"
     );
 
-    let publication = source("omega-rust/omega/compiler/omega-compilation-report/src/lib.rs");
+    let publication = source("omega-rust/omega/compiler/compilation-report/src/lib.rs");
     assert!(
-        publication
-            .contains("inventory_digest: omega_image::PlacedExecutableRegionInventoryDigest",)
+        publication.contains("inventory_digest: image::PlacedExecutableRegionInventoryDigest",)
             && publication.contains("digest.update(inventory_digest.as_bytes());")
             && publication.contains("flat.inventory_digest == bundle.inventory_digest"),
         "native publication and bundle replay must retain the strong image-inventory digest"

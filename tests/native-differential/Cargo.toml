@@ -10,77 +10,76 @@ name = "omega_native_differential_test"
 path = "src/lib.rs"
 
 [dependencies]
-psi-checked-interpreter = { path = "../../omega-rust/psi/semantics/psi-checked-interpreter" }
-psi-terminal-interpreter = { path = "../../omega-rust/psi/semantics/psi-terminal-interpreter" }
-psi-arena = { path = "../../omega-rust/psi/foundation/psi-arena" }
-psi-symbols = { path = "../../omega-rust/psi/foundation/psi-symbols" }
-psi-language-core = { path = "../../omega-rust/psi/foundation/psi-language-core" }
-psi-language-semantics = { path = "../../omega-rust/psi/foundation/psi-language-semantics" }
-psi-numerics = { path = "../../omega-rust/psi/foundation/psi-numerics" }
-psi-layout-plans = { path = "../../omega-rust/psi/foundation/psi-layout-plans" }
-psi-core = { path = "../../omega-rust/psi/foundation/psi-core" }
-psi-extents = { path = "../../omega-rust/psi/foundation/psi-extents" }
-psi-diagnostics = { path = "../../omega-rust/psi/foundation/psi-diagnostics" }
-psi-typed-trees = { path = "../../omega-rust/psi/representations/psi-typed-trees" }
-psi-checked-trees = { path = "../../omega-rust/psi/representations/psi-checked-trees" }
-psi-terminal = { path = "../../omega-rust/psi/representations/psi-terminal" }
-psi-terminal-codec = { path = "../../omega-rust/psi/semantics/psi-terminal-codec" }
-psi-terminal-fuel = { path = "../../omega-rust/psi/semantics/psi-terminal-fuel" }
-psi-terminal-fixed-fuel = { path = "../../omega-rust/psi/semantics/psi-terminal-fixed-fuel" }
-psi-terminal-verifier = { path = "../../omega-rust/psi/semantics/psi-terminal-verifier" }
-psi-proof-admission = { path = "../../omega-rust/psi/semantics/psi-proof-admission" }
-psi-checked-trees-to-terminal = { path = "../../omega-rust/psi/pipeline/psi-checked-trees-to-terminal" }
-omega-artifacts = { path = "../../omega-rust/omega/tooling/omega-artifacts", features = ["external-root-report"] }
-omega-component-publication = { path = "../../omega-rust/omega/backend/runtime/omega-component-publication" }
-omega-provider-planning = { path = "../../omega-rust/omega/build/omega-provider-planning", features = ["installed-writer"] }
-omega-external-roots = { path = "../../omega-rust/omega/backend/runtime/omega-external-roots" }
-omega-executable-installation = { path = "../../omega-rust/omega/backend/runtime/omega-executable-installation" }
-omega-calling-conventions = { path = "../../omega-rust/omega/representations/omega-calling-conventions" }
-omega-x86-encoding = { path = "../../omega-rust/omega/backend/instruction_set_architectures/omega-x86-encoding" }
-omega-target = { path = "../../omega-rust/omega/representations/omega-target" }
-omega-abstract-operations = { path = "../../omega-rust/omega/representations/omega-abstract-operations" }
-omega-target-operations = { path = "../../omega-rust/omega/representations/omega-target-operations" }
-omega-assigned-target-operations = { path = "../../omega-rust/omega/representations/omega-assigned-target-operations" }
-omega-abstract-operations-to-target-operations = { path = "../../omega-rust/omega/pipeline/omega-abstract-operations-to-target-operations" }
-omega-target-operations-to-assigned-target-operations = { path = "../../omega-rust/omega/pipeline/omega-target-operations-to-assigned-target-operations" }
-omega-machine-emission = { path = "../../omega-rust/omega/backend/omega-machine-emission", features = ["test-support"] }
-omega-machine-code = { path = "../../omega-rust/omega/representations/omega-machine-code" }
-omega-image-emission = { path = "../../omega-rust/omega/backend/images/omega-image-emission" }
-omega-installation-evidence = { path = "../../omega-rust/omega/representations/omega-installation-evidence" }
-omega-psi-to-abstract-operations = { path = "../../omega-rust/omega/pipeline/omega-psi-to-abstract-operations" }
-omega-terminal-psi-to-native-artifact = { path = "../../omega-rust/omega/pipeline/omega-terminal-psi-to-native-artifact", features = ["test-support"] }
-omega-native-artifact = { path = "../../omega-rust/omega/backend/artifacts/omega-native-artifact", features = ["test-support"] }
-omega-component-candidate = { path = "../../omega-rust/omega/backend/artifacts/omega-component-candidate" }
-omega-program-entry-plan = { path = "../../omega-rust/omega/backend/plans/omega-program-entry-plan" }
-omega-effects = { path = "../../omega-rust/omega/representations/omega-effects" }
+checked-interpreter = { path = "../../omega-rust/psi/semantics/checked-interpreter" }
+terminal-interpreter = { path = "../../omega-rust/psi/semantics/terminal-interpreter" }
+arena = { path = "../../omega-rust/psi/foundation/arena" }
+symbols = { path = "../../omega-rust/psi/foundation/symbols" }
+language-core = { path = "../../omega-rust/psi/foundation/language-core" }
+language-semantics = { path = "../../omega-rust/psi/foundation/language-semantics" }
+numerics = { path = "../../omega-rust/psi/foundation/numerics" }
+layout-plans = { path = "../../omega-rust/psi/foundation/layout-plans" }
+semantic-vocabulary = { path = "../../omega-rust/psi/foundation/semantic-vocabulary" }
+extents = { path = "../../omega-rust/psi/foundation/extents" }
+diagnostics = { path = "../../omega-rust/psi/foundation/diagnostics" }
+typed-trees = { path = "../../omega-rust/psi/representations/typed-trees" }
+checked-trees = { path = "../../omega-rust/psi/representations/checked-trees" }
+terminal-psi = { path = "../../omega-rust/psi/representations/terminal-psi" }
+terminal-codec = { path = "../../omega-rust/psi/semantics/terminal-codec" }
+terminal-fuel = { path = "../../omega-rust/psi/semantics/terminal-fuel" }
+terminal-fixed-fuel = { path = "../../omega-rust/psi/semantics/terminal-fixed-fuel" }
+terminal-verifier = { path = "../../omega-rust/psi/semantics/terminal-verifier" }
+proof-admission = { path = "../../omega-rust/psi/semantics/proof-admission" }
+checked-trees-to-terminal-psi = { path = "../../omega-rust/psi/pipeline/checked-trees-to-terminal-psi" }
+artifacts = { path = "../../omega-rust/omega/tooling/artifacts", features = ["external-root-report"] }
+component-publication = { path = "../../omega-rust/omega/backend/runtime/component-publication" }
+provider-planning = { path = "../../omega-rust/omega/build/provider-planning", features = ["installed-writer"] }
+external-roots = { path = "../../omega-rust/omega/backend/runtime/external-roots" }
+executable-installation = { path = "../../omega-rust/omega/backend/runtime/executable-installation" }
+calling-conventions = { path = "../../omega-rust/omega/representations/calling-conventions" }
+x86-encoding = { path = "../../omega-rust/omega/backend/instruction_set_architectures/x86-encoding" }
+target = { path = "../../omega-rust/omega/representations/target" }
+abstract-operations = { path = "../../omega-rust/omega/representations/abstract-operations" }
+target-operations = { path = "../../omega-rust/omega/representations/target-operations" }
+assigned-target-operations = { path = "../../omega-rust/omega/representations/assigned-target-operations" }
+abstract-operations-to-target-operations = { path = "../../omega-rust/omega/pipeline/abstract-operations-to-target-operations" }
+target-operations-to-assigned-target-operations = { path = "../../omega-rust/omega/pipeline/target-operations-to-assigned-target-operations" }
+machine-emission = { path = "../../omega-rust/omega/backend/machine-emission", features = ["test-support"] }
+machine-code = { path = "../../omega-rust/omega/representations/machine-code" }
+image-emission = { path = "../../omega-rust/omega/backend/images/image-emission" }
+installation-evidence = { path = "../../omega-rust/omega/representations/installation-evidence" }
+terminal-psi-to-abstract-operations = { path = "../../omega-rust/omega/pipeline/terminal-psi-to-abstract-operations" }
+terminal-psi-to-native-artifact = { path = "../../omega-rust/omega/pipeline/terminal-psi-to-native-artifact", features = ["test-support"] }
+native-artifact = { path = "../../omega-rust/omega/backend/artifacts/native-artifact", features = ["test-support"] }
+component-candidate = { path = "../../omega-rust/omega/backend/artifacts/component-candidate" }
+program-entry-plan = { path = "../../omega-rust/omega/backend/plans/program-entry-plan" }
+effects = { path = "../../omega-rust/omega/representations/effects" }
 
 [dev-dependencies]
-omega-object-file = { path = "../../omega-rust/omega/backend/object/omega-object-file", features = ["test-support"] }
-omega-legalized-operations = { path = "../../omega-rust/omega/representations/omega-legalized-operations" }
-omega-physical-instructions = { path = "../../omega-rust/omega/representations/omega-physical-instructions" }
-omega-target-to-register-environment = { path = "../../omega-rust/omega/pipeline/omega-target-to-register-environment" }
-omega-selected-form-encoding-to-resolved-layout = { path = "../../omega-rust/omega/pipeline/omega-selected-form-encoding-to-resolved-layout" }
-omega-selected-instructions-to-machine-effects = { path = "../../omega-rust/omega/pipeline/omega-selected-instructions-to-machine-effects" }
-omega-register-homes-to-post-allocation-machine = { path = "../../omega-rust/omega/pipeline/omega-register-homes-to-post-allocation-machine" }
-omega-post-allocation-machine-to-selected-form-encoding = { path = "../../omega-rust/omega/pipeline/omega-post-allocation-machine-to-selected-form-encoding" }
-omega-post-allocation-machine-to-optimized-machine = { path = "../../omega-rust/omega/pipeline/omega-post-allocation-machine-to-optimized-machine" }
-omega-post-allocation-machine-to-frame-layout = { path = "../../omega-rust/omega/pipeline/omega-post-allocation-machine-to-frame-layout" }
-omega-compiler = { path = "../../omega-rust/omega/compiler/omega-compiler" }
-omega-component-deployment = { path = "../../omega-rust/omega/build/omega-component-deployment" }
-omega-effects = { path = "../../omega-rust/omega/representations/omega-effects" }
-omega-isa-aarch64 = { path = "../../omega-rust/omega/backend/instruction_set_architectures/omega-isa-aarch64" }
-omega-isa-x86_64 = { path = "../../omega-rust/omega/backend/instruction_set_architectures/omega-isa-x86_64" }
-omega-optimization-core = { path = "../../omega-rust/omega/representations/omega-optimization-core" }
-omega-target-operations-to-selected-instructions = { path = "../../omega-rust/omega/pipeline/omega-target-operations-to-selected-instructions" }
-omega-abstract-operations-optimizer = { path = "../../omega-rust/omega/pipeline/omega-abstract-operations-optimizer" }
-omega-selected-instructions-to-register-homes = { path = "../../omega-rust/omega/pipeline/omega-selected-instructions-to-register-homes" }
-omega-register-model = { path = "../../omega-rust/omega/representations/omega-register-model" }
-omega-optimization-unit = { path = "../../omega-rust/omega/representations/omega-optimization-unit" }
-omega-optimization-validation = { path = "../../omega-rust/omega/pipeline/omega-optimization-validation" }
-omega-selected-instructions = { path = "../../omega-rust/omega/representations/omega-selected-instructions" }
-psi-source-files-to-tokens = { path = "../../omega-rust/psi/pipeline/psi-source-files-to-tokens" }
-psi-symbol-resolved-trees-to-typed-trees = { path = "../../omega-rust/psi/pipeline/psi-symbol-resolved-trees-to-typed-trees" }
-psi-syntax-trees-to-symbol-resolved-trees = { path = "../../omega-rust/psi/pipeline/psi-syntax-trees-to-symbol-resolved-trees" }
-psi-tokens-to-syntax-trees = { path = "../../omega-rust/psi/pipeline/psi-tokens-to-syntax-trees" }
-psi-typed-trees-to-checked-trees = { path = "../../omega-rust/psi/pipeline/psi-typed-trees-to-checked-trees" }
+object-file = { path = "../../omega-rust/omega/backend/object/object-file", features = ["test-support"] }
+legalized-operations = { path = "../../omega-rust/omega/representations/legalized-operations" }
+physical-instructions = { path = "../../omega-rust/omega/representations/physical-instructions" }
+target-to-register-environment = { path = "../../omega-rust/omega/pipeline/target-to-register-environment" }
+selected-form-encoding-to-resolved-layout = { path = "../../omega-rust/omega/pipeline/selected-form-encoding-to-resolved-layout" }
+register-homes-to-post-allocation-machine = { path = "../../omega-rust/omega/pipeline/register-homes-to-post-allocation-machine" }
+post-allocation-machine-to-selected-form-encoding = { path = "../../omega-rust/omega/pipeline/post-allocation-machine-to-selected-form-encoding" }
+post-allocation-machine-to-post-allocation-machine = { path = "../../omega-rust/omega/pipeline/post-allocation-machine-to-post-allocation-machine" }
+post-allocation-machine-to-frame-layout = { path = "../../omega-rust/omega/pipeline/post-allocation-machine-to-frame-layout" }
+compiler = { path = "../../omega-rust/omega/compiler/compiler" }
+component-deployment = { path = "../../omega-rust/omega/build/component-deployment" }
+effects = { path = "../../omega-rust/omega/representations/effects" }
+isa-aarch64 = { path = "../../omega-rust/omega/backend/instruction_set_architectures/isa-aarch64" }
+isa-x86_64 = { path = "../../omega-rust/omega/backend/instruction_set_architectures/isa-x86_64" }
+optimization-core = { path = "../../omega-rust/omega/representations/optimization-core" }
+target-operations-to-selected-instructions = { path = "../../omega-rust/omega/pipeline/target-operations-to-selected-instructions" }
+abstract-operations-to-abstract-operations = { path = "../../omega-rust/omega/pipeline/abstract-operations-to-abstract-operations" }
+selected-instructions-to-register-homes = { path = "../../omega-rust/omega/pipeline/selected-instructions-to-register-homes" }
+register-model = { path = "../../omega-rust/omega/representations/register-model" }
+optimization-unit = { path = "../../omega-rust/omega/representations/optimization-unit" }
+optimization-validation = { path = "../../omega-rust/omega/pipeline/optimization-validation" }
+selected-instructions = { path = "../../omega-rust/omega/representations/selected-instructions" }
+source-files-to-tokens = { path = "../../omega-rust/psi/pipeline/source-files-to-tokens" }
+symbol-resolved-trees-to-typed-trees = { path = "../../omega-rust/psi/pipeline/symbol-resolved-trees-to-typed-trees" }
+syntax-trees-to-symbol-resolved-trees = { path = "../../omega-rust/psi/pipeline/syntax-trees-to-symbol-resolved-trees" }
+tokens-to-syntax-trees = { path = "../../omega-rust/psi/pipeline/tokens-to-syntax-trees" }
+typed-trees-to-checked-trees = { path = "../../omega-rust/psi/pipeline/typed-trees-to-checked-trees" }
 sha2 = "0.10.9"

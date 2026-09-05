@@ -28,7 +28,7 @@ fn exact_intrinsic_inverse_covers_every_scalar_variant_and_builtin() {
         Execution::LinuxReadByte,
     ];
     values.extend(
-        psi_symbols::BuiltinFunction::ALL
+        symbols::BuiltinFunction::ALL
             .into_iter()
             .map(Execution::BuiltinFunction),
     );

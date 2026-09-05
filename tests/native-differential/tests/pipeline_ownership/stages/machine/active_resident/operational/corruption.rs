@@ -1,9 +1,9 @@
 //! Direct action-plan and enclosing custody corruption rejection.
 
-use omega_selected_instructions_to_register_homes::{
+use selected_instructions_to_register_homes::{
     PressureRematerializationError, validate_pressure_rematerialization,
 };
-use psi_core::IntegerValue;
+use semantic_vocabulary::IntegerValue;
 
 use crate::tests::{
     NativeTarget, OptimizedActiveResidentRematerializationError, selected_lowering_budget,

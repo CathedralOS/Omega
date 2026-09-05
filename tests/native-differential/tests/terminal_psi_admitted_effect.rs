@@ -1,21 +1,21 @@
 use std::collections::BTreeSet;
 
-use omega_abstract_operations::{
+use abstract_operations::{
     AbstractBlockEntry, AbstractFunction, AbstractFunctionResult, AbstractOperation,
     AbstractOperationPlan, AbstractResult, CompletionClaimSource,
 };
-use omega_abstract_operations_to_target_operations::{
+use abstract_operations_to_target_operations::{
     AdmittedBoundaryExecution, AdmittedBoundarySettlement,
     lower_to_target_operations_with_provider_executions,
 };
-use omega_calling_conventions::{
+use calling_conventions::{
     ArrivalContextId, ArrivalContextRealization, CallSignature, CallingPolicy, EntryStack,
     EntryStackEpoch, EntryStackRealization, EntryStackStage, MachineRegister, MachineState,
     MachineStateSet, Preemption, ProviderExitRealization, RegisterSet, StackDomainRef,
     StateFootprintEvidence, ValueShape, evaluate_ordinary_boundary_entry_plan,
     validate_entry_stack_realization,
 };
-use omega_executable_installation::{
+use executable_installation::{
     AdmissionReceiptId, Artifact, ArtifactAdmissionEvidence, ArtifactEntry, ArtifactId,
     CodePlacementAuthority, CodePlacementId, DestinationPreparationReceipt,
     DestinationPreparationReceiptId, EntrySetId, FinalValidationCertificate, FinalValidationId,
@@ -25,41 +25,41 @@ use omega_executable_installation::{
     WxEnforcement, admit_executable, install_validated, materialize_admitted_artifact,
     materialize_and_freeze, validate_final_placement,
 };
-use omega_external_roots::*;
-use omega_image_emission::{
-    InstallationError, build_installation_record,
-    build_installation_record_with_provider_executions, build_object_artifact,
-    decode_installation_record, emit_executable_image, encode_installation_record,
-    validate_installation_record,
-};
-use omega_machine_emission::emit_machine_code;
-use omega_program_entry_plan::lower_post_handoff_writer_fragment;
-use omega_provider_planning::plans::{
-    SelectedExternalRootProviderPlan, bind_external_root_post_handoff_writer_invocation,
-};
-use omega_target::NativeTarget;
-use omega_target_operations::{
-    BoundaryRealization, DirectPortReadU8Realization, MetadataOnlyPortRealization, TargetOperation,
-};
-use omega_target_operations_to_assigned_target_operations::assign_registers;
-use psi_core::{
-    BlockId, BoundaryMachineId, ClaimId, ContentAlgebra, ContentAlgebraKind, ContentDomainId,
-    ContentPlaceSegment, ContentPlaceVersion, ContentProjectionIdentity, ContentStructuralPlace,
-    EdgeId, FuelScheduleIdentity, IntegerSign, IntegerType, MachineId, OperationId, PlaceId,
-    ProfileDecisionId, ScalarType, ServiceId, StructuralFieldId, StructuralTypeId, ValueId,
-};
-use psi_extents::{
+use extents::{
     AddressSpaceId, ExtentLineageId, ExtentProvenanceId, ExtentRightId, ExtentRights,
     ExtentRootGrant, MappingEraId, MappingGrant, MappingGrantId, MappingId, MappingSourceMode,
     TranslationActivationFactId, TranslationActivationReceipt, TranslationInstallObligations,
     TranslationReleaseObligations, map_owned,
 };
-use psi_layout_plans::{
+use external_roots::*;
+use image_emission::{
+    InstallationError, build_installation_record,
+    build_installation_record_with_provider_executions, build_object_artifact,
+    decode_installation_record, emit_executable_image, encode_installation_record,
+    validate_installation_record,
+};
+use layout_plans::{
     ArtifactInstallationScopeId, ByteOrder, EntryStubId, MaterializationWrite,
     PlacementAddressRange, PlacementConstraints, PlacementPhase, PlacementSite,
     PostHandoffWriterPlan, PostHandoffWriterSource, PostHandoffWriterStep, RelocationTarget,
 };
-use psi_terminal::{
+use machine_emission::emit_machine_code;
+use program_entry_plan::lower_post_handoff_writer_fragment;
+use provider_planning::plans::{
+    SelectedExternalRootProviderPlan, bind_external_root_post_handoff_writer_invocation,
+};
+use semantic_vocabulary::{
+    BlockId, BoundaryMachineId, ClaimId, ContentAlgebra, ContentAlgebraKind, ContentDomainId,
+    ContentPlaceSegment, ContentPlaceVersion, ContentProjectionIdentity, ContentStructuralPlace,
+    EdgeId, FuelScheduleIdentity, IntegerSign, IntegerType, MachineId, OperationId, PlaceId,
+    ProfileDecisionId, ScalarType, ServiceId, StructuralFieldId, StructuralTypeId, ValueId,
+};
+use target::NativeTarget;
+use target_operations::{
+    BoundaryRealization, DirectPortReadU8Realization, MetadataOnlyPortRealization, TargetOperation,
+};
+use target_operations_to_assigned_target_operations::assign_registers;
+use terminal_psi::{
     BindingRelevance, BoundaryMachineDeclaration, ClaimContentProjection, CompletionReceipt,
     ContentEntryClaim, SemanticFingerprint, StructuralAccess, StructuralArgument,
     StructuralFieldDeclaration, StructuralFieldType, StructuralMultiplicity,
@@ -90,7 +90,7 @@ fn admitted_provider_execution_flows_through_lowering_and_installation() {
         16,
         root_id(49, StackValidationReceiptId::from_normalized_identity),
     );
-    let stack_for = |boundary: &omega_calling_conventions::ValidatedBoundaryEntryPlan| {
+    let stack_for = |boundary: &calling_conventions::ValidatedBoundaryEntryPlan| {
         let realization = validate_entry_stack_realization(EntryStackRealization {
             contexts: vec![ArrivalContextRealization {
                 context: ArrivalContextId::new(1).expect("arrival context"),
@@ -144,9 +144,9 @@ fn admitted_provider_execution_flows_through_lowering_and_installation() {
     );
     let fuel =
         compose_fixed_fuel(fuel_summary.identity, [&fuel_summary]).expect("fuel composition");
-    let selected_providers = omega_effects::SelectedProviderPlanFacts::from_selection(&[], &[])
+    let selected_providers = effects::SelectedProviderPlanFacts::from_selection(&[], &[])
         .expect("empty provider closure");
-    let mut exact_provider_plan = omega_effects::provider_plan::ProviderPlan::default();
+    let mut exact_provider_plan = effects::provider_plan::ProviderPlan::default();
     exact_provider_plan.schema.trait_name = "TimerRoot".into();
     exact_provider_plan.schema.methods.push(Default::default());
     let selected_method = &mut exact_provider_plan.schema.methods[0];
@@ -158,7 +158,7 @@ fn admitted_provider_execution_flows_through_lowering_and_installation() {
     selected_method.calling_plan_report_fingerprint =
         Some(boundary_plan.contract_report_fingerprint());
     selected_method.calling_plan_commitment = Some(
-        omega_effects::provider_plan::BoundaryCallingPlanCommitment::from_digest(
+        effects::provider_plan::BoundaryCallingPlanCommitment::from_digest(
             boundary_plan.contract_commitment_digest(),
         ),
     );
@@ -539,7 +539,7 @@ fn admitted_provider_execution_flows_through_lowering_and_installation() {
                 qualifications: Vec::new(),
                 projected_qualifications: Vec::new(),
             }],
-            result: psi_terminal::BoundaryMachineResult::Unit,
+            result: terminal_psi::BoundaryMachineResult::Unit,
             requires: Vec::new(),
             program_local_root_introductions: Vec::new(),
             content_guarantees: Vec::new(),
@@ -578,7 +578,7 @@ fn admitted_provider_execution_flows_through_lowering_and_installation() {
                 },
                 AbstractOperation::BoundaryCall {
                     psi_operation: settlement_operation,
-                    result: omega_abstract_operations::AbstractBoundaryResult::Unit,
+                    result: abstract_operations::AbstractBoundaryResult::Unit,
                     boundary,
                     arguments: Vec::new(),
                     structural_arguments: settlement_arguments.clone(),
@@ -637,12 +637,10 @@ fn admitted_provider_execution_flows_through_lowering_and_installation() {
             .expect("admitted installation composition");
     assert_eq!(
         installation.selected_provider_plans(),
-        [
-            omega_image_emission::SelectedProviderPlanReportIdentity::new(
-                execution.provider_plan().normalized_identity()
-            )
-            .unwrap()
-        ]
+        [image_emission::SelectedProviderPlanReportIdentity::new(
+            execution.provider_plan().normalized_identity()
+        )
+        .unwrap()]
     );
     assert_eq!(
         installation.semantic_code_attribution(),
@@ -747,7 +745,7 @@ fn admitted_provider_execution_flows_through_lowering_and_installation() {
                 qualifications: Vec::new(),
                 projected_qualifications: Vec::new(),
             }],
-            result: psi_terminal::BoundaryMachineResult::Scalar(u8_type),
+            result: terminal_psi::BoundaryMachineResult::Scalar(u8_type),
             requires: Vec::new(),
             program_local_root_introductions: Vec::new(),
             content_guarantees: Vec::new(),
@@ -780,7 +778,7 @@ fn admitted_provider_execution_flows_through_lowering_and_installation() {
             operations: vec![
                 AbstractOperation::BoundaryCall {
                     psi_operation: settlement_operation,
-                    result: omega_abstract_operations::AbstractBoundaryResult::Scalar(result),
+                    result: abstract_operations::AbstractBoundaryResult::Scalar(result),
                     boundary,
                     arguments: Vec::new(),
                     structural_arguments: direct_arguments.clone(),
@@ -833,7 +831,7 @@ fn admitted_provider_execution_flows_through_lowering_and_installation() {
     );
     let direct_assigned = assign_registers(&direct_target).expect("direct result assignment");
     let direct_machine = emit_machine_code(&direct_assigned).expect("direct result emission");
-    let mut expected_bytes = omega_x86_encoding::encode_immediate_port_read_u8(0x60).to_vec();
+    let mut expected_bytes = x86_encoding::encode_immediate_port_read_u8(0x60).to_vec();
     expected_bytes.push(0xc3);
     assert_eq!(direct_machine.functions[0].bytes, expected_bytes);
     assert_eq!(
@@ -862,7 +860,7 @@ fn admitted_provider_execution_flows_through_lowering_and_installation() {
             argument_index: 0,
         }
     );
-    let omega_machine_code::BoundaryExecutionRecord::AdmittedProvider(direct_provider_execution) =
+    let machine_code::BoundaryExecutionRecord::AdmittedProvider(direct_provider_execution) =
         direct_machine.functions[0].boundary_settlements[0].execution
     else {
         panic!("direct settlement must retain admitted-provider execution custody")
@@ -878,14 +876,14 @@ fn admitted_provider_execution_flows_through_lowering_and_installation() {
         .provider_plan_report_identity ^= 1;
     assert!(matches!(
         build_object_artifact(&substituted_provider_custody),
-        Err(omega_image_emission::ObjectError::InvalidCompletionProviderCustody { .. })
+        Err(image_emission::ObjectError::InvalidCompletionProviderCustody { .. })
     ));
     let mut dropped_content_source = direct_machine.clone();
     dropped_content_source.functions[0].boundary_settlements[0].completion_claim_sources[0]
         .content = None;
     assert!(matches!(
         build_object_artifact(&dropped_content_source),
-        Err(omega_image_emission::ObjectError::InvalidCompletionReceiptCustody { .. })
+        Err(image_emission::ObjectError::InvalidCompletionReceiptCustody { .. })
     ));
     let native_result = direct_machine.functions[0].boundary_settlements[0]
         .native_result
@@ -903,13 +901,13 @@ fn admitted_provider_execution_flows_through_lowering_and_installation() {
     );
     let mut missing_native_result = direct_machine.clone();
     missing_native_result.functions[0].boundary_settlements[0].native_result =
-        omega_machine_code::BoundaryResultRecord::Unit;
+        machine_code::BoundaryResultRecord::Unit;
     assert!(matches!(
         build_object_artifact(&missing_native_result),
-        Err(omega_image_emission::ObjectError::BoundaryRealizationMismatch { .. })
+        Err(image_emission::ObjectError::BoundaryRealizationMismatch { .. })
     ));
     let mut wrong_return_edge = direct_machine.clone();
-    let omega_machine_code::BoundaryResultRecord::Scalar(native_result) =
+    let machine_code::BoundaryResultRecord::Scalar(native_result) =
         &mut wrong_return_edge.functions[0].boundary_settlements[0].native_result
     else {
         panic!("native scalar result")
@@ -917,7 +915,7 @@ fn admitted_provider_execution_flows_through_lowering_and_installation() {
     native_result.return_edge = EdgeId::new(2).expect("wrong return edge");
     assert!(matches!(
         build_object_artifact(&wrong_return_edge),
-        Err(omega_image_emission::ObjectError::BoundaryRealizationMismatch { .. })
+        Err(image_emission::ObjectError::BoundaryRealizationMismatch { .. })
     ));
     let direct_object = build_object_artifact(&direct_machine).expect("direct result object");
     let direct_image = emit_executable_image(&direct_object, 3).expect("direct result image");
@@ -1005,19 +1003,19 @@ fn writer_site(base_address: u64) -> PlacementSite {
 
 fn installation_id<T>(
     identity: u64,
-    constructor: fn(u64) -> Result<T, omega_executable_installation::InstallationDiagnostic>,
+    constructor: fn(u64) -> Result<T, executable_installation::InstallationDiagnostic>,
 ) -> T {
     constructor(identity).expect("normalized installation identity")
 }
 
 fn extent_identity<T>(
     identity: u64,
-    constructor: fn(u64) -> Result<T, psi_extents::ExtentDiagnostic>,
+    constructor: fn(u64) -> Result<T, extents::ExtentDiagnostic>,
 ) -> T {
     constructor(identity).expect("normalized extent identity")
 }
 
-fn activated_writer_mapping(base: u64, length: u64) -> psi_extents::MappedExtent<'static> {
+fn activated_writer_mapping(base: u64, length: u64) -> extents::MappedExtent<'static> {
     let source_space = extent_identity(200, AddressSpaceId::from_normalized_identity);
     let destination_space = extent_identity(201, AddressSpaceId::from_normalized_identity);
     let source_rights = ExtentRights::from_normalized_identities([extent_identity(
@@ -1033,7 +1031,7 @@ fn activated_writer_mapping(base: u64, length: u64) -> psi_extents::MappedExtent
         ExtentRightId::from_normalized_identity,
     )]);
     let source = ExtentRootGrant::from_admitted_provider(
-        psi_extents::ExtentProviderIssuance::from_normalized_identities([
+        extents::ExtentProviderIssuance::from_normalized_identities([
             211, 212, 213, 214, 215, 216, 217, 218, 219, 220, 221, 222, 223,
         ])
         .unwrap(),
@@ -1046,7 +1044,7 @@ fn activated_writer_mapping(base: u64, length: u64) -> psi_extents::MappedExtent
     .mint(0x20_000, length)
     .unwrap();
     let destination = ExtentRootGrant::from_admitted_provider(
-        psi_extents::ExtentProviderIssuance::from_normalized_identities([
+        extents::ExtentProviderIssuance::from_normalized_identities([
             231, 232, 233, 234, 235, 236, 237, 238, 239, 240, 241, 242, 243,
         ])
         .unwrap(),
@@ -1112,14 +1110,14 @@ fn prepared_writer_destination<'bytes>(
 fn install_entry_artifact(entry: EntryStubId) -> InstalledCode {
     fn install_id<T>(
         identity: u64,
-        constructor: fn(u64) -> Result<T, omega_executable_installation::InstallationDiagnostic>,
+        constructor: fn(u64) -> Result<T, executable_installation::InstallationDiagnostic>,
     ) -> T {
         constructor(identity).expect("normalized installation identity")
     }
 
     fn extent_id<T>(
         identity: u64,
-        constructor: fn(u64) -> Result<T, psi_extents::ExtentDiagnostic>,
+        constructor: fn(u64) -> Result<T, extents::ExtentDiagnostic>,
     ) -> T {
         constructor(identity).expect("normalized extent identity")
     }
@@ -1136,7 +1134,7 @@ fn install_entry_artifact(entry: EntryStubId) -> InstalledCode {
     let footprint = install_id(121, MachineFootprintId::from_normalized_identity);
     let artifact = Artifact::from_canonical_decode(
         install_id(100, ArtifactId::from_normalized_identity),
-        omega_target::Architecture::X86_64,
+        target::Architecture::X86_64,
         vec![0; 64],
         contracts,
         footprint,
@@ -1146,7 +1144,7 @@ fn install_entry_artifact(entry: EntryStubId) -> InstalledCode {
         vec![ArtifactEntry::from_canonical_decode(entry, 16)],
         install_id(124, RelocationSetId::from_normalized_identity),
         Vec::new(),
-        omega_executable_installation::ArtifactAuthorityCommitments::from_canonical_evidence(
+        executable_installation::ArtifactAuthorityCommitments::from_canonical_evidence(
             contracts,
             b"admitted-effect-machine-contracts-v1",
             footprint,
@@ -1173,7 +1171,7 @@ fn install_entry_artifact(entry: EntryStubId) -> InstalledCode {
         130,
         ExtentRightId::from_normalized_identity,
     )]);
-    let issuance = psi_extents::ExtentProviderIssuance::from_normalized_identities([
+    let issuance = extents::ExtentProviderIssuance::from_normalized_identities([
         140, 141, 142, 143, 144, 145, 146, 147, 148, 149, 150, 151, 152,
     ])
     .unwrap();

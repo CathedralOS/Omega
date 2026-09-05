@@ -1,6 +1,6 @@
 use super::AcceptedOrdinaryEvidenceError;
 use crate::resolution::graph::ResolvedPackageSourceClosure;
-use omega_package_source::local::operations::verify_package_source_snapshot;
+use package_source::local::operations::verify_package_source_snapshot;
 
 pub(super) fn revalidate_source_custody(
     closure: &ResolvedPackageSourceClosure,

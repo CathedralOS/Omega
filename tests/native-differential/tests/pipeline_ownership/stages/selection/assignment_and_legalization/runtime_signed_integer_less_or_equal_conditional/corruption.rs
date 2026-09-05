@@ -1,7 +1,7 @@
 //! Independent rejection for signed inclusive-order and successor corruption.
 
 use crate::tests::*;
-use omega_legalized_operations::LegalizedCondition;
+use legalized_operations::LegalizedCondition;
 
 use super::fixture::staged_signed_integer_less_or_equal_conditional;
 

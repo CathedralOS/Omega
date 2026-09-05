@@ -19,7 +19,7 @@ fn review_rejects_target_free_and_standalone_checked_programs() {
             .contains("requires one explicit target selection")
     }));
 
-    let standalone = omega_compiler::compile_to_checked(&package.0.join("main.omg"), None)
+    let standalone = compiler::compile_to_checked(&package.0.join("main.omg"), None)
         .expect("standalone fixture should check");
     let diagnostics = project_checked_package_review(&standalone)
         .expect_err("review must require package-aware compilation");
@@ -59,8 +59,8 @@ fn review_distinguishes_profiles_that_share_a_native_target() {
     );
     let windows = project_checked_package_review(&windows).expect("Windows review projection");
     let uefi = project_checked_package_review(&uefi).expect("UEFI review projection");
-    assert_eq!(windows.target(), omega_target::TargetProfile::WindowsX64);
-    assert_eq!(uefi.target(), omega_target::TargetProfile::UefiX64);
+    assert_eq!(windows.target(), target::TargetProfile::WindowsX64);
+    assert_eq!(uefi.target(), target::TargetProfile::UefiX64);
     assert_ne!(windows.target(), uefi.target());
     assert_ne!(
         windows.canonical_review_bytes().expect("Windows encoding"),

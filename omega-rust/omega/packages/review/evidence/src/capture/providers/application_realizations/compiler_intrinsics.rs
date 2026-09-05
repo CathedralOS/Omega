@@ -9,9 +9,9 @@ use crate::record::{
     PackageReviewBoundaryApplicationRealization, PackageReviewSourceLocationOwner,
     PackageReviewSourceLocationRole,
 };
-use omega_compiler::CheckedCompilation;
-use psi_core::PackageKeyIdentity;
-use psi_diagnostics::Diagnostic;
+use compiler::CheckedCompilation;
+use diagnostics::Diagnostic;
+use semantic_vocabulary::PackageKeyIdentity;
 
 pub(super) fn project(
     compilation: &CheckedCompilation,
@@ -30,7 +30,7 @@ pub(super) fn project(
         if !application.arguments.is_empty() {
             continue;
         }
-        let psi_checked_trees::CheckedBoundaryOperatorApplicationUseSite::Expression {
+        let checked_trees::CheckedBoundaryOperatorApplicationUseSite::Expression {
             expression,
             origin,
         } = application.site
@@ -115,7 +115,7 @@ pub(super) fn project(
         };
         if !matches!(
             row.binding,
-            omega_effects::provider_plan::ProviderBinding::CompilerIntrinsic { .. }
+            effects::provider_plan::ProviderBinding::CompilerIntrinsic { .. }
         ) {
             continue;
         }
@@ -128,7 +128,7 @@ pub(super) fn project(
             **realization_symbol,
             compilation
                 .selected_target_profile()
-                .map(omega_target::TargetProfile::target_name),
+                .map(target::TargetProfile::target_name),
             **retained_execution,
         )?
         .ok_or_else(|| {
@@ -147,11 +147,10 @@ pub(super) fn project(
                     "actual compiler-intrinsic application lost its operator declaration",
                 )]
             })?;
-        let requirement_identity =
-            psi_typed_trees::operator::boundary_operator_requirement_identity(
-                &compilation.typed,
-                operator,
-            );
+        let requirement_identity = typed_trees::operator::boundary_operator_requirement_identity(
+            &compilation.typed,
+            operator,
+        );
         if requirement_identity.is_empty() || actual_use.plan_commitment.is_empty() {
             return Err(vec![Diagnostic::error(
                 "actual compiler-intrinsic application lost a strong semantic identity",
@@ -179,16 +178,16 @@ pub(super) fn project(
 
 #[derive(Clone, Copy)]
 struct ExactApplicationUse {
-    kind: omega_selected_dispatch::CheckedOperatorAuthoredUseKind,
+    kind: selected_dispatch::CheckedOperatorAuthoredUseKind,
     plan_report_fingerprint: u64,
-    plan_commitment: psi_checked_trees::CheckedProviderPlanCommitment,
+    plan_commitment: checked_trees::CheckedProviderPlanCommitment,
 }
 
 fn exact_application_uses(
     compilation: &CheckedCompilation,
-    expression: psi_typed_trees::expression::ExpressionHandle,
-    origin: psi_checked_trees::CheckedValueOrigin,
-    requirement: psi_symbols::SymbolHandle,
+    expression: typed_trees::expression::ExpressionHandle,
+    origin: checked_trees::CheckedValueOrigin,
+    requirement: symbols::SymbolHandle,
 ) -> Vec<ExactApplicationUse> {
     let operator = compilation
         .typed
@@ -205,7 +204,7 @@ fn exact_application_uses(
                 && operator_use.origin == origin
                 && operator_use.selected_operator_symbol == requirement)
                 .then_some(ExactApplicationUse {
-                    kind: omega_selected_dispatch::CheckedOperatorAuthoredUseKind::Named,
+                    kind: selected_dispatch::CheckedOperatorAuthoredUseKind::Named,
                     plan_report_fingerprint: operator_use.provider_plan_report_fingerprint,
                     plan_commitment: operator_use.provider_plan_commitment,
                 })
@@ -221,7 +220,7 @@ fn exact_application_uses(
                         && operator_use.origin == origin
                         && operator_use.selected_operator_symbol == requirement
                         && operator_use.status
-                            == psi_checked_trees::CheckedOperatorResolutionStatus::Resolved
+                            == checked_trees::CheckedOperatorResolutionStatus::Resolved
                         && operator.is_some_and(|operator| {
                             operator.is_boundary
                                 && operator.spelling == Some(operator_use.spelling)
@@ -235,7 +234,7 @@ fn exact_application_uses(
                                     })
                         }))
                     .then_some(ExactApplicationUse {
-                        kind: omega_selected_dispatch::CheckedOperatorAuthoredUseKind::FixedToken(
+                        kind: selected_dispatch::CheckedOperatorAuthoredUseKind::FixedToken(
                             operator_use.spelling,
                         ),
                         plan_report_fingerprint: operator_use.provider_plan_report_fingerprint,

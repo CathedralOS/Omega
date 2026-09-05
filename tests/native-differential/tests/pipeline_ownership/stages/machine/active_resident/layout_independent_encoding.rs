@@ -52,7 +52,7 @@ fn active_resident_rematerialization_reaches_layout_independent_encoding_on_both
             .unwrap();
         assert_eq!(
             fresh_row.alternative.family,
-            omega_selected_instructions::MachineAlternativeFamily::MaterializeI64
+            selected_instructions::MachineAlternativeFamily::MaterializeI64
         );
         assert!(
             matches!(&fresh_row.state, SelectedFormEncodingState::Encoded { bytes, .. } if !bytes.is_empty())

@@ -1,0 +1,15 @@
+[package]
+name = "access-plans"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[lib]
+name = "access_plans"
+path = "src/lib.rs"
+
+[dependencies]
+extents = { path = "../extents" }
+language-core = { path = "../language-core" }
+layout-plans = { path = "../layout-plans" }
+sha2 = "0.10"

@@ -13,7 +13,7 @@ use crate::review::candidate::validation::{
 };
 use crate::review::candidate::{PackageReviewEvidence, ReviewOnlyCanonicalRow};
 use crate::review::{CompilerIssuedPackageReview, CompilerIssuedPackageReviewSet};
-use omega_package_evidence::record::{
+use package_evidence::record::{
     PackageReviewCanonicalRowKind, PackageReviewCanonicalRowRisk, PackageReviewCanonicalRowSource,
 };
 use std::cmp::Ordering;

@@ -45,7 +45,7 @@ fn recovered_baseline_source_review_preserves_directional_root_role_blockers() {
     let package_sources = resolve_role_probe(&live, context.clone(), &package_cache)
         .expect("resolve package-role source closure");
     let package_reviews = compile_resolved_package_candidate_reviews(
-        &package_sources.for_exact_target(omega_target::TargetProfile::WindowsX64),
+        &package_sources.for_exact_target(target::TargetProfile::WindowsX64),
         &build_root,
     )
     .expect("compile package-role reviews");
@@ -60,7 +60,7 @@ fn recovered_baseline_source_review_preserves_directional_root_role_blockers() {
     let application_sources = resolve_role_probe(&live, context, &application_cache)
         .expect("resolve application-role source closure");
     let application_reviews = compile_resolved_package_candidate_reviews(
-        &application_sources.for_exact_target(omega_target::TargetProfile::WindowsX64),
+        &application_sources.for_exact_target(target::TargetProfile::WindowsX64),
         &build_root,
     )
     .expect("compile application-role reviews");
@@ -98,7 +98,7 @@ fn recovered_baseline_source_review_preserves_directional_root_role_blockers() {
             candidate_reviews,
             baseline_custody,
             candidate_sources,
-            omega_package_manager::review::PackageSourceReviewLimits::default(),
+            package_manager::review::PackageSourceReviewLimits::default(),
         )
         .expect("assemble root-role-aware source-review packet");
         assert_eq!(packet.triage(), &standalone);

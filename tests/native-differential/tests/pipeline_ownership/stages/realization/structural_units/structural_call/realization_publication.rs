@@ -1,6 +1,6 @@
 use crate::FunctionFragmentReplayInputs;
 use crate::tests::*;
-use omega_selected_instructions_to_register_homes::ValidatedSelectedAnalysis;
+use selected_instructions_to_register_homes::ValidatedSelectedAnalysis;
 
 pub(super) fn realize_and_publish_structural_call(homes: StagedOptimizedRegisterHomes) {
     let current = homes.replay_allocation().unwrap();
@@ -230,7 +230,7 @@ pub(super) fn realize_and_publish_structural_call(homes: StagedOptimizedRegister
                 changed.structural_unit_functions[1]
                     .block
                     .return_instruction
-                    .control = omega_machine_code::FunctionFragmentControlProvenance::None
+                    .control = machine_code::FunctionFragmentControlProvenance::None
             }
             6 => changed.structural_unit_functions[1].bytes[0] ^= 1,
             _ => unreachable!(),
@@ -238,11 +238,11 @@ pub(super) fn realize_and_publish_structural_call(homes: StagedOptimizedRegister
         changed.identity = changed.recomputed_identity();
         assert_ne!(changed.identity, original_fragments.identity);
         assert_eq!(
-            omega_machine_emission::validate_resolved_function_fragments(
+            machine_emission::validate_resolved_function_fragments(
                 fragments.source().program(),
                 &changed
             ),
-            Err(omega_machine_emission::ResolvedFragmentEmissionError::ArtifactMismatch),
+            Err(machine_emission::ResolvedFragmentEmissionError::ArtifactMismatch),
             "structural projection mutation {mutation}"
         );
     }
@@ -324,7 +324,7 @@ pub(super) fn realize_and_publish_structural_call(homes: StagedOptimizedRegister
         Err(FunctionFragmentEmissionError::ArtifactMismatch)
     ));
     assert!(matches!(
-        omega_machine_emission::place_structural_unit_fragments_for_test(&fragments),
+        machine_emission::place_structural_unit_fragments_for_test(&fragments),
         Err(RelocationFreeTextSectionPlacementError::SourceShapeMismatch)
     ));
     fragments.fragments_mut().structural_unit_functions[0]
@@ -349,11 +349,11 @@ pub(super) fn realize_and_publish_structural_call(homes: StagedOptimizedRegister
         .unwrap()
         .bytes[0] ^= 1;
     assert!(matches!(
-        omega_machine_emission::place_structural_unit_fragments_for_test(&fragments),
+        machine_emission::place_structural_unit_fragments_for_test(&fragments),
         Err(
             RelocationFreeTextSectionPlacementError::StructuralUnitCallTemplate(
                 _,
-                omega_isa_x86_64::X86_64StructuralUnitCallTemplateError::MalformedTemplate
+                isa_x86_64::X86_64StructuralUnitCallTemplateError::MalformedTemplate
             )
         )
     ));
@@ -369,7 +369,7 @@ pub(super) fn realize_and_publish_structural_call(homes: StagedOptimizedRegister
     let caller_machine = fragments.fragments().structural_unit_functions[0].machine;
     fragments.fragments_mut().structural_unit_functions[1].machine = caller_machine;
     assert!(matches!(
-        omega_machine_emission::place_structural_unit_fragments_for_test(
+        machine_emission::place_structural_unit_fragments_for_test(
             &fragments
         ),
         Err(RelocationFreeTextSectionPlacementError::DuplicateFunction(machine))
@@ -387,7 +387,7 @@ pub(super) fn realize_and_publish_structural_call(homes: StagedOptimizedRegister
         .offset as usize;
     fragments.fragments_mut().structural_unit_functions[0].bytes[call_start] ^= 1;
     assert!(matches!(
-        omega_machine_emission::place_structural_unit_fragments_for_test(&fragments),
+        machine_emission::place_structural_unit_fragments_for_test(&fragments),
         Err(RelocationFreeTextSectionPlacementError::SourceShapeMismatch)
     ));
     fragments.fragments_mut().structural_unit_functions[0].bytes[call_start] ^= 1;
@@ -420,7 +420,7 @@ pub(super) fn realize_and_publish_structural_call(homes: StagedOptimizedRegister
     assert_eq!(resolved_call.displacement, 5);
     assert_eq!(
         placed.relocation_requirements,
-        omega_object_file::TextSectionRelocationRequirements::ProvenNoneForFullyResolvedInternalControlV1
+        object_file::TextSectionRelocationRequirements::ProvenNoneForFullyResolvedInternalControlV1
     );
     let text_manifest = text.manifest().record();
     assert_eq!(text_manifest.statistics.functions, 0);

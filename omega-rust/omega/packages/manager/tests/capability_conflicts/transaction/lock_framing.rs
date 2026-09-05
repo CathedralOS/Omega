@@ -1,6 +1,6 @@
 //! Canonical outer framing and cumulative recovery ceilings over real policies.
 
-use omega_package_manager::lock::{PackageLock, PackageLockRecoveryLimits};
+use package_manager::lock::{PackageLock, PackageLockRecoveryLimits};
 
 fn rejects(text: &str) {
     assert!(PackageLock::recover_text(text, PackageLockRecoveryLimits::default()).is_err());

@@ -6,11 +6,11 @@ use crate::record::{
     PackagePolicyProviderFamily, PackagePolicyProviderFamilyCoordinate, PackagePolicyProviderPlan,
     PackageReviewProviderFamilyCoverage, PackageReviewProviderSelectionAuthority,
 };
-use omega_compiler::CheckedCompilation;
-use omega_provider_planning::plans::ProviderSelectionProvenance;
-use omega_provider_planning::{ProviderSelection, ProviderSelectionSubject};
-use omega_target::TargetProfile;
-use psi_diagnostics::Diagnostic;
+use compiler::CheckedCompilation;
+use diagnostics::Diagnostic;
+use provider_planning::plans::ProviderSelectionProvenance;
+use provider_planning::{ProviderSelection, ProviderSelectionSubject};
+use target::TargetProfile;
 
 pub(super) fn project(
     compilation: &CheckedCompilation,
@@ -72,15 +72,15 @@ pub(super) fn project(
         }
         let mut coordinates = Vec::with_capacity(family.coordinates().len());
         for coordinate in family.coordinates() {
-            let operator = psi_typed_trees::operator::declaration_by_symbol(
-                &compilation.typed,
-                coordinate.symbol,
-            )
-            .ok_or_else(|| rejected("family coordinate has no exact typed operator declaration"))?;
+            let operator =
+                typed_trees::operator::declaration_by_symbol(&compilation.typed, coordinate.symbol)
+                    .ok_or_else(|| {
+                        rejected("family coordinate has no exact typed operator declaration")
+                    })?;
             let static_parameter_count = operator.lifetime_parameters.len()
                 + compilation.operator_type_parameters(operator).len();
             if static_parameter_count != coordinate.static_parameter_count
-                || psi_typed_trees::operator::boundary_operator_requirement_identity(
+                || typed_trees::operator::boundary_operator_requirement_identity(
                     &compilation.typed,
                     operator,
                 ) != coordinate.requirement_identity
@@ -116,7 +116,7 @@ pub(super) fn project(
             coordinates.push(PackagePolicyProviderFamilyCoordinate {
                 requirement_identity: policy_provider_requirement_identity(
                     compilation,
-                    omega_provider_planning::plans::ProviderSchemaDeclaration::BoundaryOperator(
+                    provider_planning::plans::ProviderSchemaDeclaration::BoundaryOperator(
                         coordinate.symbol,
                     ),
                     coordinate.symbol,

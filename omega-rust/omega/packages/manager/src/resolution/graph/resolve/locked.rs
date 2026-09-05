@@ -15,8 +15,8 @@ use super::super::{
 use crate::declarations::PackageKey;
 use crate::declarations::dependencies::read::DependencySourceRequest;
 use crate::resolution::source::{PackageSourceCustody, ResolvePackageSourceError};
-use omega_package_source::git::resolution::GitExactRevisionAcquisition;
-use omega_package_source::{
+use package_source::git::resolution::GitExactRevisionAcquisition;
+use package_source::{
     ExternalSourceContext, GitSourceRequest, LocalSourceLimits, SourceResolverStorage,
     WorkspaceLineageIdentity,
 };

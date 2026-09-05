@@ -1,0 +1,39 @@
+[package]
+name = "checked-trees-to-terminal-psi"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[lib]
+name = "checked_trees_to_terminal_psi"
+path = "src/lib.rs"
+
+[dependencies]
+arena = { path = "../../foundation/arena" }
+checked-trees = { path = "../../representations/checked-trees" }
+semantic-vocabulary = { path = "../../foundation/semantic-vocabulary" }
+facts = { path = "../../representations/facts" }
+language-core = { path = "../../foundation/language-core" }
+language-semantics = { path = "../../foundation/language-semantics" }
+numerics = { path = "../../foundation/numerics" }
+optimization = { path = "../../representations/optimization" }
+proof-admission = { path = "../../semantics/proof-admission" }
+source = { path = "../../foundation/source" }
+symbols = { path = "../../foundation/symbols" }
+terminal-psi = { path = "../../representations/terminal-psi" }
+terminal-codec = { path = "../../semantics/terminal-codec" }
+terminal-verifier = { path = "../../semantics/terminal-verifier" }
+validation = { path = "../../semantics/validation" }
+sha2 = "0.10.9"
+
+[dev-dependencies]
+syntax-trees = { path = "../../representations/syntax-trees" }
+source-files-to-tokens = { path = "../source-files-to-tokens" }
+symbol-resolved-trees-to-typed-trees = { path = "../symbol-resolved-trees-to-typed-trees" }
+syntax-trees-to-symbol-resolved-trees = { path = "../syntax-trees-to-symbol-resolved-trees" }
+terminal-fuel = { path = "../../semantics/terminal-fuel" }
+terminal-fixed-fuel = { path = "../../semantics/terminal-fixed-fuel" }
+terminal-interpreter = { path = "../../semantics/terminal-interpreter" }
+tokens-to-syntax-trees = { path = "../tokens-to-syntax-trees" }
+typed-trees = { path = "../../representations/typed-trees" }
+typed-trees-to-checked-trees = { path = "../typed-trees-to-checked-trees" }

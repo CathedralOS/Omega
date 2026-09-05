@@ -5,8 +5,8 @@ use crate::resolution::graph::{
     CanonicalDependencySourceRequest, CanonicalRootSourceRequest, CanonicalSourceClosureSubject,
 };
 use crate::resolution::source::ResolvePackageSourceError;
-use omega_package_source::git::resolution::GitExactRevisionAcquisition;
-use omega_package_source::{GitSourceRequest, ImmutableSourceResolution};
+use package_source::git::resolution::GitExactRevisionAcquisition;
+use package_source::{GitSourceRequest, ImmutableSourceResolution};
 use std::fmt;
 
 /// A borrowed resolution policy, not an acceptance or compiler-review result.

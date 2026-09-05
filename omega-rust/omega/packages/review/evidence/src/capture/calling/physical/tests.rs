@@ -5,7 +5,7 @@ use crate::record::{
     PackageReviewIndirectPointerLocation as Pointer, PackageReviewMachineRegister as Register,
     PackageReviewSystemVEightbyteClass as Eightbyte,
 };
-use omega_calling_conventions::{
+use calling_conventions::{
     CallSignature, CallbackMaterialization, CallingPolicy, IndirectPointerLocation,
     MachineRegister, NativeParameterId, NativePlace, RegisterSet, StaticMachineBinderId,
     SystemVEightbyteClass, ValueClass, ValueLocation, ValuePlacement, ValueShape,

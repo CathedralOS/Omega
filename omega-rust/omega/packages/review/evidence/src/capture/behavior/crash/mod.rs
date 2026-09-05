@@ -12,21 +12,21 @@ use crate::record::{
     PackageReviewCrashInterface, PackageReviewCrashRoute, PackageReviewCrashRouteGuard,
     PackageReviewCrashSite,
 };
-use omega_compiler::CheckedCompilation;
-use psi_diagnostics::Diagnostic;
+use compiler::CheckedCompilation;
+use diagnostics::Diagnostic;
 
 pub(super) use expressions::project_boolean_expression;
 use permissions::{project_crash_predicate, project_crash_predicates, project_permission_claim};
 
 pub(crate) fn project_crash(
     compilation: &CheckedCompilation,
-    plan: &psi_checked_trees::CrashPlan,
+    plan: &checked_trees::CrashPlan,
 ) -> Result<PackageReviewCrash, Vec<Diagnostic>> {
     let interface = match plan.interface() {
-        psi_checked_trees::CrashInterface::InternalInferred => {
+        checked_trees::CrashInterface::InternalInferred => {
             PackageReviewCrashInterface::InternalInferred
         }
-        psi_checked_trees::CrashInterface::PublishedCeiling => {
+        checked_trees::CrashInterface::PublishedCeiling => {
             PackageReviewCrashInterface::PublishedCeiling
         }
     };
@@ -98,7 +98,7 @@ pub(crate) fn project_crash(
 }
 
 pub(crate) fn project_crash_routes(
-    routes: &[psi_checked_trees::CrashRouteBucket],
+    routes: &[checked_trees::CrashRouteBucket],
 ) -> Vec<PackageReviewCrashRoute> {
     let mut projected = routes
         .iter()
@@ -108,10 +108,8 @@ pub(crate) fn project_crash_routes(
                 .alternative_guards()
                 .iter()
                 .map(|guard| match guard {
-                    psi_checked_trees::CrashRouteGuard::Truth => {
-                        PackageReviewCrashRouteGuard::Truth
-                    }
-                    psi_checked_trees::CrashRouteGuard::Predicate(predicate) => {
+                    checked_trees::CrashRouteGuard::Truth => PackageReviewCrashRouteGuard::Truth,
+                    checked_trees::CrashRouteGuard::Predicate(predicate) => {
                         PackageReviewCrashRouteGuard::Predicate(project_crash_predicate(predicate))
                     }
                 })
@@ -124,10 +122,10 @@ pub(crate) fn project_crash_routes(
 }
 
 pub(crate) const fn project_crash_cause(
-    cause: psi_checked_trees::CrashCause,
+    cause: checked_trees::CrashCause,
 ) -> PackageReviewCrashCause {
     match cause {
-        psi_checked_trees::CrashCause::Trap => PackageReviewCrashCause::Trap,
-        psi_checked_trees::CrashCause::Abort => PackageReviewCrashCause::Abort,
+        checked_trees::CrashCause::Trap => PackageReviewCrashCause::Trap,
+        checked_trees::CrashCause::Abort => PackageReviewCrashCause::Abort,
     }
 }

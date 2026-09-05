@@ -1,0 +1,16 @@
+[package]
+name = "language-semantics"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[lib]
+name = "language_semantics"
+path = "src/lib.rs"
+
+[dependencies]
+semantic-vocabulary = { path = "../semantic-vocabulary" }
+language-core = { path = "../language-core" }
+numerics = { path = "../numerics" }
+source = { path = "../source" }
+symbols = { path = "../symbols" }

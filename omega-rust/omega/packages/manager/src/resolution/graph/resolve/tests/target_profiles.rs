@@ -5,7 +5,7 @@ use crate::resolution::graph::{
     CanonicalSourceClosureSubject, CanonicalSourceClosureSubjectLimits,
     ResolvedPackageSourceClosure,
 };
-use omega_target::TargetProfile;
+use target::TargetProfile;
 
 fn resolve(
     root: &Path,

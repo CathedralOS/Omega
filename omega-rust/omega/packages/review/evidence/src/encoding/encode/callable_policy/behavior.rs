@@ -15,11 +15,11 @@ pub(super) fn capability(
     })?;
     encoder.field("kind", |encoder| {
         match flow.kind {
-            psi_effects::CapabilityFlowKind::Uses => encoder.tag("uses", 0),
-            psi_effects::CapabilityFlowKind::Returns => encoder.tag("returns", 1),
-            psi_effects::CapabilityFlowKind::Acquires => encoder.tag("acquires", 2),
-            psi_effects::CapabilityFlowKind::Stores => encoder.tag("stores", 3),
-            psi_effects::CapabilityFlowKind::Derives => encoder.tag("derives", 4),
+            flow_effects::CapabilityFlowKind::Uses => encoder.tag("uses", 0),
+            flow_effects::CapabilityFlowKind::Returns => encoder.tag("returns", 1),
+            flow_effects::CapabilityFlowKind::Acquires => encoder.tag("acquires", 2),
+            flow_effects::CapabilityFlowKind::Stores => encoder.tag("stores", 3),
+            flow_effects::CapabilityFlowKind::Derives => encoder.tag("derives", 4),
         }
         Ok(())
     })
@@ -131,7 +131,7 @@ pub(in crate::encoding) fn termination(
                 } Ok(()) })?;
                 encoder.field("projections", |encoder| encoder.sequence(&premise.projections, encode_nominal))?;
                 encoder.field("establishment_routes", |encoder| encoder.sequence(&premise.establishment_routes, |encoder, route| {
-                    use omega_effects::provider_plan::ServiceProgressEstablishmentRouteKind as Kind;
+                    use effects::provider_plan::ServiceProgressEstablishmentRouteKind as Kind;
                     encoder.field("kind", |encoder| {
                         match route.kind {
                             Kind::CheckedRequirement => encoder.tag("checked_requirement", 0),

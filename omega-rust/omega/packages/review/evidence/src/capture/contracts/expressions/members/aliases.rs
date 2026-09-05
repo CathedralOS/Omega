@@ -1,9 +1,9 @@
 //! Rejoin resolver-seeded attached field aliases to their exact declarations.
 
 use crate::capture::contracts::facts::ContractProjectionContext;
-use omega_compiler::CheckedCompilation;
-use psi_checked_trees::ContractProofFactOwner;
-use psi_symbols::{SymbolHandle, SymbolKind};
+use checked_trees::ContractProofFactOwner;
+use compiler::CheckedCompilation;
+use symbols::{SymbolHandle, SymbolKind};
 
 #[cfg(test)]
 mod tests;
@@ -50,7 +50,7 @@ pub(super) fn attached_field(
         return false;
     }
     if compilation.data_members(declaration).iter().filter(|member| {
-        matches!(member, psi_typed_trees::data::DataMember::Field(field) if field.symbol == expected)
+        matches!(member, typed_trees::data::DataMember::Field(field) if field.symbol == expected)
     }).count() != 1 { return false; }
     let (Some(expected_span), Some(selected_span)) = (
         symbols.symbol_source_span(expected),

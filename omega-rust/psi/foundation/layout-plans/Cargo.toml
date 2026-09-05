@@ -1,0 +1,9 @@
+[package]
+name = "layout-plans"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[lib]
+name = "layout_plans"
+path = "src/lib.rs"

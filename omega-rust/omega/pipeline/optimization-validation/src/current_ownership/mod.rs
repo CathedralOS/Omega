@@ -1,0 +1,54 @@
+//! Optimizer module role: executable entrance. Current ownership-frontier reconstruction and independent replay.
+//!
+//! Entry reconstruction, CFG replay, frontier mutation, cleanup validation,
+//! structural placement, and partial-affine residual accounting descend into
+//! named leaves. This entrance owns the reconstruction-to-replay join.
+
+use std::collections::{BTreeMap, BTreeSet};
+
+use abstract_operations::{AbstractFunctionResult, AbstractOperation as O};
+use optimization_unit::{OptimizationBlock, PsiOptimizationFunction};
+use semantic_vocabulary::{BlockId, ClaimId, MachineId, PlaceId, StructuralTypeId};
+use terminal_psi::{
+    BoundaryMachineDeclaration, StructuralAccess, StructuralAffineDiscard, StructuralFieldType,
+    StructuralMultiplicity, StructuralPathSegment, StructuralTypeDeclaration, StructuralTypeShape,
+    TerminalAffineCleanupAction,
+};
+
+use crate::OptimizationUnitValidationError;
+
+mod cleanup;
+mod model;
+mod mutations;
+mod replay;
+mod residuals;
+mod structural;
+
+use cleanup::*;
+use model::*;
+use mutations::*;
+use residuals::*;
+use structural::*;
+
+pub(super) fn validate_current_ownership_frontier(
+    function: &PsiOptimizationFunction,
+    blocks: &BTreeMap<BlockId, &OptimizationBlock>,
+    successors: &BTreeMap<BlockId, Vec<BlockId>>,
+    functions: &BTreeMap<MachineId, &PsiOptimizationFunction>,
+    boundary_machines: &BTreeMap<
+        semantic_vocabulary::BoundaryMachineId,
+        &BoundaryMachineDeclaration,
+    >,
+    structural_types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
+) -> Result<(), OptimizationUnitValidationError> {
+    let entry = model::reconstruct_entry_ownership(function);
+    replay::validate_current_ownership_cfg(
+        function,
+        blocks,
+        successors,
+        functions,
+        boundary_machines,
+        structural_types,
+        entry,
+    )
+}

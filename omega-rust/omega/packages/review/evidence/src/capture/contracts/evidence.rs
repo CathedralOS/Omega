@@ -4,20 +4,19 @@ use crate::capture::semantics::declarations::{nominal_identity, trait_requiremen
 use crate::record::{
     PackageReviewContractFact, PackageReviewContractKind, PackageReviewPropositionEvidence,
 };
-use omega_compiler::CheckedCompilation;
-use psi_diagnostics::Diagnostic;
-use psi_symbols::SymbolHandle;
+use compiler::CheckedCompilation;
+use diagnostics::Diagnostic;
+use symbols::SymbolHandle;
 
 pub(crate) fn checked_outcome_specific_guarantee<'a>(
     compilation: &'a CheckedCompilation,
     context: &ContractProjectionContext<'_>,
-    fact: psi_arena::Handle<psi_typed_trees::domain::ProofFact>,
+    fact: arena::Handle<typed_trees::domain::ProofFact>,
     result_data: SymbolHandle,
     result_case: SymbolHandle,
-    binding: Option<&psi_typed_trees::name::Identifier>,
-) -> Result<&'a psi_checked_trees::OutcomeSpecificGuaranteeFact, Vec<Diagnostic>> {
-    let psi_checked_trees::ContractProofFactOwner::Machine { machine_symbol } = context.owner
-    else {
+    binding: Option<&typed_trees::name::Identifier>,
+) -> Result<&'a checked_trees::OutcomeSpecificGuaranteeFact, Vec<Diagnostic>> {
+    let checked_trees::ContractProofFactOwner::Machine { machine_symbol } = context.owner else {
         return Err(vec![Diagnostic::error(format!(
             "reviewed {} `{}` publishes an outcome-specific guarantee without a checked machine owner",
             context.subject_kind, context.subject_name
@@ -52,12 +51,12 @@ pub(crate) fn checked_outcome_specific_guarantee<'a>(
 pub(crate) fn checked_contract_fact<'a>(
     compilation: &'a CheckedCompilation,
     context: &ContractProjectionContext<'_>,
-    fact: psi_arena::Handle<psi_typed_trees::domain::ProofFact>,
+    fact: arena::Handle<typed_trees::domain::ProofFact>,
     kind: PackageReviewContractKind,
-) -> Result<&'a psi_checked_trees::ContractProofFact, Vec<Diagnostic>> {
+) -> Result<&'a checked_trees::ContractProofFact, Vec<Diagnostic>> {
     let checked_kind = match kind {
-        PackageReviewContractKind::Requires => psi_checked_trees::ContractProofFactKind::Requires,
-        PackageReviewContractKind::Ensures => psi_checked_trees::ContractProofFactKind::Ensures,
+        PackageReviewContractKind::Requires => checked_trees::ContractProofFactKind::Requires,
+        PackageReviewContractKind::Ensures => checked_trees::ContractProofFactKind::Ensures,
     };
     let matching = compilation
         .facts
@@ -83,8 +82,8 @@ pub(crate) fn checked_contract_fact<'a>(
 pub(crate) fn validate_checked_contract_evidence(
     compilation: &CheckedCompilation,
     context: &ContractProjectionContext<'_>,
-    binding: Option<&psi_typed_trees::name::Identifier>,
-    checked: &psi_checked_trees::ContractProofFact,
+    binding: Option<&typed_trees::name::Identifier>,
+    checked: &checked_trees::ContractProofFact,
     projected: &PackageReviewContractFact,
 ) -> Result<Option<u32>, Vec<Diagnostic>> {
     validate_checked_contract_evidence_components(
@@ -102,10 +101,10 @@ pub(crate) fn validate_checked_contract_evidence(
 pub(crate) fn validate_checked_contract_evidence_components(
     compilation: &CheckedCompilation,
     context: &ContractProjectionContext<'_>,
-    binding: Option<&psi_typed_trees::name::Identifier>,
-    checked_owner: psi_checked_trees::ContractProofFactOwner,
-    checked_kind: psi_checked_trees::ContractProofFactKind,
-    checked_evidence_term: Option<psi_arena::Handle<psi_checked_trees::CheckedEvidenceTerm>>,
+    binding: Option<&typed_trees::name::Identifier>,
+    checked_owner: checked_trees::ContractProofFactOwner,
+    checked_kind: checked_trees::ContractProofFactKind,
+    checked_evidence_term: Option<arena::Handle<checked_trees::CheckedEvidenceTerm>>,
     projected: &PackageReviewContractFact,
 ) -> Result<Option<u32>, Vec<Diagnostic>> {
     let Some(binding) = binding else {

@@ -125,7 +125,7 @@ fn binding(reader: &mut Reader<'_>) -> Result<PackagePolicyExternalBinding, Erro
 
 fn target(reader: &mut Reader<'_>) -> Result<String, Error> {
     let name = reader.string()?;
-    if !omega_target::TargetProfile::ALL
+    if !target::TargetProfile::ALL
         .iter()
         .any(|profile| profile.identity().as_str() == name)
     {

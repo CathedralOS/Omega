@@ -10,9 +10,9 @@ use crate::record::{
     PackageReviewDomainClassification, PackageReviewDomainSemanticRole, PackageReviewDomainShape,
     PackageReviewNominalIdentity,
 };
-use omega_compiler::CheckedCompilation;
-use psi_core::PackageKeyIdentity;
-use psi_diagnostics::Diagnostic;
+use compiler::CheckedCompilation;
+use diagnostics::Diagnostic;
+use semantic_vocabulary::PackageKeyIdentity;
 
 pub(crate) fn project_public_domains(
     compilation: &CheckedCompilation,
@@ -41,7 +41,7 @@ pub(crate) fn project_public_domains(
         let classification = definition
             .classification
             .map(|classification| match classification {
-                psi_language_semantics::DomainClassification::ProgressProfile => {
+                language_semantics::DomainClassification::ProgressProfile => {
                     PackageReviewDomainClassification::ProgressProfile
                 }
             });
@@ -94,7 +94,7 @@ pub(crate) fn project_public_domains(
 }
 
 pub(crate) fn project_domain_semantic_roles(
-    definition: &psi_typed_trees::domain::DomainDefinition,
+    definition: &typed_trees::domain::DomainDefinition,
     identity: &PackageReviewNominalIdentity,
 ) -> Result<Vec<PackageReviewDomainSemanticRole>, Vec<Diagnostic>> {
     let mut roles = Vec::new();

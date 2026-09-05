@@ -55,12 +55,11 @@ pub(super) fn verify_structural_call_encoding_and_layout(homes: &StagedOptimized
         .unit_uses
         .clear();
     // Canonical encoding authenticates data; it cannot admit a different call.
-    corrupted.identity = omega_physical_instructions::post_allocation_machine_identity(&corrupted);
-    let corrupted =
-        omega_physical_instructions::PostAllocationMachinePlan::decode(&corrupted.encode())
-            .expect("substituted data has a valid canonical frame, not realization authority");
+    corrupted.identity = physical_instructions::post_allocation_machine_identity(&corrupted);
+    let corrupted = physical_instructions::PostAllocationMachinePlan::decode(&corrupted.encode())
+        .expect("substituted data has a valid canonical frame, not realization authority");
     assert!(
-        omega_register_homes_to_post_allocation_machine::validate_post_allocation_machine_plan(
+        register_homes_to_post_allocation_machine::validate_post_allocation_machine_plan(
             range_stage.liveness_stage().selected_stage().selected(),
             post.effects(),
             range_stage.ranges(),

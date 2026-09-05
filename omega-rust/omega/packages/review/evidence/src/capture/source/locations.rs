@@ -6,9 +6,9 @@ use crate::record::package::PackageReviewCanonicalRowSources;
 use crate::record::{
     PackageReviewSourceLocation, PackageReviewSourceLocationOwner, PackageReviewSourceLocationRole,
 };
-use omega_compiler::CheckedCompilation;
-use psi_diagnostics::Diagnostic;
-use psi_symbols::SymbolHandle;
+use compiler::CheckedCompilation;
+use diagnostics::Diagnostic;
+use symbols::SymbolHandle;
 
 pub(crate) const MAX_PACKAGE_REVIEW_SOURCE_LOCATIONS: usize = 262_144;
 pub(crate) const MAX_PACKAGE_REVIEW_SOURCE_LOCATION_PATH_BYTES: usize = 16 * 1024 * 1024;
@@ -137,7 +137,7 @@ pub(crate) fn project_nested_declaration_source_location(
 
 pub(crate) fn canonical_source_span_location(
     compilation: &CheckedCompilation,
-    span: psi_source::SourceSpan,
+    span: source::SourceSpan,
     role: PackageReviewSourceLocationRole,
 ) -> Result<PackageReviewSourceLocation, Vec<Diagnostic>> {
     let source_file = compilation.typed.symbols.source_file(span).ok_or_else(|| {
@@ -156,7 +156,7 @@ pub(crate) fn canonical_source_span_location(
         ))]);
     }
     let owner = match source_file.origin {
-        psi_source::SourceOrigin::User => PackageReviewSourceLocationOwner::Package(
+        source::SourceOrigin::User => PackageReviewSourceLocationOwner::Package(
             source_file.package_identity.ok_or_else(|| {
                 vec![Diagnostic::error(format!(
                     "reviewed package source `{}` has no reconciled package identity",
@@ -164,7 +164,7 @@ pub(crate) fn canonical_source_span_location(
                 ))]
             })?,
         ),
-        psi_source::SourceOrigin::Toolchain => {
+        source::SourceOrigin::Toolchain => {
             PackageReviewSourceLocationOwner::Toolchain(toolchain_source_identity(source_file)?)
         }
     };
@@ -183,8 +183,8 @@ pub(crate) fn canonical_source_span_location(
 /// toolchain spans remain owned by the checked-compilation path above because
 /// their exact source commitments are compiler custody.
 pub(crate) fn canonical_typed_package_source_span_location(
-    program: &psi_typed_trees::TypedTrees,
-    span: psi_source::SourceSpan,
+    program: &typed_trees::TypedTrees,
+    span: source::SourceSpan,
     role: PackageReviewSourceLocationRole,
 ) -> Result<PackageReviewSourceLocation, Vec<Diagnostic>> {
     let source_file = program.symbols.source_file(span).ok_or_else(|| {
@@ -202,7 +202,7 @@ pub(crate) fn canonical_typed_package_source_span_location(
             source_file.path.display()
         ))]);
     }
-    if source_file.origin != psi_source::SourceOrigin::User {
+    if source_file.origin != source::SourceOrigin::User {
         return Err(vec![Diagnostic::error(
             "proof-only quotient package review requires an authored package declaration source",
         )]);
@@ -225,12 +225,12 @@ pub(crate) fn canonical_typed_package_source_span_location(
 }
 
 pub(crate) fn canonical_review_relative_path(
-    source_file: &psi_source::SourceFile,
+    source_file: &source::SourceFile,
 ) -> Result<String, Vec<Diagnostic>> {
     let relative = match source_file.path.strip_prefix(&source_file.package_root) {
         Ok(relative) => relative,
         Err(_)
-            if source_file.origin == psi_source::SourceOrigin::Toolchain
+            if source_file.origin == source::SourceOrigin::Toolchain
                 && is_canonical_virtual_toolchain_path(&source_file.path) =>
         {
             source_file.path.as_path()

@@ -1,4 +1,4 @@
-use psi_core::PackageKeyIdentity;
+use semantic_vocabulary::PackageKeyIdentity;
 
 /// One shared length-prefixed semantic identity framing, independent of source
 /// capture and persistence envelopes. The caller chooses the storage strategy.

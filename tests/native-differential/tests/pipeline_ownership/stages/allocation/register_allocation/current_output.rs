@@ -1,14 +1,12 @@
 use crate::tests::*;
-use omega_selected_instructions_to_register_homes::ValidatedSelectedAnalysis;
+use selected_instructions_to_register_homes::ValidatedSelectedAnalysis;
 
 fn callee_saved_budget() -> OptimizationWorkBudget {
     // Requirement traversal counts every selected operand, unlike rewrite rounds.
     OptimizationWorkBudget::new(1024, 1024, 1024, 1024, 1024).unwrap()
 }
 
-fn assert_owned_program(
-    retained: &omega_selected_instructions_to_register_homes::RetainedAllocation,
-) {
+fn assert_owned_program(retained: &selected_instructions_to_register_homes::RetainedAllocation) {
     let current = retained.current();
     assert!(std::ptr::eq(
         retained.program().selected.as_ref(),
@@ -36,7 +34,7 @@ fn assert_owned_program(
 }
 
 fn assert_current_callee_saved_requirements(
-    retained: &omega_selected_instructions_to_register_homes::RetainedAllocation,
+    retained: &selected_instructions_to_register_homes::RetainedAllocation,
 ) {
     let policy =
         AllocatedCalleeSavedRequirementPolicy::AllocatedSelectedWritesIntersectAbiPreservationV1;
@@ -57,7 +55,7 @@ fn assert_current_callee_saved_requirements(
 
 #[test]
 fn callee_saved_requirements_reject_edited_current_data_before_derivation_or_replay() {
-    use omega_selected_instructions_to_register_homes::RetainedAllocation;
+    use selected_instructions_to_register_homes::RetainedAllocation;
 
     for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
         for replace_selected in [false, true] {
@@ -108,7 +106,7 @@ fn baseline(target: NativeTarget) -> StagedOptimizedRegisterHomes {
 fn baseline_realizations_reject_selected_lowering_evidence_roles() {
     fn selected_allocation(
         target: NativeTarget,
-    ) -> omega_selected_instructions_to_register_homes::RetainedAllocation {
+    ) -> selected_instructions_to_register_homes::RetainedAllocation {
         let selected = staged_exact_add_conditional_with_selections(
             target,
             OptimizationSelections::new([
@@ -187,7 +185,7 @@ fn allocation_view_preserves_exact_machine_output_and_rejects_substitution() {
 
 #[test]
 fn retained_allocation_projects_the_same_facts_as_fresh_replay() {
-    use omega_selected_instructions_to_register_homes::RetainedAllocation;
+    use selected_instructions_to_register_homes::RetainedAllocation;
 
     for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
         let source = baseline(target);
@@ -235,7 +233,7 @@ fn retained_allocation_projects_the_same_facts_as_fresh_replay() {
 
 #[test]
 fn current_program_substitution_cannot_pass_replay() {
-    use omega_selected_instructions_to_register_homes::RetainedAllocation;
+    use selected_instructions_to_register_homes::RetainedAllocation;
 
     for replace_selected in [false, true] {
         let mut retained =
@@ -258,7 +256,7 @@ fn current_program_substitution_cannot_pass_replay() {
 
 #[test]
 fn editing_a_raw_program_clone_cannot_mutate_admitted_allocation() {
-    use omega_selected_instructions_to_register_homes::RetainedAllocation;
+    use selected_instructions_to_register_homes::RetainedAllocation;
 
     let retained = RetainedAllocation::try_from(baseline(NativeTarget::linux_x64())).unwrap();
     let selected_identity = retained.current().selected().selected_identity();
@@ -281,7 +279,7 @@ fn editing_a_raw_program_clone_cannot_mutate_admitted_allocation() {
 
 #[test]
 fn retained_allocation_rejects_selected_recovery_without_recovery_evidence() {
-    use omega_selected_instructions_to_register_homes::RetainedAllocation;
+    use selected_instructions_to_register_homes::RetainedAllocation;
 
     let selected = staged_exact_add_conditional_with_selections(
         NativeTarget::linux_x64(),
@@ -339,12 +337,12 @@ fn allocation_phase_matches_explicit_baseline_and_selected_lowering_sequences() 
                         .unwrap();
                 let run = run_selected_lowering_optimizations(legality).unwrap();
                 let homes = stage_optimized_register_homes_after_selected_lowering(run).unwrap();
-                omega_selected_instructions_to_register_homes::RetainedAllocation::try_from(homes)
+                selected_instructions_to_register_homes::RetainedAllocation::try_from(homes)
                     .unwrap()
             } else {
                 let legality = stage_optimized_allocation_legality(ranges(target, false)).unwrap();
                 let homes = stage_optimized_register_homes(legality).unwrap();
-                omega_selected_instructions_to_register_homes::RetainedAllocation::try_from(homes)
+                selected_instructions_to_register_homes::RetainedAllocation::try_from(homes)
                     .unwrap()
             };
             assert_eq!(

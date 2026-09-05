@@ -1,7 +1,7 @@
 //! Exact component usage and every representable first-over work boundary.
 
-use omega_optimization_core::{OptimizationWorkBudget, OptimizationWorkUsage};
-use omega_selected_instructions_to_register_homes::{
+use optimization_core::{OptimizationWorkBudget, OptimizationWorkUsage};
+use selected_instructions_to_register_homes::{
     PressureRematerializationError, RecoveryClassificationError, SpillChoiceError,
 };
 

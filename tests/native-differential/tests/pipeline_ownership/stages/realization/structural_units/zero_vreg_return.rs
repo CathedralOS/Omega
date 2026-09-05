@@ -1,6 +1,6 @@
 use crate::FunctionFragmentReplayInputs;
 use crate::tests::*;
-use omega_selected_instructions_to_register_homes::ValidatedSelectedAnalysis;
+use selected_instructions_to_register_homes::ValidatedSelectedAnalysis;
 
 #[test]
 fn unit_realization_shares_current_allocation_and_rejects_substitution() {
@@ -212,14 +212,14 @@ fn zero_vreg_unit_return_reaches_replayed_homes_and_machine_custody() {
         let post_instruction = &post.machine().plan().functions[0].blocks[0].instructions[0];
         assert_eq!(
             post_instruction.alternative.key.family,
-            omega_selected_instructions::MachineAlternativeFamily::ReturnUnit
+            selected_instructions::MachineAlternativeFamily::ReturnUnit
         );
         assert!(post_instruction.operands.is_empty());
         let mut corrupted_post = post.machine().plan().clone();
         corrupted_post.functions[0].machine = MachineId::new(3_599).unwrap();
         let selected_stage = range_stage.liveness_stage().selected_stage();
         assert!(
-            omega_register_homes_to_post_allocation_machine::validate_post_allocation_machine_plan(
+            register_homes_to_post_allocation_machine::validate_post_allocation_machine_plan(
                 selected_stage.selected(),
                 post.effects(),
                 range_stage.ranges(),
@@ -242,8 +242,8 @@ fn zero_vreg_unit_return_reaches_replayed_homes_and_machine_custody() {
         assert_eq!(
             realization.manifest().record().statistics.bytes,
             match target.architecture {
-                omega_target::Architecture::X86_64 => 1,
-                omega_target::Architecture::Aarch64 => 4,
+                target::Architecture::X86_64 => 1,
+                target::Architecture::Aarch64 => 4,
             }
         );
         let [function] = realization.exit_contract().contract().functions.as_slice() else {
@@ -299,8 +299,8 @@ fn zero_vreg_unit_return_reaches_replayed_homes_and_machine_custody() {
         assert_eq!(
             emitted_bytes.as_slice(),
             match target.architecture {
-                omega_target::Architecture::X86_64 => &[0xc3][..],
-                omega_target::Architecture::Aarch64 => &[0xc0, 0x03, 0x5f, 0xd6][..],
+                target::Architecture::X86_64 => &[0xc3][..],
+                target::Architecture::Aarch64 => &[0xc0, 0x03, 0x5f, 0xd6][..],
             }
         );
 
@@ -364,14 +364,14 @@ fn optimized_unit_return_carries_the_ordinary_aarch64_frame_and_link_save() {
         )
         .unwrap();
         match target.architecture {
-            omega_target::Architecture::X86_64 => {
+            target::Architecture::X86_64 => {
                 assert!(emitted.source().frame_protocol().is_none());
                 let [fragment] = emitted.fragments().functions.as_slice() else {
                     panic!("one Unit fragment");
                 };
                 assert_eq!(fragment.bytes, vec![0xc3]);
             }
-            omega_target::Architecture::Aarch64 => {
+            target::Architecture::Aarch64 => {
                 assert!(emitted.source().frame_protocol().is_some());
                 let applied = stage_function_fragment_frame_application(emitted).unwrap();
                 validate_function_fragment_frame_application(&applied).unwrap();

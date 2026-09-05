@@ -198,8 +198,8 @@ new.ptr = base.ptr + start * element_byte_size
 new.len = end - start
 ```
 
-This descriptor shape is owned by exactly one crate, `omega-runtime-abi`, which
-exposes field-offset accessors and a subslice accessor. `omega-layout` and
+This descriptor shape is owned by exactly one crate, `runtime-abi`, which
+exposes field-offset accessors and a subslice accessor. `layout` and
 instruction selection are consumers: they must not re-derive the `+ pointer_size`
 and `2 * pointer_size` layout independently. Owning the shape in one place keeps
 descriptor layout from drifting between the layout pass and code generation.

@@ -35,8 +35,8 @@ mbx test --workspace --lib --no-fail-fast
 `mbx test --workspace --lib --no-fail-fast` is the platform-portable subset:
 all library tests, no target-specific executable/runtime legs. `--no-fail-fast`
 is not optional. Without it the run stops at the first failing crate, which on a
-Windows host is `omega-bounded-process` at position 7 of 110 lib targets, so 103
-crates including every `psi_*` one never execute and the gate reports a stop
+Windows host is `bounded-process` at position 7 of 110 lib targets, so 103
+crates including every Psi one never execute and the gate reports a stop
 rather than a coverage gap. Platform integration tests
 are separate and must report an explicit skip when the host cannot run them.
 
@@ -72,11 +72,11 @@ an alternate toolchain layout.
 ### Running one test
 
 ```bash
-mbx test -p omega-compiler --test canary_suite entry_and_abi::pass_canaries_compile
+mbx test -p compiler --test canary_suite entry_and_abi::pass_canaries_compile
 ```
 
 ```bash
-mbx test -p omega-compiler --test canary_suite proof_and_float_suites::fail_canaries_reject_with_expected_diagnostic_fragment
+mbx test -p compiler --test canary_suite proof_and_float_suites::fail_canaries_reject_with_expected_diagnostic_fragment
 ```
 
 `canary_suite` is the umbrella target driving the `tests/omega/{pass,fail,run}`
@@ -93,7 +93,7 @@ host parallelism capped at 12 and must be a positive integer.
 
 ```bash
 OMEGA_PASS_CANARY_FILTER=nested_parameter_receiver_call \
-  mbx test -p omega-compiler --test canary_suite entry_and_abi::pass_canaries_compile
+  mbx test -p compiler --test canary_suite entry_and_abi::pass_canaries_compile
 ```
 
 `canary_suite` is not in the baseline gates above and a full run is currently
@@ -154,19 +154,26 @@ predate that cut and are **not** the public portable format.
 
 Workspace crate names encode the pipeline. Within both halves:
 
+Internal package and folder names omit the enclosing `omega-` or `psi-`
+namespace. Keep the shipped `omega` package name. Cargo names are unique across
+the workspace; use descriptive ownership names rather than duplicate generic
+names (Psi's `semantic-vocabulary` and `flow-effects`, for example).
+
 - `foundation/` — shared vocabulary, arenas, symbols, diagnostics.
 - `representations/` — durable IR structs.
 - `pipeline/` — transforms only; crate names read literally as `X-to-Y`
-  (`psi-source-files-to-tokens` → `psi-tokens-to-syntax-trees` →
-  `psi-syntax-trees-to-symbol-resolved-trees` →
-  `psi-symbol-resolved-trees-to-typed-trees` →
-  `psi-typed-trees-to-checked-trees` → `psi-checked-trees-to-terminal`, then
-  `omega-psi-to-abstract-operations` →
-  `omega-abstract-operations-to-target-operations` →
-  `omega-target-operations-to-selected-instructions` → image emission).
-  Optimization stages are the exception: they normally consume and produce the
-  same representation, so do not invent a `PreOptimized`/`PostOptimized` pair to
-  satisfy the `X-to-Y` reading. See Optimization Phases below.
+  (`source-files-to-tokens` → `tokens-to-syntax-trees` →
+  `syntax-trees-to-symbol-resolved-trees` →
+  `symbol-resolved-trees-to-typed-trees` →
+  `typed-trees-to-checked-trees` → `checked-trees-to-terminal-psi`, then
+  `terminal-psi-to-abstract-operations` →
+  `abstract-operations-to-target-operations` →
+  `target-operations-to-selected-instructions` → image emission).
+  Optimization stages use literal `X-to-X` names: for example,
+  `abstract-operations-to-abstract-operations`. They consume and produce
+  the same representation; do not invent a `PreOptimized`/`PostOptimized` pair.
+  The folders must expose the connected `X-to-Y`, `Y-to-Y`, `Y-to-Z` sequence,
+  not merely name individually plausible calculations. See Optimization Phases.
 - `semantics/` — language meaning, validation, proof, interpreters.
 - `backend/` — target, ABI, layout, object, linker, image.
 

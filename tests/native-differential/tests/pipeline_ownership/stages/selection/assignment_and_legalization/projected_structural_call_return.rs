@@ -54,25 +54,25 @@ fn projected_structural_call_return_reaches_selection_on_all_targets_only() {
         );
         assert_eq!(selected.custody().function_count(), 2);
         match target_profile.architecture {
-            omega_target::Architecture::X86_64 => assert!(matches!(
+            target::Architecture::X86_64 => assert!(matches!(
                 closure.callee_return_transfer,
-                omega_selected_instructions::SelectedStructuralTransfer::FixedViewCopy { .. }
+                selected_instructions::SelectedStructuralTransfer::FixedViewCopy { .. }
             )),
-            omega_target::Architecture::Aarch64 => assert!(matches!(
+            target::Architecture::Aarch64 => assert!(matches!(
                 closure.callee_return_transfer,
-                omega_selected_instructions::SelectedStructuralTransfer::SameViewNoCopy { .. }
+                selected_instructions::SelectedStructuralTransfer::SameViewNoCopy { .. }
             )),
         }
         assert!(matches!(
             analyze_machine_effects(selected.selected(), selected.register_environment()),
             Err(MachineEffectStageError::Analysis(
-                omega_selected_instructions_to_machine_effects::MachineEffectError::ProjectedStructuralCallReturnUnsupported
+                selected_instructions_to_register_homes::MachineEffectError::ProjectedStructuralCallReturnUnsupported
             ))
         ));
         assert!(matches!(
             stage_optimized_liveness(selected),
             Err(OptimizedLivenessCustodyError::Analysis(
-                omega_selected_instructions_to_register_homes::LivenessError::ProjectedStructuralCallReturnUnsupported
+                selected_instructions_to_register_homes::LivenessError::ProjectedStructuralCallReturnUnsupported
             ))
         ));
     }

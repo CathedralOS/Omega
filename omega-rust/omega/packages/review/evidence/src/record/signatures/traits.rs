@@ -35,7 +35,7 @@ impl PackageReviewTraitParent {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PackageReviewTraitRequirement {
     pub(crate) identity: PackageReviewNominalIdentity,
-    pub(crate) spelling: Option<psi_language_core::OperatorSpelling>,
+    pub(crate) spelling: Option<language_core::OperatorSpelling>,
     /// Body presence is public conformance behavior. The body itself remains
     /// checked source, not a compiler-private IR blob in package evidence.
     pub(crate) has_default_realization: bool,
@@ -60,7 +60,7 @@ impl PackageReviewTraitRequirement {
         &self.identity
     }
 
-    pub const fn spelling(&self) -> Option<psi_language_core::OperatorSpelling> {
+    pub const fn spelling(&self) -> Option<language_core::OperatorSpelling> {
         self.spelling
     }
 

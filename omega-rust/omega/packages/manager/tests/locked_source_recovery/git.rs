@@ -1,8 +1,8 @@
 use super::*;
-use omega_package_manager::declarations::{PackageName, PackageSelection};
-use omega_package_manager::resolution::graph::resolve_selected_git_project_closure_with_storage;
-use omega_package_manager::resolution::source::GitPackageSourceRequest;
-use omega_package_source::GitSourceRequest;
+use package_manager::declarations::{PackageName, PackageSelection};
+use package_manager::resolution::graph::resolve_selected_git_project_closure_with_storage;
+use package_manager::resolution::source::GitPackageSourceRequest;
+use package_source::GitSourceRequest;
 
 fn git(repository: &Path, arguments: &[&str]) {
     let output = std::process::Command::new("git")

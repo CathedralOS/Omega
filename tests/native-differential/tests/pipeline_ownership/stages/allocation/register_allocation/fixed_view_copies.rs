@@ -72,7 +72,7 @@ fn fixed_view_copies_are_explicit_reanalyzed_and_deterministic() {
         assert_eq!(materialized.custody().manifest(), source_manifest);
         assert_eq!(
             copy_plan.usage,
-            omega_optimization_core::OptimizationWorkUsage {
+            optimization_core::OptimizationWorkUsage {
                 rule_evaluations: 5,
                 candidates: 4,
                 validation_steps: 20,

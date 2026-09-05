@@ -1,0 +1,714 @@
+//! The trusted-computing-base manifest as JSON, rendered from effects
+//! carriers.
+
+use effects::{
+    ExecutableEntryOrigin, ExecutableIdentity, ExecutableTcbEntry, ExecutionScope,
+    ImplementationEvidence, IncompleteCause, OpaqueInProcessBinding, ProviderIdentity,
+    ScopeCompleteness, SelectedProviderPlanFacts,
+};
+use std::fmt::Write;
+
+/// Stable artifact surface for the executable TCB facts derivable from the
+/// exact selected-provider closure.
+pub fn executable_tcb_manifest_json(selected: &SelectedProviderPlanFacts) -> String {
+    let manifest = selected.executable_tcb_manifest();
+    executable_tcb_manifest_value_json(&manifest)
+}
+
+/// Stable artifact surface for a manifest after static/runtime union.
+pub fn executable_tcb_manifest_value_json(manifest: &effects::ExecutableTcbManifest) -> String {
+    let mut json = String::from("{\n  \"known_entries\": [");
+    for (index, entry) in manifest.known_entries.iter().enumerate() {
+        if index > 0 {
+            json.push(',');
+        }
+        json.push_str("\n    {");
+        push_entry_json(&mut json, entry);
+        json.push_str("\n    }");
+    }
+    if !manifest.known_entries.is_empty() {
+        json.push('\n');
+        json.push_str("  ");
+    }
+    json.push_str("],\n  \"completeness\": {");
+    match &manifest.completeness {
+        ScopeCompleteness::Complete {
+            scope,
+            selected_provider_closure_report_identity,
+            opaque_closure_evidence,
+            runtime_closure_evidence,
+        } => {
+            json.push_str("\n    \"status\": \"complete\",\n    \"scope\": ");
+            push_execution_scope_json(&mut json, *scope);
+            json.push_str(",\n    \"evidence\": [\n      {\"kind\": \"selected_provider_closure\", \"identity\": ");
+            push_json_string(
+                &mut json,
+                &format!("0x{selected_provider_closure_report_identity:016x}"),
+            );
+            json.push('}');
+            for evidence in opaque_closure_evidence {
+                json.push_str(",\n      {\"kind\": \"admitted_opaque_executable_closure\", \"provider_plan_report_identity\": ");
+                push_json_string(
+                    &mut json,
+                    &format!("0x{:016x}", evidence.provider_plan_report_identity),
+                );
+                json.push_str(", \"method\": ");
+                push_json_string(&mut json, &evidence.method);
+                json.push_str(", \"requirement_identity\": ");
+                push_json_string(&mut json, &evidence.requirement_identity);
+                json.push_str(", \"evidence_identity\": ");
+                push_json_string(&mut json, &evidence.evidence_identity);
+                json.push('}');
+            }
+            push_runtime_closure_evidence_json(&mut json, runtime_closure_evidence, true);
+            json.push_str("\n    ]");
+        }
+        ScopeCompleteness::Incomplete {
+            scope,
+            causes,
+            opaque_closure_evidence,
+            runtime_closure_evidence,
+        } => {
+            json.push_str("\n    \"status\": \"incomplete\",\n    \"scope\": ");
+            push_execution_scope_json(&mut json, *scope);
+            json.push_str(",\n    \"causes\": [");
+            for (index, cause) in causes.iter().enumerate() {
+                if index > 0 {
+                    json.push(',');
+                }
+                push_incomplete_cause_json(&mut json, cause);
+            }
+            if !causes.is_empty() {
+                json.push('\n');
+                json.push_str("    ");
+            }
+            json.push(']');
+            json.push_str(",\n    \"evidence\": [");
+            for (index, evidence) in opaque_closure_evidence.iter().enumerate() {
+                if index > 0 {
+                    json.push(',');
+                }
+                json.push_str("\n      {\"kind\": \"admitted_opaque_executable_closure\", \"provider_plan_report_identity\": ");
+                push_json_string(
+                    &mut json,
+                    &format!("0x{:016x}", evidence.provider_plan_report_identity),
+                );
+                json.push_str(", \"method\": ");
+                push_json_string(&mut json, &evidence.method);
+                json.push_str(", \"requirement_identity\": ");
+                push_json_string(&mut json, &evidence.requirement_identity);
+                json.push_str(", \"evidence_identity\": ");
+                push_json_string(&mut json, &evidence.evidence_identity);
+                json.push('}');
+            }
+            push_runtime_closure_evidence_json(
+                &mut json,
+                runtime_closure_evidence,
+                !opaque_closure_evidence.is_empty(),
+            );
+            if !opaque_closure_evidence.is_empty() || !runtime_closure_evidence.is_empty() {
+                json.push('\n');
+                json.push_str("    ");
+            }
+            json.push(']');
+        }
+    }
+    json.push_str("\n  }\n}\n");
+    json
+}
+
+/// Stable artifact surface retaining the caller manifest and each separately
+/// evaluated isolated-provider manifest.
+pub fn executable_tcb_manifest_set_json(set: &effects::ExecutableTcbManifestSet) -> String {
+    let mut json = String::from("{\n  \"root_manifest\": ");
+    json.push_str(executable_tcb_manifest_value_json(set.root()).trim());
+    json.push_str(",\n  \"isolated_scopes\": [");
+    for (index, isolated) in set.isolated().iter().enumerate() {
+        if index > 0 {
+            json.push(',');
+        }
+        json.push_str("\n    {\"manifest_receipt_identity\": ");
+        push_json_string(&mut json, isolated.manifest_receipt_identity());
+        json.push_str(", \"manifest\": ");
+        json.push_str(executable_tcb_manifest_value_json(isolated.manifest()).trim());
+        json.push('}');
+    }
+    if !set.isolated().is_empty() {
+        json.push('\n');
+        json.push_str("  ");
+    }
+    json.push_str("]\n}\n");
+    json
+}
+
+fn push_incomplete_cause_json(json: &mut String, cause: &IncompleteCause) {
+    json.push_str("\n      {\n        \"provider\": ");
+    match cause {
+        IncompleteCause::SelectedOpaqueProvider {
+            provider_identity,
+            provider_plan_report_identity,
+            provider_plan_digest,
+            method,
+            requirement_identity,
+            binding,
+        } => {
+            push_provider_identity_json(json, provider_identity);
+            json.push_str(",\n        \"provider_plan_report_identity\": ");
+            push_json_string(json, &format!("0x{provider_plan_report_identity:016x}"));
+            push_provider_plan_digest_json(json, provider_plan_digest);
+            json.push_str(",\n        \"method\": ");
+            push_json_string(json, method);
+            json.push_str(",\n        \"requirement_identity\": ");
+            push_json_string(json, requirement_identity);
+            json.push_str(",\n        \"reason\": \"uncontained_opaque_in_process_provider\",\n        \"binding\": ");
+            push_opaque_binding_json(json, binding);
+        }
+        IncompleteCause::OmegaRuntimeAdmission {
+            provider_identity,
+            provider_plan_report_identity,
+            provider_plan_digest,
+            executable_identity,
+            admission_receipt_identity,
+        } => {
+            push_provider_identity_json(json, provider_identity);
+            json.push_str(",\n        \"provider_plan_report_identity\": ");
+            push_json_string(json, &format!("0x{provider_plan_report_identity:016x}"));
+            push_provider_plan_digest_json(json, provider_plan_digest);
+            json.push_str(",\n        \"executable_identity\": ");
+            push_json_string(json, executable_identity);
+            json.push_str(",\n        \"admission_receipt_identity\": ");
+            push_json_string(json, admission_receipt_identity);
+            json.push_str(
+                ",\n        \"reason\": \"runtime_admission_without_executable_closure\"",
+            );
+        }
+    }
+    json.push_str("\n      }");
+}
+
+fn push_runtime_closure_evidence_json(
+    json: &mut String,
+    evidence: &[effects::RuntimeExecutableClosureEvidence],
+    mut has_prior: bool,
+) {
+    for evidence in evidence {
+        if has_prior {
+            json.push(',');
+        }
+        has_prior = true;
+        json.push_str("\n      {\"kind\": \"omega_runtime_executable_closure\", \"provider\": ");
+        push_provider_identity_json(json, &evidence.provider_identity);
+        json.push_str(", \"provider_plan_report_identity\": ");
+        push_json_string(
+            json,
+            &format!("0x{:016x}", evidence.provider_plan_report_identity),
+        );
+        json.push_str(", \"executable_identity\": ");
+        push_json_string(json, &evidence.executable_identity);
+        json.push_str(", \"admission_receipt_identity\": ");
+        push_json_string(json, &evidence.admission_receipt_identity);
+        json.push_str(", \"evidence_identity\": ");
+        push_json_string(json, &evidence.evidence_identity);
+        json.push('}');
+    }
+}
+
+fn push_entry_json(json: &mut String, entry: &ExecutableTcbEntry) {
+    json.push_str("\n      \"provider\": ");
+    push_provider_identity_json(json, &entry.provider_identity);
+    json.push_str(",\n      \"provider_plan_report_identity\": ");
+    push_json_string(
+        json,
+        &format!("0x{:016x}", entry.provider_plan_report_identity),
+    );
+    push_provider_plan_digest_json(json, &entry.provider_plan_digest);
+    json.push_str(",\n      \"selected_requirement\": ");
+    if let Some(requirement) = &entry.selected_requirement {
+        json.push_str("{\"method\": ");
+        push_json_string(json, &requirement.method);
+        json.push_str(", \"identity\": ");
+        push_json_string(json, &requirement.requirement_identity);
+        json.push('}');
+    } else {
+        json.push_str("null");
+    }
+    json.push_str(",\n      \"executable\": ");
+    match &entry.executable_identity {
+        ExecutableIdentity::CurrentArtifactMachine(machine) => {
+            json.push_str("{\"kind\": \"current_artifact_machine\", \"identity\": ");
+            push_json_string(json, machine);
+            json.push('}');
+        }
+        ExecutableIdentity::CurrentArtifactIntrinsic { target, machine } => {
+            json.push_str("{\"kind\": \"current_artifact_intrinsic\", \"target\": ");
+            push_json_string(json, target);
+            json.push_str(", \"identity\": ");
+            push_json_string(json, machine);
+            json.push('}');
+        }
+        ExecutableIdentity::PinnedOpaqueArtifact(identity) => {
+            json.push_str("{\"kind\": \"pinned_opaque_artifact\", \"identity\": ");
+            push_json_string(json, identity);
+            json.push('}');
+        }
+        ExecutableIdentity::IsolatedProviderEndpoint {
+            scope_identity,
+            endpoint_identity,
+        } => {
+            json.push_str("{\"kind\": \"isolated_provider_endpoint\", \"scope_identity\": ");
+            push_json_string(json, &format!("0x{scope_identity:016x}"));
+            json.push_str(", \"identity\": ");
+            push_json_string(json, endpoint_identity);
+            json.push('}');
+        }
+    }
+    json.push_str(",\n      \"implementation_evidence\": ");
+    match &entry.implementation_evidence {
+        ImplementationEvidence::CheckedBody { machine } => {
+            json.push_str("{\"class\": \"checked_body\", \"identity\": ");
+            push_json_string(json, machine);
+            json.push('}');
+        }
+        ImplementationEvidence::CompilerKnown { target, machine } => {
+            json.push_str("{\"class\": \"compiler_known\", \"target\": ");
+            push_json_string(json, target);
+            json.push_str(", \"identity\": ");
+            push_json_string(json, machine);
+            json.push('}');
+        }
+        ImplementationEvidence::AdmittedOpaque { receipt_identity } => {
+            json.push_str("{\"class\": \"admitted_opaque\", \"receipt_identity\": ");
+            push_json_string(json, receipt_identity);
+            json.push('}');
+        }
+        ImplementationEvidence::AdmittedIsolatedEndpoint {
+            endpoint_receipt_identity,
+            isolated_manifest_receipt_identity,
+        } => {
+            json.push_str(
+                "{\"class\": \"admitted_isolated_endpoint\", \"endpoint_receipt_identity\": ",
+            );
+            push_json_string(json, endpoint_receipt_identity);
+            json.push_str(", \"isolated_manifest_receipt_identity\": ");
+            push_json_string(json, isolated_manifest_receipt_identity);
+            json.push('}');
+        }
+    }
+    json.push_str(",\n      \"origin\": ");
+    push_json_string(
+        json,
+        match entry.origin {
+            ExecutableEntryOrigin::StaticSelection => "static_selection",
+            ExecutableEntryOrigin::OmegaRuntimeAdmission => "omega_runtime_admission",
+        },
+    );
+    json.push_str(",\n      \"execution_scope\": ");
+    push_execution_scope_json(json, entry.execution_scope);
+    json.push_str(",\n      \"containment\": [");
+    for (index, evidence) in entry.containment.iter().enumerate() {
+        if index > 0 {
+            json.push_str(", ");
+        }
+        json.push_str("{\"guarantee\": ");
+        push_json_string(json, containment_guarantee_name(evidence.guarantee));
+        json.push_str(", \"evidence_identity\": ");
+        push_json_string(json, &evidence.evidence_identity);
+        json.push('}');
+    }
+    json.push(']');
+}
+
+fn push_provider_identity_json(json: &mut String, identity: &ProviderIdentity) {
+    match identity {
+        ProviderIdentity::NominalType(name) => {
+            json.push_str("{\"kind\": \"nominal_type\", \"identity\": ");
+            push_json_string(json, name);
+        }
+        ProviderIdentity::FreeExternalPlan(name) => {
+            json.push_str("{\"kind\": \"free_external_plan\", \"identity\": ");
+            push_json_string(json, name);
+        }
+    }
+    json.push('}');
+}
+
+fn push_opaque_binding_json(json: &mut String, binding: &OpaqueInProcessBinding) {
+    match binding {
+        OpaqueInProcessBinding::Import { evaluated } => {
+            let locator = evaluated.locator();
+            json.push_str("{\"kind\": \"normalized_import\", \"target\": ");
+            push_json_string(json, locator.target().target_name());
+            let _ = write!(
+                json,
+                ", \"normalized_identity\": \"0x{:016x}\", \"evaluation_receipt_identity\": \"{}\", \"locator\": ",
+                locator.non_authoritative_compatibility_fingerprint(),
+                hex_bytes(&evaluated.receipt().identity_digest()),
+            );
+            match locator.locator() {
+                effects::ForeignLocatorCandidate::PeByName { library, export } => {
+                    json.push_str("{\"case\": \"pe_by_name\", \"library\": ");
+                    push_json_bytes(json, library);
+                    json.push_str(", \"export\": ");
+                    push_json_bytes(json, export);
+                }
+                effects::ForeignLocatorCandidate::PeByOrdinal { library, ordinal } => {
+                    json.push_str("{\"case\": \"pe_by_ordinal\", \"library\": ");
+                    push_json_bytes(json, library);
+                    let _ = write!(json, ", \"ordinal\": {ordinal}");
+                }
+                effects::ForeignLocatorCandidate::ElfVersioned {
+                    object,
+                    symbol,
+                    version,
+                } => {
+                    json.push_str("{\"case\": \"elf_versioned\", \"object\": ");
+                    push_json_bytes(json, object);
+                    json.push_str(", \"symbol\": ");
+                    push_json_bytes(json, symbol);
+                    json.push_str(", \"version\": ");
+                    push_json_bytes(json, version);
+                }
+                effects::ForeignLocatorCandidate::MachODylibSymbol {
+                    install_name,
+                    symbol,
+                } => {
+                    json.push_str("{\"case\": \"macho_dylib_symbol\", \"install_name\": ");
+                    push_json_bytes(json, install_name);
+                    json.push_str(", \"symbol\": ");
+                    push_json_bytes(json, symbol);
+                }
+            }
+            json.push('}');
+        }
+        OpaqueInProcessBinding::StringBackedImportBootstrap { library, symbol } => {
+            json.push_str("{\"kind\": \"string_backed_import_bootstrap\", \"library\": ");
+            push_json_string(json, library);
+            json.push_str(", \"symbol\": ");
+            push_json_string(json, symbol);
+        }
+        OpaqueInProcessBinding::VtableSlot { index } => {
+            let _ = write!(json, "{{\"kind\": \"vtable_slot\", \"index\": {index}");
+        }
+        OpaqueInProcessBinding::VtableField { table, field } => {
+            json.push_str("{\"kind\": \"vtable_field\", \"table\": ");
+            push_json_string(json, table);
+            json.push_str(", \"field\": ");
+            push_json_string(json, field);
+        }
+        OpaqueInProcessBinding::TableFunction { table, field } => {
+            json.push_str("{\"kind\": \"table_function\", \"table\": ");
+            push_json_string(json, table);
+            json.push_str(", \"field\": ");
+            push_json_string(json, field);
+        }
+    }
+    json.push('}');
+}
+
+fn push_json_bytes(json: &mut String, bytes: &[u8]) {
+    json.push('[');
+    for (index, byte) in bytes.iter().enumerate() {
+        if index > 0 {
+            json.push(',');
+        }
+        let _ = write!(json, "{byte}");
+    }
+    json.push(']');
+}
+
+fn hex_bytes(bytes: &[u8]) -> String {
+    bytes.iter().map(|byte| format!("{byte:02x}")).collect()
+}
+
+fn push_execution_scope_json(json: &mut String, scope: ExecutionScope) {
+    match scope {
+        ExecutionScope::CallerAddressSpace => push_json_string(json, "caller_address_space"),
+        ExecutionScope::IsolatedProvider(identity) => {
+            json.push_str("{\"kind\": \"isolated_provider\", \"identity\": ");
+            push_json_string(json, &format!("0x{identity:016x}"));
+            json.push('}');
+        }
+    }
+}
+
+const fn containment_guarantee_name(guarantee: effects::ContainmentGuarantee) -> &'static str {
+    match guarantee {
+        effects::ContainmentGuarantee::MemoryIsolation => "memory_isolation",
+        effects::ContainmentGuarantee::ForcibleTermination => "forcible_termination",
+        effects::ContainmentGuarantee::FaultContainment => "fault_containment",
+        effects::ContainmentGuarantee::BoundedResources => "bounded_resources",
+    }
+}
+
+fn push_provider_plan_digest_json(
+    json: &mut String,
+    digest: &effects::provider_plan::ProviderPlanDigest,
+) {
+    json.push_str(",\n        \"provider_plan_digest\": \"");
+    for byte in digest.as_bytes() {
+        write!(json, "{byte:02x}").expect("writing to String cannot fail");
+    }
+    json.push('"');
+}
+
+fn push_json_string(output: &mut String, value: &str) {
+    output.push('"');
+    for ch in value.chars() {
+        match ch {
+            '"' => output.push_str("\\\""),
+            '\\' => output.push_str("\\\\"),
+            '\n' => output.push_str("\\n"),
+            '\r' => output.push_str("\\r"),
+            '\t' => output.push_str("\\t"),
+            c if c.is_control() => {
+                let _ = write!(output, "\\u{:04x}", c as u32);
+            }
+            c => output.push(c),
+        }
+    }
+    output.push('"');
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use effects::provider_plan::{
+        EvaluatedBindingEvaluationDigest, EvaluatedBindingMaterializationDigest,
+        EvaluatedBindingProducerClosureDigest, EvaluatedBindingReceipt, EvaluatedBindingUsage,
+        EvaluatedForeignImport, ProviderBinding, ProviderPlan, ProviderPlanRow, ServiceMethod,
+        ServiceSchema,
+    };
+
+    fn evaluated_import(
+        locator: effects::NormalizedForeignLocator,
+        seed: u8,
+    ) -> EvaluatedForeignImport {
+        let usage =
+            EvaluatedBindingUsage::from_evaluator(7, 1, 10, 1_000, 0, 0, 4, 12, 3, 0).unwrap();
+        let receipt = EvaluatedBindingReceipt::from_evaluation(
+            None,
+            format!("fixture::producer::{seed}"),
+            EvaluatedBindingProducerClosureDigest::from_bytes([seed; 32]).unwrap(),
+            1,
+            usage,
+            EvaluatedBindingEvaluationDigest::from_bytes([seed.wrapping_add(1); 32]).unwrap(),
+            1,
+            EvaluatedBindingMaterializationDigest::from_bytes([seed.wrapping_add(2); 32]).unwrap(),
+            locator.identity_digest(),
+        )
+        .unwrap();
+        EvaluatedForeignImport::from_retained_evidence(locator, receipt).unwrap()
+    }
+
+    fn selected(binding: ProviderBinding) -> SelectedProviderPlanFacts {
+        let target = match &binding {
+            ProviderBinding::Import { evaluated } => evaluated.locator().target().target_name(),
+            _ => "test-target",
+        };
+        let plan = ProviderPlan {
+            name: "selected".into(),
+            provider_type: "SelectedProvider".into(),
+            provider_type_package_identity: None,
+            target: target.into(),
+            schema: ServiceSchema {
+                trait_name: "Storage".into(),
+                trait_package_identity: None,
+                methods: vec![ServiceMethod {
+                    name: "read".into(),
+                    requirement_owner: "Storage".into(),
+                    requirement_owner_package_identity: None,
+                    requirement_identity: "Storage::read".into(),
+                    parameter_count: 0,
+                    parameter_type_identities: Vec::new(),
+                    entry_claims: Vec::new(),
+                    has_result: false,
+                    result_type_identity: None,
+                    result_claims: Vec::new(),
+                    service_reach: vec!["Storage".into()],
+                    synchronous_invocations: Vec::new(),
+                    may_suspend: false,
+                    may_block: false,
+                    terminates_guarantee: false,
+                    termination_premises: Vec::new(),
+                    calling_plan_report_fingerprint: None,
+                    calling_plan_commitment: None,
+                }],
+            },
+            rows: vec![ProviderPlanRow {
+                method: "read".into(),
+                requirement_identity: "Storage::read".into(),
+                requirement_lifetime_partition: Vec::new(),
+                binding,
+            }],
+            origin_package_identity: None,
+            origin_package: "test".into(),
+        };
+        SelectedProviderPlanFacts::from_selection(&[plan], &["selected".into()])
+            .expect("selected provider")
+    }
+
+    #[test]
+    fn artifact_separates_known_entries_from_attributed_completeness() {
+        let json =
+            executable_tcb_manifest_json(&selected(ProviderBinding::StringBackedImportBootstrap {
+                library: "opaque.dll".into(),
+                symbol: "read".into(),
+            }));
+
+        assert!(json.contains("\"known_entries\": []"));
+        assert!(json.contains("\"status\": \"incomplete\""));
+        assert!(json.contains("\"reason\": \"uncontained_opaque_in_process_provider\""));
+        assert!(json.contains("\"provider_plan_report_identity\": \"0x"));
+        assert!(json.contains("\"provider_plan_digest\": \""));
+        assert!(!json.contains("omega_runtime_admission"));
+    }
+
+    #[test]
+    fn artifact_reports_normalized_import_without_text_reconstruction() {
+        let locator = effects::normalize_foreign_locator(
+            effects::ForeignLocatorCandidate::PeByName {
+                library: b"opaque.dll".to_vec(),
+                export: b"read".to_vec(),
+            },
+            target::TargetProfile::WindowsX64,
+        )
+        .expect("normalized import");
+        let selected = selected(ProviderBinding::Import {
+            evaluated: evaluated_import(locator.clone(), 11),
+        });
+        let json = executable_tcb_manifest_json(&selected);
+
+        assert!(json.contains("\"kind\": \"normalized_import\""));
+        assert!(json.contains("\"case\": \"pe_by_name\""));
+        assert!(json.contains("[111,112,97,113,117,101,46,100,108,108]"));
+        assert!(json.contains("[114,101,97,100]"));
+        assert!(!json.contains("\"library\": \"opaque.dll\""));
+        assert!(json.contains(&format!(
+            "0x{:016x}",
+            locator.non_authoritative_compatibility_fingerprint()
+        )));
+    }
+
+    #[test]
+    fn artifact_reports_raw_macho_locator_coordinates() {
+        let locator = effects::normalize_foreign_locator(
+            effects::ForeignLocatorCandidate::MachODylibSymbol {
+                install_name: vec![b'/', b'l', b'i', b'b', 0xff],
+                symbol: vec![b'_', b'w', 0xfe],
+            },
+            target::TargetProfile::MacosArm64,
+        )
+        .expect("normalized Mach-O import");
+        let selected = selected(ProviderBinding::Import {
+            evaluated: evaluated_import(locator, 21),
+        });
+        let json = executable_tcb_manifest_json(&selected);
+
+        assert!(json.contains("\"case\": \"macho_dylib_symbol\""));
+        assert!(json.contains("\"install_name\": [47,108,105,98,255]"));
+        assert!(json.contains("\"symbol\": [95,119,254]"));
+        assert!(!json.contains("/lib"));
+    }
+
+    #[test]
+    fn artifact_reports_pinned_opaque_identity_and_independent_receipts() {
+        let selected = selected(ProviderBinding::StringBackedImportBootstrap {
+            library: "platform".into(),
+            symbol: "read".into(),
+        });
+        let plan_identity = selected.plans()[0].report_fingerprint();
+        let plan_digest = selected.plans()[0].identity_digest();
+        let selected = selected
+            .with_opaque_executable_admissions([effects::OpaqueExecutableAdmissionCandidate {
+                provider_plan_report_identity: plan_identity,
+                provider_plan_digest: plan_digest,
+                method: "read".into(),
+                requirement_identity: "Storage::read".into(),
+                binding: OpaqueInProcessBinding::StringBackedImportBootstrap {
+                    library: "platform".into(),
+                    symbol: "read".into(),
+                },
+                executable_identity: "platform-baseline:read-v1".into(),
+                implementation_evidence_identity: "receipt:binary-v1".into(),
+                execution_scope: ExecutionScope::CallerAddressSpace,
+                containment: vec![effects::ContainmentEvidence {
+                    guarantee: effects::ContainmentGuarantee::BoundedResources,
+                    evidence_identity: "receipt:quota-v1".into(),
+                }],
+                executable_closure_evidence_identity: Some("receipt:closed-loader-v1".into()),
+            }])
+            .expect("exact opaque admission");
+
+        let json = executable_tcb_manifest_json(&selected);
+        assert!(json.contains("\"kind\": \"pinned_opaque_artifact\""));
+        assert!(json.contains(
+            "\"selected_requirement\": {\"method\": \"read\", \"identity\": \"Storage::read\"}"
+        ));
+        assert!(json.contains("\"identity\": \"platform-baseline:read-v1\""));
+        assert!(json.contains("\"class\": \"admitted_opaque\""));
+        assert!(json.contains("\"guarantee\": \"bounded_resources\""));
+        assert!(json.contains("\"kind\": \"admitted_opaque_executable_closure\""));
+        assert!(json.contains("\"status\": \"complete\""));
+    }
+
+    #[test]
+    fn artifact_reports_only_mediated_runtime_entries_and_their_closure() {
+        let static_manifest = SelectedProviderPlanFacts::default().executable_tcb_manifest();
+        let mut ledger =
+            effects::OmegaRuntimeExecutableLedger::new(ExecutionScope::CallerAddressSpace)
+                .expect("valid caller scope");
+        ledger
+            .admit(effects::OmegaRuntimeExecutableAdmissionCandidate {
+                provider_identity: ProviderIdentity::NominalType("RuntimePlugin".into()),
+                provider_plan_report_identity: 91,
+                provider_plan_digest: effects::provider_plan::ProviderPlan::default()
+                    .identity_digest(),
+                executable_identity: "sha256:runtime-plugin-v1".into(),
+                implementation_evidence_identity: "receipt:implementation-v1".into(),
+                admission_receipt_identity: "receipt:omega-loader-v1".into(),
+                execution_scope: ExecutionScope::CallerAddressSpace,
+                containment: Vec::new(),
+                executable_closure_evidence_identity: Some("receipt:closed-loader-v1".into()),
+            })
+            .expect("mediated runtime admission");
+        let manifest = ledger
+            .union_with_static_manifest(&static_manifest)
+            .expect("matching caller scope");
+
+        let json = executable_tcb_manifest_value_json(&manifest);
+        assert!(json.contains("\"origin\": \"omega_runtime_admission\""));
+        assert!(json.contains("\"selected_requirement\": null"));
+        assert!(json.contains("\"identity\": \"sha256:runtime-plugin-v1\""));
+        assert!(json.contains("\"kind\": \"omega_runtime_executable_closure\""));
+        assert!(json.contains("\"admission_receipt_identity\": \"receipt:omega-loader-v1\""));
+    }
+
+    #[test]
+    fn artifact_keeps_isolated_scope_manifest_separate_from_root_endpoint() {
+        let root = SelectedProviderPlanFacts::default().executable_tcb_manifest();
+        let isolated = SelectedProviderPlanFacts::default()
+            .with_execution_scope(ExecutionScope::IsolatedProvider(501))
+            .expect("isolated scope")
+            .executable_tcb_manifest();
+        let mut set = effects::ExecutableTcbManifestSet::new(root).expect("root manifest");
+        set.attach_isolated_scope(effects::IsolatedExecutableScopeCandidate {
+            provider_identity: ProviderIdentity::NominalType("SandboxedCodec".into()),
+            provider_plan_report_identity: 501,
+            provider_plan_digest: effects::provider_plan::ProviderPlan::default().identity_digest(),
+            endpoint_identity: "endpoint:codec-v1".into(),
+            endpoint_receipt_identity: "receipt:endpoint-v1".into(),
+            isolated_manifest_receipt_identity: "receipt:isolated-manifest-v1".into(),
+            isolated_scope_identity: 501,
+            containment: Vec::new(),
+            isolated_manifest: isolated,
+        })
+        .expect("exact isolated attachment");
+
+        let json = executable_tcb_manifest_set_json(&set);
+        assert!(json.contains("\"kind\": \"isolated_provider_endpoint\""));
+        assert!(json.contains("\"kind\": \"isolated_provider\""));
+        assert!(json.contains("\"manifest_receipt_identity\": \"receipt:isolated-manifest-v1\""));
+        assert_eq!(json.matches("\"root_manifest\"").count(), 1);
+        assert_eq!(json.matches("\"isolated_scopes\"").count(), 1);
+    }
+}

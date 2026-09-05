@@ -1,10 +1,10 @@
 use super::*;
-use omega_package_evidence::encoding::PackagePolicyTextRecoveryLimits;
-use omega_package_evidence::record::PackagePolicyBaseline;
-use omega_package_manager::resolution::graph::{
+use package_evidence::encoding::PackagePolicyTextRecoveryLimits;
+use package_evidence::record::PackagePolicyBaseline;
+use package_manager::resolution::graph::{
     ResolveLockedPackageClosureError, resolve_external_local_project_closure_with_storage,
 };
-use omega_package_manager::review::{
+use package_manager::review::{
     CompileResolvedPackageReviewsError, LockedPolicyComparisonError,
     compare_locked_package_policies,
 };

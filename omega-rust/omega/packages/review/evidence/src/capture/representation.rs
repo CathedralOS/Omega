@@ -32,9 +32,9 @@ use crate::record::{
     PackageReviewOpaqueRepresentationPathElement, PackageReviewRepresentationTcb,
     PackageReviewRepresentationTcbKind, PackageReviewSourceLocationRole,
 };
-use omega_compiler::CheckedCompilation;
-use psi_core::PackageKeyIdentity;
-use psi_diagnostics::Diagnostic;
+use compiler::CheckedCompilation;
+use diagnostics::Diagnostic;
+use semantic_vocabulary::PackageKeyIdentity;
 
 pub(crate) fn project_representation_tcb(
     compilation: &CheckedCompilation,
@@ -43,7 +43,7 @@ pub(crate) fn project_representation_tcb(
 ) -> Result<Vec<ProjectedReviewRow<PackageReviewRepresentationTcb>>, Vec<Diagnostic>> {
     let mut rows = Vec::new();
     for definition in compilation.data_definitions().iter().filter(|definition| {
-        definition.supply_mode == psi_language_semantics::DataSupplyMode::BoundaryOpaque
+        definition.supply_mode == language_semantics::DataSupplyMode::BoundaryOpaque
     }) {
         let declaration = nominal_identity(compilation, definition.symbol)?;
         if !reviewed_package_owns(&declaration, package)? {
@@ -61,7 +61,7 @@ pub(crate) fn project_representation_tcb(
 
     let selections =
         if let Some(first_selection) = compilation.opaque_representation_selections().first() {
-            omega_representation_planning::rederive_opaque_representation_selections(
+            representation_planning::rederive_opaque_representation_selections(
                 &compilation.typed,
                 Some(first_selection.selecting_machine()),
                 compilation.opaque_representation_selections(),
@@ -76,7 +76,7 @@ pub(crate) fn project_representation_tcb(
         for selection in selections.iter().filter(|selection| {
             selection_owned_by_package
                 && selection.copy_disposition()
-                    == omega_representation_planning::OpaqueRepresentationCopyDisposition::CheckedSemanticCopy
+                    == representation_planning::OpaqueRepresentationCopyDisposition::CheckedSemanticCopy
         }) {
             let opaque_definitions = compilation
                 .data_definitions()
@@ -91,7 +91,7 @@ pub(crate) fn project_representation_tcb(
             };
             let declaration = nominal_identity(compilation, opaque_definition.symbol)?;
             if selection.schema_version()
-                != omega_representation_planning::OPAQUE_REPRESENTATION_APPLICATION_SCHEMA_VERSION
+                != representation_planning::OPAQUE_REPRESENTATION_APPLICATION_SCHEMA_VERSION
                 || selection.selected_application_commitment() == [0; 32]
                 || selection.selected_application_commitment()
                     != selection.rederived_selected_application_commitment()
@@ -132,10 +132,10 @@ pub(crate) fn project_representation_tcb(
                         carrier,
                         representation_schema_version: selection.schema_version(),
                         origin: match selection.origin() {
-                            omega_representation_planning::OpaqueRepresentationApplicationOrigin::NamedConformance => PackageReviewOpaqueRepresentationApplicationOrigin::NamedConformance,
+                            representation_planning::OpaqueRepresentationApplicationOrigin::NamedConformance => PackageReviewOpaqueRepresentationApplicationOrigin::NamedConformance,
                         },
                         lifecycle: match selection.lifecycle() {
-                            omega_representation_planning::OpaqueRepresentationLifecycleDisposition::Inert => PackageReviewOpaqueRepresentationLifecycleDisposition::Inert,
+                            representation_planning::OpaqueRepresentationLifecycleDisposition::Inert => PackageReviewOpaqueRepresentationLifecycleDisposition::Inert,
                         },
                         copy_disposition:
                             PackageReviewOpaqueRepresentationCopyDisposition::CheckedSemanticCopy,
@@ -268,14 +268,14 @@ pub(crate) fn project_representation_tcb(
                     Ok(PackageReviewOpaqueRepresentationOccurrence {
                         carrier_shape_root: representation.shape_root(),
                         role: match movement.role() {
-                            omega_provider_planning::calling_policy_plans::BoundaryOpaqueRepresentationMovementRole::Parameter {
+                            provider_planning::calling_policy_plans::BoundaryOpaqueRepresentationMovementRole::Parameter {
                                 formal_ordinal,
                                 native_ordinal,
                             } => PackageReviewOpaqueRepresentationMovementRole::Parameter {
                                 formal_ordinal,
                                 native_ordinal,
                             },
-                            omega_provider_planning::calling_policy_plans::BoundaryOpaqueRepresentationMovementRole::Result => {
+                            provider_planning::calling_policy_plans::BoundaryOpaqueRepresentationMovementRole::Result => {
                                 PackageReviewOpaqueRepresentationMovementRole::Result
                             }
                         },
@@ -283,10 +283,10 @@ pub(crate) fn project_representation_tcb(
                             .path()
                             .iter()
                             .map(|element| match element {
-                                omega_provider_planning::calling_policy_plans::BoundaryOpaqueRepresentationPathElement::FixedArrayElement => {
+                                provider_planning::calling_policy_plans::BoundaryOpaqueRepresentationPathElement::FixedArrayElement => {
                                     PackageReviewOpaqueRepresentationPathElement::FixedArrayElement
                                 }
-                                omega_provider_planning::calling_policy_plans::BoundaryOpaqueRepresentationPathElement::RecordField { ordinal } => {
+                                provider_planning::calling_policy_plans::BoundaryOpaqueRepresentationPathElement::RecordField { ordinal } => {
                                     PackageReviewOpaqueRepresentationPathElement::RecordField {
                                         ordinal: *ordinal,
                                     }
@@ -393,7 +393,7 @@ pub(crate) fn project_representation_tcb(
 
     for conformance in compilation.conformances().iter().filter(|conformance| {
         conformance.is_public
-            && omega_representation_planning::is_compiler_owned_opaque_representation_trait(
+            && representation_planning::is_compiler_owned_opaque_representation_trait(
                 &compilation.typed,
                 conformance.trait_symbol,
             )
@@ -424,8 +424,7 @@ pub(crate) fn project_representation_tcb(
             .iter()
             .filter(|definition| {
                 definition.symbol == opaque_symbol
-                    && definition.supply_mode
-                        == psi_language_semantics::DataSupplyMode::BoundaryOpaque
+                    && definition.supply_mode == language_semantics::DataSupplyMode::BoundaryOpaque
             })
             .collect::<Vec<_>>();
         let [opaque_definition] = opaque_definitions.as_slice() else {
@@ -459,7 +458,7 @@ pub(crate) fn project_representation_tcb(
                 carrier_definitions.len(),
             ))]);
         };
-        if carrier_definition.supply_mode != psi_language_semantics::DataSupplyMode::CheckedShape
+        if carrier_definition.supply_mode != language_semantics::DataSupplyMode::CheckedShape
             || !carrier_definition.is_public
         {
             continue;

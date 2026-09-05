@@ -1,6 +1,6 @@
 use super::*;
-use omega_package_manager::declarations::{AliasName, PackageKey};
-use omega_package_manager::review::{
+use package_manager::declarations::{AliasName, PackageKey};
+use package_manager::review::{
     PackagePolicyChangeSet, PackagePolicyDecision, PackagePolicyDecisionError as Error,
     PackagePolicyDecisionSubject as Subject, PackagePolicyReplacementSite as Site,
     ReviewOnlyRootPolicyDisposition::*, resolve_package_policy_decisions,

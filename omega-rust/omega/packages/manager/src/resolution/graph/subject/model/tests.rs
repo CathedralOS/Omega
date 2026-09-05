@@ -3,7 +3,7 @@ use crate::declarations::BuildDeclarationKind;
 use crate::declarations::{AliasName, PackageKey, PackageName};
 use crate::resolution::graph::ResolvedSourceIdentity;
 use crate::resolution::source::PackageSourceNavigation;
-use omega_package_source::{
+use package_source::{
     GitCommitId, GitTreeId, ImmutableSourceResolution, SourceLineage, SourceRelativePath,
 };
 
@@ -58,7 +58,7 @@ fn borrowed_source_graph_comparison_excludes_only_target_and_derived_encoding() 
     )
     .unwrap();
     let mut changed = original.clone();
-    changed.target_profile = omega_target::TargetProfile::WindowsX64;
+    changed.target_profile = target::TargetProfile::WindowsX64;
     changed.canonical_bytes.clear();
     changed.fingerprint = super::super::encoding::fingerprint(b"different target bytes");
     assert!(original.same_source_graph(&changed));
@@ -117,7 +117,7 @@ fn readable_source_subject_preserves_git_lineages_object_formats_and_targets() {
                 .unwrap(),
             )
             .unwrap();
-            for target in omega_target::TargetProfile::ALL {
+            for target in target::TargetProfile::ALL {
                 let original = CanonicalSourceClosureSubject::finish_for_target(
                     target,
                     root_git_selection(locator, &source),
@@ -226,18 +226,17 @@ fn readable_source_subject_preserves_platform_request_bytes_without_loss() {
         SourceLineage::git("https://github.com/CathedralOS/byte-paths.git").unwrap();
     let member_path = SourceRelativePath::parse("member").unwrap();
     let identity =
-        omega_package_source::WorkspaceLineageIdentity::from_root_source(&workspace_root_source)
-            .unwrap();
+        package_source::WorkspaceLineageIdentity::from_root_source(&workspace_root_source).unwrap();
     let source = ResolvedSourceIdentity::new(
         PackageKey::new(
             PackageName::parse("byte-paths").unwrap(),
-            SourceLineage::Workspace(omega_package_source::WorkspaceMemberLineage::new(
+            SourceLineage::Workspace(package_source::WorkspaceMemberLineage::new(
                 identity,
                 member_path.clone(),
             )),
         ),
         ImmutableSourceResolution::workspace(
-            omega_package_source::SourceContentDigest::parse_hex(&"1".repeat(64)).unwrap(),
+            package_source::SourceContentDigest::parse_hex(&"1".repeat(64)).unwrap(),
         ),
     )
     .unwrap();
@@ -357,8 +356,8 @@ fn target_profile_is_canonical_invocation_identity_and_survives_recovery() {
         )
         .expect("target-specific subject")
     };
-    let linux = subject(omega_target::TargetProfile::LinuxX64);
-    let windows = subject(omega_target::TargetProfile::WindowsX64);
+    let linux = subject(target::TargetProfile::LinuxX64);
+    let windows = subject(target::TargetProfile::WindowsX64);
 
     assert_eq!(linux.packages(), windows.packages());
     assert_ne!(linux.canonical_bytes(), windows.canonical_bytes());
@@ -370,7 +369,7 @@ fn target_profile_is_canonical_invocation_identity_and_survives_recovery() {
         )
         .expect("recover target-specific subject")
         .target_profile(),
-        omega_target::TargetProfile::WindowsX64
+        target::TargetProfile::WindowsX64
     );
 }
 

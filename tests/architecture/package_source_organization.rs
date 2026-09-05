@@ -196,7 +196,7 @@ fn stable_package_evidence_excludes_compiler_private_projection_handles() {
     for path in rust_files(&evidence) {
         let source = fs::read_to_string(&path)
             .unwrap_or_else(|error| panic!("read {}: {error}", path.display()));
-        for forbidden in ["SymbolHandle", "psi_source::SourceSpan"] {
+        for forbidden in ["SymbolHandle", "source::SourceSpan"] {
             assert!(
                 !source.contains(forbidden),
                 "stable package evidence retains compiler-private `{forbidden}` in {}",
@@ -213,9 +213,10 @@ fn stable_evidence_and_encoding_exclude_compiler_representations() {
         for path in rust_files(&package.join(owner)) {
             let source = fs::read_to_string(&path)
                 .unwrap_or_else(|error| panic!("read {}: {error}", path.display()));
-            for forbidden in ["psi_typed_trees", "psi_checked_trees", "psi_facts"] {
+            for forbidden in ["typed_trees", "checked_trees", "facts"] {
                 assert!(
-                    !source.contains(forbidden),
+                    !source.contains(&format!("{forbidden}::"))
+                        && !source.contains(&format!("use {forbidden} ")),
                     "stable {owner} retains compiler representation `{forbidden}` in {}",
                     path.display(),
                 );
@@ -423,7 +424,7 @@ fn resolver_source_custody_excludes_ambient_executor_attestation() {
     let packages = package_root();
     let acquisition = packages.join("sources/acquisition");
     let execution = packages.join("sources/execution");
-    let bounded_process = workspace_root().join("omega-rust/omega/tooling/omega-bounded-process");
+    let bounded_process = workspace_root().join("omega-rust/omega/tooling/bounded-process");
     let forbidden = [
         "GitSourceReceipt",
         "ResolverExecutionGuarantee",
@@ -484,7 +485,7 @@ fn resolver_source_custody_excludes_ambient_executor_attestation() {
         "resolver execution no longer hashes commands, policy, or executable bytes",
     );
     assert!(
-        execution_manifest.contains("omega-bounded-process")
+        execution_manifest.contains("bounded-process")
             && !execution_manifest.contains("command-group")
             && !execution_manifest.contains("windows-sys")
             && !execution_manifest.contains("rustix"),

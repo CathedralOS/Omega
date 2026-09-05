@@ -1,23 +1,23 @@
 //! A recovered accepted lock supplies pins, never live source or review custody.
 
-use omega_package_manager::lock::{
+use package_manager::lock::{
     HistoricalPackagePolicyDecisions, HistoricalPackagePolicyLimits, PackageLock,
     PackageLockRecoveryLimits, PackageLockTarget,
 };
-use omega_package_manager::operations::{
+use package_manager::operations::{
     LockedSourceRecoveryOptions, RecoverLockedSourcesError, recover_locked_sources,
 };
-use omega_package_manager::resolution::graph::{
+use package_manager::resolution::graph::{
     CanonicalSourceClosureSubject, CanonicalSourceClosureSubjectLimits, PackageRootSourceRequest,
     PackageSourceClosureLimits, ResolvedPackageSourceClosure,
 };
-use omega_package_manager::resolution::package_compilation_inputs;
-use omega_package_manager::review::compile_resolved_package_reviews;
-use omega_package_source::git::resolution::GitExactRevisionAcquisition;
-use omega_package_source::{ExternalSourceContext, LocalSourceLimits, SourceResolverStorage};
-use omega_target::TargetProfile;
+use package_manager::resolution::package_compilation_inputs;
+use package_manager::review::compile_resolved_package_reviews;
+use package_source::git::resolution::GitExactRevisionAcquisition;
+use package_source::{ExternalSourceContext, LocalSourceLimits, SourceResolverStorage};
 use std::fs;
 use std::path::{Path, PathBuf};
+use target::TargetProfile;
 
 #[path = "locked_source_recovery/git.rs"]
 mod git;

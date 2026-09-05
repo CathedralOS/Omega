@@ -12,8 +12,8 @@ pub use policy::project_checked_terminal_permission_policy;
 use super::source::ProjectedReviewRow;
 use super::source::locations::project_nested_declaration_source_location;
 use crate::record::{PackageReviewSourceLocationRole, PackageReviewTerminalAuthorityPermission};
-use omega_compiler::CheckedCompilation;
-use psi_diagnostics::Diagnostic;
+use compiler::CheckedCompilation;
+use diagnostics::Diagnostic;
 
 pub(crate) fn project_terminal_authority_permissions(
     compilation: &CheckedCompilation,

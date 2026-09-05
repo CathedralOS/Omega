@@ -5,9 +5,9 @@ use crate::capture::semantics::declarations::{nominal_identity, reviewed_package
 use crate::record::{
     PackagePolicyBoundaryApplicationDemand, PackageReviewSymbolicBoundaryApplicationArgument,
 };
-use omega_compiler::CheckedCompilation;
-use psi_core::PackageKeyIdentity;
-use psi_diagnostics::Diagnostic;
+use compiler::CheckedCompilation;
+use diagnostics::Diagnostic;
+use semantic_vocabulary::PackageKeyIdentity;
 
 pub(super) fn project(
     compilation: &CheckedCompilation,
@@ -29,15 +29,26 @@ pub(super) fn project(
         {
             continue;
         }
-        let operator = psi_typed_trees::operator::declaration_by_symbol(
+        let operator = typed_trees::operator::declaration_by_symbol(
             &compilation.typed,
             demand.requirement_symbol,
         )
         .ok_or_else(|| rejected("a symbolic demand without its operator"))?;
-        let arguments = demand.arguments.iter().map(|argument| {
-            let psi_checked_trees::CheckedSymbolicBoundaryOperatorApplicationArgument::TypeBinder { binder_ordinal, machine_binder_ordinal, .. } = argument;
-            PackageReviewSymbolicBoundaryApplicationArgument::TypeBinder { requirement_binder_ordinal: *binder_ordinal, producer_binder_ordinal: *machine_binder_ordinal }
-        }).collect();
+        let arguments = demand
+            .arguments
+            .iter()
+            .map(|argument| {
+                let checked_trees::CheckedSymbolicBoundaryOperatorApplicationArgument::TypeBinder {
+                    binder_ordinal,
+                    machine_binder_ordinal,
+                    ..
+                } = argument;
+                PackageReviewSymbolicBoundaryApplicationArgument::TypeBinder {
+                    requirement_binder_ordinal: *binder_ordinal,
+                    producer_binder_ordinal: *machine_binder_ordinal,
+                }
+            })
+            .collect();
         rows.push(PackagePolicyBoundaryApplicationDemand {
             operator_coordinate: project_operator_coordinate(compilation, operator)?,
             producer_callable: policy_callable_identity(compilation, machine.symbol)?,

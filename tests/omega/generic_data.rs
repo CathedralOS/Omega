@@ -1,24 +1,24 @@
-use psi_syntax_trees_to_symbol_resolved_trees::normalize_generic_data;
+use syntax_trees_to_symbol_resolved_trees::normalize_generic_data;
 
 // Keep the existing in-place test fixtures while exercising the consuming API.
 fn desugar_generic_data_instances(
-    syntax: &mut psi_syntax_trees::SyntaxTrees,
+    syntax: &mut syntax_trees::SyntaxTrees,
 ) -> Result<(), Vec<Diagnostic>> {
     *syntax = normalize_generic_data(std::mem::take(syntax))?;
     Ok(())
 }
-use omega_layout::{DataShape, build_layout_plan};
-use omega_target::NativeTarget;
-use psi_checked_trees::CheckedTrees;
-use psi_diagnostics::Diagnostic;
-use psi_source::SourceMap;
-use psi_source_files_to_tokens::Lexer;
-use psi_syntax_trees::expression::ExpressionNode;
-use psi_syntax_trees::item::{DataMember, Item};
-use psi_syntax_trees::statement::StatementNode;
-use psi_syntax_trees::types::TypeReferenceNode;
-use psi_tokens_to_syntax_trees::{parse_syntax_trees, parse_syntax_trees_with_id};
+use checked_trees::CheckedTrees;
+use diagnostics::Diagnostic;
+use layout::{DataShape, build_layout_plan};
+use source::SourceMap;
+use source_files_to_tokens::Lexer;
 use std::{path::PathBuf, sync::Arc};
+use syntax_trees::expression::ExpressionNode;
+use syntax_trees::item::{DataMember, Item};
+use syntax_trees::statement::StatementNode;
+use syntax_trees::types::TypeReferenceNode;
+use target::NativeTarget;
+use tokens_to_syntax_trees::{parse_syntax_trees, parse_syntax_trees_with_id};
 
 fn checked(source: &str) -> Result<CheckedTrees, Vec<Diagnostic>> {
     let mut sources = SourceMap::default();
@@ -28,13 +28,13 @@ fn checked(source: &str) -> Result<CheckedTrees, Vec<Diagnostic>> {
     let tokens = Lexer::new(source).tokenize().expect("tokenize");
     let mut syntax = parse_syntax_trees_with_id(source_id, &tokens).expect("parse");
     desugar_generic_data_instances(&mut syntax)?;
-    let resolved = psi_syntax_trees_to_symbol_resolved_trees::lower_syntax_trees_with_sources(
+    let resolved = syntax_trees_to_symbol_resolved_trees::lower_syntax_trees_with_sources(
         &syntax,
         Arc::new(sources),
     )?;
-    let typed = psi_symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
+    let typed = symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
         .map_err(|diagnostic| vec![diagnostic])?;
-    psi_typed_trees_to_checked_trees::lower_typed_trees(typed)
+    typed_trees_to_checked_trees::lower_typed_trees(typed)
 }
 
 fn rejected(source: &str, expected: &str) {
@@ -53,14 +53,14 @@ fn rejected(source: &str, expected: &str) {
 
 fn fixed_range_loans(
     checked: &CheckedTrees,
-) -> Vec<(psi_checked_trees::BorrowAccessKind, usize, usize)> {
+) -> Vec<(checked_trees::BorrowAccessKind, usize, usize)> {
     checked
         .facts
         .borrow
         .loans
         .iter()
         .filter_map(|(_, loan)| {
-            let [psi_facts::PlaceSegment::FixedRange { start, end }] =
+            let [facts::PlaceSegment::FixedRange { start, end }] =
                 checked.facts.borrow.loan_segments(loan)
             else {
                 return None;
@@ -116,8 +116,8 @@ fn direct_phantom_lifetime_generic_recasts_retain_exact_ranges_for_both_polariti
 
     let loans = fixed_range_loans(&checked);
     assert_eq!(loans.len(), 2, "one exact loan per direct lifetime shell");
-    assert!(loans.contains(&(psi_checked_trees::BorrowAccessKind::Read, 2, 10)));
-    assert!(loans.contains(&(psi_checked_trees::BorrowAccessKind::Mutable, 12, 20)));
+    assert!(loans.contains(&(checked_trees::BorrowAccessKind::Read, 2, 10)));
+    assert!(loans.contains(&(checked_trees::BorrowAccessKind::Mutable, 12, 20)));
 }
 
 #[test]
@@ -151,10 +151,10 @@ fn direct_phantom_lifetime_shell_retains_checked_lifetime_identity() {
         .expression_table
         .iter_expressions()
         .filter_map(|(_, expression)| {
-            let psi_checked_trees::expression::ExpressionNode::Cast(cast) = expression else {
+            let checked_trees::expression::ExpressionNode::Cast(cast) = expression else {
                 return None;
             };
-            let psi_checked_trees::types::TypeReferenceNode::Generic {
+            let checked_trees::types::TypeReferenceNode::Generic {
                 base_symbol,
                 lifetime_arguments,
                 arguments,
@@ -276,10 +276,10 @@ fn one_nested_phantom_lifetime_record_recast_retains_exact_ranges() {
     assert_eq!(holder.lifetime_parameters.len(), 1);
     assert!(holder.generic_instance.is_some());
     assert!(checked.data_type_parameters(holder).is_empty());
-    let [psi_checked_trees::data::DataMember::Field(nested)] = checked.data_members(holder) else {
+    let [checked_trees::data::DataMember::Field(nested)] = checked.data_members(holder) else {
         panic!("Holder<u32> keeps one exact nested field")
     };
-    let psi_checked_trees::types::TypeReferenceNode::Generic {
+    let checked_trees::types::TypeReferenceNode::Generic {
         base_symbol,
         lifetime_arguments,
         arguments,
@@ -306,8 +306,8 @@ fn one_nested_phantom_lifetime_record_recast_retains_exact_ranges() {
 
     let loans = fixed_range_loans(&checked);
     assert_eq!(loans.len(), 2, "one exact loan per nested lifetime shell");
-    assert!(loans.contains(&(psi_checked_trees::BorrowAccessKind::Read, 2, 10)));
-    assert!(loans.contains(&(psi_checked_trees::BorrowAccessKind::Mutable, 12, 20)));
+    assert!(loans.contains(&(checked_trees::BorrowAccessKind::Read, 2, 10)));
+    assert!(loans.contains(&(checked_trees::BorrowAccessKind::Mutable, 12, 20)));
 }
 
 #[test]
@@ -425,8 +425,8 @@ fn closed_generic_pair_recasts_retain_padded_ranges_for_both_polarities() {
     let checked = checked(source).expect("closed Pair<u32> recasts should check");
     let loans = fixed_range_loans(&checked);
     assert_eq!(loans.len(), 2, "one exact loan per generic recast");
-    assert!(loans.contains(&(psi_checked_trees::BorrowAccessKind::Read, 2, 10)));
-    assert!(loans.contains(&(psi_checked_trees::BorrowAccessKind::Mutable, 12, 20)));
+    assert!(loans.contains(&(checked_trees::BorrowAccessKind::Read, 2, 10)));
+    assert!(loans.contains(&(checked_trees::BorrowAccessKind::Mutable, 12, 20)));
 }
 
 #[test]
@@ -530,9 +530,9 @@ fn closed_generic_specializations_retain_distinct_symbols_and_nested_holder_rang
     assert!(checked.data_type_parameters(pair_u32).is_empty());
 
     let loans = fixed_range_loans(&checked);
-    assert!(loans.contains(&(psi_checked_trees::BorrowAccessKind::Read, 2, 26)));
-    assert!(loans.contains(&(psi_checked_trees::BorrowAccessKind::Read, 32, 40)));
-    assert!(loans.contains(&(psi_checked_trees::BorrowAccessKind::Mutable, 44, 52)));
+    assert!(loans.contains(&(checked_trees::BorrowAccessKind::Read, 2, 26)));
+    assert!(loans.contains(&(checked_trees::BorrowAccessKind::Read, 32, 40)));
+    assert!(loans.contains(&(checked_trees::BorrowAccessKind::Mutable, 44, 52)));
 }
 
 #[test]
@@ -549,7 +549,7 @@ fn closed_literal_array_type_argument_retains_its_concrete_range() {
 
     let checked = checked(source).expect("closed array type argument should check");
     assert!(fixed_range_loans(&checked).contains(&(
-        psi_checked_trees::BorrowAccessKind::Mutable,
+        checked_trees::BorrowAccessKind::Mutable,
         3,
         9
     )));
@@ -577,8 +577,8 @@ fn closed_type_and_const_block_recasts_retain_exact_padded_ranges() {
     let checked = checked(source).expect("closed Type + integer Const recasts should check");
     let loans = fixed_range_loans(&checked);
     assert_eq!(loans.len(), 2, "one exact loan per const-generic recast");
-    assert!(loans.contains(&(psi_checked_trees::BorrowAccessKind::Read, 2, 8)));
-    assert!(loans.contains(&(psi_checked_trees::BorrowAccessKind::Mutable, 12, 18)));
+    assert!(loans.contains(&(checked_trees::BorrowAccessKind::Read, 2, 8)));
+    assert!(loans.contains(&(checked_trees::BorrowAccessKind::Mutable, 12, 18)));
 }
 
 #[test]
@@ -655,9 +655,9 @@ fn closed_const_specializations_retain_distinct_symbols_and_composed_ranges() {
     assert_ne!(block_two.symbol, block_three.symbol);
 
     let loans = fixed_range_loans(&checked);
-    assert!(loans.contains(&(psi_checked_trees::BorrowAccessKind::Read, 2, 26)));
-    assert!(loans.contains(&(psi_checked_trees::BorrowAccessKind::Read, 32, 44)));
-    assert!(loans.contains(&(psi_checked_trees::BorrowAccessKind::Mutable, 48, 56)));
+    assert!(loans.contains(&(checked_trees::BorrowAccessKind::Read, 2, 26)));
+    assert!(loans.contains(&(checked_trees::BorrowAccessKind::Read, 32, 44)));
+    assert!(loans.contains(&(checked_trees::BorrowAccessKind::Mutable, 48, 56)));
 }
 
 #[test]
@@ -674,7 +674,7 @@ fn closed_zero_const_array_field_retains_nonzero_containing_record_range() {
 
     let checked = checked(source).expect("a nonzero record may contain a zero const array");
     assert!(fixed_range_loans(&checked).contains(&(
-        psi_checked_trees::BorrowAccessKind::Mutable,
+        checked_trees::BorrowAccessKind::Mutable,
         3,
         5
     )));
@@ -718,7 +718,7 @@ fn direct_boolean_const_argument_uses_one_canonical_instance_value() {
         .iter()
         .filter_map(|definition| {
             let origin = definition.generic_instance?;
-            let psi_checked_trees::types::TypeReferenceNode::Generic { arguments, .. } =
+            let checked_trees::types::TypeReferenceNode::Generic { arguments, .. } =
                 checked.type_reference_table.type_reference(origin)
             else {
                 return None;
@@ -729,13 +729,13 @@ fn direct_boolean_const_argument_uses_one_canonical_instance_value() {
             else {
                 return None;
             };
-            let psi_checked_trees::types::TypeReferenceNode::Named { symbol, name } =
+            let checked_trees::types::TypeReferenceNode::Named { symbol, name } =
                 checked.type_reference_table.type_reference(*argument)
             else {
                 return None;
             };
             (!symbol.is_valid()).then(|| {
-                psi_language_semantics::const_value::CanonicalConstValue::from_atom(name.as_str())
+                language_semantics::const_value::CanonicalConstValue::from_atom(name.as_str())
                     .expect("Boolean instance origin uses a canonical const atom")
             })
         })
@@ -743,8 +743,8 @@ fn direct_boolean_const_argument_uses_one_canonical_instance_value() {
     assert_eq!(
         values,
         [
-            psi_language_semantics::const_value::CanonicalConstValue::boolean(true),
-            psi_language_semantics::const_value::CanonicalConstValue::boolean(false),
+            language_semantics::const_value::CanonicalConstValue::boolean(true),
+            language_semantics::const_value::CanonicalConstValue::boolean(false),
         ]
     );
 }
@@ -771,8 +771,8 @@ fn structured_const_instance_recasts_retain_exact_ranges_for_both_polarities() {
     let checked = checked(source).expect("structured const recasts should check");
     let loans = fixed_range_loans(&checked);
     assert_eq!(loans.len(), 2, "one exact loan per structured const recast");
-    assert!(loans.contains(&(psi_checked_trees::BorrowAccessKind::Read, 2, 3)));
-    assert!(loans.contains(&(psi_checked_trees::BorrowAccessKind::Mutable, 8, 9)));
+    assert!(loans.contains(&(checked_trees::BorrowAccessKind::Read, 2, 3)));
+    assert!(loans.contains(&(checked_trees::BorrowAccessKind::Mutable, 8, 9)));
 }
 
 #[test]
@@ -863,8 +863,8 @@ fn structured_const_pure_sum_instances_retain_payloadless_and_payload_ranges() {
         2,
         "one exact loan per payloadless or payload-bearing const recast"
     );
-    assert!(loans.contains(&(psi_checked_trees::BorrowAccessKind::Read, 2, 3)));
-    assert!(loans.contains(&(psi_checked_trees::BorrowAccessKind::Mutable, 8, 9)));
+    assert!(loans.contains(&(checked_trees::BorrowAccessKind::Read, 2, 3)));
+    assert!(loans.contains(&(checked_trees::BorrowAccessKind::Mutable, 8, 9)));
 }
 
 #[test]
@@ -1002,7 +1002,7 @@ fn unsupported_closed_generic_stored_arguments_and_open_forms_publish_no_loan() 
 }
 
 fn local_initializer<'syntax>(
-    syntax: &'syntax psi_syntax_trees::SyntaxTrees,
+    syntax: &'syntax syntax_trees::SyntaxTrees,
     local_name: &str,
 ) -> &'syntax ExpressionNode {
     let expression = syntax
@@ -1127,7 +1127,7 @@ fn closed_generic_erased_record_elaborates_and_lays_out_material_fields_only() {
         .expression_table
         .iter_expressions()
         .find_map(|(_, expression)| match expression {
-            psi_checked_trees::expression::ExpressionNode::StructLiteral(literal)
+            checked_trees::expression::ExpressionNode::StructLiteral(literal)
                 if literal.type_name.as_str() == "Box<i32>" =>
             {
                 Some(literal)
@@ -1145,7 +1145,7 @@ fn closed_generic_erased_record_elaborates_and_lays_out_material_fields_only() {
     );
     assert!(matches!(
         checked.expression_table.expression(fields[1].value),
-        psi_checked_trees::expression::ExpressionNode::Name(_)
+        checked_trees::expression::ExpressionNode::Name(_)
     ));
     let evidence = checked
         .data_definitions()
@@ -1156,7 +1156,7 @@ fn closed_generic_erased_record_elaborates_and_lays_out_material_fields_only() {
         .data_members(evidence)
         .iter()
         .find_map(|member| match member {
-            psi_checked_trees::data::DataMember::Variant(variant)
+            checked_trees::data::DataMember::Variant(variant)
                 if variant.name.as_str() == "Only" =>
             {
                 Some(variant.symbol)
@@ -1184,7 +1184,7 @@ fn closed_generic_erased_record_elaborates_and_lays_out_material_fields_only() {
             .iter_expressions()
             .any(|(_, expression)| matches!(
                 expression,
-                psi_checked_trees::expression::ExpressionNode::Name(path)
+                checked_trees::expression::ExpressionNode::Name(path)
                     if path.symbol == only_symbol
             )),
         "the erased witness remains available to proof checking even though layout erases it",
@@ -1543,7 +1543,7 @@ fn closed_generic_erased_sum_elaborates_and_lays_out_material_payload_only() {
         .data_members(definition)
         .iter()
         .find_map(|member| match member {
-            psi_checked_trees::data::DataMember::Variant(variant)
+            checked_trees::data::DataMember::Variant(variant)
                 if variant.name.as_str() == "Some" =>
             {
                 Some(variant)
@@ -1611,7 +1611,7 @@ fn closed_generic_sum_payload_reaches_nested_record_fixpoint() {
         .data_members(maybe)
         .iter()
         .find_map(|member| match member {
-            psi_checked_trees::data::DataMember::Variant(variant)
+            checked_trees::data::DataMember::Variant(variant)
                 if variant.name.as_str() == "Some" =>
             {
                 Some(variant)
@@ -1624,7 +1624,7 @@ fn closed_generic_sum_payload_reaches_nested_record_fixpoint() {
         checked
             .type_reference_table
             .type_reference(boxed.type_reference),
-        psi_checked_trees::types::TypeReferenceNode::Named { name, .. }
+        checked_trees::types::TypeReferenceNode::Named { name, .. }
             if name.as_str() == "Box<i32>"
     ));
 }
@@ -1725,7 +1725,7 @@ fn mixed_generic_sum_preserves_common_and_payload_relevance() {
         .find(|definition| definition.name.as_str() == "Mixed<i32>")
         .expect("closed mixed definition");
     assert!(checked.data_members(definition).iter().any(|member| {
-        matches!(member, psi_checked_trees::data::DataMember::Field(field)
+        matches!(member, checked_trees::data::DataMember::Field(field)
             if field.name.as_str() == "proof" && field.relevance.is_erased())
     }));
     let layout = build_layout_plan(&checked, NativeTarget::host(), &[]).expect("mixed layout");
@@ -2333,7 +2333,7 @@ fn lifetime_bearing_local_instances_become_positional_type_arguments() {
         ["outer"]
     );
 
-    let assert_field_application = |owner: &psi_syntax_trees::item::DataDefinition,
+    let assert_field_application = |owner: &syntax_trees::item::DataDefinition,
                                     expected_base: &str,
                                     expected_lifetime: &str| {
         let [DataMember::Field(value)] = syntax.items.data_members(owner.members) else {
@@ -2425,32 +2425,30 @@ fn arithmetic_domain_type_arguments_have_distinct_canonical_instances() {
     let saturating = find("Cell<u32 in Saturating>");
     assert_ne!(wrapping.name, saturating.name);
 
-    let assert_exact_domain =
-        |type_reference, expected: psi_numerics::arithmetic::ArithmeticDomain| {
-            let TypeReferenceNode::Constrained {
-                base_type,
-                constraints,
-            } = syntax.type_references.type_reference(type_reference)
-            else {
-                panic!("instance retains the constrained Type argument")
-            };
-            assert!(matches!(
-                syntax.type_references.type_reference(*base_type),
-                TypeReferenceNode::Named(name) if name.as_str() == "u32"
-            ));
-            assert_eq!(
-                syntax.type_references.constraints(*constraints),
-                [psi_syntax_trees::types::TypeConstraintNode::ArithmeticDomain(expected)]
-            );
+    let assert_exact_domain = |type_reference, expected: numerics::arithmetic::ArithmeticDomain| {
+        let TypeReferenceNode::Constrained {
+            base_type,
+            constraints,
+        } = syntax.type_references.type_reference(type_reference)
+        else {
+            panic!("instance retains the constrained Type argument")
         };
+        assert!(matches!(
+            syntax.type_references.type_reference(*base_type),
+            TypeReferenceNode::Named(name) if name.as_str() == "u32"
+        ));
+        assert_eq!(
+            syntax.type_references.constraints(*constraints),
+            [syntax_trees::types::TypeConstraintNode::ArithmeticDomain(
+                expected
+            )]
+        );
+    };
     for (instance, domain) in [
-        (
-            wrapping,
-            psi_numerics::arithmetic::ArithmeticDomain::Wrapping,
-        ),
+        (wrapping, numerics::arithmetic::ArithmeticDomain::Wrapping),
         (
             saturating,
-            psi_numerics::arithmetic::ArithmeticDomain::Saturating,
+            numerics::arithmetic::ArithmeticDomain::Saturating,
         ),
     ] {
         let [DataMember::Field(value)] = syntax.items.data_members(instance.members) else {
@@ -2512,7 +2510,7 @@ fn unindexed_declared_domain_type_arguments_retain_the_exact_constraint() {
             syntax.type_references.type_reference(*base_type),
             TypeReferenceNode::Named(name) if name.as_str() == "Token"
         ));
-        let [psi_syntax_trees::types::TypeConstraintNode::Domain(domain)] =
+        let [syntax_trees::types::TypeConstraintNode::Domain(domain)] =
             syntax.type_references.constraints(*constraints)
         else {
             panic!("instance retains one declared-domain constraint")

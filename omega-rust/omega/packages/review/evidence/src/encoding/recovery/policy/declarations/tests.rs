@@ -9,7 +9,7 @@ use crate::encoding::{
     encode::{self, encoder::Encoder},
 };
 use crate::record::*;
-use psi_language_semantics::{CarryPermission, DataSupplyMode, DomainPredicateBody, Multiplicity};
+use language_semantics::{CarryPermission, DataSupplyMode, DomainPredicateBody, Multiplicity};
 
 fn nominal(name: &str) -> PackageReviewNominalIdentity {
     PackageReviewNominalIdentity {
@@ -151,7 +151,7 @@ fn data() -> PackageReviewDataShape {
     let field = PackageReviewDataField {
         identity: Some(9),
         name: "field".to_owned(),
-        relevance: psi_language_core::BindingRelevance::Relevant,
+        relevance: language_core::BindingRelevance::Relevant,
         type_identity: value_type(),
     };
     PackageReviewDataShape {
@@ -171,7 +171,7 @@ fn data() -> PackageReviewDataShape {
                 name: "Case".to_owned(),
                 payload: vec![PackageReviewDataField {
                     identity: None,
-                    relevance: psi_language_core::BindingRelevance::Erased,
+                    relevance: language_core::BindingRelevance::Erased,
                     ..field
                 }],
                 retired_payload_identities: vec![6, 8],

@@ -1,6 +1,6 @@
 use crate::tests::*;
-use omega_post_allocation_machine_to_optimized_machine::Aarch64SameViewCopyElisionPolicy;
-use omega_target::Architecture;
+use post_allocation_machine_to_post_allocation_machine::Aarch64SameViewCopyElisionPolicy;
+use target::Architecture;
 
 const RULE: Optimization = Optimization::Aarch64ElideSameViewCopyI64BeforeCompareI64LeftOperandV1;
 

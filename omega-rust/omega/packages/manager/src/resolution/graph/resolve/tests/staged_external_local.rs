@@ -5,11 +5,9 @@ use crate::resolution::graph::{
     resolve_staged_external_local_project_closure_with_git_pins,
 };
 use crate::resolution::source::ResolvePackageSourceError;
-use omega_package_source::git::resolution::GitExactRevisionAcquisition;
-use omega_package_source::local::staging::{
-    StagedLocalSnapshot, stage_local_source_replacement_in_lane,
-};
-use omega_package_source::{ExternalLocalLineage, SourceResolveError};
+use package_source::git::resolution::GitExactRevisionAcquisition;
+use package_source::local::staging::{StagedLocalSnapshot, stage_local_source_replacement_in_lane};
+use package_source::{ExternalLocalLineage, SourceResolveError};
 use sha2::{Digest, Sha256};
 
 struct Fixture(PathBuf);
@@ -153,7 +151,7 @@ fn staged_project_adds_relative_and_nested_path_dependencies_from_live_directori
             )
         );
     }
-    let exact = candidate.for_exact_target(omega_target::TargetProfile::WindowsX64);
+    let exact = candidate.for_exact_target(target::TargetProfile::WindowsX64);
     let subject = CanonicalSourceClosureSubject::from_resolved(
         &exact,
         CanonicalSourceClosureSubjectLimits::default(),
@@ -274,7 +272,7 @@ fn staged_pin_policy_keeps_local_lookup_and_rejects_another_root_request() {
     )
     .unwrap();
     let subject = CanonicalSourceClosureSubject::from_resolved(
-        &original.for_exact_target(omega_target::TargetProfile::WindowsX64),
+        &original.for_exact_target(target::TargetProfile::WindowsX64),
         CanonicalSourceClosureSubjectLimits::default(),
     )
     .unwrap();

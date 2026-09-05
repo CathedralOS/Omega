@@ -3,13 +3,13 @@
 use crate::capture::calling::application::signature::instantiate_static_parameters;
 use crate::capture::semantics::signatures::policy::project_type_parameters;
 use crate::record::PackagePolicyTypeParameter;
-use omega_compiler::CheckedCompilation;
-use psi_diagnostics::Diagnostic;
-use psi_symbols::SymbolHandle;
+use compiler::CheckedCompilation;
+use diagnostics::Diagnostic;
+use symbols::SymbolHandle;
 
 pub(super) fn type_parameters(
     compilation: &CheckedCompilation,
-    machine: &psi_typed_trees::machine::Machine,
+    machine: &typed_trees::machine::Machine,
     subject: &str,
     public_nominals: bool,
 ) -> Result<(Vec<(SymbolHandle, String)>, Vec<PackagePolicyTypeParameter>), Vec<Diagnostic>> {
@@ -47,9 +47,9 @@ pub(super) fn type_parameters(
         &scopes,
         public_nominals,
         if machine.is_public || machine.supply_mode.is_boundary_declaration() {
-            psi_language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure::PublicInterface
+            language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure::PublicInterface
         } else {
-            psi_language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure::PrivateImplementation
+            language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure::PrivateImplementation
         },
     )
 }

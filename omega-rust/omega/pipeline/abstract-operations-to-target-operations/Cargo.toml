@@ -1,0 +1,35 @@
+[package]
+name = "abstract-operations-to-target-operations"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[lib]
+name = "abstract_operations_to_target_operations"
+path = "src/lib.rs"
+
+[dependencies]
+abstract-operations-to-abstract-operations = { path = "../abstract-operations-to-abstract-operations" }
+calling-conventions = { path = "../../representations/calling-conventions" }
+effects = { path = "../../representations/effects" }
+function-identity = { path = "../../representations/function-identity" }
+target = { path = "../../representations/target" }
+abstract-operations = { path = "../../representations/abstract-operations" }
+installation-evidence = { path = "../../representations/installation-evidence" }
+target-operations = { path = "../../representations/target-operations" }
+terminal-psi-to-abstract-operations = { path = "../terminal-psi-to-abstract-operations" }
+semantic-vocabulary = { path = "../../../psi/foundation/semantic-vocabulary" }
+access-plans = { path = "../../../psi/foundation/access-plans" }
+terminal-psi = { path = "../../../psi/representations/terminal-psi" }
+
+[dev-dependencies]
+terminal-psi-to-abstract-operations = { path = "../terminal-psi-to-abstract-operations" }
+checked-trees-to-terminal-psi = { path = "../../../psi/pipeline/checked-trees-to-terminal-psi" }
+proof-admission = { path = "../../../psi/semantics/proof-admission" }
+symbols = { path = "../../../psi/foundation/symbols" }
+source-files-to-tokens = { path = "../../../psi/pipeline/source-files-to-tokens" }
+symbol-resolved-trees-to-typed-trees = { path = "../../../psi/pipeline/symbol-resolved-trees-to-typed-trees" }
+syntax-trees-to-symbol-resolved-trees = { path = "../../../psi/pipeline/syntax-trees-to-symbol-resolved-trees" }
+terminal-codec = { path = "../../../psi/semantics/terminal-codec" }
+tokens-to-syntax-trees = { path = "../../../psi/pipeline/tokens-to-syntax-trees" }
+typed-trees-to-checked-trees = { path = "../../../psi/pipeline/typed-trees-to-checked-trees" }

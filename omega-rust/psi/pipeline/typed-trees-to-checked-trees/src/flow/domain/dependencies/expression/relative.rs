@@ -1,0 +1,107 @@
+use super::*;
+
+pub(crate) fn relative_place_segments_from_expression(
+    program: &typed_trees::TypedTrees,
+    expression: ExpressionHandle,
+    self_type_symbol: Option<SymbolHandle>,
+) -> Option<Vec<facts::PlaceSegment>> {
+    if !expression.is_valid() {
+        return None;
+    }
+
+    match program.expression_table.expression(expression) {
+        ExpressionNode::Borrow(inner) => {
+            relative_place_segments_from_expression(program, inner.target, self_type_symbol)
+        }
+        ExpressionNode::Name(path) => {
+            let members = program.expression_table.name_path_members(path.members);
+            let head = members.first()?.as_str();
+            if head != "self" {
+                return None;
+            }
+
+            let mut segments = Vec::new();
+            let mut receiver_type = self_type_symbol;
+            for member in &members[1..] {
+                let symbol =
+                    resolve_member_symbol_from_type(program, receiver_type, member.as_str())?;
+                crate::flow::push_field_place_segments(program, &mut segments, symbol);
+                receiver_type = crate::flow::symbol_type_symbol(program, symbol);
+            }
+            Some(segments)
+        }
+        ExpressionNode::Member(member) => {
+            let mut segments = relative_place_segments_from_expression(
+                program,
+                member.receiver,
+                self_type_symbol,
+            )?;
+            let receiver_type = match segments.last() {
+                None => self_type_symbol,
+                Some(facts::PlaceSegment::Field { symbol }) => {
+                    crate::flow::symbol_type_symbol(program, *symbol)
+                }
+                _ => None,
+            };
+            let member_symbol = if let Some(symbol) =
+                resolve_member_symbol_from_type(program, receiver_type, member.member.as_str())
+            {
+                symbol
+            } else {
+                effective_member_symbol(program, member.receiver, member)
+            };
+            crate::flow::push_field_place_segments(program, &mut segments, member_symbol);
+            Some(segments)
+        }
+        ExpressionNode::Indexed(indexed) => {
+            let mut segments = relative_place_segments_from_expression(
+                program,
+                indexed.collection,
+                self_type_symbol,
+            )?;
+            segments.push(crate::flow::index_place_segment(program, indexed.index));
+            Some(segments)
+        }
+        _ => None,
+    }
+}
+
+fn resolve_member_symbol_from_type(
+    program: &typed_trees::TypedTrees,
+    type_symbol: Option<SymbolHandle>,
+    member_name: &str,
+) -> Option<SymbolHandle> {
+    let type_symbol = type_symbol?;
+
+    if let Some(data) = program
+        .data_definitions()
+        .iter()
+        .find(|definition| definition.symbol == type_symbol)
+    {
+        for member in program.data_members(data) {
+            match member {
+                typed_trees::data::DataMember::Field(field)
+                    if field.name.as_str() == member_name =>
+                {
+                    return Some(field.symbol);
+                }
+                typed_trees::data::DataMember::Variant(variant)
+                    if variant.name.as_str() == member_name =>
+                {
+                    return Some(variant.symbol);
+                }
+                _ => {}
+            }
+        }
+    }
+
+    if let Some(machine) = machine_by_symbol(program, type_symbol) {
+        for owned in program.machine_owned_data(machine) {
+            if owned.name.as_str() == member_name {
+                return Some(owned.symbol);
+            }
+        }
+    }
+
+    None
+}

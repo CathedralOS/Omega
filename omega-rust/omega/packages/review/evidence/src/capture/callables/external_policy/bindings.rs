@@ -3,10 +3,10 @@ use super::super::external_supply::{
 };
 use super::rejected;
 use crate::record::PackageReviewExternalBinding;
-use omega_compiler::CheckedCompilation;
-use psi_diagnostics::Diagnostic;
-use psi_language_semantics::MachineSupplyMode;
-use psi_typed_trees::machine::{Machine, TraitConformance};
+use compiler::CheckedCompilation;
+use diagnostics::Diagnostic;
+use language_semantics::MachineSupplyMode;
+use typed_trees::machine::{Machine, TraitConformance};
 
 pub(super) fn project(
     compilation: &CheckedCompilation,

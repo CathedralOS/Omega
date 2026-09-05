@@ -9,7 +9,7 @@ use crate::encoding::{
     TERMINAL_PERMISSION_POLICY_MAGIC,
 };
 use crate::record::{PackagePolicyTerminalPermission, PackagePolicyTerminalPermissions};
-use omega_effects::TerminalAuthorityClass;
+use effects::TerminalAuthorityClass;
 
 impl PackagePolicyTerminalPermissions {
     pub fn canonical_bytes(&self) -> Result<Vec<u8>, PackageReviewEncodingError> {

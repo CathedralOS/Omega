@@ -1,23 +1,23 @@
-use omega_abstract_operations::AbstractOperation;
-use omega_abstract_operations_optimizer::WrappingIntegerAddConstantsRule;
-use omega_abstract_operations_to_target_operations::*;
-use omega_isa_aarch64::validate_aarch64_shortest_movn_materialization;
-use omega_isa_x86_64::{
+use abstract_operations::AbstractOperation;
+use abstract_operations_to_abstract_operations::WrappingIntegerAddConstantsRule;
+use abstract_operations_to_target_operations::*;
+use isa_aarch64::validate_aarch64_shortest_movn_materialization;
+use isa_x86_64::{
     decode_x86_64_mov_r32_imm32_i64_materialization,
     decode_x86_64_mov_r64_imm32_sign_extended_i64_materialization,
 };
-use omega_optimization_core::{Optimization, OptimizationSelections, OptimizationWorkBudget};
-use omega_optimization_unit::PsiRewritePatch;
-use omega_post_allocation_machine_to_optimized_machine::*;
-use omega_post_allocation_machine_to_selected_form_encoding::*;
-use omega_register_homes_to_post_allocation_machine::*;
-use omega_selected_form_encoding_to_resolved_layout::*;
-use omega_selected_instructions_to_register_homes::*;
-use omega_target::NativeTarget;
-use omega_target_to_register_environment::*;
-use omega_terminal_psi_to_native_artifact::*;
-use psi_core::IntegerValue;
-use psi_proof_admission::AdmissionProfile;
+use optimization_core::{Optimization, OptimizationSelections, OptimizationWorkBudget};
+use optimization_unit::PsiRewritePatch;
+use post_allocation_machine_to_post_allocation_machine::*;
+use post_allocation_machine_to_selected_form_encoding::*;
+use proof_admission::AdmissionProfile;
+use register_homes_to_post_allocation_machine::*;
+use selected_form_encoding_to_resolved_layout::*;
+use selected_instructions_to_register_homes::*;
+use semantic_vocabulary::IntegerValue;
+use target::NativeTarget;
+use target_to_register_environment::*;
+use terminal_psi_to_native_artifact::*;
 
 use super::generator::CorpusCase;
 use super::psi::CorpusArtifact;
@@ -121,30 +121,29 @@ pub(super) fn exercise_host_native(case: &CorpusCase, artifact: &CorpusArtifact)
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 struct PsiEvidence {
-    unit: omega_optimization_core::OptimizationUnitIdentity,
-    identity_bundle: omega_optimization_core::OptimizationIdentityBundle,
-    pass_manifests: Vec<omega_optimization_core::OptimizationPassManifestRecord>,
-    commits: Vec<omega_abstract_operations_optimizer::PsiOptimizationCommit>,
-    ledger: omega_optimization_unit::PsiTransformationLedger,
-    pre_manifest: omega_optimization_validation::PrePhysicalOptimizationManifest,
+    unit: optimization_core::OptimizationUnitIdentity,
+    identity_bundle: optimization_core::OptimizationIdentityBundle,
+    pass_manifests: Vec<optimization_core::OptimizationPassManifestRecord>,
+    commits: Vec<abstract_operations_to_abstract_operations::PsiOptimizationCommit>,
+    ledger: optimization_unit::PsiTransformationLedger,
+    pre_manifest: optimization_validation::PrePhysicalOptimizationManifest,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 struct MachineEvidence {
-    unit: omega_optimization_core::OptimizationUnitIdentity,
-    identity_bundle: omega_optimization_core::OptimizationIdentityBundle,
-    pass_manifests: Vec<omega_optimization_core::OptimizationPassManifestRecord>,
-    commits: Vec<omega_abstract_operations_optimizer::PsiOptimizationCommit>,
-    ledger: omega_optimization_unit::PsiTransformationLedger,
-    pre_manifest: omega_optimization_validation::PrePhysicalOptimizationManifest,
-    post_manifest:
-        omega_selected_instructions_to_register_homes::PostAllocationOptimizationManifest,
+    unit: optimization_core::OptimizationUnitIdentity,
+    identity_bundle: optimization_core::OptimizationIdentityBundle,
+    pass_manifests: Vec<optimization_core::OptimizationPassManifestRecord>,
+    commits: Vec<abstract_operations_to_abstract_operations::PsiOptimizationCommit>,
+    ledger: optimization_unit::PsiTransformationLedger,
+    pre_manifest: optimization_validation::PrePhysicalOptimizationManifest,
+    post_manifest: selected_instructions_to_register_homes::PostAllocationOptimizationManifest,
     home_custody: StagedOptimizedRegisterHomeCustodyReceipt,
     machine_custody: StagedOptimizedPostAllocationMachineCustodyReceipt,
     optimization: StagedOptimizedPostAllocationMachineOptimization,
     encoding: StagedOptimizedSelectedFormEncoding,
     layout: StagedOptimizedResolvedSelectedFormLayout,
-    physical: omega_register_model::ValidatedPhysicalRegisterModel,
+    physical: register_model::ValidatedPhysicalRegisterModel,
 }
 
 fn run_psi(case: &CorpusCase, artifact: &CorpusArtifact) -> PsiEvidence {
@@ -199,7 +198,7 @@ fn run_machine(
     // Build it the way stage_non_allocation_recovery_physical_pipeline does.
     let register_environment = baseline_target_register_environment(target.target()).unwrap();
     let selected =
-        omega_target_operations_to_selected_instructions::stage_optimized_instruction_selection(
+        target_operations_to_selected_instructions::stage_optimized_instruction_selection(
             target,
             register_environment,
         )
@@ -257,7 +256,7 @@ fn run_machine(
 
 fn assert_sccp(
     artifact: &CorpusArtifact,
-    optimized: &omega_abstract_operations_optimizer::ValidatedOptimizedAbstractPlan,
+    optimized: &abstract_operations_to_abstract_operations::ValidatedOptimizedAbstractPlan,
 ) {
     let expected_rule = WrappingIntegerAddConstantsRule::contract().identity();
     let commits = optimized

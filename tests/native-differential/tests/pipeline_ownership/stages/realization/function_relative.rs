@@ -197,7 +197,7 @@ fn relocation_free_rel8_fragment_emission_retains_bytes_fuel_and_manifest_custod
         .find(|row| row.branch.is_some())
         .unwrap();
     assert_eq!(branch.bytes[0], 0x75);
-    let omega_machine_code::FunctionFragmentControlProvenance::ConditionalBranch {
+    let machine_code::FunctionFragmentControlProvenance::ConditionalBranch {
         when_taken,
         when_fallthrough,
         ..
@@ -255,9 +255,8 @@ fn relocation_free_rel8_fragment_emission_retains_bytes_fuel_and_manifest_custod
         .flat_map(|block| &mut block.instructions)
         .find(|row| row.branch.is_some())
         .unwrap();
-    let omega_machine_code::FunctionFragmentControlProvenance::ConditionalBranch {
-        when_taken, ..
-    } = &mut branch.control
+    let machine_code::FunctionFragmentControlProvenance::ConditionalBranch { when_taken, .. } =
+        &mut branch.control
     else {
         unreachable!()
     };
@@ -330,7 +329,7 @@ fn relocation_free_cbnz_fragment_emission_retains_the_elided_compare_span() {
         .iter()
         .find(|row| {
             row.alternative.family
-                == omega_selected_instructions::MachineAlternativeFamily::CompareI64Zero
+                == selected_instructions::MachineAlternativeFamily::CompareI64Zero
         })
         .unwrap();
     let branch = rows.iter().find(|row| row.branch.is_some()).unwrap();
@@ -388,7 +387,7 @@ fn relocation_free_cbnz_fragment_emission_retains_the_elided_compare_span() {
 
 #[test]
 fn aarch64_movn_reaches_fragments_text_object_artifact_and_callable_for_both_routes() {
-    use omega_calling_conventions::{CallingPolicy, MachineRegister};
+    use calling_conventions::{CallingPolicy, MachineRegister};
 
     for (target, selected_lowering) in [
         (NativeTarget::linux_arm64(), false),
@@ -638,7 +637,7 @@ fn aarch64_movn_reaches_fragments_text_object_artifact_and_callable_for_both_rou
                 assert_eq!(text.text_section().bytes, expected_text_bytes);
                 assert_eq!(
                     text.text_section().relocation_requirements,
-                    omega_object_file::TextSectionRelocationRequirements::ProvenNoneForFullyResolvedInternalControlV1
+                    object_file::TextSectionRelocationRequirements::ProvenNoneForFullyResolvedInternalControlV1
                 );
                 assert_eq!(
                     text.manifest().record().source_kind,
@@ -706,11 +705,11 @@ fn aarch64_movn_reaches_fragments_text_object_artifact_and_callable_for_both_rou
                 assert_eq!(object.object().symbols.len(), 1);
                 assert_eq!(
                     object.object().symbols[0].linkage,
-                    omega_object_file::RelocationFreeObjectSymbolLinkage::ObjectLocalV1
+                    object_file::RelocationFreeObjectSymbolLinkage::ObjectLocalV1
                 );
                 assert_eq!(
                     object.object().symbols[0].role,
-                    omega_object_file::RelocationFreeObjectSymbolRole::SemanticEntryV1
+                    object_file::RelocationFreeObjectSymbolRole::SemanticEntryV1
                 );
                 let object_manifest = object.manifest().record().identity;
                 let artifact = stage_validated_optimized_object_artifact(

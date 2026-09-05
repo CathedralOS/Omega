@@ -1,5 +1,5 @@
 use crate::support::*;
-use omega_package_evidence::record::PackageReviewTraitCompositionKind;
+use package_evidence::record::PackageReviewTraitCompositionKind;
 
 #[test]
 fn public_trait_shape_retains_boundary_parent_and_alpha_normalized_requirements() {
@@ -48,7 +48,7 @@ pub boundary trait Service<Value>: Parent<Value> {
     };
     assert_eq!(
         compare.spelling(),
-        Some(psi_language_core::OperatorSpelling::Less)
+        Some(language_core::OperatorSpelling::Less)
     );
     let service = first_review
         .public_traits()

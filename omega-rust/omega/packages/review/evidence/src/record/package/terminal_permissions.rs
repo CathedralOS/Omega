@@ -8,9 +8,9 @@ use super::{PackagePolicyServiceMethod, provider_policy::validate_service_method
 use crate::record::{
     PackagePolicyTypeParameter, PackageReviewNominalIdentity, PackageReviewNominalOwner,
 };
-use omega_effects::TerminalAuthorityDisposition;
-use omega_target::TargetProfile;
-use psi_core::PackageKeyIdentity;
+use effects::TerminalAuthorityDisposition;
+use semantic_vocabulary::PackageKeyIdentity;
+use target::TargetProfile;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PackagePolicyTerminalPermissions {

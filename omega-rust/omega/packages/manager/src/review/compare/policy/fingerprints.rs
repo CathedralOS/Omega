@@ -10,7 +10,7 @@ use crate::review::{
     CompilerIssuedPackageReview,
     candidate::{build_observation_commitment, whole_review_commitment},
 };
-use omega_package_evidence::record::{PACKAGE_POLICY_ROW_VERSION, PackagePolicyRow};
+use package_evidence::record::{PACKAGE_POLICY_ROW_VERSION, PackagePolicyRow};
 use sha2::{Digest, Sha256};
 
 pub(super) fn context(

@@ -8,8 +8,8 @@ use crate::record::{
     PackageReviewDangerousAuthoritySlack, PackageReviewSemanticDependency,
     PackageReviewSourceLocationRole,
 };
-use omega_compiler::CheckedCompilation;
-use psi_diagnostics::Diagnostic;
+use compiler::CheckedCompilation;
+use diagnostics::Diagnostic;
 
 pub(crate) fn finalize_projected_rows<Row>(
     compilation: &CheckedCompilation,

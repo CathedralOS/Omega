@@ -15,10 +15,10 @@ use super::conformances::project_callable_conformances;
 use super::signatures::project_external_callable_signature;
 use crate::capture::source::ProjectedReviewRow;
 use crate::record::*;
-use omega_compiler::CheckedCompilation;
-use psi_diagnostics::Diagnostic;
-use psi_language_semantics::MachineSupplyMode;
-use psi_symbols::SymbolHandle;
+use compiler::CheckedCompilation;
+use diagnostics::Diagnostic;
+use language_semantics::MachineSupplyMode;
+use symbols::SymbolHandle;
 
 pub(super) struct CallableSurface {
     pub(super) identity: PackageReviewNominalIdentity,
@@ -55,14 +55,14 @@ pub(super) struct CallableSurface {
 pub(super) struct ProjectedSurface<'a> {
     pub surface: CallableSurface,
     pub external_executable_supply: Vec<ProjectedReviewRow<PackageReviewExternalExecutableSupply>>,
-    pub entry: &'a psi_typed_trees::state::State,
-    pub realized: &'a psi_checked_trees::RealizedMachineContractEnvelope,
+    pub entry: &'a typed_trees::state::State,
+    pub realized: &'a checked_trees::RealizedMachineContractEnvelope,
     pub binders: Vec<(SymbolHandle, String)>,
 }
 
 pub(super) fn project<'a>(
     compilation: &'a CheckedCompilation,
-    machine: &psi_typed_trees::machine::Machine,
+    machine: &typed_trees::machine::Machine,
     role: PackageReviewCallableRole,
     identity: PackageReviewNominalIdentity,
     policy_mode: bool,
@@ -176,7 +176,7 @@ pub(super) fn project<'a>(
     };
     let contracts = if policy_mode && !publishes_interface {
         project_callable_contracts_with_exposure(compilation, machine, entry, &binders,
-        psi_language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure::PrivateImplementation
+        language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure::PrivateImplementation
     )?
     } else {
         project_callable_contracts(compilation, machine, entry, &binders)?
@@ -244,15 +244,15 @@ pub(super) fn project<'a>(
         })?;
 
     let declared_service_reach = match service_reach.interface {
-        psi_language_semantics::ServiceReachInterface::PublishedCeiling(row) => {
+        language_semantics::ServiceReachInterface::PublishedCeiling(row) => {
             Some(project_service_row(compilation, row)?)
         }
-        psi_language_semantics::ServiceReachInterface::InternalInferred
+        language_semantics::ServiceReachInterface::InternalInferred
             if role == PackageReviewCallableRole::Build =>
         {
             None
         }
-        psi_language_semantics::ServiceReachInterface::InternalInferred => {
+        language_semantics::ServiceReachInterface::InternalInferred => {
             return Err(vec![Diagnostic::error(format!(
                 "reviewed callable `{subject}` has no published service-reach ceiling"
             ))]);
@@ -261,7 +261,7 @@ pub(super) fn project<'a>(
     if role != PackageReviewCallableRole::Build
         && matches!(
             suspension.interface,
-            psi_language_semantics::SuspensionInterface::InternalInferred
+            language_semantics::SuspensionInterface::InternalInferred
         )
     {
         return Err(vec![Diagnostic::error(format!(
@@ -271,7 +271,7 @@ pub(super) fn project<'a>(
     if role != PackageReviewCallableRole::Build
         && matches!(
             blocking.interface,
-            psi_language_semantics::BlockingInterface::InternalInferred
+            language_semantics::BlockingInterface::InternalInferred
         )
     {
         return Err(vec![Diagnostic::error(format!(
@@ -322,15 +322,15 @@ pub(super) fn project<'a>(
         PackageReviewCheckedServiceReach::NoCheckedBody
     };
     let declared_synchronous_invocations = match checked_invocation.plan.interface {
-        psi_language_semantics::SynchronousInvocationInterface::PublishedCeiling => Some(
+        language_semantics::SynchronousInvocationInterface::PublishedCeiling => Some(
             project_synchronous_invocations(compilation, &checked_invocation.published_targets)?,
         ),
-        psi_language_semantics::SynchronousInvocationInterface::InternalInferred
+        language_semantics::SynchronousInvocationInterface::InternalInferred
             if role == PackageReviewCallableRole::Build =>
         {
             None
         }
-        psi_language_semantics::SynchronousInvocationInterface::InternalInferred => {
+        language_semantics::SynchronousInvocationInterface::InternalInferred => {
             return Err(vec![Diagnostic::error(format!(
                 "reviewed callable `{subject}` has no published synchronous-invocation ceiling"
             ))]);
@@ -383,16 +383,14 @@ pub(super) fn project<'a>(
             checked_may_suspend: realized.checked_may_suspend,
             checked_may_block: realized.checked_may_block,
             declared_may_suspend: match suspension.interface {
-                psi_language_semantics::SuspensionInterface::PublishedMaySuspend(ceiling) => {
+                language_semantics::SuspensionInterface::PublishedMaySuspend(ceiling) => {
                     Some(ceiling)
                 }
-                psi_language_semantics::SuspensionInterface::InternalInferred => None,
+                language_semantics::SuspensionInterface::InternalInferred => None,
             },
             declared_may_block: match blocking.interface {
-                psi_language_semantics::BlockingInterface::PublishedMayBlock(ceiling) => {
-                    Some(ceiling)
-                }
-                psi_language_semantics::BlockingInterface::InternalInferred => None,
+                language_semantics::BlockingInterface::PublishedMayBlock(ceiling) => Some(ceiling),
+                language_semantics::BlockingInterface::InternalInferred => None,
             },
         },
         external_executable_supply,

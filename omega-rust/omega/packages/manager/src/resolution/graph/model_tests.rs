@@ -1,8 +1,8 @@
 use super::*;
 use crate::declarations::PackageName;
 use crate::declarations::{AliasName, PackageKey};
-use omega_package_source::ImmutableSourceResolution;
-use omega_package_source::{GitCommitId, GitTreeId, SourceLineage};
+use package_source::ImmutableSourceResolution;
+use package_source::{GitCommitId, GitTreeId, SourceLineage};
 
 fn key(name: &str, repository: &str) -> PackageKey {
     PackageKey::new(

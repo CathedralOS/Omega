@@ -257,7 +257,7 @@ nonblocking. Otherwise the extent stays linear and exposes explicit terminal
 Safety profiles may reject abandonment; capacity loss must not hide behind an
 ordinary silent drop.
 
-The normalized conservation model is live in `psi-extents`. Its Rust carrier
+The normalized conservation model is live in `extents`. Its Rust carrier
 is non-clonable; an admitted one-shot root receipt establishes the first claim;
 space, provenance, era, and lineage identities are normalized; rights are an
 open set of normalized identities; and split, attenuation, sibling merge, and
@@ -334,7 +334,7 @@ unreclaimed loans is deferred to provider quiescence/lifecycle machinery when a
 customer requires it; translation edits, shootdowns, and process teardown remain
 ordinary runtime provider work.
 
-The provider-neutral mapping lifecycle is live in `psi-extents`. An admitted
+The provider-neutral mapping lifecycle is live in `extents`. An admitted
 mapping grant pins source custody, source/destination spaces and required
 rights, provider-established mapped facts, and open sets of translation
 activation and release facts. Fixed mapping consumes the destination Extent and
@@ -995,7 +995,7 @@ device. Their compatibility is derived without laundering either premise.
 ### Implementation boundary
 
 The source vocabulary lives in `omega::language::core::layout`; `Plan` remains
-the current source name for `LayoutPlan`. `psi-access-plans` owns normalized
+the current source name for `LayoutPlan`. `access-plans` owns normalized
 layout/access/profile joins, exact-loan admission, opaque field identities, and
 sealed primitive requests. The compiler derives concrete `Placed<P, T>`
 accessors fail-closed: inaccessible or unauthorized operations have no method,
@@ -1068,7 +1068,7 @@ The provider receipt is the accepted claim that the device stopped using the
 range. A device-level success or failure status is a separate result: either
 may accompany proven release, and neither substitutes for it.
 
-This conservation model is live in `psi-extents`. A reusable admitted grant
+This conservation model is live in `extents`. A reusable admitted grant
 pins the borrower, direction, space, provenance, required open-set rights, and
 an open set of completion facts (including target fence/cache facts where
 needed). Starting a transfer accepts an actual Extent loan and
@@ -1436,7 +1436,7 @@ The ledger closes three whole-program holes:
 - dynamic install, replacement, and removal are checked against version pins
   and quiescence.
 
-The general normalized root foundation is live in `omega-external-roots`. A validated root
+The general normalized root foundation is live in `external-roots`. A validated root
 binds one compiler-issued entry identity to the complete evaluated
 `BoundaryEntryPlan`, an open effect/receipt set, provider identity, stack and
 nesting policies, optional acknowledgement policy, WCSU size/alignment, and
@@ -1465,7 +1465,7 @@ from those live opaque carriers and retain the same complete invocation
 evidence; compact control, guard, acknowledgement, and invocation IDs cannot
 settle debt from another root. The live ledger also owns a deterministic report
 fingerprint that binds each normalized root contract to its exact installed
-code, artifact, entry, owner, and admission. `omega-artifacts` writes this live
+code, artifact, entry, owner, and admission. `artifacts` writes this live
 state as `external_roots.json`: the complete evaluated `CallPlan + StatePlan`,
 provider/effect/trust identities, the three resource columns, nesting and
 acknowledgement policy, and component pins are machine-readable, while friendly

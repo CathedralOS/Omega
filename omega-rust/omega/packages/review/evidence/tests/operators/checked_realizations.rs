@@ -284,7 +284,7 @@ satisfies CheckedMath::subtract
         .expect("public fixed-token operator declaration row");
     assert_eq!(
         declaration.spelling(),
-        Some(psi_language_core::OperatorSpelling::Subtract)
+        Some(language_core::OperatorSpelling::Subtract)
     );
     assert_eq!(realization.coordinate(), declaration.coordinate());
     assert_eq!(realization.alias(), None);

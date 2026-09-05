@@ -1,17 +1,17 @@
-use omega_selected_instructions::{
+use selected_instructions::{
     MachineBarrier, MachineCallEffect, MachineEncodedControlEffect, MachineEncodedMemoryEffect,
     MachineEncodedStackEffect, MachineEncodedTrapBehavior, MachineMemoryEffect,
     MachineSizeKnowledge, MachineTrapBehavior,
 };
-use omega_target::Architecture;
+use target::Architecture;
 
 use crate::tests::*;
 
 use super::fixture::{caller_machine, staged_homes, staged_selected};
 
 fn first_call(
-    plan: &mut omega_selected_instructions::PreAllocationMachineEffectPlan,
-) -> &mut omega_selected_instructions::InstructionMachineEffects {
+    plan: &mut selected_instructions::PreAllocationMachineEffectPlan,
+) -> &mut selected_instructions::InstructionMachineEffects {
     plan.functions
         .iter_mut()
         .find(|function| function.machine == caller_machine())
@@ -118,15 +118,14 @@ fn scalar_calls_retain_exact_effects_through_post_allocation_persistence() {
 
         let encoded_effects = effects.plan().encode();
         assert_eq!(
-            omega_selected_instructions::PreAllocationMachineEffectPlan::decode(&encoded_effects)
+            selected_instructions::PreAllocationMachineEffectPlan::decode(&encoded_effects)
                 .unwrap(),
             effects.plan().clone()
         );
         let mut legacy_effects = encoded_effects;
         legacy_effects[8..12].copy_from_slice(&8_u32.to_le_bytes());
         assert!(
-            omega_selected_instructions::PreAllocationMachineEffectPlan::decode(&legacy_effects)
-                .is_err(),
+            selected_instructions::PreAllocationMachineEffectPlan::decode(&legacy_effects).is_err(),
             "V8 must not acquire the V9 scalar-call vocabulary"
         );
 
@@ -134,13 +133,13 @@ fn scalar_calls_retain_exact_effects_through_post_allocation_persistence() {
         let post = stage_optimized_post_allocation_machine_plan(&homes).unwrap();
         let encoded_post = post.machine().plan().encode();
         assert_eq!(
-            omega_physical_instructions::PostAllocationMachinePlan::decode(&encoded_post).unwrap(),
+            physical_instructions::PostAllocationMachinePlan::decode(&encoded_post).unwrap(),
             post.machine().plan().clone()
         );
         let mut legacy_post = encoded_post;
         legacy_post[8..12].copy_from_slice(&4_u32.to_le_bytes());
         assert!(
-            omega_physical_instructions::PostAllocationMachinePlan::decode(&legacy_post).is_err(),
+            physical_instructions::PostAllocationMachinePlan::decode(&legacy_post).is_err(),
             "V4 must not acquire the V5 scalar-call vocabulary"
         );
         let selected_stage = homes
@@ -171,12 +170,10 @@ fn scalar_call_effect_corruption_fails_independent_replay() {
         let environment = selected.register_environment();
         let catalog = match target.architecture {
             Architecture::X86_64 => {
-                let catalog = omega_isa_x86_64::x86_64_machine_effect_catalog(
-                    target,
-                    environment.constraints(),
-                )
-                .unwrap();
-                omega_isa_x86_64::validate_x86_64_machine_effect_catalog(
+                let catalog =
+                    isa_x86_64::x86_64_machine_effect_catalog(target, environment.constraints())
+                        .unwrap();
+                isa_x86_64::validate_x86_64_machine_effect_catalog(
                     target,
                     environment.constraints(),
                     catalog,
@@ -184,12 +181,10 @@ fn scalar_call_effect_corruption_fails_independent_replay() {
                 .unwrap()
             }
             Architecture::Aarch64 => {
-                let catalog = omega_isa_aarch64::aarch64_machine_effect_catalog(
-                    target,
-                    environment.constraints(),
-                )
-                .unwrap();
-                omega_isa_aarch64::validate_aarch64_machine_effect_catalog(
+                let catalog =
+                    isa_aarch64::aarch64_machine_effect_catalog(target, environment.constraints())
+                        .unwrap();
+                isa_aarch64::validate_aarch64_machine_effect_catalog(
                     target,
                     environment.constraints(),
                     catalog,
@@ -198,7 +193,7 @@ fn scalar_call_effect_corruption_fails_independent_replay() {
             }
         };
         let replay = |plan| {
-            omega_selected_instructions_to_machine_effects::validate_pre_allocation_machine_effects(
+            selected_instructions_to_register_homes::validate_pre_allocation_machine_effects(
                 selected.selected(),
                 environment.identity(),
                 environment.physical(),
@@ -240,7 +235,7 @@ fn scalar_call_effect_corruption_fails_independent_replay() {
         } else {
             call.alternatives[0].encoded.stack =
                 MachineEncodedStackEffect::CallReturnAddressLifecycleV1 {
-                    stack_pointer: omega_register_model::RegisterViewId(0),
+                    stack_pointer: register_model::RegisterViewId(0),
                     return_address_byte_count: 4,
                 };
         }

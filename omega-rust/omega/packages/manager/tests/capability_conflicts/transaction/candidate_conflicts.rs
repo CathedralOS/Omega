@@ -3,7 +3,7 @@ use super::*;
 
 pub(super) fn derive_and_assert(
     scenario: &ExactCompilerRowScenario,
-) -> omega_package_manager::review::ReviewOnlyCapabilityConflictSet {
+) -> package_manager::review::ReviewOnlyCapabilityConflictSet {
     assert_eq!(
         scenario.baseline_sources.graph().root(),
         scenario.candidate_sources.graph().root()
@@ -26,7 +26,7 @@ pub(super) fn derive_and_assert(
         &scenario.candidate_reviews,
         &scenario
             .candidate_sources
-            .for_exact_target(omega_target::TargetProfile::WindowsX64),
+            .for_exact_target(target::TargetProfile::WindowsX64),
         ReviewOnlyCapabilityConflictLimits::default(),
     )
     .expect("compare exact compiler rows");
@@ -53,7 +53,7 @@ pub(super) fn derive_and_assert(
         &scenario.candidate_reviews,
         &scenario
             .candidate_sources
-            .for_exact_target(omega_target::TargetProfile::WindowsX64),
+            .for_exact_target(target::TargetProfile::WindowsX64),
         ReviewOnlyCapabilityConflictLimits::default(),
     )
     .expect("compare candidate with recovered baseline");

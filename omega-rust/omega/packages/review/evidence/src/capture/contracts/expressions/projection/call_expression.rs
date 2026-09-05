@@ -12,10 +12,10 @@ use super::super::static_arguments::{
 };
 use crate::capture::contracts::facts::ContractProjectionContext;
 use crate::record::{PackageReviewContractCallTarget, PackageReviewContractExpression};
-use omega_compiler::CheckedCompilation;
-use psi_diagnostics::Diagnostic;
-use psi_symbols::SymbolHandle;
-use psi_typed_trees::expression::{ExpressionHandle, TableCallExpression};
+use compiler::CheckedCompilation;
+use diagnostics::Diagnostic;
+use symbols::SymbolHandle;
+use typed_trees::expression::{ExpressionHandle, TableCallExpression};
 
 pub(super) fn project_call_expression(
     compilation: &CheckedCompilation,
@@ -23,12 +23,12 @@ pub(super) fn project_call_expression(
     binders: &[(SymbolHandle, String)],
     expression: ExpressionHandle,
     call: &TableCallExpression,
-    checked_fact: Option<psi_arena::Handle<psi_typed_trees::domain::ProofFact>>,
+    checked_fact: Option<arena::Handle<typed_trees::domain::ProofFact>>,
     child: &impl Fn(ExpressionHandle) -> Result<PackageReviewContractExpression, Vec<Diagnostic>>,
 ) -> Result<PackageReviewContractExpression, Vec<Diagnostic>> {
     let target = exact_checked_contract_call_target(compilation, context, expression, call)?;
     let resolved_symbol = resolved_contract_call_symbol(compilation, call).or_else(|| {
-        psi_typed_trees_to_checked_trees::derive_checked_nominal_call_target(
+        typed_trees_to_checked_trees::derive_checked_nominal_call_target(
             &compilation.typed,
             &compilation.facts,
             expression,

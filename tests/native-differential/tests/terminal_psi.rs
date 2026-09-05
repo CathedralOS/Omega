@@ -1,24 +1,24 @@
-use omega_psi_to_abstract_operations::{ArtifactLoweringError, lower_artifact_sections};
-use psi_core::{
+use proof_admission::{
+    AdmissionProfile, CertificateEnvelope, EvidenceRoute, ProofNode, ProofRule, ProofSystemMarker,
+};
+use semantic_vocabulary::{
     BlockId, ContractId, EdgeId, EvidenceIdentity, IntegerSign, IntegerType, IntegerValue,
     MachineId, ObligationId, OperationId, Proposition, ScalarTerm, ScalarType, ValueId,
 };
-use psi_proof_admission::{
-    AdmissionProfile, CertificateEnvelope, EvidenceRoute, ProofNode, ProofRule, ProofSystemMarker,
-};
-use psi_terminal::{
-    Block, ContractClause, CrashCause, CrashRouteBucket, CrashRouteGuard, MachineContract,
-    Operation, OperationKind, TerminalMachine, TerminalMachineResult, TerminalModule, Terminator,
-    ValueDeclaration, VocabularyMarker,
-};
-use psi_terminal_codec::{encode_module, encode_proof_bundle};
-use psi_terminal_fuel::{FuelChargeSite, FuelExhaustion, TerminalFuelMeter, TerminalFuelSchedule};
-use psi_terminal_interpreter::{
+use terminal_codec::{encode_module, encode_proof_bundle};
+use terminal_fuel::{FuelChargeSite, FuelExhaustion, TerminalFuelMeter, TerminalFuelSchedule};
+use terminal_interpreter::{
     TerminalArtifactInterpretError, TerminalCrash, TerminalExecution, TerminalExecutionResult,
     TerminalExecutionStatus, TerminalInterpretError, TerminalScalarValue,
     interpret_terminal_artifact, interpret_terminal_artifact_measured,
 };
-use psi_terminal_verifier::{ObligationEvidence, ProofBundle};
+use terminal_psi::{
+    Block, ContractClause, CrashCause, CrashRouteBucket, CrashRouteGuard, MachineContract,
+    Operation, OperationKind, TerminalMachine, TerminalMachineResult, TerminalModule, Terminator,
+    ValueDeclaration, VocabularyMarker,
+};
+use terminal_psi_to_abstract_operations::{ArtifactLoweringError, lower_artifact_sections};
+use terminal_verifier::{ObligationEvidence, ProofBundle};
 
 #[test]
 fn verified_integer_control_contract_slice_executes_directly() {
@@ -55,7 +55,7 @@ fn verified_integer_control_contract_slice_executes_directly() {
                 parameters: Vec::new(),
                 operations: vec![Operation {
                     id: OperationId::new(1).expect("operation"),
-                    result: psi_terminal::OperationResult::Scalar(ValueDeclaration {
+                    result: terminal_psi::OperationResult::Scalar(ValueDeclaration {
                         id: constant,
                         scalar_type,
                     }),

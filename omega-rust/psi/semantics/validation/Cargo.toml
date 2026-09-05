@@ -1,0 +1,32 @@
+[package]
+name = "validation"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[lib]
+name = "validation"
+path = "src/lib.rs"
+
+[dependencies]
+access-plans = { path = "../../foundation/access-plans" }
+arena = { path = "../../foundation/arena" }
+checked-trees = { path = "../../representations/checked-trees" }
+semantic-vocabulary = { path = "../../foundation/semantic-vocabulary" }
+diagnostics = { path = "../../foundation/diagnostics" }
+flow-effects = { path = "../../representations/flow-effects" }
+facts = { path = "../../representations/facts" }
+language-core = { path = "../../foundation/language-core" }
+language-semantics = { path = "../../foundation/language-semantics" }
+layout-plans = { path = "../../foundation/layout-plans" }
+numerics = { path = "../../foundation/numerics" }
+source = { path = "../../foundation/source" }
+symbols = { path = "../../foundation/symbols" }
+typed-trees = { path = "../../representations/typed-trees" }
+sha2 = "0.10"
+
+[dev-dependencies]
+source-files-to-tokens = { path = "../../pipeline/source-files-to-tokens" }
+symbol-resolved-trees-to-typed-trees = { path = "../../pipeline/symbol-resolved-trees-to-typed-trees" }
+syntax-trees-to-symbol-resolved-trees = { path = "../../pipeline/syntax-trees-to-symbol-resolved-trees" }
+tokens-to-syntax-trees = { path = "../../pipeline/tokens-to-syntax-trees" }

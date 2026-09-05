@@ -1,13 +1,13 @@
 //! Reify retained resolved arguments without parsing their display paths.
 
-use omega_compiler::CheckedCompilation;
-use psi_diagnostics::Diagnostic;
-use psi_language_semantics::const_value::CanonicalConstValue;
-use psi_symbols::{SymbolHandle, SymbolKind};
-use psi_typed_trees::data::TypeParameterKind;
-use psi_typed_trees::expression::StaticMachineArgument;
-use psi_typed_trees::name::Identifier;
-use psi_typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
+use compiler::CheckedCompilation;
+use diagnostics::Diagnostic;
+use language_semantics::const_value::CanonicalConstValue;
+use symbols::{SymbolHandle, SymbolKind};
+use typed_trees::data::TypeParameterKind;
+use typed_trees::expression::StaticMachineArgument;
+use typed_trees::name::Identifier;
+use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 
 pub(super) fn rejected(reason: &str) -> Vec<Diagnostic> {
     vec![Diagnostic::error(format!(
@@ -90,7 +90,7 @@ pub(super) fn argument_type_reference(
                 .canonical_value_encoding
                 .as_ref()
                 .ok_or_else(|| rejected("a named const without a checked value"))?;
-            psi_validation::validate_exact_const_value_encoding(
+            validation::validate_exact_const_value_encoding(
                 &compilation.typed,
                 declaration.declared_type,
                 encoding,

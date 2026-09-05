@@ -1,5 +1,5 @@
 use crate::declarations::{BuildDeclarationError, BuildDeclarationKind, DependencyProjectionError};
-use omega_build_declarations::{ProjectName, WorkspaceMemberPath};
+use build_declarations::{ProjectName, WorkspaceMemberPath};
 use std::fmt;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

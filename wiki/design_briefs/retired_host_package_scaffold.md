@@ -6,7 +6,7 @@ file and has been removed; the fence it recorded lives here instead.
 Note that `omega::host::*` is not and never was a directory namespace. The
 paths named by `build.omg` `boundary` and `host:` clauses are compiler-owned
 calling-policy identifiers, defined as string literals in
-`omega-calling-conventions`. Removing the directory resolves nothing away.
+`calling-conventions`. Removing the directory resolves nothing away.
 
 The old `capability` / `entry` host scaffold and
 `library "..." calling_convention ... { entry ... }` import block are retired.

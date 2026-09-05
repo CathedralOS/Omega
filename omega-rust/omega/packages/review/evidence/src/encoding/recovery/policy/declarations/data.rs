@@ -22,8 +22,8 @@ pub(in crate::encoding::recovery::policy) fn data_shape(
             _ => return Err(Error::InvalidTag),
         },
         supply: match reader.byte()? {
-            0 => psi_language_semantics::DataSupplyMode::CheckedShape,
-            1 => psi_language_semantics::DataSupplyMode::BoundaryOpaque,
+            0 => language_semantics::DataSupplyMode::CheckedShape,
+            1 => language_semantics::DataSupplyMode::BoundaryOpaque,
             _ => return Err(Error::InvalidTag),
         },
         lifetime_parameter_count: reader.usize()?,
@@ -56,8 +56,8 @@ fn data_field(reader: &mut Reader<'_>) -> Result<PackageReviewDataField, Error> 
         identity: reader.option(|reader| reader.u64())?,
         name: reader.string()?,
         relevance: match reader.byte()? {
-            0 => psi_language_core::BindingRelevance::Relevant,
-            1 => psi_language_core::BindingRelevance::Erased,
+            0 => language_core::BindingRelevance::Relevant,
+            1 => language_core::BindingRelevance::Erased,
             _ => return Err(Error::InvalidTag),
         },
         type_identity: type_identity(reader)?,

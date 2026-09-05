@@ -125,7 +125,7 @@ pub domain Packet::Ready
         .semantic
         .facts
         .get_mut(semantic_fact)
-        .origin = psi_facts::FactOrigin::Unknown;
+        .origin = facts::FactOrigin::Unknown;
     assert_rejects(&wrong_origin, "0 exact checked definition rows");
 
     let mut false_evidence = compile();
@@ -209,8 +209,8 @@ pub domain Packet::Ready
         .semantic
         .place_segments
         .get_mut(segment)
-        .clone_from(&psi_facts::PlaceSegment::Field {
-            symbol: psi_symbols::SymbolHandle::invalid(),
+        .clone_from(&facts::PlaceSegment::Field {
+            symbol: symbols::SymbolHandle::invalid(),
         });
     assert_rejects(&wrong_member, "0 exact checked dependency records");
 }

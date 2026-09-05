@@ -2,10 +2,10 @@
 
 use super::{rejected, types};
 use crate::capture::semantics::signatures::parameters::CallingContractScope;
-use omega_compiler::CheckedCompilation;
-use psi_diagnostics::Diagnostic;
-use psi_symbols::SymbolHandle;
-use psi_typed_trees::{
+use compiler::CheckedCompilation;
+use diagnostics::Diagnostic;
+use symbols::SymbolHandle;
+use typed_trees::{
     data::{MachineParameterContract, TypeParameter, TypeParameterKind},
     name::Identifier,
     signature::StateParameter,

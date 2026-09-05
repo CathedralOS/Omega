@@ -1,4 +1,4 @@
-use omega_selected_instructions_to_register_homes::{
+use selected_instructions_to_register_homes::{
     FixedViewCopyIdentity, PostAllocationOptimizationManifestDecodeError,
 };
 

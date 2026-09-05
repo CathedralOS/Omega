@@ -5,7 +5,7 @@ use crate::review::candidate::PackageReviewEvidence;
 use crate::review::compare::changed_review_risk;
 use crate::review::compare::{ReviewOnlyRootRoleChange, ReviewOnlyRootRoleContract};
 use crate::review::{CompilerIssuedPackageReview, CompilerIssuedPackageReviewSet};
-use omega_package_evidence::record::{
+use package_evidence::record::{
     PackageReviewCanonicalRowKind, PackageReviewCanonicalRowRisk,
     PackageReviewDangerousAuthorityClass,
 };

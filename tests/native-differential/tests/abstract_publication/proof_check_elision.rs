@@ -47,7 +47,7 @@ fn proof_check_elision_projects_live_exact_identity_with_fact_and_fuel_custody()
     assert!(optimized.unit().functions[0].facts.iter().all(|fact| {
         !matches!(
             fact,
-            omega_optimization_unit::OptimizationFact::OperationObligationReference { .. }
+            optimization_unit::OptimizationFact::OperationObligationReference { .. }
         )
     }));
     assert_eq!(
@@ -73,7 +73,7 @@ fn proof_check_elision_projects_and_lowers_live_exact_divide_by_one() {
     assert_eq!(optimized.pass_manifests()[0].ordered_rules().len(), 12);
     assert_eq!(
         optimized.pass_manifests()[0].ordered_rules()[2],
-        omega_optimization_core::OptimizationRuleIdentity::from_canonical_bytes(
+        optimization_core::OptimizationRuleIdentity::from_canonical_bytes(
             b"omega.psi-rule.live-proof-certified-integer-divide-by-one-elimination.v1"
         )
     );
@@ -87,7 +87,7 @@ fn proof_check_elision_projects_and_lowers_live_exact_divide_by_one() {
     assert!(optimized.unit().functions[0].facts.iter().all(|fact| {
         !matches!(
             fact,
-            omega_optimization_unit::OptimizationFact::OperationObligationReference { .. }
+            optimization_unit::OptimizationFact::OperationObligationReference { .. }
         )
     }));
     assert_eq!(
@@ -118,7 +118,7 @@ fn proof_check_elision_projects_and_lowers_live_exact_multiply_by_zero() {
     assert_eq!(optimized.pass_manifests()[0].ordered_rules().len(), 12);
     assert_eq!(
         optimized.pass_manifests()[0].ordered_rules()[3],
-        omega_optimization_core::OptimizationRuleIdentity::from_canonical_bytes(
+        optimization_core::OptimizationRuleIdentity::from_canonical_bytes(
             b"omega.psi-rule.live-proof-certified-exact-integer-multiply-by-zero-elimination.v1"
         )
     );
@@ -132,7 +132,7 @@ fn proof_check_elision_projects_and_lowers_live_exact_multiply_by_zero() {
     assert!(optimized.unit().functions[0].facts.iter().all(|fact| {
         !matches!(
             fact,
-            omega_optimization_unit::OptimizationFact::OperationObligationReference { .. }
+            optimization_unit::OptimizationFact::OperationObligationReference { .. }
         )
     }));
     assert_eq!(
@@ -165,7 +165,7 @@ fn proof_check_elision_projects_and_lowers_live_exact_zero_dividend() {
         assert_eq!(optimized.pass_manifests()[0].ordered_rules().len(), 12);
         assert_eq!(
             optimized.pass_manifests()[0].ordered_rules()[4],
-            omega_optimization_core::OptimizationRuleIdentity::from_canonical_bytes(
+            optimization_core::OptimizationRuleIdentity::from_canonical_bytes(
                 b"omega.psi-rule.live-proof-certified-integer-zero-dividend-elimination.v1"
             )
         );
@@ -179,7 +179,7 @@ fn proof_check_elision_projects_and_lowers_live_exact_zero_dividend() {
         assert!(optimized.unit().functions[0].facts.iter().all(|fact| {
             !matches!(
                 fact,
-                omega_optimization_unit::OptimizationFact::OperationObligationReference { .. }
+                optimization_unit::OptimizationFact::OperationObligationReference { .. }
             )
         }));
         assert_eq!(
@@ -216,7 +216,7 @@ fn proof_check_elision_projects_and_lowers_live_exact_zero_value_shift() {
         assert_eq!(optimized.pass_manifests()[0].ordered_rules().len(), 12);
         assert_eq!(
                 optimized.pass_manifests()[0].ordered_rules()[5],
-                omega_optimization_core::OptimizationRuleIdentity::from_canonical_bytes(
+                optimization_core::OptimizationRuleIdentity::from_canonical_bytes(
                     b"omega.psi-rule.live-proof-certified-exact-integer-zero-value-shift-elimination.v1"
                 )
             );
@@ -230,7 +230,7 @@ fn proof_check_elision_projects_and_lowers_live_exact_zero_value_shift() {
         assert!(optimized.unit().functions[0].facts.iter().all(|fact| {
             !matches!(
                 fact,
-                omega_optimization_unit::OptimizationFact::OperationObligationReference { .. }
+                optimization_unit::OptimizationFact::OperationObligationReference { .. }
             )
         }));
         assert_eq!(
@@ -265,7 +265,7 @@ fn proof_check_elision_projects_and_lowers_live_exact_self_subtract() {
         assert_eq!(optimized.pass_manifests()[0].ordered_rules().len(), 12);
         assert_eq!(
             optimized.pass_manifests()[0].ordered_rules()[6],
-            omega_optimization_core::OptimizationRuleIdentity::from_canonical_bytes(
+            optimization_core::OptimizationRuleIdentity::from_canonical_bytes(
                 b"omega.psi-rule.live-proof-certified-exact-integer-self-subtract-elimination.v1"
             )
         );
@@ -289,13 +289,13 @@ fn proof_check_elision_projects_and_lowers_live_exact_self_subtract() {
         assert!(optimized.unit().functions[0].facts.iter().all(|fact| {
             !matches!(
                 fact,
-                omega_optimization_unit::OptimizationFact::OperationObligationReference { .. }
+                optimization_unit::OptimizationFact::OperationObligationReference { .. }
             )
         }));
         assert!(optimized.unit().functions[0].facts.iter().any(|fact| {
             matches!(
                 fact,
-                omega_optimization_unit::OptimizationFact::IntegerConstant {
+                optimization_unit::OptimizationFact::IntegerConstant {
                     value,
                     constant: IntegerValue::Unsigned(0),
                     support,
@@ -337,7 +337,7 @@ fn proof_check_elision_projects_and_lowers_live_exact_self_remainder() {
         assert_eq!(optimized.pass_manifests()[0].ordered_rules().len(), 12);
         assert_eq!(
             optimized.pass_manifests()[0].ordered_rules()[7],
-            omega_optimization_core::OptimizationRuleIdentity::from_canonical_bytes(
+            optimization_core::OptimizationRuleIdentity::from_canonical_bytes(
                 b"omega.psi-rule.live-proof-certified-integer-self-remainder-elimination.v1"
             )
         );
@@ -361,13 +361,13 @@ fn proof_check_elision_projects_and_lowers_live_exact_self_remainder() {
         assert!(optimized.unit().functions[0].facts.iter().all(|fact| {
             !matches!(
                 fact,
-                omega_optimization_unit::OptimizationFact::OperationObligationReference { .. }
+                optimization_unit::OptimizationFact::OperationObligationReference { .. }
             )
         }));
         assert!(optimized.unit().functions[0].facts.iter().any(|fact| {
             matches!(
                 fact,
-                omega_optimization_unit::OptimizationFact::IntegerConstant {
+                optimization_unit::OptimizationFact::IntegerConstant {
                     value,
                     constant: IntegerValue::Unsigned(0),
                     support,
@@ -407,7 +407,7 @@ fn proof_check_elision_projects_and_lowers_live_exact_self_divide() {
         assert_eq!(optimized.pass_manifests()[0].ordered_rules().len(), 12);
         assert_eq!(
             optimized.pass_manifests()[0].ordered_rules()[8],
-            omega_optimization_core::OptimizationRuleIdentity::from_canonical_bytes(
+            optimization_core::OptimizationRuleIdentity::from_canonical_bytes(
                 b"omega.psi-rule.live-proof-certified-integer-self-divide-elimination.v1"
             )
         );
@@ -431,13 +431,13 @@ fn proof_check_elision_projects_and_lowers_live_exact_self_divide() {
         assert!(optimized.unit().functions[0].facts.iter().all(|fact| {
             !matches!(
                 fact,
-                omega_optimization_unit::OptimizationFact::OperationObligationReference { .. }
+                optimization_unit::OptimizationFact::OperationObligationReference { .. }
             )
         }));
         assert!(optimized.unit().functions[0].facts.iter().any(|fact| {
             matches!(
                 fact,
-                omega_optimization_unit::OptimizationFact::IntegerConstant {
+                optimization_unit::OptimizationFact::IntegerConstant {
                     value,
                     constant: IntegerValue::Unsigned(1),
                     support,
@@ -479,7 +479,7 @@ fn proof_check_elision_projects_and_lowers_live_exact_remainder_by_one() {
         assert_eq!(optimized.pass_manifests()[0].ordered_rules().len(), 12);
         assert_eq!(
             optimized.pass_manifests()[0].ordered_rules()[9],
-            omega_optimization_core::OptimizationRuleIdentity::from_canonical_bytes(
+            optimization_core::OptimizationRuleIdentity::from_canonical_bytes(
                 b"omega.psi-rule.live-proof-certified-integer-remainder-by-one-elimination.v1"
             )
         );
@@ -513,13 +513,13 @@ fn proof_check_elision_projects_and_lowers_live_exact_remainder_by_one() {
         assert!(optimized.unit().functions[0].facts.iter().all(|fact| {
             !matches!(
                 fact,
-                omega_optimization_unit::OptimizationFact::OperationObligationReference { .. }
+                optimization_unit::OptimizationFact::OperationObligationReference { .. }
             )
         }));
         assert!(optimized.unit().functions[0].facts.iter().any(|fact| {
             matches!(
                 fact,
-                omega_optimization_unit::OptimizationFact::IntegerConstant {
+                optimization_unit::OptimizationFact::IntegerConstant {
                     value,
                     constant: IntegerValue::Unsigned(0),
                     support,
@@ -561,7 +561,7 @@ fn proof_check_elision_projects_signed_remainder_by_negative_one_to_both_targets
         assert_eq!(optimized.pass_manifests()[0].ordered_rules().len(), 12);
         assert_eq!(
                 optimized.pass_manifests()[0].ordered_rules()[10],
-                omega_optimization_core::OptimizationRuleIdentity::from_canonical_bytes(
+                optimization_core::OptimizationRuleIdentity::from_canonical_bytes(
                     b"omega.psi-rule.live-proof-certified-signed-integer-remainder-by-negative-one-elimination.v1"
                 )
             );
@@ -605,13 +605,13 @@ fn proof_check_elision_projects_signed_remainder_by_negative_one_to_both_targets
         assert!(optimized.unit().functions[0].facts.iter().all(|fact| {
             !matches!(
                 fact,
-                omega_optimization_unit::OptimizationFact::OperationObligationReference { .. }
+                optimization_unit::OptimizationFact::OperationObligationReference { .. }
             )
         }));
         assert!(optimized.unit().functions[0].facts.iter().any(|fact| {
             matches!(
                 fact,
-                omega_optimization_unit::OptimizationFact::IntegerConstant {
+                optimization_unit::OptimizationFact::IntegerConstant {
                     value,
                     constant: IntegerValue::Signed(0),
                     support,
@@ -653,7 +653,7 @@ fn proof_check_elision_projects_exact_signed_negative_one_shift_right_to_both_ta
         assert_eq!(optimized.pass_manifests()[0].ordered_rules().len(), 12);
         assert_eq!(
                 optimized.pass_manifests()[0].ordered_rules()[11],
-                omega_optimization_core::OptimizationRuleIdentity::from_canonical_bytes(
+                optimization_core::OptimizationRuleIdentity::from_canonical_bytes(
                     b"omega.psi-rule.live-proof-certified-exact-signed-integer-negative-one-value-shift-right-elimination.v1"
                 )
             );
@@ -677,7 +677,7 @@ fn proof_check_elision_projects_exact_signed_negative_one_shift_right_to_both_ta
         assert!(optimized.unit().functions[0].facts.iter().all(|fact| {
             !matches!(
                 fact,
-                omega_optimization_unit::OptimizationFact::OperationObligationReference { .. }
+                optimization_unit::OptimizationFact::OperationObligationReference { .. }
             )
         }));
         assert_eq!(

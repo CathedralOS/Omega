@@ -1,12 +1,12 @@
 [package]
-name = "omega-resolver-execution"
+name = "resolver-execution"
 edition.workspace = true
 license.workspace = true
 version.workspace = true
 
 [lib]
-name = "omega_resolver_execution"
+name = "resolver_execution"
 path = "src/lib.rs"
 
 [dependencies]
-omega-bounded-process = { path = "../../../tooling/omega-bounded-process" }
+bounded-process = { path = "../../../tooling/bounded-process" }

@@ -230,11 +230,11 @@ fn checked_source_integer_graph_computes_boolean_jump_bindings() {
     assert!(matches!(
         &machine.blocks[0].operations[..],
         [
-            psi_terminal::Operation {
+            terminal_psi::Operation {
                 kind: OperationKind::BooleanEqual { .. },
                 ..
             },
-            psi_terminal::Operation {
+            terminal_psi::Operation {
                 kind: OperationKind::BooleanNot { .. },
                 ..
             },
@@ -663,11 +663,11 @@ fn checked_source_conditional_edge_expressions_execute_only_on_the_selected_arm(
     assert!(matches!(
         &machine.blocks[2].operations[..],
         [
-            psi_terminal::Operation {
+            terminal_psi::Operation {
                 kind: OperationKind::IntegerConstant { .. },
                 ..
             },
-            psi_terminal::Operation {
+            terminal_psi::Operation {
                 kind: OperationKind::WrappingIntegerAdd { .. },
                 ..
             },
@@ -676,11 +676,11 @@ fn checked_source_conditional_edge_expressions_execute_only_on_the_selected_arm(
     assert!(matches!(
         &machine.blocks[3].operations[..],
         [
-            psi_terminal::Operation {
+            terminal_psi::Operation {
                 kind: OperationKind::IntegerConstant { .. },
                 ..
             },
-            psi_terminal::Operation {
+            terminal_psi::Operation {
                 kind: OperationKind::WrappingIntegerMultiply { .. },
                 ..
             },
@@ -756,11 +756,11 @@ fn checked_source_short_circuit_guard_keeps_computed_bindings_arm_local() {
     assert!(matches!(
         &machine.blocks[3].operations[..],
         [
-            psi_terminal::Operation {
+            terminal_psi::Operation {
                 kind: OperationKind::IntegerConstant { .. },
                 ..
             },
-            psi_terminal::Operation {
+            terminal_psi::Operation {
                 kind: OperationKind::WrappingIntegerAdd { .. },
                 ..
             },
@@ -769,11 +769,11 @@ fn checked_source_short_circuit_guard_keeps_computed_bindings_arm_local() {
     assert!(matches!(
         &machine.blocks[4].operations[..],
         [
-            psi_terminal::Operation {
+            terminal_psi::Operation {
                 kind: OperationKind::IntegerConstant { .. },
                 ..
             },
-            psi_terminal::Operation {
+            terminal_psi::Operation {
                 kind: OperationKind::WrappingIntegerMultiply { .. },
                 ..
             },

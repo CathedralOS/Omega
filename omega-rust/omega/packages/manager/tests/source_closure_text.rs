@@ -1,21 +1,21 @@
 //! The source-graph text record is not an accepted lock or package certificate.
 
-use omega_package_manager::declarations::BuildDeclarationKind;
-use omega_package_manager::resolution::graph::{
+use package_manager::declarations::BuildDeclarationKind;
+use package_manager::resolution::graph::{
     CanonicalRootSourceRequest, CanonicalSourceClosureSubject, CanonicalSourceClosureSubjectLimits,
     PackageSourceClosureLimits, ResolvedPackageSourceClosure,
     resolve_external_local_project_closure_with_storage,
     resolve_workspace_package_closure_with_storage,
 };
-use omega_package_source::{
+use package_source::{
     ExternalSourceContext, LocalSourceLimits, SourceLineage, SourceRelativePath,
     SourceResolverStorage,
 };
-use omega_target::TargetProfile;
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::{SystemTime, UNIX_EPOCH};
+use target::TargetProfile;
 
 #[path = "source_closure_text/package_lock.rs"]
 mod package_lock;

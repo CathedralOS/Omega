@@ -1,8 +1,8 @@
 use super::construction::ordinary_package_obligation_ledger_from_compiler_rows;
 use super::model::OrdinaryPackageObligationLedger;
 use crate::project_checked_package_review;
-use omega_compiler::CheckedCompilation;
-use psi_diagnostics::Diagnostic;
+use compiler::CheckedCompilation;
+use diagnostics::Diagnostic;
 
 /// Reconstruct the complete current ordinary package-review question directly
 /// from compiler-owned checked semantics.

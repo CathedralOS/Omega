@@ -1,5 +1,5 @@
 use super::output;
-use omega_compiler::{
+use compiler::{
     ArtifactEmissionPolicy, CompileOptions, CompileRequest, RequestedCompileProduct, compile,
 };
 use std::path::{Path, PathBuf};
@@ -21,7 +21,7 @@ pub(super) fn refresh(samples_root: &Path) -> ! {
         .map(|count| count.get())
         .unwrap_or(4)
         .min(total.max(1));
-    let target_name = omega_target::TargetProfile::host().target_name().to_owned();
+    let target_name = target::TargetProfile::host().target_name().to_owned();
 
     let queue = std::sync::Mutex::new(mains);
     let failures = std::sync::Mutex::new(Vec::<String>::new());
@@ -37,25 +37,24 @@ pub(super) fn refresh(samples_root: &Path) -> ! {
                         .parent()
                         .expect("main.omg has a sample directory")
                         .join("build");
-                    let prepared = match omega_package_manager::operations::prepare_local_project(
-                        &main_path,
-                    ) {
-                        Ok(Some(prepared)) => prepared,
-                        Ok(None) => {
-                            failures.lock().unwrap().push(format!(
-                                "{}: sample project has no sibling build.omg",
-                                main_path.display()
-                            ));
-                            continue;
-                        }
-                        Err(error) => {
-                            failures
-                                .lock()
-                                .unwrap()
-                                .push(format!("{}: {error}", main_path.display()));
-                            continue;
-                        }
-                    };
+                    let prepared =
+                        match package_manager::operations::prepare_local_project(&main_path) {
+                            Ok(Some(prepared)) => prepared,
+                            Ok(None) => {
+                                failures.lock().unwrap().push(format!(
+                                    "{}: sample project has no sibling build.omg",
+                                    main_path.display()
+                                ));
+                                continue;
+                            }
+                            Err(error) => {
+                                failures
+                                    .lock()
+                                    .unwrap()
+                                    .push(format!("{}: {error}", main_path.display()));
+                                continue;
+                            }
+                        };
                     let (prepared_entry, package_inputs) = prepared.into_parts();
                     let options = CompileOptions {
                         root_path: prepared_entry,

@@ -66,7 +66,7 @@ fn psi_terminal_producer_rejects_source_outside_its_declared_slice() {
         .find(|plan| plan.machine == terminal_abort)
         .expect("terminal abort contract plan")
         .crash;
-    *crash = psi_checked_trees::CrashPlan::published_ceiling(crash.published().to_vec());
+    *crash = checked_trees::CrashPlan::published_ceiling(crash.published().to_vec());
     assert_eq!(
         lower_machine(&missing_site, "terminal_abort")
             .expect_err("terminal production must consume checked crash-site evidence"),
@@ -86,13 +86,13 @@ fn psi_terminal_producer_rejects_source_outside_its_declared_slice() {
         .checked_sites()
         .first()
         .expect("terminal abort checked site");
-    let uncovered_site = psi_checked_trees::CheckedCrashSite::new(
+    let uncovered_site = checked_trees::CheckedCrashSite::new(
         site.location(),
         site.cause(),
         Vec::new(),
         site.frontier_lower_bound().to_vec(),
     );
-    *crash = psi_checked_trees::CrashPlan::published_ceiling(crash.published().to_vec())
+    *crash = checked_trees::CrashPlan::published_ceiling(crash.published().to_vec())
         .with_checked_sites(vec![uncovered_site])
         .expect("uncovered site still has a valid checked location");
     assert_eq!(
@@ -116,13 +116,13 @@ fn psi_terminal_producer_rejects_source_outside_its_declared_slice() {
         .checked_sites()
         .first()
         .expect("terminal abort checked site");
-    let claim = psi_language_semantics::PermissionClaimIdentity::Established {
+    let claim = language_semantics::PermissionClaimIdentity::Established {
         machine_symbol: terminal_abort,
         state_symbol: site.location().state(),
-        source: psi_language_semantics::PermissionEventSource::StateEntry,
+        source: language_semantics::PermissionEventSource::StateEntry,
         ordinal: 0,
     };
-    let site_with_frontier = psi_checked_trees::CheckedCrashSite::new(
+    let site_with_frontier = checked_trees::CheckedCrashSite::new(
         site.location(),
         site.cause(),
         site.guard_covering_buckets().to_vec(),
@@ -239,12 +239,8 @@ fn boolean_result_graph_retains_guarded_crash_exit() {
         ));
         let emitted = emit_machine_code(&assigned).expect("guarded Boolean crash should emit");
         let branch_to_false_over_fault = match target.architecture {
-            omega_target::Architecture::X86_64 => {
-                &[0x0f, 0x84, 0x02, 0x00, 0x00, 0x00, 0x0f, 0x0b][..]
-            }
-            omega_target::Architecture::Aarch64 => {
-                &[0x40, 0x00, 0x00, 0x34, 0x00, 0x00, 0x20, 0xd4][..]
-            }
+            target::Architecture::X86_64 => &[0x0f, 0x84, 0x02, 0x00, 0x00, 0x00, 0x0f, 0x0b][..],
+            target::Architecture::Aarch64 => &[0x40, 0x00, 0x00, 0x34, 0x00, 0x00, 0x20, 0xd4][..],
         };
         assert!(
             emitted.functions[0]
@@ -328,8 +324,8 @@ fn native_lowering_preserves_every_reachable_crash_leaf() {
             assert!(emitted_function.provenance.edges.contains(edge));
         }
         let fault = match target.architecture {
-            omega_target::Architecture::X86_64 => &[0x0f, 0x0b][..],
-            omega_target::Architecture::Aarch64 => &[0x00, 0x00, 0x20, 0xd4][..],
+            target::Architecture::X86_64 => &[0x0f, 0x0b][..],
+            target::Architecture::Aarch64 => &[0x00, 0x00, 0x20, 0xd4][..],
         };
         assert_eq!(
             emitted_function
@@ -462,8 +458,8 @@ fn explicit_source_crash_lowers_to_verified_nonreturning_terminal() {
         ));
         let emitted = emit_machine_code(&assigned).expect("guarded integer crash should emit");
         let fault = match target.architecture {
-            omega_target::Architecture::X86_64 => &[0x0f, 0x0b][..],
-            omega_target::Architecture::Aarch64 => &[0x00, 0x00, 0x20, 0xd4][..],
+            target::Architecture::X86_64 => &[0x0f, 0x0b][..],
+            target::Architecture::Aarch64 => &[0x00, 0x00, 0x20, 0xd4][..],
         };
         assert!(
             emitted.functions[0]
@@ -477,16 +473,16 @@ fn explicit_source_crash_lowers_to_verified_nonreturning_terminal() {
     assert!(matches!(
         &integer_guarded_trap.semantic_module.machines[0].blocks[0].operations[..],
         [
-            psi_terminal::Operation {
-                kind: psi_terminal::OperationKind::IntegerConstant { .. },
+            terminal_psi::Operation {
+                kind: terminal_psi::OperationKind::IntegerConstant { .. },
                 ..
             },
-            psi_terminal::Operation {
-                kind: psi_terminal::OperationKind::WrappingIntegerAdd { .. },
+            terminal_psi::Operation {
+                kind: terminal_psi::OperationKind::WrappingIntegerAdd { .. },
                 ..
             },
-            psi_terminal::Operation {
-                kind: psi_terminal::OperationKind::IntegerLessOrEqual { left, right },
+            terminal_psi::Operation {
+                kind: terminal_psi::OperationKind::IntegerLessOrEqual { left, right },
                 ..
             },
         ] if left.get() == 2 && right.get() == 4
@@ -742,7 +738,7 @@ fn interpreted_terminal_source_matches_emitted_host_machine_code() {
         .expect("source-produced terminal Psi should have a semantic identity");
     let canonical_proof_bytes = encode_proof_bundle(&lowered.proof_bundle)
         .expect("source-produced proof bundle should encode canonically");
-    let optimization = psi_terminal_codec::build_identity_optimization_execution_record(
+    let optimization = terminal_codec::build_identity_optimization_execution_record(
         &lowered.semantic_module,
         &lowered.proof_bundle,
     )
@@ -840,14 +836,10 @@ fn interpreted_terminal_source_matches_emitted_host_machine_code() {
         object_artifact.target().architecture,
         object_artifact.target().object_format,
     ) {
-        (omega_target::Architecture::X86_64, omega_target::ObjectFormat::Elf) => {
-            NativeTarget::windows_x64()
-        }
-        (omega_target::Architecture::X86_64, _) => NativeTarget::linux_x64(),
-        (omega_target::Architecture::Aarch64, omega_target::ObjectFormat::MachO) => {
-            NativeTarget::linux_arm64()
-        }
-        (omega_target::Architecture::Aarch64, _) => NativeTarget::macos_arm64(),
+        (target::Architecture::X86_64, target::ObjectFormat::Elf) => NativeTarget::windows_x64(),
+        (target::Architecture::X86_64, _) => NativeTarget::linux_x64(),
+        (target::Architecture::Aarch64, target::ObjectFormat::MachO) => NativeTarget::linux_arm64(),
+        (target::Architecture::Aarch64, _) => NativeTarget::macos_arm64(),
     };
     let alternate_target_operations =
         lower_to_target_operations(&abstract_operations, alternate_same_architecture_target)
@@ -1109,8 +1101,8 @@ fn interpreted_terminal_source_matches_emitted_host_machine_code() {
     let boundary = evaluate_ordinary_boundary_entry_plan(
         CallingPolicy::native_for_target(object_artifact.target()),
         &CallSignature {
-            parameters: vec![omega_calling_conventions::ValueShape::integer(1, 1)],
-            result: Some(omega_calling_conventions::ValueShape::integer(1, 1)),
+            parameters: vec![calling_conventions::ValueShape::integer(1, 1)],
+            result: Some(calling_conventions::ValueShape::integer(1, 1)),
         },
     )
     .expect("host external-root boundary");
@@ -1148,7 +1140,7 @@ fn interpreted_terminal_source_matches_emitted_host_machine_code() {
         .expect("root stack input");
     assert!(matches!(
         stack_input.body_evidence(),
-        omega_external_roots::StackLocalEvidence::TerminalEntry(binding)
+        external_roots::StackLocalEvidence::TerminalEntry(binding)
             if binding.entry() == entry_stub
                 && binding.installed_code() == installed_code.identity()
     ));
@@ -1178,22 +1170,20 @@ fn interpreted_terminal_source_matches_emitted_host_machine_code() {
         entry: entry_stub,
         provider: root_provider,
         provider_plan: ProviderPlanId::from_normalized_identity(
-            omega_effects::provider_plan::ProviderPlan::default().report_fingerprint(),
+            effects::provider_plan::ProviderPlan::default().report_fingerprint(),
         )
         .unwrap(),
-        provider_plan_digest: omega_effects::provider_plan::ProviderPlan::default()
-            .identity_digest(),
+        provider_plan_digest: effects::provider_plan::ProviderPlan::default().identity_digest(),
         requirement_identity: "TerminalRoot::entry".into(),
         entry_claims: Vec::new(),
         acknowledgement_parameter_index: None,
         interrupt_mask_guard_claim: None,
-        service_reach:
-            omega_external_roots::ResolvedRootServiceReach::from_selected_provider_closure(
-                Vec::new(),
-                Vec::new(),
-                &omega_effects::SelectedProviderPlanFacts::default(),
-            )
-            .expect("empty root service reach"),
+        service_reach: external_roots::ResolvedRootServiceReach::from_selected_provider_closure(
+            Vec::new(),
+            Vec::new(),
+            &effects::SelectedProviderPlanFacts::default(),
+        )
+        .expect("empty root service reach"),
         effects: BTreeSet::new(),
         trust_receipts: BTreeSet::from([trust_receipt]),
         nesting_relation: relation_identity,
@@ -1265,7 +1255,7 @@ fn interpreted_terminal_source_matches_emitted_host_machine_code() {
             .input(root_identity)
             .expect("reported root stack input")
             .body_evidence(),
-        omega_external_roots::StackLocalEvidence::TerminalEntry(binding)
+        external_roots::StackLocalEvidence::TerminalEntry(binding)
             if binding.artifact() == installed_code.artifact()
     ));
     let root_report = external_root_manifest_json(&ledger);

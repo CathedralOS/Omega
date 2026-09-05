@@ -5,7 +5,7 @@ use crate::request::{
     require_regular_file,
 };
 use crate::{ResolverExecutionPhase, ResolverPreparedExecution};
-use omega_bounded_process::BoundedProcessLimits;
+use bounded_process::BoundedProcessLimits;
 use std::io;
 use std::path::{Path, PathBuf};
 use std::process::Command;

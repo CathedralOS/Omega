@@ -2,14 +2,14 @@
 
 use super::*;
 
-use omega_abstract_operations_optimizer::{
+use abstract_operations_to_abstract_operations::{
     CountdownInvariantConstantAnalysisError, CountdownInvariantConstantPlacementAnalysisError,
 };
-use omega_optimization_unit::{
+use optimization_unit::{
     EffectLink, FuelSettlement, PsiOptimizationUnit, PsiProvenance, ValueDefinitionSite,
     recompute_psi_optimization_unit_identity,
 };
-use omega_optimization_validation::{
+use optimization_validation::{
     OptimizerUnsignedCountdownRankingCertificate, validate_transformed_psi_cycle_components,
 };
 
@@ -24,7 +24,7 @@ pub(super) struct RelocatedCountdown {
     pub(super) input: VerifiedPsiOptimizationInput,
     pub(super) unit: PsiOptimizationUnit,
     pub(super) certificate: OptimizerUnsignedCountdownRankingCertificate,
-    pub(super) preheader: psi_core::BlockId,
+    pub(super) preheader: semantic_vocabulary::BlockId,
 }
 
 #[test]
@@ -196,7 +196,7 @@ fn relocated_constant_shape_corruption_fails_ranking_before_freeze() {
     let AbstractOperation::IntegerConstant { value, .. } = &mut zero.operation else {
         panic!("guard zero remains an integer constant")
     };
-    *value = psi_core::IntegerValue::Unsigned(1);
+    *value = semantic_vocabulary::IntegerValue::Unsigned(1);
     moved.unit.identity = recompute_psi_optimization_unit_identity(&moved.unit);
     assert_ranking_mismatch(&moved);
 }
@@ -296,8 +296,8 @@ pub(super) fn relocated_countdown(relocation: Relocation) -> RelocatedCountdown 
 
 fn take_operation(
     unit: &mut PsiOptimizationUnit,
-    operation: psi_core::OperationId,
-) -> omega_optimization_unit::OptimizationNode {
+    operation: semantic_vocabulary::OperationId,
+) -> optimization_unit::OptimizationNode {
     for function in &mut unit.functions {
         for block in &mut function.blocks {
             if let Some(index) = block.nodes.iter().position(|node| {
@@ -312,8 +312,8 @@ fn take_operation(
 
 fn find_operation_mut(
     unit: &mut PsiOptimizationUnit,
-    operation: psi_core::OperationId,
-) -> &mut omega_optimization_unit::OptimizationNode {
+    operation: semantic_vocabulary::OperationId,
+) -> &mut optimization_unit::OptimizationNode {
     unit.functions
         .iter_mut()
         .flat_map(|function| &mut function.blocks)
@@ -324,8 +324,8 @@ fn find_operation_mut(
 
 fn block_mut(
     unit: &mut PsiOptimizationUnit,
-    block: psi_core::BlockId,
-) -> &mut omega_optimization_unit::OptimizationBlock {
+    block: semantic_vocabulary::BlockId,
+) -> &mut optimization_unit::OptimizationBlock {
     unit.functions
         .iter_mut()
         .flat_map(|function| &mut function.blocks)
@@ -335,8 +335,8 @@ fn block_mut(
 
 fn block(
     unit: &PsiOptimizationUnit,
-    block: psi_core::BlockId,
-) -> &omega_optimization_unit::OptimizationBlock {
+    block: semantic_vocabulary::BlockId,
+) -> &optimization_unit::OptimizationBlock {
     unit.functions
         .iter()
         .flat_map(|function| &function.blocks)
@@ -379,14 +379,12 @@ fn refresh_coordinates_and_effects(unit: &mut PsiOptimizationUnit) {
             .collect::<std::collections::BTreeMap<_, _>>();
         function.facts.sort_by_key(|fact| {
             let support = match fact {
-                omega_optimization_unit::OptimizationFact::OperationObligationReference {
+                optimization_unit::OptimizationFact::OperationObligationReference {
                     support,
                     ..
                 }
-                | omega_optimization_unit::OptimizationFact::BooleanConstant { support, .. }
-                | omega_optimization_unit::OptimizationFact::IntegerConstant { support, .. } => {
-                    support
-                }
+                | optimization_unit::OptimizationFact::BooleanConstant { support, .. }
+                | optimization_unit::OptimizationFact::IntegerConstant { support, .. } => support,
             };
             operation_order.get(support).copied()
         });
@@ -405,7 +403,7 @@ fn assert_ranking_mismatch(moved: &RelocatedCountdown) {
     );
 }
 
-fn assert_frozen_at_original_role(moved: &RelocatedCountdown, block: psi_core::BlockId) {
+fn assert_frozen_at_original_role(moved: &RelocatedCountdown, block: semantic_vocabulary::BlockId) {
     assert_eq!(
         validate_transformed_psi_optimization_unit(&moved.input, &moved.unit),
         Err(

@@ -45,11 +45,11 @@ pub(crate) fn encode_capability_flow(
 ) -> Result<(), PackageReviewEncodingError> {
     encode_nominal(encoder, &flow.capability)?;
     encoder.byte(match flow.kind {
-        psi_effects::CapabilityFlowKind::Uses => 0,
-        psi_effects::CapabilityFlowKind::Returns => 1,
-        psi_effects::CapabilityFlowKind::Acquires => 2,
-        psi_effects::CapabilityFlowKind::Stores => 3,
-        psi_effects::CapabilityFlowKind::Derives => 4,
+        flow_effects::CapabilityFlowKind::Uses => 0,
+        flow_effects::CapabilityFlowKind::Returns => 1,
+        flow_effects::CapabilityFlowKind::Acquires => 2,
+        flow_effects::CapabilityFlowKind::Stores => 3,
+        flow_effects::CapabilityFlowKind::Derives => 4,
     });
     encode_nominal(encoder, &flow.state)?;
     encoder.usize(flow.statement_index)?;

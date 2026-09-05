@@ -5,10 +5,10 @@ use crate::capture::semantics::facts::exactly_one;
 use crate::record::{
     PackagePolicyCrashGuard, PackageReviewCrashRoute, PackageReviewCrashRouteGuard,
 };
-use omega_compiler::CheckedCompilation;
-use psi_diagnostics::Diagnostic;
-use psi_symbols::SymbolHandle;
-use psi_typed_trees::signature::StateSignature;
+use compiler::CheckedCompilation;
+use diagnostics::Diagnostic;
+use symbols::SymbolHandle;
+use typed_trees::signature::StateSignature;
 
 pub(crate) fn project(
     compilation: &CheckedCompilation,
@@ -29,7 +29,7 @@ pub(crate) fn project(
         context.subject_name,
         "static signature crash capsule",
     )?;
-    let derived = psi_typed_trees_to_checked_trees::derive_authored_signature_crash_buckets(
+    let derived = typed_trees_to_checked_trees::derive_authored_signature_crash_buckets(
         &compilation.typed,
         signature,
     );

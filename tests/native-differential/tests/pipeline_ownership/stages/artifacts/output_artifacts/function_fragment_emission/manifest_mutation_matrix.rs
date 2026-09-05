@@ -2,13 +2,13 @@
 
 use crate::FunctionFragmentReplayInputs;
 use crate::tests::*;
-use omega_optimization_core::{
+use optimization_core::{
     FunctionFragmentEmissionIdentity, FunctionRelativeOptimizationRealizationManifestIdentity,
     OptimizationSelectionIdentity, PostAllocationOptimizationManifestIdentity,
 };
-use omega_target::{Architecture, ObjectFormat};
-use psi_core::FuelScheduleIdentity;
-use psi_terminal::SemanticFingerprint;
+use semantic_vocabulary::FuelScheduleIdentity;
+use target::{Architecture, ObjectFormat};
+use terminal_psi::SemanticFingerprint;
 
 type ManifestMutation = fn(&mut FunctionFragmentEmissionManifest);
 
@@ -53,10 +53,10 @@ fn fragment_publication_data_outlives_its_producer_without_a_history_snapshot() 
     assert_eq!(fragments.identity, manifest.fragments);
     assert_eq!(fragments.recomputed_identity(), manifest.fragments);
     assert_eq!(
-        omega_machine_emission::function_fragment_emission_statistics(&fragments),
+        machine_emission::function_fragment_emission_statistics(&fragments),
         Ok(manifest.statistics),
     );
-    let decoded = omega_machine_code::FunctionFragmentEmissionManifest::decode(&encoded).unwrap();
+    let decoded = machine_code::FunctionFragmentEmissionManifest::decode(&encoded).unwrap();
     assert_eq!(decoded, *manifest);
     assert_eq!(decoded.encode(), encoded);
 
@@ -65,8 +65,8 @@ fn fragment_publication_data_outlives_its_producer_without_a_history_snapshot() 
     excessive.functions[0].byte_count = u64::MAX;
     excessive.functions.push(excessive.functions[0].clone());
     assert_eq!(
-        omega_machine_emission::function_fragment_emission_statistics(&excessive),
-        Err(omega_machine_emission::FunctionFragmentStatisticsOverflow),
+        machine_emission::function_fragment_emission_statistics(&excessive),
+        Err(machine_emission::FunctionFragmentStatisticsOverflow),
     );
     assert_eq!(manifest.encode(), encoded);
 }
@@ -100,7 +100,7 @@ fn every_representable_fragment_manifest_field_rejects_after_reauthentication() 
         }),
         ("selected", |record| {
             record.selected =
-                omega_selected_instructions::SelectedInstructionPlanIdentity::from_bytes([0x73; 32])
+                selected_instructions::SelectedInstructionPlanIdentity::from_bytes([0x73; 32])
         }),
         ("post_allocation_manifest", |record| {
             record.post_allocation_manifest =
@@ -110,7 +110,7 @@ fn every_representable_fragment_manifest_field_rejects_after_reauthentication() 
         }),
         ("post_allocation_machine", |record| {
             record.post_allocation_machine =
-                omega_physical_instructions::PostAllocationMachineIdentity::from_bytes([0x74; 32])
+                physical_instructions::PostAllocationMachineIdentity::from_bytes([0x74; 32])
         }),
         ("final_pre_layout", |record| {
             record.final_pre_layout = SelectedFormEncodingIdentity::from_bytes([0x75; 32])
@@ -183,7 +183,7 @@ fn every_representable_fragment_manifest_field_rejects_after_reauthentication() 
         record.identity = record.recomputed_identity();
         // A canonical, self-consistent record is data, not an admitted manifest.
         assert_eq!(
-            omega_machine_code::FunctionFragmentEmissionManifest::decode(&record.encode()),
+            machine_code::FunctionFragmentEmissionManifest::decode(&record.encode()),
             Ok(record.clone()),
             "{field} changes remain representable without granting authority",
         );
@@ -196,7 +196,7 @@ fn every_representable_fragment_manifest_field_rejects_after_reauthentication() 
 
     *staged.manifest_record_mut() = baseline;
     staged.manifest_record_mut().identity =
-        omega_optimization_core::FunctionFragmentEmissionManifestIdentity::from_bytes([0x78; 32]);
+        optimization_core::FunctionFragmentEmissionManifestIdentity::from_bytes([0x78; 32]);
     assert_eq!(
         validate_optimized_function_fragment_emission(&staged),
         Err(FunctionFragmentEmissionError::ManifestMismatch),

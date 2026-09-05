@@ -9,7 +9,7 @@ use crate::resolution::source::{
     GitPackageSourceRequest, PackageSourceCustody, PackageSourceNavigation,
     resolve_external_local_package_source_in_lane, resolve_workspace_member_package_source_in_lane,
 };
-use omega_package_source::SourceLineage;
+use package_source::SourceLineage;
 use std::path::Path;
 
 impl Resolver<'_> {

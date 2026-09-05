@@ -1,8 +1,8 @@
 //! Target-neutral logical second-spill actions after epoch-one victim choice.
 
 use crate::tests::*;
-use omega_optimization_core::OptimizationWorkUsage;
-use omega_selected_instructions::{SelectedInstructionId, VirtualRegisterId};
+use optimization_core::OptimizationWorkUsage;
+use selected_instructions::{SelectedInstructionId, VirtualRegisterId};
 
 use super::{
     reload_value_homes::ReloadSources,
@@ -14,37 +14,37 @@ pub(super) fn plan(
     sources: &ReloadSources,
     budget: OptimizationWorkBudget,
 ) -> Result<
-    omega_selected_instructions_to_register_homes::ValidatedSpillRecoveryActions,
-    omega_selected_instructions_to_register_homes::SpillRecoveryActionError,
+    selected_instructions_to_register_homes::ValidatedSpillRecoveryActions,
+    selected_instructions_to_register_homes::SpillRecoveryActionError,
 > {
     let ranges = sources.legality().live_range_stage();
     let selected = ranges.liveness_stage().selected_stage();
     let worklist = seed(sources, selected_lowering_budget()).unwrap();
     let choices = choose(sources, selected_lowering_budget()).unwrap();
-    omega_selected_instructions_to_register_homes::plan_spill_recovery_actions(
+    selected_instructions_to_register_homes::plan_spill_recovery_actions(
         selected.selected(),
         ranges.ranges(),
         sources.legality().legality(),
         sources.insertion(),
         &worklist,
         &choices,
-        omega_selected_instructions_to_register_homes::SpillRecoveryActionPolicy::EpochOneActiveResidentInstructionResultU64LaterFlexibleUsesV1,
+        selected_instructions_to_register_homes::SpillRecoveryActionPolicy::EpochOneActiveResidentInstructionResultU64LaterFlexibleUsesV1,
         budget,
     )
 }
 
 fn validate(
     sources: &ReloadSources,
-    candidate: omega_selected_instructions_to_register_homes::SpillRecoveryActionPlan,
+    candidate: selected_instructions_to_register_homes::SpillRecoveryActionPlan,
 ) -> Result<
-    omega_selected_instructions_to_register_homes::ValidatedSpillRecoveryActions,
-    omega_selected_instructions_to_register_homes::SpillRecoveryActionError,
+    selected_instructions_to_register_homes::ValidatedSpillRecoveryActions,
+    selected_instructions_to_register_homes::SpillRecoveryActionError,
 > {
     let ranges = sources.legality().live_range_stage();
     let selected = ranges.liveness_stage().selected_stage();
     let worklist = seed(sources, selected_lowering_budget()).unwrap();
     let choices = choose(sources, selected_lowering_budget()).unwrap();
-    omega_selected_instructions_to_register_homes::validate_spill_recovery_actions(
+    selected_instructions_to_register_homes::validate_spill_recovery_actions(
         selected.selected(),
         ranges.ranges(),
         sources.legality().legality(),
@@ -119,25 +119,25 @@ fn independent_replay_rejects_root_action_namespace_and_usage_corruption() {
 
         let mut root = canonical.clone();
         root.choices =
-            omega_selected_instructions_to_register_homes::SpillRecoveryChoiceIdentity::from_bytes(
+            selected_instructions_to_register_homes::SpillRecoveryChoiceIdentity::from_bytes(
                 [0x3a; 32],
             );
         assert_eq!(
             validate(&sources, root),
-            Err(omega_selected_instructions_to_register_homes::SpillRecoveryActionError::RootMismatch)
+            Err(selected_instructions_to_register_homes::SpillRecoveryActionError::RootMismatch)
         );
 
         for corrupt in [
-            |candidate: &mut omega_selected_instructions_to_register_homes::SpillRecoveryActionPlan| {
+            |candidate: &mut selected_instructions_to_register_homes::SpillRecoveryActionPlan| {
                 candidate.actions[0].victim = VirtualRegisterId(4);
             },
-            |candidate: &mut omega_selected_instructions_to_register_homes::SpillRecoveryActionPlan| {
+            |candidate: &mut selected_instructions_to_register_homes::SpillRecoveryActionPlan| {
                 candidate.actions[0].store.before_instruction.0 += 1;
             },
-            |candidate: &mut omega_selected_instructions_to_register_homes::SpillRecoveryActionPlan| {
+            |candidate: &mut selected_instructions_to_register_homes::SpillRecoveryActionPlan| {
                 candidate.actions[0].reload.before_instruction.0 += 1;
             },
-            |candidate: &mut omega_selected_instructions_to_register_homes::SpillRecoveryActionPlan| {
+            |candidate: &mut selected_instructions_to_register_homes::SpillRecoveryActionPlan| {
                 candidate.actions[0].rewrites[0].operand += 1;
             },
         ] {
@@ -145,7 +145,7 @@ fn independent_replay_rejects_root_action_namespace_and_usage_corruption() {
             corrupt(&mut changed);
             assert_eq!(
                 validate(&sources, changed),
-                Err(omega_selected_instructions_to_register_homes::SpillRecoveryActionError::NonCanonicalActions)
+                Err(selected_instructions_to_register_homes::SpillRecoveryActionError::NonCanonicalActions)
             );
         }
 
@@ -153,14 +153,14 @@ fn independent_replay_rejects_root_action_namespace_and_usage_corruption() {
         namespace.actions[0].storage.id.ordinal += 1;
         assert_eq!(
             validate(&sources, namespace),
-            Err(omega_selected_instructions_to_register_homes::SpillRecoveryActionError::NonCanonicalNamespace)
+            Err(selected_instructions_to_register_homes::SpillRecoveryActionError::NonCanonicalNamespace)
         );
 
         let mut usage = canonical;
         usage.usage.validation_steps += 1;
         assert_eq!(
             validate(&sources, usage),
-            Err(omega_selected_instructions_to_register_homes::SpillRecoveryActionError::UsageMismatch)
+            Err(selected_instructions_to_register_homes::SpillRecoveryActionError::UsageMismatch)
         );
     }
 }
@@ -176,7 +176,7 @@ fn exact_budget_all_axes_and_cross_target_custody_are_enforced() {
         assert!(plan(&sources, exact).is_ok());
         assert!(matches!(
             plan(&sources, first_over),
-            Err(omega_selected_instructions_to_register_homes::SpillRecoveryActionError::BudgetExceeded {
+            Err(selected_instructions_to_register_homes::SpillRecoveryActionError::BudgetExceeded {
                 required: OptimizationWorkUsage {
                     rule_evaluations: 1,
                     candidates: 1,
@@ -194,6 +194,6 @@ fn exact_budget_all_axes_and_cross_target_custody_are_enforced() {
     let x86_plan = plan(&x86, exact).unwrap().plan().clone();
     assert_eq!(
         validate(&arm, x86_plan),
-        Err(omega_selected_instructions_to_register_homes::SpillRecoveryActionError::RootMismatch)
+        Err(selected_instructions_to_register_homes::SpillRecoveryActionError::RootMismatch)
     );
 }

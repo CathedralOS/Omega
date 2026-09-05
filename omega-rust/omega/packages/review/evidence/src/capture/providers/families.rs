@@ -5,9 +5,9 @@ use crate::record::{
     CheckedPackageProviderReview, PackageReviewProviderFamilyCoverage,
     PackageReviewProviderSelectionAuthority,
 };
-use omega_compiler::CheckedCompilation;
-use omega_provider_planning::{ProviderSelection, ProviderSelectionSubject};
-use psi_diagnostics::Diagnostic;
+use compiler::CheckedCompilation;
+use diagnostics::Diagnostic;
+use provider_planning::{ProviderSelection, ProviderSelectionSubject};
 
 #[derive(Clone)]
 struct FamilySelectionSeed {
@@ -16,27 +16,25 @@ struct FamilySelectionSeed {
 }
 
 fn declarations_for_authority(
-    provenance: &omega_provider_planning::plans::ProviderSelectionProvenance,
+    provenance: &provider_planning::plans::ProviderSelectionProvenance,
 ) -> Option<(
     PackageReviewProviderSelectionAuthority,
     &[ProviderSelection],
 )> {
     match provenance {
-        omega_provider_planning::plans::ProviderSelectionProvenance::BuildOverride(
-            declarations,
-        ) => Some((
-            PackageReviewProviderSelectionAuthority::BuildOverride,
-            declarations,
-        )),
-        omega_provider_planning::plans::ProviderSelectionProvenance::TargetDefault(
-            declarations,
-        ) => Some((
-            PackageReviewProviderSelectionAuthority::TargetDefault,
-            declarations,
-        )),
-        omega_provider_planning::plans::ProviderSelectionProvenance::UniqueCoveringCandidate => {
-            None
+        provider_planning::plans::ProviderSelectionProvenance::BuildOverride(declarations) => {
+            Some((
+                PackageReviewProviderSelectionAuthority::BuildOverride,
+                declarations,
+            ))
         }
+        provider_planning::plans::ProviderSelectionProvenance::TargetDefault(declarations) => {
+            Some((
+                PackageReviewProviderSelectionAuthority::TargetDefault,
+                declarations,
+            ))
+        }
+        provider_planning::plans::ProviderSelectionProvenance::UniqueCoveringCandidate => None,
     }
 }
 
@@ -46,7 +44,7 @@ fn same_family_selection(left: &ProviderSelection, right: &ProviderSelection) ->
 }
 
 fn provenance_selects_family(
-    provenance: &omega_provider_planning::plans::ProviderSelectionProvenance,
+    provenance: &provider_planning::plans::ProviderSelectionProvenance,
     seed: &FamilySelectionSeed,
 ) -> bool {
     declarations_for_authority(provenance).is_some_and(|(authority, declarations)| {
@@ -58,7 +56,7 @@ fn provenance_selects_family(
 }
 
 fn validate_retained_static_parameter_count(
-    coordinate: &omega_provider_planning::ProviderOperatorFamilyCoordinate,
+    coordinate: &provider_planning::ProviderOperatorFamilyCoordinate,
     expected_static_parameter_count: usize,
 ) -> Result<(), Vec<Diagnostic>> {
     if coordinate.static_parameter_count != expected_static_parameter_count {
@@ -74,7 +72,7 @@ fn validate_retained_static_parameter_count(
 
 pub(crate) fn project_selected_provider_families(
     compilation: &CheckedCompilation,
-    target: omega_target::TargetProfile,
+    target: target::TargetProfile,
     selected_providers: &[CheckedPackageProviderReview],
 ) -> Result<Vec<CheckedPackageProviderFamilyReview>, Vec<Diagnostic>> {
     let selected_plans = compilation.selected_provider_plans().plans();
@@ -172,7 +170,7 @@ pub(crate) fn project_selected_provider_families(
 
         let mut coordinates = Vec::with_capacity(family.coordinates().len());
         for coordinate in family.coordinates() {
-            let operator = psi_typed_trees::operator::declaration_by_symbol(
+            let operator = typed_trees::operator::declaration_by_symbol(
                 &compilation.typed,
                 coordinate.symbol,
             )
@@ -273,9 +271,9 @@ pub(crate) fn project_selected_provider_families(
 mod tests {
     use super::*;
 
-    fn coordinate(arity: usize) -> omega_provider_planning::ProviderOperatorFamilyCoordinate {
-        omega_provider_planning::ProviderOperatorFamilyCoordinate {
-            symbol: psi_symbols::SymbolHandle::invalid(),
+    fn coordinate(arity: usize) -> provider_planning::ProviderOperatorFamilyCoordinate {
+        provider_planning::ProviderOperatorFamilyCoordinate {
+            symbol: symbols::SymbolHandle::invalid(),
             requirement_identity: "operator::Transfer::move($0,$1)->unit".to_owned(),
             static_parameter_count: arity,
         }

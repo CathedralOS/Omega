@@ -12,16 +12,16 @@ use crate::review::{
     ReviewOnlyRootPolicyRecordLimits, compare_review_only_initial_capabilities,
     compile_resolved_package_candidate_for_production,
 };
-use omega_compiler::{
+use compiler::{
     ArtifactEmissionPolicy, CompileOptions, CompileReport, OptimizationRollback, TrustAdmission,
 };
-use omega_terminal_psi_to_native_artifact::{
+use diagnostics::Diagnostic;
+use std::fmt;
+use std::path::PathBuf;
+use terminal_psi_to_native_artifact::{
     TerminalAuthorityPermissionPolicy, current_terminal_authority_permission_policy,
     current_terminal_authority_policy,
 };
-use psi_diagnostics::Diagnostic;
-use std::fmt;
-use std::path::PathBuf;
 
 /// One explicit root-owned policy record selected by command orchestration.
 ///
@@ -50,7 +50,7 @@ impl<'a> LocalProjectRootPolicy<'a> {
 pub struct PreparedLocalProjectNativeRequest<'a> {
     prepared: PreparedLocalProject,
     build_dir: PathBuf,
-    target_profile: omega_target::TargetProfile,
+    target_profile: target::TargetProfile,
     root_policy: Option<LocalProjectRootPolicy<'a>>,
     artifact_policy: ArtifactEmissionPolicy,
     accepted_trust_admissions: Vec<TrustAdmission>,
@@ -62,7 +62,7 @@ impl<'a> PreparedLocalProjectNativeRequest<'a> {
     pub fn new(
         prepared: PreparedLocalProject,
         build_dir: impl Into<PathBuf>,
-        target_profile: omega_target::TargetProfile,
+        target_profile: target::TargetProfile,
     ) -> Self {
         Self {
             prepared,
@@ -206,7 +206,7 @@ pub fn compile_prepared_local_project_for_native(
         build_dir: Some(build_dir),
         target_name: Some(target_profile.target_name().to_owned()),
     };
-    let trust_settlement = omega_compiler::report_checked_compilation_observations(
+    let trust_settlement = compiler::report_checked_compilation_observations(
         &options,
         artifact_policy,
         &accepted_trust_admissions,
@@ -216,7 +216,7 @@ pub fn compile_prepared_local_project_for_native(
     realize_accepted_reviewed_package_candidate_report_with_source_evaluated_imports_and_policy(
         candidate,
         &evidence,
-        &psi_proof_admission::AdmissionProfile::default(),
+        &proof_admission::AdmissionProfile::default(),
         &optimization_rollback,
         current_terminal_authority_policy(),
         receiving_terminal_authority_permission_policy,
@@ -308,7 +308,7 @@ machine Main::main(&mut self) { }
     #[test]
     fn native_project_requires_and_replays_exact_explicit_root_policy() {
         let project = TemporaryProject::new();
-        let target = omega_target::TargetProfile::LinuxX64;
+        let target = target::TargetProfile::LinuxX64;
         let missing = compile_prepared_local_project_for_native(
             PreparedLocalProjectNativeRequest::new(
                 super::super::prepare_local_project(&project.entry())
@@ -390,7 +390,7 @@ machine Main::main(&mut self) { }
         .expect("exact recovered root policy admits native production");
         assert_eq!(
             report.output_kind(),
-            omega_compiler::CompileOutputKind::RetainedNativeArtifact
+            compiler::CompileOutputKind::RetainedNativeArtifact
         );
         assert!(report.production_manifest().is_some());
         report

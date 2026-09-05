@@ -1,5 +1,5 @@
 use crate::tests::*;
-use omega_selected_instructions_to_register_homes::RetainedAllocation;
+use selected_instructions_to_register_homes::RetainedAllocation;
 
 pub(super) fn allocation(
     target: NativeTarget,
@@ -139,7 +139,7 @@ fn exit_contract_data_outlives_its_producer_without_granting_admission() {
             target, true, relaxation,
         ))
         .unwrap();
-        let original: std::sync::Arc<omega_machine_code::WholeFunctionExitContract> =
+        let original: std::sync::Arc<machine_code::WholeFunctionExitContract> =
             realization.exit_contract().shared_contract();
         assert!(std::sync::Arc::ptr_eq(
             &original,

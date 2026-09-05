@@ -1,6 +1,6 @@
 use super::*;
 use crate::encoding::encode::{encode_baseline_policy, encoder::Encoder};
-use omega_target::TargetProfile;
+use target::TargetProfile;
 
 fn identity(path: &str) -> PackageReviewNominalIdentity {
     PackageReviewNominalIdentity {
@@ -8,12 +8,12 @@ fn identity(path: &str) -> PackageReviewNominalIdentity {
         path: path.to_owned(),
     }
 }
-fn package() -> psi_core::PackageKeyIdentity {
-    psi_core::PackageKeyIdentity::from_digest([17; 32]).unwrap()
+fn package() -> semantic_vocabulary::PackageKeyIdentity {
+    semantic_vocabulary::PackageKeyIdentity::from_digest([17; 32]).unwrap()
 }
 fn properties() -> PackageReviewDataProperties {
     PackageReviewDataProperties {
-        multiplicity: psi_language_semantics::Multiplicity::Unrestricted,
+        multiplicity: language_semantics::Multiplicity::Unrestricted,
         carry: None,
     }
 }
@@ -135,7 +135,7 @@ fn composed_nonempty_meaning_roundtrips_with_no_nested_envelopes() {
 #[test]
 fn child_package_and_target_disagreement_is_rejected_after_recovery() {
     let original = fixture();
-    let foreign = psi_core::PackageKeyIdentity::from_digest([18; 32]).unwrap();
+    let foreign = semantic_vocabulary::PackageKeyIdentity::from_digest([18; 32]).unwrap();
     for child in 0..4 {
         let mut value = original.clone();
         match child {
@@ -317,7 +317,7 @@ fn symbolic_demands_rejoin_exact_producer_type_binders_and_local_operator() {
         .operator_coordinate
         .identity
         .owner = PackageReviewNominalOwner::Package(
-        psi_core::PackageKeyIdentity::from_digest([19; 32]).unwrap(),
+        semantic_vocabulary::PackageKeyIdentity::from_digest([19; 32]).unwrap(),
     );
     value.public_api.operators.clear();
     assert!(

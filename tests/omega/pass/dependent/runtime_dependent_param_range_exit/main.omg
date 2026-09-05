@@ -9,7 +9,7 @@
 // (count <= 11 always, so i <= 11 < 12 -- immune to mid-state
 // reassignment of the field). The exclusive sugar `[0..self.count]`
 // normalizes to `self.count - 1` at parse and a STRICT `<` guard
-// discharges it. Machinery: psi-typed-trees dependent_ranges (the one
+// discharges it. Machinery: typed-trees dependent_ranges (the one
 // recognizer), ProofConstraint::IntegerRangeSymbolicMax (the atom),
 // checker.rs dependent discharges, types.rs substitution, and the
 // type_references.rs gate that verifies the named field can discharge at

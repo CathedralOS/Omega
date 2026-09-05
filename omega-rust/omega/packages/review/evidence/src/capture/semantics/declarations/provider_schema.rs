@@ -1,9 +1,9 @@
 //! Exact declaring-schema joins for selected provider requirements.
 
-use omega_compiler::CheckedCompilation;
-use omega_provider_planning::plans::ProviderSchemaDeclaration;
-use psi_diagnostics::Diagnostic;
-use psi_symbols::SymbolHandle;
+use compiler::CheckedCompilation;
+use diagnostics::Diagnostic;
+use provider_planning::plans::ProviderSchemaDeclaration;
+use symbols::SymbolHandle;
 
 /// The selected schema owns provider/calling policy. An inherited requirement
 /// retains its own declaring schema; only exact reachable symbols establish

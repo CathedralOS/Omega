@@ -1,7 +1,7 @@
 use crate::record::{
     PackageReviewContractStaticArgument, PackageReviewNominalIdentity, PackageReviewTypeIdentity,
 };
-use psi_symbols::SymbolHandle;
+use symbols::SymbolHandle;
 
 pub(crate) struct ProjectedSelectedConformanceApplication {
     pub(crate) declaration: PackageReviewNominalIdentity,

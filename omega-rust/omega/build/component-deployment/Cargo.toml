@@ -1,0 +1,25 @@
+[package]
+name = "component-deployment"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[lib]
+name = "component_deployment"
+path = "src/lib.rs"
+
+[dependencies]
+component-publication = { path = "../../backend/runtime/component-publication" }
+component-candidate = { path = "../../backend/artifacts/component-candidate" }
+executable-installation = { path = "../../backend/runtime/executable-installation" }
+effects = { path = "../../representations/effects" }
+external-roots = { path = "../../backend/runtime/external-roots" }
+image-emission = { path = "../../backend/images/image-emission", features = ["installed-artifact"] }
+installation-evidence = { path = "../../representations/installation-evidence" }
+semantic-vocabulary = { path = "../../../psi/foundation/semantic-vocabulary" }
+layout-plans = { path = "../../../psi/foundation/layout-plans" }
+
+[dev-dependencies]
+calling-conventions = { path = "../../representations/calling-conventions" }
+extents = { path = "../../../psi/foundation/extents" }
+target = { path = "../../representations/target" }

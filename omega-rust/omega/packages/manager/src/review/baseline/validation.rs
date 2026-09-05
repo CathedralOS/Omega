@@ -9,12 +9,12 @@ use crate::declarations::{AliasName, PackageKey};
 use crate::resolution::graph::ResolvedPackageClosure;
 use crate::review::candidate::ReviewOnlyCanonicalRow;
 use crate::review::candidate::validation::validate_review_only_records;
-use omega_build_evaluation::{
+use build_evaluation::{
     BuildFilesystemReplayRecordLimits, recover_review_only_build_filesystem_replay_record,
 };
-use omega_package_evidence::encoding::PackageReviewCanonicalRowRecoveryLimits;
-use omega_package_evidence::record::PackageReviewCanonicalRowKind;
-use omega_package_source::ImmutableSourceResolution;
+use package_evidence::encoding::PackageReviewCanonicalRowRecoveryLimits;
+use package_evidence::record::PackageReviewCanonicalRowKind;
+use package_source::ImmutableSourceResolution;
 use std::collections::{BTreeMap, VecDeque};
 
 pub(super) struct PendingPackage {

@@ -23,7 +23,7 @@ terminates;
         .iter()
         .find(|machine| machine.name.as_str() == "wait")
         .unwrap();
-    let Some(psi_language_semantics::TerminationGuarantee::Terminates { premises }) =
+    let Some(language_semantics::TerminationGuarantee::Terminates { premises }) =
         machine.termination_plan.interface.published()
     else {
         panic!("source publishes its conditional termination promise")
@@ -36,7 +36,7 @@ terminates;
         .for_machine(machine.symbol)
         .unwrap();
     assert!(
-        matches!(&checked_plan.checked_summary, psi_language_semantics::TerminationGuarantee::Terminates {premises} if premises.is_empty()),
+        matches!(&checked_plan.checked_summary, language_semantics::TerminationGuarantee::Terminates {premises} if premises.is_empty()),
         "the empty implementation terminates independently of its published premise"
     );
     let original = project(&fixture);
@@ -87,8 +87,8 @@ terminates;
         .find(|candidate| candidate.symbol == machine.symbol)
         .unwrap()
         .termination_plan
-        .interface = psi_language_semantics::TerminationInterface::Published(
-        psi_language_semantics::TerminationGuarantee::NoGuarantee,
+        .interface = language_semantics::TerminationInterface::Published(
+        language_semantics::TerminationGuarantee::NoGuarantee,
     );
     assert!(
         project_checked_callable_policy(&stale, fixture.target, package_identity()).is_err(),

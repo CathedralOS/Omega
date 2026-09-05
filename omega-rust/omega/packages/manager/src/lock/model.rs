@@ -2,8 +2,8 @@ use super::{
     HistoricalPackagePolicyDecisions, PackageLockError as Error, PackageLockRecoveryLimits,
 };
 use crate::resolution::graph::CanonicalSourceClosureSubject;
-use omega_package_evidence::record::PackagePolicyBaseline;
-use omega_target::TargetProfile;
+use package_evidence::record::PackagePolicyBaseline;
+use target::TargetProfile;
 
 /// Source pins, complete normalized policy, and historical project choices for
 /// one exact target. This inert record is not fresh publication authorization.

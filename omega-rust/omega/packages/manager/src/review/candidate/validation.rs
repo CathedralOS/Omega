@@ -5,7 +5,7 @@ use crate::declarations::PackageKey;
 use crate::resolution::graph::ResolvedPackageSourceClosure;
 use crate::resolution::source::PackageSourceCustody;
 use crate::review::CompilerIssuedPackageReviewSet;
-use omega_package_source::ImmutableSourceResolution;
+use package_source::ImmutableSourceResolution;
 
 /// A compiler review set validated independently of source custody.
 ///
@@ -204,7 +204,7 @@ fn validate_review_closure_records<'review, S: SourceRecord, R: ReviewRecord>(
 mod tests {
     use super::*;
     use crate::declarations::PackageName;
-    use omega_package_source::{GitCommitId, GitTreeId, SourceLineage};
+    use package_source::{GitCommitId, GitTreeId, SourceLineage};
 
     #[derive(Debug, Clone, PartialEq, Eq)]
     struct TestSource {

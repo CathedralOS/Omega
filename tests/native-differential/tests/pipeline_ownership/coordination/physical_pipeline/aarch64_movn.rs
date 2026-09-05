@@ -439,7 +439,7 @@ fn aarch64_movn_function_relative_realization_composes_after_exact_selected_lowe
     let allocation = realization.allocation().current();
     assert!(matches!(
         allocation.evidence(),
-        omega_selected_instructions_to_register_homes::AllocationEvidence::SelectedLowering(_)
+        selected_instructions_to_register_homes::AllocationEvidence::SelectedLowering(_)
     ));
     let homes = &allocation;
     let StagedOptimizedPostAllocationMachineOptimization::Aarch64Movn(materialization) =

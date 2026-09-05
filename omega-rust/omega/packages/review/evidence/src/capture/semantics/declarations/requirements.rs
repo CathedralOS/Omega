@@ -2,14 +2,14 @@ use crate::capture::semantics::declarations::{
     nominal_identity, nominal_owner, provider_requirement_schema,
 };
 use crate::record::PackageReviewNominalIdentity;
-use omega_compiler::CheckedCompilation;
-use psi_diagnostics::Diagnostic;
-use psi_symbols::SymbolHandle;
+use compiler::CheckedCompilation;
+use diagnostics::Diagnostic;
+use symbols::SymbolHandle;
 
 pub(crate) fn trait_requirement_identity(
     compilation: &CheckedCompilation,
-    owner: &psi_typed_trees::trait_definition::TraitDefinition,
-    requirement: &psi_typed_trees::signature::StateSignature,
+    owner: &typed_trees::trait_definition::TraitDefinition,
+    requirement: &typed_trees::signature::StateSignature,
 ) -> Result<PackageReviewNominalIdentity, Vec<Diagnostic>> {
     let owner_identity = nominal_identity(compilation, owner.symbol)?;
     let requirement_owner = nominal_owner(compilation, requirement.symbol)?;
@@ -60,11 +60,11 @@ pub(crate) fn trait_requirement_identity_from_symbols(
 
 pub(crate) fn provider_requirement_identity(
     compilation: &CheckedCompilation,
-    schema: omega_provider_planning::plans::ProviderSchemaDeclaration,
+    schema: provider_planning::plans::ProviderSchemaDeclaration,
     requirement_symbol: SymbolHandle,
 ) -> Result<PackageReviewNominalIdentity, Vec<Diagnostic>> {
     match provider_requirement_schema(compilation, schema, requirement_symbol)? {
-        omega_provider_planning::plans::ProviderSchemaDeclaration::BoundaryTrait(trait_symbol) => {
+        provider_planning::plans::ProviderSchemaDeclaration::BoundaryTrait(trait_symbol) => {
             trait_requirement_identity_from_symbols(
                 compilation,
                 trait_symbol,
@@ -72,9 +72,7 @@ pub(crate) fn provider_requirement_identity(
                 "selected provider row",
             )
         }
-        omega_provider_planning::plans::ProviderSchemaDeclaration::BoundaryRequirement(
-            schema_symbol,
-        ) => {
+        provider_planning::plans::ProviderSchemaDeclaration::BoundaryRequirement(schema_symbol) => {
             let matches = compilation
                 .machines()
                 .iter()
@@ -82,7 +80,7 @@ pub(crate) fn provider_requirement_identity(
                     candidate.symbol == schema_symbol
                         && candidate.symbol == requirement_symbol
                         && candidate.supply_mode
-                            == psi_language_semantics::MachineSupplyMode::TopLevelRequirement
+                            == language_semantics::MachineSupplyMode::TopLevelRequirement
                 })
                 .collect::<Vec<_>>();
             let [requirement] = matches.as_slice() else {
@@ -93,7 +91,7 @@ pub(crate) fn provider_requirement_identity(
             };
             top_level_requirement_identity(compilation, requirement)
         }
-        omega_provider_planning::plans::ProviderSchemaDeclaration::BoundaryOperator(_) => {
+        provider_planning::plans::ProviderSchemaDeclaration::BoundaryOperator(_) => {
             let operators = compilation.operators().iter().chain(
                 compilation
                     .domain_definitions()
@@ -112,7 +110,7 @@ pub(crate) fn provider_requirement_identity(
             let nominal = nominal_identity(compilation, requirement_symbol)?;
             Ok(PackageReviewNominalIdentity {
                 owner: nominal.owner,
-                path: psi_typed_trees::operator::boundary_operator_requirement_identity(
+                path: typed_trees::operator::boundary_operator_requirement_identity(
                     &compilation.typed,
                     operator,
                 ),
@@ -123,9 +121,9 @@ pub(crate) fn provider_requirement_identity(
 
 pub(crate) fn top_level_requirement_identity(
     compilation: &CheckedCompilation,
-    requirement: &psi_typed_trees::machine::Machine,
+    requirement: &typed_trees::machine::Machine,
 ) -> Result<PackageReviewNominalIdentity, Vec<Diagnostic>> {
-    if requirement.supply_mode != psi_language_semantics::MachineSupplyMode::TopLevelRequirement {
+    if requirement.supply_mode != language_semantics::MachineSupplyMode::TopLevelRequirement {
         return Err(vec![Diagnostic::error(format!(
             "package review declaration `{}` is not a top-level boundary requirement",
             requirement.name

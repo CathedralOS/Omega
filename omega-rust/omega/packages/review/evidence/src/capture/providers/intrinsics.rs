@@ -1,15 +1,13 @@
 use crate::record::PackageReviewCompilerIntrinsicExecution;
-use omega_compiler::CheckedCompilation;
-use omega_effects::provider_plan::{ProviderBinding, ProviderPlan, ProviderPlanRow};
-use omega_provider_planning::plans::{
-    CompilerIntrinsicExecutionIdentity, ProviderSchemaDeclaration,
-};
-use omega_selected_dispatch::{
+use compiler::CheckedCompilation;
+use diagnostics::Diagnostic;
+use effects::provider_plan::{ProviderBinding, ProviderPlan, ProviderPlanRow};
+use provider_planning::plans::{CompilerIntrinsicExecutionIdentity, ProviderSchemaDeclaration};
+use selected_dispatch::{
     SelectedCompilerIntrinsicExecutionIdentity,
     derive_selected_compiler_intrinsic_execution_identity_for_row_with_resolved_binding,
 };
-use psi_diagnostics::Diagnostic;
-use psi_symbols::SymbolHandle;
+use symbols::SymbolHandle;
 
 pub(crate) fn project_compiler_intrinsic_execution(
     compilation: &CheckedCompilation,
@@ -36,7 +34,7 @@ pub(crate) fn project_compiler_intrinsic_execution(
             realization_symbol,
             selected_target,
             compilation.resolved_semantic_binding(
-                omega_package_compilation::AcceptedSemanticBindingRole::ConsoleExitProcessI32,
+                package_compilation::AcceptedSemanticBindingRole::ConsoleExitProcessI32,
             ),
         )
         .map_err(|diagnostic| vec![diagnostic])?;
@@ -161,18 +159,18 @@ fn reconcile_compiler_intrinsic_execution(
 mod tests {
     use super::{project_execution_identity, reconcile_compiler_intrinsic_execution};
     use crate::record::PackageReviewCompilerIntrinsicExecution;
-    use omega_selected_dispatch::SelectedCompilerIntrinsicExecutionIdentity;
+    use selected_dispatch::SelectedCompilerIntrinsicExecutionIdentity;
 
     #[test]
     fn execution_reconciliation_rejects_missing_mismatched_and_spoofed_state() {
-        use omega_provider_planning::plans::CompilerIntrinsicExecutionIdentity::{
+        use numerics::arithmetic::ArithmeticDomain;
+        use numerics::literals::FloatFormat;
+        use provider_planning::plans::CompilerIntrinsicExecutionIdentity::{
             BuiltinFunction, LinuxExitGroupI32, NamedFloatConversion, NamedFloatNegation,
             PrimitiveFloatBinary,
         };
-        use omega_provider_planning::plans::CompilerNumericType;
-        use psi_numerics::arithmetic::ArithmeticDomain;
-        use psi_numerics::literals::FloatFormat;
-        use psi_symbols::BuiltinFunction::{Max, Min};
+        use provider_planning::plans::CompilerNumericType;
+        use symbols::BuiltinFunction::{Max, Min};
 
         assert_eq!(
             reconcile_compiler_intrinsic_execution(
@@ -208,7 +206,7 @@ mod tests {
             domain: ArithmeticDomain::Exact,
         };
         let primitive_add_f32 = PrimitiveFloatBinary {
-            operation: omega_provider_planning::plans::CompilerPrimitiveFloatBinaryOperation::Add,
+            operation: provider_planning::plans::CompilerPrimitiveFloatBinaryOperation::Add,
             format: FloatFormat::F32,
         };
         assert_eq!(
@@ -250,7 +248,8 @@ mod tests {
                     primitive_add_f32,
                 )),
                 Some(PrimitiveFloatBinary {
-                    operation: omega_provider_planning::plans::CompilerPrimitiveFloatBinaryOperation::Subtract,
+                    operation:
+                        provider_planning::plans::CompilerPrimitiveFloatBinaryOperation::Subtract,
                     format: FloatFormat::F32,
                 }),
                 "retains compiler execution identity primitive float binary `subtract.f32`, but exact selected execution rederives primitive float binary `add.f32`",
@@ -260,7 +259,7 @@ mod tests {
                     primitive_add_f32,
                 )),
                 Some(PrimitiveFloatBinary {
-                    operation: omega_provider_planning::plans::CompilerPrimitiveFloatBinaryOperation::Add,
+                    operation: provider_planning::plans::CompilerPrimitiveFloatBinaryOperation::Add,
                     format: FloatFormat::F64,
                 }),
                 "retains compiler execution identity primitive float binary `add.f64`, but exact selected execution rederives primitive float binary `add.f32`",

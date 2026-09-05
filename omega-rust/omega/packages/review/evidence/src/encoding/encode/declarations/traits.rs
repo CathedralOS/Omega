@@ -81,25 +81,21 @@ pub(crate) fn encode_trait_requirement(
                 encoder.tag("some", 1);
                 encoder.field("spelling", |encoder| {
                     match spelling {
-                        psi_language_core::OperatorSpelling::Add => encoder.tag("add", 0),
-                        psi_language_core::OperatorSpelling::Subtract => encoder.tag("subtract", 1),
-                        psi_language_core::OperatorSpelling::Multiply => encoder.tag("multiply", 2),
-                        psi_language_core::OperatorSpelling::Divide => encoder.tag("divide", 3),
-                        psi_language_core::OperatorSpelling::Modulo => encoder.tag("modulo", 4),
-                        psi_language_core::OperatorSpelling::Equal => encoder.tag("equal", 5),
-                        psi_language_core::OperatorSpelling::NotEqual => {
-                            encoder.tag("not_equal", 6)
-                        }
-                        psi_language_core::OperatorSpelling::Less => encoder.tag("less", 7),
-                        psi_language_core::OperatorSpelling::LessEqual => {
-                            encoder.tag("less_equal", 8)
-                        }
-                        psi_language_core::OperatorSpelling::Greater => encoder.tag("greater", 9),
-                        psi_language_core::OperatorSpelling::GreaterEqual => {
+                        language_core::OperatorSpelling::Add => encoder.tag("add", 0),
+                        language_core::OperatorSpelling::Subtract => encoder.tag("subtract", 1),
+                        language_core::OperatorSpelling::Multiply => encoder.tag("multiply", 2),
+                        language_core::OperatorSpelling::Divide => encoder.tag("divide", 3),
+                        language_core::OperatorSpelling::Modulo => encoder.tag("modulo", 4),
+                        language_core::OperatorSpelling::Equal => encoder.tag("equal", 5),
+                        language_core::OperatorSpelling::NotEqual => encoder.tag("not_equal", 6),
+                        language_core::OperatorSpelling::Less => encoder.tag("less", 7),
+                        language_core::OperatorSpelling::LessEqual => encoder.tag("less_equal", 8),
+                        language_core::OperatorSpelling::Greater => encoder.tag("greater", 9),
+                        language_core::OperatorSpelling::GreaterEqual => {
                             encoder.tag("greater_equal", 10)
                         }
-                        psi_language_core::OperatorSpelling::Index => encoder.tag("index", 11),
-                        psi_language_core::OperatorSpelling::Range => encoder.tag("range", 12),
+                        language_core::OperatorSpelling::Index => encoder.tag("index", 11),
+                        language_core::OperatorSpelling::Range => encoder.tag("range", 12),
                     };
                     Ok(())
                 })?;

@@ -1,11 +1,11 @@
 //! Full policy survives loss of the source checkout, cache, and compiler state.
 
 use super::*;
-use omega_package_manager::lock::{
+use package_manager::lock::{
     HistoricalPackagePolicyDecisions, HistoricalPackagePolicyLimits, PackageLock, PackageLockError,
     PackageLockRecoveryLimits, PackageLockTarget,
 };
-use omega_package_manager::review::compile_resolved_package_reviews;
+use package_manager::review::compile_resolved_package_reviews;
 
 #[path = "package_lock/owners.rs"]
 mod owners;

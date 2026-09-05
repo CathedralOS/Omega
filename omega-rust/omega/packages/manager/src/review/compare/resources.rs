@@ -2,7 +2,7 @@
 
 use super::model::{ReviewOnlyCapabilityConflictError, ReviewOnlyCapabilityConflictLimits};
 use crate::review::candidate::PackageReviewEvidence;
-use omega_package_evidence::record::PackageReviewCanonicalRowSource;
+use package_evidence::record::PackageReviewCanonicalRowSource;
 
 #[derive(Default)]
 pub(super) struct ComparisonInputBudget {

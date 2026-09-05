@@ -4,7 +4,7 @@ use super::fixture::staged_object_artifact;
 
 #[test]
 fn runtime_u64_parameter_equality_reaches_object_and_callable_on_both_isas() {
-    use omega_calling_conventions::{CallingPolicy, MachineRegister};
+    use calling_conventions::{CallingPolicy, MachineRegister};
 
     for (target, policy, parameters, result) in [
         (
@@ -27,11 +27,11 @@ fn runtime_u64_parameter_equality_reaches_object_and_callable_on_both_isas() {
         let text = &artifact.source().object().text_section.bytes;
         assert!(!text.is_empty());
         match target.architecture {
-            omega_target::Architecture::X86_64 => assert!(
+            target::Architecture::X86_64 => assert!(
                 text.windows(3).any(|window| window == [0x48, 0x39, 0xf7]),
                 "x86 object must contain `cmp rdi, rsi`"
             ),
-            omega_target::Architecture::Aarch64 => assert!(
+            target::Architecture::Aarch64 => assert!(
                 text.windows(4)
                     .any(|window| window == [0x1f, 0x00, 0x01, 0xeb]),
                 "AArch64 object must contain `cmp x0, x1`"

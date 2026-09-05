@@ -1,0 +1,13 @@
+[package]
+name = "target"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[lib]
+name = "target"
+path = "src/lib.rs"
+
+[dependencies]
+diagnostics = { path = "../../../psi/foundation/diagnostics" }
+sha2 = "0.10.9"

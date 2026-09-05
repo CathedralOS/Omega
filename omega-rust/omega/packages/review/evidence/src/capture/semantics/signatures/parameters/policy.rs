@@ -5,11 +5,11 @@ use super::*;
 pub(crate) fn project_policy_type_parameters_after(
     compilation: &CheckedCompilation,
     checked_source: &CheckedCompilation,
-    parameters: &[psi_typed_trees::data::TypeParameter],
+    parameters: &[typed_trees::data::TypeParameter],
     declaration_path: &str,
     preceding_binders: &[(SymbolHandle, String)],
     ordinal_offset: usize,
-    lifetime_binders: &[psi_typed_trees::name::Identifier],
+    lifetime_binders: &[typed_trees::name::Identifier],
     contract_scopes: &[CallingContractScope],
 ) -> Result<(Vec<(SymbolHandle, String)>, Vec<PackageReviewTypeParameter>), Vec<Diagnostic>> {
     project_policy_type_parameters(
@@ -30,12 +30,12 @@ pub(crate) fn project_policy_type_parameters_after(
 pub(crate) fn project_policy_type_parameters(
     compilation: &CheckedCompilation,
     checked_source: &CheckedCompilation,
-    parameters: &[psi_typed_trees::data::TypeParameter],
+    parameters: &[typed_trees::data::TypeParameter],
     declaration_path: &str,
     preceding_binders: &[(SymbolHandle, String)],
     ordinal_offset: usize,
-    lifetime_binders: &[psi_typed_trees::name::Identifier],
-    substitutions: &[(SymbolHandle, psi_typed_trees::types::TypeReferenceHandle)],
+    lifetime_binders: &[typed_trees::name::Identifier],
+    substitutions: &[(SymbolHandle, typed_trees::types::TypeReferenceHandle)],
     contract_scopes: &[CallingContractScope],
     public_nominals: bool,
     selection_exposure: AuthoredDeclarationSelectionExposure,

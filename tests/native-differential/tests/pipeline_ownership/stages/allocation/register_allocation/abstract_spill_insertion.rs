@@ -8,17 +8,17 @@ fn exact_schedule_is_deterministic_on_both_architectures() {
     for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
         let (logical, slots) = spill_sources(target);
         let budget = OptimizationWorkBudget::new(1, 1, 5, 1, 1).unwrap();
-        let first = omega_selected_instructions_to_register_homes::schedule_abstract_spill_insertion(
+        let first = selected_instructions_to_register_homes::schedule_abstract_spill_insertion(
             &logical,
             &slots,
-            omega_selected_instructions_to_register_homes::AbstractSpillInsertionPolicy::BlockLocalNonAddressUnsignedU64AbstractSpillAreaV1,
+            selected_instructions_to_register_homes::AbstractSpillInsertionPolicy::BlockLocalNonAddressUnsignedU64AbstractSpillAreaV1,
             budget,
         )
         .unwrap();
-        let second = omega_selected_instructions_to_register_homes::schedule_abstract_spill_insertion(
+        let second = selected_instructions_to_register_homes::schedule_abstract_spill_insertion(
             &logical,
             &slots,
-            omega_selected_instructions_to_register_homes::AbstractSpillInsertionPolicy::BlockLocalNonAddressUnsignedU64AbstractSpillAreaV1,
+            selected_instructions_to_register_homes::AbstractSpillInsertionPolicy::BlockLocalNonAddressUnsignedU64AbstractSpillAreaV1,
             budget,
         )
         .unwrap();
@@ -88,10 +88,10 @@ fn exact_schedule_is_deterministic_on_both_architectures() {
 #[test]
 fn independent_replay_rejects_root_schedule_slot_rewrite_and_usage_corruption() {
     let (logical, slots) = spill_sources(NativeTarget::linux_x64());
-    let staged = omega_selected_instructions_to_register_homes::schedule_abstract_spill_insertion(
+    let staged = selected_instructions_to_register_homes::schedule_abstract_spill_insertion(
         &logical,
         &slots,
-        omega_selected_instructions_to_register_homes::AbstractSpillInsertionPolicy::BlockLocalNonAddressUnsignedU64AbstractSpillAreaV1,
+        selected_instructions_to_register_homes::AbstractSpillInsertionPolicy::BlockLocalNonAddressUnsignedU64AbstractSpillAreaV1,
         selected_lowering_budget(),
     )
     .unwrap();
@@ -99,16 +99,16 @@ fn independent_replay_rejects_root_schedule_slot_rewrite_and_usage_corruption() 
 
     let mut root = canonical.clone();
     root.stack_slot_coloring =
-        omega_selected_instructions_to_register_homes::StackSlotColoringIdentity::from_bytes(
-            [0xd1; 32],
-        );
+        selected_instructions_to_register_homes::StackSlotColoringIdentity::from_bytes([0xd1; 32]);
     assert_eq!(
-        omega_selected_instructions_to_register_homes::validate_abstract_spill_insertion(&logical, &slots, root),
-        Err(omega_selected_instructions_to_register_homes::AbstractSpillInsertionError::RootMismatch)
+        selected_instructions_to_register_homes::validate_abstract_spill_insertion(
+            &logical, &slots, root
+        ),
+        Err(selected_instructions_to_register_homes::AbstractSpillInsertionError::RootMismatch)
     );
 
     for corrupt in [
-        |plan: &mut omega_selected_instructions_to_register_homes::AbstractSpillInsertionPlan| {
+        |plan: &mut selected_instructions_to_register_homes::AbstractSpillInsertionPlan| {
             plan.functions[0]
                 .action
                 .as_mut()
@@ -117,7 +117,7 @@ fn independent_replay_rejects_root_schedule_slot_rewrite_and_usage_corruption() 
                 .source_view
                 .0 += 1;
         },
-        |plan: &mut omega_selected_instructions_to_register_homes::AbstractSpillInsertionPlan| {
+        |plan: &mut selected_instructions_to_register_homes::AbstractSpillInsertionPlan| {
             plan.functions[0]
                 .action
                 .as_mut()
@@ -126,7 +126,7 @@ fn independent_replay_rejects_root_schedule_slot_rewrite_and_usage_corruption() 
                 .destination_class
                 .0 += 1;
         },
-        |plan: &mut omega_selected_instructions_to_register_homes::AbstractSpillInsertionPlan| {
+        |plan: &mut selected_instructions_to_register_homes::AbstractSpillInsertionPlan| {
             plan.functions[0]
                 .action
                 .as_mut()
@@ -134,7 +134,7 @@ fn independent_replay_rejects_root_schedule_slot_rewrite_and_usage_corruption() 
                 .slot
                 .spill_area_offset += 8;
         },
-        |plan: &mut omega_selected_instructions_to_register_homes::AbstractSpillInsertionPlan| {
+        |plan: &mut selected_instructions_to_register_homes::AbstractSpillInsertionPlan| {
             plan.functions[0]
                 .action
                 .as_mut()
@@ -146,26 +146,28 @@ fn independent_replay_rejects_root_schedule_slot_rewrite_and_usage_corruption() 
         let mut changed = canonical.clone();
         corrupt(&mut changed);
         assert_eq!(
-            omega_selected_instructions_to_register_homes::validate_abstract_spill_insertion(&logical, &slots, changed),
-            Err(omega_selected_instructions_to_register_homes::AbstractSpillInsertionError::NonCanonicalSchedule { function: 0 })
+            selected_instructions_to_register_homes::validate_abstract_spill_insertion(&logical, &slots, changed),
+            Err(selected_instructions_to_register_homes::AbstractSpillInsertionError::NonCanonicalSchedule { function: 0 })
         );
     }
 
     let mut usage = canonical.clone();
     usage.usage.validation_steps += 1;
     assert_eq!(
-        omega_selected_instructions_to_register_homes::validate_abstract_spill_insertion(&logical, &slots, usage),
-        Err(omega_selected_instructions_to_register_homes::AbstractSpillInsertionError::UsageMismatch)
+        selected_instructions_to_register_homes::validate_abstract_spill_insertion(
+            &logical, &slots, usage
+        ),
+        Err(selected_instructions_to_register_homes::AbstractSpillInsertionError::UsageMismatch)
     );
 
     assert!(matches!(
-        omega_selected_instructions_to_register_homes::schedule_abstract_spill_insertion(
+        selected_instructions_to_register_homes::schedule_abstract_spill_insertion(
             &logical,
             &slots,
-            omega_selected_instructions_to_register_homes::AbstractSpillInsertionPolicy::BlockLocalNonAddressUnsignedU64AbstractSpillAreaV1,
+            selected_instructions_to_register_homes::AbstractSpillInsertionPolicy::BlockLocalNonAddressUnsignedU64AbstractSpillAreaV1,
             OptimizationWorkBudget::new(1, 1, 4, 1, 1).unwrap(),
         ),
-        Err(omega_selected_instructions_to_register_homes::AbstractSpillInsertionError::BudgetExceeded { .. })
+        Err(selected_instructions_to_register_homes::AbstractSpillInsertionError::BudgetExceeded { .. })
     ));
 }
 
@@ -180,16 +182,16 @@ fn empty_pressure_retains_zero_abstract_spill_area_without_insertions() {
     )
     .unwrap();
     let logical = logical_from_legality(&legality);
-    let slots = omega_selected_instructions_to_register_homes::color_logical_spill_stack_slots(
+    let slots = selected_instructions_to_register_homes::color_logical_spill_stack_slots(
         &logical,
-        omega_selected_instructions_to_register_homes::StackSlotColoringPolicy::BlockLocalNonAddressUnsignedU64ClosedIntervalFirstFitV1,
+        selected_instructions_to_register_homes::StackSlotColoringPolicy::BlockLocalNonAddressUnsignedU64ClosedIntervalFirstFitV1,
         selected_lowering_budget(),
     )
     .unwrap();
-    let staged = omega_selected_instructions_to_register_homes::schedule_abstract_spill_insertion(
+    let staged = selected_instructions_to_register_homes::schedule_abstract_spill_insertion(
         &logical,
         &slots,
-        omega_selected_instructions_to_register_homes::AbstractSpillInsertionPolicy::BlockLocalNonAddressUnsignedU64AbstractSpillAreaV1,
+        selected_instructions_to_register_homes::AbstractSpillInsertionPolicy::BlockLocalNonAddressUnsignedU64AbstractSpillAreaV1,
         selected_lowering_budget(),
     )
     .unwrap();
@@ -208,13 +210,13 @@ fn empty_pressure_retains_zero_abstract_spill_area_without_insertions() {
 fn spill_sources(
     target: NativeTarget,
 ) -> (
-    omega_selected_instructions_to_register_homes::ValidatedLogicalSpillOperations,
-    omega_selected_instructions_to_register_homes::ValidatedStackSlotColoring,
+    selected_instructions_to_register_homes::ValidatedLogicalSpillOperations,
+    selected_instructions_to_register_homes::ValidatedStackSlotColoring,
 ) {
     let logical = logical_from_legality(&staged_active_resident_two_view_legality(target));
-    let slots = omega_selected_instructions_to_register_homes::color_logical_spill_stack_slots(
+    let slots = selected_instructions_to_register_homes::color_logical_spill_stack_slots(
         &logical,
-        omega_selected_instructions_to_register_homes::StackSlotColoringPolicy::BlockLocalNonAddressUnsignedU64ClosedIntervalFirstFitV1,
+        selected_instructions_to_register_homes::StackSlotColoringPolicy::BlockLocalNonAddressUnsignedU64ClosedIntervalFirstFitV1,
         selected_lowering_budget(),
     )
     .unwrap();
@@ -223,7 +225,7 @@ fn spill_sources(
 
 fn logical_from_legality(
     legality: &StagedOptimizedAllocationLegality,
-) -> omega_selected_instructions_to_register_homes::ValidatedLogicalSpillOperations {
+) -> selected_instructions_to_register_homes::ValidatedLogicalSpillOperations {
     let ranges = legality.live_range_stage();
     let selected = ranges.liveness_stage().selected_stage();
     let environment = selected.register_environment();
@@ -239,12 +241,12 @@ fn logical_from_legality(
         selected_lowering_budget(),
     )
     .unwrap();
-    omega_selected_instructions_to_register_homes::plan_logical_spill_operations(
+    selected_instructions_to_register_homes::plan_logical_spill_operations(
         selected.selected(),
         ranges.ranges(),
         legality.legality(),
         &choices,
-        omega_selected_instructions_to_register_homes::LogicalSpillOperationPolicy::SelectedActiveResidentInstructionResultU64StoreBeforePressureReloadBeforeFirstFutureFlexibleUseV1,
+        selected_instructions_to_register_homes::LogicalSpillOperationPolicy::SelectedActiveResidentInstructionResultU64StoreBeforePressureReloadBeforeFirstFutureFlexibleUseV1,
         selected_lowering_budget(),
     )
     .unwrap()

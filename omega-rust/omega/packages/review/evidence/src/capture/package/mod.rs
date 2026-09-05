@@ -18,8 +18,8 @@ use self::validation::validate_review_compilation;
 use super::authority::{project_dangerous_authorities, project_dangerous_authority_slack};
 use super::terminal_authority_permissions::project_terminal_authority_permissions;
 use crate::record::CheckedPackageReviewProjection;
-use omega_compiler::CheckedCompilation;
-use psi_diagnostics::Diagnostic;
+use compiler::CheckedCompilation;
+use diagnostics::Diagnostic;
 
 /// Project the exact checked authority facts that are already safely joined.
 ///

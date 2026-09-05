@@ -1,15 +1,15 @@
 use super::rejected;
 use crate::capture::semantics::facts::exactly_one;
 use crate::record::{PackagePolicyMutation, PackageReviewWriteFrameCompleteness};
-use omega_compiler::CheckedCompilation;
-use psi_checked_trees::RealizedMachineContractEnvelope;
-use psi_diagnostics::Diagnostic;
-use psi_typed_trees::{machine::Machine, state::State};
+use checked_trees::RealizedMachineContractEnvelope;
+use compiler::CheckedCompilation;
+use diagnostics::Diagnostic;
+use typed_trees::{machine::Machine, state::State};
 
 pub(crate) fn mutation<'program>(
     compilation: &CheckedCompilation,
-    source: &'program psi_typed_trees::TypedTrees,
-    resolver: &psi_validation::CallFrameResolver<'program>,
+    source: &'program typed_trees::TypedTrees,
+    resolver: &validation::CallFrameResolver<'program>,
     machine: &Machine,
     entry: &State,
     envelope: &RealizedMachineContractEnvelope,
@@ -59,12 +59,10 @@ pub(crate) fn mutation<'program>(
     }
     Ok(PackagePolicyMutation {
         completeness: match derived.completeness() {
-            psi_facts::WriteFrameCompleteness::Complete => {
+            facts::WriteFrameCompleteness::Complete => {
                 PackageReviewWriteFrameCompleteness::Complete
             }
-            psi_facts::WriteFrameCompleteness::Opaque => {
-                PackageReviewWriteFrameCompleteness::Opaque
-            }
+            facts::WriteFrameCompleteness::Opaque => PackageReviewWriteFrameCompleteness::Opaque,
         },
         paths: derived.paths().to_vec(),
     })

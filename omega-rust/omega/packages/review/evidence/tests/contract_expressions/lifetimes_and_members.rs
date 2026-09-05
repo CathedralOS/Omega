@@ -70,7 +70,7 @@ requires self.value <= 10
         .expression_table
         .iter_expressions()
         .filter_map(|(handle, expression)| {
-            let psi_typed_trees::expression::ExpressionNode::Name(path) = expression else {
+            let typed_trees::expression::ExpressionNode::Name(path) = expression else {
                 return None;
             };
             (path.head_symbol == machine_symbol
@@ -87,7 +87,7 @@ requires self.value <= 10
         "checked source stamps the exact machine root for self"
     );
     for expression in expressions {
-        let psi_typed_trees::expression::ExpressionNode::Name(path) = wrong_owner
+        let typed_trees::expression::ExpressionNode::Name(path) = wrong_owner
             .typed
             .expression_table
             .expression_mut(expression)
@@ -108,13 +108,13 @@ requires self.value <= 10
         .places
         .iter()
         .filter_map(|(handle, place)| {
-            (place.root == psi_facts::PlaceRoot::Symbol(parameter)).then_some(handle)
+            (place.root == facts::PlaceRoot::Symbol(parameter)).then_some(handle)
         })
         .collect::<Vec<_>>();
     assert!(!places.is_empty());
     for handle in places {
         changed.facts.semantic.places.get_mut(handle).root =
-            psi_facts::PlaceRoot::Symbol(machine_symbol);
+            facts::PlaceRoot::Symbol(machine_symbol);
     }
     let diagnostics = project_checked_package_review(&changed)
         .expect_err("old machine-root places cannot substitute for the retained self formal");
@@ -123,7 +123,7 @@ requires self.value <= 10
 
 #[test]
 fn machine_precondition_members_require_exact_entry_point_and_declaration_origin() {
-    use psi_facts::{FactOrigin, FactPayload, ProgramPoint};
+    use facts::{FactOrigin, FactPayload, ProgramPoint};
 
     let Some(target) = host_target_name() else {
         return;
@@ -415,7 +415,7 @@ pub proposition balanced(pair: Pair) = pair.left == pair.right;
         .expression_table
         .iter_expressions()
         .filter_map(|(expression, node)| {
-            let psi_typed_trees::expression::ExpressionNode::Member(member) = node else {
+            let typed_trees::expression::ExpressionNode::Member(member) = node else {
                 return None;
             };
             matches!(member.member.as_str(), "left" | "right").then_some((
@@ -704,7 +704,7 @@ requires (Pair { left: value, right: value }).left ==
         .expression_table
         .iter_expressions()
         .filter_map(|(expression, node)| {
-            let psi_typed_trees::expression::ExpressionNode::Member(member) = node else {
+            let typed_trees::expression::ExpressionNode::Member(member) = node else {
                 return None;
             };
             matches!(member.member.as_str(), "left" | "right").then_some((

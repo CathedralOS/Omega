@@ -1,6 +1,6 @@
-use omega_compiler::CheckedCompilation;
-use psi_diagnostics::Diagnostic;
-use psi_symbols::SymbolHandle;
+use compiler::CheckedCompilation;
+use diagnostics::Diagnostic;
+use symbols::SymbolHandle;
 
 use crate::capture::contracts::expressions::names::portable_parameter_position;
 use crate::capture::contracts::facts::ContractProjectionContext;
@@ -19,17 +19,17 @@ pub(crate) fn project_proposition_binder_argument(
     compilation: &CheckedCompilation,
     context: &ContractProjectionContext<'_>,
     callable_binders: &[(SymbolHandle, String)],
-    argument: &psi_typed_trees::proposition::PropositionBinderArgument,
+    argument: &typed_trees::proposition::PropositionBinderArgument,
     substitutions: &[(SymbolHandle, PackageReviewPropositionBinderArgument)],
 ) -> Result<PackageReviewPropositionBinderArgument, Vec<Diagnostic>> {
     let kind = match argument.kind {
-        psi_typed_trees::proposition::PropositionBinderArgumentKind::Type => {
+        typed_trees::proposition::PropositionBinderArgumentKind::Type => {
             PackageReviewPropositionBinderArgumentKind::Type
         }
-        psi_typed_trees::proposition::PropositionBinderArgumentKind::Const => {
+        typed_trees::proposition::PropositionBinderArgumentKind::Const => {
             PackageReviewPropositionBinderArgumentKind::Const
         }
-        psi_typed_trees::proposition::PropositionBinderArgumentKind::Machine => {
+        typed_trees::proposition::PropositionBinderArgumentKind::Machine => {
             PackageReviewPropositionBinderArgumentKind::Machine
         }
     };
@@ -57,7 +57,7 @@ pub(crate) fn project_proposition_binder_argument(
         PackageReviewPropositionBinderValue::GenericBinder(portable_parameter_position(position)?)
     } else if argument.symbol.is_valid() {
         match argument.kind {
-            psi_typed_trees::proposition::PropositionBinderArgumentKind::Type => {
+            typed_trees::proposition::PropositionBinderArgumentKind::Type => {
                 let identity = compilation
                     .package_qualified_nominal_type_identity_with_toolchain_sources(
                         argument.symbol,
@@ -68,13 +68,13 @@ pub(crate) fn project_proposition_binder_argument(
                     canonical: identity.into_string(),
                 })
             }
-            psi_typed_trees::proposition::PropositionBinderArgumentKind::Machine => {
+            typed_trees::proposition::PropositionBinderArgumentKind::Machine => {
                 PackageReviewPropositionBinderValue::Machine(nominal_identity(
                     compilation,
                     argument.symbol,
                 )?)
             }
-            psi_typed_trees::proposition::PropositionBinderArgumentKind::Const => {
+            typed_trees::proposition::PropositionBinderArgumentKind::Const => {
                 return Err(vec![Diagnostic::error(format!(
                     "reviewed {} `{}` proposition contains a non-literal const binder argument without an exact caller binder",
                     context.subject_kind, context.subject_name
@@ -93,7 +93,7 @@ pub(crate) fn project_proposition_binder_argument(
 pub(crate) fn project_proposition_evidence_projection(
     compilation: &CheckedCompilation,
     context: &ContractProjectionContext<'_>,
-    projection: &psi_typed_trees::expression::EvidenceProjection,
+    projection: &typed_trees::expression::EvidenceProjection,
 ) -> Result<PackageReviewPropositionBinderValue, Vec<Diagnostic>> {
     let matching_terms = compilation
         .facts
@@ -102,7 +102,7 @@ pub(crate) fn project_proposition_evidence_projection(
         .iter()
         .filter_map(|(handle, term)| {
             (term.owner == context.owner
-                && term.kind == psi_checked_trees::ContractProofFactKind::Requires
+                && term.kind == checked_trees::ContractProofFactKind::Requires
                 && term.name == projection.term.as_str())
             .then_some((handle, term))
         })
@@ -170,8 +170,7 @@ pub(crate) fn project_proposition_evidence_projection(
                 context.subject_kind, context.subject_name, projection.term, projection.member
             ))]
         })?;
-    let psi_typed_trees::proposition::PropositionBody::Witness { evidence } = &declaration.body
-    else {
+    let typed_trees::proposition::PropositionBody::Witness { evidence } = &declaration.body else {
         return Err(vec![Diagnostic::error(format!(
             "reviewed {} `{}` evidence projection `{}.{}` does not originate from witness evidence",
             context.subject_kind, context.subject_name, projection.term, projection.member

@@ -9,15 +9,15 @@ use crate::record::{
     PackageReviewContractFact, PackageReviewPropositionShape, PackageReviewPublicPropositionBody,
     PackageReviewSourceLocationRole,
 };
-use omega_compiler::CheckedCompilation;
-use psi_core::PackageKeyIdentity;
-use psi_diagnostics::Diagnostic;
+use compiler::CheckedCompilation;
+use diagnostics::Diagnostic;
+use semantic_vocabulary::PackageKeyIdentity;
 
 pub(crate) fn project_public_propositions(
     compilation: &CheckedCompilation,
     package: PackageKeyIdentity,
 ) -> Result<Vec<ProjectedReviewRow<PackageReviewPropositionShape>>, Vec<Diagnostic>> {
-    use psi_typed_trees::proposition::{PropositionBody, PropositionFormula};
+    use typed_trees::proposition::{PropositionBody, PropositionFormula};
 
     let mut rows = Vec::new();
     for declaration in compilation
@@ -110,8 +110,8 @@ pub(crate) fn project_public_propositions(
                 let context = ContractProjectionContext {
                     subject_kind: "public proposition",
                     subject_name: &identity.path,
-                    owner: psi_checked_trees::ContractProofFactOwner::Unknown,
-                    point: psi_facts::ProgramPoint::Definition {
+                    owner: checked_trees::ContractProofFactOwner::Unknown,
+                    point: facts::ProgramPoint::Definition {
                         symbol: declaration.symbol,
                     },
                     parameters,
@@ -119,7 +119,7 @@ pub(crate) fn project_public_propositions(
                     data_symbol: None,
                     lifetime_binders: &[],
                     lifetime_substitutions: &[],
-                    selection_exposure: psi_language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure::PublicInterface,
+                    selection_exposure: language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure::PublicInterface,
                 };
                 let mut visiting = vec![declaration.symbol];
                 let expansion = match proposition {

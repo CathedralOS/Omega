@@ -1,18 +1,18 @@
-use omega_abstract_operations_optimizer::{
+use abstract_operations_to_abstract_operations::{
     PSI_PASS_CATALOG, PsiPassTargetApplicability, built_in_psi_registries,
 };
-use omega_optimization_core::{Optimization, OptimizationExecutionPhase, OptimizationSelections};
-use omega_post_allocation_machine_to_optimized_machine::{
+use optimization_core::{Optimization, OptimizationExecutionPhase, OptimizationSelections};
+use post_allocation_machine_to_post_allocation_machine::{
     POST_ALLOCATION_MACHINE_RULE_CATALOG, PostAllocationMachineRuleCatalogError,
     selected_post_allocation_machine_rule,
 };
-use omega_selected_instructions_to_register_homes::{
+use selected_instructions_to_register_homes::{
     ALLOCATION_RECOVERY_RULE_CATALOG, AllocationRecoveryRuleCatalogError,
     RegisterAllocationRuleTargetApplicability, SELECTED_LOWERING_RULE_CATALOG,
     SelectedLoweringRuleCatalogError, resolve_selected_lowering_rules,
     selected_allocation_recovery_rule,
 };
-use omega_target::{Architecture, NativeTarget};
+use target::{Architecture, NativeTarget};
 
 use crate::{
     FUNCTION_RELATIVE_LAYOUT_RULE_CATALOG, FunctionRelativeLayoutCatalogError, x86_rel8_selected,

@@ -1,0 +1,18 @@
+[package]
+name = "backend-plan"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[lib]
+name = "backend_plan"
+path = "src/lib.rs"
+
+[dependencies]
+calling-conventions = { path = "../../../representations/calling-conventions" }
+function-identity = { path = "../../../representations/function-identity" }
+arena = { path = "../../../../psi/foundation/arena" }
+checked-trees = { path = "../../../../psi/representations/checked-trees" }
+layout-plans = { path = "../../../../psi/foundation/layout-plans" }
+symbols = { path = "../../../../psi/foundation/symbols" }
+target = { path = "../../../representations/target" }

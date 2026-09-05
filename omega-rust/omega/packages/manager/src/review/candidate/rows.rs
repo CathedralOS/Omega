@@ -1,8 +1,8 @@
 //! Review-only commitment and canonical-row value types.
 
-use omega_package_compilation::PackageSourceConsumptionCommitment;
-use omega_package_evidence::encoding::DecodedPackageReviewCanonicalRow;
-use omega_package_evidence::record::{
+use package_compilation::PackageSourceConsumptionCommitment;
+use package_evidence::encoding::DecodedPackageReviewCanonicalRow;
+use package_evidence::record::{
     PackageReviewCanonicalRow, PackageReviewCanonicalRowKind, PackageReviewCanonicalRowRisk,
     PackageReviewCanonicalRowSource,
 };

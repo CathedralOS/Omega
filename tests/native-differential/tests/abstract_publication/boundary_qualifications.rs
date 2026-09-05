@@ -1,7 +1,7 @@
 //! Boundary qualification consumption through optimizer projection custody.
 
 use super::*;
-use omega_optimization_validation::{
+use optimization_validation::{
     OptimizedAbstractPlanProjectionError, validate_optimized_abstract_plan_projection,
     validate_transformed_psi_optimization_unit,
 };
@@ -12,8 +12,8 @@ fn whole_root_boundary_requirement_consumes_carried_qualification_through_projec
     let optimized =
         publish_optimization_run(run(boundary_qualification_verified(), selections)).unwrap();
     let unit = optimized.unit();
-    let required = psi_core::StructuralDomainId::new(1_905).unwrap();
-    let unrelated = psi_core::StructuralDomainId::new(1_906).unwrap();
+    let required = semantic_vocabulary::StructuralDomainId::new(1_905).unwrap();
+    let unrelated = semantic_vocabulary::StructuralDomainId::new(1_906).unwrap();
 
     assert!(optimized.commits().is_empty());
     assert!(
@@ -33,7 +33,10 @@ fn whole_root_boundary_requirement_consumes_carried_qualification_through_projec
     else {
         panic!("fixture must retain one boundary call")
     };
-    assert_eq!(*boundary, psi_core::BoundaryMachineId::new(1_903).unwrap());
+    assert_eq!(
+        *boundary,
+        semantic_vocabulary::BoundaryMachineId::new(1_903).unwrap()
+    );
     assert!(structural_arguments[0].path.is_empty());
     assert_eq!(optimized.validation().final_unit(), unit.identity);
     assert_eq!(
@@ -49,7 +52,7 @@ fn whole_root_boundary_requirement_consumes_carried_qualification_through_projec
     missing.functions[0].structural_parameters[0]
         .qualifications
         .clear();
-    missing.identity = omega_optimization_unit::recompute_psi_optimization_unit_identity(&missing);
+    missing.identity = optimization_unit::recompute_psi_optimization_unit_identity(&missing);
     assert!(matches!(
         validate_transformed_psi_optimization_unit(optimized.verified_input(), &missing),
         Err(OptimizationUnitValidationError::StructuralCallContractMismatch { node: 0, .. })
@@ -59,7 +62,7 @@ fn whole_root_boundary_requirement_consumes_carried_qualification_through_projec
     widened.functions[0].structural_parameters[0]
         .qualifications
         .push(unrelated);
-    widened.identity = omega_optimization_unit::recompute_psi_optimization_unit_identity(&widened);
+    widened.identity = optimization_unit::recompute_psi_optimization_unit_identity(&widened);
     assert_eq!(
         validate_transformed_psi_optimization_unit(optimized.verified_input(), &widened),
         Err(OptimizationUnitValidationError::VerifiedOptimizationUnitProjectionMismatch),
@@ -69,7 +72,7 @@ fn whole_root_boundary_requirement_consumes_carried_qualification_through_projec
     let mut erased_requirement = unit.clone();
     erased_requirement.boundary_machines[0].requires.clear();
     erased_requirement.identity =
-        omega_optimization_unit::recompute_psi_optimization_unit_identity(&erased_requirement);
+        optimization_unit::recompute_psi_optimization_unit_identity(&erased_requirement);
     assert_eq!(
         validate_transformed_psi_optimization_unit(optimized.verified_input(), &erased_requirement,),
         Err(OptimizationUnitValidationError::VerifiedOptimizationUnitProjectionMismatch),
@@ -81,9 +84,9 @@ fn whole_root_boundary_requirement_consumes_carried_qualification_through_projec
     else {
         unreachable!()
     };
-    *boundary = psi_core::BoundaryMachineId::new(1_999).unwrap();
+    *boundary = semantic_vocabulary::BoundaryMachineId::new(1_999).unwrap();
     substituted_boundary.identity =
-        omega_optimization_unit::recompute_psi_optimization_unit_identity(&substituted_boundary);
+        optimization_unit::recompute_psi_optimization_unit_identity(&substituted_boundary);
     assert!(matches!(
         validate_transformed_psi_optimization_unit(
             optimized.verified_input(),
@@ -102,21 +105,21 @@ fn whole_root_boundary_requirement_consumes_carried_qualification_through_projec
     };
     structural_arguments[0]
         .path
-        .push(psi_terminal::StructuralPathSegment::Field("missing".into()));
+        .push(terminal_psi::StructuralPathSegment::Field("missing".into()));
     projected_path.identity =
-        omega_optimization_unit::recompute_psi_optimization_unit_identity(&projected_path);
+        optimization_unit::recompute_psi_optimization_unit_identity(&projected_path);
     assert!(matches!(
         validate_transformed_psi_optimization_unit(optimized.verified_input(), &projected_path),
         Err(OptimizationUnitValidationError::StructuralCallContractMismatch { node: 0, .. })
     ));
 
     for corrupt in [
-        |plan: &mut omega_abstract_operations::AbstractOperationPlan| {
+        |plan: &mut abstract_operations::AbstractOperationPlan| {
             plan.functions[0].structural_parameters[0]
                 .qualifications
                 .clear();
         },
-        |plan: &mut omega_abstract_operations::AbstractOperationPlan| {
+        |plan: &mut abstract_operations::AbstractOperationPlan| {
             plan.boundary_machines[0].requires.clear();
         },
     ] {
@@ -130,7 +133,7 @@ fn whole_root_boundary_requirement_consumes_carried_qualification_through_projec
                 optimized.selections(),
                 optimized.psi_selections(),
                 optimized.identity_bundle().rule_set(),
-                omega_abstract_operations_optimizer::baseline_psi_cost_model_identity(),
+                abstract_operations_to_abstract_operations::baseline_psi_cost_model_identity(),
                 optimized.decisions(),
                 optimized.pass_manifests(),
                 optimized.transformation_ledger(),
@@ -151,7 +154,7 @@ fn whole_root_boundary_requirement_consumes_carried_qualification_through_projec
     };
     structural_arguments[0]
         .path
-        .push(psi_terminal::StructuralPathSegment::Field("missing".into()));
+        .push(terminal_psi::StructuralPathSegment::Field("missing".into()));
     assert_eq!(
         validate_optimized_abstract_plan_projection(
             optimized.verified_input(),
@@ -160,7 +163,7 @@ fn whole_root_boundary_requirement_consumes_carried_qualification_through_projec
             optimized.selections(),
             optimized.psi_selections(),
             optimized.identity_bundle().rule_set(),
-            omega_abstract_operations_optimizer::baseline_psi_cost_model_identity(),
+            abstract_operations_to_abstract_operations::baseline_psi_cost_model_identity(),
             optimized.decisions(),
             optimized.pass_manifests(),
             optimized.transformation_ledger(),
@@ -179,15 +182,15 @@ fn projected_boundary_requirement_retains_exact_path_custody_through_prephysical
     ))
     .unwrap();
     let unit = optimized.unit();
-    let required = psi_core::StructuralDomainId::new(1_926).unwrap();
-    let unrelated = psi_core::StructuralDomainId::new(1_927).unwrap();
-    let expected_path = vec![psi_terminal::StructuralPathSegment::Field("left".into())];
+    let required = semantic_vocabulary::StructuralDomainId::new(1_926).unwrap();
+    let unrelated = semantic_vocabulary::StructuralDomainId::new(1_927).unwrap();
+    let expected_path = vec![terminal_psi::StructuralPathSegment::Field("left".into())];
 
     assert!(optimized.commits().is_empty());
     assert!(unit.proof_questions.is_empty(), "D47 mints no obligation");
     assert_eq!(
         unit.functions[0].structural_parameters[0].projected_qualifications,
-        [psi_terminal::StructuralPathQualification {
+        [terminal_psi::StructuralPathQualification {
             path: expected_path.clone(),
             domain: required,
         }]
@@ -210,7 +213,7 @@ fn projected_boundary_requirement_retains_exact_path_custody_through_prephysical
     missing.functions[0].structural_parameters[0]
         .projected_qualifications
         .clear();
-    missing.identity = omega_optimization_unit::recompute_psi_optimization_unit_identity(&missing);
+    missing.identity = optimization_unit::recompute_psi_optimization_unit_identity(&missing);
     assert!(matches!(
         validate_transformed_psi_optimization_unit(optimized.verified_input(), &missing),
         Err(OptimizationUnitValidationError::StructuralCallContractMismatch { .. })
@@ -219,11 +222,11 @@ fn projected_boundary_requirement_retains_exact_path_custody_through_prephysical
     let mut widened = unit.clone();
     widened.functions[0].structural_parameters[0]
         .projected_qualifications
-        .push(psi_terminal::StructuralPathQualification {
-            path: vec![psi_terminal::StructuralPathSegment::Field("right".into())],
+        .push(terminal_psi::StructuralPathQualification {
+            path: vec![terminal_psi::StructuralPathSegment::Field("right".into())],
             domain: unrelated,
         });
-    widened.identity = omega_optimization_unit::recompute_psi_optimization_unit_identity(&widened);
+    widened.identity = optimization_unit::recompute_psi_optimization_unit_identity(&widened);
     assert_eq!(
         validate_transformed_psi_optimization_unit(optimized.verified_input(), &widened),
         Err(OptimizationUnitValidationError::VerifiedOptimizationUnitProjectionMismatch),
@@ -237,9 +240,8 @@ fn projected_boundary_requirement_retains_exact_path_custody_through_prephysical
     else {
         unreachable!()
     };
-    structural_arguments[0].path = vec![psi_terminal::StructuralPathSegment::Field("right".into())];
-    wrong_path.identity =
-        omega_optimization_unit::recompute_psi_optimization_unit_identity(&wrong_path);
+    structural_arguments[0].path = vec![terminal_psi::StructuralPathSegment::Field("right".into())];
+    wrong_path.identity = optimization_unit::recompute_psi_optimization_unit_identity(&wrong_path);
     assert!(matches!(
         validate_transformed_psi_optimization_unit(optimized.verified_input(), &wrong_path),
         Err(OptimizationUnitValidationError::StructuralCallContractMismatch { .. })
@@ -257,7 +259,7 @@ fn projected_boundary_requirement_retains_exact_path_custody_through_prephysical
             optimized.selections(),
             optimized.psi_selections(),
             optimized.identity_bundle().rule_set(),
-            omega_abstract_operations_optimizer::baseline_psi_cost_model_identity(),
+            abstract_operations_to_abstract_operations::baseline_psi_cost_model_identity(),
             optimized.decisions(),
             optimized.pass_manifests(),
             optimized.transformation_ledger(),
@@ -267,12 +269,12 @@ fn projected_boundary_requirement_retains_exact_path_custody_through_prephysical
     );
 
     assert_eq!(
-        omega_abstract_operations_to_target_operations::lower_to_target_operations(
+        abstract_operations_to_target_operations::lower_to_target_operations(
             optimized.plan(),
-            omega_target::NativeTarget::linux_x64(),
+            target::NativeTarget::linux_x64(),
         ),
         Err(
-            omega_abstract_operations_to_target_operations::LoweringError::UnsupportedProjectedStructuralQualifications,
+            abstract_operations_to_target_operations::LoweringError::UnsupportedProjectedStructuralQualifications,
         ),
     );
 }
@@ -283,9 +285,9 @@ fn projected_function_and_call_results_cross_replay_abstract_and_prephysical_cus
     let optimized =
         publish_optimization_run(run(projected_structural_result_verified(), selections))
             .expect("projected structural results cross a no-rewrite optimizer run");
-    let expected = [psi_terminal::StructuralPathQualification {
-        path: vec![psi_terminal::StructuralPathSegment::Field("payload".into())],
-        domain: psi_core::StructuralDomainId::new(1_946).unwrap(),
+    let expected = [terminal_psi::StructuralPathQualification {
+        path: vec![terminal_psi::StructuralPathSegment::Field("payload".into())],
+        domain: semantic_vocabulary::StructuralDomainId::new(1_946).unwrap(),
     }];
     let unit = optimized.unit();
     let function_result = unit.functions[0]
@@ -333,7 +335,7 @@ fn projected_function_and_call_results_cross_replay_abstract_and_prephysical_cus
             optimized.selections(),
             optimized.psi_selections(),
             optimized.identity_bundle().rule_set(),
-            omega_abstract_operations_optimizer::baseline_psi_cost_model_identity(),
+            abstract_operations_to_abstract_operations::baseline_psi_cost_model_identity(),
             optimized.decisions(),
             optimized.pass_manifests(),
             optimized.transformation_ledger(),
@@ -341,12 +343,12 @@ fn projected_function_and_call_results_cross_replay_abstract_and_prephysical_cus
         ),
         Err(OptimizedAbstractPlanProjectionError::ReconstructibleProjectionMismatch),
     );
-    let lowered = omega_abstract_operations_to_target_operations::lower_to_target_operations(
+    let lowered = abstract_operations_to_target_operations::lower_to_target_operations(
         optimized.plan(),
-        omega_target::NativeTarget::linux_x64(),
+        target::NativeTarget::linux_x64(),
     )
     .expect("the exact projected structural call/return closure reaches target IR");
-    let omega_target_operations::TargetOperation::ReturnStructuralCall {
+    let target_operations::TargetOperation::ReturnStructuralCall {
         structural_parameters,
         operation_result,
         result,

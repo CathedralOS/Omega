@@ -1,12 +1,12 @@
-use omega_package_manager::resolution::graph::{
+use package_manager::resolution::graph::{
     CanonicalDependencySourceRequest, CanonicalRootSourceRequest, CanonicalSourceClosureSubject,
     CanonicalSourceClosureSubjectLimits, PackageSourceClosureLimits,
     ResolveExternalLocalPackageClosureError, ResolveWorkspacePackageClosureError,
     ResolvedPackageSourceClosure, resolve_external_local_package_closure_with_storage,
     resolve_workspace_package_closure_with_storage,
 };
-use omega_package_manager::resolution::source::ResolvePackageSourceError;
-use omega_package_source::{
+use package_manager::resolution::source::ResolvePackageSourceError;
+use package_source::{
     ExternalSourceContext, LocalSourceLimits, SourceLineage, SourceRelativePath,
     SourceResolverStorage,
 };
@@ -159,7 +159,7 @@ fn real_diamond_preserves_each_request_alias_and_canonical_reconstruction() {
     let closure = resolve_diamond(&root, context.clone(), &tree.path("cache-a"));
     let limits = CanonicalSourceClosureSubjectLimits::default();
     let subject = CanonicalSourceClosureSubject::from_resolved(
-        &closure.for_exact_target(omega_target::TargetProfile::CrossPlatformCli),
+        &closure.for_exact_target(target::TargetProfile::CrossPlatformCli),
         limits,
     )
     .expect("project canonical source-closure subject");
@@ -220,7 +220,7 @@ fn real_diamond_preserves_each_request_alias_and_canonical_reconstruction() {
     assert!(
         recovered
             .matches_resolved(
-                &closure.for_exact_target(omega_target::TargetProfile::CrossPlatformCli),
+                &closure.for_exact_target(target::TargetProfile::CrossPlatformCli),
                 limits,
             )
             .expect("reconstruct subject from resolver custody")
@@ -228,7 +228,7 @@ fn real_diamond_preserves_each_request_alias_and_canonical_reconstruction() {
 
     let relocated = resolve_diamond(&root, context, &tree.path("cache-b"));
     let relocated_subject = CanonicalSourceClosureSubject::from_resolved(
-        &relocated.for_exact_target(omega_target::TargetProfile::CrossPlatformCli),
+        &relocated.for_exact_target(target::TargetProfile::CrossPlatformCli),
         limits,
     )
     .expect("project subject after cache relocation");
@@ -249,12 +249,12 @@ fn exact_root_spelling_changes_the_subject_without_changing_selected_identity() 
     let ordinary = resolve_diamond(&root, context.clone(), &tree.path("ordinary-cache"));
     let alternate = resolve_diamond(&alternate_spelling, context, &tree.path("alternate-cache"));
     let ordinary_subject = CanonicalSourceClosureSubject::from_resolved(
-        &ordinary.for_exact_target(omega_target::TargetProfile::CrossPlatformCli),
+        &ordinary.for_exact_target(target::TargetProfile::CrossPlatformCli),
         limits,
     )
     .expect("project ordinary-spelling subject");
     let alternate_subject = CanonicalSourceClosureSubject::from_resolved(
-        &alternate.for_exact_target(omega_target::TargetProfile::CrossPlatformCli),
+        &alternate.for_exact_target(target::TargetProfile::CrossPlatformCli),
         limits,
     )
     .expect("project alternate-spelling subject");
@@ -293,7 +293,7 @@ fn exact_root_spelling_changes_the_subject_without_changing_selected_identity() 
     assert!(
         !ordinary_subject
             .matches_resolved(
-                &alternate.for_exact_target(omega_target::TargetProfile::CrossPlatformCli),
+                &alternate.for_exact_target(target::TargetProfile::CrossPlatformCli),
                 limits,
             )
             .expect("compare exact alternate request")
@@ -301,7 +301,7 @@ fn exact_root_spelling_changes_the_subject_without_changing_selected_identity() 
     assert!(
         !alternate_subject
             .matches_resolved(
-                &ordinary.for_exact_target(omega_target::TargetProfile::CrossPlatformCli),
+                &ordinary.for_exact_target(target::TargetProfile::CrossPlatformCli),
                 limits,
             )
             .expect("compare exact ordinary request")
@@ -319,7 +319,7 @@ fn recovery_rejects_bounds_trailing_bytes_and_semantic_tampering() {
     );
     let limits = CanonicalSourceClosureSubjectLimits::default();
     let subject = CanonicalSourceClosureSubject::from_resolved(
-        &closure.for_exact_target(omega_target::TargetProfile::CrossPlatformCli),
+        &closure.for_exact_target(target::TargetProfile::CrossPlatformCli),
         limits,
     )
     .expect("project recovery fixture subject");
@@ -415,7 +415,7 @@ fn workspace_member_requests_round_trip_without_cache_identity() {
     )
     .expect("resolve workspace member closure");
     let subject = CanonicalSourceClosureSubject::from_resolved(
-        &closure.for_exact_target(omega_target::TargetProfile::CrossPlatformCli),
+        &closure.for_exact_target(target::TargetProfile::CrossPlatformCli),
         limits,
     )
     .expect("project workspace source subject");
@@ -446,7 +446,7 @@ fn workspace_member_requests_round_trip_without_cache_identity() {
     .expect("resolve workspace member closure after cache relocation");
     assert_eq!(
         CanonicalSourceClosureSubject::from_resolved(
-            &relocated.for_exact_target(omega_target::TargetProfile::CrossPlatformCli),
+            &relocated.for_exact_target(target::TargetProfile::CrossPlatformCli),
             limits,
         )
         .expect("project relocated workspace subject"),

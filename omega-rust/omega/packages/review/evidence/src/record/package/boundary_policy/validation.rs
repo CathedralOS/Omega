@@ -3,8 +3,8 @@ use crate::record::{
     PackagePolicyProviderBinding, PackagePolicySelectedProviders,
     PackageReviewBoundaryApplicationArgument, PackageReviewNominalOwner,
 };
-use omega_target::TargetProfile;
-use psi_core::PackageKeyIdentity;
+use semantic_vocabulary::PackageKeyIdentity;
+use target::TargetProfile;
 
 impl PackagePolicyBoundaryApplicationRealization {
     pub(crate) fn application_key(

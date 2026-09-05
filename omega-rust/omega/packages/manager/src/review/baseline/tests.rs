@@ -4,14 +4,14 @@ use super::encoding::{
 };
 use super::validation::replay_record_limits;
 use super::*;
-use omega_build_evaluation::{
+use build_evaluation::{
     capture_verified_build_filesystem_replay_record,
     rehydrate_review_only_build_filesystem_replay_record,
 };
 
 #[test]
 fn baseline_git_resolution_rejects_content_not_derived_from_its_tree() {
-    use omega_package_source::{GitCommitId, GitTreeId, ImmutableSourceResolution};
+    use package_source::{GitCommitId, GitTreeId, ImmutableSourceResolution};
 
     let resolution = ImmutableSourceResolution::git(
         GitCommitId::parse_hex(&"01".repeat(20)).unwrap(),
@@ -32,7 +32,7 @@ fn baseline_git_resolution_rejects_content_not_derived_from_its_tree() {
 
 #[test]
 fn replay_record_option_framing_round_trips_owner_constructed_bytes() {
-    let summary = omega_build_evaluation::test_support::replayable_unknown_descriptor_summary();
+    let summary = build_evaluation::test_support::replayable_unknown_descriptor_summary();
     let limits = ReviewOnlyBaselineLimits::default();
     let replay =
         capture_verified_build_filesystem_replay_record(&summary, replay_record_limits(limits))

@@ -36,7 +36,7 @@ fn relocation_free_text_section_preserves_disconnected_function_order_without_pa
     fragments.functions.push(detached);
     fragments.identity = fragments.recomputed_identity();
     let expected_machines = [entry, MachineId::new(1).unwrap()];
-    let mut placed = omega_machine_emission::place_fragments_for_test(&fragments).unwrap();
+    let mut placed = machine_emission::place_fragments_for_test(&fragments).unwrap();
     assert_eq!(
         placed
             .functions
@@ -59,7 +59,7 @@ fn relocation_free_text_section_preserves_disconnected_function_order_without_pa
         .concat()
     );
 
-    let replay = omega_machine_emission::place_fragments_for_test(&fragments).unwrap();
+    let replay = machine_emission::place_fragments_for_test(&fragments).unwrap();
     assert_eq!(replay, placed);
     placed.functions.swap(0, 1);
     placed.identity = placed.recomputed_identity();

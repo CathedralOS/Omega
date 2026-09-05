@@ -5,16 +5,16 @@ use super::members::{
 use crate::capture::contracts::facts::ContractProjectionContext;
 use crate::capture::semantics::declarations::nominal_identity;
 use crate::record::PackageReviewContractExpression;
-use omega_compiler::CheckedCompilation;
-use psi_diagnostics::Diagnostic;
-use psi_symbols::SymbolHandle;
+use compiler::CheckedCompilation;
+use diagnostics::Diagnostic;
+use symbols::SymbolHandle;
 
 pub(crate) fn contract_parameter_field_symbol(
     compilation: &CheckedCompilation,
-    parameter: &psi_typed_trees::signature::StateParameter,
+    parameter: &typed_trees::signature::StateParameter,
     field_name: &str,
 ) -> Option<SymbolHandle> {
-    use psi_typed_trees::types::TypeReferenceNode;
+    use typed_trees::types::TypeReferenceNode;
 
     let mut type_reference = parameter.type_reference;
     let data_symbol = loop {
@@ -35,7 +35,7 @@ pub(crate) fn contract_parameter_field_symbol(
         .find(|data| data.symbol == data_symbol)
         .and_then(|data| {
             compilation.data_members(data).iter().find_map(|member| {
-                let psi_typed_trees::data::DataMember::Field(field) = member else {
+                let typed_trees::data::DataMember::Field(field) = member else {
                     return None;
                 };
                 (field.name.as_str() == field_name).then_some(field.symbol)
@@ -47,10 +47,10 @@ pub(crate) fn project_contract_name_expression(
     compilation: &CheckedCompilation,
     context: &ContractProjectionContext<'_>,
     binders: &[(SymbolHandle, String)],
-    expression: psi_typed_trees::expression::ExpressionHandle,
-    path: &psi_typed_trees::expression::TableNamePath,
+    expression: typed_trees::expression::ExpressionHandle,
+    path: &typed_trees::expression::TableNamePath,
     substitutions: &[(SymbolHandle, PackageReviewContractExpression)],
-    checked_fact: Option<psi_arena::Handle<psi_typed_trees::domain::ProofFact>>,
+    checked_fact: Option<arena::Handle<typed_trees::domain::ProofFact>>,
 ) -> Result<PackageReviewContractExpression, Vec<Diagnostic>> {
     let members = compilation.expression_table.name_path_members(path.members);
     let data_binder_position = context.data_symbol.and_then(|data_symbol| {
@@ -72,7 +72,7 @@ pub(crate) fn project_contract_name_expression(
             context,
             checked_fact,
             expression,
-            psi_facts::PlaceRoot::Symbol(context.data_symbol.expect("guarded data subject")),
+            facts::PlaceRoot::Symbol(context.data_symbol.expect("guarded data subject")),
             members,
         )?
         .into_iter()
@@ -163,15 +163,15 @@ pub(crate) fn project_contract_name_expression(
         ))]);
     };
     let semantic_root = is_domain_subject
-        .then_some(psi_facts::PlaceRoot::Expression(expression))
+        .then_some(facts::PlaceRoot::Expression(expression))
         .or_else(|| {
             parameter_position
-                .map(|position| psi_facts::PlaceRoot::Symbol(context.parameters[position].symbol))
+                .map(|position| facts::PlaceRoot::Symbol(context.parameters[position].symbol))
         })
         .or_else(|| {
             root_symbol
                 .is_valid()
-                .then_some(psi_facts::PlaceRoot::Symbol(root_symbol))
+                .then_some(facts::PlaceRoot::Symbol(root_symbol))
         })
         .ok_or_else(|| {
             vec![Diagnostic::error(format!(

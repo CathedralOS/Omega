@@ -2,8 +2,8 @@
 
 mod support;
 
-use omega_package_evidence::encoding::PackagePolicyRecoveryLimits;
-use omega_package_evidence::{project_checked_calling_policy, record::PackagePolicyCallingPlan};
+use package_evidence::encoding::PackagePolicyRecoveryLimits;
+use package_evidence::{project_checked_calling_policy, record::PackagePolicyCallingPlan};
 use support::*;
 
 fn policy(declaration: &str) -> PackagePolicyCallingPlan {
@@ -154,7 +154,7 @@ boundary trait HookProcedure: Calling<HookProcedurePolicy> {
 "#;
     let absent = policy(declaration);
     let explicit = policy(&declaration.replace("Work(value: u64);", "Work(value: u64) -> Unit;"));
-    use omega_package_evidence::record::PackagePolicyTypeParameterKind;
+    use package_evidence::record::PackagePolicyTypeParameterKind;
     let PackagePolicyTypeParameterKind::Machine(absent_contract) =
         absent.static_parameters()[0].kind()
     else {

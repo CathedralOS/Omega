@@ -5,12 +5,12 @@ use crate::capture::semantics::declarations::{
 };
 use crate::capture::semantics::encoding::framed_identity;
 use crate::record::PackagePolicyCallbackBinder;
-use omega_compiler::CheckedCompilation;
-use omega_provider_planning::calling_policy_plans::{
+use compiler::CheckedCompilation;
+use diagnostics::Diagnostic;
+use provider_planning::calling_policy_plans::{
     BoundaryCallbackBinder, MaterializedBoundarySignature,
 };
-use psi_diagnostics::Diagnostic;
-use psi_typed_trees::data::{MachineParameterContract, TypeParameterKind};
+use typed_trees::data::{MachineParameterContract, TypeParameterKind};
 
 pub(super) fn project(
     compilation: &CheckedCompilation,

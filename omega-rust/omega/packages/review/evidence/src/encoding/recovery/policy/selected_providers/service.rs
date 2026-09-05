@@ -1,12 +1,12 @@
 use super::{Error, Reader, nominal};
 use crate::encoding::recovery::policy::calling_application;
 use crate::record::PackagePolicyServiceMethod;
-use omega_effects::provider_plan::{
+use effects::provider_plan::{
     ServiceEntryAuthorityFlow, ServiceEntryClaim, ServiceProgressEstablishmentRoute,
     ServiceProgressEstablishmentRouteKind, ServiceProgressPremise, ServiceProgressSubject,
     ServiceResultClaim,
 };
-use psi_language_semantics::{
+use language_semantics::{
     CarryAddress, CarryCpu, CarryHostThread, CarryPolicy, CarrySuspension, DomainPredicateBody,
 };
 

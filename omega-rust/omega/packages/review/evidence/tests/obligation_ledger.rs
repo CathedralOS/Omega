@@ -288,7 +288,7 @@ fn ordinary_package_obligation_ledger_binds_exact_dependency_closure_without_pat
         )
         .expect("unused dependency graph should check")
     };
-    let ledger_for = |checked: &omega_compiler::CheckedCompilation| {
+    let ledger_for = |checked: &compiler::CheckedCompilation| {
         let rows = project_checked_package_review(checked)
             .expect("dependency-closure review should project")
             .canonical_rows()

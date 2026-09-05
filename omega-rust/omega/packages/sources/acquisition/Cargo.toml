@@ -1,20 +1,20 @@
 [package]
-name = "omega-package-source"
+name = "package-source"
 edition.workspace = true
 license.workspace = true
 version.workspace = true
 
 [lib]
-name = "omega_package_source"
+name = "package_source"
 path = "src/lib.rs"
 
 [features]
 test-fixtures = []
 
 [dependencies]
-omega-bounded-process = { path = "../../../tooling/omega-bounded-process" }
-omega-platform-custody = { path = "../../../tooling/omega-platform-custody" }
-omega-resolver-execution = { path = "../execution" }
+bounded-process = { path = "../../../tooling/bounded-process" }
+platform-custody = { path = "../../../tooling/platform-custody" }
+resolver-execution = { path = "../execution" }
 cap-fs-ext = "4.0.3"
 cap-std = "4.0.3"
 sha1-checked = { version = "0.10.0", default-features = false }

@@ -1,0 +1,18 @@
+[package]
+name = "terminal-verifier"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[lib]
+name = "terminal_verifier"
+path = "src/lib.rs"
+
+[dependencies]
+semantic-vocabulary = { path = "../../foundation/semantic-vocabulary" }
+language-semantics = { path = "../../foundation/language-semantics" }
+numerics = { path = "../../foundation/numerics" }
+proof-admission = { path = "../proof-admission" }
+terminal-psi = { path = "../../representations/terminal-psi" }
+terminal-semantics = { path = "../terminal-semantics" }
+sha2 = "0.10.9"

@@ -1,0 +1,17 @@
+[package]
+name = "trust-ledger"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[lib]
+name = "trust_ledger"
+path = "src/lib.rs"
+
+[dependencies]
+trust-model = { path = "../trust-model" }
+diagnostics = { path = "../../../psi/foundation/diagnostics" }
+
+[dev-dependencies]
+compiler = { path = "../../compiler/compiler" }
+effects = { path = "../../representations/effects" }

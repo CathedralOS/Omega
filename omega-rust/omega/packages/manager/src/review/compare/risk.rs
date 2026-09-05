@@ -1,9 +1,7 @@
 //! Highest changed-row risk used by review triage.
 
 use crate::review::candidate::{PackageReviewEvidence, ReviewOnlyCanonicalRow};
-use omega_package_evidence::record::{
-    PackageReviewCanonicalRowKind, PackageReviewCanonicalRowRisk,
-};
+use package_evidence::record::{PackageReviewCanonicalRowKind, PackageReviewCanonicalRowRisk};
 use std::cmp::Ordering;
 
 /// Highest policy risk among changed canonical rows. A whole-review change

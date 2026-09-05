@@ -12,9 +12,9 @@ use crate::record::{
     PackageReviewDomainShape, PackageReviewOperatorShape, PackageReviewPropositionShape,
     PackageReviewRepresentationTcb, PackageReviewTraitShape,
 };
-use omega_compiler::CheckedCompilation;
-use psi_core::PackageKeyIdentity;
-use psi_diagnostics::Diagnostic;
+use compiler::CheckedCompilation;
+use diagnostics::Diagnostic;
+use semantic_vocabulary::PackageKeyIdentity;
 
 pub(super) struct ProjectedPackageSurface {
     pub(super) public_traits: Vec<ProjectedReviewRow<PackageReviewTraitShape>>,

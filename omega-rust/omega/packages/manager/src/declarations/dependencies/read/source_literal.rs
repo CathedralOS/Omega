@@ -2,8 +2,8 @@ use super::error::DependencyProjectionError;
 use super::model::{DependencySourceRequest, PackageSelection};
 use crate::declarations::{AliasName, PackageName};
 
-use psi_syntax_trees::SyntaxTrees;
-use psi_syntax_trees::expression::{ExpressionHandle, ExpressionNode};
+use syntax_trees::SyntaxTrees;
+use syntax_trees::expression::{ExpressionHandle, ExpressionNode};
 
 pub(super) const SOURCE_TYPE_NAME: &str = "Source";
 pub(super) const PACKAGE_SELECTION_TYPE_NAME: &str = "PackageSelection";

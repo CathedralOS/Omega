@@ -1,0 +1,16 @@
+[package]
+name = "facts"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[lib]
+name = "facts"
+path = "src/lib.rs"
+
+[dependencies]
+arena = { path = "../../foundation/arena" }
+language-semantics = { path = "../../foundation/language-semantics" }
+numerics = { path = "../../foundation/numerics" }
+symbols = { path = "../../foundation/symbols" }
+typed-trees = { path = "../typed-trees" }

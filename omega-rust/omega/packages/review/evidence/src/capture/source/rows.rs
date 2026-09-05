@@ -8,7 +8,7 @@ use crate::record::{
     PackageReviewDangerousAuthority, PackageReviewDangerousAuthoritySlack,
     PackageReviewSemanticDependency, PackageReviewSourceLocationRole,
 };
-use psi_symbols::SymbolHandle;
+use symbols::SymbolHandle;
 
 /// Pairing between one semantic review row and the exact declaration that
 /// produced it. Canonical sorting must move both together; source projection
@@ -22,7 +22,7 @@ pub(crate) struct ProjectedReviewRow<Row> {
 
 #[derive(Debug, Clone, Copy)]
 pub(crate) struct ProjectedNestedSourceLocation {
-    pub(crate) source_span: psi_source::SourceSpan,
+    pub(crate) source_span: source::SourceSpan,
     pub(crate) role: PackageReviewSourceLocationRole,
 }
 

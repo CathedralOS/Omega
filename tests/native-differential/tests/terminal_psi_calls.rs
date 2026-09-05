@@ -1,31 +1,31 @@
-use omega_abstract_operations::AbstractOperation;
-use omega_abstract_operations_to_target_operations::lower_to_target_operations;
-use omega_image_emission::{
+use abstract_operations::AbstractOperation;
+use abstract_operations_to_target_operations::lower_to_target_operations;
+use image_emission::{
     ObjectError, build_object_artifact, derive_stack_demand, emit_executable_image,
     emit_object_container, emit_scalar_call_reference_linux_x86_64_image,
 };
-use omega_machine_emission::emit_machine_code;
-use omega_psi_to_abstract_operations::lower_artifact_sections;
-use omega_target::NativeTarget;
-use omega_target_operations_to_assigned_target_operations::assign_registers;
-use psi_core::{
+use machine_emission::emit_machine_code;
+use proof_admission::AdmissionProfile;
+use semantic_vocabulary::{
     BlockId, ContractId, EdgeId, IntegerSign, IntegerType, IntegerValue, MachineId, OperationId,
     ScalarType, ValueId,
 };
-use psi_proof_admission::AdmissionProfile;
-use psi_terminal::{
+use target::NativeTarget;
+use target_operations_to_assigned_target_operations::assign_registers;
+use terminal_codec::{decode_module, encode_module, encode_proof_bundle};
+use terminal_fixed_fuel::derive_fixed_entry_fuel;
+use terminal_fuel::{FuelChargeSite, FuelExhaustion, TerminalFuelMeter, TerminalFuelSchedule};
+use terminal_interpreter::{
+    TerminalExecution, TerminalExecutionResult, TerminalExecutionStatus, TerminalScalarValue,
+    interpret_terminal_artifact_measured,
+};
+use terminal_psi::{
     Block, CrashCause, CrashRouteBucket, CrashRouteGuard, MachineContract, Operation,
     OperationKind, TerminalMachine, TerminalMachineResult, TerminalModule, Terminator,
     ValueDeclaration, VocabularyMarker,
 };
-use psi_terminal_codec::{decode_module, encode_module, encode_proof_bundle};
-use psi_terminal_fixed_fuel::derive_fixed_entry_fuel;
-use psi_terminal_fuel::{FuelChargeSite, FuelExhaustion, TerminalFuelMeter, TerminalFuelSchedule};
-use psi_terminal_interpreter::{
-    TerminalExecution, TerminalExecutionResult, TerminalExecutionStatus, TerminalScalarValue,
-    interpret_terminal_artifact_measured,
-};
-use psi_terminal_verifier::{ProofBundle, verify_module};
+use terminal_psi_to_abstract_operations::lower_artifact_sections;
+use terminal_verifier::{ProofBundle, verify_module};
 
 const SCALAR_CALL_FIXTURE: &str = include_str!("../../fixtures/terminal-psi/scalar-call.hex");
 
@@ -289,7 +289,7 @@ fn scalar_i32_call_has_exact_exportable_terminal_bytes() {
 
     let mut wrong_result_type = i32_call_module();
     wrong_result_type.machines[0].blocks[0].operations[1].result =
-        psi_terminal::OperationResult::Scalar(scalar_declaration(value_id(2), ScalarType::Boolean));
+        terminal_psi::OperationResult::Scalar(scalar_declaration(value_id(2), ScalarType::Boolean));
     assert!(
         verify_module(
             &wrong_result_type,
@@ -568,7 +568,7 @@ fn scalar_call_module(scalar_type: ScalarType, constant_kind: OperationKind) -> 
                     operations: vec![
                         Operation {
                             id: operation_id(1),
-                            result: psi_terminal::OperationResult::Scalar(scalar_declaration(
+                            result: terminal_psi::OperationResult::Scalar(scalar_declaration(
                                 caller_constant,
                                 scalar_type,
                             )),
@@ -576,7 +576,7 @@ fn scalar_call_module(scalar_type: ScalarType, constant_kind: OperationKind) -> 
                         },
                         Operation {
                             id: operation_id(2),
-                            result: psi_terminal::OperationResult::Scalar(scalar_declaration(
+                            result: terminal_psi::OperationResult::Scalar(scalar_declaration(
                                 call_result,
                                 scalar_type,
                             )),

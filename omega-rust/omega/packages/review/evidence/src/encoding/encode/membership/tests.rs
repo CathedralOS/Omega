@@ -1,6 +1,6 @@
 use super::*;
 use crate::record::*;
-use omega_target::TargetProfile;
+use target::TargetProfile;
 
 fn package(byte: u8) -> PackageKeyIdentity {
     PackageKeyIdentity::from_digest([byte; 32]).unwrap()

@@ -1,6 +1,6 @@
 use crate::tests::*;
-use omega_optimization_core::OptimizationExecutionPhase;
-use omega_selected_instructions_to_register_homes::{
+use optimization_core::OptimizationExecutionPhase;
+use selected_instructions_to_register_homes::{
     LiteralFoldError, SelectedLoweringRuleCatalogError, resolve_selected_lowering_rules,
 };
 

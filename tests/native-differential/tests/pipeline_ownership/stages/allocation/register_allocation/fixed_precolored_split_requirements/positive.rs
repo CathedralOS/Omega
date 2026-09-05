@@ -29,7 +29,7 @@ fn forwarded_conditional_exposes_two_factual_fixed_use_domain_boundaries() {
         );
         assert_eq!(
             first.receipt().identity(),
-            omega_selected_instructions_to_register_homes::fixed_precolored_split_requirement_plan_identity(first.plan())
+            selected_instructions_to_register_homes::fixed_precolored_split_requirement_plan_identity(first.plan())
         );
         let environment = fixture
             .source
@@ -42,7 +42,7 @@ fn forwarded_conditional_exposes_two_factual_fixed_use_domain_boundaries() {
         assert_eq!(registers[0].fragments.len(), 1);
         assert!(matches!(
             registers[0].fragments[0].segments[0].opening,
-            omega_selected_instructions_to_register_homes::FixedPrecoloredSourceSegmentOpening::SourceRangeStartV1
+            selected_instructions_to_register_homes::FixedPrecoloredSourceSegmentOpening::SourceRangeStartV1
         ));
         let forwarded = &registers[1];
         assert_eq!(forwarded.fragments.len(), 3);
@@ -55,7 +55,7 @@ fn forwarded_conditional_exposes_two_factual_fixed_use_domain_boundaries() {
             assert_eq!(fragment.segments[0].candidates, [named(result_name)]);
             assert!(matches!(
                 fragment.segments[0].opening,
-                omega_selected_instructions_to_register_homes::FixedPrecoloredSourceSegmentOpening::IncompatibleFixedUseDomainBoundaryV1 {
+                selected_instructions_to_register_homes::FixedPrecoloredSourceSegmentOpening::IncompatibleFixedUseDomainBoundaryV1 {
                     incoming: Some(_),
                     destination_view,
                     ..
@@ -63,13 +63,14 @@ fn forwarded_conditional_exposes_two_factual_fixed_use_domain_boundaries() {
             ));
         }
 
-        let replayed = omega_selected_instructions_to_register_homes::validate_fixed_precolored_split_requirements(
-            fixture.source.live_range_stage().ranges(),
-            fixture.source.legality(),
-            &fixture.fixed,
-            first.plan().clone(),
-        )
-        .unwrap();
+        let replayed =
+            selected_instructions_to_register_homes::validate_fixed_precolored_split_requirements(
+                fixture.source.live_range_stage().ranges(),
+                fixture.source.legality(),
+                &fixture.fixed,
+                first.plan().clone(),
+            )
+            .unwrap();
         assert_eq!(replayed, first);
         assert_eq!(
             first.receipt().fixed_intervals(),

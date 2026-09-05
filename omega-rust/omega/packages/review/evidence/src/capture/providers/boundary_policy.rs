@@ -4,10 +4,10 @@ mod demands;
 mod realizations;
 
 use crate::record::PackagePolicyBoundaryApplications;
-use omega_compiler::CheckedCompilation;
-use omega_target::TargetProfile;
-use psi_core::PackageKeyIdentity;
-use psi_diagnostics::Diagnostic;
+use compiler::CheckedCompilation;
+use diagnostics::Diagnostic;
+use semantic_vocabulary::PackageKeyIdentity;
+use target::TargetProfile;
 
 /// Retain exact open demands and closed selected relationships, not coverage.
 /// Plan coordinates use the same canonical order as selected-provider policy.

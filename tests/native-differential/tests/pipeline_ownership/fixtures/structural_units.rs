@@ -69,16 +69,16 @@ pub(crate) fn unit_return_artifact() -> (Vec<u8>, Vec<u8>) {
         evidence: Vec::new(),
     };
     (
-        psi_terminal_codec::encode_module(&module).unwrap(),
-        psi_terminal_codec::encode_proof_bundle(&proof).unwrap(),
+        terminal_codec::encode_module(&module).unwrap(),
+        terminal_codec::encode_proof_bundle(&proof).unwrap(),
     )
 }
 
 pub(crate) fn port_write_unit_return_artifact() -> (Vec<u8>, Vec<u8>) {
     let (semantic, proof) = unit_return_artifact();
-    let mut module = psi_terminal_codec::decode_module(&semantic).unwrap();
-    let service = psi_core::ServiceId::new(3_505).unwrap();
-    module.services.push(psi_terminal::ServiceDeclaration {
+    let mut module = terminal_codec::decode_module(&semantic).unwrap();
+    let service = semantic_vocabulary::ServiceId::new(3_505).unwrap();
+    module.services.push(terminal_psi::ServiceDeclaration {
         id: service,
         identity: "test::DebugPort".to_owned(),
         parents: Vec::new(),
@@ -94,12 +94,12 @@ pub(crate) fn port_write_unit_return_artifact() -> (Vec<u8>, Vec<u8>) {
             value: 0x41,
         },
     });
-    (psi_terminal_codec::encode_module(&module).unwrap(), proof)
+    (terminal_codec::encode_module(&module).unwrap(), proof)
 }
 
 pub(crate) fn unit_call_return_artifact() -> (Vec<u8>, Vec<u8>) {
     let (semantic, proof) = unit_return_artifact();
-    let mut module = psi_terminal_codec::decode_module(&semantic).unwrap();
+    let mut module = terminal_codec::decode_module(&semantic).unwrap();
     let callee = MachineId::new(3_507).unwrap();
     let mut callee_machine = module.machines[0].clone();
     callee_machine.id = callee;
@@ -123,18 +123,18 @@ pub(crate) fn unit_call_return_artifact() -> (Vec<u8>, Vec<u8>) {
         },
     });
     module.machines.push(callee_machine);
-    (psi_terminal_codec::encode_module(&module).unwrap(), proof)
+    (terminal_codec::encode_module(&module).unwrap(), proof)
 }
 
 pub(crate) fn byte_sequence_literal_unit_return_artifact() -> (Vec<u8>, Vec<u8>) {
     let (semantic, proof) = unit_return_artifact();
-    let mut module = psi_terminal_codec::decode_module(&semantic).unwrap();
+    let mut module = terminal_codec::decode_module(&semantic).unwrap();
     let structural_type = StructuralTypeId::new(3_515).unwrap();
     let place = PlaceId::new(3_516).unwrap();
     module.structural_types.push(StructuralTypeDeclaration {
         id: structural_type,
         identity: "BorrowedBytes".into(),
-        shape: StructuralTypeShape::ByteSequence(psi_terminal::ByteSequenceCarrier::BorrowedView),
+        shape: StructuralTypeShape::ByteSequence(terminal_psi::ByteSequenceCarrier::BorrowedView),
     });
     module.machines[0]
         .structural_places
@@ -153,46 +153,46 @@ pub(crate) fn byte_sequence_literal_unit_return_artifact() -> (Vec<u8>, Vec<u8>)
             bytes: vec![0x00, 0x4f, 0x6d, 0x65, 0x67, 0x61, 0xff],
         },
     });
-    (psi_terminal_codec::encode_module(&module).unwrap(), proof)
+    (terminal_codec::encode_module(&module).unwrap(), proof)
 }
 
 pub(crate) fn ieee_float_literal_unit_return_artifact() -> (Vec<u8>, Vec<u8>) {
     let (semantic, proof) = unit_return_artifact();
-    let mut module = psi_terminal_codec::decode_module(&semantic).unwrap();
+    let mut module = terminal_codec::decode_module(&semantic).unwrap();
     module.machines[0].blocks[0].operations.push(Operation {
         id: OperationId::new(3_518).unwrap(),
         result: OperationResult::Scalar(ValueDeclaration {
             id: ValueId::new(3_519).unwrap(),
-            scalar_type: ScalarType::IeeeFloat(psi_core::IeeeFloatFormat::Binary64),
+            scalar_type: ScalarType::IeeeFloat(semantic_vocabulary::IeeeFloatFormat::Binary64),
         }),
         kind: OperationKind::IeeeFloatConstant {
-            value: psi_core::IeeeFloatValue::Binary64(0x7ff8_1234_5678_9abc),
+            value: semantic_vocabulary::IeeeFloatValue::Binary64(0x7ff8_1234_5678_9abc),
         },
     });
-    (psi_terminal_codec::encode_module(&module).unwrap(), proof)
+    (terminal_codec::encode_module(&module).unwrap(), proof)
 }
 
 pub(crate) fn ieee_float_literal_sequence_unit_return_artifact() -> (Vec<u8>, Vec<u8>) {
     let (semantic, proof) = unit_return_artifact();
-    let mut module = psi_terminal_codec::decode_module(&semantic).unwrap();
+    let mut module = terminal_codec::decode_module(&semantic).unwrap();
     for (operation, result, scalar_type, value) in [
         (
             3_520,
             3_521,
-            ScalarType::IeeeFloat(psi_core::IeeeFloatFormat::Binary32),
-            psi_core::IeeeFloatValue::Binary32(0x8000_0000),
+            ScalarType::IeeeFloat(semantic_vocabulary::IeeeFloatFormat::Binary32),
+            semantic_vocabulary::IeeeFloatValue::Binary32(0x8000_0000),
         ),
         (
             3_522,
             3_523,
-            ScalarType::IeeeFloat(psi_core::IeeeFloatFormat::Binary32),
-            psi_core::IeeeFloatValue::Binary32(0x7fc1_2345),
+            ScalarType::IeeeFloat(semantic_vocabulary::IeeeFloatFormat::Binary32),
+            semantic_vocabulary::IeeeFloatValue::Binary32(0x7fc1_2345),
         ),
         (
             3_524,
             3_525,
-            ScalarType::IeeeFloat(psi_core::IeeeFloatFormat::Binary64),
-            psi_core::IeeeFloatValue::Binary64(0x7ff8_1234_5678_9abc),
+            ScalarType::IeeeFloat(semantic_vocabulary::IeeeFloatFormat::Binary64),
+            semantic_vocabulary::IeeeFloatValue::Binary64(0x7ff8_1234_5678_9abc),
         ),
     ] {
         module.machines[0].blocks[0].operations.push(Operation {
@@ -204,12 +204,12 @@ pub(crate) fn ieee_float_literal_sequence_unit_return_artifact() -> (Vec<u8>, Ve
             kind: OperationKind::IeeeFloatConstant { value },
         });
     }
-    (psi_terminal_codec::encode_module(&module).unwrap(), proof)
+    (terminal_codec::encode_module(&module).unwrap(), proof)
 }
 
 pub(crate) fn integer_literal_sequence_unit_return_artifact() -> (Vec<u8>, Vec<u8>) {
     let (semantic, proof) = unit_return_artifact();
-    let mut module = psi_terminal_codec::decode_module(&semantic).unwrap();
+    let mut module = terminal_codec::decode_module(&semantic).unwrap();
     for (operation, result, scalar_type, value) in [
         (
             3_540,
@@ -239,12 +239,12 @@ pub(crate) fn integer_literal_sequence_unit_return_artifact() -> (Vec<u8>, Vec<u
             kind: OperationKind::IntegerConstant { value },
         });
     }
-    (psi_terminal_codec::encode_module(&module).unwrap(), proof)
+    (terminal_codec::encode_module(&module).unwrap(), proof)
 }
 
 pub(crate) fn integer_ieee_float_literal_sequence_unit_return_artifact() -> (Vec<u8>, Vec<u8>) {
     let (semantic, proof) = unit_return_artifact();
-    let mut module = psi_terminal_codec::decode_module(&semantic).unwrap();
+    let mut module = terminal_codec::decode_module(&semantic).unwrap();
     module.machines[0].blocks[0].operations.extend([
         Operation {
             id: OperationId::new(3_550).unwrap(),
@@ -260,10 +260,10 @@ pub(crate) fn integer_ieee_float_literal_sequence_unit_return_artifact() -> (Vec
             id: OperationId::new(3_552).unwrap(),
             result: OperationResult::Scalar(ValueDeclaration {
                 id: ValueId::new(3_553).unwrap(),
-                scalar_type: ScalarType::IeeeFloat(psi_core::IeeeFloatFormat::Binary32),
+                scalar_type: ScalarType::IeeeFloat(semantic_vocabulary::IeeeFloatFormat::Binary32),
             }),
             kind: OperationKind::IeeeFloatConstant {
-                value: psi_core::IeeeFloatValue::Binary32(0x7fc1_2345),
+                value: semantic_vocabulary::IeeeFloatValue::Binary32(0x7fc1_2345),
             },
         },
         Operation {
@@ -279,24 +279,24 @@ pub(crate) fn integer_ieee_float_literal_sequence_unit_return_artifact() -> (Vec
             },
         },
     ]);
-    (psi_terminal_codec::encode_module(&module).unwrap(), proof)
+    (terminal_codec::encode_module(&module).unwrap(), proof)
 }
 
 pub(crate) fn nearest_ieee_float_fused_multiply_add_unit_return_artifact(
-    format: psi_core::IeeeFloatFormat,
+    format: semantic_vocabulary::IeeeFloatFormat,
 ) -> (Vec<u8>, Vec<u8>) {
     let (semantic, proof) = unit_return_artifact();
-    let mut module = psi_terminal_codec::decode_module(&semantic).unwrap();
+    let mut module = terminal_codec::decode_module(&semantic).unwrap();
     let values = match format {
-        psi_core::IeeeFloatFormat::Binary32 => [
-            psi_core::IeeeFloatValue::Binary32(0x8000_0000),
-            psi_core::IeeeFloatValue::Binary32(0x7fc1_2345),
-            psi_core::IeeeFloatValue::Binary32(0x3f80_0001),
+        semantic_vocabulary::IeeeFloatFormat::Binary32 => [
+            semantic_vocabulary::IeeeFloatValue::Binary32(0x8000_0000),
+            semantic_vocabulary::IeeeFloatValue::Binary32(0x7fc1_2345),
+            semantic_vocabulary::IeeeFloatValue::Binary32(0x3f80_0001),
         ],
-        psi_core::IeeeFloatFormat::Binary64 => [
-            psi_core::IeeeFloatValue::Binary64(0x8000_0000_0000_0000),
-            psi_core::IeeeFloatValue::Binary64(0x7ff8_1234_5678_9abc),
-            psi_core::IeeeFloatValue::Binary64(0x3ff0_0000_0000_0001),
+        semantic_vocabulary::IeeeFloatFormat::Binary64 => [
+            semantic_vocabulary::IeeeFloatValue::Binary64(0x8000_0000_0000_0000),
+            semantic_vocabulary::IeeeFloatValue::Binary64(0x7ff8_1234_5678_9abc),
+            semantic_vocabulary::IeeeFloatValue::Binary64(0x3ff0_0000_0000_0001),
         ],
     };
     for (position, value) in values.into_iter().enumerate() {
@@ -321,12 +321,12 @@ pub(crate) fn nearest_ieee_float_fused_multiply_add_unit_return_artifact(
             addend: ValueId::new(3_535).unwrap(),
         },
     });
-    (psi_terminal_codec::encode_module(&module).unwrap(), proof)
+    (terminal_codec::encode_module(&module).unwrap(), proof)
 }
 
 pub(crate) fn trivial_affine_local_unit_return_artifact() -> (Vec<u8>, Vec<u8>) {
     let (semantic, proof) = unit_return_artifact();
-    let mut module = psi_terminal_codec::decode_module(&semantic).unwrap();
+    let mut module = terminal_codec::decode_module(&semantic).unwrap();
     let structural_type = StructuralTypeId::new(3_512).unwrap();
     let place = PlaceId::new(3_513).unwrap();
     module.structural_types.push(StructuralTypeDeclaration {
@@ -357,7 +357,7 @@ pub(crate) fn trivial_affine_local_unit_return_artifact() -> (Vec<u8>, Vec<u8>) 
         unreachable!()
     };
     *trivial_affine_discards = vec![place];
-    (psi_terminal_codec::encode_module(&module).unwrap(), proof)
+    (terminal_codec::encode_module(&module).unwrap(), proof)
 }
 
 pub(crate) fn staged_unit_return(
@@ -387,7 +387,7 @@ pub(crate) fn staged_unit_return(
 
 pub(crate) fn structurally_parameterized_unit_return_artifact() -> (Vec<u8>, Vec<u8>) {
     let (semantic, proof) = unit_return_artifact();
-    let mut module = psi_terminal_codec::decode_module(&semantic).unwrap();
+    let mut module = terminal_codec::decode_module(&semantic).unwrap();
     let structural_type = StructuralTypeId::new(3_505).unwrap();
     let place = PlaceId::new(3_506).unwrap();
     module.structural_types.push(StructuralTypeDeclaration {
@@ -422,7 +422,7 @@ pub(crate) fn structurally_parameterized_unit_return_artifact() -> (Vec<u8>, Vec
             is_self: false,
         },
     }];
-    (psi_terminal_codec::encode_module(&module).unwrap(), proof)
+    (terminal_codec::encode_module(&module).unwrap(), proof)
 }
 
 pub(crate) fn structural_extent_call_unit_artifact() -> (Vec<u8>, Vec<u8>) {
@@ -550,7 +550,7 @@ pub(crate) fn structural_extent_call_unit_artifact() -> (Vec<u8>, Vec<u8>) {
                             callee,
                             structural_arguments: caller_places
                                 .into_iter()
-                                .map(|place| psi_terminal::StructuralArgument {
+                                .map(|place| terminal_psi::StructuralArgument {
                                     place,
                                     path: Vec::new(),
                                     access: StructuralAccess::Owned,
@@ -597,14 +597,14 @@ pub(crate) fn structural_extent_call_unit_artifact() -> (Vec<u8>, Vec<u8>) {
     };
     let proof = ProofBundle::default();
     (
-        psi_terminal_codec::encode_module(&module).unwrap(),
-        psi_terminal_codec::encode_proof_bundle(&proof).unwrap(),
+        terminal_codec::encode_module(&module).unwrap(),
+        terminal_codec::encode_proof_bundle(&proof).unwrap(),
     )
 }
 
 pub(crate) fn structural_extent_unit_leaf_artifact() -> (Vec<u8>, Vec<u8>) {
     let (semantic, _) = structural_extent_call_unit_artifact();
-    let mut module = psi_terminal_codec::decode_module(&semantic).unwrap();
+    let mut module = terminal_codec::decode_module(&semantic).unwrap();
     let leaf = module
         .machines
         .pop()
@@ -613,14 +613,14 @@ pub(crate) fn structural_extent_unit_leaf_artifact() -> (Vec<u8>, Vec<u8>) {
     module.machines = vec![leaf];
     let proof = ProofBundle::default();
     (
-        psi_terminal_codec::encode_module(&module).unwrap(),
-        psi_terminal_codec::encode_proof_bundle(&proof).unwrap(),
+        terminal_codec::encode_module(&module).unwrap(),
+        terminal_codec::encode_proof_bundle(&proof).unwrap(),
     )
 }
 
 pub(crate) fn statically_attached_unit_return_artifact() -> (Vec<u8>, Vec<u8>, StructuralTypeId) {
     let (semantic, proof) = unit_return_artifact();
-    let mut module = psi_terminal_codec::decode_module(&semantic).unwrap();
+    let mut module = terminal_codec::decode_module(&semantic).unwrap();
     let attachment = StructuralTypeId::new(3_507).unwrap();
     module.structural_types.push(StructuralTypeDeclaration {
         id: attachment,
@@ -629,7 +629,7 @@ pub(crate) fn statically_attached_unit_return_artifact() -> (Vec<u8>, Vec<u8>, S
     });
     module.machines.first_mut().unwrap().attachment = Some(attachment);
     (
-        psi_terminal_codec::encode_module(&module).unwrap(),
+        terminal_codec::encode_module(&module).unwrap(),
         proof,
         attachment,
     )

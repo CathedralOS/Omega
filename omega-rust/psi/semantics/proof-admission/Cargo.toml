@@ -1,0 +1,13 @@
+[package]
+name = "proof-admission"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[lib]
+name = "proof_admission"
+path = "src/lib.rs"
+
+[dependencies]
+semantic-vocabulary = { path = "../../foundation/semantic-vocabulary" }
+numerics = { path = "../../foundation/numerics" }

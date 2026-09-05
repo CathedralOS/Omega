@@ -288,7 +288,7 @@ pub CopyTokenRepresentation:
     };
     assert_eq!(
         selection.copy_disposition(),
-        omega_representation_planning::OpaqueRepresentationCopyDisposition::CheckedSemanticCopy
+        representation_planning::OpaqueRepresentationCopyDisposition::CheckedSemanticCopy
     );
     assert!(
         checked
@@ -543,7 +543,7 @@ boundary trait TransferEntry: Calling<TwoParameterPolicy> {
     assert_eq!(
         first_occurrence.placement().locations(),
         &[
-            omega_package_evidence::record::PackageReviewBoundaryValueLocation::Register {
+            package_evidence::record::PackageReviewBoundaryValueLocation::Register {
                 register: PackageReviewMachineRegister::X86Rcx,
                 value_byte_offset: 0,
                 byte_size: 8,
@@ -553,7 +553,7 @@ boundary trait TransferEntry: Calling<TwoParameterPolicy> {
     assert_eq!(
         second_occurrence.placement().locations(),
         &[
-            omega_package_evidence::record::PackageReviewBoundaryValueLocation::Register {
+            package_evidence::record::PackageReviewBoundaryValueLocation::Register {
                 register: PackageReviewMachineRegister::X86Rdx,
                 value_byte_offset: 0,
                 byte_size: 8,

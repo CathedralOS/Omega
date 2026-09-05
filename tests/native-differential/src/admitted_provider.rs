@@ -1,12 +1,12 @@
 use std::collections::BTreeSet;
 
-use omega_calling_conventions::{
+use calling_conventions::{
     ArrivalContextId, ArrivalContextRealization, CallSignature, CallingPolicy, EntryStackEpoch,
     EntryStackRealization, EntryStackStage, MachineStateSet, ProviderExitRealization, RegisterSet,
     StackDomainRef, StateFootprintEvidence, evaluate_ordinary_boundary_entry_plan,
     validate_entry_stack_realization,
 };
-use omega_executable_installation::{
+use executable_installation::{
     AdmissionReceiptId, Artifact, ArtifactAdmissionEvidence, ArtifactEntry, ArtifactId,
     CodePlacementAuthority, CodePlacementId, EntrySetId, FinalValidationCertificate,
     FinalValidationId, InstallAuthority, InstallationAudience, InstallationReceipt,
@@ -15,7 +15,11 @@ use omega_executable_installation::{
     install_validated, materialize_admitted_artifact, materialize_and_freeze,
     validate_final_placement,
 };
-use omega_external_roots::{
+use extents::{
+    AddressSpaceId, ExtentLineageId, ExtentProvenanceId, ExtentRightId, ExtentRights,
+    ExtentRootGrant, MappingEraId,
+};
+use external_roots::{
     ExternalRootCandidate, ExternalRootDiagnostic, ExternalRootId, FixedFuelProviderSummary,
     FuelProvisionId, FuelValidationReceiptId, LogicalFuelResourceColumn,
     MachineStateResourceColumn, NestingRelationId, OpaqueProviderExitAssurance, ProviderExecution,
@@ -25,15 +29,11 @@ use omega_external_roots::{
     admit_opaque_arrival_context_set, bind_opaque_adapter_stack_realization,
     compose_bound_entry_stack_epochs, compose_fixed_fuel, validate_external_root,
 };
-use omega_target::{Architecture, NativeTarget};
-use psi_extents::{
-    AddressSpaceId, ExtentLineageId, ExtentProvenanceId, ExtentRightId, ExtentRights,
-    ExtentRootGrant, MappingEraId,
-};
-use psi_layout_plans::{
+use layout_plans::{
     ArtifactInstallationScopeId, EntryStubId, PlacementConstraints, PlacementPhase, PlacementSite,
 };
-use psi_terminal_fuel::TerminalFuelSchedule;
+use target::{Architecture, NativeTarget};
+use terminal_fuel::TerminalFuelSchedule;
 
 /// Construct a real external-root `ProviderExecution` for differential gates.
 ///
@@ -52,14 +52,14 @@ pub fn admit_native_provider(
         seed,
         signature,
         ProviderPlanId::from_normalized_identity(
-            omega_effects::provider_plan::ProviderPlan::default().report_fingerprint(),
+            effects::provider_plan::ProviderPlan::default().report_fingerprint(),
         )
         .expect("default provider plan identity"),
-        omega_effects::provider_plan::ProviderPlan::default().identity_digest(),
+        effects::provider_plan::ProviderPlan::default().identity_digest(),
         ResolvedRootServiceReach::from_selected_provider_closure(
             Vec::new(),
             Vec::new(),
-            &omega_effects::SelectedProviderPlanFacts::default(),
+            &effects::SelectedProviderPlanFacts::default(),
         )
         .expect("closed provider service reach"),
     )
@@ -70,13 +70,13 @@ pub fn admit_native_provider(
 pub fn admit_native_provider_for_selected_plan(
     target: NativeTarget,
     requirement_identity: &str,
-    selected: &omega_effects::SelectedProviderPlanFacts,
+    selected: &effects::SelectedProviderPlanFacts,
     service: &str,
     seed: u64,
     signature: CallSignature,
 ) -> ProviderExecution {
     let provider_plan =
-        omega_provider_planning::plans::selected_external_root_provider_plan(selected, service)
+        provider_planning::plans::selected_external_root_provider_plan(selected, service)
             .expect("selected external-root provider plan");
     let service_reach =
         ResolvedRootServiceReach::from_selected_provider_closure(Vec::new(), Vec::new(), selected)
@@ -98,7 +98,7 @@ fn admit_native_provider_with_plan(
     seed: u64,
     signature: CallSignature,
     provider_plan: ProviderPlanId,
-    provider_plan_digest: omega_effects::provider_plan::ProviderPlanDigest,
+    provider_plan_digest: effects::provider_plan::ProviderPlanDigest,
     service_reach: ResolvedRootServiceReach,
 ) -> ProviderExecution {
     let boundary =
@@ -241,13 +241,13 @@ fn install_provider_artifact(
 ) -> InstalledCode {
     fn install_id<T>(
         identity: u64,
-        constructor: fn(u64) -> Result<T, omega_executable_installation::InstallationDiagnostic>,
+        constructor: fn(u64) -> Result<T, executable_installation::InstallationDiagnostic>,
     ) -> T {
         constructor(identity).expect("normalized installation identity")
     }
     fn extent_id<T>(
         identity: u64,
-        constructor: fn(u64) -> Result<T, psi_extents::ExtentDiagnostic>,
+        constructor: fn(u64) -> Result<T, extents::ExtentDiagnostic>,
     ) -> T {
         constructor(identity).expect("normalized extent identity")
     }
@@ -270,7 +270,7 @@ fn install_provider_artifact(
         vec![ArtifactEntry::from_canonical_decode(entry, 16)],
         install_id(seed + 8, RelocationSetId::from_normalized_identity),
         Vec::new(),
-        omega_executable_installation::ArtifactAuthorityCommitments::from_canonical_evidence(
+        executable_installation::ArtifactAuthorityCommitments::from_canonical_evidence(
             contracts,
             b"native-differential-machine-contracts-v1",
             footprint,
@@ -300,7 +300,7 @@ fn install_provider_artifact(
         seed + 10,
         ExtentRightId::from_normalized_identity,
     )]);
-    let issuance = psi_extents::ExtentProviderIssuance::from_normalized_identities([
+    let issuance = extents::ExtentProviderIssuance::from_normalized_identities([
         seed + 11,
         seed + 12,
         seed + 13,

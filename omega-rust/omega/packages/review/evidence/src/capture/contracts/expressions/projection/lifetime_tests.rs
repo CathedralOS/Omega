@@ -3,13 +3,13 @@ use crate::capture::contracts::facts::{ContractProjectionContext, project_contra
 use crate::record::{
     PackageReviewContractExpression, PackageReviewContractFact, PackageReviewContractStaticArgument,
 };
-use omega_compiler::{CheckedCompilation, compile_to_checked_with_packages};
-use omega_package_compilation::{PackageCompilationInputs, PackageSourceBinding};
-use psi_typed_trees::{expression::ExpressionNode, name::Identifier};
+use compiler::{CheckedCompilation, compile_to_checked_with_packages};
+use package_compilation::{PackageCompilationInputs, PackageSourceBinding};
 use std::{
     path::PathBuf,
     sync::atomic::{AtomicU64, Ordering},
 };
+use typed_trees::{expression::ExpressionNode, name::Identifier};
 
 struct Source(PathBuf);
 
@@ -43,7 +43,7 @@ requires tag<View<'a, u64>>() == tag<View<'a, u64>>()
         "machine build(builder: &mut Build) { builder.package(\"review-fixture\"); }\n",
     )
     .unwrap();
-    let package = psi_core::PackageKeyIdentity::from_digest([41; 32]).unwrap();
+    let package = semantic_vocabulary::PackageKeyIdentity::from_digest([41; 32]).unwrap();
     let inputs = PackageCompilationInputs::new_package(
         package,
         vec![PackageSourceBinding::new(
@@ -89,14 +89,14 @@ fn original_contract_expressions_use_scoped_lifetime_ordinals() {
         let context = ContractProjectionContext {
             subject_kind: "callable",
             subject_name: "generic_tag",
-            owner: psi_checked_trees::ContractProofFactOwner::Machine { machine_symbol: machine.symbol },
-            point: psi_facts::ProgramPoint::Machine { machine_symbol: machine.symbol },
+            owner: checked_trees::ContractProofFactOwner::Machine { machine_symbol: machine.symbol },
+            point: facts::ProgramPoint::Machine { machine_symbol: machine.symbol },
             parameters: &[],
             domain_symbol: None,
             data_symbol: None,
             lifetime_binders: &lifetimes,
             lifetime_substitutions: &substitutions,
-            selection_exposure: psi_language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure::PublicInterface,
+            selection_exposure: language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure::PublicInterface,
         };
         let contracts =
             project_contracts(&checked, checked.machine_contracts(machine), &context, &[])

@@ -1,0 +1,23 @@
+[package]
+name = "syntax-trees-to-symbol-resolved-trees"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[lib]
+name = "syntax_trees_to_symbol_resolved_trees"
+path = "src/lib.rs"
+
+[dependencies]
+arena = { path = "../../foundation/arena" }
+diagnostics = { path = "../../foundation/diagnostics" }
+language-semantics = { path = "../../foundation/language-semantics" }
+numerics = { path = "../../foundation/numerics" }
+source = { path = "../../foundation/source" }
+symbols = { path = "../../foundation/symbols" }
+syntax-trees = { path = "../../representations/syntax-trees" }
+symbol-resolved-trees = { path = "../../representations/symbol-resolved-trees" }
+
+[dev-dependencies]
+source-files-to-tokens = { path = "../source-files-to-tokens" }
+tokens-to-syntax-trees = { path = "../tokens-to-syntax-trees" }

@@ -2,7 +2,7 @@ use super::{PackagePolicyChangeError as Error, limits::Budget};
 use crate::declarations::PackageKey;
 use crate::resolution::graph::ExactTargetPackageSourceClosure;
 use crate::review::{CompilerIssuedPackageReview, CompilerIssuedPackageReviewSet};
-use omega_package_evidence::record::{PackagePolicyBaseline, PackagePolicyRow};
+use package_evidence::record::{PackagePolicyBaseline, PackagePolicyRow};
 
 pub(super) fn candidate<'a>(
     candidate: &'a CompilerIssuedPackageReviewSet,

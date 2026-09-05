@@ -1,5 +1,5 @@
 use crate::record::*;
-use psi_core::PackageKeyIdentity;
+use semantic_vocabulary::PackageKeyIdentity;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PackagePolicyProviderRow {

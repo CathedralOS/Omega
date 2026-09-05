@@ -9,7 +9,7 @@ use super::{
 use crate::declarations::dependencies::read::ProjectedDependencies;
 use crate::resolution::graph::{ExactTargetPackageSourceClosure, ResolvedSourceIdentity};
 use crate::resolution::source::PackageSourceNavigation;
-use omega_target::TargetProfile;
+use target::TargetProfile;
 
 use super::super::encoding::{
     Decoder, decode_dependency_projection, decode_dependency_selection, decode_package_navigation,

@@ -1,8 +1,8 @@
 use super::*;
-use omega_effects::{
+use effects::{
     ServiceTerminalAuthorityPermission, TerminalAuthorityClass, TerminalAuthorityDisposition,
 };
-use omega_package_manager::review::{
+use package_manager::review::{
     ConsumerScopedSemanticBindingReviewInput,
     compile_resolved_package_reviews_with_semantic_bindings,
 };

@@ -1,6 +1,6 @@
 use super::*;
-use omega_package_manager::declarations::BuildDeclarationKind;
-use omega_package_manager::review::{PackagePolicyChangeError, ReviewOnlyRootRoleContract};
+use package_manager::declarations::BuildDeclarationKind;
+use package_manager::review::{PackagePolicyChangeError, ReviewOnlyRootRoleContract};
 
 #[test]
 fn the_same_root_key_retains_directional_package_application_role_changes() {

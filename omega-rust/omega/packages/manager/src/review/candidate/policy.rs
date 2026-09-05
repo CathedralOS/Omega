@@ -2,9 +2,9 @@
 
 use super::CompileResolvedPackageReviewsError;
 use crate::declarations::PackageKey;
-use omega_compiler::CheckedCompilation;
-use omega_package_evidence::{project_checked_package_policy, record::PackagePolicyBaseline};
-use omega_target::TargetProfile;
+use compiler::CheckedCompilation;
+use package_evidence::{project_checked_package_policy, record::PackagePolicyBaseline};
+use target::TargetProfile;
 
 // This limits the sum of canonical encodings, not an exact measure of Vec
 // capacities or allocator overhead. The component writer separately bounds

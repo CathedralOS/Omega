@@ -2,7 +2,7 @@ use crate::support::*;
 
 fn assert_external_policy_round_trip(
     checked: &CheckedCompilation,
-    supply: &omega_package_evidence::record::PackageReviewExternalExecutableSupply,
+    supply: &package_evidence::record::PackageReviewExternalExecutableSupply,
 ) {
     let machine = checked
         .machines()
@@ -12,13 +12,12 @@ fn assert_external_policy_round_trip(
         })
         .expect("fixture's exact external machine");
     let policies =
-        omega_package_evidence::project_checked_external_supply_policy(checked, machine.symbol)
-            .unwrap();
+        package_evidence::project_checked_external_supply_policy(checked, machine.symbol).unwrap();
     let [policy] = policies.as_slice() else {
         panic!("one checked external policy")
     };
     assert_eq!(policy.callable().owner(), supply.callable().owner());
-    let surfaces = omega_package_evidence::project_checked_callable_policy(
+    let surfaces = package_evidence::project_checked_callable_policy(
         checked,
         checked.selected_target_profile().unwrap(),
         checked.package_identity().unwrap(),
@@ -46,9 +45,9 @@ fn assert_external_policy_round_trip(
         .canonical_bytes()
         .expect("encode checked evaluated binding policy");
     let recovered =
-        omega_package_evidence::record::PackagePolicyExternalExecutableSupply::recover_canonical(
+        package_evidence::record::PackagePolicyExternalExecutableSupply::recover_canonical(
             &bytes,
-            omega_package_evidence::encoding::PackagePolicyRecoveryLimits::default(),
+            package_evidence::encoding::PackagePolicyRecoveryLimits::default(),
         )
         .expect("recover checked binding policy without source or native replay");
     assert_eq!(&recovered, policy);
@@ -237,7 +236,7 @@ fn review_rejects_typed_via_mutation_after_evaluation() {
         .typed
         .machine_trait_conformances
         .span_mut_or_empty(conformance_span)[0]
-        .via_expression = psi_typed_trees::expression::ExpressionHandle::invalid();
+        .via_expression = typed_trees::expression::ExpressionHandle::invalid();
 
     let diagnostics = project_checked_package_review(&checked)
         .expect_err("retained evaluated table must not outlive mutated typed custody");

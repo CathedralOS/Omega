@@ -1,0 +1,988 @@
+use super::{
+    Lexer, lower_symbol_resolved_trees, lower_syntax_trees, lower_typed_trees, parse_syntax_trees,
+};
+use language_semantics::declaration_selection::{
+    AuthoredDeclarationSelectionExposure, AuthoredDeclarationSelectionIntrinsic,
+    AuthoredDeclarationSelectionKind, AuthoredDeclarationSelectionLateBinding,
+    AuthoredDeclarationSelectionTarget, AuthoredDeclarationSelections,
+};
+
+#[test]
+fn successful_checking_rejects_any_unresolved_authored_selection() {
+    let mut typed = typed_trees::TypedTrees::default();
+    let mut selections = AuthoredDeclarationSelections::default();
+    selections
+        .record_late_bound(
+            source::SourceSpan::default(),
+            AuthoredDeclarationSelectionExposure::PublicInterface,
+            AuthoredDeclarationSelectionKind::StaticArgument,
+            AuthoredDeclarationSelectionLateBinding::CheckedStaticArgument,
+        )
+        .expect("fixture selection enters the bounded ledger");
+    typed.retain_authored_declaration_selections(selections);
+
+    let diagnostic = crate::authored_selections::finalize_checked_authored_selections(
+        &mut typed,
+        &checked_trees::CheckFacts::default(),
+    )
+    .expect_err("unjoinable authored selection must fail before checked trees are issued");
+
+    assert!(diagnostic.message.contains(
+        "authored StaticArgument declaration selection occurrence 0 remained unresolved"
+    ));
+    assert!(!typed.authored_declaration_selections().all_finalized());
+}
+
+#[test]
+fn explicit_state_arguments_finalize_nested_record_member_selections() {
+    let source = r#"
+        data Header { room_id: u32; }
+        data Packet { header: Header; }
+        data Main {}
+        machine Main::main(&mut self) {
+            let decoded: Packet = Packet { header: Header { room_id: 300 } };
+            transition { _ -> inspect(decoded) }
+            state inspect(&mut self, packet: Packet) {
+                transition packet.header.room_id == 300 {
+                    true -> {}
+                    _ -> {}
+                }
+            }
+        }
+    "#;
+    let tokens = Lexer::new(source).tokenize().expect("tokenize");
+    let syntax = parse_syntax_trees(&tokens).expect("parse");
+    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
+    let checked = lower_typed_trees(typed).expect("explicit state transfer checks");
+    let selections = checked.authored_declaration_selections();
+    let selected = selections
+        .iter()
+        .filter_map(|selection| {
+            if selection.kind() != AuthoredDeclarationSelectionKind::MemberAccess {
+                return None;
+            }
+            let AuthoredDeclarationSelectionTarget::Resolved(target) = selection.target() else {
+                panic!("member selection must resolve");
+            };
+            Some(target.selected_symbol())
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(selected.len(), 2);
+    for (owner, name) in [("Packet", "header"), ("Header", "room_id")] {
+        let definition = checked
+            .data_definitions()
+            .iter()
+            .find(|definition| definition.name.as_str() == owner)
+            .expect("nominal owner");
+        let field = checked
+            .data_members(definition)
+            .iter()
+            .find_map(|member| match member {
+                typed_trees::data::DataMember::Field(field) if field.name.as_str() == name => {
+                    Some(field.symbol)
+                }
+                _ => None,
+            })
+            .expect("declared field");
+        assert!(selected.contains(&field));
+    }
+    assert!(selections.all_finalized());
+}
+
+#[test]
+fn entry_record_types_do_not_finalize_implicit_state_captures() {
+    let source = r#"
+        data Packet { value: u32; }
+        machine main() -> u32 {
+            let packet: Packet = Packet { value: 300 };
+            transition { _ -> inspect() }
+            state inspect() -> u32 { packet.value }
+        }
+    "#;
+    let tokens = Lexer::new(source).tokenize().expect("tokenize");
+    let syntax = parse_syntax_trees(&tokens).expect("parse");
+    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    let mut typed = lower_symbol_resolved_trees(&resolved).expect("type");
+    let diagnostic = crate::authored_selections::finalize_checked_authored_selections(
+        &mut typed,
+        &checked_trees::CheckFacts::default(),
+    )
+    .expect_err("entry-local types cannot resolve a sibling state's receiver");
+    assert!(
+        diagnostic.message.contains("remained unresolved"),
+        "{diagnostic:?}"
+    );
+}
+
+#[test]
+fn successful_checking_finalizes_authored_call_occurrences() {
+    let source = r#"
+        machine identity(value: u32) -> u32 { value }
+        machine compare(value: u32) -> bool { identity(value) == value }
+    "#;
+    let tokens = Lexer::new(source).tokenize().expect("tokenize");
+    let syntax = parse_syntax_trees(&tokens).expect("parse");
+    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
+    let checked = lower_typed_trees(typed).expect("check");
+    let selections = checked.authored_declaration_selections();
+
+    assert!(selections.iter().any(|selection| {
+        selection.kind() == AuthoredDeclarationSelectionKind::Call
+            && matches!(
+                selection.target(),
+                AuthoredDeclarationSelectionTarget::Resolved(_)
+            )
+    }));
+    assert!(
+        selections.iter().any(|selection| {
+            selection.kind() == AuthoredDeclarationSelectionKind::Operator
+                && selection.target()
+                    == AuthoredDeclarationSelectionTarget::Intrinsic(
+                        AuthoredDeclarationSelectionIntrinsic::BuiltinOperator,
+                    )
+        }),
+        "selections={selections:#?}; operators={:#?}",
+        checked.facts.operators
+    );
+    assert!(selections.all_finalized());
+}
+
+#[test]
+fn package_checking_finalizes_comptime_value_arm_calls_before_evaluation() {
+    let source = r#"
+        machine burn(remaining: u64, acc: u64)
+        terminates by remaining;
+        -> u64
+        {
+            transition remaining > 0 {
+                true -> (burn(remaining - 1, acc + 1))
+                false -> acc
+            }
+        }
+
+        machine table_size() -> u64 {
+            transition { _ -> (burn(4, 12)) }
+        }
+
+        data Main { slots: [i64; table_size()]; }
+    "#;
+    let tokens = Lexer::new(source).tokenize().expect("tokenize");
+    let syntax = parse_syntax_trees(&tokens).expect("parse");
+    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
+    let checked =
+        crate::lower_package_typed_trees_with_selected_generic_operator_providers(typed, &[], &[])
+            .expect("package checking must retain the exact comptime call target");
+
+    assert!(
+        checked.authored_declaration_selections().all_finalized(),
+        "selections={:#?}",
+        checked.authored_declaration_selections()
+    );
+}
+
+#[test]
+fn checked_operator_contract_context_disambiguates_named_overloads() {
+    let source = r#"
+        data Token { case First; case Second; }
+        data Convert { }
+        data Wrap { }
+
+        operator Convert::from(value: i32) -> Token;
+        operator Convert::from(value: u32) -> Token;
+        boundary operator Wrap::from(value: i32) -> Token
+        ensures result == Convert::from(value);
+    "#;
+    let tokens = Lexer::new(source).tokenize().expect("tokenize");
+    let syntax = parse_syntax_trees(&tokens).expect("parse");
+    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
+    let checked = lower_typed_trees(typed).expect("check");
+
+    let selected = checked
+        .authored_declaration_selections()
+        .iter()
+        .find_map(|selection| match selection.target() {
+            AuthoredDeclarationSelectionTarget::Resolved(target)
+                if selection.kind() == AuthoredDeclarationSelectionKind::Call =>
+            {
+                Some(target.selected_symbol())
+            }
+            _ => None,
+        })
+        .expect("contract call selects one exact overload");
+    let operator = typed_trees::operator::declaration_by_symbol(&checked, selected)
+        .expect("selected call target remains an operator declaration");
+    let [parameter] = checked.operator_parameters(operator) else {
+        panic!("selected overload retains one parameter")
+    };
+    assert_eq!(
+        checked
+            .type_reference_table
+            .primitive_type(parameter.type_reference),
+        Some(typed_trees::types::PrimitiveType::I32)
+    );
+    assert!(checked.authored_declaration_selections().all_finalized());
+}
+
+#[test]
+fn resultless_trait_law_equality_is_proposition_equality() {
+    let source = r#"
+        trait Commutative {
+            machine combine(left: Self, right: Self) -> Self terminates;
+            machine commutes(left: Self, right: Self)
+            ensures combine(left, right) == combine(right, left);
+        }
+    "#;
+    let tokens = Lexer::new(source).tokenize().expect("tokenize");
+    let syntax = parse_syntax_trees(&tokens).expect("parse");
+    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
+    let checked = lower_typed_trees(typed).expect("check");
+
+    let law_equalities = checked
+        .authored_declaration_selections()
+        .iter()
+        .filter(|selection| selection.kind() == AuthoredDeclarationSelectionKind::Operator)
+        .collect::<Vec<_>>();
+    assert_eq!(law_equalities.len(), 1);
+    assert_eq!(
+        law_equalities[0].target(),
+        AuthoredDeclarationSelectionTarget::Intrinsic(
+            AuthoredDeclarationSelectionIntrinsic::BuiltinOperator,
+        )
+    );
+    assert!(checked.authored_declaration_selections().all_finalized());
+}
+
+#[test]
+fn successful_checking_finalizes_wire_codec_calls_as_exact_intrinsics() {
+    let source = r#"
+        data CounterMessage { #0 counter: u32; }
+        data CounterSample { counter: u32; }
+        data WireVerdict { case Invalid; case Sound; }
+        data Main {
+            buffer: [u8; 64];
+            written: u64;
+            read: u64;
+            verdict: WireVerdict;
+        }
+
+        machine Main::main(&mut self) {
+            let source: CounterSample = CounterSample { counter: 300 };
+            CounterMessage::encode(&source, &mut self.buffer, &mut self.written);
+            let decoded: CounterSample = CounterSample { counter: 0 };
+            CounterMessage::decode(
+                &mut decoded,
+                &self.buffer,
+                &mut self.read,
+                &mut self.verdict
+            );
+        }
+    "#;
+    let tokens = Lexer::new(source).tokenize().expect("tokenize");
+    let syntax = parse_syntax_trees(&tokens).expect("parse");
+    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
+    let checked = lower_typed_trees(typed).expect("check");
+    let calls = checked
+        .authored_declaration_selections()
+        .iter()
+        .filter(|selection| selection.kind() == AuthoredDeclarationSelectionKind::Call)
+        .collect::<Vec<_>>();
+
+    assert!(calls.iter().any(|selection| {
+        selection.target()
+            == AuthoredDeclarationSelectionTarget::Intrinsic(
+                AuthoredDeclarationSelectionIntrinsic::WireEncode,
+            )
+    }));
+    assert!(calls.iter().any(|selection| {
+        selection.target()
+            == AuthoredDeclarationSelectionTarget::Intrinsic(
+                AuthoredDeclarationSelectionIntrinsic::WireDecode,
+            )
+    }));
+    assert!(checked.authored_declaration_selections().all_finalized());
+}
+
+#[test]
+fn successful_checking_finalizes_nominal_calls_in_proof_owned_expressions() {
+    let source = r#"
+        data Packet [copy] { value: u32; }
+
+        machine Packet::attached_ready(&self) -> bool { true }
+        machine Packet::qualified_ready(value: Packet) -> bool { true }
+
+        proposition attached(packet: Packet) = packet.attached_ready();
+        proposition qualified(packet: Packet) = Packet::qualified_ready(packet);
+
+        domain Packet::Ready
+        requires
+            self.attached_ready(),
+            Packet::qualified_ready(self);
+
+        machine Packet::accept(&self)
+        requires
+            self.attached_ready(),
+            Packet::qualified_ready(self)
+        { }
+    "#;
+    let tokens = Lexer::new(source).tokenize().expect("tokenize");
+    let syntax = parse_syntax_trees(&tokens).expect("parse");
+    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
+    let checked = lower_typed_trees(typed).expect("check");
+    let selected = checked
+        .authored_declaration_selections()
+        .iter()
+        .filter_map(|selection| match selection.target() {
+            AuthoredDeclarationSelectionTarget::Resolved(target)
+                if selection.kind() == AuthoredDeclarationSelectionKind::Call =>
+            {
+                Some(target.selected_symbol())
+            }
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+
+    for state_name in ["attached_ready", "qualified_ready"] {
+        let state = checked
+            .machines()
+            .iter()
+            .flat_map(|machine| checked.machine_states(machine))
+            .find(|state| state.name.as_str() == state_name)
+            .expect("declared nominal call target");
+        assert_eq!(
+            selected
+                .iter()
+                .filter(|selected| **selected == state.symbol)
+                .count(),
+            3,
+            "domain, proposition, and contract calls must select {state_name} exactly"
+        );
+    }
+    assert!(checked.authored_declaration_selections().all_finalized());
+}
+
+#[test]
+fn path_qualified_call_custody_rejects_a_same_named_target_from_another_owner() {
+    let source = r#"
+        data Packet [copy] { value: u32; }
+        data Decoy [copy] { value: u32; }
+
+        machine Decoy::is_ready(value: Packet) -> bool { true }
+
+        domain Packet::Ready requires Packet::is_ready(self);
+    "#;
+    let tokens = Lexer::new(source).tokenize().expect("tokenize");
+    let syntax = parse_syntax_trees(&tokens).expect("parse");
+    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
+    let diagnostic = lower_typed_trees(typed)
+        .expect_err("a same-named state under another nominal owner must not be selected");
+
+    assert!(
+        diagnostic.iter().any(|diagnostic| {
+            diagnostic
+                .message
+                .contains("authored Call declaration selection")
+                && diagnostic.message.contains("remained unresolved")
+        }),
+        "diagnostics={diagnostic:#?}"
+    );
+}
+
+#[test]
+fn nominal_call_custody_rejects_ambiguous_targets_under_the_exact_owner() {
+    let source = r#"
+        data Packet [copy] { value: u32; }
+
+        machine Packet::is_ready(&self) -> bool { true }
+        machine Packet::looks_ready(&self) -> bool { true }
+
+        domain Packet::Ready requires self.is_ready();
+    "#;
+    let tokens = Lexer::new(source).tokenize().expect("tokenize");
+    let syntax = parse_syntax_trees(&tokens).expect("parse");
+    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    let mut typed = lower_symbol_resolved_trees(&resolved).expect("type");
+    let packet_machines = typed
+        .machines()
+        .iter()
+        .filter(|machine| {
+            machine.attached_data_symbol.is_valid()
+                && typed.symbols.name(machine.attached_data_symbol) == "Packet"
+        })
+        .cloned()
+        .collect::<Vec<_>>();
+    let ready_name = packet_machines
+        .iter()
+        .flat_map(|machine| typed.machine_states(machine))
+        .find(|state| state.name.as_str() == "is_ready")
+        .expect("is_ready state")
+        .name
+        .clone();
+    let looks_ready_machine = packet_machines
+        .iter()
+        .find(|machine| {
+            typed
+                .machine_states(machine)
+                .iter()
+                .any(|state| state.name.as_str() == "looks_ready")
+        })
+        .expect("looks_ready machine")
+        .clone();
+    typed
+        .machine_states_mut(&looks_ready_machine)
+        .iter_mut()
+        .find(|state| state.name.as_str() == "looks_ready")
+        .expect("looks_ready state")
+        .name = ready_name;
+
+    let diagnostic = crate::authored_selections::finalize_checked_authored_selections(
+        &mut typed,
+        &checked_trees::CheckFacts::default(),
+    )
+    .expect_err("same-named states under the exact owner must remain ambiguous");
+
+    assert!(
+        diagnostic
+            .message
+            .contains("authored Call declaration selection")
+            && diagnostic.message.contains("remained unresolved"),
+        "diagnostic={diagnostic:#?}"
+    );
+}
+
+#[test]
+fn successful_checking_finalizes_declared_operator_occurrences() {
+    let source = r#"
+        data Quantity { value: i32; }
+
+        domain Quantity::Additive
+        requires
+            self.value >= 0;
+
+        operator + Quantity::Additive::add(left: Quantity, right: Quantity) -> Quantity;
+
+        data Main {}
+
+        machine Main::combine(&self, left: Quantity, right: Quantity)
+        requires
+            left in Quantity::Additive
+        {
+            let sum: Quantity = left + right;
+        }
+
+        machine Main::main(&mut self) {}
+    "#;
+    let tokens = Lexer::new(source).tokenize().expect("tokenize");
+    let syntax = parse_syntax_trees(&tokens).expect("parse");
+    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    assert!(
+        resolved
+            .authored_declaration_selections()
+            .iter()
+            .any(|selection| {
+                selection.kind() == AuthoredDeclarationSelectionKind::Operator
+                    && matches!(
+                        selection.target(),
+                        AuthoredDeclarationSelectionTarget::LateBound(_)
+                    )
+            })
+    );
+
+    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
+    let checked = lower_typed_trees(typed).expect("check");
+    let selections = checked.authored_declaration_selections();
+
+    assert!(selections.iter().any(|selection| {
+        selection.kind() == AuthoredDeclarationSelectionKind::Operator
+            && matches!(
+                selection.target(),
+                AuthoredDeclarationSelectionTarget::Resolved(_)
+            )
+    }));
+    let authored_addition = checked
+        .expression_table
+        .iter_expressions()
+        .find_map(|(expression, node)| {
+            matches!(
+                node,
+                typed_trees::expression::ExpressionNode::Binary(binary)
+                    if binary.operator == typed_trees::expression::BinaryOperator::Add
+            )
+            .then_some(expression)
+        })
+        .expect("checked program retains declared addition");
+    assert!(
+        !crate::authored_selections::typed_operator_has_no_authored_selection(
+            &checked,
+            authored_addition
+        )
+    );
+}
+
+#[test]
+fn constrained_primitive_operator_is_not_preclassified_as_intrinsic() {
+    let source = r#"
+        domain i32::Degrees;
+
+        operator + i32::Degrees::add(left: i32, right: i32) -> i32;
+
+        data Main {}
+
+        machine Main::rotate(&self, value: i32 in Degrees & Wrapping) {
+            let sum: i32 in Wrapping = value + 1;
+        }
+
+        machine Main::main(&mut self) {}
+    "#;
+    let tokens = Lexer::new(source).tokenize().expect("tokenize");
+    let syntax = parse_syntax_trees(&tokens).expect("parse");
+    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
+    let authored_addition = typed
+        .expression_table
+        .iter_expressions()
+        .find_map(|(expression, node)| {
+            matches!(
+                node,
+                typed_trees::expression::ExpressionNode::Binary(binary)
+                    if binary.operator == typed_trees::expression::BinaryOperator::Add
+            )
+            .then_some(expression)
+        })
+        .expect("typed program retains constrained primitive addition");
+
+    assert!(
+        !crate::authored_selections::typed_operator_has_no_authored_selection(
+            &typed,
+            authored_addition,
+        )
+    );
+}
+
+#[test]
+fn successful_checking_finalizes_inferred_field_members_and_primitive_operators() {
+    let source = r#"
+        data Build { freestanding: bool; }
+
+        machine Build::configure(&mut self) {
+            self.freestanding = false;
+            let unchanged: bool = self.freestanding == false;
+        }
+    "#;
+    let tokens = Lexer::new(source).tokenize().expect("tokenize");
+    let syntax = parse_syntax_trees(&tokens).expect("parse");
+    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
+    let checked = lower_typed_trees(typed).expect("check");
+    let selections = checked.authored_declaration_selections();
+
+    assert!(selections.iter().any(|selection| {
+        selection.kind() == AuthoredDeclarationSelectionKind::MemberAccess
+            && matches!(
+                selection.target(),
+                AuthoredDeclarationSelectionTarget::Resolved(_)
+            )
+    }));
+    assert!(selections.iter().any(|selection| {
+        selection.kind() == AuthoredDeclarationSelectionKind::Operator
+            && selection.target()
+                == AuthoredDeclarationSelectionTarget::Intrinsic(
+                    AuthoredDeclarationSelectionIntrinsic::BuiltinOperator,
+                )
+    }));
+    assert!(selections.all_finalized(), "selections={selections:#?}");
+}
+
+#[test]
+fn successful_checking_finalizes_operator_occurrence_retained_on_folded_float_literal() {
+    let source = r#"
+        data Main { value: f64; }
+
+        machine Main::main(&mut self) {
+            self.value = 0.0 - 1.000000000000000444089209850062616169452667236328125;
+        }
+    "#;
+    let tokens = Lexer::new(source).tokenize().expect("tokenize");
+    let syntax = parse_syntax_trees(&tokens).expect("parse");
+    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
+    let checked = lower_typed_trees(typed).expect("check");
+    let selections = checked.authored_declaration_selections();
+
+    assert!(selections.iter().any(|selection| {
+        selection.kind() == AuthoredDeclarationSelectionKind::Operator
+            && selection.target()
+                == AuthoredDeclarationSelectionTarget::Intrinsic(
+                    AuthoredDeclarationSelectionIntrinsic::BuiltinOperator,
+                )
+    }));
+    assert!(selections.all_finalized(), "selections={selections:#?}");
+}
+
+#[test]
+fn successful_checking_finalizes_nested_intrinsic_logical_operators() {
+    let source = r#"
+        data Reading { value: i64; minimum: i64; maximum: i64; }
+
+        machine within_calibration(reading: Reading) -> bool {
+            reading.value >= reading.minimum && reading.value <= reading.maximum
+        }
+    "#;
+    let tokens = Lexer::new(source).tokenize().expect("tokenize");
+    let syntax = parse_syntax_trees(&tokens).expect("parse");
+    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
+    let checked = lower_typed_trees(typed).expect("check");
+    let operators = checked
+        .authored_declaration_selections()
+        .iter()
+        .filter(|selection| selection.kind() == AuthoredDeclarationSelectionKind::Operator)
+        .collect::<Vec<_>>();
+
+    assert_eq!(operators.len(), 3);
+    assert!(operators.iter().all(|selection| {
+        selection.target()
+            == AuthoredDeclarationSelectionTarget::Intrinsic(
+                AuthoredDeclarationSelectionIntrinsic::BuiltinOperator,
+            )
+    }));
+    let logical_and = checked
+        .expression_table
+        .iter_expressions()
+        .find_map(|(expression, node)| {
+            matches!(
+                node,
+                typed_trees::expression::ExpressionNode::Binary(binary)
+                    if binary.operator == typed_trees::expression::BinaryOperator::And
+            )
+            .then_some(expression)
+        })
+        .expect("checked program retains logical conjunction");
+    assert!(
+        crate::authored_selections::typed_operator_has_no_authored_selection(&checked, logical_and)
+    );
+    assert!(checked.authored_declaration_selections().all_finalized());
+}
+
+#[test]
+fn successful_checking_finalizes_index_and_range_operator_occurrences() {
+    let source = r#"
+        proposition selected(value: i32);
+        proposition window(values: &[i32]);
+        machine inspect(values: [i32; 2])
+        requires
+            selected(values[0]),
+            window(values[0..1])
+        { }
+    "#;
+    let tokens = Lexer::new(source).tokenize().expect("tokenize");
+    let syntax = parse_syntax_trees(&tokens).expect("parse");
+    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
+    let checked = lower_typed_trees(typed).expect("check");
+    let operators = checked
+        .authored_declaration_selections()
+        .iter()
+        .filter(|selection| selection.kind() == AuthoredDeclarationSelectionKind::Operator)
+        .collect::<Vec<_>>();
+
+    assert_eq!(operators.len(), 2, "selections={operators:#?}");
+    assert!(operators.iter().all(|selection| {
+        selection.target()
+            == AuthoredDeclarationSelectionTarget::Intrinsic(
+                AuthoredDeclarationSelectionIntrinsic::BuiltinOperator,
+            )
+    }));
+    let indexed = checked
+        .expression_table
+        .iter_expressions()
+        .find_map(|(expression, node)| {
+            matches!(node, typed_trees::expression::ExpressionNode::Indexed(_))
+                .then_some(expression)
+        })
+        .expect("checked program retains indexed expression");
+    assert!(
+        crate::authored_selections::typed_operator_has_no_authored_selection(&checked, indexed)
+    );
+    assert!(checked.authored_declaration_selections().all_finalized());
+}
+
+#[test]
+fn successful_checking_retains_inferred_generic_call_conformance() {
+    let source = r#"
+        trait Marker { }
+        data Good { }
+        GoodMarker: Good satisfies Marker;
+
+        machine accepts<T>(value: T) -> bool
+        where T satisfies Marker
+        {
+            true
+        }
+
+        machine caller(value: Good) -> bool { accepts(value) }
+    "#;
+    let tokens = Lexer::new(source).tokenize().expect("tokenize");
+    let syntax = parse_syntax_trees(&tokens).expect("parse");
+    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    let selected = resolved
+        .conformances
+        .iter()
+        .find(|conformance| {
+            conformance
+                .alias
+                .as_ref()
+                .is_some_and(|alias| alias.as_str() == "GoodMarker")
+        })
+        .expect("GoodMarker conformance")
+        .symbol;
+    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
+    let checked = lower_typed_trees(typed).expect("check");
+
+    assert!(
+        checked
+            .authored_declaration_selections()
+            .iter()
+            .any(|selection| {
+                selection.kind() == AuthoredDeclarationSelectionKind::Conformance
+                    && matches!(
+                        selection.target(),
+                        AuthoredDeclarationSelectionTarget::Resolved(target)
+                            if target.selected_symbol() == selected
+                    )
+            }),
+        "selections={:#?}; specializations={:#?}",
+        checked.authored_declaration_selections(),
+        checked.machine_specializations,
+    );
+    let specialization = checked
+        .machine_specializations
+        .iter()
+        .find(|specialization| specialization.inferred_conformance_arguments == [selected])
+        .expect("specialization retains its exact inferred conformance");
+    assert!(
+        specialization.conformance_arguments.is_empty(),
+        "inferred conformance must not impersonate an explicit evidence argument"
+    );
+    assert!(checked.authored_declaration_selections().all_finalized());
+}
+
+#[test]
+fn successful_checking_retains_inferred_statement_call_conformance() {
+    let source = r#"
+        trait Marker { }
+        data Good { }
+        GoodMarker: Good satisfies Marker;
+
+        machine accepts<T>(value: T)
+        where T satisfies Marker
+        {
+        }
+
+        machine caller(value: Good) { accepts(value); }
+    "#;
+    let tokens = Lexer::new(source).tokenize().expect("tokenize");
+    let syntax = parse_syntax_trees(&tokens).expect("parse");
+    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    let selected = resolved
+        .conformances
+        .iter()
+        .find(|conformance| {
+            conformance
+                .alias
+                .as_ref()
+                .is_some_and(|alias| alias.as_str() == "GoodMarker")
+        })
+        .expect("GoodMarker conformance")
+        .symbol;
+    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
+    let checked = lower_typed_trees(typed).expect("check");
+    let call = checked
+        .authored_declaration_selections()
+        .iter()
+        .find(|selection| selection.kind() == AuthoredDeclarationSelectionKind::Call)
+        .expect("statement call selection");
+    let inferred = checked
+        .authored_declaration_selections()
+        .iter()
+        .find(|selection| {
+            selection.kind() == AuthoredDeclarationSelectionKind::Conformance
+                && selection.source_span() == call.source_span()
+                && matches!(
+                    selection.target(),
+                    AuthoredDeclarationSelectionTarget::Resolved(target)
+                        if target.selected_symbol() == selected
+                )
+        })
+        .expect("inferred statement-call conformance selection");
+
+    assert_eq!(inferred.exposure(), call.exposure());
+    assert!(checked.authored_declaration_selections().all_finalized());
+}
+
+#[test]
+fn successful_checking_finalizes_attached_calls_through_parameter_fields() {
+    let source = r#"
+        domain [u8]::Path requires no_nul(self);
+        data BuildSource {}
+        data Build { source: BuildSource; }
+        machine BuildSource::resolve<'path>(
+            &self,
+            relative: &'path [u8] in Path
+        ) -> &'path [u8] in Path {
+            relative
+        }
+        machine build(builder: &mut Build) {
+            let resolved: &[u8] in Path = builder.source.resolve("input.txt");
+        }
+    "#;
+    let tokens = Lexer::new(source).tokenize().expect("tokenize");
+    let syntax = parse_syntax_trees(&tokens).expect("parse");
+    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
+    let checked = lower_typed_trees(typed).expect("check");
+    assert!(
+        checked
+            .authored_declaration_selections()
+            .iter()
+            .any(|selection| matches!(
+                selection.target(),
+                AuthoredDeclarationSelectionTarget::Intrinsic(
+                    AuthoredDeclarationSelectionIntrinsic::ByteSequencePredicate(
+                        language_semantics::byte_predicates::ByteSequencePredicate::NoNul,
+                    )
+                )
+            ))
+    );
+    assert!(
+        checked.authored_declaration_selections().all_finalized(),
+        "selections={:#?}",
+        checked.authored_declaration_selections()
+    );
+}
+
+#[test]
+fn declared_call_wins_over_byte_predicate_intrinsic_spelling() {
+    let source = r#"
+        machine no_nul(value: &[u8]) -> bool { true }
+        domain [u8]::Path requires no_nul(self);
+    "#;
+    let tokens = Lexer::new(source).tokenize().expect("tokenize");
+    let syntax = parse_syntax_trees(&tokens).expect("parse");
+    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
+    let checked = lower_typed_trees(typed).expect("check");
+    let selections = checked.authored_declaration_selections();
+
+    assert!(selections.iter().any(|selection| {
+        selection.kind() == AuthoredDeclarationSelectionKind::Call
+            && matches!(
+                selection.target(),
+                AuthoredDeclarationSelectionTarget::Resolved(_)
+            )
+    }));
+    assert!(!selections.iter().any(|selection| {
+        selection.target()
+            == AuthoredDeclarationSelectionTarget::Intrinsic(
+                AuthoredDeclarationSelectionIntrinsic::ByteSequencePredicate(
+                    language_semantics::byte_predicates::ByteSequencePredicate::NoNul,
+                ),
+            )
+    }));
+    assert!(selections.all_finalized());
+}
+
+#[test]
+fn successful_checking_binds_boundary_calls_through_parameter_fields() {
+    let source = r#"
+        boundary trait FilesystemHost {
+            machine open(&self, path: &[u8], flags: i32) -> i32
+            reaches FilesystemHost;
+        }
+        data Build { filesystem: FilesystemHost; }
+        machine build(builder: &mut Build)
+        reaches FilesystemHost
+        {
+            let descriptor: i32 = builder.filesystem.open("input.txt", 0);
+        }
+    "#;
+    let tokens = Lexer::new(source).tokenize().expect("tokenize");
+    let syntax = parse_syntax_trees(&tokens).expect("parse");
+    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
+    let checked = lower_typed_trees(typed).expect("check");
+    let call = checked
+        .expression_table
+        .iter_expressions()
+        .find_map(|(_, expression)| match expression {
+            typed_trees::expression::ExpressionNode::Call(call)
+                if call.target.as_str() == "open" =>
+            {
+                Some(call)
+            }
+            _ => None,
+        })
+        .expect("boundary call");
+    let requirement = checked
+        .traits()
+        .iter()
+        .find(|definition| definition.name.as_str() == "FilesystemHost")
+        .and_then(|definition| checked.trait_machine_signatures(definition).first())
+        .expect("filesystem requirement");
+    assert_eq!(call.target_symbol, requirement.symbol);
+}
+
+#[test]
+fn successful_checking_canonicalizes_local_selections_across_specializations() {
+    let source = r#"
+        data Light [copy] { weight: i32; }
+        data Main { light: Light; number: i32; }
+        machine Main::pick<T [copy]>(&self, value: &T) -> i32 {
+            let selected: i32 = 7;
+            transition { _ -> selected }
+        }
+        machine Main::use_both(&mut self) {
+            let from_light: i32 = self.pick(&self.light);
+            let from_number: i32 = self.pick(&self.number);
+        }
+    "#;
+    let tokens = Lexer::new(source).tokenize().expect("tokenize");
+    let syntax = parse_syntax_trees(&tokens).expect("parse");
+    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
+    let checked = lower_typed_trees(typed).expect("check");
+    assert!(
+        checked.authored_declaration_selections().all_finalized(),
+        "selections={:#?}",
+        checked.authored_declaration_selections()
+    );
+}
+
+#[test]
+fn public_conformance_rejects_private_header_declarations() {
+    let source = r#"
+        trait Shape {}
+        data Circle {}
+        pub CircleShape: Circle satisfies Shape;
+    "#;
+    let tokens = Lexer::new(source).tokenize().expect("tokenize");
+    let syntax = parse_syntax_trees(&tokens).expect("parse");
+    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
+    let diagnostics = lower_typed_trees(typed).expect_err("private header must reject");
+    let rendered = diagnostics
+        .iter()
+        .map(ToString::to_string)
+        .collect::<Vec<_>>()
+        .join("\n");
+
+    assert!(rendered.contains("public conformance `CircleShape` exposes private data `Circle`"));
+    assert!(rendered.contains("public conformance `CircleShape` exposes private trait `Shape`"));
+}

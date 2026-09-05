@@ -2,16 +2,16 @@ use super::application::project_selected_conformance_application;
 use crate::capture::semantics::declarations::nominal_identity;
 use crate::capture::semantics::types::review_signature_type_identity_with_binders;
 use crate::record::PackageReviewConformanceBound;
-use omega_compiler::CheckedCompilation;
-use psi_diagnostics::Diagnostic;
-use psi_symbols::SymbolHandle;
+use compiler::CheckedCompilation;
+use diagnostics::Diagnostic;
+use symbols::SymbolHandle;
 
 pub(crate) fn project_conformance_bounds(
     compilation: &CheckedCompilation,
-    bounds: &[psi_typed_trees::machine::GenericConformanceBound],
-    parameters: &[psi_typed_trees::data::TypeParameter],
+    bounds: &[typed_trees::machine::GenericConformanceBound],
+    parameters: &[typed_trees::data::TypeParameter],
     binders: &[(SymbolHandle, String)],
-    lifetime_binders: &[psi_typed_trees::name::Identifier],
+    lifetime_binders: &[typed_trees::name::Identifier],
     declaration_kind: &str,
     declaration_path: &str,
 ) -> Result<Vec<PackageReviewConformanceBound>, Vec<Diagnostic>> {

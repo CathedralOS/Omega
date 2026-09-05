@@ -1,43 +1,43 @@
 [package]
-name = "omega-package-evidence"
+name = "package-evidence"
 edition.workspace = true
 license.workspace = true
 version.workspace = true
 
 [lib]
-name = "omega_package_evidence"
+name = "package_evidence"
 path = "src/lib.rs"
 
 [dependencies]
-omega-build-evaluation = { path = "../../../build/omega-build-evaluation" }
-omega-compiler = { path = "../../../compiler/omega-compiler" }
-omega-package-compilation = { path = "../../../build/omega-package-compilation" }
-omega-provider-planning = { path = "../../../build/omega-provider-planning" }
-omega-calling-conventions = { path = "../../../representations/omega-calling-conventions" }
-omega-layout = { path = "../../../backend/omega-layout" }
-omega-representation-planning = { path = "../../../build/omega-representation-planning" }
-omega-selected-dispatch = { path = "../../../build/omega-selected-dispatch" }
-omega-effects = { path = "../../../representations/omega-effects" }
-omega-target = { path = "../../../representations/omega-target" }
-omega-trust-model = { path = "../../../build/omega-trust-model" }
-psi-arena = { path = "../../../../psi/foundation/psi-arena" }
-psi-checked-trees = { path = "../../../../psi/representations/psi-checked-trees" }
-psi-core = { path = "../../../../psi/foundation/psi-core" }
-psi-diagnostics = { path = "../../../../psi/foundation/psi-diagnostics" }
-psi-effects = { path = "../../../../psi/representations/psi-effects" }
-psi-facts = { path = "../../../../psi/representations/psi-facts" }
-psi-language-core = { path = "../../../../psi/foundation/psi-language-core" }
-psi-language-semantics = { path = "../../../../psi/foundation/psi-language-semantics" }
-psi-numerics = { path = "../../../../psi/foundation/psi-numerics" }
-psi-source = { path = "../../../../psi/foundation/psi-source" }
-psi-symbols = { path = "../../../../psi/foundation/psi-symbols" }
-psi-typed-trees = { path = "../../../../psi/representations/psi-typed-trees" }
-psi-typed-trees-to-checked-trees = { path = "../../../../psi/pipeline/psi-typed-trees-to-checked-trees" }
-psi-validation = { path = "../../../../psi/semantics/psi-validation" }
+build-evaluation = { path = "../../../build/build-evaluation" }
+compiler = { path = "../../../compiler/compiler" }
+package-compilation = { path = "../../../build/package-compilation" }
+provider-planning = { path = "../../../build/provider-planning" }
+calling-conventions = { path = "../../../representations/calling-conventions" }
+layout = { path = "../../../backend/layout" }
+representation-planning = { path = "../../../build/representation-planning" }
+selected-dispatch = { path = "../../../build/selected-dispatch" }
+effects = { path = "../../../representations/effects" }
+target = { path = "../../../representations/target" }
+trust-model = { path = "../../../build/trust-model" }
+arena = { path = "../../../../psi/foundation/arena" }
+checked-trees = { path = "../../../../psi/representations/checked-trees" }
+semantic-vocabulary = { path = "../../../../psi/foundation/semantic-vocabulary" }
+diagnostics = { path = "../../../../psi/foundation/diagnostics" }
+flow-effects = { path = "../../../../psi/representations/flow-effects" }
+facts = { path = "../../../../psi/representations/facts" }
+language-core = { path = "../../../../psi/foundation/language-core" }
+language-semantics = { path = "../../../../psi/foundation/language-semantics" }
+numerics = { path = "../../../../psi/foundation/numerics" }
+source = { path = "../../../../psi/foundation/source" }
+symbols = { path = "../../../../psi/foundation/symbols" }
+typed-trees = { path = "../../../../psi/representations/typed-trees" }
+typed-trees-to-checked-trees = { path = "../../../../psi/pipeline/typed-trees-to-checked-trees" }
+validation = { path = "../../../../psi/semantics/validation" }
 sha2 = "0.10.9"
 
 [dev-dependencies]
-psi-source-files-to-tokens = { path = "../../../../psi/pipeline/psi-source-files-to-tokens" }
-psi-symbol-resolved-trees-to-typed-trees = { path = "../../../../psi/pipeline/psi-symbol-resolved-trees-to-typed-trees" }
-psi-syntax-trees-to-symbol-resolved-trees = { path = "../../../../psi/pipeline/psi-syntax-trees-to-symbol-resolved-trees" }
-psi-tokens-to-syntax-trees = { path = "../../../../psi/pipeline/psi-tokens-to-syntax-trees" }
+source-files-to-tokens = { path = "../../../../psi/pipeline/source-files-to-tokens" }
+symbol-resolved-trees-to-typed-trees = { path = "../../../../psi/pipeline/symbol-resolved-trees-to-typed-trees" }
+syntax-trees-to-symbol-resolved-trees = { path = "../../../../psi/pipeline/syntax-trees-to-symbol-resolved-trees" }
+tokens-to-syntax-trees = { path = "../../../../psi/pipeline/tokens-to-syntax-trees" }

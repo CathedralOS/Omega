@@ -4,13 +4,11 @@ use super::diff::{DiffBudget, myers_diff, render_hunks, source_line_count, split
 use super::output::BoundedOutput;
 use super::{PackageSourcePatchError, PackageSourcePatchLimits, PackageSourcePatchSide};
 use crate::resolution::source::PackageSourceCustody;
-use omega_package_source::local::model::{
-    VerifiedPackageSourceEntry, VerifiedPackageSourceEntryKind,
-};
-use omega_package_source::local::operations::{
+use package_source::local::model::{VerifiedPackageSourceEntry, VerifiedPackageSourceEntryKind};
+use package_source::local::operations::{
     capture_verified_package_source_snapshot, verify_package_source_snapshot,
 };
-use omega_package_source::{GitObjectIdAlgorithm, ImmutableSourceResolution, LocalSourceLimits};
+use package_source::{GitObjectIdAlgorithm, ImmutableSourceResolution, LocalSourceLimits};
 use sha2::{Digest, Sha256};
 use std::collections::BTreeMap;
 

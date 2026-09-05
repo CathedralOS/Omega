@@ -82,7 +82,7 @@ fn active_resident_rematerialization_reaches_machine_custody_on_both_architectur
         );
 
         assert_eq!(
-            omega_register_homes_to_post_allocation_machine::validate_post_allocation_machine_plan(
+            register_homes_to_post_allocation_machine::validate_post_allocation_machine_plan(
                 source_selected.selected(),
                 post.effects(),
                 source.ranges(),
@@ -94,7 +94,7 @@ fn active_resident_rematerialization_reaches_machine_custody_on_both_architectur
                 source_selected.register_environment().constraints(),
                 post.machine().plan().clone(),
             ),
-            Err(omega_register_homes_to_post_allocation_machine::PostAllocationMachineError::SelectedRootMismatch)
+            Err(register_homes_to_post_allocation_machine::PostAllocationMachineError::SelectedRootMismatch)
         );
     }
 

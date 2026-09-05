@@ -3,9 +3,8 @@ use super::{recursive_rust_source, workspace_root};
 #[test]
 fn is_target_owned_independent_and_non_authoritative() {
     let root = workspace_root();
-    let stage = root.join(
-        "omega-rust/omega/pipeline/omega-post-allocation-machine-to-frame-layout/src/save_storage",
-    );
+    let stage = root
+        .join("omega-rust/omega/pipeline/post-allocation-machine-to-frame-layout/src/save_storage");
     let entrance =
         std::fs::read_to_string(stage.join("mod.rs")).expect("read callee-save storage entrance");
     assert!(
@@ -36,12 +35,12 @@ fn is_target_owned_independent_and_non_authoritative() {
     );
 
     let register_catalog =
-        root.join("omega-rust/omega/representations/omega-register-model/src/preservation_storage");
+        root.join("omega-rust/omega/representations/register-model/src/preservation_storage");
     let x86_catalog = root.join(
-        "omega-rust/omega/backend/instruction_set_architectures/omega-isa-x86_64/src/preservation_storage.rs",
+        "omega-rust/omega/backend/instruction_set_architectures/isa-x86_64/src/preservation_storage.rs",
     );
     let aarch64_catalog = root.join(
-        "omega-rust/omega/backend/instruction_set_architectures/omega-isa-aarch64/src/preservation_storage.rs",
+        "omega-rust/omega/backend/instruction_set_architectures/isa-aarch64/src/preservation_storage.rs",
     );
     let catalog_source = [
         recursive_rust_source(&register_catalog),
@@ -64,7 +63,7 @@ fn is_target_owned_independent_and_non_authoritative() {
 
     let all_source = recursive_rust_source(&stage);
     for forbidden in [
-        "omega_post_allocation_machine_to_optimized_machine",
+        "post_allocation_machine_to_post_allocation_machine",
         "MachineEncoded",
         "PostAllocationMachineInstruction",
         "StackPointer",

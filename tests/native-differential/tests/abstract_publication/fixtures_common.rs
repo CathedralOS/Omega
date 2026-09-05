@@ -3,11 +3,11 @@
 use super::*;
 
 /// Test-only composition probe. Production target custody belongs to
-/// `omega-terminal-psi-to-native-artifact`; these projection tests merely confirm
+/// `terminal-psi-to-native-artifact`; these projection tests merely confirm
 /// that the emitted abstract plan remains accepted by the next stage.
 pub(super) struct TestLoweredOptimizedTargetOperations {
     optimized: ValidatedOptimizedAbstractPlan,
-    target_operations: omega_target_operations::TargetOperationPlan,
+    target_operations: target_operations::TargetOperationPlan,
 }
 
 impl TestLoweredOptimizedTargetOperations {
@@ -19,7 +19,7 @@ impl TestLoweredOptimizedTargetOperations {
         self.target_operations.target
     }
 
-    pub(super) fn target_operations(&self) -> &omega_target_operations::TargetOperationPlan {
+    pub(super) fn target_operations(&self) -> &target_operations::TargetOperationPlan {
         &self.target_operations
     }
 }
@@ -29,13 +29,12 @@ pub(super) fn lower_optimized_to_target_operations(
     target: NativeTarget,
 ) -> Result<
     TestLoweredOptimizedTargetOperations,
-    omega_abstract_operations_to_target_operations::LoweringError,
+    abstract_operations_to_target_operations::LoweringError,
 > {
-    let target_operations =
-        omega_abstract_operations_to_target_operations::lower_to_target_operations(
-            optimized.plan(),
-            target,
-        )?;
+    let target_operations = abstract_operations_to_target_operations::lower_to_target_operations(
+        optimized.plan(),
+        target,
+    )?;
     Ok(TestLoweredOptimizedTargetOperations {
         optimized,
         target_operations,
@@ -51,17 +50,17 @@ pub(super) fn verified(
     mut proof: ProofBundle,
 ) -> VerifiedPsiOptimizationUnit {
     replace_truth_placeholders_with_checked_operation_certificates(&module, &mut proof);
-    let semantic = psi_terminal_codec::encode_module(&module).unwrap();
-    let proof = psi_terminal_codec::encode_proof_bundle(&proof).unwrap();
-    let input = omega_psi_to_abstract_operations::lower_artifact_sections_for_optimization(
+    let semantic = terminal_codec::encode_module(&module).unwrap();
+    let proof = terminal_codec::encode_proof_bundle(&proof).unwrap();
+    let input = terminal_psi_to_abstract_operations::lower_artifact_sections_for_optimization(
         &semantic,
         &proof,
         &AdmissionProfile::default(),
     )
     .unwrap();
-    omega_psi_to_abstract_operations::build_verified_psi_optimization_unit(
+    terminal_psi_to_abstract_operations::build_verified_psi_optimization_unit(
         input,
-        psi_terminal_fuel::TerminalFuelSchedule::CURRENT.identity(),
+        terminal_fuel::TerminalFuelSchedule::CURRENT.identity(),
     )
     .unwrap()
 }
@@ -74,8 +73,8 @@ fn replace_truth_placeholders_with_checked_operation_certificates(
     module: &TerminalModule,
     proof: &mut ProofBundle,
 ) {
-    let validated = psi_terminal_verifier::validate_module(module).unwrap();
-    let questions = psi_terminal_verifier::reconstruct_operation_obligations(module).unwrap();
+    let validated = terminal_verifier::validate_module(module).unwrap();
+    let questions = terminal_verifier::reconstruct_operation_obligations(module).unwrap();
     for evidence in &mut proof.evidence {
         if evidence.route != EvidenceRoute::KernelDerived(PrimitiveJudgment::Truth) {
             continue;
@@ -104,7 +103,7 @@ fn replace_truth_placeholders_with_checked_operation_certificates(
             .iter()
             .map(|parameter| parameter.id)
             .collect();
-        let certificate = psi_checked_trees_to_terminal::produce_checked_canonical_integer_proof(
+        let certificate = checked_trees_to_terminal_psi::produce_checked_canonical_integer_proof(
             &context,
             &question.obligation.proposition,
             &machine.contract.requires,
@@ -126,7 +125,7 @@ fn replace_truth_placeholders_with_checked_operation_certificates(
 }
 
 pub(super) fn checked_operation_proof_bundle(module: &TerminalModule) -> ProofBundle {
-    let obligations = psi_terminal_verifier::reconstruct_operation_obligations(module).unwrap();
+    let obligations = terminal_verifier::reconstruct_operation_obligations(module).unwrap();
     let mut proof = ProofBundle {
         recursive_components: Vec::new(),
         evidence_producers: Vec::new(),
@@ -227,7 +226,7 @@ pub(super) fn run(
     selections: OptimizationSelections,
 ) -> OptimizationRun {
     let registry = built_in_psi_registry(&selections).unwrap();
-    omega_abstract_operations_optimizer::run_psi_registry(
+    abstract_operations_to_abstract_operations::run_psi_registry(
         verified,
         &selections,
         &registry,

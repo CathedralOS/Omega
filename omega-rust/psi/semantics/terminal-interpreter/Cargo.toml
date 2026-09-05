@@ -1,0 +1,21 @@
+[package]
+name = "terminal-interpreter"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[lib]
+name = "terminal_interpreter"
+path = "src/lib.rs"
+
+[dependencies]
+semantic-vocabulary = { path = "../../foundation/semantic-vocabulary" }
+numerics = { path = "../../foundation/numerics" }
+terminal-psi = { path = "../../representations/terminal-psi" }
+terminal-codec = { path = "../terminal-codec" }
+terminal-fuel = { path = "../terminal-fuel" }
+terminal-verifier = { path = "../terminal-verifier" }
+proof-admission = { path = "../proof-admission" }
+
+[dev-dependencies]
+terminal-fixed-fuel = { path = "../terminal-fixed-fuel" }

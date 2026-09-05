@@ -1,7 +1,7 @@
 //! One package selection over one validated Git acquisition request.
 
 use crate::declarations::dependencies::read::PackageSelection;
-use omega_package_source::{GitSourceRequest, GitTransportProfile};
+use package_source::{GitSourceRequest, GitTransportProfile};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct GitPackageSourceRequest {

@@ -66,7 +66,7 @@ pub machine BoundProvider::identity<
         .position(|machine| {
             matches!(
                 machine.supply_mode,
-                psi_language_semantics::MachineSupplyMode::ExternalRealization { .. }
+                language_semantics::MachineSupplyMode::ExternalRealization { .. }
             )
         })
         .expect("bound provider");
@@ -268,7 +268,7 @@ pub machine ConstProvider::identity<const Length: u64>(
         .type_reference_table
         .type_reference(provider_value_type)
     {
-        psi_typed_trees::types::TypeReferenceNode::FixedArray { element_type, .. } => *element_type,
+        typed_trees::types::TypeReferenceNode::FixedArray { element_type, .. } => *element_type,
         unexpected => panic!("expected const-sized array, got {unexpected:?}"),
     };
     let provider_static = &mut checked
@@ -276,8 +276,7 @@ pub machine ConstProvider::identity<const Length: u64>(
         .data_type_parameters
         .span_mut(provider_telescope)
         .expect("provider const telescope")[0];
-    let psi_typed_trees::data::TypeParameterKind::Const { type_reference } =
-        &mut provider_static.kind
+    let typed_trees::data::TypeParameterKind::Const { type_reference } = &mut provider_static.kind
     else {
         panic!("provider const parameter")
     };
@@ -299,13 +298,12 @@ pub machine ConstProvider::identity<const Length: u64>(
         .data_type_parameters
         .span_mut(provider_telescope)
         .expect("provider const telescope")[0];
-    let psi_typed_trees::data::TypeParameterKind::Const { type_reference } =
-        &mut provider_static.kind
+    let typed_trees::data::TypeParameterKind::Const { type_reference } = &mut provider_static.kind
     else {
         panic!("provider const parameter")
     };
     *type_reference = original_const_type;
-    provider_static.bounds.multiplicity = psi_language_semantics::Multiplicity::Unrestricted;
+    provider_static.bounds.multiplicity = language_semantics::Multiplicity::Unrestricted;
     let diagnostics = project_checked_package_review(&checked)
         .expect_err("post-check type-property bounds on a const parameter must reject");
     assert!(
@@ -357,13 +355,12 @@ pub machine GenericProvider::identity<Value>(value: Value) -> Value
         .find(|machine| machine.name.as_str() == "GenericProvider::identity")
         .unwrap();
     let policies =
-        omega_package_evidence::project_checked_external_supply_policy(&checked, machine.symbol)
-            .unwrap();
+        package_evidence::project_checked_external_supply_policy(&checked, machine.symbol).unwrap();
     let [policy] = policies.as_slice() else {
         panic!("one checked external policy")
     };
     assert_eq!(policy.callable().owner(), supply.callable().owner());
-    let surfaces = omega_package_evidence::project_checked_callable_policy(
+    let surfaces = package_evidence::project_checked_callable_policy(
         &checked,
         checked.selected_target_profile().unwrap(),
         checked.package_identity().unwrap(),
@@ -392,9 +389,9 @@ pub machine GenericProvider::identity<Value>(value: Value) -> Value
         .expect("checked external supply projects to policy without native emission");
     assert!(policy_bytes.starts_with(b"OMEGA-EXTERNAL-SUPPLY-POLICY\0\x02\x00"));
     let recovered_policy =
-        omega_package_evidence::record::PackagePolicyExternalExecutableSupply::recover_canonical(
+        package_evidence::record::PackagePolicyExternalExecutableSupply::recover_canonical(
             &policy_bytes,
-            omega_package_evidence::encoding::PackagePolicyRecoveryLimits::default(),
+            package_evidence::encoding::PackagePolicyRecoveryLimits::default(),
         )
         .expect("recover checked external-supply policy without source or native replay");
     assert_eq!(&recovered_policy, policy);
@@ -406,10 +403,10 @@ pub machine GenericProvider::identity<Value>(value: Value) -> Value
     );
     assert_eq!(
         policy_bytes,
-        omega_package_evidence::project_checked_external_supply_policy(&checked, machine.symbol)
-            .unwrap()[0]
-            .canonical_bytes()
-            .expect("repeat checked external-supply policy projection"),
+        package_evidence::project_checked_external_supply_policy(&checked, machine.symbol).unwrap()
+            [0]
+        .canonical_bytes()
+        .expect("repeat checked external-supply policy projection"),
     );
     let [static_parameter] = supply.signature().static_parameters() else {
         panic!("one exact external static parameter")
@@ -419,7 +416,7 @@ pub machine GenericProvider::identity<Value>(value: Value) -> Value
         .expect("ordinary type static parameter");
     assert_eq!(
         properties.multiplicity(),
-        psi_language_semantics::Multiplicity::Affine
+        language_semantics::Multiplicity::Affine
     );
     assert_eq!(properties.carry(), None);
     let [requirement_parameter] = supply
@@ -434,7 +431,7 @@ pub machine GenericProvider::identity<Value>(value: Value) -> Value
             .type_properties()
             .expect("ordinary requirement type parameter")
             .multiplicity(),
-        psi_language_semantics::Multiplicity::Unrestricted
+        language_semantics::Multiplicity::Unrestricted
     );
 }
 

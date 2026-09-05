@@ -2,7 +2,7 @@ use super::*;
 use crate::record::{
     PackageReviewNominalIdentity, PackageReviewNominalOwner, PackageReviewTypeIdentity,
 };
-use psi_core::PackageKeyIdentity;
+use semantic_vocabulary::PackageKeyIdentity;
 
 fn nominal(path: &str) -> PackageReviewNominalIdentity {
     PackageReviewNominalIdentity {

@@ -1,7 +1,7 @@
 //! Focused interpreter parity for programmable-layout recast views.
 
-use omega_compiler::{CheckedCompilation, compile_to_checked};
-use psi_checked_interpreter::{InterpretOutcome, interpret_entry};
+use checked_interpreter::{InterpretOutcome, interpret_entry};
+use compiler::{CheckedCompilation, compile_to_checked};
 use std::path::{Path, PathBuf};
 
 fn interpret(checked: &CheckedCompilation, stdin: &[u8]) -> InterpretOutcome {

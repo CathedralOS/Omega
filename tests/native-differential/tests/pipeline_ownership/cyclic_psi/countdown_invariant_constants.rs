@@ -2,13 +2,13 @@
 
 use super::*;
 
-use omega_abstract_operations_optimizer::{
+use abstract_operations_to_abstract_operations::{
     CountdownInvariantConstantAnalysisError, CountdownInvariantConstantAnalysisSnapshot,
     CountdownInvariantConstantRole,
 };
-use omega_optimization_unit::{ValueDefinitionSite, recompute_psi_optimization_unit_identity};
-use omega_optimization_validation::validate_transformed_psi_optimization_unit;
-use psi_core::{IntegerSign, IntegerType, IntegerValue, MachineId};
+use optimization_unit::{ValueDefinitionSite, recompute_psi_optimization_unit_identity};
+use optimization_validation::validate_transformed_psi_optimization_unit;
+use semantic_vocabulary::{IntegerSign, IntegerType, IntegerValue, MachineId};
 
 #[test]
 fn source_countdown_yields_exact_certificate_owned_zero_and_one() {
@@ -81,14 +81,13 @@ fn invariant_constant_snapshot_replay_rejects_every_retained_axis() {
 
     let corruptions: Vec<Box<dyn Fn(&mut CountdownInvariantConstantAnalysisSnapshot)>> = vec![
         Box::new(|snapshot| {
-            snapshot.revision =
-                omega_optimization_core::OptimizationUnitIdentity::from_canonical_bytes(
-                    b"stale invariant-constant revision",
-                );
+            snapshot.revision = optimization_core::OptimizationUnitIdentity::from_canonical_bytes(
+                b"stale invariant-constant revision",
+            );
         }),
         Box::new(|snapshot| {
             snapshot.terminal_psi.program_fingerprint =
-                psi_terminal::SemanticFingerprint::from_bytes([0xE1; 32]);
+                terminal_psi::SemanticFingerprint::from_bytes([0xE1; 32]);
         }),
         Box::new(|snapshot| snapshot.loops.clear()),
         Box::new(|snapshot| {
@@ -148,7 +147,9 @@ fn invariant_constant_snapshot_replay_rejects_every_retained_axis() {
         }),
         Box::new(|snapshot| {
             snapshot.loops[0].constants[0].definition.scalar_type =
-                psi_core::ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 64).unwrap());
+                semantic_vocabulary::ScalarType::Integer(
+                    IntegerType::new(IntegerSign::Unsigned, 64).unwrap(),
+                );
         }),
         Box::new(|snapshot| {
             snapshot.loops[0].constants[0].definition.site =
@@ -215,7 +216,7 @@ fn analysis_does_not_authorize_ranked_component_mutation() {
     ));
 }
 
-pub(super) fn acyclic_unit() -> omega_psi_to_abstract_operations::VerifiedPsiOptimizationUnit {
+pub(super) fn acyclic_unit() -> terminal_psi_to_abstract_operations::VerifiedPsiOptimizationUnit {
     const SOURCE: &str = r#"
         data Root {}
         machine Root::once() {}
@@ -227,21 +228,21 @@ pub(super) fn acyclic_unit() -> omega_psi_to_abstract_operations::VerifiedPsiOpt
     let resolved = lower_syntax_trees(&syntax).expect("resolve acyclic unit");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type acyclic unit");
     let checked = lower_typed_trees(typed).expect("check acyclic unit");
-    let lowered = psi_checked_trees_to_terminal::lower_machine(&checked, "Root::once")
+    let lowered = checked_trees_to_terminal_psi::lower_machine(&checked, "Root::once")
         .expect("lower acyclic unit");
-    let semantic = psi_terminal_codec::encode_module(&lowered.semantic_module)
-        .expect("encode acyclic semantics");
-    let proof = psi_terminal_codec::encode_proof_bundle(&lowered.proof_bundle)
-        .expect("encode acyclic proof");
+    let semantic =
+        terminal_codec::encode_module(&lowered.semantic_module).expect("encode acyclic semantics");
+    let proof =
+        terminal_codec::encode_proof_bundle(&lowered.proof_bundle).expect("encode acyclic proof");
     let input = lower_artifact_sections_for_optimization(
         &semantic,
         &proof,
-        &psi_proof_admission::AdmissionProfile::default(),
+        &proof_admission::AdmissionProfile::default(),
     )
     .expect("admit acyclic optimizer unit");
     build_verified_psi_optimization_unit(
         input,
-        psi_terminal_fuel::TerminalFuelSchedule::CURRENT.identity(),
+        terminal_fuel::TerminalFuelSchedule::CURRENT.identity(),
     )
     .expect("build acyclic optimizer unit")
 }

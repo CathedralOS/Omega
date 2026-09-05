@@ -1,0 +1,9 @@
+[package]
+name = "semantic-vocabulary"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[lib]
+name = "semantic_vocabulary"
+path = "src/lib.rs"

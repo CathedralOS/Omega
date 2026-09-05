@@ -9,14 +9,14 @@ use crate::record::{
     PackagePolicyClosedConformanceApplication, PackagePolicyConformanceConstArgument,
     PackagePolicyConformanceRow,
 };
-use omega_compiler::CheckedCompilation;
-use psi_diagnostics::Diagnostic;
-use psi_typed_trees::data::TypeParameterKind;
-use psi_typed_trees::expression::{StaticMachineArgument, StaticSymbolApplication};
-use psi_typed_trees::name::Identifier;
-use psi_typed_trees::trait_definition::ConformanceSubject;
-use psi_typed_trees::typed_trees::{ClosedConformanceApplication, ClosedConformanceConstArgument};
-use psi_typed_trees::types::TypeReferenceNode;
+use compiler::CheckedCompilation;
+use diagnostics::Diagnostic;
+use typed_trees::data::TypeParameterKind;
+use typed_trees::expression::{StaticMachineArgument, StaticSymbolApplication};
+use typed_trees::name::Identifier;
+use typed_trees::trait_definition::ConformanceSubject;
+use typed_trees::typed_trees::{ClosedConformanceApplication, ClosedConformanceConstArgument};
+use typed_trees::types::TypeReferenceNode;
 
 /// Retain the complete source-qualified conformance meaning without historical
 /// report/commitment fields. This component is inert, not complete package
@@ -134,7 +134,7 @@ pub fn project_checked_conformance_policy(
                     declared_carrier,
                     value,
                 } => {
-                    psi_validation::validate_exact_const_value_encoding(
+                    validation::validate_exact_const_value_encoding(
                         &compilation.typed,
                         *declared_carrier,
                         &value.encoding,
@@ -231,11 +231,9 @@ fn validate_retained_application(
     };
     // This reclassifies retained arguments against the same checked declaration
     // telescope. It executes no source code and consumes no proof certificate.
-    let closed = psi_typed_trees_to_checked_trees::close_conformance_application(
-        &compilation.typed,
-        &selected,
-    )
-    .map_err(|diagnostic| vec![diagnostic])?;
+    let closed =
+        typed_trees_to_checked_trees::close_conformance_application(&compilation.typed, &selected)
+            .map_err(|diagnostic| vec![diagnostic])?;
     if closed.declaration != application.declaration
         || closed.lifetime_arguments != application.lifetime_arguments
         || closed.type_arguments != application.type_arguments

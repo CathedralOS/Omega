@@ -9,7 +9,7 @@ use std::path::Path;
 #[cfg(test)]
 use std::sync::atomic::Ordering;
 
-use omega_resolver_execution::ResolverExecutionPhase;
+use resolver_execution::ResolverExecutionPhase;
 
 use crate::error::SourceResolveError;
 use crate::git::cache::repository::VerifiedGitRepository;

@@ -15,8 +15,8 @@ use crate::review::{
     PackagePolicyResolution, PackageSourceVerificationPhase, compare_package_policy_changes,
     compile_resolved_package_candidate_reviews, verify_transitive_source_custody,
 };
-use omega_target::TargetProfile;
 use std::path::Path;
+use target::TargetProfile;
 
 /// One checked candidate and its comparison. This holds the source snapshot
 /// needed for review and lock construction, not a package certificate or file

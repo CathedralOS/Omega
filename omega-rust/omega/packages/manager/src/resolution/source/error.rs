@@ -1,9 +1,9 @@
 use crate::declarations::dependencies::read::DependencyProjectionError;
 use crate::declarations::roles::BuildDeclarationError;
 use crate::resolution::source::git::workspace::GitWorkspaceSelectionError;
-use omega_package_source::IdentityError;
-use omega_package_source::SourceRelativePath;
-use omega_package_source::SourceResolveError;
+use package_source::IdentityError;
+use package_source::SourceRelativePath;
+use package_source::SourceResolveError;
 use std::fmt;
 use std::path::PathBuf;
 

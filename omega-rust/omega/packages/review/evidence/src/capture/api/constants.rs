@@ -2,9 +2,9 @@ use crate::capture::semantics::declarations::{nominal_identity, reviewed_package
 use crate::capture::semantics::types::review_type_identity_with_binders;
 use crate::capture::source::{ProjectedNestedSourceLocation, ProjectedReviewRow};
 use crate::record::{PackageReviewConstShape, PackageReviewSourceLocationRole};
-use omega_compiler::CheckedCompilation;
-use psi_core::PackageKeyIdentity;
-use psi_diagnostics::Diagnostic;
+use compiler::CheckedCompilation;
+use diagnostics::Diagnostic;
+use semantic_vocabulary::PackageKeyIdentity;
 
 pub(crate) fn project_public_consts(
     compilation: &CheckedCompilation,

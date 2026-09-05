@@ -1,7 +1,7 @@
 use std::fmt;
 use std::path::PathBuf;
 
-use omega_platform_custody::record_file::RecordFileError;
+use platform_custody::record_file::RecordFileError;
 
 #[derive(Debug)]
 pub enum PackagePublicationError {

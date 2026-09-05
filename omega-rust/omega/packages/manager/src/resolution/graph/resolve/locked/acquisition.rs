@@ -9,7 +9,7 @@ use crate::resolution::source::{
     resolve_selected_git_project_source_at_revision_in_lanes,
     resolve_workspace_member_project_source_in_lane,
 };
-use omega_package_source::ImmutableSourceResolution;
+use package_source::ImmutableSourceResolution;
 
 impl Resolver<'_> {
     pub(super) fn root(&mut self) -> Result<PackageSourceCustody, Error> {

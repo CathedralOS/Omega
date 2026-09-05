@@ -1,5 +1,5 @@
 use crate::record::*;
-use omega_target::TargetProfile;
+use target::TargetProfile;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PackagePolicyProviderFamily {

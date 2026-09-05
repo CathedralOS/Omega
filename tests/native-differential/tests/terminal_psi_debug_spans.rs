@@ -1,8 +1,8 @@
-use omega_compiler::compile_to_checked;
-use psi_checked_trees_to_terminal::lower_machine;
-use psi_core::{ContractId, EdgeId, ObligationId, OperationId};
-use psi_terminal_codec::{DebugSite, DebugSubject};
+use checked_trees_to_terminal_psi::lower_machine;
+use compiler::compile_to_checked;
+use semantic_vocabulary::{ContractId, EdgeId, ObligationId, OperationId};
 use std::path::{Path, PathBuf};
+use terminal_codec::{DebugSite, DebugSubject};
 
 fn source_canary() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR"))

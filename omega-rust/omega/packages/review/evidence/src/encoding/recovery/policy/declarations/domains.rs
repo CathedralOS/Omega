@@ -13,8 +13,8 @@ pub(in crate::encoding::recovery::policy) fn domain_shape(
         target_type: type_identity(reader)?,
         index_arguments: reader.sequence(8, type_identity)?,
         predicate_body: match reader.byte()? {
-            0 => psi_language_semantics::DomainPredicateBody::Bodyless,
-            1 => psi_language_semantics::DomainPredicateBody::Present,
+            0 => language_semantics::DomainPredicateBody::Bodyless,
+            1 => language_semantics::DomainPredicateBody::Present,
             _ => return Err(Error::InvalidTag),
         },
         predicate_facts: reader.sequence(2, contract_fact)?,
@@ -51,10 +51,10 @@ pub(in crate::encoding::recovery::policy) fn alias_atom(
     Ok(match reader.byte()? {
         0 => PackageReviewDomainAliasAtom::Declared(nominal(reader)?),
         1 => PackageReviewDomainAliasAtom::Carry(match reader.byte()? {
-            0 => psi_language_semantics::CarryPermission::AcrossSuspend,
-            1 => psi_language_semantics::CarryPermission::AnyCpu,
-            2 => psi_language_semantics::CarryPermission::AnyThread,
-            3 => psi_language_semantics::CarryPermission::MovableAddress,
+            0 => language_semantics::CarryPermission::AcrossSuspend,
+            1 => language_semantics::CarryPermission::AnyCpu,
+            2 => language_semantics::CarryPermission::AnyThread,
+            3 => language_semantics::CarryPermission::MovableAddress,
             _ => return Err(Error::InvalidTag),
         }),
         _ => return Err(Error::InvalidTag),

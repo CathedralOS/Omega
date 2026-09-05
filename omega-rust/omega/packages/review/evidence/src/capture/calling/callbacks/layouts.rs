@@ -6,13 +6,13 @@ use crate::record::{
     PackagePolicyCallbackInlineField, PackagePolicyCallbackLayout,
     PackagePolicyCallbackLayoutApplication,
 };
-use omega_compiler::CheckedCompilation;
-use omega_layout::TargetClosedPlanLaidDataLayoutIdentity;
-use omega_provider_planning::calling_policy_plans::BoundaryCallbackLayoutEntry;
-use psi_diagnostics::Diagnostic;
-use psi_typed_trees::name::Identifier;
-use psi_typed_trees::typed_trees::PlanLaidLayout;
-use psi_typed_trees::types::TypeReferenceNode;
+use compiler::CheckedCompilation;
+use diagnostics::Diagnostic;
+use layout::TargetClosedPlanLaidDataLayoutIdentity;
+use provider_planning::calling_policy_plans::BoundaryCallbackLayoutEntry;
+use typed_trees::name::Identifier;
+use typed_trees::typed_trees::PlanLaidLayout;
+use typed_trees::types::TypeReferenceNode;
 
 pub(super) fn project(
     compilation: &CheckedCompilation,

@@ -100,7 +100,7 @@ pub(crate) fn integer_less_or_equal_immediate_return_artifact(
         }],
     };
     (
-        psi_terminal_codec::encode_module(&module).unwrap(),
-        psi_terminal_codec::encode_proof_bundle(&ProofBundle::default()).unwrap(),
+        terminal_codec::encode_module(&module).unwrap(),
+        terminal_codec::encode_proof_bundle(&ProofBundle::default()).unwrap(),
     )
 }

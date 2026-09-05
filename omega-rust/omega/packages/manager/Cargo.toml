@@ -1,41 +1,41 @@
 [package]
-name = "omega-package-manager"
+name = "package-manager"
 edition.workspace = true
 license.workspace = true
 version.workspace = true
 
 [lib]
-name = "omega_package_manager"
+name = "package_manager"
 path = "src/lib.rs"
 
 [dependencies]
-omega-build-declarations = { path = "../../build/omega-build-declarations" }
-omega-build-evaluation = { path = "../../build/omega-build-evaluation" }
-omega-boundary-applications = { path = "../../representations/omega-boundary-applications" }
-omega-compiler = { path = "../../compiler/omega-compiler" }
-omega-effects = { path = "../../representations/omega-effects" }
-omega-package-evidence = { path = "../review/evidence" }
-omega-package-source = { path = "../sources/acquisition" }
-omega-package-compilation = { path = "../../build/omega-package-compilation" }
-omega-optimization-core = { path = "../../representations/omega-optimization-core" }
-omega-platform-custody = { path = "../../tooling/omega-platform-custody" }
-omega-target = { path = "../../representations/omega-target" }
-omega-terminal-psi-to-native-artifact = { path = "../../pipeline/omega-terminal-psi-to-native-artifact" }
-psi-arena = { path = "../../../psi/foundation/psi-arena" }
-psi-core = { path = "../../../psi/foundation/psi-core" }
-psi-language-semantics = { path = "../../../psi/foundation/psi-language-semantics" }
-psi-checked-interpreter = { path = "../../../psi/semantics/psi-checked-interpreter" }
-psi-diagnostics = { path = "../../../psi/foundation/psi-diagnostics" }
-psi-proof-admission = { path = "../../../psi/semantics/psi-proof-admission" }
-psi-source = { path = "../../../psi/foundation/psi-source" }
-psi-source-files-to-tokens = { path = "../../../psi/pipeline/psi-source-files-to-tokens" }
-psi-syntax-trees = { path = "../../../psi/representations/psi-syntax-trees" }
-psi-tokens = { path = "../../../psi/representations/psi-tokens" }
-psi-tokens-to-syntax-trees = { path = "../../../psi/pipeline/psi-tokens-to-syntax-trees" }
+build-declarations = { path = "../../build/build-declarations" }
+build-evaluation = { path = "../../build/build-evaluation" }
+boundary-applications = { path = "../../representations/boundary-applications" }
+compiler = { path = "../../compiler/compiler" }
+effects = { path = "../../representations/effects" }
+package-evidence = { path = "../review/evidence" }
+package-source = { path = "../sources/acquisition" }
+package-compilation = { path = "../../build/package-compilation" }
+optimization-core = { path = "../../representations/optimization-core" }
+platform-custody = { path = "../../tooling/platform-custody" }
+target = { path = "../../representations/target" }
+terminal-psi-to-native-artifact = { path = "../../pipeline/terminal-psi-to-native-artifact" }
+arena = { path = "../../../psi/foundation/arena" }
+semantic-vocabulary = { path = "../../../psi/foundation/semantic-vocabulary" }
+language-semantics = { path = "../../../psi/foundation/language-semantics" }
+checked-interpreter = { path = "../../../psi/semantics/checked-interpreter" }
+diagnostics = { path = "../../../psi/foundation/diagnostics" }
+proof-admission = { path = "../../../psi/semantics/proof-admission" }
+source = { path = "../../../psi/foundation/source" }
+source-files-to-tokens = { path = "../../../psi/pipeline/source-files-to-tokens" }
+syntax-trees = { path = "../../../psi/representations/syntax-trees" }
+tokens = { path = "../../../psi/representations/tokens" }
+tokens-to-syntax-trees = { path = "../../../psi/pipeline/tokens-to-syntax-trees" }
 cap-std = "4.0.3"
 cap-fs-ext = "4.0.3"
 sha2 = "0.10.9"
 
 [dev-dependencies]
-omega-build-evaluation = { path = "../../build/omega-build-evaluation", features = ["test-support"] }
-omega-package-source = { path = "../sources/acquisition", features = ["test-fixtures"] }
+build-evaluation = { path = "../../build/build-evaluation", features = ["test-support"] }
+package-source = { path = "../sources/acquisition", features = ["test-fixtures"] }

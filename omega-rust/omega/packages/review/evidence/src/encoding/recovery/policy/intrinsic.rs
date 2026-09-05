@@ -5,8 +5,8 @@ mod tests;
 
 use super::{Error, reader::Reader};
 use crate::record::PackageReviewCompilerIntrinsicExecution;
-use omega_provider_planning::plans::{CompilerNumericType, CompilerPrimitiveFloatBinaryOperation};
-use psi_numerics::{arithmetic::ArithmeticDomain, literals::FloatFormat};
+use numerics::{arithmetic::ArithmeticDomain, literals::FloatFormat};
+use provider_planning::plans::{CompilerNumericType, CompilerPrimitiveFloatBinaryOperation};
 
 pub(super) fn execution(
     reader: &mut Reader<'_>,
@@ -14,7 +14,7 @@ pub(super) fn execution(
     use PackageReviewCompilerIntrinsicExecution as Execution;
     Ok(match reader.byte()? {
         0 => Execution::BuiltinFunction(
-            psi_symbols::BuiltinFunction::from_ordinal(usize::from(reader.u16()?))
+            symbols::BuiltinFunction::from_ordinal(usize::from(reader.u16()?))
                 .ok_or(Error::InvalidTag)?,
         ),
         1 => Execution::NamedFloatNegation(float_format(reader)?),

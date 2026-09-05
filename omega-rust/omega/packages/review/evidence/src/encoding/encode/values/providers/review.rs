@@ -6,7 +6,7 @@ use crate::record::{
     PackageReviewProviderFamilyCoverage, PackageReviewProviderGrantSelectorKind,
     PackageReviewProviderSelectionAuthority, PackageReviewSelectedInstallationReach,
 };
-use omega_effects::provider_plan::{
+use effects::provider_plan::{
     ProviderBinding, ServiceEntryAuthorityFlow, ServiceProgressEstablishmentRouteKind,
     ServiceProgressSubject,
 };
@@ -76,7 +76,7 @@ pub(crate) fn encode_provider_family(
 
 pub(crate) fn encode_service_schema(
     encoder: &mut Encoder,
-    schema: &omega_effects::provider_plan::ServiceSchema,
+    schema: &effects::provider_plan::ServiceSchema,
 ) -> Result<(), PackageReviewEncodingError> {
     encoder.string(&schema.trait_name)?;
     encoder.optional_package_identity(schema.trait_package_identity);
@@ -94,8 +94,8 @@ pub(crate) fn encode_service_schema(
             encoder.string(&claim.carrier_identity)?;
             encoder.string(&claim.domain)?;
             encoder.byte(match claim.predicate_body {
-                psi_language_semantics::DomainPredicateBody::Bodyless => 0,
-                psi_language_semantics::DomainPredicateBody::Present => 1,
+                language_semantics::DomainPredicateBody::Bodyless => 0,
+                language_semantics::DomainPredicateBody::Present => 1,
             });
             encode_carry_policy(encoder, claim.effective_carry);
             encoder.byte(match claim.authority_flow {
@@ -157,7 +157,7 @@ pub(crate) fn encode_service_schema(
 
 pub(crate) fn encode_provider_row(
     encoder: &mut Encoder,
-    row: &omega_effects::provider_plan::ProviderPlanRow,
+    row: &effects::provider_plan::ProviderPlanRow,
 ) -> Result<(), PackageReviewEncodingError> {
     encoder.string(&row.method)?;
     encoder.string(&row.requirement_identity)?;
@@ -172,17 +172,17 @@ pub(crate) fn encode_provider_row(
             encoder.string(locator.target().target_name())?;
             encoder.u64(locator.non_authoritative_compatibility_fingerprint());
             match locator.locator() {
-                omega_effects::ForeignLocatorCandidate::PeByName { library, export } => {
+                effects::ForeignLocatorCandidate::PeByName { library, export } => {
                     encoder.byte(0);
                     encoder.bytes(library)?;
                     encoder.bytes(export)?;
                 }
-                omega_effects::ForeignLocatorCandidate::PeByOrdinal { library, ordinal } => {
+                effects::ForeignLocatorCandidate::PeByOrdinal { library, ordinal } => {
                     encoder.byte(1);
                     encoder.bytes(library)?;
                     encoder.u16(*ordinal);
                 }
-                omega_effects::ForeignLocatorCandidate::ElfVersioned {
+                effects::ForeignLocatorCandidate::ElfVersioned {
                     object,
                     symbol,
                     version,
@@ -192,7 +192,7 @@ pub(crate) fn encode_provider_row(
                     encoder.bytes(symbol)?;
                     encoder.bytes(version)?;
                 }
-                omega_effects::ForeignLocatorCandidate::MachODylibSymbol {
+                effects::ForeignLocatorCandidate::MachODylibSymbol {
                     install_name,
                     symbol,
                 } => {
@@ -245,7 +245,7 @@ pub(crate) fn encode_provider_row(
 
 fn encode_evaluated_binding_receipt(
     encoder: &mut Encoder,
-    receipt: &omega_effects::provider_plan::EvaluatedBindingReceipt,
+    receipt: &effects::provider_plan::EvaluatedBindingReceipt,
 ) -> Result<(), PackageReviewEncodingError> {
     encoder.optional_package_identity(receipt.producer_package());
     encoder.string(receipt.producer_callable_identity())?;

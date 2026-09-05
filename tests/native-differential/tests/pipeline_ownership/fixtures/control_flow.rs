@@ -112,8 +112,8 @@ pub(crate) fn conditional_forwarded_parameter_artifact() -> (Vec<u8>, Vec<u8>) {
         evidence: Vec::new(),
     };
     (
-        psi_terminal_codec::encode_module(&module).unwrap(),
-        psi_terminal_codec::encode_proof_bundle(&proof).unwrap(),
+        terminal_codec::encode_module(&module).unwrap(),
+        terminal_codec::encode_proof_bundle(&proof).unwrap(),
     )
 }
 
@@ -231,8 +231,8 @@ pub(crate) fn constant_conditional_prune_artifact() -> (Vec<u8>, Vec<u8>) {
         evidence: Vec::new(),
     };
     (
-        psi_terminal_codec::encode_module(&module).unwrap(),
-        psi_terminal_codec::encode_proof_bundle(&proof).unwrap(),
+        terminal_codec::encode_module(&module).unwrap(),
+        terminal_codec::encode_proof_bundle(&proof).unwrap(),
     )
 }
 
@@ -329,8 +329,8 @@ pub(crate) fn linear_empty_block_artifact() -> (Vec<u8>, Vec<u8>) {
         evidence: Vec::new(),
     };
     (
-        psi_terminal_codec::encode_module(&module).unwrap(),
-        psi_terminal_codec::encode_proof_bundle(&proof).unwrap(),
+        terminal_codec::encode_module(&module).unwrap(),
+        terminal_codec::encode_proof_bundle(&proof).unwrap(),
     )
 }
 
@@ -428,8 +428,8 @@ pub(crate) fn adjacent_block_merge_artifact() -> (Vec<u8>, Vec<u8>) {
         evidence: Vec::new(),
     };
     (
-        psi_terminal_codec::encode_module(&module).unwrap(),
-        psi_terminal_codec::encode_proof_bundle(&proof).unwrap(),
+        terminal_codec::encode_module(&module).unwrap(),
+        terminal_codec::encode_proof_bundle(&proof).unwrap(),
     )
 }
 
@@ -551,8 +551,8 @@ pub(crate) fn adjacent_conditional_merge_artifact() -> (Vec<u8>, Vec<u8>) {
         evidence: Vec::new(),
     };
     (
-        psi_terminal_codec::encode_module(&module).unwrap(),
-        psi_terminal_codec::encode_proof_bundle(&proof).unwrap(),
+        terminal_codec::encode_module(&module).unwrap(),
+        terminal_codec::encode_proof_bundle(&proof).unwrap(),
     )
 }
 
@@ -686,8 +686,8 @@ pub(crate) fn path_qualified_empty_block_artifact() -> (Vec<u8>, Vec<u8>) {
         evidence: Vec::new(),
     };
     (
-        psi_terminal_codec::encode_module(&module).unwrap(),
-        psi_terminal_codec::encode_proof_bundle(&proof).unwrap(),
+        terminal_codec::encode_module(&module).unwrap(),
+        terminal_codec::encode_proof_bundle(&proof).unwrap(),
     )
 }
 

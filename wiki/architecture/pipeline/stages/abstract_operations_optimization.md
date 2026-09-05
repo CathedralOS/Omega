@@ -22,7 +22,7 @@ inseparable from its validation receipt.
 
 ## Implementation Map
 
-- `omega-abstract-operations-optimizer/src/phase.rs` owns verified-unit
+- `abstract-operations-to-abstract-operations/src/phase.rs` owns verified-unit
   construction, selected pass execution and publication. The native coordinator
   calls this phase once.
 - Its `src/publication/mod.rs` owns the
@@ -41,8 +41,8 @@ inseparable from its validation receipt.
 - `src/publication/model.rs` and `error.rs` own the validated output and typed
   failures. Publication consumes the completed run and discards its executing
   session and analysis cache. Immutable records live in
-  `omega-optimization-unit/src/evidence.rs`.
-- `omega-optimization-validation` owns independent candidate and projection
+  `optimization-unit/src/evidence.rs`.
+- `optimization-validation` owns independent candidate and projection
   validation.
 - `tests/native-differential/tests/abstract_publication/manifests/mod.rs` is
   the pre-physical V6 custody-test entrance.
@@ -50,7 +50,7 @@ inseparable from its validation receipt.
   multipass behavior, all 35 mutable logical-field mutations, dynamic wire-
   offset reconstruction, and 16 exact wire rejection axes. Singleton Rust
   enums are corrupted only through their closed wire tags.
-- `omega-abstract-operations-to-target-operations/src/optimized.rs` owns the
+- `abstract-operations-to-target-operations/src/optimized.rs` owns the
   later custody-preserving join to target operations; it is intentionally not
   part of this stage.
 

@@ -61,7 +61,7 @@ rematerialization, coalescing, spills, and frames remain unsupported.
 
 ## Implementation Map
 
-- `omega-selected-instructions-to-register-homes/src/rewrites/allocation_recovery/fixed_view_copy/`
+- `selected-instructions-to-register-homes/src/rewrites/allocation_recovery/fixed_view_copy/`
   owns the producer, independent replay, budget gate and identity.
   The adjacent `rewrites/fixed_view/` entrances bind interval and segment-home
   prerequisites to the transformation.

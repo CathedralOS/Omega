@@ -19,7 +19,7 @@ fn live_ranges_are_block_local_and_interference_is_cfg_exact() {
         assert_eq!(
             function.virtual_registers[0].fragments,
             vec![LiveRangeFragment {
-                block: omega_selected_instructions::SelectedBlockId(0),
+                block: selected_instructions::SelectedBlockId(0),
                 start: LiveRangePoint(0),
                 end: LiveRangePoint(1),
             }]

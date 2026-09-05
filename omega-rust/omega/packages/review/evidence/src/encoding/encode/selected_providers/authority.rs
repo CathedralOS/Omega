@@ -1,7 +1,7 @@
 use super::{Encoder, PackageReviewEncodingError, encode_nominal};
 use crate::encoding::encode::values::effects::encode_synchronous_invocation;
 use crate::record::PackagePolicyServiceAuthority;
-use omega_effects::provider_plan::{ServiceProgressEstablishmentRouteKind, ServiceProgressSubject};
+use effects::provider_plan::{ServiceProgressEstablishmentRouteKind, ServiceProgressSubject};
 
 pub(super) fn authority(
     encoder: &mut Encoder,

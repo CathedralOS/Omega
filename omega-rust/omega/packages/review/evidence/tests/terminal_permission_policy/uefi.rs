@@ -59,8 +59,7 @@ machine Boot::launch(&mut self, image: Extent in Granted, initial_storage: Exten
         .find(|definition| definition.name.as_str() == "UefiApplication")
         .unwrap();
     let schema =
-        omega_effects::provider_plan::ServiceSchema::from_typed(&candidate.typed, definition)
-            .unwrap();
+        effects::provider_plan::ServiceSchema::from_typed(&candidate.typed, definition).unwrap();
     let physical = schema
         .methods
         .iter()
@@ -88,8 +87,7 @@ machine Boot::launch(&mut self, image: Extent in Granted, initial_storage: Exten
         .find(|definition| definition.name.as_str() == "UefiApplication")
         .unwrap();
     let schema =
-        omega_effects::provider_plan::ServiceSchema::from_typed(&checked.typed, definition)
-            .unwrap();
+        effects::provider_plan::ServiceSchema::from_typed(&checked.typed, definition).unwrap();
     assert!(
         schema
             .methods
@@ -97,7 +95,7 @@ machine Boot::launch(&mut self, image: Extent in Granted, initial_storage: Exten
             .any(|method| method.calling_plan_commitment.is_some())
     );
     assert_eq!(
-        omega_package_compilation::accepted_service_schema_digest(role, &schema),
+        package_compilation::accepted_service_schema_digest(role, &schema),
         binding.normalized_schema_digest()
     );
     assert_ne!(schema.identity_digest(), binding.normalized_schema_digest());

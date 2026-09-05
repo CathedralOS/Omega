@@ -13,12 +13,12 @@ pub(crate) fn selected_lowering_budget() -> OptimizationWorkBudget {
 pub(crate) fn canonical_artifact(
     semantic: &[u8],
     proof: &[u8],
-) -> psi_terminal_codec::CanonicalTerminalArtifact {
-    let module = psi_terminal_codec::decode_module(semantic).unwrap();
-    let proof = psi_terminal_codec::decode_proof_bundle(proof).unwrap();
+) -> terminal_codec::CanonicalTerminalArtifact {
+    let module = terminal_codec::decode_module(semantic).unwrap();
+    let proof = terminal_codec::decode_proof_bundle(proof).unwrap();
     let optimization =
-        psi_terminal_codec::build_identity_optimization_execution_record(&module, &proof).unwrap();
-    psi_terminal_codec::CanonicalTerminalArtifact::from_parts(&module, &proof, &optimization, None)
+        terminal_codec::build_identity_optimization_execution_record(&module, &proof).unwrap();
+    terminal_codec::CanonicalTerminalArtifact::from_parts(&module, &proof, &optimization, None)
         .unwrap()
 }
 
@@ -29,7 +29,7 @@ pub(crate) fn canonical_artifact(
 /// a certificate-shaped rejection case so the artifact verifier, rather than
 /// fixture construction, remains the boundary under test.
 pub(crate) fn operation_proof_bundle(module: &TerminalModule) -> ProofBundle {
-    let validated = psi_terminal_verifier::validate_module(module).unwrap();
+    let validated = terminal_verifier::validate_module(module).unwrap();
     let reconstructed = reconstruct_operation_obligations(module).unwrap();
     let mut evidence = reconstructed
         .into_iter()
@@ -49,7 +49,7 @@ pub(crate) fn operation_proof_bundle(module: &TerminalModule) -> ProofBundle {
                 .iter()
                 .map(|parameter| parameter.id)
                 .collect();
-            let proof = psi_checked_trees_to_terminal::produce_checked_canonical_integer_proof(
+            let proof = checked_trees_to_terminal_psi::produce_checked_canonical_integer_proof(
                 &context,
                 &question.obligation.proposition,
                 &machine.contract.requires,
@@ -189,8 +189,8 @@ pub(crate) fn artifact() -> (Vec<u8>, Vec<u8>) {
     };
     let proof = operation_proof_bundle(&module);
     (
-        psi_terminal_codec::encode_module(&module).unwrap(),
-        psi_terminal_codec::encode_proof_bundle(&proof).unwrap(),
+        terminal_codec::encode_module(&module).unwrap(),
+        terminal_codec::encode_proof_bundle(&proof).unwrap(),
     )
 }
 
@@ -207,8 +207,8 @@ pub(crate) fn conditional_u64_integer_equal_parameters_artifact() -> (Vec<u8>, V
         evidence: Vec::new(),
     };
     (
-        psi_terminal_codec::encode_module(&module).unwrap(),
-        psi_terminal_codec::encode_proof_bundle(&proof).unwrap(),
+        terminal_codec::encode_module(&module).unwrap(),
+        terminal_codec::encode_proof_bundle(&proof).unwrap(),
     )
 }
 
@@ -221,8 +221,8 @@ pub(crate) fn conditional_u64_equal_zero_parameter_artifact() -> (Vec<u8>, Vec<u
         evidence: Vec::new(),
     };
     (
-        psi_terminal_codec::encode_module(&module).unwrap(),
-        psi_terminal_codec::encode_proof_bundle(&proof).unwrap(),
+        terminal_codec::encode_module(&module).unwrap(),
+        terminal_codec::encode_proof_bundle(&proof).unwrap(),
     )
 }
 
@@ -235,8 +235,8 @@ pub(crate) fn conditional_u64_not_equal_zero_parameter_artifact() -> (Vec<u8>, V
         evidence: Vec::new(),
     };
     (
-        psi_terminal_codec::encode_module(&module).unwrap(),
-        psi_terminal_codec::encode_proof_bundle(&proof).unwrap(),
+        terminal_codec::encode_module(&module).unwrap(),
+        terminal_codec::encode_proof_bundle(&proof).unwrap(),
     )
 }
 
@@ -249,8 +249,8 @@ pub(crate) fn conditional_u64_integer_less_than_parameters_artifact() -> (Vec<u8
         evidence: Vec::new(),
     };
     (
-        psi_terminal_codec::encode_module(&module).unwrap(),
-        psi_terminal_codec::encode_proof_bundle(&proof).unwrap(),
+        terminal_codec::encode_module(&module).unwrap(),
+        terminal_codec::encode_proof_bundle(&proof).unwrap(),
     )
 }
 
@@ -263,8 +263,8 @@ pub(crate) fn conditional_i64_integer_less_than_parameters_artifact() -> (Vec<u8
         evidence: Vec::new(),
     };
     (
-        psi_terminal_codec::encode_module(&module).unwrap(),
-        psi_terminal_codec::encode_proof_bundle(&proof).unwrap(),
+        terminal_codec::encode_module(&module).unwrap(),
+        terminal_codec::encode_proof_bundle(&proof).unwrap(),
     )
 }
 
@@ -277,8 +277,8 @@ pub(crate) fn conditional_i64_integer_less_or_equal_parameters_artifact() -> (Ve
         evidence: Vec::new(),
     };
     (
-        psi_terminal_codec::encode_module(&module).unwrap(),
-        psi_terminal_codec::encode_proof_bundle(&proof).unwrap(),
+        terminal_codec::encode_module(&module).unwrap(),
+        terminal_codec::encode_proof_bundle(&proof).unwrap(),
     )
 }
 
@@ -291,8 +291,8 @@ pub(crate) fn conditional_u64_integer_less_or_equal_parameters_artifact() -> (Ve
         evidence: Vec::new(),
     };
     (
-        psi_terminal_codec::encode_module(&module).unwrap(),
-        psi_terminal_codec::encode_proof_bundle(&proof).unwrap(),
+        terminal_codec::encode_module(&module).unwrap(),
+        terminal_codec::encode_proof_bundle(&proof).unwrap(),
     )
 }
 
@@ -305,8 +305,8 @@ pub(crate) fn conditional_u64_integer_not_equal_parameters_artifact() -> (Vec<u8
         evidence: Vec::new(),
     };
     (
-        psi_terminal_codec::encode_module(&module).unwrap(),
-        psi_terminal_codec::encode_proof_bundle(&proof).unwrap(),
+        terminal_codec::encode_module(&module).unwrap(),
+        terminal_codec::encode_proof_bundle(&proof).unwrap(),
     )
 }
 
@@ -661,8 +661,8 @@ pub(crate) fn conditional_immediate_artifact_with_type(
         evidence: Vec::new(),
     };
     (
-        psi_terminal_codec::encode_module(&module).unwrap(),
-        psi_terminal_codec::encode_proof_bundle(&proof).unwrap(),
+        terminal_codec::encode_module(&module).unwrap(),
+        terminal_codec::encode_proof_bundle(&proof).unwrap(),
     )
 }
 
@@ -677,8 +677,8 @@ pub(crate) fn disconnected_conditional_artifact() -> (Vec<u8>, Vec<u8>) {
         evidence: Vec::new(),
     };
     (
-        psi_terminal_codec::encode_module(&module).unwrap(),
-        psi_terminal_codec::encode_proof_bundle(&proof).unwrap(),
+        terminal_codec::encode_module(&module).unwrap(),
+        terminal_codec::encode_proof_bundle(&proof).unwrap(),
     )
 }
 

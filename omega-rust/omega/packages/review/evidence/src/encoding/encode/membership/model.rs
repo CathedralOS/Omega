@@ -1,4 +1,4 @@
-use psi_core::PackageKeyIdentity;
+use semantic_vocabulary::PackageKeyIdentity;
 
 /// Lowerable work and requested-scratch ceilings for semantic owner descent.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

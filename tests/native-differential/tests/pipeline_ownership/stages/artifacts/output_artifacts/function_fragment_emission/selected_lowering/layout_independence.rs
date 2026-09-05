@@ -6,9 +6,9 @@ use crate::tests::*;
 #[derive(Debug, Clone, Copy)]
 struct HostedTargetCase {
     target: NativeTarget,
-    object_format: omega_target::ObjectFormat,
+    object_format: target::ObjectFormat,
     text_section_name: &'static str,
-    calling_policy: omega_calling_conventions::CallingPolicy,
+    calling_policy: calling_conventions::CallingPolicy,
     exit_policy: WholeFunctionExitPolicy,
 }
 
@@ -28,8 +28,8 @@ struct PublishedSelectedLoweringSnapshot {
 }
 
 fn hosted_target_cases() -> [HostedTargetCase; 4] {
-    use omega_calling_conventions::CallingPolicy;
-    use omega_target::ObjectFormat;
+    use calling_conventions::CallingPolicy;
+    use target::ObjectFormat;
 
     [
         HostedTargetCase {
@@ -72,7 +72,7 @@ fn publish_exact_selected_lowering(
     let selections = OptimizationSelections::new([optimization]).unwrap();
     let selection_identity = selections.identity();
     let selected_lowering_identity = selections
-        .for_phase(omega_optimization_core::OptimizationExecutionPhase::SelectedLowering)
+        .for_phase(optimization_core::OptimizationExecutionPhase::SelectedLowering)
         .identity();
     let selected = if subtract {
         staged_exact_subtract_conditional_with_selections(
@@ -93,8 +93,8 @@ fn publish_exact_selected_lowering(
         .selected_stage()
         .register_environment();
     let sole_view_name = match case.target.architecture {
-        omega_target::Architecture::X86_64 => "rax",
-        omega_target::Architecture::Aarch64 => "x0",
+        target::Architecture::X86_64 => "rax",
+        target::Architecture::Aarch64 => "x0",
     };
     let sole_view = environment
         .physical()

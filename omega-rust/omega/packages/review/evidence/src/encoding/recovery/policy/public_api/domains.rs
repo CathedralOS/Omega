@@ -15,8 +15,8 @@ pub(super) fn domain_shape(reader: &mut Reader<'_>) -> Result<PackagePolicyDomai
         target_type: type_identity(reader)?,
         index_arguments: reader.sequence(8, type_identity)?,
         predicate_body: match reader.byte()? {
-            0 => psi_language_semantics::DomainPredicateBody::Bodyless,
-            1 => psi_language_semantics::DomainPredicateBody::Present,
+            0 => language_semantics::DomainPredicateBody::Bodyless,
+            1 => language_semantics::DomainPredicateBody::Present,
             _ => return Err(Error::InvalidTag),
         },
         predicate_facts: reader.sequence(2, contract_fact)?,

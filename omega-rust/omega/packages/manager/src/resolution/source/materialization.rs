@@ -1,6 +1,6 @@
 //! Exact bytes published for one selected package root.
 
-use omega_package_source::{ResolvedLocalSource, SourceContentDigest};
+use package_source::{ResolvedLocalSource, SourceContentDigest};
 
 /// Recheckable commitment to the package subtree exposed to compilation.
 ///

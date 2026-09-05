@@ -1,7 +1,7 @@
 //! Direct publication and composition canaries with named custody corruption.
 
 use crate::FunctionFragmentReplayInputs;
-use omega_isa_x86_64::encode_x86_64_mov_r32_imm32_i64_materialization;
+use isa_x86_64::encode_x86_64_mov_r32_imm32_i64_materialization;
 
 use crate::tests::*;
 
@@ -12,8 +12,8 @@ fn x86_mov_r32_imm32_reaches_realization_with_replayable_zero_extension_custody(
     let integer_type = IntegerType::new(IntegerSign::Unsigned, 64).unwrap();
     let machine_fixture = conditional_immediate_machine(18_200, integer_type, [1, u32::MAX.into()]);
     let module = conditional_immediate_module(machine_fixture.id, vec![machine_fixture]);
-    let semantic = psi_terminal_codec::encode_module(&module).unwrap();
-    let proof = psi_terminal_codec::encode_proof_bundle(&ProofBundle {
+    let semantic = terminal_codec::encode_module(&module).unwrap();
+    let proof = terminal_codec::encode_proof_bundle(&ProofBundle {
         recursive_components: Vec::new(),
         evidence_producers: Vec::new(),
         evidence: Vec::new(),
@@ -355,8 +355,8 @@ fn x86_mov_r32_imm32_and_xor_zero_reject_without_hidden_rule_ordering() {
     let integer_type = IntegerType::new(IntegerSign::Unsigned, 64).unwrap();
     let machine = conditional_immediate_machine(18_300, integer_type, [0, 1]);
     let module = conditional_immediate_module(machine.id, vec![machine]);
-    let semantic = psi_terminal_codec::encode_module(&module).unwrap();
-    let proof = psi_terminal_codec::encode_proof_bundle(&ProofBundle {
+    let semantic = terminal_codec::encode_module(&module).unwrap();
+    let proof = terminal_codec::encode_proof_bundle(&ProofBundle {
         recursive_components: Vec::new(),
         evidence_producers: Vec::new(),
         evidence: Vec::new(),
@@ -383,7 +383,7 @@ fn x86_mov_r32_imm32_and_xor_zero_reject_without_hidden_rule_ordering() {
         ),
         Err(
             OptimizedVerifiedPhysicalPipelineError::PostAllocationMachineRuleCatalog(
-                omega_post_allocation_machine_to_optimized_machine::PostAllocationMachineRuleCatalogError::UnsupportedComposition(
+                post_allocation_machine_to_post_allocation_machine::PostAllocationMachineRuleCatalogError::UnsupportedComposition(
                     _
                 )
             )

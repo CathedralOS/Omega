@@ -1,9 +1,9 @@
-use omega_boundary_applications::{BoundaryApplication, BoundaryApplicationArgument};
-use omega_compiler::compile_to_checked_with_packages;
-use omega_package_compilation::{
+use boundary_applications::{BoundaryApplication, BoundaryApplicationArgument};
+use compiler::compile_to_checked_with_packages;
+use package_compilation::{
     PackageCompilationInputs, PackageDependencyBinding, PackageSourceBinding,
 };
-use omega_package_evidence::{
+use package_evidence::{
     project_checked_package_review,
     record::{
         CheckedPackageBoundaryApplicationDemandReview,
@@ -12,13 +12,13 @@ use omega_package_evidence::{
         PackageReviewBoundaryApplicationArgument,
     },
 };
-use omega_package_manager::review::{
+use package_manager::review::{
     ConcreteProducerBinderCategory, ConcreteProducerTypeSpecialization,
     ConcreteProducerTypeSubstitution, SymbolicBoundaryApplicationClosureError,
     SymbolicBoundaryApplicationClosureRequest,
     close_supplied_reviewed_symbolic_boundary_applications as close_reviewed_symbolic_boundary_applications,
 };
-use psi_core::PackageKeyIdentity;
+use semantic_vocabulary::PackageKeyIdentity;
 use std::fs;
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -225,7 +225,7 @@ fn selected<'a>(
 
 fn selected_type(
     selected: &CheckedPackageBoundaryApplicationRealizationReview,
-) -> omega_package_evidence::record::PackageReviewTypeIdentity {
+) -> package_evidence::record::PackageReviewTypeIdentity {
     let PackageReviewBoundaryApplication::Exact(arguments) = selected.application() else {
         panic!("generic selected application")
     };
@@ -241,7 +241,7 @@ fn specialization(
     review: &CheckedPackageReviewProjection,
     producer: &str,
     ordinals: &[u32],
-    concrete: &omega_package_evidence::record::PackageReviewTypeIdentity,
+    concrete: &package_evidence::record::PackageReviewTypeIdentity,
 ) -> ConcreteProducerTypeSpecialization {
     ConcreteProducerTypeSpecialization::new(
         review.package(),

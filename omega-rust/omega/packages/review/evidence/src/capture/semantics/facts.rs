@@ -1,4 +1,4 @@
-use psi_diagnostics::Diagnostic;
+use diagnostics::Diagnostic;
 
 pub(crate) fn exactly_one<'item, Item>(
     mut matches: impl Iterator<Item = &'item Item>,

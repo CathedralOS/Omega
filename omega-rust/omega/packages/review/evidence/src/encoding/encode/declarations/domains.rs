@@ -27,8 +27,8 @@ pub(crate) fn encode_domain_shape(
     })?;
     encoder.field("predicate_body", |encoder| {
         match shape.predicate_body {
-            psi_language_semantics::DomainPredicateBody::Bodyless => encoder.tag("bodyless", 0),
-            psi_language_semantics::DomainPredicateBody::Present => encoder.tag("present", 1),
+            language_semantics::DomainPredicateBody::Bodyless => encoder.tag("bodyless", 0),
+            language_semantics::DomainPredicateBody::Present => encoder.tag("present", 1),
         };
         Ok(())
     })?;
@@ -93,14 +93,12 @@ pub(crate) fn encode_domain_alias_atom(
             encoder.tag("carry", 1);
             encoder.field("permission", |encoder| {
                 match permission {
-                    psi_language_semantics::CarryPermission::AcrossSuspend => {
+                    language_semantics::CarryPermission::AcrossSuspend => {
                         encoder.tag("across_suspend", 0)
                     }
-                    psi_language_semantics::CarryPermission::AnyCpu => encoder.tag("any_cpu", 1),
-                    psi_language_semantics::CarryPermission::AnyThread => {
-                        encoder.tag("any_thread", 2)
-                    }
-                    psi_language_semantics::CarryPermission::MovableAddress => {
+                    language_semantics::CarryPermission::AnyCpu => encoder.tag("any_cpu", 1),
+                    language_semantics::CarryPermission::AnyThread => encoder.tag("any_thread", 2),
+                    language_semantics::CarryPermission::MovableAddress => {
                         encoder.tag("movable_address", 3)
                     }
                 };

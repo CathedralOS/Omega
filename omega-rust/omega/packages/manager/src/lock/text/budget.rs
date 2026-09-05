@@ -6,7 +6,7 @@ use super::super::{
 };
 use super::{MAXIMUM_DECISION_BYTES, MAXIMUM_POLICY_TEXT_BYTES};
 use crate::resolution::graph::CanonicalSourceClosureSubject;
-use omega_package_evidence::{
+use package_evidence::{
     encoding::{PackagePolicyRecoveryLimits, PackagePolicyTextRecoveryLimits},
     record::PackagePolicyBaseline,
 };

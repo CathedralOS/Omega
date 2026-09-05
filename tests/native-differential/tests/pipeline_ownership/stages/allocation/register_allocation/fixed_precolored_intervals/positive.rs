@@ -29,7 +29,7 @@ fn selected_fixed_constraints_become_exact_precolored_point_intervals() {
         );
         assert_eq!(
             first.receipt().identity(),
-            omega_selected_instructions_to_register_homes::fixed_precolored_interval_plan_identity(
+            selected_instructions_to_register_homes::fixed_precolored_interval_plan_identity(
                 first.plan()
             ),
         );
@@ -60,11 +60,11 @@ fn selected_fixed_constraints_become_exact_precolored_point_intervals() {
         );
         assert!(rows[..2].iter().all(|row| matches!(
             row.site,
-            omega_selected_instructions_to_register_homes::VirtualFixedConstraintSite::Entry
+            selected_instructions_to_register_homes::VirtualFixedConstraintSite::Entry
         )));
         assert!(rows[2..].iter().all(|row| matches!(
             row.site,
-            omega_selected_instructions_to_register_homes::VirtualFixedConstraintSite::Operand { .. }
+            selected_instructions_to_register_homes::VirtualFixedConstraintSite::Operand { .. }
         )));
     }
 }

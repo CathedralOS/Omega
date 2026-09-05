@@ -512,7 +512,7 @@ transition, target-specific cache maintenance, ordering, and instruction-fetch
 synchronization. Callers never reproduce an architecture maintenance sequence.
 
 The compiler foundation now has an executable form of that state machine in
-`omega-executable-installation`: reusable exact-evidence admission; one-shot
+`executable-installation`: reusable exact-evidence admission; one-shot
 Extent-backed placement; frozen materialization; artifact/placement/final-byte/
 footprint-bound validation; scoped installation authority; synchronous
 visibility; and explicit W^X enforcement reporting. Every failed consuming
@@ -685,7 +685,7 @@ than relying on friendly names:
 - all remaining authority and linear obligations at image handoff.
 
 The external-root portion is implemented as a live provider/runtime artifact,
-not a guessed build-time table. `omega-artifacts` writes
+not a guessed build-time table. `artifacts` writes
 `external_roots.json` from the installed ledger, including its deterministic
 snapshot fingerprint and complete normalized entry plans while omitting numeric
 code addresses. Static builds may emit it at handoff; dynamic providers may

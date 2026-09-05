@@ -15,8 +15,8 @@ firewall directly rather than extending undifferentiated booleans and bitsets.
 
 ### Domains
 
-`psi-symbol-resolved-trees/src/domain.rs` and
-`psi-typed-trees/src/domain.rs` represent every domain as one
+`symbol-resolved-trees/src/domain.rs` and
+`typed-trees/src/domain.rs` represent every domain as one
 `DomainDefinition` containing independent predicate-body, semantic-role,
 establishment-route, alias, fact, and operator records. Operator-bearing source
 declarations are projected once during syntax-to-resolved lowering into the
@@ -31,7 +31,7 @@ definitions and binding-site constraints. The record does not yet represent:
   qualification; or
 - canonical representation-qualification conformance.
 
-`psi-checked-trees::DomainFacts` is appropriately fact-shaped for predicate
+`checked-trees::DomainFacts` is appropriately fact-shaped for predicate
 membership, while qualification casts and emitted semantic commitments consume
 the declaration's stable semantic identity and inspect predicate-body presence
 only when a proof obligation is required. Operator selection consumes the

@@ -11,10 +11,10 @@ use super::super::members::{
 use super::super::names::contract_parameter_field_symbol;
 use crate::capture::contracts::facts::ContractProjectionContext;
 use crate::record::PackageReviewContractExpression;
-use omega_compiler::CheckedCompilation;
-use psi_diagnostics::Diagnostic;
-use psi_symbols::SymbolHandle;
-use psi_typed_trees::expression::{ExpressionHandle, ExpressionNode, TableMemberExpression};
+use compiler::CheckedCompilation;
+use diagnostics::Diagnostic;
+use symbols::SymbolHandle;
+use typed_trees::expression::{ExpressionHandle, ExpressionNode, TableMemberExpression};
 
 pub(super) fn project_member_expression(
     compilation: &CheckedCompilation,
@@ -23,7 +23,7 @@ pub(super) fn project_member_expression(
     member: &TableMemberExpression,
     substitutions: &[(SymbolHandle, PackageReviewContractExpression)],
     projection_substitutions: &[(SymbolHandle, ExpressionHandle)],
-    checked_fact: Option<psi_arena::Handle<psi_typed_trees::domain::ProofFact>>,
+    checked_fact: Option<arena::Handle<typed_trees::domain::ProofFact>>,
     child: &impl Fn(ExpressionHandle) -> Result<PackageReviewContractExpression, Vec<Diagnostic>>,
 ) -> Result<PackageReviewContractExpression, Vec<Diagnostic>> {
     if contract_member_has_exact_collection_length(compilation, expression) {
@@ -149,7 +149,7 @@ fn project_checked_or_computed_member(
     context: &ContractProjectionContext<'_>,
     expression: ExpressionHandle,
     member: &TableMemberExpression,
-    checked_fact: Option<psi_arena::Handle<psi_typed_trees::domain::ProofFact>>,
+    checked_fact: Option<arena::Handle<typed_trees::domain::ProofFact>>,
     child: &impl Fn(ExpressionHandle) -> Result<PackageReviewContractExpression, Vec<Diagnostic>>,
 ) -> Result<PackageReviewContractExpression, Vec<Diagnostic>> {
     let Some(checked_fact) = checked_fact else {

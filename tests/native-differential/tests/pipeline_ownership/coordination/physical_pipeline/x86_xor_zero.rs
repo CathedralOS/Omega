@@ -21,8 +21,8 @@ fn x86_xor_zero_uses_the_generic_post_allocation_join_for_both_source_routes() {
         let integer_type = IntegerType::new(IntegerSign::Unsigned, 64).unwrap();
         let machine = conditional_immediate_machine(18_100, integer_type, [0, 1]);
         let module = conditional_immediate_module(machine.id, vec![machine]);
-        let semantic = psi_terminal_codec::encode_module(&module).unwrap();
-        let proof = psi_terminal_codec::encode_proof_bundle(&ProofBundle {
+        let semantic = terminal_codec::encode_module(&module).unwrap();
+        let proof = terminal_codec::encode_proof_bundle(&ProofBundle {
             recursive_components: Vec::new(),
             evidence_producers: Vec::new(),
             evidence: Vec::new(),
@@ -74,12 +74,10 @@ fn x86_xor_zero_uses_the_generic_post_allocation_join_for_both_source_routes() {
             (selected_lowering, allocation.evidence()),
             (
                 false,
-                omega_selected_instructions_to_register_homes::AllocationEvidence::RegisterHomes(_)
+                selected_instructions_to_register_homes::AllocationEvidence::RegisterHomes(_)
             ) | (
                 true,
-                omega_selected_instructions_to_register_homes::AllocationEvidence::SelectedLowering(
-                    _
-                )
+                selected_instructions_to_register_homes::AllocationEvidence::SelectedLowering(_)
             )
         ));
         let StagedOptimizedPostAllocationMachineOptimization::X86XorZero(materialization) =

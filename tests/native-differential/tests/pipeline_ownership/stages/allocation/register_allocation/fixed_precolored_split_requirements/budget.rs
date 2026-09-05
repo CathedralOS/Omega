@@ -57,7 +57,7 @@ fn exact_budget_succeeds_and_every_first_under_axis_fails() {
     for budget in budgets {
         assert!(matches!(
             analyze(&fixture, budget),
-            Err(omega_selected_instructions_to_register_homes::FixedPrecoloredSplitRequirementError::BudgetExceeded {
+            Err(selected_instructions_to_register_homes::FixedPrecoloredSplitRequirementError::BudgetExceeded {
                 required: actual,
                 budget: rejected,
             }) if actual == required && rejected == budget

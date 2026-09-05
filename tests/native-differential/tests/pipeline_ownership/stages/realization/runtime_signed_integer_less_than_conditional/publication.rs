@@ -26,7 +26,7 @@ fn signed_i64_reference_matrix_covers_boundaries_and_disagrees_with_unsigned_ord
 
 #[test]
 fn runtime_i64_parameter_less_than_reaches_exact_object_and_callable_on_both_isas() {
-    use omega_calling_conventions::{CallingPolicy, MachineRegister};
+    use calling_conventions::{CallingPolicy, MachineRegister};
 
     let i64_type = ScalarType::Integer(IntegerType::new(IntegerSign::Signed, 64).unwrap());
     let u64_type = ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 64).unwrap());
@@ -49,12 +49,12 @@ fn runtime_i64_parameter_less_than_reaches_exact_object_and_callable_on_both_isa
         assert_eq!(artifact.source().object().relocation_record_count, 0);
         let text = &artifact.source().object().text_section.bytes;
         match target.architecture {
-            omega_target::Architecture::X86_64 => {
+            target::Architecture::X86_64 => {
                 assert!(text.windows(3).any(|bytes| bytes == [0x48, 0x39, 0xf7]));
                 assert!(text.windows(2).any(|bytes| bytes[0] == 0x7c));
                 assert!(!text.windows(2).any(|bytes| bytes[0] == 0x72));
             }
-            omega_target::Architecture::Aarch64 => {
+            target::Architecture::Aarch64 => {
                 assert!(
                     text.windows(4)
                         .any(|bytes| bytes == [0x1f, 0x00, 0x01, 0xeb])

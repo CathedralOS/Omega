@@ -52,7 +52,7 @@ fn relocation_free_rel8_text_section_replays_bytes_manifest_and_custody() {
         .flat_map(|block| &block.instructions)
         .find(|row| {
             row.alternative.family
-                == omega_selected_instructions::MachineAlternativeFamily::ConditionalBranchNonZero
+                == selected_instructions::MachineAlternativeFamily::ConditionalBranchNonZero
         })
         .unwrap();
     assert_eq!(section.bytes[branch.section_offset as usize], 0x75);
@@ -60,7 +60,7 @@ fn relocation_free_rel8_text_section_replays_bytes_manifest_and_custody() {
     assert_eq!(branch.byte_count, 2);
     assert_eq!(
         section.relocation_requirements,
-        omega_object_file::TextSectionRelocationRequirements::ProvenNoneForFullyResolvedInternalControlV1
+        object_file::TextSectionRelocationRequirements::ProvenNoneForFullyResolvedInternalControlV1
     );
 
     let record = placed.manifest().record();

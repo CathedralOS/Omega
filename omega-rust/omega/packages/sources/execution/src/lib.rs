@@ -13,7 +13,7 @@ mod phase;
 mod request;
 
 pub use backend::ResolverExecutionBackend;
-pub use omega_bounded_process::{
+pub use bounded_process::{
     BoundedProcessChild as ResolverExecutionChild,
     BoundedProcessCompletion as ResolverExecutionCompletion,
     BoundedProcessExitStatus as ResolverExecutionExitStatus,

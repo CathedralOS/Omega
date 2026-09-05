@@ -1,6 +1,6 @@
-use omega_compiler::CheckedCompilation;
-use psi_diagnostics::Diagnostic;
-use psi_symbols::SymbolHandle;
+use compiler::CheckedCompilation;
+use diagnostics::Diagnostic;
+use symbols::SymbolHandle;
 
 use crate::capture::semantics::declarations::{nominal_identity, trait_requirement_identity};
 use crate::capture::semantics::types::lifetimes::lifetime_binder_ordinal;
@@ -15,10 +15,10 @@ use crate::record::{
 
 pub(crate) fn project_evidence_interface(
     compilation: &CheckedCompilation,
-    evidence: psi_typed_trees::types::TypeReferenceHandle,
+    evidence: typed_trees::types::TypeReferenceHandle,
     proposition_binders: &[(SymbolHandle, String)],
 ) -> Result<PackageReviewEvidenceInterface, Vec<Diagnostic>> {
-    use psi_typed_trees::types::TypeReferenceNode;
+    use typed_trees::types::TypeReferenceNode;
 
     let (trait_symbol, arguments) = match compilation.type_reference_table.type_reference(evidence)
     {
@@ -91,11 +91,11 @@ pub(crate) fn project_evidence_interface(
 pub(crate) fn collect_evidence_requirements(
     compilation: &CheckedCompilation,
     trait_symbol: SymbolHandle,
-    trait_arguments: &[psi_typed_trees::types::TypeReferenceHandle],
-    trait_lifetime_arguments: &[psi_typed_trees::name::Identifier],
+    trait_arguments: &[typed_trees::types::TypeReferenceHandle],
+    trait_lifetime_arguments: &[typed_trees::name::Identifier],
     proposition_binders: &[(SymbolHandle, String)],
-    lifetime_binders: Option<&[psi_typed_trees::name::Identifier]>,
-    inherited_substitutions: &[(SymbolHandle, psi_typed_trees::types::TypeReferenceHandle)],
+    lifetime_binders: Option<&[typed_trees::name::Identifier]>,
+    inherited_substitutions: &[(SymbolHandle, typed_trees::types::TypeReferenceHandle)],
     visited: &mut Vec<(
         PackageReviewNominalIdentity,
         Vec<u32>,
@@ -145,10 +145,10 @@ pub(crate) fn collect_evidence_requirements(
     if type_parameters.iter().any(|parameter| {
         !matches!(
             &parameter.kind,
-            psi_typed_trees::data::TypeParameterKind::Type
-                | psi_typed_trees::data::TypeParameterKind::Const { .. }
-                | psi_typed_trees::data::TypeParameterKind::Machine {
-                    contract: psi_typed_trees::data::MachineParameterContract::RequirementIdentity
+            typed_trees::data::TypeParameterKind::Type
+                | typed_trees::data::TypeParameterKind::Const { .. }
+                | typed_trees::data::TypeParameterKind::Machine {
+                    contract: typed_trees::data::MachineParameterContract::RequirementIdentity
                 }
         )
     }) {

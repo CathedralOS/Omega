@@ -4,7 +4,7 @@ use super::*;
 use crate::record::{
     PackagePolicyEvaluatedBindingProducer, PackageReviewForeignLocator, PackageReviewNominalOwner,
 };
-use omega_target::TargetProfile;
+use target::TargetProfile;
 
 impl PackagePolicyProviderBinding {
     pub(super) fn validate_canonical_structure(
@@ -88,7 +88,7 @@ impl PackagePolicyProviderBinding {
     }
 }
 
-// These are the allocation-free physical constraints of omega-target's
+// These are the allocation-free physical constraints of target's
 // normalize_foreign_locator. Recovery cannot clone a candidate to invoke its
 // owned constructor outside the shared reader allocation budget.
 fn validate_locator(
@@ -137,7 +137,7 @@ fn validate_producer(producer: &PackagePolicyEvaluatedBindingProducer) -> Result
 
 pub(super) fn matches_owner(
     owner: PackageReviewNominalOwner,
-    package: Option<psi_core::PackageKeyIdentity>,
+    package: Option<semantic_vocabulary::PackageKeyIdentity>,
 ) -> bool {
     match (owner, package) {
         (PackageReviewNominalOwner::Package(actual), Some(expected)) => actual == expected,

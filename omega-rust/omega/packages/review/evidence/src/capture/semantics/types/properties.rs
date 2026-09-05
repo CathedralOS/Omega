@@ -3,7 +3,7 @@
 use crate::record::PackageReviewDataProperties;
 
 pub(crate) const fn project_data_properties(
-    properties: psi_typed_trees::data::DataProperties,
+    properties: typed_trees::data::DataProperties,
 ) -> PackageReviewDataProperties {
     PackageReviewDataProperties {
         multiplicity: properties.multiplicity,

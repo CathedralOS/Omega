@@ -44,7 +44,7 @@ fn relocation_free_cbnz_object_container_retains_zero_span_source_and_private_en
     );
     assert_eq!(
         staged.object().symbols[0].role,
-        omega_object_file::RelocationFreeObjectSymbolRole::SemanticEntryV1
+        object_file::RelocationFreeObjectSymbolRole::SemanticEntryV1
     );
     assert_eq!(
         validate_optimized_relocation_free_object_container(&staged).unwrap(),

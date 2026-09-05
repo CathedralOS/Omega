@@ -1,7 +1,7 @@
 //! Exact epoch-two logical recovery actions for a compiler-private reload victim.
 
 use crate::tests::*;
-use omega_optimization_core::OptimizationWorkUsage;
+use optimization_core::OptimizationWorkUsage;
 
 use super::generalized_reload_value_homes::Sources;
 
@@ -9,14 +9,14 @@ fn sources(
     target: NativeTarget,
 ) -> (
     Sources,
-    omega_selected_instructions_to_register_homes::ValidatedGeneralizedReloadValueHomes,
-    omega_selected_instructions_to_register_homes::ValidatedGeneralizedSpillRecoveryChoices,
+    selected_instructions_to_register_homes::ValidatedGeneralizedReloadValueHomes,
+    selected_instructions_to_register_homes::ValidatedGeneralizedSpillRecoveryChoices,
 ) {
     let sources = Sources::new(target);
     let homes = sources.assign(selected_lowering_budget()).unwrap();
-    let worklist = omega_selected_instructions_to_register_homes::seed_generalized_spill_recovery_worklist(
+    let worklist = selected_instructions_to_register_homes::seed_generalized_spill_recovery_worklist(
         &homes,
-        omega_selected_instructions_to_register_homes::GeneralizedSpillRecoveryWorklistPolicy::EpochOnePressureToEpochTwoV1,
+        selected_instructions_to_register_homes::GeneralizedSpillRecoveryWorklistPolicy::EpochOnePressureToEpochTwoV1,
         selected_lowering_budget(),
     )
     .unwrap();
@@ -55,9 +55,9 @@ fn epoch_two_reload_victim_becomes_exact_target_neutral_logical_obligations() {
         assert_eq!(action.source_pressure, id(1, 0));
         assert_eq!(
             action.victim,
-            omega_selected_instructions_to_register_homes::GeneralizedSpillRecoveryVictim::Reload(
-                id(0, 0)
-            )
+            selected_instructions_to_register_homes::GeneralizedSpillRecoveryVictim::Reload(id(
+                0, 0
+            ))
         );
         assert_eq!(action.current_view, action.reclaimed_view);
         assert_eq!(action.storage.id, id(2, 0));
@@ -65,9 +65,9 @@ fn epoch_two_reload_victim_becomes_exact_target_neutral_logical_obligations() {
         assert_eq!(action.store.before_instruction.0, 7);
         assert_eq!(
             action.store.source,
-            omega_selected_instructions_to_register_homes::GeneralizedSpillRecoveryVictim::Reload(
-                id(0, 0)
-            )
+            selected_instructions_to_register_homes::GeneralizedSpillRecoveryVictim::Reload(id(
+                0, 0
+            ))
         );
         assert_eq!(action.reload.before_instruction.0, 8);
         assert_eq!(action.reload.result, id(2, 0));
@@ -93,10 +93,10 @@ fn legacy_reload_victim_identity_encoding_remains_byte_stable() {
     );
     let mut wrong_policy = actions.plan().clone();
     wrong_policy.policy =
-        omega_selected_instructions_to_register_homes::GeneralizedSpillRecoveryActionPolicy::EpochTwoOriginalVictimLaterSelectedRewritesV1;
+        selected_instructions_to_register_homes::GeneralizedSpillRecoveryActionPolicy::EpochTwoOriginalVictimLaterSelectedRewritesV1;
     assert_eq!(
         sources.validate_generalized_recovery_actions(&homes, &choices, wrong_policy),
-        Err(omega_selected_instructions_to_register_homes::GeneralizedSpillRecoveryActionError::UnsupportedPolicy)
+        Err(selected_instructions_to_register_homes::GeneralizedSpillRecoveryActionError::UnsupportedPolicy)
     );
 }
 
@@ -110,83 +110,83 @@ fn replay_rejects_every_root_and_logical_action_surface_corruption() {
             .plan()
             .clone();
         for corrupt in [
-            |plan: &mut omega_selected_instructions_to_register_homes::GeneralizedSpillRecoveryActionPlan| {
+            |plan: &mut selected_instructions_to_register_homes::GeneralizedSpillRecoveryActionPlan| {
                 plan.generalized_spill_insertion =
-                    omega_selected_instructions_to_register_homes::GeneralizedSpillInsertionIdentity::from_bytes([0xd1; 32]);
+                    selected_instructions_to_register_homes::GeneralizedSpillInsertionIdentity::from_bytes([0xd1; 32]);
             },
-            |plan: &mut omega_selected_instructions_to_register_homes::GeneralizedSpillRecoveryActionPlan| {
+            |plan: &mut selected_instructions_to_register_homes::GeneralizedSpillRecoveryActionPlan| {
                 plan.reload_value_homes =
-                    omega_selected_instructions_to_register_homes::GeneralizedReloadValueHomeIdentity::from_bytes([0xd2; 32]);
+                    selected_instructions_to_register_homes::GeneralizedReloadValueHomeIdentity::from_bytes([0xd2; 32]);
             },
-            |plan: &mut omega_selected_instructions_to_register_homes::GeneralizedSpillRecoveryActionPlan| {
+            |plan: &mut selected_instructions_to_register_homes::GeneralizedSpillRecoveryActionPlan| {
                 plan.choices =
-                    omega_selected_instructions_to_register_homes::GeneralizedSpillRecoveryChoiceIdentity::from_bytes([0xd3; 32]);
+                    selected_instructions_to_register_homes::GeneralizedSpillRecoveryChoiceIdentity::from_bytes([0xd3; 32]);
             },
-            |plan: &mut omega_selected_instructions_to_register_homes::GeneralizedSpillRecoveryActionPlan| {
+            |plan: &mut selected_instructions_to_register_homes::GeneralizedSpillRecoveryActionPlan| {
                 plan.selected = Some(
-                    omega_selected_instructions::SelectedInstructionPlanIdentity::from_bytes(
+                    selected_instructions::SelectedInstructionPlanIdentity::from_bytes(
                         [0xd7; 32],
                     ),
                 );
             },
-            |plan: &mut omega_selected_instructions_to_register_homes::GeneralizedSpillRecoveryActionPlan| {
-                plan.ranges = Some(omega_selected_instructions_to_register_homes::LiveRangeIdentity::from_bytes([0xd8; 32]));
+            |plan: &mut selected_instructions_to_register_homes::GeneralizedSpillRecoveryActionPlan| {
+                plan.ranges = Some(selected_instructions_to_register_homes::LiveRangeIdentity::from_bytes([0xd8; 32]));
             },
-            |plan: &mut omega_selected_instructions_to_register_homes::GeneralizedSpillRecoveryActionPlan| {
+            |plan: &mut selected_instructions_to_register_homes::GeneralizedSpillRecoveryActionPlan| {
                 plan.register_environment =
-                    omega_register_model::TargetRegisterEnvironmentIdentity::from_bytes([0xd4; 32]);
+                    register_model::TargetRegisterEnvironmentIdentity::from_bytes([0xd4; 32]);
             },
-            |plan: &mut omega_selected_instructions_to_register_homes::GeneralizedSpillRecoveryActionPlan| {
+            |plan: &mut selected_instructions_to_register_homes::GeneralizedSpillRecoveryActionPlan| {
                 plan.allocator_availability =
-                    omega_selected_instructions_to_register_homes::AllocatorAvailabilityIdentity::from_bytes([0xd5; 32]);
+                    selected_instructions_to_register_homes::AllocatorAvailabilityIdentity::from_bytes([0xd5; 32]);
             },
-            |plan: &mut omega_selected_instructions_to_register_homes::GeneralizedSpillRecoveryActionPlan| {
+            |plan: &mut selected_instructions_to_register_homes::GeneralizedSpillRecoveryActionPlan| {
                 plan.optimization_unit =
-                    omega_optimization_core::OptimizationUnitIdentity::from_bytes([0xd6; 32]);
+                    optimization_core::OptimizationUnitIdentity::from_bytes([0xd6; 32]);
             },
-            |plan: &mut omega_selected_instructions_to_register_homes::GeneralizedSpillRecoveryActionPlan| {
-                plan.fuel_schedule = psi_core::FuelScheduleIdentity::new(99_940).unwrap();
+            |plan: &mut selected_instructions_to_register_homes::GeneralizedSpillRecoveryActionPlan| {
+                plan.fuel_schedule = semantic_vocabulary::FuelScheduleIdentity::new(99_940).unwrap();
             },
         ] {
             let mut changed = canonical.clone();
             corrupt(&mut changed);
             assert_eq!(
                 sources.validate_generalized_recovery_actions(&homes, &choices, changed),
-                Err(omega_selected_instructions_to_register_homes::GeneralizedSpillRecoveryActionError::RootMismatch)
+                Err(selected_instructions_to_register_homes::GeneralizedSpillRecoveryActionError::RootMismatch)
             );
         }
 
         for corrupt in [
-            |plan: &mut omega_selected_instructions_to_register_homes::GeneralizedSpillRecoveryActionPlan| {
-                let omega_selected_instructions_to_register_homes::GeneralizedSpillRecoveryVictim::Reload(victim) =
+            |plan: &mut selected_instructions_to_register_homes::GeneralizedSpillRecoveryActionPlan| {
+                let selected_instructions_to_register_homes::GeneralizedSpillRecoveryVictim::Reload(victim) =
                     &mut plan.actions[0].victim
                 else {
                     unreachable!()
                 };
                 victim.ordinal += 1
             },
-            |plan: &mut omega_selected_instructions_to_register_homes::GeneralizedSpillRecoveryActionPlan| {
+            |plan: &mut selected_instructions_to_register_homes::GeneralizedSpillRecoveryActionPlan| {
                 plan.actions[0].pressure_point.0 += 1
             },
-            |plan: &mut omega_selected_instructions_to_register_homes::GeneralizedSpillRecoveryActionPlan| {
+            |plan: &mut selected_instructions_to_register_homes::GeneralizedSpillRecoveryActionPlan| {
                 plan.actions[0].storage.id.epoch += 1
             },
-            |plan: &mut omega_selected_instructions_to_register_homes::GeneralizedSpillRecoveryActionPlan| {
+            |plan: &mut selected_instructions_to_register_homes::GeneralizedSpillRecoveryActionPlan| {
                 plan.actions[0].store.before_instruction.0 += 1
             },
-            |plan: &mut omega_selected_instructions_to_register_homes::GeneralizedSpillRecoveryActionPlan| {
+            |plan: &mut selected_instructions_to_register_homes::GeneralizedSpillRecoveryActionPlan| {
                 plan.actions[0].reload.result.ordinal += 1
             },
-            |plan: &mut omega_selected_instructions_to_register_homes::GeneralizedSpillRecoveryActionPlan| {
+            |plan: &mut selected_instructions_to_register_homes::GeneralizedSpillRecoveryActionPlan| {
                 plan.actions[0].rewrites[0].operand += 1
             },
-            |plan: &mut omega_selected_instructions_to_register_homes::GeneralizedSpillRecoveryActionPlan| plan.actions.clear(),
+            |plan: &mut selected_instructions_to_register_homes::GeneralizedSpillRecoveryActionPlan| plan.actions.clear(),
         ] {
             let mut changed = canonical.clone();
             corrupt(&mut changed);
             assert_eq!(
                 sources.validate_generalized_recovery_actions(&homes, &choices, changed),
-                Err(omega_selected_instructions_to_register_homes::GeneralizedSpillRecoveryActionError::NonCanonicalActions)
+                Err(selected_instructions_to_register_homes::GeneralizedSpillRecoveryActionError::NonCanonicalActions)
             );
         }
 
@@ -194,7 +194,7 @@ fn replay_rejects_every_root_and_logical_action_surface_corruption() {
         usage.usage.validation_steps += 1;
         assert_eq!(
             sources.validate_generalized_recovery_actions(&homes, &choices, usage),
-            Err(omega_selected_instructions_to_register_homes::GeneralizedSpillRecoveryActionError::UsageMismatch)
+            Err(selected_instructions_to_register_homes::GeneralizedSpillRecoveryActionError::UsageMismatch)
         );
     }
 }
@@ -213,7 +213,7 @@ fn exact_budget_each_representable_axis_and_cross_target_roots_fail_closed() {
         for budget in insufficient {
             assert!(matches!(
                 sources.plan_generalized_recovery_actions(&homes, &choices, budget),
-                Err(omega_selected_instructions_to_register_homes::GeneralizedSpillRecoveryActionError::BudgetExceeded {
+                Err(selected_instructions_to_register_homes::GeneralizedSpillRecoveryActionError::BudgetExceeded {
                     required,
                     budget: actual,
                 }) if required == exact_usage() && actual == budget
@@ -230,15 +230,15 @@ fn exact_budget_each_representable_axis_and_cross_target_roots_fail_closed() {
     let (arm, arm_homes, arm_choices) = sources(NativeTarget::linux_arm64());
     assert_eq!(
         arm.validate_generalized_recovery_actions(&arm_homes, &arm_choices, foreign),
-        Err(omega_selected_instructions_to_register_homes::GeneralizedSpillRecoveryActionError::RootMismatch)
+        Err(selected_instructions_to_register_homes::GeneralizedSpillRecoveryActionError::RootMismatch)
     );
 }
 
 const fn id(
     epoch: u32,
     ordinal: u32,
-) -> omega_selected_instructions_to_register_homes::GeneralizedSpillActionId {
-    omega_selected_instructions_to_register_homes::GeneralizedSpillActionId { epoch, ordinal }
+) -> selected_instructions_to_register_homes::GeneralizedSpillActionId {
+    selected_instructions_to_register_homes::GeneralizedSpillActionId { epoch, ordinal }
 }
 
 const fn exact_usage() -> OptimizationWorkUsage {

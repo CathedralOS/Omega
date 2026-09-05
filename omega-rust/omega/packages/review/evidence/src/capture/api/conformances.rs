@@ -9,10 +9,10 @@ use crate::capture::source::ProjectedReviewRow;
 use crate::record::{
     PackageReviewConformanceShape, PackageReviewConformanceSubject, PackageReviewEvidenceInterface,
 };
-use omega_compiler::CheckedCompilation;
-use psi_core::PackageKeyIdentity;
-use psi_diagnostics::Diagnostic;
-use psi_typed_trees::trait_definition::{ConformanceImplementation, ConformanceSubject};
+use compiler::CheckedCompilation;
+use diagnostics::Diagnostic;
+use semantic_vocabulary::PackageKeyIdentity;
+use typed_trees::trait_definition::{ConformanceImplementation, ConformanceSubject};
 
 pub(crate) fn project_public_conformances(
     compilation: &CheckedCompilation,
@@ -45,7 +45,7 @@ pub(crate) fn project_public_conformances(
                 {
                     if !matches!(
                         parameters[ordinal].kind,
-                        psi_typed_trees::data::TypeParameterKind::Type
+                        typed_trees::data::TypeParameterKind::Type
                     ) {
                         return Err(vec![Diagnostic::error(format!(
                             "public conformance `{}` uses a non-type static parameter as its subject",

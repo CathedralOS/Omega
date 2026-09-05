@@ -1,12 +1,12 @@
 use crate::capture::behavior::project_service_row;
 use crate::capture::semantics::declarations::provider_requirement_schema;
 use crate::record::{PackageReviewNominalIdentity, PackageReviewSelectedInstallationReach};
-use omega_compiler::CheckedCompilation;
-use omega_effects::provider_plan::ProviderPlan;
-use omega_provider_planning::plans::ProviderSchemaDeclaration;
-use psi_diagnostics::Diagnostic;
-use psi_language_semantics::ServiceReachRowId;
-use psi_symbols::SymbolHandle;
+use compiler::CheckedCompilation;
+use diagnostics::Diagnostic;
+use effects::provider_plan::ProviderPlan;
+use language_semantics::ServiceReachRowId;
+use provider_planning::plans::ProviderSchemaDeclaration;
+use symbols::SymbolHandle;
 
 pub(crate) fn project_selected_installation_reach(
     compilation: &CheckedCompilation,
@@ -59,7 +59,7 @@ pub(crate) fn project_selected_installation_reach(
                     requirement.symbol == schema_symbol
                         && requirement.symbol == requirement_symbol
                         && requirement.supply_mode
-                            == psi_language_semantics::MachineSupplyMode::TopLevelRequirement
+                            == language_semantics::MachineSupplyMode::TopLevelRequirement
                 })
                 .collect::<Vec<_>>();
             let [requirement] = requirements.as_slice() else {
@@ -162,7 +162,7 @@ fn exact_service_names(
     row: ServiceReachRowId,
 ) -> Result<Vec<String>, Vec<Diagnostic>> {
     let services = compilation.facts.service_reaches.rows.services(row);
-    if services.is_empty() && row != psi_language_semantics::ServiceReachRowTable::EMPTY_ROW {
+    if services.is_empty() && row != language_semantics::ServiceReachRowTable::EMPTY_ROW {
         return Err(vec![Diagnostic::error(
             "selected provider installation reach contains an unknown exact service row",
         )]);

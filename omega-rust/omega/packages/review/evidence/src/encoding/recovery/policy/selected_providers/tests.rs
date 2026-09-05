@@ -114,7 +114,7 @@ fn service_policy_changes_and_missing_intrinsic_classification_remain_visible() 
     let mut changed = original.clone();
     changed.plans[0].methods[0].entry_claims[0]
         .effective_carry
-        .cpu = psi_language_semantics::CarryCpu::Origin;
+        .cpu = language_semantics::CarryCpu::Origin;
     cases.push(changed);
     let mut changed = original.clone();
     changed.plans[0].methods[0].termination_premises[0].profile = "OtherProgress".into();

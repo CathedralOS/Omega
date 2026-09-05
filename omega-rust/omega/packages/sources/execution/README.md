@@ -3,7 +3,7 @@
 This crate owns resolver-specific executable, phase, and root preparation for
 package-source resolution. Shared structured command construction, concrete
 resource limits, bounded capture, and process-container cleanup live in
-`omega-bounded-process`. Callers choose one compiler-defined phase and open a
+`bounded-process`. Callers choose one compiler-defined phase and open a
 backend around the absolute Git path frozen before package input.
 
 ## Structure
@@ -63,7 +63,7 @@ Callers may inspect completion for ordinary control flow and diagnostics; the
 crate does not hash or canonically encode those facts.
 
 Native lifecycle and capture mechanics live in
-`tooling/omega-bounded-process`; this crate supplies the resolver's exact
+`tooling/bounded-process`; this crate supplies the resolver's exact
 limits and phase/root authority. Windows uses a kill-on-close Job Object with
 process, memory, and CPU ceilings. Unix applies concrete resource limits,
 starts a new process group, and kills that group during cleanup; it does not

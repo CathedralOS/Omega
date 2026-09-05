@@ -3,7 +3,7 @@ use crate::encoding::encode::{
     calling::encode_application, values::providers::encode_carry_policy,
 };
 use crate::record::PackagePolicyServiceMethod;
-use omega_effects::provider_plan::{
+use effects::provider_plan::{
     ServiceEntryAuthorityFlow, ServiceProgressEstablishmentRouteKind, ServiceProgressSubject,
 };
 
@@ -43,12 +43,8 @@ pub(in crate::encoding::encode) fn method(
             encoder.field("domain", |encoder| encoder.string(&claim.domain))?;
             encoder.field("predicate_body", |encoder| {
                 match claim.predicate_body {
-                    psi_language_semantics::DomainPredicateBody::Bodyless => {
-                        encoder.tag("bodyless", 0)
-                    }
-                    psi_language_semantics::DomainPredicateBody::Present => {
-                        encoder.tag("present", 1)
-                    }
+                    language_semantics::DomainPredicateBody::Bodyless => encoder.tag("bodyless", 0),
+                    language_semantics::DomainPredicateBody::Present => encoder.tag("present", 1),
                 };
                 Ok(())
             })?;

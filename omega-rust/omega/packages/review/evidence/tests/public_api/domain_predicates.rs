@@ -29,7 +29,7 @@ pub domain Packet::Ready
     };
     assert_eq!(
         domain.predicate_body(),
-        psi_language_semantics::DomainPredicateBody::Present
+        language_semantics::DomainPredicateBody::Present
     );
     let [
         PackageReviewContractFact::Expression(PackageReviewContractExpression::Binary {
@@ -144,13 +144,13 @@ requires
         .expression_table
         .iter_expressions()
         .find_map(|(expression, node)| {
-            let psi_typed_trees::expression::ExpressionNode::Call(call) = node else {
+            let typed_trees::expression::ExpressionNode::Call(call) = node else {
                 return None;
             };
             (call.target.as_str() == "attached_ready").then_some(expression)
         })
         .expect("attached domain call");
-    let psi_typed_trees::expression::ExpressionNode::Call(call) =
+    let typed_trees::expression::ExpressionNode::Call(call) =
         checked.typed.expression_table.expression_mut(attached_call)
     else {
         panic!("attached domain call expression")

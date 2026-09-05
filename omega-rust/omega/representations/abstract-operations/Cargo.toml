@@ -1,0 +1,13 @@
+[package]
+name = "abstract-operations"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[lib]
+name = "abstract_operations"
+path = "src/lib.rs"
+
+[dependencies]
+semantic-vocabulary = { path = "../../../psi/foundation/semantic-vocabulary" }
+terminal-psi = { path = "../../../psi/representations/terminal-psi" }

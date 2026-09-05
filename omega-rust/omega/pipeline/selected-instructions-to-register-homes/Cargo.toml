@@ -1,0 +1,32 @@
+[package]
+name = "selected-instructions-to-register-homes"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[lib]
+path = "src/lib.rs"
+
+[features]
+test-support = []
+
+[dependencies]
+abstract-operations-to-target-operations = { path = "../abstract-operations-to-target-operations" }
+target-to-register-environment = { path = "../target-to-register-environment" }
+isa-aarch64 = { path = "../../backend/instruction_set_architectures/isa-aarch64" }
+isa-x86_64 = { path = "../../backend/instruction_set_architectures/isa-x86_64" }
+optimization-core = { path = "../../representations/optimization-core" }
+register-homes = { path = "../../representations/register-homes" }
+register-model = { path = "../../representations/register-model" }
+selected-instructions = { path = "../../representations/selected-instructions" }
+target = { path = "../../representations/target" }
+target-operations-to-selected-instructions = { path = "../target-operations-to-selected-instructions" }
+semantic-vocabulary = { path = "../../../psi/foundation/semantic-vocabulary" }
+terminal-psi = { path = "../../../psi/representations/terminal-psi" }
+optimization-unit = { path = "../../representations/optimization-unit" }
+abstract-operations = { path = "../../representations/abstract-operations" }
+calling-conventions = { path = "../../representations/calling-conventions" }
+legalized-operations = { path = "../../representations/legalized-operations" }
+target-operations = { path = "../../representations/target-operations" }
+terminal-codec = { path = "../../../psi/semantics/terminal-codec" }
+sha2 = "0.10.9"

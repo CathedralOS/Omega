@@ -4,10 +4,10 @@ use crate::capture::semantics::types::review_type_identity_with_binders;
 use crate::record::{
     PackageReviewArithmeticDomain, PackageReviewCastForm, PackageReviewContractExpression,
 };
-use omega_compiler::CheckedCompilation;
-use psi_diagnostics::Diagnostic;
-use psi_symbols::SymbolHandle;
-use psi_typed_trees::expression::{ExpressionHandle, TableCastExpression};
+use compiler::CheckedCompilation;
+use diagnostics::Diagnostic;
+use symbols::SymbolHandle;
+use typed_trees::expression::{ExpressionHandle, TableCastExpression};
 
 pub(crate) fn project_contract_cast(
     compilation: &CheckedCompilation,
@@ -50,16 +50,14 @@ pub(crate) fn project_contract_cast(
         value: Box::new(project_child(cast.value)?),
         target: review_type_identity_with_binders(compilation, cast.target_type, binders)?,
         arithmetic_domain: match cast.domain {
-            psi_numerics::arithmetic::ArithmeticDomain::Exact => {
-                PackageReviewArithmeticDomain::Exact
-            }
-            psi_numerics::arithmetic::ArithmeticDomain::Wrapping => {
+            numerics::arithmetic::ArithmeticDomain::Exact => PackageReviewArithmeticDomain::Exact,
+            numerics::arithmetic::ArithmeticDomain::Wrapping => {
                 PackageReviewArithmeticDomain::Wrapping
             }
-            psi_numerics::arithmetic::ArithmeticDomain::Saturating => {
+            numerics::arithmetic::ArithmeticDomain::Saturating => {
                 PackageReviewArithmeticDomain::Saturating
             }
-            psi_numerics::arithmetic::ArithmeticDomain::Trapping => {
+            numerics::arithmetic::ArithmeticDomain::Trapping => {
                 PackageReviewArithmeticDomain::Trapping
             }
         },
@@ -71,11 +69,9 @@ pub(crate) fn project_contract_cast(
             .map(|argument| review_type_identity_with_binders(compilation, *argument, binders))
             .collect::<Result<Vec<_>, _>>()?,
         form: match cast.form {
-            psi_language_core::cast_form::CastForm::Value => PackageReviewCastForm::Value,
-            psi_language_core::cast_form::CastForm::RecastShared => {
-                PackageReviewCastForm::RecastShared
-            }
-            psi_language_core::cast_form::CastForm::RecastMutable => {
+            language_core::cast_form::CastForm::Value => PackageReviewCastForm::Value,
+            language_core::cast_form::CastForm::RecastShared => PackageReviewCastForm::RecastShared,
+            language_core::cast_form::CastForm::RecastMutable => {
                 PackageReviewCastForm::RecastMutable
             }
         },

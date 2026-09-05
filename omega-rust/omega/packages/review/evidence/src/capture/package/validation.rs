@@ -1,7 +1,7 @@
-use omega_compiler::CheckedCompilation;
-use omega_target::TargetProfile;
-use psi_core::PackageKeyIdentity;
-use psi_diagnostics::Diagnostic;
+use compiler::CheckedCompilation;
+use diagnostics::Diagnostic;
+use semantic_vocabulary::PackageKeyIdentity;
+use target::TargetProfile;
 
 pub(super) fn validate_review_compilation(
     compilation: &CheckedCompilation,
@@ -25,7 +25,7 @@ pub(super) fn validate_review_compilation(
         )]);
     }
     let derived_operator_realizations =
-        psi_typed_trees_to_checked_trees::derive_checked_operator_realization_contracts(
+        typed_trees_to_checked_trees::derive_checked_operator_realization_contracts(
             &compilation.typed,
         );
     if derived_operator_realizations != compilation.facts.operators.operator_realization_contracts {
@@ -40,7 +40,7 @@ pub(super) fn validate_review_compilation(
         ))]);
     }
     let derived_stand_downs =
-        psi_validation::collect_contract_entailment_stand_downs(&compilation.typed);
+        validation::collect_contract_entailment_stand_downs(&compilation.typed);
     if derived_stand_downs != compilation.contract_entailment_stand_downs() {
         return Err(vec![Diagnostic::error(format!(
             "retained contract-entailment stand-downs do not equal fresh compiler rederivation (retained {} rows, derived {} rows)",

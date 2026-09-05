@@ -1,28 +1,28 @@
-use omega_compiler::CheckedCompilation;
-use psi_diagnostics::Diagnostic;
-use psi_symbols::SymbolHandle;
+use compiler::CheckedCompilation;
+use diagnostics::Diagnostic;
+use symbols::SymbolHandle;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct RecheckedDataDefinitionFact {
     pub(crate) data_symbol: SymbolHandle,
-    pub(crate) fact: psi_arena::Handle<psi_typed_trees::domain::ProofFact>,
+    pub(crate) fact: arena::Handle<typed_trees::domain::ProofFact>,
     pub(crate) semantic_fact: RecheckedSemanticFact,
     pub(crate) dependencies: Vec<RecheckedDataDefinitionFactDependency>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct RecheckedDataDefinitionFactDependency {
-    pub(crate) expression: psi_typed_trees::expression::ExpressionHandle,
+    pub(crate) expression: typed_trees::expression::ExpressionHandle,
     pub(crate) place: RecheckedFactPlace,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct RecheckedSemanticFact {
     pub(crate) place: RecheckedSemanticFactPlace,
-    pub(crate) point: psi_facts::ProgramPoint,
-    pub(crate) origin: psi_facts::FactOrigin,
-    pub(crate) evidence: psi_facts::QualificationEvidence,
-    pub(crate) payload: psi_facts::FactPayload,
+    pub(crate) point: facts::ProgramPoint,
+    pub(crate) origin: facts::FactOrigin,
+    pub(crate) evidence: facts::QualificationEvidence,
+    pub(crate) payload: facts::FactPayload,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -30,14 +30,14 @@ pub(crate) enum RecheckedSemanticFactPlace {
     Unknown,
     Place(RecheckedFactPlace),
     Symbol(SymbolHandle),
-    Expression(psi_typed_trees::expression::ExpressionHandle),
-    TypeReference(psi_typed_trees::types::TypeReferenceHandle),
+    Expression(typed_trees::expression::ExpressionHandle),
+    TypeReference(typed_trees::types::TypeReferenceHandle),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct RecheckedFactPlace {
-    pub(crate) root: psi_facts::PlaceRoot,
-    pub(crate) segments: Vec<psi_facts::PlaceSegment>,
+    pub(crate) root: facts::PlaceRoot,
+    pub(crate) segments: Vec<facts::PlaceSegment>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -51,7 +51,7 @@ pub(crate) struct RecheckedDataDefinitionEvidence {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct RecheckedDataFactContext {
-    pub(crate) point: psi_facts::ProgramPoint,
+    pub(crate) point: facts::ProgramPoint,
     pub(crate) facts: Vec<RecheckedSemanticFact>,
 }
 
@@ -64,7 +64,7 @@ pub(crate) struct RecheckedDataSymbolFactSet {
 pub(crate) fn require_rederived_data_definition_facts(
     compilation: &CheckedCompilation,
 ) -> Result<(), Vec<Diagnostic>> {
-    let rederived = psi_facts::build_definition_fact_plan(&compilation.typed);
+    let rederived = facts::build_definition_fact_plan(&compilation.typed);
     let data_symbols = compilation
         .data_definitions()
         .iter()
@@ -91,7 +91,7 @@ pub(crate) fn require_rederived_data_definition_facts(
 }
 
 pub(crate) fn rechecked_data_definition_evidence(
-    facts: &psi_facts::FactPlan,
+    facts: &facts::FactPlan,
     data_symbols: &[SymbolHandle],
 ) -> Option<RecheckedDataDefinitionEvidence> {
     fact_plan_arena_links_are_well_formed(facts).then_some(())?;
@@ -122,7 +122,7 @@ pub(crate) fn rechecked_data_definition_evidence(
         .facts
         .iter()
         .filter_map(|(_, fact)| {
-            matches!(fact.origin, psi_facts::FactOrigin::DataDefinition { .. })
+            matches!(fact.origin, facts::FactOrigin::DataDefinition { .. })
                 .then_some(rechecked_semantic_fact_value(facts, fact))
         })
         .collect::<Option<Vec<_>>>()?;
@@ -134,7 +134,7 @@ pub(crate) fn rechecked_data_definition_evidence(
                 .facts
                 .iter()
                 .find_map(|(handle, fact)| (handle == fact_ref.fact).then_some(fact))?;
-            matches!(fact.origin, psi_facts::FactOrigin::DataDefinition { .. })
+            matches!(fact.origin, facts::FactOrigin::DataDefinition { .. })
                 .then_some(rechecked_semantic_fact_value(facts, fact))
         })
         .collect::<Option<Vec<_>>>()?;
@@ -144,7 +144,7 @@ pub(crate) fn rechecked_data_definition_evidence(
         .filter_map(|(_, context)| {
             let at_data_definition = matches!(
                 context.point,
-                psi_facts::ProgramPoint::Definition { symbol }
+                facts::ProgramPoint::Definition { symbol }
                     if data_symbols.contains(&symbol)
             );
             let references = match facts.refs.span(context.facts) {
@@ -155,7 +155,7 @@ pub(crate) fn rechecked_data_definition_evidence(
             let contains_data_fact = references.iter().any(|fact_ref| {
                 facts.facts.iter().any(|(handle, fact)| {
                     handle == fact_ref.fact
-                        && matches!(fact.origin, psi_facts::FactOrigin::DataDefinition { .. })
+                        && matches!(fact.origin, facts::FactOrigin::DataDefinition { .. })
                 })
             });
             (at_data_definition || contains_data_fact).then(|| {
@@ -181,7 +181,7 @@ pub(crate) fn rechecked_data_definition_evidence(
             let contains_data_fact = references.iter().any(|fact_ref| {
                 facts.facts.iter().any(|(handle, fact)| {
                     handle == fact_ref.fact
-                        && matches!(fact.origin, psi_facts::FactOrigin::DataDefinition { .. })
+                        && matches!(fact.origin, facts::FactOrigin::DataDefinition { .. })
                 })
             });
             (data_symbols.contains(&set.symbol) || contains_data_fact).then(|| {
@@ -204,17 +204,17 @@ pub(crate) fn rechecked_data_definition_evidence(
     })
 }
 
-pub(crate) fn fact_plan_arena_links_are_well_formed(facts: &psi_facts::FactPlan) -> bool {
+pub(crate) fn fact_plan_arena_links_are_well_formed(facts: &facts::FactPlan) -> bool {
     facts
         .places
         .iter()
         .all(|(_, place)| facts.place_segments.span(place.segments).is_some())
         && facts.facts.iter().all(|(_, fact)| match fact.place {
-            psi_facts::FactPlace::Place(place) => facts.places.is_valid(place),
-            psi_facts::FactPlace::Unknown
-            | psi_facts::FactPlace::Symbol(_)
-            | psi_facts::FactPlace::Expression(_)
-            | psi_facts::FactPlace::TypeReference(_) => true,
+            facts::FactPlace::Place(place) => facts.places.is_valid(place),
+            facts::FactPlace::Unknown
+            | facts::FactPlace::Symbol(_)
+            | facts::FactPlace::Expression(_)
+            | facts::FactPlace::TypeReference(_) => true,
         })
         && facts
             .refs
@@ -231,8 +231,8 @@ pub(crate) fn fact_plan_arena_links_are_well_formed(facts: &psi_facts::FactPlan)
 }
 
 pub(crate) fn rechecked_semantic_fact(
-    facts: &psi_facts::FactPlan,
-    fact_handle: psi_facts::FactHandle,
+    facts: &facts::FactPlan,
+    fact_handle: facts::FactHandle,
 ) -> Option<RecheckedSemanticFact> {
     let fact = facts
         .facts
@@ -242,8 +242,8 @@ pub(crate) fn rechecked_semantic_fact(
 }
 
 pub(crate) fn rechecked_semantic_fact_value(
-    facts: &psi_facts::FactPlan,
-    fact: &psi_facts::Fact,
+    facts: &facts::FactPlan,
+    fact: &facts::Fact,
 ) -> Option<RecheckedSemanticFact> {
     Some(RecheckedSemanticFact {
         place: rechecked_semantic_fact_place(facts, fact.place)?,
@@ -255,27 +255,27 @@ pub(crate) fn rechecked_semantic_fact_value(
 }
 
 pub(crate) fn rechecked_semantic_fact_place(
-    facts: &psi_facts::FactPlan,
-    place: psi_facts::FactPlace,
+    facts: &facts::FactPlan,
+    place: facts::FactPlace,
 ) -> Option<RecheckedSemanticFactPlace> {
     Some(match place {
-        psi_facts::FactPlace::Unknown => RecheckedSemanticFactPlace::Unknown,
-        psi_facts::FactPlace::Place(place) => {
+        facts::FactPlace::Unknown => RecheckedSemanticFactPlace::Unknown,
+        facts::FactPlace::Place(place) => {
             RecheckedSemanticFactPlace::Place(rechecked_fact_place(facts, place)?)
         }
-        psi_facts::FactPlace::Symbol(symbol) => RecheckedSemanticFactPlace::Symbol(symbol),
-        psi_facts::FactPlace::Expression(expression) => {
+        facts::FactPlace::Symbol(symbol) => RecheckedSemanticFactPlace::Symbol(symbol),
+        facts::FactPlace::Expression(expression) => {
             RecheckedSemanticFactPlace::Expression(expression)
         }
-        psi_facts::FactPlace::TypeReference(type_reference) => {
+        facts::FactPlace::TypeReference(type_reference) => {
             RecheckedSemanticFactPlace::TypeReference(type_reference)
         }
     })
 }
 
 pub(crate) fn rechecked_fact_place(
-    facts: &psi_facts::FactPlan,
-    place_handle: psi_facts::PlaceHandle,
+    facts: &facts::FactPlan,
+    place_handle: facts::PlaceHandle,
 ) -> Option<RecheckedFactPlace> {
     let place = facts
         .places

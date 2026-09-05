@@ -10,8 +10,8 @@ use crate::resolution::graph::{
 use crate::resolution::source::{
     GitPackageSourceRequest, ResolvePackageSourceError, ResolvedPackageSource,
 };
-use omega_package_source::git::resolution::GitExactRevisionAcquisition;
-use omega_package_source::{
+use package_source::git::resolution::GitExactRevisionAcquisition;
+use package_source::{
     GitSourceRequest, LocalSourceLimits, ResolvedGitSource, SourceResolveError,
     SourceResolverStorage,
 };

@@ -3,11 +3,11 @@
 use crate::SourceResolveError;
 use crate::git::executable::budget::GitCapturedOutputBudget;
 use crate::limits::{GIT_COMMAND_CLEANUP_TIMEOUT, PROCESS_POLL_INTERVAL};
-use omega_bounded_process::{
+use bounded_process::{
     BoundedCaptureLimits, BoundedProcessInput, BoundedProcessOutput, BoundedProcessRunError,
     run_bounded_process,
 };
-use omega_resolver_execution::ResolverPreparedExecution;
+use resolver_execution::ResolverPreparedExecution;
 use std::fs::File;
 use std::time::Duration;
 

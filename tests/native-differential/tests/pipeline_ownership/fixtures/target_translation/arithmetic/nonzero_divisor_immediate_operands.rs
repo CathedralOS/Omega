@@ -133,7 +133,7 @@ pub(super) fn nonzero_divisor_integer_immediate_operands_return_artifact(
     let reconstructed = reconstruct_operation_obligations(&module).unwrap();
     assert_eq!(reconstructed.len(), 1);
     let goal = reconstructed[0].obligation.proposition.clone();
-    let one = psi_core::ScalarTerm::integer(
+    let one = semantic_vocabulary::ScalarTerm::integer(
         scalar_type,
         match scalar_type.sign() {
             IntegerSign::Signed => IntegerValue::Signed(1),
@@ -141,35 +141,36 @@ pub(super) fn nonzero_divisor_integer_immediate_operands_return_artifact(
         },
     )
     .unwrap();
-    let literal = psi_core::ScalarTerm::integer(scalar_type, right).unwrap();
+    let literal = semantic_vocabulary::ScalarTerm::integer(scalar_type, right).unwrap();
     let (selected, closed_relation, endpoint, disjunction_index) = match scalar_type.sign() {
         IntegerSign::Signed if matches!(right, IntegerValue::Signed(value) if value < 0) => {
             let negative_one =
-                psi_core::ScalarTerm::integer(scalar_type, IntegerValue::Signed(-1)).unwrap();
-            let psi_core::Proposition::Disjunction(disjuncts) = &goal else {
+                semantic_vocabulary::ScalarTerm::integer(scalar_type, IntegerValue::Signed(-1))
+                    .unwrap();
+            let semantic_vocabulary::Proposition::Disjunction(disjuncts) = &goal else {
                 panic!("signed nonzero-divisor goal must be a disjunction")
             };
             (
                 disjuncts[0].clone(),
-                psi_core::Proposition::LessOrEqual(literal, negative_one),
+                semantic_vocabulary::Proposition::LessOrEqual(literal, negative_one),
                 0,
                 Some(0),
             )
         }
         IntegerSign::Signed => {
-            let psi_core::Proposition::Disjunction(disjuncts) = &goal else {
+            let semantic_vocabulary::Proposition::Disjunction(disjuncts) = &goal else {
                 panic!("signed nonzero-divisor goal must be a disjunction")
             };
             (
                 disjuncts[1].clone(),
-                psi_core::Proposition::LessOrEqual(one, literal),
+                semantic_vocabulary::Proposition::LessOrEqual(one, literal),
                 1,
                 Some(1),
             )
         }
         IntegerSign::Unsigned => (
             goal.clone(),
-            psi_core::Proposition::LessOrEqual(one, literal),
+            semantic_vocabulary::Proposition::LessOrEqual(one, literal),
             1,
             None,
         ),
@@ -180,7 +181,7 @@ pub(super) fn nonzero_divisor_integer_immediate_operands_return_artifact(
             relation: Box::new(ProofNode {
                 conclusion: closed_relation,
                 rule: ProofRule::Primitive(
-                    psi_proof_admission::PrimitiveJudgment::ClosedIntegerRelation,
+                    proof_admission::PrimitiveJudgment::ClosedIntegerRelation,
                 ),
             }),
             equality: Box::new(ProofNode {
@@ -213,7 +214,7 @@ pub(super) fn nonzero_divisor_integer_immediate_operands_return_artifact(
         }],
     };
     (
-        psi_terminal_codec::encode_module(&module).unwrap(),
-        psi_terminal_codec::encode_proof_bundle(&proof).unwrap(),
+        terminal_codec::encode_module(&module).unwrap(),
+        terminal_codec::encode_proof_bundle(&proof).unwrap(),
     )
 }

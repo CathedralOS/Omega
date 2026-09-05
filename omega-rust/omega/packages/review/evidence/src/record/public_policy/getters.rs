@@ -27,7 +27,7 @@ impl PackagePolicyTraitRequirement {
     pub const fn identity(&self) -> &PackageReviewNominalIdentity {
         &self.identity
     }
-    pub const fn spelling(&self) -> Option<psi_language_core::OperatorSpelling> {
+    pub const fn spelling(&self) -> Option<language_core::OperatorSpelling> {
         self.spelling
     }
     pub const fn has_default_realization(&self) -> bool {
@@ -100,7 +100,7 @@ impl PackagePolicyDomainShape {
     pub fn index_arguments(&self) -> &[PackageReviewTypeIdentity] {
         &self.index_arguments
     }
-    pub const fn predicate_body(&self) -> psi_language_semantics::DomainPredicateBody {
+    pub const fn predicate_body(&self) -> language_semantics::DomainPredicateBody {
         self.predicate_body
     }
     pub fn predicate_facts(&self) -> &[PackageReviewContractFact] {
@@ -126,7 +126,7 @@ impl PackagePolicyOperatorShape {
     pub const fn is_boundary(&self) -> bool {
         self.is_boundary
     }
-    pub const fn spelling(&self) -> Option<psi_language_core::OperatorSpelling> {
+    pub const fn spelling(&self) -> Option<language_core::OperatorSpelling> {
         self.spelling
     }
     pub const fn lifetime_parameter_count(&self) -> usize {
@@ -155,7 +155,7 @@ impl PackagePolicyDataShape {
     pub const fn kind(&self) -> &PackageReviewDataKind {
         &self.kind
     }
-    pub const fn supply(&self) -> psi_language_semantics::DataSupplyMode {
+    pub const fn supply(&self) -> language_semantics::DataSupplyMode {
         self.supply
     }
     pub const fn lifetime_parameter_count(&self) -> usize {

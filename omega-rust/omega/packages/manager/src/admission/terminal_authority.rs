@@ -1,12 +1,12 @@
 //! Root-policy accepted terminal-authority permissions for realization.
 
 use super::AcceptedOrdinaryClosureEvidence;
-use omega_terminal_psi_to_native_artifact::{
+use diagnostics::Diagnostic;
+use terminal_psi_to_native_artifact::{
     TerminalAuthorityPermissionPolicy, TerminalAuthorityPermissionPolicyBuildError,
     TerminalAuthorityPermissionPolicyRow, TerminalAuthorityPolicy,
     terminal_authority_permission_policy_with_rows,
 };
-use psi_diagnostics::Diagnostic;
 
 /// Failure to project one accepted package closure into its exact accepted
 /// permission set.
@@ -70,21 +70,21 @@ pub fn accepted_terminal_authority_permission_policy(
 /// compiler report: extracting the retained artifact first would discard the
 /// production manifest that binds it to the accepted source closure.
 pub fn realize_accepted_terminal_artifact_with_source_evaluated_imports_and_policy(
-    report: omega_compiler::CompileReport,
+    report: compiler::CompileReport,
     evidence: &AcceptedOrdinaryClosureEvidence,
-    profile: &psi_proof_admission::AdmissionProfile,
-    optimization_selections: &omega_optimization_core::PostTerminalOptimizationSelections,
+    profile: &proof_admission::AdmissionProfile,
+    optimization_selections: &optimization_core::PostTerminalOptimizationSelections,
     terminal_authority_policy: TerminalAuthorityPolicy,
     receiving_terminal_authority_permission_policy: TerminalAuthorityPermissionPolicy,
-    imports: &[omega_compiler::SourceEvaluatedImportSettlement<'_>],
-) -> Result<omega_compiler::RetainedNativeArtifact, Vec<Diagnostic>> {
+    imports: &[compiler::SourceEvaluatedImportSettlement<'_>],
+) -> Result<compiler::RetainedNativeArtifact, Vec<Diagnostic>> {
     validate_accepted_terminal_production_subject(&report, evidence)?;
     let accepted_permission_policy = accepted_terminal_authority_permission_policy(evidence)
         .map_err(|error| vec![Diagnostic::error(error.to_string())])?;
     let retained = report.into_retained_terminal_artifact().ok_or_else(|| {
         diagnostics("accepted Terminal realization requires one retained Terminal artifact")
     })?;
-    omega_compiler::realize_retained_terminal_artifact_with_source_evaluated_imports_and_policy(
+    compiler::realize_retained_terminal_artifact_with_source_evaluated_imports_and_policy(
         retained,
         profile,
         optimization_selections,
@@ -104,14 +104,14 @@ pub fn realize_accepted_terminal_artifact_with_source_evaluated_imports_and_poli
 pub fn realize_accepted_reviewed_package_candidate_with_source_evaluated_imports_and_policy(
     candidate: crate::review::ReviewedPackageProductionCandidate,
     evidence: &AcceptedOrdinaryClosureEvidence,
-    profile: &psi_proof_admission::AdmissionProfile,
-    optimization_selections: &omega_optimization_core::PostTerminalOptimizationSelections,
+    profile: &proof_admission::AdmissionProfile,
+    optimization_selections: &optimization_core::PostTerminalOptimizationSelections,
     terminal_authority_policy: TerminalAuthorityPolicy,
     receiving_terminal_authority_permission_policy: TerminalAuthorityPermissionPolicy,
-    imports: &[omega_compiler::SourceEvaluatedImportSettlement<'_>],
-) -> Result<omega_compiler::RetainedNativeArtifact, Vec<Diagnostic>> {
+    imports: &[compiler::SourceEvaluatedImportSettlement<'_>],
+) -> Result<compiler::RetainedNativeArtifact, Vec<Diagnostic>> {
     let (_reviews, root_path, checked_root) = candidate.into_production_parts();
-    let report = omega_compiler::retained_terminal_report_from_checked_package(
+    let report = compiler::retained_terminal_report_from_checked_package(
         root_path,
         checked_root,
         profile.clone(),
@@ -137,12 +137,12 @@ pub fn realize_accepted_reviewed_package_candidate_with_source_evaluated_imports
 pub fn realize_accepted_reviewed_package_candidate_report_with_source_evaluated_imports_and_policy(
     candidate: crate::review::ReviewedPackageProductionCandidate,
     evidence: &AcceptedOrdinaryClosureEvidence,
-    profile: &psi_proof_admission::AdmissionProfile,
-    optimization_rollback: &omega_compiler::OptimizationRollback,
+    profile: &proof_admission::AdmissionProfile,
+    optimization_rollback: &compiler::OptimizationRollback,
     terminal_authority_policy: TerminalAuthorityPolicy,
     receiving_terminal_authority_permission_policy: TerminalAuthorityPermissionPolicy,
-    imports: &[omega_compiler::SourceEvaluatedImportSettlement<'_>],
-) -> Result<omega_compiler::CompileReport, Vec<Diagnostic>> {
+    imports: &[compiler::SourceEvaluatedImportSettlement<'_>],
+) -> Result<compiler::CompileReport, Vec<Diagnostic>> {
     let build_selected = candidate.checked_root().optimization_selections().clone();
     let rollback_receipt = optimization_rollback.reconcile(&build_selected);
     let effective_optimizations = rollback_receipt
@@ -150,7 +150,7 @@ pub fn realize_accepted_reviewed_package_candidate_report_with_source_evaluated_
         .map_or(build_selected, |receipt| receipt.effective().clone());
     let post_terminal_optimizations = effective_optimizations.project_post_terminal();
     let (_reviews, root_path, checked_root) = candidate.into_production_parts();
-    let report = omega_compiler::retained_terminal_report_from_checked_package(
+    let report = compiler::retained_terminal_report_from_checked_package(
         root_path,
         checked_root,
         profile.clone(),
@@ -167,7 +167,7 @@ pub fn realize_accepted_reviewed_package_candidate_report_with_source_evaluated_
         diagnostics("accepted Terminal realization requires one retained Terminal artifact")
     })?;
     let artifact =
-        omega_compiler::realize_retained_terminal_artifact_with_source_evaluated_imports_and_policy(
+        compiler::realize_retained_terminal_artifact_with_source_evaluated_imports_and_policy(
             retained,
             profile,
             post_terminal_optimizations.selections(),
@@ -176,7 +176,7 @@ pub fn realize_accepted_reviewed_package_candidate_report_with_source_evaluated_
             receiving_terminal_authority_permission_policy,
             imports,
         )?;
-    omega_compiler::CompileReport::from_retained_native_artifact(
+    compiler::CompileReport::from_retained_native_artifact(
         root_path,
         source_file_count,
         artifact,
@@ -187,10 +187,10 @@ pub fn realize_accepted_reviewed_package_candidate_report_with_source_evaluated_
 }
 
 fn validate_accepted_terminal_production_subject(
-    report: &omega_compiler::CompileReport,
+    report: &compiler::CompileReport,
     evidence: &AcceptedOrdinaryClosureEvidence,
 ) -> Result<(), Vec<Diagnostic>> {
-    if report.output_kind() != omega_compiler::CompileOutputKind::TerminalArtifact {
+    if report.output_kind() != compiler::CompileOutputKind::TerminalArtifact {
         return Err(diagnostics(
             "accepted Terminal realization requires a retained Terminal report",
         ));
@@ -280,7 +280,7 @@ fn validate_accepted_terminal_production_subject(
     }
     if accepted_root
         .build_observation()
-        .map(omega_build_evaluation::BuildObservationSummary::identity)
+        .map(build_evaluation::BuildObservationSummary::identity)
         != Some(subject.build_observation_identity())
     {
         return Err(diagnostics(

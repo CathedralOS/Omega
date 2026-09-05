@@ -10,18 +10,18 @@ mod public_families;
 mod source;
 mod support;
 
-use omega_package_evidence::encoding::{
+use package_evidence::encoding::{
     PackagePolicyMembershipLimits, PackagePolicyRecoveryLimits, PackagePolicyTextRecoveryLimits,
 };
-use omega_package_evidence::record::*;
-use omega_package_evidence::{
+use package_evidence::record::*;
+use package_evidence::{
     project_checked_callable_policy, project_checked_package_policy,
     project_checked_representation_policy, project_checked_selected_provider_policy,
     project_checked_terminal_permission_policy,
 };
-use omega_target::TargetProfile;
 use source::Fixture;
 use support::*;
+use target::TargetProfile;
 
 fn project(fixture: &Fixture) -> PackagePolicyBaseline {
     let policy =

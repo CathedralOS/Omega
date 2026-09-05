@@ -16,7 +16,7 @@ leads into concept-owned checking and execution areas; see the
 [source guide](../../../../bootstrap/epsilon/compiler/README.md).
 Epsilon's sole language-chain customer
 is the first full Omega compiler closure `D` selected by
-`bootstrap/omega/omega_compiler.epsilon.sources`.
+`bootstrap/omega/compiler.epsilon.sources`.
 
 Epsilon does not compile itself or own an Alpha backend. Its feature ledger
 admits a facility only for D or a measured reduction in the complete chain.

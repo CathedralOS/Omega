@@ -183,7 +183,7 @@ opaque external supply.
 
 | Noun | Ownership |
 | --- | --- |
-| Places | First strongly useful place layer via `psi_facts::Place` and checked-flow `CanonicalPlace`. |
+| Places | First strongly useful place layer via `facts::Place` and checked-flow `CanonicalPlace`. |
 | Values | First checked value fact layer via `CheckedValueFacts`, keyed by typed expression handles and value origins. |
 | Facts | First-class fact contexts, origins, payloads, proof obligations, and contract facts. |
 | Loans | First-class borrow facts, accesses, loans, activations, weakenings, and overlap checks; destination work joins canonical captured-place compatibility certificates without merging them into proof custody. |
@@ -528,7 +528,7 @@ Current ownership is:
   consume that context instead of threading raw coordinates through recursion.
 - `flow/carried_semantic_dependencies.rs` owns the checked package-neutral
   sidecar for exact carried type, layout, ownership, and cleanup dependencies;
-  `psi-checked-trees/src/flow/semantic_dependencies.rs` owns its durable checked
+  `checked-trees/src/flow/semantic_dependencies.rs` owns its durable checked
   vocabulary.
 - `borrow.rs` assembles borrow facts. `borrow/accesses.rs` owns argument access
   routing, `borrow/accesses/collection.rs` owns the shared
@@ -556,7 +556,7 @@ Current ownership is:
   `borrow/last_uses/usage/expressions.rs` owns expression usage traversal, and
   `borrow/last_uses/usage/transitions.rs` owns transition guard/target usage
   traversal for last-use detection.
-  `psi-checked-trees/src/borrow.rs` owns the grouped `BorrowFacts` root and
+  `checked-trees/src/borrow.rs` owns the grouped `BorrowFacts` root and
   constructor for writable-root, access, call, loan-owner-segment, loan, and
   state borrow arenas. Each published loan addresses its owner projection by a
   handle span into the shared owner-segment arena. The first checked-only
@@ -1200,16 +1200,16 @@ Current ownership is:
   the selected runtime provider, and the WCSU-backed `StackPlan`. None of that
   concrete activation realization is stored in `CheckedTrees` or target-neutral
   Terminal Psi.
-- `psi-checked-trees/src/flow.rs` owns the published checked-flow fact model
+- `checked-trees/src/flow.rs` owns the published checked-flow fact model
   export surface. The model is split by semantic noun under
-  `psi-checked-trees/src/flow/`: `contexts.rs` owns semantic/borrow
+  `checked-trees/src/flow/`: `contexts.rs` owns semantic/borrow
   constraint refs, `invalidations.rs` owns mutation/domain invalidation facts,
   `borrow_lifetimes.rs` owns activation/weakening facts, `ownership.rs` owns
   move/drop facts, `boundaries.rs` owns boundary-edge facts, `control.rs` owns
   state/statement/call/exit facts, and `roots.rs` owns grouped `FlowFacts`
   roots plus query helpers. Flow construction should join each noun root
   through its root constructor rather than hand-building the grouped fields.
-- `psi-checked-trees/src/facts/` owns checked semantic facts that are not
+- `checked-trees/src/facts/` owns checked semantic facts that are not
   part of the temporal flow spine: `invariants.rs` owns invariant definition
   facts, and `domains.rs` owns domain dependency facts and dependency-path
   accessors. Both expose root constructors so invariant and domain production
@@ -1217,7 +1217,7 @@ Current ownership is:
   separate machine-keyed rows from the transient operational inference plan
   after flow/service construction; each checked root consumes only its own
   boolean axis and preserves its independent published interface.
-- `psi-checked-trees/src/facts/contract_plans.rs` owns each machine's normalized
+- `checked-trees/src/facts/contract_plans.rs` owns each machine's normalized
   public contract. Its settled crash axis is a canonical set of cause buckets
   with source-handle-free predicate identities; route-less and explicit-`true`
   clauses normalize to the same unconditional route. Public
@@ -1395,7 +1395,7 @@ Current ownership is:
   to source-free `(MachineId, result ValueId, format)` identity. Nested state,
   call, and operation results, locals, members, casts, const parameters,
   non-floats, structural leaves, and foreign owners remain transitional.
-- `psi-checked-trees/src/proof/` owns proof-facing checked facts:
+- `checked-trees/src/proof/` owns proof-facing checked facts:
   `obligations.rs` owns explicit proof obligations, `contracts.rs` owns
   contract proof facts/call/exit indexes, and `roots.rs` owns the grouped
   `ProofFacts` arena root and constructor. A named machine `requires` or
@@ -1501,7 +1501,7 @@ Current ownership is:
   validity from the result occurrence, normalized referenced occurrences, and
   evidence-interface scopes, so intersecting writes invalidate borrowed or
   revision-scoped guarantees rather than leaving stale sibling facts.
-- `psi-checked-trees/src/admissibility/` owns checked operation acceptance
+- `checked-trees/src/admissibility/` owns checked operation acceptance
   views. These views do not re-run proof, borrow, or effect checks; they gather
   the already-accepted evidence behind state, statement, call, and exit query
   methods so later stages and reports have one obvious doorway. Each view also
@@ -1632,7 +1632,7 @@ Current ownership is:
   owns natural-number guard predicates,
   `checks/termination/ranking/nat/arguments.rs` owns natural-number next-argument
   rewrite predicates. `checks/termination/ranking/slice.rs` owns runtime
-  slice-edge routing; it shares `psi-validation/src/slice_ranking.rs` with
+  slice-edge routing; it shares `validation/src/slice_ranking.rs` with
   proof-machine recursion. The shared rule requires the exact slice parameter,
   its nonempty length guard, and its `1..` tail. Each caller establishes guard
   dominance and binding stability; a false-arm call or rebound descriptor

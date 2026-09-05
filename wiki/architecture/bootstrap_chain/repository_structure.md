@@ -29,7 +29,7 @@ bootstrap/
       execution/                 invocation, storage, scalars, and control
   omega/
     compiler/*.epsilon           incomplete Epsilon-written Omega compiler D
-    omega_compiler.epsilon.sources canonical D member manifest
+    compiler.epsilon.sources canonical D member manifest
 
 source/
   psi/                           target-neutral Omega product phases
@@ -73,7 +73,7 @@ its source suffix names the language implementing it:
 | Gamma evaluator | `bootstrap/gamma/evaluator/gamma_evaluator.beta` |
 | Delta compiler | `bootstrap/delta/compiler/delta_compiler.gamma` (selected staged implementation) |
 | Epsilon evaluator | `bootstrap/epsilon/compiler/epsilon_compiler.delta.sources`; entrance `epsilon_compiler.delta` |
-| Omega `D` | `bootstrap/omega/omega_compiler.epsilon.sources` and `bootstrap/omega/compiler/*.epsilon` |
+| Omega `D` | `bootstrap/omega/compiler.epsilon.sources` and `bootstrap/omega/compiler/*.epsilon` |
 | Omega `C` | `source/omega/build.omg`, `source/omega/main.omg` |
 
 There is no intermediate self-host owner.

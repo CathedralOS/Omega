@@ -242,16 +242,16 @@ pub fn ordinary_package_obligation_results_from_projection(
 
 /// Reconstruct the result set from one checked package compilation.
 pub fn reconstruct_ordinary_package_obligation_results(
-    compilation: &omega_compiler::CheckedCompilation,
-) -> Result<OrdinaryPackageObligationResultSet, Vec<psi_diagnostics::Diagnostic>> {
+    compilation: &compiler::CheckedCompilation,
+) -> Result<OrdinaryPackageObligationResultSet, Vec<diagnostics::Diagnostic>> {
     let projection = crate::project_checked_package_review(compilation)?;
     let canonical_rows = projection.canonical_rows().map_err(|error| {
-        vec![psi_diagnostics::Diagnostic::error(format!(
+        vec![diagnostics::Diagnostic::error(format!(
             "ordinary package obligation result reconstruction failed to encode canonical rows: {error}"
         ))]
     })?;
     let dependency_closure = compilation.dependency_closure().cloned().ok_or_else(|| {
-        vec![psi_diagnostics::Diagnostic::error(
+        vec![diagnostics::Diagnostic::error(
             "ordinary package obligation result reconstruction requires package dependency closure",
         )]
     })?;
@@ -260,13 +260,13 @@ pub fn reconstruct_ordinary_package_obligation_results(
         &canonical_rows,
     )
     .map_err(|error| {
-        vec![psi_diagnostics::Diagnostic::error(format!(
+        vec![diagnostics::Diagnostic::error(format!(
             "ordinary package obligation result reconstruction produced an invalid ledger: {error}"
         ))]
     })?;
     let mut results = ordinary_package_obligation_results_from_projection(&ledger, &projection)
         .map_err(|error| {
-            vec![psi_diagnostics::Diagnostic::error(format!(
+            vec![diagnostics::Diagnostic::error(format!(
                 "ordinary package obligation result reconstruction failed: {error}"
             ))]
         })?;
@@ -277,7 +277,7 @@ pub fn reconstruct_ordinary_package_obligation_results(
         &mut results,
     )
     .map_err(|error| {
-        vec![psi_diagnostics::Diagnostic::error(format!(
+        vec![diagnostics::Diagnostic::error(format!(
             "ordinary package contract-entailment discharge reconstruction failed: {error}"
         ))]
     })?;
@@ -285,7 +285,7 @@ pub fn reconstruct_ordinary_package_obligation_results(
 }
 
 fn apply_contract_entailment_assumption_discharges(
-    compilation: &omega_compiler::CheckedCompilation,
+    compilation: &compiler::CheckedCompilation,
     projection: &CheckedPackageReviewProjection,
     ledger: &OrdinaryPackageObligationLedger,
     results: &mut OrdinaryPackageObligationResultSet,
@@ -340,7 +340,7 @@ fn apply_contract_entailment_assumption_discharges(
                 "persisted contract-entailment assumption discharge does not rejoin exactly one compiler certificate",
             ));
         };
-        psi_typed_trees_to_checked_trees::recheck_contract_entailment_assumption_discharge(
+        typed_trees_to_checked_trees::recheck_contract_entailment_assumption_discharge(
             &compilation.typed,
             &compilation.facts.contract_plans,
             certificate,
@@ -387,13 +387,13 @@ fn apply_contract_entailment_assumption_discharges(
 /// Require exact equality to a fresh local reconstruction.
 pub fn validate_ordinary_package_obligation_results(
     results: &OrdinaryPackageObligationResultSet,
-    compilation: &omega_compiler::CheckedCompilation,
-) -> Result<(), Vec<psi_diagnostics::Diagnostic>> {
+    compilation: &compiler::CheckedCompilation,
+) -> Result<(), Vec<diagnostics::Diagnostic>> {
     let expected = reconstruct_ordinary_package_obligation_results(compilation)?;
     if results == &expected {
         return Ok(());
     }
-    Err(vec![psi_diagnostics::Diagnostic::error(
+    Err(vec![diagnostics::Diagnostic::error(
         "ordinary package obligation results do not match local reconstruction",
     )])
 }

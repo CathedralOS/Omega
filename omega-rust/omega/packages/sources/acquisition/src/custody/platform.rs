@@ -240,9 +240,9 @@ pub(super) fn verify_macos_cache_link_extended_acl_custody(
     kind: CacheCustodyKind,
     path: &Path,
 ) -> Result<(), SourceResolveError> {
-    let has_allow_entry = omega_platform_custody::extended_acl_has_allow_entry(
+    let has_allow_entry = platform_custody::extended_acl_has_allow_entry(
         path,
-        omega_platform_custody::SymbolicLinkBehavior::InspectLink,
+        platform_custody::SymbolicLinkBehavior::InspectLink,
     )
     .map_err(|error| {
         cache_custody_invalid(
@@ -275,8 +275,8 @@ pub(crate) fn verify_macos_open_cache_extended_acl_custody(
     path: &Path,
     file: &File,
 ) -> Result<(), SourceResolveError> {
-    let has_allow_entry = omega_platform_custody::open_file_extended_acl_has_allow_entry(file)
-        .map_err(|error| {
+    let has_allow_entry =
+        platform_custody::open_file_extended_acl_has_allow_entry(file).map_err(|error| {
             cache_custody_invalid(
                 kind,
                 path,

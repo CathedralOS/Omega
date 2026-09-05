@@ -8,14 +8,14 @@ mod support;
 #[path = "terminal_permission_policy/uefi.rs"]
 mod uefi;
 
-use omega_effects::{
+use effects::{
     ServiceTerminalAuthorityPermission, TerminalAuthorityClass, TerminalAuthorityDisposition,
 };
-use omega_package_evidence::encoding::PackagePolicyRecoveryLimits;
-use omega_package_evidence::project_checked_terminal_permission_policy;
-use omega_package_evidence::record::*;
-use omega_target::TargetProfile;
+use package_evidence::encoding::PackagePolicyRecoveryLimits;
+use package_evidence::project_checked_terminal_permission_policy;
+use package_evidence::record::*;
 use support::*;
+use target::TargetProfile;
 
 fn project(
     checked: &CheckedCompilation,

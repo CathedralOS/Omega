@@ -1,0 +1,14 @@
+[package]
+name = "build-output"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[lib]
+name = "build_output"
+path = "src/lib.rs"
+
+[dependencies]
+checked-interpreter = { path = "../../../psi/semantics/checked-interpreter" }
+diagnostics = { path = "../../../psi/foundation/diagnostics" }
+sha2 = "0.10.9"

@@ -1,6 +1,6 @@
 //! Placement replay controls shared by the direct, structural, and frame fixtures.
-use omega_machine_code::RelocationFreeTextSectionPlacement;
-use omega_machine_emission::{
+use machine_code::RelocationFreeTextSectionPlacement;
+use machine_emission::{
     StructuralFragmentPlacementInputs, TextPlacementInput, validate_fragment_text_section,
 };
 
@@ -43,7 +43,7 @@ fn check(input: TextPlacementInput<'_>, original: &RelocationFreeTextSectionPlac
         match mutation {
             0 => {
                 changed.source_fragments =
-                    omega_optimization_core::FunctionFragmentEmissionIdentity::from_canonical_bytes(
+                    optimization_core::FunctionFragmentEmissionIdentity::from_canonical_bytes(
                         b"wrong placement source",
                     )
             }
@@ -100,8 +100,8 @@ fn check(input: TextPlacementInput<'_>, original: &RelocationFreeTextSectionPlac
                 let duplicate = *row;
                 changed.resolved_internal_machine_calls.push(duplicate);
             }
-            16 => row.callee = psi_core::MachineId::new(999).unwrap(),
-            17 => row.caller = psi_core::MachineId::new(999).unwrap(),
+            16 => row.callee = semantic_vocabulary::MachineId::new(999).unwrap(),
+            17 => row.caller = semantic_vocabulary::MachineId::new(999).unwrap(),
             _ => unreachable!(),
         }
         changed.identity = changed.recomputed_identity();

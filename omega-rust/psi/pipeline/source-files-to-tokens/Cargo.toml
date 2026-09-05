@@ -1,0 +1,13 @@
+[package]
+name = "source-files-to-tokens"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[lib]
+name = "source_files_to_tokens"
+path = "src/lib.rs"
+
+[dependencies]
+source = { path = "../../foundation/source" }
+tokens = { path = "../../representations/tokens" }

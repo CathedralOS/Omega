@@ -1,0 +1,22 @@
+[package]
+name = "selected-instructions"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[lib]
+name = "selected_instructions"
+path = "src/lib.rs"
+
+[dependencies]
+calling-conventions = { path = "../calling-conventions" }
+optimization-core = { path = "../optimization-core" }
+optimization-unit = { path = "../optimization-unit" }
+register-model = { path = "../register-model" }
+target = { path = "../target" }
+abstract-operations = { path = "../abstract-operations" }
+legalized-operations = { path = "../legalized-operations" }
+target-operations = { path = "../target-operations" }
+semantic-vocabulary = { path = "../../../psi/foundation/semantic-vocabulary" }
+terminal-psi = { path = "../../../psi/representations/terminal-psi" }
+sha2 = "0.10.9"

@@ -6,12 +6,12 @@ use crate::record::{
     PackageReviewExternalExecutableSupply, PackageReviewForeignLocator,
     PackageReviewSourceLocationRole,
 };
-use omega_compiler::CheckedCompilation;
-use psi_diagnostics::Diagnostic;
+use compiler::CheckedCompilation;
+use diagnostics::Diagnostic;
 
 pub(super) fn project_external_executable_supply_with_source(
-    machine: &psi_typed_trees::machine::Machine,
-    conformance: &psi_typed_trees::machine::TraitConformance,
+    machine: &typed_trees::machine::Machine,
+    conformance: &typed_trees::machine::TraitConformance,
     row: PackageReviewExternalExecutableSupply,
 ) -> Result<ProjectedReviewRow<PackageReviewExternalExecutableSupply>, Vec<Diagnostic>> {
     let Some(source_span) = conformance.external_binding_source_span else {
@@ -32,38 +32,38 @@ pub(super) fn project_external_executable_supply_with_source(
 
 pub(super) fn project_evaluated_binding(
     compilation: &CheckedCompilation,
-    row: &omega_provider_planning::evaluated_via_bindings::EvaluatedViaBindingRow,
+    row: &provider_planning::evaluated_via_bindings::EvaluatedViaBindingRow,
 ) -> Result<PackageReviewExternalBinding, Vec<Diagnostic>> {
     match row.evaluated() {
-        omega_provider_planning::evaluated_via_bindings::EvaluatedViaBinding::Import(evaluated) => {
+        provider_planning::evaluated_via_bindings::EvaluatedViaBinding::Import(evaluated) => {
             project_evaluated_import(compilation, row, evaluated)
         }
-        omega_provider_planning::evaluated_via_bindings::EvaluatedViaBinding::Syscall(
-            evaluated,
-        ) => project_evaluated_syscall(compilation, row, evaluated),
+        provider_planning::evaluated_via_bindings::EvaluatedViaBinding::Syscall(evaluated) => {
+            project_evaluated_syscall(compilation, row, evaluated)
+        }
     }
 }
 
 fn project_evaluated_import(
     compilation: &CheckedCompilation,
-    row: &omega_provider_planning::evaluated_via_bindings::EvaluatedViaBindingRow,
-    evaluated: &omega_effects::provider_plan::EvaluatedForeignImport,
+    row: &provider_planning::evaluated_via_bindings::EvaluatedViaBindingRow,
+    evaluated: &effects::provider_plan::EvaluatedForeignImport,
 ) -> Result<PackageReviewExternalBinding, Vec<Diagnostic>> {
     let locator = evaluated.locator();
     let projected_locator = match locator.locator() {
-        omega_target::ForeignLocatorCandidate::PeByName { library, export } => {
+        target::ForeignLocatorCandidate::PeByName { library, export } => {
             PackageReviewForeignLocator::PeByName {
                 library: library.clone(),
                 export: export.clone(),
             }
         }
-        omega_target::ForeignLocatorCandidate::PeByOrdinal { library, ordinal } => {
+        target::ForeignLocatorCandidate::PeByOrdinal { library, ordinal } => {
             PackageReviewForeignLocator::PeByOrdinal {
                 library: library.clone(),
                 ordinal: *ordinal,
             }
         }
-        omega_target::ForeignLocatorCandidate::ElfVersioned {
+        target::ForeignLocatorCandidate::ElfVersioned {
             object,
             symbol,
             version,
@@ -72,7 +72,7 @@ fn project_evaluated_import(
             symbol: symbol.clone(),
             version: version.clone(),
         },
-        omega_target::ForeignLocatorCandidate::MachODylibSymbol {
+        target::ForeignLocatorCandidate::MachODylibSymbol {
             install_name,
             symbol,
         } => PackageReviewForeignLocator::MachODylibSymbol {
@@ -115,8 +115,8 @@ fn project_evaluated_import(
 
 fn project_evaluated_syscall(
     compilation: &CheckedCompilation,
-    row: &omega_provider_planning::evaluated_via_bindings::EvaluatedViaBindingRow,
-    evaluated: &omega_effects::provider_plan::EvaluatedForeignSyscall,
+    row: &provider_planning::evaluated_via_bindings::EvaluatedViaBindingRow,
+    evaluated: &effects::provider_plan::EvaluatedForeignSyscall,
 ) -> Result<PackageReviewExternalBinding, Vec<Diagnostic>> {
     let receipt = evaluated.receipt();
     let usage = receipt.evaluation_usage();
@@ -153,10 +153,10 @@ fn project_evaluated_syscall(
 
 pub(super) fn validate_external_binding_payload(
     compilation: &CheckedCompilation,
-    machine: &psi_typed_trees::machine::Machine,
-    identity: &psi_language_semantics::ExternalBindingIdentity,
+    machine: &typed_trees::machine::Machine,
+    identity: &language_semantics::ExternalBindingIdentity,
 ) -> Result<(), Vec<Diagnostic>> {
-    use psi_language_semantics::ExternalBindingIdentity;
+    use language_semantics::ExternalBindingIdentity;
 
     let invalid = match identity {
         ExternalBindingIdentity::Import { library, symbol } if library.is_empty() => {
@@ -205,30 +205,30 @@ pub(super) fn validate_external_binding_payload(
 }
 
 pub(super) fn project_external_binding(
-    identity: &psi_language_semantics::ExternalBindingIdentity,
+    identity: &language_semantics::ExternalBindingIdentity,
 ) -> PackageReviewExternalBinding {
     match identity {
-        psi_language_semantics::ExternalBindingIdentity::Import { library, symbol } => {
+        language_semantics::ExternalBindingIdentity::Import { library, symbol } => {
             PackageReviewExternalBinding::Import {
                 library: library.clone(),
                 symbol: symbol.clone(),
             }
         }
-        psi_language_semantics::ExternalBindingIdentity::Syscall { number } => {
+        language_semantics::ExternalBindingIdentity::Syscall { number } => {
             PackageReviewExternalBinding::Syscall { number: *number }
         }
-        psi_language_semantics::ExternalBindingIdentity::CompilerIntrinsic => {
+        language_semantics::ExternalBindingIdentity::CompilerIntrinsic => {
             PackageReviewExternalBinding::CompilerIntrinsic
         }
-        psi_language_semantics::ExternalBindingIdentity::VtableSlot { index } => {
+        language_semantics::ExternalBindingIdentity::VtableSlot { index } => {
             PackageReviewExternalBinding::VtableSlot { index: *index }
         }
-        psi_language_semantics::ExternalBindingIdentity::VtableField { field } => {
+        language_semantics::ExternalBindingIdentity::VtableField { field } => {
             PackageReviewExternalBinding::VtableField {
                 field: field.clone(),
             }
         }
-        psi_language_semantics::ExternalBindingIdentity::TableFunction { field } => {
+        language_semantics::ExternalBindingIdentity::TableFunction { field } => {
             PackageReviewExternalBinding::TableFunction {
                 field: field.clone(),
             }
@@ -238,9 +238,9 @@ pub(super) fn project_external_binding(
 
 pub(super) fn external_binding_matches_provider_binding(
     compilation: &CheckedCompilation,
-    machine: &psi_typed_trees::machine::Machine,
+    machine: &typed_trees::machine::Machine,
     binding: &PackageReviewExternalBinding,
-    selected: &omega_effects::provider_plan::ProviderBinding,
+    selected: &effects::provider_plan::ProviderBinding,
 ) -> bool {
     let expected_machine_identity = compilation
         .normalized_machine_overload_identity(machine)
@@ -254,7 +254,7 @@ pub(super) fn external_binding_matches_provider_binding(
     match (binding, selected) {
         (
             PackageReviewExternalBinding::NormalizedImport(reviewed),
-            omega_effects::provider_plan::ProviderBinding::Import { evaluated },
+            effects::provider_plan::ProviderBinding::Import { evaluated },
         ) => compilation
             .machine_trait_conformances(machine)
             .first()
@@ -274,7 +274,7 @@ pub(super) fn external_binding_matches_provider_binding(
             }),
         (
             PackageReviewExternalBinding::NormalizedSyscall(reviewed),
-            omega_effects::provider_plan::ProviderBinding::Syscall {
+            effects::provider_plan::ProviderBinding::Syscall {
                 number: selected_number,
             },
         ) => compilation
@@ -298,39 +298,39 @@ pub(super) fn external_binding_matches_provider_binding(
             }),
         (
             PackageReviewExternalBinding::Import { library, symbol },
-            omega_effects::provider_plan::ProviderBinding::StringBackedImportBootstrap {
+            effects::provider_plan::ProviderBinding::StringBackedImportBootstrap {
                 library: selected_library,
                 symbol: selected_symbol,
             },
         ) => library == selected_library && symbol == selected_symbol,
         (
             PackageReviewExternalBinding::Syscall { number },
-            omega_effects::provider_plan::ProviderBinding::Syscall {
+            effects::provider_plan::ProviderBinding::Syscall {
                 number: selected_number,
             },
         ) => number == selected_number,
         (
             PackageReviewExternalBinding::CompilerIntrinsic,
-            omega_effects::provider_plan::ProviderBinding::CompilerIntrinsic {
+            effects::provider_plan::ProviderBinding::CompilerIntrinsic {
                 machine: selected_machine,
             },
         ) => selected_machine == &expected_machine_identity,
         (
             PackageReviewExternalBinding::VtableSlot { index },
-            omega_effects::provider_plan::ProviderBinding::VtableSlot {
+            effects::provider_plan::ProviderBinding::VtableSlot {
                 index: selected_index,
             },
         ) => index == selected_index,
         (
             PackageReviewExternalBinding::VtableField { field },
-            omega_effects::provider_plan::ProviderBinding::VtableField {
+            effects::provider_plan::ProviderBinding::VtableField {
                 table,
                 field: selected_field,
             },
         ) => table == expected_table && field == selected_field,
         (
             PackageReviewExternalBinding::TableFunction { field },
-            omega_effects::provider_plan::ProviderBinding::TableFunction {
+            effects::provider_plan::ProviderBinding::TableFunction {
                 table,
                 field: selected_field,
             },

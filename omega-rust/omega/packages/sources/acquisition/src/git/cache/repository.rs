@@ -4,7 +4,7 @@ use std::ffi::{OsStr, OsString};
 use std::path::{Path, PathBuf};
 
 use cap_std::fs::{Dir as CapabilityDirectory, Metadata as CapabilityMetadata};
-use omega_resolver_execution::ResolverExecutionPhase;
+use resolver_execution::ResolverExecutionPhase;
 
 use crate::SourceResolveError;
 use crate::custody::lock::verify_retained_cache_parent_path;

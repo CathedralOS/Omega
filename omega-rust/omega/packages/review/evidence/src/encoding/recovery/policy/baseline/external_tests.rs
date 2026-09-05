@@ -86,7 +86,7 @@ fn external_full_signature_and_requirement_cannot_drift_from_callable() {
                 .push(PackagePolicyTypeParameter {
                     kind: PackagePolicyTypeParameterKind::Type,
                     bounds: PackageReviewDataProperties {
-                        multiplicity: psi_language_semantics::Multiplicity::Unrestricted,
+                        multiplicity: language_semantics::Multiplicity::Unrestricted,
                         carry: None,
                     },
                 }),

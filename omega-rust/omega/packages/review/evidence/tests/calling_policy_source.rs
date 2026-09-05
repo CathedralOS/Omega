@@ -2,13 +2,13 @@
 
 mod support;
 
-use omega_package_evidence::encoding::PackagePolicyRecoveryLimits;
-use omega_package_evidence::project_checked_calling_policy;
-use omega_package_evidence::record::PackagePolicyCallingPlan;
-use omega_provider_planning::calling_policy_plans::BoundaryCallingPlanRealization;
-use psi_symbols::SymbolHandle;
-use psi_typed_trees::typed_trees::BoundaryCallingPlanCommitment;
+use package_evidence::encoding::PackagePolicyRecoveryLimits;
+use package_evidence::project_checked_calling_policy;
+use package_evidence::record::PackagePolicyCallingPlan;
+use provider_planning::calling_policy_plans::BoundaryCallingPlanRealization;
 use support::*;
+use symbols::SymbolHandle;
+use typed_trees::typed_trees::BoundaryCallingPlanCommitment;
 
 fn repository_root() -> &'static Path {
     Path::new(env!("CARGO_MANIFEST_DIR"))

@@ -1,15 +1,15 @@
 use super::*;
-use omega_package_manager::declarations::DependencySourceRequest;
-use omega_package_manager::declarations::{
+use package_manager::declarations::DependencySourceRequest;
+use package_manager::declarations::{
     BuildDependencyEditPlan, BuildFileReplacement, plan_dependency_addition,
     plan_dependency_replacement,
 };
-use omega_package_manager::operations::{
+use package_manager::operations::{
     LockedSourceRecoveryOptions, check_locked_sources, stage_build_dependency_edit,
 };
-use omega_package_manager::resolution::graph::resolve_staged_external_local_project_closure_with_storage;
-use omega_package_source::SourceResolveError;
-use omega_package_source::local::staging::StagedLocalSnapshot;
+use package_manager::resolution::graph::resolve_staged_external_local_project_closure_with_storage;
+use package_source::SourceResolveError;
+use package_source::local::staging::StagedLocalSnapshot;
 
 fn request(location: &str) -> DependencySourceRequest {
     DependencySourceRequest::Path {

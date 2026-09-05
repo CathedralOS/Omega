@@ -4,7 +4,7 @@ use std::fmt;
 pub enum PublishReviewedPackageChangeError {
     Association(&'static str),
     Publication(super::super::PackagePublicationError),
-    Source(omega_package_source::SourceResolveError),
+    Source(package_source::SourceResolveError),
     Lock(crate::lock::PackageLockError),
     Review(crate::operations::PackageChangeError),
     Comparison(crate::review::PackagePolicyChangeError),

@@ -84,7 +84,7 @@ machine build(builder: &mut Build) {
 
 ```omega
 machine build(builder: &mut Build) {
-    builder.application("omega-compiler");
+    builder.application("compiler");
 }
 ```
 
@@ -2222,7 +2222,7 @@ stores it, and it is absent from review validation, baseline capsules,
 capability conflicts, fingerprints, closure commitments, and triage.
 
 The runner-neutral model protocol lives in the optional
-`omega-package-advisory` tooling crate, outside `omega-package-manager`. It
+`package-advisory` tooling crate, outside `package-manager`. It
 keeps fixed system instructions separate from bounded manager-rendered
 evidence, selects no model, and supplies no ambient network authority. The
 runner streams response bytes into an owned sink enforcing the caller-supplied
@@ -4233,7 +4233,7 @@ workspace policy for an ordinary fail-closed check. Only the explicit
 compiler-reconstructed set. A missing lock therefore never turns ordinary
 compilation into implicit approval, and trust-report files remain diagnostics
 rather than policy authority. Filesystem-free obligation/report construction
-lives in `omega-trust-model`; `omega-trust-ledger` is limited to coordinator-
+lives in `trust-model`; `trust-ledger` is limited to coordinator-
 facing `omega.lock` custody.
 
 Package root policy uses a separate explicit command input. For native

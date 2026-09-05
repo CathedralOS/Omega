@@ -1,5 +1,5 @@
 use super::*;
-use omega_package_manager::review::{
+use package_manager::review::{
     PackagePolicyChangeSet, PackagePolicyDecision, PackagePolicyDecisionError,
     PackagePolicyDecisionSubject as Subject, PackagePolicyReviewError as Error,
     ReviewOnlyRootPolicyDisposition::*, recover_package_policy_review,

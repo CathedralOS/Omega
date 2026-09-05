@@ -208,8 +208,8 @@ pub(crate) fn conditional_exact_binary_artifact_with_values(
     };
     let proof = operation_proof_bundle(&module);
     (
-        psi_terminal_codec::encode_module(&module).unwrap(),
-        psi_terminal_codec::encode_proof_bundle(&proof).unwrap(),
+        terminal_codec::encode_module(&module).unwrap(),
+        terminal_codec::encode_proof_bundle(&proof).unwrap(),
     )
 }
 

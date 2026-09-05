@@ -1,7 +1,7 @@
 //! Source-qualified operational authority, independently of readable schemas.
 
 use crate::record::{PackageReviewNominalIdentity, PackageReviewSynchronousInvocation};
-use omega_effects::provider_plan::{ServiceProgressEstablishmentRouteKind, ServiceProgressSubject};
+use effects::provider_plan::{ServiceProgressEstablishmentRouteKind, ServiceProgressSubject};
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub struct PackagePolicyServiceAuthority {

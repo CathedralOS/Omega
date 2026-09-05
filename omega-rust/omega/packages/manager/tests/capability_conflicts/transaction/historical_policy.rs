@@ -1,15 +1,13 @@
 use super::fixture::ExactCompilerRowScenario;
 use super::*;
-use omega_package_manager::lock::{
+use package_manager::lock::{
     HistoricalPackagePolicyDecisions, HistoricalPackagePolicyError, HistoricalPackagePolicyLimits,
 };
-use omega_package_manager::resolution::graph::{
+use package_manager::resolution::graph::{
     CanonicalSourceClosureSubject, CanonicalSourceClosureSubjectLimits,
 };
-use omega_package_manager::review::{
-    ReviewOnlyCapabilityConflictSet, ReviewOnlyRootPolicyResolution,
-};
-use omega_target::TargetProfile;
+use package_manager::review::{ReviewOnlyCapabilityConflictSet, ReviewOnlyRootPolicyResolution};
+use target::TargetProfile;
 
 pub(super) fn resolve_all(
     conflicts: &ReviewOnlyCapabilityConflictSet,
@@ -346,7 +344,7 @@ fn assert_recovery_accounting(
     historical: &HistoricalPackagePolicyDecisions,
     text: &str,
 ) {
-    use omega_package_manager::lock::HistoricalPackagePolicyDecision;
+    use package_manager::lock::HistoricalPackagePolicyDecision;
 
     let count = historical.decisions().len();
     let exact_owned = count * (std::mem::size_of::<HistoricalPackagePolicyDecision>() + 32);

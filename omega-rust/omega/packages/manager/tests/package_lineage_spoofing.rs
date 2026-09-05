@@ -1,9 +1,9 @@
-use omega_package_evidence::record::PackageReviewCanonicalRowKind;
-use omega_package_manager::resolution::graph::{
+use package_evidence::record::PackageReviewCanonicalRowKind;
+use package_manager::resolution::graph::{
     PackageSourceClosureLimits, resolve_external_local_package_closure_with_storage,
 };
-use omega_package_manager::review::compile_resolved_package_reviews;
-use omega_package_source::{ExternalSourceContext, LocalSourceLimits, SourceResolverStorage};
+use package_manager::review::compile_resolved_package_reviews;
+use package_source::{ExternalSourceContext, LocalSourceLimits, SourceResolverStorage};
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::time::{SystemTime, UNIX_EPOCH};
@@ -158,7 +158,7 @@ machine build(builder: &mut Build) {{
     assert_ne!(selected_key, lookalike_key);
 
     let reviews = compile_resolved_package_reviews(
-        &closure.for_exact_target(omega_target::TargetProfile::WindowsX64),
+        &closure.for_exact_target(target::TargetProfile::WindowsX64),
         &tree.compiler_workspace(),
     )
     .expect("compiler review should preserve exact package lineage");

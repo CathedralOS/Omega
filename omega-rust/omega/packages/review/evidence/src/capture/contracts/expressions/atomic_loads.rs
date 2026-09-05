@@ -1,7 +1,7 @@
 use crate::capture::contracts::facts::ContractProjectionContext;
 use crate::record::{PackageReviewAtomicLoadOrdering, PackageReviewContractExpression};
-use psi_diagnostics::Diagnostic;
-use psi_typed_trees::expression::{ExpressionHandle, TableAtomicExpression};
+use diagnostics::Diagnostic;
+use typed_trees::expression::{ExpressionHandle, TableAtomicExpression};
 
 pub(crate) fn project_contract_atomic_load(
     context: &ContractProjectionContext<'_>,
@@ -15,16 +15,16 @@ pub(crate) fn project_contract_atomic_load(
         ))]);
     }
     let ordering = match atomic.ordering {
-        psi_language_core::atomic::AtomicOrderingPlan::Load(
-            psi_language_core::atomic::MemoryOrdering::NoOrdering,
+        language_core::atomic::AtomicOrderingPlan::Load(
+            language_core::atomic::MemoryOrdering::NoOrdering,
         ) => PackageReviewAtomicLoadOrdering::NoOrdering,
-        psi_language_core::atomic::AtomicOrderingPlan::Load(
-            psi_language_core::atomic::MemoryOrdering::Receive,
+        language_core::atomic::AtomicOrderingPlan::Load(
+            language_core::atomic::MemoryOrdering::Receive,
         ) => PackageReviewAtomicLoadOrdering::Receive,
-        psi_language_core::atomic::AtomicOrderingPlan::Load(
-            psi_language_core::atomic::MemoryOrdering::GlobalOrder,
+        language_core::atomic::AtomicOrderingPlan::Load(
+            language_core::atomic::MemoryOrdering::GlobalOrder,
         ) => PackageReviewAtomicLoadOrdering::GlobalOrder,
-        psi_language_core::atomic::AtomicOrderingPlan::Load(_) => {
+        language_core::atomic::AtomicOrderingPlan::Load(_) => {
             return Err(vec![Diagnostic::error(format!(
                 "reviewed {} `{}` contains an atomic load with an invalid ordering",
                 context.subject_kind, context.subject_name

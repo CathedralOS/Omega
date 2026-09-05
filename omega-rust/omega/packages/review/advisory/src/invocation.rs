@@ -1,4 +1,4 @@
-use omega_package_manager::review::{PackageSourceReviewInput, PackageTriageDisposition};
+use package_manager::review::{PackageSourceReviewInput, PackageTriageDisposition};
 
 use super::protocol::{
     ADVISORY_NO_ADDITIONAL_AUDIT, ADVISORY_RECOMMEND_AUDIT, PackageAdvisoryRecommendation,
@@ -78,7 +78,7 @@ fn invoke_rendered_advisory_review<R: PackageAdvisoryReviewer>(
 #[cfg(test)]
 mod tests {
     use super::invoke_rendered_advisory_review;
-    use omega_package_manager::review::PackageTriageDisposition;
+    use package_manager::review::PackageTriageDisposition;
 
     use crate::PackageAdvisoryRecommendation;
     use std::convert::Infallible;

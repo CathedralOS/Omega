@@ -45,22 +45,22 @@ requires observes(&mut input) == true
         .find(|fact| {
             matches!(
                 fact.owner,
-                psi_checked_trees::ContractProofFactOwner::Machine { machine_symbol }
+                checked_trees::ContractProofFactOwner::Machine { machine_symbol }
                     if machine_symbol == provider.symbol
             )
         })
         .expect("provider contract fact");
-    let psi_typed_trees::domain::ProofFact::Expression(call_expression) =
+    let typed_trees::domain::ProofFact::Expression(call_expression) =
         checked.proof_facts.get(provider_fact.fact)
     else {
         panic!("provider expression contract")
     };
-    let psi_typed_trees::expression::ExpressionNode::Binary(contract) =
+    let typed_trees::expression::ExpressionNode::Binary(contract) =
         checked.expression_table.expression(*call_expression)
     else {
         panic!("provider binary contract")
     };
-    let psi_typed_trees::expression::ExpressionNode::Call(call) =
+    let typed_trees::expression::ExpressionNode::Call(call) =
         checked.expression_table.expression(contract.left)
     else {
         panic!("provider contract call")
@@ -69,12 +69,12 @@ requires observes(&mut input) == true
         panic!("one provider contract argument")
     };
     let borrow = *borrow;
-    let psi_typed_trees::expression::ExpressionNode::Borrow(borrow) =
+    let typed_trees::expression::ExpressionNode::Borrow(borrow) =
         checked.typed.expression_table.expression_mut(borrow)
     else {
         panic!("explicit mutable reference argument")
     };
-    borrow.access = psi_language_core::ReferenceAccess::Shared;
+    borrow.access = language_core::ReferenceAccess::Shared;
 
     let diagnostics = project_checked_package_review(&checked)
         .expect_err("post-check reference access drift must reject");
@@ -286,7 +286,7 @@ ensures result == input
         .expect("stronger operator declaration");
     let stronger_namespace = checked.typed.operator_path_members(stronger.name)[0].clone();
     let stronger_fact = checked.typed.operator_contracts(stronger)[0].facts.start();
-    let psi_typed_trees::domain::ProofFact::Expression(stronger_expression) =
+    let typed_trees::domain::ProofFact::Expression(stronger_expression) =
         checked.typed.proof_facts.get(stronger_fact)
     else {
         panic!("stronger operator expression contract")
@@ -303,7 +303,7 @@ ensures result == input
         .find(|machine| machine.name.as_str() == "provide_identity")
         .expect("provider machine");
     let provider_fact = checked.typed.machine_contracts(provider)[0].facts.start();
-    let psi_typed_trees::domain::ProofFact::Expression(provider_expression) =
+    let typed_trees::domain::ProofFact::Expression(provider_expression) =
         checked.typed.proof_facts.get(provider_fact)
     else {
         panic!("provider expression contract")
@@ -340,7 +340,7 @@ ensures result == input
                 .is_some_and(|owner| owner.as_str() == "StrongerMath")
         })
         .expect("mutated stronger operator selection");
-    psi_validation::validate_checked_operator_realization_contract(
+    validation::validate_checked_operator_realization_contract(
         &checked.typed,
         mutated_provider,
         mutated_operator,
@@ -625,7 +625,7 @@ satisfies CheckedMath::identity
         .facts
         .operators
         .operator_realization_contracts =
-        psi_typed_trees_to_checked_trees::derive_checked_operator_realization_contracts(
+        typed_trees_to_checked_trees::derive_checked_operator_realization_contracts(
             &forged_type_parameter.typed,
         );
     let diagnostics = project_checked_package_review(&forged_type_parameter)
@@ -646,9 +646,7 @@ satisfies CheckedMath::identity
         .lifetime_parameters
         .push(forged_lifetime);
     checked.facts.operators.operator_realization_contracts =
-        psi_typed_trees_to_checked_trees::derive_checked_operator_realization_contracts(
-            &checked.typed,
-        );
+        typed_trees_to_checked_trees::derive_checked_operator_realization_contracts(&checked.typed);
     let diagnostics = project_checked_package_review(&checked)
         .expect_err("post-check lifetime-bearing operator realization must fail closed");
     assert!(diagnostics.iter().any(|diagnostic| {

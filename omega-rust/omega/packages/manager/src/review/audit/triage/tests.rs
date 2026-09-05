@@ -6,7 +6,7 @@ use crate::resolution::graph::{
     ResolvedPackageClosure, ResolvedPackageNode, ResolvedSourceIdentity,
 };
 use crate::review::compare::compare_review_only_root_role_graphs;
-use omega_package_source::{GitCommitId, GitTreeId, ImmutableSourceResolution, SourceLineage};
+use package_source::{GitCommitId, GitTreeId, ImmutableSourceResolution, SourceLineage};
 
 fn role_test_key() -> PackageKey {
     PackageKey::new(

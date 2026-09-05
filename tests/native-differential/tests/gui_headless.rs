@@ -9,7 +9,7 @@
 //! runaway default -- OMEGA_INTERP_STEP_BUDGET raises it for this process
 //! (a dedicated test binary, so the env write races nothing).
 
-use omega_compiler::compile_to_checked;
+use compiler::compile_to_checked;
 use std::path::PathBuf;
 
 #[test]
@@ -30,7 +30,7 @@ fn window_demo_runs_headless_to_native_exit() {
                 .join("\n")
         )
     });
-    let outcome = psi_checked_interpreter::interpret_entry(&checked, "Main::main", &[]);
+    let outcome = checked_interpreter::interpret_entry(&checked, "Main::main", &[]);
     assert_eq!(
         outcome.error, None,
         "the headless run must not decline: {:?}",

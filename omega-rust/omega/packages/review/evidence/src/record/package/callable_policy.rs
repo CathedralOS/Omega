@@ -13,8 +13,8 @@ use crate::record::{
     PackageReviewOperatorRealization, PackageReviewSynchronousInvocation,
     PackageReviewTypeIdentity,
 };
-use omega_target::TargetProfile;
-use psi_core::PackageKeyIdentity;
+use semantic_vocabulary::PackageKeyIdentity;
+use target::TargetProfile;
 
 /// Inert root-activation policy, not a compiler proof or an acceptance decision.
 #[derive(Debug, Clone, PartialEq, Eq)]

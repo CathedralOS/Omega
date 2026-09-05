@@ -1,7 +1,7 @@
 //! Cross-stage abstract optimization publication and target-lowering controls.
 
-use omega_abstract_operations_optimizer::*;
-use omega_optimization_core::OptimizationWorkUsage;
+use abstract_operations_to_abstract_operations::*;
+use optimization_core::OptimizationWorkUsage;
 
 #[path = "abstract_publication/mod.rs"]
 mod tests;

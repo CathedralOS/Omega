@@ -14,11 +14,11 @@ use crate::encoding::{
     PACKAGE_REVIEW_ENCODING_VERSION, PACKAGE_REVIEW_ROW_ENCODING_VERSION,
     canonical_row_framing_for_ledger,
 };
-use omega_package_compilation::{
+use package_compilation::{
     BuildDeclarationKind, PackageDependencyBinding, PackageDependencyClosure,
 };
-use omega_target::TargetProfile;
-use psi_core::PackageKeyIdentity;
+use semantic_vocabulary::PackageKeyIdentity;
+use target::TargetProfile;
 
 /// Decode canonical ledger framing. Decoding establishes shape only; callers
 /// must still invoke [`super::super::validate_ordinary_package_obligation_ledger`]

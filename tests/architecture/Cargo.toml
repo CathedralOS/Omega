@@ -53,19 +53,19 @@ name = "anchor_headers"
 path = "anchor_headers.rs"
 
 [dev-dependencies]
-psi-arena = { path = "../../omega-rust/psi/foundation/psi-arena" }
-psi-symbols = { path = "../../omega-rust/psi/foundation/psi-symbols" }
-omega-effects = { path = "../../omega-rust/omega/representations/omega-effects" }
-psi-diagnostics = { path = "../../omega-rust/psi/foundation/psi-diagnostics" }
-psi-effects = { path = "../../omega-rust/psi/representations/psi-effects" }
-psi-language-core = { path = "../../omega-rust/psi/foundation/psi-language-core" }
-psi-language-semantics = { path = "../../omega-rust/psi/foundation/psi-language-semantics" }
-psi-source-files-to-tokens = { path = "../../omega-rust/psi/pipeline/psi-source-files-to-tokens" }
-psi-symbol-resolved-trees-to-typed-trees = { path = "../../omega-rust/psi/pipeline/psi-symbol-resolved-trees-to-typed-trees" }
-psi-syntax-trees = { path = "../../omega-rust/psi/representations/psi-syntax-trees" }
-psi-syntax-trees-to-symbol-resolved-trees = { path = "../../omega-rust/psi/pipeline/psi-syntax-trees-to-symbol-resolved-trees" }
-psi-tokens-to-syntax-trees = { path = "../../omega-rust/psi/pipeline/psi-tokens-to-syntax-trees" }
-psi-typed-trees = { path = "../../omega-rust/psi/representations/psi-typed-trees" }
-psi-typed-trees-to-checked-trees = { path = "../../omega-rust/psi/pipeline/psi-typed-trees-to-checked-trees" }
-psi-validation = { path = "../../omega-rust/psi/semantics/psi-validation" }
+arena = { path = "../../omega-rust/psi/foundation/arena" }
+symbols = { path = "../../omega-rust/psi/foundation/symbols" }
+effects = { path = "../../omega-rust/omega/representations/effects" }
+diagnostics = { path = "../../omega-rust/psi/foundation/diagnostics" }
+flow-effects = { path = "../../omega-rust/psi/representations/flow-effects" }
+language-core = { path = "../../omega-rust/psi/foundation/language-core" }
+language-semantics = { path = "../../omega-rust/psi/foundation/language-semantics" }
+source-files-to-tokens = { path = "../../omega-rust/psi/pipeline/source-files-to-tokens" }
+symbol-resolved-trees-to-typed-trees = { path = "../../omega-rust/psi/pipeline/symbol-resolved-trees-to-typed-trees" }
+syntax-trees = { path = "../../omega-rust/psi/representations/syntax-trees" }
+syntax-trees-to-symbol-resolved-trees = { path = "../../omega-rust/psi/pipeline/syntax-trees-to-symbol-resolved-trees" }
+tokens-to-syntax-trees = { path = "../../omega-rust/psi/pipeline/tokens-to-syntax-trees" }
+typed-trees = { path = "../../omega-rust/psi/representations/typed-trees" }
+typed-trees-to-checked-trees = { path = "../../omega-rust/psi/pipeline/typed-trees-to-checked-trees" }
+validation = { path = "../../omega-rust/psi/semantics/validation" }
 serde_json = "1.0"

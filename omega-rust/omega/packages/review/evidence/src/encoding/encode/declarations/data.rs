@@ -31,10 +31,8 @@ pub(crate) fn encode_data_shape(
     })?;
     encoder.field("supply", |encoder| {
         match shape.supply {
-            psi_language_semantics::DataSupplyMode::CheckedShape => encoder.tag("checked_shape", 0),
-            psi_language_semantics::DataSupplyMode::BoundaryOpaque => {
-                encoder.tag("boundary_opaque", 1)
-            }
+            language_semantics::DataSupplyMode::CheckedShape => encoder.tag("checked_shape", 0),
+            language_semantics::DataSupplyMode::BoundaryOpaque => encoder.tag("boundary_opaque", 1),
         };
         Ok(())
     })?;
@@ -210,9 +208,9 @@ pub(crate) fn encode_data_properties(
 ) {
     let _ = encoder.field("multiplicity", |encoder| {
         match properties.multiplicity {
-            psi_language_semantics::Multiplicity::Unrestricted => encoder.tag("unrestricted", 0),
-            psi_language_semantics::Multiplicity::Affine => encoder.tag("affine", 1),
-            psi_language_semantics::Multiplicity::Linear => encoder.tag("linear", 2),
+            language_semantics::Multiplicity::Unrestricted => encoder.tag("unrestricted", 0),
+            language_semantics::Multiplicity::Affine => encoder.tag("affine", 1),
+            language_semantics::Multiplicity::Linear => encoder.tag("linear", 2),
         };
         Ok(())
     });
@@ -223,33 +221,31 @@ pub(crate) fn encode_data_properties(
                 encoder.tag("some", 1);
                 let _ = encoder.field("suspension", |encoder| {
                     match carry.suspension {
-                        psi_language_semantics::CarrySuspension::Forbidden => {
+                        language_semantics::CarrySuspension::Forbidden => {
                             encoder.tag("forbidden", 0)
                         }
-                        psi_language_semantics::CarrySuspension::Allowed => {
-                            encoder.tag("allowed", 1)
-                        }
+                        language_semantics::CarrySuspension::Allowed => encoder.tag("allowed", 1),
                     };
                     Ok(())
                 });
                 let _ = encoder.field("cpu", |encoder| {
                     match carry.cpu {
-                        psi_language_semantics::CarryCpu::Origin => encoder.tag("origin", 0),
-                        psi_language_semantics::CarryCpu::Any => encoder.tag("any", 1),
+                        language_semantics::CarryCpu::Origin => encoder.tag("origin", 0),
+                        language_semantics::CarryCpu::Any => encoder.tag("any", 1),
                     };
                     Ok(())
                 });
                 let _ = encoder.field("host_thread", |encoder| {
                     match carry.host_thread {
-                        psi_language_semantics::CarryHostThread::Origin => encoder.tag("origin", 0),
-                        psi_language_semantics::CarryHostThread::Any => encoder.tag("any", 1),
+                        language_semantics::CarryHostThread::Origin => encoder.tag("origin", 0),
+                        language_semantics::CarryHostThread::Any => encoder.tag("any", 1),
                     };
                     Ok(())
                 });
                 let _ = encoder.field("address", |encoder| {
                     match carry.address {
-                        psi_language_semantics::CarryAddress::Stable => encoder.tag("stable", 0),
-                        psi_language_semantics::CarryAddress::Movable => encoder.tag("movable", 1),
+                        language_semantics::CarryAddress::Stable => encoder.tag("stable", 0),
+                        language_semantics::CarryAddress::Movable => encoder.tag("movable", 1),
                     };
                     Ok(())
                 });
@@ -323,14 +319,11 @@ pub(crate) fn encode_type_identity(
     encoder.field("canonical", |encoder| encoder.string(&identity.canonical))
 }
 
-pub(crate) fn encode_relevance(
-    encoder: &mut Encoder,
-    relevance: psi_language_core::BindingRelevance,
-) {
+pub(crate) fn encode_relevance(encoder: &mut Encoder, relevance: language_core::BindingRelevance) {
     let _ = encoder.field("relevance", |encoder| {
         match relevance {
-            psi_language_core::BindingRelevance::Relevant => encoder.tag("relevant", 0),
-            psi_language_core::BindingRelevance::Erased => encoder.tag("erased", 1),
+            language_core::BindingRelevance::Relevant => encoder.tag("relevant", 0),
+            language_core::BindingRelevance::Erased => encoder.tag("erased", 1),
         };
         Ok(())
     });

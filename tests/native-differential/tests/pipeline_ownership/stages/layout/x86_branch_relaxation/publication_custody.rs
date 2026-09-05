@@ -1,6 +1,6 @@
 //! Authenticated direct-receipt, rel8-manifest, and exit-custody corruption coverage.
 
-use omega_optimization_core::OptimizationSelectionIdentity;
+use optimization_core::OptimizationSelectionIdentity;
 
 use crate::tests::*;
 

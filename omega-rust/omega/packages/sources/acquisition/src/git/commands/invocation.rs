@@ -6,7 +6,7 @@ use super::reconciliation::reconcile_git_command_result;
 use crate::SourceResolveError;
 use crate::git::executable::executor::GitExecutor;
 use crate::limits::{GIT_STDERR_LIMIT, GIT_STDOUT_LIMIT};
-use omega_resolver_execution::ResolverExecutionPhase;
+use resolver_execution::ResolverExecutionPhase;
 use std::ffi::OsStr;
 use std::path::Path;
 

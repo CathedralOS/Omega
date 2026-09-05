@@ -4,9 +4,9 @@ use super::{signatures, values};
 use crate::capture::api;
 use crate::capture::semantics::facts::exactly_one;
 use crate::record::*;
-use omega_compiler::CheckedCompilation;
-use psi_core::PackageKeyIdentity;
-use psi_diagnostics::Diagnostic;
+use compiler::CheckedCompilation;
+use diagnostics::Diagnostic;
+use semantic_vocabulary::PackageKeyIdentity;
 
 pub(super) fn data(
     compilation: &CheckedCompilation,

@@ -1,5 +1,5 @@
 use crate::tests::*;
-use omega_selected_instructions_to_register_homes::LiteralFoldError;
+use selected_instructions_to_register_homes::LiteralFoldError;
 
 use super::fixture::*;
 

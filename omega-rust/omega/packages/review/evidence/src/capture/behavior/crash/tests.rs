@@ -7,29 +7,27 @@ use crate::record::{
 
 #[test]
 fn structural_runtime_requirement_crosses_as_closed_review_evidence() {
-    let source = psi_checked_trees::CheckedBooleanExpression::IntegerComparison {
-        kind: psi_checked_trees::CheckedIntegerComparisonKind::LessOrEqual,
-        left: Box::new(psi_checked_trees::CheckedScalarExpression::IntegerLiteral {
-            literal: psi_numerics::literals::IntegerLiteral::from_value(7).with_landing(
-                psi_numerics::literals::IntegerLanding {
-                    landed_type: psi_numerics::literals::LandedIntegerType::U32,
-                    domain: psi_numerics::arithmetic::ArithmeticDomain::Exact,
+    let source = checked_trees::CheckedBooleanExpression::IntegerComparison {
+        kind: checked_trees::CheckedIntegerComparisonKind::LessOrEqual,
+        left: Box::new(checked_trees::CheckedScalarExpression::IntegerLiteral {
+            literal: numerics::literals::IntegerLiteral::from_value(7).with_landing(
+                numerics::literals::IntegerLanding {
+                    landed_type: numerics::literals::LandedIntegerType::U32,
+                    domain: numerics::arithmetic::ArithmeticDomain::Exact,
                 },
             ),
         }),
-        right: Box::new(
-            psi_checked_trees::CheckedScalarExpression::IntegerExactCast {
-                primitive_type: psi_typed_trees::types::PrimitiveType::U32,
-                operand: Box::new(psi_checked_trees::CheckedScalarExpression::Parameter {
-                    position: 3,
-                    primitive_type: psi_typed_trees::types::PrimitiveType::U16,
-                }),
-                range: psi_checked_trees::CheckedIntegerRange {
-                    minimum: psi_numerics::bignum::BigInt::from_u64(0),
-                    maximum: psi_numerics::bignum::BigInt::from_u64(u32::MAX as u64),
-                },
+        right: Box::new(checked_trees::CheckedScalarExpression::IntegerExactCast {
+            primitive_type: typed_trees::types::PrimitiveType::U32,
+            operand: Box::new(checked_trees::CheckedScalarExpression::Parameter {
+                position: 3,
+                primitive_type: typed_trees::types::PrimitiveType::U16,
+            }),
+            range: checked_trees::CheckedIntegerRange {
+                minimum: numerics::bignum::BigInt::from_u64(0),
+                maximum: numerics::bignum::BigInt::from_u64(u32::MAX as u64),
             },
-        ),
+        }),
     };
 
     let PackageReviewBooleanExpression::IntegerComparison { kind, left, right } =
@@ -67,11 +65,11 @@ fn structural_runtime_requirement_crosses_as_closed_review_evidence() {
 #[test]
 fn crash_cause_crosses_the_review_boundary_as_closed_evidence() {
     assert_eq!(
-        project_crash_cause(psi_checked_trees::CrashCause::Trap),
+        project_crash_cause(checked_trees::CrashCause::Trap),
         PackageReviewCrashCause::Trap,
     );
     assert_eq!(
-        project_crash_cause(psi_checked_trees::CrashCause::Abort),
+        project_crash_cause(checked_trees::CrashCause::Abort),
         PackageReviewCrashCause::Abort,
     );
 }

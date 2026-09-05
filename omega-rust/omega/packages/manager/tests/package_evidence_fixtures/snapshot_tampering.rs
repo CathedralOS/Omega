@@ -37,7 +37,7 @@ fn review_compilation_rejects_snapshot_tampering_before_compiler_consumption() {
     std::fs::set_permissions(&main, permissions).unwrap();
 
     let error = compile_resolved_package_reviews(
-        &closure.for_exact_target(omega_target::TargetProfile::WindowsX64),
+        &closure.for_exact_target(target::TargetProfile::WindowsX64),
         &cache.join("compiler-build"),
     )
     .expect_err("tampered resolver custody must not reach compilation");

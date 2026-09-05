@@ -1,6 +1,6 @@
 use super::*;
-use omega_effects::provider_plan::ServiceSchema;
-use omega_package_compilation::AcceptedSemanticBinding;
+use effects::provider_plan::ServiceSchema;
+use package_compilation::AcceptedSemanticBinding;
 
 pub(super) const FILESYSTEM: &str = r#"pub boundary trait FilesystemHost {
     machine read(descriptor: i32) -> i64;
@@ -196,7 +196,7 @@ machine build(builder: &mut Build) {
     pub fn check_binding(
         &self,
         accepted: AcceptedSemanticBinding,
-    ) -> Result<CheckedCompilation, Vec<psi_diagnostics::Diagnostic>> {
+    ) -> Result<CheckedCompilation, Vec<diagnostics::Diagnostic>> {
         compile_to_checked_with_packages(
             &self.root.0.join("main.omg"),
             Some(self.target.target_name()),

@@ -36,7 +36,7 @@ src/
 ```
 
 Native process lifecycle, concrete resource limits, and bounded duplex capture
-live in [`omega-bounded-process`](../../../tooling/omega-bounded-process/README.md).
+live in [`bounded-process`](../../../tooling/bounded-process/README.md).
 The peer [`execution/`](../execution/README.md) crate owns resolver-specific
 executable and phase/root preparation. Acquisition retains no executable identity,
 command/completion provenance, platform-guarantee row, or fetch receipt.

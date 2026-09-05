@@ -1,5 +1,5 @@
 use crate::tests::*;
-use omega_optimization_core::{OptimizationWorkBudget, OptimizationWorkUsage};
+use optimization_core::{OptimizationWorkBudget, OptimizationWorkUsage};
 
 use super::super::{
     homed_spill_pseudo_instructions,
@@ -20,27 +20,27 @@ pub(super) fn exact_budget() -> OptimizationWorkBudget {
 
 pub(super) fn spill_source(
     target: NativeTarget,
-) -> omega_selected_instructions_to_register_homes::ValidatedAbstractSpillAccessConstraints {
+) -> selected_instructions_to_register_homes::ValidatedAbstractSpillAccessConstraints {
     let source =
         homed_spill_pseudo_instructions::build(reload_bundle as fn(NativeTarget) -> Bundle, target);
     let homed =
         homed_spill_pseudo_instructions::lower(&source, selected_lowering_budget()).unwrap();
-    let effects = omega_selected_instructions_to_register_homes::derive_abstract_spill_memory_effects(
+    let effects = selected_instructions_to_register_homes::derive_abstract_spill_memory_effects(
         &homed,
-        omega_selected_instructions_to_register_homes::AbstractSpillMemoryEffectPolicy::HomedPseudoReadWriteV1,
+        selected_instructions_to_register_homes::AbstractSpillMemoryEffectPolicy::HomedPseudoReadWriteV1,
         selected_lowering_budget(),
     )
     .unwrap();
-    omega_selected_instructions_to_register_homes::constrain_abstract_spill_accesses(
+    selected_instructions_to_register_homes::constrain_abstract_spill_accesses(
         &effects,
-        omega_selected_instructions_to_register_homes::AbstractSpillAccessConstraintPolicy::BlockLocalDataBarrierAndOverlapV1,
+        selected_instructions_to_register_homes::AbstractSpillAccessConstraintPolicy::BlockLocalDataBarrierAndOverlapV1,
         selected_lowering_budget(),
     )
     .unwrap()
 }
 
 pub(super) fn stage(
-    source: &omega_selected_instructions_to_register_homes::ValidatedAbstractSpillAccessConstraints,
+    source: &selected_instructions_to_register_homes::ValidatedAbstractSpillAccessConstraints,
     environment: &ValidatedTargetRegisterEnvironment,
     budget: OptimizationWorkBudget,
 ) -> Result<ValidatedNonAuthoritativeSpillFrameRequirements, SpillFrameRequirementError> {

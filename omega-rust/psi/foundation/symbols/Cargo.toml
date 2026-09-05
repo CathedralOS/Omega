@@ -1,0 +1,14 @@
+[package]
+name = "symbols"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[lib]
+name = "symbols"
+path = "src/lib.rs"
+
+[dependencies]
+arena = { path = "../arena" }
+semantic-vocabulary = { path = "../semantic-vocabulary" }
+source = { path = "../source" }

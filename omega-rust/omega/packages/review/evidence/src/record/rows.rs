@@ -19,7 +19,7 @@ use super::{
     },
     terminal_authority::PackageReviewTerminalAuthorityPermission,
 };
-use psi_core::PackageKeyIdentity;
+use semantic_vocabulary::PackageKeyIdentity;
 
 /// Compiler-owned granularity for review-only capability/API comparison.
 ///
@@ -274,7 +274,7 @@ impl CheckedPackageReviewProjection {
         self.package
     }
 
-    pub const fn target(&self) -> omega_target::TargetProfile {
+    pub const fn target(&self) -> target::TargetProfile {
         self.target
     }
 

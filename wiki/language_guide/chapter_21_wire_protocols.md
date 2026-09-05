@@ -173,7 +173,7 @@ compiler-known placement vocabulary. The compiler validates and normalizes that
 plan before it may drive encoding, decoding, or establishment.
 
 The target-neutral placement derivation, authored-policy evaluation/agreement
-gate, and encode-obligation recording live in `psi-build-time-evaluation` over
+gate, and encode-obligation recording live in `build-time-evaluation` over
 Psi typed trees. Omega schedules that phase and consumes the checked plan during
 target realization; it does not own the wire-language semantics.
 

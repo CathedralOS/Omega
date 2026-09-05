@@ -2,18 +2,18 @@
 
 use super::fixture::ExactCompilerRowScenario;
 use super::historical_policy::resolve_all;
-use omega_package_manager::lock::{
+use package_manager::lock::{
     HistoricalPackagePolicyDecisions, HistoricalPackagePolicyLimits, PackageLock, PackageLockError,
     PackageLockRecoveryLimits, PackageLockTarget,
 };
-use omega_package_manager::resolution::graph::{
+use package_manager::resolution::graph::{
     CanonicalSourceClosureSubject, CanonicalSourceClosureSubjectLimits,
 };
-use omega_package_manager::review::{
+use package_manager::review::{
     ReviewOnlyCapabilityConflictSet, ReviewOnlyRootPolicyDisposition,
     compile_resolved_package_reviews,
 };
-use omega_target::TargetProfile;
+use target::TargetProfile;
 
 fn empty_decisions(source: &CanonicalSourceClosureSubject) -> HistoricalPackagePolicyDecisions {
     HistoricalPackagePolicyDecisions::recover_text(

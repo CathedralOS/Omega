@@ -245,7 +245,7 @@ fn control_flow_cleanup_projects_adjacent_block_merge_occurrences() {
     let first = &optimized.unit().functions[0].blocks[0].nodes[0];
     assert!(matches!(
         first.operation,
-        omega_abstract_operations::AbstractOperation::BooleanNot {
+        abstract_operations::AbstractOperation::BooleanNot {
             operand,
             ..
         } if operand == ValueId::new(4_254).unwrap()
@@ -253,8 +253,8 @@ fn control_flow_cleanup_projects_adjacent_block_merge_occurrences() {
     assert_eq!(
         first.provenance,
         [
-            omega_optimization_unit::PsiProvenance::Operation(OperationId::new(4_258).unwrap()),
-            omega_optimization_unit::PsiProvenance::Edge(EdgeId::new(4_257).unwrap()),
+            optimization_unit::PsiProvenance::Operation(OperationId::new(4_258).unwrap()),
+            optimization_unit::PsiProvenance::Edge(EdgeId::new(4_257).unwrap()),
         ]
     );
     assert_eq!(first.fuel.len(), 2);
@@ -287,18 +287,18 @@ fn control_flow_cleanup_projects_adjacent_conditional_fanout() {
     let node = &optimized.unit().functions[0].blocks[0].nodes[0];
     assert!(matches!(
         node.operation,
-        omega_abstract_operations::AbstractOperation::Conditional {
+        abstract_operations::AbstractOperation::Conditional {
             condition,
             ..
         } if condition == ValueId::new(4_276).unwrap()
     ));
-    let inherited = omega_optimization_unit::PsiProvenance::Edge(EdgeId::new(4_278).unwrap());
+    let inherited = optimization_unit::PsiProvenance::Edge(EdgeId::new(4_278).unwrap());
     assert!(
         node.successors
             .iter()
             .all(|edge| edge.provenance.last() == Some(&inherited))
     );
-    let input = omega_optimization_unit::PsiRealizationSite::Edge {
+    let input = optimization_unit::PsiRealizationSite::Edge {
         machine: MachineId::new(4_271).unwrap(),
         edge: EdgeId::new(4_278).unwrap(),
     };
@@ -329,7 +329,7 @@ fn control_flow_cleanup_projects_path_qualified_fanout_custody() {
     assert_eq!(optimized.commits().len(), 3);
     assert_eq!(optimized.plan().functions[0].block_entries.len(), 2);
     assert_eq!(optimized.plan().functions[0].operations.len(), 2);
-    let outgoing = omega_optimization_unit::PsiProvenance::Edge(EdgeId::new(4_315).unwrap());
+    let outgoing = optimization_unit::PsiProvenance::Edge(EdgeId::new(4_315).unwrap());
     let occurrences = optimized.unit().functions[0]
         .blocks
         .iter()
@@ -341,7 +341,7 @@ fn control_flow_cleanup_projects_path_qualified_fanout_custody() {
     assert_eq!(occurrences[0].target, BlockId::new(4_306).unwrap());
     assert_eq!(occurrences[1].target, BlockId::new(4_306).unwrap());
     let ledger = optimized.transformation_ledger();
-    let outgoing_site = omega_optimization_unit::PsiRealizationSite::Edge {
+    let outgoing_site = optimization_unit::PsiRealizationSite::Edge {
         machine: MachineId::new(4_301).unwrap(),
         edge: EdgeId::new(4_315).unwrap(),
     };
@@ -473,8 +473,8 @@ fn overflowing_u8_add_is_rejected_before_the_widen_commutation_recipe() {
     assert!(matches!(
         error,
         OptimizationPipelineError::ArtifactLowering(
-            omega_psi_to_abstract_operations::ArtifactLoweringError::Verification(
-                psi_terminal_verifier::VerificationError::RejectedEvidence {
+            terminal_psi_to_abstract_operations::ArtifactLoweringError::Verification(
+                terminal_verifier::VerificationError::RejectedEvidence {
                     obligation,
                     ..
                 }
@@ -497,8 +497,8 @@ fn underflowing_u8_subtract_is_rejected_before_the_widen_commutation_recipe() {
     assert!(matches!(
         error,
         OptimizationPipelineError::ArtifactLowering(
-            omega_psi_to_abstract_operations::ArtifactLoweringError::Verification(
-                psi_terminal_verifier::VerificationError::RejectedEvidence {
+            terminal_psi_to_abstract_operations::ArtifactLoweringError::Verification(
+                terminal_verifier::VerificationError::RejectedEvidence {
                     obligation,
                     ..
                 }

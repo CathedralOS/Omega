@@ -9,10 +9,10 @@ use crate::review::{
     LockedPolicyComparisonError, compare_locked_package_policies,
     compile_resolved_package_candidate_reviews,
 };
-use omega_package_source::SourceResolverStorage;
-use omega_target::TargetProfile;
+use package_source::SourceResolverStorage;
 use std::fmt;
 use std::path::Path;
+use target::TargetProfile;
 
 /// The accepted section remains borrowed history; reviews belong to this fresh
 /// compiler run. Policy equality neither records a decision nor admits source.

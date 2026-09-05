@@ -1,0 +1,55 @@
+[package]
+name = "provider-planning"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[lib]
+name = "provider_planning"
+path = "src/lib.rs"
+
+[features]
+default = []
+installed-writer = [
+    "dep:executable-installation",
+    "dep:external-roots",
+    "program-entry-plan/installed-writer",
+]
+
+[dependencies]
+calling-conventions = { path = "../../representations/calling-conventions" }
+backend-plan = { path = "../../backend/plans/backend-plan" }
+effects = { path = "../../representations/effects" }
+executable-installation = { path = "../../backend/runtime/executable-installation", optional = true }
+external-roots = { path = "../../backend/runtime/external-roots", optional = true }
+layout = { path = "../../backend/layout" }
+package-compilation = { path = "../package-compilation" }
+program-entry-plan = { path = "../../backend/plans/program-entry-plan" }
+representation-planning = { path = "../representation-planning" }
+target = { path = "../../representations/target" }
+task-plans = { path = "../../representations/task-plans" }
+trust-model = { path = "../trust-model" }
+visualizations = { path = "../../tooling/visualizations" }
+arena = { path = "../../../psi/foundation/arena" }
+build-time-evaluation = { path = "../../../psi/semantics/build-time-evaluation" }
+checked-trees = { path = "../../../psi/representations/checked-trees" }
+semantic-vocabulary = { path = "../../../psi/foundation/semantic-vocabulary" }
+diagnostics = { path = "../../../psi/foundation/diagnostics" }
+flow-effects = { path = "../../../psi/representations/flow-effects" }
+facts = { path = "../../../psi/representations/facts" }
+language-core = { path = "../../../psi/foundation/language-core" }
+language-semantics = { path = "../../../psi/foundation/language-semantics" }
+layout-plans = { path = "../../../psi/foundation/layout-plans" }
+numerics = { path = "../../../psi/foundation/numerics" }
+source = { path = "../../../psi/foundation/source" }
+symbols = { path = "../../../psi/foundation/symbols" }
+typed-trees = { path = "../../../psi/representations/typed-trees" }
+validation = { path = "../../../psi/semantics/validation" }
+sha2 = "0.10.9"
+
+[dev-dependencies]
+source-files-to-tokens = { path = "../../../psi/pipeline/source-files-to-tokens" }
+symbol-resolved-trees-to-typed-trees = { path = "../../../psi/pipeline/symbol-resolved-trees-to-typed-trees" }
+syntax-trees-to-symbol-resolved-trees = { path = "../../../psi/pipeline/syntax-trees-to-symbol-resolved-trees" }
+tokens-to-syntax-trees = { path = "../../../psi/pipeline/tokens-to-syntax-trees" }
+typed-trees-to-checked-trees = { path = "../../../psi/pipeline/typed-trees-to-checked-trees" }

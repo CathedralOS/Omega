@@ -150,7 +150,7 @@ where machine Callback(value: u64) -> u64;
         .span_mut(provider_telescope)
         .expect("provider static telescope")[0];
     let original_kind = provider_static.kind.clone();
-    provider_static.kind = psi_typed_trees::data::TypeParameterKind::Type;
+    provider_static.kind = typed_trees::data::TypeParameterKind::Type;
     let diagnostics = project_checked_package_review(&checked)
         .expect_err("post-check static-machine kind substitution must reject");
     assert!(
@@ -166,7 +166,7 @@ where machine Callback(value: u64) -> u64;
         .span_mut(provider_telescope)
         .expect("provider static telescope")[0];
     provider_static.kind = original_kind;
-    provider_static.bounds.multiplicity = psi_language_semantics::Multiplicity::Unrestricted;
+    provider_static.bounds.multiplicity = language_semantics::Multiplicity::Unrestricted;
     let diagnostics = project_checked_package_review(&checked)
         .expect_err("post-check type-property bounds on a machine parameter must reject");
     assert!(

@@ -8,9 +8,9 @@ pub(crate) use selections::rederive_selections;
 use crate::capture::calling::project_checked_calling_policy;
 use crate::capture::semantics::declarations::{nominal_identity, reviewed_package_owns};
 use crate::record::{PackagePolicyRepresentation, PackagePolicyRepresentationDemand};
-use omega_compiler::CheckedCompilation;
-use psi_core::PackageKeyIdentity;
-use psi_diagnostics::Diagnostic;
+use compiler::CheckedCompilation;
+use diagnostics::Diagnostic;
+use semantic_vocabulary::PackageKeyIdentity;
 
 /// Project one package's representation policy in the checked activation.
 /// The package owns declarations/producer availability independently of use;
@@ -31,7 +31,7 @@ pub fn project_checked_representation_policy(
     let selections = rederive_selections(compilation)?;
     let mut declarations = Vec::new();
     for definition in compilation.data_definitions().iter().filter(|definition| {
-        definition.supply_mode == psi_language_semantics::DataSupplyMode::BoundaryOpaque
+        definition.supply_mode == language_semantics::DataSupplyMode::BoundaryOpaque
     }) {
         let identity = nominal_identity(compilation, definition.symbol)?;
         if reviewed_package_owns(&identity, package)? {

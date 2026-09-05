@@ -1,0 +1,9 @@
+[package]
+name = "language-core"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[lib]
+name = "language_core"
+path = "src/lib.rs"

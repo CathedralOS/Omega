@@ -4,10 +4,10 @@ pub(crate) mod values;
 use crate::capture::calling::application::signature::instantiate_static_parameters;
 use crate::capture::semantics::signatures::parameters::project_policy_type_parameters_after;
 use crate::record::*;
-use omega_compiler::CheckedCompilation;
-use psi_diagnostics::Diagnostic;
-use psi_symbols::SymbolHandle;
-use psi_typed_trees::{
+use compiler::CheckedCompilation;
+use diagnostics::Diagnostic;
+use symbols::SymbolHandle;
+use typed_trees::{
     data::{MachineParameterContract, TypeParameter, TypeParameterKind},
     name::Identifier,
 };
@@ -23,10 +23,10 @@ pub(crate) fn project_type_parameters(
     preceding_binders: &[(SymbolHandle, String)],
     ordinal_offset: usize,
     lifetime_binders: &[Identifier],
-    substitutions: &[(SymbolHandle, psi_typed_trees::types::TypeReferenceHandle)],
+    substitutions: &[(SymbolHandle, typed_trees::types::TypeReferenceHandle)],
     contract_scopes: &[super::parameters::CallingContractScope],
     public_nominals: bool,
-    selection_exposure: psi_language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure,
+    selection_exposure: language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure,
 ) -> Result<(Vec<(SymbolHandle, String)>, Vec<PackagePolicyTypeParameter>), Vec<Diagnostic>> {
     let (binders, projected) = super::parameters::project_policy_type_parameters(
         compilation,
@@ -49,7 +49,7 @@ pub(crate) fn project_type_parameters(
 
 pub(crate) struct PreparedRequirement {
     pub compilation: CheckedCompilation,
-    pub signature: psi_typed_trees::signature::StateSignature,
+    pub signature: typed_trees::signature::StateSignature,
     pub lifetimes: Vec<Identifier>,
     pub scopes: Vec<crate::capture::semantics::signatures::parameters::CallingContractScope>,
 }
@@ -57,7 +57,7 @@ pub(crate) struct PreparedRequirement {
 pub(crate) fn requirement(
     compilation: &CheckedCompilation,
     owner: SymbolHandle,
-    source: &psi_typed_trees::signature::StateSignature,
+    source: &typed_trees::signature::StateSignature,
     subject: &str,
     outer_binders: &[(SymbolHandle, String)],
     offset: usize,

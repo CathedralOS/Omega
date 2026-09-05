@@ -7,8 +7,8 @@ pub(super) fn staged_callable_object_artifact(
 ) -> StagedValidatedOptimizedObjectArtifact {
     let (semantic, proof) = conditional_exact_binary_artifact(false);
     let layout = match target.architecture {
-        omega_target::Architecture::X86_64 => Optimization::X86RelaxConditionalBranchesToRel8V1,
-        omega_target::Architecture::Aarch64 => {
+        target::Architecture::X86_64 => Optimization::X86RelaxConditionalBranchesToRel8V1,
+        target::Architecture::Aarch64 => {
             Optimization::Aarch64FuseCompareI64ZeroBranchNonZeroToCbnzV1
         }
     };
@@ -80,7 +80,7 @@ fn staged_active_resident_callable_object_artifact(
 
 #[test]
 fn active_resident_root_build_reaches_object_artifact_and_ordinary_callable_on_both_isas() {
-    use omega_calling_conventions::{CallingPolicy, MachineRegister};
+    use calling_conventions::{CallingPolicy, MachineRegister};
 
     let selections = OptimizationSelections::new([
         Optimization::ActiveResidentImmediateU64MultiUseRematerializationV1,
@@ -195,11 +195,11 @@ fn active_resident_root_build_reaches_object_artifact_and_ordinary_callable_on_b
         );
         assert_eq!(
             object_stage.object().symbols[0].linkage,
-            omega_object_file::RelocationFreeObjectSymbolLinkage::ObjectLocalV1
+            object_file::RelocationFreeObjectSymbolLinkage::ObjectLocalV1
         );
         assert_eq!(
             object_stage.object().symbols[0].role,
-            omega_object_file::RelocationFreeObjectSymbolRole::SemanticEntryV1
+            object_file::RelocationFreeObjectSymbolRole::SemanticEntryV1
         );
         assert_ne!(object_stage.object().symbols[0].name, "main");
         assert_ne!(object_stage.object().symbols[0].name, "_main");
@@ -300,7 +300,7 @@ fn active_resident_root_build_reaches_object_artifact_and_ordinary_callable_on_b
 
 #[test]
 fn ordinary_callable_entry_replays_target_abi_and_edge_specific_results() {
-    use omega_calling_conventions::{CallingPolicy, MachineRegister};
+    use calling_conventions::{CallingPolicy, MachineRegister};
 
     for (target, policy, parameter, result) in [
         (

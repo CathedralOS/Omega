@@ -3,14 +3,14 @@ use super::super::usage::Budget;
 use crate::declarations::PackageKey;
 use crate::resolution::graph::ResolvedSourceIdentity;
 use crate::resolution::source::PackageSourceNavigation;
-use omega_package_source::{ImmutableSourceResolution, SourceLineage};
+use package_source::{ImmutableSourceResolution, SourceLineage};
 
 pub(super) fn git_request(
     locator: &str,
     revision: &str,
     budget: &mut Budget,
-) -> Result<omega_package_source::GitSourceRequest, CanonicalSourceClosureSubjectError> {
-    use omega_package_source::GitSourceRequest;
+) -> Result<package_source::GitSourceRequest, CanonicalSourceClosureSubjectError> {
+    use package_source::GitSourceRequest;
     budget.charge(
         GitSourceRequest::recovery_owned_bytes(locator).ok_or_else(|| {
             CanonicalSourceClosureSubjectError::new("Git request recovery allowance overflow")

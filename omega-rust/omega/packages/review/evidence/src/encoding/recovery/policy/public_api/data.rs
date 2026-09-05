@@ -21,8 +21,8 @@ pub(super) fn data_shape(reader: &mut Reader<'_>) -> Result<PackagePolicyDataSha
             _ => return Err(Error::InvalidTag),
         },
         supply: match reader.byte()? {
-            0 => psi_language_semantics::DataSupplyMode::CheckedShape,
-            1 => psi_language_semantics::DataSupplyMode::BoundaryOpaque,
+            0 => language_semantics::DataSupplyMode::CheckedShape,
+            1 => language_semantics::DataSupplyMode::BoundaryOpaque,
             _ => return Err(Error::InvalidTag),
         },
         lifetime_parameter_count: reader.usize()?,

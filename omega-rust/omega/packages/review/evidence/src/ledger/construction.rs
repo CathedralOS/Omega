@@ -11,9 +11,9 @@ use crate::encoding::{DecodedPackageReviewCanonicalRow, canonical_row_subject_fo
 use crate::record::{
     PackageReviewCanonicalRow, PackageReviewCanonicalRowKind, PackageReviewCanonicalRowRisk,
 };
-use omega_package_compilation::PackageDependencyClosure;
-use omega_target::TargetProfile;
-use psi_core::PackageKeyIdentity;
+use package_compilation::PackageDependencyClosure;
+use semantic_vocabulary::PackageKeyIdentity;
+use target::TargetProfile;
 
 /// Build a candidate ledger from compiler-issued in-memory rows.
 ///

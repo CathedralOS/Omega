@@ -17,12 +17,10 @@ fn legalization_replay_rejects_foreign_proof_fact_and_leaf_operation_custody() {
 
     let mut corrupted = original.clone();
     let false_fact = match corrupted.functions[0].when_false.value {
-        omega_legalized_operations::LegalizedLeafValue::ExactAdd { accepted_fact, .. } => {
-            accepted_fact
-        }
+        legalized_operations::LegalizedLeafValue::ExactAdd { accepted_fact, .. } => accepted_fact,
         _ => panic!("exact-add fixture must retain its admitted fact"),
     };
-    let omega_legalized_operations::LegalizedLeafValue::ExactAdd { accepted_fact, .. } =
+    let legalized_operations::LegalizedLeafValue::ExactAdd { accepted_fact, .. } =
         &mut corrupted.functions[0].when_true.value
     else {
         panic!("exact-add fixture must retain its admitted fact")
@@ -34,7 +32,7 @@ fn legalization_replay_rejects_foreign_proof_fact_and_leaf_operation_custody() {
     );
 
     let mut corrupted = original.clone();
-    let omega_legalized_operations::LegalizedLeafValue::ExactAdd { left, right, .. } =
+    let legalized_operations::LegalizedLeafValue::ExactAdd { left, right, .. } =
         &mut corrupted.functions[0].when_true.value
     else {
         panic!("exact-add fixture must retain its inputs")

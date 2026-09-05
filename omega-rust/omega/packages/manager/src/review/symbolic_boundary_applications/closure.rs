@@ -5,11 +5,11 @@ use super::{
     ConcreteProducerBinderCategory, SymbolicBoundaryApplicationClosureError,
     SymbolicBoundaryApplicationClosureRequest,
 };
-use omega_boundary_applications::{
+use boundary_applications::{
     BoundaryApplication, BoundaryApplicationArgument, BoundaryNominalIdentity,
     BoundaryOperatorRequirement, BoundaryTypeIdentity,
 };
-use omega_package_evidence::record::{
+use package_evidence::record::{
     PackageReviewBoundaryApplication, PackageReviewBoundaryApplicationArgument,
     PackageReviewNominalIdentity, PackageReviewNominalOwner,
     PackageReviewSymbolicBoundaryApplicationArgument, PackageReviewTypeParameterKind,
@@ -233,10 +233,8 @@ pub(super) fn close_one(
     })
 }
 
-fn has_nontrivial_bounds(
-    parameter: &omega_package_evidence::record::PackageReviewTypeParameter,
-) -> bool {
-    parameter.bounds().multiplicity() != psi_language_semantics::Multiplicity::Affine
+fn has_nontrivial_bounds(parameter: &package_evidence::record::PackageReviewTypeParameter) -> bool {
+    parameter.bounds().multiplicity() != language_semantics::Multiplicity::Affine
         || parameter.bounds().carry().is_some()
 }
 

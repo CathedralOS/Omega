@@ -42,8 +42,8 @@ fi
     exit 1
 }
 
-python3 "$SOURCE_CLOSURE_MATERIALIZER" "$OMEGA_PATH_OMEGA_COMPILER_SOURCES" "$TMP/omega_compiler.epsilon"
-grep -F 'data AlphaTapeBuffer {' "$TMP/omega_compiler.epsilon" >/dev/null || {
+python3 "$SOURCE_CLOSURE_MATERIALIZER" "$OMEGA_PATH_OMEGA_COMPILER_SOURCES" "$TMP/compiler.epsilon"
+grep -F 'data AlphaTapeBuffer {' "$TMP/compiler.epsilon" >/dev/null || {
     echo "Interpreted Omega experiment: Omega D does not own Alpha tape construction" >&2
     exit 1
 }
@@ -102,7 +102,7 @@ if set(controls) != {path.name for path in test_directory.glob("*.epsilon")}:
 
 # These customers use whole, unchanged D members. The host only checks identities
 # and concatenates bytes; no function extraction or source translation occurs.
-omega_compiler = Path(os.environ["OMEGA_PATH_OMEGA_COMPILER"])
+compiler = Path(os.environ["OMEGA_PATH_OMEGA_COMPILER"])
 
 def add_customer(name, members, expected_size, expected_digest, expected_output):
     source = b""
@@ -116,49 +116,49 @@ def add_customer(name, members, expected_size, expected_digest, expected_output)
     controls[name] = (source, b"", expected_output)
 
 add_customer("Omega D lexical helpers", (
-    (omega_compiler / "representations.epsilon", 30905,
+    (compiler / "representations.epsilon", 30905,
      "7b2b1ca57752256e9b10446ea8a2469075d9a0cac11ffe97f2037340528064ed"),
-    (omega_compiler / "lexical_classification.epsilon", 2520,
+    (compiler / "lexical_classification.epsilon", 2520,
      "12a3775f19ac6030bcca609acbf530ee64a09111cc24d7e941292e0d05fd996f"),
     (test_directory / "customers/omega_lexical/main.epsilon", 1486,
      "6ce07453269102f7f468241d1a066a21cbe08c2a0652bb460c9c34d2f6ef11b2"),
 ), 34911, "45447a0cc81353c88d341354b444537bfb113b304fcab50659d774a5fab08e1b", b"\x00\x00\x00\x00\x00A")
 
 add_customer("Omega D Alpha tape buffers", (
-    (omega_compiler / "representations.epsilon", 30905,
+    (compiler / "representations.epsilon", 30905,
      "7b2b1ca57752256e9b10446ea8a2469075d9a0cac11ffe97f2037340528064ed"),
-    (omega_compiler / "alpha_tape.epsilon", 30828,
+    (compiler / "alpha_tape.epsilon", 30828,
      "302bddf1161fa06b07d1aba914f1e84209006a03020e50127c2db22c0daba59d"),
     (test_directory / "customers/omega_alpha_tape/main.epsilon", 1797,
      "0ccf1ef98023c4e19038bb0bcde4fd27140dbed47df166874e84d2e8930c348f"),
 ), 63530, "08284b839b374d8e611bba77cd63d4093f1f72d7034dca7b8b1aeb26cec6c5b5", b"\x00\x00\x00\x00\x00ABCDEFGH")
 
 add_customer("Omega D request and UTF-8", (
-    (omega_compiler / "representations.epsilon", 30905,
+    (compiler / "representations.epsilon", 30905,
      "7b2b1ca57752256e9b10446ea8a2469075d9a0cac11ffe97f2037340528064ed"),
-    (omega_compiler / "request_and_utf8.epsilon", 7384,
+    (compiler / "request_and_utf8.epsilon", 7384,
      "663acd44f754150f9cfea7bf3e08afda6b13aeca99b4a7fc08141ae66da89abe"),
     (test_directory / "customers/omega_request/main.epsilon", 2253,
      "e85bfe363cae2b313db528d9776dd4e11a185199c3d453293421da674af17121"),
 ), 40542, "e47a07296fb205934fa013b4aae29d35d51d0e8f1ee08eaf5f7de9c69c2bb099", b"\x00\x00\x00\x00\x00A\n")
 
 add_customer("Omega D numeric-base sums", (
-    (omega_compiler / "representations.epsilon", 30905,
+    (compiler / "representations.epsilon", 30905,
      "7b2b1ca57752256e9b10446ea8a2469075d9a0cac11ffe97f2037340528064ed"),
-    (omega_compiler / "lexical_classification.epsilon", 2520,
+    (compiler / "lexical_classification.epsilon", 2520,
      "12a3775f19ac6030bcca609acbf530ee64a09111cc24d7e941292e0d05fd996f"),
     (test_directory / "customers/omega_numeric_base/main.epsilon", 1479,
      "abf50c23d589624d59b7b3603918d5ab76e6a6192594c50534fbee6cdf334386"),
 ), 34904, "0f7f338afa427419fd6cea2e0f0536263d06ff8e41f1720b2e077cb702d1be0e", b"\x00\x00\x00\x00\x00A")
 
 add_customer("Omega D lexer", (
-    (omega_compiler / "representations.epsilon", 30905,
+    (compiler / "representations.epsilon", 30905,
      "7b2b1ca57752256e9b10446ea8a2469075d9a0cac11ffe97f2037340528064ed"),
-    (omega_compiler / "request_and_utf8.epsilon", 7384,
+    (compiler / "request_and_utf8.epsilon", 7384,
      "663acd44f754150f9cfea7bf3e08afda6b13aeca99b4a7fc08141ae66da89abe"),
-    (omega_compiler / "lexical_classification.epsilon", 2520,
+    (compiler / "lexical_classification.epsilon", 2520,
      "12a3775f19ac6030bcca609acbf530ee64a09111cc24d7e941292e0d05fd996f"),
-    (omega_compiler / "lexer.epsilon", 44649,
+    (compiler / "lexer.epsilon", 44649,
      "e16e7a42ee0848ff56b06dff4e9900569ae57724a281c0d3bada847717412ba6"),
     (test_directory / "customers/omega_lexer/main.epsilon", 6771,
      "e4a262f1b011402970f958afbc6c950882bb75906fc7244b3ea19c8d489a0e06"),

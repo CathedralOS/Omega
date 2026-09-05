@@ -1,0 +1,22 @@
+[package]
+name = "post-allocation-machine-to-frame-layout"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[lib]
+name = "post_allocation_machine_to_frame_layout"
+path = "src/lib.rs"
+
+[dependencies]
+selected-instructions-to-register-homes = { path = "../selected-instructions-to-register-homes" }
+optimization-core = { path = "../../representations/optimization-core" }
+machine-code = { path = "../../representations/machine-code" }
+register-homes-to-post-allocation-machine = { path = "../register-homes-to-post-allocation-machine" }
+register-model = { path = "../../representations/register-model" }
+selected-instructions = { path = "../../representations/selected-instructions" }
+target = { path = "../../representations/target" }
+target-to-register-environment = { path = "../target-to-register-environment" }
+semantic-vocabulary = { path = "../../../psi/foundation/semantic-vocabulary" }
+sha2 = "0.10.9"
+physical-instructions = { path = "../../representations/physical-instructions" }

@@ -1,7 +1,7 @@
 //! Exact active-resident recovery followed by AArch64 MOVN realization.
 
 use crate::FunctionFragmentReplayInputs;
-use omega_isa_aarch64::encode_aarch64_shortest_movn_materialization;
+use isa_aarch64::encode_aarch64_shortest_movn_materialization;
 
 use crate::tests::*;
 
@@ -37,7 +37,7 @@ fn active_resident_composes_with_movn_through_publication() {
             panic!("the admitted pair must reach the generic post-allocation realization")
         });
     let allocation = realization.allocation().current();
-    let omega_selected_instructions_to_register_homes::AllocationEvidence::ActiveResidentRematerialization(recovery_custody) = allocation.evidence() else {
+    let selected_instructions_to_register_homes::AllocationEvidence::ActiveResidentRematerialization(recovery_custody) = allocation.evidence() else {
         panic!("allocation must retain independently replayed rematerialization evidence")
     };
     let rematerialization = realization

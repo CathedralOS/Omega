@@ -8,11 +8,11 @@ use super::workspace::{
 };
 use crate::declarations::dependencies::read::PackageSelection;
 use crate::resolution::source::{ResolvePackageSourceError, ResolvedPackageSource};
-use omega_package_source::git::resolution::{
+use package_source::git::resolution::{
     resolve_git_source_from_pin_in_lane, resolve_git_workspace_member_from_pin_in_lanes,
 };
-use omega_package_source::storage::RetainedStorageLane;
-use omega_package_source::{
+use package_source::storage::RetainedStorageLane;
+use package_source::{
     GitAcquisitionPin, GitSourceRequest, GitWorkspaceDeclarationLimits,
     GitWorkspaceProjectionError, LocalSourceLimits, ResolvedGitSource, SourceResolverStorage,
 };

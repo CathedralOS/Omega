@@ -1,7 +1,7 @@
 //! Identity-bound legalization replay rejection for target, recipe, provenance, and fuel corruption.
 
 use crate::tests::*;
-use omega_legalized_operations::LegalizedCondition;
+use legalized_operations::LegalizedCondition;
 
 #[test]
 fn legalization_identity_and_replay_reject_target_recipe_provenance_and_fuel_corruption() {
@@ -41,7 +41,7 @@ fn legalization_identity_and_replay_reject_target_recipe_provenance_and_fuel_cor
         };
 
         let mut corrupted = original.clone();
-        corrupted.target = if target.architecture == omega_target::Architecture::X86_64 {
+        corrupted.target = if target.architecture == target::Architecture::X86_64 {
             NativeTarget::linux_arm64()
         } else {
             NativeTarget::linux_x64()
@@ -99,7 +99,7 @@ fn legalization_identity_and_replay_reject_target_recipe_provenance_and_fuel_cor
 
         let mut corrupted = original.clone();
         corrupted.functions[0].branch_true_fuel[0].site =
-            omega_optimization_unit::PsiProvenance::Edge(corrupted.functions[0].branch_false_edge);
+            optimization_unit::PsiProvenance::Edge(corrupted.functions[0].branch_false_edge);
         assert_ne!(legalized_operation_plan_identity(&corrupted), identity);
         assert_eq!(
             validate(corrupted),

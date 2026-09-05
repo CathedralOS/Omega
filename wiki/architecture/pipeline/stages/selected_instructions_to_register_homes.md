@@ -2,7 +2,7 @@
 
 [Pipeline](../pipeline.md) | [Optimization phases](../optimization_phases.md)
 
-`omega-selected-instructions-to-register-homes` owns selected-program analyses,
+`selected-instructions-to-register-homes` owns selected-program analyses,
 explicit pre-allocation rewrites, mandatory reanalysis, and register assignment.
 These are internal parts of one allocation phase, not a crate per optimization.
 

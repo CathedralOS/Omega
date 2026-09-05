@@ -2,14 +2,14 @@ use super::super::semantics::declarations::{
     nominal_identity, nominal_owner, trait_requirement_identity,
 };
 use crate::record::{PackageReviewInstallationReach, PackageReviewNominalIdentity};
-use omega_compiler::CheckedCompilation;
-use psi_diagnostics::Diagnostic;
-use psi_language_semantics::MachineSupplyMode;
-use psi_symbols::SymbolHandle;
+use compiler::CheckedCompilation;
+use diagnostics::Diagnostic;
+use language_semantics::MachineSupplyMode;
+use symbols::SymbolHandle;
 
 pub(crate) fn project_installation_reaches(
     compilation: &CheckedCompilation,
-    requirements: &[psi_effects::InstallationReachRequirement],
+    requirements: &[flow_effects::InstallationReachRequirement],
 ) -> Result<Vec<PackageReviewInstallationReach>, Vec<Diagnostic>> {
     let mut projected = requirements
         .iter()
@@ -80,10 +80,10 @@ fn installation_requirement_identity(
 
 pub(crate) fn project_service_row(
     compilation: &CheckedCompilation,
-    row: psi_language_semantics::ServiceReachRowId,
+    row: language_semantics::ServiceReachRowId,
 ) -> Result<Vec<PackageReviewNominalIdentity>, Vec<Diagnostic>> {
     let services = compilation.facts.service_reaches.rows.services(row);
-    if services.is_empty() && row != psi_language_semantics::ServiceReachRowTable::EMPTY_ROW {
+    if services.is_empty() && row != language_semantics::ServiceReachRowTable::EMPTY_ROW {
         return Err(vec![Diagnostic::error(
             "package review encountered an unknown service-reach row identity",
         )]);

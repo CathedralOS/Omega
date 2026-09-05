@@ -45,7 +45,7 @@ fn static_parameter(kind: PackagePolicyTypeParameterKind) -> PackagePolicyTypePa
     PackagePolicyTypeParameter {
         kind,
         bounds: PackageReviewDataProperties {
-            multiplicity: psi_language_semantics::Multiplicity::Affine,
+            multiplicity: language_semantics::Multiplicity::Affine,
             carry: None,
         },
     }
@@ -85,7 +85,7 @@ fn usage() -> PackageReviewEvaluatedBindingUsage {
 
 fn import(locator: PackageReviewForeignLocator) -> PackageReviewEvaluatedImport {
     PackageReviewEvaluatedImport {
-        target: omega_target::TargetProfile::WindowsX64
+        target: target::TargetProfile::WindowsX64
             .identity()
             .as_str()
             .to_owned(),
@@ -107,7 +107,7 @@ fn import(locator: PackageReviewForeignLocator) -> PackageReviewEvaluatedImport 
 
 fn syscall() -> PackageReviewEvaluatedSyscall {
     PackageReviewEvaluatedSyscall {
-        target: omega_target::TargetProfile::LinuxX64
+        target: target::TargetProfile::LinuxX64
             .identity()
             .as_str()
             .to_owned(),
@@ -416,7 +416,7 @@ fn normalized_binding_target_value_and_producer_fields_change_policy() {
     let original = import(locators().remove(0));
     let import_mutations: &[fn(&mut PackageReviewEvaluatedImport)] = &[
         |row| {
-            row.target = omega_target::TargetProfile::LinuxArm64
+            row.target = target::TargetProfile::LinuxArm64
                 .identity()
                 .as_str()
                 .to_owned()
@@ -443,7 +443,7 @@ fn normalized_binding_target_value_and_producer_fields_change_policy() {
     let original = syscall();
     let syscall_mutations: &[fn(&mut PackageReviewEvaluatedSyscall)] = &[
         |row| {
-            row.target = omega_target::TargetProfile::LinuxArm64
+            row.target = target::TargetProfile::LinuxArm64
                 .identity()
                 .as_str()
                 .to_owned()

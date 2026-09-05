@@ -6,11 +6,11 @@ mod samples;
 
 use std::path::PathBuf;
 
-use omega_compiler::{
+use compiler::{
     ArtifactEmissionPolicy, CompileOptions, CompileRequest, OptimizationRollback,
     RequestedCompileProduct, compile,
 };
-use omega_core::allocations::CountingAllocator;
+use core::allocations::CountingAllocator;
 
 #[global_allocator]
 static GLOBAL_ALLOCATOR: CountingAllocator = CountingAllocator::system();
@@ -97,7 +97,7 @@ fn dispatch() {
         ArtifactEmissionPolicy::Full
     };
     let prepared_project =
-        match omega_package_manager::operations::prepare_local_project(&options.root_path) {
+        match package_manager::operations::prepare_local_project(&options.root_path) {
             Ok(prepared) => prepared,
             Err(error) => {
                 eprintln!("{error}");
@@ -109,7 +109,7 @@ fn dispatch() {
     } else {
         RequestedCompileProduct::NativeArtifact
     };
-    let accepted_admissions = match omega_trust_ledger::read_trust_admissions(&policy_root_path) {
+    let accepted_admissions = match trust_ledger::read_trust_admissions(&policy_root_path) {
         Ok(admissions) => admissions,
         Err(diagnostics) => {
             for diagnostic in diagnostics {
@@ -121,7 +121,7 @@ fn dispatch() {
     let report = match prepared_project {
         Some(prepared) if !arguments.check_only => {
             let target_profile =
-                omega_target::TargetProfile::from_omega_target_name(options.target_name.as_deref())
+                target::TargetProfile::from_omega_target_name(options.target_name.as_deref())
                     .unwrap_or_else(|diagnostic| {
                         eprintln!("{diagnostic}");
                         std::process::exit(1);
@@ -135,21 +135,20 @@ fn dispatch() {
                     eprintln!("{error}");
                     std::process::exit(1);
                 });
-            let mut request =
-                omega_package_manager::operations::PreparedLocalProjectNativeRequest::new(
-                    prepared,
-                    &build_dir,
-                    target_profile,
-                )
-                .with_artifact_policy(artifact_policy)
-                .with_accepted_trust_admissions(accepted_admissions)
-                .with_optimization_rollback(arguments.optimization_rollback);
+            let mut request = package_manager::operations::PreparedLocalProjectNativeRequest::new(
+                prepared,
+                &build_dir,
+                target_profile,
+            )
+            .with_artifact_policy(artifact_policy)
+            .with_accepted_trust_admissions(accepted_admissions)
+            .with_optimization_rollback(arguments.optimization_rollback);
             if let Some((directory, name)) = policy.as_ref() {
                 request = request.with_root_policy(
-                    omega_package_manager::operations::LocalProjectRootPolicy::new(directory, name),
+                    package_manager::operations::LocalProjectRootPolicy::new(directory, name),
                 );
             }
-            omega_package_manager::operations::compile_prepared_local_project_for_native(request)
+            package_manager::operations::compile_prepared_local_project_for_native(request)
                 .unwrap_or_else(|error| {
                     eprintln!("{error}");
                     std::process::exit(1);
@@ -186,7 +185,7 @@ fn dispatch() {
     let settlement = report.trust_admission_settlement();
     if arguments.accept_admissions {
         if let Err(diagnostics) =
-            omega_trust_ledger::accept_trust_admissions(&policy_root_path, settlement.required())
+            trust_ledger::accept_trust_admissions(&policy_root_path, settlement.required())
         {
             for diagnostic in diagnostics {
                 eprintln!("{diagnostic}");
@@ -241,8 +240,8 @@ fn open_package_root_policy(
     path: &std::path::Path,
 ) -> Result<
     (
-        omega_package_manager::review::ReviewOnlyRootPolicyDirectory,
-        omega_package_manager::review::ReviewOnlyRootPolicyName,
+        package_manager::review::ReviewOnlyRootPolicyDirectory,
+        package_manager::review::ReviewOnlyRootPolicyName,
     ),
     String,
 > {
@@ -250,7 +249,7 @@ fn open_package_root_policy(
         .file_name()
         .and_then(|name| name.to_str())
         .ok_or_else(|| "--package-root-policy requires a UTF-8 direct-child filename".to_owned())?;
-    let name = omega_package_manager::review::ReviewOnlyRootPolicyName::parse(name)
+    let name = package_manager::review::ReviewOnlyRootPolicyName::parse(name)
         .map_err(|error| error.to_string())?;
     let directory_path = path
         .parent()
@@ -265,7 +264,7 @@ fn open_package_root_policy(
                 )
             },
         )?;
-    let directory = omega_package_manager::review::ReviewOnlyRootPolicyDirectory::from_capability(
+    let directory = package_manager::review::ReviewOnlyRootPolicyDirectory::from_capability(
         directory,
         directory_path,
     )

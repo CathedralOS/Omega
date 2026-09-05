@@ -75,7 +75,7 @@ impl Fixture {
     }
 
     pub fn grant_filesystem_read(&mut self) {
-        use omega_effects::{
+        use effects::{
             ServiceTerminalAuthorityPermission, TerminalAuthorityClass,
             TerminalAuthorityDisposition,
         };
@@ -94,11 +94,9 @@ impl Fixture {
             .iter()
             .find(|value| value.name.as_str() == "FilesystemHost")
             .unwrap();
-        let schema = omega_effects::provider_plan::ServiceSchema::from_typed(
-            &self.checked.typed,
-            declaration,
-        )
-        .unwrap();
+        let schema =
+            effects::provider_plan::ServiceSchema::from_typed(&self.checked.typed, declaration)
+                .unwrap();
         let requirement = &schema
             .methods
             .iter()

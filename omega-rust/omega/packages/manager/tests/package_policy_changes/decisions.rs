@@ -2,7 +2,7 @@ use super::*;
 #[path = "decisions/context.rs"]
 mod context;
 
-use omega_package_manager::review::{
+use package_manager::review::{
     PackagePolicyChangeSet, PackagePolicyDecision, PackagePolicyDecisionError as Error,
     PackagePolicyDecisionSubject as Subject, ReviewOnlyRootPolicyDisposition::*,
     resolve_package_policy_decisions,

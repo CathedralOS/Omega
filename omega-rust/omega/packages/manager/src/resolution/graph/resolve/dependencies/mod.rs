@@ -18,7 +18,7 @@ use super::errors::ResolveDependencySourceError;
 use crate::declarations::PackageKey;
 use crate::declarations::dependencies::read::DependencySourceRequest;
 use crate::resolution::source::PackageSourceCustody;
-use omega_package_source::{ExternalSourceContext, LocalSourceLimits, WorkspaceLineageIdentity};
+use package_source::{ExternalSourceContext, LocalSourceLimits, WorkspaceLineageIdentity};
 use std::collections::BTreeMap;
 use std::path::PathBuf;
 

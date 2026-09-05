@@ -1,6 +1,6 @@
 //! The journal is the commit intent; interrupted writes complete forward.
 
-use omega_platform_custody::record_file::{RecordFileLock, RecordFileRoot};
+use platform_custody::record_file::{RecordFileLock, RecordFileRoot};
 use std::path::Path;
 
 use super::directory::ProjectDirectories;
@@ -158,11 +158,17 @@ impl PackageFileTransaction {
         // Encoding may be substantial. Check both originals again before intent.
         self.expect_file(BUILD_FILE, Some(before_build))?;
         self.expect_file(LOCK_FILE, before_lock)?;
-        self.journal.write_new(Path::new(JOURNAL_FILE), &encoded, self.limits.journal())
+        self.journal
+            .write_new(Path::new(JOURNAL_FILE), &encoded, self.limits.journal())
             .map_err(|error| {
-                if matches!(error, omega_platform_custody::record_file::RecordFileError::PublishedButUnconfirmed { .. }) {
+                if matches!(
+                    error,
+                    platform_custody::record_file::RecordFileError::PublishedButUnconfirmed { .. }
+                ) {
                     PackagePublicationError::Pending(Box::new(error.into()))
-                } else { error.into() }
+                } else {
+                    error.into()
+                }
             })?;
         let result = (|| {
             checkpoint(PublicationStep::IntentRecorded)?;

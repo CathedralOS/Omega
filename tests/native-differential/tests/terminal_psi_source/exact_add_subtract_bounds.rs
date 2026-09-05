@@ -37,7 +37,7 @@ fn checked_source_exact_add_uses_known_addend_bound() {
         .retain(|evidence| evidence.obligation != obligation);
     assert!(matches!(
         verify_module(&module, &missing_add_proof, &AdmissionProfile::default()),
-        Err(psi_terminal_verifier::VerificationError::MissingEvidence(missing))
+        Err(terminal_verifier::VerificationError::MissingEvidence(missing))
             if missing == obligation
     ));
 
@@ -143,7 +143,7 @@ fn checked_source_exact_add_uses_joint_runtime_bound() {
             .retain(|evidence| evidence.obligation != missing);
         assert!(matches!(
             verify_module(&module, &incomplete, &AdmissionProfile::default()),
-            Err(psi_terminal_verifier::VerificationError::MissingEvidence(obligation))
+            Err(terminal_verifier::VerificationError::MissingEvidence(obligation))
                 if obligation == missing
         ));
     }
@@ -363,7 +363,7 @@ fn checked_source_exact_subtract_uses_known_subtrahend_bound() {
             &missing_subtract_proof,
             &AdmissionProfile::default()
         ),
-        Err(psi_terminal_verifier::VerificationError::MissingEvidence(missing))
+        Err(terminal_verifier::VerificationError::MissingEvidence(missing))
             if missing == obligation
     ));
 

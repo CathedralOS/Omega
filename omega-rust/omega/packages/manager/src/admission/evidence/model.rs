@@ -2,15 +2,15 @@ use crate::declarations::PackageKey;
 use crate::review::{
     FreshPackageRootPolicyAcceptance, FreshPackageRootPolicyError, ReviewOnlyRootPolicyResolution,
 };
-use omega_build_evaluation::{BuildEvaluationUsage, BuildObservationSummary};
-use omega_package_compilation::{
+use build_evaluation::{BuildEvaluationUsage, BuildObservationSummary};
+use package_compilation::{
     AcceptedSemanticBinding, PackageGeneratedSourceBundle, PackageSourceConsumptionCommitment,
 };
-use omega_package_evidence::ledger::{
+use package_evidence::ledger::{
     OrdinaryPackageObligationLedger, OrdinaryPackageObligationResultSet,
     OrdinaryPackageObligationSchemaIdentity,
 };
-use omega_package_source::{ImmutableSourceResolution, SourceResolveError};
+use package_source::{ImmutableSourceResolution, SourceResolveError};
 
 pub const ACCEPTED_ORDINARY_EVIDENCE_SCHEMA_VERSION: u16 = 5;
 

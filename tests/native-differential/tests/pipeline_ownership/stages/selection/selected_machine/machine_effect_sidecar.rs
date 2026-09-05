@@ -50,7 +50,7 @@ fn machine_effect_sidecar_reconstructs_subtraction_and_control_barriers() {
             instructions
                 .iter()
                 .filter(|instruction| {
-                    instruction.barrier == omega_selected_instructions::MachineBarrier::ControlFlow
+                    instruction.barrier == selected_instructions::MachineBarrier::ControlFlow
                 })
                 .count(),
             3
@@ -68,7 +68,7 @@ fn machine_effect_sidecar_reconstructs_subtraction_and_control_barriers() {
         for subtract in subtracts {
             assert_eq!(
                 subtract.alternatives.len(),
-                if target.architecture == omega_target::Architecture::X86_64 {
+                if target.architecture == target::Architecture::X86_64 {
                     4
                 } else {
                     1
@@ -76,7 +76,7 @@ fn machine_effect_sidecar_reconstructs_subtraction_and_control_barriers() {
             );
             assert_eq!(
                 subtract.unit_clobbers.is_empty(),
-                target.architecture != omega_target::Architecture::X86_64
+                target.architecture != target::Architecture::X86_64
             );
             assert_eq!(subtract.provenance.obligations.len(), 1);
             assert_eq!(subtract.provenance.fuel.len(), 1);
@@ -87,7 +87,7 @@ fn machine_effect_sidecar_reconstructs_subtraction_and_control_barriers() {
             .alternatives
             .clear();
         assert!(matches!(
-            omega_selected_instructions_to_machine_effects::validate_pre_allocation_machine_effects(
+            selected_instructions_to_register_homes::validate_pre_allocation_machine_effects(
                 selected.selected(),
                 selected.register_environment().identity(),
                 selected.register_environment().physical(),
@@ -95,11 +95,11 @@ fn machine_effect_sidecar_reconstructs_subtraction_and_control_barriers() {
                 selected.register_environment().reservations(),
                 selected.register_environment().allocation_constraint_keys(),
                 &match target.architecture {
-                    omega_target::Architecture::X86_64 => {
-                        omega_isa_x86_64::validate_x86_64_machine_effect_catalog(
+                    target::Architecture::X86_64 => {
+                        isa_x86_64::validate_x86_64_machine_effect_catalog(
                             target,
                             selected.register_environment().constraints(),
-                            omega_isa_x86_64::x86_64_machine_effect_catalog(
+                            isa_x86_64::x86_64_machine_effect_catalog(
                                 target,
                                 selected.register_environment().constraints(),
                             )
@@ -107,11 +107,11 @@ fn machine_effect_sidecar_reconstructs_subtraction_and_control_barriers() {
                         )
                         .unwrap()
                     }
-                    omega_target::Architecture::Aarch64 => {
-                        omega_isa_aarch64::validate_aarch64_machine_effect_catalog(
+                    target::Architecture::Aarch64 => {
+                        isa_aarch64::validate_aarch64_machine_effect_catalog(
                             target,
                             selected.register_environment().constraints(),
-                            omega_isa_aarch64::aarch64_machine_effect_catalog(
+                            isa_aarch64::aarch64_machine_effect_catalog(
                                 target,
                                 selected.register_environment().constraints(),
                             )
@@ -122,7 +122,9 @@ fn machine_effect_sidecar_reconstructs_subtraction_and_control_barriers() {
                 },
                 corrupted,
             ),
-            Err(omega_selected_instructions_to_machine_effects::MachineEffectError::InstructionMismatch { .. })
+            Err(
+                selected_instructions_to_register_homes::MachineEffectError::InstructionMismatch { .. }
+            )
         ));
     }
 }

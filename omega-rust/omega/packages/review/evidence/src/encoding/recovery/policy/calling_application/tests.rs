@@ -1,10 +1,10 @@
 use super::budgets::fixture_elements;
 use super::*;
 use crate::record::*;
-use omega_calling_conventions::{
+use calling_conventions::{
     CallSignature, CallingPolicy, ValueShape, evaluate_ordinary_boundary_entry_plan,
 };
-use psi_core::PackageKeyIdentity;
+use semantic_vocabulary::PackageKeyIdentity;
 
 fn nominal(path: &str) -> PackageReviewNominalIdentity {
     PackageReviewNominalIdentity {
@@ -147,7 +147,7 @@ pub(in crate::encoding::recovery::policy) fn complete_fixture() -> PackagePolicy
             },
         ),
         bounds: PackageReviewDataProperties {
-            multiplicity: psi_language_semantics::Multiplicity::Unrestricted,
+            multiplicity: language_semantics::Multiplicity::Unrestricted,
             carry: None,
         },
     });

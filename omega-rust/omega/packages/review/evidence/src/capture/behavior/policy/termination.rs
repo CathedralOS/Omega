@@ -7,10 +7,10 @@ use crate::record::{
     PackagePolicyProgressPremise, PackagePolicyServiceProgressRoute, PackagePolicyTermination,
     PackageReviewProgressSubject,
 };
-use omega_compiler::CheckedCompilation;
-use psi_checked_trees::RealizedMachineContractEnvelope;
-use psi_diagnostics::Diagnostic;
-use psi_typed_trees::{machine::Machine, state::State};
+use checked_trees::RealizedMachineContractEnvelope;
+use compiler::CheckedCompilation;
+use diagnostics::Diagnostic;
+use typed_trees::{machine::Machine, state::State};
 
 pub(crate) fn termination(
     compilation: &CheckedCompilation,
@@ -40,7 +40,7 @@ fn checked_plan<'a>(
     machine: &Machine,
     entry: &State,
     envelope: &RealizedMachineContractEnvelope,
-) -> Result<&'a psi_language_semantics::MachineTerminationPlan, Vec<Diagnostic>> {
+) -> Result<&'a language_semantics::MachineTerminationPlan, Vec<Diagnostic>> {
     let fact = exactly_one(
         compilation
             .facts
@@ -76,9 +76,9 @@ fn project_guarantee(
     compilation: &CheckedCompilation,
     machine: &Machine,
     entry: &State,
-    guarantee: &psi_language_semantics::TerminationGuarantee,
+    guarantee: &language_semantics::TerminationGuarantee,
 ) -> Result<PackagePolicyTermination, Vec<Diagnostic>> {
-    let psi_language_semantics::TerminationGuarantee::Terminates { premises } = guarantee else {
+    let language_semantics::TerminationGuarantee::Terminates { premises } = guarantee else {
         return Ok(PackagePolicyTermination::NoGuarantee);
     };
     let parameters = compilation.state_parameters(entry);
@@ -92,8 +92,7 @@ fn project_guarantee(
             machine.name.as_str(),
             "progress profile",
         )?;
-        if profile.classification
-            != Some(psi_language_semantics::DomainClassification::ProgressProfile)
+        if profile.classification != Some(language_semantics::DomainClassification::ProgressProfile)
         {
             return Err(rejected(
                 "termination premise does not name an exact progress profile",
@@ -140,8 +139,8 @@ fn project_guarantee(
         let mut establishment_routes = profile.establishment_routes.iter().map(|route| {
             Ok(PackagePolicyServiceProgressRoute {
                 kind: match route {
-                    psi_language_semantics::DomainEstablishmentRoute::CheckedRequirement {..} => omega_effects::provider_plan::ServiceProgressEstablishmentRouteKind::CheckedRequirement,
-                    psi_language_semantics::DomainEstablishmentRoute::BoundaryRequirement {..} => omega_effects::provider_plan::ServiceProgressEstablishmentRouteKind::BoundaryRequirement,
+                    language_semantics::DomainEstablishmentRoute::CheckedRequirement {..} => effects::provider_plan::ServiceProgressEstablishmentRouteKind::CheckedRequirement,
+                    language_semantics::DomainEstablishmentRoute::BoundaryRequirement {..} => effects::provider_plan::ServiceProgressEstablishmentRouteKind::BoundaryRequirement,
                 },
                 requirement_owner: nominal_identity(compilation, route.source_symbol())?,
                 requirement: trait_requirement_identity_from_symbols(compilation, route.source_symbol(), route.requirement_symbol(), "callable progress establishment")?,

@@ -8,7 +8,9 @@ use crate::record::{
     PackageReviewPropositionBinderArgumentKind, PackageReviewPropositionBinderValue,
     PackageReviewPropositionEvidence,
 };
-use psi_core::{IntegerCarrier, IntegerSign, IntegerValue, Proposition, ScalarTerm, ScalarType};
+use semantic_vocabulary::{
+    IntegerCarrier, IntegerSign, IntegerValue, Proposition, ScalarTerm, ScalarType,
+};
 
 use super::declarations::{encode_evidence_interface, encode_proposition_binder};
 use super::expressions::encode_contract_expression;
@@ -154,7 +156,10 @@ fn encode_assumption_scalar_type(
     Ok(())
 }
 
-fn encode_assumption_integer_type(encoder: &mut Encoder, integer_type: psi_core::IntegerType) {
+fn encode_assumption_integer_type(
+    encoder: &mut Encoder,
+    integer_type: semantic_vocabulary::IntegerType,
+) {
     encoder.byte(match integer_type.carrier() {
         IntegerCarrier::Fixed => 0,
         IntegerCarrier::Address => 1,

@@ -1,0 +1,26 @@
+[package]
+name = "abstract-operations-to-abstract-operations"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[lib]
+name = "abstract_operations_to_abstract_operations"
+path = "src/lib.rs"
+
+[dependencies]
+optimization-core = { path = "../../representations/optimization-core" }
+optimization-unit = { path = "../../representations/optimization-unit" }
+optimization-validation = { path = "../optimization-validation" }
+abstract-operations = { path = "../../representations/abstract-operations" }
+terminal-psi-to-abstract-operations = { path = "../terminal-psi-to-abstract-operations" }
+semantic-vocabulary = { path = "../../../psi/foundation/semantic-vocabulary" }
+optimization = { path = "../../../psi/representations/optimization" }
+terminal-psi = { path = "../../../psi/representations/terminal-psi" }
+terminal-codec = { path = "../../../psi/semantics/terminal-codec" }
+terminal-semantics = { path = "../../../psi/semantics/terminal-semantics" }
+terminal-fuel = { path = "../../../psi/semantics/terminal-fuel" }
+
+[dev-dependencies]
+proof-admission = { path = "../../../psi/semantics/proof-admission" }
+terminal-verifier = { path = "../../../psi/semantics/terminal-verifier" }

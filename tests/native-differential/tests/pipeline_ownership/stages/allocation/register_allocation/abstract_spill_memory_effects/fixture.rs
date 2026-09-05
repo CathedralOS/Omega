@@ -1,11 +1,11 @@
 use crate::tests::*;
-use omega_optimization_core::{OptimizationWorkBudget, OptimizationWorkUsage};
+use optimization_core::{OptimizationWorkBudget, OptimizationWorkUsage};
 
 use super::super::{homed_spill_pseudo_instructions, recursive_reload_value_homes::Bundle};
 
 pub(super) struct EffectBundle {
     pub(super) homed:
-        omega_selected_instructions_to_register_homes::ValidatedHomedSpillPseudoInstructions,
+        selected_instructions_to_register_homes::ValidatedHomedSpillPseudoInstructions,
 }
 
 pub(super) fn build(constructor: fn(NativeTarget) -> Bundle, target: NativeTarget) -> EffectBundle {
@@ -19,24 +19,24 @@ pub(super) fn lower(
     source: &EffectBundle,
     budget: OptimizationWorkBudget,
 ) -> Result<
-    omega_selected_instructions_to_register_homes::ValidatedAbstractSpillMemoryEffects,
-    omega_selected_instructions_to_register_homes::AbstractSpillMemoryEffectError,
+    selected_instructions_to_register_homes::ValidatedAbstractSpillMemoryEffects,
+    selected_instructions_to_register_homes::AbstractSpillMemoryEffectError,
 > {
-    omega_selected_instructions_to_register_homes::derive_abstract_spill_memory_effects(
+    selected_instructions_to_register_homes::derive_abstract_spill_memory_effects(
         &source.homed,
-        omega_selected_instructions_to_register_homes::AbstractSpillMemoryEffectPolicy::HomedPseudoReadWriteV1,
+        selected_instructions_to_register_homes::AbstractSpillMemoryEffectPolicy::HomedPseudoReadWriteV1,
         budget,
     )
 }
 
 pub(super) fn validate(
     source: &EffectBundle,
-    plan: omega_selected_instructions_to_register_homes::AbstractSpillMemoryEffectPlan,
+    plan: selected_instructions_to_register_homes::AbstractSpillMemoryEffectPlan,
 ) -> Result<
-    omega_selected_instructions_to_register_homes::ValidatedAbstractSpillMemoryEffects,
-    omega_selected_instructions_to_register_homes::AbstractSpillMemoryEffectError,
+    selected_instructions_to_register_homes::ValidatedAbstractSpillMemoryEffects,
+    selected_instructions_to_register_homes::AbstractSpillMemoryEffectError,
 > {
-    omega_selected_instructions_to_register_homes::validate_abstract_spill_memory_effects(
+    selected_instructions_to_register_homes::validate_abstract_spill_memory_effects(
         &source.homed,
         plan,
     )

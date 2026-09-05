@@ -347,7 +347,7 @@ fn checked_source_short_circuit_call_argument_is_staged_before_the_call() {
     }));
     assert!(caller.blocks.iter().any(|block| matches!(
         block.terminator,
-        psi_terminal::Terminator::Conditional { .. }
+        terminal_psi::Terminator::Conditional { .. }
     )));
 
     let verified = verify_module(
@@ -432,17 +432,17 @@ fn checked_source_guarded_short_circuit_call_argument_uses_the_staged_value() {
     let [continuation] = crash_continuations.as_slice() else {
         panic!("the staged invocation should retain one guarded crash bucket")
     };
-    let [psi_terminal::CrashRouteGuard::Predicate(predicate)] =
+    let [terminal_psi::CrashRouteGuard::Predicate(predicate)] =
         continuation.alternatives.as_slice()
     else {
         panic!("the staged crash route should remain conditional")
     };
     let predicate_value = match predicate.proposition() {
-        psi_core::Proposition::Equal(left, right) => [left, right]
+        semantic_vocabulary::Proposition::Equal(left, right) => [left, right]
             .into_iter()
             .find_map(|term| match term {
-                psi_core::ScalarTerm::BooleanNot { operand } => match operand.as_ref() {
-                    psi_core::ScalarTerm::Value {
+                semantic_vocabulary::ScalarTerm::BooleanNot { operand } => match operand.as_ref() {
+                    semantic_vocabulary::ScalarTerm::Value {
                         id,
                         scalar_type: ScalarType::Boolean,
                     } => Some(*id),
@@ -480,7 +480,7 @@ fn checked_source_guarded_short_circuit_call_argument_uses_the_staged_value() {
         execution
             .resume(&mut TerminalFuelMeter::unbounded())
             .expect("the staged callee crash should execute"),
-        TerminalExecutionStatus::Crashed(psi_terminal_interpreter::TerminalCrash {
+        TerminalExecutionStatus::Crashed(terminal_interpreter::TerminalCrash {
             cause: CrashCause::Trap,
             ..
         })
@@ -552,16 +552,16 @@ fn checked_source_guarded_call_uses_invocation_specific_crash_terms() {
     let [continuation] = crash_continuations.as_slice() else {
         panic!("the invocation should retain one guarded crash bucket")
     };
-    let [psi_terminal::CrashRouteGuard::Predicate(predicate)] =
+    let [terminal_psi::CrashRouteGuard::Predicate(predicate)] =
         continuation.alternatives.as_slice()
     else {
         panic!("the invocation crash route should remain guarded")
     };
     let predicate_value = match predicate.proposition() {
-        psi_core::Proposition::Equal(left, right) => [left, right]
+        semantic_vocabulary::Proposition::Equal(left, right) => [left, right]
             .into_iter()
             .find_map(|term| match term {
-                psi_core::ScalarTerm::Value {
+                semantic_vocabulary::ScalarTerm::Value {
                     id,
                     scalar_type: ScalarType::Boolean,
                 } => Some(*id),
@@ -597,7 +597,7 @@ fn checked_source_guarded_call_uses_invocation_specific_crash_terms() {
         execution
             .resume(&mut TerminalFuelMeter::unbounded())
             .expect("the callee crash should execute"),
-        TerminalExecutionStatus::Crashed(psi_terminal_interpreter::TerminalCrash {
+        TerminalExecutionStatus::Crashed(terminal_interpreter::TerminalCrash {
             cause: CrashCause::Trap,
             ..
         })
@@ -1276,7 +1276,7 @@ fn checked_source_staged_local_sequences_before_an_explicit_crash() {
             execution
                 .resume(&mut meter)
                 .expect("staged-local crash should execute"),
-            TerminalExecutionStatus::Crashed(psi_terminal_interpreter::TerminalCrash {
+            TerminalExecutionStatus::Crashed(terminal_interpreter::TerminalCrash {
                 cause: CrashCause::Abort,
                 ..
             })

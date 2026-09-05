@@ -20,7 +20,7 @@ requires 0i32 <= right, right <= left, left <= 100i32
 }
 "#;
 
-fn compile_fixture(source: &str) -> omega_compiler::CheckedCompilation {
+fn compile_fixture(source: &str) -> compiler::CheckedCompilation {
     let target = host_target_name().expect("host target fixture");
     let package = TempPackage::new();
     package.write("main.omg", source);
@@ -52,7 +52,7 @@ fn review_admits_binary_fixed_token_boundary_checked_adapter() {
     assert!(declaration.is_boundary());
     assert_eq!(
         declaration.spelling(),
-        Some(psi_language_core::OperatorSpelling::Subtract)
+        Some(language_core::OperatorSpelling::Subtract)
     );
 
     let callable = review
@@ -76,7 +76,7 @@ fn review_admits_binary_fixed_token_boundary_checked_adapter() {
     };
     assert!(matches!(
         row.binding,
-        omega_effects::provider_plan::ProviderBinding::CheckedAdapter { .. }
+        effects::provider_plan::ProviderBinding::CheckedAdapter { .. }
     ));
     let [application] = review.boundary_application_realizations() else {
         panic!("one exact fixed-token application realization")
@@ -185,7 +185,7 @@ pub machine exercise(left: Vector<4>, right: Vector<4>) -> Vector<4> {
     };
     assert_eq!(*binder_ordinal, 0);
     assert!(declared_carrier.canonical().contains("u64"));
-    let expected = psi_language_semantics::const_value::CanonicalConstIdentity::integer("u64", 4);
+    let expected = language_semantics::const_value::CanonicalConstIdentity::integer("u64", 4);
     assert_eq!(value_type, &expected.type_name);
     assert_eq!(value_encoding, &expected.encoding);
     assert_eq!(
@@ -250,7 +250,7 @@ requires index == 0u64
     assert!(type_identity.canonical().contains("i32"));
     assert_eq!(*binder_ordinal, 1);
     assert!(declared_carrier.canonical().contains("u64"));
-    let expected = psi_language_semantics::const_value::CanonicalConstIdentity::integer("u64", 4);
+    let expected = language_semantics::const_value::CanonicalConstIdentity::integer("u64", 4);
     assert_eq!(value_type, &expected.type_name);
     assert_eq!(value_encoding, &expected.encoding);
     assert_eq!(
@@ -291,10 +291,10 @@ requires index == 0u64 { items[index] }
         .statements(entry.statement_nodes)
         .iter()
         .find_map(|statement| {
-            let psi_typed_trees::statement::StatementNode::Expression(handle) = statement else {
+            let typed_trees::statement::StatementNode::Expression(handle) = statement else {
                 return None;
             };
-            let psi_typed_trees::expression::ExpressionNode::Indexed(indexed) =
+            let typed_trees::expression::ExpressionNode::Indexed(indexed) =
                 source.expression_table.expression(*handle)
             else {
                 return None;
@@ -305,7 +305,7 @@ requires index == 0u64 { items[index] }
     for operand in [indexed.collection, indexed.index] {
         let mut altered = checked.clone();
         *altered.typed.expression_table.expression_mut(operand) =
-            psi_typed_trees::expression::ExpressionNode::Boolean(false);
+            typed_trees::expression::ExpressionNode::Boolean(false);
         assert!(
             altered.pre_selected_dispatch_source_trees().is_err(),
             "changing either original indexing operand invalidates custody"
@@ -462,12 +462,12 @@ satisfies CheckedMath::subtract
     let binding = external
         .typed
         .external_bindings
-        .intern(psi_language_semantics::ExternalBindingIdentity::Syscall { number: 60 });
+        .intern(language_semantics::ExternalBindingIdentity::Syscall { number: 60 });
     let satisfies = external.typed.machines()[provider_index].satisfies;
     external.typed.machines_mut()[provider_index].supply_mode =
-        psi_language_semantics::MachineSupplyMode::ExternalRealization {
+        language_semantics::MachineSupplyMode::ExternalRealization {
             binding: Some(binding),
-            mechanism: Some(psi_language_semantics::ExternalBindingMechanism::Syscall),
+            mechanism: Some(language_semantics::ExternalBindingMechanism::Syscall),
         };
     external.typed.machines_mut()[provider_index].body_is_present = false;
     external
@@ -477,7 +477,7 @@ satisfies CheckedMath::subtract
         .span_mut_or_empty(satisfies)[0]
         .external_binding = Some(binding);
     external.facts.operators.operator_realization_contracts =
-        psi_typed_trees_to_checked_trees::derive_checked_operator_realization_contracts(
+        typed_trees_to_checked_trees::derive_checked_operator_realization_contracts(
             &external.typed,
         );
     let diagnostics = project_checked_package_review(&external)
@@ -501,9 +501,7 @@ satisfies CheckedMath::subtract
     let mut generic = checked.clone();
     generic.typed.machines_mut()[provider_index].type_parameters = generic_parameters;
     generic.facts.operators.operator_realization_contracts =
-        psi_typed_trees_to_checked_trees::derive_checked_operator_realization_contracts(
-            &generic.typed,
-        );
+        typed_trees_to_checked_trees::derive_checked_operator_realization_contracts(&generic.typed);
     let diagnostics = project_checked_package_review(&generic)
         .expect_err("post-check generic fixed-token adapter must reject");
     assert!(
@@ -518,11 +516,11 @@ satisfies CheckedMath::subtract
     let mut lifetime = checked;
     lifetime.typed.machines_mut()[provider_index]
         .lifetime_parameters
-        .push(psi_typed_trees::name::Identifier::generated_static(
+        .push(typed_trees::name::Identifier::generated_static(
             "forged_lifetime",
         ));
     lifetime.facts.operators.operator_realization_contracts =
-        psi_typed_trees_to_checked_trees::derive_checked_operator_realization_contracts(
+        typed_trees_to_checked_trees::derive_checked_operator_realization_contracts(
             &lifetime.typed,
         );
     let diagnostics = project_checked_package_review(&lifetime)

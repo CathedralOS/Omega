@@ -1,13 +1,13 @@
 use super::PackageSourceVerificationPhase;
 use crate::declarations::PackageKey;
 use crate::resolution::source::PackageSourceSelectionEvidenceError;
-use omega_package_compilation::{
+use checked_interpreter::FilesystemSponsorError;
+use diagnostics::Diagnostic;
+use package_compilation::{
     AcceptedSemanticBindingRole, BuildDeclarationKind, PackageCompilationInputError,
 };
-use omega_package_evidence::encoding::PackageReviewEncodingError;
-use omega_package_source::SourceResolveError;
-use psi_checked_interpreter::FilesystemSponsorError;
-use psi_diagnostics::Diagnostic;
+use package_evidence::encoding::PackageReviewEncodingError;
+use package_source::SourceResolveError;
 use std::fmt;
 use std::io;
 use std::path::PathBuf;

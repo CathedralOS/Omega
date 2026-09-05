@@ -2,7 +2,7 @@
 
 use crate::declarations::BuildDeclarationKind;
 use crate::declarations::{AliasName, PackageKey};
-use omega_package_source::{IdentityError, ImmutableSourceResolution};
+use package_source::{IdentityError, ImmutableSourceResolution};
 use std::collections::{BTreeMap, BTreeSet};
 
 /// A package's stable identity paired with one immutable source selection.

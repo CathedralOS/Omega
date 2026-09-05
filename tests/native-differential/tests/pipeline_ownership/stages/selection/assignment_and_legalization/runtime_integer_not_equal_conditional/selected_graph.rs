@@ -19,7 +19,7 @@ fn runtime_u64_parameter_inequality_selects_exact_three_block_graph_on_both_isas
             &staged.optimized_target().target_operations().functions[0].operation,
             TargetOperation::ReturnIntegerExpressionConditionalControl {
                 condition_source,
-                condition: omega_target_operations::TargetBooleanExpression::Not {
+                condition: target_operations::TargetBooleanExpression::Not {
                     psi_operation,
                     operand,
                 },
@@ -30,7 +30,7 @@ fn runtime_u64_parameter_inequality_selects_exact_three_block_graph_on_both_isas
                 && *result_type == IntegerType::new(IntegerSign::Unsigned, 64).unwrap()
                 && matches!(
                     operand.as_ref(),
-                    omega_target_operations::TargetBooleanExpression::IntegerEqual {
+                    target_operations::TargetBooleanExpression::IntegerEqual {
                         psi_operation,
                         scalar_type,
                         left: target_left,
@@ -69,7 +69,7 @@ fn runtime_u64_parameter_inequality_selects_exact_three_block_graph_on_both_isas
             legalized.recipe,
             LegalizationRecipe::ReturnU64IntegerNotEqualParametersConditionalV1
         );
-        let omega_legalized_operations::LegalizedCondition::IntegerNotEqualParametersV1 {
+        let legalized_operations::LegalizedCondition::IntegerNotEqualParametersV1 {
             equality_operation: legalized_equal_operation,
             equality_result,
             equality_fuel,
@@ -145,13 +145,10 @@ fn runtime_u64_parameter_inequality_selects_exact_three_block_graph_on_both_isas
         assert_eq!(when_nonzero.psi_edge, true_edge);
         assert_eq!(
             when_nonzero.block,
-            omega_selected_instructions::SelectedBlockId(1)
+            selected_instructions::SelectedBlockId(1)
         );
         assert_eq!(when_zero.psi_edge, false_edge);
-        assert_eq!(
-            when_zero.block,
-            omega_selected_instructions::SelectedBlockId(2)
-        );
+        assert_eq!(when_zero.block, selected_instructions::SelectedBlockId(2));
         assert_eq!(when_nonzero.fuel[0].site, PsiProvenance::Edge(true_edge));
         assert_eq!(when_zero.fuel[0].site, PsiProvenance::Edge(false_edge));
     }

@@ -20,8 +20,8 @@
 //!   only devirtualizes single-impl traits; as of this writing it emits a crashing binary
 //!   for the two-impl program below).
 
-use omega_compiler::{CheckedCompilation, compile_to_checked};
-use psi_checked_interpreter::{InterpretOutcome, interpret_entry};
+use checked_interpreter::{InterpretOutcome, interpret_entry};
+use compiler::{CheckedCompilation, compile_to_checked};
 use std::fs;
 use std::path::PathBuf;
 
@@ -156,8 +156,8 @@ machine Main::main(&mut self) {
     });
     assert!(checked.facts.operators.named_uses().any(|operator_use| {
         operator_use.policy_adapter
-            == psi_checked_trees::CheckedArithmeticPolicyAdapter::FloatSaturatingOverflowOnly {
-                format: psi_numerics::float_semantics::FloatFormat::BINARY32,
+            == checked_trees::CheckedArithmeticPolicyAdapter::FloatSaturatingOverflowOnly {
+                format: numerics::float_semantics::FloatFormat::BINARY32,
             }
     }));
     let outcome = interpret(&checked, b"");
@@ -193,8 +193,8 @@ machine Main::main(&mut self) {
     });
     assert!(checked.facts.operators.named_uses().any(|operator_use| {
         operator_use.policy_adapter
-            == psi_checked_trees::CheckedArithmeticPolicyAdapter::FloatTrappingNonFinite {
-                format: psi_numerics::float_semantics::FloatFormat::BINARY64,
+            == checked_trees::CheckedArithmeticPolicyAdapter::FloatTrappingNonFinite {
+                format: numerics::float_semantics::FloatFormat::BINARY64,
             }
     }));
     let outcome = interpret(&checked, b"");

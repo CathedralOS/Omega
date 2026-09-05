@@ -1,10 +1,10 @@
 //! Optimizer module role: stage group.
 use crate::tests::*;
-use omega_abstract_operations_to_target_operations::{
+use abstract_operations_to_target_operations::{
     AbstractToTargetFunctionTranslationDisposition, AbstractToTargetFunctionTranslationReceipt,
     IntegerIeeeFloatLiteralSequenceMember,
 };
-use omega_target_operations::{
+use target_operations::{
     ScalarParameterLocation, TargetBooleanExpression, TargetIntegerExpression, TargetUnitOperation,
 };
 

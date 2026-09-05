@@ -1,5 +1,5 @@
-use omega_package_compilation::{PackageCompilationInputs, PackageSourceBinding};
-use psi_core::PackageKeyIdentity;
+use package_compilation::{PackageCompilationInputs, PackageSourceBinding};
+use semantic_vocabulary::PackageKeyIdentity;
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};

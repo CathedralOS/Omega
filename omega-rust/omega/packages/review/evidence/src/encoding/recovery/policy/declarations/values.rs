@@ -64,8 +64,8 @@ pub(in crate::encoding::recovery::policy) fn operator_shape(
 
 pub(in crate::encoding::recovery::policy) fn operator_spelling(
     reader: &mut Reader<'_>,
-) -> Result<psi_language_core::OperatorSpelling, Error> {
-    use psi_language_core::OperatorSpelling;
+) -> Result<language_core::OperatorSpelling, Error> {
+    use language_core::OperatorSpelling;
     Ok(match reader.byte()? {
         0 => OperatorSpelling::Add,
         1 => OperatorSpelling::Subtract,

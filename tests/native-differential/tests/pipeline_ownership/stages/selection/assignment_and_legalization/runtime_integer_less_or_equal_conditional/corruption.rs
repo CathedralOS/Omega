@@ -1,7 +1,7 @@
 //! Independent rejection for inclusive-order custody and selected inversion corruption.
 
 use crate::tests::*;
-use omega_legalized_operations::LegalizedCondition;
+use legalized_operations::LegalizedCondition;
 
 use super::fixture::staged_integer_less_or_equal_conditional;
 
@@ -15,8 +15,8 @@ fn reflexive_less_or_equal_is_outside_the_two_distinct_parameter_family() {
     };
     *right = *left;
     let module = conditional_immediate_module(machine.id, vec![machine]);
-    let semantic = psi_terminal_codec::encode_module(&module).unwrap();
-    let proof = psi_terminal_codec::encode_proof_bundle(&ProofBundle {
+    let semantic = terminal_codec::encode_module(&module).unwrap();
+    let proof = terminal_codec::encode_proof_bundle(&ProofBundle {
         recursive_components: Vec::new(),
         evidence_producers: Vec::new(),
         evidence: Vec::new(),

@@ -5,7 +5,7 @@ use crate::record::{
     PackagePolicyCallableConformance, PackageReviewCallableConformance,
     PackageReviewExternalExecutableSupply, PackageReviewOperatorRealization,
 };
-use psi_diagnostics::Diagnostic;
+use diagnostics::Diagnostic;
 
 pub(super) fn finish(
     subject: &str,

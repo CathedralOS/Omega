@@ -332,7 +332,7 @@ This slice deliberately rejects every NaN without canonical or selected exact
 raw-representation evidence, plus generic/opaque/quotient records, references,
 slices, Text, dynamic values, atomics, non-copy records, and malformed shapes.
 A separate first pure-sum rung consumes the compiler-owned conventional runtime
-layout rather than weakening programmable `LayoutPlan`: `omega-layout` reports
+layout rather than weakening programmable `LayoutPlan`: `layout` reports
 the fixed four-byte tag, authored-order case ordinals, complete all-case payload
 overlay, and total extent/alignment. Psi independently rejoins every reported
 case and relevant payload field to the typed schema, recomputes the supported
@@ -348,7 +348,7 @@ unchanged.
 
 The direct nested rung admits the complete nonempty authored-order set of
 direct runtime-relevant conventional pure-sum fields in one closed non-generic
-`[copy]` record. `omega-layout` projects the whole-field outer
+`[copy]` record. `layout` projects the whole-field outer
 `LayoutPlanReport` and one per-occurrence field-identity plus complete
 conventional nested-sum report from the same built target runtime layout;
 source still gains no tag/case placement vocabulary. Repeated occurrences of

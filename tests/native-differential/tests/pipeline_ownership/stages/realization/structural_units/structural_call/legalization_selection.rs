@@ -112,7 +112,7 @@ pub(super) fn lower_and_select_structural_call() -> StagedOptimizedSelectedInstr
     assert_eq!(selected_call.id, SelectedInstructionId(0));
     assert_eq!(
         selected_call.constraint,
-        omega_isa_x86_64::X86_64_MICROSOFT_CALL_UNIT_OWNED_INDIRECT_PAIR
+        isa_x86_64::X86_64_MICROSOFT_CALL_UNIT_OWNED_INDIRECT_PAIR
     );
     assert!(selected_call.implicit_uses.len() >= 4);
     assert!(selected_call.implicit_defs.len() >= 2);

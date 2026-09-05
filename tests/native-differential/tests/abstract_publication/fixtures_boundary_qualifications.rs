@@ -5,20 +5,20 @@ use super::*;
 pub(super) fn boundary_qualification_verified() -> VerifiedPsiOptimizationUnit {
     let machine = MachineId::new(1_901).unwrap();
     let block = BlockId::new(1_902).unwrap();
-    let boundary = psi_core::BoundaryMachineId::new(1_903).unwrap();
-    let structural_type = psi_core::StructuralTypeId::new(1_904).unwrap();
-    let required_domain = psi_core::StructuralDomainId::new(1_905).unwrap();
-    let unrelated_domain = psi_core::StructuralDomainId::new(1_906).unwrap();
-    let caller_place = psi_core::PlaceId::new(1_907).unwrap();
-    let boundary_place = psi_core::PlaceId::new(1_908).unwrap();
+    let boundary = semantic_vocabulary::BoundaryMachineId::new(1_903).unwrap();
+    let structural_type = semantic_vocabulary::StructuralTypeId::new(1_904).unwrap();
+    let required_domain = semantic_vocabulary::StructuralDomainId::new(1_905).unwrap();
+    let unrelated_domain = semantic_vocabulary::StructuralDomainId::new(1_906).unwrap();
+    let caller_place = semantic_vocabulary::PlaceId::new(1_907).unwrap();
+    let boundary_place = semantic_vocabulary::PlaceId::new(1_908).unwrap();
     let operation = OperationId::new(1_909).unwrap();
-    let parameter = |place, qualifications| psi_terminal::StructuralParameterDeclaration {
+    let parameter = |place, qualifications| terminal_psi::StructuralParameterDeclaration {
         place,
         position: 0,
         is_self: false,
         structural_type,
-        multiplicity: psi_terminal::StructuralMultiplicity::Unrestricted,
-        access: psi_terminal::StructuralAccess::SharedBorrow,
+        multiplicity: terminal_psi::StructuralMultiplicity::Unrestricted,
+        access: terminal_psi::StructuralAccess::SharedBorrow,
         qualifications,
         projected_qualifications: Vec::new(),
     };
@@ -35,10 +35,10 @@ pub(super) fn boundary_qualification_verified() -> VerifiedPsiOptimizationUnit {
                 kind: OperationKind::BoundaryCall {
                     boundary,
                     arguments: Vec::new(),
-                    structural_arguments: vec![psi_terminal::StructuralArgument {
+                    structural_arguments: vec![terminal_psi::StructuralArgument {
                         place: caller_place,
                         path: Vec::new(),
-                        access: psi_terminal::StructuralAccess::SharedBorrow,
+                        access: terminal_psi::StructuralAccess::SharedBorrow,
                     }],
                     completion_receipts: Vec::new(),
                 },
@@ -49,35 +49,35 @@ pub(super) fn boundary_qualification_verified() -> VerifiedPsiOptimizationUnit {
             },
         }],
     );
-    module.structural_types = vec![psi_terminal::StructuralTypeDeclaration {
+    module.structural_types = vec![terminal_psi::StructuralTypeDeclaration {
         id: structural_type,
         identity: "test::QualifiedBoundaryCarrier".into(),
-        shape: psi_terminal::StructuralTypeShape::Record { fields: Vec::new() },
+        shape: terminal_psi::StructuralTypeShape::Record { fields: Vec::new() },
     }];
     module.structural_domains = vec![
-        psi_terminal::StructuralDomainDeclaration {
+        terminal_psi::StructuralDomainDeclaration {
             id: required_domain,
-            semantic_domain: psi_core::DomainSemanticId::new(1_911).unwrap(),
+            semantic_domain: semantic_vocabulary::DomainSemanticId::new(1_911).unwrap(),
             identity: "test::RequiredBoundaryQualification".into(),
             carrier: structural_type,
             content_projection: None,
         },
-        psi_terminal::StructuralDomainDeclaration {
+        terminal_psi::StructuralDomainDeclaration {
             id: unrelated_domain,
-            semantic_domain: psi_core::DomainSemanticId::new(1_912).unwrap(),
+            semantic_domain: semantic_vocabulary::DomainSemanticId::new(1_912).unwrap(),
             identity: "test::UnrelatedQualification".into(),
             carrier: structural_type,
             content_projection: None,
         },
     ];
-    module.boundary_machines = vec![psi_terminal::BoundaryMachineDeclaration {
+    module.boundary_machines = vec![terminal_psi::BoundaryMachineDeclaration {
         id: boundary,
         identity: "test::consume_qualification".into(),
         attachment: None,
         scalar_parameters: Vec::new(),
         structural_parameters: vec![parameter(boundary_place, Vec::new())],
-        result: psi_terminal::BoundaryMachineResult::Unit,
-        requires: vec![psi_terminal::StructuralDomainRequirement {
+        result: terminal_psi::BoundaryMachineResult::Unit,
+        requires: vec![terminal_psi::StructuralDomainRequirement {
             argument_index: 0,
             domain: required_domain,
         }],
@@ -87,9 +87,9 @@ pub(super) fn boundary_qualification_verified() -> VerifiedPsiOptimizationUnit {
     }];
     let caller = &mut module.machines[0];
     caller.structural_parameters = vec![parameter(caller_place, vec![required_domain])];
-    caller.structural_places = vec![psi_terminal::StructuralPlaceDeclaration {
+    caller.structural_places = vec![terminal_psi::StructuralPlaceDeclaration {
         id: caller_place,
-        kind: psi_core::StructuralPlaceKind::Parameter {
+        kind: semantic_vocabulary::StructuralPlaceKind::Parameter {
             position: 0,
             is_self: false,
         },
@@ -101,15 +101,15 @@ pub(super) fn boundary_qualification_verified() -> VerifiedPsiOptimizationUnit {
 pub(super) fn partial_path_boundary_qualification_verified() -> VerifiedPsiOptimizationUnit {
     let machine = MachineId::new(1_921).unwrap();
     let block = BlockId::new(1_922).unwrap();
-    let boundary = psi_core::BoundaryMachineId::new(1_923).unwrap();
-    let leaf_type = psi_core::StructuralTypeId::new(1_924).unwrap();
-    let root_type = psi_core::StructuralTypeId::new(1_925).unwrap();
-    let required_domain = psi_core::StructuralDomainId::new(1_926).unwrap();
-    let unrelated_domain = psi_core::StructuralDomainId::new(1_927).unwrap();
-    let caller_place = psi_core::PlaceId::new(1_928).unwrap();
-    let boundary_place = psi_core::PlaceId::new(1_929).unwrap();
+    let boundary = semantic_vocabulary::BoundaryMachineId::new(1_923).unwrap();
+    let leaf_type = semantic_vocabulary::StructuralTypeId::new(1_924).unwrap();
+    let root_type = semantic_vocabulary::StructuralTypeId::new(1_925).unwrap();
+    let required_domain = semantic_vocabulary::StructuralDomainId::new(1_926).unwrap();
+    let unrelated_domain = semantic_vocabulary::StructuralDomainId::new(1_927).unwrap();
+    let caller_place = semantic_vocabulary::PlaceId::new(1_928).unwrap();
+    let boundary_place = semantic_vocabulary::PlaceId::new(1_929).unwrap();
     let operation = OperationId::new(1_930).unwrap();
-    let left_path = vec![psi_terminal::StructuralPathSegment::Field("left".into())];
+    let left_path = vec![terminal_psi::StructuralPathSegment::Field("left".into())];
     let mut module = module_with_blocks(
         machine,
         block,
@@ -123,10 +123,10 @@ pub(super) fn partial_path_boundary_qualification_verified() -> VerifiedPsiOptim
                 kind: OperationKind::BoundaryCall {
                     boundary,
                     arguments: Vec::new(),
-                    structural_arguments: vec![psi_terminal::StructuralArgument {
+                    structural_arguments: vec![terminal_psi::StructuralArgument {
                         place: caller_place,
                         path: left_path.clone(),
-                        access: psi_terminal::StructuralAccess::SharedBorrow,
+                        access: terminal_psi::StructuralAccess::SharedBorrow,
                     }],
                     completion_receipts: Vec::new(),
                 },
@@ -138,24 +138,25 @@ pub(super) fn partial_path_boundary_qualification_verified() -> VerifiedPsiOptim
         }],
     );
     module.structural_types = vec![
-        psi_terminal::StructuralTypeDeclaration {
+        terminal_psi::StructuralTypeDeclaration {
             id: leaf_type,
             identity: "test::QualifiedBoundaryLeaf".into(),
-            shape: psi_terminal::StructuralTypeShape::Record { fields: Vec::new() },
+            shape: terminal_psi::StructuralTypeShape::Record { fields: Vec::new() },
         },
-        psi_terminal::StructuralTypeDeclaration {
+        terminal_psi::StructuralTypeDeclaration {
             id: root_type,
             identity: "test::QualifiedBoundaryRoot".into(),
-            shape: psi_terminal::StructuralTypeShape::Record {
+            shape: terminal_psi::StructuralTypeShape::Record {
                 fields: ["left", "right"]
                     .into_iter()
                     .enumerate()
                     .map(
-                        |(index, identity)| psi_terminal::StructuralFieldDeclaration {
-                            id: psi_core::StructuralFieldId::new(1_932 + index as u64).unwrap(),
+                        |(index, identity)| terminal_psi::StructuralFieldDeclaration {
+                            id: semantic_vocabulary::StructuralFieldId::new(1_932 + index as u64)
+                                .unwrap(),
                             identity: identity.into(),
-                            relevance: psi_terminal::BindingRelevance::Relevant,
-                            field_type: psi_terminal::StructuralFieldType::Structural(leaf_type),
+                            relevance: terminal_psi::BindingRelevance::Relevant,
+                            field_type: terminal_psi::StructuralFieldType::Structural(leaf_type),
                         },
                     )
                     .collect(),
@@ -163,38 +164,38 @@ pub(super) fn partial_path_boundary_qualification_verified() -> VerifiedPsiOptim
         },
     ];
     module.structural_domains = vec![
-        psi_terminal::StructuralDomainDeclaration {
+        terminal_psi::StructuralDomainDeclaration {
             id: required_domain,
-            semantic_domain: psi_core::DomainSemanticId::new(1_926).unwrap(),
+            semantic_domain: semantic_vocabulary::DomainSemanticId::new(1_926).unwrap(),
             identity: "test::RequiredProjectedBoundaryQualification".into(),
             carrier: leaf_type,
             content_projection: None,
         },
-        psi_terminal::StructuralDomainDeclaration {
+        terminal_psi::StructuralDomainDeclaration {
             id: unrelated_domain,
-            semantic_domain: psi_core::DomainSemanticId::new(1_927).unwrap(),
+            semantic_domain: semantic_vocabulary::DomainSemanticId::new(1_927).unwrap(),
             identity: "test::UnrelatedProjectedBoundaryQualification".into(),
             carrier: leaf_type,
             content_projection: None,
         },
     ];
-    module.boundary_machines = vec![psi_terminal::BoundaryMachineDeclaration {
+    module.boundary_machines = vec![terminal_psi::BoundaryMachineDeclaration {
         id: boundary,
         identity: "test::consume_projected_qualification".into(),
         attachment: None,
         scalar_parameters: Vec::new(),
-        structural_parameters: vec![psi_terminal::StructuralParameterDeclaration {
+        structural_parameters: vec![terminal_psi::StructuralParameterDeclaration {
             place: boundary_place,
             position: 0,
             is_self: false,
             structural_type: leaf_type,
-            multiplicity: psi_terminal::StructuralMultiplicity::Affine,
-            access: psi_terminal::StructuralAccess::SharedBorrow,
+            multiplicity: terminal_psi::StructuralMultiplicity::Affine,
+            access: terminal_psi::StructuralAccess::SharedBorrow,
             qualifications: Vec::new(),
             projected_qualifications: Vec::new(),
         }],
-        result: psi_terminal::BoundaryMachineResult::Unit,
-        requires: vec![psi_terminal::StructuralDomainRequirement {
+        result: terminal_psi::BoundaryMachineResult::Unit,
+        requires: vec![terminal_psi::StructuralDomainRequirement {
             argument_index: 0,
             domain: required_domain,
         }],
@@ -203,22 +204,22 @@ pub(super) fn partial_path_boundary_qualification_verified() -> VerifiedPsiOptim
         published_service_ceiling: Vec::new(),
     }];
     let caller = &mut module.machines[0];
-    caller.structural_parameters = vec![psi_terminal::StructuralParameterDeclaration {
+    caller.structural_parameters = vec![terminal_psi::StructuralParameterDeclaration {
         place: caller_place,
         position: 0,
         is_self: false,
         structural_type: root_type,
-        multiplicity: psi_terminal::StructuralMultiplicity::Affine,
-        access: psi_terminal::StructuralAccess::Owned,
+        multiplicity: terminal_psi::StructuralMultiplicity::Affine,
+        access: terminal_psi::StructuralAccess::Owned,
         qualifications: Vec::new(),
-        projected_qualifications: vec![psi_terminal::StructuralPathQualification {
+        projected_qualifications: vec![terminal_psi::StructuralPathQualification {
             path: left_path,
             domain: required_domain,
         }],
     }];
-    caller.structural_places = vec![psi_terminal::StructuralPlaceDeclaration {
+    caller.structural_places = vec![terminal_psi::StructuralPlaceDeclaration {
         id: caller_place,
-        kind: psi_core::StructuralPlaceKind::Parameter {
+        kind: semantic_vocabulary::StructuralPlaceKind::Parameter {
             position: 0,
             is_self: false,
         },
@@ -232,34 +233,34 @@ pub(super) fn projected_structural_result_verified() -> VerifiedPsiOptimizationU
     let callee = MachineId::new(1_941).unwrap();
     let caller_block = BlockId::new(1_942).unwrap();
     let callee_block = BlockId::new(1_943).unwrap();
-    let root = psi_core::StructuralTypeId::new(1_944).unwrap();
-    let leaf = psi_core::StructuralTypeId::new(1_945).unwrap();
-    let domain = psi_core::StructuralDomainId::new(1_946).unwrap();
-    let caller_input = psi_core::PlaceId::new(1_947).unwrap();
-    let caller_result = psi_core::PlaceId::new(1_948).unwrap();
-    let call_result = psi_core::PlaceId::new(1_949).unwrap();
-    let callee_input = psi_core::PlaceId::new(1_950).unwrap();
-    let callee_result = psi_core::PlaceId::new(1_951).unwrap();
+    let root = semantic_vocabulary::StructuralTypeId::new(1_944).unwrap();
+    let leaf = semantic_vocabulary::StructuralTypeId::new(1_945).unwrap();
+    let domain = semantic_vocabulary::StructuralDomainId::new(1_946).unwrap();
+    let caller_input = semantic_vocabulary::PlaceId::new(1_947).unwrap();
+    let caller_result = semantic_vocabulary::PlaceId::new(1_948).unwrap();
+    let call_result = semantic_vocabulary::PlaceId::new(1_949).unwrap();
+    let callee_input = semantic_vocabulary::PlaceId::new(1_950).unwrap();
+    let callee_result = semantic_vocabulary::PlaceId::new(1_951).unwrap();
     let call = OperationId::new(1_952).unwrap();
-    let claim = psi_core::ClaimId::new(1).unwrap();
-    let row = psi_terminal::StructuralPathQualification {
-        path: vec![psi_terminal::StructuralPathSegment::Field("payload".into())],
+    let claim = semantic_vocabulary::ClaimId::new(1).unwrap();
+    let row = terminal_psi::StructuralPathQualification {
+        path: vec![terminal_psi::StructuralPathSegment::Field("payload".into())],
         domain,
     };
-    let parameter = |place| psi_terminal::StructuralParameterDeclaration {
+    let parameter = |place| terminal_psi::StructuralParameterDeclaration {
         place,
         position: 0,
         is_self: false,
         structural_type: root,
-        multiplicity: psi_terminal::StructuralMultiplicity::Linear,
-        access: psi_terminal::StructuralAccess::Owned,
+        multiplicity: terminal_psi::StructuralMultiplicity::Linear,
+        access: terminal_psi::StructuralAccess::Owned,
         qualifications: Vec::new(),
         projected_qualifications: vec![row.clone()],
     };
-    let result = |place| psi_terminal::StructuralResultDeclaration {
+    let result = |place| terminal_psi::StructuralResultDeclaration {
         place,
         structural_type: root,
-        multiplicity: psi_terminal::StructuralMultiplicity::Linear,
+        multiplicity: terminal_psi::StructuralMultiplicity::Linear,
         qualifications: Vec::new(),
         projected_qualifications: vec![row.clone()],
     };
@@ -272,29 +273,29 @@ pub(super) fn projected_structural_result_verified() -> VerifiedPsiOptimizationU
             parameters: Vec::new(),
             operations: vec![Operation {
                 id: call,
-                result: OperationResult::Structural(psi_terminal::StructuralOperationResult {
+                result: OperationResult::Structural(terminal_psi::StructuralOperationResult {
                     place: call_result,
                     structural_type: root,
-                    multiplicity: psi_terminal::StructuralMultiplicity::Linear,
+                    multiplicity: terminal_psi::StructuralMultiplicity::Linear,
                     qualifications: Vec::new(),
                     projected_qualifications: vec![row.clone()],
-                    claims: vec![psi_terminal::StructuralResultClaimBinding {
+                    claims: vec![terminal_psi::StructuralResultClaimBinding {
                         claim,
                         path: Vec::new(),
                     }],
                 }),
                 kind: OperationKind::CallStructural {
                     callee,
-                    structural_arguments: vec![psi_terminal::StructuralArgument {
+                    structural_arguments: vec![terminal_psi::StructuralArgument {
                         place: caller_input,
                         path: Vec::new(),
-                        access: psi_terminal::StructuralAccess::Owned,
+                        access: terminal_psi::StructuralAccess::Owned,
                     }],
-                    claim_transfers: vec![psi_terminal::ClaimTransfer {
+                    claim_transfers: vec![terminal_psi::ClaimTransfer {
                         claim,
                         argument_index: 0,
                     }],
-                    returned_claim_transfers: vec![psi_terminal::StructuralResultClaimTransfer {
+                    returned_claim_transfers: vec![terminal_psi::StructuralResultClaimTransfer {
                         callee_claim: claim,
                         caller_claim: claim,
                     }],
@@ -312,39 +313,42 @@ pub(super) fn projected_structural_result_verified() -> VerifiedPsiOptimizationU
         }],
     );
     module.structural_types = vec![
-        psi_terminal::StructuralTypeDeclaration {
+        terminal_psi::StructuralTypeDeclaration {
             id: root,
             identity: "test::ProjectedResultRoot".into(),
-            shape: psi_terminal::StructuralTypeShape::Record {
-                fields: vec![psi_terminal::StructuralFieldDeclaration {
-                    id: psi_core::StructuralFieldId::new(1_954).unwrap(),
+            shape: terminal_psi::StructuralTypeShape::Record {
+                fields: vec![terminal_psi::StructuralFieldDeclaration {
+                    id: semantic_vocabulary::StructuralFieldId::new(1_954).unwrap(),
                     identity: "payload".into(),
-                    relevance: psi_terminal::BindingRelevance::Relevant,
-                    field_type: psi_terminal::StructuralFieldType::Structural(leaf),
+                    relevance: terminal_psi::BindingRelevance::Relevant,
+                    field_type: terminal_psi::StructuralFieldType::Structural(leaf),
                 }],
             },
         },
-        psi_terminal::StructuralTypeDeclaration {
+        terminal_psi::StructuralTypeDeclaration {
             id: leaf,
             identity: "test::ProjectedResultLeaf".into(),
-            shape: psi_terminal::StructuralTypeShape::Record {
-                fields: vec![psi_terminal::StructuralFieldDeclaration {
-                    id: psi_core::StructuralFieldId::new(1_956).unwrap(),
+            shape: terminal_psi::StructuralTypeShape::Record {
+                fields: vec![terminal_psi::StructuralFieldDeclaration {
+                    id: semantic_vocabulary::StructuralFieldId::new(1_956).unwrap(),
                     identity: "value".into(),
-                    relevance: psi_terminal::BindingRelevance::Relevant,
-                    field_type: psi_terminal::StructuralFieldType::Scalar(
-                        psi_core::ScalarType::Integer(
-                            psi_core::IntegerType::new(psi_core::IntegerSign::Unsigned, 64)
-                                .unwrap(),
+                    relevance: terminal_psi::BindingRelevance::Relevant,
+                    field_type: terminal_psi::StructuralFieldType::Scalar(
+                        semantic_vocabulary::ScalarType::Integer(
+                            semantic_vocabulary::IntegerType::new(
+                                semantic_vocabulary::IntegerSign::Unsigned,
+                                64,
+                            )
+                            .unwrap(),
                         ),
                     ),
                 }],
             },
         },
     ];
-    module.structural_domains = vec![psi_terminal::StructuralDomainDeclaration {
+    module.structural_domains = vec![terminal_psi::StructuralDomainDeclaration {
         id: domain,
-        semantic_domain: psi_core::DomainSemanticId::new(1_946).unwrap(),
+        semantic_domain: semantic_vocabulary::DomainSemanticId::new(1_946).unwrap(),
         identity: "test::ProjectedResultReady".into(),
         carrier: leaf,
         content_projection: None,
@@ -352,26 +356,26 @@ pub(super) fn projected_structural_result_verified() -> VerifiedPsiOptimizationU
     let caller_machine = &mut module.machines[0];
     caller_machine.structural_parameters = vec![parameter(caller_input)];
     caller_machine.structural_places = vec![
-        psi_terminal::StructuralPlaceDeclaration {
+        terminal_psi::StructuralPlaceDeclaration {
             id: caller_input,
-            kind: psi_core::StructuralPlaceKind::Parameter {
+            kind: semantic_vocabulary::StructuralPlaceKind::Parameter {
                 position: 0,
                 is_self: false,
             },
         },
-        psi_terminal::StructuralPlaceDeclaration {
+        terminal_psi::StructuralPlaceDeclaration {
             id: caller_result,
-            kind: psi_core::StructuralPlaceKind::Result,
+            kind: semantic_vocabulary::StructuralPlaceKind::Result,
         },
-        psi_terminal::StructuralPlaceDeclaration {
+        terminal_psi::StructuralPlaceDeclaration {
             id: call_result,
-            kind: psi_core::StructuralPlaceKind::OperationResult {
+            kind: semantic_vocabulary::StructuralPlaceKind::OperationResult {
                 producer: call,
                 structural_type: root,
             },
         },
     ];
-    caller_machine.entry_claims = vec![psi_terminal::EntryClaim {
+    caller_machine.entry_claims = vec![terminal_psi::EntryClaim {
         claim,
         input: caller_input,
         path: Vec::new(),
@@ -382,19 +386,19 @@ pub(super) fn projected_structural_result_verified() -> VerifiedPsiOptimizationU
     callee_machine.structural_parameters = vec![parameter(callee_input)];
     callee_machine.result = TerminalMachineResult::Structural(result(callee_result));
     callee_machine.structural_places = vec![
-        psi_terminal::StructuralPlaceDeclaration {
+        terminal_psi::StructuralPlaceDeclaration {
             id: callee_input,
-            kind: psi_core::StructuralPlaceKind::Parameter {
+            kind: semantic_vocabulary::StructuralPlaceKind::Parameter {
                 position: 0,
                 is_self: false,
             },
         },
-        psi_terminal::StructuralPlaceDeclaration {
+        terminal_psi::StructuralPlaceDeclaration {
             id: callee_result,
-            kind: psi_core::StructuralPlaceKind::Result,
+            kind: semantic_vocabulary::StructuralPlaceKind::Result,
         },
     ];
-    callee_machine.entry_claims = vec![psi_terminal::EntryClaim {
+    callee_machine.entry_claims = vec![terminal_psi::EntryClaim {
         claim,
         input: callee_input,
         path: Vec::new(),

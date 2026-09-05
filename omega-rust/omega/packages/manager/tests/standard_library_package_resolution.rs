@@ -1,19 +1,17 @@
-use omega_compiler::compile_to_checked_with_packages;
-use omega_effects::{PortableFilesystemAuthorityFacet, ServiceTerminalAuthorityPermission};
-use omega_package_compilation::AcceptedSemanticBindingRole;
-use omega_package_evidence::record::{
-    PackageReviewDangerousAuthorityClass, PackageReviewNominalOwner,
-};
-use omega_package_manager::resolution::graph::{
+use compiler::compile_to_checked_with_packages;
+use effects::{PortableFilesystemAuthorityFacet, ServiceTerminalAuthorityPermission};
+use package_compilation::AcceptedSemanticBindingRole;
+use package_evidence::record::{PackageReviewDangerousAuthorityClass, PackageReviewNominalOwner};
+use package_manager::resolution::graph::{
     PackageSourceClosureLimits, resolve_external_local_package_closure_with_storage,
 };
-use omega_package_manager::resolution::package_compilation_inputs;
-use omega_package_manager::review::{
+use package_manager::resolution::package_compilation_inputs;
+use package_manager::review::{
     ConsumerScopedSemanticBindingReviewInput, compile_resolved_package_candidate_reviews,
     compile_resolved_package_reviews, compile_resolved_package_reviews_with_semantic_bindings,
 };
-use omega_package_source::{ExternalSourceContext, LocalSourceLimits, SourceResolverStorage};
-use psi_source::SourceOrigin;
+use package_source::{ExternalSourceContext, LocalSourceLimits, SourceResolverStorage};
+use source::SourceOrigin;
 use std::collections::{BTreeMap, BTreeSet};
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -226,7 +224,7 @@ fn real_standard_library_has_a_complete_ordinary_review_entry() {
     .expect("resolve the standard library as an ordinary package root");
 
     let reviews = compile_resolved_package_candidate_reviews(
-        &closure.for_exact_target(omega_target::TargetProfile::LinuxX64),
+        &closure.for_exact_target(target::TargetProfile::LinuxX64),
         &tree.0.join("review-build"),
     )
     .expect("compile the complete ordinary standard-library review entry");
@@ -280,7 +278,7 @@ fn real_filesystem_host_schema_accepts_settled_portable_facet_rows() {
         PackageSourceClosureLimits::default(),
     )
     .expect("resolve consumer with the real standard library");
-    let target = closure.for_exact_target(omega_target::TargetProfile::LinuxX64);
+    let target = closure.for_exact_target(target::TargetProfile::LinuxX64);
     let preliminary =
         compile_resolved_package_reviews(&target, &tree.0.join("filesystem-preliminary-build"))
             .expect("compile preliminary filesystem review");

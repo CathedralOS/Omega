@@ -3,10 +3,8 @@
 use std::path::Path;
 
 use crate::declarations::dependencies::edit::BuildFileReplacement;
-use omega_package_source::local::staging::{
-    StagedLocalSnapshot, stage_local_source_replacement_in_lane,
-};
-use omega_package_source::{
+use package_source::local::staging::{StagedLocalSnapshot, stage_local_source_replacement_in_lane};
+use package_source::{
     LocalSourceLimits, SourceRelativePath, SourceResolveError, SourceResolverStorage,
 };
 

@@ -1,0 +1,16 @@
+[package]
+name = "executable-installation"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[lib]
+name = "executable_installation"
+path = "src/lib.rs"
+
+[dependencies]
+extents = { path = "../../../../psi/foundation/extents" }
+layout-plans = { path = "../../../../psi/foundation/layout-plans" }
+target = { path = "../../../representations/target" }
+installation-evidence = { path = "../../../representations/installation-evidence" }
+sha2 = "0.10.9"

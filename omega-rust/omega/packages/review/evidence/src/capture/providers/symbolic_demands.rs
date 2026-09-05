@@ -13,9 +13,9 @@ use crate::record::{
     PackageReviewSourceLocation, PackageReviewSourceLocationOwner, PackageReviewSourceLocationRole,
     PackageReviewSymbolicBoundaryApplicationArgument,
 };
-use omega_compiler::CheckedCompilation;
-use psi_core::PackageKeyIdentity;
-use psi_diagnostics::Diagnostic;
+use compiler::CheckedCompilation;
+use diagnostics::Diagnostic;
+use semantic_vocabulary::PackageKeyIdentity;
 
 pub(crate) struct ProjectedBoundaryApplicationDemands {
     pub(crate) rows: Vec<CheckedPackageBoundaryApplicationDemandReview>,
@@ -33,7 +33,7 @@ pub(crate) fn project_boundary_application_demands(
 ) -> Result<ProjectedBoundaryApplicationDemands, Vec<Diagnostic>> {
     let mut staged: Vec<StagedDemand> = Vec::new();
     for demand in &compilation.facts.operators.symbolic_boundary_applications {
-        let Some(operator) = psi_typed_trees::operator::declaration_by_symbol(
+        let Some(operator) = typed_trees::operator::declaration_by_symbol(
             &compilation.typed,
             demand.requirement_symbol,
         )
@@ -75,7 +75,7 @@ pub(crate) fn project_boundary_application_demands(
                     "symbolic boundary application exceeds the review ordinal range",
                 )]
             })?;
-            let psi_checked_trees::CheckedSymbolicBoundaryOperatorApplicationArgument::TypeBinder {
+            let checked_trees::CheckedSymbolicBoundaryOperatorApplicationArgument::TypeBinder {
                 binder_owner,
                 binder_ordinal,
                 binder_symbol,
@@ -90,14 +90,11 @@ pub(crate) fn project_boundary_application_demands(
                 || *binder_symbol != operator_parameter.symbol
                 || !matches!(
                     operator_parameter.kind,
-                    psi_typed_trees::data::TypeParameterKind::Type
+                    typed_trees::data::TypeParameterKind::Type
                 )
                 || machine_parameter.is_none_or(|parameter| {
                     parameter.symbol != *machine_binder_symbol
-                        || !matches!(
-                            parameter.kind,
-                            psi_typed_trees::data::TypeParameterKind::Type
-                        )
+                        || !matches!(parameter.kind, typed_trees::data::TypeParameterKind::Type)
                 })
             {
                 return Err(vec![Diagnostic::error(
@@ -112,7 +109,7 @@ pub(crate) fn project_boundary_application_demands(
             );
         }
 
-        let psi_checked_trees::CheckedBoundaryOperatorApplicationUseSite::Expression {
+        let checked_trees::CheckedBoundaryOperatorApplicationUseSite::Expression {
             expression,
             origin,
         } = demand.site
@@ -131,7 +128,7 @@ pub(crate) fn project_boundary_application_demands(
             authored_application_source_span(
                 compilation,
                 expression,
-                omega_selected_dispatch::CheckedOperatorAuthoredUseKind::Named,
+                selected_dispatch::CheckedOperatorAuthoredUseKind::Named,
                 operator.symbol,
             )?,
             PackageReviewSourceLocationRole::BoundaryApplicationUse,
@@ -142,11 +139,10 @@ pub(crate) fn project_boundary_application_demands(
             )]);
         }
 
-        let requirement_identity =
-            psi_typed_trees::operator::boundary_operator_requirement_identity(
-                &compilation.typed,
-                operator,
-            );
+        let requirement_identity = typed_trees::operator::boundary_operator_requirement_identity(
+            &compilation.typed,
+            operator,
+        );
         if requirement_identity.is_empty() {
             return Err(vec![Diagnostic::error(
                 "symbolic boundary application has no stable requirement identity",

@@ -110,7 +110,7 @@ fn writer_rejects_detached_selection_demand_owner_and_target() {
     cases.push(changed);
     let mut changed = original.clone();
     changed.selected_availability[0].selection_owner = PackageReviewNominalOwner::Package(
-        psi_core::PackageKeyIdentity::from_digest([9; 32]).unwrap(),
+        semantic_vocabulary::PackageKeyIdentity::from_digest([9; 32]).unwrap(),
     );
     cases.push(changed);
     let mut changed = original.clone();

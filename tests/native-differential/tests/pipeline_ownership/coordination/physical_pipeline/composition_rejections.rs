@@ -47,7 +47,7 @@ fn allocation_recovery_compositions_reject_instead_of_dispatching_a_hidden_polic
                 result,
                 Err(
                     OptimizedVerifiedPhysicalPipelineError::AllocationRecoveryRuleCatalog(
-                        omega_selected_instructions_to_register_homes::AllocationRecoveryRuleCatalogError::UnsupportedComposition
+                        selected_instructions_to_register_homes::AllocationRecoveryRuleCatalogError::UnsupportedComposition
                     )
                 )
             ));
@@ -122,7 +122,7 @@ fn aarch64_post_allocation_machine_composition_rejects_without_hidden_ordering_p
         ),
         Err(
             OptimizedVerifiedPhysicalPipelineError::PostAllocationMachineRuleCatalog(
-                omega_post_allocation_machine_to_optimized_machine::PostAllocationMachineRuleCatalogError::UnsupportedComposition(
+                post_allocation_machine_to_post_allocation_machine::PostAllocationMachineRuleCatalogError::UnsupportedComposition(
                     Optimization::Aarch64FuseCompareI64ZeroBranchNonZeroToCbnzV1
                 )
             )
