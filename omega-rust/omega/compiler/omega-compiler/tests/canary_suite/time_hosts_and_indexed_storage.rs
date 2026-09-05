@@ -1,11 +1,14 @@
 use super::*;
 
+#[path = "../fixture_rosters/time_hosts_and_indexed_storage.rs"]
+pub(super) mod fixture_roster;
+
 #[test]
 fn runtime_i64_min_literal_exit_canary_runs() {
     // D14 anonymous literals: `-9223372036854775808` (i64::MIN) is directly spellable --
     // the magnitude parses as an uninterpreted payload and the negative fold flips the
     // sign textually. Guard proves the stored value is strictly below -(i64::MAX); exit 70.
-    let canary = pass_canary("arithmetic/runtime_i64_min_literal_exit");
+    let canary = pass_canary(fixture_roster::RUNTIME_I64_MIN_LITERAL_EXIT);
     let scratch = std::env::temp_dir().join(format!("omega-i64min-{}", std::process::id()));
     let _ = fs::remove_dir_all(&scratch);
     let compilation = compile_rooted_canary_for_native_host(&canary, scratch.clone())
@@ -31,7 +34,7 @@ fn runtime_time_host_virtual_interpreter_oracle() {
     // values (D12) -- non-advancing reads, sleep(30) advances exactly 30,
     // calibration 1000/1000/0, wall = 2026-01-01 + elapsed. Interp-only
     // until rung 5 binds the ops natively.
-    let canary = pass_canary("time/runtime_time_host_virtual_exit");
+    let canary = pass_canary(fixture_roster::RUNTIME_TIME_HOST_VIRTUAL_EXIT);
     let checked = compile_to_checked(&canary.join("main.omg"), None)
         .expect("time host virtual canary should compile to checked trees");
     let outcome = interpret(&checked, &[]);
@@ -54,7 +57,7 @@ fn runtime_time_elapsed_since_exit_canary_runs() {
     // elapsed >= 30ms on both engines (interp virtual clock = exactly 30ms).
     // The caller mixes now() and elapsed_since in ONE state -- the shape
     // that #DE-crashed while the two callees shared the let name `frequency`.
-    let canary = pass_canary("time/runtime_time_elapsed_since_exit");
+    let canary = pass_canary(fixture_roster::RUNTIME_TIME_ELAPSED_SINCE_EXIT);
     let checked = compile_to_checked(&canary.join("main.omg"), None)
         .expect("elapsed-since canary should compile to checked trees");
     let outcome = interpret(&checked, &[]);
@@ -90,7 +93,7 @@ fn cross_darwin_time_host_compiles() {
     // clock_gettime_nsec_np with injected clockids (8 monotonic / 0 wall) +
     // the three POSIX calibration constants as no-call constant results.
     // COMPILE-ONLY (structural): native confirmation needs a Mac.
-    let canary = pass_canary("time/cross_darwin_time_host");
+    let canary = pass_canary(fixture_roster::CROSS_DARWIN_TIME_HOST);
     let scratch = std::env::temp_dir().join(format!("omega-darwin-time-{}", std::process::id()));
     compile_single_file_hosted_main(&canary, &scratch, "macos_arm64")
         .expect("darwin time-host cross-compile should succeed");
@@ -112,7 +115,7 @@ fn integer_result_imports_compile_on_windows_and_darwin() {
     // One source pins both closed integer-result import shapes: Windows
     // GetTickCount64 has no arguments, while Darwin injects an immediate clock
     // ID before calling clock_gettime_nsec_np.
-    let canary = pass_canary("host/runtime_tick_count_monotonic_exit");
+    let canary = pass_canary(fixture_roster::RUNTIME_TICK_COUNT_MONOTONIC_EXIT);
     for target in ["windows_x86_64", "macos_arm64"] {
         let scratch = std::env::temp_dir().join(format!(
             "omega-result-import-{target}-{}",
@@ -152,10 +155,7 @@ fn integer_result_imports_compile_on_windows_and_darwin() {
 fn storage_result_imports_compile_on_windows_and_darwin() {
     // Windows window_destroy(result, runtime hwnd) and Darwin
     // close(result, runtime fd) pin the result-plus-argument relocation class.
-    for (target, canary_name) in [
-        ("windows_x86_64", "host/runtime_gui_foreground_window_exit"),
-        ("macos_arm64", "filesystem/native_close"),
-    ] {
+    for &(target, canary_name) in fixture_roster::STORAGE_RESULT_IMPORT_CANARIES {
         let canary = pass_canary(canary_name);
         let scratch = std::env::temp_dir().join(format!(
             "omega-storage-result-import-{target}-{}",
@@ -193,7 +193,7 @@ fn storage_result_imports_compile_on_windows_and_darwin() {
 
 #[test]
 fn darwin_open_create_retains_its_variadic_adapter_footprint() {
-    let canary = pass_canary("filesystem/native_open_create");
+    let canary = pass_canary(fixture_roster::NATIVE_OPEN_CREATE);
     let scratch = std::env::temp_dir().join(format!(
         "omega-open-create-footprint-{}",
         std::process::id()
@@ -214,7 +214,7 @@ fn darwin_open_create_retains_its_variadic_adapter_footprint() {
 fn float_parameter_result_imports_compile_on_darwin() {
     // hypotenuse returns f64 through d0/fmov, then round_nearest returns i64
     // through x0; both consume runtime float arguments from machine storage.
-    let canary = pass_canary("float/native_float_two_args");
+    let canary = pass_canary(fixture_roster::NATIVE_FLOAT_TWO_ARGS);
     let scratch =
         std::env::temp_dir().join(format!("omega-float-result-import-{}", std::process::id()));
     compile_single_file_hosted_main(&canary, &scratch, "macos_arm64")
@@ -233,7 +233,7 @@ fn dereferenced_result_imports_compile_on_windows_and_darwin() {
     // The same source reaches `_errno()` on Windows and `___error()` on Darwin;
     // both return an integer pointer that the retained adapter dereferences
     // before writing the Omega result place.
-    let canary = pass_canary("filesystem/native_errno");
+    let canary = pass_canary(fixture_roster::NATIVE_ERRNO);
     for target in ["windows_x86_64", "macos_arm64"] {
         let scratch = std::env::temp_dir().join(format!(
             "omega-dereferenced-result-import-{target}-{}",
@@ -279,13 +279,7 @@ fn authored_scalar_imports_compile_on_windows_and_darwin() {
     // Both sources call a `via Binding::DllImport` leaf with a direct integer
     // result. Darwin supplies an immediate argument to `_exit`; Windows loads
     // the runtime argument/result places around `abs`.
-    for (target, canary_name) in [
-        ("macos_arm64", "providers/runtime_import_call_argument_exit"),
-        (
-            "windows_x86_64",
-            "capabilities/windows_provides_import_exit",
-        ),
-    ] {
+    for &(target, canary_name) in fixture_roster::AUTHORED_SCALAR_IMPORT_CANARIES {
         let canary = pass_canary(canary_name);
         let scratch = std::env::temp_dir().join(format!(
             "omega-authored-scalar-import-{target}-{}",
@@ -328,7 +322,7 @@ fn cross_linux_time_host_compiles_on_both_architectures() {
     // temporary shapes, combine seconds/nanoseconds for reads, convert
     // milliseconds for sleep, and relocate the semantic Omega operands.
     // Compile-only here; runtime confirmation remains gated on Linux hosts.
-    let canary = pass_canary("time/cross_linux_time_host");
+    let canary = pass_canary(fixture_roster::CROSS_LINUX_TIME_HOST);
     for target in ["linux_x86_64", "linux_arm64"] {
         let scratch =
             std::env::temp_dir().join(format!("omega-linux-time-{target}-{}", std::process::id()));
@@ -361,7 +355,7 @@ fn cross_linux_time_host_compiles_on_both_architectures() {
 
 #[test]
 fn cross_linux_value_syscalls_compile_on_both_architectures() {
-    let canary = pass_canary("filesystem/cross_linux_value_syscalls");
+    let canary = pass_canary(fixture_roster::CROSS_LINUX_VALUE_SYSCALLS);
     for target in ["linux_x86_64", "linux_arm64"] {
         let scratch = std::env::temp_dir().join(format!(
             "omega-linux-value-syscalls-{target}-{}",
@@ -424,7 +418,7 @@ fn runtime_checked_time_arith_exit_canary_runs() {
     // checked_subtract, exact values. 8 legs: carry/borrow Ok arms (non-ZII),
     // u64::MAX / i64::MAX / i64::MIN overflow pins, and a duration-seconds-
     // above-i64::MAX leg pinning the biased-space detection.
-    let canary = pass_canary("time/runtime_checked_time_arith_exit");
+    let canary = pass_canary(fixture_roster::RUNTIME_CHECKED_TIME_ARITH_EXIT);
     let checked = compile_to_checked(&canary.join("main.omg"), None)
         .expect("checked time arith canary should compile to checked trees");
     let outcome = interpret(&checked, &[]);
@@ -459,7 +453,7 @@ fn runtime_sleep_for_exit_canary_runs() {
     // std::time rung 6 slice 3: Time::sleep_for (Duration -> one clamped u32
     // host sleep, returning the clamped request). Returned ms == 30 exactly
     // on both engines; elapsed >= 30ms.
-    let canary = pass_canary("time/runtime_sleep_for_exit");
+    let canary = pass_canary(fixture_roster::RUNTIME_SLEEP_FOR_EXIT);
     let checked = compile_to_checked(&canary.join("main.omg"), None)
         .expect("sleep_for canary should compile to checked trees");
     let outcome = interpret(&checked, &[]);
@@ -494,7 +488,7 @@ fn runtime_system_time_after_2026_exit_canary_runs() {
     // (2026-01-01 seed + slept 30ms) and the real clock both satisfy the
     // seconds>0-or-subsecond>=30ms splits; the Backwards PAYLOAD must carry
     // the real gap (ZII Backwards(ZERO) fails leg 4).
-    let canary = pass_canary("time/runtime_system_time_after_2026_exit");
+    let canary = pass_canary(fixture_roster::RUNTIME_SYSTEM_TIME_AFTER_2026_EXIT);
     let checked = compile_to_checked(&canary.join("main.omg"), None)
         .expect("system-time canary should compile to checked trees");
     let outcome = interpret(&checked, &[]);
@@ -530,7 +524,7 @@ fn runtime_instant_elapsed_exit_canary_runs() {
     // Instant::duration_since/checked_duration_since. DIFFERENTIAL: the
     // >= 30ms and backwards=Overflow assertions hold on the interpreter's
     // virtual clock (exactly 30_000_000 ns) AND the native QPC clock.
-    let canary = pass_canary("time/runtime_instant_elapsed_exit");
+    let canary = pass_canary(fixture_roster::RUNTIME_INSTANT_ELAPSED_EXIT);
     let checked = compile_to_checked(&canary.join("main.omg"), None)
         .expect("instant elapsed canary should compile to checked trees");
     let outcome = interpret(&checked, &[]);
@@ -568,7 +562,7 @@ fn runtime_time_host_native_exit_canary_runs() {
     // asserts the WINDOWS calibration constants (10^7 / 11_644_473_600) and
     // real-clock inequalities; the interpreter's virtual clock (1000 / 0) is
     // asserted exactly by runtime_time_host_virtual_exit instead.
-    let canary = pass_canary("time/runtime_time_host_native_exit");
+    let canary = pass_canary(fixture_roster::RUNTIME_TIME_HOST_NATIVE_EXIT);
     let scratch = std::env::temp_dir().join(format!("omega-time-host-{}", std::process::id()));
     let _ = fs::remove_dir_all(&scratch);
     compile_rooted_canary_for_target(&canary, scratch.clone(), "windows_x86_64")
@@ -593,7 +587,7 @@ fn runtime_time_host_native_darwin_exit_canary_runs() {
     // + the aarch64 constant-result encoder, darwin calibration constants
     // asserted exactly (10^9 units, offset 0), real-clock inequalities.
     // NO interpreter oracle (virtual clock reports 1000/0 by design).
-    let canary = pass_canary("time/runtime_time_host_native_darwin_exit");
+    let canary = pass_canary(fixture_roster::RUNTIME_TIME_HOST_NATIVE_DARWIN_EXIT);
     let scratch =
         std::env::temp_dir().join(format!("omega-time-host-darwin-{}", std::process::id()));
     let _ = fs::remove_dir_all(&scratch);
@@ -620,7 +614,7 @@ fn runtime_fs_mtime_system_time_interop_exit_canary_runs() {
     // the interpreter (virtual mtime 10^9 vs virtual 2026 clock) and the
     // native darwin run (fresh file vs real clock) exit 70. macos-gated:
     // the decode reads darwin stat offsets (windows waits on fs #2).
-    let canary = pass_canary("time/runtime_fs_mtime_system_time_interop_exit");
+    let canary = pass_canary(fixture_roster::RUNTIME_FS_MTIME_SYSTEM_TIME_INTEROP_EXIT);
     let checked = compile_to_checked(&canary.join("main.omg"), None)
         .expect("fs-time interop canary should compile to checked trees");
     let outcome = interpret(&checked, &[]);
@@ -657,7 +651,7 @@ fn runtime_fs_mtime_interop_windows_exit_canary_runs() {
     // at the host layout's offset vs virtual 2026 clock) and the native
     // windows run (fresh file vs real clock) exit 70. windows-gated: the
     // decode reads the `_stat64` offset.
-    let canary = pass_canary("time/runtime_fs_mtime_interop_windows_exit");
+    let canary = pass_canary(fixture_roster::RUNTIME_FS_MTIME_INTEROP_WINDOWS_EXIT);
     let checked = compile_to_checked(&canary.join("main.omg"), None)
         .expect("windows fs-time interop canary should compile to checked trees");
     let outcome = interpret(&checked, &[]);
@@ -687,7 +681,7 @@ fn runtime_fs_mtime_interop_windows_exit_canary_runs() {
 fn runtime_duration_totals_exit_canary_runs() {
     // checked_as_nanoseconds/microseconds/milliseconds exact values + the
     // Overflow arm at Duration::MAX, interpreter oracle + native. Exit 70.
-    let canary = pass_canary("time/runtime_duration_totals_exit");
+    let canary = pass_canary(fixture_roster::RUNTIME_DURATION_TOTALS_EXIT);
     let checked = compile_to_checked(&canary.join("main.omg"), None)
         .expect("duration totals canary should compile to checked trees");
     let outcome = interpret(&checked, &[]);
@@ -718,7 +712,7 @@ fn runtime_duration_constructors_interpreter_oracle() {
     // from_seconds / from_milliseconds exact values (receiverless type-scoped
     // value calls). Interp-only: the native route hits the loud 16-byte
     // value-store MVP fence; promote when that lands (see the canary header).
-    let canary = pass_canary("time/runtime_duration_constructors_exit");
+    let canary = pass_canary(fixture_roster::RUNTIME_DURATION_CONSTRUCTORS_EXIT);
     let checked = compile_to_checked(&canary.join("main.omg"), None)
         .expect("duration constructors canary should compile to checked trees");
     let outcome = interpret(&checked, &[]);
@@ -739,7 +733,7 @@ fn runtime_duration_core_exit_canary_runs() {
     // receiver-aliasing bug, value-call flavor) and time.omg keeps payload
     // field values cascade-safe (bare `param % literal`) -- both documented
     // in tests/omega/pending/time/value_machine_receiver_field_postentry.
-    let canary = pass_canary("time/runtime_duration_core_exit");
+    let canary = pass_canary(fixture_roster::RUNTIME_DURATION_CORE_EXIT);
     let checked = compile_to_checked(&canary.join("main.omg"), None)
         .expect("duration core canary should compile to checked trees");
     let outcome = interpret(&checked, &[]);
@@ -768,7 +762,7 @@ fn runtime_duration_core_exit_canary_runs() {
 fn runtime_scoped_const_exit_canary_runs() {
     // const-v0 (D15): scalar + struct type-scoped consts substitute their
     // literal initializers at symbol resolution; 60 + 10 == 70, exit 70.
-    let canary = pass_canary("constants/runtime_scoped_const_exit");
+    let canary = pass_canary(fixture_roster::RUNTIME_SCOPED_CONST_EXIT);
     let scratch = std::env::temp_dir().join(format!("omega-const-{}", std::process::id()));
     let _ = fs::remove_dir_all(&scratch);
     let compilation = compile_rooted_canary_for_native_host(&canary, scratch.clone())
@@ -792,7 +786,7 @@ fn runtime_scoped_const_exit_canary_runs() {
 fn runtime_u64_max_literal_exit_canary_runs() {
     // D14 fire C: u64::MAX stores full-width into a u64 target; MAX + 1 wraps to
     // exactly 0 only if every bit was set. Exit 70.
-    let canary = pass_canary("arithmetic/runtime_u64_max_literal_exit");
+    let canary = pass_canary(fixture_roster::RUNTIME_U64_MAX_LITERAL_EXIT);
     let scratch = std::env::temp_dir().join(format!("omega-u64max-{}", std::process::id()));
     let _ = fs::remove_dir_all(&scratch);
     let compilation = compile_rooted_canary_for_native_host(&canary, scratch.clone())
@@ -819,7 +813,7 @@ fn u64_literal_above_i64_max_canary_is_rejected() {
     // i64 target that would reinterpret the bits as negative -- still rejects at the
     // literal-width gate with a CLEAR "exceeds the i64 range" diagnostic that names
     // the accepted alternative.
-    let canary = fail_canary("arithmetic/u64_literal_above_i64_max");
+    let canary = fail_canary(fixture_roster::U64_LITERAL_ABOVE_I64_MAX);
     let diagnostics = match compile_canary_without_output(&canary) {
         Ok(report) => panic!(
             "expected u64-literal-too-large canary to reject, but it compiled: {}",
@@ -843,7 +837,7 @@ fn runtime_guarded_computed_index_operand_exit_canary_runs() {
     // `acc + arr[k + 1]` under an explicit `k + 1 >= 0 && k + 1 < 5` guard:
     // the auto-hoisted index temp's bounds discharge from the guard facts
     // under its INITIALIZER label. Was the computed-index FAIL canary.
-    let canary = pass_canary("collections/runtime_guarded_computed_index_operand_exit");
+    let canary = pass_canary(fixture_roster::RUNTIME_GUARDED_COMPUTED_INDEX_OPERAND_EXIT);
     let build_dir = std::env::temp_dir().join(format!(
         "omega-guarded-computed-index-{}",
         std::process::id()
@@ -876,7 +870,7 @@ stderr:
 // DIRECT computed-index spellings (read/operand/write/reversed/backward).
 #[test]
 fn runtime_computed_index_direct_exit_canary_runs() {
-    let canary = pass_canary("collections/runtime_computed_index_direct_exit");
+    let canary = pass_canary(fixture_roster::RUNTIME_COMPUTED_INDEX_DIRECT_EXIT);
     let build_dir = std::env::temp_dir().join(format!(
         "omega-computed-index-direct-{}",
         std::process::id()
@@ -912,7 +906,7 @@ fn runtime_dual_indexed_copy_exit_canary_runs() {
     // CopyRuntimeMachineIndexedToRuntimeMachineIndexed) instead of being fenced.
     // nums=[10,20,30,40,50], i=0, j=4 -> nums[0]=50, exited as the code. Exit 10
     // = the historic base-copy/no-op bug returned.
-    let canary = pass_canary("collections/runtime_dual_indexed_copy_exit");
+    let canary = pass_canary(fixture_roster::RUNTIME_DUAL_INDEXED_COPY_EXIT);
     let build_dir = std::env::temp_dir().join(format!("omega-dual-copy-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
 
@@ -942,7 +936,7 @@ fn runtime_dual_indexed_copy_exit_canary_runs() {
 fn runtime_double_indexed_write_exit_canary_runs() {
     // Both-runtime nested writes (`grid[i][j] = v`): const value, machine and
     // frame place sources, neighbor-validated. Was the write fail canary.
-    let canary = pass_canary("collections/runtime_double_indexed_write_exit");
+    let canary = pass_canary(fixture_roster::RUNTIME_DOUBLE_INDEXED_WRITE_EXIT);
     let build_dir =
         std::env::temp_dir().join(format!("omega-double-indexed-write-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
@@ -973,7 +967,7 @@ stderr:
 // Container setter/getter/non-generic-method matrix over two instances.
 #[test]
 fn runtime_container_setter_matrix_exit_canary_runs() {
-    let canary = pass_canary("generics/runtime_container_setter_matrix_exit");
+    let canary = pass_canary(fixture_roster::RUNTIME_CONTAINER_SETTER_MATRIX_EXIT);
     let build_dir =
         std::env::temp_dir().join(format!("omega-container-setter-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
@@ -1004,7 +998,7 @@ stderr:
 // Container instances: Box<i32> + Box<bool> with per-instance stored().
 #[test]
 fn runtime_container_method_instances_exit_canary_runs() {
-    let canary = pass_canary("generics/runtime_container_method_instances_exit");
+    let canary = pass_canary(fixture_roster::RUNTIME_CONTAINER_METHOD_INSTANCES_EXIT);
     let build_dir =
         std::env::temp_dir().join(format!("omega-container-methods-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
@@ -1035,7 +1029,7 @@ stderr:
 // Frame-resident 2D arrays, both-runtime reads (local + param faces).
 #[test]
 fn runtime_frame_double_indexed_read_exit_canary_runs() {
-    let canary = pass_canary("collections/runtime_frame_double_indexed_read_exit");
+    let canary = pass_canary(fixture_roster::RUNTIME_FRAME_DOUBLE_INDEXED_READ_EXIT);
     let build_dir =
         std::env::temp_dir().join(format!("omega-frame-double-read-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
@@ -1067,7 +1061,7 @@ stderr:
 // + the stale-fold invalidation and hoist-temp typing fixes it required.
 #[test]
 fn runtime_double_indexed_rmw_exit_canary_runs() {
-    let canary = pass_canary("collections/runtime_double_indexed_rmw_exit");
+    let canary = pass_canary(fixture_roster::RUNTIME_DOUBLE_INDEXED_RMW_EXIT);
     let build_dir =
         std::env::temp_dir().join(format!("omega-double-indexed-rmw-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
@@ -1099,7 +1093,7 @@ stderr:
 // double index, Always and guarded arms -- the run-splice face).
 #[test]
 fn runtime_indexed_operand_transition_arg_exit_canary_runs() {
-    let canary = pass_canary("collections/runtime_indexed_operand_transition_arg_exit");
+    let canary = pass_canary(fixture_roster::RUNTIME_INDEXED_OPERAND_TRANSITION_ARG_EXIT);
     let build_dir = std::env::temp_dir().join(format!("omega-indexed-arg-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
 
@@ -1130,7 +1124,7 @@ stderr:
 // guard reads the right field through the alias slot.
 #[test]
 fn runtime_shared_ref_param_guard_exit_canary_runs() {
-    let canary = pass_canary("references/runtime_shared_ref_param_guard_exit");
+    let canary = pass_canary(fixture_roster::RUNTIME_SHARED_REF_PARAM_GUARD_EXIT);
     let build_dir =
         std::env::temp_dir().join(format!("omega-shared-ref-guard-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
@@ -1164,7 +1158,7 @@ stderr:
 // by-type walk hits the named instance. Receiver-place staircase rungs 2b/2a/3.
 #[test]
 fn runtime_nested_receiver_distinct_types_exit_canary_runs() {
-    let canary = pass_canary("references/runtime_nested_receiver_distinct_types_exit");
+    let canary = pass_canary(fixture_roster::RUNTIME_NESTED_RECEIVER_DISTINCT_TYPES_EXIT);
     let build_dir = std::env::temp_dir().join(format!(
         "omega-nested-receiver-distinct-{}",
         std::process::id()
@@ -1199,7 +1193,7 @@ stderr:
 // double-indexed faces, read AND write, both-runtime indices.
 #[test]
 fn runtime_double_indexed_member_exit_canary_runs() {
-    let canary = pass_canary("collections/runtime_double_indexed_member_exit");
+    let canary = pass_canary(fixture_roster::RUNTIME_DOUBLE_INDEXED_MEMBER_EXIT);
     let build_dir = std::env::temp_dir().join(format!(
         "omega-double-indexed-member-{}",
         std::process::id()
@@ -1232,7 +1226,7 @@ stderr:
 // Both-runtime nested read as a BINARY OPERAND (`grid[i][j] + 5`).
 #[test]
 fn runtime_double_indexed_operand_exit_canary_runs() {
-    let canary = pass_canary("collections/runtime_double_indexed_operand_exit");
+    let canary = pass_canary(fixture_roster::RUNTIME_DOUBLE_INDEXED_OPERAND_EXIT);
     let build_dir = std::env::temp_dir().join(format!(
         "omega-double-indexed-operand-{}",
         std::process::id()
@@ -1266,7 +1260,7 @@ stderr:
 fn runtime_inplace_reverse_local_temp_exit_canary_runs() {
     // In-place reverse with a LOCAL temp (capture + dual copy + frame-source
     // write composed in a loop): [1,2,3,4,5] -> [5,4,3,2,1] -> exit 70.
-    let canary = pass_canary("collections/runtime_inplace_reverse_local_temp_exit");
+    let canary = pass_canary(fixture_roster::RUNTIME_INPLACE_REVERSE_LOCAL_TEMP_EXIT);
     let build_dir = std::env::temp_dir().join(format!("omega-reverse-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
 
@@ -1297,7 +1291,7 @@ stderr:
 fn runtime_indexed_local_copy_chain_exit_canary_runs() {
     // Transitive copy chain t=arr[i]; c=t; d=c; b=d>5: the slot scan follows
     // bare copies, so b is true (exit 70); the old fold read false (exit 71).
-    let canary = pass_canary("collections/runtime_indexed_local_copy_chain_exit");
+    let canary = pass_canary(fixture_roster::RUNTIME_INDEXED_LOCAL_COPY_CHAIN_EXIT);
     let build_dir = std::env::temp_dir().join(format!("omega-copychain-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
 
@@ -1328,7 +1322,7 @@ stderr:
 fn runtime_indexed_write_frame_local_source_exit_canary_runs() {
     // `nums[i] = t` with t a FRAME-slot capture: nums[2] must land the captured
     // 99 (exit 70); the old stale fold wrote the post-overwrite 0.
-    let canary = pass_canary("collections/runtime_indexed_write_frame_local_source_exit");
+    let canary = pass_canary(fixture_roster::RUNTIME_INDEXED_WRITE_FRAME_LOCAL_SOURCE_EXIT);
     let build_dir = std::env::temp_dir().join(format!("omega-frame-src-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
 
@@ -1359,7 +1353,7 @@ stderr:
 fn runtime_captured_local_swap_exit_canary_runs() {
     // Euclid swap: let r = a % b; a = b; b = r. The capture-aware binding skip
     // keeps r in its slot -> gcd(48,36) = 12 (exit 70); the old fold gave 36.
-    let canary = pass_canary("control_flow/runtime_captured_local_swap_exit");
+    let canary = pass_canary(fixture_roster::RUNTIME_CAPTURED_LOCAL_SWAP_EXIT);
     let build_dir = std::env::temp_dir().join(format!("omega-gcd-swap-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
 
@@ -1393,7 +1387,7 @@ fn runtime_dual_indexed_copy_in_loop_exit_canary_runs() {
     // classifier still routes it off the static-assignment fast path (which
     // would no-op); the recorded write then selects the dual copy. b=[10,20,40]
     // copies into a; sum(a)=70. Exit 0 = the historic silent no-op returned.
-    let canary = pass_canary("collections/runtime_dual_indexed_copy_in_loop_exit");
+    let canary = pass_canary(fixture_roster::RUNTIME_DUAL_INDEXED_COPY_IN_LOOP_EXIT);
     let build_dir = std::env::temp_dir().join(format!("omega-dual-loop-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
 
