@@ -1,3 +1,17 @@
+//! The current typed trees program and its concept-owned storage.
+//!
+//! Declarations, executable control flow, values, type references and retained
+//! inspection data are subordinate to this root, not separate pipeline outputs.
+
+pub mod calls;
+pub mod control_flow;
+pub mod declarations;
+pub mod evidence;
+pub mod inspection;
+pub mod names;
+pub mod type_system;
+pub mod values;
+
 use crate::{
     data, domain, expression, machine, measure, name, proposition, signature, snapshot,
     trait_definition, types, wire,

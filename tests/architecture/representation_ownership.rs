@@ -388,8 +388,9 @@ fn selected_program_has_one_representation_entrance() {
 
 #[test]
 fn program_representations_have_named_roots_and_concept_owners() {
-    for (package, module, program, areas) in [
+    for (half, package, module, program, areas) in [
         (
+            "omega",
             "machine-code",
             "machine_code",
             "MachineCodePlan",
@@ -408,6 +409,7 @@ fn program_representations_have_named_roots_and_concept_owners() {
             ][..],
         ),
         (
+            "omega",
             "physical-instructions",
             "physical_instructions",
             "PostAllocationMachinePlan",
@@ -421,18 +423,21 @@ fn program_representations_have_named_roots_and_concept_owners() {
             ][..],
         ),
         (
+            "omega",
             "register-homes",
             "register_homes",
             "AllocatedProgram",
             &["storage", "evidence", "identity", "codec"][..],
         ),
         (
+            "omega",
             "abstract-operations",
             "abstract_operations",
             "AbstractOperationPlan",
             &["control_flow", "values", "calls", "ownership", "operations"][..],
         ),
         (
+            "omega",
             "target-operations",
             "target_operations",
             "TargetOperationPlan",
@@ -446,20 +451,69 @@ fn program_representations_have_named_roots_and_concept_owners() {
             ][..],
         ),
         (
+            "omega",
             "legalized-operations",
             "legalized_operations",
             "LegalizedOperationPlan",
             &["control_flow", "values", "calls", "legality", "identity"][..],
         ),
         (
+            "omega",
             "assigned-target-operations",
             "assigned_operations",
             "AssignedOperationPlan",
             &["control_flow", "values", "calls", "storage", "operations"][..],
         ),
+        (
+            "psi",
+            "syntax-trees",
+            "syntax_trees",
+            "SyntaxTrees",
+            &[
+                "declarations",
+                "control_flow",
+                "values",
+                "type_system",
+                "names",
+                "inspection",
+            ][..],
+        ),
+        (
+            "psi",
+            "symbol-resolved-trees",
+            "symbol_resolved_trees",
+            "SymbolResolvedTrees",
+            &[
+                "declarations",
+                "control_flow",
+                "calls",
+                "values",
+                "type_system",
+                "names",
+                "evidence",
+                "storage",
+                "inspection",
+            ][..],
+        ),
+        (
+            "psi",
+            "typed-trees",
+            "typed_trees",
+            "TypedTrees",
+            &[
+                "declarations",
+                "control_flow",
+                "calls",
+                "values",
+                "type_system",
+                "names",
+                "evidence",
+                "inspection",
+            ][..],
+        ),
     ] {
         let directory = repository()
-            .join("omega-rust/omega/representations")
+            .join(format!("omega-rust/{half}/representations"))
             .join(package)
             .join("src");
         let mut files = std::fs::read_dir(&directory)

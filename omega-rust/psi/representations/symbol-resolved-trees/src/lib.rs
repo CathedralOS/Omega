@@ -5,29 +5,25 @@
 )]
 
 //! Source-shaped Psi trees after name and symbol identity resolution.
+//!
+//! Start at [`symbol_resolved_trees::SymbolResolvedTrees`]; its modules own the program's concepts.
 
-pub mod constant;
-pub mod data;
 pub mod declaration_selection {
     pub use language_semantics::declaration_selection::*;
 }
-pub mod domain;
-pub mod expression;
-pub mod identity;
-pub mod machine;
-pub mod measure;
-pub mod name;
-pub mod operator;
-pub mod proposition;
-pub mod signature;
-pub mod snapshot;
-pub mod state;
-pub mod statement;
 pub mod symbol_resolved_trees;
-pub mod tables;
-pub mod trait_definition;
-pub mod types;
-pub mod wire;
+
+pub use symbol_resolved_trees::calls::signature;
+pub use symbol_resolved_trees::control_flow::{machine, state, statement};
+pub use symbol_resolved_trees::declarations::{
+    constant, data, domain, measure, operator, trait_definition, wire,
+};
+pub use symbol_resolved_trees::evidence::proposition;
+pub use symbol_resolved_trees::inspection::snapshot;
+pub use symbol_resolved_trees::names::{identity, name};
+pub use symbol_resolved_trees::storage::tables;
+pub use symbol_resolved_trees::type_system::types;
+pub use symbol_resolved_trees::values::expression;
 
 pub use arena::OrderedRootArena;
 pub use declaration_selection::{

@@ -5,34 +5,23 @@
 )]
 
 //! Psi-owned typed source representation.
+//!
+//! Start at [`typed_trees::TypedTrees`]; its modules own the program's concepts.
 
-pub mod boundary;
-pub mod byte_predicates;
-pub mod constant;
-pub mod data;
-pub mod dependent_ranges;
-pub mod domain;
-pub mod dynamic_traits;
-pub mod expression;
-pub mod identity;
-pub mod machine;
-pub mod measure;
-pub mod name;
-pub mod operator;
-pub mod proof_only;
-pub mod proposition;
-pub mod ranking;
-pub mod service;
-pub mod signature;
-pub mod snapshot;
-pub mod state;
-pub mod statement;
-pub mod trait_definition;
-pub mod type_identity;
 pub mod typed_trees;
-pub mod types;
-pub mod visibility;
-pub mod wire;
+
+pub use typed_trees::calls::{boundary, dynamic_traits, service, signature};
+pub use typed_trees::control_flow::{machine, state, statement};
+pub use typed_trees::declarations::{
+    constant, data, domain, measure, operator, trait_definition, visibility, wire,
+};
+pub use typed_trees::evidence::{
+    byte_predicates, dependent_ranges, proof_only, proposition, ranking,
+};
+pub use typed_trees::inspection::snapshot;
+pub use typed_trees::names::{identity, name};
+pub use typed_trees::type_system::{type_identity, types};
+pub use typed_trees::values::expression;
 
 pub use language_semantics::declaration_selection::{
     AuthoredDeclarationSelection, AuthoredDeclarationSelectionExposure,
