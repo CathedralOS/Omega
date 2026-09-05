@@ -3,6 +3,7 @@ mod aggregate_calls;
 mod carrier_results;
 mod certificates;
 mod checks;
+mod generic_frontiers;
 mod literal_moves;
 mod mutation;
 mod mutation_transitive;

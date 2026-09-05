@@ -185,6 +185,7 @@ fn reference_lifetime(program: &TypedTrees, type_reference: TypeReferenceHandle)
 mod carried_lifetimes;
 
 use carried_lifetimes::carried_lifetimes;
+pub(crate) use carried_lifetimes::{DeclarationLifetimeFrontier, declaration_lifetime_frontier};
 
 fn aggregate_view_return_source(
     program: &TypedTrees,

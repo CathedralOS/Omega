@@ -17,6 +17,10 @@ use psi_typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 
 mod expression_scanning;
 mod generic_bounds;
+mod generic_requirement;
+pub use generic_requirement::{
+    generic_bound_call_requirement, generic_bound_value_call_requirement,
+};
 mod inline_assembly;
 mod recursion;
 mod result_use;

@@ -56,6 +56,7 @@ pub use crate::call_cycles::{
 };
 pub use crate::calls::{
     AssignmentWriteTarget, CallFrameResolver, LocalWriteOrigin, frame_paths_overlap,
+    generic_bound_call_requirement, generic_bound_value_call_requirement,
     state_reference_parameter_binding_is_stable,
 };
 use crate::calls::{
