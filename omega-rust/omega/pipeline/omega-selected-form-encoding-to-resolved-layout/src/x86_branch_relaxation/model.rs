@@ -85,7 +85,7 @@ pub struct StagedOptimizedX86BranchRelaxation {
     pub(super) source: ResolvedSelectedFormLayoutIdentity,
     pub(super) selected: omega_selected_instructions::SelectedInstructionPlanIdentity,
     pub(super) machine: omega_machine_optimizer::PostAllocationMachineIdentity,
-    pub(super) pre_layout: crate::SelectedFormEncodingIdentity,
+    pub(super) pre_layout: omega_machine_code::SelectedFormEncodingIdentity,
     pub(super) target: NativeTarget,
     pub(super) policy: X86BranchRelaxationPolicy,
     pub(super) budget: OptimizationWorkBudget,
@@ -111,7 +111,7 @@ impl StagedOptimizedX86BranchRelaxation {
         self.machine
     }
 
-    pub const fn pre_layout(&self) -> crate::SelectedFormEncodingIdentity {
+    pub const fn pre_layout(&self) -> omega_machine_code::SelectedFormEncodingIdentity {
         self.pre_layout
     }
 
@@ -161,8 +161,8 @@ impl StagedOptimizedX86BranchRelaxation {
 
     /// Test-only authenticated corruption. This grants no production
     /// construction, validation, layout, emission, or publication authority.
-    #[cfg(test)]
-    pub(crate) fn corrupt_first_action_bytes_and_reauthenticate_for_test(&mut self) {
+    #[cfg(any(test, feature = "test-support"))]
+    pub fn corrupt_first_action_bytes_and_reauthenticate_for_test(&mut self) {
         self.actions
             .first_mut()
             .expect("the rel8 corruption fixture must contain one action")

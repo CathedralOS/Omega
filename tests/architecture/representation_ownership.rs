@@ -290,7 +290,7 @@ fn structural_call_encoding_data_does_not_require_the_isa_implementation() {
     }
     for path in [
         "omega-rust/omega/pipeline/omega-post-allocation-machine-to-selected-form-encoding/src/model.rs",
-        "omega-rust/omega/pipeline/omega-optimization-pipeline/src/stages/layout/resolved_selected_form_layout/model.rs",
+        "omega-rust/omega/pipeline/omega-selected-form-encoding-to-resolved-layout/src/resolved_selected_form_layout/model.rs",
     ] {
         let source = std::fs::read_to_string(root.join(path)).unwrap();
         assert!(source.contains("use omega_machine_code::{"));
@@ -334,7 +334,7 @@ fn resolved_layout_data_and_identity_do_not_require_a_producing_stage() {
     assert!(machine.contains("omega.terminal.resolved-selected-form-layout.v9"));
     assert!(!pipeline.contains("omega.terminal.resolved-selected-form-layout.v9"));
 
-    let stage = root.join("omega-rust/omega/pipeline/omega-optimization-pipeline/src/stages/layout/resolved_selected_form_layout");
+    let stage = root.join("omega-rust/omega/pipeline/omega-selected-form-encoding-to-resolved-layout/src/resolved_selected_form_layout");
     let wrapper = std::fs::read_to_string(stage.join("model.rs")).unwrap();
     assert!(wrapper.contains("program: Arc<ResolvedMachineLayout>"));
     assert!(wrapper.contains("Arc::clone(&self.program)"));
@@ -353,6 +353,40 @@ fn resolved_layout_data_and_identity_do_not_require_a_producing_stage() {
         assert!(!manifest.contains("/pipeline/"));
         assert!(!manifest.contains("/backend/"));
     }
+}
+
+#[test]
+fn resolved_layout_transformation_is_owned_outside_the_coordinator() {
+    let root = repository();
+    let owner =
+        root.join("omega-rust/omega/pipeline/omega-selected-form-encoding-to-resolved-layout");
+    let coordinator = root.join("omega-rust/omega/pipeline/omega-optimization-pipeline/src");
+    let algorithms = rust_source(&owner.join("src"));
+    let orchestration = rust_source(&coordinator);
+    for definition in [
+        "pub fn stage_optimized_resolved_selected_form_layout<",
+        "pub fn admit_resolved_machine_layout<",
+        "pub fn stage_optimized_x86_branch_relaxation<",
+        "pub fn validate_optimized_x86_branch_relaxation<",
+    ] {
+        assert!(
+            algorithms.contains(definition),
+            "missing layout entrance {definition}"
+        );
+        assert!(
+            !orchestration.contains(definition),
+            "coordinator owns {definition}"
+        );
+    }
+    assert!(algorithms.contains("pub(crate) fn with_replayed_functions("));
+    assert!(!algorithms.contains("pub fn with_replayed_functions("));
+    assert!(!algorithms.contains("omega_optimization_pipeline::"));
+    let manifest = std::fs::read_to_string(owner.join("Cargo.toml")).unwrap();
+    assert!(!manifest.contains("omega-optimization-pipeline"));
+    let representation =
+        rust_source(&root.join("omega-rust/omega/representations/omega-machine-code/src"));
+    assert!(representation.contains("pub struct ResolvedMachineLayout {"));
+    assert!(!algorithms.contains("pub struct ResolvedMachineLayout {"));
 }
 
 #[test]

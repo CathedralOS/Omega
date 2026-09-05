@@ -1,9 +1,9 @@
 use omega_optimization_core::Optimization;
 
-use crate::{
-    PostAllocationMachineOptimizationCustody, StagedOptimizedPostAllocationMachineOptimization,
-    StagedOptimizedPostAllocationMachinePlan, StagedOptimizedSelectedFormEncoding,
-};
+use omega_physical_instructions::PostAllocationMachineOptimizationCustody;
+use omega_post_allocation_machine_to_optimized_machine::StagedOptimizedPostAllocationMachineOptimization;
+use omega_post_allocation_machine_to_selected_form_encoding::StagedOptimizedSelectedFormEncoding;
+use omega_register_homes_to_post_allocation_machine::StagedOptimizedPostAllocationMachinePlan;
 
 use super::error::OptimizedResolvedSelectedFormLayoutError;
 use super::model::StagedOptimizedResolvedSelectedFormLayout;

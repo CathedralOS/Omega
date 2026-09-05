@@ -2,7 +2,7 @@ use omega_selected_instructions::{
     SelectedBlock, SelectedBlockId, SelectedFunction, SelectedTerminator,
 };
 
-use crate::StagedOptimizedAarch64CbnzFusion;
+use omega_post_allocation_machine_to_optimized_machine::StagedOptimizedAarch64CbnzFusion;
 
 use super::super::OptimizedResolvedSelectedFormLayoutError;
 use super::super::SelectedFunctionLayoutPolicy;

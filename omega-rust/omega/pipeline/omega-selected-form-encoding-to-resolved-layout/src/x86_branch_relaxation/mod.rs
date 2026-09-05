@@ -7,7 +7,7 @@ mod identity;
 mod model;
 mod validation;
 
-pub(crate) use catalog::x86_rel8_selected;
+pub use catalog::x86_rel8_selected;
 pub use catalog::{
     FUNCTION_RELATIVE_LAYOUT_RULE_CATALOG, FunctionRelativeLayoutCatalogError,
     FunctionRelativeLayoutRuleCatalogEntry, ORDERED_FUNCTION_RELATIVE_LAYOUT_RULES,
@@ -20,10 +20,11 @@ use omega_regalloc::ValidatedSelectedAnalysis;
 use omega_register_model::ValidatedPhysicalRegisterModel;
 
 use crate::{
-    StagedOptimizedPostAllocationMachinePlan, StagedOptimizedResolvedSelectedFormLayout,
-    StagedOptimizedSelectedFormEncoding, validate_optimized_resolved_selected_form_layout,
+    StagedOptimizedResolvedSelectedFormLayout, validate_optimized_resolved_selected_form_layout,
 };
 use compute::{compute_relaxation, replay_relaxation};
+use omega_post_allocation_machine_to_selected_form_encoding::StagedOptimizedSelectedFormEncoding;
+use omega_register_homes_to_post_allocation_machine::StagedOptimizedPostAllocationMachinePlan;
 use validation::{compare_replayed_evidence, validate_roots};
 
 pub fn stage_optimized_x86_branch_relaxation<S: ValidatedSelectedAnalysis>(

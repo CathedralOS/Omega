@@ -4,7 +4,7 @@ use omega_selected_instructions::{
     SelectedBlock, SelectedFunction, SelectedInstruction, SelectedInstructionId, SelectedTerminator,
 };
 
-use crate::SelectedFormEncodingRow;
+use omega_post_allocation_machine_to_selected_form_encoding::SelectedFormEncodingRow;
 
 use super::super::super::OptimizedResolvedSelectedFormLayoutError;
 use super::PreLayoutRows;

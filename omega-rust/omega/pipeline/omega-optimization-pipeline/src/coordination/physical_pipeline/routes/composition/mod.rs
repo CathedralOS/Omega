@@ -9,11 +9,11 @@ mod model;
 mod tests;
 use super::super::OptimizedVerifiedPhysicalPipelineError;
 use super::super::PhysicalOptimizationPhaseSelections;
-use crate::stages::layout::x86_branch_relaxation::x86_rel8_selected;
 pub(crate) use model::{ResolvedPhysicalPhaseComposition, ResolvedRealizationPlan};
 use omega_machine_optimizer::selected_post_allocation_machine_rule;
 use omega_optimization_core::Optimization;
 use omega_regalloc::{resolve_selected_lowering_rules, selected_allocation_recovery_rule};
+use omega_selected_form_encoding_to_resolved_layout::x86_rel8_selected;
 use omega_target::Architecture;
 
 pub(crate) fn resolve_physical_phase_composition(

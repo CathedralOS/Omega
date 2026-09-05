@@ -1,0 +1,26 @@
+[package]
+name = "omega-selected-form-encoding-to-resolved-layout"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[features]
+test-support = []
+
+[dependencies]
+omega-calling-conventions = { path = "../../representations/omega-calling-conventions" }
+omega-isa-aarch64 = { path = "../../backend/instruction_set_architectures/omega-isa-aarch64" }
+omega-isa-x86_64 = { path = "../../backend/instruction_set_architectures/omega-isa-x86_64" }
+omega-machine-code = { path = "../../representations/omega-machine-code" }
+omega-machine-optimizer = { path = "../omega-machine-optimizer" }
+omega-optimization-core = { path = "../../representations/omega-optimization-core" }
+omega-physical-instructions = { path = "../../representations/omega-physical-instructions" }
+omega-regalloc = { path = "../omega-regalloc" }
+omega-register-model = { path = "../../representations/omega-register-model" }
+omega-selected-instructions = { path = "../../representations/omega-selected-instructions" }
+omega-target = { path = "../../representations/omega-target" }
+psi-core = { path = "../../../psi/foundation/psi-core" }
+omega-post-allocation-machine-to-optimized-machine = { path = "../omega-post-allocation-machine-to-optimized-machine" }
+omega-register-homes-to-post-allocation-machine = { path = "../omega-register-homes-to-post-allocation-machine" }
+omega-post-allocation-machine-to-selected-form-encoding = { path = "../omega-post-allocation-machine-to-selected-form-encoding" }
+sha2 = "0.10.9"

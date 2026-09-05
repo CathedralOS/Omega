@@ -2102,7 +2102,7 @@ fn terminal_component_staging_consumes_only_the_psi_owned_artifact() {
         "omega-rust/omega/pipeline/omega-regalloc/src/rules/selected_lowering/mod.rs",
         "omega-rust/omega/pipeline/omega-regalloc/src/rules/allocation_recovery/mod.rs",
         "omega-rust/omega/pipeline/omega-machine-optimizer/src/rules/mod.rs",
-        "omega-rust/omega/pipeline/omega-optimization-pipeline/src/stages/layout/x86_branch_relaxation/catalog.rs",
+        "omega-rust/omega/pipeline/omega-selected-form-encoding-to-resolved-layout/src/x86_branch_relaxation/catalog.rs",
     ]
     .map(|relative| {
         let path = root.join(relative);
@@ -4940,7 +4940,7 @@ fn psi_content_compact_fingerprints_are_report_only_beside_exact_replay() {
 fn resolved_layout_validation_cannot_reenter_its_producer() {
     let root = workspace_root();
     let stage = root.join(
-        "omega-rust/omega/pipeline/omega-optimization-pipeline/src/stages/layout/resolved_selected_form_layout",
+        "omega-rust/omega/pipeline/omega-selected-form-encoding-to-resolved-layout/src/resolved_selected_form_layout",
     );
     let entrance = std::fs::read_to_string(stage.join("mod.rs"))
         .expect("read resolved selected-form layout entrance");

@@ -15,8 +15,7 @@ use omega_regalloc::{
 use omega_target::{Architecture, NativeTarget};
 
 use crate::{
-    FUNCTION_RELATIVE_LAYOUT_RULE_CATALOG, FunctionRelativeLayoutCatalogError,
-    stages::layout::x86_branch_relaxation::x86_rel8_selected,
+    FUNCTION_RELATIVE_LAYOUT_RULE_CATALOG, FunctionRelativeLayoutCatalogError, x86_rel8_selected,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

@@ -6,7 +6,7 @@ pub(in crate::stages::realization::function_relative_realization) fn rel8_select
     architecture: omega_target::Architecture,
 ) -> Result<bool, FunctionRelativeOptimizationRealizationError> {
     let phase = selections.project_phase(OptimizationExecutionPhase::FunctionRelativeLayout);
-    crate::stages::layout::x86_branch_relaxation::x86_rel8_selected(&phase, architecture)
+    omega_selected_form_encoding_to_resolved_layout::x86_rel8_selected(&phase, architecture)
         .map_err(FunctionRelativeOptimizationRealizationError::RuleCatalog)
 }
 

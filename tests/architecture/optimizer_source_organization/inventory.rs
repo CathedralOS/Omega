@@ -37,6 +37,7 @@ const GOVERNED_ROOTS: &[&str] = &[
     "omega-rust/omega/pipeline/omega-post-allocation-machine-to-optimized-machine",
     "omega-rust/omega/pipeline/omega-post-allocation-machine-to-frame-layout",
     "omega-rust/omega/pipeline/omega-post-allocation-machine-to-selected-form-encoding",
+    "omega-rust/omega/pipeline/omega-selected-form-encoding-to-resolved-layout",
     "omega-rust/omega/pipeline/omega-regalloc",
     "omega-rust/omega/pipeline/omega-register-homes-to-callee-saved-requirements",
     "omega-rust/omega/pipeline/omega-register-homes-to-post-allocation-machine",
@@ -117,13 +118,13 @@ pub(super) const RULE_STAGES: &[RuleStageDescriptor] = &[
         ],
     },
     RuleStageDescriptor {
-        entrance: "omega-rust/omega/pipeline/omega-optimization-pipeline/src/stages/layout/x86_branch_relaxation/mod.rs",
-        catalog: "omega-rust/omega/pipeline/omega-optimization-pipeline/src/stages/layout/x86_branch_relaxation/catalog.rs",
+        entrance: "omega-rust/omega/pipeline/omega-selected-form-encoding-to-resolved-layout/src/x86_branch_relaxation/mod.rs",
+        catalog: "omega-rust/omega/pipeline/omega-selected-form-encoding-to-resolved-layout/src/x86_branch_relaxation/catalog.rs",
         coordination_marker: "pub fn stage_optimized_x86_branch_relaxation",
         catalog_marker: "FUNCTION_RELATIVE_LAYOUT_RULE_CATALOG",
         next_rungs: &[
-            "omega-rust/omega/pipeline/omega-optimization-pipeline/src/stages/layout/x86_branch_relaxation/compute.rs",
-            "omega-rust/omega/pipeline/omega-optimization-pipeline/src/stages/layout/x86_branch_relaxation/validation.rs",
+            "omega-rust/omega/pipeline/omega-selected-form-encoding-to-resolved-layout/src/x86_branch_relaxation/compute.rs",
+            "omega-rust/omega/pipeline/omega-selected-form-encoding-to-resolved-layout/src/x86_branch_relaxation/validation.rs",
         ],
     },
 ];

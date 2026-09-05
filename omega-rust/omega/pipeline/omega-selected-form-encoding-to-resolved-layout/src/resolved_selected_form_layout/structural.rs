@@ -1,7 +1,3 @@
-use crate::{
-    SelectedFormEncodingState, SelectedFormMachineDisposition,
-    SelectedStructuralUnitFunctionEncoding,
-};
 use omega_isa_x86_64::{
     X86_64_STRUCTURAL_UNIT_CALL_NEXT_INSTRUCTION_OFFSET, X86_64_STRUCTURAL_UNIT_CALL_OPCODE_OFFSET,
     X86_64_STRUCTURAL_UNIT_CALL_REL32_FIELD_OFFSET, X86_64_STRUCTURAL_UNIT_CALL_REL32_FIELD_WIDTH,
@@ -9,6 +5,10 @@ use omega_isa_x86_64::{
 };
 use omega_machine_code::{
     X86_64StructuralUnitInternalControlFixupKind, X86_64StructuralUnitInternalControlFixupState,
+};
+use omega_post_allocation_machine_to_selected_form_encoding::{
+    SelectedFormEncodingState, SelectedFormMachineDisposition,
+    SelectedStructuralUnitFunctionEncoding,
 };
 
 use super::error::OptimizedResolvedSelectedFormLayoutError;
@@ -82,7 +82,7 @@ pub(super) fn layout_structural_unit_function(
 }
 
 fn layout_structural_unit_call(
-    pre: &crate::SelectedStructuralUnitCallEncodingRow,
+    pre: &omega_post_allocation_machine_to_selected_form_encoding::SelectedStructuralUnitCallEncodingRow,
 ) -> Result<ResolvedStructuralUnitCallLayout, OptimizedResolvedSelectedFormLayoutError> {
     let fixup = pre.fixup;
     if pre.bytes.len() != X86_64_STRUCTURAL_UNIT_CALL_TEMPLATE_BYTE_COUNT
@@ -145,14 +145,16 @@ mod tests {
     };
     use psi_core::{MachineId, OperationId};
 
-    use crate::{SelectedFormDecodedFootprint, SelectedStructuralUnitCallEncodingRow};
-    use crate::{
-        SelectedFormEncodingRow, SelectedFormEncodingState, SelectedFormMachineDisposition,
-        SelectedStructuralUnitFunctionEncoding,
-    };
     use omega_machine_code::{
         X86_64StructuralUnitArgumentPointerWrite, X86_64StructuralUnitCallerCopyWrite,
         X86_64StructuralUnitRootRead,
+    };
+    use omega_post_allocation_machine_to_selected_form_encoding::{
+        SelectedFormDecodedFootprint, SelectedStructuralUnitCallEncodingRow,
+    };
+    use omega_post_allocation_machine_to_selected_form_encoding::{
+        SelectedFormEncodingRow, SelectedFormEncodingState, SelectedFormMachineDisposition,
+        SelectedStructuralUnitFunctionEncoding,
     };
     use omega_selected_instructions::{
         MachineAlternativeFamily, MachineCleanupEffect, MachineTrapBehavior,

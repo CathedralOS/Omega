@@ -18,7 +18,7 @@ pub use omega_machine_code::{
     ResolvedStructuralUnitFunctionLayout, SelectedFunctionLayoutPolicy,
 };
 
-use crate::{
+use omega_post_allocation_machine_to_selected_form_encoding::{
     SelectedFormEncodingIdentity, SelectedFormMachineOptimizationCustody,
     SelectedFormMovnOptimizationCustody,
 };
@@ -139,16 +139,14 @@ impl StagedOptimizedResolvedSelectedFormLayout {
         Self::from_program(program)
     }
 
-    #[cfg(test)]
-    pub(crate) fn functions_mut(&mut self) -> &mut [ResolvedSelectedFunctionLayout] {
+    #[cfg(any(test, feature = "test-support"))]
+    pub fn functions_mut(&mut self) -> &mut [ResolvedSelectedFunctionLayout] {
         &mut Arc::make_mut(&mut self.program).functions
     }
 
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-support"))]
     #[allow(dead_code)]
-    pub(crate) fn structural_unit_functions_mut(
-        &mut self,
-    ) -> &mut [ResolvedStructuralUnitFunctionLayout] {
+    pub fn structural_unit_functions_mut(&mut self) -> &mut [ResolvedStructuralUnitFunctionLayout] {
         &mut Arc::make_mut(&mut self.program).structural_unit_functions
     }
 }

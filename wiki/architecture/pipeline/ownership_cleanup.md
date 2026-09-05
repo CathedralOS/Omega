@@ -208,8 +208,9 @@ boundary retains those original immutable artifacts without deep-copy snapshots.
 Replay first validates its historical inputs, then compares complete current
 artifacts and admission facts, not only rehashable IDs. Raw artifacts remain
 usable as data after the producer is dropped, without granting publication
-authority. Layout and emission algorithms still need their proper transform
-owners; separating data from replay does not complete C.
+authority. Layout construction and explicit relaxation now have a transform
+owner outside the coordinator; exit checking and emission still need their
+proper owners. Separating data from replay does not complete C.
 
 Acceptance: downstream allocation, layout, and emission APIs consume current
 representations and explicit policy/evidence. No production consumer selects
@@ -264,11 +265,22 @@ publication and resumed lowering by a separate authority remain supported.
 
 ### C. The coordinator and stage granularity still have misplaced owners
 
-`omega-optimization-pipeline` contains layout, realization, artifact production,
+`omega-optimization-pipeline` contains exit checking, realization, artifact production,
 and broad stage re-exports in addition to coordination. It is not yet a thin
 sequence of phase calls. `omega-regalloc`, `omega-machine-optimizer`,
 `omega-optimization-policy`, and `omega-optimization-validation` mix or expose
 responsibilities that need classification before another directory move.
+
+`omega-selected-form-encoding-to-resolved-layout` owns baseline layout and the
+separately invoked function-relative relaxation phase. Its input is admitted
+selected-form encoding with current selected/machine facts; its output shares
+the representation-owned `ResolvedMachineLayout`. Optional machine-rewrite
+evidence and explicit relaxation policy remain checked inputs, not alternative
+program representations. Baseline layout and relaxation share a private layout
+construction boundary; they do not share their production and replay drivers.
+The coordinator imports these entrances. Raw layout data and its content
+identity remain in `omega-machine-code`, and ISA encoding remains in the target
+backends. This extraction does not settle exit checking or emission ownership.
 
 The machine-code representation supplies `machine_code.rs` as its
 program root, with functions, calls, storage, control flow, ownership, boundary,

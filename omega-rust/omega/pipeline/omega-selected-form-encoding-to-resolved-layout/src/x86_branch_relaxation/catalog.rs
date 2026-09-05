@@ -30,7 +30,7 @@ pub enum FunctionRelativeLayoutCatalogError {
     },
 }
 
-pub(crate) fn x86_rel8_selected(
+pub fn x86_rel8_selected(
     selections: &OptimizationPhaseSelections,
     architecture: Architecture,
 ) -> Result<bool, FunctionRelativeLayoutCatalogError> {

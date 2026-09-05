@@ -25,7 +25,7 @@ pub(super) struct RevisionRoots {
     pub(super) source: ResolvedSelectedFormLayoutIdentity,
     pub(super) selected: omega_selected_instructions::SelectedInstructionPlanIdentity,
     pub(super) machine: omega_machine_optimizer::PostAllocationMachineIdentity,
-    pub(super) pre_layout: crate::SelectedFormEncodingIdentity,
+    pub(super) pre_layout: omega_machine_code::SelectedFormEncodingIdentity,
     pub(super) target: NativeTarget,
 }
 
