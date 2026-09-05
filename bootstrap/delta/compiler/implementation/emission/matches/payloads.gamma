@@ -1,0 +1,42 @@
+; Each binder opens one let, but all closers share one counted continuation.
+; Binder width therefore consumes no additional Gamma return contexts.
+(def emission_match_bindings
+  ((body Int) (binders Int) (index Int) (arity Int) (match_start Int)
+   (depth Int) (frames Int) (globals Int)) Int
+  (if (eq index arity)
+    (emission_visit body depth frames globals)
+    (let binder Int (first binders)
+      (let opened Int (write '(')
+        (let letter_l Int (write 'l')
+          (let letter_e Int (write 'e')
+            (let letter_t Int (write 't')
+              (let separated Int (write '\s')
+                (let name Int (emit_span (syntax_start binder) (syntax_after binder))
+                  (let before_type Int (write '\s')
+                    (let annotation Int (emit_int_word)
+                      (let before_projection Int (write '\s')
+                        (let projection Int
+                          (emit_payload_projection index arity match_start)
+                          (let before_body Int (write '\s')
+                            (emission_match_bindings body (second binders)
+                              (+ index 1) arity match_start
+                              depth frames globals)))))))))))))))
+
+(def emit_second_prefixes ((remaining Int)) Int
+  (if (eq remaining 0)
+    0
+    (let ignored Int (emit_second_prefix)
+      (emit_second_prefixes (- remaining 1)))))
+
+(def emit_payload_projection
+  ((index Int) (arity Int) (match_start Int)) Int
+  (if (eq arity 1)
+    (emit_match_payload_name match_start)
+    (if (eq (+ index 1) arity)
+      (let ignored0 Int (emit_second_prefixes index)
+        (let ignored1 Int (emit_match_payload_name match_start)
+          (emit_closes index)))
+      (let ignored0 Int (emit_first_prefix)
+        (let ignored1 Int (emit_second_prefixes index)
+          (let ignored2 Int (emit_match_payload_name match_start)
+            (emit_closes (+ index 1))))))))

@@ -1,0 +1,37 @@
+; The final exhaustive arm has no tag test. Earlier arms each queue one next
+; arm continuation; their closing parentheses belong to the match's frame.
+(def emission_match_arms
+  ((remaining Int) (arms Int) (match_start Int) (depth Int) (frames Int)
+   (globals Int)) Int
+  (let arm Int (first arms)
+    (let pattern Int (syntax_child arm 0)
+      (let constructor Int (emission_match_constructor pattern)
+        (let metadata Int
+          (require_constructor_metadata
+            (syntax_start constructor) (syntax_after constructor) globals)
+          (if (eq remaining 1)
+            (emission_match_body (syntax_child arm 1) pattern
+              (constructor_metadata_arity metadata) match_start
+              depth frames globals)
+            (let tested Int
+              (emit_match_test match_start (constructor_metadata_tag metadata))
+              (emission_match_body (syntax_child arm 1) pattern
+                (constructor_metadata_arity metadata) match_start (+ depth 1)
+                (emission_frame 7
+                  (pair (- remaining 1) (pair (second arms) match_start)) frames)
+                globals))))))))
+
+; Kind 7 payload is (pair remaining-arm-count (pair arms match-start)).
+(def emission_match_arm_done
+  ((payload Int) (depth Int) (frames Int) (globals Int)) Int
+  (let separated Int (write '\s')
+    (emission_match_arms (first payload) (first (second payload))
+      (second (second payload)) depth frames globals)))
+
+(def emission_match_body
+  ((body Int) (pattern Int) (arity Int) (match_start Int) (depth Int)
+   (frames Int) (globals Int)) Int
+  (if (eq arity 0)
+    (emission_visit body depth frames globals)
+    (emission_match_bindings body (second (syntax_children pattern)) 0 arity
+      match_start (+ depth 1) (emission_frame 2 arity frames) globals)))

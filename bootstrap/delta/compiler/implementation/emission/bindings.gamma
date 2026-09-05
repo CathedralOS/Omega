@@ -1,0 +1,19 @@
+(def emit_local_binding_prefix ((name Int)) Int
+  (let open Int (write '(')
+    (let keyword_l Int (write 'l')
+      (let keyword_e Int (write 'e')
+        (let keyword_t Int (write 't')
+          (let separator Int (write '\s')
+            (let identity Int (emit_span (syntax_start name) (syntax_after name))
+              (let type_space Int (write '\s')
+                (let type Int (emit_int_word)
+                  (write '\s'))))))))))
+
+(def emission_let ((node Int) (depth Int) (frames Int) (globals Int)) Int
+  (let prefix Int (emit_local_binding_prefix (syntax_child node 1))
+    (emission_visit (syntax_child node 3) (+ depth 1)
+      (emission_frame 3 (syntax_child node 4) frames) globals)))
+
+(def emission_let_body ((body Int) (depth Int) (frames Int) (globals Int)) Int
+  (let separator Int (write '\s')
+    (emission_visit body (+ depth 1) (emission_frame 2 1 frames) globals)))

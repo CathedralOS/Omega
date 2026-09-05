@@ -132,26 +132,32 @@
             (let ignored5 Int (emit_arithmetic_name open 114)
               (write ')'))))))))
 
-(def emit_checked_arithmetic
-  ((open Int) (head Int) (head_end Int) (args Int) (globals Int)) Int
-  (let ignored0 Int (emit_binding_prefix open 108)
-    (let after_left Int (emit_expression args globals)
-      (let ignored1 Int (write '\s')
-        (let ignored2 Int (emit_binding_prefix open 114)
-          (let after_right Int (emit_expression (skip after_left) globals)
-            (let close Int (skip after_right)
-              (if (eq (source_read close) 41)
-                (let ignored3 Int (write '\s')
-                  (let ignored4 Int (emit_binding_prefix open 122)
-                    (let ignored5 Int (emit_raw_arithmetic open head head_end)
-                      (let ignored6 Int (write '\s')
-                        (let byte Int (source_read head)
-                          (let ignored7 Int
-                            (if (eq byte 42)
-                              (emit_multiply_guard open)
-                              (emit_add_sub_guard open (eq byte 45)))
-                            (let ignored8 Int (write ')')
-                              (let ignored9 Int (write ')')
-                                (let ignored10 Int (write ')')
-                                  (token_end close))))))))))
-                (fail)))))))))
+(def emission_arithmetic
+  ((node Int) (depth Int) (frames Int) (globals Int)) Int
+  (let prefix Int (emit_binding_prefix (syntax_start node) 108)
+    (emission_visit (syntax_child node 1) (+ depth 1)
+      (emission_frame 4 node frames) globals)))
+
+(def emission_arithmetic_right
+  ((node Int) (depth Int) (frames Int) (globals Int)) Int
+  (let separator Int (write '\s')
+    (let prefix Int (emit_binding_prefix (syntax_start node) 114)
+      (emission_visit (syntax_child node 2) (+ depth 1)
+        (emission_frame 5 node frames) globals))))
+
+(def emission_arithmetic_finish
+  ((node Int) (depth Int) (frames Int) (globals Int)) Int
+  (let open Int (syntax_start node)
+    (let head Int (syntax_child node 0)
+      (let separator Int (write '\s')
+        (let prefix Int (emit_binding_prefix open 122)
+          (let operation Int
+            (emit_raw_arithmetic open (syntax_start head) (syntax_after head))
+            (let guard_space Int (write '\s')
+              (let byte Int (source_read (syntax_start head))
+                (let guard Int
+                  (if (eq byte 42)
+                    (emit_multiply_guard open)
+                    (emit_add_sub_guard open (eq byte 45)))
+                  (let closes Int (emit_closes 3)
+                    (emission_resume depth frames globals)))))))))))

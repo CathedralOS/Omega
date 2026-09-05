@@ -162,9 +162,10 @@ request-failure identities.
 
 Canonical frontend rejection and the owned source-byte/parse-depth refusals
 are not full DCOUT or Delta-edge closure. Other resource/internal outcomes do
-not yet carry compiler-owned evidence, and
-expression emission still traverses checked source coordinates with unfinished
-depth/resource guarantees. Those empty-output evaluator
+not yet carry compiler-owned evidence. The retained-node emitter traverses
+expressions with explicit continuations, but generated Gamma still has the
+selected evaluator's separate 255-list nesting bound. Successful generated
+admission throughout Delta's 1,024-level profile remains open. Those empty-output evaluator
 statuses must not be decoded as DCOUT or synthesized into frames by a runner.
 The generated ConformanceBytesV1 program's statuses are separately owned by
 its adapter. Successful compiler output remains the exact unwrapped Gamma

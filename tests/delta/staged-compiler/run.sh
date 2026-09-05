@@ -48,13 +48,14 @@ COMPILER="$COMPILER" CANONICAL_COMPILER="$CANONICAL_COMPILER" \
     BYTES_SOURCE="$BYTES_SOURCE" BYTES_EXPECTED="$BYTES_EXPECTED" \
     FORWARD_SOURCE="$FORWARD_SOURCE" FORWARD_EXPECTED="$FORWARD_EXPECTED" \
     EPSILON_SOURCE="$EPSILON_SOURCE" \
-    EVALUATOR="$TMP/evaluator" python3 - <<'PY'
+    EVALUATOR="$TMP/evaluator" PYTHONPATH="$GATE_DIR" python3 -B - <<'PY'
 import hashlib
 import os
 import signal
 import struct
 import subprocess
 from pathlib import Path
+from emitter_fixtures import fixtures as emitter_fixtures
 
 compiler = Path(os.environ["COMPILER"]).read_bytes()
 canonical_compiler = Path(os.environ["CANONICAL_COMPILER"]).read_bytes()
@@ -73,8 +74,8 @@ forward_expected = Path(os.environ["FORWARD_EXPECTED"]).read_bytes()
 epsilon_source = Path(os.environ["EPSILON_SOURCE"]).read_bytes()
 
 for name, data, lines, size, digest in (
-    ("development compiler", compiler, 2778, 118450, "4a3b49152a83dc689aaa5a95d0d6328a7487529ef2e174e2e72c884479b77b76"),
-    ("canonical compiler", canonical_compiler, 2785, 118673, "12fb13c46f3c39e5e3104b8c59cfeaa1ef6b552dc6ca19f5e4559cfe48404eef"),
+    ("development compiler", compiler, 2584, 109111, "e2bb339fed7c37b41bd6462d2f64a9f4bfad30eca7fcb8aaa7054667be253227"),
+    ("canonical compiler", canonical_compiler, 2591, 109334, "e17ce65012a29d720ccfce51d70e569f0e86fa0b829a02367fc641442425d25f"),
     ("source", source, 7, 195, "3fb6a3ef60b54c8b77b066edeec32a4c77fd9fb5ede8a64c997cbc8b7a9a1fec"),
     ("receipt", expected, 3, 165, "23cbae7abf00860445e72b9075d189adb841cf165bf8103f7f7bcd5c81aed74f"),
     ("payload source", payload_source, 7, 186, "31affd043cd04144a6a6adf5353ef4080eaf34524cfc64d0d08f0c60d12c7802"),
@@ -539,6 +540,17 @@ for name, candidate in malformed.items():
         raise SystemExit(f"{name} did not trap in the staged compiler")
     if output:
         raise SystemExit(f"{name} emitted before static rejection")
+
+for name, candidate, authored_receipt, observation in emitter_fixtures():
+    status, receipt = evaluate(compiler, candidate)
+    if status != 0:
+        raise SystemExit(f"emitter context {name}: compilation failed with {status}")
+    if authored_receipt is not None and receipt != authored_receipt:
+        raise SystemExit(f"emitter context {name}: authored receipt differs")
+    if evaluate(compiler, candidate) != (0, receipt):
+        raise SystemExit(f"emitter context {name}: repeated receipt differs")
+    if evaluate(receipt) != (0, observation):
+        raise SystemExit(f"emitter context {name}: generated observation differs")
 
 stress = (
     b"".join(

@@ -1,0 +1,54 @@
+(def checked_arithmetic_head ((start Int) (end Int)) Int
+  (if (eq (- end start) 1)
+    (let byte Int (source_read start)
+      (if (eq byte 43) 1
+        (if (eq byte 45) 1
+          (if (eq byte 42) 1 0))))
+    0))
+
+(def emit_bytes_helper_name ((kind Int)) Int
+  (if (if (eq (compilation_profile) 1) (eq kind 4) 0)
+    (let ignored0 Int (write '$')
+      (let ignored1 Int (write 'p')
+        (let ignored2 Int (write 'b')
+          (write 'g'))))
+    (let ignored0 Int (write '$')
+      (let ignored1 Int (write 'd')
+        (let ignored2 Int (write 'b')
+          (write
+            (if (eq kind 1) 'e'
+              (if (eq kind 2) 's'
+                (if (eq kind 3) 'l'
+                  (if (eq kind 4) 'g'
+                    (if (eq kind 5) 'c' (fail))))))))))))
+
+; These heads have already passed arity and type checking. Classification only
+; selects an emitted builtin spelling or the ordinary function-name prefix.
+(def emit_call_head ((head Int)) Int
+  (let start Int (syntax_start head)
+    (let after Int (syntax_after head)
+      (let kind Int (bytes_builtin_kind start after)
+        (if kind
+          (emit_bytes_helper_name kind)
+          (if (if (token_if start after) 1
+                (if (token_eq start after) 1
+                  (if (token_lt start after) 1
+                    (operator_arity_plus_one start after))))
+            (emit_span start after)
+            (emit_function_name start after)))))))
+
+(def emission_call
+  ((node Int) (head Int) (depth Int) (frames Int) (globals Int)) Int
+  (let open Int (write '(')
+    (let name Int (emit_call_head head)
+      (emission_arguments (- (syntax_count node) 1)
+        (second (syntax_children node)) depth frames globals))))
+
+(def emission_arguments
+  ((count Int) (nodes Int) (depth Int) (frames Int) (globals Int)) Int
+  (if (eq count 0)
+    (let close Int (write ')')
+      (emission_resume depth frames globals))
+    (let separator Int (write '\s')
+      (emission_visit (first nodes) (+ depth 1)
+        (emission_frame 1 (pair (- count 1) (second nodes)) frames) globals))))

@@ -25,47 +25,9 @@
               (let ignored6 Int (write 'd')
                 (write '\s')))))))))
 
-(def emit_tag_name ((name Int) (name_end Int)) Int
-  (let ignored0 Int (emit_span name name_end)
-    (let ignored1 Int (write '_')
-      (let ignored2 Int (write '_')
-        (let ignored3 Int (write 't')
-          (let ignored4 Int (write 'a')
-            (write 'g')))))))
-
-(def emit_field_name ((name Int) (name_end Int)) Int
-  (let ignored0 Int (emit_span name name_end)
-    (let ignored1 Int (write '_')
-      (let ignored2 Int (write '_')
-        (let ignored3 Int (write 'f')
-          (let ignored4 Int (write 'i')
-            (let ignored5 Int (write 'e')
-              (let ignored6 Int (write 'l')
-                (let ignored7 Int (write 'd')
-                  (write '0'))))))))))
-
 (def emit_parameter ((name Int) (name_end Int)) Int
   (let ignored0 Int (write '(')
     (let ignored1 Int (emit_span name name_end)
       (let ignored2 Int (write '\s')
         (let ignored3 Int (emit_int_word)
           (write ')'))))))
-
-(def emit_payload_parameters ((name Int) (name_end Int)) Int
-  (let ignored0 Int (write '(')
-    (let ignored1 Int (emit_tag_name name name_end)
-      (let ignored2 Int (write '\s')
-        (let ignored3 Int (emit_int_word)
-          (let ignored4 Int (write ')')
-            (let ignored5 Int (write '\s')
-              (let ignored6 Int (write '(')
-                (let ignored7 Int (emit_field_name name name_end)
-                  (let ignored8 Int (write '\s')
-                    (let ignored9 Int (emit_int_word)
-                      (write ')'))))))))))))
-
-; A name trie option is (pair present node). Each node is
-; (pair terminal-option children), and each terminal option is
-; (pair present payload). Children are an immutable list of present byte edges;
-; absent bytes allocate no tree. Exact byte comparison means duplicate
-; detection has no hash collision and name recursion advances once per byte.

@@ -268,21 +268,6 @@
         (identifier_tail_valid (+ start 1) end)
         0))))
 
-(def require_value_name ((start Int) (end Int)) Int
-  (if (value_name_valid start end) 0 (fail)))
-
-(def skip_expression ((index Int)) Int
-  (let start Int (skip index)
-    (if (eq (source_read start) 40)
-      (skip_list (token_end start))
-      (token_end start))))
-
-(def skip_list ((index Int)) Int
-  (let start Int (skip index)
-    (if (eq (source_read start) 41)
-      (token_end start)
-      (skip_list (skip_expression start)))))
-
 (def form_head ((form Int)) Int
   (skip (token_end form)))
 

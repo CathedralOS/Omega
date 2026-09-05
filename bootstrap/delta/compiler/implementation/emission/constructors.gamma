@@ -1,0 +1,30 @@
+; The checked constructor supplies nominal representation and declaration tag;
+; retained children supply its already-checked ordered payload fields.
+(def emission_constructor
+  ((name Int) (count Int) (nodes Int)
+   (depth Int) (frames Int) (globals Int)) Int
+  (let metadata Int
+    (require_constructor_metadata (syntax_start name) (syntax_after name) globals)
+    (let tag Int (- (constructor_metadata_tag metadata) 1)
+      (if (type_metadata_has_payload (constructor_metadata_type metadata))
+        (let prefix Int (emit_pair_prefix)
+          (let emitted_tag Int (emit_decimal tag)
+            (let separator Int (write '\s')
+              (if (eq count 0)
+                (let padding Int (write '0')
+                  (let close Int (write ')')
+                    (emission_resume depth frames globals)))
+                (emission_constructor_fields count nodes (+ depth 1)
+                  (emission_frame 2 count frames) globals)))))
+        (let emitted_tag Int (emit_decimal tag)
+          (emission_resume depth frames globals))))))
+
+; All product closes share one bottom continuation. Width advances by tail
+; transitions, and each field is emitted once in the original left-to-right order.
+(def emission_constructor_fields
+  ((count Int) (nodes Int) (depth Int) (frames Int) (globals Int)) Int
+  (if (eq count 1)
+    (emission_visit (first nodes) depth frames globals)
+    (let prefix Int (emit_pair_prefix)
+      (emission_visit (first nodes) (+ depth 1)
+        (emission_frame 8 (pair (- count 1) (second nodes)) frames) globals))))

@@ -1,0 +1,57 @@
+; Frames are (pair kind (pair payload previous)); depth governs projections.
+; Every source-dependent descent and resumption is a proper-tail transition.
+(def emission_frame ((kind Int) (payload Int) (previous Int)) Int
+  (pair kind (pair payload previous)))
+
+(def emission_visit ((node Int) (depth Int) (frames Int) (globals Int)) Int
+  (if (eq (syntax_count node) -1)
+    (if (is_upper (source_read (syntax_start node)))
+      (emission_constructor node 0 0 depth frames globals)
+      (let emitted Int (emit_span (syntax_start node) (syntax_after node))
+        (emission_resume depth frames globals)))
+    (let head Int (syntax_child node 0)
+      (let start Int (syntax_start head)
+        (let after Int (syntax_after head)
+          (if (token_match start after)
+            (emission_match node depth frames globals)
+            (if (token_let start after)
+              (emission_let node depth frames globals)
+              (if (is_upper (source_read start))
+                (emission_constructor head (- (syntax_count node) 1)
+                  (second (syntax_children node)) depth frames globals)
+                (if (checked_arithmetic_head start after)
+                  (emission_arithmetic node depth frames globals)
+                  (emission_call node head depth frames globals))))))))))
+
+; 1 call arguments, 2 closing delimiters, 3 let body, 4 arithmetic right,
+; 5 arithmetic guard, 6 match subject, 7 match arms, 8 constructor fields.
+; Handlers receive the already-popped continuation and own their payload shape.
+(def emission_resume ((depth Int) (frames Int) (globals Int)) Int
+  (if (eq depth 0)
+    0
+    (let kind Int (first frames)
+      (let retained Int (second frames)
+        (let payload Int (first retained)
+          (let previous Int (second retained)
+            (let next_depth Int (- depth 1)
+              (if (eq kind 1)
+                (emission_arguments (first payload) (second payload)
+                  next_depth previous globals)
+                (if (eq kind 2)
+                  (let closed Int (emit_closes payload)
+                    (emission_resume next_depth previous globals))
+                  (if (eq kind 3)
+                    (emission_let_body payload next_depth previous globals)
+                    (if (eq kind 4)
+                      (emission_arithmetic_right payload next_depth previous globals)
+                      (if (eq kind 5)
+                        (emission_arithmetic_finish payload next_depth previous globals)
+                        (if (eq kind 6)
+                          (emission_match_subject_done payload next_depth previous globals)
+                          (if (eq kind 7)
+                            (emission_match_arm_done payload next_depth previous globals)
+                            (if (eq kind 8)
+                              (let separator Int (write '\s')
+                                (emission_constructor_fields (first payload)
+                                  (second payload) next_depth previous globals))
+                              (fail))))))))))))))))
