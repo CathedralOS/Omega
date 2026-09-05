@@ -1,0 +1,5 @@
+machine window(items: &[u8; 4], start: i64, end: i64)
+requires start <= end && end <= items.len;
+{
+    let view: &[u8] = items[start..end];
+}

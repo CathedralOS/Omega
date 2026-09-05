@@ -143,6 +143,14 @@ premises through their caller-visible write frames before later expressions
 reuse them; unknown effects retain no value-dependent range premises. These
 bounds checks do not grant element-domain, borrow, or mutation authority.
 
+Collection-relative upper bounds and endpoint ordering do not prove that a
+signed operand is nonnegative. Unknown-length scalar accesses and all range
+windows also require lower-bound evidence from the operand's enforced type,
+constant value, or live facts. A nonnegative start and endpoint ordering can
+prove the end nonnegative; omitted endpoints retain zero/length defaults.
+Known-array scalar checking retains its complete bounds judgment. Writes
+invalidate value-dependent lower bounds before later accesses consume them.
+
 Indexed syntax can match fixed-array or slice storage to a shared slice
 operator parameter. Only the collection shell adapts: the element binding,
 remaining operand types, domain participation, and ambiguity checks remain

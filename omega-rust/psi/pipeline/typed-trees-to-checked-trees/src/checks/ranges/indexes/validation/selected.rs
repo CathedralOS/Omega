@@ -10,10 +10,9 @@ use typed_trees::machine::Machine;
 use typed_trees::operator::{resolve_indexed_spelling_for_operands, resolve_spelling};
 use typed_trees::state::State;
 
-use super::RangeFacts;
+use super::{RangeFacts, lower_bounds};
 
 mod clauses;
-mod lower_bounds;
 
 pub(super) fn obligation(
     program: &TypedTrees,
