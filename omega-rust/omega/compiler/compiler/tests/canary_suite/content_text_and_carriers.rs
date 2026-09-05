@@ -1,8 +1,11 @@
 use super::*;
 
+#[path = "../fixture_rosters/content_text_and_carriers.rs"]
+pub(super) mod fixture_roster;
+
 #[test]
 fn unary_negation_exit_canary_runs() {
-    let canary = pass_canary("operators/unary_negation_exit");
+    let canary = pass_canary(fixture_roster::UNARY_NEGATION_EXIT);
     let build_dir =
         std::env::temp_dir().join(format!("omega-unary-negation-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
@@ -35,7 +38,7 @@ fn unary_negation_exit_canary_runs() {
 // param-slice `.len` value-source read in the value-call splice path.
 #[test]
 fn utf8_literal_len_exit_canary_runs() {
-    let canary = pass_canary("domains/utf8_literal_len_exit");
+    let canary = pass_canary(fixture_roster::UTF8_LITERAL_LEN_EXIT);
     let build_dir =
         std::env::temp_dir().join(format!("omega-utf8-literal-len-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
@@ -69,7 +72,7 @@ fn utf8_literal_len_exit_canary_runs() {
 // `measure("hi")` reads len 2 and exits 70.
 #[test]
 fn user_domain_literal_grant_canary_runs() {
-    let canary = pass_canary("domains/user_domain_literal_grant");
+    let canary = pass_canary(fixture_roster::USER_DOMAIN_LITERAL_GRANT);
     let build_dir =
         std::env::temp_dir().join(format!("omega-user-domain-grant-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
@@ -98,7 +101,7 @@ fn user_domain_literal_grant_canary_runs() {
 
 #[test]
 fn bodyless_domain_declaration_spellings_canary_runs() {
-    let canary = pass_canary("domains/bodyless_domain_declarations_exit");
+    let canary = pass_canary(fixture_roster::BODYLESS_DOMAIN_DECLARATIONS_EXIT);
     let build_dir =
         std::env::temp_dir().join(format!("omega-bodyless-domains-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
@@ -126,7 +129,7 @@ fn bodyless_domain_declaration_spellings_canary_runs() {
 
 #[test]
 fn authorized_route_establishment_canaries() {
-    let pass = pass_canary("domains/bodyless_owner_establishment");
+    let pass = pass_canary(fixture_roster::BODYLESS_OWNER_ESTABLISHMENT);
     let build_dir =
         std::env::temp_dir().join(format!("omega-bodyless-owner-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
@@ -143,10 +146,7 @@ fn authorized_route_establishment_canaries() {
     assert!(evidence.contains("\"program_point\": \"call_ensures\""));
     let _ = fs::remove_dir_all(&build_dir);
 
-    for name in [
-        "domains/bodyless_nonowner_establishment",
-        "domains/bodyful_owner_establishment_bypass",
-    ] {
+    for &name in fixture_roster::UNAUTHORIZED_ESTABLISHMENT_FAIL_CANARIES {
         let diagnostics = compile_canary_without_output(&fail_canary(name))
             .expect_err("unauthorized establishment must reject");
         assert!(
@@ -160,7 +160,7 @@ fn authorized_route_establishment_canaries() {
 
 #[test]
 fn extent_root_provider_adapter_compiles() {
-    let canary = pass_canary("core/extent_root_provider_adapter");
+    let canary = pass_canary(fixture_roster::EXTENT_ROOT_PROVIDER_ADAPTER);
     let checked = compile_to_checked(&canary.join("main.omg"), None)
         .expect("the core Extent projection should survive checked lowering");
     let granted = checked
@@ -283,7 +283,7 @@ fn extent_root_provider_adapter_compiles() {
 
 #[test]
 fn content_conservation_contract_is_normalized_and_reported() {
-    let canary = pass_canary("core/content_conservation_contract");
+    let canary = pass_canary(fixture_roster::CONTENT_CONSERVATION_CONTRACT);
     let source = fs::read_to_string(canary.join("main.omg")).expect("content canary source");
     assert!(source.contains("old(&whole)"));
     assert!(!source.contains("entry(&whole)"));
@@ -344,7 +344,7 @@ fn content_conservation_contract_is_normalized_and_reported() {
 
 #[test]
 fn carry_permission_provider_adapter_compiles_with_exact_artifacts() {
-    let canary = pass_canary("core/carry_permission_provider_adapter");
+    let canary = pass_canary(fixture_roster::CARRY_PERMISSION_PROVIDER_ADAPTER);
     let build_dir = std::env::temp_dir().join(format!("omega-carry-claim-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
     production_compile(CanaryCompileSpec {
@@ -382,7 +382,7 @@ fn carry_permission_provider_adapter_compiles_with_exact_artifacts() {
 
 #[test]
 fn empty_domain_explicit_as_qualifies_vacuously() {
-    let canary = pass_canary("domains/vacuous_domain_qualification");
+    let canary = pass_canary(fixture_roster::VACUOUS_DOMAIN_QUALIFICATION);
     let checked = compile_to_checked(&canary.join("main.omg"), None)
         .expect("an empty domain should accept explicit compiler-derived qualification");
     let uses = &checked.facts.qualifications.vacuous_uses;
@@ -402,14 +402,14 @@ fn empty_domain_explicit_as_qualifies_vacuously() {
 
 #[test]
 fn user_authored_predicate_machine_compiles() {
-    let canary = pass_canary("domains/user_authored_predicate_machine");
+    let canary = pass_canary(fixture_roster::USER_AUTHORED_PREDICATE_MACHINE);
     compile_canary_without_output(&canary)
         .expect("domain `requires` may call an ordinary user-authored predicate machine");
 }
 
 #[test]
 fn boundary_qualification_evidence_names_exact_requirement() {
-    let pass = pass_canary("capabilities/derives_authority_via_boundary");
+    let pass = pass_canary(fixture_roster::DERIVES_AUTHORITY_VIA_BOUNDARY);
     let build_dir = std::env::temp_dir().join(format!(
         "omega-boundary-qualification-{}",
         std::process::id()
@@ -439,7 +439,7 @@ fn boundary_qualification_evidence_names_exact_requirement() {
 // canary pins it end-to-end. `store("hello")` records 5; the caller guards == 5.
 #[test]
 fn utf8_param_len_field_exit_canary_runs() {
-    let canary = pass_canary("domains/utf8_param_len_field_exit");
+    let canary = pass_canary(fixture_roster::UTF8_PARAM_LEN_FIELD_EXIT);
     let build_dir =
         std::env::temp_dir().join(format!("omega-utf8-param-len-field-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
@@ -474,7 +474,7 @@ fn utf8_param_len_field_exit_canary_runs() {
 // dispatch. `check("hello")` sees len 5 and exits 70.
 #[test]
 fn utf8_regular_call_len_exit_canary_runs() {
-    let canary = pass_canary("domains/utf8_regular_call_len_exit");
+    let canary = pass_canary(fixture_roster::UTF8_REGULAR_CALL_LEN_EXIT);
     let build_dir = std::env::temp_dir().join(format!(
         "omega-utf8-regular-call-len-{}",
         std::process::id()
@@ -510,7 +510,7 @@ fn utf8_regular_call_len_exit_canary_runs() {
 // the wrong arm, silently diverging from the interpreter's content equality.
 #[test]
 fn utf8_equals_literal_exit_canary_runs() {
-    let canary = pass_canary("domains/utf8_equals_literal_exit");
+    let canary = pass_canary(fixture_roster::UTF8_EQUALS_LITERAL_EXIT);
     let build_dir =
         std::env::temp_dir().join(format!("omega-utf8-equals-literal-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
@@ -543,7 +543,7 @@ fn utf8_equals_literal_exit_canary_runs() {
 // encoder rejects it) and compared only the pointer words.
 #[test]
 fn utf8_equals_view_exit_canary_runs() {
-    let canary = pass_canary("domains/utf8_equals_view_exit");
+    let canary = pass_canary(fixture_roster::UTF8_EQUALS_VIEW_EXIT);
     let build_dir =
         std::env::temp_dir().join(format!("omega-utf8-equals-view-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
@@ -578,7 +578,7 @@ fn utf8_equals_view_exit_canary_runs() {
 // self.out in [u8]::Utf8".
 #[test]
 fn utf8_field_read_carries_domain_exit_canary_runs() {
-    let canary = pass_canary("domains/utf8_field_read_carries_domain_exit");
+    let canary = pass_canary(fixture_roster::UTF8_FIELD_READ_CARRIES_DOMAIN_EXIT);
     let build_dir = std::env::temp_dir().join(format!(
         "omega-utf8-field-read-domain-{}",
         std::process::id()
@@ -617,7 +617,7 @@ fn utf8_field_read_carries_domain_exit_canary_runs() {
 // `check` guards `text == "x"` and exits 73; the interpreter agrees.
 #[test]
 fn domain_field_write_then_read_exit_canary_runs() {
-    let canary = pass_canary("domains/domain_field_write_then_read_exit");
+    let canary = pass_canary(fixture_roster::DOMAIN_FIELD_WRITE_THEN_READ_EXIT);
     let build_dir = std::env::temp_dir().join(format!(
         "omega-domain-field-write-then-read-{}",
         std::process::id()
@@ -655,7 +655,7 @@ fn domain_field_write_then_read_exit_canary_runs() {
 // String text-write pass would otherwise claim as a descriptor.
 #[test]
 fn runtime_bounded_carrier_write_read_exit_canary_runs() {
-    let canary = pass_canary("text/runtime_bounded_carrier_write_read_exit");
+    let canary = pass_canary(fixture_roster::RUNTIME_BOUNDED_CARRIER_WRITE_READ_EXIT);
     let build_dir = std::env::temp_dir().join(format!(
         "omega-bounded-carrier-write-read-{}",
         std::process::id()
@@ -691,7 +691,7 @@ fn runtime_bounded_carrier_write_read_exit_canary_runs() {
 // `.len` already resolved in guards; this exercises it in value/argument position.
 #[test]
 fn runtime_bounded_carrier_length_exit_canary_runs() {
-    let canary = pass_canary("text/runtime_bounded_carrier_length_exit");
+    let canary = pass_canary(fixture_roster::RUNTIME_BOUNDED_CARRIER_LENGTH_EXIT);
     let build_dir = std::env::temp_dir().join(format!(
         "omega-bounded-carrier-length-{}",
         std::process::id()
@@ -727,7 +727,7 @@ fn runtime_bounded_carrier_length_exit_canary_runs() {
 // resolver's carrier-`.len` resolution (the host-call consumer is _length_exit).
 #[test]
 fn runtime_bounded_carrier_length_field_exit_canary_runs() {
-    let canary = pass_canary("text/runtime_bounded_carrier_length_field_exit");
+    let canary = pass_canary(fixture_roster::RUNTIME_BOUNDED_CARRIER_LENGTH_FIELD_EXIT);
     let build_dir = std::env::temp_dir().join(format!(
         "omega-bounded-carrier-length-field-{}",
         std::process::id()
@@ -764,7 +764,7 @@ fn runtime_bounded_carrier_length_field_exit_canary_runs() {
 // widening canary covers using the indexed byte as an explicitly widened value.)
 #[test]
 fn runtime_bounded_carrier_byte_index_exit_canary_runs() {
-    let canary = pass_canary("text/runtime_bounded_carrier_byte_index_exit");
+    let canary = pass_canary(fixture_roster::RUNTIME_BOUNDED_CARRIER_BYTE_INDEX_EXIT);
     let build_dir = std::env::temp_dir().join(format!(
         "omega-bounded-carrier-byte-index-{}",
         std::process::id()
@@ -795,7 +795,7 @@ fn runtime_bounded_carrier_byte_index_exit_canary_runs() {
 
 #[test]
 fn runtime_bounded_carrier_byte_widen_exit_canary_runs() {
-    let canary = pass_canary("text/runtime_bounded_carrier_byte_widen_exit");
+    let canary = pass_canary(fixture_roster::RUNTIME_BOUNDED_CARRIER_BYTE_WIDEN_EXIT);
     let build_dir = std::env::temp_dir().join(format!(
         "omega-bounded-carrier-byte-widen-{}",
         std::process::id()
@@ -825,7 +825,7 @@ fn runtime_bounded_carrier_byte_widen_exit_canary_runs() {
 
 #[test]
 fn runtime_carrier_indexed_read_exit_canary_runs() {
-    let canary = pass_canary("text/runtime_carrier_indexed_read_exit");
+    let canary = pass_canary(fixture_roster::RUNTIME_CARRIER_INDEXED_READ_EXIT);
     let build_dir =
         std::env::temp_dir().join(format!("omega-carrier-indexed-read-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
@@ -856,7 +856,7 @@ fn runtime_number_to_decimal_exit_canary_runs() {
     // Numeric output (itoa): build n=12345 at runtime, render it to the decimal text
     // "12345" via divide/modulo + computed carrier byte writes, and assert the
     // carrier equals it. A round-trip proving printable numbers, a serious-app need.
-    let canary = pass_canary("text/runtime_number_to_decimal_exit");
+    let canary = pass_canary(fixture_roster::RUNTIME_NUMBER_TO_DECIMAL_EXIT);
     let scratch =
         std::env::temp_dir().join(format!("omega-number-to-decimal-{}", std::process::id()));
 
@@ -894,7 +894,7 @@ fn runtime_decimal_to_number_exit_canary_runs() {
     // Numeric input (atoi): parse the decimal text "12345" into the integer 12345 via
     // carrier byte reads + accumulation, and assert it. The read-side complement of
     // the itoa canary -- carrier reads used as arithmetic operands.
-    let canary = pass_canary("text/runtime_decimal_to_number_exit");
+    let canary = pass_canary(fixture_roster::RUNTIME_DECIMAL_TO_NUMBER_EXIT);
     let scratch =
         std::env::temp_dir().join(format!("omega-decimal-to-number-{}", std::process::id()));
 
@@ -922,7 +922,7 @@ fn runtime_decimal_to_number_exit_canary_runs() {
 
 #[test]
 fn runtime_carrier_indexed_write_exit_canary_runs() {
-    let canary = pass_canary("text/runtime_carrier_indexed_write_exit");
+    let canary = pass_canary(fixture_roster::RUNTIME_CARRIER_INDEXED_WRITE_EXIT);
     let scratch = std::env::temp_dir().join(format!(
         "omega-carrier-indexed-write-{}",
         std::process::id()
@@ -952,7 +952,7 @@ fn runtime_carrier_indexed_write_exit_canary_runs() {
 
 #[test]
 fn runtime_carrier_indexed_read_operand_exit_canary_runs() {
-    let canary = pass_canary("text/runtime_carrier_indexed_read_operand_exit");
+    let canary = pass_canary(fixture_roster::RUNTIME_CARRIER_INDEXED_READ_OPERAND_EXIT);
     let scratch =
         std::env::temp_dir().join(format!("omega-carrier-read-operand-{}", std::process::id()));
 
@@ -980,7 +980,7 @@ fn runtime_carrier_indexed_read_operand_exit_canary_runs() {
 
 #[test]
 fn runtime_carrier_cipher_exit_canary_runs() {
-    let canary = pass_canary("text/runtime_carrier_cipher_exit");
+    let canary = pass_canary(fixture_roster::RUNTIME_CARRIER_CIPHER_EXIT);
     let scratch = std::env::temp_dir().join(format!("omega-carrier-cipher-{}", std::process::id()));
 
     let _ = fs::remove_dir_all(&scratch);
@@ -1007,7 +1007,7 @@ fn runtime_carrier_cipher_exit_canary_runs() {
 
 #[test]
 fn runtime_carrier_indexed_const_write_exit_canary_runs() {
-    let canary = pass_canary("text/runtime_carrier_indexed_const_write_exit");
+    let canary = pass_canary(fixture_roster::RUNTIME_CARRIER_INDEXED_CONST_WRITE_EXIT);
     let scratch =
         std::env::temp_dir().join(format!("omega-carrier-const-write-{}", std::process::id()));
 
@@ -1035,7 +1035,7 @@ fn runtime_carrier_indexed_const_write_exit_canary_runs() {
 
 #[test]
 fn runtime_carrier_len_guard_exit_canary_runs() {
-    let canary = pass_canary("text/runtime_carrier_len_guard_exit");
+    let canary = pass_canary(fixture_roster::RUNTIME_CARRIER_LEN_GUARD_EXIT);
     let scratch =
         std::env::temp_dir().join(format!("omega-carrier-len-guard-{}", std::process::id()));
 
@@ -1063,7 +1063,7 @@ fn runtime_carrier_len_guard_exit_canary_runs() {
 
 #[test]
 fn runtime_carrier_fnv_loop_exit_canary_runs() {
-    let canary = pass_canary("text/runtime_carrier_fnv_loop_exit");
+    let canary = pass_canary(fixture_roster::RUNTIME_CARRIER_FNV_LOOP_EXIT);
     let scratch =
         std::env::temp_dir().join(format!("omega-carrier-fnv-loop-{}", std::process::id()));
 
@@ -1091,7 +1091,7 @@ fn runtime_carrier_fnv_loop_exit_canary_runs() {
 
 #[test]
 fn runtime_mandelbrot_render_exit_canary_runs() {
-    let canary = pass_canary("text/runtime_mandelbrot_render_exit");
+    let canary = pass_canary(fixture_roster::RUNTIME_MANDELBROT_RENDER_EXIT);
     let scratch =
         std::env::temp_dir().join(format!("omega-mandelbrot-render-{}", std::process::id()));
 
@@ -1119,7 +1119,7 @@ fn runtime_crc32_exit_canary_runs() {
     // CRC-32 (the ZIP/PNG/Ethernet checksum): polynomial division over GF(2), bit by bit
     // with shifts + XOR (reflected poly 0xEDB88320, init/final 0xFFFFFFFF). CRC-32("abc")
     // is 891568578, verified against zlib -> exit 70.
-    let canary = pass_canary("text/runtime_crc32_exit");
+    let canary = pass_canary(fixture_roster::RUNTIME_CRC32_EXIT);
     let scratch = std::env::temp_dir().join(format!("omega-crc32-{}", std::process::id()));
     let _ = fs::remove_dir_all(&scratch);
     let compilation = compile_rooted_canary_for_native_host(&canary, scratch.clone())
@@ -1145,7 +1145,7 @@ fn runtime_base64_encode_exit_canary_runs() {
     // Base64 encoding: three input bytes regrouped into four 6-bit values (shifts + masks +
     // OR), each indexing the 64-char alphabet. "Man" -> "TWFu", all four bytes checked ->
     // exit 70.
-    let canary = pass_canary("text/runtime_base64_encode_exit");
+    let canary = pass_canary(fixture_roster::RUNTIME_BASE64_ENCODE_EXIT);
     let scratch = std::env::temp_dir().join(format!("omega-base64-{}", std::process::id()));
     let _ = fs::remove_dir_all(&scratch);
     let compilation = compile_rooted_canary_for_native_host(&canary, scratch.clone())
@@ -1171,7 +1171,7 @@ fn runtime_run_length_encode_exit_canary_runs() {
     // Run-length encoding (compression): scan counting consecutive equal bytes, emit
     // byte+count at each run boundary and at the end (shared emit dispatched by a mode
     // field). "aaabbbbcc" -> "a3b4c2", six output bytes checked -> exit 70.
-    let canary = pass_canary("text/runtime_run_length_encode_exit");
+    let canary = pass_canary(fixture_roster::RUNTIME_RUN_LENGTH_ENCODE_EXIT);
     let scratch = std::env::temp_dir().join(format!("omega-rle-{}", std::process::id()));
     let _ = fs::remove_dir_all(&scratch);
     let compilation = compile_rooted_canary_for_native_host(&canary, scratch.clone())
@@ -1197,7 +1197,7 @@ fn runtime_binary_format_exit_canary_runs() {
     // Format a number as an 8-bit binary string: `(n >> (7-i)) & 1` per bit (runtime shift
     // amount + bitwise AND in value position), written to a carrier. 42 -> "00101010",
     // all eight bytes checked -> exit 70.
-    let canary = pass_canary("text/runtime_binary_format_exit");
+    let canary = pass_canary(fixture_roster::RUNTIME_BINARY_FORMAT_EXIT);
     let scratch = std::env::temp_dir().join(format!("omega-binary-format-{}", std::process::id()));
     let _ = fs::remove_dir_all(&scratch);
     let compilation = compile_rooted_canary_for_native_host(&canary, scratch.clone())
@@ -1223,7 +1223,7 @@ fn runtime_substring_search_exit_canary_runs() {
     // Naive substring search (find a needle in a haystack): nested loop, carrier byte
     // comparison, the index guarded against `.len` directly. "world" in "hello world"
     // rejects i=0..5 and matches at i=6 -> exit 70.
-    let canary = pass_canary("text/runtime_substring_search_exit");
+    let canary = pass_canary(fixture_roster::RUNTIME_SUBSTRING_SEARCH_EXIT);
     let scratch =
         std::env::temp_dir().join(format!("omega-substring-search-{}", std::process::id()));
     let _ = fs::remove_dir_all(&scratch);
@@ -1247,7 +1247,7 @@ fn runtime_substring_search_exit_canary_runs() {
 
 #[test]
 fn runtime_string_palindrome_exit_canary_runs() {
-    let canary = pass_canary("text/runtime_string_palindrome_exit");
+    let canary = pass_canary(fixture_roster::RUNTIME_STRING_PALINDROME_EXIT);
     let scratch =
         std::env::temp_dir().join(format!("omega-string-palindrome-{}", std::process::id()));
 
@@ -1275,7 +1275,7 @@ fn runtime_string_palindrome_exit_canary_runs() {
 
 #[test]
 fn runtime_carrier_itoa_exit_canary_runs() {
-    let canary = pass_canary("text/runtime_carrier_itoa_exit");
+    let canary = pass_canary(fixture_roster::RUNTIME_CARRIER_ITOA_EXIT);
     let scratch = std::env::temp_dir().join(format!("omega-carrier-itoa-{}", std::process::id()));
 
     let _ = fs::remove_dir_all(&scratch);
@@ -1307,7 +1307,7 @@ fn runtime_carrier_byte_write_width_coercion_canary_runs() {
     // (`buffer[0] = a+b` with a+b=300 stores the low byte 44), matching native.
     // The carrier (Value::Str) path is separate from the array element_cell path.
     // exit 71 = the byte was not the low-byte 44.
-    let canary = pass_canary("text/runtime_carrier_byte_write_width_coercion");
+    let canary = pass_canary(fixture_roster::RUNTIME_CARRIER_BYTE_WRITE_WIDTH_COERCION);
     let main_path = canary.join("main.omg");
 
     let checked = compile_to_checked(&main_path, None)
@@ -1341,7 +1341,7 @@ fn runtime_carrier_byte_write_width_coercion_canary_runs() {
 
 #[test]
 fn runtime_bounded_carrier_byte_write_exit_canary_runs() {
-    let canary = pass_canary("text/runtime_bounded_carrier_byte_write_exit");
+    let canary = pass_canary(fixture_roster::RUNTIME_BOUNDED_CARRIER_BYTE_WRITE_EXIT);
     let scratch = std::env::temp_dir().join(format!(
         "omega-bounded-carrier-byte-write-{}",
         std::process::id()
@@ -1377,7 +1377,7 @@ fn runtime_bounded_carrier_byte_write_exit_canary_runs() {
 // width convention as carrier `.len`.
 #[test]
 fn runtime_slice_length_field_exit_canary_runs() {
-    let canary = pass_canary("calls/runtime_slice_length_field_exit");
+    let canary = pass_canary(fixture_roster::RUNTIME_SLICE_LENGTH_FIELD_EXIT);
     let scratch =
         std::env::temp_dir().join(format!("omega-slice-length-field-{}", std::process::id()));
 
