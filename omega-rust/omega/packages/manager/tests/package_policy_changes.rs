@@ -31,6 +31,8 @@ mod document;
 mod fixtures;
 #[path = "package_policy_changes/graph.rs"]
 mod graph;
+#[path = "package_policy_changes/history.rs"]
+mod history;
 #[path = "package_policy_changes/initial.rs"]
 mod initial;
 #[path = "package_policy_changes/replacements.rs"]

@@ -2,23 +2,49 @@ use crate::resolution::graph::CanonicalSourceClosureSubjectFingerprint;
 use crate::review::ReviewOnlyRootPolicyDisposition;
 use std::fmt;
 
+/// A retained change coordinate. Complete-policy subjects do not index the
+/// candidate graph: removed packages and replaced roots need no invented owner.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub enum HistoricalPackagePolicyDecisionSubject {
+    LegacyConflict {
+        package_index: usize,
+        conflict: [u8; 32],
+    },
+    RootRole,
+    SourceReplacement([u8; 32]),
+    Row([u8; 32]),
+}
+
 /// One recorded project choice, not a fresh candidate-bound authorization.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct HistoricalPackagePolicyDecision {
-    pub(super) package_index: usize,
-    pub(super) conflict: [u8; 32],
+    pub(super) subject: HistoricalPackagePolicyDecisionSubject,
     pub(super) disposition: ReviewOnlyRootPolicyDisposition,
 }
 
 impl HistoricalPackagePolicyDecision {
-    /// Document reference into the associated source subject's sorted packages.
-    /// This is not a compiler handle or an index into a later updated graph.
-    pub const fn package_index(&self) -> usize {
-        self.package_index
+    pub const fn subject(&self) -> HistoricalPackagePolicyDecisionSubject {
+        self.subject
     }
 
-    pub const fn conflict(&self) -> [u8; 32] {
-        self.conflict
+    /// Version 1 document reference only, never an index for a modern change.
+    pub const fn package_index(&self) -> Option<usize> {
+        match self.subject {
+            HistoricalPackagePolicyDecisionSubject::LegacyConflict { package_index, .. } => {
+                Some(package_index)
+            }
+            _ => None,
+        }
+    }
+
+    /// Version 1 conflict only. Modern records expose their typed `subject`.
+    pub const fn conflict(&self) -> Option<[u8; 32]> {
+        match self.subject {
+            HistoricalPackagePolicyDecisionSubject::LegacyConflict { conflict, .. } => {
+                Some(conflict)
+            }
+            _ => None,
+        }
     }
 
     pub const fn disposition(&self) -> ReviewOnlyRootPolicyDisposition {
@@ -35,6 +61,8 @@ impl HistoricalPackagePolicyDecision {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct HistoricalPackagePolicyDecisions {
     pub(super) source_subject: CanonicalSourceClosureSubjectFingerprint,
+    pub(super) baseline_source_subject: Option<[u8; 32]>,
+    pub(super) comparison: Option<[u8; 32]>,
     pub(super) decisions: Vec<HistoricalPackagePolicyDecision>,
 }
 
@@ -46,11 +74,23 @@ impl HistoricalPackagePolicyDecisions {
     pub fn decisions(&self) -> &[HistoricalPackagePolicyDecision] {
         &self.decisions
     }
+
+    /// Exact full-policy comparison retained by version 2. Version 1 history
+    /// did not store this comparison and is never upgraded by inventing one.
+    pub const fn comparison(&self) -> Option<[u8; 32]> {
+        self.comparison
+    }
+
+    /// Prior source association, absent for fresh review and version 1 history.
+    /// Read this alongside `comparison` to distinguish those cases.
+    pub const fn baseline_source_subject(&self) -> Option<[u8; 32]> {
+        self.baseline_source_subject
+    }
 }
 
 /// Requested recovery storage and retained decision count for an enclosing
-/// lock budget. Storage includes duplicate-fingerprint validation scratch;
-/// input text and the already recovered source subject remain borrowed.
+/// lock budget. Version 1 also counts duplicate-fingerprint validation scratch;
+/// version 2 needs no scratch. Input text and the source subject remain borrowed.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct HistoricalPackagePolicyRecoveryUsage {
     pub(super) owned_bytes: usize,
@@ -72,6 +112,21 @@ impl HistoricalPackagePolicyRecoveryUsage {
     ) -> Result<Self, HistoricalPackagePolicyError> {
         let owned_bytes = decisions
             .checked_mul(std::mem::size_of::<HistoricalPackagePolicyDecision>() + 32)
+            .filter(|bytes| *bytes <= maximum_owned_bytes)
+            .ok_or(HistoricalPackagePolicyError::AllocationLimitExceeded)?;
+        Ok(Self {
+            owned_bytes,
+            decisions,
+        })
+    }
+
+    pub(super) fn for_policy_decisions(
+        decisions: usize,
+        maximum_owned_bytes: usize,
+    ) -> Result<Self, HistoricalPackagePolicyError> {
+        // Version 2 checks strict subject order in one pass, without scratch.
+        let owned_bytes = decisions
+            .checked_mul(std::mem::size_of::<HistoricalPackagePolicyDecision>())
             .filter(|bytes| *bytes <= maximum_owned_bytes)
             .ok_or(HistoricalPackagePolicyError::AllocationLimitExceeded)?;
         Ok(Self {

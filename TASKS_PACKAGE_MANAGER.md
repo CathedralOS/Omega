@@ -83,8 +83,7 @@ adding machinery; do not invent proof-of-review or host-security requirements.
   Wire the complete-policy review document into command-owned file loading and
   resume. Preserve explicit command replacement intent when
   both alias and source change; graph comparison must not infer pairing from
-  package names or authored positions. Retain removed-package
-  decisions without indexing them into the candidate-only lock graph.
+  package names or authored positions.
   Recheck candidate identity and project-file versions before committing.
   Acceptance: unresolved/stale decisions and concurrent edits leave the
   previously accepted project state intact; interruption cannot leave

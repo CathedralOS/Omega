@@ -56,6 +56,42 @@ owner validates its own canonical format and typed meaning. The manager checks
 the joins and outer framing. Unknown versions fail with recovery guidance;
 loading never upgrades pins or treats unknown policy as empty.
 
+## Decision history
+
+New complete-policy choices use this versioned child section:
+
+```text
+omega-policy-decisions 2
+source <candidate source-subject fingerprint>
+baseline <prior source-subject fingerprint or none>
+comparison <complete comparison fingerprint>
+decisions <count>
+decision root-role <accept or reject>
+decision source-replacement <change fingerprint> <accept or reject>
+decision row <change fingerprint> <accept or reject>
+end
+```
+
+Only present choices are emitted. Subjects are strictly ordered: root role,
+source replacements by fingerprint, then policy rows by fingerprint. The
+comparison binds each choice to the reviewed change, including removed packages
+and replaced roots. These subjects do not refer to candidate-package indices.
+An initial or unchanged comparison may have zero required choices.
+
+`HistoricalPackagePolicyDecisions::capture_policy` checks the completed
+resolution's comparison and candidate source association, then records it
+directly. Both acceptance and rejection survive serialization. This is not a
+file publication operation. Reading history checks framing, order, duplicate
+subjects, resource limits, and the retained candidate source association; it
+does not recreate old comparisons or certify that recorded decisions were made
+seriously. The project trusts whoever lands the lock. The previous source hash
+is context, not a requirement to retain that checkout or a second full graph.
+
+Version 1 decision sections remain readable and re-encode as version 1. Their
+legacy package indices refer only to their associated source graph. No missing
+full-comparison identity is inferred during loading, and unknown child versions
+retain the existing unsupported-format recovery guidance.
+
 ## Resource accounting
 
 `PackageLockRecoveryLimits` can lower, but not raise, these aggregate ceilings:
@@ -75,6 +111,8 @@ Child format ceilings also apply: source text is at most 64 MiB, each complete
 policy text at most 32 MiB with its existing 4 MiB binary and semantic limits,
 and each decision section at most 8 MiB. Source identity/request fields have
 the source owner's 1 MiB hard ceiling. Counts do not reset at target boundaries.
+Version 2 historical decisions require only the retained decision vector;
+strict subject order makes duplicate-validation scratch unnecessary.
 
 The owned-storage allowance counts requested vector, string, and box storage,
 typed constructor allowances, retained source binary, and validation scratch.

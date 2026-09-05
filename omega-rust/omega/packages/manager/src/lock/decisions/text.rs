@@ -1,7 +1,7 @@
 use super::model::{
-    HistoricalPackagePolicyDecision, HistoricalPackagePolicyDecisions,
-    HistoricalPackagePolicyError as Error, HistoricalPackagePolicyLimits,
-    HistoricalPackagePolicyRecoveryUsage,
+    HistoricalPackagePolicyDecision, HistoricalPackagePolicyDecisionSubject,
+    HistoricalPackagePolicyDecisions, HistoricalPackagePolicyError as Error,
+    HistoricalPackagePolicyLimits, HistoricalPackagePolicyRecoveryUsage,
 };
 use crate::resolution::graph::CanonicalSourceClosureSubject;
 use crate::review::ReviewOnlyRootPolicyDisposition;
@@ -10,9 +10,9 @@ use std::fmt::Write;
 const HEADER: &str = "omega-policy-decisions 1\n";
 
 impl HistoricalPackagePolicyDecisions {
-    /// Canonical ASCII section. Package indices reference the complete sorted
-    /// source graph bound by `source`; fingerprints identify historical changes,
-    /// not the full normalized capability baseline required beside this section.
+    /// Canonical ASCII section. Version 1 indices reference the sorted source
+    /// graph; version 2 subjects identify complete-comparison changes, including
+    /// removed packages. Neither replaces the normalized policy beside history.
     pub fn canonical_text(
         &self,
         subject: &CanonicalSourceClosureSubject,
@@ -21,6 +21,9 @@ impl HistoricalPackagePolicyDecisions {
         let limits = limits.bounded();
         if self.source_subject() != subject.fingerprint() {
             return Err(Error::SourceSubjectMismatch);
+        }
+        if self.comparison.is_some() {
+            return super::policy::encode(self, limits);
         }
         if self.decisions.len() > limits.maximum_decisions {
             return Err(Error::DecisionLimitExceeded);
@@ -38,7 +41,9 @@ impl HistoricalPackagePolicyDecisions {
                     length
                         .checked_add(
                             "decision ".len()
-                                + decimal_digits(decision.package_index)
+                                + decimal_digits(
+                                    decision.package_index().expect("validated legacy subject"),
+                                )
                                 + 1
                                 + 64
                                 + 1
@@ -55,9 +60,13 @@ impl HistoricalPackagePolicyDecisions {
             .map_err(|_| Error::AllocationFailed)?;
         text.push_str(&prefix);
         for decision in &self.decisions {
-            write!(text, "decision {} ", decision.package_index)
-                .expect("write preallocated string");
-            for byte in decision.conflict {
+            write!(
+                text,
+                "decision {} ",
+                decision.package_index().expect("validated legacy subject")
+            )
+            .expect("write preallocated string");
+            for byte in decision.conflict().expect("validated legacy subject") {
                 write!(text, "{byte:02x}").expect("write preallocated string");
             }
             writeln!(text, " {}", disposition_token(decision.disposition))
@@ -92,6 +101,9 @@ impl HistoricalPackagePolicyDecisions {
         let limits = limits.bounded();
         if text.len() > limits.maximum_bytes {
             return Err(Error::ByteLimitExceeded);
+        }
+        if text.starts_with(super::policy::HEADER) {
+            return super::policy::recover(text, subject, limits, maximum_owned_bytes);
         }
         let body = text.strip_prefix(HEADER).ok_or(Error::UnsupportedVersion)?;
         let (source_line, body) = body.split_once('\n').ok_or(Error::InvalidFraming)?;
@@ -146,8 +158,10 @@ impl HistoricalPackagePolicyDecisions {
                 return Err(Error::InvalidFraming);
             }
             decisions.push(HistoricalPackagePolicyDecision {
-                package_index,
-                conflict,
+                subject: HistoricalPackagePolicyDecisionSubject::LegacyConflict {
+                    package_index,
+                    conflict,
+                },
                 disposition,
             });
         }
@@ -158,6 +172,8 @@ impl HistoricalPackagePolicyDecisions {
         Ok((
             Self {
                 source_subject: subject.fingerprint().clone(),
+                baseline_source_subject: None,
+                comparison: None,
                 decisions,
             },
             usage,
@@ -169,15 +185,17 @@ fn validate_decisions(
     decisions: &[HistoricalPackagePolicyDecision],
     package_count: usize,
 ) -> Result<(), Error> {
-    if decisions
-        .iter()
-        .any(|decision| decision.package_index >= package_count)
-    {
+    if decisions.iter().any(|decision| {
+        decision
+            .package_index()
+            .is_none_or(|index| index >= package_count)
+    }) {
         return Err(Error::UnknownPackage);
     }
-    if decisions.windows(2).any(|pair| {
-        (pair[0].package_index, pair[0].conflict) >= (pair[1].package_index, pair[1].conflict)
-    }) {
+    if decisions
+        .windows(2)
+        .any(|pair| pair[0].subject >= pair[1].subject)
+    {
         return Err(Error::NonCanonicalDecisions);
     }
     // One exact conflict has one owner even when a record tries to repeat it
@@ -186,7 +204,11 @@ fn validate_decisions(
     fingerprints
         .try_reserve_exact(decisions.len())
         .map_err(|_| Error::AllocationFailed)?;
-    fingerprints.extend(decisions.iter().map(|decision| decision.conflict));
+    fingerprints.extend(
+        decisions
+            .iter()
+            .map(|decision| decision.conflict().expect("validated legacy subject")),
+    );
     fingerprints.sort_unstable();
     if fingerprints.windows(2).any(|pair| pair[0] == pair[1]) {
         return Err(Error::NonCanonicalDecisions);
@@ -194,7 +216,7 @@ fn validate_decisions(
     Ok(())
 }
 
-fn parse_number(text: &str) -> Result<usize, Error> {
+pub(super) fn parse_number(text: &str) -> Result<usize, Error> {
     if text.is_empty()
         || (text.len() > 1 && text.starts_with('0'))
         || !text.bytes().all(|byte| byte.is_ascii_digit())
@@ -204,7 +226,7 @@ fn parse_number(text: &str) -> Result<usize, Error> {
     text.parse().map_err(|_| Error::InvalidFraming)
 }
 
-fn parse_digest(text: &str) -> Result<[u8; 32], Error> {
+pub(super) fn parse_digest(text: &str) -> Result<[u8; 32], Error> {
     if text.len() != 64 {
         return Err(Error::InvalidFraming);
     }
@@ -232,7 +254,7 @@ fn decimal_digits(mut number: usize) -> usize {
     digits
 }
 
-fn disposition_token(disposition: ReviewOnlyRootPolicyDisposition) -> &'static str {
+pub(super) fn disposition_token(disposition: ReviewOnlyRootPolicyDisposition) -> &'static str {
     match disposition {
         ReviewOnlyRootPolicyDisposition::AcceptCandidateChange => "accept",
         ReviewOnlyRootPolicyDisposition::RejectCandidateChange => "reject",
