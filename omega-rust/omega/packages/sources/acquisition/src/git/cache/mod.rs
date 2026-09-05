@@ -12,4 +12,5 @@ pub(crate) mod custody;
 pub(crate) mod identity;
 pub(crate) mod invalidation;
 pub(crate) mod repository;
+pub(crate) mod retry;
 pub(crate) mod snapshots;

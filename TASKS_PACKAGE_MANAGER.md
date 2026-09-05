@@ -64,13 +64,6 @@ adding machinery; do not invent proof-of-review or host-security requirements.
 
 ## 3. Commands and integration tests
 
-- [ ] **FAILED-FETCH-RETRY.** Repair retry behavior in
-  `sources/acquisition/src/git/`: a failed acquisition invalidates
-  `source.identity` but leaves an entry that makes subsequent attempts fail on
-  missing metadata before retrying the fetch. Acceptance: an interrupted or
-  failed fetch can be retried without manual cache surgery; report the original
-  transport failure, preserve accepted pins, and never reuse unverified content.
-
 - [ ] **NAMED-WORKSPACE-INSTALL.** Expose the existing named Git workspace
   selection in `omega install` and its manager operation. Retain declared-name
   discovery and optional local alias overrides; do not ask callers for member

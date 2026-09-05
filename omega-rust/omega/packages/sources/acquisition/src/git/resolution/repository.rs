@@ -4,7 +4,8 @@ use crate::error::SourceResolveError;
 use crate::git::cache::repository::VerifiedGitRepository;
 use crate::git::executable::executor::GitExecutor;
 use crate::git::objects::authentication::{authenticate_git_commit, verify_exact_git_revision};
-use crate::git::objects::identity::git_object_algorithm;
+use crate::git::objects::identity::{git_object_algorithm, is_object_id};
+use crate::git::objects::{ExactGitObjectAvailability, probe_exact_git_object};
 use crate::git::request::GitExecutionTransport;
 use crate::git::workspace::GitWorkspaceProjectionError;
 use crate::identity::SourceLineage;
@@ -97,6 +98,15 @@ pub(super) fn resolve_verified_git_cache_entry_with<Evidence, PlannerError>(
         GitRevisionSelection::Recorded(recorded) => {
             recorded_revision_needs_fetch(executor, &repository, recorded, limits)?
         }
+        GitRevisionSelection::Ordinary(None) if !fetch_remote && is_object_id(requested_rev) => {
+            // An earlier failed full-ID fetch may have left a healthy empty
+            // repository. Cache existence alone does not establish this object.
+            // Only the exact absence protocol permits fetching the requested ID.
+            matches!(
+                probe_exact_git_object(executor, &repository, requested_rev)?,
+                ExactGitObjectAvailability::Missing
+            )
+        }
         GitRevisionSelection::Ordinary(_) => fetch_remote,
     };
     if fetch_remote {
@@ -106,8 +116,15 @@ pub(super) fn resolve_verified_git_cache_entry_with<Evidence, PlannerError>(
             GitRevisionSelection::Ordinary(_) => requested_rev,
         };
         let arguments = bounded_git_fetch_arguments(fetch_locator, fetch_revision, limits);
-        repository.run_git(executor, arguments.iter())?;
+        let fetched = repository.run_git(executor, arguments.iter());
+        if let Err(error @ SourceResolveError::GitCleanupFailed { .. }) = fetched {
+            return Err(error.into());
+        }
+        // Git may update its configuration even when transport fails. Restore
+        // the pre-fetch canonical bytes before checking whether this cache is
+        // reusable; a fetch error must not poison otherwise healthy old pins.
         repository.restore_canonical_config(&canonical_config)?;
+        fetched?;
     }
     repository.verify_current(limits)?;
 

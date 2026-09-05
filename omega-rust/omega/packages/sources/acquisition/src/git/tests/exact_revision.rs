@@ -4,6 +4,7 @@ use super::*;
 use crate::observations::resolved::ResolvedGitSource;
 mod failures;
 mod fixtures;
+mod retry;
 use fixtures::Fixture;
 
 #[test]

@@ -8,6 +8,7 @@ use crate::git::cache::creation::{create_git_cache_entry, create_git_cache_entry
 use crate::git::cache::identity::git_cache_identity;
 use crate::git::cache::invalidation::invalidate_git_cache_entry_from_open_parent;
 use crate::git::cache::repository::VerifiedGitRepository;
+use crate::git::cache::retry::{discard_incomplete_entry, may_preserve_cache};
 use crate::git::commands::reconciliation::{
     reconcile_git_cache_operation_result, reconcile_git_command_result,
 };
@@ -100,13 +101,33 @@ pub(super) fn resolve_git_source_from_retained_cache_with_selection<Evidence, Pl
         )?;
         let entry_name =
             direct_cache_child_name(CacheCustodyKind::Git, cache_dir, &entry_root)?.to_os_string();
-        let cache_entry_existed = retained_cache_directory_exists(
+        let mut cache_entry_existed = retained_cache_directory_exists(
             CacheCustodyKind::Git,
             entry_lock.parent(),
             &entry_name,
             &entry_root,
         )?;
         entry_lock.verify_path_identity()?;
+
+        let permits_new_acquisition = match selection {
+            GitRevisionSelection::Ordinary(pin) => pin.is_none(),
+            GitRevisionSelection::Recorded(recorded) => {
+                recorded.acquisition == GitExactRevisionAcquisition::AllowFetch
+            }
+        };
+        if cache_entry_existed
+            && permits_new_acquisition
+            && discard_incomplete_entry(
+                cache_dir,
+                entry_lock.parent(),
+                &entry_name,
+                &entry_root,
+                limits,
+            )?
+        {
+            cache_entry_existed = false;
+            entry_lock.verify_path_identity()?;
+        }
 
         if cache_entry_existed {
             let verification_result = VerifiedGitRepository::open(
@@ -225,6 +246,24 @@ pub(super) fn resolve_git_source_from_retained_cache_with_selection<Evidence, Pl
                 Ok((source, evidence))
             }
             Err(GitWorkspaceProjectionError::Source(error)) => {
+                // Failed transport does not revoke previously fetched source.
+                // Keep the cache only after checking its post-command state;
+                // the next request still verifies its exact object graph.
+                if namespace_result.is_ok()
+                    && may_preserve_cache(&error)
+                    && VerifiedGitRepository::open(
+                        entry_lock.parent(),
+                        &entry_name,
+                        &entry_root,
+                        locator_identity,
+                        requested_rev,
+                        execution_transport,
+                        limits,
+                    )
+                    .is_ok()
+                {
+                    return Err(GitWorkspaceProjectionError::Source(error));
+                }
                 // Exact absence was established by the object protocol under
                 // current cache custody. It is not corrupt selector cache state.
                 if matches!(selection, GitRevisionSelection::Recorded(_))
