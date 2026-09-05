@@ -1,0 +1,57 @@
+(def invariant_control_expression ((expressionValue EpsilonExpression)) Bytes
+  (invariant_observe_block
+    (epsilon_evaluate_control_expression (invariant_context) expressionValue
+      NoEpsilonEvaluatorBindings (invariant_store) (invariant_output))))
+
+(def invariant_control_trapping_child ((start Int)) EpsilonExpression
+  (EpsilonBinaryExpression start (+ start 5) EpsilonDivide (+ start 2) (+ start 3)
+    (invariant_integer start 1) (invariant_integer (+ start 4) 0)))
+
+(def invariant_control_atoms () Bytes
+  (bytes_concat (invariant_control_expression (invariant_integer 257 1))
+    (bytes_concat
+      (invariant_control_expression
+        (EpsilonCharacterExpression 269 272 (EpsilonCharacterSpan 269 272 65)))
+      (bytes_concat
+        (invariant_control_expression
+          (EpsilonStringExpression 281 284 (EpsilonStringSpan 281 284)))
+        (bytes_concat (invariant_control_expression (EpsilonFalseExpression 293 294))
+          (bytes_concat
+            (invariant_control_expression
+              (EpsilonNameExpression 305 306 (EpsilonNameSpan 0 1)))
+            (invariant_control_expression
+              (EpsilonQualifiedExpression 317 320 (EpsilonNameSpan 0 1)
+                (EpsilonNameSpan 0 1) NoEpsilonArguments))))))))
+
+(def invariant_control_projections () Bytes
+  (bytes_concat
+    (invariant_control_expression
+      (EpsilonFieldExpression 329 338 (invariant_control_trapping_child 331)
+        (EpsilonNameSpan 0 1)))
+    (bytes_concat
+      (invariant_control_expression
+        (EpsilonIndexExpression 341 350 (invariant_control_trapping_child 343)
+          (invariant_integer 349 0)))
+      (bytes_concat
+        (invariant_control_expression
+          (EpsilonSliceExpression 353 363 (invariant_control_trapping_child 355)
+            NoEpsilonExpression NoEpsilonExpression))
+        (invariant_control_expression
+          (EpsilonNegateExpression 365 373 (invariant_control_trapping_child 367)))))))
+
+(def invariant_control () Bytes
+  (bytes_concat
+    (invariant_control_expression
+      (EpsilonGroupedExpression 61 70
+        (EpsilonGroupedExpression 63 69 (EpsilonTrueExpression 67 68))))
+    (bytes_concat
+      ; This non-call core must not execute its division-by-zero child at 83.
+      (invariant_control_expression
+        (EpsilonBinaryExpression 79 90 EpsilonAdd 85 86
+          (invariant_control_trapping_child 83)
+          (invariant_integer 88 1)))
+      (bytes_concat (invariant_control_atoms)
+        (bytes_concat (invariant_control_projections)
+          (invariant_observe_block
+            (epsilon_evaluate_return (invariant_context) NoEpsilonExpression
+              NoEpsilonEvaluatorBindings (invariant_store) (invariant_output))))))))

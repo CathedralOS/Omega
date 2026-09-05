@@ -10,7 +10,7 @@
     ((EpsilonEvaluatorScalarValue value)
       (epsilon_evaluator_integer value store output))
     ((EpsilonEvaluatorScalarTrapped kind) (EpsilonEvaluatorTrap kind output))
-    (EpsilonEvaluatorScalarUnsupported EpsilonEvaluatorUnsupported)))
+    (EpsilonEvaluatorScalarInternal (EpsilonEvaluatorInternal 0))))
 
 (def epsilon_evaluator_logical_kind ((operator EpsilonBinaryOperator)) Int
   (match operator

@@ -47,8 +47,8 @@ source inventory, then concatenates bytes without separators. It does not parse
 or lower Delta. Bootstrap callers use `OMEGA_PATH_EPSILON_COMPILER_SOURCES`
 from the shared role registry rather than reading the entrance as the full source.
 
-The packed evaluator is 11,693 lines / 591,380 bytes, SHA-256
-`56c53e94a06dbd44357634d309a92cd232def179768f133c625935f08ecc7e59`.
+The packed evaluator is 11,698 lines / 591,857 bytes, SHA-256
+`81e4cfd3255d849f2821bd8ab8b1024640e29ab73ff35ef9cfb4c8cc5c5a6ac5`.
 When editing a member, update its manifest length and digest; change membership
 explicitly when adding or removing source. Update exact test identities only
 after reviewing the semantic change and its generated receipt.
@@ -84,6 +84,7 @@ sh tools/bootstrap/check-chain-hygiene.sh
 sh tests/epsilon/delta-boundary-experiment/run.sh
 sh tests/epsilon/checking/run.sh
 sh tests/epsilon/runtime-references/run.sh
+sh tests/epsilon/runtime-invariants/run.sh
 sh tests/epsilon/interpreted-omega-experiment/run.sh
 sh tests/delta/staged-compiler/run.sh
 ```
@@ -102,5 +103,8 @@ transitions, and copied payload binders have staging execution paths. A failing
 is settled; final-argument `ByteRange` already has an execution path. This is
 not full sum or evaluator completion. Remaining conformance obligations and
 final composition with D remain open.
+The [runtime-invariant controls](../../../tests/epsilon/runtime-invariants/README.md)
+exercise internal-failure defenses with synthetic state that bypasses checking;
+they do not claim additional admitted Epsilon behavior or final publication.
 [LANGUAGE.md](../LANGUAGE.md) governs semantics;
 [TASKS_BOOTSTRAP.md](../../../TASKS_BOOTSTRAP.md) owns remaining work.

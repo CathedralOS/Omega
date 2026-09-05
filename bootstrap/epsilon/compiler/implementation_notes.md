@@ -147,8 +147,20 @@ publishing an Epsilon observation or evaluating later arguments. The relative
 order between field establishment and later argument effects awaits
 [Epsilon constructor payload establishment order](../../../OWNER_QUESTIONS.md#epsilon-constructor-payload-establishment-order).
 Valid payloads and final-argument failures do not require that choice; this is
-not a claim of full sum execution. These storage, view, sum, and call operations
-also do not establish that the complete Omega D source executes. Every
+not a claim of full sum execution.
+
+Impossible checked states produce internal failure, not `Unsupported`: a
+non-call control target, a missing ordinary field reference, a view represented
+as aggregate storage, or a logical operator sent directly to the nonlogical
+scalar helper. Control failures identify the normalized core's start; missing
+field facts identify the complete projection's start; malformed aggregate views
+identify their type's start. The pure scalar helper has no source coordinate
+and uses the existing internal-offset fallback of zero. These failures carry no
+buffered stdout into the private observation. Only the unsettled nonfinal byte
+payload path creates `Unsupported`; other occurrences propagate it unchanged.
+
+These storage, view, sum, and call operations also do not establish that the
+complete Omega D source executes. Every
 D17 grammar form now parses, including boundary/data/machine declarations,
 qualified-only receiver forms, states, and exact nonempty whole-program
 exhaustion. D51's receiver-only qualified-machine syntax, ordinary named

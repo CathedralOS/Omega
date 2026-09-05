@@ -1,0 +1,34 @@
+; These values deliberately bypass admission to test runtime invariants.
+(def invariant_store () EpsilonRuntimeStore
+  (EpsilonRuntimeStoreState 1 NoEpsilonRuntimeRoots
+    (EpsilonRuntimeConsoleInputAt (bytes_empty) 0)))
+
+(def invariant_output () Bytes (bytes_single 65))
+
+(def invariant_context () EpsilonEvaluatorInvocation
+  (EpsilonEvaluatorInvocationContext (bytes_single 120)
+    (EpsilonMachineDeclaration 0 1
+      (EpsilonUnqualifiedName 0 1 (EpsilonNameSpan 0 1))
+      (NoEpsilonMachineInputs 0 1) NoEpsilonType
+      (EpsilonMachineBodySyntax 0 1 NoEpsilonStatements NoEpsilonTerminal
+        NoEpsilonStates))
+    (epsilon_runtime_index_references 1 NoEpsilonResolvedLocalReferences
+      NoEpsilonResolvedFieldReferences NoEpsilonResolvedCallableReferences
+      (EpsilonControlReferenceLedgerSyntax NoEpsilonStateApplicationReferences
+        NoEpsilonTransitionSubjectReferences NoEpsilonTransitionPatternReferences
+        NoEpsilonTransitionCoverageReferences))
+    NoEpsilonRuntimePlace 1))
+
+(def invariant_integer ((start Int) (value Int)) EpsilonExpression
+  (EpsilonIntegerExpression start (+ start 1)
+    (EpsilonIntegerSpan start (+ start 1) value)))
+
+(def invariant_array () EpsilonRuntimeValue
+  (EpsilonRuntimeAggregate
+    (EpsilonArrayType 51 56 (EpsilonU8Type 52 53) (EpsilonIntegerSpan 54 55 2))
+    NoEpsilonRuntimeChildren))
+
+(def invariant_view () EpsilonRuntimeValue
+  (EpsilonRuntimeViewValue
+    (EpsilonRuntimeViewAt (EpsilonRuntimeLiteralBacking (bytes_single 66))
+      (EpsilonU8Type 57 58) 0 1)))

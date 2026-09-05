@@ -65,8 +65,9 @@
     (EpsilonAdd (epsilon_evaluator_i32_outcome (+ left right)))
     (EpsilonSubtract (epsilon_evaluator_i32_outcome (- left right)))
     (EpsilonMultiply (epsilon_evaluator_i32_outcome (* left right)))
-    (EpsilonLogicalOr EpsilonEvaluatorScalarUnsupported)
-    (EpsilonLogicalAnd EpsilonEvaluatorScalarUnsupported)
+    ; Logical operations must pass through the short-circuit dispatcher.
+    (EpsilonLogicalOr EpsilonEvaluatorScalarInternal)
+    (EpsilonLogicalAnd EpsilonEvaluatorScalarInternal)
     (EpsilonBitOr
       (EpsilonEvaluatorScalarValue (epsilon_evaluator_bitwise left right 2)))
     (EpsilonBitXor

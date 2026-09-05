@@ -31,7 +31,7 @@ expect_metric() {
     }
 }
 
-expect_metric 'source_lines=11693'
+expect_metric 'source_lines=11698'
 expect_metric 'top_level_forms=870'
 expect_metric 'data_forms=179'
 expect_metric 'definition_forms=691'
