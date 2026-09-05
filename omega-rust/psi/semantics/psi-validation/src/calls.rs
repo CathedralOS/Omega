@@ -72,25 +72,21 @@ pub(crate) fn validate_call_node(
             arguments.len(),
         )
     {
-        let mut root = call.receiver_symbol;
-        while root.is_valid()
-            && program.symbols.name(root) != first.as_str()
-            && !(first.as_str() == "self" && root == current_machine.symbol)
+        let root = call.receiver_root_symbol;
+        if !root.is_valid()
+            || !current_state.is_some_and(|state| {
+                crate::locals::state_value_root_is_known(
+                    program,
+                    current_machine,
+                    state,
+                    writable_roots.statements,
+                    machine_symbols,
+                    symbols,
+                    root,
+                    first.as_str(),
+                )
+            })
         {
-            root = program.symbols.get(root).parent;
-        }
-        if !current_state.is_some_and(|state| {
-            crate::locals::state_value_root_is_known(
-                program,
-                current_machine,
-                state,
-                writable_roots.statements,
-                machine_symbols,
-                symbols,
-                root,
-                first.as_str(),
-            )
-        }) {
             diagnostics.push(Diagnostic::error(format!(
                 "machine `{}` state `{state_name}` uses `{}`, which is not a declared receiver in this state",
                 current_machine.name.as_str(), first.as_str(),

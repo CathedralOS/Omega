@@ -1347,6 +1347,7 @@ fn call_mutated_places_include_mutable_attached_data_arguments() {
     program.statement_table.push_statement(
         &mut state.statement_nodes,
         StatementNode::Call(TableCall {
+            receiver_root_symbol: SymbolHandle::invalid(),
             source_span: psi_source::SourceSpan::default(),
             authored_call_selection: None,
             receiver_symbol: machine_symbol,
@@ -1477,6 +1478,7 @@ fn call_mutated_places_include_mutable_local_arguments_from_unresolved_names() {
     program.statement_table.push_statement(
         &mut state.statement_nodes,
         StatementNode::Call(TableCall {
+            receiver_root_symbol: SymbolHandle::invalid(),
             source_span: psi_source::SourceSpan::default(),
             authored_call_selection: None,
             receiver_symbol: machine_symbol,
