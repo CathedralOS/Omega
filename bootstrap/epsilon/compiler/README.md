@@ -35,8 +35,11 @@ checked binding identity and executes grouped/local reads plus `assert`. Output
 prefixes survive exact exit, arithmetic, shift-count, `ByteRange`, and
 `Assertion` trap outcomes. Every scalar operator, including short-circuit
 Boolean logic, bitwise operations, shifts, division, and remainder, executes;
-scalar `i32` receiver fields now default to zero and retain exact assignment
-updates by owner/member custody; every
+scalar `i32` and `u8` receiver fields and fixed arrays default to zero and retain
+exact assignment updates by owner/member/index custody. Byte reads zero-extend
+to `i32`; byte stores trap as `ByteRange` outside `0..255` without committing an
+update. Indexed stores check bounds before evaluating their right side, then
+check its byte range before updating storage; every
 other entry statement is explicitly
 unsupported rather than assigned guessed semantics. Every
 D17 grammar form now parses, including boundary/data/machine declarations,

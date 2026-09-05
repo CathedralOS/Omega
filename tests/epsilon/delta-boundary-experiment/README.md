@@ -1,6 +1,6 @@
 # Delta abstraction-boundary experiment
 
-This experiment asks whether the 8,733-line Delta-authored Epsilon compiler is
+This experiment asks whether the 9,566-line Delta-authored Epsilon evaluator is
 large because Delta is missing reusable mechanisms, or because Epsilon owns a
 large amount of irreducible language and diagnostic policy.
 
@@ -17,7 +17,7 @@ lines for the corresponding Delta language/compiler implementation.
 | Source span wrapper | 29 start/end helpers | 164 lines | Reject wrapper alone |
 | Candidate minimum fold | 3 candidate types plus 6 merge helpers | 77 lines | Reject generic fold |
 
-Even the impossible combined ceiling is only 852 lines, 9.1% of the Epsilon
+Even the impossible combined ceiling is only 852 lines, 8.9% of the Epsilon
 evaluator. The five proposals therefore cannot explain most of the source-size
 explosion.
 
@@ -28,7 +28,7 @@ outcomes have `1/2` and `2/2` shapes. A single `Option<T>` or `Result<T,E>` is
 insufficient without generic product/record payloads. Constructor matches and
 phase-specific rejection logic remain at every use site.
 
-The declaration-only ceiling is 96 lines. Supporting this requires parametric
+The declaration-only ceiling is 99 lines. Supporting this requires parametric
 types, generic type checking, instantiation or uniform representation, and
 recursive generic references in the Gamma-authored Delta compiler. The
 hypothetical syntax is retained in `generic_option.delta-plus` and must reject
@@ -88,7 +88,7 @@ data owners, owner custody, and shape facts.
 A generic `Map<K,V>` would require generic key equality, heterogeneous value
 sums, construction/update semantics, and either hashing/tree ordering or an
 explicit bounded linear representation. Most lookup policy would remain. The
-206-line ceiling is therefore unattainable. If scale later fails, Epsilon should
+245-line ceiling is therefore unattainable. If scale later fails, Epsilon should
 first test a source-owned indexed catalog; Delta should not acquire a generic map
 from this evidence.
 
@@ -129,6 +129,6 @@ policy that should remain visible.
 
 The language explosion appears to be mostly real Epsilon work: parsing its full
 surface, exact diagnostic ordering, identity custody, type formation, resolution,
-control checking, and Alpha encoding. Future abstraction proposals should use
+control checking, and evaluator execution. Future abstraction proposals should use
 the same test: exact family accounting, a free-feature ceiling, implementation
 cost below that ceiling, and an executable source-level win.
