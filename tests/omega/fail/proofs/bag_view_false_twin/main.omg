@@ -1,8 +1,8 @@
 // False twin of proofs/proof_bag_view_reflexivity (ladder rung L6, proof
 // views). The requires fact asserts the Bag views are equal; the ensures
-// asserts they are not. Accepted today because Bag(...) is contract surface
-// without lowering; once proof views carry semantics, the direct
-// contradiction must be rejected.
+// asserts they are not. This must reject. Ordinary core multiset extraction
+// is still missing, so this currently pins an unproved exit obligation,
+// not arithmetic interpretation of an undeclared Bag call.
 
 machine false_bag_distinct(before: &[u64], items: &[u64])
 requires

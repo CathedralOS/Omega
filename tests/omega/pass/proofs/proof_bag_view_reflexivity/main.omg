@@ -1,9 +1,8 @@
 // Ladder rung L6 (proof views): the Bag multiset view from the compile-time
-// proofs chapter parses and typechecks in contracts, and a view equality
-// carries from requires to ensures unchanged. Lean analog:
-// `Multiset.coe_eq_coe` transport / plain `exact h`. Pins the accepted
-// frontier: Bag(...) is contract surface today even though view lowering is
-// not implemented.
+// proofs chapter carries a view equality from requires to ensures unchanged.
+// Lean analog: `Multiset.coe_eq_coe` transport / plain `exact h`.
+// Pending ordinary core multiset data and slice extraction: the undeclared
+// calls currently reject and must not gain semantics from their spelling.
 
 machine bag_equality_carries(before: &[u64], items: &[u64])
 requires

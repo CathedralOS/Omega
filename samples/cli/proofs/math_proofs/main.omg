@@ -123,7 +123,8 @@ ensures
 
 // Proof views: Bag (multiset) equality carried from requires to ensures.
 // Lean analog: transporting `(items : Multiset) = before` via `exact h`.
-// Bag(...) is accepted contract surface today; its lowering is future work.
+// Pending ordinary core multiset data and slice extraction (Chapter 10).
+// Bag is not a compiler intrinsic; these calls need an imported definition.
 machine bag_equality_carries(before: &[u64], items: &[u64])
 requires
     Bag(items) == Bag(before)
