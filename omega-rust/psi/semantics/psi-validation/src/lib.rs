@@ -102,6 +102,8 @@ pub use float_projection_bindings::{
     exact_toolchain_float_projection_contract, exact_toolchain_float_projection_primitive,
     is_exact_toolchain_float_meaning_type,
 };
+pub use literals::has_anonymous_operator_meaning;
+pub use literals::land_anonymous_integer_expression;
 /// The declared type of a simple place argument (bare name / `self.field`,
 /// through the `&mut` marker), WITH its Constrained shells -- exposed for the
 /// typed-trees machine-monomorphization pass's param-position inference.
@@ -1267,17 +1269,27 @@ fn validate_state_statement_node(
                 );
             }
             let before = diagnostics.len();
-            let (return_interval, source_primitive) = arithmetic_domains::validate_value_range(
-                program,
-                machine,
-                Some(state),
-                *expression,
-                value_env,
-                return_primitive,
-                program.arithmetic_domain_for_type_reference(state.return_type),
-                &owner,
-                diagnostics,
-            );
+            let (return_interval, source_primitive) =
+                arithmetic_domains::validate_anonymous_return_range(
+                    program,
+                    state,
+                    *expression,
+                    &owner,
+                    diagnostics,
+                )
+                .unwrap_or_else(|| {
+                    arithmetic_domains::validate_value_range(
+                        program,
+                        machine,
+                        Some(state),
+                        *expression,
+                        value_env,
+                        return_primitive,
+                        program.arithmetic_domain_for_type_reference(state.return_type),
+                        &owner,
+                        diagnostics,
+                    )
+                });
             // A cleanly-analyzed return value that cannot fit the declared return
             // type is a silent narrowing (`-> i8 { 300 }`), same as a store.
             if diagnostics.len() == before {

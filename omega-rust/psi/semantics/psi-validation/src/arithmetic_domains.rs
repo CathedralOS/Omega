@@ -154,6 +154,33 @@ pub(crate) fn validate_arithmetic_domains(
     .0
 }
 
+pub(crate) fn validate_anonymous_return_range(
+    program: &TypedTrees,
+    state: &State,
+    expression: ExpressionHandle,
+    owner: &str,
+    diagnostics: &mut Vec<Diagnostic>,
+) -> Option<(Interval, Option<PrimitiveType>)> {
+    let primitive = program.primitive_type_reference(state.return_type)?;
+    if program.arithmetic_domain_for_type_reference(state.return_type) != ArithmeticDomain::Exact
+        || primitive == PrimitiveType::Addr
+        || !primitive.accepts_integer_literal()
+    {
+        return None;
+    }
+    let value = crate::literals::anonymous_integer_value(program, expression, &mut |expression| {
+        crate::literals::has_anonymous_operator_meaning(program, expression)
+    })?;
+    if let Some(literal) = crate::literals::land_integer_value(&value, primitive) {
+        return Some((literal_interval(&literal), Some(primitive)));
+    }
+    diagnostics.push(Diagnostic::error(format!(
+        "anonymous integer value `{value}` does not fit destination `{}` in {owner}",
+        primitive.name()
+    )));
+    Some((Interval::UNBOUNDED, None))
+}
+
 /// Like [`validate_arithmetic_domains`] but also returns the expression's source
 /// integer primitive (the `None`-for-unknown result). The narrowing check needs
 /// it: a value produced by a typed source is ALWAYS within that type's range (a
@@ -1322,6 +1349,12 @@ pub(crate) fn validate_return_value_range(
 ) {
     let return_primitive = program.primitive_type_reference(state.return_type);
     let return_domain = program.arithmetic_domain_for_type_reference(state.return_type);
+    if let Some((interval, _)) =
+        validate_anonymous_return_range(program, state, return_expression, owner, diagnostics)
+    {
+        enforce_declared_return_range(program, state.return_type, interval, owner, diagnostics);
+        return;
+    }
     if range_constraint_interval(program, state.return_type).is_some() {
         // Range-constrained return: analyze (emitting any overflow obligation, as
         // before), enforce the declared `[a..=b]`, and -- on a clean value -- the

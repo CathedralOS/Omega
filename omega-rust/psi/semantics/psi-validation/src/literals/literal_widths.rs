@@ -71,6 +71,7 @@ pub(crate) fn validate_literal_widths(program: &TypedTrees, diagnostics: &mut Ve
 fn u64_blessed_literals(program: &TypedTrees) -> Vec<ExpressionHandle> {
     // A handful of entries at most -- a Vec beats hashing arena handles.
     let mut blessed = Vec::new();
+    super::integer_landing::append_return_literals(program, &mut blessed);
 
     // Struct-literal fields (position-independent: wherever the literal is
     // constructed, the field slot's declared type is what matters).

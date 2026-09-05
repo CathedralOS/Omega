@@ -1,0 +1,3 @@
+machine unsigned_intermediate() -> u8
+ensures result == 254
+{ (255 + 1) - 1 }

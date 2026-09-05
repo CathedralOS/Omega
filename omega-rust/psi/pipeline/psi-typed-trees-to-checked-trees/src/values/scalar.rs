@@ -2057,6 +2057,17 @@ fn lower_return_expression(
     result_type: PrimitiveType,
     exact_integer_casts: &[psi_validation::ExactIntegerCastFact],
 ) -> Option<CheckedScalarExpression> {
+    if let Some(literal) = psi_validation::land_anonymous_integer_expression(
+        program,
+        expression,
+        result_type,
+        |expression| match operators.expression_use(expression) {
+            Some(operator) => operator.status == CheckedOperatorResolutionStatus::BuiltinFallback,
+            None => psi_validation::has_anonymous_operator_meaning(program, expression),
+        },
+    ) {
+        return Some(CheckedScalarExpression::IntegerLiteral { literal });
+    }
     if result_type == PrimitiveType::Bool {
         return lower_boolean_expression(
             program,

@@ -1,5 +1,6 @@
 use super::*;
 
+mod anonymous_integer_exits;
 mod assembly;
 mod assigned_values;
 mod byte_sequences;
