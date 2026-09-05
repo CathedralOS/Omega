@@ -76,6 +76,7 @@
     (emit_list_expression (skip index) globals)
     (emit_atom (skip index) globals)))
 
+; The complete lexical and typed frontend already admitted every numeric span.
 (def emit_atom ((start Int) (globals Int)) Int
   (let end Int (token_end start)
     (let first Int (source_read start)
@@ -97,13 +98,9 @@
                 (fail))))
           (fail))
         (if (is_digit first)
-          (if (integer_literal_valid start end)
-            (let ignored Int (emit_span start end) end)
-            (fail))
+          (let ignored Int (emit_span start end) end)
           (if (eq first 45)
-            (if (integer_literal_valid start end)
-              (let ignored Int (emit_span start end) end)
-              (fail))
+            (let ignored Int (emit_span start end) end)
             (if (value_name_valid start end)
               (let ignored Int (emit_span start end) end)
               (fail))))))))
@@ -164,16 +161,6 @@
                     (skip after_first) (- remaining 1) globals)
                   (let ignored2 Int (write ')')
                     after_rest)))))))
-
-(def operator_arity_plus_one ((start Int) (end Int)) Int
-  (if (eq (- end start) 1)
-    (let byte Int (source_read start)
-      (if (eq byte 43) 3
-        (if (eq byte 45) 3
-          (if (eq byte 42) 3
-            (if (eq byte 47) 3
-              (if (eq byte 37) 3 0))))))
-    0))
 
 (def checked_arithmetic_head ((start Int) (end Int)) Int
   (if (eq (- end start) 1)

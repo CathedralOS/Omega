@@ -276,9 +276,10 @@ lowering, ordinary tail calls survive `if`, `let`, and `match`, and the five
 normative `Bytes` operations lower through a private length-bearing rope.
 `ConformanceBytesV1` framing, schema validation, and generated execution are
 implemented. Strict DCREQ admission publishes canonical DCOUT request
-rejections and source-length refusals. Source-envelope, duplicate-global, and
-post-frontend entry-schema diagnostics also publish canonical DCOUT. Remaining
-frontend diagnostics and later resource/internal DCOUT failures remain
+rejections and source-length refusals. Source-envelope, lexical token and
+integer-range, duplicate-global, and post-frontend entry-schema diagnostics
+also publish canonical DCOUT. Structural syntax, remaining frontend
+diagnostics, and later resource/internal DCOUT failures remain
 incomplete; underlying evaluator
 failures do not substitute for them. The complete compiler artifact remains
 absent. The former concatenative-Gamma

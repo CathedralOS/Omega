@@ -31,7 +31,7 @@ directory = Path(os.environ["FRONTEND_BOUNDARY_TMP"])
 compiler = (directory / "compiler.gamma").read_bytes()
 identity = (len(compiler.splitlines()), len(compiler), hashlib.sha256(compiler).hexdigest())
 if identity != (
-    2326, 96148, "bab9afe19dec17995fc0b50355bb0b90033195b4a35c929a9f19a939dcd55162"
+    2378, 98630, "38fb49e2fa679581c35f4cd134cdcf8e050eb36650bd779669b363f861da6009"
 ):
     raise SystemExit(f"Delta compiler identity changed: {identity}")
 
@@ -88,6 +88,33 @@ cases.extend((
 # Literal authored coordinates are fixture expectations. The host does not
 # tokenize source, locate declarations, or select a diagnostic candidate.
 for name, source, code, coordinate in (
+    ("leading plus is not an integer", b"(def main () Int +123)\n", 4, 17),
+    ("numeric suffix is malformed", b"(def main () Int 12suffix)\n", 4, 17),
+    ("double minus is malformed", b"(def main () Int --1)\n", 4, 17),
+    ("decimal point is malformed", b"(def main () Int 1.0)\n", 4, 17),
+    ("punctuation is malformed", b"(def main () Int @)\n", 4, 17),
+    ("positive adjacent integer overflow",
+     b"(def main () Int 9223372036854775808)\n", 5, 17),
+    ("negative adjacent integer overflow",
+     b"(def main () Int -9223372036854775809)\n", 5, 17),
+    ("long all-digit integer overflow",
+     b"(def main () Int 9999999999999999999999999999999999999999)\n", 5, 17),
+    ("suffix after overflowing prefix is malformed",
+     b"(def main () Int 9999999999999999999999999999999999999999suffix)\n", 4, 17),
+    ("lexical failure before later duplicate",
+     b"(def f () Int +123)\n(def f () Int 0)\n", 4, 14),
+    ("later lexical failure before duplicate collection",
+     b"(def f () Int 0)\n(def f () Int +123)\n", 4, 31),
+    ("lexical failure before unknown declaration type",
+     b"(def main () Unknown +123)\n", 4, 21),
+    ("later forbidden byte before earlier malformed token", b"+123\x00", 3, 4),
+    ("first malformed token wins", b" \t12suffix +123", 4, 2),
+    ("earlier overflow before later malformed token", b"9223372036854775808 +123", 5, 0),
+    ("earlier malformed token before later overflow", b"+123 9223372036854775808", 4, 0),
+):
+    cases.append((name, source, rejection(code, coordinate)))
+
+for name, source, code, coordinate in (
     ("duplicate type", b"(data Item (First))\n(data Item (Second))\n(def main ((source Bytes)) Bytes source)\n", 6, 26),
     ("duplicate constructor across owners", b"(data First (Item))\n(data Second (Item))\n(def main ((source Bytes)) Bytes source)\n", 7, 34),
     ("duplicate constructor in owner", b"(data First (Item) (Item))\n(def main ((source Bytes)) Bytes source)\n", 7, 20),
@@ -123,6 +150,8 @@ cases.append(("entry suffix is not main", b"(def main_suffix () Int 0)\n",
 for name, source in (
     ("empty source", b""),
     ("invalid syntax", b"("),
+    ("bare subtraction token is not an atom", b"(def main () Int -)\n"),
+    ("valid tokens with unbalanced structure", b"(def main () Int 0\n"),
     ("unknown signature type without main", b"(def helper ((value Unknown)) Int 0)\n"),
     ("unknown constructor type without main", b"(data Item (Item Unknown))\n(def helper () Int 0)\n"),
     ("unknown body name without main", b"(def helper () Int missing)\n"),
@@ -157,6 +186,26 @@ accepted = (
      b"(def main ((source Bytes)) Bytes (if (first 1) (bytes_empty) source))\n"),
     ("textual ASCII whitespace and comment endings",
      b"; comment\r\t" + identity_source + b"; final comment"),
+    ("exact minimum integer",
+     b"(def main ((source Bytes)) Bytes "
+     b"(if (eq -9223372036854775808 -9223372036854775808) source (bytes_empty)))\n"),
+    ("exact maximum integer",
+     b"(def main ((source Bytes)) Bytes "
+     b"(if (eq 9223372036854775807 9223372036854775807) source (bytes_empty)))\n"),
+    ("negative zero and leading zeros",
+     b"(def main ((source Bytes)) Bytes "
+     b"(if (eq (+ -0 0007) 7) source (bytes_empty)))\n"),
+    ("binary addition and subtraction tokens",
+     b"(def main ((source Bytes)) Bytes "
+     b"(if (eq (+ (- 7 3) 2) 6) source (bytes_empty)))\n"),
+    ("malformed numbers in LF comment",
+     b"; +123 12suffix --1 1.0 9223372036854775808\n" + identity_source),
+    ("malformed numbers in CR comment",
+     b"; +123 12suffix --1 1.0 9223372036854775808\r" + identity_source),
+    ("malformed numbers in CRLF comment",
+     b"; +123 12suffix --1 1.0 9223372036854775808\r\n" + identity_source),
+    ("malformed numbers in EOF comment",
+     identity_source + b"; +123 12suffix --1 1.0 9223372036854775808"),
 )
 payload = b"\x00A\x80\xff"
 for name, source in accepted:
