@@ -16,7 +16,7 @@ pub fn plan_dependency_addition(
     request: &DependencySourceRequest,
 ) -> Result<BuildDependencyEditPlan, BuildDependencyEditError> {
     let (build_path, source) = read_build_source(package_root.as_ref())?;
-    plan_addition_from_source(build_path, source, request)
+    plan_dependency_addition_from_source(build_path, source, request)
 }
 
 pub fn plan_dependency_replacement(
@@ -25,7 +25,7 @@ pub fn plan_dependency_replacement(
     candidate: &DependencySourceRequest,
 ) -> Result<BuildDependencyEditPlan, BuildDependencyEditError> {
     let (build_path, source) = read_build_source(package_root.as_ref())?;
-    plan_replacement_from_source(build_path, source, accepted, candidate)
+    plan_dependency_replacement_from_source(build_path, source, accepted, candidate)
 }
 
 fn read_build_source(package_root: &Path) -> Result<(PathBuf, String), BuildDependencyEditError> {
@@ -42,7 +42,9 @@ fn read_build_source(package_root: &Path) -> Result<(PathBuf, String), BuildDepe
     Ok((build_path, source))
 }
 
-pub(super) fn plan_addition_from_source(
+/// Plan an addition using command-owned source without reading or writing the
+/// build path. Any edit or manual patch is bound to these exact source bytes.
+pub fn plan_dependency_addition_from_source(
     build_path: PathBuf,
     source: String,
     request: &DependencySourceRequest,
@@ -113,7 +115,9 @@ fn validated_automatic_addition(
     ))
 }
 
-pub(super) fn plan_replacement_from_source(
+/// Plan a replacement using command-owned source without reading or writing the
+/// build path. Any edit or manual patch is bound to these exact source bytes.
+pub fn plan_dependency_replacement_from_source(
     build_path: PathBuf,
     source: String,
     accepted: &DependencySourceRequest,

@@ -147,12 +147,20 @@ sealed/certified `PackageInstance` or certificates proving lock acceptance.
 Compiler proof/reach checks and native artifact checks remain independent of
 installation.
 
-The current manager has in-memory evidence promotion and root-policy replay,
-but no complete `omega.lock` mutation route. That redundant promotion machinery
-is to be simplified, not completed as a prerequisite for install/update. The
-existing standalone trust-receipt subset still stores full domain-separated
-admission digests and rejects legacy compact-only rows for build authorization;
-this describes the existing compiler path, not the intended lock format.
+`omega install` and `omega update` stage declarations, check the graph, and
+publish the build/lock pair after required per-change decisions accept.
+Blocking findings leave accepted files unchanged and report editable review
+files; the matching command's `--resume` checks the same candidate and decisions.
+`--discard-review` abandons that proposal, not publication recovery. Ordinary
+compilation consumes accepted dependency pins while allowing application-source
+edits; dependency changes require an update.
+
+The current native manager route has separate in-memory evidence promotion and
+root-policy replay. It is not an install/update prerequisite. Compiler admission
+policy stores full domain-separated digests in `omega.admissions` and rejects
+legacy compact-only rows. Existing strong compiler rows under the old
+`omega.lock` name require explicit migration to `omega.admissions`; a modern
+package lock is never compiler admission policy.
 
 Claim-free opaque boundary representation remains visible and audit-recommended
 without being mislabeled as an accepted claim. Producer availability accepts no

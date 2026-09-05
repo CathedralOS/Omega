@@ -86,6 +86,20 @@ impl PackageFileTransaction {
         &self.directories.root_path
     }
 
+    /// Command-owned proposal/findings files share the retained state directory
+    /// and project mutex, but are not the accepted pair's commit-intent journal.
+    pub(crate) fn command_state_files(&self) -> Result<RecordFileRoot, PackagePublicationError> {
+        self.verify()?;
+        RecordFileRoot::from_directory(
+            self.directories
+                .state
+                .try_clone()
+                .map_err(|error| io_error(self.project_root(), error))?,
+            self.directories.state_path(),
+        )
+        .map_err(PackagePublicationError::from)
+    }
+
     /// Whether accepted-file loading must first finish an earlier publication.
     pub fn has_pending(&self) -> Result<bool, PackagePublicationError> {
         self.verify()?;

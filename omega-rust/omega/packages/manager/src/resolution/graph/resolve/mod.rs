@@ -30,7 +30,8 @@ pub use git::{
 };
 pub use git_pins::{GitDependencyPins, GitDependencyPinsError};
 pub use locked::{
-    ResolveLockedPackageClosureError, resolve_locked_package_source_closure_with_storage,
+    ResolveLockedPackageClosureError, resolve_locked_local_project_closure_with_storage,
+    resolve_locked_package_source_closure_with_storage,
 };
 pub use workspace::{
     resolve_workspace_package_closure_in_context_with_storage,

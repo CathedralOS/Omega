@@ -14,6 +14,7 @@ mod check_locked_sources;
 mod compile_project;
 pub mod inspect_source;
 mod package_change;
+mod package_commands;
 mod prepare_project;
 mod publication;
 mod recover_locked_sources;
@@ -32,7 +33,15 @@ pub use inspect_source::{
     inspect_package_source_locator,
 };
 pub use package_change::{PackageChangeError, PackageChangeReview, review_package_change};
-pub use prepare_project::{PrepareLocalProjectError, PreparedLocalProject, prepare_local_project};
+pub use package_commands::{
+    PackageCommand, PackageCommandError, PackageCommandKind, PackageCommandOptions,
+    PackageCommandOutcome, PackageCommandStatus, execute_package_command,
+    execute_package_command_with_storage,
+};
+pub use prepare_project::{
+    PrepareLocalProjectError, PreparedLocalProject, prepare_local_project,
+    prepare_local_project_for_target,
+};
 pub use publication::{
     PackageFileTransaction, PackagePublicationError, PackagePublicationLimits,
     PublishReviewedPackageChangeError, publish_reviewed_package_change,

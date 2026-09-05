@@ -4,6 +4,62 @@
 
 use compiler::{CompileOptions, compile_to_checked};
 
+#[test]
+fn modern_package_lock_does_not_settle_fresh_compiler_obligations() {
+    let project = std::env::temp_dir().join(format!(
+        "omega-admissions-fresh-obligations-{}",
+        std::process::id()
+    ));
+    std::fs::create_dir_all(&project).unwrap();
+    std::fs::write(
+        project.join("build.omg"),
+        r#"machine build(builder: &mut Build) {
+    builder.application("fresh-obligations");
+    builder.accept_boundary<admitted>();
+}
+"#,
+    )
+    .unwrap();
+    std::fs::write(
+        project.join("main.omg"),
+        "boundary machine admitted() ensures true;\ndata Main {}\nmachine Main::exercise(&mut self) {}\n",
+    )
+    .unwrap();
+    let package_lock = b"OMEGA-PACKAGE-LOCK 1\n";
+    let lock_path = project.join("omega.lock");
+    std::fs::write(&lock_path, package_lock).unwrap();
+    let root_path = project.join("main.omg");
+    let check = || {
+        let admissions = trust_ledger::read_trust_admissions(&root_path).unwrap();
+        compiler::compile(
+            compiler::CompileRequest::new(CompileOptions {
+                root_path: root_path.clone(),
+                build_dir: Some(project.join("build")),
+                target_name: None,
+            })
+            .with_accepted_trust_admissions(admissions),
+        )
+        .unwrap()
+    };
+    // Ordinary coordinator checks must still reject this non-exact settlement.
+    // Avoid the explicit-acceptance helper used by the older receipt tests.
+    let fresh = check();
+    assert!(!fresh.trust_admission_settlement().is_exactly_admitted());
+    assert_eq!(fresh.trust_admission_settlement().unresolved().len(), 1);
+    assert!(!fresh.wrote_output());
+    assert!(!project.join("omega.admissions").exists());
+    assert_eq!(std::fs::read(&lock_path).unwrap(), package_lock);
+
+    trust_ledger::accept_trust_admissions(
+        &root_path,
+        fresh.trust_admission_settlement().required(),
+    )
+    .unwrap();
+    assert!(check().trust_admission_settlement().is_exactly_admitted());
+    assert_eq!(std::fs::read(&lock_path).unwrap(), package_lock);
+    std::fs::remove_dir_all(project).unwrap();
+}
+
 fn compile(
     options: CompileOptions,
 ) -> Result<compiler::CompileReport, Vec<diagnostics::Diagnostic>> {
@@ -19,7 +75,7 @@ fn compile(
     }
     if !root_path
         .parent()
-        .is_some_and(|project| project.join("omega.lock").exists())
+        .is_some_and(|project| project.join("omega.admissions").exists())
     {
         trust_ledger::accept_trust_admissions(&root_path, settlement.required())?;
         assert!(!report.wrote_output());
@@ -73,7 +129,7 @@ fn compile(
         }
     };
     Err(vec![diagnostics::Diagnostic::error(format!(
-        "granted statement drifted: the complete trust receipt set no longer matches omega.lock -- added: {}; removed: {}; changed: {}",
+        "granted statement drifted: the complete trust receipt set no longer matches omega.admissions -- added: {}; removed: {}; changed: {}",
         display(&added),
         display(&removed),
         display(&changed),
@@ -321,7 +377,7 @@ machine Main::exercise(&mut self) {
         rendered.contains("domain and arbitrary-string trust grants are unsupported"),
         "expected the retired legacy-grant diagnostic:\n{rendered}"
     );
-    assert!(!project.join("omega.lock").exists());
+    assert!(!project.join("omega.admissions").exists());
     assert!(!build_dir.join("trust_report.md").exists());
 
     let _ = std::fs::remove_dir_all(&project);
@@ -371,14 +427,15 @@ machine Main::exercise(&mut self) {}
         rendered.contains("root grant `claim` is ambiguous across non-provider trust subjects"),
         "expected exact grant ambiguity diagnostic:\n{rendered}",
     );
-    assert!(!project.join("omega.lock").exists());
+    assert!(!project.join("omega.admissions").exists());
     assert!(!build_dir.join("trust_report.md").exists());
 
     std::fs::write(project.join("build.omg"), build_with("First::claim"))
         .expect("write exact grant");
     compile(options()).expect("exact qualified grant should compile");
 
-    let lock = std::fs::read_to_string(project.join("omega.lock")).expect("trust lock written");
+    let lock =
+        std::fs::read_to_string(project.join("omega.admissions")).expect("trust lock written");
     assert!(lock.contains("accepted fact: First::claim"));
     assert!(!lock.contains("accepted fact: Second::claim"));
     let report =
@@ -441,8 +498,8 @@ machine Main::exercise(&mut self) {{
     };
     compile(options()).expect("granted project should compile");
 
-    let lock = std::fs::read_to_string(project.join("omega.lock"))
-        .expect("omega.lock should be written beside build.omg");
+    let lock = std::fs::read_to_string(project.join("omega.admissions"))
+        .expect("omega.admissions should be written beside build.omg");
     assert!(
         lock.contains("accepted fact: admitted"),
         "expected the accepted-machine receipt row:\n{lock}"
@@ -458,7 +515,7 @@ machine Main::exercise(&mut self) {{
     );
 
     // Re-approve by deleting the lock; the build succeeds and re-pins.
-    std::fs::remove_file(project.join("omega.lock")).expect("delete lock");
+    std::fs::remove_file(project.join("omega.admissions")).expect("delete lock");
     compile(options()).expect("re-approved project should compile");
 
     let _ = std::fs::remove_dir_all(&project);
@@ -498,7 +555,7 @@ machine Main::exercise(&mut self) {}
         build_dir: Some(build_dir.clone()),
         target_name: None,
     };
-    let lock_path = project.join("omega.lock");
+    let lock_path = project.join("omega.admissions");
 
     std::fs::write(project.join("build.omg"), build_with(&["Alpha"])).expect("write first grant");
     compile(options()).expect("first approval writes one receipt");
@@ -580,7 +637,7 @@ machine Main::exercise(&mut self) {}
         build_dir: Some(build_dir.clone()),
         target_name: None,
     };
-    let lock_path = project.join("omega.lock");
+    let lock_path = project.join("omega.admissions");
     compile(options()).expect("write canonical lock");
     let canonical = std::fs::read_to_string(&lock_path).expect("read canonical lock");
 
@@ -675,7 +732,7 @@ machine Main::exercise(&mut self) {{
         target_name: None,
     };
     compile(options()).expect("granted axiom project should compile");
-    let lock = std::fs::read_to_string(project.join("omega.lock")).expect("lock written");
+    let lock = std::fs::read_to_string(project.join("omega.admissions")).expect("lock written");
     assert!(
         lock.contains("accepted fact: mul_comm_axiom"),
         "expected the axiom receipt:\n{lock}"
@@ -735,7 +792,7 @@ machine Main::exercise(&mut self) {{
         target_name: None,
     };
     compile(options()).expect("granted axiom project should compile");
-    let lock = std::fs::read_to_string(project.join("omega.lock")).expect("lock written");
+    let lock = std::fs::read_to_string(project.join("omega.admissions")).expect("lock written");
     assert!(lock.contains("accepted fact: admitted_axis"));
     let report =
         std::fs::read_to_string(build_dir.join("trust_report.md")).expect("trust report written");
@@ -815,7 +872,7 @@ machine Main::exercise(&mut self) {{
         target_name: None,
     };
     compile(options()).expect("granted generic axiom project should compile");
-    let lock = std::fs::read_to_string(project.join("omega.lock")).expect("lock written");
+    let lock = std::fs::read_to_string(project.join("omega.admissions")).expect("lock written");
     assert_eq!(
         lock.lines()
             .filter(|line| line.contains("accepted fact: admitted"))
@@ -980,7 +1037,7 @@ machine Main::exercise(&mut self) {{
         target_name: None,
     };
     compile(options()).expect("granted plan project should compile");
-    let lock = std::fs::read_to_string(project.join("omega.lock")).expect("lock written");
+    let lock = std::fs::read_to_string(project.join("omega.admissions")).expect("lock written");
     assert!(
         lock.contains("provider slot: Flags"),
         "expected the plan receipt:\n{lock}"
@@ -1788,7 +1845,8 @@ machine Main::exercise(&mut self) {}
         "the selected provider-slot grant must not be relabeled as a bare accepted fact:\n{report}"
     );
 
-    let lock = std::fs::read_to_string(project.join("omega.lock")).expect("trust lock written");
+    let lock =
+        std::fs::read_to_string(project.join("omega.admissions")).expect("trust lock written");
     assert!(lock.contains("provider slot: Pair"));
 
     std::fs::write(project.join("build.omg"), build_with("FirstProvider"))

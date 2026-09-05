@@ -43,73 +43,46 @@ adding machinery; do not invent proof-of-review or host-security requirements.
   hide authority in generated code. Installing source does not publish a native
   executable.
 
-## 2. Record pins and accepted policy
+## 2. Complete review integration
 
-- [ ] **LOCK-BASELINE-RECOVERY.** Connect locked recovery and fresh checking
-  to command-level lock loading and explicit missing-baseline/unavailable-source
-  outcomes. Locked use preserves exact pins and never silently updates a
-  selector. Verify acquired content against the recorded resolution.
-  A missing acceptance baseline triggers fresh review of the complete graph.
-  Unavailable old source preserves a readable accepted baseline and produces
-  standalone candidate review with an audit recommendation. Unsupported lock
-  formats fail with recovery guidance; regeneration must not silently choose
-  newer revisions. Recompute stale compiler analysis without treating an
-  unchanged acceptance decision as newly certified.
-  Acceptance: fresh checkout, offline cache reuse, missing old source,
-  mismatched content, and stale/incompatible review data have explicit outcomes.
+- [ ] **EXPLICIT-DEPENDENCY-REPLACEMENT.** Preserve command-authored replacement
+  intent when both alias and source change, through planning, review resume,
+  and publication in `manager/src/operations/package_commands/`. Graph
+  comparison must not infer pairing from package names or authored positions.
+  Acceptance: one explicit replacement is reported alongside its policy deltas;
+  unrelated additions/removals are not paired, and stale decisions reject.
 
-## 3. Review and publish the change
+- [ ] **AUDIT-RESULT-INTEGRATION.** Connect source-code changes and optional
+  audit advice to install/update review. Obtain exact old source when available;
+  if unavailable, retain the accepted policy comparison and offer standalone
+  candidate audit. Keep package-authored source/prose separate from compiler
+  capability triage. Advisory service failure cannot suppress compiler findings
+  or replace per-change decisions. Acceptance: a source upgrade exposes its
+  available code diff or explicit unavailability, retained dangerous authority
+  still recommends audit, and the flow works without an advisory service.
+  No Y/N approval prompt, audit receipt, or proof-of-review requirement.
 
-- [ ] **CAPABILITY-CONFLICT-TRANSACTION.** Wire reviewed publication into
-  install/update commands and command-owned review-file persistence/resume.
-  Retain the edit plan and original live-source identity across resume; open
-  the project transaction before loading accepted files and recover pending
-  intent before treating the pair as a usable baseline.
-  Capability changes block pending decisions for the exact changed
-  rows, including removals; package-name/source replacement is explicit.
-  Initial dangerous authority and accepted assumptions require review.
-  Ordinary initial API rows have no previous compatibility contract.
-  Wire the complete-policy review document into command-owned file loading and
-  resume. Preserve explicit command replacement intent when
-  both alias and source change; graph comparison must not infer pairing from
-  package names or authored positions.
-  Recheck candidate identity and project-file versions before committing.
-  Acceptance: unresolved/stale decisions and pre-publication concurrent edits
-  leave accepted project files intact. An interrupted pair is reported pending
-  and recovered before use; unexpected edited bytes stop recovery without being
-  overwritten. No mixed pair is silently treated as an accepted graph.
-  Decision records identify accepted changes; they do not prove an audit.
+## 3. Commands and integration tests
 
-- [ ] **AUDIT-RESULT-INTEGRATION.** Present compiler-rendered capability diffs,
-  affected APIs, dependency paths, assumptions, and source changes in the
-  install/update flow. Recommend audits for dangerous initial capabilities and
-  retained filesystem/network or comparable authority on updates, even when
-  the capability set is unchanged. Missing old source receives standalone
-  candidate review. Optional LLM advice cannot suppress compiler findings or
-  replace project decisions; no Y/N rubber-stamp prompt or proof-of-audit
-  receipt. Acceptance: deterministic findings and blockers work without an
-  advisory service; package prose cannot inject instructions into capability
-  triage. External project policy may require stronger review.
+- [ ] **FAILED-FETCH-RETRY.** Repair retry behavior in
+  `sources/acquisition/src/git/`: a failed acquisition invalidates
+  `source.identity` but leaves an entry that makes subsequent attempts fail on
+  missing metadata before retrying the fetch. Acceptance: an interrupted or
+  failed fetch can be retried without manual cache surgery; report the original
+  transport failure, preserve accepted pins, and never reuse unverified content.
 
-## 4. Commands and integration tests
+- [ ] **NAMED-WORKSPACE-INSTALL.** Expose the existing named Git workspace
+  selection in `omega install` and its manager operation. Retain declared-name
+  discovery and optional local alias overrides; do not ask callers for member
+  filesystem paths. Acceptance: a named remote member installs and imports,
+  undeclared/duplicate names reject, and updating one member reports all
+  affected reachable members without refreshing unrelated repositories.
 
-- [ ] **OMEGA-INSTALL.** Implement
-  `omega install <source> [--rev <revision>] [--as <alias>]` in
-  `manager/src/operations/`, with a thin CLI entrance. Acquire the repo,
-  discover its declared package name, resolve/check its closure, handle review,
-  and commit the dependency declaration and lock. Support the existing Git
-  HTTPS/SSH and local adapters first; additional stores reuse the same flow.
-  Acceptance: an actual remote package installs and imports through its
-  default alias, with overrides optional and all failure paths recoverable.
-
-- [ ] **OMEGA-UPDATE.** Implement
-  `omega update [package-or-alias...] [--to <revision>]` over the same
-  transaction. Map unambiguous user selections to exact accepted package keys
-  and use pin-aware resolution; report every affected workspace member.
-  Acceptance: selected updates respect existing pins for
-  unaffected packages, explain resolution conflicts, block capability changes
-  pending decisions, recommend audit for retained dangerous authority, and
-  commit the reviewed graph only.
+- [ ] **OFFLINE-COMMAND-SELECTION.** Expose existing offline exact-pin recovery
+  through command options for locked compilation and package operations where
+  applicable. Acceptance: cached accepted/proposed pins work without network;
+  missing required content fails clearly without selector refresh or accepted
+  file mutation. Do not add a new credential or host-isolation framework.
 
 - [ ] **OMEGA-AUDIT-PACKAGES.** Render the selected graph, exact pins, accepted
   baseline, freshly checked reach/API/assumption findings, and dependency paths.
@@ -121,7 +94,11 @@ adding machinery; do not invent proof-of-review or host-security requirements.
 - [ ] **PACKAGE-MANAGER-RELEASE-AUDIT.** Exercise install/update through the
   real command and network adapters using pure, dangerous, capability-changing,
   same-name/different-source, transitive-authority, and generated-source
-  fixtures. Cover missing baselines/old source, invalid proofs, spoofed
+  fixtures. Refresh the remote fixture sources and exact pins that still use
+  retired target declarations; then prove remote install, selected update, and
+  import through the default alias. Run HTTPS coverage where the private
+  fixtures' credentials are configured, independently of SSH coverage.
+  Cover missing baselines/old source, invalid proofs, spoofed
   boundaries, concurrent edits, and interruption recovery.
   Run relevant package, resolver, compiler-handoff, and architecture checks.
   On supported Windows workers run process-tree cleanup and Job Object

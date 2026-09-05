@@ -66,9 +66,9 @@ transaction recovery. Excluded paths, symlink targets, stale input, and proposal
 over the source byte ceiling reject.
 
 Mutable local package capture excludes `.git`, root `build/`, and root
-`omega.lock` (including ASCII case variants). The lock is project control state,
-not an input to its own recorded source identity. Creating or updating it must
-not invalidate the local pins it records. A nested `src/omega.lock` remains
+`omega.lock` and `omega.admissions` (including ASCII case variants). These are
+project control state, not inputs to the recorded source identity. Creating or
+updating them must not invalidate local pins. Nested policy-named files remain
 ordinary source. Symlinks into excluded control state reject, so a captured link
 cannot depend on a file omitted from its snapshot. Exact materialized trees,
 including Git snapshots, retain and hash all their lock files; verification does

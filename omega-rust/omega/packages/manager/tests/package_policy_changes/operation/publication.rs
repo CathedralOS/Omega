@@ -7,7 +7,7 @@ use package_manager::declarations::{
 };
 use package_manager::operations::{
     LockedSourceRecoveryOptions, PackageFileTransaction, PackagePublicationLimits,
-    PublishReviewedPackageChangeError, check_locked_sources, prepare_local_project,
+    PublishReviewedPackageChangeError, check_locked_sources, prepare_local_project_for_target,
     publish_reviewed_package_change, stage_build_dependency_edit,
 };
 use package_manager::resolution::graph::resolve_staged_external_local_project_closure_with_storage;
@@ -576,7 +576,19 @@ fn preparation_recovers_pending_declarations_before_compiler_input_resolution() 
     source(&tree, PURE, "");
     let root = tree.path("sources/root");
     let after_build = fs::read_to_string(root.join("build.omg")).unwrap();
-    let after_lock = PackageLock::from_targets(vec![propose(&review(&tree, "recovered", None))])
+    let storage = SourceResolverStorage::for_hardened_base(tree.path("recovered-cache")).unwrap();
+    let closure =
+        package_manager::resolution::graph::resolve_external_local_project_closure_with_storage(
+            &root,
+            ExternalSourceContext::derive(b"omega-local-project-v1"),
+            &storage,
+            LocalSourceLimits::default(),
+            PackageSourceClosureLimits::default(),
+        )
+        .unwrap();
+    let reviewed =
+        review_package_change(closure, TARGET, None, &tree.path("recovered-build")).unwrap();
+    let after_lock = PackageLock::from_targets(vec![propose(&reviewed)])
         .unwrap()
         .canonical_text()
         .unwrap();
@@ -598,7 +610,7 @@ fn preparation_recovers_pending_declarations_before_compiler_input_resolution() 
     fs::write(root.join("build/package-manager/pending"), journal).unwrap();
     assert!(transaction.has_pending().unwrap());
     drop(transaction);
-    let prepared = prepare_local_project(&root.join("main.omg"))
+    let prepared = prepare_local_project_for_target(&root.join("main.omg"), TARGET)
         .unwrap()
         .unwrap();
     assert_eq!(

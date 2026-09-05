@@ -31,6 +31,36 @@ fn prepare_snapshot(project: &Project, build: &[u8], name: &str) -> ResolvedSour
     closure.graph().packages()[0].source().clone()
 }
 
+fn proposed_lock(project: &Project) -> String {
+    use crate::lock::PackageLock;
+    use crate::operations::review_package_change;
+    use crate::review::resolve_package_policy_decisions;
+    fs::write(project.root.join("build.omg"), PROPOSED_BUILD).unwrap();
+    let (_, closure) = prepare_local_project(&project.root.join("main.omg"))
+        .unwrap()
+        .unwrap()
+        .into_review_parts();
+    let review = review_package_change(
+        closure,
+        target::TargetProfile::host(),
+        None,
+        &project.root.join("build/check"),
+    )
+    .unwrap();
+    let choices = resolve_package_policy_decisions(
+        review.changes(),
+        review.changes().fingerprint().digest(),
+        &[],
+    )
+    .unwrap();
+    let lock = PackageLock::from_targets(vec![review.propose_lock_target(&choices).unwrap()])
+        .unwrap()
+        .canonical_text()
+        .unwrap();
+    fs::write(project.root.join("build.omg"), ORIGINAL_BUILD).unwrap();
+    lock
+}
+
 #[test]
 fn preparation_recovers_pending_publication_before_snapshotting() {
     for stop in [
@@ -40,9 +70,11 @@ fn preparation_recovers_pending_publication_before_snapshotting() {
     ] {
         let project = valid_project();
         let original = prepare_snapshot(&project, ORIGINAL_BUILD, "before-publication");
+        let after_lock = proposed_lock(&project);
+        let after_lock = after_lock.as_bytes();
         let mut transaction = project.open();
         let error = transaction
-            .publish_with_checkpoint(ORIGINAL_BUILD, PROPOSED_BUILD, None, AFTER_LOCK, |step| {
+            .publish_with_checkpoint(ORIGINAL_BUILD, PROPOSED_BUILD, None, after_lock, |step| {
                 if step == stop {
                     Err(PackagePublicationError::InvalidJournal(
                         "injected interruption",
@@ -64,7 +96,7 @@ fn preparation_recovers_pending_publication_before_snapshotting() {
                 PROPOSED_BUILD
             },
             if stop == PublicationStep::LockReplaced {
-                Some(AFTER_LOCK)
+                Some(after_lock)
             } else {
                 None
             },
@@ -73,7 +105,7 @@ fn preparation_recovers_pending_publication_before_snapshotting() {
 
         let recovered = prepare_snapshot(&project, PROPOSED_BUILD, "after-publication");
         assert_ne!(recovered, original);
-        project.assert_pair(PROPOSED_BUILD, Some(AFTER_LOCK));
+        project.assert_pair(PROPOSED_BUILD, Some(after_lock));
         assert!(!project.journal().exists());
         assert_eq!(entries(&project.state()), ["transaction.lock"]);
         let repeated = prepare_snapshot(&project, PROPOSED_BUILD, "after-publication");
@@ -83,7 +115,7 @@ fn preparation_recovers_pending_publication_before_snapshotting() {
             assert!(!transaction.recover().unwrap());
             assert_eq!(
                 transaction.read_pair().unwrap(),
-                (PROPOSED_BUILD.to_vec(), Some(AFTER_LOCK.to_vec()))
+                (PROPOSED_BUILD.to_vec(), Some(after_lock.to_vec()))
             );
         }
         assert_eq!(
