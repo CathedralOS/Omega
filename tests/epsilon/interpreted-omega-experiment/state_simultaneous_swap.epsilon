@@ -1,0 +1,24 @@
+boundary trait Console {
+  machine exit_process(return_code: i32) -> never;
+  machine write_byte(value: i32);
+  machine read_byte() -> i32;
+  machine write_line(text: &[u8]);
+}
+
+data Main { console: Console; }
+
+machine Main::main(&mut self) {
+  transition 0 { 0 -> swap(65, 66, 0) }
+  state swap(first: i32, second: i32, count: i32) {
+    transition count {
+      0 -> swap(second, first, 1)
+      _ -> done(first, second)
+    }
+  }
+  state done(first: i32, second: i32) {
+    assert first == 66;
+    assert second == 65;
+    self.console.write_byte(first);
+    self.console.write_byte(second);
+  }
+}

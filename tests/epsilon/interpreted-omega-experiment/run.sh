@@ -39,8 +39,8 @@ grep -F 'data AlphaTapeBuffer {' "$TMP/omega_compiler.epsilon" >/dev/null || {
 
 EPSILON_LINES=$(wc -l < "$EPSILON" | tr -d ' ')
 EPSILON_BYTES=$(wc -c < "$EPSILON" | tr -d ' ')
-[ "$EPSILON_LINES" -eq 9566 ]
-[ "$EPSILON_BYTES" -eq 477364 ]
+[ "$EPSILON_LINES" -eq 9835 ]
+[ "$EPSILON_BYTES" -eq 492367 ]
 
 materialize_gamma_evaluator "$TMP/evaluator" >/dev/null
 EPSILON="$EPSILON" DELTA="$DELTA" DRIVER="$DRIVER" TEST_DIR="$TEST_DIR" \
@@ -55,8 +55,8 @@ from pathlib import Path
 artifacts = {
     "evaluator source": (
         Path(os.environ["EPSILON"]).read_bytes(),
-        477364,
-        "d37d153743a74ecc0b496c8467b7b438e52f16a7ee4e91a8eee2daf0211960de",
+        492367,
+        "cb1eaa9f162ac328ce26f5046cd754169e73093eb2b0ca9fbfa0c45ab0af1590",
     ),
     "slice driver": (
         Path(os.environ["DRIVER"]).read_bytes(),
@@ -103,16 +103,16 @@ def evaluate(program, sealed_input=b"", timeout=300):
     return process.returncode, process.stdout
 
 status, receipt = evaluate(compiler, request)
-if status != 0 or len(receipt) != 563256:
+if status != 0 or len(receipt) != 580445:
     raise SystemExit(
-        f"scalar-storage evaluator slice returned {status} with {len(receipt)} bytes "
+        f"evaluator slice returned {status} with {len(receipt)} bytes "
         f"and SHA-256 {hashlib.sha256(receipt).hexdigest()}"
     )
 if hashlib.sha256(receipt).hexdigest() != (
-    "e31996b88043eeacc263659336c2643ffa3800883675285aab3c1305974c4598"
+    "9ef410b3781d5ce80ca3c5739fd35d6107a43f2fd14ec6ee1378af3614c0ad44"
 ):
     raise SystemExit(
-        "scalar-storage evaluator receipt identity changed to "
+        "evaluator receipt identity changed to "
         + hashlib.sha256(receipt).hexdigest()
     )
 print(f"Epsilon evaluator: exact {len(receipt)}-byte receipt reconstructed", flush=True)
@@ -126,4 +126,4 @@ for name, (source, expected) in controls.items():
 print(f"Epsilon execution: {len(controls)} exact observations pass", flush=True)
 PY
 
-echo "Interpreted Omega experiment: fixed arrays, scalar fields, locals, and Console execution pass"
+echo "Interpreted Omega experiment: storage, scalar state transfers, and Console execution pass"

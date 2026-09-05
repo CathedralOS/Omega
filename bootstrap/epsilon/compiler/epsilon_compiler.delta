@@ -56,7 +56,8 @@
   (EpsilonEvaluatorScalarTrapped Int))
 
 (data EpsilonEvaluatorLocalValue
-  (EpsilonEvaluatorLetValue EpsilonStatement Int))
+  (EpsilonEvaluatorLetValue EpsilonStatement Int)
+  (EpsilonEvaluatorParameterValue EpsilonParameter Int))
 
 (data EpsilonEvaluatorLocalValueList
   (NoEpsilonEvaluatorLocalValues)
@@ -82,6 +83,28 @@
   (EpsilonEvaluatorExit Int Bytes)
   (EpsilonEvaluatorTrap Int Bytes)
   (EpsilonEvaluatorStatementUnsupported))
+
+; Checked invocation identity stays fixed across its entry and state blocks.
+(data EpsilonEvaluatorInvocation
+  (EpsilonEvaluatorInvocationContext Bytes EpsilonDeclaration
+    EpsilonResolvedLocalReferenceList EpsilonResolvedFieldReferenceList
+    EpsilonResolvedCallableReferenceList EpsilonControlReferenceLedger))
+
+(data EpsilonEvaluatorBlockOutcome
+  (EpsilonEvaluatorBlockFalloff EpsilonEvaluatorLocalValueList
+    EpsilonEvaluatorFieldValueList Bytes)
+  (EpsilonEvaluatorBlockTransfer EpsilonState EpsilonEvaluatorLocalValueList
+    EpsilonEvaluatorFieldValueList Bytes)
+  (EpsilonEvaluatorBlockExit Int Bytes)
+  (EpsilonEvaluatorBlockTrap Int Bytes)
+  (EpsilonEvaluatorBlockInternal Int)
+  (EpsilonEvaluatorBlockUnsupported))
+
+(data EpsilonEvaluatorArgumentsOutcome
+  (EpsilonEvaluatorArgumentsBound EpsilonEvaluatorLocalValueList)
+  (EpsilonEvaluatorArgumentsTrapped Int)
+  (EpsilonEvaluatorArgumentsInternal)
+  (EpsilonEvaluatorArgumentsUnsupported))
 
 (data EpsilonLexicalOutcome
   (LexicallyValid)
@@ -8663,7 +8686,26 @@
         ((EpsilonEvaluatorLetValue statementValue value)
           (if (epsilon_evaluator_statements_same_identity target statementValue)
             (OneEpsilonEvaluatorScalar value)
-            (epsilon_evaluate_let_value target rest)))))))
+            (epsilon_evaluate_let_value target rest)))
+        ((EpsilonEvaluatorParameterValue parameterValue value)
+          (epsilon_evaluate_let_value target rest))))))
+
+(def epsilon_evaluate_parameter_value ((target EpsilonParameter)
+  (locals EpsilonEvaluatorLocalValueList)) EpsilonEvaluatorScalar
+  (match locals
+    (NoEpsilonEvaluatorLocalValues NoEpsilonEvaluatorScalar)
+    ((MoreEpsilonEvaluatorLocalValues item rest)
+      (match item
+        ((EpsilonEvaluatorLetValue statementValue value)
+          (epsilon_evaluate_parameter_value target rest))
+        ((EpsilonEvaluatorParameterValue parameterValue value)
+          (if (if (eq (epsilon_parameter_start target)
+                      (epsilon_parameter_start parameterValue))
+                (eq (epsilon_parameter_end target)
+                  (epsilon_parameter_end parameterValue))
+                0)
+            (OneEpsilonEvaluatorScalar value)
+            (epsilon_evaluate_parameter_value target rest)))))))
 
 (def epsilon_evaluate_resolved_local_scalar ((expressionValue EpsilonExpression)
   (references EpsilonResolvedLocalReferenceList)
@@ -8676,7 +8718,8 @@
           (epsilon_evaluate_let_value statementValue locals))
         ((EpsilonReceiverLocal name typeValue) NoEpsilonEvaluatorScalar)
         ((EpsilonMachineParameterLocal parameterValue) NoEpsilonEvaluatorScalar)
-        ((EpsilonStateParameterLocal parameterValue) NoEpsilonEvaluatorScalar)
+        ((EpsilonStateParameterLocal parameterValue)
+          (epsilon_evaluate_parameter_value parameterValue locals))
         ((EpsilonTransitionBinderLocal patternValue name)
           NoEpsilonEvaluatorScalar)))))
 
@@ -9377,171 +9420,397 @@
         ((EpsilonResolvedUnqualifiedMachineCallable machineValue)
           EpsilonEvaluatorStatementUnsupported)))))
 
-(def epsilon_evaluate_entry_statements ((source Bytes)
-  (statements EpsilonStatementList)
-  (references EpsilonResolvedLocalReferenceList)
-  (fieldReferences EpsilonResolvedFieldReferenceList)
-  (callables EpsilonResolvedCallableReferenceList)
-  (locals EpsilonEvaluatorLocalValueList)
+(def epsilon_evaluate_statements ((context EpsilonEvaluatorInvocation)
+  (statements EpsilonStatementList) (locals EpsilonEvaluatorLocalValueList)
   (fieldValues EpsilonEvaluatorFieldValueList) (output Bytes))
-  EpsilonEvaluatorSliceOutcome
-  (match statements
-    (NoEpsilonStatements (EpsilonEvaluatorSliceExit 0 output))
-    ((MoreEpsilonStatements item rest)
-      (match item
-        ((EpsilonPostfixStatement start end expressionValue)
-          (match expressionValue
-            ((EpsilonCallExpression expressionStart expressionEnd base arguments)
-              (match (epsilon_evaluate_console_call source expressionValue
-                arguments references callables locals output)
-                ((EpsilonEvaluatorContinue nextOutput)
-                  (epsilon_evaluate_entry_statements source rest references
-                    fieldReferences callables locals fieldValues nextOutput))
-                ((EpsilonEvaluatorExit code finalOutput)
-                  (EpsilonEvaluatorSliceExit code finalOutput))
-                ((EpsilonEvaluatorTrap kind finalOutput)
-                  (EpsilonEvaluatorSliceTrap kind finalOutput))
-                (EpsilonEvaluatorStatementUnsupported
-                  EpsilonEvaluatorSliceUnsupported)))
-            ((EpsilonIntegerExpression expressionStart expressionEnd literal)
-              EpsilonEvaluatorSliceUnsupported)
-            ((EpsilonCharacterExpression expressionStart expressionEnd literal)
-              EpsilonEvaluatorSliceUnsupported)
-            ((EpsilonStringExpression expressionStart expressionEnd literal)
-              EpsilonEvaluatorSliceUnsupported)
-            ((EpsilonTrueExpression expressionStart expressionEnd)
-              EpsilonEvaluatorSliceUnsupported)
-            ((EpsilonFalseExpression expressionStart expressionEnd)
-              EpsilonEvaluatorSliceUnsupported)
-            ((EpsilonNameExpression expressionStart expressionEnd name)
-              EpsilonEvaluatorSliceUnsupported)
-            ((EpsilonQualifiedExpression expressionStart expressionEnd owner
-              name arguments) EpsilonEvaluatorSliceUnsupported)
-            ((EpsilonGroupedExpression expressionStart expressionEnd inner)
-              EpsilonEvaluatorSliceUnsupported)
-            ((EpsilonFieldExpression expressionStart expressionEnd base field)
-              EpsilonEvaluatorSliceUnsupported)
-            ((EpsilonIndexExpression expressionStart expressionEnd base
-              indexValue) EpsilonEvaluatorSliceUnsupported)
-            ((EpsilonSliceExpression expressionStart expressionEnd base low high)
-              EpsilonEvaluatorSliceUnsupported)
-            ((EpsilonNegateExpression expressionStart expressionEnd operand)
-              EpsilonEvaluatorSliceUnsupported)
-            ((EpsilonBinaryExpression expressionStart expressionEnd operator
-              operatorStart operatorEnd left right)
-              EpsilonEvaluatorSliceUnsupported)))
-        ((EpsilonLetStatement start end name typeValue initializer)
-          (match (epsilon_evaluate_scalar_expression initializer references
-            fieldReferences locals fieldValues)
-            (EpsilonEvaluatorScalarUnsupported EpsilonEvaluatorSliceUnsupported)
-            ((EpsilonEvaluatorScalarTrapped kind)
-              (EpsilonEvaluatorSliceTrap kind output))
-            ((EpsilonEvaluatorScalarValue value)
-              (epsilon_evaluate_entry_statements source rest references
-                fieldReferences callables
-                (MoreEpsilonEvaluatorLocalValues
-                  (EpsilonEvaluatorLetValue item value) locals)
-                fieldValues output))))
-        ((EpsilonAssignmentStatement start end placeValue assignedValue)
-          (match placeValue
-            ((EpsilonIndexExpression expressionStart expressionEnd base
-              indexValue)
-              (match (epsilon_evaluate_array_assignment base indexValue
-                assignedValue references fieldReferences locals fieldValues)
-                (EpsilonEvaluatorAssignmentUnsupported
-                  EpsilonEvaluatorSliceUnsupported)
-                ((EpsilonEvaluatorAssignmentTrapped kind)
-                  (EpsilonEvaluatorSliceTrap kind output))
-                ((EpsilonEvaluatorAssignmentUpdated nextFieldValues)
-                  (epsilon_evaluate_entry_statements source rest references
-                    fieldReferences callables locals nextFieldValues output))))
-            ((EpsilonIntegerExpression expressionStart expressionEnd literal)
-              EpsilonEvaluatorSliceUnsupported)
-            ((EpsilonCharacterExpression expressionStart expressionEnd literal)
-              EpsilonEvaluatorSliceUnsupported)
-            ((EpsilonStringExpression expressionStart expressionEnd literal)
-              EpsilonEvaluatorSliceUnsupported)
-            ((EpsilonTrueExpression expressionStart expressionEnd)
-              EpsilonEvaluatorSliceUnsupported)
-            ((EpsilonFalseExpression expressionStart expressionEnd)
-              EpsilonEvaluatorSliceUnsupported)
-            ((EpsilonNameExpression expressionStart expressionEnd name)
-              EpsilonEvaluatorSliceUnsupported)
-            ((EpsilonQualifiedExpression expressionStart expressionEnd owner
-              name arguments) EpsilonEvaluatorSliceUnsupported)
-            ((EpsilonGroupedExpression expressionStart expressionEnd inner)
-              EpsilonEvaluatorSliceUnsupported)
-            ((EpsilonCallExpression expressionStart expressionEnd base
-              arguments) EpsilonEvaluatorSliceUnsupported)
-            ((EpsilonSliceExpression expressionStart expressionEnd base low high)
-              EpsilonEvaluatorSliceUnsupported)
-            ((EpsilonNegateExpression expressionStart expressionEnd operand)
-              EpsilonEvaluatorSliceUnsupported)
-            ((EpsilonBinaryExpression expressionStart expressionEnd operator
-              operatorStart operatorEnd left right)
-              EpsilonEvaluatorSliceUnsupported)
-            ((EpsilonFieldExpression expressionStart expressionEnd base field)
-              (match (epsilon_evaluate_scalar_expression assignedValue references
+  EpsilonEvaluatorBlockOutcome
+  (match context
+    ((EpsilonEvaluatorInvocationContext source machineValue references
+      fieldReferences callables control)
+      (match statements
+        (NoEpsilonStatements
+          (EpsilonEvaluatorBlockFalloff locals fieldValues output))
+        ((MoreEpsilonStatements item rest)
+          (match item
+            ((EpsilonPostfixStatement start end expressionValue)
+              (match expressionValue
+                ((EpsilonCallExpression expressionStart expressionEnd base arguments)
+                  (match (epsilon_evaluate_console_call source expressionValue
+                    arguments references callables locals output)
+                    ((EpsilonEvaluatorContinue nextOutput)
+                      (epsilon_evaluate_statements context rest locals fieldValues nextOutput))
+                    ((EpsilonEvaluatorExit code finalOutput)
+                      (EpsilonEvaluatorBlockExit code finalOutput))
+                    ((EpsilonEvaluatorTrap kind finalOutput)
+                      (EpsilonEvaluatorBlockTrap kind finalOutput))
+                    (EpsilonEvaluatorStatementUnsupported
+                      EpsilonEvaluatorBlockUnsupported)))
+                ((EpsilonIntegerExpression expressionStart expressionEnd literal)
+                  EpsilonEvaluatorBlockUnsupported)
+                ((EpsilonCharacterExpression expressionStart expressionEnd literal)
+                  EpsilonEvaluatorBlockUnsupported)
+                ((EpsilonStringExpression expressionStart expressionEnd literal)
+                  EpsilonEvaluatorBlockUnsupported)
+                ((EpsilonTrueExpression expressionStart expressionEnd)
+                  EpsilonEvaluatorBlockUnsupported)
+                ((EpsilonFalseExpression expressionStart expressionEnd)
+                  EpsilonEvaluatorBlockUnsupported)
+                ((EpsilonNameExpression expressionStart expressionEnd name)
+                  EpsilonEvaluatorBlockUnsupported)
+                ((EpsilonQualifiedExpression expressionStart expressionEnd owner
+                  name arguments) EpsilonEvaluatorBlockUnsupported)
+                ((EpsilonGroupedExpression expressionStart expressionEnd inner)
+                  EpsilonEvaluatorBlockUnsupported)
+                ((EpsilonFieldExpression expressionStart expressionEnd base field)
+                  EpsilonEvaluatorBlockUnsupported)
+                ((EpsilonIndexExpression expressionStart expressionEnd base
+                  indexValue) EpsilonEvaluatorBlockUnsupported)
+                ((EpsilonSliceExpression expressionStart expressionEnd base low high)
+                  EpsilonEvaluatorBlockUnsupported)
+                ((EpsilonNegateExpression expressionStart expressionEnd operand)
+                  EpsilonEvaluatorBlockUnsupported)
+                ((EpsilonBinaryExpression expressionStart expressionEnd operator
+                  operatorStart operatorEnd left right)
+                  EpsilonEvaluatorBlockUnsupported)))
+            ((EpsilonLetStatement start end name typeValue initializer)
+              (match (epsilon_evaluate_scalar_expression initializer references
                 fieldReferences locals fieldValues)
-                (EpsilonEvaluatorScalarUnsupported
-                  EpsilonEvaluatorSliceUnsupported)
+                (EpsilonEvaluatorScalarUnsupported EpsilonEvaluatorBlockUnsupported)
                 ((EpsilonEvaluatorScalarTrapped kind)
-                  (EpsilonEvaluatorSliceTrap kind output))
+                  (EpsilonEvaluatorBlockTrap kind output))
                 ((EpsilonEvaluatorScalarValue value)
-                  (match (epsilon_evaluator_assign_field placeValue value
-                    references fieldReferences fieldValues)
+                  (epsilon_evaluate_statements context rest
+                    (MoreEpsilonEvaluatorLocalValues
+                      (EpsilonEvaluatorLetValue item value) locals)
+                    fieldValues output))))
+            ((EpsilonAssignmentStatement start end placeValue assignedValue)
+              (match placeValue
+                ((EpsilonIndexExpression expressionStart expressionEnd base
+                  indexValue)
+                  (match (epsilon_evaluate_array_assignment base indexValue
+                    assignedValue references fieldReferences locals fieldValues)
                     (EpsilonEvaluatorAssignmentUnsupported
-                      EpsilonEvaluatorSliceUnsupported)
+                      EpsilonEvaluatorBlockUnsupported)
                     ((EpsilonEvaluatorAssignmentTrapped kind)
-                      (EpsilonEvaluatorSliceTrap kind output))
+                      (EpsilonEvaluatorBlockTrap kind output))
                     ((EpsilonEvaluatorAssignmentUpdated nextFieldValues)
-                      (epsilon_evaluate_entry_statements source rest references
-                        fieldReferences callables locals nextFieldValues
-                        output))))))))
-        ((EpsilonAssertStatement start end expressionValue)
-          (match (epsilon_evaluate_scalar_expression expressionValue references
-            fieldReferences locals fieldValues)
-            (EpsilonEvaluatorScalarUnsupported EpsilonEvaluatorSliceUnsupported)
-            ((EpsilonEvaluatorScalarTrapped kind)
-              (EpsilonEvaluatorSliceTrap kind output))
-            ((EpsilonEvaluatorScalarValue value)
-              (if (eq value 0)
-                (EpsilonEvaluatorSliceTrap 8 output)
-                (if (eq value 1)
-                  (epsilon_evaluate_entry_statements source rest references
-                    fieldReferences callables locals fieldValues output)
-                  (EpsilonEvaluatorSliceTrap 7 output))))))))))
+                      (epsilon_evaluate_statements context rest locals nextFieldValues output))))
+                ((EpsilonIntegerExpression expressionStart expressionEnd literal)
+                  EpsilonEvaluatorBlockUnsupported)
+                ((EpsilonCharacterExpression expressionStart expressionEnd literal)
+                  EpsilonEvaluatorBlockUnsupported)
+                ((EpsilonStringExpression expressionStart expressionEnd literal)
+                  EpsilonEvaluatorBlockUnsupported)
+                ((EpsilonTrueExpression expressionStart expressionEnd)
+                  EpsilonEvaluatorBlockUnsupported)
+                ((EpsilonFalseExpression expressionStart expressionEnd)
+                  EpsilonEvaluatorBlockUnsupported)
+                ((EpsilonNameExpression expressionStart expressionEnd name)
+                  EpsilonEvaluatorBlockUnsupported)
+                ((EpsilonQualifiedExpression expressionStart expressionEnd owner
+                  name arguments) EpsilonEvaluatorBlockUnsupported)
+                ((EpsilonGroupedExpression expressionStart expressionEnd inner)
+                  EpsilonEvaluatorBlockUnsupported)
+                ((EpsilonCallExpression expressionStart expressionEnd base
+                  arguments) EpsilonEvaluatorBlockUnsupported)
+                ((EpsilonSliceExpression expressionStart expressionEnd base low high)
+                  EpsilonEvaluatorBlockUnsupported)
+                ((EpsilonNegateExpression expressionStart expressionEnd operand)
+                  EpsilonEvaluatorBlockUnsupported)
+                ((EpsilonBinaryExpression expressionStart expressionEnd operator
+                  operatorStart operatorEnd left right)
+                  EpsilonEvaluatorBlockUnsupported)
+                ((EpsilonFieldExpression expressionStart expressionEnd base field)
+                  (match (epsilon_evaluate_scalar_expression assignedValue references
+                    fieldReferences locals fieldValues)
+                    (EpsilonEvaluatorScalarUnsupported
+                      EpsilonEvaluatorBlockUnsupported)
+                    ((EpsilonEvaluatorScalarTrapped kind)
+                      (EpsilonEvaluatorBlockTrap kind output))
+                    ((EpsilonEvaluatorScalarValue value)
+                      (match (epsilon_evaluator_assign_field placeValue value
+                        references fieldReferences fieldValues)
+                        (EpsilonEvaluatorAssignmentUnsupported
+                          EpsilonEvaluatorBlockUnsupported)
+                        ((EpsilonEvaluatorAssignmentTrapped kind)
+                          (EpsilonEvaluatorBlockTrap kind output))
+                        ((EpsilonEvaluatorAssignmentUpdated nextFieldValues)
+                          (epsilon_evaluate_statements context rest locals nextFieldValues
+                            output))))))))
+            ((EpsilonAssertStatement start end expressionValue)
+              (match (epsilon_evaluate_scalar_expression expressionValue references
+                fieldReferences locals fieldValues)
+                (EpsilonEvaluatorScalarUnsupported EpsilonEvaluatorBlockUnsupported)
+                ((EpsilonEvaluatorScalarTrapped kind)
+                  (EpsilonEvaluatorBlockTrap kind output))
+                ((EpsilonEvaluatorScalarValue value)
+                  (if (eq value 0)
+                    (EpsilonEvaluatorBlockTrap 8 output)
+                    (if (eq value 1)
+                      (epsilon_evaluate_statements context rest locals fieldValues output)
+                      (EpsilonEvaluatorBlockTrap 7 output))))))))))))
+
+(def epsilon_evaluate_state_arguments ((context EpsilonEvaluatorInvocation)
+  (parameters EpsilonParameterList) (arguments EpsilonExpressionList)
+  (locals EpsilonEvaluatorLocalValueList)
+  (fields EpsilonEvaluatorFieldValueList)
+  (bound EpsilonEvaluatorLocalValueList)) EpsilonEvaluatorArgumentsOutcome
+  (match parameters
+    (NoEpsilonParameters
+      (match arguments
+        (NoEpsilonExpressions (EpsilonEvaluatorArgumentsBound bound))
+        ((MoreEpsilonExpressions item rest) EpsilonEvaluatorArgumentsInternal)))
+    ((MoreEpsilonParameters parameterValue remainingParameters)
+      (match arguments
+        (NoEpsilonExpressions EpsilonEvaluatorArgumentsInternal)
+        ((MoreEpsilonExpressions expressionValue remainingArguments)
+          (match parameterValue
+            ((EpsilonParameterSyntax start end name typeValue)
+              (if (epsilon_type_is_i32 typeValue)
+                (match context
+                  ((EpsilonEvaluatorInvocationContext source machineValue
+                    references fieldReferences callables control)
+                    (match (epsilon_evaluate_scalar_expression expressionValue
+                      references fieldReferences locals fields)
+                      (EpsilonEvaluatorScalarUnsupported
+                        EpsilonEvaluatorArgumentsUnsupported)
+                      ((EpsilonEvaluatorScalarTrapped kind)
+                        (EpsilonEvaluatorArgumentsTrapped kind))
+                      ((EpsilonEvaluatorScalarValue value)
+                        (epsilon_evaluate_state_arguments context
+                          remainingParameters remainingArguments locals fields
+                          (MoreEpsilonEvaluatorLocalValues
+                            (EpsilonEvaluatorParameterValue parameterValue value)
+                            bound))))))
+                EpsilonEvaluatorArgumentsUnsupported))))))))
+
+(def epsilon_evaluate_state_application ((context EpsilonEvaluatorInvocation)
+  (targetMachine EpsilonDeclaration) (stateValue EpsilonState)
+  (arguments EpsilonExpressionList) (locals EpsilonEvaluatorLocalValueList)
+  (fields EpsilonEvaluatorFieldValueList) (output Bytes))
+  EpsilonEvaluatorBlockOutcome
+  (match context
+    ((EpsilonEvaluatorInvocationContext source machineValue references
+      fieldReferences callables control)
+      (if (eq (epsilon_declaration_end machineValue)
+              (epsilon_declaration_end targetMachine))
+        (match stateValue
+          ((EpsilonStateSyntax start end name parameters bodyValue)
+            (match (epsilon_evaluate_state_arguments context parameters arguments
+              locals fields NoEpsilonEvaluatorLocalValues)
+              (EpsilonEvaluatorArgumentsUnsupported
+                EpsilonEvaluatorBlockUnsupported)
+              (EpsilonEvaluatorArgumentsInternal
+                (EpsilonEvaluatorBlockInternal start))
+              ((EpsilonEvaluatorArgumentsTrapped kind)
+                (EpsilonEvaluatorBlockTrap kind output))
+              ((EpsilonEvaluatorArgumentsBound bound)
+                (EpsilonEvaluatorBlockTransfer stateValue bound fields output)))))
+        (EpsilonEvaluatorBlockInternal
+          (epsilon_declaration_end targetMachine))))))
+
+(def epsilon_evaluate_control_call ((context EpsilonEvaluatorInvocation)
+  (expressionValue EpsilonExpression) (arguments EpsilonExpressionList)
+  (locals EpsilonEvaluatorLocalValueList)
+  (fields EpsilonEvaluatorFieldValueList) (output Bytes))
+  EpsilonEvaluatorBlockOutcome
+  (match context
+    ((EpsilonEvaluatorInvocationContext source machineValue references
+      fieldReferences callables control)
+      (match (epsilon_control_find_state_application expressionValue control)
+        (NoEpsilonStateApplicationReference
+          (match (epsilon_evaluate_console_call source expressionValue arguments
+            references callables locals output)
+            ((EpsilonEvaluatorContinue nextOutput)
+              (EpsilonEvaluatorBlockFalloff locals fields nextOutput))
+            ((EpsilonEvaluatorExit code nextOutput)
+              (EpsilonEvaluatorBlockExit code nextOutput))
+            ((EpsilonEvaluatorTrap kind nextOutput)
+              (EpsilonEvaluatorBlockTrap kind nextOutput))
+            (EpsilonEvaluatorStatementUnsupported
+              EpsilonEvaluatorBlockUnsupported)))
+        ((OneEpsilonStateApplicationReference targetMachine stateValue progress)
+          (match progress
+            (EpsilonStateApplicationResolved
+              (EpsilonEvaluatorBlockInternal
+                (epsilon_expression_start expressionValue)))
+            (EpsilonStateApplicationComplete
+              (epsilon_evaluate_state_application context targetMachine
+                stateValue arguments locals fields output))))))))
+
+(def epsilon_evaluate_control_expression ((context EpsilonEvaluatorInvocation)
+  (expressionValue EpsilonExpression) (locals EpsilonEvaluatorLocalValueList)
+  (fields EpsilonEvaluatorFieldValueList) (output Bytes))
+  EpsilonEvaluatorBlockOutcome
+  (match (epsilon_call_head_core expressionValue)
+    ((EpsilonCallExpression start end base arguments)
+      (epsilon_evaluate_control_call context
+        (epsilon_call_head_core expressionValue) arguments locals fields output))
+    ((EpsilonIntegerExpression start end literal) EpsilonEvaluatorBlockUnsupported)
+    ((EpsilonCharacterExpression start end literal) EpsilonEvaluatorBlockUnsupported)
+    ((EpsilonStringExpression start end literal) EpsilonEvaluatorBlockUnsupported)
+    ((EpsilonTrueExpression start end) EpsilonEvaluatorBlockUnsupported)
+    ((EpsilonFalseExpression start end) EpsilonEvaluatorBlockUnsupported)
+    ((EpsilonNameExpression start end name) EpsilonEvaluatorBlockUnsupported)
+    ((EpsilonQualifiedExpression start end owner name arguments)
+      EpsilonEvaluatorBlockUnsupported)
+    ((EpsilonGroupedExpression start end inner) EpsilonEvaluatorBlockUnsupported)
+    ((EpsilonFieldExpression start end base field) EpsilonEvaluatorBlockUnsupported)
+    ((EpsilonIndexExpression start end base indexValue) EpsilonEvaluatorBlockUnsupported)
+    ((EpsilonSliceExpression start end base low high) EpsilonEvaluatorBlockUnsupported)
+    ((EpsilonNegateExpression start end operand) EpsilonEvaluatorBlockUnsupported)
+    ((EpsilonBinaryExpression start end operator operatorStart operatorEnd
+      left right) EpsilonEvaluatorBlockUnsupported)))
+
+(def epsilon_evaluate_return ((expressionValue EpsilonOptionalExpression)
+  (locals EpsilonEvaluatorLocalValueList)
+  (fields EpsilonEvaluatorFieldValueList) (output Bytes))
+  EpsilonEvaluatorBlockOutcome
+  (match expressionValue
+    (NoEpsilonExpression (EpsilonEvaluatorBlockFalloff locals fields output))
+    ((SomeEpsilonExpression value) EpsilonEvaluatorBlockUnsupported)))
+
+(def epsilon_evaluate_continuation ((context EpsilonEvaluatorInvocation)
+  (continuation EpsilonContinuation) (locals EpsilonEvaluatorLocalValueList)
+  (fields EpsilonEvaluatorFieldValueList) (output Bytes))
+  EpsilonEvaluatorBlockOutcome
+  (match continuation
+    ((EpsilonExpressionContinuation start end expressionValue)
+      (epsilon_evaluate_control_expression context expressionValue locals fields
+        output))
+    ((EpsilonReturnContinuation start end expressionValue)
+      (epsilon_evaluate_return expressionValue locals fields output))))
+
+(def epsilon_evaluate_scalar_arms ((context EpsilonEvaluatorInvocation)
+  (arms EpsilonArmList) (subject Int) (locals EpsilonEvaluatorLocalValueList)
+  (fields EpsilonEvaluatorFieldValueList) (output Bytes))
+  EpsilonEvaluatorBlockOutcome
+  (match arms
+    (NoEpsilonArms (EpsilonEvaluatorBlockTrap 9 output))
+    ((MoreEpsilonArms item rest)
+      (match item
+        ((EpsilonArmSyntax start end patternValue continuation)
+          (match context
+            ((EpsilonEvaluatorInvocationContext source machineValue references
+              fieldReferences callables control)
+              (match (epsilon_control_find_complete_transition_pattern
+                patternValue control)
+                (NoEpsilonTransitionPatternKind
+                  (EpsilonEvaluatorBlockInternal start))
+                ((OneEpsilonTransitionPatternKind kind)
+                  (match kind
+                    ((EpsilonScalarPatternSelector selector)
+                      (if (eq subject selector)
+                        (epsilon_evaluate_continuation context continuation
+                          locals fields output)
+                        (epsilon_evaluate_scalar_arms context rest subject
+                          locals fields output)))
+                    (EpsilonTransitionWildcard
+                      (epsilon_evaluate_continuation context continuation
+                        locals fields output))
+                    ((EpsilonSumCasePattern owner caseValue)
+                      (EpsilonEvaluatorBlockInternal start))))))))))))
+
+(def epsilon_evaluate_terminal ((context EpsilonEvaluatorInvocation)
+  (terminalValue EpsilonTerminal) (locals EpsilonEvaluatorLocalValueList)
+  (fields EpsilonEvaluatorFieldValueList) (output Bytes))
+  EpsilonEvaluatorBlockOutcome
+  (match terminalValue
+    ((EpsilonReturnTerminal start end expressionValue)
+      (epsilon_evaluate_return expressionValue locals fields output))
+    ((EpsilonTransitionTerminal start end expressionValue arms)
+      (match context
+        ((EpsilonEvaluatorInvocationContext source machineValue references
+          fieldReferences callables control)
+          (match (epsilon_control_find_transition_subject terminalValue control)
+            (NoEpsilonTransitionSubjectReference
+              (EpsilonEvaluatorBlockInternal start))
+            ((OneEpsilonTransitionSubjectReference kind)
+              (match kind
+                ((EpsilonSumTransitionSubject owner)
+                  EpsilonEvaluatorBlockUnsupported)
+                (EpsilonScalarTransitionSubject
+                  (match (epsilon_evaluate_scalar_expression expressionValue
+                    references fieldReferences locals fields)
+                    (EpsilonEvaluatorScalarUnsupported
+                      EpsilonEvaluatorBlockUnsupported)
+                    ((EpsilonEvaluatorScalarTrapped trapKind)
+                      (EpsilonEvaluatorBlockTrap trapKind output))
+                    ((EpsilonEvaluatorScalarValue value)
+                      (epsilon_evaluate_scalar_arms context arms value locals
+                        fields output))))))))))))
+
+(def epsilon_evaluate_block ((context EpsilonEvaluatorInvocation)
+  (statements EpsilonStatementList) (terminalValue EpsilonOptionalTerminal)
+  (locals EpsilonEvaluatorLocalValueList)
+  (fields EpsilonEvaluatorFieldValueList) (output Bytes))
+  EpsilonEvaluatorBlockOutcome
+  (match (epsilon_evaluate_statements context statements locals fields output)
+    ((EpsilonEvaluatorBlockFalloff nextLocals nextFields nextOutput)
+      (match terminalValue
+        (NoEpsilonTerminal
+          (EpsilonEvaluatorBlockFalloff nextLocals nextFields nextOutput))
+        ((SomeEpsilonTerminal terminal)
+          (epsilon_evaluate_terminal context terminal nextLocals nextFields
+            nextOutput))))
+    ((EpsilonEvaluatorBlockTransfer stateValue nextLocals nextFields nextOutput)
+      (EpsilonEvaluatorBlockTransfer stateValue nextLocals nextFields nextOutput))
+    ((EpsilonEvaluatorBlockExit code nextOutput)
+      (EpsilonEvaluatorBlockExit code nextOutput))
+    ((EpsilonEvaluatorBlockTrap kind nextOutput)
+      (EpsilonEvaluatorBlockTrap kind nextOutput))
+    ((EpsilonEvaluatorBlockInternal offset) (EpsilonEvaluatorBlockInternal offset))
+    (EpsilonEvaluatorBlockUnsupported EpsilonEvaluatorBlockUnsupported)))
+
+; Transfers stay tail calls: entering a state never retains the old block frame.
+(def epsilon_evaluator_resume ((context EpsilonEvaluatorInvocation)
+  (outcome EpsilonEvaluatorBlockOutcome)) EpsilonEvaluatorSliceOutcome
+  (match outcome
+    ((EpsilonEvaluatorBlockFalloff locals fields output)
+      (EpsilonEvaluatorSliceExit 0 output))
+    ((EpsilonEvaluatorBlockTransfer stateValue locals fields output)
+      (match stateValue
+        ((EpsilonStateSyntax start end name parameters bodyValue)
+          (match bodyValue
+            ((EpsilonStateBodySyntax bodyStart bodyEnd statements terminalValue)
+              (epsilon_evaluator_resume context
+                (epsilon_evaluate_block context statements terminalValue locals
+                  fields output)))))))
+    ((EpsilonEvaluatorBlockExit code output) (EpsilonEvaluatorSliceExit code output))
+    ((EpsilonEvaluatorBlockTrap kind output) (EpsilonEvaluatorSliceTrap kind output))
+    ((EpsilonEvaluatorBlockInternal offset) (EpsilonEvaluatorSliceInternal offset))
+    (EpsilonEvaluatorBlockUnsupported EpsilonEvaluatorSliceUnsupported)))
 
 (def epsilon_evaluate_entry_declarations ((source Bytes)
   (declarations EpsilonDeclarationList)
   (references EpsilonResolvedLocalReferenceList)
   (fieldReferences EpsilonResolvedFieldReferenceList)
-  (callables EpsilonResolvedCallableReferenceList)) EpsilonEvaluatorSliceOutcome
+  (callables EpsilonResolvedCallableReferenceList)
+  (control EpsilonControlReferenceLedger)) EpsilonEvaluatorSliceOutcome
   (match declarations
     (NoEpsilonDeclarations (EpsilonEvaluatorSliceInternal 0))
     ((MoreEpsilonDeclarations item rest)
       (match item
         ((EpsilonBoundaryDeclaration start end name machines)
           (epsilon_evaluate_entry_declarations source rest references
-            fieldReferences callables))
+            fieldReferences callables control))
         ((EpsilonDataDeclaration start end name members)
           (epsilon_evaluate_entry_declarations source rest references
-            fieldReferences callables))
+            fieldReferences callables control))
         ((EpsilonMachineDeclaration start end name inputs returnType bodyValue)
           (if (epsilon_qualified_name_is_main_entry source name)
             (match bodyValue
               ((EpsilonMachineBodySyntax bodyStart bodyEnd statements
                 terminalValue states)
-                (match terminalValue
-                  (NoEpsilonTerminal
-                    (epsilon_evaluate_entry_statements source statements
-                      references fieldReferences callables
+                (let context EpsilonEvaluatorInvocation
+                  (EpsilonEvaluatorInvocationContext source item references
+                    fieldReferences callables control)
+                  (epsilon_evaluator_resume context
+                    (epsilon_evaluate_block context statements terminalValue
                       NoEpsilonEvaluatorLocalValues NoEpsilonEvaluatorFieldValues
-                      (bytes_empty)))
-                  ((SomeEpsilonTerminal terminal)
-                    EpsilonEvaluatorSliceUnsupported))))
+                      (bytes_empty))))))
             (epsilon_evaluate_entry_declarations source rest references
-              fieldReferences callables)))))))
+              fieldReferences callables control)))))))
 
 (def epsilon_evaluate_entry_slice ((source Bytes))
   EpsilonEvaluatorSliceOutcome
@@ -9563,4 +9832,4 @@
                       (match program
                         ((EpsilonSyntaxProgram start end declarations)
                           (epsilon_evaluate_entry_declarations source
-                            declarations references fields callables))))))))))))))
+                            declarations references fields callables control))))))))))))))
