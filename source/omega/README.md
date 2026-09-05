@@ -44,11 +44,19 @@ closure is tracked in [`../../TASKS_BOOTSTRAP.md`](../../TASKS_BOOTSTRAP.md).
 | Retained file | Canonical role | Deletion condition |
 | --- | --- | --- |
 | `build.omg`, `main.omg` | Current roots of Omega-written compiler closure `C`; the closure is incomplete but is extended in place. | Delete or replace only when an exact package-root ruling changes `C`; do not preserve alternate hosted roots. |
-| `omega_compiler.epsilon` | Incomplete Epsilon-written compiler closure `D`; currently owns the settled outer `OCREQ` envelope, strict source-view UTF-8 framing, the complete source-neutral lexical scanner, invocation-local source-shaped parser slices, the final exact Alpha tape encoder, bind-once label/fixup ownership, structural replay before sealing, and no invented inner request or application boundary. | Extend in place as `D`; replace a completed component only atomically with an equally complete final Epsilon implementation. |
+| `omega_compiler.epsilon.sources` | Canonical ordered membership, byte lengths, and SHA-256 identities of Epsilon-written compiler closure `D`. | Delete only when an adjacent compiler input format carries and verifies the same source-member custody directly. |
+| `omega_compiler.epsilon` | Current sole member of `D`; it owns the settled outer `OCREQ` envelope, strict source-view UTF-8 framing, the complete source-neutral lexical scanner, invocation-local source-shaped parser slices, the final exact Alpha tape encoder, bind-once label/fixup ownership, structural replay before sealing, and no invented inner request or application boundary. | Split only by updating the manifest atomically while preserving the materialized Epsilon translation unit. |
 
 Target identity is an exact immutable compiler-invocation input. `build.omg`
 does not declare a support list or repeat target host/boundary policy; exact
 multi-target requests fan out into independently checked child compilations.
+
+The manifest, not directory enumeration or path order, selects and orders D's
+members. `tools/bootstrap/epsilon/materialize_source_closure.py` validates every
+declared length, digest, source byte, path, and strictly increasing stable
+identity before concatenating bytes without separators. The current one-member
+manifest reproduces `omega_compiler.epsilon` exactly; later splits preserve the
+same Epsilon translation-unit semantics and packed diagnostic coordinates.
 
 `omega_compiler.epsilon` (`D`) now exists but is intentionally incomplete, and
 both descriptive compiler tapes remain absent. D18 fixes their logical sealed

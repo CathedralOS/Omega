@@ -23,7 +23,8 @@ for required in \
   "$OMEGA_PATH_DELTA_COMPILER" \
   "$OMEGA_PATH_EPSILON" \
   "$OMEGA_PATH_EPSILON_COMPILER" \
-  "$OMEGA_PATH_OMEGA"
+  "$OMEGA_PATH_OMEGA" \
+  "$OMEGA_REPO_ROOT/tools/bootstrap/epsilon"
 do
   [ -d "$required" ] || fail "required owner is absent: $required"
 done
@@ -62,6 +63,12 @@ done
   fail "Delta-written Epsilon compiler source is absent"
 [ -f "$OMEGA_PATH_OMEGA_COMPILER_SOURCE" ] ||
   fail "Epsilon-written Omega D source is absent"
+[ -f "$OMEGA_PATH_OMEGA_COMPILER_SOURCES" ] ||
+  fail "Epsilon-written Omega D source manifest is absent"
+[ -x "$OMEGA_REPO_ROOT/tools/bootstrap/epsilon/materialize_source_closure.py" ] ||
+  fail "Epsilon source-closure materializer is not executable"
+[ -x "$OMEGA_REPO_ROOT/tests/bootstrap/epsilon-source-closure.sh" ] ||
+  fail "Epsilon source-closure gate is not executable"
 [ -f "$OMEGA_PATH_OMEGA/build.omg" ] || fail "Omega C build root is absent"
 [ -f "$OMEGA_PATH_OMEGA/main.omg" ] || fail "Omega C main root is absent"
 
