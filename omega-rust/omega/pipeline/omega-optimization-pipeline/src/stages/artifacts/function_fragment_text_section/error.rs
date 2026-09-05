@@ -42,6 +42,34 @@ impl std::fmt::Display for RelocationFreeTextSectionPlacementError {
 
 impl std::error::Error for RelocationFreeTextSectionPlacementError {}
 
+impl From<omega_machine_emission::TextPlacementError> for RelocationFreeTextSectionPlacementError {
+    fn from(error: omega_machine_emission::TextPlacementError) -> Self {
+        use omega_machine_emission::TextPlacementError as Source;
+        match error {
+            Source::OffsetOverflow => Self::OffsetOverflow,
+            Source::StatisticsOverflow => Self::StatisticsOverflow,
+            Source::SourceShapeMismatch => Self::SourceShapeMismatch,
+            Source::MisalignedAarch64Span => Self::MisalignedAarch64Span,
+            Source::UnsupportedRelocationShape => Self::UnsupportedRelocationShape,
+            Source::UnresolvedInternalMachineFixups => Self::UnresolvedInternalMachineFixups,
+            Source::InternalCallOutOfRange => Self::InternalCallOutOfRange,
+            Source::ArtifactMismatch => Self::ArtifactMismatch,
+            Source::DuplicateFunction(machine) => Self::DuplicateFunction(machine),
+            Source::MissingSemanticEntry(machine) => Self::MissingSemanticEntry(machine),
+            Source::DuplicateSemanticEntry(machine) => Self::DuplicateSemanticEntry(machine),
+            Source::MissingInternalMachineTarget(machine) => {
+                Self::MissingInternalMachineTarget(machine)
+            }
+            Source::StructuralUnitCallTemplate(machine, error) => {
+                Self::StructuralUnitCallTemplate(machine, error)
+            }
+            Source::StructuralUnitCallResolution(machine, error) => {
+                Self::StructuralUnitCallResolution(machine, error)
+            }
+        }
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum FunctionFragmentTextSectionManifestDecodeError {
     Truncated,

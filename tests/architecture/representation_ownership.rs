@@ -36,6 +36,50 @@ fn rust_source(directory: &Path) -> String {
 }
 
 #[test]
+fn text_placement_data_and_independent_checking_have_separate_owners() {
+    let root = repository();
+    let data = rust_source(&root.join(
+        "omega-rust/omega/representations/omega-machine-code/src/machine_code/layout/text_section",
+    ));
+    assert!(data.contains("omega.terminal.relocation-free-text-section.v3"));
+    let record = std::fs::read_to_string(root.join("omega-rust/omega/representations/omega-machine-code/src/machine_code/layout/text_section.rs")).unwrap();
+    assert!(record.contains("pub struct RelocationFreeTextSectionPlacement"));
+    let coordinator = root.join("omega-rust/omega/pipeline/omega-optimization-pipeline/src/stages/artifacts/function_fragment_text_section");
+    let placement = rust_source(&coordinator.join("placement"));
+    assert!(placement.contains("place_fragment_text_section"));
+    assert!(!placement.contains("PlacedFunctionFragment {"));
+    let replay = std::fs::read_to_string(coordinator.join("validation.rs")).unwrap();
+    assert!(replay.contains("validate_fragment_text_section"));
+    assert!(!replay.contains("compute("));
+    assert!(!replay.contains("compute_fixed_frame("));
+    let backend = root.join("omega-rust/omega/backend/omega-machine-emission/src/text_placement");
+    let checker = rust_source(&backend.join("validation"));
+    for forbidden in [
+        "production::",
+        "place_fragment_text_section(",
+        "resolve_x86_64_structural_unit_internal_call",
+        "PlacedFunctionFragment {",
+        "PlacedInternalMachineCallResolution {",
+    ] {
+        assert!(
+            !checker.contains(forbidden),
+            "checker re-enters production: {forbidden}"
+        );
+    }
+    let source = rust_source(&backend);
+    for forbidden in [
+        "StagedOptimized",
+        "FunctionFragmentReplayInputs",
+        "omega_object_file::",
+    ] {
+        assert!(
+            !source.contains(forbidden),
+            "placement depends on upstream stage: {forbidden}"
+        );
+    }
+}
+
+#[test]
 fn selected_program_has_one_representation_entrance() {
     let directory =
         repository().join("omega-rust/omega/representations/omega-selected-instructions/src");

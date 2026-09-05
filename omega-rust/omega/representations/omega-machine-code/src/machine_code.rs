@@ -23,6 +23,7 @@ pub use encoding::*;
 pub use fragments::*;
 pub use functions::*;
 pub use instructions::*;
+pub use layout::text_section::*;
 pub use layout::{
     ResolvedConditionalBranchEvidence, ResolvedConditionalBranchPredicate, ResolvedMachineLayout,
     ResolvedMachineProgram, ResolvedSelectedBlockLayout, ResolvedSelectedFormLayoutIdentity,

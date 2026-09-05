@@ -249,8 +249,9 @@ usable as data after the producer is dropped, without granting publication
 authority. Layout construction and explicit relaxation now have a transform
 owner outside the coordinator; exit admission, resolved-fragment projection,
 and frame application live in the machine-emission backend. Fragment publication
-records and their codec also have a representation owner; placement and artifact
-emission still need their proper owners.
+records and their codec also have a representation owner. Raw text-section data
+and placement now have separate representation and backend owners; text
+publication records and subsequent artifact emission still need migration.
 Separating data from replay does not complete C.
 
 Acceptance: downstream allocation, layout, and emission APIs consume current
@@ -386,13 +387,22 @@ storage assignment, spill/frame requirement derivation, and frame protocol
 construction. Their correctness boundaries need not all be public crate
 boundaries. Consolidation must retain the distinct checks and evidence.
 
-The next artifact boundary is `function_fragment_text_section`. Its placement
-dispatcher still receives admitted stage wrappers, while `validation.rs` calls
-the same `assembly::compute` / `compute_fixed_frame` producers and compares their
-results. Separate source-role admission from raw fragment placement, retain the
-appropriate frame and exit evidence explicitly, and replace producer re-entry
-with checks of candidate bytes, alignment, spans, and internal-call fixups.
-Moving the producer alone would leave that replay dependency unresolved.
+Text placement now consumes raw fragments in `omega-machine-emission`, with
+explicit structural encoding, current program, exit, and register facts for the
+structural-call form. The coordinator retains direct/frame source-role admission
+and checks the exact upstream evidence before supplying those inputs. The
+backend's separate checker compares dense spans, unchanged bytes, decoded call
+displacements and destination equations, and exact resolution rosters. Neither
+that checker nor coordinator replay calls the placement producer. Manifest fields
+are checked directly against admitted inputs and the checked section.
+
+`omega-machine-code` owns the placed text-section records and unchanged version-3
+identity under `layout/text_section`; object-file consumers retain re-exports.
+Publication wrappers share the current immutable section, which can outlive the
+producer without granting admission. The text publication manifest, codec, and
+statistics still live in the coordinator, as do later artifact calculations.
+Those are the next C boundaries; this extraction does not complete C or converge
+the separate outer physical implementations in B.
 
 The callee-saved requirement entrance and validator now consume the sealed
 current-allocation boundary. Direct derivation and independent keyed replay

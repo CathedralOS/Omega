@@ -1,16 +1,16 @@
 use omega_target::Architecture;
 
-use super::super::super::RelocationFreeTextSectionPlacementError;
+use super::super::super::TextPlacementError;
 
 pub(crate) fn validate(
     architecture: Architecture,
     offset: u64,
     byte_count: u64,
-) -> Result<(), RelocationFreeTextSectionPlacementError> {
+) -> Result<(), TextPlacementError> {
     if architecture == Architecture::Aarch64
         && (!offset.is_multiple_of(4) || !byte_count.is_multiple_of(4))
     {
-        return Err(RelocationFreeTextSectionPlacementError::MisalignedAarch64Span);
+        return Err(TextPlacementError::MisalignedAarch64Span);
     }
     Ok(())
 }

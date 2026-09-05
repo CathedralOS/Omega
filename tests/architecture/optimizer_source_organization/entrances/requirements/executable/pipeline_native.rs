@@ -106,6 +106,18 @@ pub(crate) const ENTRANCES: &[RequiredCoordinationEntrance] = &[
         coordination_marker: "stage_optimized_function_fragment_emission",
     },
     RequiredCoordinationEntrance {
+        path: "omega-rust/omega/backend/omega-machine-emission/src/text_placement/mod.rs",
+        coordination_marker: "place_fragment_text_section",
+    },
+    RequiredCoordinationEntrance {
+        path: "omega-rust/omega/backend/omega-machine-emission/src/text_placement/production/mod.rs",
+        coordination_marker: "mod structural_unit",
+    },
+    RequiredCoordinationEntrance {
+        path: "omega-rust/omega/backend/omega-machine-emission/src/text_placement/validation/mod.rs",
+        coordination_marker: "pub(super) fn check",
+    },
+    RequiredCoordinationEntrance {
         path: "omega-rust/omega/backend/omega-machine-emission/src/fragments/mod.rs",
         coordination_marker: "emit_resolved_function_fragments",
     },

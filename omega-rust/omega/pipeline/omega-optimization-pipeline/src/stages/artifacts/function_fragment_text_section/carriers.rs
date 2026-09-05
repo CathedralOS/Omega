@@ -1,8 +1,9 @@
-use omega_object_file::RelocationFreeTextSectionPlacement;
+use omega_machine_code::RelocationFreeTextSectionPlacement;
 use omega_optimization_core::{
     FunctionFragmentEmissionIdentity, FunctionFragmentEmissionManifestIdentity,
     FunctionFragmentTextSectionManifestIdentity, TerminalRelocationFreeTextSectionIdentity,
 };
+use std::sync::Arc;
 
 use crate::{
     FunctionFragmentFrameApplicationIdentity, StagedFunctionFragmentFrameApplication,
@@ -31,7 +32,7 @@ impl ValidatedFunctionFragmentTextSectionManifest {
 #[must_use = "a staged text section owns its complete fragment-emission custody"]
 pub struct StagedOptimizedRelocationFreeTextSection {
     pub(super) source: StagedOptimizedFunctionFragmentEmission,
-    pub(super) text_section: Box<RelocationFreeTextSectionPlacement>,
+    pub(super) text_section: Arc<RelocationFreeTextSectionPlacement>,
     pub(super) manifest: ValidatedFunctionFragmentTextSectionManifest,
     pub(super) custody: StagedRelocationFreeTextSectionCustodyReceipt,
 }
@@ -45,6 +46,11 @@ impl StagedOptimizedRelocationFreeTextSection {
         self.text_section.as_ref()
     }
 
+    /// Retain current placed data without retaining the producer or granting admission.
+    pub fn shared_text_section(&self) -> Arc<RelocationFreeTextSectionPlacement> {
+        Arc::clone(&self.text_section)
+    }
+
     pub const fn manifest(&self) -> &ValidatedFunctionFragmentTextSectionManifest {
         &self.manifest
     }
@@ -55,7 +61,7 @@ impl StagedOptimizedRelocationFreeTextSection {
 
     #[cfg(test)]
     pub(crate) fn text_section_mut(&mut self) -> &mut RelocationFreeTextSectionPlacement {
-        self.text_section.as_mut()
+        Arc::make_mut(&mut self.text_section)
     }
 
     #[cfg(test)]
@@ -99,7 +105,7 @@ pub struct StagedRelocationFreeTextSectionCustodyReceipt {
 #[must_use = "a staged fixed-frame text section owns its exact frame-application custody"]
 pub struct StagedOptimizedFixedFrameTextSection {
     pub(super) source: StagedFunctionFragmentFrameApplication,
-    pub(super) text_section: Box<RelocationFreeTextSectionPlacement>,
+    pub(super) text_section: Arc<RelocationFreeTextSectionPlacement>,
     pub(super) manifest: ValidatedFunctionFragmentTextSectionManifest,
     pub(super) custody: StagedFixedFrameTextSectionCustodyReceipt,
 }
@@ -113,6 +119,11 @@ impl StagedOptimizedFixedFrameTextSection {
         self.text_section.as_ref()
     }
 
+    /// Retain current placed data without retaining the producer or granting admission.
+    pub fn shared_text_section(&self) -> Arc<RelocationFreeTextSectionPlacement> {
+        Arc::clone(&self.text_section)
+    }
+
     pub const fn manifest(&self) -> &ValidatedFunctionFragmentTextSectionManifest {
         &self.manifest
     }
@@ -123,7 +134,7 @@ impl StagedOptimizedFixedFrameTextSection {
 
     #[cfg(test)]
     pub(crate) fn text_section_mut(&mut self) -> &mut RelocationFreeTextSectionPlacement {
-        self.text_section.as_mut()
+        Arc::make_mut(&mut self.text_section)
     }
 
     #[cfg(test)]

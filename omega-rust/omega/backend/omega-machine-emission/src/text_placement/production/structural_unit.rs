@@ -1,9 +1,8 @@
-mod fixup;
 mod internal_call;
 mod lookup;
 mod offsets;
 
-use omega_object_file::{
+use omega_machine_code::{
     PlacedBlockSpan, PlacedFunctionFragment, PlacedInstructionSpan,
     RelocationFreeTextSectionPlacement, TextSectionPlacementPolicy,
     TextSectionRelocationRequirements,
@@ -11,47 +10,46 @@ use omega_object_file::{
 use omega_optimization_core::TerminalRelocationFreeTextSectionIdentity;
 use omega_target::Architecture;
 
-use crate::StagedOptimizedFunctionFragmentEmission;
+use super::super::StructuralFragmentPlacementInputs;
 
-use super::super::RelocationFreeTextSectionPlacementError;
+use super::super::TextPlacementError;
 use super::conversion::{u64_to_usize, usize_to_u64};
 
-pub(super) fn place(
-    source: &StagedOptimizedFunctionFragmentEmission,
-) -> Result<RelocationFreeTextSectionPlacement, RelocationFreeTextSectionPlacementError> {
-    let fragments = source.fragments();
+pub(in crate::text_placement) fn place(
+    fragments: &omega_machine_code::FunctionFragmentEmissionPlan,
+    inputs: &StructuralFragmentPlacementInputs<'_>,
+) -> Result<RelocationFreeTextSectionPlacement, TextPlacementError> {
     if fragments.target.architecture != Architecture::X86_64 || !fragments.functions.is_empty() {
-        return Err(RelocationFreeTextSectionPlacementError::SourceShapeMismatch);
+        return Err(TextPlacementError::SourceShapeMismatch);
     }
-    let selected_plan = source.source().selected_plan();
-    let environment = source.source().register_environment();
-    let machine_plan = &source.source().program().machine;
-    let effects_plan = &source.source().program().effects;
-    let encoding = source.source().encoding();
-    let layout = &source.source().program().layout;
-    let exit = source.source().exit_contract().contract();
+    let selected_plan = &inputs.program.selected;
+
+    let machine_plan = &inputs.program.machine;
+    let effects_plan = &inputs.program.effects;
+    let encoding = inputs.structural_encoding;
+    let layout = &inputs.program.layout;
+    let exit = inputs.exit;
     let count = fragments.structural_unit_functions.len();
     if count == 0
         || selected_plan.structural_unit_functions.len() != count
         || machine_plan.structural_unit_functions.len() != count
         || effects_plan.structural_unit_functions.len() != count
-        || encoding.structural_unit_functions().len() != count
+        || encoding.len() != count
         || layout.structural_unit_functions.len() != count
         || exit.structural_unit_functions.len() != count
         || !selected_plan.functions.is_empty()
         || !machine_plan.functions.is_empty()
         || !effects_plan.functions.is_empty()
-        || !encoding.rows().is_empty()
         || !layout.functions.is_empty()
         || !exit.functions.is_empty()
     {
-        return Err(RelocationFreeTextSectionPlacementError::SourceShapeMismatch);
+        return Err(TextPlacementError::SourceShapeMismatch);
     }
 
     let offsets = offsets::derive(&fragments.structural_unit_functions, fragments.entry)?;
     let mut bytes = Vec::with_capacity(
         usize::try_from(offsets.section_byte_count)
-            .map_err(|_| RelocationFreeTextSectionPlacementError::OffsetOverflow)?,
+            .map_err(|_| TextPlacementError::OffsetOverflow)?,
     );
     let mut functions = Vec::with_capacity(count);
     let mut resolved_internal_machine_calls = Vec::new();
@@ -60,9 +58,9 @@ pub(super) fn place(
         let function_section_offset = *offsets
             .by_machine
             .get(&fragment.machine)
-            .ok_or(RelocationFreeTextSectionPlacementError::SourceShapeMismatch)?;
+            .ok_or(TextPlacementError::SourceShapeMismatch)?;
         if usize_to_u64(bytes.len())? != function_section_offset {
-            return Err(RelocationFreeTextSectionPlacementError::SourceShapeMismatch);
+            return Err(TextPlacementError::SourceShapeMismatch);
         }
         let selected = lookup::unique_machine(
             &selected_plan.structural_unit_functions,
@@ -79,11 +77,8 @@ pub(super) fn place(
             fragment.machine,
             |function| function.machine,
         )?;
-        let encoded = lookup::unique_machine(
-            encoding.structural_unit_functions(),
-            fragment.machine,
-            |function| function.machine,
-        )?;
+        let encoded =
+            lookup::unique_machine(encoding, fragment.machine, |function| function.machine)?;
         let laid_out = lookup::unique_machine(
             &layout.structural_unit_functions,
             fragment.machine,
@@ -103,7 +98,7 @@ pub(super) fn place(
             || fragment.block.offset != 0
             || fragment.block.byte_count != fragment.byte_count
         {
-            return Err(RelocationFreeTextSectionPlacementError::SourceShapeMismatch);
+            return Err(TextPlacementError::SourceShapeMismatch);
         }
 
         let mut function_bytes = fragment.bytes.clone();
@@ -140,11 +135,11 @@ pub(super) fn place(
                     layout_call,
                     exit_call,
                     selected_plan.target,
-                    environment.physical(),
-                    environment.constraints(),
+                    inputs.physical,
+                    inputs.constraints,
                 )?);
             }
-            _ => return Err(RelocationFreeTextSectionPlacementError::SourceShapeMismatch),
+            _ => return Err(TextPlacementError::SourceShapeMismatch),
         }
 
         let returned = &fragment.block.return_instruction;
@@ -157,17 +152,17 @@ pub(super) fn place(
             || returned.offset != laid_out.return_instruction.offset
             || returned.offset != exited.returned.offset
         {
-            return Err(RelocationFreeTextSectionPlacementError::SourceShapeMismatch);
+            return Err(TextPlacementError::SourceShapeMismatch);
         }
         let returned_section_offset = function_section_offset
             .checked_add(returned.offset)
-            .ok_or(RelocationFreeTextSectionPlacementError::OffsetOverflow)?;
+            .ok_or(TextPlacementError::OffsetOverflow)?;
         let returned_start = u64_to_usize(returned.offset)?;
         let returned_end = returned_start
             .checked_add(returned.bytes.len())
-            .ok_or(RelocationFreeTextSectionPlacementError::OffsetOverflow)?;
+            .ok_or(TextPlacementError::OffsetOverflow)?;
         if function_bytes.get(returned_start..returned_end) != Some(returned.bytes.as_slice()) {
-            return Err(RelocationFreeTextSectionPlacementError::SourceShapeMismatch);
+            return Err(TextPlacementError::SourceShapeMismatch);
         }
         bytes.extend_from_slice(&function_bytes);
         functions.push(PlacedFunctionFragment {
@@ -186,23 +181,20 @@ pub(super) fn place(
                     function_offset: returned.offset,
                     section_offset: returned_section_offset,
                     byte_count: u64::try_from(returned.bytes.len())
-                        .map_err(|_| RelocationFreeTextSectionPlacementError::OffsetOverflow)?,
+                        .map_err(|_| TextPlacementError::OffsetOverflow)?,
                 }],
             }],
         });
     }
     if usize_to_u64(bytes.len())? != offsets.section_byte_count
         || resolved_internal_machine_calls.len()
-            != usize::try_from(
-                source
-                    .manifest()
-                    .record()
-                    .statistics
-                    .unresolved_internal_machine_fixups,
-            )
-            .map_err(|_| RelocationFreeTextSectionPlacementError::StatisticsOverflow)?
+            != fragments
+                .structural_unit_functions
+                .iter()
+                .filter(|function| function.block.call.is_some())
+                .count()
     {
-        return Err(RelocationFreeTextSectionPlacementError::UnresolvedInternalMachineFixups);
+        return Err(TextPlacementError::UnresolvedInternalMachineFixups);
     }
     let mut text_section = RelocationFreeTextSectionPlacement {
         identity: TerminalRelocationFreeTextSectionIdentity::from_canonical_bytes(b"pending"),

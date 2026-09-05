@@ -7,12 +7,12 @@ use omega_machine_code::{
     X86_64StructuralUnitInternalControlFixupState,
 };
 
-use super::super::super::RelocationFreeTextSectionPlacementError;
+use super::super::TextPlacementError;
 
 pub(super) fn matches_target(
     call: &StructuralUnitCallFragmentSpan,
     target: X86_64StructuralUnitInternalControlFixup,
-) -> Result<bool, RelocationFreeTextSectionPlacementError> {
+) -> Result<bool, TextPlacementError> {
     let neutral = call.fixup;
     Ok(neutral.kind
         == FunctionFragmentInternalMachineFixupKind::X86Relative32FromNextInstructionToInternalMachineV1
@@ -27,17 +27,17 @@ pub(super) fn matches_target(
             == call
                 .offset
                 .checked_add(u64::from(target.opcode_byte_offset))
-                .ok_or(RelocationFreeTextSectionPlacementError::OffsetOverflow)?
+                .ok_or(TextPlacementError::OffsetOverflow)?
         && neutral.patch_function_offset
             == call
                 .offset
                 .checked_add(u64::from(target.field_byte_offset))
-                .ok_or(RelocationFreeTextSectionPlacementError::OffsetOverflow)?
+                .ok_or(TextPlacementError::OffsetOverflow)?
         && neutral.reference_function_offset
             == call
                 .offset
                 .checked_add(u64::from(target.next_instruction_byte_offset))
-                .ok_or(RelocationFreeTextSectionPlacementError::OffsetOverflow)?
+                .ok_or(TextPlacementError::OffsetOverflow)?
         && neutral.patch_byte_width == target.field_byte_width
         && neutral.addend == target.addend)
 }

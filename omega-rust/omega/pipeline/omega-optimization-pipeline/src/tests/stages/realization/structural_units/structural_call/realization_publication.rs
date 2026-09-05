@@ -378,9 +378,24 @@ pub(super) fn realize_and_publish_structural_call(homes: StagedOptimizedRegister
     fragments.fragments_mut().structural_unit_functions[1].machine = callee_machine;
     validate_optimized_function_fragment_emission(&fragments).unwrap();
 
+    // A valid leaf template cannot authorize different enclosing function bytes.
+    let call_start = fragments.fragments().structural_unit_functions[0]
+        .block
+        .call
+        .as_ref()
+        .unwrap()
+        .offset as usize;
+    fragments.fragments_mut().structural_unit_functions[0].bytes[call_start] ^= 1;
+    assert!(matches!(
+        crate::stages::artifacts::function_fragment_text_section::place_structural_unit_fragments_for_test(&fragments),
+        Err(RelocationFreeTextSectionPlacementError::SourceShapeMismatch)
+    ));
+    fragments.fragments_mut().structural_unit_functions[0].bytes[call_start] ^= 1;
+
     let mut text = stage_optimized_relocation_free_text_section(fragments)
         .expect("whole-text placement must discharge the internal MachineId call");
     let placed = text.text_section();
+    crate::tests::text_placement_checks::direct(&text);
     assert_eq!(placed.byte_count, 91);
     assert_eq!(placed.functions.len(), 2);
     assert_eq!(
