@@ -523,13 +523,24 @@ pub(crate) fn report_argument_count_mismatch(
     false
 }
 
-/// Whether an argument that is NOT spelled `&mut ...` still DELIVERS a
-/// mutable reference: a bare name forwarding a `&mut` parameter, or a local
-/// that is itself a `&mut` reference (declared `&mut T`, or bound to a
-/// `&mut place` initializer). Everything else lends immutable access. Bindings
-/// resolve at WHOLE-MACHINE scope (a
-/// sub-state legitimately reads the entry state's params and locals), so
-/// every state of the current machine is consulted.
+fn declared_reference_access(
+    program: &TypedTrees,
+    mut reference: TypeReferenceHandle,
+) -> Option<psi_language_semantics::ReferenceAccess> {
+    while let TypeReferenceNode::Constrained { base_type, .. } =
+        program.type_reference_table.type_reference(reference)
+    {
+        reference = *base_type;
+    }
+    match program.type_reference_table.type_reference(reference) {
+        TypeReferenceNode::Reference { access, .. } => Some(*access),
+        _ => None,
+    }
+}
+
+/// A bare name can forward declared mutable reference access, independently
+/// of whether its binding is mutable. Bindings resolve at whole-machine
+/// scope because a sub-state can read entry-state parameters and locals.
 fn argument_forwards_mutable_reference(
     program: &TypedTrees,
     current_machine: &Machine,
@@ -542,11 +553,11 @@ fn argument_forwards_mutable_reference(
         return false;
     };
     program.machine_states(current_machine).iter().any(|state| {
-        if program
-            .state_parameters(state)
-            .iter()
-            .any(|parameter| parameter.is_mutable && parameter.name == *name)
-        {
+        if program.state_parameters(state).iter().any(|parameter| {
+            parameter.name == *name
+                && declared_reference_access(program, parameter.type_reference)
+                    == Some(psi_language_semantics::ReferenceAccess::Mutable)
+        }) {
             return true;
         }
         program
@@ -560,8 +571,10 @@ fn argument_forwards_mutable_reference(
                 if local_data.name != *name {
                     return false;
                 }
-                crate::locals::local_is_mutable_reference(program, local_data)
-                    || (local_data.initial_value.is_valid()
+                declared_reference_access(program, local_data.type_reference)
+                    == Some(psi_language_semantics::ReferenceAccess::Mutable)
+                    || (!local_data.type_reference.is_valid()
+                        && local_data.initial_value.is_valid()
                         && matches!(
                             program
                                 .expression_table
@@ -686,29 +699,14 @@ fn validate_call_arguments_handles_with_policy_retention(
         .iter()
         .zip(parameters.iter().filter(|parameter| !parameter.is_self))
     {
-        let expected_access = match program
-            .type_reference_table
-            .type_reference(parameter.type_reference)
-        {
-            psi_typed_trees::types::TypeReferenceNode::Reference { access, .. } => Some(*access),
-            _ => None,
-        };
+        let expected_access = declared_reference_access(program, parameter.type_reference);
         let supplied_access = match program.expression_table.expression(*argument) {
             ExpressionNode::Borrow(borrow) => Some(borrow.access),
             ExpressionNode::Call(call) => {
                 // A resolved result carries its declared reference access;
                 // passing it onward is not a new borrow of a binding slot.
-                resolved_call_result_type(program, call).and_then(|mut reference| {
-                    while let TypeReferenceNode::Constrained { base_type, .. } =
-                        program.type_reference_table.type_reference(reference)
-                    {
-                        reference = *base_type;
-                    }
-                    match program.type_reference_table.type_reference(reference) {
-                        TypeReferenceNode::Reference { access, .. } => Some(*access),
-                        _ => None,
-                    }
-                })
+                resolved_call_result_type(program, call)
+                    .and_then(|reference| declared_reference_access(program, reference))
             }
             _ => None,
         };
@@ -742,7 +740,10 @@ fn validate_call_arguments_handles_with_policy_retention(
             )
         );
 
-        if parameter.is_mutable && !is_mutable {
+        // A mutable owned binding can replace its private value; only the
+        // declared reference access grants mutation of caller storage.
+        if expected_access == Some(psi_language_semantics::ReferenceAccess::Mutable) && !is_mutable
+        {
             // Not spelled `&mut ...`. The only legitimate remaining shape is
             // a FORWARD: a bare name that is itself already a `&mut`
             // reference (a `&mut` parameter passed onward, or a local bound
@@ -763,7 +764,7 @@ fn validate_call_arguments_handles_with_policy_retention(
             continue;
         }
 
-        if !parameter.is_mutable
+        if expected_access == Some(psi_language_semantics::ReferenceAccess::Shared)
             && is_mutable
             && !matches!(
                 program.expression_table.expression(*argument),

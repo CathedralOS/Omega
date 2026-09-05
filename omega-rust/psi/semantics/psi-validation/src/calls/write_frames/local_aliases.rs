@@ -220,19 +220,13 @@ pub(super) fn expression_may_rebind_mutable_alias(
     expression: ExpressionHandle,
 ) -> bool {
     match program.expression_table.expression(expression) {
-        ExpressionNode::Borrow(_) | ExpressionNode::Call(_) => true,
-        ExpressionNode::Name(_) | ExpressionNode::Member(_) | ExpressionNode::Indexed(_) => {
-            let declared =
-                crate::places::declared_place_type_raw(program, machine, Some(state), expression)
-                    .or_else(|| {
-                        crate::places::declared_indexed_projection_type_raw(
-                            program,
-                            machine,
-                            Some(state),
-                            expression,
-                        )
-                    });
-            declared.is_none_or(|handle| type_reference_is_reference(program, handle))
+        ExpressionNode::Borrow(_) => true,
+        ExpressionNode::Call(_)
+        | ExpressionNode::Name(_)
+        | ExpressionNode::Member(_)
+        | ExpressionNode::Indexed(_) => {
+            crate::places::expression_result_is_reference(program, machine, state, expression)
+                .unwrap_or(true)
         }
         ExpressionNode::Cast(cast) => type_reference_is_reference(program, cast.target_type),
         ExpressionNode::ArrayLiteral(_)
