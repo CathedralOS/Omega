@@ -522,6 +522,7 @@ fn nested_payload_bearing_sum_equality_retains_record_case_payload_paths() {
                 collect_paths(right, membership_paths, payload_paths);
             }
             CheckedBooleanExpression::Constant(_)
+            | CheckedBooleanExpression::StorageRead { .. }
             | CheckedBooleanExpression::Parameter { .. }
             | CheckedBooleanExpression::Local { .. }
             | CheckedBooleanExpression::StructuralParameterField { .. }
@@ -621,6 +622,7 @@ fn payload_sum_equality_expands_acyclic_nested_records_with_exact_paths() {
                 collect_leaf_paths(right, paths);
             }
             CheckedBooleanExpression::Constant(_)
+            | CheckedBooleanExpression::StorageRead { .. }
             | CheckedBooleanExpression::Parameter { .. }
             | CheckedBooleanExpression::Local { .. }
             | CheckedBooleanExpression::IeeeFloatComparison { .. }
@@ -739,6 +741,7 @@ fn payload_sum_equality_expands_acyclic_nested_sums_with_exact_paths() {
                 collect_paths(right, membership_paths, payload_paths);
             }
             CheckedBooleanExpression::Constant(_)
+            | CheckedBooleanExpression::StorageRead { .. }
             | CheckedBooleanExpression::Parameter { .. }
             | CheckedBooleanExpression::Local { .. }
             | CheckedBooleanExpression::StructuralParameterField { .. }

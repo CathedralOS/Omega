@@ -1,0 +1,10 @@
+machine replace(value: &mut u8) { value = 8; }
+
+machine produce() -> u8
+ensures result == 7
+{
+    let mut current: u8 = 3;
+    replace(&mut current);
+    current = ((current as u8 in Wrapping) + 4) as u8;
+    current
+}

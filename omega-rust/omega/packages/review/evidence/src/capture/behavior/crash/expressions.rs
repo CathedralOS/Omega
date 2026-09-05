@@ -15,6 +15,9 @@ pub(in crate::capture::behavior) fn project_boolean_expression(
     use psi_checked_trees::CheckedBooleanExpression;
 
     match expression {
+        CheckedBooleanExpression::StorageRead { .. } => {
+            unreachable!("checked structural crash requirements cannot read local storage")
+        }
         CheckedBooleanExpression::Constant(value) => {
             PackageReviewBooleanExpression::Constant(*value)
         }
@@ -101,6 +104,9 @@ fn project_scalar_expression(
     use psi_checked_trees::CheckedScalarExpression;
 
     match expression {
+        CheckedScalarExpression::StorageRead { .. } => {
+            unreachable!("checked structural crash requirements cannot read local storage")
+        }
         CheckedScalarExpression::Parameter {
             position,
             primitive_type,

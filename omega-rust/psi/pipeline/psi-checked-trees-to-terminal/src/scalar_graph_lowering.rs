@@ -2,6 +2,8 @@
 
 use super::*;
 
+mod storage;
+
 fn merge_known_parameters<T: Copy + Eq>(
     current: &mut Option<Vec<Option<T>>>,
     incoming: Vec<Option<T>>,
@@ -266,18 +268,65 @@ fn prepare_scalar_graph_machine_with_contract_mode(
             .map(terminal_scalar_type)
             .collect::<Result<Vec<_>, _>>()?;
         let mut value_types = parameter_types.clone();
+        let mut scalar_bindings = storage::ScalarBindings::new(parameter_types.len());
+        let mut immutable_ordinal = 0u32;
         let mut bindings = Vec::with_capacity(state.bindings.len());
         for (binding_index, binding) in state.bindings.iter().enumerate() {
-            let binding_ordinal = u32::try_from(binding_index)
-                .map_err(|_| LoweringError::Unsupported("scalar local count exceeds u32"))?;
+            use psi_checked_trees::CheckedScalarBindingDestination;
+            if usize::try_from(binding.statement_ordinal).ok() != Some(binding_index) {
+                return unsupported("scalar computations drifted from statement order");
+            }
+            let binding_ordinal = immutable_ordinal;
+            let role = match binding.destination {
+                CheckedScalarBindingDestination::Immutable => {
+                    CheckedScalarExpressionRole::LocalInitializer { binding_ordinal }
+                }
+                CheckedScalarBindingDestination::StorageInitialize { .. } => {
+                    CheckedScalarExpressionRole::StorageInitializer
+                }
+                CheckedScalarBindingDestination::StorageAssign { .. } => {
+                    CheckedScalarExpressionRole::AssignmentValue
+                }
+            };
+            if let CheckedScalarBindingDestination::StorageInitialize { symbol }
+            | CheckedScalarBindingDestination::StorageAssign { symbol } = binding.destination
+            {
+                let mut custody = checked
+                    .facts
+                    .values
+                    .scalar_expressions
+                    .source_bindings
+                    .iter()
+                    .filter(|(_, source)| {
+                        source.state == state.state
+                            && source.statement_ordinal == binding.statement_ordinal
+                            && source.role == role
+                    });
+                let Some((_, source)) = custody.next() else {
+                    return unsupported(
+                        "scalar storage destination lost its checked source custody",
+                    );
+                };
+                if custody.next().is_some()
+                    || source.destination != symbol
+                    || !checked
+                        .typed
+                        .expression_table
+                        .expression_is_valid(source.expression)
+                {
+                    return unsupported(
+                        "scalar storage destination disagrees with its checked source custody",
+                    );
+                }
+            }
             let binding_type = terminal_scalar_type(binding.primitive_type)?;
             let lowered = match &binding.value {
                 CheckedScalarBindingValue::Expression => {
-                    let expression = lower_checked_scalar_expression_at(
+                    let expression = scalar_bindings.expression_at(
                         checked,
                         state.state,
                         binding.statement_ordinal,
-                        CheckedScalarExpressionRole::LocalInitializer { binding_ordinal },
+                        role,
                     )?;
                     if expression.scalar_type() != binding_type {
                         return unsupported(
@@ -292,26 +341,43 @@ fn prepare_scalar_graph_machine_with_contract_mode(
                     target_state,
                     call_ordinal,
                     argument_count,
-                } => LoweredScalarBinding::DirectCall(lower_checked_direct_call_binding(
-                    checked,
-                    machine,
-                    state.state,
-                    binding.statement_ordinal,
-                    binding_ordinal,
-                    *target_machine,
-                    *target_state,
-                    *call_ordinal,
-                    *argument_count,
-                    binding_type,
-                    &value_types,
-                )?),
+                } => {
+                    if binding.destination != CheckedScalarBindingDestination::Immutable {
+                        return unsupported(
+                            "scalar storage computations do not admit direct calls",
+                        );
+                    }
+                    LoweredScalarBinding::DirectCall(lower_checked_direct_call_binding(
+                        checked,
+                        machine,
+                        state.state,
+                        binding.statement_ordinal,
+                        binding_ordinal,
+                        *target_machine,
+                        *target_state,
+                        *call_ordinal,
+                        *argument_count,
+                        binding_type,
+                        &value_types,
+                        &scalar_bindings,
+                    )?)
+                }
             };
+            scalar_bindings.append(binding.destination, binding_type, value_types.len())?;
+            if binding.destination == CheckedScalarBindingDestination::Immutable {
+                immutable_ordinal =
+                    immutable_ordinal
+                        .checked_add(1)
+                        .ok_or(LoweringError::Unsupported(
+                            "scalar immutable local count exceeds u32",
+                        ))?;
+            }
             bindings.push(lowered);
             value_types.push(binding_type);
         }
         let terminator = match &state.terminator {
             CheckedScalarStateTerminator::Return { statement_ordinal } => {
-                let expression = lower_checked_scalar_expression_at(
+                let expression = scalar_bindings.expression_at(
                     checked,
                     state.state,
                     *statement_ordinal,
@@ -339,7 +405,7 @@ fn prepare_scalar_graph_machine_with_contract_mode(
             } => {
                 let LoweredDirectExpression::Boolean {
                     expression: condition,
-                } = lower_checked_scalar_expression_at(
+                } = scalar_bindings.expression_at(
                     checked,
                     state.state,
                     *guard_statement_ordinal,
@@ -358,6 +424,7 @@ fn prepare_scalar_graph_machine_with_contract_mode(
                     state.state,
                     &value_types,
                     when_true,
+                    &scalar_bindings,
                 )?;
                 let (when_false_target, when_false_arguments) = lower_scalar_graph_successor(
                     checked,
@@ -365,6 +432,7 @@ fn prepare_scalar_graph_machine_with_contract_mode(
                     state.state,
                     &value_types,
                     when_false,
+                    &scalar_bindings,
                 )?;
                 successors[state_index] = vec![when_true_target, when_false_target];
                 indegree[when_true_target] = indegree[when_true_target]
@@ -388,6 +456,7 @@ fn prepare_scalar_graph_machine_with_contract_mode(
                     state.state,
                     &value_types,
                     successor,
+                    &scalar_bindings,
                 )?;
                 successors[state_index] = vec![target];
                 indegree[target] = indegree[target]
@@ -485,6 +554,7 @@ fn lower_checked_direct_call_binding(
     argument_count: u32,
     result_type: ScalarType,
     caller_value_types: &[ScalarType],
+    scalar_bindings: &storage::ScalarBindings,
 ) -> Result<LoweredDirectCallBinding, LoweringError> {
     let target_graph = checked
         .facts
@@ -517,7 +587,7 @@ fn lower_checked_direct_call_binding(
             let argument_ordinal = u32::try_from(argument_index).map_err(|_| {
                 LoweringError::Unsupported("scalar call argument count exceeds u32")
             })?;
-            let expression = lower_checked_scalar_expression_at(
+            let expression = scalar_bindings.expression_at(
                 checked,
                 caller_state,
                 statement_ordinal,
@@ -595,6 +665,7 @@ fn lower_scalar_graph_successor(
     source_state: psi_symbols::SymbolHandle,
     source_value_types: &[ScalarType],
     successor: &CheckedScalarSuccessor,
+    scalar_bindings: &storage::ScalarBindings,
 ) -> Result<(usize, Vec<LoweredDirectExpression>), LoweringError> {
     let target = states
         .iter()
@@ -612,7 +683,7 @@ fn lower_scalar_graph_successor(
         .zip(target_parameter_types)
         .map(|(argument_ordinal, target_type)| {
             let target_type = terminal_scalar_type(*target_type)?;
-            let expression = lower_checked_scalar_expression_at(
+            let expression = scalar_bindings.expression_at(
                 checked,
                 source_state,
                 successor.statement_ordinal,
@@ -650,6 +721,9 @@ pub(super) fn lower_checked_scalar_expression(
     expression: &CheckedScalarExpression,
 ) -> Result<LoweredDirectExpression, LoweringError> {
     match expression {
+        CheckedScalarExpression::StorageRead { .. } => {
+            unsupported("scalar storage read requires an exact current storage mapping")
+        }
         CheckedScalarExpression::Parameter {
             position,
             primitive_type,
@@ -776,6 +850,9 @@ fn lower_checked_boolean_expression(
             LoweredBooleanReturnExpression::Parameter {
                 position: *position,
             }
+        }
+        CheckedBooleanExpression::StorageRead { .. } => {
+            return unsupported("Boolean storage read requires an exact current storage mapping");
         }
         CheckedBooleanExpression::Local { position } => LoweredBooleanReturnExpression::Local {
             position: *position,

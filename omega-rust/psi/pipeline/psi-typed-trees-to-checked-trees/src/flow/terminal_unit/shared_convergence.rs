@@ -327,6 +327,7 @@ fn shared_boolean_runtime_inputs(
     scalar_parameter_count: usize,
 ) -> Option<BTreeSet<SharedBooleanRuntimeInput>> {
     match expression {
+        psi_checked_trees::CheckedBooleanExpression::StorageRead { .. } => None,
         psi_checked_trees::CheckedBooleanExpression::Constant(_) => Some(BTreeSet::new()),
         psi_checked_trees::CheckedBooleanExpression::Parameter { position }
             if *position < scalar_parameter_count =>
@@ -408,6 +409,7 @@ fn shared_integer_runtime_inputs_with_shells(
     proof_shell_allowed: bool,
 ) -> Option<BTreeSet<SharedBooleanRuntimeInput>> {
     match expression {
+        CheckedScalarExpression::StorageRead { .. } => None,
         CheckedScalarExpression::IntegerLiteral { .. } => Some(BTreeSet::new()),
         CheckedScalarExpression::Parameter { position, .. }
             if *position < scalar_parameter_count =>

@@ -13,9 +13,15 @@ pub(super) fn capture_statement(
     statement: &StatementNode,
     active: HandleSpan<FlowSemanticContextRef>,
 ) -> Option<ScalarValue> {
-    let source = match statement {
-        StatementNode::LocalData(local) => local.initial_value,
-        StatementNode::Assignment(assignment) => assignment.value,
+    let (source, destination) = match statement {
+        StatementNode::LocalData(local) => (local.initial_value, local.symbol),
+        StatementNode::Assignment(assignment) => (
+            assignment.value,
+            match program.expression_table.expression(assignment.target) {
+                ExpressionNode::Name(path) => path.symbol,
+                _ => SymbolHandle::invalid(),
+            },
+        ),
         _ => return None,
     };
     if !program.expression_table.expression_is_valid(source) {
@@ -27,6 +33,7 @@ pub(super) fn capture_statement(
         binding.state == state
             && binding.statement_ordinal == statement_ordinal
             && binding.expression == source
+            && binding.destination == destination
             && match statement {
                 StatementNode::LocalData(local) if local.is_mutable => {
                     binding.role == CheckedScalarExpressionRole::StorageInitializer
@@ -55,18 +62,24 @@ pub(super) fn capture_statement(
         return None;
     }
     let symbols = plans.binding_symbols.span_or_empty(binding.symbols);
-    crate::values::evaluate_checked_scalar(expression, &mut |position| {
-        let place = canonical_place_from_symbol(*symbols.get(position)?)?;
-        crate::values::scalar_value_at_place(
-            program,
-            semantic,
-            context
-                .contexts
-                .semantic_context_refs
-                .span_or_empty(active)
-                .iter()
-                .map(|reference| semantic.contexts.get(reference.context)),
-            &place,
-        )
-    })
+    crate::values::evaluate_checked_scalar(
+        expression,
+        &mut crate::values::BoundScalarValues {
+            symbols,
+            value_at_symbol: |symbol| {
+                let place = canonical_place_from_symbol(symbol)?;
+                crate::values::scalar_value_at_place(
+                    program,
+                    semantic,
+                    context
+                        .contexts
+                        .semantic_context_refs
+                        .span_or_empty(active)
+                        .iter()
+                        .map(|reference| semantic.contexts.get(reference.context)),
+                    &place,
+                )
+            },
+        },
+    )
 }

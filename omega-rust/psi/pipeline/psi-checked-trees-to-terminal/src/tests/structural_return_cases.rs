@@ -219,6 +219,7 @@ fn structural_scalar_return_materializes_branch_free_local_prefix_before_cleanup
         .terminal_structural_scalar_returns
         .machines[0];
     plan.bindings = vec![psi_checked_trees::CheckedScalarBinding {
+        destination: psi_checked_trees::CheckedScalarBindingDestination::Immutable,
         statement_ordinal: 0,
         primitive_type: PrimitiveType::I32,
         value: CheckedScalarBindingValue::Expression,
@@ -311,36 +312,43 @@ fn structural_scalar_return_supports_repeated_carried_short_circuit_local_contin
         .machines[0];
     plan.bindings = vec![
         psi_checked_trees::CheckedScalarBinding {
+            destination: psi_checked_trees::CheckedScalarBindingDestination::Immutable,
             statement_ordinal: 0,
             primitive_type: PrimitiveType::Bool,
             value: CheckedScalarBindingValue::Expression,
         },
         psi_checked_trees::CheckedScalarBinding {
+            destination: psi_checked_trees::CheckedScalarBindingDestination::Immutable,
             statement_ordinal: 1,
             primitive_type: PrimitiveType::Bool,
             value: CheckedScalarBindingValue::Expression,
         },
         psi_checked_trees::CheckedScalarBinding {
+            destination: psi_checked_trees::CheckedScalarBindingDestination::Immutable,
             statement_ordinal: 2,
             primitive_type: PrimitiveType::Bool,
             value: CheckedScalarBindingValue::Expression,
         },
         psi_checked_trees::CheckedScalarBinding {
+            destination: psi_checked_trees::CheckedScalarBindingDestination::Immutable,
             statement_ordinal: 3,
             primitive_type: PrimitiveType::Bool,
             value: CheckedScalarBindingValue::Expression,
         },
         psi_checked_trees::CheckedScalarBinding {
+            destination: psi_checked_trees::CheckedScalarBindingDestination::Immutable,
             statement_ordinal: 4,
             primitive_type: PrimitiveType::Bool,
             value: CheckedScalarBindingValue::Expression,
         },
         psi_checked_trees::CheckedScalarBinding {
+            destination: psi_checked_trees::CheckedScalarBindingDestination::Immutable,
             statement_ordinal: 5,
             primitive_type: PrimitiveType::Bool,
             value: CheckedScalarBindingValue::Expression,
         },
         psi_checked_trees::CheckedScalarBinding {
+            destination: psi_checked_trees::CheckedScalarBindingDestination::Immutable,
             statement_ordinal: 6,
             primitive_type: PrimitiveType::Bool,
             value: CheckedScalarBindingValue::Expression,
@@ -778,6 +786,7 @@ fn structural_scalar_return_emits_boolean_paths_before_cleanup() {
         .terminal_structural_scalar_returns
         .machines[0];
     plan.bindings = vec![psi_checked_trees::CheckedScalarBinding {
+        destination: psi_checked_trees::CheckedScalarBindingDestination::Immutable,
         statement_ordinal: 0,
         primitive_type: PrimitiveType::Bool,
         value: CheckedScalarBindingValue::Expression,

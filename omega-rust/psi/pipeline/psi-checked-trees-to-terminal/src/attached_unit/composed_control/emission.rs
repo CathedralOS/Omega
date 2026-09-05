@@ -73,6 +73,7 @@ pub(super) fn emit_composed_unit_control(
         let ordinal = u32::try_from(binding_index)
             .map_err(|_| LoweringError::Unsupported("composed Unit binding index exceeds u32"))?;
         if binding.statement_ordinal != ordinal
+            || binding.destination != psi_checked_trees::CheckedScalarBindingDestination::Immutable
             || binding.value != CheckedScalarBindingValue::Expression
         {
             return unsupported("composed Unit binding order drifted after admission");

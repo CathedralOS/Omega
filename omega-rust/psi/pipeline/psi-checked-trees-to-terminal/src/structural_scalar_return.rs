@@ -475,6 +475,7 @@ pub(super) fn lower_structural_scalar_return_machine_in_namespace(
             LoweringError::Unsupported("structural scalar return binding index exceeds u32")
         })?;
         if binding.statement_ordinal != statement_ordinal
+            || binding.destination != psi_checked_trees::CheckedScalarBindingDestination::Immutable
             || binding.value != CheckedScalarBindingValue::Expression
         {
             return unsupported(
@@ -514,6 +515,7 @@ pub(super) fn lower_structural_scalar_return_machine_in_namespace(
             LoweringError::Unsupported("structural scalar return binding index exceeds u32")
         })?;
         if binding.statement_ordinal != statement_ordinal
+            || binding.destination != psi_checked_trees::CheckedScalarBindingDestination::Immutable
             || binding.value != CheckedScalarBindingValue::Expression
         {
             return unsupported(

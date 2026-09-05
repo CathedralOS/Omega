@@ -2,6 +2,87 @@ use super::*;
 use psi_checked_trees::{CheckedScalarBindingValue, CheckedValueStatementRole};
 
 #[test]
+fn mutable_scalar_reads_require_consistent_exact_resolved_name_handles() {
+    use psi_checked_trees::{
+        CheckedBooleanExpression, CheckedOperatorFacts, CheckedScalarExpression,
+        CheckedScalarExpressionRole,
+    };
+    use psi_symbols::SymbolHandle;
+    use psi_typed_trees::{expression::ExpressionNode, types::PrimitiveType};
+
+    for (scalar_type, initial_value, primitive_type) in [
+        ("u8", "7", PrimitiveType::U8),
+        ("bool", "true", PrimitiveType::Bool),
+    ] {
+        let source = format!(
+            "machine value(input: {scalar_type}) -> {scalar_type} {{ let mut current: {scalar_type} = {initial_value}; current }}"
+        );
+        let program = typed_trees(&source);
+        let state = &program.machine_states(&program.machines()[0])[0];
+        let state_symbol = state.symbol;
+        let parameter = program.state_parameters(state)[0].symbol;
+        let [
+            StatementNode::LocalData(local),
+            StatementNode::Expression(returned),
+        ] = program.statement_table.statements(state.statement_nodes)
+        else {
+            panic!("one mutable declaration and its returned read")
+        };
+        let symbol = local.symbol;
+        let returned = *returned;
+        let expected = if primitive_type == PrimitiveType::Bool {
+            CheckedScalarExpression::Boolean(Box::new(CheckedBooleanExpression::StorageRead {
+                symbol,
+            }))
+        } else {
+            CheckedScalarExpression::StorageRead {
+                symbol,
+                primitive_type,
+            }
+        };
+        let plans = crate::values::build_checked_scalar_expression_plans(
+            &program,
+            &CheckedOperatorFacts::default(),
+            &[],
+        );
+        assert_eq!(
+            plans.expression_at(state_symbol, 1, CheckedScalarExpressionRole::Return),
+            Some(&expected)
+        );
+        let stale = SymbolHandle::from_parts(symbol.arena_index(), symbol.generation() + 1);
+        let missing = SymbolHandle::invalid();
+        for (target, head) in [
+            (stale, stale),
+            (stale, symbol),
+            (symbol, stale),
+            (parameter, symbol),
+            (symbol, parameter),
+            (missing, missing),
+            (missing, symbol),
+            (symbol, missing),
+        ] {
+            let mut changed = program.clone();
+            let ExpressionNode::Name(path) = changed.expression_table.expression_mut(returned)
+            else {
+                panic!("returned scalar has a resolved name")
+            };
+            path.symbol = target;
+            path.head_symbol = head;
+            let plans = crate::values::build_checked_scalar_expression_plans(
+                &changed,
+                &CheckedOperatorFacts::default(),
+                &[],
+            );
+            assert_eq!(
+                plans.expression_at(state_symbol, 1, CheckedScalarExpressionRole::Return),
+                None,
+                "{scalar_type}: target {target:?}, head {head:?} cannot recover storage from spelling"
+            );
+        }
+    }
+}
+
+#[test]
 fn scalar_return_custody_retains_filtered_parameters_and_dense_prior_locals() {
     use psi_checked_trees::{
         CheckedBooleanExpression, CheckedScalarExpression, CheckedScalarExpressionRole,

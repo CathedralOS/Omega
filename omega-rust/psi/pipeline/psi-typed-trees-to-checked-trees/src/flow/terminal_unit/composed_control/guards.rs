@@ -23,6 +23,7 @@ pub(super) fn exact_guard(
             [],
             [
                 CheckedScalarBinding {
+                    destination: psi_checked_trees::CheckedScalarBindingDestination::Immutable,
                     statement_ordinal: 0,
                     primitive_type: PrimitiveType::U64,
                     value: CheckedScalarBindingValue::Expression,

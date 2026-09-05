@@ -1050,6 +1050,9 @@ pub(super) fn lower_structural_crash_route_buckets(
 
         match expression {
             CheckedBooleanExpression::Constant(value) => Ok(ScalarTerm::boolean(*value)),
+            CheckedBooleanExpression::StorageRead { .. } => {
+                unsupported("crash predicate cannot reconstruct mutable storage")
+            }
             CheckedBooleanExpression::StructuralParameterField {
                 parameter_position,
                 path,
@@ -1136,6 +1139,7 @@ pub(super) fn lower_structural_crash_route_buckets(
                         || contains_structural_atomic_proposition(right)
                 }
                 CheckedBooleanExpression::Constant(_)
+                | CheckedBooleanExpression::StorageRead { .. }
                 | CheckedBooleanExpression::Parameter { .. }
                 | CheckedBooleanExpression::Local { .. }
                 | CheckedBooleanExpression::StructuralParameterField { .. }
@@ -1838,6 +1842,11 @@ fn checked_boolean_scalar_term(
 ) -> Result<ScalarTerm, LoweringError> {
     Ok(match expression {
         CheckedBooleanExpression::Constant(value) => ScalarTerm::boolean(*value),
+        CheckedBooleanExpression::StorageRead { .. } => {
+            return unsupported(
+                "crash predicate requires an established scalar value, not mutable storage",
+            );
+        }
         CheckedBooleanExpression::Parameter { position }
         | CheckedBooleanExpression::Local { position } => {
             let value = values.get(*position).ok_or(LoweringError::Unsupported(

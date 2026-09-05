@@ -93,23 +93,73 @@ fn build_machine_graph(
             let statements = program.statement_table.statements(state.statement_nodes);
             let binding_count = statements
                 .iter()
-                .take_while(|statement| matches!(statement, StatementNode::LocalData(_)))
+                .take_while(|statement| {
+                    matches!(
+                        statement,
+                        StatementNode::LocalData(_) | StatementNode::Assignment(_)
+                    )
+                })
                 .count();
             let bindings = statements[..binding_count]
                 .iter()
                 .enumerate()
                 .map(|(statement_index, statement)| {
-                    let StatementNode::LocalData(local) = statement else {
-                        unreachable!("binding prefix contains only local data")
-                    };
-                    if local.is_mutable || !local.initial_value.is_valid() {
-                        return None;
+                    use psi_checked_trees::CheckedScalarBindingDestination;
+                    match statement {
+                        StatementNode::LocalData(local) => {
+                            if !program
+                                .expression_table
+                                .expression_is_valid(local.initial_value)
+                            {
+                                return None;
+                            }
+                            let value = checked_binding_value(program, local.initial_value)?;
+                            if local.is_mutable && value != CheckedScalarBindingValue::Expression {
+                                return None;
+                            }
+                            Some(CheckedScalarBinding {
+                                statement_ordinal: u32::try_from(statement_index).ok()?,
+                                destination: if local.is_mutable {
+                                    CheckedScalarBindingDestination::StorageInitialize {
+                                        symbol: local.symbol,
+                                    }
+                                } else {
+                                    CheckedScalarBindingDestination::Immutable
+                                },
+                                primitive_type: program
+                                    .primitive_type_reference(local.type_reference)?,
+                                value,
+                            })
+                        }
+                        StatementNode::Assignment(assignment) => {
+                            let psi_typed_trees::expression::ExpressionNode::Name(name) =
+                                program.expression_table.expression(assignment.target)
+                            else {
+                                return None;
+                            };
+                            let local =
+                                statements[..statement_index].iter().find_map(|statement| {
+                                    match statement {
+                                        StatementNode::LocalData(local)
+                                            if local.symbol == name.symbol && local.is_mutable =>
+                                        {
+                                            Some(local)
+                                        }
+                                        _ => None,
+                                    }
+                                })?;
+                            Some(CheckedScalarBinding {
+                                statement_ordinal: u32::try_from(statement_index).ok()?,
+                                destination: CheckedScalarBindingDestination::StorageAssign {
+                                    symbol: local.symbol,
+                                },
+                                primitive_type: program
+                                    .primitive_type_reference(local.type_reference)?,
+                                value: CheckedScalarBindingValue::Expression,
+                            })
+                        }
+                        _ => None,
                     }
-                    Some(CheckedScalarBinding {
-                        statement_ordinal: u32::try_from(statement_index).ok()?,
-                        primitive_type: program.primitive_type_reference(local.type_reference)?,
-                        value: checked_binding_value(program, local.initial_value)?,
-                    })
                 })
                 .collect::<Option<Vec<_>>>()?;
             let terminator_ordinal = u32::try_from(binding_count).ok()?;

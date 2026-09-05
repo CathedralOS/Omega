@@ -120,6 +120,9 @@ pub struct CheckedScalarExpressionPlans {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CheckedScalarExpressionBindings {
+    /// Exact local or bare assignment destination; zero for a returned value,
+    /// argument, or projected store. This is separate from operand identities.
+    pub destination: SymbolHandle,
     pub state: SymbolHandle,
     pub statement_ordinal: u32,
     pub role: CheckedScalarExpressionRole,
@@ -132,6 +135,7 @@ pub struct CheckedScalarExpressionBindings {
 impl Default for CheckedScalarExpressionBindings {
     fn default() -> Self {
         Self {
+            destination: SymbolHandle::invalid(),
             state: SymbolHandle::invalid(),
             statement_ordinal: 0,
             role: CheckedScalarExpressionRole::Return,
@@ -205,6 +209,12 @@ pub enum CheckedScalarExpressionRole {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum CheckedScalarExpression {
+    /// Read the current value of exact local storage at this computation's
+    /// program point. Storage never occupies an immutable binding position.
+    StorageRead {
+        symbol: SymbolHandle,
+        primitive_type: psi_typed_trees::types::PrimitiveType,
+    },
     /// Dense position in the consuming plan's scalar parameter namespace. A
     /// mixed structural/scalar producer must separately retain the authored
     /// source-position partition.
@@ -212,7 +222,7 @@ pub enum CheckedScalarExpression {
         position: usize,
         primitive_type: psi_typed_trees::types::PrimitiveType,
     },
-    /// Dense position after scalar parameters and earlier primitive locals.
+    /// Dense position after scalar parameters and earlier immutable primitive locals.
     Local {
         position: usize,
         primitive_type: psi_typed_trees::types::PrimitiveType,
@@ -281,6 +291,9 @@ pub enum CheckedIntegerBinaryKind {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum CheckedBooleanExpression {
+    StorageRead {
+        symbol: SymbolHandle,
+    },
     Constant(bool),
     Parameter {
         position: usize,

@@ -345,7 +345,9 @@ fn substitute_checked_boolean_expression(
         // A callee contract is parameter-relative. A local can appear only
         // after composing a private body summary; it cannot be rebound by the
         // outer call and therefore deliberately loses portable structure.
-        CheckedBooleanExpression::Local { .. } => return None,
+        CheckedBooleanExpression::Local { .. } | CheckedBooleanExpression::StorageRead { .. } => {
+            return None;
+        }
         CheckedBooleanExpression::StructuralParameterField { .. }
         | CheckedBooleanExpression::IeeeFloatComparison { .. }
         | CheckedBooleanExpression::ByteSequenceEqual { .. }
@@ -392,6 +394,7 @@ fn substitute_checked_scalar_expression(
                 .then_some(substituted)?
         }
         CheckedScalarExpression::Local { .. }
+        | CheckedScalarExpression::StorageRead { .. }
         | CheckedScalarExpression::StructuralParameterField { .. } => return None,
         CheckedScalarExpression::IntegerLiteral { literal } => {
             CheckedScalarExpression::IntegerLiteral {

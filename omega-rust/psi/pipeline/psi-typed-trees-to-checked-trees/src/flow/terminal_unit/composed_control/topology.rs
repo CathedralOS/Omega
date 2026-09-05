@@ -108,6 +108,7 @@ pub(super) fn admit<'a>(
                 }
                 (
                     vec![CheckedScalarBinding {
+                        destination: psi_checked_trees::CheckedScalarBindingDestination::Immutable,
                         statement_ordinal: 0,
                         primitive_type,
                         value: CheckedScalarBindingValue::Expression,

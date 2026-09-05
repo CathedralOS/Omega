@@ -1,6 +1,7 @@
 use super::*;
 
 mod local_snapshots;
+mod storage_reads;
 mod storage_snapshots;
 
 fn check(source: &str, accepted: bool) {

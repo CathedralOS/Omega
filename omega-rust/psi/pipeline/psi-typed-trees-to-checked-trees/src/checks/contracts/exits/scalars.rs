@@ -173,17 +173,23 @@ impl ExitScalars<'_, '_> {
             return None;
         }
         let symbols = plans.binding_symbols.span_or_empty(binding.symbols);
-        evaluate_checked_scalar(&plan.expression, &mut |position| {
-            let place = canonical_place_from_symbol(*symbols.get(position)?)?;
-            scalar_value_at_place(
-                self.program,
-                &self.facts.semantic,
-                self.contexts
-                    .iter()
-                    .map(|context| self.facts.semantic.contexts.get(*context)),
-                &place,
-            )
-        })
+        evaluate_checked_scalar(
+            &plan.expression,
+            &mut crate::values::BoundScalarValues {
+                symbols,
+                value_at_symbol: |symbol| {
+                    let place = canonical_place_from_symbol(symbol)?;
+                    scalar_value_at_place(
+                        self.program,
+                        &self.facts.semantic,
+                        self.contexts
+                            .iter()
+                            .map(|context| self.facts.semantic.contexts.get(*context)),
+                        &place,
+                    )
+                },
+            },
+        )
     }
 }
 
