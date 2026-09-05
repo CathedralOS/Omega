@@ -1932,7 +1932,7 @@ fn contextual_statement_member_target(
                     member.receiver,
                 )
                 .or_else(|| {
-                    captured_entry_parameter_type_reference(program, state.symbol, member.receiver)
+                    captured_entry_binding_type_reference(program, state.symbol, member.receiver)
                 })?;
                 let target = member_symbol_from_type_reference(
                     program,
@@ -1957,7 +1957,7 @@ fn contextual_statement_member_target(
     resolved
 }
 
-fn captured_entry_parameter_type_reference(
+fn captured_entry_binding_type_reference(
     program: &TypedTrees,
     state_symbol: SymbolHandle,
     expression: psi_typed_trees::expression::ExpressionHandle,
@@ -1974,7 +1974,10 @@ fn captured_entry_parameter_type_reference(
     // Nested states capture the callable entry telescope lexically without
     // copying its parameters into each state's local telescope. Name checking
     // has already established an unambiguous machine-local binding; recover
-    // that binding's authored type from the containing entry state.
+    // that binding's authored type from the containing entry state. The entry
+    // block's own locals are captured the same way, so both rosters answer
+    // here; searching only the parameters left every member access on a
+    // captured local with no receiver type at all.
     program.machines().iter().find_map(|machine| {
         program
             .machine_states(machine)
@@ -1987,9 +1990,29 @@ fn captured_entry_parameter_type_reference(
                     .state_parameters(entry)
                     .iter()
                     .find(|parameter| parameter.name == *name)
+                    .map(|parameter| parameter.type_reference)
+                    .or_else(|| entry_local_data_type_reference(program, entry, name))
             })
-            .map(|parameter| parameter.type_reference)
     })
+}
+
+fn entry_local_data_type_reference(
+    program: &TypedTrees,
+    entry: &psi_typed_trees::state::State,
+    name: &psi_typed_trees::name::Identifier,
+) -> Option<psi_typed_trees::types::TypeReferenceHandle> {
+    program
+        .statement_table
+        .statements(entry.statement_nodes)
+        .iter()
+        .find_map(|statement| match statement {
+            psi_typed_trees::statement::StatementNode::LocalData(local_data)
+                if local_data.name == *name =>
+            {
+                Some(local_data.type_reference)
+            }
+            _ => None,
+        })
 }
 
 fn member_symbol_from_type_reference(
@@ -2107,9 +2130,7 @@ fn expression_is_contextual_statement_primitive(
                     statement_index,
                     operand,
                 )
-                .or_else(|| {
-                    captured_entry_parameter_type_reference(program, state.symbol, operand)
-                }) else {
+                .or_else(|| captured_entry_binding_type_reference(program, state.symbol, operand)) else {
                     return false;
                 };
                 if program.primitive_type_reference(type_reference).is_none() {

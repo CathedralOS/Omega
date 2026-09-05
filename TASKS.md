@@ -69,24 +69,26 @@ the [Rust Compiler Completion Contract](wiki/releases/rust_compiler_completion_c
   construction of that closure belongs in `TASKS_BOOTSTRAP.md`.
 
 - **SAMPLE-CORPUS.** `mbx test -p omega-compiler --test samples_compile` is red.
-  `all_samples_reach_checked_trees` names six samples. Two are plain sample
-  defects: `cli/proofs/math_proofs` cannot discharge the `u64` exact-arithmetic
-  obligation in `multiply_distributes`, and `cli/proofs/structural_proofs` calls
-  the resultless library machine `add_zero_right` as a value. Three predate a
-  stricter checking rule and need their authored source brought up to it:
-  `cli/systems/account_ledger` weakens a `Wrapping` domain where an explicit `as`
-  is now required, `cli/simulation/game_of_life` relies on a target `in Wrapping`
-  to re-domain a value expression that decision 17 now leaves operand-driven, and
-  `cli/games/dungeon_crawler_cli` mutates a `[u8; N] in Utf8` line buffer and
-  then passes it where that domain must still hold. The sixth,
-  `cli/systems/wire_protocol`, reports `authored MemberAccess declaration
-  selection occurrence 33 remained unresolved after successful checking
-  (CheckedMember)` for the nested access `decoded.header.room_id`, which is a
-  `psi-typed-trees-to-checked-trees` invariant failure rather than a sample
-  defect.
+  Two `all_samples_reach_checked_trees` failures are one compiler defect:
+  `psi-typed-trees-to-checked-trees` leaves an authored selection late-bound and
+  its post-check completeness scan then rejects a program that checked cleanly.
+  `cli/systems/wire_protocol` needs member access whose receiver is itself a
+  member access on a captured entry-block local (`decoded.header.room_id`);
+  `authored_selections.rs` recovers a captured local's own type but not the type
+  of one of its fields. `cli/proofs/math_proofs` needs a declaration selection
+  for the compiler-installed proof term `Bag(...)`, whose Call occurrence is
+  never recorded; the sample's own comment already calls `Bag` lowering future
+  work.
 
-  `samples_with_documented_exit_run_correctly` is blocked for every
-  `cli/text/*` sample, every `stdin_*` sample, and `gui/window_demo` by one
+  Three samples predate stricter checking rules and need their authored source
+  brought up to them: `cli/systems/account_ledger` weakens a `Wrapping` domain
+  where an explicit `as` is now required, `cli/simulation/game_of_life` relies on
+  a target `in Wrapping` to re-domain a value expression that decision 17 now
+  leaves operand-driven, and `cli/games/dungeon_crawler_cli` mutates a
+  `[u8; N] in Utf8` line buffer and then passes it where that domain must hold.
+
+  `samples_with_documented_exit_run_correctly` is blocked for every `cli/text/*`
+  sample, every `stdin_*` sample, and `gui/window_demo` by one
   `psi-checked-trees-to-terminal` fence in `src/attached_unit/call_closure.rs`:
   `attached Unit closure is missing a checked transitive machine plan`.
 

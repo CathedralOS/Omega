@@ -63,14 +63,16 @@ ensures
 // core/nat.omg carries add_zero_right (right identity, by induction on a)
 // and add_succ_law (the successor-shift law); this program CITES them.
 
-// A consumer that cites add_zero_right's proven `result == a` ensures --
-// its inductive body never finitely unfolds for a symbolic argument, so
-// citation is the only route. Lean analog: `exact Nat.add_zero a`.
+// A consumer that cites add_zero_right's proven law `add(a, Zero) == a` as a
+// bare statement, then returns the value that law names -- the theorem itself
+// is resultless. Its inductive body never finitely unfolds for a symbolic
+// argument, so citation is the only route. Lean analog: `exact Nat.add_zero a`.
 machine cite_right_identity(a: Nat) -> Nat
 ensures
     result == a
 {
-    transition { _ -> (add_zero_right(a)) }
+    add_zero_right(a);
+    transition { _ -> a }
 }
 
 // Proof machines emit no runtime code; the entrypoint is inert.
