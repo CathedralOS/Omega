@@ -28,7 +28,6 @@ for a crate, and a named internal calculation need not be a public stage.
 
 | Whole move | What must disappear or change |
 | --- | --- |
-| Dissolve `omega-optimization-pipeline` | Move sequencing to compiler/native coordination, transformations to their actual stages, and object/callable/image work to backend owners. Delete the umbrella crate and its re-export surface. |
 | Dissolve `omega-optimization-policy` and `omega-optimization-validation` | Put build choices in orchestration, durable vocabulary in representations, reusable validity in semantics, and rule-local checks beside the rule. Delete the catch-all crates. |
 | Consolidate allocation and frame substeps | Home callee-save requirements/storage, spill constraints, frame requirements/layout and protocol calculations in coherent allocation/frame owners. Remove crate boundaries that merely expose private calculations; retain independent checks. |
 | Remove optimization-history-shaped stages | Replace `omega-optimization-run-to-abstract-operations` with the actual current-data transform contract. Downstream compilation must not require an optimization run as its program representation. |

@@ -22,6 +22,8 @@ use psi_terminal::TerminalPsiIdentity;
 use sha2::{Digest, Sha256};
 
 mod boundary_applications;
+mod callable_entry;
+pub use callable_entry::*;
 mod mixed_structural_scalar;
 mod physical;
 

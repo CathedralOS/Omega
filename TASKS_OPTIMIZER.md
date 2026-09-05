@@ -130,7 +130,7 @@ needed for independent replay through publication.
   An authored empty machine selected for optimization resolves to
   `CanonicalFixedFrameBodyV1`, not the Unit baseline route, so
   `validate_unit_shape` in
-  `omega-optimization-pipeline/src/stages/realization/unit_function_relative_realization/source.rs`
+  `backend/omega-machine-emission/src/function_realization/unit/source.rs`
   rejects the selected plan an ordinary `machine Main::launch() {}` produces.
   The fixed-frame route takes the AAPCS64 leaf exemption
   (`ReturnAddressFrameCustody::LiveLinkRegister`, zero frame), so its AArch64

@@ -1305,7 +1305,7 @@ impl BuildObservationSummary {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ComputedBuildConfig {
     pub config: BuildConfig,
-    pub optimization_report_request: omega_optimization_pipeline::OptimizationReportRequest,
+    pub optimization_report_request: omega_optimization_core::OptimizationReportRequest,
     pub evaluation_usage: Option<BuildEvaluationUsage>,
     pub observation_summary: Option<BuildObservationSummary>,
     pub selected_build_machine_symbol: Option<psi_symbols::SymbolHandle>,
@@ -3813,7 +3813,7 @@ pub fn execute_admitted_build_program(
         return Ok(ComputedBuildConfig {
             config: BuildConfig::default(),
             optimization_report_request:
-                omega_optimization_pipeline::OptimizationReportRequest::Suppressed,
+                omega_optimization_core::OptimizationReportRequest::Suppressed,
             evaluation_usage: None,
             observation_summary: None,
             selected_build_machine_symbol: None,
@@ -5263,7 +5263,7 @@ fn extract_build_config(
 ) -> Result<
     (
         BuildConfig,
-        omega_optimization_pipeline::OptimizationReportRequest,
+        omega_optimization_core::OptimizationReportRequest,
     ),
     String,
 > {

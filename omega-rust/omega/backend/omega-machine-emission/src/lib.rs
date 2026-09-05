@@ -3,7 +3,12 @@
 //! Machine-code emission for the first source-independent terminal-Psi target
 //! operation slice.
 
+mod function_realization;
+pub use function_realization::*;
+mod fragment_emission;
+pub use fragment_emission::*;
 mod text_placement;
+pub use text_placement::custody::*;
 pub use text_placement::{
     StructuralFragmentPlacementInputs, TextPlacementError, TextPlacementInput,
     place_fragment_text_section, text_section_statistics, validate_fragment_text_section,

@@ -158,10 +158,10 @@ Omega/
 |       |   |-- [CRATE] omega-abstract-operations-to-target-operations/
 |       |   |-- [CRATE] omega-target-operations-to-{selected-instructions,assigned-target-operations}/
 |       |   |-- [CRATE] omega-terminal-psi-to-native-artifact/
-|       |   `-- optimization/
-|       |       |-- [CRATE] omega-{psi-optimizer,regalloc,machine-optimizer}/
-|       |       |-- [CRATE] omega-{optimization-policy,optimization-validation}/
-|       |       `-- [CRATE] omega-optimization-pipeline/
+|       |   |-- [CRATE] omega-abstract-operations-optimizer/
+|       |   |-- [CRATE] omega-selected-instructions-to-register-homes/
+|       |   |-- [CRATE] omega-post-allocation-machine-to-optimized-machine/
+|       |   `-- [CRATE] omega-{optimization-policy,optimization-validation}/
 |       |
 |       |-- backend/                                     # Target/runtime primitives and backend-owned artifacts.
 |       |   |-- [CRATE] omega-{layout,machine-emission}/

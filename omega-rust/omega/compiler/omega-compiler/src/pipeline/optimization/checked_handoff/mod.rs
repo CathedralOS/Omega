@@ -8,13 +8,13 @@
 pub(in crate::pipeline) struct CheckedOptimizationHandoff {
     selections: omega_optimization_core::OptimizationSelections,
     selection_identity: omega_optimization_core::OptimizationSelectionIdentity,
-    report: omega_optimization_pipeline::OptimizationReportRequest,
+    report: omega_optimization_core::OptimizationReportRequest,
 }
 
 impl CheckedOptimizationHandoff {
     pub(in crate::pipeline) fn retain(
         selections: omega_optimization_core::OptimizationSelections,
-        report: omega_optimization_pipeline::OptimizationReportRequest,
+        report: omega_optimization_core::OptimizationReportRequest,
     ) -> Self {
         let selection_identity = selections.identity();
         Self {
@@ -38,7 +38,7 @@ impl CheckedOptimizationHandoff {
 
     pub(in crate::pipeline) const fn report(
         &self,
-    ) -> omega_optimization_pipeline::OptimizationReportRequest {
+    ) -> omega_optimization_core::OptimizationReportRequest {
         self.report
     }
 }
@@ -52,7 +52,7 @@ mod tests {
         let selections = omega_optimization_core::OptimizationSelections::default();
         let handoff = CheckedOptimizationHandoff::retain(
             selections.clone(),
-            omega_optimization_pipeline::OptimizationReportRequest::Suppressed,
+            omega_optimization_core::OptimizationReportRequest::Suppressed,
         );
 
         assert!(handoff.selections().is_empty());
@@ -60,7 +60,7 @@ mod tests {
         assert_eq!(handoff.selection_identity(), selections.identity());
         assert_eq!(
             handoff.report(),
-            omega_optimization_pipeline::OptimizationReportRequest::Suppressed
+            omega_optimization_core::OptimizationReportRequest::Suppressed
         );
     }
 }

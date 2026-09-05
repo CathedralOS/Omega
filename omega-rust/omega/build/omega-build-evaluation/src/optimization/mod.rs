@@ -34,7 +34,7 @@ impl BuildOptimizationAdmission {
     ) -> Result<
         (
             OptimizationSelections,
-            omega_optimization_pipeline::OptimizationReportRequest,
+            omega_optimization_core::OptimizationReportRequest,
         ),
         String,
     > {

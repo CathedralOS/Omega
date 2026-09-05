@@ -30,40 +30,115 @@ fn backend_crates_do_not_depend_on_frontend_crates() {
 fn backend_crates_use_only_reviewed_physical_pipeline_dependencies() {
     let repo_root = repo_root();
     let backend_root = repo_root.join("omega-rust/omega/backend");
-    // Canonical layering.rs makes backend and pipeline peer physical roles.
-    // Exit admission moved into machine-emission (763249fa26); these exact
-    // physical inputs do not authorize a dependency on source lowering.
+    // Backend and pipeline are peer physical roles. Backend publication owns
+    // source-free Terminal admission and exact stage replay, not Omega frontend
+    // state. Bind every dependency to its actual owner; this is not a blanket
+    // allowance for backend crates to import arbitrary transforms.
     let mut expected = BTreeSet::from([
-        "omega-frame-layout-to-frame-protocol",
-        "omega-post-allocation-machine-to-frame-layout",
-        "omega-post-allocation-machine-to-optimized-machine",
-        "omega-post-allocation-machine-to-selected-form-encoding",
-        "omega-register-homes-to-post-allocation-machine",
-        "omega-selected-form-encoding-to-resolved-layout",
-        "omega-selected-instructions-to-register-homes",
+        (
+            "omega-machine-emission/Cargo.toml",
+            "omega-abstract-operations-to-target-operations",
+            "../../pipeline/omega-abstract-operations-to-target-operations",
+        ),
+        (
+            "omega-machine-emission/Cargo.toml",
+            "omega-psi-to-abstract-operations",
+            "../../pipeline/omega-psi-to-abstract-operations",
+        ),
+        (
+            "omega-machine-emission/Cargo.toml",
+            "omega-callee-saved-requirements-to-save-storage",
+            "../../pipeline/omega-callee-saved-requirements-to-save-storage",
+        ),
+        (
+            "omega-machine-emission/Cargo.toml",
+            "omega-optimization-validation",
+            "../../pipeline/omega-optimization-validation",
+        ),
+        (
+            "omega-machine-emission/Cargo.toml",
+            "omega-register-homes-to-callee-saved-requirements",
+            "../../pipeline/omega-register-homes-to-callee-saved-requirements",
+        ),
+        (
+            "omega-machine-emission/Cargo.toml",
+            "omega-target-to-register-environment",
+            "../../pipeline/omega-target-to-register-environment",
+        ),
+        (
+            "omega-machine-emission/Cargo.toml",
+            "omega-frame-layout-to-frame-protocol",
+            "../../pipeline/omega-frame-layout-to-frame-protocol",
+        ),
+        (
+            "omega-machine-emission/Cargo.toml",
+            "omega-post-allocation-machine-to-frame-layout",
+            "../../pipeline/omega-post-allocation-machine-to-frame-layout",
+        ),
+        (
+            "omega-machine-emission/Cargo.toml",
+            "omega-post-allocation-machine-to-optimized-machine",
+            "../../pipeline/omega-post-allocation-machine-to-optimized-machine",
+        ),
+        (
+            "omega-machine-emission/Cargo.toml",
+            "omega-post-allocation-machine-to-selected-form-encoding",
+            "../../pipeline/omega-post-allocation-machine-to-selected-form-encoding",
+        ),
+        (
+            "omega-machine-emission/Cargo.toml",
+            "omega-register-homes-to-post-allocation-machine",
+            "../../pipeline/omega-register-homes-to-post-allocation-machine",
+        ),
+        (
+            "omega-machine-emission/Cargo.toml",
+            "omega-selected-form-encoding-to-resolved-layout",
+            "../../pipeline/omega-selected-form-encoding-to-resolved-layout",
+        ),
+        (
+            "omega-machine-emission/Cargo.toml",
+            "omega-selected-instructions-to-register-homes",
+            "../../pipeline/omega-selected-instructions-to-register-homes",
+        ),
+        (
+            "object/omega-object-file/Cargo.toml",
+            "omega-psi-to-abstract-operations",
+            "../../../pipeline/omega-psi-to-abstract-operations",
+        ),
+        (
+            "artifacts/omega-native-artifact/Cargo.toml",
+            "omega-selected-instructions-to-register-homes",
+            "../../../pipeline/omega-selected-instructions-to-register-homes",
+        ),
     ]);
 
     for cargo_toml in cargo_tomls_under(&backend_root) {
         let contents = fs::read_to_string(&cargo_toml)
             .unwrap_or_else(|error| panic!("failed to read {}: {error}", cargo_toml.display()));
-
         for line in production_dependency_lines(&contents) {
             if !line.contains("/pipeline/") {
                 continue;
             }
             let dependency = line.split_once('=').expect("pipeline dependency").0.trim();
-            assert!(
-                cargo_toml == backend_root.join("omega-machine-emission/Cargo.toml")
-                    && line.contains(&format!("\"../../pipeline/{dependency}\""))
-                    && expected.remove(dependency),
-                "{} adds an unreviewed physical-pipeline dependency `{dependency}`",
-                cargo_toml.display(),
-            );
+            let allowance = expected
+                .iter()
+                .copied()
+                .find(|(owner, name, _)| {
+                    cargo_toml == backend_root.join(owner) && *name == dependency
+                })
+                .unwrap_or_else(|| {
+                    panic!(
+                        "{} adds an unreviewed physical-pipeline dependency `{dependency}`",
+                        cargo_toml.display(),
+                    )
+                });
+            assert!(line.contains(&format!("\"{}\"", allowance.2)));
+            assert!(expected.remove(&allowance));
         }
     }
     assert!(
         expected.is_empty(),
-        "reviewed emission inputs changed: {expected:?}"
+        "reviewed backend replay inputs changed: {expected:?}"
     );
 }
 
@@ -121,26 +196,6 @@ fn only_exact_target_closing_pipeline_crates_depend_on_final_machinery() {
         "backend/images/",
     ];
     let mut expected = BTreeSet::from([
-        (
-            "omega-optimization-pipeline",
-            "omega-isa-aarch64",
-            "backend/instruction_set_architectures/omega-isa-aarch64",
-        ),
-        (
-            "omega-optimization-pipeline",
-            "omega-isa-x86_64",
-            "backend/instruction_set_architectures/omega-isa-x86_64",
-        ),
-        (
-            "omega-optimization-pipeline",
-            "omega-object-file",
-            "backend/object/omega-object-file",
-        ),
-        (
-            "omega-optimization-pipeline",
-            "omega-machine-emission",
-            "backend/omega-machine-emission",
-        ),
         (
             "omega-terminal-psi-to-native-artifact",
             "omega-image-emission",

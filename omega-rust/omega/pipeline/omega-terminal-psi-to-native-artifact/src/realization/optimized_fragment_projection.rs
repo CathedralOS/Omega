@@ -11,7 +11,7 @@ use omega_machine_code::{
     FunctionAppliedFrameProtocol, FunctionFragmentEmissionPlan, MachineCodeFunction,
     MachineCodePlan, SemanticCodeAttribution, SemanticCodeSite,
 };
-use omega_optimization_pipeline::{
+use omega_machine_emission::{
     StagedFunctionFragmentFrameApplication, StagedOptimizedFunctionFragmentEmission,
     stage_function_fragment_frame_application, validate_optimized_function_fragment_emission,
 };
@@ -32,7 +32,7 @@ pub(super) struct OptimizedFragmentPublicationRequest<'request> {
 }
 
 pub(super) fn emit_return_only_optimized_fragments(
-    physical: omega_optimization_pipeline::StagedOptimizedVerifiedPhysicalPipeline,
+    physical: crate::StagedOptimizedVerifiedPhysicalPipeline,
     request: OptimizedFragmentPublicationRequest<'_>,
 ) -> Result<
     (
@@ -48,7 +48,7 @@ pub(super) fn emit_return_only_optimized_fragments(
         ));
     }
     let selected_lowering_completion = physical.selected_lowering_completion();
-    let emitted = omega_optimization_pipeline::stage_optimized_function_fragment_emission(
+    let emitted = omega_machine_emission::stage_optimized_function_fragment_emission(
         physical.into_function_fragment_emission_source(),
     )
     .map_err(|error| {
@@ -124,7 +124,7 @@ enum ProjectedFragments {
 impl ProjectedFragments {
     fn from_emission(
         emitted: StagedOptimizedFunctionFragmentEmission,
-    ) -> Result<Self, omega_optimization_pipeline::FunctionFragmentFrameApplicationError> {
+    ) -> Result<Self, omega_machine_emission::FunctionFragmentFrameApplicationError> {
         if emitted.source().frame_protocol().is_none() {
             return Ok(Self::Frameless(emitted));
         }
@@ -206,7 +206,9 @@ fn project_function(
     fragment: &omega_machine_code::FunctionFragment,
     return_bytes: &[u8],
     applied_frame: Option<&FunctionAppliedFrameProtocol>,
-    frame_layout: Option<&omega_optimization_pipeline::ValidatedTargetFrameLayout>,
+    frame_layout: Option<
+        &omega_post_allocation_machine_to_frame_layout::ValidatedTargetFrameLayout,
+    >,
 ) -> Result<MachineCodeFunction, &'static str> {
     let stack = unit_stack_evidence(fragment, return_bytes, applied_frame, frame_layout)?;
     // A framed function opens its block after the prologue and places the
@@ -431,9 +433,9 @@ mod tests {
                 &psi_proof_admission::AdmissionProfile::default(),
             )
             .expect("verified abstract input");
-            let abstract_program = omega_optimization_pipeline::optimize_verified_abstract_input(
+            let abstract_program = crate::optimize_verified_abstract_input(
                 input,
-                omega_optimization_pipeline::compiler_baseline_request_v1(
+                crate::compiler_baseline_request_v1(
                     &omega_optimization_core::OptimizationSelections::default(),
                 ),
             )
@@ -445,12 +447,12 @@ mod tests {
                     target,
                 )
                 .expect("independently validated target lowering");
-            let physical = omega_optimization_pipeline::stage_optimized_verified_physical_pipeline(
+            let physical = crate::stage_optimized_verified_physical_pipeline(
                 optimized_target,
                 post_terminal.selections(),
             )
             .expect("optimized physical pipeline");
-            let emitted = omega_optimization_pipeline::stage_optimized_function_fragment_emission(
+            let emitted = omega_machine_emission::stage_optimized_function_fragment_emission(
                 physical.into_function_fragment_emission_source(),
             )
             .expect("optimized function-fragment emission");

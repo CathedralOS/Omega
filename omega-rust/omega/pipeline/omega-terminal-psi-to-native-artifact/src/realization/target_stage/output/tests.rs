@@ -18,9 +18,9 @@ fn optimized_target(
         &AdmissionProfile::default(),
     )
     .expect("verified abstract input");
-    let abstract_program = omega_optimization_pipeline::optimize_verified_abstract_input(
+    let abstract_program = crate::optimize_verified_abstract_input(
         input,
-        omega_optimization_pipeline::compiler_baseline_request_v1(&selections),
+        crate::compiler_baseline_request_v1(&selections),
     )
     .expect("complete abstract optimization");
     omega_abstract_operations_to_target_operations::lower_validated_abstract_to_target_operations(

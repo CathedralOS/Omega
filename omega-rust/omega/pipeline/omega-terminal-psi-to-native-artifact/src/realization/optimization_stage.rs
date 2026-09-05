@@ -10,7 +10,8 @@ use psi_diagnostics::Diagnostic;
 /// Ranked evidence is not interchangeable with ordinary authority.
 #[derive(Debug)]
 pub(crate) struct NativeOptimizationStageResult {
-    pub(crate) program: omega_optimization_pipeline::ValidatedOptimizedAbstractPlan,
+    pub(crate) program:
+        omega_optimization_run_to_abstract_operations::ValidatedOptimizedAbstractPlan,
     pub(crate) authority: NativeRealizationAuthority,
 }
 
@@ -66,10 +67,12 @@ pub(crate) fn lower_realization_optimization_stage(
 fn run_abstract_optimization_stage(
     input: omega_psi_to_abstract_operations::VerifiedPsiOptimizationInput,
     request: &NativeRealizationCoreRequest<'_>,
-) -> Result<omega_optimization_pipeline::ValidatedOptimizedAbstractPlan, Vec<Diagnostic>> {
-    let optimization_request = omega_optimization_pipeline::compiler_baseline_request_v1(
-        request.optimization_selections.selections(),
-    );
-    omega_optimization_pipeline::optimize_verified_abstract_input(input, optimization_request)
+) -> Result<
+    omega_optimization_run_to_abstract_operations::ValidatedOptimizedAbstractPlan,
+    Vec<Diagnostic>,
+> {
+    let optimization_request =
+        crate::compiler_baseline_request_v1(request.optimization_selections.selections());
+    crate::optimize_verified_abstract_input(input, optimization_request)
         .map_err(|error| realization_error("canonical abstract optimization", error))
 }

@@ -8,7 +8,7 @@ use psi_diagnostics::Diagnostic;
 
 #[derive(Debug)]
 pub(crate) struct OptimizedNativePhysicalStage {
-    pub(crate) physical: omega_optimization_pipeline::StagedOptimizedVerifiedPhysicalPipeline,
+    pub(crate) physical: crate::StagedOptimizedVerifiedPhysicalPipeline,
     pub(crate) optimized_plan: omega_abstract_operations::AbstractOperationPlan,
     pub(crate) terminal: psi_terminal::TerminalPsiIdentity,
     pub(crate) validation: omega_optimization_core::OptimizedAbstractPlanProjectionIdentity,
@@ -45,7 +45,7 @@ pub(crate) fn lower_realization_physical_stage(
             let optimized_plan = optimized_target.optimized().plan().clone();
             let optimized_validation = optimized_target.optimized().validation();
             let has_provider_installation = optimized_target.provider_installation().is_some();
-            let physical = omega_optimization_pipeline::stage_optimized_verified_physical_pipeline(
+            let physical = crate::stage_optimized_verified_physical_pipeline(
                 *optimized_target,
                 request.optimization_selections,
             )

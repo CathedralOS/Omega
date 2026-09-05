@@ -27,10 +27,10 @@ pub(super) const PRODUCTION: SemanticLadder = SemanticLadder {
 pub(super) const COVERAGE: SemanticLadder = SemanticLadder {
     family: "fixed/precolored split requirement coverage",
     paths: &[
-        "omega-rust/omega/pipeline/omega-optimization-pipeline/src/tests/stages/allocation/register_allocation/fixed_precolored_split_requirements/mod.rs",
-        "omega-rust/omega/pipeline/omega-optimization-pipeline/src/tests/stages/allocation/register_allocation/fixed_precolored_split_requirements/fixture.rs",
-        "omega-rust/omega/pipeline/omega-optimization-pipeline/src/tests/stages/allocation/register_allocation/fixed_precolored_split_requirements/positive.rs",
-        "omega-rust/omega/pipeline/omega-optimization-pipeline/src/tests/stages/allocation/register_allocation/fixed_precolored_split_requirements/corruption.rs",
-        "omega-rust/omega/pipeline/omega-optimization-pipeline/src/tests/stages/allocation/register_allocation/fixed_precolored_split_requirements/budget.rs",
+        "tests/native-differential/tests/pipeline_ownership/stages/allocation/register_allocation/fixed_precolored_split_requirements/mod.rs",
+        "tests/native-differential/tests/pipeline_ownership/stages/allocation/register_allocation/fixed_precolored_split_requirements/fixture.rs",
+        "tests/native-differential/tests/pipeline_ownership/stages/allocation/register_allocation/fixed_precolored_split_requirements/positive.rs",
+        "tests/native-differential/tests/pipeline_ownership/stages/allocation/register_allocation/fixed_precolored_split_requirements/corruption.rs",
+        "tests/native-differential/tests/pipeline_ownership/stages/allocation/register_allocation/fixed_precolored_split_requirements/budget.rs",
     ],
 };
