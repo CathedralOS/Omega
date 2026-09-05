@@ -73,6 +73,19 @@
           (name_child (second node) (source_read index))
           end (+ index 1))))))
 
+; Fixed compiler-owned names use the same byte edges and terminal option as
+; source spans. The explicit length preserves exact-name, not prefix, lookup.
+(def name_trie_find_packed_option
+  ((trie Int) (remaining Int) (packed Int)) Int
+  (if (eq (first trie) 0)
+    (pair 0 0)
+    (let node Int (second trie)
+      (if (eq remaining 0)
+        (first node)
+        (name_trie_find_packed_option
+          (name_child (second node) (% packed 256))
+          (- remaining 1) (/ packed 256))))))
+
 (def name_trie_find ((trie Int) (end Int) (index Int)) Int
   (let result Int (name_trie_find_option trie end index)
     (if (first result) (second result) 0)))

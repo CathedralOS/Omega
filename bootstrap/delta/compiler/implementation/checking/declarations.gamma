@@ -98,8 +98,9 @@
                 (fail))
               (fail))))))))
 
-; Raw function rows are (pair declaration-owner name-end), not typed metadata.
-; Consume that exact custody before replacing them with resolved signatures.
+; Raw rows retain (pair declaration-owner (pair name-end after-form)).
+; Validate declaration custody, then return the census boundary beside the
+; resolved signature; declaration resolution never rescans a function body.
 (def resolve_collected_function ((form Int) (globals Int)) Int
   (let name Int (skip (token_end (form_head form)))
     (let name_end Int (token_end name)
@@ -107,9 +108,11 @@
         (if (first found)
           (let raw Int (second found)
             (if (eq (first raw) (+ form 1))
-              (if (eq (second raw) name_end)
-                (catalog_function_signature
-                  (- (first raw) 1) (second raw) (global_types globals))
+              (if (eq (first (second raw)) name_end)
+                (pair (second (second raw))
+                  (catalog_function_signature
+                    (- (first raw) 1) (first (second raw))
+                    (global_types globals)))
                 (fail))
               (fail)))
           (fail))))))
@@ -130,8 +133,10 @@
             (if (token_def head head_end)
               (let name Int (skip head_end)
                 (let name_end Int (token_end name)
-                  (let metadata Int (resolve_collected_function form collected_globals)
+                  (let resolved Int
+                    (resolve_collected_function form collected_globals)
                     (resolve_collected_declarations
-                      (skip_expression form) collected_globals
-                      (name_trie_insert resolved_function_rows name_end name metadata)))))
+                      (first resolved) collected_globals
+                      (name_trie_insert resolved_function_rows name_end name
+                        (second resolved))))))
               (fail))))))))
