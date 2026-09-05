@@ -142,6 +142,32 @@ calling context in the baseline neither changes that permission key nor grants
 target-entry ABI authority. No policy component replaces native permission
 containment or proves that a supplied permission was accepted or exercised.
 
+`project_checked_callable_policy` captures boundary, public, selected-build,
+and private admission-claim surfaces for one exact checked root and target.
+The `OMEGA-CALLABLE-POLICY` version-1 component retains full static and lifetime
+signatures, ordered contracts, exact overloaded callable identities, and actual
+conformance lifetime arguments as well as their equality partition. Published
+reach, direct-invocation, suspension, blocking, and termination promises remain
+distinct from retained checked summaries. Public suspension and blocking
+summaries conservatively use their published ceilings, not body-only effects.
+Crash guards, including nested static
+machine guards, retain typed expressions and exact foreign declaration owners.
+The checker's inferred body-summary owner separately supplies conservative crash
+causes when its call closure is complete; an unavailable summary is explicit,
+not an empty cause set. Guard refinements and private proof sites are omitted.
+Progress premises retain entry-relative subjects and establishment requirements.
+Mutation retains the checked entry write frame and its completeness, not private
+state coordinates. Caller-local capability flows and the exact reachable-machine
+flow union are separate; private helper names and unreachable helper authority
+do not enter either policy identity.
+
+Capture rejoins the retained checked owners and authored declarations before
+normalization. Recovery restores typed records with one shared budget for nested
+signatures and expressions, checks scope and structural associations, and
+requires exact canonical re-encoding. Neither operation recovers proof or crash
+derivation tables, grants authority, or certifies an assumption. The existing
+review encoding is unchanged; complete baseline composition remains separate.
+
 The supported result lanes do not pretend to prove a bodyless accepted claim,
 grant dangerous authority, validate externally supplied executable code, or
 exercise or admit a terminal-authority permission. `ledger/results.rs` rejoins

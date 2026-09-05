@@ -27,6 +27,37 @@ pub(crate) fn project_machine_operational_source_locations(
         PackageReviewSourceLocationRole::Blocking,
     )?);
 
+    validate_machine_operational_interfaces(compilation, machine)?;
+    Ok(locations)
+}
+
+pub(crate) fn validate_machine_operational(
+    compilation: &CheckedCompilation,
+    machine: &psi_typed_trees::machine::Machine,
+) -> Result<(), Vec<Diagnostic>> {
+    validate_operational_keyword_custody(
+        compilation,
+        machine.name.as_str(),
+        "suspends",
+        machine.suspends,
+        &machine.suspends_keyword_source_spans,
+        PackageReviewSourceLocationRole::Suspension,
+    )?;
+    validate_operational_keyword_custody(
+        compilation,
+        machine.name.as_str(),
+        "blocks",
+        machine.blocks,
+        &machine.blocks_keyword_source_spans,
+        PackageReviewSourceLocationRole::Blocking,
+    )?;
+    validate_machine_operational_interfaces(compilation, machine)
+}
+
+fn validate_machine_operational_interfaces(
+    compilation: &CheckedCompilation,
+    machine: &psi_typed_trees::machine::Machine,
+) -> Result<(), Vec<Diagnostic>> {
     let suspension = compilation
         .facts
         .suspensions
@@ -65,7 +96,7 @@ pub(crate) fn project_machine_operational_source_locations(
             machine.name
         ))]);
     }
-    Ok(locations)
+    Ok(())
 }
 
 pub(crate) fn project_signature_operational_source_locations(
@@ -120,17 +151,36 @@ fn project_operational_keyword_locations(
     source_spans: &[psi_source::SourceSpan],
     role: PackageReviewSourceLocationRole,
 ) -> Result<Vec<ProjectedNestedSourceLocation>, Vec<Diagnostic>> {
+    validate_operational_keyword_custody(
+        compilation,
+        owner_name,
+        clause,
+        authored,
+        source_spans,
+        role,
+    )?;
+    source_spans
+        .iter()
+        .copied()
+        .map(|source_span| Ok(ProjectedNestedSourceLocation { source_span, role }))
+        .collect()
+}
+
+fn validate_operational_keyword_custody(
+    compilation: &CheckedCompilation,
+    owner_name: &str,
+    clause: &str,
+    authored: bool,
+    source_spans: &[psi_source::SourceSpan],
+    role: PackageReviewSourceLocationRole,
+) -> Result<(), Vec<Diagnostic>> {
     if authored == source_spans.is_empty() {
         return Err(vec![Diagnostic::error(format!(
             "reviewed callable `{owner_name}` has contradictory authored `{clause}` source custody"
         ))]);
     }
-    source_spans
-        .iter()
-        .copied()
-        .map(|source_span| {
-            canonical_source_span_location(compilation, source_span, role)?;
-            Ok(ProjectedNestedSourceLocation { source_span, role })
-        })
-        .collect()
+    for source_span in source_spans {
+        canonical_source_span_location(compilation, *source_span, role)?;
+    }
+    Ok(())
 }

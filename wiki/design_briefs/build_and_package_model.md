@@ -2988,6 +2988,22 @@ The existing accepted-service schema checks run before receipt-free projection,
 including UEFI's separation of semantic permission identity from target-owned
 calling authority. Full checked calling context is reviewable baseline meaning,
 not a new permission key or a replacement for receiving-policy containment.
+Callable policy retains complete static/lifetime signatures and exact overloaded
+identities for public, boundary, selected-build, and private admission-claim
+surfaces. Actual conformance lifetime arguments remain separate from their
+equality partition. Published reach, invocation and operational promises remain
+distinct from retained checked summaries; public suspension and blocking
+summaries conservatively use their published ceilings. Typed crash guards retain foreign owners,
+including within nested static signatures. Progress premises retain their
+entry-relative subject, projections and establishment requirements. Inferred
+crash causes come from the checker's conservative body-summary owner; unavailable
+closure summaries remain explicitly unknown rather than becoming crash-free.
+The exact entry mutation frame retains completeness without private state coordinates.
+Caller-local flow facts and the reachable-machine flow union remain separate;
+the latter retains private helper Uses/Stores without changing the compiler's
+caller-flow propagation rules or including unreachable helpers. Canonical
+recovery retains these meanings under the shared structural resource budget,
+not compiler proof or crash-derivation tables.
 Complete baseline composition remains separate.
 These components alone are not a package baseline or an acceptance decision.
 

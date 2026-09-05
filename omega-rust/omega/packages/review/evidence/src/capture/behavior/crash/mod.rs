@@ -15,7 +15,7 @@ use crate::record::{
 use omega_compiler::CheckedCompilation;
 use psi_diagnostics::Diagnostic;
 
-use expressions::project_boolean_expression;
+pub(super) use expressions::project_boolean_expression;
 use permissions::{project_crash_predicate, project_crash_predicates, project_permission_claim};
 
 pub(crate) fn project_crash(

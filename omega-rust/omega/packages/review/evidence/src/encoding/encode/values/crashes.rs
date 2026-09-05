@@ -126,6 +126,13 @@ pub(crate) fn encode_boolean_expression(
     encoder: &mut Encoder,
     expression: &PackageReviewBooleanExpression,
 ) -> Result<(), PackageReviewEncodingError> {
+    encoder.nested(|encoder| encode_boolean_node(encoder, expression))
+}
+
+fn encode_boolean_node(
+    encoder: &mut Encoder,
+    expression: &PackageReviewBooleanExpression,
+) -> Result<(), PackageReviewEncodingError> {
     match expression {
         PackageReviewBooleanExpression::Constant(value) => {
             encoder.byte(0);
@@ -208,6 +215,13 @@ pub(crate) fn encode_boolean_expression(
 }
 
 pub(crate) fn encode_scalar_expression(
+    encoder: &mut Encoder,
+    expression: &PackageReviewScalarExpression,
+) -> Result<(), PackageReviewEncodingError> {
+    encoder.nested(|encoder| encode_scalar_node(encoder, expression))
+}
+
+fn encode_scalar_node(
     encoder: &mut Encoder,
     expression: &PackageReviewScalarExpression,
 ) -> Result<(), PackageReviewEncodingError> {

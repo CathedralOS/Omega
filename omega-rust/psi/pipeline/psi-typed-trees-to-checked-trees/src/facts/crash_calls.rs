@@ -774,6 +774,66 @@ pub(super) fn attach_checked_crash_calls(
     }
 }
 
+pub(crate) fn infer_checked_machine_crash_causes(
+    program: &TypedTrees,
+    facts: &psi_checked_trees::CheckFacts,
+    machine: SymbolHandle,
+) -> Option<Vec<psi_checked_trees::CrashCause>> {
+    let mut matching = infer_checked_crash_causes(program, facts)
+        .into_iter()
+        .filter(|(candidate, _)| *candidate == machine);
+    let (_, causes) = matching.next()?;
+    matching.next().is_none().then_some(causes)
+}
+
+pub(crate) fn infer_checked_crash_causes(
+    program: &TypedTrees,
+    facts: &psi_checked_trees::CheckFacts,
+) -> Vec<(SymbolHandle, Vec<psi_checked_trees::CrashCause>)> {
+    let content_conservation = psi_validation::build_content_conservation_plans(program);
+    // Validation-only exact-cast facts are not retained in CheckedTrees. They
+    // feed only CallArgumentSubstitution.scalar, never its identity. Summary
+    // guard selection, false-guard removal, equality and fixed-point closure
+    // use the identity alone; dropping scalar annotations cannot remove a
+    // cause. This query does not publish the discarded guard annotations.
+    let summaries = infer_private_body_summaries(
+        program,
+        &facts.operators,
+        &[],
+        &facts.flow,
+        &content_conservation,
+        &facts.contract_plans.crash_capsules,
+        &facts.contract_plans.machines,
+    );
+    summaries
+        .into_iter()
+        .filter(|(machine, _)| {
+            program
+                .machines()
+                .iter()
+                .filter(|candidate| candidate.symbol == *machine)
+                .count()
+                == 1
+                && facts
+                    .contract_plans
+                    .machines
+                    .iter()
+                    .filter(|candidate| candidate.machine == *machine)
+                    .count()
+                    == 1
+        })
+        .map(|(machine, buckets)| {
+            let mut causes = buckets
+                .into_iter()
+                .map(|bucket| bucket.cause)
+                .collect::<Vec<_>>();
+            causes.sort_unstable();
+            causes.dedup();
+            (machine, causes)
+        })
+        .collect()
+}
+
 fn infer_private_body_summaries(
     program: &TypedTrees,
     operators: &psi_checked_trees::CheckedOperatorFacts,
@@ -1272,6 +1332,69 @@ mod tests {
             panic!("equivalent predicates should merge into one guarded route")
         };
         assert_eq!(predicate.scalar, Some(scalar));
+    }
+
+    #[test]
+    fn cause_only_summary_does_not_depend_on_scalar_annotations() {
+        use psi_checked_trees::{CheckedBooleanExpression, CheckedScalarExpression, CrashCause};
+
+        for replacement in [
+            CrashPredicateExpression::Boolean(false),
+            CrashPredicateExpression::Boolean(true),
+            CrashPredicateExpression::Parameter(1),
+        ] {
+            let without_scalar = SummaryCrashBucket {
+                cause: CrashCause::Trap,
+                alternative_guards: vec![predicate(CrashPredicateExpression::Parameter(0))],
+            };
+            let with_scalar = SummaryCrashBucket {
+                cause: CrashCause::Trap,
+                alternative_guards: vec![SummaryCrashRouteGuard::Predicate(
+                    SummaryCrashPredicate {
+                        identity: CrashPredicateExpression::Parameter(0),
+                        scalar: Some(CheckedBooleanExpression::Parameter { position: 0 }),
+                    },
+                )],
+            };
+            let scalar = match &replacement {
+                CrashPredicateExpression::Boolean(value) => {
+                    CheckedBooleanExpression::Constant(*value)
+                }
+                CrashPredicateExpression::Parameter(position) => {
+                    CheckedBooleanExpression::Parameter {
+                        position: *position as usize,
+                    }
+                }
+                _ => unreachable!(),
+            };
+            let mut substitution = identity_substitution(vec![Some(replacement)]);
+            let without = normalize_summary_buckets(vec![without_scalar.substitute(&substitution)]);
+            substitution.scalar = vec![Some(CheckedScalarExpression::Boolean(Box::new(scalar)))];
+            let with = normalize_summary_buckets(vec![with_scalar.substitute(&substitution)]);
+            assert_eq!(
+                without, with,
+                "scalar annotations do not select or erase causes"
+            );
+        }
+    }
+
+    #[test]
+    fn cause_query_missing_machine_is_unknown_not_complete_empty() {
+        assert!(
+            infer_checked_crash_causes(
+                &TypedTrees::default(),
+                &psi_checked_trees::CheckFacts::default(),
+            )
+            .is_empty()
+        );
+        assert_eq!(
+            infer_checked_machine_crash_causes(
+                &TypedTrees::default(),
+                &psi_checked_trees::CheckFacts::default(),
+                SymbolHandle::from_arena_index(1),
+            ),
+            None,
+        );
     }
 
     #[test]

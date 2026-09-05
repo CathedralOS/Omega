@@ -1,3 +1,5 @@
+use super::policy_crashes;
+
 use super::super::super::behavior::{
     project_crash_routes, project_machine_parameter_termination, project_service_row,
     project_synchronous_invocations,
@@ -18,6 +20,7 @@ use psi_symbols::SymbolHandle;
 #[derive(Clone, Copy)]
 struct Projection<'a> {
     public_nominals: bool,
+    policy_crash_guards: bool,
     substitutions: &'a [(SymbolHandle, psi_typed_trees::types::TypeReferenceHandle)],
     checked_source: Option<&'a CheckedCompilation>,
     contract_scopes: &'a [CallingContractScope],
@@ -33,6 +36,7 @@ pub(crate) struct CallingContractScope {
         psi_typed_trees::name::Identifier,
     )>,
     pub parameters: Vec<psi_typed_trees::signature::StateParameter>,
+    pub original_signature: psi_typed_trees::signature::StateSignature,
 }
 
 impl Projection<'_> {
@@ -70,6 +74,7 @@ pub(crate) fn project_calling_type_parameters(
         0,
         Projection {
             public_nominals: false,
+            policy_crash_guards: false,
             substitutions,
             checked_source: Some(checked_source),
             contract_scopes,
@@ -96,6 +101,36 @@ pub(crate) fn project_type_parameters(
     )
 }
 
+/// Policy keeps exact authored nested crash expressions; existing review and
+/// calling encodings retain their established capsule projection unchanged.
+pub(crate) fn project_callable_policy_type_parameters(
+    compilation: &CheckedCompilation,
+    checked_source: &CheckedCompilation,
+    parameters: &[psi_typed_trees::data::TypeParameter],
+    declaration_path: &str,
+    lifetime_binders: &[psi_typed_trees::name::Identifier],
+    contract_scopes: &[CallingContractScope],
+    public_nominals: bool,
+) -> Result<(Vec<(SymbolHandle, String)>, Vec<PackageReviewTypeParameter>), Vec<Diagnostic>> {
+    project_type_parameters_inner(
+        compilation,
+        parameters,
+        "callable policy",
+        declaration_path,
+        &[],
+        0,
+        lifetime_binders,
+        0,
+        Projection {
+            public_nominals,
+            policy_crash_guards: true,
+            substitutions: &[],
+            checked_source: Some(checked_source),
+            contract_scopes,
+        },
+    )
+}
+
 pub(crate) fn project_type_parameters_after(
     compilation: &CheckedCompilation,
     parameters: &[psi_typed_trees::data::TypeParameter],
@@ -117,6 +152,7 @@ pub(crate) fn project_type_parameters_after(
         depth,
         Projection {
             public_nominals: true,
+            policy_crash_guards: false,
             substitutions: &[],
             checked_source: None,
             contract_scopes: &[],
@@ -237,6 +273,7 @@ pub(crate) fn project_machine_parameter_contract(
         depth,
         Projection {
             public_nominals: true,
+            policy_crash_guards: false,
             substitutions: &[],
             checked_source: None,
             contract_scopes: &[],
@@ -307,8 +344,14 @@ fn project_machine_parameter_contract_inner(
                 domain_symbol: None,
                 data_symbol: None,
                 lifetime_binders: &lifetime_binders,
-                lifetime_substitutions: scope.map_or(&[], |scope| scope.lifetime_substitutions.as_slice()),
-                selection_exposure: psi_language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure::PublicInterface,
+                lifetime_substitutions: scope
+                    .map_or(&[], |scope| scope.lifetime_substitutions.as_slice()),
+                selection_exposure: if projection.policy_crash_guards && !projection.public_nominals
+                {
+                    psi_language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure::PrivateImplementation
+                } else {
+                    psi_language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure::PublicInterface
+                },
             };
             let contracts = project_contracts(
                 checked_source,
@@ -316,13 +359,23 @@ fn project_machine_parameter_contract_inner(
                 &context,
                 &binders,
             )?;
-            let published_crash = project_signature_crash_routes(
-                compilation,
-                parameter_symbol,
-                signature.symbol,
-                "public static-machine parameter",
-                declaration_path,
-            )?;
+            let published_crash = if projection.policy_crash_guards {
+                policy_crashes::project(
+                    checked_source,
+                    parameter_symbol,
+                    scope.map_or(signature, |scope| &scope.original_signature),
+                    &context,
+                    &binders,
+                )?
+            } else {
+                project_signature_crash_routes(
+                    compilation,
+                    parameter_symbol,
+                    signature.symbol,
+                    "public static-machine parameter",
+                    declaration_path,
+                )?
+            };
             Ok(PackageReviewMachineParameterContract::Structural(
                 PackageReviewMachineParameterSignature {
                     lifetime_parameter_count: signature.lifetime_parameters.len(),

@@ -38,6 +38,7 @@ pub(crate) fn instantiate(
             TypeParameterKind::Machine {
                 contract: MachineParameterContract::Structural(signature),
             } => {
+                let original_signature = signature.clone();
                 // A nested declaration introduces new binders even when its
                 // authored names shadow an outer telescope. Give its clone
                 // distinct names before the shared ordinal projector appends
@@ -72,6 +73,7 @@ pub(crate) fn instantiate(
                     signature_symbol: signature.symbol,
                     lifetime_substitutions: nested_lifetimes.iter().rev().cloned().collect(),
                     parameters: compilation.state_signature_parameters(signature).to_vec(),
+                    original_signature,
                 });
                 let mut parameters = compilation
                     .state_signature_type_parameters(signature)

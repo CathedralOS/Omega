@@ -2,9 +2,14 @@
 
 mod boundary_operators;
 mod boundary_requirements;
+mod conformance_order;
 mod conformances;
 mod external_supply;
+mod policy;
+mod policy_parameters;
 mod review;
+mod surface;
+pub use policy::project_checked_callable_policy;
 mod signatures;
 
 pub(super) use review::{

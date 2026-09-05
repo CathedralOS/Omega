@@ -41,7 +41,7 @@ pub(super) fn caller_binder_identity(
     Ok(nominal)
 }
 
-pub(super) fn callable_identity(
+pub(crate) fn callable_identity(
     compilation: &CheckedCompilation,
     symbol: SymbolHandle,
 ) -> Result<PackageReviewNominalIdentity, Vec<Diagnostic>> {

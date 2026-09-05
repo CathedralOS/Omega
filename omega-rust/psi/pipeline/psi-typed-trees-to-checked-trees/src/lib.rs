@@ -208,6 +208,49 @@ pub fn derive_checked_operator_crash_contracts(
     operators::derive_checked_operator_crash_contracts(program)
 }
 
+/// Rederive canonical authored crash buckets for an exact typed machine.
+/// Scalar lowering metadata and private sites are deliberately outside this
+/// read-only package-policy join; canonical predicate equality is unchanged.
+pub fn derive_authored_machine_crash_buckets(
+    program: &TypedTrees,
+    machine: &psi_typed_trees::machine::Machine,
+) -> Vec<psi_checked_trees::CrashRouteBucket> {
+    facts::derive_authored_machine_crash_buckets(program, machine)
+}
+
+/// Exact authored crash identity for a retained structural signature, using
+/// the same canonical owner as its checked contract capsule.
+pub fn derive_authored_signature_crash_buckets(
+    program: &TypedTrees,
+    signature: &psi_typed_trees::signature::StateSignature,
+) -> Vec<psi_checked_trees::CrashRouteBucket> {
+    facts::derive_authored_signature_crash_buckets(program, signature)
+}
+
+/// Query conservative causes from the checker's closed local crash summary.
+/// `None` means no complete summary, not a crash-free machine. This read-only
+/// query exposes no private guard, site, call, or proof coordinates.
+pub fn infer_checked_machine_crash_causes(
+    program: &TypedTrees,
+    facts: &CheckFacts,
+    machine: psi_symbols::SymbolHandle,
+) -> Option<Vec<psi_checked_trees::CrashCause>> {
+    facts::infer_checked_machine_crash_causes(program, facts, machine)
+}
+
+/// Query all closed local crash cause summaries with one shared analysis.
+/// Missing machine keys mean unknown, not complete empty summaries. Each row
+/// retains only its exact machine key and conservative canonical cause set.
+pub fn infer_checked_crash_causes(
+    program: &TypedTrees,
+    facts: &CheckFacts,
+) -> Vec<(
+    psi_symbols::SymbolHandle,
+    Vec<psi_checked_trees::CrashCause>,
+)> {
+    facts::infer_checked_crash_causes(program, facts)
+}
+
 /// Rederive every checked machine-to-operator realization together with the
 /// complete canonical contracts on both sides. Package review compares this
 /// against the retained checked baseline before publishing the selected

@@ -18,6 +18,8 @@ mod carry;
 mod crash_calls;
 mod index_compatibility;
 
+pub(crate) use crash_calls::{infer_checked_crash_causes, infer_checked_machine_crash_causes};
+
 #[derive(Clone, Copy)]
 struct MachineSuspensionRow {
     symbol: SymbolHandle,
@@ -1487,6 +1489,54 @@ fn build_structural_runtime_requirements(
             )
         })
         .collect()
+}
+
+pub(crate) fn derive_authored_machine_crash_buckets(
+    program: &TypedTrees,
+    machine: &psi_typed_trees::machine::Machine,
+) -> Vec<psi_checked_trees::CrashRouteBucket> {
+    let parameter_names = program
+        .machine_states(machine)
+        .first()
+        .map(|entry| {
+            program
+                .state_parameters(entry)
+                .iter()
+                .map(|parameter| parameter.name.as_str().to_owned())
+                .collect::<Vec<_>>()
+        })
+        .unwrap_or_default();
+    let conservation = psi_validation::build_content_conservation_plans(program);
+    build_published_crash_buckets(
+        program,
+        program.machine_contracts(machine),
+        &parameter_names,
+        &conservation,
+        Some(machine),
+        None,
+        &[],
+    )
+}
+
+pub(crate) fn derive_authored_signature_crash_buckets(
+    program: &TypedTrees,
+    signature: &psi_typed_trees::signature::StateSignature,
+) -> Vec<psi_checked_trees::CrashRouteBucket> {
+    let parameter_names = program
+        .state_signature_parameters(signature)
+        .iter()
+        .map(|parameter| parameter.name.as_str().to_owned())
+        .collect::<Vec<_>>();
+    let conservation = psi_validation::build_content_conservation_plans(program);
+    build_published_crash_buckets(
+        program,
+        program.state_signature_contracts(signature),
+        &parameter_names,
+        &conservation,
+        None,
+        None,
+        &[],
+    )
 }
 
 fn build_published_crash_buckets(
