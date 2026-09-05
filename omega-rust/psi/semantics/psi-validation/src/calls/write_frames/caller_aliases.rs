@@ -84,6 +84,8 @@ pub(super) enum CallerWriteSite<'query> {
 pub struct LocalWriteOrigin {
     pub local_symbol: SymbolHandle,
     /// Empty for a bare reference; otherwise the exact reference leaf selector.
+    /// A type-derived array leaf uses Index with a zero expression handle to
+    /// denote any element. This is may-write evidence, never access authority.
     pub local_segments: Vec<psi_facts::PlaceSegment>,
     pub source_path: String,
     pub collection_coarse: bool,
@@ -234,7 +236,11 @@ pub(super) fn close_caller_aliases(
                             &leaf.local_path,
                             &leaf.origin,
                             leaf.local_segments.iter().any(|segment| {
-                                matches!(segment, psi_facts::PlaceSegment::FixedIndex { .. })
+                                matches!(
+                                    segment,
+                                    psi_facts::PlaceSegment::FixedIndex { .. }
+                                        | psi_facts::PlaceSegment::Index { .. }
+                                )
                             }),
                         )
                     }),
@@ -297,7 +303,7 @@ fn caller_aliases_at_site(
     if statement_value_expression_roots(program, statement)
         .into_iter()
         .any(|expression| {
-            super::stored_origins::expression_borrows_stored_binding(
+            super::stored_origins::expression_borrows_carrier_binding(
                 program,
                 machine,
                 state,

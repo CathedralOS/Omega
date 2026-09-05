@@ -11,6 +11,7 @@ use super::{Machine, SymbolHandle, TopLevelSymbols, TypedTrees};
 use psi_facts::PlaceSegment;
 use psi_typed_trees::statement::TableLocalData;
 
+mod parameters;
 mod projections;
 
 #[derive(Debug, Clone)]
@@ -94,28 +95,37 @@ pub(super) fn declaration_origins(
 /// A call must not acquire replacement access to an established reference
 /// slot or a whole carrier. Borrowing owned storage beneath a leaf is safe for
 /// origin identity. Reuse the common expression traversal, including helpers.
-pub(super) fn expression_borrows_stored_binding(
+pub(super) fn expression_borrows_carrier_binding(
     program: &TypedTrees,
     machine: &Machine,
     state: &psi_typed_trees::state::State,
     expression: psi_typed_trees::expression::ExpressionHandle,
     stored: &[StoredLocalOrigins],
 ) -> bool {
-    !stored.is_empty()
-        && super::local_aliases::expression_has_exclusive_borrow(program, expression, &|target| {
-            let Some(path) = super::frame_place_path(program, target) else {
-                return false;
-            };
-            let (root, _) = split_place_root(&path.path);
-            stored
-                .iter()
-                .any(|local| program.symbols.name(local.local_symbol) == root)
-                && crate::places::declared_place_type_raw(program, machine, Some(state), target)
-                    .is_none_or(|reference| {
-                        super::type_may_carry_write(program, reference)
-                            && !super::type_is_caller_isolated_local(program, reference)
-                    })
-        })
+    super::local_aliases::expression_has_exclusive_borrow(program, expression, &|target| {
+        let Some(path) = super::frame_place_path(program, target) else {
+            return false;
+        };
+        let (root, _) = split_place_root(&path.path);
+        let established_local = stored
+            .iter()
+            .any(|local| program.symbols.name(local.local_symbol) == root);
+        // An incoming by-value carrier also anchors frozen leaf origins.
+        // Replacing its reference slots would change what its symbolic
+        // parameter-relative paths denote at the caller boundary.
+        let incoming_carrier = program.state_parameters(state).iter().any(|parameter| {
+            parameter.name.as_str() == root
+                && !super::type_reference_is_reference(program, parameter.type_reference)
+                && super::type_may_carry_write(program, parameter.type_reference)
+                && !super::type_is_caller_isolated_local(program, parameter.type_reference)
+        });
+        (established_local || incoming_carrier)
+            && crate::places::declared_place_type_raw(program, machine, Some(state), target)
+                .is_none_or(|reference| {
+                    super::type_may_carry_write(program, reference)
+                        && !super::type_is_caller_isolated_local(program, reference)
+                })
+    })
 }
 
 fn canonical_origins(
@@ -133,11 +143,12 @@ fn canonical_origins(
     for leaf in stored.iter().flat_map(|local| &local.references) {
         let source = if let Some(suffix) = place_suffix(&leaf.local_path, &origin.path) {
             includes_private = false;
-            let precision = if leaf
-                .local_segments
-                .iter()
-                .any(|segment| matches!(segment, PlaceSegment::FixedIndex { .. }))
-            {
+            let precision = if leaf.local_segments.iter().any(|segment| {
+                matches!(
+                    segment,
+                    PlaceSegment::FixedIndex { .. } | PlaceSegment::Index { .. }
+                )
+            }) {
                 FramePathPrecision::CollectionCoarse
             } else {
                 origin.precision

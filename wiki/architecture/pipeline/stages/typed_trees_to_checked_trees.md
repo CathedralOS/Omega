@@ -852,9 +852,20 @@ Current ownership is:
   Shared place normalization recovers local declaration types and retains array
   element types for subsequent field selection; normalization alone supplies no
   origin evidence or move permission.
-  Parameter-rooted carrier moves, moved values nested in immediate call
-  literals, and aggregate call results still need general leaf-origin transfer;
-  passing an aggregate by value does not erase its mutable references.
+  Owned by-value parameter moves derive their leaves from the exact parameter's
+  concrete declared type and use the same projection and local transfer.
+  Parameter field origins remain exact; an array origin stops at its collection.
+  Type-derived array leaves retain one unknown-element selector per element
+  shape, not one row per declared element. These transient may-write selectors
+  preserve trailing field/case distinctions but cannot authorize an index access.
+  Every possible declared sum case is retained, including empty cases; a type
+  alone does not establish which payload is present. Reference parameters,
+  generic or recursive carrier shapes, and loaded reference carriers remain
+  opaque. Borrowing incoming carrier slots also stays opaque because replacing
+  a reference would invalidate its parameter-relative origin.
+  Moved values nested in immediate call literals and aggregate call results
+  still need general leaf-origin transfer; passing an aggregate by value does
+  not erase its mutable references.
   The same restriction applies to exclusive references to
   reference-bearing carriers; primitive slices retain their collection reach.
   A rejected trait-receiver call stays opaque through every fallback consumer,

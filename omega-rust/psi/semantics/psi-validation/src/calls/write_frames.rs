@@ -469,7 +469,7 @@ fn walk_state_write_prefix(
             _ => None,
         };
         for expression in statement_value_expression_roots(program, statement) {
-            if stored_origins::expression_borrows_stored_binding(
+            if stored_origins::expression_borrows_carrier_binding(
                 program, machine, state, expression, &stored,
             ) {
                 return None;
@@ -1930,7 +1930,7 @@ fn build_permuted_cycle_frame_equation<'program>(
             _ => false,
         };
         for expression in statement_value_expression_roots(program, statement) {
-            if stored_origins::expression_borrows_stored_binding(
+            if stored_origins::expression_borrows_carrier_binding(
                 program, machine, state, expression, &stored,
             ) {
                 return None;
