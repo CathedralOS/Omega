@@ -4,7 +4,7 @@ use std::sync::Arc;
 
 use crate::tests::*;
 
-fn source(
+pub(super) fn source(
     target: NativeTarget,
     selections: OptimizationSelections,
 ) -> StagedOptimizedFunctionFragmentEmissionSource {

@@ -7,23 +7,23 @@ use omega_selected_instructions::{
     SelectedBlock, SelectedInstruction, SelectedInstructionKind, SelectedTerminator,
 };
 
-use crate::{
+use omega_machine_code::{
     ResolvedSelectedFormRow, SelectedFormInternalMachineFixupKind,
     SelectedFormInternalMachineFixupState,
 };
 
-use super::super::super::FunctionFragmentEmissionError;
 use super::control;
+use crate::fragments::ResolvedFragmentEmissionError;
 
 pub(super) fn emit(
     block: &SelectedBlock,
     row: &ResolvedSelectedFormRow,
     bytes: &mut Vec<u8>,
-) -> Result<FunctionFragmentInstructionSpan, FunctionFragmentEmissionError> {
+) -> Result<FunctionFragmentInstructionSpan, ResolvedFragmentEmissionError> {
     let row_offset =
-        u64::try_from(bytes.len()).map_err(|_| FunctionFragmentEmissionError::OffsetOverflow)?;
+        u64::try_from(bytes.len()).map_err(|_| ResolvedFragmentEmissionError::OffsetOverflow)?;
     if row_offset != row.offset {
-        return Err(FunctionFragmentEmissionError::RootMismatch);
+        return Err(ResolvedFragmentEmissionError::RootMismatch);
     }
     let instruction = selected(block, row)?;
     let control = control::provenance(block, instruction);
@@ -37,13 +37,13 @@ pub(super) fn emit(
         branch: row.branch.as_deref().map(|branch| {
             Box::new(FunctionFragmentConditionalBranchEvidence {
                 predicate: match branch.predicate {
-                    crate::ResolvedConditionalBranchPredicate::NonZeroV1 => {
+                    omega_machine_code::ResolvedConditionalBranchPredicate::NonZeroV1 => {
                         FunctionFragmentConditionalBranchPredicate::NonZeroV1
                     }
-                    crate::ResolvedConditionalBranchPredicate::U64LessThanV1 => {
+                    omega_machine_code::ResolvedConditionalBranchPredicate::U64LessThanV1 => {
                         FunctionFragmentConditionalBranchPredicate::U64LessThanV1
                     }
-                    crate::ResolvedConditionalBranchPredicate::I64LessThanV1 => {
+                    omega_machine_code::ResolvedConditionalBranchPredicate::I64LessThanV1 => {
                         FunctionFragmentConditionalBranchPredicate::I64LessThanV1
                     }
                 },
@@ -68,26 +68,26 @@ pub(super) fn emit(
 fn translate_fixup(
     row: &ResolvedSelectedFormRow,
     instruction: &SelectedInstruction,
-) -> Result<Option<FunctionFragmentInternalMachineFixup>, FunctionFragmentEmissionError> {
+) -> Result<Option<FunctionFragmentInternalMachineFixup>, ResolvedFragmentEmissionError> {
     let Some(fixup) = row.internal_machine_fixup else {
         if matches!(instruction.kind, SelectedInstructionKind::CallI64 { .. }) {
-            return Err(FunctionFragmentEmissionError::RootMismatch);
+            return Err(ResolvedFragmentEmissionError::RootMismatch);
         }
         return Ok(None);
     };
     let SelectedInstructionKind::CallI64 { callee } = instruction.kind else {
-        return Err(FunctionFragmentEmissionError::RootMismatch);
+        return Err(ResolvedFragmentEmissionError::RootMismatch);
     };
     if fixup.state != SelectedFormInternalMachineFixupState::UnresolvedZeroFieldV1
         || fixup.callee != callee
         || row.branch.is_some()
     {
-        return Err(FunctionFragmentEmissionError::RootMismatch);
+        return Err(ResolvedFragmentEmissionError::RootMismatch);
     }
     let translate = |offset: u16| {
         row.offset
             .checked_add(u64::from(offset))
-            .ok_or(FunctionFragmentEmissionError::OffsetOverflow)
+            .ok_or(ResolvedFragmentEmissionError::OffsetOverflow)
     };
     Ok(Some(FunctionFragmentInternalMachineFixup {
         kind: match fixup.kind {
@@ -107,7 +107,7 @@ fn translate_fixup(
 fn selected<'a>(
     block: &'a SelectedBlock,
     row: &ResolvedSelectedFormRow,
-) -> Result<&'a SelectedInstruction, FunctionFragmentEmissionError> {
+) -> Result<&'a SelectedInstruction, ResolvedFragmentEmissionError> {
     block
         .instructions
         .iter()
@@ -118,7 +118,7 @@ fn selected<'a>(
             | SelectedTerminator::Return { instruction, .. } => instruction,
         }))
         .find(|instruction| instruction.id == row.instruction)
-        .ok_or(FunctionFragmentEmissionError::MissingInstruction(
+        .ok_or(ResolvedFragmentEmissionError::MissingInstruction(
             row.instruction,
         ))
 }
@@ -133,7 +133,9 @@ mod tests {
     use psi_core::MachineId;
 
     use super::*;
-    use crate::{SelectedFormInternalMachineFixup, SelectedFormInternalMachineFixupKind};
+    use omega_machine_code::{
+        SelectedFormInternalMachineFixup, SelectedFormInternalMachineFixupKind,
+    };
 
     fn selected_call(callee: MachineId) -> SelectedInstruction {
         SelectedInstruction {

@@ -3,37 +3,18 @@ use omega_optimization_core::FunctionFragmentEmissionManifestIdentity;
 
 use crate::FunctionRelativeOptimizationRealizationManifest;
 
+use super::super::statistics;
 use super::super::{
     FunctionFragmentEmissionError, FunctionFragmentEmissionManifest,
     FunctionFragmentEmissionSourceKind, FunctionFragmentEmissionStage,
     FunctionFragmentEmissionUnavailableData, ValidatedFunctionFragmentEmissionManifest,
 };
-use super::statistics;
 
-pub(super) fn seal_ordinary(
+pub(super) fn seal(
     fragments: FunctionFragmentEmissionPlan,
     source: &FunctionRelativeOptimizationRealizationManifest,
     source_kind: FunctionFragmentEmissionSourceKind,
-) -> Result<super::ordinary::Emission, FunctionFragmentEmissionError> {
-    seal_for_fixups(fragments, source, source_kind)
-}
-
-pub(super) fn seal_structural(
-    fragments: FunctionFragmentEmissionPlan,
-    source: &FunctionRelativeOptimizationRealizationManifest,
-) -> Result<super::ordinary::Emission, FunctionFragmentEmissionError> {
-    seal_for_fixups(
-        fragments,
-        source,
-        FunctionFragmentEmissionSourceKind::StructuralUnitV1,
-    )
-}
-
-fn seal_for_fixups(
-    fragments: FunctionFragmentEmissionPlan,
-    source: &FunctionRelativeOptimizationRealizationManifest,
-    source_kind: FunctionFragmentEmissionSourceKind,
-) -> Result<super::ordinary::Emission, FunctionFragmentEmissionError> {
+) -> Result<super::Emission, FunctionFragmentEmissionError> {
     let statistics = statistics::compute(&fragments)?;
     let stage = if statistics.unresolved_internal_machine_fixups == 0 {
         FunctionFragmentEmissionStage::ValidatedRelocationFreeFunctionFragmentsV1
@@ -55,7 +36,7 @@ fn seal_with_statistics(
     source_kind: FunctionFragmentEmissionSourceKind,
     stage: FunctionFragmentEmissionStage,
     statistics: super::super::FunctionFragmentEmissionStatistics,
-) -> super::ordinary::Emission {
+) -> super::Emission {
     let unavailable = FunctionFragmentEmissionUnavailableData::Unavailable;
     let mut record = FunctionFragmentEmissionManifest {
         identity: FunctionFragmentEmissionManifestIdentity::from_canonical_bytes(b"pending"),

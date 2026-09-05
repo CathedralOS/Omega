@@ -197,6 +197,55 @@ pub(super) fn realize_and_publish_structural_call(homes: StagedOptimizedRegister
     .expect("structural Unit calls must retain typed unresolved fragment custody");
     assert!(fragments.fragments().functions.is_empty());
     assert_eq!(fragments.fragments().structural_unit_functions.len(), 2);
+    let original_fragments = fragments.fragments().clone();
+    for mutation in 0..7 {
+        let mut changed = original_fragments.clone();
+        match mutation {
+            0 => changed.structural_unit_functions.reverse(),
+            1 => changed.structural_unit_functions[0].block.call = None,
+            2 => {
+                changed.structural_unit_functions[0]
+                    .block
+                    .call
+                    .as_mut()
+                    .unwrap()
+                    .fixup
+                    .patch_function_offset += 1
+            }
+            3 => {
+                changed.structural_unit_functions[0]
+                    .block
+                    .call
+                    .as_mut()
+                    .unwrap()
+                    .bytes[0] ^= 1
+            }
+            4 => {
+                changed.structural_unit_functions[0]
+                    .block
+                    .return_instruction
+                    .offset += 1
+            }
+            5 => {
+                changed.structural_unit_functions[1]
+                    .block
+                    .return_instruction
+                    .control = omega_machine_code::FunctionFragmentControlProvenance::None
+            }
+            6 => changed.structural_unit_functions[1].bytes[0] ^= 1,
+            _ => unreachable!(),
+        }
+        changed.identity = changed.recomputed_identity();
+        assert_ne!(changed.identity, original_fragments.identity);
+        assert_eq!(
+            omega_machine_emission::validate_resolved_function_fragments(
+                fragments.source().program(),
+                &changed
+            ),
+            Err(omega_machine_emission::ResolvedFragmentEmissionError::ArtifactMismatch),
+            "structural projection mutation {mutation}"
+        );
+    }
     let caller_fragment = &fragments.fragments().structural_unit_functions[0];
     let callee_fragment = &fragments.fragments().structural_unit_functions[1];
     assert_eq!(

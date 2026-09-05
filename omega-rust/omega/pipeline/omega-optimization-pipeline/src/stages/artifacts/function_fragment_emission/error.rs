@@ -36,6 +36,20 @@ impl std::fmt::Display for FunctionFragmentEmissionError {
 
 impl std::error::Error for FunctionFragmentEmissionError {}
 
+impl From<omega_machine_emission::ResolvedFragmentEmissionError> for FunctionFragmentEmissionError {
+    fn from(error: omega_machine_emission::ResolvedFragmentEmissionError) -> Self {
+        use omega_machine_emission::ResolvedFragmentEmissionError as Source;
+        match error {
+            Source::MissingFunction(value) => Self::MissingFunction(value),
+            Source::MissingBlock(value) => Self::MissingBlock(value),
+            Source::MissingInstruction(value) => Self::MissingInstruction(value),
+            Source::OffsetOverflow => Self::OffsetOverflow,
+            Source::RootMismatch => Self::RootMismatch,
+            Source::ArtifactMismatch => Self::ArtifactMismatch,
+        }
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum FunctionFragmentEmissionManifestDecodeError {
     Truncated,

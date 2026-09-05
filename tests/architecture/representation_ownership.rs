@@ -444,6 +444,42 @@ fn exit_replay_checks_claimed_records_without_reentering_the_producer() {
 }
 
 #[test]
+fn fragment_projection_is_backend_owned_and_replay_does_not_emit() {
+    let root = repository();
+    let backend = root.join("omega-rust/omega/backend/omega-machine-emission/src/fragments");
+    let replay = rust_source(&backend.join("validation"));
+    for forbidden in [
+        "production::",
+        "::emit(",
+        "FunctionFragmentEmissionPlan {",
+        "FunctionFragmentInstructionSpan {",
+        "StructuralUnitCallFragmentSpan {",
+        "StagedOptimizedFunctionFragmentEmissionSource",
+        "FunctionFragmentReplayInputs",
+    ] {
+        assert!(
+            !replay.contains(forbidden),
+            "fragment replay depends on {forbidden}"
+        );
+    }
+    let source = rust_source(&backend);
+    assert!(!source.contains("omega_optimization_pipeline::"));
+    assert!(!source.contains("source.replay()"));
+    let coordinator = root.join("omega-rust/omega/pipeline/omega-optimization-pipeline/src/stages/artifacts/function_fragment_emission");
+    let compute = rust_source(&coordinator.join("compute"));
+    assert!(compute.contains("emit_resolved_function_fragments(source.program())"));
+    assert!(!compute.contains("bytes.extend_from_slice"));
+    assert!(!coordinator.join("compute/ordinary_function.rs").exists());
+    assert!(!coordinator.join("compute/structural_unit.rs").exists());
+    let entrance = std::fs::read_to_string(coordinator.join("mod.rs")).unwrap();
+    assert!(entrance.contains("validate_resolved_function_fragments("));
+    assert!(!entrance.contains("compute(&staged.source)"));
+    let metadata = std::fs::read_to_string(coordinator.join("validation.rs")).unwrap();
+    assert!(!metadata.contains("manifest::seal"));
+    assert!(!metadata.contains("FunctionFragmentEmissionManifest {"));
+}
+
+#[test]
 fn resolved_layout_transformation_is_owned_outside_the_coordinator() {
     let root = repository();
     let owner =
@@ -900,7 +936,7 @@ fn completed_physical_results_and_emission_do_not_fork_by_history() {
     ] {
         assert!(!compute.join(format!("{retired}.rs")).exists());
     }
-    for file in ["mod.rs", "ordinary.rs", "structural_unit.rs"] {
+    for file in ["mod.rs", "manifest.rs"] {
         let source = std::fs::read_to_string(compute.join(file)).unwrap();
         assert!(!source.contains("StagedOptimizedFunctionFragmentEmissionSource::"));
         assert!(!source.contains("FunctionFragmentReplayInputs::"));

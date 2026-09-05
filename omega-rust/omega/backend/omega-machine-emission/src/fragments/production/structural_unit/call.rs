@@ -7,19 +7,19 @@ use omega_machine_code::{
 };
 use omega_selected_instructions::SelectedStructuralUnitCallInstruction;
 
-use crate::ResolvedStructuralUnitCallLayout;
+use omega_machine_code::ResolvedStructuralUnitCallLayout;
 
-use super::super::super::FunctionFragmentEmissionError;
+use crate::fragments::ResolvedFragmentEmissionError;
 
 pub(super) fn emit(
     selected: &SelectedStructuralUnitCallInstruction,
     resolved: &ResolvedStructuralUnitCallLayout,
-) -> Result<StructuralUnitCallFragmentSpan, FunctionFragmentEmissionError> {
+) -> Result<StructuralUnitCallFragmentSpan, ResolvedFragmentEmissionError> {
     if selected.id != resolved.instruction
         || selected.operation != resolved.operation
         || selected.callee != resolved.callee
     {
-        return Err(FunctionFragmentEmissionError::RootMismatch);
+        return Err(ResolvedFragmentEmissionError::RootMismatch);
     }
     let fixup = resolved.fixup;
     let kind = match fixup.kind {
@@ -44,13 +44,13 @@ pub(super) fn emit(
             callee: fixup.callee,
             opcode_function_offset: base
                 .checked_add(u64::from(fixup.opcode_byte_offset))
-                .ok_or(FunctionFragmentEmissionError::OffsetOverflow)?,
+                .ok_or(ResolvedFragmentEmissionError::OffsetOverflow)?,
             patch_function_offset: base
                 .checked_add(u64::from(fixup.field_byte_offset))
-                .ok_or(FunctionFragmentEmissionError::OffsetOverflow)?,
+                .ok_or(ResolvedFragmentEmissionError::OffsetOverflow)?,
             reference_function_offset: base
                 .checked_add(u64::from(fixup.next_instruction_byte_offset))
-                .ok_or(FunctionFragmentEmissionError::OffsetOverflow)?,
+                .ok_or(ResolvedFragmentEmissionError::OffsetOverflow)?,
             patch_byte_width: fixup.field_byte_width,
             addend: fixup.addend,
         },
