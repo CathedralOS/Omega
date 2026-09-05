@@ -100,11 +100,10 @@ first C tape only when its ordinary `alpha_bootstrap` target is selected.
   zero homes avoid eager aggregate allocation but do not establish a complete
   physical application storage profile. Sum constructors, lazy first-case zero
   defaults, checked case transitions, and independent arm-local payload homes
-  have staging execution paths under `execution/sums/`. A nonfinal payload
-  argument that fails its `u8` store remains private `Unsupported`, pending
-  implementation of [immediate payload establishment](LANGUAGE.md#epsilon-constructor-payload-establishment-order);
-  final-argument byte-range failures already trap with the completed output
-  prefix. Full sum execution, remaining checking and conformance obligations,
+  have staging execution paths under `execution/sums/`.
+  [Immediate payload establishment](LANGUAGE.md#epsilon-constructor-payload-establishment-order)
+  traps at a failing byte payload before later arguments run, preserving the
+  completed output prefix. Remaining checking and conformance obligations,
   and exact composition with the complete Omega D source remain incomplete.
 
 Superseded bridge and native-publication experiments remain only in Git

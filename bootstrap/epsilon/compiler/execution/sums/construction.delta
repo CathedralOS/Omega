@@ -46,9 +46,9 @@
                 owner caseValue parameters values bindings store output
                 NoEpsilonRuntimePayloads))))))))
 
-; Every argument captures a value before the next argument's effects. Successful
-; payload establishment is unobservable and requires no allocation or copy of
-; the immutable aggregate snapshot. Payload order remains declaration order.
+; Each argument captures its value and establishes its field before the next
+; argument runs (LANGUAGE section 6). Failed storage retains preceding output
+; and suppresses later argument effects. Immutable snapshots need no extra copy.
 (def epsilon_evaluator_construct_arguments ((context EpsilonEvaluatorInvocation)
   (expressionValue EpsilonExpression) (owner EpsilonDeclaration)
   (caseValue EpsilonResolvedSumCase) (parameters EpsilonParameterList)
@@ -82,8 +82,7 @@
                         remainingArguments bindings nextStore nextOutput
                         (MoreEpsilonRuntimePayloads value values))
                       (if (eq status 5)
-                        (epsilon_evaluator_constructor_byte_range
-                          remainingArguments nextOutput)
+                        (EpsilonEvaluatorTrap 5 nextOutput)
                         (EpsilonEvaluatorInternal
                           (epsilon_expression_start argumentValue))))))))
             ((EpsilonEvaluatorResultless nextStore nextOutput)
@@ -94,13 +93,3 @@
               (EpsilonEvaluatorTrap kind nextOutput))
             ((EpsilonEvaluatorInternal offset) (EpsilonEvaluatorInternal offset))
             (EpsilonEvaluatorUnsupported EpsilonEvaluatorUnsupported)))))))
-
-; LANGUAGE section 6 fixes each argument order and each field establishment
-; order, but not their interleaving when a byte store fails before a later
-; argument. That case remains a staging gap: publish no Epsilon observation.
-; A final argument's ByteRange is settled because all earlier effects completed.
-(def epsilon_evaluator_constructor_byte_range
-  ((remainingArguments EpsilonExpressionList) (output Bytes)) EpsilonEvaluatorOutcome
-  (match remainingArguments
-    (NoEpsilonExpressions (EpsilonEvaluatorTrap 5 output))
-    ((MoreEpsilonExpressions item rest) EpsilonEvaluatorUnsupported)))

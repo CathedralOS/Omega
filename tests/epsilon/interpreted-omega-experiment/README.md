@@ -16,10 +16,10 @@ Delta-written Epsilon evaluator + exact Epsilon-written Omega D
 The gate requires the Omega product build to bind exactly one
 `alpha_bootstrap::ProgramEntry`, requires Omega D to retain its Alpha tape
 construction, and rejects any `EpsilonAlpha`/`epsilon_alpha_` backend residue in
-the Delta-written Epsilon implementation. The evaluator is currently 11,743
-lines / 598,608 bytes, authored in 84 explicitly manifested members.
-Receipt pins identify the reconstructed source-view implementation. The complete
-gate passes 139 ordinary fixtures, five D customers, and seven framing controls.
+the Delta-written Epsilon implementation. The evaluator is currently 11,732
+lines / 597,945 bytes, authored in 84 explicitly manifested members.
+The complete gate checks 141 ordinary fixtures, five D customers, and seven
+framing controls against the exact reconstructed evaluator receipt.
 
 The executable slice runs the current checking pipeline, locates `Main::main`,
 and executes an empty entry, scalar `let` and local/parameter assignment,
@@ -72,8 +72,8 @@ cannot survive in the final evaluator.
 The gate compiles the exact evaluator plus the 56-line / 2,621-byte
 `execution_driver.delta` (SHA-256
 `d2b2ce68e4c8afa71f3d096d9069f4c7258a98140d7c828311239de39b85a0f5`) through the
-selected Delta route and pins the measured 701,840-byte receipt, SHA-256
-`9dba93c3baf85f24037fc7689c9cc82089989b4b6b6d9cc949cbb6d19d866f1a`.
+selected Delta route and pins the measured 701,464-byte receipt, SHA-256
+`c2fe7c09dac2faea8baedf7e42b8c2715062889b174fc94f856018c6c13d4f2f`.
 The ordinary controls cover
 success, local, receiver-field, and fixed-array values, repeated mutation,
 output, comparisons, bitwise/shift/division behavior, short-circuiting, bounds
@@ -231,9 +231,9 @@ keyword/punctuation/base metadata, escaped-string length, nested comments,
 whole-view completion, UTF-8 priority, trailing out-of-profile rejection,
 unterminated comments, unsupported escapes, and recovery after a previous
 failure. The required observation is tagged `Exit(0)` with stdout `A`.
-The source-view implementation produced that exact observation in 179.631
-seconds in the complete gate, with no other bootstrap evaluator job running
-during this customer. Checkpoint `3d3c033f8d` took 293.095 seconds through the
+The current receipt produced that exact observation in 183.898 seconds in the
+complete gate, with no other bootstrap evaluator job running during this
+customer. Checkpoint `3d3c033f8d` took 293.095 seconds through the
 selected-customer gate, with other fixtures running concurrently for part of
 that earlier measurement. Both used the unchanged 300-second watchdog. This
 pair provides gate completion and local timing evidence, not a controlled
@@ -253,21 +253,20 @@ only the named customer; a missing, empty, or unknown name cannot produce an
 empty passing selection. Omitting the option runs the complete inventory. A
 selected-customer result does not replace full-suite evidence.
 
-Sixteen sum controls cover nullary spellings, first-case defaults, nested sums
+Nineteen sum controls cover nullary spellings, first-case defaults, nested sums
 in records/arrays, payload ByteRange and argument traps, once-only subjects,
 wildcards, snapshots before later argument effects, binder copies and receiver
 places, ordinary calls/returns, recursion, state transfers, and retained views
-of binder-owned arrays. A separate staging control,
-`sum_byte_order_unsettled.epsilon`, requires private `Unsupported` tag `04` with no
-Epsilon observation when a nonfinal byte payload fails before another argument.
-The settled [payload-establishment rule](../../../bootstrap/epsilon/LANGUAGE.md#epsilon-constructor-payload-establishment-order)
-requires `ByteRange` before later arguments run. This staging control must be
-replaced when that path is implemented; it does not bless `Unsupported` as
-language behavior.
+of binder-owned arrays. The three `sum_byte_before_*` controls exercise
+[immediate payload establishment](../../../bootstrap/epsilon/LANGUAGE.md#epsilon-constructor-payload-establishment-order):
+`ByteRange` preserves the preceding output, including output from evaluating
+the failing argument, and suppresses later mutation/output, Assertion, or exit.
+Existing successful snapshot and later-argument-trap controls ensure valid
+earlier fields do not suppress later argument evaluation.
 
-The inventory specifies 144 diagnostic results: 143 language/customer judgments
-(138 ordinary fixtures and five whole-member D customers), plus one explicit
-staging refusal. Seven private-framing controls are counted separately. The companion
+The inventory specifies 146 language/customer judgments (141 ordinary fixtures
+and five whole-member D customers). Seven private-framing controls are counted
+separately. The companion
 [checking gate](../checking/README.md) pins exact checker reasons and coordinates
 without executing Epsilon programs; this gate retains execution and whole-D
 customer evidence.
