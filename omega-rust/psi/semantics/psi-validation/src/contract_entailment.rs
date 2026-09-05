@@ -24,8 +24,9 @@
 //!
 //! Terms: integer literals, the machine's own parameters, `+ - *` over those,
 //! `t % k` with a positive constant `k` (with the euclidean range lemma), and
-//! opaque proof-view applications (`Bag(items)`, `Seq(items)`) compared only
-//! by equality. Facts: comparisons (`== != < <= > >=`) and range membership
+//! exact compiler-owned integer embeddings. Ordinary source-defined proof
+//! views use selected declarations and structural proof, not name-based
+//! arithmetic atoms. Facts: comparisons (`== != < <= > >=`) and range membership
 //! (`t in lo..=hi`) over such terms. Anything else (domain membership,
 //! unknown calls, non-parameter places) is OUTSIDE the language: the engine
 //! still tries to prove with what it can see (extra unknown hypotheses can
@@ -35,7 +36,7 @@
 //! ## Mechanics
 //!
 //! 1. Terms normalize to canonical POLYNOMIALS over atoms (sum of monomials
-//!    with i64 coefficients, atoms = parameter names / view applications /
+//!    with i64 coefficients, atoms = parameter names / integer embeddings /
 //!    mod terms). Polynomial identity proves L0 constants, L3/L4 congruence
 //!    and commutativity, and distributivity with no hypotheses at all.
 //! 2. `requires` equations whose one side is a lone atom become directed
@@ -79,6 +80,8 @@ mod structural_terms;
 
 #[cfg(test)]
 mod outcome_tests;
+#[cfg(test)]
+mod proof_view_tests;
 
 pub(crate) use exit_coverage::entailment_covers_all_exits;
 

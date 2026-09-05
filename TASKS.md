@@ -69,11 +69,13 @@ the [Rust Compiler Completion Contract](wiki/releases/rust_compiler_completion_c
   construction of that closure belongs in `TASKS_BOOTSTRAP.md`.
 
 - **SAMPLE-CORPUS.** `mbx test -p omega-compiler --test samples_compile` is red.
-  `cli/proofs/math_proofs` needs a declaration selection
-  for the compiler-installed proof term `Bag(...)`, whose Call occurrence is
-  never recorded; the sample's own comment already calls `Bag` lowering future
-  work. The post-check completeness scan rejects its remaining late-bound
-  authored Call selection after semantic checking succeeds.
+  `cli/proofs/math_proofs` needs ordinary core multiset data and slice-to-proof
+  extraction machines, then explicit imports and exact declaration selection
+  for its `Bag(...)` claims. Chapter 10's Proof Views section makes these
+  source-defined types and lemmas, not compiler-installed term formers.
+  `source/library/core/seq.omg` supplies recursive sequence data but no Bag
+  definition or slice extraction. Preserve the multiset-equality sample and
+  its false twin; do not replace extraction with spelling-based proof atoms.
 
   Source cases that write text buffers by index or transport nominal fields
   through collections also need `NOMINAL-FIELD-FLOW` below; their default-field

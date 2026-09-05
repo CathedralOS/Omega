@@ -1060,32 +1060,10 @@ impl<'program> Engine<'program> {
                     };
                     return self.normalize_integer_embedding(*argument);
                 }
-                if self.strict_symbol_bindings.is_some() {
-                    return None;
-                }
-                // Proof-view applications are opaque atoms compared by
-                // equality only. Anything else is outside the language.
-                let target = call.target.as_str();
-                if !matches!(target, "Bag" | "Seq" | "Range") {
-                    return None;
-                }
-                if call.receiver.is_valid() {
-                    return None;
-                }
-                let mut rendered = Vec::new();
-                for argument in self
-                    .program
-                    .expression_table
-                    .expression_handles(call.arguments)
-                    .to_vec()
-                {
-                    rendered.push(self.program.expression_table.display_name(argument));
-                }
-                Some(Polynomial::atom(format!(
-                    "{}({})",
-                    target,
-                    rendered.join(", ")
-                )))
+                // Ordinary proof views are source-defined data and machines.
+                // Their spelling cannot introduce an arithmetic atom or stand
+                // in for a selected declaration and its checked semantics.
+                None
             }
             ExpressionNode::Cast(cast)
                 if proof_nat_cast(self.program, &cast)

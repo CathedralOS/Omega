@@ -1,1 +1,1 @@
-is disproved by constant arithmetic
+cannot prove ensures contract for exit from false_bag_distinct
