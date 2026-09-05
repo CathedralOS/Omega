@@ -34,6 +34,7 @@ from function_rows import fixtures as function_rows
 from type_rows import fixtures as type_rows
 from environment_rows import fixtures as environment_rows
 from match_coverage import fixtures as match_coverage
+from syntax_storage import fixtures as syntax_storage
 
 directory = Path(os.environ["RESOURCE_BOUNDARY_TMP"])
 compiler = (directory / "compiler.gamma").read_bytes()
@@ -51,7 +52,11 @@ constructor_cases = constructor_rows()
 type_cases = type_rows()
 environment_cases = environment_rows()
 coverage_cases = match_coverage()
-cases = function_cases + constructor_cases + type_cases + environment_cases + coverage_cases
+syntax_cases = syntax_storage()
+cases = (
+    function_cases + constructor_cases + type_cases + environment_cases
+    + coverage_cases + syntax_cases
+)
 for name, source, size, digest, expected in cases:
     if len(source) != size or hashlib.sha256(source).hexdigest() != digest:
         raise SystemExit(f"Delta resource boundary {name}: fixture identity changed")
@@ -84,6 +89,6 @@ print(
     f"Delta resource boundary: {len(cases)} exact observations passed "
     f"({len(function_cases)} function-row, {len(constructor_cases)} constructor-row, "
     f"{len(type_cases)} type-row, {len(environment_cases)} active-environment, "
-    f"{len(coverage_cases)} match-coverage)"
+    f"{len(coverage_cases)} match-coverage, {len(syntax_cases)} syntax-storage)"
 )
 PY
