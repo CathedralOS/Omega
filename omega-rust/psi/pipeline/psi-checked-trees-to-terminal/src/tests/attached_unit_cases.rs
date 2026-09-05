@@ -501,3 +501,108 @@ fn attached_unit_port_write_requires_exact_direct_checked_port_service() {
         ))
     ));
 }
+
+#[test]
+fn attached_unit_borrowed_self_roots_an_ordinary_field_argument_beside_provider_places() {
+    // A borrowed attachment stays ambient while only provider-specialized
+    // fields are addressed. Once an ordinary data field is a call argument,
+    // the borrowed `self` is retained as structural parameter 0 so the
+    // argument has a place to project from; the provider roots stay.
+    let checked = checked_source(
+        r#"
+        domain [u8; 16]::Utf8
+        requires
+            valid_utf8(self);
+
+        boundary trait Console {
+            machine write_line(text: &[u8])
+            reaches Console;
+            machine read_line(out_line: &mut [u8])
+            reaches Console;
+        }
+
+        data Main { console: Console; pause: [u8; 16] in Utf8; }
+        machine Main::main(&mut self)
+        reaches Console
+        {
+            self.console.write_line("ready");
+            self.console.read_line(&mut self.pause);
+        }
+        "#,
+    );
+    let selection = machine_dispatch::select_terminal_machine(&checked, "Main::main")
+        .expect("Main::main is the unique terminal selection");
+    let lowered = machine_dispatch::lower_selected_machine(&checked, selection)
+        .expect("borrowed self with an ordinary field argument should lower")
+        .terminal;
+    let [machine] = lowered.semantic_module.machines.as_slice() else {
+        panic!("the closure contains only its root")
+    };
+    let attachment = machine.attachment.expect("Main stays the attachment");
+    let [receiver] = machine.structural_parameters.as_slice() else {
+        panic!("the borrowed self is the only structural parameter")
+    };
+    assert!(receiver.is_self);
+    assert_eq!(receiver.position, 0);
+    assert_eq!(receiver.structural_type, attachment);
+    assert_eq!(
+        receiver.access,
+        psi_terminal::StructuralAccess::MutableBorrow
+    );
+    assert!(machine.structural_places.iter().any(|place| {
+        place.id == receiver.place
+            && place.kind
+                == StructuralPlaceKind::Parameter {
+                    position: 0,
+                    is_self: true,
+                }
+    }));
+    assert_eq!(
+        machine
+            .structural_places
+            .iter()
+            .filter(|place| matches!(
+                place.kind,
+                StructuralPlaceKind::ProviderAttachment { attachment: root, .. }
+                    if root == attachment
+            ))
+            .count(),
+        2,
+        "both provider requirements keep their specialization roots"
+    );
+    let structural_arguments = machine.blocks[0]
+        .operations
+        .iter()
+        .filter_map(|operation| match &operation.kind {
+            OperationKind::BoundaryCall {
+                structural_arguments,
+                ..
+            } => Some(structural_arguments),
+            _ => None,
+        })
+        .next_back()
+        .expect("read_line stays the last boundary call");
+    assert!(matches!(
+        structural_arguments.as_slice(),
+        [argument]
+            if argument.place == receiver.place
+                && argument.access == psi_terminal::StructuralAccess::MutableBorrow
+                && matches!(
+                    argument.path.as_slice(),
+                    [StructuralPathSegment::Field(field)] if field == "pause"
+                )
+    ));
+    // The projected byte carrier is not yet admissible to the Terminal
+    // verifier: `resolve_structural_path` walks only `Structural` fields and
+    // `pause` is a `ByteSequence` field. An owned `self` stops at the same
+    // site. Pinned so the flip is noticed when the verifier admits it.
+    assert!(matches!(
+        lower_machine(&checked, "Main::main"),
+        Err(LoweringError::InvalidTerminalModule(
+            psi_terminal_verifier::ModuleError::InvalidStructuralArgumentPath {
+                argument_index: 0,
+                ..
+            }
+        ))
+    ));
+}

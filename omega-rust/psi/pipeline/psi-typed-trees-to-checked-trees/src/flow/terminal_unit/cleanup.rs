@@ -32,7 +32,7 @@ pub(super) fn build_nominal_affine_unit_cleanup_machine(
 
     let binders = machine_binders(program, machine);
     let (attachment_type_identity, structural_parameters) =
-        structural_signature(program, shapes, machine, state, &binders)?;
+        structural_signature(program, shapes, machine, state, &binders, false)?;
     let source_parameters = program.state_parameters(state);
     if source_parameters.is_empty() || source_parameters.len() != structural_parameters.len() {
         return None;

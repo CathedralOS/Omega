@@ -2496,9 +2496,17 @@ pub(super) fn structural_signature(
     machine: &psi_typed_trees::machine::Machine,
     state: &psi_typed_trees::state::State,
     binders: &[(SymbolHandle, String)],
+    retain_reference_self: bool,
 ) -> Option<(String, Vec<CheckedUnitStructuralParameterPlan>)> {
     let (attachment, structural, scalar) = structural_signature_with_affine_pair(
-        program, shapes, machine, state, binders, false, false,
+        program,
+        shapes,
+        machine,
+        state,
+        binders,
+        false,
+        false,
+        retain_reference_self,
     )?;
     scalar.is_empty().then_some((attachment, structural))
 }
@@ -2509,12 +2517,22 @@ pub(super) fn fused_service_scalar_signature(
     machine: &psi_typed_trees::machine::Machine,
     state: &psi_typed_trees::state::State,
     binders: &[(SymbolHandle, String)],
+    retain_reference_self: bool,
 ) -> Option<(
     String,
     Vec<CheckedUnitStructuralParameterPlan>,
     Vec<CheckedStructuralScalarParameterPlan>,
 )> {
-    structural_signature_with_affine_pair(program, shapes, machine, state, binders, false, true)
+    structural_signature_with_affine_pair(
+        program,
+        shapes,
+        machine,
+        state,
+        binders,
+        false,
+        true,
+        retain_reference_self,
+    )
 }
 
 pub(super) fn free_fused_service_scalar_signature(
@@ -2589,11 +2607,15 @@ pub(super) fn partial_affine_pair_structural_signature(
     binders: &[(SymbolHandle, String)],
 ) -> Option<(String, Vec<CheckedUnitStructuralParameterPlan>)> {
     let (attachment, structural, scalar) = structural_signature_with_affine_pair(
-        program, shapes, machine, state, binders, true, false,
+        program, shapes, machine, state, binders, true, false, false,
     )?;
     scalar.is_empty().then_some((attachment, structural))
 }
 
+/// `retain_reference_self` keeps a borrowed `self` as structural parameter 0
+/// with the reference's access, so a body can root `self.field` arguments at
+/// it. Without it a borrowed attachment stays ambient and only its
+/// provider-specialized fields have places.
 fn structural_signature_with_affine_pair(
     program: &TypedTrees,
     shapes: &mut ShapeCollector<'_>,
@@ -2602,6 +2624,7 @@ fn structural_signature_with_affine_pair(
     binders: &[(SymbolHandle, String)],
     allow_affine_pair: bool,
     allow_scalar_parameters: bool,
+    retain_reference_self: bool,
 ) -> Option<(
     String,
     Vec<CheckedUnitStructuralParameterPlan>,
@@ -2683,7 +2706,10 @@ fn structural_signature_with_affine_pair(
             });
             continue;
         }
-        if parameter.is_self && is_reference(program, parameter.type_reference) {
+        if parameter.is_self
+            && !retain_reference_self
+            && is_reference(program, parameter.type_reference)
+        {
             continue;
         }
         // Typed attached `self` intentionally carries the machine/Self symbol,

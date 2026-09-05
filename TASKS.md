@@ -99,21 +99,37 @@ the [Rust Compiler Completion Contract](wiki/releases/rust_compiler_completion_c
   a weakened field declaration. The `stdin_*` and `gui` cohorts pass.
 
   `samples_with_documented_exit_run_correctly` is separately red for all 136
-  documented-exit samples: 86 fail native Terminal production at the
-  `psi-checked-trees-to-terminal` fence `attached Unit closure is missing a
-  checked transitive machine plan`, the rest earlier under `NOMINAL-FIELD-FLOW`
-  below. The fence is accurate. 119 of the 136 call
-  `Console::read_line(&mut self.pause)`, and no attached `Main::main(&mut self)`
-  can supply that argument: a borrowed `self` produces no structural parameter
-  in `structural_signature_with_affine_pair`
-  (`psi-typed-trees-to-checked-trees/src/flow/terminal_unit/calls.rs`), and the
-  attached-Unit Terminal lane mints places only for provider-specialized
-  attachment fields, so an ordinary attached data field has no root a call
-  argument can name. An owned `self` does produce that root and the boundary
-  call lane closes on it end to end; every documented-exit sample takes
-  `&mut self`. Giving the borrowed attachment an addressable root belongs to
-  `ENTRY-CONTENT-ROOTS` and `INSTALLED-PROGRAM-LOCAL-ROOT-INTRODUCTION` under
-  P1.
+  documented-exit samples; before the borrowed-self retry below, 86 failed
+  native Terminal production in `psi-checked-trees-to-terminal` and the rest
+  earlier under `NOMINAL-FIELD-FLOW`, a split not yet re-measured. 119 of the
+  136 call `Console::read_line(&mut self.pause)` from an attached
+  `Main::main(&mut self)`. That argument now has a root: when the
+  ambient attachment cannot plan the body, `build_checked_machine`
+  (`psi-typed-trees-to-checked-trees/src/flow/terminal_unit/control.rs`)
+  retries with the borrowed `self` retained as structural parameter 0 carrying
+  the reference's access, beside the provider-specialized fields. The retry is
+  transitional; retain a borrowed `self` unconditionally once
+  `validate_provider_attachment_specialization`
+  (`omega-optimization-validation`) admits a `self` parameter beside provider
+  roots and the entry bridge passes the `ProgramEntry` loan as that parameter,
+  both under `ENTRY-CONTENT-ROOTS` and
+  `INSTALLED-PROGRAM-LOCAL-ROOT-INTRODUCTION` in P1. `cli_mvp` now stops at
+  `checked Unit provider candidate has no complete terminal body plan`: the
+  std adapter `ConsoleNativeProvider::write_line(console: Console, text: &[u8])`
+  has no checked Unit plan because the fused-service signature in
+  `structural_signature_with_affine_pair` admits only the service and scalar
+  parameters, and its body `console_write_bytes` is a multi-state loop
+  `terminates by bytes -> Slice::Length`. That adapter closure is the next
+  slice, and it is independent of `read_line`: the sample without that call
+  stops at the same candidate. Behind it, the projected `&mut self.pause`
+  argument lowers to Terminal but `psi-terminal-verifier` rejects it with
+  `InvalidStructuralArgumentPath`: `resolve_structural_path` walks only
+  `Structural` fields and `pause` is a `ByteSequence(BoundedOwned)` field; an
+  owned `self` stops at the same verifier site. Stores into a borrowed
+  `self` (`self.before = 7`, `win64_direct_aggregate_import_compile`) still
+  plan nothing: `build_write_only_primitive_store` and
+  `build_structural_scalar_field_store` require a non-self destination and a
+  single-store body.
 
   Acceptance: both tests pass, with every maintained sample reaching checked
   trees and every documented exit oracle observed on its matching host.
