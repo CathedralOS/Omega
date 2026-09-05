@@ -16,6 +16,30 @@ fn check(source: &str, accepted: bool) {
 }
 
 #[test]
+fn short_circuit_returns_need_no_value_evidence_for_skipped_calls() {
+    for (operator, left, expected, accepted) in [
+        ("&&", "false", "false", true),
+        ("||", "true", "true", true),
+        ("&&", "false", "true", false),
+        ("||", "true", "false", false),
+        ("&&", "true", "true", false),
+        ("||", "false", "true", false),
+    ] {
+        check(
+            &format!(
+                r#"
+                machine unexplained() -> bool {{ true }}
+                machine produce() -> bool
+                ensures result == {expected}
+                {{ {left} {operator} unexplained() }}
+                "#,
+            ),
+            accepted,
+        );
+    }
+}
+
+#[test]
 fn arithmetic_return_guarantees_use_selected_width_and_policy() {
     for (returned, expected) in [
         ("3u8 + 4u8", "7"),

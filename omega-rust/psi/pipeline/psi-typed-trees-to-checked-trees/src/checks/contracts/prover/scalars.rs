@@ -83,6 +83,18 @@ pub(super) fn evaluate_with_comparisons(
                 resolve_leaf,
                 comparison_is_admitted,
             )?;
+            // An unevaluated Boolean operand supplies neither a value premise
+            // nor a comparison obligation. Leaf lookup must follow the same
+            // selective schedule as the expression it is proving.
+            match (&left, binary.operator) {
+                (ScalarValue::Boolean(false), BinaryOperator::And) => {
+                    return Some(ScalarValue::Boolean(false));
+                }
+                (ScalarValue::Boolean(true), BinaryOperator::Or) => {
+                    return Some(ScalarValue::Boolean(true));
+                }
+                _ => {}
+            }
             let right = evaluate_with_comparisons(
                 program,
                 binary.right,
@@ -130,6 +142,54 @@ pub(super) fn evaluate_with_comparisons(
 mod tests {
     use super::*;
     use psi_typed_trees::expression::{TableBinaryExpression, TableUnaryExpression};
+
+    #[test]
+    fn short_circuit_proofs_do_not_query_the_unevaluated_operand() {
+        let mut program = TypedTrees::default();
+        let unknown = program.expression_table.insert(ExpressionNode::Name(
+            psi_typed_trees::expression::TableNamePath::default(),
+        ));
+        for (operator, left_value) in [(BinaryOperator::And, false), (BinaryOperator::Or, true)] {
+            let left = program
+                .expression_table
+                .insert(ExpressionNode::Boolean(left_value));
+            let expression =
+                program
+                    .expression_table
+                    .insert(ExpressionNode::Binary(TableBinaryExpression {
+                        left,
+                        operator,
+                        right: unknown,
+                    }));
+            assert_eq!(
+                evaluate(&program, expression, &mut |_| panic!(
+                    "queried skipped operand"
+                )),
+                Some(ScalarValue::Boolean(left_value)),
+            );
+            let evaluated_left = program
+                .expression_table
+                .insert(ExpressionNode::Boolean(!left_value));
+            let evaluated =
+                program
+                    .expression_table
+                    .insert(ExpressionNode::Binary(TableBinaryExpression {
+                        left: evaluated_left,
+                        operator,
+                        right: unknown,
+                    }));
+            let mut lookups = 0;
+            assert_eq!(
+                evaluate(&program, evaluated, &mut |leaf| {
+                    assert_eq!(leaf, unknown);
+                    lookups += 1;
+                    None
+                }),
+                None
+            );
+            assert_eq!(lookups, 1);
+        }
+    }
 
     #[test]
     fn absent_and_stale_expressions_never_supply_dummy_zero_evidence() {
