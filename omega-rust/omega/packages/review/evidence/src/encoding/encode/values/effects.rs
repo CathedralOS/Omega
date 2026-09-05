@@ -14,12 +14,15 @@ pub(crate) fn encode_synchronous_invocation(
 ) -> Result<(), PackageReviewEncodingError> {
     match invocation {
         PackageReviewSynchronousInvocation::Parameter(position) => {
-            encoder.byte(0);
-            encoder.u32(*position);
+            encoder.tag("parameter", 0);
+            encoder.field("position", |encoder| {
+                encoder.u32(*position);
+                Ok(())
+            })?;
         }
         PackageReviewSynchronousInvocation::Service(service) => {
-            encoder.byte(1);
-            encode_nominal(encoder, service)?;
+            encoder.tag("service", 1);
+            encoder.field("service", |encoder| encode_nominal(encoder, service))?;
         }
     }
     Ok(())
@@ -28,8 +31,12 @@ pub(crate) fn encode_installation_reach(
     encoder: &mut Encoder,
     reach: &PackageReviewInstallationReach,
 ) -> Result<(), PackageReviewEncodingError> {
-    encode_nominal(encoder, &reach.requirement)?;
-    encoder.sequence(&reach.upper_bound, encode_nominal)
+    encoder.field("requirement", |encoder| {
+        encode_nominal(encoder, &reach.requirement)
+    })?;
+    encoder.field("upper_bound", |encoder| {
+        encoder.sequence(&reach.upper_bound, encode_nominal)
+    })
 }
 
 pub(crate) fn encode_capability_flow(

@@ -3025,6 +3025,15 @@ compiler stand-down/discharge certificates. Fresh admission must still perform
 the independent compiler obligation and discharge checks. Neither component
 recovery nor baseline recovery is an acceptance decision.
 
+The compiler-owned complete baseline has both binary and named text forms from
+one semantic traversal. Text retains explicit fields and variants, optionality,
+ordered sequences, quoted values and decimal scalars rather than an opaque
+whole-policy payload. Bounded recovery validates the existing typed meaning and
+requires exact canonical text rerender, including field names and framing.
+The text format has its own version and expansion limit; binary reconstruction
+and typed recovery share one owned-storage budget. Source graph/pin and
+historical-decision composition remain with the manager.
+
 The project normally commits the lock and trusts whoever lands its changes.
 Recovery validates format and graph consistency, checks acquired sources against
 pins, and treats recorded acceptance as project policy. It does not reconstruct

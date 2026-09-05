@@ -53,6 +53,29 @@ manager's lock envelope, not this policy record. Compiler proof/discharge and
 row-source custody are not policy identity or substitutes for fresh admission
 validation.
 
+The complete baseline also has text format version 1, introduced by the exact
+header `omega_package_policy_text 1` followed by LF. It names the binary format
+and baseline schema before the package-policy record. `field <name> { ... }`
+and `record <name> { ... }` delimit named structure; static names use lowercase
+ASCII letters, digits and underscores. `sequence <count> { item { ... } ... }`
+retains count and order. `option none` and `option some { ... }` distinguish
+absence from a supplied value. `tag <variant> <byte>` names each closed variant
+without changing its binary tag. Numeric primitives use their explicit width
+and canonical decimal spelling; booleans use `true` or `false`.
+
+Strings and byte fields use quoted ASCII with `\"`, `\\`, and lowercase
+`\xhh` escapes; non-ASCII UTF-8 bytes remain lossless. Fixed identity digests use
+64 lowercase hexadecimal digits. Indentation is two spaces per markup scope,
+every row ends in LF, and the complete named traversal determines field order.
+Recovery reconstructs the same binary scalar stream, performs existing typed
+recovery, then requires an exact streaming text rerender. Labels and container
+boundaries are validated grammar, not ignorable comments over opaque bytes.
+The text ceiling is 32 MiB, markup depth is 1,024, and the existing 4 MiB binary,
+65,536 aggregate element, 128 semantic depth and 64 MiB owned-storage ceilings
+remain. Reconstructed binary capacity is charged before typed recovery and its
+canonical scratch; verification does not allocate another expanded text buffer.
+This adds no proof, acceptance, or replay fields and changes no binary schema.
+
 The ordinary obligation-semantics schema is version 7. Its result
 vocabulary explicitly leaves bodyless accepted claims, dangerous authorities,
 external executable supplies, and exact terminal-authority permissions open

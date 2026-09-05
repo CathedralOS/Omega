@@ -46,6 +46,9 @@ fn envelope_rejects_every_truncated_prefix_unknown_version_and_trailing_bytes() 
     let component = fixture();
     let bytes = component.canonical_bytes().unwrap();
     assert_eq!(recover(&bytes).unwrap(), component);
+    crate::encoding::encode::text_test_support::component(
+        crate::encoding::encode::text_test_support::Component::Physical(&component),
+    );
     for end in 0..bytes.len() {
         assert!(recover(&bytes[..end]).is_err(), "truncated at {end}");
     }
@@ -149,6 +152,9 @@ fn malformed_nested_locations_and_optional_copy_tags_reject() {
     }];
     let bytes = component.canonical_bytes().unwrap();
     assert_eq!(recover(&bytes).unwrap(), component);
+    crate::encoding::encode::text_test_support::component(
+        crate::encoding::encode::text_test_support::Component::Physical(&component),
+    );
     // Header + policy + parameter count + class/geometry + location count.
     let location = PHYSICAL_CALLING_POLICY_MAGIC.len() + 2 + 1 + 8 + 5 + 8;
     assert_eq!(&bytes[location..location + 4], &[2, 0, 0, 0]);

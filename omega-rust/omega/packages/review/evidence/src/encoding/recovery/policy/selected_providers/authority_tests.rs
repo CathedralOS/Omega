@@ -51,6 +51,9 @@ fn authority_owners_are_observable_without_changing_legacy_service_names() {
         let bytes = policy.canonical_bytes().unwrap();
         assert_ne!(bytes, baseline);
         assert_eq!(recover(&bytes).unwrap(), policy);
+        crate::encoding::encode::text_test_support::component(
+            crate::encoding::encode::text_test_support::Component::SelectedProviders(&policy),
+        );
     }
 }
 

@@ -32,30 +32,55 @@ pub(super) fn policy(
     encoder: &mut Encoder,
     policy: &PackagePolicySelectedProviders,
 ) -> Result<(), PackageReviewEncodingError> {
-    encoder.package_identity(policy.package);
-    encoder.string(policy.target.identity().as_str())?;
-    encoder.sequence(&policy.plans, plan)?;
-    encoder.sequence(&policy.families, family)
+    encoder.field("package", |encoder| {
+        encoder.package_identity(policy.package);
+        Ok(())
+    })?;
+    encoder.field("target", |encoder| {
+        encoder.string(policy.target.identity().as_str())
+    })?;
+    encoder.field("plans", |encoder| encoder.sequence(&policy.plans, plan))?;
+    encoder.field("families", |encoder| {
+        encoder.sequence(&policy.families, family)
+    })
 }
 
 fn plan(
     encoder: &mut Encoder,
     plan: &PackagePolicyProviderPlan,
 ) -> Result<(), PackageReviewEncodingError> {
-    encoder.string(&plan.plan_name)?;
-    encoder.optional_package_identity(plan.realizing_package);
-    encode_nominal(encoder, &plan.schema_declaration)?;
-    encoder.string(&plan.provider_type)?;
-    encoder.option(plan.provider_type_declaration.as_ref(), encode_nominal)?;
-    encoder.string(&plan.target)?;
-    encoder.sequence(&plan.methods, service::method)?;
-    encoder.sequence(&plan.rows, row)?;
-    encoder.sequence(&plan.grants, |encoder, grant| {
-        encoder.byte(match grant {
-            PackageReviewProviderGrantSelectorKind::PlanName => 0,
-            PackageReviewProviderGrantSelectorKind::ProviderSlot => 1,
-        });
+    encoder.field("plan_name", |encoder| encoder.string(&plan.plan_name))?;
+    encoder.field("realizing_package", |encoder| {
+        encoder.optional_package_identity(plan.realizing_package);
         Ok(())
+    })?;
+    encoder.field("schema_declaration", |encoder| {
+        encode_nominal(encoder, &plan.schema_declaration)
+    })?;
+    encoder.field("provider_type", |encoder| {
+        encoder.string(&plan.provider_type)
+    })?;
+    encoder.field("provider_type_declaration", |encoder| {
+        encoder.option(plan.provider_type_declaration.as_ref(), encode_nominal)
+    })?;
+    encoder.field("target", |encoder| encoder.string(&plan.target))?;
+    encoder.field("methods", |encoder| {
+        encoder.sequence(&plan.methods, service::method)
+    })?;
+    encoder.field("rows", |encoder| encoder.sequence(&plan.rows, row))?;
+    encoder.field("grants", |encoder| {
+        encoder.sequence(&plan.grants, |encoder, grant| {
+            encoder.field("grant", |encoder| {
+                match grant {
+                    PackageReviewProviderGrantSelectorKind::PlanName => encoder.tag("plan_name", 0),
+                    PackageReviewProviderGrantSelectorKind::ProviderSlot => {
+                        encoder.tag("provider_slot", 1)
+                    }
+                };
+                Ok(())
+            })?;
+            Ok(())
+        })
     })
 }
 
@@ -63,21 +88,40 @@ fn row(
     encoder: &mut Encoder,
     row: &PackagePolicyProviderRow,
 ) -> Result<(), PackageReviewEncodingError> {
-    encoder.string(&row.method)?;
-    encode_nominal(encoder, &row.requirement)?;
-    encode_nominal(encoder, &row.realization)?;
-    encoder.sequence(&row.requirement_lifetime_partition, |encoder, ordinal| {
-        encoder.u32(*ordinal);
-        Ok(())
+    encoder.field("method", |encoder| encoder.string(&row.method))?;
+    encoder.field("requirement", |encoder| {
+        encode_nominal(encoder, &row.requirement)
     })?;
-    bindings::binding(encoder, &row.binding)?;
-    encoder.option(
-        row.compiler_intrinsic_execution.as_ref(),
-        encode_compiler_intrinsic_execution,
-    )?;
-    encoder.option(row.installation_reach.as_ref(), |encoder, reach| {
-        encoder.sequence(&reach.upper_bound, encode_nominal)?;
-        encoder.sequence(&reach.resolved, encode_nominal)
+    encoder.field("realization", |encoder| {
+        encode_nominal(encoder, &row.realization)
+    })?;
+    encoder.field("requirement_lifetime_partition", |encoder| {
+        encoder.sequence(&row.requirement_lifetime_partition, |encoder, ordinal| {
+            encoder.field("ordinal", |encoder| {
+                encoder.u32(*ordinal);
+                Ok(())
+            })?;
+            Ok(())
+        })
+    })?;
+    encoder.field("binding", |encoder| {
+        bindings::binding(encoder, &row.binding)
+    })?;
+    encoder.field("compiler_intrinsic_execution", |encoder| {
+        encoder.option(
+            row.compiler_intrinsic_execution.as_ref(),
+            encode_compiler_intrinsic_execution,
+        )
+    })?;
+    encoder.field("installation_reach", |encoder| {
+        encoder.option(row.installation_reach.as_ref(), |encoder, reach| {
+            encoder.field("upper_bound", |encoder| {
+                encoder.sequence(&reach.upper_bound, encode_nominal)
+            })?;
+            encoder.field("resolved", |encoder| {
+                encoder.sequence(&reach.resolved, encode_nominal)
+            })
+        })
     })
 }
 
@@ -85,20 +129,47 @@ fn family(
     encoder: &mut Encoder,
     family: &PackagePolicyProviderFamily,
 ) -> Result<(), PackageReviewEncodingError> {
-    encode_nominal(encoder, &family.family_identity)?;
-    encode_nominal(encoder, &family.provider_type_declaration)?;
-    encoder.string(family.target.identity().as_str())?;
-    encoder.byte(match family.authority {
-        PackageReviewProviderSelectionAuthority::BuildOverride => 0,
-        PackageReviewProviderSelectionAuthority::TargetDefault => 1,
-    });
-    encoder.byte(match family.coverage {
-        PackageReviewProviderFamilyCoverage::CompleteDeclarationFamily => 0,
-    });
-    encoder.sequence(&family.coordinates, |encoder, coordinate| {
-        encoder.string(&coordinate.requirement_identity)?;
-        encode_nominal(encoder, &coordinate.operator_declaration)?;
-        encoder.u32(coordinate.plan_index);
+    encoder.field("family_identity", |encoder| {
+        encode_nominal(encoder, &family.family_identity)
+    })?;
+    encoder.field("provider_type_declaration", |encoder| {
+        encode_nominal(encoder, &family.provider_type_declaration)
+    })?;
+    encoder.field("target", |encoder| {
+        encoder.string(family.target.identity().as_str())
+    })?;
+    encoder.field("authority", |encoder| {
+        match family.authority {
+            PackageReviewProviderSelectionAuthority::BuildOverride => {
+                encoder.tag("build_override", 0)
+            }
+            PackageReviewProviderSelectionAuthority::TargetDefault => {
+                encoder.tag("target_default", 1)
+            }
+        };
         Ok(())
+    })?;
+    encoder.field("coverage", |encoder| {
+        match family.coverage {
+            PackageReviewProviderFamilyCoverage::CompleteDeclarationFamily => {
+                encoder.tag("complete_declaration_family", 0)
+            }
+        };
+        Ok(())
+    })?;
+    encoder.field("coordinates", |encoder| {
+        encoder.sequence(&family.coordinates, |encoder, coordinate| {
+            encoder.field("requirement_identity", |encoder| {
+                encoder.string(&coordinate.requirement_identity)
+            })?;
+            encoder.field("operator_declaration", |encoder| {
+                encode_nominal(encoder, &coordinate.operator_declaration)
+            })?;
+            encoder.field("plan_index", |encoder| {
+                encoder.u32(coordinate.plan_index);
+                Ok(())
+            })?;
+            Ok(())
+        })
     })
 }

@@ -75,8 +75,11 @@ coordinates. `PackagePolicyBaseline` composes these meanings with all public
 declaration families, external supplies, dangerous authority and slack,
 source-semantic dependencies, and boundary applications under one bounded
 recovery envelope. Manager candidates retain this typed baseline from their exact
-checked package and target. Normalized comparison and lock integration remain
-open. Dropping audit-relevant families or retaining their reconstruction
+checked package and target. The baseline also has a bounded named text form
+whose fields, variants and sequence structure are verified by exact canonical
+rerender after typed recovery. It is readable without the old source or compiler
+execution. Normalized comparison and lock integration remain open.
+Dropping audit-relevant families or retaining their reconstruction
 receipts would both be incorrect.
 
 Historical project decisions have a separate bounded text section under

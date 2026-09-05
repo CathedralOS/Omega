@@ -3,6 +3,7 @@ use super::*;
 use crate::encoding::encode::declarations::{
     encode_conformance_shape, encode_data_shape, encode_domain_shape, encode_trait_shape,
 };
+use crate::encoding::encode::text_test_support;
 use crate::encoding::{
     PackageReviewEncodingError,
     encode::{self, encoder::Encoder},
@@ -195,6 +196,7 @@ fn data_kinds_supplies_members_and_erasure_roundtrip() {
                 ..data()
             };
             roundtrip(&shape, encode_data_shape, data_shape);
+            text_test_support::meaning(|encoder| encode_data_shape(encoder, &shape));
         }
     }
 }
@@ -243,6 +245,7 @@ fn domain_all_alias_roles_routes_and_presence_roundtrip() {
                     .collect(),
                 };
                 roundtrip(&shape, encode_domain_shape, domain_shape);
+                text_test_support::meaning(|encoder| encode_domain_shape(encoder, &shape));
             }
         }
     }
@@ -263,6 +266,7 @@ fn conformance_all_subjects_keep_complete_evidence_interfaces() {
             interface: interface(),
         };
         roundtrip(&shape, encode_conformance_shape, conformance_shape);
+        text_test_support::meaning(|encoder| encode_conformance_shape(encoder, &shape));
     }
 }
 
@@ -290,6 +294,7 @@ fn proposition_all_public_bodies_and_binder_kinds_roundtrip() {
             body,
         };
         roundtrip(&shape, encode::encode_proposition_shape, proposition_shape);
+        text_test_support::meaning(|encoder| encode::encode_proposition_shape(encoder, &shape));
     }
 }
 
@@ -409,6 +414,7 @@ fn constants_keep_exact_value_encoding_and_string_bounds() {
         canonical_value_encoding: "value\0λ".to_owned(),
     };
     roundtrip(&shape, encode::encode_const_shape, const_shape);
+    text_test_support::meaning(|encoder| encode::encode_const_shape(encoder, &shape));
     let encoded = bytes(&shape, encode::encode_const_shape);
     let mut reader = Reader::new(
         &encoded,

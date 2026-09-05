@@ -25,6 +25,11 @@ mod selected_providers;
 mod signatures;
 mod structural_expressions;
 mod terminal_permissions;
+mod text;
+
+pub use text::PackagePolicyTextRecoveryLimits;
+#[cfg(test)]
+pub(in crate::encoding) use text::framing::binary as decode_policy_text_scalars;
 
 use PackagePolicyRecoveryError as Error;
 pub use model::{PackagePolicyRecoveryError, PackagePolicyRecoveryLimits};

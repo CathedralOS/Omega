@@ -10,6 +10,9 @@ fn complete_representation_round_trips_all_families_without_nested_receipts() {
     for policy in [fixtures::empty(), fixtures::complete()] {
         let bytes = policy.canonical_bytes().unwrap();
         assert_eq!(recover(&bytes).unwrap(), policy);
+        crate::encoding::encode::text_test_support::component(
+            crate::encoding::encode::text_test_support::Component::Representation(&policy),
+        );
         assert_eq!(recover(&bytes).unwrap().canonical_bytes().unwrap(), bytes);
         for magic in [
             crate::encoding::CALLING_POLICY_MAGIC,

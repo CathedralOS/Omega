@@ -201,6 +201,24 @@ integration remain manager work. Source locations, proof certificates,
 stand-down/discharge records and replay receipts are excluded. Fresh compiler
 stand-down and discharge validation remains independently required at admission.
 
+`PackagePolicyBaseline::canonical_text()` presents the same complete traversal
+as named fields, explicit optional values and ordered sequences, decimal scalars,
+quoted byte strings, and named variants with their wire tags. Digests alone use
+hexadecimal. The text-format version is independent of the unchanged binary
+baseline and component versions. `recover_text()` reconstructs the bounded
+canonical scalar stream, applies existing typed recovery, and verifies every
+text byte by streaming the recovered value through the same named traversal.
+Changing a field name, variant label, order, escape, or container cannot preserve
+an accepted text record merely by retaining its binary scalars.
+
+Expanded text is bounded at 32 MiB; canonical binary remains bounded at 4 MiB.
+Text recovery charges reconstructed binary storage, typed allocations, and
+canonical binary verification scratch against the same 64 MiB owned-storage
+ceiling. Text verification borrows its input and creates no second expanded
+text buffer. Markup depth is bounded separately from the existing semantic
+recursion limit. The manager still owns composition with source pins, graph
+edges, and historical project decisions; readable policy is not itself a lock.
+
 The supported result lanes do not pretend to prove a bodyless accepted claim,
 grant dangerous authority, validate externally supplied executable code, or
 exercise or admit a terminal-authority permission. `ledger/results.rs` rejoins

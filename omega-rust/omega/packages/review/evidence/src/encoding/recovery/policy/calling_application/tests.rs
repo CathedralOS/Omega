@@ -251,6 +251,9 @@ fn complete_callback_and_opaque_children_round_trip_without_nested_envelopes() {
     for policy in [fixture(), complete_fixture()] {
         let bytes = policy.canonical_bytes().unwrap();
         assert_eq!(recover(&bytes).unwrap(), policy);
+        crate::encoding::encode::text_test_support::component(
+            crate::encoding::encode::text_test_support::Component::Calling(&policy),
+        );
         assert_eq!(recover(&bytes).unwrap().canonical_bytes().unwrap(), bytes);
         for magic in [
             crate::encoding::CONFORMANCE_POLICY_MAGIC,
@@ -404,6 +407,9 @@ fn every_semantic_child_changes_complete_policy_bytes() {
             .unwrap_or_else(|error| panic!("mutation {index}: {error}"));
         assert_ne!(bytes, baseline, "mutation {index}");
         assert_eq!(recover(&bytes).unwrap(), changed);
+        crate::encoding::encode::text_test_support::component(
+            crate::encoding::encode::text_test_support::Component::Calling(&changed),
+        );
     }
 }
 

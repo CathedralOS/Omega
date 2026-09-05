@@ -74,6 +74,9 @@ fn complete_service_claim_result_carry_and_progress_fields_remain_distinct() {
         let bytes = changed.canonical_bytes().unwrap();
         assert_ne!(bytes, baseline);
         assert_eq!(recover(&bytes).unwrap(), changed);
+        crate::encoding::encode::text_test_support::component(
+            crate::encoding::encode::text_test_support::Component::SelectedProviders(&changed),
+        );
     }
     for bits in 0..16 {
         let mut policy = original.clone();
@@ -100,6 +103,9 @@ fn complete_service_claim_result_carry_and_progress_fields_remain_distinct() {
         };
         let bytes = policy.canonical_bytes().unwrap();
         assert_eq!(recover(&bytes).unwrap(), policy);
+        crate::encoding::encode::text_test_support::component(
+            crate::encoding::encode::text_test_support::Component::SelectedProviders(&policy),
+        );
     }
 }
 
@@ -163,6 +169,9 @@ fn typed_service_signature_changes_without_calling_remain_observable() {
         "typed source signature cannot be replaced by legacy strings"
     );
     assert_eq!(recover(&bytes).unwrap(), changed);
+    crate::encoding::encode::text_test_support::component(
+        crate::encoding::encode::text_test_support::Component::SelectedProviders(&changed),
+    );
 }
 
 #[test]
