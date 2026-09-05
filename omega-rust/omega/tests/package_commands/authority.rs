@@ -11,7 +11,7 @@ const PROCESS_BUILD: &str =
 const PROCESS_SOURCE: &str =
     include_str!("../../../../tests/fixtures/packages/process-exit/main.omg");
 
-fn authority_fixture(build: &str, source: &str) -> Fixture {
+pub(super) fn authority_fixture(build: &str, source: &str) -> Fixture {
     let fixture = Fixture::new();
     fixture.write("dependency/build.omg", build);
     fixture.write("dependency/main.omg", source);

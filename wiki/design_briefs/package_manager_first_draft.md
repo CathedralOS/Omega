@@ -156,14 +156,17 @@ omega update [package-or-alias...] [--to <revision>]
 omega install --resume
 omega update --resume
 omega <install|update> --discard-review
+omega audit packages [--project <dir>] [--target <name>]... [--details]
 ```
 
 These commands exist, including named Git workspace selection, selective pins,
 per-target review, and recoverable publication. See the
 [command README](../../omega-rust/omega/packages/manager/src/operations/package_commands/README.md)
 for options and limitations. Source-code diffs are separate command output;
-old local snapshots can be recovered from the existing cache. Graph/authority
-inspection remains on the task board. Optional offline/model wiring is separate.
+old local snapshots can be recovered from the existing cache.
+[Package inspection](../../omega-rust/omega/packages/manager/src/operations/inspect_packages/README.md)
+shows fresh graph/authority findings beside accepted policy without accepting
+changes. Optional offline/model wiring is separate.
 Local canaries do not substitute for actual remote acceptance tests.
 
 ## Test packages

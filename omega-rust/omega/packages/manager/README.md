@@ -28,6 +28,11 @@ manager/
 ```
 
 `operations` is the only owner of complete user or compiler workflows.
+[`operations::inspect_packages`](src/operations/inspect_packages/README.md)
+drives `omega audit packages`: current project source, pinned dependencies,
+fresh compiler findings, and comparison with accepted policy without publishing
+changes. Default summaries and `--details` separate readable inspection from
+the complete normalized policy.
 `operations::stage_build_dependency_edit` joins the conservative declaration
 planner to a proposed source snapshot without writing the live `build.omg`.
 It accepts an automatic replacement only and checks the planner's old-file

@@ -6,6 +6,8 @@ mod authority;
 mod fixture;
 #[path = "package_commands/generated.rs"]
 mod generated;
+#[path = "package_commands/inspection.rs"]
+mod inspection;
 #[path = "package_commands/remote.rs"]
 mod remote;
 #[path = "package_commands/workspace.rs"]

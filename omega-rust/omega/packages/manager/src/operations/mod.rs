@@ -13,6 +13,7 @@
 mod check_locked_sources;
 mod check_project;
 mod compile_project;
+mod inspect_packages;
 pub mod inspect_source;
 mod package_change;
 mod package_commands;
@@ -30,6 +31,10 @@ pub use check_project::{
 pub use compile_project::{
     CompilePreparedLocalProjectNativeError, LocalProjectRootPolicy,
     PreparedLocalProjectNativeRequest, compile_prepared_local_project_for_native,
+};
+pub use inspect_packages::{
+    PackageInspectionError, PackageInspectionOptions, PackageInspectionOutcome, inspect_packages,
+    inspect_packages_with_storage,
 };
 pub use inspect_source::{
     PackageSourceInspection, PackageSourceInspectionError, PackageSourceRequest,

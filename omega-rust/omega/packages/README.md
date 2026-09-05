@@ -42,6 +42,11 @@ verified old local snapshots can be recovered from the existing cache. Install
 can select a Git workspace member with `--package <declared-name>`; its declared name still
 supplies the default import alias.
 
+[`omega audit packages`](manager/src/operations/inspect_packages/README.md)
+checks current project source with accepted dependency pins and reports graph,
+API, reach, and assumptions without changing acceptance. Missing analysis stays
+explicit; `--details` expands the normalized policy behind the default summary.
+
 The lock codec stores readable, receipt-free policy baselines and historical
 decisions beside exact source graphs. Old source is not required to read or
 compare those baselines. Locked recovery acquires the recorded commit rather

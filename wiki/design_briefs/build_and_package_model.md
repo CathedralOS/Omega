@@ -3969,6 +3969,14 @@ candidate source, not a fabricated previous version.
 Source text never enters editable capability decisions, and resume regenerates
 the source document. No advisory service is needed to resolve compiler findings.
 
+`omega audit packages` checks the current root with accepted dependency pins
+and presents graph/API/reach/assumption findings beside historical lock policy.
+It never records decisions or changes accepted files. Missing or unsupported
+analysis is explicit; an absent lock means unaccepted fresh inspection. Default
+output summarizes the findings; `--details` includes complete normalized policy.
+The [inspection operation](../../omega-rust/omega/packages/manager/src/operations/inspect_packages/README.md)
+owns target selection, failure behavior, and CLI status.
+
 Ordinary `prepare_local_project_for_target` selects the accepted target before
 acquisition and preserves dependency pins. The mutable local application root
 may change source while retaining its identity, role, and dependency projection;
