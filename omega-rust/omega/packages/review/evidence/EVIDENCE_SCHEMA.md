@@ -32,9 +32,10 @@ limit aggregate list elements plus recursive entries to 65,536 and nesting to
 128. Recovery additionally limits individual fields to 4 MiB and requested
 vector/string/box storage, including canonical comparison scratch, to 64 MiB;
 callers may lower but cannot raise these
-ceilings. Allocator overhead is outside that storage accounting. Complete
-accepted-baseline integration remains separate work. This component does not
-change the full-review schema or any compiler validator.
+ceilings. Allocator overhead is outside that storage accounting. The complete
+policy baseline below includes this component; the manager joins that baseline
+to source pins and accepted decisions. This component does not change the
+full-review schema or any compiler validator.
 
 `OMEGA-PACKAGE-POLICY` version 1 composes the full inert package baseline under
 those same aggregate ceilings. Its field order is package, target, public API

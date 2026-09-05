@@ -80,6 +80,7 @@ pub fn lower_seeded_extension(
         return Err((retained, SeededContinuationError::CrossPairedResolvedBase));
     }
     if retained.typed.symbols != retained.resolved.symbols
+        || retained.typed.service_reaches != retained.resolved.service_reaches
         || !retained
             .typed
             .authored_declaration_selections()
@@ -111,7 +112,12 @@ pub fn lower_seeded_extension(
         return Err((retained, SeededContinuationError::UnsupportedExtensionShape));
     }
     if source.service_reaches != resolved_base.service_reaches
-        || source.service_reach_rows != resolved_base.service_reach_rows
+        || !source
+            .service_reach_rows
+            .starts_with(&resolved_base.service_reach_rows)
+        || !source
+            .service_reach_rows
+            .starts_with(&retained.typed.service_reach_rows)
         || !retained_authored_service_reaches_are_exact(&source, &resolved_base)
         || source.semantic_domains != resolved_base.semantic_domains
         || source.external_bindings != resolved_base.external_bindings
@@ -138,8 +144,9 @@ pub fn lower_seeded_extension(
     let mut candidate = retained.typed.clone();
     candidate.retain_authored_declaration_selections(resolved_ledger.clone());
     candidate.symbols = source.symbols.clone();
-    // This cohort reuses the retained service identities and normalized rows.
-    // Only the generated declarations' authored occurrences are appended.
+    // Resolution may append combinations of retained services, but both base
+    // tables must keep their exact row IDs and meanings.
+    candidate.service_reach_rows = source.service_reach_rows.clone();
     candidate.authored_service_reach_rows.extend(
         source
             .authored_service_reach_rows
@@ -346,7 +353,9 @@ pub fn retained_typed_base_is_exact_prefix(base: &TypedTrees, candidate: &TypedT
             .as_slice()
             .starts_with(base.authored_declaration_selections().as_slice())
         && candidate.service_reaches == base.service_reaches
-        && candidate.service_reach_rows == base.service_reach_rows
+        && candidate
+            .service_reach_rows
+            .starts_with(&base.service_reach_rows)
         && candidate
             .authored_service_reach_rows
             .starts_with(&base.authored_service_reach_rows)

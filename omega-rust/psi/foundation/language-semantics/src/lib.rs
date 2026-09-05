@@ -523,6 +523,11 @@ pub struct ServiceReachRowTable {
 impl ServiceReachRowTable {
     pub const EMPTY_ROW: ServiceReachRowId = ServiceReachRowId(1);
 
+    /// Every retained row ID must still name the same normalized service set.
+    pub fn starts_with(&self, retained: &Self) -> bool {
+        self.rows.starts_with(&retained.rows)
+    }
+
     pub fn intern(&mut self, mut services: Vec<ServiceReachId>) -> ServiceReachRowId {
         services.sort_by_key(|service| service.0);
         services.dedup();
@@ -1076,6 +1081,35 @@ mod tests {
             rows.services(ServiceReachRowId::NULL),
             &[] as &[ServiceReachId]
         );
+    }
+
+    #[test]
+    fn service_row_prefix_preserves_ids_while_new_sets_append() {
+        let readable = ServiceReachId(2);
+        let queryable = ServiceReachId(3);
+        let mut retained = ServiceReachRowTable::default();
+        let readable_row = retained.intern(vec![readable]);
+        let queryable_row = retained.intern(vec![queryable]);
+        let mut extended = retained.clone();
+        let combined = extended.intern(vec![queryable, readable, queryable]);
+        assert!(extended.starts_with(&retained));
+        assert!(retained.starts_with(&retained));
+        assert!(!retained.starts_with(&extended));
+        assert_eq!(extended.services(readable_row), &[readable]);
+        assert_eq!(extended.services(queryable_row), &[queryable]);
+        assert_eq!(extended.services(combined), &[readable, queryable]);
+        assert_eq!(extended.intern(Vec::new()), ServiceReachRowTable::EMPTY_ROW);
+
+        let mut reordered = ServiceReachRowTable::default();
+        reordered.intern(vec![queryable]);
+        reordered.intern(vec![readable]);
+        assert!(!reordered.starts_with(&retained));
+        let mut changed = retained.clone();
+        changed.rows[readable_row.0 as usize - 1] = vec![readable, queryable];
+        assert!(!changed.starts_with(&retained));
+        let mut truncated = retained.clone();
+        truncated.rows.pop();
+        assert!(!truncated.starts_with(&retained));
     }
 
     #[test]

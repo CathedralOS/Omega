@@ -94,9 +94,10 @@ operation recovers pending commit intent before using the accepted pair.
 Candidate builds use the existing scoped evaluator: source reads, disposable
 output writes, and compiler logging are possible before a later rejection.
 Runtime boundary services and resolver credentials are not supplied to builds.
-Generated machines using retained service identities and normalized reach rows
-receive ordinary final effect checking and capability review. New normalized
-service combinations still reject during compiler continuation; accepting a
-review decision cannot enable an unsupported compiler case.
+Generated machines may combine retained service identities into new normalized
+reach rows while preserving every existing row ID and meaning. They receive
+ordinary final effect checking and capability review. Broader generated
+declaration shapes remain subject to the compiler's supported continuation;
+accepting a review decision cannot enable an unsupported compiler case.
 The lock records trusted project decisions, not an audit certificate. Separate
 compiler/native admission policy remains outside this transaction.

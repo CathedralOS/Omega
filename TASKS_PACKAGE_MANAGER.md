@@ -30,9 +30,14 @@ host credentials, and organizational review policy have separate owners.
   authority. Package-source reads, staged-output writes, and build logging use
   the existing compiler facets; do not invent broader build services to finish
   this task. Detect relevant source/build drift before publication.
-  Generated calls needing new normalized service sets still require support in
-  Psi's seeded typing continuation; do not bypass its retained-table checks in
-  the manager.
+
+- [ ] **PACKAGE-CHECK-DIAGNOSTICS.** In `manager/src/review/candidate/error.rs`
+  and CLI rendering, show the compiler's reason when candidate checking fails,
+  not just a diagnostic count. Include the package and available source
+  location; reuse bounded, escaped diagnostic rendering.
+  Acceptance: invalid proofs, false reach ceilings, and unsupported generated
+  declarations explain the failed check through install/update stderr, without
+  changing accepted files or mixing source text into editable review decisions.
 
 - [ ] **PACKAGE-MANAGER-RELEASE-AUDIT.** Complete real-command/network coverage
   for dangerous initial installs, capability changes/removals, retained
