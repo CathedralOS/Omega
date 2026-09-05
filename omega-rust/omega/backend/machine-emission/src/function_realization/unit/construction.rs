@@ -7,7 +7,10 @@ use crate::frame_layout::{TargetFrameLayoutPolicy, stage_target_frame_layout};
 use crate::{TargetFrameProtocolEncodingPolicy, stage_target_frame_protocol_encoding};
 use crate::{stage_whole_function_exit_contract, stage_whole_function_exit_contract_with_frame};
 use post_allocation_machine_to_selected_form_encoding::stage_optimized_layout_independent_selected_form_encoding;
-use register_homes_to_post_allocation_machine::stage_optimized_post_allocation_machine_plan;
+use register_homes_to_post_allocation_machine::{
+    StagedOptimizedPostAllocationMachinePlan,
+    validate_optimized_post_allocation_machine_plan_custody,
+};
 use selected_form_encoding_to_resolved_layout::stage_optimized_resolved_selected_form_layout;
 use selected_instructions_to_register_homes::{
     AllocatedCalleeSavedRequirementPolicy, stage_allocated_callee_saved_requirements,
@@ -24,6 +27,7 @@ use super::source::validate_source;
 
 pub(super) fn construct_unit_function_relative_realization(
     allocation: RetainedAllocation,
+    machine: StagedOptimizedPostAllocationMachinePlan,
 ) -> Result<
     StagedOptimizedUnitFunctionRelativeRealization,
     OptimizedUnitFunctionRelativeRealizationError,
@@ -36,7 +40,7 @@ pub(super) fn construct_unit_function_relative_realization(
     let environment = current.register_environment();
     let physical = environment.physical();
     let budget = current.budget_per_pass();
-    let machine = stage_optimized_post_allocation_machine_plan(&current)
+    validate_optimized_post_allocation_machine_plan_custody(&current, &machine)
         .map_err(OptimizedUnitFunctionRelativeRealizationError::Machine)?;
     let encoding =
         stage_optimized_layout_independent_selected_form_encoding(selected, &machine, physical)

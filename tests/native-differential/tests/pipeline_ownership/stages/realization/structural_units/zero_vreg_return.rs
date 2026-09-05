@@ -18,8 +18,11 @@ fn unit_realization_shares_current_allocation_and_rejects_substitution() {
         let current = homes.replay_allocation().unwrap();
         let selected_owner = current.selected().shared_selected_plan();
         let home_owner = current.homes().shared_plan();
-        let mut realization =
-            stage_optimized_unit_function_relative_realization(homes.try_into().unwrap()).unwrap();
+        let mut realization = crate::tests::with_allocated_machine(
+            homes.try_into().unwrap(),
+            stage_optimized_unit_function_relative_realization,
+        )
+        .unwrap();
         assert!(std::sync::Arc::ptr_eq(
             &selected_owner,
             &realization.allocation().program().selected
@@ -234,8 +237,11 @@ fn zero_vreg_unit_return_reaches_replayed_homes_and_machine_custody() {
             .is_err()
         );
 
-        let mut realization =
-            stage_optimized_unit_function_relative_realization(homes.try_into().unwrap()).unwrap();
+        let mut realization = crate::tests::with_allocated_machine(
+            homes.try_into().unwrap(),
+            stage_optimized_unit_function_relative_realization,
+        )
+        .unwrap();
         assert_eq!(realization.manifest().record().statistics.functions, 1);
         assert_eq!(realization.manifest().record().statistics.blocks, 1);
         assert_eq!(realization.manifest().record().statistics.instructions, 1);
@@ -357,8 +363,11 @@ fn optimized_unit_return_carries_the_ordinary_aarch64_frame_and_link_save() {
         let homes =
             stage_optimized_register_homes(stage_optimized_allocation_legality(ranges).unwrap())
                 .unwrap();
-        let realization =
-            stage_optimized_unit_function_relative_realization(homes.try_into().unwrap()).unwrap();
+        let realization = crate::tests::with_allocated_machine(
+            homes.try_into().unwrap(),
+            stage_optimized_unit_function_relative_realization,
+        )
+        .unwrap();
         let emitted = stage_optimized_function_fragment_emission(
             FunctionFragmentReplayInputs::UnitBaseline(Box::new(realization)).into(),
         )

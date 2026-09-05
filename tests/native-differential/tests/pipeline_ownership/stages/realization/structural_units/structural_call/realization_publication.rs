@@ -6,9 +6,11 @@ pub(super) fn realize_and_publish_structural_call(homes: StagedOptimizedRegister
     let current = homes.replay_allocation().unwrap();
     let selected_owner = current.selected().shared_selected_plan();
     let home_owner = current.homes().shared_plan();
-    let mut realization =
-        stage_optimized_structural_unit_function_relative_realization(homes.try_into().unwrap())
-            .expect("structural Unit calls must reach owning function-relative custody");
+    let mut realization = crate::tests::with_allocated_machine(
+        homes.try_into().unwrap(),
+        stage_optimized_structural_unit_function_relative_realization,
+    )
+    .expect("structural Unit calls must reach owning function-relative custody");
     assert!(std::sync::Arc::ptr_eq(
         &selected_owner,
         &realization.allocation().program().selected

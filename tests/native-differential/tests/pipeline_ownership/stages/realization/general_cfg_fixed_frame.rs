@@ -272,11 +272,16 @@ fn staged_application(
     };
     let homes = stage_optimized_register_homes(legality)
         .unwrap_or_else(|error| panic!("{target:?} home assignment failed: {error:?}"));
-    let realization = stage_fixed_frame_function_relative_realization(
-        homes.try_into().unwrap(),
-        OptimizationWorkBudget::new(1_000_000, 1_000_000, 1_000_000, 1_000_000, 1_000_000).unwrap(),
-    )
-    .unwrap();
+    let realization =
+        crate::tests::with_allocated_machine(homes.try_into().unwrap(), |allocation, machine| {
+            stage_fixed_frame_function_relative_realization(
+                allocation,
+                machine,
+                OptimizationWorkBudget::new(1_000_000, 1_000_000, 1_000_000, 1_000_000, 1_000_000)
+                    .unwrap(),
+            )
+        })
+        .unwrap();
     let protocol = realization.protocol().plan();
     let protocol_row = protocol.functions.first().unwrap();
     let prologue = protocol_row

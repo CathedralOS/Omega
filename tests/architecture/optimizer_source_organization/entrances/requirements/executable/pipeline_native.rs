@@ -167,7 +167,7 @@ pub(crate) const ENTRANCES: &[RequiredCoordinationEntrance] = &[
     },
     RequiredCoordinationEntrance {
         path: "omega-rust/omega/compiler/native-realization/src/native_pipeline/physical_pipeline/routes/allocation_recovery/mod.rs",
-        coordination_marker: "fn stage_allocation_recovery_pipeline",
+        coordination_marker: "fn realize_recovered_allocation",
     },
     RequiredCoordinationEntrance {
         path: "omega-rust/omega/compiler/native-realization/src/native_pipeline/physical_pipeline/routes/composition/mod.rs",

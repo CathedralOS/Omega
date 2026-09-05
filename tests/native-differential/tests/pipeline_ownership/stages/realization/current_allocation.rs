@@ -57,8 +57,11 @@ fn selected_lowering_realization_owns_current_data_independently_of_replay() {
     ] {
         let allocation = allocation(target, true, relaxation);
         let original = allocation.program().clone();
-        let mut realization =
-            stage_selected_lowering_function_relative_realization(allocation).unwrap();
+        let mut realization = crate::tests::with_allocated_machine(
+            allocation,
+            stage_selected_lowering_function_relative_realization,
+        )
+        .unwrap();
         assert!(std::sync::Arc::ptr_eq(
             &original.selected,
             &realization.allocation().program().selected
@@ -97,8 +100,11 @@ fn selected_lowering_realization_owns_current_data_independently_of_replay() {
 fn branch_relaxation_realization_owns_current_data_independently_of_replay() {
     let allocation = allocation(NativeTarget::linux_x64(), false, true);
     let original = allocation.program().clone();
-    let mut realization =
-        stage_function_relative_layout_optimization_realization(allocation).unwrap();
+    let mut realization = crate::tests::with_allocated_machine(
+        allocation,
+        stage_function_relative_layout_optimization_realization,
+    )
+    .unwrap();
     assert!(std::sync::Arc::ptr_eq(
         &original.selected,
         &realization.allocation().program().selected
@@ -135,9 +141,10 @@ fn exit_contract_data_outlives_its_producer_without_granting_admission() {
         (NativeTarget::linux_x64(), true),
         (NativeTarget::linux_arm64(), false),
     ] {
-        let mut realization = stage_selected_lowering_function_relative_realization(allocation(
-            target, true, relaxation,
-        ))
+        let mut realization = crate::tests::with_allocated_machine(
+            allocation(target, true, relaxation),
+            stage_selected_lowering_function_relative_realization,
+        )
         .unwrap();
         let original: std::sync::Arc<machine_code::WholeFunctionExitContract> =
             realization.exit_contract().shared_contract();
@@ -173,19 +180,17 @@ fn exit_contract_data_outlives_its_producer_without_granting_admission() {
 #[test]
 fn realization_receipt_roles_cannot_be_substituted_at_the_common_allocation_entrance() {
     assert!(matches!(
-        stage_selected_lowering_function_relative_realization(allocation(
-            NativeTarget::linux_x64(),
-            false,
-            true
-        )),
+        crate::tests::with_allocated_machine(
+            allocation(NativeTarget::linux_x64(), false, true),
+            stage_selected_lowering_function_relative_realization
+        ),
         Err(FunctionRelativeOptimizationRealizationError::RootMismatch)
     ));
     assert!(matches!(
-        stage_function_relative_layout_optimization_realization(allocation(
-            NativeTarget::linux_x64(),
-            true,
-            true
-        )),
+        crate::tests::with_allocated_machine(
+            allocation(NativeTarget::linux_x64(), true, true),
+            stage_function_relative_layout_optimization_realization
+        ),
         Err(FunctionRelativeOptimizationRealizationError::RootMismatch)
     ));
 }

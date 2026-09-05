@@ -110,9 +110,11 @@ fn named_selected_lowering_suite_reaches_a_verified_fixed_point_on_both_architec
             validate_optimized_register_home_after_selected_lowering_custody(&homes).unwrap(),
             *homes.custody()
         );
-        let realization =
-            stage_selected_lowering_function_relative_realization(homes.try_into().unwrap())
-                .unwrap();
+        let realization = crate::tests::with_allocated_machine(
+            homes.try_into().unwrap(),
+            stage_selected_lowering_function_relative_realization,
+        )
+        .unwrap();
         let post = realization.machine();
         assert_eq!(post.machine().receipt().selected(), final_selected);
         assert_eq!(
@@ -229,9 +231,11 @@ fn named_selected_lowering_suite_retains_verified_no_change_completion() {
         assert_eq!(manifest.selected_lowering_completion, Some(completion));
         assert!(manifest.selected_transformations.is_empty());
         assert_eq!(manifest.selected, source_selected);
-        let realization =
-            stage_selected_lowering_function_relative_realization(homes.try_into().unwrap())
-                .unwrap();
+        let realization = crate::tests::with_allocated_machine(
+            homes.try_into().unwrap(),
+            stage_selected_lowering_function_relative_realization,
+        )
+        .unwrap();
         let post = realization.machine();
         assert_eq!(post.machine().receipt().selected(), source_selected);
         assert_eq!(

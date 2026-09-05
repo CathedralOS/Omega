@@ -127,19 +127,27 @@ fn baseline_realizations_reject_selected_lowering_evidence_roles() {
     }
     for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
         assert!(matches!(
-            stage_optimized_unit_function_relative_realization(selected_allocation(target)),
+            crate::tests::with_allocated_machine(
+                selected_allocation(target),
+                stage_optimized_unit_function_relative_realization
+            ),
             Err(OptimizedUnitFunctionRelativeRealizationError::RootMismatch)
         ));
         assert!(matches!(
-            stage_optimized_structural_unit_function_relative_realization(selected_allocation(
-                target
-            )),
+            crate::tests::with_allocated_machine(
+                selected_allocation(target),
+                stage_optimized_structural_unit_function_relative_realization
+            ),
             Err(OptimizedStructuralUnitFunctionRelativeRealizationError::RootMismatch)
         ));
         assert!(matches!(
-            stage_fixed_frame_function_relative_realization(
+            crate::tests::with_allocated_machine(
                 selected_allocation(target),
-                selected_lowering_budget()
+                |allocation, machine| stage_fixed_frame_function_relative_realization(
+                    allocation,
+                    machine,
+                    selected_lowering_budget()
+                )
             ),
             Err(FunctionRelativeOptimizationRealizationError::RootMismatch)
         ));

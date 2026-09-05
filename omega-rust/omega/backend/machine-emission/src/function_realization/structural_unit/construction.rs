@@ -2,7 +2,10 @@ use selected_instructions_to_register_homes::{AllocationSource, RetainedAllocati
 
 use crate::stage_whole_function_exit_contract;
 use post_allocation_machine_to_selected_form_encoding::stage_optimized_layout_independent_selected_form_encoding;
-use register_homes_to_post_allocation_machine::stage_optimized_post_allocation_machine_plan;
+use register_homes_to_post_allocation_machine::{
+    StagedOptimizedPostAllocationMachinePlan,
+    validate_optimized_post_allocation_machine_plan_custody,
+};
 use selected_form_encoding_to_resolved_layout::stage_optimized_resolved_selected_form_layout;
 
 use super::custody::structural_unit_realization_receipt;
@@ -15,6 +18,7 @@ use super::source::validate_source;
 
 pub(super) fn construct_structural_unit_function_relative_realization(
     allocation: RetainedAllocation,
+    machine: StagedOptimizedPostAllocationMachinePlan,
 ) -> Result<
     StagedOptimizedStructuralUnitFunctionRelativeRealization,
     OptimizedStructuralUnitFunctionRelativeRealizationError,
@@ -25,7 +29,7 @@ pub(super) fn construct_structural_unit_function_relative_realization(
     let source = validate_source(&current)?;
     let selected = current.selected();
     let physical = current.register_environment().physical();
-    let machine = stage_optimized_post_allocation_machine_plan(&current)
+    validate_optimized_post_allocation_machine_plan_custody(&current, &machine)
         .map_err(OptimizedStructuralUnitFunctionRelativeRealizationError::Machine)?;
     let encoding =
         stage_optimized_layout_independent_selected_form_encoding(selected, &machine, physical)

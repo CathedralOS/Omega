@@ -34,13 +34,15 @@ fn shared_entry_fixed_view_copy_is_disabled_without_its_exact_selection() {
         // fall back to an unrequested physical transformation.
         assert!(matches!(
             error,
-            OptimizedVerifiedPhysicalPipelineError::RegisterHomes(
-                OptimizedRegisterHomeCustodyError::Assignment(
-                    RegisterHomeError::UnresolvedEntryTransitions {
-                        function: 0,
-                        register: 1,
-                        count: 2,
-                    },
+            OptimizedVerifiedPhysicalPipelineError::RegisterAllocation(
+                selected_instructions_to_register_homes::RegisterAllocationError::Homes(
+                    OptimizedRegisterHomeCustodyError::Assignment(
+                        RegisterHomeError::UnresolvedEntryTransitions {
+                            function: 0,
+                            register: 1,
+                            count: 2,
+                        },
+                    ),
                 ),
             )
         ));

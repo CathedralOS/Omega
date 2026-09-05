@@ -1,5 +1,6 @@
 //! Optimizer module role: stage group. Typed fixture catalog shared by stage-specific integration tests.
 
+mod allocated_machine;
 mod common;
 mod control_flow;
 mod projected_structural_call_return;
@@ -9,6 +10,7 @@ mod structural_units;
 mod target_translation;
 mod validation;
 
+pub(crate) use allocated_machine::*;
 pub(crate) use common::*;
 pub(crate) use control_flow::*;
 pub(crate) use projected_structural_call_return::*;

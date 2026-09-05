@@ -120,8 +120,11 @@ fn publish_exact_selected_lowering(
     assert_eq!(run.custody().action_count(), 2);
     assert_eq!(run.steps().len(), 2);
     let homes = stage_optimized_register_homes_after_selected_lowering(run).unwrap();
-    let realization =
-        stage_selected_lowering_function_relative_realization(homes.try_into().unwrap()).unwrap();
+    let realization = crate::tests::with_allocated_machine(
+        homes.try_into().unwrap(),
+        stage_selected_lowering_function_relative_realization,
+    )
+    .unwrap();
 
     assert_eq!(
         validate_selected_lowering_function_relative_realization_custody(&realization).unwrap(),

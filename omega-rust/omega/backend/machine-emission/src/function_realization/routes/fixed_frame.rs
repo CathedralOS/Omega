@@ -5,6 +5,7 @@ use selected_instructions_to_register_homes::{AllocationSource, RetainedAllocati
 
 pub fn stage_fixed_frame_function_relative_realization(
     allocation: RetainedAllocation,
+    machine: StagedOptimizedPostAllocationMachinePlan,
     budget: OptimizationWorkBudget,
 ) -> Result<StagedFixedFrameFunctionRelativeRealization, FunctionRelativeOptimizationRealizationError>
 {
@@ -12,7 +13,7 @@ pub fn stage_fixed_frame_function_relative_realization(
         .replay_allocation()
         .map_err(FunctionRelativeOptimizationRealizationError::Allocation)?;
     let source = baseline_allocation_source(&current)?;
-    let machine = stage_optimized_post_allocation_machine_plan(&current)
+    validate_optimized_post_allocation_machine_plan_custody(&current, &machine)
         .map_err(FunctionRelativeOptimizationRealizationError::PostAllocationMachine)?;
     let selected = current.selected();
     let environment = current.register_environment();
