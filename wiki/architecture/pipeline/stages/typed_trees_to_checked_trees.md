@@ -658,7 +658,8 @@ Current ownership is:
   alias into a primitive scalar, concrete primitive-only record/sum, or nested
   fixed-array local is caller-isolated and contributes no published write;
   structurally transparent helpers preserve that local origin. Recursive,
-  generic, reference-bearing, or other computed local roots remain opaque.
+  generic, or other computed local roots remain opaque unless the shared
+  aggregate-leaf transfer below establishes their reference origins.
   Aggregate literal leaves that are view-producing helper calls retain the
   helper signature's exact selected input loan through nested record,
   active-sum, fixed-array, and concrete-generic structure; a call expression
@@ -818,9 +819,26 @@ Current ownership is:
   its shared origin transfer. Replacement classification follows declared
   result types and literal projections, including every candidate array element;
   an effect-free projected reference is still a replacement, not an owned-value
-  store. Stored/moved carrier origins and aggregate call
-  results still need general leaf-origin transfer; passing an aggregate by value
-  does not erase its mutable references. The same restriction applies to
+  store. Local record, selected-case, and fixed-array literals use that same
+  leaf walker at declaration. Each stored reference retains its local field,
+  case, and fixed-index selectors and a canonical source origin frozen against
+  the preceding aliases and stored leaves. Later alias rebinding cannot redirect
+  it. Owned suffixes borrowed through earlier stored leaves compose those
+  origins; coarse array sources retain every reachable referent. Borrowing a
+  stored reference slot or whole carrier, including inside helper operands,
+  stays opaque because it could replace the established origin.
+  Ordinary state transfer, named-cycle equations, and public demand queries
+  consume the same evidence. Structured storage projection selects exact local
+  leaves, unions overlapping runtime-index demand, and retains private ancestor
+  storage for local fact invalidation. Reverse alias closure includes each local
+  leaf selector; borrow access routes remain unchanged. Missing or unknown leaf
+  evidence cannot become private storage or a complete empty frame.
+  An expression-rooted actual is not a storage identity: direct call projection
+  and transitive summary propagation reconstruct its complete shared frame
+  instead of dropping its reference leaves as private expression roots.
+  Moved carrier values and aggregate call results still need general leaf-origin
+  transfer; passing an aggregate by value does not erase its mutable references.
+  The same restriction applies to
   exclusive references to
   reference-bearing carriers; primitive slices retain their collection reach.
   A rejected trait-receiver call stays opaque through every fallback consumer,

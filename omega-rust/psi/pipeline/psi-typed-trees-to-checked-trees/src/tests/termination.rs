@@ -16,6 +16,7 @@ mod write_frame_computed_receivers;
 mod write_frame_cycles;
 mod write_frame_indexed_calls;
 mod write_frame_returned_places;
+mod write_frame_stored_aggregates;
 
 fn symbol_of_checked(
     checked: &psi_checked_trees::CheckedTrees,

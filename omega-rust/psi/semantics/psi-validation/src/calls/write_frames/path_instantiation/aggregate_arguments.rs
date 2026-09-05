@@ -2,12 +2,13 @@
 //! Walk declared value structure until a reference boundary; owned by-value
 //! storage is private, while coarse collection demand visits every element.
 
-use super::{FramePathPrecision, append_place_suffix, split_place_root};
+use super::{FramePathPrecision, FramePlaceOrigin, append_place_suffix, split_place_root};
 use crate::calls::write_frames::isolation::struct_literal_matches_expected_type;
 use crate::calls::write_frames::reference_origins::{
     exclusive_reference_origin, referent_has_only_owned_storage,
 };
 use crate::symbols::TopLevelSymbols;
+use psi_facts::PlaceSegment;
 use psi_symbols::SymbolHandle;
 use psi_typed_trees::TypedTrees;
 use psi_typed_trees::data::DataMember;
@@ -24,15 +25,66 @@ pub(super) fn written_paths(
     symbols: &TopLevelSymbols<'_>,
     active_states: &mut Vec<SymbolHandle>,
 ) -> Option<Vec<String>> {
-    let mut pending = vec![(argument, expected_type, suffix)];
+    let leaves = reference_leaves(
+        program,
+        caller_machine,
+        argument,
+        expected_type,
+        suffix,
+        symbols,
+        active_states,
+    )?;
     let mut written = Vec::new();
-    while let Some((expression, reference, suffix)) = pending.pop() {
+    for leaf in leaves {
+        if !written.contains(&leaf.origin.path) {
+            written.push(leaf.origin.path);
+        }
+    }
+    Some(written)
+}
+
+/// Temporary structural evidence shared by immediate arguments and stored
+/// aggregate declarations. Only the string view coarsens array selectors.
+pub(in crate::calls::write_frames) struct ReferenceLeaf {
+    pub local_suffix: String,
+    pub local_segments: Vec<PlaceSegment>,
+    pub origin: FramePlaceOrigin,
+}
+
+pub(in crate::calls::write_frames) fn reference_leaves(
+    program: &TypedTrees,
+    caller_machine: &Machine,
+    argument: ExpressionHandle,
+    expected_type: TypeReferenceHandle,
+    suffix: &str,
+    symbols: &TopLevelSymbols<'_>,
+    active_states: &mut Vec<SymbolHandle>,
+) -> Option<Vec<ReferenceLeaf>> {
+    let mut pending = vec![(
+        argument,
+        expected_type,
+        suffix,
+        String::new(),
+        Vec::new(),
+        false,
+    )];
+    let mut leaves = Vec::new();
+    while let Some((expression, reference, suffix, local_suffix, local_segments, local_coarse)) =
+        pending.pop()
+    {
         if !reference.is_valid() {
             return None;
         }
         match program.type_reference_table.type_reference(reference) {
             TypeReferenceNode::Constrained { base_type, .. } => {
-                pending.push((expression, *base_type, suffix));
+                pending.push((
+                    expression,
+                    *base_type,
+                    suffix,
+                    local_suffix,
+                    local_segments,
+                    local_coarse,
+                ));
             }
             TypeReferenceNode::Reference {
                 access, referee, ..
@@ -54,9 +106,14 @@ pub(super) fn written_paths(
                     FramePathPrecision::Exact => append_place_suffix(&origin.path, suffix),
                     FramePathPrecision::CollectionCoarse => origin.path,
                 };
-                if !written.contains(&path) {
-                    written.push(path);
-                }
+                leaves.push(ReferenceLeaf {
+                    local_suffix,
+                    local_segments,
+                    origin: FramePlaceOrigin {
+                        path,
+                        precision: origin.precision,
+                    },
+                });
             }
             TypeReferenceNode::FixedArray {
                 element_type,
@@ -72,12 +129,18 @@ pub(super) fn written_paths(
                 if !suffix.is_empty() || elements.len() != *length {
                     return None;
                 }
-                pending.extend(
-                    elements
-                        .iter()
-                        .rev()
-                        .map(|element| (*element, *element_type, "")),
-                );
+                for (index, element) in elements.iter().enumerate().rev() {
+                    let mut segments = local_segments.clone();
+                    segments.push(PlaceSegment::FixedIndex { index });
+                    pending.push((
+                        *element,
+                        *element_type,
+                        "",
+                        local_suffix.clone(),
+                        segments,
+                        true,
+                    ));
+                }
             }
             TypeReferenceNode::Named { symbol, .. }
                 if program.primitive_type_reference(reference).is_none() =>
@@ -98,6 +161,7 @@ pub(super) fn written_paths(
                     .iter()
                     .find(|definition| definition.symbol == *symbol)?;
                 let mut fields = Vec::new();
+                let mut local_segments = local_segments;
                 if let Some(case) = literal.case_name.as_ref() {
                     let mut variants =
                         program
@@ -110,13 +174,17 @@ pub(super) fn written_paths(
                                 _ => None,
                             });
                     let variant = variants.next()?;
-                    if variants.next().is_some()
+                    if !variant.symbol.is_valid()
+                        || variants.next().is_some()
                         || literal
                             .case_symbol
                             .is_some_and(|symbol| symbol.is_valid() && symbol != variant.symbol)
                     {
                         return None;
                     }
+                    local_segments.push(PlaceSegment::Case {
+                        variant: variant.symbol,
+                    });
                     for field in program.data_payload_fields(variant) {
                         fields.push((field.name.as_str(), field.symbol, field.type_reference));
                     }
@@ -152,7 +220,10 @@ pub(super) fn written_paths(
                 }) {
                     return None;
                 }
-                for (name, _, field_type) in fields {
+                for (name, symbol, field_type) in fields {
+                    if !symbol.is_valid() {
+                        return None;
+                    }
                     if selected.is_some_and(|(selected, _)| selected != name) {
                         continue;
                     }
@@ -163,7 +234,21 @@ pub(super) fn written_paths(
                         .unwrap_or_default();
                     // Missing reference initializers cannot create a complete
                     // empty footprint; omitted owned scalar defaults can.
-                    pending.push((value, field_type, selected.map_or("", |(_, rest)| rest)));
+                    let mut segments = local_segments.clone();
+                    segments.push(PlaceSegment::Field { symbol });
+                    let field_suffix = if local_coarse {
+                        local_suffix.clone()
+                    } else {
+                        format!("{local_suffix}.{name}")
+                    };
+                    pending.push((
+                        value,
+                        field_type,
+                        selected.map_or("", |(_, rest)| rest),
+                        field_suffix,
+                        segments,
+                        local_coarse,
+                    ));
                 }
             }
             _ if program.primitive_type_reference(reference).is_some()
@@ -180,5 +265,5 @@ pub(super) fn written_paths(
             _ => return None,
         }
     }
-    Some(written)
+    Some(leaves)
 }

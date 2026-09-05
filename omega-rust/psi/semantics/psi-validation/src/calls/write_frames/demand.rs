@@ -51,6 +51,15 @@ pub struct CallFrameResolver<'program> {
 }
 
 impl<'program> CallFrameResolver<'program> {
+    /// Shared classification only; storage origins still require prefix evidence.
+    pub fn local_requires_write_origin(
+        &self,
+        reference: psi_typed_trees::types::TypeReferenceHandle,
+    ) -> bool {
+        super::type_may_carry_write(self.program, reference)
+            && !super::type_is_caller_isolated_local(self.program, reference)
+    }
+
     pub fn assignment_write_target(
         &self,
         current_machine: &Machine,
@@ -67,12 +76,12 @@ impl<'program> CallFrameResolver<'program> {
     ) -> NormalizedWriteFrame {
         let written = match self.assignment_write_target(current_machine, statement) {
             Some(AssignmentWriteTarget::LocalBindingReplacement { path }) => Some(vec![path]),
-            Some(AssignmentWriteTarget::Storage { path }) => close_caller_aliases(
+            Some(AssignmentWriteTarget::Storage { paths }) => close_caller_aliases(
                 self.program,
                 current_machine,
                 &self.symbols,
                 CallerWriteSite::Statement(statement),
-                vec![path],
+                paths,
             ),
             None => None,
         };

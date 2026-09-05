@@ -87,53 +87,10 @@ pub(super) fn expression_reborrows_local_alias_binding(
     expression: ExpressionHandle,
     aliases: &[(String, FramePlaceOrigin)],
 ) -> bool {
-    if !expression.is_valid() {
-        return false;
-    }
-    let visit = |child| expression_reborrows_local_alias_binding(program, child, aliases);
-    match program.expression_table.expression(expression) {
-        ExpressionNode::Borrow(inner) => {
-            let borrows_binding = inner.access.is_exclusive()
-                && matches!(
-                    program.expression_table.expression(inner.target),
-                    ExpressionNode::Name(_)
-                )
-                && arithmetic_domains::place_path(program, inner.target)
-                    .is_some_and(|path| aliases.iter().any(|(alias, _)| path == *alias));
-            borrows_binding || visit(inner.target)
-        }
-        ExpressionNode::Atomic(atomic) => visit(atomic.value) || visit(atomic.result),
-        ExpressionNode::Call(call) => {
-            (call.receiver.is_valid() && visit(call.receiver))
-                || program
-                    .expression_table
-                    .expression_handles(call.arguments)
-                    .iter()
-                    .any(|argument| visit(*argument))
-        }
-        ExpressionNode::Binary(binary) => visit(binary.left) || visit(binary.right),
-        ExpressionNode::Unary(unary) => visit(unary.operand),
-        ExpressionNode::Cast(cast) => visit(cast.value),
-        ExpressionNode::Indexed(indexed) => visit(indexed.collection) || visit(indexed.index),
-        ExpressionNode::Member(member) => visit(member.receiver),
-        ExpressionNode::ArrayLiteral(elements) => program
-            .expression_table
-            .expression_handles(*elements)
-            .iter()
-            .any(|element| visit(*element)),
-        ExpressionNode::StructLiteral(literal) => program
-            .expression_table
-            .struct_fields(literal.fields)
-            .iter()
-            .any(|field| visit(field.value)),
-        ExpressionNode::Range(range) => visit(range.start) || visit(range.end),
-        ExpressionNode::Boolean(_)
-        | ExpressionNode::Float(_)
-        | ExpressionNode::Integer(_)
-        | ExpressionNode::Name(_)
-        | ExpressionNode::String(_)
-        | ExpressionNode::ZeroValue(_) => false,
-    }
+    expression_reborrows_reference_binding(program, expression, &|target| {
+        arithmetic_domains::place_path(program, target)
+            .is_some_and(|path| aliases.iter().any(|(alias, _)| path == *alias))
+    })
 }
 
 pub(super) fn expression_reborrows_stable_alias_binding(
@@ -160,53 +117,61 @@ pub(super) fn expression_reborrows_reference_binding(
     expression: ExpressionHandle,
     is_reference_binding: &impl Fn(ExpressionHandle) -> bool,
 ) -> bool {
-    if !expression.is_valid() {
-        return false;
-    }
-    let visit =
-        |child| expression_reborrows_reference_binding(program, child, is_reference_binding);
-    match program.expression_table.expression(expression) {
-        ExpressionNode::Borrow(inner) => {
-            let reborrows_binding = inner.access.is_exclusive()
-                && matches!(
-                    program.expression_table.expression(inner.target),
-                    ExpressionNode::Name(_)
-                )
-                && is_reference_binding(inner.target);
-            reborrows_binding || visit(inner.target)
+    expression_has_exclusive_borrow(program, expression, &|target| {
+        matches!(
+            program.expression_table.expression(target),
+            ExpressionNode::Name(_)
+        ) && is_reference_binding(target)
+    })
+}
+
+pub(super) fn expression_has_exclusive_borrow(
+    program: &TypedTrees,
+    expression: ExpressionHandle,
+    is_reference_binding: &impl Fn(ExpressionHandle) -> bool,
+) -> bool {
+    let mut pending = vec![expression];
+    while let Some(expression) = pending.pop() {
+        if !expression.is_valid() {
+            continue;
         }
-        ExpressionNode::Atomic(atomic) => visit(atomic.value) || visit(atomic.result),
-        ExpressionNode::Call(call) => {
-            (call.receiver.is_valid() && visit(call.receiver))
-                || program
+        match program.expression_table.expression(expression) {
+            ExpressionNode::Borrow(inner) => {
+                if inner.access.is_exclusive() && is_reference_binding(inner.target) {
+                    return true;
+                }
+                pending.push(inner.target);
+            }
+            ExpressionNode::Atomic(atomic) => pending.extend([atomic.value, atomic.result]),
+            ExpressionNode::Call(call) => {
+                pending.push(call.receiver);
+                pending.extend(program.expression_table.expression_handles(call.arguments));
+            }
+            ExpressionNode::Binary(binary) => pending.extend([binary.left, binary.right]),
+            ExpressionNode::Unary(unary) => pending.push(unary.operand),
+            ExpressionNode::Cast(cast) => pending.push(cast.value),
+            ExpressionNode::Indexed(indexed) => pending.extend([indexed.collection, indexed.index]),
+            ExpressionNode::Member(member) => pending.push(member.receiver),
+            ExpressionNode::ArrayLiteral(elements) => {
+                pending.extend(program.expression_table.expression_handles(*elements))
+            }
+            ExpressionNode::StructLiteral(literal) => pending.extend(
+                program
                     .expression_table
-                    .expression_handles(call.arguments)
+                    .struct_fields(literal.fields)
                     .iter()
-                    .any(|argument| visit(*argument))
+                    .map(|field| field.value),
+            ),
+            ExpressionNode::Range(range) => pending.extend([range.start, range.end]),
+            ExpressionNode::Boolean(_)
+            | ExpressionNode::Float(_)
+            | ExpressionNode::Integer(_)
+            | ExpressionNode::Name(_)
+            | ExpressionNode::String(_)
+            | ExpressionNode::ZeroValue(_) => {}
         }
-        ExpressionNode::Binary(binary) => visit(binary.left) || visit(binary.right),
-        ExpressionNode::Unary(unary) => visit(unary.operand),
-        ExpressionNode::Cast(cast) => visit(cast.value),
-        ExpressionNode::Indexed(indexed) => visit(indexed.collection) || visit(indexed.index),
-        ExpressionNode::Member(member) => visit(member.receiver),
-        ExpressionNode::ArrayLiteral(elements) => program
-            .expression_table
-            .expression_handles(*elements)
-            .iter()
-            .any(|element| visit(*element)),
-        ExpressionNode::StructLiteral(literal) => program
-            .expression_table
-            .struct_fields(literal.fields)
-            .iter()
-            .any(|field| visit(field.value)),
-        ExpressionNode::Range(range) => visit(range.start) || visit(range.end),
-        ExpressionNode::Boolean(_)
-        | ExpressionNode::Float(_)
-        | ExpressionNode::Integer(_)
-        | ExpressionNode::Name(_)
-        | ExpressionNode::String(_)
-        | ExpressionNode::ZeroValue(_) => false,
     }
+    false
 }
 
 /// A bare write through `alias` (`alias = 1`) targets the borrowed place, but

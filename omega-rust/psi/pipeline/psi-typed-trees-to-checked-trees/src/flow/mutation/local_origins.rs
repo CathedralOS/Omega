@@ -40,14 +40,14 @@ pub(in crate::flow) fn close_storage_places_over_aliases(
                 continue;
             }
             let mut alias = canonical_place_from_symbol(origin.local_symbol)?;
-            if place.segments.starts_with(&source.segments) {
-                if !origin.collection_coarse {
-                    alias
-                        .segments
-                        .extend_from_slice(&place.segments[source.segments.len()..]);
-                }
-            } else if !source.segments.starts_with(&place.segments) {
+            alias.segments.extend_from_slice(&origin.local_segments);
+            if !canonical_place_segments_may_overlap(program, &place.segments, &source.segments) {
                 continue;
+            }
+            if place.segments.len() >= source.segments.len() && !origin.collection_coarse {
+                alias
+                    .segments
+                    .extend_from_slice(&place.segments[source.segments.len()..]);
             }
             if !places.contains(&alias) {
                 places.push(alias);
@@ -57,13 +57,13 @@ pub(in crate::flow) fn close_storage_places_over_aliases(
     Some(places)
 }
 
-pub(super) fn assignment_storage_place(
+pub(super) fn assignment_storage_places(
     program: &psi_typed_trees::TypedTrees,
     machine_symbol: SymbolHandle,
     state_symbol: SymbolHandle,
     statement_index: usize,
     statement: &StatementNode,
-) -> Option<CanonicalPlace> {
+) -> Option<Vec<CanonicalPlace>> {
     let StatementNode::Assignment(assignment) = statement else {
         return None;
     };
@@ -75,8 +75,8 @@ pub(super) fn assignment_storage_place(
     );
     if let Some(place) = &mut direct {
         normalize_write_only_range_place(program, state_symbol, place);
-        if !place_has_local_reference_root(program, state_symbol, statement_index, place) {
-            return direct;
+        if !place_requires_local_write_origin(program, state_symbol, statement_index, place) {
+            return direct.map(|place| vec![place]);
         }
     }
     let machine = program
@@ -85,23 +85,30 @@ pub(super) fn assignment_storage_place(
         .find(|machine| machine.symbol == machine_symbol)?;
     let resolver = psi_validation::CallFrameResolver::new(program)?;
     match resolver.assignment_write_target(machine, statement)? {
-        psi_validation::AssignmentWriteTarget::LocalBindingReplacement { .. } => direct,
-        psi_validation::AssignmentWriteTarget::Storage { path } => {
+        psi_validation::AssignmentWriteTarget::LocalBindingReplacement { .. } => {
+            direct.map(|place| vec![place])
+        }
+        psi_validation::AssignmentWriteTarget::Storage { paths } => {
             if let Some(place) = direct {
-                rebase_local_write_place(program, state_symbol, statement_index, place)
+                rebase_local_write_places(program, state_symbol, statement_index, place)
             } else {
-                place_from_origin_path(
-                    program,
-                    find_state(program, state_symbol)?,
-                    statement_index,
-                    &path,
-                )
+                paths
+                    .iter()
+                    .map(|path| {
+                        place_from_origin_path(
+                            program,
+                            find_state(program, state_symbol)?,
+                            statement_index,
+                            path,
+                        )
+                    })
+                    .collect()
             }
         }
     }
 }
 
-fn place_has_local_reference_root(
+fn place_requires_local_write_origin(
     program: &psi_typed_trees::TypedTrees,
     state_symbol: SymbolHandle,
     statement_index: usize,
@@ -125,26 +132,18 @@ fn place_has_local_reference_root(
     else {
         return false;
     };
-    let mut local_type = local.type_reference;
-    loop {
-        match program.type_reference_table.type_reference(local_type) {
-            psi_typed_trees::types::TypeReferenceNode::Constrained { base_type, .. } => {
-                local_type = *base_type
-            }
-            psi_typed_trees::types::TypeReferenceNode::Reference { .. } => return true,
-            _ => return false,
-        }
-    }
+    psi_validation::CallFrameResolver::new(program)
+        .is_none_or(|resolver| resolver.local_requires_write_origin(local.type_reference))
 }
 
-pub(super) fn rebase_local_write_place(
+pub(super) fn rebase_local_write_places(
     program: &psi_typed_trees::TypedTrees,
     state_symbol: SymbolHandle,
     statement_index: usize,
     place: CanonicalPlace,
-) -> Option<CanonicalPlace> {
-    if !place_has_local_reference_root(program, state_symbol, statement_index, &place) {
-        return Some(place);
+) -> Option<Vec<CanonicalPlace>> {
+    if !place_requires_local_write_origin(program, state_symbol, statement_index, &place) {
+        return Some(vec![place]);
     }
     let psi_facts::PlaceRoot::Symbol(root) = place.root else {
         return None;
@@ -160,13 +159,33 @@ pub(super) fn rebase_local_write_place(
     let resolver = psi_validation::CallFrameResolver::new(program)?;
     let origins =
         resolver.local_write_origins_before_statement(machine, statements.get(statement_index)?)?;
-    let origin = origins.iter().find(|origin| origin.local_symbol == root)?;
-    let mut canonical =
-        place_from_origin_path(program, state, statement_index, &origin.source_path)?;
-    if !origin.collection_coarse {
-        canonical.segments.extend(place.segments);
+    let mut projected = Vec::new();
+    let mut retains_private_storage = true;
+    for origin in origins.iter().filter(|origin| origin.local_symbol == root) {
+        if !canonical_place_segments_may_overlap(program, &place.segments, &origin.local_segments) {
+            continue;
+        }
+        let mut canonical =
+            place_from_origin_path(program, state, statement_index, &origin.source_path)?;
+        if place.segments.len() >= origin.local_segments.len() {
+            retains_private_storage = false;
+            if !origin.collection_coarse {
+                canonical
+                    .segments
+                    .extend_from_slice(&place.segments[origin.local_segments.len()..]);
+            }
+        }
+        if !projected.contains(&canonical) {
+            projected.push(canonical);
+        }
     }
-    Some(canonical)
+    // A complete prefix accounts for every write-capable reference leaf.
+    // A disjoint owned field, or an ancestor also containing owned storage,
+    // still has local facts to invalidate. Caller summaries filter that root.
+    if retains_private_storage && !projected.contains(&place) {
+        projected.push(place);
+    }
+    Some(projected)
 }
 
 pub(super) fn place_from_origin_path(

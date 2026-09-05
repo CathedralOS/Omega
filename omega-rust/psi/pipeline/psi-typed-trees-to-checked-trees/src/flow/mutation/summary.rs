@@ -5,7 +5,7 @@
 //! field/range places for flow invalidation and propagates those places across
 //! the calls which the shared resolver admitted as complete.
 
-use super::local_origins::rebase_local_write_place;
+use super::local_origins::rebase_local_write_places;
 use super::*;
 use crate::flow::mutation::receiver::canonical_receiver_place_for_call_site;
 
@@ -36,7 +36,7 @@ pub(super) fn instantiate_known_call_mutation_summary_places(
 
     let mut instantiated = Vec::new();
     for summary_place in summary_places {
-        let place = instantiate_call_relative_place(
+        let places = instantiate_call_relative_places(
             program,
             caller_machine_symbol,
             caller_state_symbol,
@@ -44,8 +44,10 @@ pub(super) fn instantiate_known_call_mutation_summary_places(
             summary_place,
             namespace,
         )?;
-        if !instantiated.contains(&place) {
-            instantiated.push(place);
+        for place in places {
+            if !instantiated.contains(&place) {
+                instantiated.push(place);
+            }
         }
     }
 
@@ -180,7 +182,7 @@ fn ensure_state_mutation_summaries(
                     break;
                 }
                 for write in &target.writes {
-                    let Some(instantiated) = instantiate_call_relative_place(
+                    let Some(instantiated_places) = instantiate_call_relative_places(
                         program,
                         caller_machine,
                         caller_symbol,
@@ -191,11 +193,13 @@ fn ensure_state_mutation_summaries(
                         complete = false;
                         break;
                     };
-                    if state_summary_exposes_place(program, caller_state, &instantiated)
-                        && !snapshot[caller_index].writes.contains(&instantiated)
-                        && !additions.contains(&instantiated)
-                    {
-                        additions.push(instantiated);
+                    for instantiated in instantiated_places {
+                        if state_summary_exposes_place(program, caller_state, &instantiated)
+                            && !snapshot[caller_index].writes.contains(&instantiated)
+                            && !additions.contains(&instantiated)
+                        {
+                            additions.push(instantiated);
+                        }
                     }
                 }
                 if !complete {
@@ -334,34 +338,36 @@ fn collect_state_mutation_summary_places(
         let StatementNode::Assignment(_) = statement else {
             continue;
         };
-        let place = super::local_origins::assignment_storage_place(
+        let places = super::local_origins::assignment_storage_places(
             program,
             machine_symbol,
             state.symbol,
             statement_index,
             statement,
         )?;
-        let psi_facts::PlaceRoot::Symbol(root_symbol) = place.root else {
-            continue;
-        };
-        if (parameter_symbols.contains(&root_symbol) || root_symbol == machine_symbol)
-            && !writes.contains(&place)
-        {
-            writes.push(place);
+        for place in places {
+            let psi_facts::PlaceRoot::Symbol(root_symbol) = place.root else {
+                continue;
+            };
+            if (parameter_symbols.contains(&root_symbol) || root_symbol == machine_symbol)
+                && !writes.contains(&place)
+            {
+                writes.push(place);
+            }
         }
     }
 
     Some(writes)
 }
 
-fn instantiate_call_relative_place(
+fn instantiate_call_relative_places(
     program: &psi_typed_trees::TypedTrees,
     caller_machine_symbol: SymbolHandle,
     caller_state_symbol: SymbolHandle,
     borrow_call: &BorrowCallFact,
     relative_place: &CanonicalPlace,
     namespace: WritePlaceNamespace,
-) -> Option<CanonicalPlace> {
+) -> Option<Vec<CanonicalPlace>> {
     let psi_facts::PlaceRoot::Symbol(parameter_symbol) = relative_place.root else {
         return None;
     };
@@ -421,8 +427,19 @@ fn instantiate_call_relative_place(
             .segments
             .extend(relative_place.segments.iter().copied());
         return match namespace {
-            WritePlaceNamespace::AccessRoute => Some(instantiated),
-            WritePlaceNamespace::Storage => rebase_local_write_place(
+            WritePlaceNamespace::AccessRoute => Some(vec![instantiated]),
+            WritePlaceNamespace::Storage if !storage_place_has_declared_identity(&instantiated) => {
+                // Expression identity describes evaluation, not storage. The
+                // shared complete frame owns origins of literal/computed
+                // actuals, including their reference-bearing leaves.
+                super::shared_call_storage_places(
+                    program,
+                    caller_machine_symbol,
+                    caller_state_symbol,
+                    borrow_call,
+                )
+            }
+            WritePlaceNamespace::Storage => rebase_local_write_places(
                 program,
                 caller_state_symbol,
                 borrow_call.statement_index,
@@ -432,4 +449,13 @@ fn instantiate_call_relative_place(
     }
 
     None
+}
+
+fn storage_place_has_declared_identity(place: &CanonicalPlace) -> bool {
+    matches!(place.root, psi_facts::PlaceRoot::Symbol(symbol) if symbol.is_valid())
+        && place.segments.iter().all(|segment| match segment {
+            psi_facts::PlaceSegment::Field { symbol } => symbol.is_valid(),
+            psi_facts::PlaceSegment::Case { variant } => variant.is_valid(),
+            _ => true,
+        })
 }

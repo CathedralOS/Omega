@@ -31,6 +31,7 @@ mod path_instantiation;
 mod place_paths;
 mod reference_origins;
 mod state_paths;
+mod stored_origins;
 mod transition_equations;
 mod transition_topology;
 mod transparent_effects;
@@ -77,6 +78,7 @@ use state_paths::{
     expression_forwards_exact_symbol, normalize_state_relative_path, push_visible_frame_path,
     relative_state_path_is_visible,
 };
+use stored_origins::{StoredWriteOrigin, expand_write_path};
 use transition_equations::{
     PermutedCycleFrameEquation, append_permuted_cycle_frame_edge, transition_state_reaches,
 };
@@ -355,6 +357,7 @@ fn summarize_state_written_paths(
 struct StateWritePrefix {
     written: Vec<String>,
     aliases: Vec<(String, FramePlaceOrigin)>,
+    stored: Vec<StoredWriteOrigin>,
     assignment: Option<AssignmentWriteTarget>,
 }
 
@@ -379,6 +382,7 @@ fn walk_state_write_prefix(
     let mut locals = Vec::new();
     let mut isolated_local_roots = Vec::new();
     let mut local_alias_origins = Vec::<(String, FramePlaceOrigin)>::new();
+    let mut stored = Vec::new();
     let mut written = Vec::new();
 
     let mut nested_diagnostics = Vec::new();
@@ -393,6 +397,7 @@ fn walk_state_write_prefix(
             return Some(StateWritePrefix {
                 written,
                 aliases: local_alias_origins,
+                stored,
                 assignment: None,
             });
         }
@@ -445,7 +450,30 @@ fn walk_state_write_prefix(
                 }),
             _ => false,
         };
+        let declared_stored_origins = match statement {
+            StatementNode::LocalData(local)
+                if type_may_carry_write(program, local.type_reference)
+                    && !type_is_caller_isolated_local(program, local.type_reference)
+                    && declared_local_alias_origin.is_none() =>
+            {
+                stored_origins::declaration_origins(
+                    program,
+                    machine,
+                    local,
+                    &local_alias_origins,
+                    &stored,
+                    symbols,
+                    active_states,
+                )
+            }
+            _ => None,
+        };
         for expression in statement_value_expression_roots(program, statement) {
+            if stored_origins::expression_borrows_stored_binding(
+                program, machine, state, expression, &stored,
+            ) {
+                return None;
+            }
             if expression_reborrows_local_alias_binding(program, expression, &local_alias_origins)
                 && declared_local_alias_origin.is_none()
                 && !representable_alias_rebinding
@@ -462,8 +490,10 @@ fn walk_state_write_prefix(
                 active_states,
                 &mut expression_writes,
             )?;
-            for relative in expression_writes {
-                let relative = rebase_local_alias_path(&relative, &local_alias_origins);
+            for relative in expression_writes
+                .iter()
+                .flat_map(|path| expand_write_path(path, &local_alias_origins, &stored))
+            {
                 if relative_state_path_is_visible(&relative, parameters, &locals)?
                     && !written.contains(&relative)
                 {
@@ -512,6 +542,7 @@ fn walk_state_write_prefix(
                         return Some(StateWritePrefix {
                             written,
                             aliases: local_alias_origins,
+                            stored,
                             assignment: Some(AssignmentWriteTarget::LocalBindingReplacement {
                                 path: relative.to_owned(),
                             }),
@@ -530,17 +561,17 @@ fn walk_state_write_prefix(
                     &local_alias_origins,
                     symbols,
                 )?;
+                let paths = expand_write_path(&relative, &local_alias_origins, &stored);
                 if queried_assignment {
                     return Some(StateWritePrefix {
                         written,
                         aliases: local_alias_origins,
-                        assignment: Some(AssignmentWriteTarget::Storage { path: relative }),
+                        stored,
+                        assignment: Some(AssignmentWriteTarget::Storage { paths }),
                     });
                 }
-                if relative_state_path_is_visible(&relative, parameters, &locals)?
-                    && !written.contains(&relative)
-                {
-                    written.push(relative);
+                for path in paths {
+                    push_visible_frame_path(&mut written, path, parameters, &locals)?;
                 }
             }
             StatementNode::Call(nested_call) => {
@@ -611,8 +642,10 @@ fn walk_state_write_prefix(
                         symbols,
                     )
                 })?;
-                for relative in nested_writes {
-                    let relative = rebase_local_alias_path(&relative, &local_alias_origins);
+                for relative in nested_writes
+                    .iter()
+                    .flat_map(|path| expand_write_path(path, &local_alias_origins, &stored))
+                {
                     if relative_state_path_is_visible(&relative, parameters, &locals)?
                         && !written.contains(&relative)
                     {
@@ -622,7 +655,7 @@ fn walk_state_write_prefix(
             }
             StatementNode::Transition(transition) => {
                 for target in [transition.target, transition.continuation] {
-                    if !local_alias_origins.is_empty()
+                    if (!local_alias_origins.is_empty() || !stored.is_empty())
                         && target.is_valid()
                         && matches!(
                             program.statement_table.transition_target(target),
@@ -644,8 +677,10 @@ fn walk_state_write_prefix(
                         active_states,
                         complete_state_summaries,
                         &locals,
-                    )? {
-                        let relative = rebase_local_alias_path(&relative, &local_alias_origins);
+                    )?
+                    .iter()
+                    .flat_map(|path| expand_write_path(path, &local_alias_origins, &stored))
+                    {
                         if relative_state_path_is_visible(&relative, parameters, &locals)?
                             && !written.contains(&relative)
                         {
@@ -659,8 +694,11 @@ fn walk_state_write_prefix(
                 if type_may_carry_write(program, local.type_reference)
                     && !type_is_caller_isolated_local(program, local.type_reference)
                 {
-                    let origin = declared_local_alias_origin?;
-                    local_alias_origins.push((local.name.as_str().to_owned(), origin));
+                    if let Some(origin) = declared_local_alias_origin {
+                        local_alias_origins.push((local.name.as_str().to_owned(), origin));
+                    } else {
+                        stored.extend(declared_stored_origins?);
+                    }
                 }
                 if type_is_caller_isolated_local(program, local.type_reference) {
                     isolated_local_roots.push(local.name.as_str().to_owned());
@@ -673,6 +711,7 @@ fn walk_state_write_prefix(
     query.is_none().then_some(StateWritePrefix {
         written,
         aliases: local_alias_origins,
+        stored,
         assignment: None,
     })
 }
@@ -1789,9 +1828,11 @@ fn summarize_state_written_paths_with_permuted_cycles<'program>(
                         &equation.locals,
                         symbols,
                         &mut outer_active_states.to_vec(),
-                    )? {
-                        let instantiated =
-                            rebase_local_alias_path(&instantiated, &equation.local_alias_origins);
+                    )?
+                    .iter()
+                    .flat_map(|path| {
+                        expand_write_path(path, &equation.local_alias_origins, &equation.stored)
+                    }) {
                         if !relative_state_path_is_visible(
                             &instantiated,
                             program.state_parameters(equation.state),
@@ -1832,6 +1873,7 @@ fn build_permuted_cycle_frame_equation<'program>(
     let mut locals = Vec::new();
     let mut isolated_local_roots = Vec::new();
     let mut local_alias_origins = Vec::<(String, FramePlaceOrigin)>::new();
+    let mut stored = Vec::new();
     let mut direct_writes = Vec::new();
     let mut edges = Vec::new();
     let mut active_states = outer_active_states.to_vec();
@@ -1888,6 +1930,11 @@ fn build_permuted_cycle_frame_equation<'program>(
             _ => false,
         };
         for expression in statement_value_expression_roots(program, statement) {
+            if stored_origins::expression_borrows_stored_binding(
+                program, machine, state, expression, &stored,
+            ) {
+                return None;
+            }
             if expression_reborrows_local_alias_binding(program, expression, &local_alias_origins)
                 && declared_local_alias_origin.is_none()
                 && !representable_alias_rebinding
@@ -1904,8 +1951,10 @@ fn build_permuted_cycle_frame_equation<'program>(
                 &mut active_states,
                 &mut expression_writes,
             )?;
-            for relative in expression_writes {
-                let relative = rebase_local_alias_path(&relative, &local_alias_origins);
+            for relative in expression_writes
+                .iter()
+                .flat_map(|path| expand_write_path(path, &local_alias_origins, &stored))
+            {
                 push_visible_frame_path(&mut direct_writes, relative, parameters, &locals)?;
             }
         }
@@ -1959,7 +2008,9 @@ fn build_permuted_cycle_frame_equation<'program>(
                     &local_alias_origins,
                     symbols,
                 )?;
-                push_visible_frame_path(&mut direct_writes, relative, parameters, &locals)?;
+                for path in expand_write_path(&relative, &local_alias_origins, &stored) {
+                    push_visible_frame_path(&mut direct_writes, path, parameters, &locals)?;
+                }
             }
             StatementNode::Call(call) => {
                 let receiver_members = program
@@ -2027,8 +2078,10 @@ fn build_permuted_cycle_frame_equation<'program>(
                         symbols,
                     )
                 })?;
-                for relative in nested_writes {
-                    let relative = rebase_local_alias_path(&relative, &local_alias_origins);
+                for relative in nested_writes
+                    .iter()
+                    .flat_map(|path| expand_write_path(path, &local_alias_origins, &stored))
+                {
                     push_visible_frame_path(&mut direct_writes, relative, parameters, &locals)?;
                 }
             }
@@ -2041,8 +2094,19 @@ fn build_permuted_cycle_frame_equation<'program>(
                 if type_may_carry_write(program, local.type_reference)
                     && !type_is_caller_isolated_local(program, local.type_reference)
                 {
-                    let origin = declared_local_alias_origin?;
-                    local_alias_origins.push((local.name.as_str().to_owned(), origin));
+                    if let Some(origin) = declared_local_alias_origin {
+                        local_alias_origins.push((local.name.as_str().to_owned(), origin));
+                    } else {
+                        stored.extend(stored_origins::declaration_origins(
+                            program,
+                            machine,
+                            local,
+                            &local_alias_origins,
+                            &stored,
+                            symbols,
+                            &mut active_states,
+                        )?);
+                    }
                 }
                 if type_is_caller_isolated_local(program, local.type_reference) {
                     isolated_local_roots.push(local.name.as_str().to_owned());
@@ -2056,6 +2120,7 @@ fn build_permuted_cycle_frame_equation<'program>(
         state,
         locals,
         local_alias_origins,
+        stored,
         direct_writes,
         edges,
     })

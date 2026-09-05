@@ -4,11 +4,12 @@
 //! and closes its writes over the canonical storage paths and live local names
 //! used by fact consumers. It never publishes prefix writes as call writes.
 
+use super::stored_origins::{StoredWriteOrigin, expand_write_path, place_suffix};
 use super::{
     ExpressionHandle, ExpressionNode, FramePathPrecision, FramePlaceOrigin, Machine,
     StateWriteQuery, StatementNode, SymbolHandle, TableCall, TopLevelSymbols, TypedTrees,
-    append_place_suffix, rebase_local_alias_path, statement_value_expression_roots,
-    type_is_caller_isolated_local, type_may_carry_write, walk_state_write_prefix,
+    append_place_suffix, statement_value_expression_roots, type_is_caller_isolated_local,
+    type_may_carry_write, walk_state_write_prefix,
 };
 
 pub(super) fn caller_binding_type(
@@ -82,6 +83,8 @@ pub(super) enum CallerWriteSite<'query> {
 /// or index suffix when the consumer transports a write through this origin.
 pub struct LocalWriteOrigin {
     pub local_symbol: SymbolHandle,
+    /// Empty for a bare reference; otherwise the exact reference leaf selector.
+    pub local_segments: Vec<psi_facts::PlaceSegment>,
     pub source_path: String,
     pub collection_coarse: bool,
 }
@@ -90,7 +93,7 @@ pub struct LocalWriteOrigin {
 /// A binding replacement changes the local slot, not its previous referent.
 pub enum AssignmentWriteTarget {
     LocalBindingReplacement { path: String },
-    Storage { path: String },
+    Storage { paths: Vec<String> },
 }
 
 pub(super) fn assignment_write_target(
@@ -102,16 +105,17 @@ pub(super) fn assignment_write_target(
     let StatementNode::Assignment(assignment) = statement else {
         return None;
     };
-    let aliases = caller_aliases_at_site(
+    let (aliases, stored) = caller_aliases_at_site(
         program,
         machine,
         symbols,
         CallerWriteSite::Statement(statement),
     )?;
     if aliases.is_empty()
+        && stored.is_empty()
         && let Some(path) = super::coarse_place_path(program, assignment.target)
     {
-        return Some(AssignmentWriteTarget::Storage { path });
+        return Some(AssignmentWriteTarget::Storage { paths: vec![path] });
     }
     let state = program.machine_states(machine).iter().find(|state| {
         program
@@ -138,14 +142,23 @@ pub(super) fn local_write_origins_before_statement(
     symbols: &TopLevelSymbols<'_>,
     statement: &StatementNode,
 ) -> Option<Vec<LocalWriteOrigin>> {
-    let aliases = caller_aliases_at_site(
+    let (aliases, stored) = caller_aliases_at_site(
         program,
         machine,
         symbols,
         CallerWriteSite::Statement(statement),
     )?;
+    let mut origins = stored
+        .into_iter()
+        .map(|leaf| LocalWriteOrigin {
+            local_symbol: leaf.local_symbol,
+            local_segments: leaf.local_segments,
+            source_path: leaf.origin.path,
+            collection_coarse: leaf.origin.precision == FramePathPrecision::CollectionCoarse,
+        })
+        .collect::<Vec<_>>();
     if aliases.is_empty() {
-        return Some(Vec::new());
+        return Some(origins);
     }
     let state = program.machine_states(machine).iter().find(|state| {
         program
@@ -154,7 +167,7 @@ pub(super) fn local_write_origins_before_statement(
             .iter()
             .any(|candidate| std::ptr::eq(statement, candidate))
     })?;
-    aliases
+    let aliases = aliases
         .into_iter()
         .map(|(name, origin)| {
             let local_symbol = program
@@ -178,11 +191,14 @@ pub(super) fn local_write_origins_before_statement(
                 })?;
             Some(LocalWriteOrigin {
                 local_symbol,
+                local_segments: Vec::new(),
                 source_path: origin.path,
                 collection_coarse: origin.precision == FramePathPrecision::CollectionCoarse,
             })
         })
-        .collect()
+        .collect::<Option<Vec<_>>>()?;
+    origins.extend(aliases);
+    Some(origins)
 }
 
 pub(super) fn close_caller_aliases(
@@ -195,21 +211,33 @@ pub(super) fn close_caller_aliases(
     if written.is_empty() {
         return Some(written);
     }
-    let aliases = caller_aliases_at_site(program, machine, symbols, site)?;
+    let (aliases, stored) = caller_aliases_at_site(program, machine, symbols, site)?;
     let canonical = written
         .iter()
-        .map(|path| rebase_local_alias_path(path, &aliases))
+        .flat_map(|path| expand_write_path(path, &aliases, &stored))
         .collect::<Vec<_>>();
     let mut closed = written;
     for path in canonical {
         if !closed.contains(&path) {
             closed.push(path.clone());
         }
-        for (alias, origin) in &aliases {
+        for (alias, origin, local_coarse) in aliases
+            .iter()
+            .map(|(alias, origin)| (alias, origin, false))
+            .chain(stored.iter().map(|leaf| {
+                (
+                    &leaf.local_path,
+                    &leaf.origin,
+                    leaf.local_segments.iter().any(|segment| {
+                        matches!(segment, psi_facts::PlaceSegment::FixedIndex { .. })
+                    }),
+                )
+            }))
+        {
             let spelling = if let Some(suffix) = place_suffix(&origin.path, &path) {
-                match origin.precision {
-                    FramePathPrecision::Exact => append_place_suffix(alias, suffix),
-                    FramePathPrecision::CollectionCoarse => alias.clone(),
+                match (origin.precision, local_coarse) {
+                    (FramePathPrecision::Exact, false) => append_place_suffix(alias, suffix),
+                    _ => alias.clone(),
                 }
             } else if place_suffix(&path, &origin.path).is_some() {
                 alias.clone()
@@ -229,7 +257,7 @@ fn caller_aliases_at_site(
     machine: &Machine,
     symbols: &TopLevelSymbols<'_>,
     site: CallerWriteSite<'_>,
-) -> Option<Vec<(String, FramePlaceOrigin)>> {
+) -> Option<(Vec<(String, FramePlaceOrigin)>, Vec<StoredWriteOrigin>)> {
     let may_declare_alias = |statement: &StatementNode| {
         matches!(statement, StatementNode::LocalData(local)
             if type_may_carry_write(program, local.type_reference)
@@ -242,14 +270,14 @@ fn caller_aliases_at_site(
             .iter()
             .any(may_declare_alias)
     }) {
-        return Some(Vec::new());
+        return Some((Vec::new(), Vec::new()));
     }
     let (state, statement, index) = caller_statement_at_site(program, machine, site)?;
     if !program.statement_table.statements(state.statement_nodes)[..index]
         .iter()
         .any(may_declare_alias)
     {
-        return Some(Vec::new());
+        return Some((Vec::new(), Vec::new()));
     }
     let prefix = walk_state_write_prefix(
         program,
@@ -260,7 +288,21 @@ fn caller_aliases_at_site(
         &mut Vec::new(),
         Some(StateWriteQuery::Before(statement)),
     )?;
-    Some(prefix.aliases)
+    if statement_value_expression_roots(program, statement)
+        .into_iter()
+        .any(|expression| {
+            super::stored_origins::expression_borrows_stored_binding(
+                program,
+                machine,
+                state,
+                expression,
+                &prefix.stored,
+            )
+        })
+    {
+        return None;
+    }
+    Some((prefix.aliases, prefix.stored))
 }
 
 /// Locate a unique retained occurrence without resolving declarations by name.
@@ -297,11 +339,6 @@ pub(super) fn caller_statement_at_site<'program>(
         }
     }
     owner
-}
-
-fn place_suffix<'path>(root: &str, path: &'path str) -> Option<&'path str> {
-    let suffix = path.strip_prefix(root)?;
-    (suffix.is_empty() || suffix.starts_with('.')).then_some(suffix)
 }
 
 fn contains_expression(
