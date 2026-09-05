@@ -1,3 +1,4 @@
+use crate::FunctionFragmentReplayInputs;
 use crate::tests::*;
 
 #[test]
@@ -59,7 +60,7 @@ fn structural_extent_unit_leaf_reaches_canonical_object_artifact() {
     );
 
     let fragments = stage_optimized_function_fragment_emission(
-        StagedOptimizedFunctionFragmentEmissionSource::StructuralUnit(Box::new(realization)),
+        FunctionFragmentReplayInputs::StructuralUnit(Box::new(realization)).into(),
     )
     .expect("the leaf must emit one relocation-free structural fragment");
     let fragment_manifest = fragments.manifest().record();

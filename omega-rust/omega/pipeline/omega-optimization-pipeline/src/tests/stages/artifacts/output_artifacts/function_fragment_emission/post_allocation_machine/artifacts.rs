@@ -1,3 +1,4 @@
+use crate::FunctionFragmentReplayInputs;
 use crate::tests::*;
 
 use super::realization::RealizedCase;
@@ -37,7 +38,7 @@ pub(super) fn publish(realized: RealizedCase) -> PublishedSnapshot {
     let realization_manifest = realization_record.encode();
 
     let fragments = stage_optimized_function_fragment_emission(
-        StagedOptimizedFunctionFragmentEmissionSource::PostAllocationMachine(Box::new(realization)),
+        FunctionFragmentReplayInputs::PostAllocationMachine(Box::new(realization)).into(),
     )
     .unwrap();
     let fragment_record = fragments.manifest().record();

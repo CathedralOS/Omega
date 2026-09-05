@@ -2125,9 +2125,9 @@ fn terminal_component_staging_consumes_only_the_psi_owned_artifact() {
             )
             && !input.contains("reject_pre_terminal_selections(")
             && target_stage.contains("enum NativeTargetStageResult")
-            && optimizer_physical_model.contains("UnitBaseline")
-            && optimizer_physical_model.contains("StructuralUnit")
-            && optimizer_physical_model.contains("FixedFrame")
+            && optimizer_physical_model.contains("StagedOptimizedUnitFunctionRelativeRealization")
+            && optimizer_physical_model.contains("StagedOptimizedStructuralUnitFunctionRelativeRealization")
+            && optimizer_physical_model.contains("StagedFixedFrameFunctionRelativeRealization")
             && !optimizer_physical_model.contains("PhysicalIdentity")
             && !optimizer_physical_model.contains("PsiOnly")
             && optimizer_physical_model.contains(
@@ -5082,8 +5082,8 @@ fn selected_lowering_fragment_admission_is_rule_independent() {
     let stage = root.join(
         "omega-rust/omega/pipeline/omega-optimization-pipeline/src/stages/artifacts/function_fragment_emission",
     );
-    let source = std::fs::read_to_string(stage.join("source.rs"))
-        .expect("read function-fragment source model");
+    let source = std::fs::read_to_string(stage.join("replay.rs"))
+        .expect("read function-fragment replay inputs");
     let custody = std::fs::read_to_string(stage.join("custody.rs"))
         .expect("read function-fragment source admission");
     let model = std::fs::read_to_string(stage.join("model.rs"))
@@ -5525,7 +5525,7 @@ fn allocation_recovery_has_one_route_and_one_realization_carrier() {
     assert!(!model.contains("ActiveResidentRematerialization {"));
 
     let fragment_source = std::fs::read_to_string(
-        pipeline.join("stages/artifacts/function_fragment_emission/source.rs"),
+        pipeline.join("stages/artifacts/function_fragment_emission/replay.rs"),
     )
     .expect("read fragment source taxonomy");
     assert!(

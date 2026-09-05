@@ -8,12 +8,14 @@ pub mod control_flow;
 pub mod functions;
 pub mod identity;
 pub mod policy;
+pub mod program;
 pub mod structural;
 
 pub use control_flow::*;
 pub use functions::*;
 pub use identity::{ResolvedSelectedFormLayoutIdentity, resolved_machine_layout_identity};
 pub use policy::*;
+pub use program::ResolvedMachineProgram;
 pub use structural::*;
 
 use omega_physical_instructions::PostAllocationMachineOptimizationCustody;

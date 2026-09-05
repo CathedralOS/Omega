@@ -1,3 +1,4 @@
+use crate::FunctionFragmentReplayInputs;
 use crate::tests::*;
 use omega_machine_code::FunctionFragmentControlProvenance;
 
@@ -118,8 +119,8 @@ fn frame_application_rejects_a_non_fixed_fragment_source() {
     let source = {
         let source = (physical).into_function_fragment_emission_source();
         assert!(matches!(
-            &source,
-            StagedOptimizedFunctionFragmentEmissionSource::SelectedLowering(_)
+            source.replay(),
+            FunctionFragmentReplayInputs::SelectedLowering(_)
         ));
         source
     };
@@ -187,7 +188,7 @@ fn staged_application(
     assert!(!prologue.is_empty());
     assert!(!epilogue.is_empty());
     let fragments = stage_optimized_function_fragment_emission(
-        StagedOptimizedFunctionFragmentEmissionSource::FixedFrame(Box::new(realization)),
+        FunctionFragmentReplayInputs::FixedFrame(Box::new(realization)).into(),
     )
     .unwrap();
     let source_function = fragments.fragments().functions.first().unwrap();

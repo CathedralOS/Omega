@@ -25,8 +25,8 @@ pub use functions::*;
 pub use instructions::*;
 pub use layout::{
     ResolvedConditionalBranchEvidence, ResolvedConditionalBranchPredicate, ResolvedMachineLayout,
-    ResolvedSelectedBlockLayout, ResolvedSelectedFormLayoutIdentity, ResolvedSelectedFormRow,
-    ResolvedSelectedFunctionLayout, ResolvedStructuralUnitCallLayout,
+    ResolvedMachineProgram, ResolvedSelectedBlockLayout, ResolvedSelectedFormLayoutIdentity,
+    ResolvedSelectedFormRow, ResolvedSelectedFunctionLayout, ResolvedStructuralUnitCallLayout,
     ResolvedStructuralUnitFunctionLayout, SelectedFunctionLayoutPolicy,
     resolved_machine_layout_identity,
 };

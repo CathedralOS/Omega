@@ -1,3 +1,4 @@
+use crate::FunctionFragmentReplayInputs;
 use crate::tests::*;
 
 use super::fixture::staged_homes;
@@ -13,7 +14,7 @@ fn staged_fixed_frame_text(
     let realization =
         stage_fixed_frame_function_relative_realization(staged_homes(target), budget).unwrap();
     let fragments = stage_optimized_function_fragment_emission(
-        StagedOptimizedFunctionFragmentEmissionSource::FixedFrame(Box::new(realization)),
+        FunctionFragmentReplayInputs::FixedFrame(Box::new(realization)).into(),
     )
     .unwrap();
     let applied = stage_function_fragment_frame_application(fragments).unwrap();

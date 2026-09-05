@@ -179,8 +179,9 @@ pub struct StagedOptimizedSelectedFormEncoding {
     pub(super) post_allocation_machine_optimization:
         Option<PostAllocationMachineOptimizationCustody>,
     pub(super) identity: SelectedFormEncodingIdentity,
-    pub(super) rows: Vec<SelectedFormEncodingRow>,
-    pub(super) structural_unit_functions: Vec<SelectedStructuralUnitFunctionEncoding>,
+    pub(super) rows: std::sync::Arc<Vec<SelectedFormEncodingRow>>,
+    pub(super) structural_unit_functions:
+        std::sync::Arc<Vec<SelectedStructuralUnitFunctionEncoding>>,
     pub(super) counts: SelectedFormEncodingCounts,
 }
 
@@ -260,7 +261,7 @@ impl StagedOptimizedSelectedFormEncoding {
     #[cfg(feature = "test-support")]
     #[doc(hidden)]
     pub fn rows_mut(&mut self) -> &mut [SelectedFormEncodingRow] {
-        &mut self.rows
+        std::sync::Arc::make_mut(&mut self.rows).as_mut_slice()
     }
 
     #[cfg(feature = "test-support")]
@@ -269,7 +270,7 @@ impl StagedOptimizedSelectedFormEncoding {
     pub fn structural_unit_functions_mut(
         &mut self,
     ) -> &mut [SelectedStructuralUnitFunctionEncoding] {
-        &mut self.structural_unit_functions
+        std::sync::Arc::make_mut(&mut self.structural_unit_functions).as_mut_slice()
     }
 
     #[cfg(feature = "test-support")]

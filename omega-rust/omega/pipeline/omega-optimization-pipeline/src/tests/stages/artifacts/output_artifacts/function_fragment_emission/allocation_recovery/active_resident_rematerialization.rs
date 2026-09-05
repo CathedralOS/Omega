@@ -1,5 +1,6 @@
 //! Active-resident rematerialization through relocation-free emission on both targets.
 
+use crate::FunctionFragmentReplayInputs;
 use crate::tests::*;
 
 #[test]
@@ -27,9 +28,7 @@ fn active_resident_rematerialization_emits_relocation_free_fragments_on_both_arc
         let verified_input = optimized_source.verified_input().clone();
         let source_manifest = realization.manifest().record().clone();
         let mut emitted = stage_optimized_function_fragment_emission(
-            StagedOptimizedFunctionFragmentEmissionSource::AllocationRecovery(Box::new(
-                realization,
-            )),
+            FunctionFragmentReplayInputs::AllocationRecovery(Box::new(realization)).into(),
         )
         .unwrap();
 

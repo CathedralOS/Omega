@@ -1,5 +1,6 @@
 //! X86 rel8 artifact binding, replay, reporting, and corruption rejection.
 
+use crate::FunctionFragmentReplayInputs;
 use crate::tests::*;
 
 #[test]
@@ -30,7 +31,7 @@ fn optimized_rel8_object_artifact_binds_replays_and_reports_without_authority() 
         .into_function_relative_layout_for_test()
         .unwrap_or_else(|| panic!("rel8 must complete its direct realization"));
     let emitted = stage_optimized_function_fragment_emission(
-        StagedOptimizedFunctionFragmentEmissionSource::X86Rel8Direct(Box::new(realization)),
+        FunctionFragmentReplayInputs::X86Rel8Direct(Box::new(realization)).into(),
     )
     .unwrap();
     let placed = stage_optimized_relocation_free_text_section(emitted).unwrap();

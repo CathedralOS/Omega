@@ -1,3 +1,4 @@
+use crate::FunctionFragmentReplayInputs;
 use crate::tests::*;
 
 pub(super) fn assert_no_candidate_reaches_object_and_callable(
@@ -25,7 +26,7 @@ pub(super) fn assert_no_candidate_reaches_object_and_callable(
     assert_eq!(realization.optimization().action_count(), 0);
 
     let fragments = stage_optimized_function_fragment_emission(
-        StagedOptimizedFunctionFragmentEmissionSource::PostAllocationMachine(Box::new(realization)),
+        FunctionFragmentReplayInputs::PostAllocationMachine(Box::new(realization)).into(),
     )
     .unwrap();
     let text = stage_optimized_relocation_free_text_section(fragments).unwrap();

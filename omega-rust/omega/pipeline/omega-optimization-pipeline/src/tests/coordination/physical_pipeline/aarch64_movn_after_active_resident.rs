@@ -1,5 +1,6 @@
 //! Exact active-resident recovery followed by AArch64 MOVN realization.
 
+use crate::FunctionFragmentReplayInputs;
 use omega_isa_aarch64::encode_aarch64_shortest_movn_materialization;
 
 use crate::tests::*;
@@ -131,7 +132,7 @@ fn active_resident_composes_with_movn_through_publication() {
         .into_post_allocation_machine_for_test()
         .unwrap_or_else(|| unreachable!());
     let emitted = stage_optimized_function_fragment_emission(
-        StagedOptimizedFunctionFragmentEmissionSource::PostAllocationMachine(Box::new(realization)),
+        FunctionFragmentReplayInputs::PostAllocationMachine(Box::new(realization)).into(),
     )
     .unwrap();
     for (instruction, expected) in expected_rows {

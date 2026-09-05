@@ -1,5 +1,6 @@
 //! Baseline and AArch64 CBNZ physical routes for U64 parameter equality with zero.
 
+use crate::FunctionFragmentReplayInputs;
 use crate::tests::*;
 use omega_machine_optimizer::{Aarch64CbnzFusionError, Aarch64CbnzFusionWorkAxis};
 
@@ -195,7 +196,7 @@ fn explicit_aarch64_cbnz_selection_crosses_allocation_and_elides_the_compare() {
     );
 
     let emitted = stage_optimized_function_fragment_emission(
-        StagedOptimizedFunctionFragmentEmissionSource::PostAllocationMachine(Box::new(realization)),
+        FunctionFragmentReplayInputs::PostAllocationMachine(Box::new(realization)).into(),
     )
     .unwrap();
     validate_optimized_function_fragment_emission(&emitted).unwrap();

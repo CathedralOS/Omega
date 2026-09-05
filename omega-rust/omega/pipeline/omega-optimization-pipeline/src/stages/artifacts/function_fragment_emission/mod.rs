@@ -1,9 +1,11 @@
 //! Optimizer module role: executable entrance.
 mod compute;
+mod current;
 mod custody;
 mod error;
 mod manifest;
 mod model;
+mod replay;
 mod source;
 
 pub use error::{FunctionFragmentEmissionError, FunctionFragmentEmissionManifestDecodeError};
@@ -13,13 +15,14 @@ pub use model::{
     FunctionFragmentEmissionUnavailableData, StagedFunctionFragmentEmissionCustodyReceipt,
     StagedOptimizedFunctionFragmentEmission, ValidatedFunctionFragmentEmissionManifest,
 };
+pub(crate) use replay::FunctionFragmentReplayInputs;
 pub use source::StagedOptimizedFunctionFragmentEmissionSource;
 
 use compute::compute;
 use custody::{receipt, validate_source};
 
 /// Canonical join from one validated function-relative realization into
-/// replayable function fragments and their v9 manifest custody.
+/// replayable function fragments and their v10 manifest custody.
 pub fn stage_optimized_function_fragment_emission(
     source: StagedOptimizedFunctionFragmentEmissionSource,
 ) -> Result<StagedOptimizedFunctionFragmentEmission, FunctionFragmentEmissionError> {

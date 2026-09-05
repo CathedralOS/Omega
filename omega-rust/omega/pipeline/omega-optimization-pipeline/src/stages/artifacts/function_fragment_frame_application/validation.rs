@@ -19,17 +19,17 @@ pub(super) fn validate(
 ) -> Result<FunctionFragmentFrameApplicationReceipt, FunctionFragmentFrameApplicationError> {
     validate_optimized_function_fragment_emission(&staged.source)
         .map_err(FunctionFragmentFrameApplicationError::Source)?;
-    let realization = staged
+    let admitted_protocol = staged
         .source
         .source()
-        .fixed_frame_realization()
+        .frame_protocol()
         .ok_or(FunctionFragmentFrameApplicationError::SourceKindMismatch)?;
     let source = staged.source.fragments();
-    let protocol = realization.protocol().plan();
+    let protocol = admitted_protocol.plan();
     let candidate = &staged.application;
     if candidate.source_fragment_manifest != staged.source.manifest().record().identity
         || candidate.source_fragments != source.identity
-        || candidate.frame_protocol != realization.protocol().receipt().identity()
+        || candidate.frame_protocol != admitted_protocol.receipt().identity()
         || candidate.functions.len() != source.functions.len()
         || candidate.fragments.identity != candidate.fragments.recomputed_identity()
         || candidate.identity != candidate.recomputed_identity()

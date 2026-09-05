@@ -1,5 +1,6 @@
 //! Hosted publication matrix for exact selected-lowering rules without a layout rule.
 
+use crate::FunctionFragmentReplayInputs;
 use crate::tests::*;
 
 #[derive(Debug, Clone, Copy)]
@@ -160,7 +161,7 @@ fn publish_exact_selected_lowering(
     let realization_manifest = realization_record.encode();
 
     let fragments = stage_optimized_function_fragment_emission(
-        StagedOptimizedFunctionFragmentEmissionSource::SelectedLowering(Box::new(realization)),
+        FunctionFragmentReplayInputs::SelectedLowering(Box::new(realization)).into(),
     )
     .unwrap();
     let fragment_record = fragments.manifest().record();

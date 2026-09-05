@@ -1,3 +1,4 @@
+use crate::FunctionFragmentReplayInputs;
 use crate::tests::*;
 
 #[test]
@@ -172,7 +173,7 @@ fn relocation_free_rel8_fragment_emission_retains_bytes_fuel_and_manifest_custod
         .into_function_relative_layout_for_test()
         .unwrap_or_else(|| panic!("rel8 must complete its direct function-relative realization"));
     let mut emitted = stage_optimized_function_fragment_emission(
-        StagedOptimizedFunctionFragmentEmissionSource::X86Rel8Direct(Box::new(realization)),
+        FunctionFragmentReplayInputs::X86Rel8Direct(Box::new(realization)).into(),
     )
     .unwrap();
     assert_eq!(
@@ -316,7 +317,7 @@ fn relocation_free_cbnz_fragment_emission_retains_the_elided_compare_span() {
         .into_post_allocation_machine_for_test()
         .unwrap_or_else(|| panic!("CBNZ must complete its direct function-relative realization"));
     let mut emitted = stage_optimized_function_fragment_emission(
-        StagedOptimizedFunctionFragmentEmissionSource::PostAllocationMachine(Box::new(realization)),
+        FunctionFragmentReplayInputs::PostAllocationMachine(Box::new(realization)).into(),
     )
     .unwrap();
     let function = &emitted.fragments().functions[0];
@@ -433,7 +434,7 @@ fn aarch64_movn_reaches_fragments_text_object_artifact_and_callable_for_both_rou
                     .unwrap();
                 let source = {
     let source = (physical).into_function_fragment_emission_source();
-    assert!(matches!(&source, StagedOptimizedFunctionFragmentEmissionSource::PostAllocationMachine(_)));
+    assert!(matches!(source.replay(), FunctionFragmentReplayInputs::PostAllocationMachine(_)));
     source
 };
 
@@ -454,8 +455,8 @@ fn aarch64_movn_reaches_fragments_text_object_artifact_and_callable_for_both_rou
                     selections.identity()
                 );
 
-                let realization = match emitted.source() {
-                    StagedOptimizedFunctionFragmentEmissionSource::PostAllocationMachine(
+                let realization = match emitted.source().replay() {
+                    FunctionFragmentReplayInputs::PostAllocationMachine(
                         realization,
                     ) => realization,
                     _ => unreachable!(),

@@ -1,5 +1,6 @@
 //! Reauthenticated relocation-free text-section manifest and receipt mutations.
 
+use crate::FunctionFragmentReplayInputs;
 use crate::tests::*;
 use omega_optimization_core::{
     FunctionFragmentEmissionIdentity, FunctionFragmentEmissionManifestIdentity,
@@ -34,7 +35,7 @@ fn staged_text_section() -> StagedOptimizedRelocationFreeTextSection {
         .into_post_allocation_machine_for_test()
         .unwrap_or_else(|| panic!("CBNZ must complete its direct post-allocation realization"));
     let fragments = stage_optimized_function_fragment_emission(
-        StagedOptimizedFunctionFragmentEmissionSource::PostAllocationMachine(Box::new(realization)),
+        FunctionFragmentReplayInputs::PostAllocationMachine(Box::new(realization)).into(),
     )
     .unwrap();
     stage_optimized_relocation_free_text_section(fragments).unwrap()

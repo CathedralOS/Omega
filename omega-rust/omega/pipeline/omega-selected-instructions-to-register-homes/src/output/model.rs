@@ -55,6 +55,15 @@ impl<'program> AllocationOutput<'program> {
         self.target_input
     }
 
+    /// Share the exact proof input without retaining allocation history.
+    pub fn target_input_owner(
+        &self,
+    ) -> &'program std::sync::Arc<
+        omega_abstract_operations_to_target_operations::ValidatedOptimizedTargetOperations,
+    > {
+        self.target_input
+    }
+
     /// Exact retained build policy, independently joined during allocation replay.
     pub const fn selections(&self) -> &'program OptimizationSelections {
         self.selections

@@ -1,5 +1,6 @@
 //! Canonical placement of disconnected functions without implicit padding.
 
+use crate::FunctionFragmentReplayInputs;
 use crate::tests::*;
 
 #[test]
@@ -24,7 +25,7 @@ fn relocation_free_text_section_preserves_disconnected_function_order_without_pa
         .into_function_relative_layout_for_test()
         .unwrap_or_else(|| panic!("rel8 must complete its direct function-relative realization"));
     let emitted = stage_optimized_function_fragment_emission(
-        StagedOptimizedFunctionFragmentEmissionSource::X86Rel8Direct(Box::new(realization)),
+        FunctionFragmentReplayInputs::X86Rel8Direct(Box::new(realization)).into(),
     )
     .unwrap();
     let mut fragments = emitted.fragments().clone();

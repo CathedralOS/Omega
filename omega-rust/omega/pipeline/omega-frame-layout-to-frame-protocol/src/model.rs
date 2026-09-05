@@ -96,12 +96,12 @@ impl TargetFrameProtocolEncodingReceipt {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ValidatedTargetFrameProtocolEncoding {
-    pub(crate) plan: TargetFrameProtocolEncodingPlan,
+    pub(crate) plan: std::sync::Arc<TargetFrameProtocolEncodingPlan>,
     pub(crate) receipt: TargetFrameProtocolEncodingReceipt,
 }
 
 impl ValidatedTargetFrameProtocolEncoding {
-    pub const fn plan(&self) -> &TargetFrameProtocolEncodingPlan {
+    pub fn plan(&self) -> &TargetFrameProtocolEncodingPlan {
         &self.plan
     }
     pub const fn receipt(&self) -> TargetFrameProtocolEncodingReceipt {

@@ -1,9 +1,9 @@
 //! X86 XOR-zero realization and complete object/callable projection.
 
+use crate::FunctionFragmentReplayInputs;
 use crate::tests::{
     AdmissionProfile, ExplicitOptimizationRequest, FunctionFragmentEmissionSourceKind, IntegerSign,
     IntegerType, NativeTarget, Optimization, OptimizationSelections, ProofBundle,
-    StagedOptimizedFunctionFragmentEmissionSource,
     StagedOptimizedPostAllocationMachineOptimization, WholeFunctionExitLayoutCustody,
     canonical_artifact, conditional_immediate_machine, conditional_immediate_module,
     optimize_artifact_sections, selected_lowering_budget,
@@ -121,9 +121,7 @@ fn x86_xor_zero_uses_the_generic_post_allocation_join_for_both_source_routes() {
             .into_post_allocation_machine_for_test()
             .unwrap_or_else(|| unreachable!());
         let emitted = stage_optimized_function_fragment_emission(
-            StagedOptimizedFunctionFragmentEmissionSource::PostAllocationMachine(Box::new(
-                realization,
-            )),
+            FunctionFragmentReplayInputs::PostAllocationMachine(Box::new(realization)).into(),
         )
         .unwrap();
         assert_eq!(

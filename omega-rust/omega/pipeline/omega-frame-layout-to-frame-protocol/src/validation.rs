@@ -23,7 +23,7 @@ pub fn validate_target_frame_protocol_encoding(
     }
     let receipt = seal(&candidate);
     Ok(ValidatedTargetFrameProtocolEncoding {
-        plan: candidate,
+        plan: std::sync::Arc::new(candidate),
         receipt,
     })
 }

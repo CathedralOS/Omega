@@ -1,3 +1,4 @@
+use crate::FunctionFragmentReplayInputs;
 use crate::tests::*;
 
 pub(super) fn staged_object_artifact(
@@ -29,10 +30,10 @@ pub(super) fn staged_object_artifact(
     let source = {
         let source = (physical).into_function_fragment_emission_source();
         assert!(matches!(
-            &source,
-            StagedOptimizedFunctionFragmentEmissionSource::X86Rel8Direct(_)
-                | StagedOptimizedFunctionFragmentEmissionSource::PostAllocationMachine(_)
-                | StagedOptimizedFunctionFragmentEmissionSource::SelectedLowering(_)
+            source.replay(),
+            FunctionFragmentReplayInputs::X86Rel8Direct(_)
+                | FunctionFragmentReplayInputs::PostAllocationMachine(_)
+                | FunctionFragmentReplayInputs::SelectedLowering(_)
         ));
         source
     };

@@ -1,5 +1,6 @@
 //! Exact active-resident recovery followed by x86 MOV-r64-imm32 realization.
 
+use crate::FunctionFragmentReplayInputs;
 use omega_isa_x86_64::encode_x86_64_mov_r64_imm32_sign_extended_i64_materialization;
 
 use crate::tests::*;
@@ -126,7 +127,7 @@ fn active_resident_composes_with_sign_extended_mov_through_publication() {
         .into_post_allocation_machine_for_test()
         .unwrap_or_else(|| unreachable!());
     let emitted = stage_optimized_function_fragment_emission(
-        StagedOptimizedFunctionFragmentEmissionSource::PostAllocationMachine(Box::new(realization)),
+        FunctionFragmentReplayInputs::PostAllocationMachine(Box::new(realization)).into(),
     )
     .unwrap();
     for (instruction, expected) in expected_rows {

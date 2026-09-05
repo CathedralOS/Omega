@@ -17,8 +17,9 @@ stage names: some outputs still carry earlier stage objects, some coordinators
 still own algorithms, and empty optimization selections still take different
 routes. Finish those ownership changes before treating folder cleanup as done.
 
-The allocation boundary now owns its current program independently of replay
-history. The physical emission boundary still needs that separation. Psi's
+The allocation and fragment-emission boundaries now own current program data
+independently of replay history. Earlier realization producers and the outer
+native entrance still need their ownership and convergence audit. Psi's
 checked and Terminal roots have been organized, but the other representation
 entrances and actual nonempty pre-Terminal optimization remain separate work.
 
@@ -72,6 +73,50 @@ That file defines the current program and leads into concept-owned areas.
 Control flow, values, storage, calls, ownership, and proof are useful organizing
 concepts, not a mandatory identical directory template for every representation.
 
+## Goal-ready scope
+
+Use this document as the cross-reference for the pipeline discussion, not as
+authorization to begin implementation. A subsequent goal can be stated as:
+
+> Complete ownership cleanup A-D: current-data outputs, one public phase graph,
+> transform-owned algorithms, and single-entry Psi representations with real
+> opt-in pre-Terminal optimization. Preserve independent replay and separately
+> authorized lowering of a published Psi artifact.
+
+The architectural amendments to carry into that work are:
+
+- **Serial stages, not a branchless compiler.** X-to-Y is achievable at public
+  representation boundaries. Target, program-shape, and authority cases can
+  branch inside their owning transform. Optimization history must not choose
+  an alternative downstream compiler.
+- **Explicit optimization phases, unchanged representation vocabulary.** All
+  optimizations remain exact opt-ins from `build.omg`. Empty selection is the
+  phase's identity operation. Do not invent a new representation merely to
+  distinguish optimized from unoptimized data.
+- **Psi optimization precedes publication.** Terminal means the published
+  portable product, not the mutable input to another hidden Psi pass. Additional
+  early phases need a concrete benefit and preserved checking obligations;
+  checked-tree pruning must not hide invalid authored code.
+- **One entrance per representation, not one universal representation.** Put
+  the named root beside `lib.rs`, with subordinate areas explaining that
+  representation's actual concepts. Stable semantic links across stages are
+  useful; forcing identical fields or folders across all stages is not.
+- **Share mechanisms, not accidental coupling.** Before extracting repeated
+  code, identify its consumers, invariant, and lowest legitimate owner using
+  the sharing table below. Do not make producer and verifier share the very
+  decision procedure whose result is supposed to be independently checked.
+
+Before implementing each boundary, write down its input noun, output noun,
+policy inputs, current-data owner, and separately retained replay inputs. This
+is a review check, not a request for a generic stage framework. The unresolved
+choices are the exact emission data boundary (A), common outputs preserving
+authority roles (B), genuinely reusable calculations versus phase-private
+substeps (C), and applicable early Psi passes and their data owner (D).
+
+The finish condition is the completion checklist below, not a directory rename
+or package-count reduction. Keep those choices and acceptance checks here;
+the task board should only link to them.
+
 ## Observed gaps and completion checks
 
 ### A. Current programs still depend on old stage histories
@@ -79,19 +124,23 @@ concepts, not a mandatory identical directory template for every representation.
 In `omega-rust/omega/pipeline/`:
 
 - `omega-optimization-pipeline/src/coordination/physical_pipeline/model.rs`
-  exposes one physical result struct, but that struct wraps
-  `StagedOptimizedFunctionFragmentEmissionSource`, a seven-way history/shape sum.
-- Its `stages/artifacts/function_fragment_emission/source.rs` still projects
-  inputs through prior homes, legality, ranges, and selection stages.
+  exposes one physical result whose emission source retains current data and
+  a separate seven-role replay input graph. Its current accessors do not walk
+  that graph.
+- `stages/artifacts/function_fragment_emission/current.rs` retains current
+  program data, admitted machine/layout facts, encoding, frame protocol, exit
+  contract, manifests, and the exact target/proof input. `replay.rs` alone
+  recovers the earlier producer inputs for independent checking.
 - `omega-selected-instructions-to-register-homes/src/output/retained.rs`
   owns a current `AllocatedProgram` plus a separate five-role replay input graph.
   `current()` reads the current admitted facts directly; only replay traverses
   earlier allocation stages. Producers share immutable selected/home artifacts
   with that output rather than copying the selected program into a snapshot.
 
-The shared emission computation is real progress: it selects algorithms by
-program shape rather than optimization history. The remaining adapters are
-migration machinery, not the finished representation boundary.
+Fragment emission and structural placement select algorithms by program shape,
+not optimization history. Frame application reads the retained current protocol,
+not the earlier fixed-frame realization. This boundary does not establish that
+all earlier producer-stage packaging has been removed.
 
 `omega-register-homes/src/register_homes.rs` owns the current allocated-program
 root; its storage area owns the physical-home table with the unchanged version-6
@@ -107,8 +156,7 @@ identity, and codec areas. Its version-5 frame and version-6 content identity
 are unchanged. Construction and independent admission remain outside the
 representation; selected-form encoding imports the raw data from this owner.
 
-Next: replace the physical result's remaining ancestry adapter with independently
-owned current machine and layout data, and remove old producer-stage packaging
+Next: audit earlier realization producers and remove old producer-stage packaging
 where only replay inputs are required. Retain transformation evidence
 separately with exact bindings. Replay may require prior inputs, but execution
 must not recover its current program by traversing those inputs. Do not discard
@@ -128,13 +176,14 @@ representation owner. Generic post-allocation optimization records live in
 `omega-physical-instructions` evidence; typed rule results stay with their
 producer and independent validator.
 
-The completed physical result still needs to retain current machine and layout
-data directly, rather than finding these through the seven history roles.
-Share the original physical machine data as well as layout; do not create a
-deep-copy snapshot merely to populate a new output struct. Admission and
-transformation replay still retain the exact inputs they need. The independent
-layout owner alone does not close that emission-boundary work or move layout
-algorithms out of the coordinator.
+`omega-machine-code` also owns `ResolvedMachineProgram`: shared selected,
+home, effect, physical-machine, and resolved-layout artifacts. The emission
+boundary retains those original immutable artifacts without deep-copy snapshots.
+Replay first validates its historical inputs, then compares complete current
+artifacts and admission facts, not only rehashable IDs. Raw artifacts remain
+usable as data after the producer is dropped, without granting publication
+authority. Layout and emission algorithms still need their proper transform
+owners; separating data from replay does not complete C.
 
 Acceptance: downstream allocation, layout, and emission APIs consume current
 representations and explicit policy/evidence. No production consumer selects

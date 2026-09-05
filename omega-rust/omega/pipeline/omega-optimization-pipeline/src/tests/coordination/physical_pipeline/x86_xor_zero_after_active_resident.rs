@@ -1,5 +1,6 @@
 //! Exact active-resident recovery followed by x86 XOR-zero realization.
 
+use crate::FunctionFragmentReplayInputs;
 use omega_isa_x86_64::encode_x86_64_xor_zero_i64_materialization;
 
 use crate::tests::*;
@@ -120,7 +121,7 @@ fn active_resident_composes_with_xor_zero_through_publication() {
         .into_post_allocation_machine_for_test()
         .unwrap_or_else(|| unreachable!());
     let emitted = stage_optimized_function_fragment_emission(
-        StagedOptimizedFunctionFragmentEmissionSource::PostAllocationMachine(Box::new(realization)),
+        FunctionFragmentReplayInputs::PostAllocationMachine(Box::new(realization)).into(),
     )
     .unwrap();
     let emitted_row = emitted

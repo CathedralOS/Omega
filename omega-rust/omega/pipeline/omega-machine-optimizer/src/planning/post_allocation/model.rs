@@ -6,6 +6,7 @@ use omega_regalloc::RegisterHomeIdentity;
 use omega_register_model::TargetRegisterEnvironmentIdentity;
 use omega_selected_instructions::SelectedInstructionPlanIdentity;
 use psi_core::MachineId;
+use std::sync::Arc;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct PostAllocationMachineReceipt {
@@ -60,24 +61,33 @@ impl PostAllocationMachineReceipt {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ValidatedPostAllocationMachinePlan {
-    plan: PostAllocationMachinePlan,
+    plan: Arc<PostAllocationMachinePlan>,
     receipt: PostAllocationMachineReceipt,
 }
 
 impl ValidatedPostAllocationMachinePlan {
-    pub const fn plan(&self) -> &PostAllocationMachinePlan {
+    pub fn plan(&self) -> &PostAllocationMachinePlan {
         &self.plan
+    }
+
+    /// Retain the original immutable program without retaining its producer.
+    /// The raw data do not carry this wrapper's admission authority.
+    pub fn shared_plan(&self) -> Arc<PostAllocationMachinePlan> {
+        Arc::clone(&self.plan)
     }
 
     pub const fn receipt(&self) -> PostAllocationMachineReceipt {
         self.receipt
     }
 
-    pub(crate) const fn new(
+    pub(crate) fn new(
         plan: PostAllocationMachinePlan,
         receipt: PostAllocationMachineReceipt,
     ) -> Self {
-        Self { plan, receipt }
+        Self {
+            plan: Arc::new(plan),
+            receipt,
+        }
     }
 }
 

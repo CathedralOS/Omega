@@ -283,8 +283,8 @@ pub(super) fn compute<S: ValidatedSelectedAnalysis>(
         machine: machine_root,
         post_allocation_machine_optimization,
         identity,
-        rows,
-        structural_unit_functions,
+        rows: std::sync::Arc::new(rows),
+        structural_unit_functions: std::sync::Arc::new(structural_unit_functions),
         counts,
     })
 }

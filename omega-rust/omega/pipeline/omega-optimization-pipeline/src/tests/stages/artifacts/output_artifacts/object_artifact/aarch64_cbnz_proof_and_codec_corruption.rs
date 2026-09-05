@@ -1,5 +1,6 @@
 //! AArch64 CBNZ artifact proof custody, zero-span retention, and codec rejection.
 
+use crate::FunctionFragmentReplayInputs;
 use crate::tests::*;
 
 #[test]
@@ -25,7 +26,7 @@ fn optimized_cbnz_object_artifact_retains_zero_span_and_rejects_detached_proof()
         .into_post_allocation_machine_for_test()
         .unwrap_or_else(|| panic!("CBNZ must complete its direct realization"));
     let emitted = stage_optimized_function_fragment_emission(
-        StagedOptimizedFunctionFragmentEmissionSource::PostAllocationMachine(Box::new(realization)),
+        FunctionFragmentReplayInputs::PostAllocationMachine(Box::new(realization)).into(),
     )
     .unwrap();
     let placed = stage_optimized_relocation_free_text_section(emitted).unwrap();
@@ -66,7 +67,7 @@ fn optimized_cbnz_object_artifact_retains_zero_span_and_rejects_detached_proof()
         .into_post_allocation_machine_for_test()
         .unwrap_or_else(|| panic!("CBNZ must complete its direct realization"));
     let emitted = stage_optimized_function_fragment_emission(
-        StagedOptimizedFunctionFragmentEmissionSource::PostAllocationMachine(Box::new(realization)),
+        FunctionFragmentReplayInputs::PostAllocationMachine(Box::new(realization)).into(),
     )
     .unwrap();
     let placed = stage_optimized_relocation_free_text_section(emitted).unwrap();

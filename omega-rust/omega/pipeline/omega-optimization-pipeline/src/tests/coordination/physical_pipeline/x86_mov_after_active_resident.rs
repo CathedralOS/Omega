@@ -1,5 +1,6 @@
 //! Exact active-resident recovery followed by x86 MOV-r32 realization.
 
+use crate::FunctionFragmentReplayInputs;
 use omega_isa_x86_64::encode_x86_64_mov_r32_imm32_i64_materialization;
 
 use crate::tests::*;
@@ -161,7 +162,7 @@ fn active_resident_rematerialization_composes_with_mov_r32_through_publication()
         .into_post_allocation_machine_for_test()
         .unwrap_or_else(|| unreachable!());
     let emitted = stage_optimized_function_fragment_emission(
-        StagedOptimizedFunctionFragmentEmissionSource::PostAllocationMachine(Box::new(realization)),
+        FunctionFragmentReplayInputs::PostAllocationMachine(Box::new(realization)).into(),
     )
     .unwrap();
     assert_eq!(

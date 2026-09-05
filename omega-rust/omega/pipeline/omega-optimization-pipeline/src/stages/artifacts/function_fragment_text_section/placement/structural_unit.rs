@@ -11,9 +11,7 @@ use omega_object_file::{
 use omega_optimization_core::TerminalRelocationFreeTextSectionIdentity;
 use omega_target::Architecture;
 
-use crate::{
-    StagedOptimizedFunctionFragmentEmission, StagedOptimizedFunctionFragmentEmissionSource,
-};
+use crate::StagedOptimizedFunctionFragmentEmission;
 
 use super::super::RelocationFreeTextSectionPlacementError;
 use super::conversion::{u64_to_usize, usize_to_u64};
@@ -22,34 +20,29 @@ pub(super) fn place(
     source: &StagedOptimizedFunctionFragmentEmission,
 ) -> Result<RelocationFreeTextSectionPlacement, RelocationFreeTextSectionPlacementError> {
     let fragments = source.fragments();
-    let StagedOptimizedFunctionFragmentEmissionSource::StructuralUnit(realization) =
-        source.source()
-    else {
-        return Err(RelocationFreeTextSectionPlacementError::SourceShapeMismatch);
-    };
     if fragments.target.architecture != Architecture::X86_64 || !fragments.functions.is_empty() {
         return Err(RelocationFreeTextSectionPlacementError::SourceShapeMismatch);
     }
     let selected_plan = source.source().selected_plan();
     let environment = source.source().register_environment();
-    let machine_plan = realization.machine().machine().plan();
-    let effects_plan = realization.machine().effects().plan();
-    let encoding = realization.encoding();
-    let layout = realization.layout();
-    let exit = realization.exit_contract().contract();
+    let machine_plan = &source.source().program().machine;
+    let effects_plan = &source.source().program().effects;
+    let encoding = source.source().encoding();
+    let layout = &source.source().program().layout;
+    let exit = source.source().exit_contract().contract();
     let count = fragments.structural_unit_functions.len();
     if count == 0
         || selected_plan.structural_unit_functions.len() != count
         || machine_plan.structural_unit_functions.len() != count
         || effects_plan.structural_unit_functions.len() != count
         || encoding.structural_unit_functions().len() != count
-        || layout.structural_unit_functions().len() != count
+        || layout.structural_unit_functions.len() != count
         || exit.structural_unit_functions.len() != count
         || !selected_plan.functions.is_empty()
         || !machine_plan.functions.is_empty()
         || !effects_plan.functions.is_empty()
         || !encoding.rows().is_empty()
-        || !layout.functions().is_empty()
+        || !layout.functions.is_empty()
         || !exit.functions.is_empty()
     {
         return Err(RelocationFreeTextSectionPlacementError::SourceShapeMismatch);
@@ -92,7 +85,7 @@ pub(super) fn place(
             |function| function.machine,
         )?;
         let laid_out = lookup::unique_machine(
-            layout.structural_unit_functions(),
+            &layout.structural_unit_functions,
             fragment.machine,
             |function| function.machine,
         )?;

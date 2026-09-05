@@ -43,7 +43,9 @@ pub fn stage_whole_function_exit_contract_with_post_allocation_machine_optimizat
         layout,
         layout_custody,
     )?;
-    let validated = ValidatedWholeFunctionExitContract { contract };
+    let validated = ValidatedWholeFunctionExitContract {
+        contract: std::sync::Arc::new(contract),
+    };
     validate_whole_function_exit_contract_with_post_allocation_machine_optimization(
         selected,
         machine,
@@ -88,7 +90,7 @@ pub fn validate_whole_function_exit_contract_with_post_allocation_machine_optimi
         layout,
         layout_custody,
     )?;
-    if replayed != contract.contract {
+    if replayed != *contract.contract {
         return Err(WholeFunctionExitContractError::ArtifactMismatch);
     }
     Ok(())

@@ -1,5 +1,6 @@
 //! Reauthenticated relocation-free object-container manifest and receipt mutations.
 
+use crate::FunctionFragmentReplayInputs;
 use crate::tests::*;
 use omega_object_file::ObjectLocalSymbolId;
 use omega_optimization_core::{
@@ -35,7 +36,7 @@ fn staged_object_container() -> StagedOptimizedRelocationFreeObjectContainer {
         .into_post_allocation_machine_for_test()
         .unwrap_or_else(|| panic!("CBNZ must complete its direct post-allocation realization"));
     let fragments = stage_optimized_function_fragment_emission(
-        StagedOptimizedFunctionFragmentEmissionSource::PostAllocationMachine(Box::new(realization)),
+        FunctionFragmentReplayInputs::PostAllocationMachine(Box::new(realization)).into(),
     )
     .unwrap();
     let text = stage_optimized_relocation_free_text_section(fragments).unwrap();
