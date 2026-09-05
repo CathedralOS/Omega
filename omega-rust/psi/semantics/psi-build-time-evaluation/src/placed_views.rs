@@ -125,7 +125,7 @@ pub(crate) fn desugar_placed_views_with_optional_sources(
 
     let mut probe = syntax.clone();
     synthesize_probe_records(&mut probe, &applications, &rewrites, &schemas);
-    let mut probe = psi_generic_instances::normalize_pre_resolution(probe)?;
+    let mut probe = psi_syntax_trees_to_symbol_resolved_trees::normalize_generic_data(probe)?;
     let probe_plan_laid = crate::desugar_plan_laid_value_types(&mut probe)?;
     let resolved = crate::lower_probe_with_optional_sources(&probe, sources)?;
     let mut typed =

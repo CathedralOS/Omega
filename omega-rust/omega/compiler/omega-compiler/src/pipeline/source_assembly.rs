@@ -823,7 +823,7 @@ mod tests {
         let mut combined = template;
         combined.extend_from(&wrapper);
         assert_eq!(
-            psi_generic_instances::normalize_pre_resolution(combined)
+            psi_syntax_trees_to_symbol_resolved_trees::normalize_generic_data(combined)
                 .expect("combined normalization demonstrates the forbidden cross-unit synthesis")
                 .root_item_count(),
             3

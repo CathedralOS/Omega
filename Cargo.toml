@@ -23,7 +23,6 @@ members = [
     "omega-rust/psi/representations/psi-terminal",
     "omega-rust/psi/pipeline/psi-source-files-to-tokens",
     "omega-rust/psi/pipeline/psi-tokens-to-syntax-trees",
-    "omega-rust/psi/pipeline/psi-generic-instances",
     "omega-rust/psi/pipeline/psi-syntax-trees-to-symbol-resolved-trees",
     "omega-rust/psi/pipeline/psi-symbol-resolved-trees-to-typed-trees",
     "omega-rust/psi/pipeline/psi-typed-trees-to-checked-trees",

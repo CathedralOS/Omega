@@ -10,6 +10,7 @@ mod domain;
 mod domain_establishment;
 mod domain_operator_homes;
 mod expression;
+mod generic_data;
 mod item;
 mod lowerer;
 mod machine;
@@ -28,6 +29,7 @@ mod trait_definition;
 mod type_reference;
 mod wire;
 
+pub use generic_data::normalize_generic_data;
 pub use lowerer::{
     RebasedSeededSymbolResolvedTrees, SeededSymbolResolvedTrees,
     lower_syntax_extension_against_resolved_base,

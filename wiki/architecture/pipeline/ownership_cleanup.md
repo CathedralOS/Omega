@@ -29,7 +29,6 @@ for a crate, and a named internal calculation need not be a public stage.
 | Whole move | What must disappear or change |
 | --- | --- |
 | Dissolve `omega-optimization-validation` | Put durable vocabulary in representations, reusable validity in semantics, and rule-local checks beside the rule. Delete the catch-all crate. |
-| Separate generic-instance data from its producer | Rehome `psi-generic-instances` data and instantiation work according to their roles. |
 | Finish the remaining crate disposition | For every other Omega and Psi pipeline crate, decide keep, merge, move or delete and implement that decision. Preserve genuine representation/invariant boundaries, not the existing package count. |
 
 Keep a compact disposition map while executing this move. It is an inventory,

@@ -11,7 +11,6 @@ path = "src/lib.rs"
 [dependencies]
 psi-arena = { path = "../../foundation/psi-arena" }
 psi-diagnostics = { path = "../../foundation/psi-diagnostics" }
-psi-generic-instances = { path = "../psi-generic-instances" }
 psi-language-semantics = { path = "../../foundation/psi-language-semantics" }
 psi-numerics = { path = "../../foundation/psi-numerics" }
 psi-source = { path = "../../foundation/psi-source" }

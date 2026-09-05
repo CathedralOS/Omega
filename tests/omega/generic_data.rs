@@ -1,4 +1,12 @@
-use super::desugar_generic_data_instances;
+use psi_syntax_trees_to_symbol_resolved_trees::normalize_generic_data;
+
+// Keep the existing in-place test fixtures while exercising the consuming API.
+fn desugar_generic_data_instances(
+    syntax: &mut psi_syntax_trees::SyntaxTrees,
+) -> Result<(), Vec<Diagnostic>> {
+    *syntax = normalize_generic_data(std::mem::take(syntax))?;
+    Ok(())
+}
 use omega_layout::{DataShape, build_layout_plan};
 use omega_target::NativeTarget;
 use psi_checked_trees::CheckedTrees;

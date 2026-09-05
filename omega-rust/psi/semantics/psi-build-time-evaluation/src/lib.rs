@@ -256,7 +256,8 @@ fn evaluate_pre_resolution_with_optional_sources(
         sources,
         selection_authority.clone(),
     )?;
-    let mut syntax_trees = psi_generic_instances::normalize_pre_resolution(syntax_trees)?;
+    let mut syntax_trees =
+        psi_syntax_trees_to_symbol_resolved_trees::normalize_generic_data(syntax_trees)?;
     let plan_laid_records = desugar_plan_laid_value_types(&mut syntax_trees)?;
     Ok(PreResolutionEvaluation {
         syntax_trees,

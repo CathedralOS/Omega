@@ -140,12 +140,17 @@ task:
 - `omega-rust/psi/pipeline/psi-syntax-trees-to-symbol-resolved-trees` contains the
   stage implementation. All workspace consumers invoke it directly.
 
-- `omega-rust/psi/pipeline/psi-generic-instances` contains the pre-resolution
-  closed-instance and contextual-construction normalization used by that stage
-  and by Psi-owned probe frontends. Its public entry consumes one syntax tree
-  and returns the normalized tree; the in-place elaborator is private. Omega
-  orchestration may sequence that Psi entry while the larger frontend conveyor
-  is split, but cannot own or extend the language elaboration.
+- The stage's `src/generic_data/` owns pre-resolution closed-instance and
+  contextual-construction normalization, alongside trait-default synthesis.
+  `normalize_generic_data` consumes one syntax tree and returns its normalized
+  tree. Discovered templates and pending substitutions are private scratch;
+  the durable declarations remain in `SyntaxTrees`. Argument identity,
+  eligibility, substitution, authored use sites and constant evaluation have
+  separate internal modules. Declaration retention uses the same private
+  constant canonicalizer rather than importing another pipeline owner.
+  Psi-owned evaluation probes keep the existing normalization order; moving
+  ownership does not move normalization across source-unit or evaluation
+  boundaries. Cross-stage controls live in `tests/omega/generic_data.rs`.
 
 - `omega-rust/psi/semantics/psi-build-time-evaluation` owns the
   cross-stage evaluation continuation. Pre-resolution returns target-filterable
