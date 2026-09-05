@@ -1,7 +1,7 @@
 use super::super::super::ResolvedSourceIdentity;
 use crate::declarations::BuildDeclarationKind;
 use crate::declarations::dependencies::read::{DependencySourceRequest, PackageSelection};
-use crate::declarations::{AliasName, PackageKey, PackageName};
+use crate::declarations::{AliasName, PackageKey};
 use omega_package_source::{ExternalSourceContext, SourceLineage, SourceRelativePath};
 
 /// Exact caller request for the root source, before normalized selection.
@@ -70,12 +70,6 @@ impl CanonicalDependencySourceRequest {
                 explicit_alias.as_ref()
             }
         }
-    }
-
-    pub(in super::super) fn resolved_alias(&self, selected: &PackageName) -> AliasName {
-        self.explicit_alias()
-            .cloned()
-            .unwrap_or_else(|| selected.default_alias())
     }
 }
 

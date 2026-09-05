@@ -38,6 +38,26 @@ impl<'text> Encoder<'text> {
         }
     }
 
+    /// Recovery has already charged this exact verification buffer. Reserve it
+    /// once, and cap every later append at that length so no growth can occur.
+    pub(super) fn policy_preallocated(
+        expected_length: usize,
+    ) -> Result<Self, PackageReviewEncodingError> {
+        let mut encoder = Self::policy_bounded(expected_length);
+        if expected_length > encoder.maximum_bytes {
+            return Err(PackageReviewEncodingError::new(
+                "package policy verification exceeds its byte ceiling",
+            ));
+        }
+        encoder
+            .output
+            .try_reserve_exact(expected_length)
+            .map_err(|_| {
+                PackageReviewEncodingError::new("package policy verification allocation failed")
+            })?;
+        Ok(encoder)
+    }
+
     /// Only policy components use these structural limits. Ordinary review
     /// serialization keeps its existing behavior and byte representation.
     pub(crate) fn nested<T>(

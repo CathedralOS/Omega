@@ -48,6 +48,39 @@ impl HistoricalPackagePolicyDecisions {
     }
 }
 
+/// Requested recovery storage and retained decision count for an enclosing
+/// lock budget. Storage includes duplicate-fingerprint validation scratch;
+/// input text and the already recovered source subject remain borrowed.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct HistoricalPackagePolicyRecoveryUsage {
+    pub(super) owned_bytes: usize,
+    pub(super) decisions: usize,
+}
+
+impl HistoricalPackagePolicyRecoveryUsage {
+    pub const fn owned_bytes(&self) -> usize {
+        self.owned_bytes
+    }
+
+    pub const fn decisions(&self) -> usize {
+        self.decisions
+    }
+
+    pub(super) fn for_decisions(
+        decisions: usize,
+        maximum_owned_bytes: usize,
+    ) -> Result<Self, HistoricalPackagePolicyError> {
+        let owned_bytes = decisions
+            .checked_mul(std::mem::size_of::<HistoricalPackagePolicyDecision>() + 32)
+            .filter(|bytes| *bytes <= maximum_owned_bytes)
+            .ok_or(HistoricalPackagePolicyError::AllocationLimitExceeded)?;
+        Ok(Self {
+            owned_bytes,
+            decisions,
+        })
+    }
+}
+
 /// Callers may lower these ceilings but cannot raise the format's hard limits.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct HistoricalPackagePolicyLimits {
@@ -82,6 +115,7 @@ impl Default for HistoricalPackagePolicyLimits {
 pub enum HistoricalPackagePolicyError {
     ByteLimitExceeded,
     DecisionLimitExceeded,
+    AllocationLimitExceeded,
     AllocationFailed,
     InvalidFraming,
     UnsupportedVersion,
@@ -96,6 +130,7 @@ impl fmt::Display for HistoricalPackagePolicyError {
         formatter.write_str(match self {
             Self::ByteLimitExceeded => "historical policy exceeds the record-byte limit",
             Self::DecisionLimitExceeded => "historical policy exceeds the decision limit",
+            Self::AllocationLimitExceeded => "historical policy exceeds the owned-storage limit",
             Self::AllocationFailed => "historical policy allocation failed",
             Self::InvalidFraming => "historical policy has invalid canonical framing",
             Self::UnsupportedVersion => "unsupported historical policy version; retain the existing pins and recover with a compatible toolchain",

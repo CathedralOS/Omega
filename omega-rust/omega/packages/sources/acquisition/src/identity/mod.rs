@@ -24,6 +24,11 @@ macro_rules! domain_digest {
             pub fn to_hex(&self) -> String {
                 encode_hex(&self.0)
             }
+
+            /// Borrow canonical digest bytes without formatting scratch.
+            pub const fn digest(&self) -> &[u8; 32] {
+                &self.0
+            }
         }
     };
 }
@@ -65,17 +70,15 @@ pub(super) fn decode_hex(value: &str) -> Option<Vec<u8>> {
     if !value.len().is_multiple_of(2) || !value.bytes().all(|byte| byte.is_ascii_hexdigit()) {
         return None;
     }
-    value
-        .as_bytes()
-        .as_chunks::<2>()
-        .0
-        .iter()
-        .map(|pair| {
-            let high = hex_value(pair[0])?;
-            let low = hex_value(pair[1])?;
-            Some((high << 4) | low)
-        })
-        .collect()
+    // Validation precedes allocation, and the requested storage is exactly
+    // the decoded length rather than fallible-iterator growth capacity.
+    let mut decoded = Vec::with_capacity(value.len() / 2);
+    for pair in value.as_bytes().as_chunks::<2>().0 {
+        let high = hex_value(pair[0]).expect("prevalidated hexadecimal");
+        let low = hex_value(pair[1]).expect("prevalidated hexadecimal");
+        decoded.push((high << 4) | low);
+    }
+    Some(decoded)
 }
 
 fn hex_value(byte: u8) -> Option<u8> {

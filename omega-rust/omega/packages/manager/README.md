@@ -95,8 +95,30 @@ package entries and binds the exact root, role, graph, and target. Recovery
 needs only the retained source subject, not the old checkout or a recreated
 compiler conflict. It preserves both acceptance and rejection without making
 either a fresh authorization. Fresh capture still requires the complete exact
-current resolution. Composition with normalized policy baselines and atomic
-install/update publication remain unfinished; this section alone is not a lock.
+current resolution.
+
+`lock::PackageLock` composes that history with the immutable source graph and
+one complete typed `PackagePolicyBaseline` for every source package. Exact target
+sections are sorted by canonical target identity and must agree on the same
+target-independent source graph. Each baseline matches its source package and
+target; decisions match the complete target-bound source subject. These are
+inert project records, not fresh compiler authorization.
+
+The versioned `omega.lock` text embeds the canonical source, named policy, and
+historical-decision sections verbatim, using explicit byte lengths. No whole
+child is replaced by an opaque escaped payload. Loading requires no checkout,
+source acquisition, compiler run, proof certificate, or native replay. Recovery
+checks outer framing and every child's canonical meaning and associations.
+`PackageLockRecoveryLimits` bounds the entire input, requested owned storage
+(including validation scratch), target sections, package rows, authored and
+selected dependency requests, policy sequence elements, and decisions. Child
+usage is deducted from the same aggregate limits rather than reset per target.
+Allocator overhead and already borrowed input are not part of owned-storage
+accounting. Locked resolution and atomic install/update publication remain open.
+Serialization uses the same recovery accounting one child at a time, discarding
+that scratch before the next child. It therefore refuses an output that exceeds
+the chosen recovery ceilings even when its text fits. This is a resource check,
+not a second compiler review or a certificate that project choices are correct.
 
 Return to the [package subsystem map](../README.md), or consult:
 

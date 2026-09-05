@@ -1,6 +1,7 @@
 use super::model::{
     HistoricalPackagePolicyDecision, HistoricalPackagePolicyDecisions,
     HistoricalPackagePolicyError as Error, HistoricalPackagePolicyLimits,
+    HistoricalPackagePolicyRecoveryUsage,
 };
 use crate::resolution::graph::CanonicalSourceClosureSubject;
 use crate::review::ReviewOnlyRootPolicyDisposition;
@@ -75,13 +76,31 @@ impl HistoricalPackagePolicyDecisions {
         subject: &CanonicalSourceClosureSubject,
         limits: HistoricalPackagePolicyLimits,
     ) -> Result<Self, Error> {
+        Self::recover_text_with_usage(text, subject, limits, usize::MAX)
+            .map(|(decisions, _)| decisions)
+    }
+
+    /// Recover one historical section under the remaining enclosing storage
+    /// budget. Successful usage must be deducted before recovering another
+    /// section; it grants no current candidate or publication authority.
+    pub fn recover_text_with_usage(
+        text: &str,
+        subject: &CanonicalSourceClosureSubject,
+        limits: HistoricalPackagePolicyLimits,
+        maximum_owned_bytes: usize,
+    ) -> Result<(Self, HistoricalPackagePolicyRecoveryUsage), Error> {
         let limits = limits.bounded();
         if text.len() > limits.maximum_bytes {
             return Err(Error::ByteLimitExceeded);
         }
         let body = text.strip_prefix(HEADER).ok_or(Error::UnsupportedVersion)?;
         let (source_line, body) = body.split_once('\n').ok_or(Error::InvalidFraming)?;
-        if source_line.strip_prefix("source ") != Some(subject.fingerprint().to_hex().as_str()) {
+        if source_line
+            .strip_prefix("source ")
+            .and_then(|value| parse_digest(value).ok())
+            .as_ref()
+            != Some(subject.fingerprint().as_bytes())
+        {
             return Err(Error::SourceSubjectMismatch);
         }
         let (count_line, body) = body.split_once('\n').ok_or(Error::InvalidFraming)?;
@@ -98,6 +117,10 @@ impl HistoricalPackagePolicyDecisions {
         if count > body.len() / 83 {
             return Err(Error::InvalidFraming);
         }
+        // Account both allocations before reserving even the retained rows.
+        // Validation below uses one fixed digest per row and no owned keys.
+        let usage =
+            HistoricalPackagePolicyRecoveryUsage::for_decisions(count, maximum_owned_bytes)?;
         let mut decisions = Vec::new();
         decisions
             .try_reserve_exact(count)
@@ -132,10 +155,13 @@ impl HistoricalPackagePolicyDecisions {
             return Err(Error::InvalidFraming);
         }
         validate_decisions(&decisions, subject.packages().len())?;
-        Ok(Self {
-            source_subject: subject.fingerprint().clone(),
-            decisions,
-        })
+        Ok((
+            Self {
+                source_subject: subject.fingerprint().clone(),
+                decisions,
+            },
+            usage,
+        ))
     }
 }
 

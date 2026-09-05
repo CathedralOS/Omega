@@ -48,6 +48,52 @@ fn root_git_selection(
 }
 
 #[test]
+fn borrowed_source_graph_comparison_excludes_only_target_and_derived_encoding() {
+    let source = git_source("codec", "codec", 1);
+    let original = finish(
+        root_git_selection("https://github.com/CathedralOS/codec.git", &source),
+        vec![source],
+        Vec::new(),
+        CanonicalSourceClosureSubjectLimits::default(),
+    )
+    .unwrap();
+    let mut changed = original.clone();
+    changed.target_profile = omega_target::TargetProfile::WindowsX64;
+    changed.canonical_bytes.clear();
+    changed.fingerprint = super::super::encoding::fingerprint(b"different target bytes");
+    assert!(original.same_source_graph(&changed));
+
+    // Diagnostic-only copies exercise each stored source family independently;
+    // no edited copy is represented as a validated recovered subject.
+    changed = original.clone();
+    changed.root.role = BuildDeclarationKind::Application;
+    assert!(!original.same_source_graph(&changed));
+    changed = original.clone();
+    changed.packages.clear();
+    assert!(!original.same_source_graph(&changed));
+    changed = original.clone();
+    changed.package_navigations.clear();
+    assert!(!original.same_source_graph(&changed));
+    changed = original.clone();
+    changed.package_dependency_projections.clear();
+    assert!(!original.same_source_graph(&changed));
+    changed = original.clone();
+    changed
+        .dependency_requests
+        .push(CanonicalDependencySourceSelection {
+            requester: original.packages[0].key().clone(),
+            dependency_index: 0,
+            request: CanonicalDependencySourceRequest::Path {
+                explicit_alias: None,
+                location: "../child".to_owned(),
+            },
+            alias: AliasName::parse("child").unwrap(),
+            selected: original.packages[0].clone(),
+        });
+    assert!(!original.same_source_graph(&changed));
+}
+
+#[test]
 fn readable_source_subject_preserves_git_lineages_object_formats_and_targets() {
     let limits = CanonicalSourceClosureSubjectLimits::default();
     for locator in [
@@ -94,6 +140,32 @@ fn readable_source_subject_preserves_git_lineages_object_formats_and_targets() {
                 assert_eq!(recovered, original);
                 assert_eq!(recovered.canonical_bytes(), original.canonical_bytes());
                 assert_eq!(recovered.canonical_text(limits).unwrap(), text);
+                let (bounded, usage) = CanonicalSourceClosureSubject::recover_text_with_usage(
+                    &text,
+                    limits,
+                    usize::MAX,
+                )
+                .unwrap();
+                assert_eq!(bounded, original);
+                assert_eq!(usage.packages(), 1);
+                assert_eq!(usage.dependency_requests(), 0);
+                assert_eq!(
+                    CanonicalSourceClosureSubject::recover_text_with_usage(
+                        &text,
+                        limits,
+                        usage.owned_bytes(),
+                    )
+                    .unwrap(),
+                    (bounded, usage),
+                );
+                assert!(
+                    CanonicalSourceClosureSubject::recover_text_with_usage(
+                        &text,
+                        limits,
+                        usage.owned_bytes() - 1,
+                    )
+                    .is_err()
+                );
             }
         }
     }

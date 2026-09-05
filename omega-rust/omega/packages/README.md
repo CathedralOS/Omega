@@ -57,8 +57,9 @@ the same resolved graph. The text names the exact target, root role and request,
 source-qualified packages and immutable revisions/content, workspace navigation,
 authored dependency requests, and selected alias edges. Recovery applies the
 same graph checks and requires neither the source checkout nor a compiler run.
-This source record is not an accepted lock: accepted policy baselines and
-decisions, locked resolution, and transaction publication remain separate work.
+The source record alone is not an accepted lock. Manager lock composition adds
+complete policy baselines and historical decisions; locked resolution and
+transaction publication remain separate work.
 
 An accepted policy baseline must not embed the existing review capsule. That
 capsule includes compiler proof and build-replay data. Selected provider plans,
@@ -78,7 +79,8 @@ recovery envelope. Manager candidates retain this typed baseline from their exac
 checked package and target. The baseline also has a bounded named text form
 whose fields, variants and sequence structure are verified by exact canonical
 rerender after typed recovery. It is readable without the old source or compiler
-execution. Normalized comparison and lock integration remain open.
+execution. The manager's lock envelope composes it with exact source pins and
+historical choices. Normalized comparison remains open.
 Dropping audit-relevant families or retaining their reconstruction
 receipts would both be incorrect.
 
@@ -86,6 +88,14 @@ Historical project decisions have a separate bounded text section under
 `manager/src/lock/decisions`. It is scoped to the retained source subject and
 loads without old source or old compiler conflicts. It cannot stand in for
 fresh root-policy resolution or the full normalized accepted baseline.
+
+`manager::lock::PackageLock` stores sorted exact-target sections, each joining
+the same immutable source graph to its complete package-ordered baselines and
+source-bound historical decisions. Its deterministic text embeds readable child
+sections with byte-length framing. Recovery shares aggregate storage and record
+budgets across all sections, rejects graph/package/target mismatches, and works
+without the old checkout. It does not publish files or authorize a changed
+candidate; locked acquisition and the install/update transaction are separate.
 
 Design and security references:
 

@@ -6,10 +6,10 @@ use super::super::{
 use super::framing::{Reader, Writer};
 use super::source::{read_lineage, read_source, write_lineage, write_source};
 use super::{Error, Limits};
+use crate::declarations::BuildDeclarationKind;
 use crate::declarations::dependencies::read::{DependencySourceRequest, PackageSelection};
-use crate::declarations::{AliasName, BuildDeclarationKind, PackageName};
 use crate::resolution::source::PackageSourceNavigation;
-use omega_package_source::{ExternalSourceContext, SourceRelativePath};
+use omega_package_source::ExternalSourceContext;
 
 pub(super) fn write_root(
     writer: &mut Writer,
@@ -51,6 +51,7 @@ pub(super) fn write_root(
             requested_root,
             source_context,
         } => {
+            writer.budget.charge(64)?;
             writer.row(
                 "request external-local",
                 &[requested_root, source_context.to_hex().as_bytes()],
@@ -81,9 +82,7 @@ pub(super) fn read_root(
             selection: read_selection(reader, limits)?,
         },
         "workspace-member" => {
-            let member_path =
-                SourceRelativePath::parse(&reader.string(limits.maximum_request_bytes)?)
-                    .map_err(|_| Error::new("invalid text root workspace member"))?;
+            let member_path = reader.relative_path(limits.maximum_request_bytes)?;
             let requested_workspace_root = reader.bytes(limits.maximum_request_bytes)?;
             CanonicalRootSourceRequest::WorkspaceMember {
                 workspace_root_source: read_lineage(reader, limits)?,
@@ -93,7 +92,7 @@ pub(super) fn read_root(
         }
         "external-local" => CanonicalRootSourceRequest::ExternalLocal {
             requested_root: reader.bytes(limits.maximum_request_bytes)?,
-            source_context: ExternalSourceContext::parse_hex(&reader.string(64)?)
+            source_context: ExternalSourceContext::parse_hex(&reader.hex_string(64)?)
                 .map_err(|_| Error::new("invalid text root source context"))?,
         },
         _ => return Err(Error::new("unknown text root source request")),
@@ -108,13 +107,13 @@ pub(super) fn read_root(
 
 pub(super) fn write_request(
     writer: &mut Writer,
-    request: &CanonicalDependencySourceRequest,
+    request: super::super::request_view::Request<'_>,
 ) -> Result<(), Error> {
     match request {
-        CanonicalDependencySourceRequest::Path { location, .. } => {
+        super::super::request_view::Request::Path { location, .. } => {
             writer.row("request path", &[location.as_bytes()])?
         }
-        CanonicalDependencySourceRequest::Git {
+        super::super::request_view::Request::Git {
             repository,
             revision,
             selection,
@@ -151,10 +150,7 @@ pub(super) fn read_request(
     reader.expect("alias")?;
     let alias = match reader.atom()? {
         "none" => None,
-        "named" => Some(
-            AliasName::parse(reader.string(limits.maximum_identity_bytes)?)
-                .map_err(|_| Error::new("invalid text explicit alias"))?,
-        ),
+        "named" => Some(reader.alias(limits.maximum_identity_bytes)?),
         _ => return Err(Error::new("invalid text alias option")),
     };
     Ok(match request {
@@ -212,9 +208,9 @@ fn read_selection(reader: &mut Reader<'_>, limits: Limits) -> Result<PackageSele
     reader.expect("selection")?;
     match reader.atom()? {
         "root" => Ok(PackageSelection::Root),
-        "named" => PackageName::parse(reader.string(limits.maximum_identity_bytes)?)
-            .map(PackageSelection::Named)
-            .map_err(|_| Error::new("invalid text selected package name")),
+        "named" => reader
+            .package_name(limits.maximum_identity_bytes)
+            .map(PackageSelection::Named),
         _ => Err(Error::new("unknown text package selection")),
     }
 }
@@ -238,9 +234,9 @@ pub(super) fn read_navigation(
     reader.expect("navigation")?;
     match reader.atom()? {
         "root" => Ok(PackageSourceNavigation::Root),
-        "member" => SourceRelativePath::parse(&reader.string(limits.maximum_request_bytes)?)
-            .map(PackageSourceNavigation::Member)
-            .map_err(|_| Error::new("invalid text package navigation")),
+        "member" => reader
+            .relative_path(limits.maximum_request_bytes)
+            .map(PackageSourceNavigation::Member),
         _ => Err(Error::new("unknown text package navigation")),
     }
 }

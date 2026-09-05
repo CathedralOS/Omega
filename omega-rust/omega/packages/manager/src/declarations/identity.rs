@@ -31,9 +31,13 @@ impl From<omega_build_declarations::ProjectName> for PackageName {
 pub struct AliasName(String);
 
 impl AliasName {
+    pub(crate) fn is_valid(value: &str) -> bool {
+        is_snake_case(value)
+    }
+
     pub fn parse(value: impl Into<String>) -> Result<Self, String> {
         let value = value.into();
-        if is_snake_case(&value) {
+        if Self::is_valid(&value) {
             Ok(Self(value))
         } else {
             Err(format!(

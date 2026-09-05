@@ -32,4 +32,6 @@ pub use text::PackagePolicyTextRecoveryLimits;
 pub(in crate::encoding) use text::framing::binary as decode_policy_text_scalars;
 
 use PackagePolicyRecoveryError as Error;
-pub use model::{PackagePolicyRecoveryError, PackagePolicyRecoveryLimits};
+pub use model::{
+    PackagePolicyRecoveryError, PackagePolicyRecoveryLimits, PackagePolicyRecoveryUsage,
+};

@@ -1,70 +1,76 @@
-//! Validation that the retained source rows form one canonical closed graph.
+//! Validate the complete canonical graph using borrowed rows and bounded scratch.
 
 use super::super::{
-    CanonicalDependencySourceRequest, CanonicalDependencySourceSelection,
-    CanonicalRootSourceSelection, CanonicalSourceClosureSubjectError,
-    CanonicalSourceClosureSubjectLimits,
+    CanonicalDependencySourceSelection, CanonicalRootSourceSelection,
+    CanonicalSourceClosureSubjectError as Error, CanonicalSourceClosureSubjectLimits as Limits,
+    request_view::Request, usage::Budget,
 };
 use super::dependency::{validate_dependency_request, validate_dependency_selection_kind};
 use super::root::validate_root_request;
 use super::source::{validate_package_navigation, validate_source_identity};
 use crate::declarations::dependencies::read::ProjectedDependencies;
-use crate::declarations::{PackageKey, PackageName};
-use crate::resolution::graph::{
-    ResolvedDependency, ResolvedPackageClosure, ResolvedPackageNode, ResolvedSourceIdentity,
-};
+use crate::resolution::graph::ResolvedSourceIdentity;
 use crate::resolution::source::PackageSourceNavigation;
-use std::collections::BTreeMap;
 
 pub(in super::super) fn validate_subject(
     root: &CanonicalRootSourceSelection,
     packages: &[ResolvedSourceIdentity],
-    package_navigations: &[PackageSourceNavigation],
-    package_dependency_projections: &[ProjectedDependencies],
-    dependency_requests: &[CanonicalDependencySourceSelection],
-    limits: CanonicalSourceClosureSubjectLimits,
-) -> Result<(), CanonicalSourceClosureSubjectError> {
+    navigations: &[PackageSourceNavigation],
+    projections: &[ProjectedDependencies],
+    edges: &[CanonicalDependencySourceSelection],
+    limits: Limits,
+) -> Result<(), Error> {
+    validate_subject_with_budget(
+        root,
+        packages,
+        navigations,
+        projections,
+        edges,
+        limits,
+        &mut Budget::new(usize::MAX),
+    )
+}
+
+pub(in super::super) fn validate_subject_with_budget(
+    root: &CanonicalRootSourceSelection,
+    packages: &[ResolvedSourceIdentity],
+    navigations: &[PackageSourceNavigation],
+    projections: &[ProjectedDependencies],
+    edges: &[CanonicalDependencySourceSelection],
+    limits: Limits,
+    budget: &mut Budget,
+) -> Result<(), Error> {
     if packages.is_empty()
         || packages.len() > limits.maximum_packages
-        || packages.len() != package_navigations.len()
-        || packages.len() != package_dependency_projections.len()
+        || packages.len() != navigations.len()
+        || packages.len() != projections.len()
     {
-        return Err(CanonicalSourceClosureSubjectError::new(
+        return Err(Error::new(
             "source-closure subject violates its package-count limit",
         ));
     }
-    if dependency_requests.len() > limits.maximum_dependency_requests {
-        return Err(CanonicalSourceClosureSubjectError::new(
+    if edges.len() > limits.maximum_dependency_requests {
+        return Err(Error::new(
             "source-closure subject violates its request-count limit",
         ));
     }
     for source in packages {
         validate_source_identity(source, limits.maximum_identity_bytes)?;
     }
-    let mut authored_request_count = 0usize;
-    for dependencies in package_dependency_projections {
-        if dependencies.authored_dependencies().len() > limits.maximum_dependency_requests {
-            return Err(CanonicalSourceClosureSubjectError::new(
-                "source-closure dependency projection exceeds its request-count limit",
-            ));
-        }
-        for request in dependencies.authored_dependencies() {
-            validate_dependency_request(
-                &CanonicalDependencySourceRequest::from(request),
-                limits.maximum_request_bytes,
-            )?;
-        }
-        authored_request_count = authored_request_count
-            .checked_add(dependencies.authored_dependencies().len())
+    let mut authored = 0usize;
+    for projection in projections {
+        authored = authored
+            .checked_add(projection.authored_dependencies().len())
             .filter(|count| *count <= limits.maximum_dependency_requests)
             .ok_or_else(|| {
-                CanonicalSourceClosureSubjectError::new(
-                    "source-closure dependency projections exceed their request-count limit",
-                )
+                Error::new("source-closure dependency projections exceed their request-count limit")
             })?;
+        for request in projection.authored_dependencies() {
+            validate_dependency_request(Request::from(request), limits.maximum_request_bytes)?;
+        }
     }
-    if authored_request_count != dependency_requests.len() {
-        return Err(CanonicalSourceClosureSubjectError::new(
+    if authored != edges.len() {
+        return Err(Error::new(
             "source-closure authored and selected dependency counts disagree",
         ));
     }
@@ -72,168 +78,108 @@ pub(in super::super) fn validate_subject(
         .windows(2)
         .any(|pair| pair[0].key() >= pair[1].key())
     {
-        return Err(CanonicalSourceClosureSubjectError::new(
+        return Err(Error::new(
             "source-closure packages are not in strict canonical order",
         ));
     }
     validate_source_identity(&root.selected, limits.maximum_identity_bytes)?;
-    let package_by_key = packages
-        .iter()
-        .map(|source| (source.key(), source))
-        .collect::<BTreeMap<_, _>>();
-    let navigation_by_key = packages
-        .iter()
-        .zip(package_navigations)
-        .map(|(source, navigation)| (source.key(), navigation))
-        .collect::<BTreeMap<_, _>>();
-    let projection_by_key = packages
-        .iter()
-        .zip(package_dependency_projections)
-        .map(|(source, projection)| (source.key(), projection))
-        .collect::<BTreeMap<_, _>>();
-    for (source, navigation) in packages.iter().zip(package_navigations) {
+    let root_index = packages
+        .binary_search_by(|source| source.key().cmp(root.selected.key()))
+        .ok()
+        .filter(|index| packages[*index] == root.selected)
+        .ok_or_else(|| Error::new("root request selection is absent or resolution-mismatched"))?;
+    for (source, navigation) in packages.iter().zip(navigations) {
         validate_package_navigation(source, navigation)?;
     }
-    if package_by_key.get(root.selected.key()).copied() != Some(&root.selected) {
-        return Err(CanonicalSourceClosureSubjectError::new(
-            "root request selection is absent or resolution-mismatched",
-        ));
-    }
-    let root_navigation = navigation_by_key
-        .get(root.selected.key())
-        .copied()
-        .ok_or_else(|| {
-            CanonicalSourceClosureSubjectError::new("root package navigation is absent")
-        })?;
-    validate_root_request(root, root_navigation, limits)?;
-
-    let mut previous: Option<(&PackageKey, usize)> = None;
-    let mut dependencies = BTreeMap::<PackageKey, Vec<ResolvedDependency>>::new();
-    let mut selected_dependencies = BTreeMap::<PackageKey, Vec<(usize, PackageName)>>::new();
-    for selection in dependency_requests {
-        validate_source_identity(&selection.selected, limits.maximum_identity_bytes)?;
-        validate_dependency_request(&selection.request, limits.maximum_request_bytes)?;
-        if !package_by_key.contains_key(&selection.requester) {
-            return Err(CanonicalSourceClosureSubjectError::new(
-                "dependency request names an unknown requester",
-            ));
-        }
-        let projection = projection_by_key[&selection.requester];
-        let Some(projected_request) = projection
+    validate_root_request(root, &navigations[root_index], limits, budget)?;
+    let mut previous: Option<&CanonicalDependencySourceSelection> = None;
+    for edge in edges {
+        validate_source_identity(&edge.selected, limits.maximum_identity_bytes)?;
+        validate_dependency_request(Request::from(&edge.request), limits.maximum_request_bytes)?;
+        let requester = packages
+            .binary_search_by(|source| source.key().cmp(&edge.requester))
+            .map_err(|_| Error::new("dependency request names an unknown requester"))?;
+        let projected = projections[requester]
             .authored_dependencies()
-            .get(selection.dependency_index)
-        else {
-            return Err(CanonicalSourceClosureSubjectError::new(
-                "active dependency selection names an unknown authored occurrence",
-            ));
-        };
-        if CanonicalDependencySourceRequest::from(projected_request) != selection.request {
-            return Err(CanonicalSourceClosureSubjectError::new(
+            .get(edge.dependency_index)
+            .ok_or_else(|| {
+                Error::new("active dependency selection names an unknown authored occurrence")
+            })?;
+        if Request::from(projected) != Request::from(&edge.request) {
+            return Err(Error::new(
                 "active dependency selection disagrees with its complete projection",
             ));
         }
-        if package_by_key.get(selection.selected.key()).copied() != Some(&selection.selected) {
-            return Err(CanonicalSourceClosureSubjectError::new(
-                "dependency request selection is absent or resolution-mismatched",
-            ));
-        }
-        if selection.alias
-            != selection
-                .request
-                .resolved_alias(selection.selected.key().name())
-        {
-            return Err(CanonicalSourceClosureSubjectError::new(
+        let selected = packages
+            .binary_search_by(|source| source.key().cmp(edge.selected.key()))
+            .ok()
+            .filter(|index| packages[*index] == edge.selected)
+            .ok_or_else(|| {
+                Error::new("dependency request selection is absent or resolution-mismatched")
+            })?;
+        let alias_matches = match edge.request.explicit_alias() {
+            Some(alias) => alias == &edge.alias,
+            None => edge.alias.as_str().bytes().eq(edge
+                .selected
+                .key()
+                .name()
+                .as_str()
+                .bytes()
+                .map(|byte| if byte == b'-' { b'_' } else { byte })),
+        };
+        if !alias_matches {
+            return Err(Error::new(
                 "dependency request alias disagrees with its authored selection",
             ));
         }
-        match previous {
-            Some((requester, previous_index)) if requester == &selection.requester => {
-                if selection.dependency_index <= previous_index {
-                    return Err(CanonicalSourceClosureSubjectError::new(
-                        "dependency requests are not in strict canonical order",
-                    ));
-                }
-            }
-            Some((requester, _)) if requester >= &selection.requester => {
-                return Err(CanonicalSourceClosureSubjectError::new(
-                    "dependency requests are not in strict canonical order",
-                ));
-            }
-            _ => {}
+        if previous.is_some_and(|previous| {
+            previous.requester > edge.requester
+                || (previous.requester == edge.requester
+                    && previous.dependency_index >= edge.dependency_index)
+        }) {
+            return Err(Error::new(
+                "dependency requests are not in strict canonical order",
+            ));
         }
-        let requester_navigation = navigation_by_key
-            .get(&selection.requester)
-            .copied()
-            .expect("known requester has navigation");
-        let selected_navigation = navigation_by_key
-            .get(selection.selected.key())
-            .copied()
-            .expect("known selected package has navigation");
         validate_dependency_selection_kind(
-            selection,
-            package_by_key[&selection.requester],
-            requester_navigation,
-            selected_navigation,
+            edge,
+            &packages[requester],
+            &navigations[requester],
+            &navigations[selected],
+            budget,
         )?;
-        dependencies
-            .entry(selection.requester.clone())
-            .or_default()
-            .push(ResolvedDependency::new(
-                selection.alias.clone(),
-                selection.selected.key().clone(),
-            ));
-        selected_dependencies
-            .entry(selection.requester.clone())
-            .or_default()
-            .push((
-                selection.dependency_index,
-                selection.selected.key().name().clone(),
-            ));
-        previous = Some((&selection.requester, selection.dependency_index));
+        previous = Some(edge);
     }
-
-    for source in packages {
-        let dependencies = projection_by_key[source.key()];
-        let selected = selected_dependencies
-            .get(source.key())
-            .map(Vec::as_slice)
-            .unwrap_or_default();
-        if selected.len() != dependencies.authored_dependencies().len()
+    let mut aliases = budget.reserve::<&str>(edges.len())?;
+    for (source, projection) in packages.iter().zip(projections) {
+        let selected = selected_edges(edges, source);
+        if selected.len() != projection.authored_dependencies().len()
             || selected
                 .iter()
                 .enumerate()
-                .any(|(expected, (actual, _))| expected != *actual)
+                .any(|(index, edge)| edge.dependency_index != index)
         {
-            return Err(CanonicalSourceClosureSubjectError::new(
+            return Err(Error::new(
                 "dependency selections do not match the authored dependency list",
             ));
         }
-        let selected_package_names = selected
-            .iter()
-            .map(|(_, package_name)| package_name.clone())
-            .collect::<Vec<_>>();
-        dependencies
-            .validate_aliases(&selected_package_names)
-            .map_err(|_| {
-                CanonicalSourceClosureSubjectError::new(
-                    "dependency aliases are not unique within their requester",
-                )
-            })?;
+        aliases.clear();
+        aliases.extend(selected.iter().map(|edge| edge.alias.as_str()));
+        aliases.sort_unstable();
+        if aliases.windows(2).any(|pair| pair[0] == pair[1]) {
+            return Err(Error::new(
+                "dependency aliases are not unique within their requester",
+            ));
+        }
     }
+    super::walk::validate(packages, edges, root_index, budget)
+}
 
-    let nodes = packages
-        .iter()
-        .map(|source| {
-            ResolvedPackageNode::new(
-                source.clone(),
-                dependencies.remove(source.key()).unwrap_or_default(),
-            )
-        })
-        .collect();
-    ResolvedPackageClosure::new(root.selected.key().clone(), root.role(), nodes).map_err(|_| {
-        CanonicalSourceClosureSubjectError::new(
-            "source-closure subject does not form one closed reachable acyclic graph",
-        )
-    })?;
-    Ok(())
+pub(super) fn selected_edges<'a>(
+    edges: &'a [CanonicalDependencySourceSelection],
+    source: &ResolvedSourceIdentity,
+) -> &'a [CanonicalDependencySourceSelection] {
+    let start = edges.partition_point(|edge| &edge.requester < source.key());
+    let end = edges[start..].partition_point(|edge| &edge.requester == source.key());
+    &edges[start..start + end]
 }

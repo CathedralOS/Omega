@@ -1,6 +1,7 @@
 //! Canonical byte framing, hexadecimal conversion, and subject fingerprinting.
 
 use super::super::model::SOURCE_CLOSURE_SUBJECT_FINGERPRINT_DOMAIN;
+use super::super::usage::Budget;
 use super::super::{CanonicalSourceClosureSubjectError, CanonicalSourceClosureSubjectFingerprint};
 use sha2::{Digest, Sha256};
 
@@ -10,40 +11,6 @@ pub(in super::super) fn fingerprint(bytes: &[u8]) -> CanonicalSourceClosureSubje
     hasher.update((bytes.len() as u64).to_le_bytes());
     hasher.update(bytes);
     CanonicalSourceClosureSubjectFingerprint(hasher.finalize().into())
-}
-
-pub(super) fn decode_hex_32(value: &str) -> Result<[u8; 32], CanonicalSourceClosureSubjectError> {
-    let bytes = decode_hex(value).ok_or_else(|| {
-        CanonicalSourceClosureSubjectError::new("invalid 32-byte hexadecimal value")
-    })?;
-    bytes
-        .try_into()
-        .map_err(|_| CanonicalSourceClosureSubjectError::new("invalid 32-byte hexadecimal value"))
-}
-
-fn decode_hex(value: &str) -> Option<Vec<u8>> {
-    if !value.len().is_multiple_of(2) {
-        return None;
-    }
-    value
-        .as_bytes()
-        .as_chunks::<2>()
-        .0
-        .iter()
-        .map(|digits| {
-            let high = hex_value(digits[0])?;
-            let low = hex_value(digits[1])?;
-            Some((high << 4) | low)
-        })
-        .collect()
-}
-
-fn hex_value(byte: u8) -> Option<u8> {
-    match byte {
-        b'0'..=b'9' => Some(byte - b'0'),
-        b'a'..=b'f' => Some(byte - b'a' + 10),
-        _ => None,
-    }
 }
 
 pub(in super::super) fn encode_hex(bytes: &[u8]) -> String {
@@ -56,21 +23,90 @@ pub(in super::super) fn encode_hex(bytes: &[u8]) -> String {
     encoded
 }
 
-pub(super) struct Encoder {
+pub(super) struct Encoder<'budget> {
     bytes: Vec<u8>,
+    budget: Option<&'budget mut Budget>,
+    maximum: usize,
+    reserved: usize,
+    failed: bool,
 }
 
-impl Encoder {
+impl<'budget> Encoder<'budget> {
     pub(super) fn new() -> Self {
-        Self { bytes: Vec::new() }
+        Self {
+            bytes: Vec::new(),
+            budget: None,
+            maximum: usize::MAX,
+            reserved: 0,
+            failed: false,
+        }
+    }
+
+    pub(super) fn budgeted(budget: &'budget mut Budget, maximum: usize) -> Self {
+        Self {
+            bytes: Vec::new(),
+            budget: Some(budget),
+            maximum,
+            reserved: 0,
+            failed: false,
+        }
+    }
+
+    pub(super) fn scratch(
+        &mut self,
+        bytes: usize,
+    ) -> Result<(), CanonicalSourceClosureSubjectError> {
+        if let Some(budget) = &mut self.budget {
+            budget.charge(bytes)?;
+        }
+        Ok(())
+    }
+
+    pub(super) fn check(&self) -> Result<(), CanonicalSourceClosureSubjectError> {
+        if self.failed {
+            Err(CanonicalSourceClosureSubjectError::new(
+                "source-closure encoding exceeds its allocation or record-byte limit",
+            ))
+        } else {
+            Ok(())
+        }
     }
 
     pub(super) fn fixed(&mut self, bytes: &[u8]) {
+        if self.failed {
+            return;
+        }
+        let Some(required) = self
+            .bytes
+            .len()
+            .checked_add(bytes.len())
+            .filter(|length| *length <= self.maximum)
+        else {
+            self.failed = true;
+            return;
+        };
+        if required > self.reserved {
+            let capacity = self
+                .reserved
+                .saturating_mul(2)
+                .max(required)
+                .min(self.maximum);
+            if self.scratch(capacity - self.reserved).is_err()
+                || self
+                    .bytes
+                    .try_reserve_exact(capacity - self.bytes.len())
+                    .is_err()
+            {
+                self.failed = true;
+                return;
+            }
+            self.reserved = capacity;
+        }
         self.bytes.extend_from_slice(bytes);
     }
 
     pub(super) fn byte(&mut self, value: u8) {
-        self.bytes.push(value);
+        self.fixed(&[value]);
     }
 
     pub(super) fn u16(&mut self, value: u16) {
@@ -85,7 +121,7 @@ impl Encoder {
         self.u32(u32::try_from(value).map_err(|_| {
             CanonicalSourceClosureSubjectError::new("canonical sequence count exceeds u32")
         })?);
-        Ok(())
+        self.check()
     }
 
     pub(super) fn bytes_bounded(

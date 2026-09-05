@@ -64,6 +64,17 @@ pub struct ExternalLocalLineage {
 }
 
 impl ExternalLocalLineage {
+    /// Payload allowance for lexical recovery's normalized `PathBuf` and its
+    /// possible error path copy. Each path allows two bytes per input byte for
+    /// hosts whose owned path representation uses UTF-16; the fixed error text
+    /// is included. The moved canonical UTF-8 input is charged by the caller.
+    #[doc(hidden)]
+    pub fn recovery_owned_bytes(path: &str) -> Option<usize> {
+        path.len()
+            .checked_mul(4)?
+            .checked_add("recovered external source path was not absolute normalized UTF-8".len())
+    }
+
     pub fn canonicalize(
         path: impl AsRef<Path>,
         source_context: ExternalSourceContext,

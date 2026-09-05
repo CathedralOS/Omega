@@ -8,6 +8,10 @@ use super::super::encoding::encode_hex;
 pub struct CanonicalSourceClosureSubjectFingerprint(pub(in super::super) [u8; 32]);
 
 impl CanonicalSourceClosureSubjectFingerprint {
+    pub const fn as_bytes(&self) -> &[u8; 32] {
+        &self.0
+    }
+
     pub fn to_hex(&self) -> String {
         encode_hex(&self.0)
     }

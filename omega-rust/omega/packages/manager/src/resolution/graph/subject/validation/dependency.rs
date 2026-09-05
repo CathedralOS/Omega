@@ -1,18 +1,19 @@
 use super::super::{
     CanonicalDependencySourceRequest, CanonicalDependencySourceSelection,
-    CanonicalSourceClosureSubjectError,
+    CanonicalSourceClosureSubjectError, request_view::Request, usage::Budget,
 };
 use super::source::{validate_git_selection, validate_request_bytes};
 use crate::declarations::AliasName;
 use crate::resolution::graph::ResolvedSourceIdentity;
 use crate::resolution::source::PackageSourceNavigation;
-use omega_package_source::{GitSourceRequest, ImmutableSourceResolution, SourceLineage};
+use omega_package_source::{ImmutableSourceResolution, SourceLineage};
 
 pub(super) fn validate_dependency_selection_kind(
     selection: &CanonicalDependencySourceSelection,
     requester: &ResolvedSourceIdentity,
     _requester_navigation: &PackageSourceNavigation,
     selected_navigation: &PackageSourceNavigation,
+    budget: &mut Budget,
 ) -> Result<(), CanonicalSourceClosureSubjectError> {
     match &selection.request {
         CanonicalDependencySourceRequest::Path { .. } => {
@@ -42,10 +43,7 @@ pub(super) fn validate_dependency_selection_kind(
             selection: package_selection,
             ..
         } => {
-            let request = GitSourceRequest::new(repository.clone(), Some(revision.clone()))
-                .map_err(|_| {
-                    CanonicalSourceClosureSubjectError::new("invalid dependency Git request")
-                })?;
+            let request = super::source::git_request(repository, revision, budget)?;
             if request.lineage() != selection.selected.key().source_lineage()
                 || !matches!(
                     selection.selected.resolution(),
@@ -63,18 +61,18 @@ pub(super) fn validate_dependency_selection_kind(
 }
 
 pub(super) fn validate_dependency_request(
-    request: &CanonicalDependencySourceRequest,
+    request: Request<'_>,
     maximum_request_bytes: usize,
 ) -> Result<(), CanonicalSourceClosureSubjectError> {
     match request {
-        CanonicalDependencySourceRequest::Path {
+        Request::Path {
             explicit_alias,
             location,
         } => {
             validate_optional_alias(explicit_alias)?;
             validate_request_bytes(location.as_bytes(), maximum_request_bytes)
         }
-        CanonicalDependencySourceRequest::Git {
+        Request::Git {
             explicit_alias,
             repository,
             revision,
@@ -88,7 +86,7 @@ pub(super) fn validate_dependency_request(
 }
 
 fn validate_optional_alias(
-    alias: &Option<AliasName>,
+    alias: Option<&AliasName>,
 ) -> Result<(), CanonicalSourceClosureSubjectError> {
     if alias
         .as_ref()

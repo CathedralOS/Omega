@@ -1,8 +1,26 @@
 use super::super::CanonicalSourceClosureSubjectError;
+use super::super::usage::Budget;
 use crate::declarations::PackageKey;
 use crate::resolution::graph::ResolvedSourceIdentity;
 use crate::resolution::source::PackageSourceNavigation;
 use omega_package_source::{ImmutableSourceResolution, SourceLineage};
+
+pub(super) fn git_request(
+    locator: &str,
+    revision: &str,
+    budget: &mut Budget,
+) -> Result<omega_package_source::GitSourceRequest, CanonicalSourceClosureSubjectError> {
+    use omega_package_source::GitSourceRequest;
+    budget.charge(
+        GitSourceRequest::recovery_owned_bytes(locator).ok_or_else(|| {
+            CanonicalSourceClosureSubjectError::new("Git request recovery allowance overflow")
+        })?,
+    )?;
+    let locator = budget.copy_string(locator)?;
+    let revision = budget.copy_string(revision)?;
+    GitSourceRequest::new(locator, Some(revision))
+        .map_err(|_| CanonicalSourceClosureSubjectError::new("invalid Git source request"))
+}
 
 pub(super) fn validate_package_navigation(
     source: &ResolvedSourceIdentity,

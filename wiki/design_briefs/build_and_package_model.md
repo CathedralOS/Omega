@@ -3034,6 +3034,17 @@ The text format has its own version and expansion limit; binary reconstruction
 and typed recovery share one owned-storage budget. Source graph/pin and
 historical-decision composition remain with the manager.
 
+The manager's versioned lock envelope composes those three canonical texts in
+sorted exact-target sections. Each section binds one complete baseline per
+source package in source order and historical decisions against that exact
+target-bound source subject. Target sections must retain the same immutable
+source graph. Child text remains verbatim under byte-length delimiters, so
+ordinary source and policy changes remain diffable. Recovery validates the
+outer grammar and all child associations with aggregate limits for requested
+owned storage, target/package/request rows, policy elements, and decisions.
+Recovering these inert records requires no source checkout or compiler run;
+it is separate from acquiring pinned content and publishing a transaction.
+
 The project normally commits the lock and trusts whoever lands its changes.
 Recovery validates format and graph consistency, checks acquired sources against
 pins, and treats recorded acceptance as project policy. It does not reconstruct

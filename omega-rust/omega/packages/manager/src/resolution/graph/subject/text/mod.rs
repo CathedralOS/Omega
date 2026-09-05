@@ -19,6 +19,7 @@ mod framing;
 mod record;
 mod requests;
 mod source;
+mod values;
 
 use super::{
     CanonicalSourceClosureSubjectError as Error, CanonicalSourceClosureSubjectLimits as Limits,

@@ -7,4 +7,5 @@ mod text;
 pub use model::{
     HistoricalPackagePolicyDecision, HistoricalPackagePolicyDecisions,
     HistoricalPackagePolicyError, HistoricalPackagePolicyLimits,
+    HistoricalPackagePolicyRecoveryUsage,
 };

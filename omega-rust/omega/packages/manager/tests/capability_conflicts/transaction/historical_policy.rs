@@ -11,7 +11,7 @@ use omega_package_manager::review::{
 };
 use omega_target::TargetProfile;
 
-fn resolve_all(
+pub(super) fn resolve_all(
     conflicts: &ReviewOnlyCapabilityConflictSet,
     disposition: ReviewOnlyRootPolicyDisposition,
 ) -> ReviewOnlyRootPolicyResolution {
@@ -261,6 +261,7 @@ fn assert_text_validation(
         HistoricalPackagePolicyDecisions::recover_text(text, subject, exact_limits).unwrap(),
         *historical
     );
+    assert_recovery_accounting(subject, historical, text);
     let raised_limits = HistoricalPackagePolicyLimits::new(usize::MAX, usize::MAX);
     assert_eq!(
         HistoricalPackagePolicyDecisions::recover_text(
@@ -336,6 +337,82 @@ fn assert_text_validation(
         ),
         Err(HistoricalPackagePolicyError::UnknownPackage)
     );
+}
+
+fn assert_recovery_accounting(
+    subject: &CanonicalSourceClosureSubject,
+    historical: &HistoricalPackagePolicyDecisions,
+    text: &str,
+) {
+    use omega_package_manager::lock::HistoricalPackagePolicyDecision;
+
+    let count = historical.decisions().len();
+    let exact_owned = count * (std::mem::size_of::<HistoricalPackagePolicyDecision>() + 32);
+    let limits = HistoricalPackagePolicyLimits::new(text.len(), count);
+    let (recovered, usage) = HistoricalPackagePolicyDecisions::recover_text_with_usage(
+        text,
+        subject,
+        limits,
+        exact_owned,
+    )
+    .unwrap();
+    assert_eq!(recovered, *historical);
+    assert_eq!(usage.owned_bytes(), exact_owned);
+    assert_eq!(usage.decisions(), count);
+    assert_eq!(recovered.canonical_text(subject, limits).unwrap(), text);
+    assert_eq!(
+        HistoricalPackagePolicyDecisions::recover_text_with_usage(
+            text,
+            subject,
+            limits,
+            exact_owned - 1,
+        ),
+        Err(HistoricalPackagePolicyError::AllocationLimitExceeded),
+    );
+
+    // Simulate two independently valid sections sharing one enclosing budget.
+    // Retained rows and transient validation scratch are charged cumulatively.
+    let mut remaining_owned = exact_owned * 2 - 1;
+    let (_, first_usage) = HistoricalPackagePolicyDecisions::recover_text_with_usage(
+        text,
+        subject,
+        limits,
+        remaining_owned,
+    )
+    .unwrap();
+    remaining_owned -= first_usage.owned_bytes();
+    assert_eq!(
+        HistoricalPackagePolicyDecisions::recover_text_with_usage(
+            text,
+            subject,
+            limits,
+            remaining_owned,
+        ),
+        Err(HistoricalPackagePolicyError::AllocationLimitExceeded),
+    );
+    let (_, second_usage) = HistoricalPackagePolicyDecisions::recover_text_with_usage(
+        text,
+        subject,
+        limits,
+        remaining_owned + 1,
+    )
+    .unwrap();
+    assert_eq!(first_usage, second_usage);
+
+    let empty = format!(
+        "omega-policy-decisions 1\nsource {}\ndecisions 0\nend\n",
+        subject.fingerprint().to_hex(),
+    );
+    let (empty_policy, empty_usage) = HistoricalPackagePolicyDecisions::recover_text_with_usage(
+        &empty,
+        subject,
+        HistoricalPackagePolicyLimits::new(empty.len(), 0),
+        0,
+    )
+    .unwrap();
+    assert!(empty_policy.decisions().is_empty());
+    assert_eq!(empty_usage.owned_bytes(), 0);
+    assert_eq!(empty_usage.decisions(), 0);
 }
 
 fn assert_requested_target_is_checked(scenario: &ExactCompilerRowScenario) {

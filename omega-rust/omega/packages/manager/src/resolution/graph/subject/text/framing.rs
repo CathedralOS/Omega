@@ -1,35 +1,58 @@
 //! Bounded ASCII tokens and lossless quoted byte strings.
 
+use super::super::usage::Budget;
 use super::Error;
 
-pub(super) struct Writer {
+pub(super) struct Writer<'expected> {
     text: String,
     maximum: usize,
+    expected: Option<&'expected str>,
+    position: usize,
+    reserved: usize,
+    pub(super) budget: Budget,
 }
 
-impl Writer {
-    pub(super) fn new(maximum: usize) -> Self {
+impl<'expected> Writer<'expected> {
+    pub(super) fn new(maximum: usize, budget: Budget) -> Self {
         Self {
             text: String::new(),
             maximum,
+            expected: None,
+            position: 0,
+            reserved: 0,
+            budget,
+        }
+    }
+
+    pub(super) fn verifying(maximum: usize, expected: &'expected str, budget: Budget) -> Self {
+        Self {
+            expected: Some(expected),
+            ..Self::new(maximum, budget)
         }
     }
 
     fn append(&mut self, text: &str) -> Result<(), Error> {
-        if self
-            .text
-            .len()
+        let end = self
+            .position
             .checked_add(text.len())
-            .is_none_or(|length| length > self.maximum)
-        {
-            return Err(Error::new(
-                "source-closure text exceeds its record-byte limit",
-            ));
+            .filter(|length| *length <= self.maximum)
+            .ok_or_else(|| Error::new("source-closure text exceeds its record-byte limit"))?;
+        if let Some(expected) = self.expected {
+            if expected.as_bytes().get(self.position..end) != Some(text.as_bytes()) {
+                return Err(Error::new("source-closure text is not canonical"));
+            }
+        } else {
+            if end > self.reserved {
+                let capacity = self.reserved.saturating_mul(2).max(end).min(self.maximum);
+                self.budget.charge(capacity - self.reserved)?;
+                self.text
+                    .try_reserve_exact(capacity - self.text.len())
+                    .map_err(|_| Error::new("source-closure text allocation failed"))?;
+                self.reserved = capacity;
+            }
+            self.text.push_str(text);
         }
-        self.text
-            .try_reserve(text.len())
-            .map_err(|_| Error::new("source-closure text allocation failed"))?;
-        self.text.push_str(text);
+        self.position = end;
         Ok(())
     }
 
@@ -62,21 +85,42 @@ impl Writer {
     }
 
     pub(super) fn number(&mut self, label: &str, value: usize) -> Result<(), Error> {
-        self.row(&format!("{label} {value}"), &[])
+        self.append(label)?;
+        self.append(" ")?;
+        let mut digits = [0u8; 20];
+        let mut cursor = digits.len();
+        let mut remainder = value;
+        loop {
+            cursor -= 1;
+            digits[cursor] = b'0' + u8::try_from(remainder % 10).expect("decimal digit");
+            remainder /= 10;
+            if remainder == 0 {
+                break;
+            }
+        }
+        self.append(std::str::from_utf8(&digits[cursor..]).expect("ASCII decimal"))?;
+        self.append("\n")
     }
 
-    pub(super) fn finish(self) -> String {
-        self.text
+    pub(super) fn finish(self) -> Result<(String, Budget), Error> {
+        if self
+            .expected
+            .is_some_and(|expected| expected.len() != self.position)
+        {
+            return Err(Error::new("source-closure text is not canonical"));
+        }
+        Ok((self.text, self.budget))
     }
 }
 
 pub(super) struct Reader<'text> {
     text: &'text [u8],
     position: usize,
+    pub(super) budget: Budget,
 }
 
 impl<'text> Reader<'text> {
-    pub(super) fn new(text: &'text str, maximum: usize) -> Result<Self, Error> {
+    pub(super) fn new(text: &'text str, maximum: usize, budget: Budget) -> Result<Self, Error> {
         if text.len() > maximum {
             return Err(Error::new(
                 "source-closure text exceeds its record-byte limit",
@@ -85,6 +129,7 @@ impl<'text> Reader<'text> {
         Ok(Self {
             text: text.as_bytes(),
             position: 0,
+            budget,
         })
     }
 
@@ -160,33 +205,41 @@ impl<'text> Reader<'text> {
             return Err(Error::new("expected quoted source-closure byte string"));
         }
         self.position += 1;
-        let mut bytes = Vec::new();
-        loop {
-            let byte = self.take()?;
-            let decoded = match byte {
-                b'"' => return Ok(bytes),
-                b'\\' => match self.take()? {
-                    b'"' => b'"',
-                    b'\\' => b'\\',
-                    b'x' => {
-                        let high = hex(self.take()?)?;
-                        (high << 4) | hex(self.take()?)?
-                    }
-                    _ => return Err(Error::new("invalid source-closure byte escape")),
-                },
-                0x20..=0x7e => byte,
-                _ => return Err(Error::new("unescaped source-closure byte")),
-            };
-            if bytes.len() == maximum {
+        let start = self.position;
+        let mut length = 0usize;
+        while self.decoded_byte()?.is_some() {
+            if length == maximum {
                 return Err(Error::new(
                     "source-closure text field exceeds its byte limit",
                 ));
             }
-            bytes
-                .try_reserve(1)
-                .map_err(|_| Error::new("source-closure field allocation failed"))?;
-            bytes.push(decoded);
+            length += 1;
         }
+        let mut bytes = self.budget.reserve(length)?;
+        self.position = start;
+        while let Some(byte) = self.decoded_byte()? {
+            bytes.push(byte);
+        }
+        Ok(bytes)
+    }
+
+    fn decoded_byte(&mut self) -> Result<Option<u8>, Error> {
+        let byte = self.take()?;
+        let decoded = match byte {
+            b'"' => return Ok(None),
+            b'\\' => match self.take()? {
+                b'"' => b'"',
+                b'\\' => b'\\',
+                b'x' => {
+                    let high = hex(self.take()?)?;
+                    (high << 4) | hex(self.take()?)?
+                }
+                _ => return Err(Error::new("invalid source-closure byte escape")),
+            },
+            0x20..=0x7e => byte,
+            _ => return Err(Error::new("unescaped source-closure byte")),
+        };
+        Ok(Some(decoded))
     }
 
     fn take(&mut self) -> Result<u8, Error> {
@@ -220,12 +273,4 @@ fn hex(byte: u8) -> Result<u8, Error> {
         b'a'..=b'f' => Ok(byte - b'a' + 10),
         _ => Err(Error::new("invalid lowercase hexadecimal byte escape")),
     }
-}
-
-pub(super) fn reserve<T>(count: usize) -> Result<Vec<T>, Error> {
-    let mut values = Vec::new();
-    values
-        .try_reserve_exact(count)
-        .map_err(|_| Error::new("source-closure text collection allocation failed"))?;
-    Ok(values)
 }

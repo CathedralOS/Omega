@@ -12,9 +12,19 @@ pub(in crate::encoding) const MAXIMUM_TEXT_BYTES: usize = 32 * 1024 * 1024;
 impl PackagePolicyBaseline {
     /// Complete named comparison meaning, not a receipt of review or acceptance.
     pub fn canonical_text(&self) -> Result<String, PackageReviewEncodingError> {
+        self.canonical_text_with_element_count()
+            .map(|(text, _)| text)
+    }
+
+    /// Return the same text and the aggregate sequence/recursive-entry charge
+    /// from its single encoding traversal. Enclosing documents can account for
+    /// multiple baselines without resetting their element ceiling.
+    pub fn canonical_text_with_element_count(
+        &self,
+    ) -> Result<(String, usize), PackageReviewEncodingError> {
         self.validate_canonical_structure()
             .map_err(PackageReviewEncodingError::new)?;
-        render(self, Writer::new(MAXIMUM_TEXT_BYTES, None))
+        render_with_element_count(self, Writer::new(MAXIMUM_TEXT_BYTES, None))
     }
 }
 
@@ -22,9 +32,22 @@ pub(in crate::encoding) fn render(
     policy: &PackagePolicyBaseline,
     writer: Writer<'_>,
 ) -> Result<String, PackageReviewEncodingError> {
+    render_with_element_count(policy, writer).map(|(text, _)| text)
+}
+
+fn render_with_element_count(
+    policy: &PackagePolicyBaseline,
+    writer: Writer<'_>,
+) -> Result<(String, usize), PackageReviewEncodingError> {
     let mut encoder = Encoder::policy_text(writer);
     super::super::baseline::framed_policy(&mut encoder, policy)?;
-    encoder.finish_text()
+    let remaining = encoder
+        .policy_elements
+        .expect("policy text bounds aggregate elements");
+    let elements = crate::encoding::PackagePolicyRecoveryLimits::default()
+        .maximum_sequence_elements
+        - remaining;
+    encoder.finish_text().map(|text| (text, elements))
 }
 
 impl<'text> Encoder<'text> {

@@ -17,6 +17,9 @@ use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::{SystemTime, UNIX_EPOCH};
 
+#[path = "source_closure_text/package_lock.rs"]
+mod package_lock;
+
 static TEMP_SEQUENCE: AtomicU64 = AtomicU64::new(0);
 
 struct TempTree(PathBuf);
@@ -143,6 +146,33 @@ fn assert_round_trip(subject: &CanonicalSourceClosureSubject) -> String {
         .expect("encode source graph text");
     let recovered = CanonicalSourceClosureSubject::recover_text(&text, limits)
         .expect("recover source graph text");
+    let (budgeted, usage) =
+        CanonicalSourceClosureSubject::recover_text_with_usage(&text, limits, usize::MAX)
+            .expect("recover with composable accounting");
+    assert_eq!(budgeted, recovered);
+    assert_eq!(usage.packages(), subject.packages().len());
+    assert_eq!(
+        usage.dependency_requests(),
+        subject.dependency_requests().len()
+    );
+    assert_eq!(
+        usage.authored_dependency_requests(),
+        subject.dependency_requests().len()
+    );
+    assert!(usage.owned_bytes() > subject.canonical_bytes().len());
+    assert_eq!(
+        CanonicalSourceClosureSubject::recover_text_with_usage(&text, limits, usage.owned_bytes())
+            .expect("exact total budget succeeds"),
+        (budgeted, usage),
+    );
+    assert!(
+        CanonicalSourceClosureSubject::recover_text_with_usage(
+            &text,
+            limits,
+            usage.owned_bytes() - 1,
+        )
+        .is_err()
+    );
     assert_eq!(recovered, *subject);
     assert_eq!(recovered.canonical_bytes(), subject.canonical_bytes());
     assert_eq!(recovered.fingerprint(), subject.fingerprint());
@@ -185,6 +215,7 @@ fn text_preserves_dependency_occurrences_aliases_lineages_roles_and_targets() {
         let linux_text = assert_round_trip(&linux);
         assert_ne!(windows_text, linux_text);
         assert_ne!(windows.fingerprint(), linux.fingerprint());
+        assert!(windows.same_source_graph(&linux));
         assert_eq!(windows.packages(), linux.packages());
         assert_eq!(windows.dependency_requests(), linux.dependency_requests());
     }

@@ -99,6 +99,18 @@ pub enum GitSourceRequestError {
 }
 
 impl GitSourceRequest {
+    /// Preflight constructor-owned payload, excluding the moved locator and
+    /// revision inputs. In addition to lineage parsing, `new` copies the
+    /// requested locator and reserves the canonical locator once (bounded by
+    /// locator + 24, including
+    /// conversion of hosted SCP spellings to an HTTPS locator).
+    #[doc(hidden)]
+    pub fn recovery_owned_bytes(locator: &str) -> Option<usize> {
+        SourceLineage::git_recovery_owned_bytes(locator)?
+            .checked_add(locator.len())?
+            .checked_add(locator.len().checked_add(24)?)
+    }
+
     pub fn new(
         locator: impl Into<String>,
         revision: Option<String>,
@@ -260,45 +272,52 @@ fn validate_git_revision(revision: &str) -> Result<(), GitSourceRequestError> {
 }
 
 fn canonical_git_locator(lineage: &SourceLineage) -> String {
+    fn join(parts: &[&str]) -> String {
+        let mut result = String::with_capacity(parts.iter().map(|part| part.len()).sum());
+        for part in parts {
+            result.push_str(part);
+        }
+        result
+    }
     match lineage {
-        SourceLineage::GitHub(lineage) => format!(
-            "https://github.com/{}/{}.git",
+        SourceLineage::GitHub(lineage) => join(&[
+            "https://github.com/",
             lineage.owner(),
-            lineage.repository()
-        ),
+            "/",
+            lineage.repository(),
+            ".git",
+        ]),
         SourceLineage::GitLab(lineage) => {
-            format!("https://gitlab.com/{}.git", lineage.repository_path())
+            join(&["https://gitlab.com/", lineage.repository_path(), ".git"])
         }
         SourceLineage::Git(lineage) => {
-            let user = lineage
-                .user()
-                .map(|user| format!("{user}@"))
-                .unwrap_or_default();
-            match lineage.transport() {
-                GitTransport::Https => format!(
-                    "https://{}{}{}/{}",
-                    user,
-                    lineage.host(),
-                    lineage
-                        .port()
-                        .map(|port| format!(":{port}"))
-                        .unwrap_or_default(),
-                    lineage.repository_path()
-                ),
-                GitTransport::SshUrl => format!(
-                    "ssh://{}{}{}/{}",
-                    user,
-                    lineage.host(),
-                    lineage
-                        .port()
-                        .map(|port| format!(":{port}"))
-                        .unwrap_or_default(),
-                    lineage.repository_path()
-                ),
-                GitTransport::ScpLike => {
-                    format!("{}{}:{}", user, lineage.host(), lineage.repository_path())
+            let mut port_bytes = [0u8; 5];
+            let mut start = port_bytes.len();
+            if let Some(mut port) = lineage.port() {
+                loop {
+                    start -= 1;
+                    port_bytes[start] = b'0' + u8::try_from(port % 10).expect("decimal digit");
+                    port /= 10;
+                    if port == 0 {
+                        break;
+                    }
                 }
             }
+            let (prefix, separator) = match lineage.transport() {
+                GitTransport::Https => ("https://", "/"),
+                GitTransport::SshUrl => ("ssh://", "/"),
+                GitTransport::ScpLike => ("", ":"),
+            };
+            join(&[
+                prefix,
+                lineage.user().unwrap_or_default(),
+                if lineage.user().is_some() { "@" } else { "" },
+                lineage.host(),
+                if lineage.port().is_some() { ":" } else { "" },
+                std::str::from_utf8(&port_bytes[start..]).expect("decimal digits"),
+                separator,
+                lineage.repository_path(),
+            ])
         }
         SourceLineage::Workspace(_) | SourceLineage::ExternalLocal(_) => {
             unreachable!("validated Git requests always carry Git lineage")
