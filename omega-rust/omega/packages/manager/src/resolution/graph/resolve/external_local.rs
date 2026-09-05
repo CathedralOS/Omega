@@ -10,7 +10,10 @@ use super::cache::{
 use super::dependencies::resolve_registered_package_closure;
 use super::errors::ResolveExternalLocalPackageClosureError;
 use crate::declarations::PackageKey;
-use crate::resolution::source::ResolvePackageSourceError;
+use crate::resolution::source::{
+    PackageSourceCustody, ResolvePackageSourceError, bind_staged_external_local_project_source,
+};
+use omega_package_source::local::staging::StagedLocalSnapshot;
 use omega_package_source::{ExternalSourceContext, SourceLineage};
 use omega_package_source::{LocalSourceLimits, SourceResolverStorage};
 use std::collections::BTreeMap;
@@ -82,6 +85,41 @@ pub fn resolve_external_local_project_closure_with_storage(
     )
 }
 
+/// Resolve a proposed local project using its original live directory for Path
+/// dependencies. The caller retains the stage for the project-file transaction.
+pub fn resolve_staged_external_local_project_closure_with_storage(
+    stage: &StagedLocalSnapshot,
+    source_context: ExternalSourceContext,
+    storage: &SourceResolverStorage,
+    source_limits: LocalSourceLimits,
+    closure_limits: PackageSourceClosureLimits,
+) -> Result<ResolvedPackageSourceClosure, ResolveExternalLocalPackageClosureError> {
+    let source_error = |error| {
+        ResolveExternalLocalPackageClosureError::Root(ResolvePackageSourceError::Source(error))
+    };
+    storage.verify_path_identity().map_err(source_error)?;
+    let result =
+        bind_staged_external_local_project_source(stage, source_limits, source_context.clone())
+            .map_err(ResolveExternalLocalPackageClosureError::Root)
+            .and_then(|root| {
+                let source_limits = root.source_limits();
+                resolve_bound_external_local_closure(
+                    stage.requested_root(),
+                    stage.canonical_live_root(),
+                    source_context,
+                    root.into_custody(),
+                    SourceCacheLane::Retained(storage.external_local_sources()),
+                    SourceCacheLane::Retained(storage.workspace_members()),
+                    SourceCacheLane::Retained(storage.git_sources()),
+                    source_limits,
+                    closure_limits,
+                )
+            });
+    stage.verify_live_source_unchanged().map_err(source_error)?;
+    storage.verify_path_identity().map_err(source_error)?;
+    result
+}
+
 fn resolve_external_local_declared_closure_with_storage(
     live_root: &Path,
     source_context: ExternalSourceContext,
@@ -121,10 +159,6 @@ fn resolve_external_local_declared_closure_from_lanes(
     application_root_allowed: bool,
 ) -> Result<ResolvedPackageSourceClosure, ResolveExternalLocalPackageClosureError> {
     let requested_root = live_root.to_path_buf();
-    let root_request = PackageRootSourceRequest::ExternalLocal {
-        requested_root: requested_root.clone(),
-        source_context: source_context.clone(),
-    };
     let root = if application_root_allowed {
         resolve_external_local_project_from_cache(
             &requested_root,
@@ -150,15 +184,43 @@ fn resolve_external_local_declared_closure_from_lanes(
     {
         return Err(ResolveExternalLocalPackageClosureError::RootRequestMismatch);
     }
-    let mut external_roots: BTreeMap<PackageKey, PathBuf> = BTreeMap::from([(
-        root.key().clone(),
-        root.source().canonical_live_root().to_path_buf(),
-    )]);
+    let canonical_live_root = root.source().canonical_live_root().to_path_buf();
+    resolve_bound_external_local_closure(
+        &requested_root,
+        &canonical_live_root,
+        source_context,
+        root.into_custody(),
+        local_cache,
+        workspace_cache,
+        git_cache,
+        source_limits,
+        closure_limits,
+    )
+}
+
+#[allow(clippy::too_many_arguments)]
+fn resolve_bound_external_local_closure(
+    requested_root: &Path,
+    canonical_live_root: &Path,
+    source_context: ExternalSourceContext,
+    root: PackageSourceCustody,
+    local_cache: SourceCacheLane<'_>,
+    workspace_cache: SourceCacheLane<'_>,
+    git_cache: SourceCacheLane<'_>,
+    source_limits: LocalSourceLimits,
+    closure_limits: PackageSourceClosureLimits,
+) -> Result<ResolvedPackageSourceClosure, ResolveExternalLocalPackageClosureError> {
+    let root_request = PackageRootSourceRequest::ExternalLocal {
+        requested_root: requested_root.to_path_buf(),
+        source_context: source_context.clone(),
+    };
+    let mut external_roots: BTreeMap<PackageKey, PathBuf> =
+        BTreeMap::from([(root.key().clone(), canonical_live_root.to_path_buf())]);
     let mut git_acquisitions = GitAcquisitionCache::default();
 
     resolve_registered_package_closure(
         root_request,
-        root.into_custody(),
+        root,
         closure_limits,
         workspace_cache,
         git_cache,

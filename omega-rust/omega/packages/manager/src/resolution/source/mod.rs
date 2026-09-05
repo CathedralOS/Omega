@@ -33,12 +33,12 @@ pub(crate) use git::{
 };
 #[cfg(test)]
 pub(crate) use local::resolve_external_local_package_source;
+pub use local::{
+    bind_staged_external_local_project_source, resolve_external_local_package_source_with_storage,
+    resolve_external_local_project_source_with_storage,
+};
 pub(crate) use local::{
     resolve_external_local_package_source_in_lane, resolve_external_local_project_source_in_lane,
-};
-pub use local::{
-    resolve_external_local_package_source_with_storage,
-    resolve_external_local_project_source_with_storage,
 };
 pub use materialization::PackageSourceMaterialization;
 pub use navigation::PackageSourceNavigation;

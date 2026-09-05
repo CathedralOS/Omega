@@ -233,6 +233,15 @@ exact materialized/Git tree verification. Lock loading is a separate manager
 operation; excluding the file from source identity does not ignore its accepted
 policy or make that policy a proof of an audit.
 
+Proposed local replacements use the same captured-tree materializer as ordinary
+snapshots. They check the expected old file digest, retain unchanged entries and
+executable bits, and enforce the proposed tree's byte ceiling before copying the
+replacement. Final checks compare the snapshot against the proposed content and
+the live source against its separate before-edit identity. The staged result
+retains both; it does not issue an observation that proposed bytes are already
+live. Later source revalidation detects ordinary intervening edits, but is not
+an atomic project-file transaction or protection against the invoking user.
+
 ## Resource handling
 
 The resolver enforces compiler-owned ceilings on source entries, source bytes,

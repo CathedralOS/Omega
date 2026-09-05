@@ -1,6 +1,7 @@
 mod declarations;
 mod external_local;
 mod git;
+mod staged_local;
 mod workspace;
 
 use std::path::{Path, PathBuf};

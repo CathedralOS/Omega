@@ -2,6 +2,8 @@ use super::projection::project_package_build;
 use super::{ResolvePackageSourceError, ResolvedPackageSource};
 use crate::declarations::PackageKey;
 use omega_package_source::local::operations::resolve_local_source_snapshot_in_lane;
+use omega_package_source::local::operations::verify_package_source_snapshot;
+use omega_package_source::local::staging::StagedLocalSnapshot;
 use omega_package_source::storage::RetainedStorageLane;
 use omega_package_source::{
     ExternalLocalLineage, ExternalSourceContext, ImmutableSourceResolution, SourceContentDigest,
@@ -9,6 +11,40 @@ use omega_package_source::{
 };
 use omega_package_source::{LocalSourceLimits, ResolvedLocalSnapshot, SourceResolverStorage};
 use std::path::Path;
+
+/// Bind a proposed project tree to its original live path and consuming context.
+/// The caller retains the stage for later transaction checks and publication.
+pub fn bind_staged_external_local_project_source(
+    stage: &StagedLocalSnapshot,
+    limits: LocalSourceLimits,
+    source_context: ExternalSourceContext,
+) -> Result<ResolvedPackageSource<&StagedLocalSnapshot>, ResolvePackageSourceError> {
+    stage.verify_live_source_unchanged()?;
+    let limits = limits.compiler_bounded();
+    let content = SourceContentDigest::derive(stage.normalized().content_identity.as_bytes());
+    verify_package_source_snapshot(stage.snapshot_root(), &content, limits)?;
+    let result = (|| {
+        let lineage = SourceLineage::ExternalLocal(ExternalLocalLineage::canonicalize(
+            stage.canonical_live_root(),
+            source_context,
+        )?);
+        let declaration = project_package_build(stage.snapshot_root(), true)?;
+        Ok(ResolvedPackageSource::from_resolved_parts(
+            PackageKey::new(declaration.name, lineage),
+            declaration.role,
+            ImmutableSourceResolution::external_local(content),
+            super::PackageSourceMaterialization::from_local(stage.normalized()),
+            stage.snapshot_root().to_path_buf(),
+            super::PackageSourceNavigation::Root,
+            super::PackageSourceSelectionEvidence::Root,
+            limits,
+            declaration.dependencies,
+            stage,
+        ))
+    })();
+    stage.verify_live_source_unchanged()?;
+    result
+}
 
 /// Snapshot a non-workspace local development source and bind its canonical
 /// path to an explicit consuming context. Such lineage is intentionally

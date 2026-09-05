@@ -4005,6 +4005,23 @@ No old checkout, native artifact, or file write is required to construct that
 proposal. The file transaction must still check concurrent project edits,
 immediate source/build consistency, and all selected targets before publication.
 
+Automatic dependency-edit plans can be checked before any live declaration
+change. `operations::stage_build_dependency_edit` verifies the planner's expected
+old `build.omg` digest and replaces only that file in an immutable candidate
+snapshot. The stage retains the original requested root, canonical live root,
+and before-edit source identity separately from its proposed content. Staged
+project resolution reads the proposed declaration, but retains the original
+root path/context as package lineage and the base for relative Path dependencies.
+It verifies the proposed snapshot and unchanged live source rather than claiming
+the edited bytes were already present in the checkout.
+
+The resulting closure enters ordinary candidate review and lock proposal.
+Landing the reviewed declaration bytes yields the same root source pin; neither
+staging nor review writes accepted project files. The caller retains the plan
+and stage to detect intervening edits. Manual declaration patches still need
+author placement. Preserving unaffected Git pins during selective updates and
+recoverable publication of `build.omg` with `omega.lock` remain transaction work.
+
 Review compilation may execute compiler-scoped build code: package-input reads,
 disposable-output writes, and compiler logging are permitted before package
 runtime policy decisions. Runtime boundary-service reach from the build machine
