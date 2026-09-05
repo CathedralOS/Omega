@@ -178,6 +178,115 @@ fn unselected_partial_arithmetic_does_not_execute() {
 }
 
 #[test]
+fn unsigned_division_retains_guard_polarity_through_serialization() {
+    for (condition, division_when_true) in [
+        ("denominator == 0", false),
+        ("0 == denominator", false),
+        ("denominator <= 0", false),
+        ("0 >= denominator", false),
+        ("!(denominator != 0)", false),
+        ("denominator != 0", true),
+        ("!(denominator == 0)", true),
+        ("0 < denominator", true),
+        ("denominator >= 1", true),
+    ] {
+        let division = "7u8 / denominator";
+        let (positive, negative) = if division_when_true {
+            (division, "7")
+        } else {
+            ("7", division)
+        };
+        let source = format!(
+            "machine value(denominator: u8) -> u8\nrequires 7u8 == 7u8\nensures 7u8 == 7u8\n{{ transition ({condition}) {{ true -> ({positive}) false -> ({negative}) }} }}"
+        );
+        for form in [BranchForm::Separate, BranchForm::Combined] {
+            let (semantics, proof) = encoded(&source, form);
+            for (denominator, expected) in [(0, 7), (1, 7), (2, 3), (7, 1), (255, 0)] {
+                assert_eq!(
+                    interpret_terminal_artifact(
+                        &semantics,
+                        &proof,
+                        &AdmissionProfile::default(),
+                        &[unsigned(8, denominator)],
+                    )
+                    .unwrap_or_else(|error| panic!(
+                        "{source}, denominator {denominator}: {error:#?}"
+                    )),
+                    TerminalExecutionResult::Scalar(unsigned(8, expected)),
+                );
+            }
+        }
+    }
+}
+
+#[test]
+fn signed_division_retains_both_nonzero_signs_on_the_selected_edge() {
+    let signed = |value| TerminalScalarValue::Integer {
+        scalar_type: IntegerType::new(IntegerSign::Signed, 8).unwrap(),
+        value: IntegerValue::Signed(value),
+    };
+    for (condition, division_when_true) in [
+        ("denominator == 0", false),
+        ("0 == denominator", false),
+        ("!(denominator != 0)", false),
+        ("denominator != 0", true),
+        ("!(denominator == 0)", true),
+    ] {
+        let division = "7i8 / denominator";
+        let (positive, negative) = if division_when_true {
+            (division, "7")
+        } else {
+            ("7", division)
+        };
+        let source = format!(
+            "machine value(denominator: i8) -> i8\nrequires 7i8 == 7i8\nensures 7i8 == 7i8\n{{ transition ({condition}) {{ true -> ({positive}) false -> ({negative}) }} }}"
+        );
+        for form in [BranchForm::Separate, BranchForm::Combined] {
+            let (semantics, proof) = encoded(&source, form);
+            for (denominator, expected) in [
+                (-128, 0),
+                (-7, -1),
+                (-2, -3),
+                (-1, -7),
+                (0, 7),
+                (1, 7),
+                (2, 3),
+                (127, 0),
+            ] {
+                assert_eq!(
+                    interpret_terminal_artifact(
+                        &semantics,
+                        &proof,
+                        &AdmissionProfile::default(),
+                        &[signed(denominator)],
+                    )
+                    .unwrap_or_else(|error| panic!(
+                        "{source}, denominator {denominator}: {error:#?}"
+                    )),
+                    TerminalExecutionResult::Scalar(signed(expected)),
+                );
+            }
+        }
+    }
+}
+
+#[test]
+fn a_nonzero_guard_does_not_license_signed_division_overflow() {
+    let source = "machine value(denominator: i8) -> i8\nrequires 0i8 == 0i8\nensures 0i8 == 0i8\n{ transition (denominator == 0) { true -> 0 false -> (-128i8 / denominator) } }";
+    for form in [BranchForm::Separate, BranchForm::Combined] {
+        let checked = checked_source(source, form);
+        let result = psi_checked_trees_to_terminal::lower_machine(&checked, "value");
+        assert!(
+            matches!(
+                result,
+                Err(psi_checked_trees_to_terminal::LoweringError::OperationProofUnavailable(_))
+            ),
+            "the nonzero divisor may still be -1: {result:?}",
+        );
+    }
+}
+
+#[test]
 fn branch_return_coordinates_cannot_select_a_siblings_valid_value() {
     use psi_checked_trees::{CheckedScalarBranchDestination, CheckedScalarStateTerminator};
     let source = "machine value(flag: bool) -> u8\nrequires 7u8 == 7u8\nensures 7u8 == 7u8\n{ transition flag { true -> 7 false -> 7 } }";

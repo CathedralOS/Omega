@@ -29,7 +29,7 @@ use wire::{Reader, Writer};
 
 const MAGIC: &[u8; 8] = b"PSIPRF\0\0";
 /// Single current pre-release proof vocabulary marker.
-pub(crate) const FORMAT_MARKER: u16 = 23;
+pub(crate) const FORMAT_MARKER: u16 = 24;
 const FINGERPRINT_DOMAIN: &[u8] = b"psi-terminal-proof-bundle-fingerprint\0";
 const MAX_PROPOSITION_DEPTH: usize = 256;
 const MAX_SCALAR_TERM_DEPTH: usize = 256;
@@ -297,87 +297,158 @@ fn encode_proof_node(
     depth: usize,
     format_marker: u16,
 ) -> Result<(), ProofCodecError> {
-    if depth > MAX_PROOF_DEPTH {
-        return Err(ProofCodecError::ProofNestingTooDeep);
+    let mut pending = vec![ProofEncodingAction::Node(node, depth)];
+    while let Some(action) = pending.pop() {
+        match action {
+            ProofEncodingAction::Suffix(rule) => {
+                encode_proof_rule_suffix(writer, rule, format_marker)?;
+            }
+            ProofEncodingAction::Branches(branches, depth) => {
+                writer.len("disjunction branches", branches.len())?;
+                pending.push(ProofEncodingAction::Children(branches, depth));
+            }
+            ProofEncodingAction::Children(children, depth) => {
+                if let Some((first, remaining)) = children.split_first() {
+                    pending.push(ProofEncodingAction::Children(remaining, depth));
+                    pending.push(ProofEncodingAction::Node(first, depth));
+                }
+            }
+            ProofEncodingAction::Node(node, depth) => {
+                if depth > MAX_PROOF_DEPTH {
+                    return Err(ProofCodecError::ProofNestingTooDeep);
+                }
+                encode_proposition(writer, &node.conclusion, 0, format_marker)?;
+                pending.push(ProofEncodingAction::Suffix(&node.rule));
+                let child_depth = depth + 1;
+                match &node.rule {
+                    ProofRule::Primitive(_) => writer.u8(1),
+                    ProofRule::SemanticAxiom { .. } => writer.u8(2),
+                    ProofRule::Assumption { .. } => writer.u8(3),
+                    ProofRule::ConjunctionIntroduction(children) => {
+                        writer.u8(4);
+                        writer.len("conjunction proofs", children.len())?;
+                        pending.push(ProofEncodingAction::Children(children, child_depth));
+                    }
+                    ProofRule::ConjunctionElimination { conjunction, .. } => {
+                        writer.u8(5);
+                        pending.push(ProofEncodingAction::Node(conjunction, child_depth));
+                    }
+                    ProofRule::ImplicationIntroduction { body } => {
+                        writer.u8(6);
+                        pending.push(ProofEncodingAction::Node(body, child_depth));
+                    }
+                    ProofRule::ImplicationElimination {
+                        implication,
+                        premise,
+                    } => {
+                        writer.u8(7);
+                        pending.push(ProofEncodingAction::Node(premise, child_depth));
+                        pending.push(ProofEncodingAction::Node(implication, child_depth));
+                    }
+                    ProofRule::EqualityTransitivity {
+                        left_equals_middle,
+                        middle_equals_right,
+                    } => {
+                        writer.u8(8);
+                        pending.push(ProofEncodingAction::Node(middle_equals_right, child_depth));
+                        pending.push(ProofEncodingAction::Node(left_equals_middle, child_depth));
+                    }
+                    ProofRule::DisjunctionIntroduction { disjunct, .. } => {
+                        writer.u8(9);
+                        pending.push(ProofEncodingAction::Node(disjunct, child_depth));
+                    }
+                    ProofRule::IntegerLessOrEqualTransitivity {
+                        left_less_or_equal_middle,
+                        middle_less_or_equal_right,
+                    } => {
+                        writer.u8(10);
+                        pending.push(ProofEncodingAction::Node(
+                            middle_less_or_equal_right,
+                            child_depth,
+                        ));
+                        pending.push(ProofEncodingAction::Node(
+                            left_less_or_equal_middle,
+                            child_depth,
+                        ));
+                    }
+                    ProofRule::IntegerLessOrEqualSubstitution {
+                        relation, equality, ..
+                    } => {
+                        writer.u8(11);
+                        pending.push(ProofEncodingAction::Node(equality, child_depth));
+                        pending.push(ProofEncodingAction::Node(relation, child_depth));
+                    }
+                    ProofRule::IntegerAffineBound { root_bound, .. } => {
+                        writer.u8(12);
+                        pending.push(ProofEncodingAction::Node(root_bound, child_depth));
+                    }
+                    ProofRule::IntegerCastBound { root_bound, .. } => {
+                        writer.u8(13);
+                        pending.push(ProofEncodingAction::Node(root_bound, child_depth));
+                    }
+                    ProofRule::IntegerCorrelatedForbiddenRoots { .. } => writer.u8(14),
+                    ProofRule::IntegerExactAddDefinitionBound {
+                        left_bound,
+                        right_bound,
+                        ..
+                    } => {
+                        writer.u8(15);
+                        pending.push(ProofEncodingAction::Node(right_bound, child_depth));
+                        pending.push(ProofEncodingAction::Node(left_bound, child_depth));
+                    }
+                    ProofRule::DisjunctionElimination {
+                        disjunction,
+                        branches,
+                    } => {
+                        writer.u8(16);
+                        pending.push(ProofEncodingAction::Branches(branches, child_depth));
+                        pending.push(ProofEncodingAction::Node(disjunction, child_depth));
+                    }
+                }
+            }
+        }
     }
-    encode_proposition(writer, &node.conclusion, 0, format_marker)?;
-    match &node.rule {
+    Ok(())
+}
+
+enum ProofEncodingAction<'proof> {
+    Node(&'proof ProofNode, usize),
+    Children(&'proof [ProofNode], usize),
+    Branches(&'proof [ProofNode], usize),
+    Suffix(&'proof ProofRule),
+}
+
+fn encode_proof_rule_suffix(
+    writer: &mut Writer,
+    rule: &ProofRule,
+    format_marker: u16,
+) -> Result<(), ProofCodecError> {
+    match rule {
         ProofRule::Primitive(judgment) => {
-            writer.u8(1);
             encode_primitive(writer, *judgment);
         }
         ProofRule::SemanticAxiom { index } => {
-            writer.u8(2);
             writer.index("semantic axiom index", *index)?;
         }
         ProofRule::Assumption { index } => {
-            writer.u8(3);
             writer.index("assumption index", *index)?;
         }
-        ProofRule::ConjunctionIntroduction(nodes) => {
-            writer.u8(4);
-            writer.len("conjunction proofs", nodes.len())?;
-            for node in nodes {
-                encode_proof_node(writer, node, depth + 1, format_marker)?;
-            }
-        }
-        ProofRule::ConjunctionElimination {
-            conjunction,
-            conjunct,
-        } => {
-            writer.u8(5);
-            encode_proof_node(writer, conjunction, depth + 1, format_marker)?;
+        ProofRule::ConjunctionElimination { conjunct, .. } => {
             writer.index("conjunct index", *conjunct)?;
         }
-        ProofRule::DisjunctionIntroduction { disjunct, index } => {
-            writer.u8(9);
-            encode_proof_node(writer, disjunct, depth + 1, format_marker)?;
+        ProofRule::DisjunctionIntroduction { index, .. } => {
             writer.index("disjunct index", *index)?;
         }
-        ProofRule::ImplicationIntroduction { body } => {
-            writer.u8(6);
-            encode_proof_node(writer, body, depth + 1, format_marker)?;
-        }
-        ProofRule::ImplicationElimination {
-            implication,
-            premise,
-        } => {
-            writer.u8(7);
-            encode_proof_node(writer, implication, depth + 1, format_marker)?;
-            encode_proof_node(writer, premise, depth + 1, format_marker)?;
-        }
-        ProofRule::EqualityTransitivity {
-            left_equals_middle,
-            middle_equals_right,
-        } => {
-            writer.u8(8);
-            encode_proof_node(writer, left_equals_middle, depth + 1, format_marker)?;
-            encode_proof_node(writer, middle_equals_right, depth + 1, format_marker)?;
-        }
-        ProofRule::IntegerLessOrEqualTransitivity {
-            left_less_or_equal_middle,
-            middle_less_or_equal_right,
-        } => {
-            writer.u8(10);
-            encode_proof_node(writer, left_less_or_equal_middle, depth + 1, format_marker)?;
-            encode_proof_node(writer, middle_less_or_equal_right, depth + 1, format_marker)?;
-        }
-        ProofRule::IntegerLessOrEqualSubstitution {
-            relation,
-            equality,
-            endpoint,
-        } => {
-            writer.u8(11);
-            encode_proof_node(writer, relation, depth + 1, format_marker)?;
-            encode_proof_node(writer, equality, depth + 1, format_marker)?;
+        ProofRule::ConjunctionIntroduction(_)
+        | ProofRule::DisjunctionElimination { .. }
+        | ProofRule::ImplicationIntroduction { .. }
+        | ProofRule::ImplicationElimination { .. }
+        | ProofRule::EqualityTransitivity { .. }
+        | ProofRule::IntegerLessOrEqualTransitivity { .. } => {}
+        ProofRule::IntegerLessOrEqualSubstitution { endpoint, .. } => {
             writer.index("integer <= substitution endpoint", *endpoint)?;
         }
-        ProofRule::IntegerAffineBound {
-            root_bound,
-            witness,
-        } => {
-            writer.u8(12);
-            encode_proof_node(writer, root_bound, depth + 1, format_marker)?;
+        ProofRule::IntegerAffineBound { witness, .. } => {
             encode_scalar_term(writer, &witness.root, 0, format_marker)?;
             encode_scalar_term(writer, &witness.target, 0, format_marker)?;
             writer.len(
@@ -401,12 +472,7 @@ fn encode_proof_node(
                 }
             }
         }
-        ProofRule::IntegerCastBound {
-            root_bound,
-            witness,
-        } => {
-            writer.u8(13);
-            encode_proof_node(writer, root_bound, depth + 1, format_marker)?;
+        ProofRule::IntegerCastBound { witness, .. } => {
             encode_scalar_term(writer, &witness.root, 0, format_marker)?;
             encode_scalar_term(writer, &witness.target, 0, format_marker)?;
             writer.len(
@@ -418,7 +484,6 @@ fn encode_proof_node(
             }
         }
         ProofRule::IntegerCorrelatedForbiddenRoots { witness } => {
-            writer.u8(14);
             encode_correlated_affine_branch(writer, &witness.dividend, format_marker)?;
             encode_correlated_affine_branch(writer, &witness.divisor, format_marker)?;
             writer.index(
@@ -436,13 +501,8 @@ fn encode_proof_node(
             encode_proposition(writer, &witness.conclusion, 0, format_marker)?;
         }
         ProofRule::IntegerExactAddDefinitionBound {
-            left_bound,
-            right_bound,
-            definition_axiom,
+            definition_axiom, ..
         } => {
-            writer.u8(15);
-            encode_proof_node(writer, left_bound, depth + 1, format_marker)?;
-            encode_proof_node(writer, right_bound, depth + 1, format_marker)?;
             writer.index("integer exact-add definition axiom", *definition_axiom)?;
         }
     }
@@ -1245,11 +1305,81 @@ fn decode_proof_node(
     depth: usize,
     format_marker: u16,
 ) -> Result<ProofNode, ProofCodecError> {
-    if depth > MAX_PROOF_DEPTH {
-        return Err(ProofCodecError::ProofNestingTooDeep);
+    // Pending nodes consume heap scratch rather than one large decoder stack
+    // frame per proof level. Counts never preallocate untrusted child storage.
+    let mut pending: Vec<PendingProofNode> = Vec::new();
+    loop {
+        if depth + pending.len() > MAX_PROOF_DEPTH {
+            return Err(ProofCodecError::ProofNestingTooDeep);
+        }
+        let conclusion = decode_proposition(reader, 0, format_marker)?;
+        let tag = reader.u8()?;
+        let remaining = match tag {
+            1..=3 | 14 => 0,
+            4 => reader.count()?,
+            5 | 6 | 9 | 12 | 13 | 16 => 1,
+            7 | 8 | 10 | 11 | 15 => 2,
+            tag => return Err(ProofCodecError::InvalidTag("ProofRule", tag)),
+        };
+        let node = PendingProofNode {
+            conclusion,
+            tag,
+            remaining,
+            children: Vec::new(),
+        };
+        if remaining != 0 {
+            pending.push(node);
+            continue;
+        }
+        let mut completed = node.finish(reader, format_marker)?;
+        loop {
+            let Some(mut parent) = pending.pop() else {
+                return Ok(completed);
+            };
+            parent.children.push(completed);
+            parent.remaining -= 1;
+            // Case analysis carries its branch count after the disjunction
+            // proof, not in the node header.
+            if parent.tag == 16 && parent.children.len() == 1 {
+                parent.remaining = reader.count()?;
+            }
+            if parent.remaining != 0 {
+                pending.push(parent);
+                break;
+            }
+            completed = parent.finish(reader, format_marker)?;
+        }
     }
-    let conclusion = decode_proposition(reader, 0, format_marker)?;
-    let rule = match reader.u8()? {
+}
+
+struct PendingProofNode {
+    conclusion: Proposition,
+    tag: u8,
+    remaining: u32,
+    children: Vec<ProofNode>,
+}
+
+impl PendingProofNode {
+    fn finish(
+        self,
+        reader: &mut Reader<'_>,
+        format_marker: u16,
+    ) -> Result<ProofNode, ProofCodecError> {
+        let rule = decode_proof_rule(reader, format_marker, self.tag, self.children.into_iter())?;
+        Ok(ProofNode {
+            conclusion: self.conclusion,
+            rule,
+        })
+    }
+}
+
+fn decode_proof_rule(
+    reader: &mut Reader<'_>,
+    format_marker: u16,
+    tag: u8,
+    mut children: std::vec::IntoIter<ProofNode>,
+) -> Result<ProofRule, ProofCodecError> {
+    Ok(match tag {
         1 => ProofRule::Primitive(decode_primitive(reader)?),
         2 => ProofRule::SemanticAxiom {
             index: reader.index()?,
@@ -1257,52 +1387,37 @@ fn decode_proof_node(
         3 => ProofRule::Assumption {
             index: reader.index()?,
         },
-        4 => {
-            let count = reader.count()?;
-            let mut nodes = Vec::new();
-            for _ in 0..count {
-                nodes.push(decode_proof_node(reader, depth + 1, format_marker)?);
-            }
-            ProofRule::ConjunctionIntroduction(nodes)
-        }
+        4 => ProofRule::ConjunctionIntroduction(children.collect()),
         5 => ProofRule::ConjunctionElimination {
-            conjunction: Box::new(decode_proof_node(reader, depth + 1, format_marker)?),
+            conjunction: Box::new(children.next().expect("decoded conjunction child")),
             conjunct: reader.index()?,
         },
         6 => ProofRule::ImplicationIntroduction {
-            body: Box::new(decode_proof_node(reader, depth + 1, format_marker)?),
+            body: Box::new(children.next().expect("decoded implication body")),
         },
         7 => ProofRule::ImplicationElimination {
-            implication: Box::new(decode_proof_node(reader, depth + 1, format_marker)?),
-            premise: Box::new(decode_proof_node(reader, depth + 1, format_marker)?),
+            implication: Box::new(children.next().expect("decoded implication child")),
+            premise: Box::new(children.next().expect("decoded implication premise")),
         },
         8 => ProofRule::EqualityTransitivity {
-            left_equals_middle: Box::new(decode_proof_node(reader, depth + 1, format_marker)?),
-            middle_equals_right: Box::new(decode_proof_node(reader, depth + 1, format_marker)?),
+            left_equals_middle: Box::new(children.next().expect("decoded first equality")),
+            middle_equals_right: Box::new(children.next().expect("decoded second equality")),
         },
         9 => ProofRule::DisjunctionIntroduction {
-            disjunct: Box::new(decode_proof_node(reader, depth + 1, format_marker)?),
+            disjunct: Box::new(children.next().expect("decoded disjunct")),
             index: reader.index()?,
         },
         10 => ProofRule::IntegerLessOrEqualTransitivity {
-            left_less_or_equal_middle: Box::new(decode_proof_node(
-                reader,
-                depth + 1,
-                format_marker,
-            )?),
-            middle_less_or_equal_right: Box::new(decode_proof_node(
-                reader,
-                depth + 1,
-                format_marker,
-            )?),
+            left_less_or_equal_middle: Box::new(children.next().expect("decoded first order")),
+            middle_less_or_equal_right: Box::new(children.next().expect("decoded second order")),
         },
         11 => ProofRule::IntegerLessOrEqualSubstitution {
-            relation: Box::new(decode_proof_node(reader, depth + 1, format_marker)?),
-            equality: Box::new(decode_proof_node(reader, depth + 1, format_marker)?),
+            relation: Box::new(children.next().expect("decoded relation")),
+            equality: Box::new(children.next().expect("decoded equality")),
             endpoint: reader.index()?,
         },
         12 => {
-            let root_bound = Box::new(decode_proof_node(reader, depth + 1, format_marker)?);
+            let root_bound = Box::new(children.next().expect("decoded affine root bound"));
             let root = decode_scalar_term(reader, 0, format_marker)?;
             let target = decode_scalar_term(reader, 0, format_marker)?;
             let definition_count = reader.count()?;
@@ -1330,7 +1445,7 @@ fn decode_proof_node(
             }
         }
         13 => {
-            let root_bound = Box::new(decode_proof_node(reader, depth + 1, format_marker)?);
+            let root_bound = Box::new(children.next().expect("decoded cast root bound"));
             let root = decode_scalar_term(reader, 0, format_marker)?;
             let target = decode_scalar_term(reader, 0, format_marker)?;
             let definition_count = reader.count()?;
@@ -1366,13 +1481,16 @@ fn decode_proof_node(
             }
         }
         15 => ProofRule::IntegerExactAddDefinitionBound {
-            left_bound: Box::new(decode_proof_node(reader, depth + 1, format_marker)?),
-            right_bound: Box::new(decode_proof_node(reader, depth + 1, format_marker)?),
+            left_bound: Box::new(children.next().expect("decoded left bound")),
+            right_bound: Box::new(children.next().expect("decoded right bound")),
             definition_axiom: reader.index()?,
         },
+        16 => ProofRule::DisjunctionElimination {
+            disjunction: Box::new(children.next().expect("decoded disjunction")),
+            branches: children.collect(),
+        },
         tag => return Err(ProofCodecError::InvalidTag("ProofRule", tag)),
-    };
-    Ok(ProofNode { conclusion, rule })
+    })
 }
 
 fn decode_correlated_affine_branch(

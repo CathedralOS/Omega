@@ -4015,6 +4015,33 @@ embedded zero or one. For a syntactic signed factor `-1`, schema-local carrier
 inclusion makes the mathematical lower bound vacuous, while a runtime value
 merely landed as `-1` retains both bounds.
 
+Conditional reconstruction retains the selected polarity of Boolean and
+integer predicates through preceding value equations. Integer order
+complements reverse the endpoints; integer disequality retains both possible
+orders. Fixed-carrier literal bounds use checked adjacent values, so `d != 0`
+becomes `1 <= d` for unsigned integers and the two-sign disjunction for signed
+integers. These are deterministic consequences of the branch, not alternative
+operation goals or facts discovered by an arithmetic search. The same rules
+apply to acyclic edges and loop edges admitted by the existing backedge cut.
+Every successor uses its own argument-to-parameter substitution, and joins
+retain only facts shared by every incoming path. Integer complement laws do
+not apply to IEEE comparisons.
+
+The integer certificate producer may prove a common goal by cases over a
+retained disjunction. `DisjunctionElimination` carries the checked disjunction
+and one ordered proof per alternative. The kernel checks each branch with only
+that alternative appended to the enclosing assumptions and requires the same
+conclusion in every branch. Discharged local assumptions are not ambient
+requirements in the acceptance record. This permits signed division to use
+both nonzero signs while independently proving the `MIN / -1` exclusion.
+The proof rule uses proof-bundle format 24 and canonical proof-calculus trust
+root 24; it adds no semantic operation or proposition vocabulary.
+Proof-node encoding, decoding, and kernel traversal use explicit pending work
+so proofs at the existing codec depth limit do not exhaust the host call stack.
+Case discovery follows transitive value dependencies; unrelated disjunctions
+do not multiply the search merely because they share a literal value. This is
+producer-side proof discovery and grants no additional verifier authority.
+
 Exact representability uses a separate proof-only, total mathematical term
 domain rather than executable `ScalarTerm` operations, whose exact arithmetic
 is partial until representability has been proved:

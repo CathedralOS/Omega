@@ -6,6 +6,8 @@ use psi_proof_admission::{
     PrimitiveJudgment, ProofRule, accept_certificate, accept_certificate_with_machine_parameters,
 };
 
+mod case_analysis;
+
 fn value(id: u64, integer_type: IntegerType) -> ScalarTerm {
     ScalarTerm::value(
         ValueId::new(id).expect("value id"),

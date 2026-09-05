@@ -41,6 +41,12 @@ pub enum ProofRule {
         disjunct: Box<ProofNode>,
         index: usize,
     },
+    /// Prove one common conclusion under each ordered disjunct, discharging
+    /// the single assumption appended for that branch.
+    DisjunctionElimination {
+        disjunction: Box<ProofNode>,
+        branches: Vec<ProofNode>,
+    },
     ImplicationIntroduction {
         body: Box<ProofNode>,
     },
@@ -98,6 +104,7 @@ pub enum AcceptedProofRule {
     ConjunctionIntroduction,
     ConjunctionElimination,
     DisjunctionIntroduction,
+    DisjunctionElimination,
     ImplicationIntroduction,
     ImplicationElimination,
     EqualityTransitivity,
@@ -122,12 +129,15 @@ pub struct AcceptedPremise {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CertificateAcceptance {
     pub rules: Vec<AcceptedProofRule>,
+    /// Only premises supplied to the certificate, never discharged assumptions
+    /// introduced by an implication or case-analysis branch.
     pub assumptions: Vec<AcceptedPremise>,
     pub semantic_axioms: Vec<AcceptedPremise>,
 }
 
 #[derive(Default)]
 struct AcceptanceBuilder {
+    ambient_assumption_count: usize,
     rules: std::collections::BTreeSet<AcceptedProofRule>,
     assumptions: Vec<AcceptedPremise>,
     semantic_axioms: Vec<AcceptedPremise>,
@@ -135,7 +145,9 @@ struct AcceptanceBuilder {
 
 impl AcceptanceBuilder {
     fn record_assumption(&mut self, index: usize, proposition: &Proposition) {
-        record_premise(&mut self.assumptions, index, proposition);
+        if index < self.ambient_assumption_count {
+            record_premise(&mut self.assumptions, index, proposition);
+        }
     }
 
     fn record_semantic_axiom(&mut self, index: usize, proposition: &Proposition) {
@@ -233,7 +245,10 @@ pub fn accept_certificate_with_machine_parameters(
             .validate(axiom)
             .map_err(ProofError::MalformedProposition)?;
     }
-    let mut acceptance = AcceptanceBuilder::default();
+    let mut acceptance = AcceptanceBuilder {
+        ambient_assumption_count: assumptions.len(),
+        ..AcceptanceBuilder::default()
+    };
     check_node(
         context,
         assumptions,
@@ -248,7 +263,12 @@ pub fn accept_certificate_with_machine_parameters(
     Ok(acceptance.finish())
 }
 
-fn check_node(
+mod traversal;
+use traversal::check_node;
+
+// The conclusion and children have already been checked by the scoped
+// postorder traversal.
+fn check_node_locally(
     context: &PropositionContext,
     assumptions: &[Proposition],
     semantic_axioms: &[Proposition],
@@ -256,9 +276,6 @@ fn check_node(
     proof: &ProofNode,
     acceptance: &mut AcceptanceBuilder,
 ) -> Result<(), ProofError> {
-    context
-        .validate(&proof.conclusion)
-        .map_err(ProofError::MalformedProposition)?;
     match &proof.rule {
         ProofRule::Primitive(judgment) => {
             acceptance.rules.insert(AcceptedProofRule::Primitive);
@@ -300,14 +317,6 @@ fn check_node(
                 return Err(ProofError::ConjunctionArityMismatch);
             }
             for (expected, conjunct) in expected.iter().zip(conjuncts) {
-                check_node(
-                    context,
-                    assumptions,
-                    semantic_axioms,
-                    machine_parameter_values,
-                    conjunct,
-                    acceptance,
-                )?;
                 if &conjunct.conclusion != expected {
                     return Err(ProofError::ConjunctConclusionMismatch);
                 }
@@ -321,14 +330,6 @@ fn check_node(
             acceptance
                 .rules
                 .insert(AcceptedProofRule::ConjunctionElimination);
-            check_node(
-                context,
-                assumptions,
-                semantic_axioms,
-                machine_parameter_values,
-                conjunction,
-                acceptance,
-            )?;
             let Proposition::Conjunction(conjuncts) = &conjunction.conclusion else {
                 return Err(ProofError::RulePremiseMismatch("conjunction elimination"));
             };
@@ -351,41 +352,39 @@ fn check_node(
             let selected = disjuncts
                 .get(*index)
                 .ok_or(ProofError::UnknownDisjunct(*index))?;
-            check_node(
-                context,
-                assumptions,
-                semantic_axioms,
-                machine_parameter_values,
-                disjunct,
-                acceptance,
-            )?;
             (selected == &disjunct.conclusion)
                 .then_some(())
                 .ok_or(ProofError::DisjunctConclusionMismatch)
+        }
+        ProofRule::DisjunctionElimination {
+            disjunction,
+            branches,
+        } => {
+            acceptance
+                .rules
+                .insert(AcceptedProofRule::DisjunctionElimination);
+            let Proposition::Disjunction(disjuncts) = &disjunction.conclusion else {
+                return Err(ProofError::RulePremiseMismatch("disjunction elimination"));
+            };
+            if branches.len() != disjuncts.len() {
+                return Err(ProofError::DisjunctionArityMismatch);
+            }
+            for branch in branches {
+                if branch.conclusion != proof.conclusion {
+                    return Err(ProofError::DisjunctionBranchConclusionMismatch);
+                }
+            }
+            Ok(())
         }
         ProofRule::ImplicationIntroduction { body } => {
             acceptance
                 .rules
                 .insert(AcceptedProofRule::ImplicationIntroduction);
-            let Proposition::Implication {
-                premise,
-                conclusion,
-            } = &proof.conclusion
-            else {
+            let Proposition::Implication { conclusion, .. } = &proof.conclusion else {
                 return Err(ProofError::RuleConclusionMismatch(
                     "implication introduction",
                 ));
             };
-            let mut nested_assumptions = assumptions.to_vec();
-            nested_assumptions.push((**premise).clone());
-            check_node(
-                context,
-                &nested_assumptions,
-                semantic_axioms,
-                machine_parameter_values,
-                body,
-                acceptance,
-            )?;
             (&body.conclusion == conclusion.as_ref())
                 .then_some(())
                 .ok_or(ProofError::ImplicationConclusionMismatch)
@@ -397,22 +396,6 @@ fn check_node(
             acceptance
                 .rules
                 .insert(AcceptedProofRule::ImplicationElimination);
-            check_node(
-                context,
-                assumptions,
-                semantic_axioms,
-                machine_parameter_values,
-                implication,
-                acceptance,
-            )?;
-            check_node(
-                context,
-                assumptions,
-                semantic_axioms,
-                machine_parameter_values,
-                premise,
-                acceptance,
-            )?;
             let Proposition::Implication {
                 premise: required,
                 conclusion,
@@ -434,22 +417,6 @@ fn check_node(
             acceptance
                 .rules
                 .insert(AcceptedProofRule::EqualityTransitivity);
-            check_node(
-                context,
-                assumptions,
-                semantic_axioms,
-                machine_parameter_values,
-                left_equals_middle,
-                acceptance,
-            )?;
-            check_node(
-                context,
-                assumptions,
-                semantic_axioms,
-                machine_parameter_values,
-                middle_equals_right,
-                acceptance,
-            )?;
             match (
                 &left_equals_middle.conclusion,
                 &middle_equals_right.conclusion,
@@ -533,22 +500,6 @@ fn check_node(
             acceptance
                 .rules
                 .insert(AcceptedProofRule::IntegerLessOrEqualTransitivity);
-            check_node(
-                context,
-                assumptions,
-                semantic_axioms,
-                machine_parameter_values,
-                left_less_or_equal_middle,
-                acceptance,
-            )?;
-            check_node(
-                context,
-                assumptions,
-                semantic_axioms,
-                machine_parameter_values,
-                middle_less_or_equal_right,
-                acceptance,
-            )?;
             match (
                 &left_less_or_equal_middle.conclusion,
                 &middle_less_or_equal_right.conclusion,
@@ -592,22 +543,6 @@ fn check_node(
             acceptance
                 .rules
                 .insert(AcceptedProofRule::IntegerLessOrEqualSubstitution);
-            check_node(
-                context,
-                assumptions,
-                semantic_axioms,
-                machine_parameter_values,
-                relation,
-                acceptance,
-            )?;
-            check_node(
-                context,
-                assumptions,
-                semantic_axioms,
-                machine_parameter_values,
-                equality,
-                acceptance,
-            )?;
             if let (
                 Proposition::IntegerMathLessOrEqual(relation_left, relation_right),
                 Proposition::IntegerMathEqual(equality_left, equality_right),
@@ -686,14 +621,6 @@ fn check_node(
             acceptance
                 .rules
                 .insert(AcceptedProofRule::IntegerAffineBound);
-            check_node(
-                context,
-                assumptions,
-                semantic_axioms,
-                machine_parameter_values,
-                root_bound,
-                acceptance,
-            )?;
             let form = check_integer_affine_witness(context, semantic_axioms, witness)
                 .map_err(ProofError::IntegerAffineWitness)?;
             let normalized_conclusion = lower_integer_math_relation(&proof.conclusion)
@@ -740,22 +667,6 @@ fn check_node(
             acceptance
                 .rules
                 .insert(AcceptedProofRule::IntegerExactAddDefinitionBound);
-            check_node(
-                context,
-                assumptions,
-                semantic_axioms,
-                machine_parameter_values,
-                left_bound,
-                acceptance,
-            )?;
-            check_node(
-                context,
-                assumptions,
-                semantic_axioms,
-                machine_parameter_values,
-                right_bound,
-                acceptance,
-            )?;
             let definition = semantic_axioms
                 .get(*definition_axiom)
                 .ok_or(ProofError::UnknownSemanticAxiom(*definition_axiom))?;
@@ -847,14 +758,6 @@ fn check_node(
             witness,
         } => {
             acceptance.rules.insert(AcceptedProofRule::IntegerCastBound);
-            check_node(
-                context,
-                assumptions,
-                semantic_axioms,
-                machine_parameter_values,
-                root_bound,
-                acceptance,
-            )?;
             let chain = check_integer_cast_chain_witness(context, semantic_axioms, witness)
                 .map_err(ProofError::IntegerCastChainWitness)?;
             let normalized_conclusion = lower_integer_math_relation(&proof.conclusion)
@@ -946,6 +849,8 @@ pub enum ProofError {
     ConjunctionArityMismatch,
     ConjunctConclusionMismatch,
     DisjunctConclusionMismatch,
+    DisjunctionArityMismatch,
+    DisjunctionBranchConclusionMismatch,
     ImplicationPremiseMismatch,
     ImplicationConclusionMismatch,
     EqualityMiddleMismatch,
@@ -1064,6 +969,9 @@ impl std::fmt::Display for ProofError {
 }
 
 impl std::error::Error for ProofError {}
+
+#[cfg(test)]
+mod disjunction_elimination;
 
 #[cfg(test)]
 mod tests {
@@ -1892,16 +1800,7 @@ mod tests {
                 AcceptedProofRule::ImplicationIntroduction,
             ]
         );
-        assert_eq!(
-            accepted.assumptions,
-            vec![AcceptedPremise {
-                index: 0,
-                proposition: match &goal {
-                    Proposition::Implication { premise, .. } => (**premise).clone(),
-                    _ => unreachable!("test goal is an implication"),
-                },
-            }]
-        );
+        assert!(accepted.assumptions.is_empty());
     }
 
     #[test]
@@ -1940,7 +1839,7 @@ mod tests {
     }
 
     #[test]
-    fn nested_scopes_do_not_collapse_distinct_same_index_premises() {
+    fn nested_scopes_do_not_export_discharged_same_index_premises() {
         let first = Proposition::Atom(PropositionId::new(1).expect("first atom"));
         let second = Proposition::Atom(PropositionId::new(2).expect("second atom"));
         let implication = |proposition: &Proposition| Proposition::Implication {
@@ -1963,19 +1862,7 @@ mod tests {
         };
         let accepted = accept_certificate(&PropositionContext::default(), &goal, &[], &[], &proof)
             .expect("both nested implication premises");
-        assert_eq!(
-            accepted.assumptions,
-            vec![
-                AcceptedPremise {
-                    index: 0,
-                    proposition: first,
-                },
-                AcceptedPremise {
-                    index: 0,
-                    proposition: second,
-                },
-            ]
-        );
+        assert!(accepted.assumptions.is_empty());
     }
 
     #[test]

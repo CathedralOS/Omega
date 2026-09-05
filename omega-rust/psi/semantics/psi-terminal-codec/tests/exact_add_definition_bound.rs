@@ -32,14 +32,14 @@ fn exact_add_definition_bound_owns_the_appended_rule_tag() {
     };
 
     let bytes = encode_proof_bundle(&bundle).expect("exact-add definition proof encodes");
-    assert_eq!(&bytes[8..10], &23_u16.to_le_bytes());
+    assert_eq!(&bytes[8..10], &24_u16.to_le_bytes());
     assert_eq!(bytes[34], 15, "appended exact-add definition rule tag");
     assert_eq!(decode_proof_bundle(&bytes), Ok(bundle));
 
     let mut corrupt_tag = bytes;
-    corrupt_tag[34] = 16;
+    corrupt_tag[34] = 17;
     assert_eq!(
         decode_proof_bundle(&corrupt_tag),
-        Err(ProofCodecError::InvalidTag("ProofRule", 16)),
+        Err(ProofCodecError::InvalidTag("ProofRule", 17)),
     );
 }

@@ -5,15 +5,16 @@ use super::{
     OBLIGATION_LEDGER_CODEC_SOURCE, PROOF_ADMISSION_EVIDENCE_SOURCE,
     PROOF_ADMISSION_INTEGER_AFFINE_SOURCE, PROOF_ADMISSION_INTEGER_CAST_SOURCE,
     PROOF_ADMISSION_INTEGER_FORBIDDEN_ROOT_SOURCE, PROOF_ADMISSION_JUDGMENT_SOURCE,
-    PROOF_ADMISSION_LIB_SOURCE, PROOF_ADMISSION_PROOF_SOURCE, PROOF_BUNDLE_SOURCE,
-    PROOF_CODEC_SOURCE, PROPOSITION_SOURCE, RECONSTRUCTION_SOURCE, SUBSTITUTION_SOURCE,
-    TERMINAL_CALL_COMPOSITION_SOURCE, TERMINAL_CANONICAL_SCALAR_GOAL_SOURCE,
-    TERMINAL_PROOF_BEARING_SCALAR_SOURCE, TERMINAL_REPRESENTATION_SOURCE_CLOSURE,
-    TERMINAL_SEMANTICS_SOURCE, TERMINAL_STRUCTURAL_EFFECT_SOURCE, TrustAcceptingPolicy,
-    TrustDependencyKind, TrustDependencyNode, TrustDependencyStatus, TrustGraphError,
-    VERIFIER_CALL_COMPOSITION_SOURCE, VERIFIER_LIB_SOURCE, VERIFIER_SOURCE,
-    VERIFIER_SOURCE_CLOSURE, VERIFIER_SOURCE_CLOSURE_BUILD_SOURCE, VERIFIER_VALIDATION_SOURCE,
-    ValidatedTerminalTrustGraph, validate_terminal_trust_graph,
+    PROOF_ADMISSION_LIB_SOURCE, PROOF_ADMISSION_PROOF_SOURCE, PROOF_ADMISSION_TRAVERSAL_SOURCE,
+    PROOF_BUNDLE_SOURCE, PROOF_CODEC_SOURCE, PROPOSITION_SOURCE, PROPOSITION_VALUE_IDS_SOURCE,
+    RECONSTRUCTION_SOURCE, SUBSTITUTION_SOURCE, TERMINAL_CALL_COMPOSITION_SOURCE,
+    TERMINAL_CANONICAL_SCALAR_GOAL_SOURCE, TERMINAL_PROOF_BEARING_SCALAR_SOURCE,
+    TERMINAL_REPRESENTATION_SOURCE_CLOSURE, TERMINAL_SEMANTICS_SOURCE,
+    TERMINAL_STRUCTURAL_EFFECT_SOURCE, TrustAcceptingPolicy, TrustDependencyKind,
+    TrustDependencyNode, TrustDependencyStatus, TrustGraphError, VERIFIER_CALL_COMPOSITION_SOURCE,
+    VERIFIER_LIB_SOURCE, VERIFIER_SOURCE, VERIFIER_SOURCE_CLOSURE,
+    VERIFIER_SOURCE_CLOSURE_BUILD_SOURCE, VERIFIER_VALIDATION_SOURCE, ValidatedTerminalTrustGraph,
+    validate_terminal_trust_graph,
 };
 use crate::FORMAT_MARKER;
 use psi_terminal_semantics::{
@@ -43,7 +44,7 @@ fn canonical_terminal_bytes_version() -> String {
 }
 
 fn canonical_proof_calculus_identity() -> &'static str {
-    "root:canonical-proof-calculus-format-23"
+    "root:canonical-proof-calculus-format-24"
 }
 
 fn canonical_proof_calculus_version() -> String {
@@ -102,6 +103,10 @@ fn registered_roots() -> Vec<TrustDependencyNode> {
             &[
                 ("psi-core/proposition.rs", PROPOSITION_SOURCE),
                 (
+                    "psi-core/proposition/value_ids.rs",
+                    PROPOSITION_VALUE_IDS_SOURCE,
+                ),
+                (
                     "psi-proof-admission/evidence.rs",
                     PROOF_ADMISSION_EVIDENCE_SOURCE,
                 ),
@@ -119,6 +124,10 @@ fn registered_roots() -> Vec<TrustDependencyNode> {
                 ),
                 ("psi-proof-admission/lib.rs", PROOF_ADMISSION_LIB_SOURCE),
                 ("psi-proof-admission/proof.rs", PROOF_ADMISSION_PROOF_SOURCE),
+                (
+                    "psi-proof-admission/proof/traversal.rs",
+                    PROOF_ADMISSION_TRAVERSAL_SOURCE,
+                ),
                 ("psi-terminal-codec/proof_bundle.rs", PROOF_CODEC_SOURCE),
             ],
         ),
@@ -192,6 +201,10 @@ fn proof_admission_node() -> TrustDependencyNode {
                 PROOF_ADMISSION_INTEGER_FORBIDDEN_ROOT_SOURCE,
             ),
             ("psi-proof-admission/proof.rs", PROOF_ADMISSION_PROOF_SOURCE),
+            (
+                "psi-proof-admission/proof/traversal.rs",
+                PROOF_ADMISSION_TRAVERSAL_SOURCE,
+            ),
         ],
     )
 }
