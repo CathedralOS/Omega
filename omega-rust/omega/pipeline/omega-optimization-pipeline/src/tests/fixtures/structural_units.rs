@@ -368,7 +368,13 @@ pub(crate) fn staged_unit_return(
         &semantic,
         &proof,
         &AdmissionProfile::default(),
-        request(OptimizationSelections::new([Optimization::CopyPropagation]).unwrap()),
+        // The Unit baseline realization runs the same callee-save and frame
+        // stages the fixed-frame route does, so it needs that route's budget.
+        ExplicitOptimizationRequest::new(
+            OptimizationSelections::new([Optimization::CopyPropagation]).unwrap(),
+            selected_lowering_budget(),
+        )
+        .unwrap(),
     )
     .unwrap();
     let target = lower_optimized_to_target_operations(optimized, target).unwrap();

@@ -133,13 +133,12 @@ needed for independent replay through publication.
   requirements artifacts
   remain non-authoritative until that replay succeeds.
 
-  The Unit baseline route in `omega-optimization-pipeline` emits a bare AArch64
-  `ret` with no function-lifetime frame, so the object boundary in
-  `omega-image-emission` rejects it as `MissingAarch64UnitReturnLink`; the
-  ordinary route allocates that frame and saves the link register
-  unconditionally. Acceptance: an empty machine selected for optimization
-  reaches AArch64 native custody carrying the same frame and link-register
-  save/restore the ordinary route emits.
+  Nothing drives an optimized empty machine from Terminal Psi through
+  `omega-terminal-psi-to-native-artifact` to an `ObjectArtifact` on
+  `linux_arm64`. The AArch64 Unit frame and the `UnitStackEvidence` the
+  projection derives from it are pinned on each side of that join and never
+  together. Acceptance: one run produces an AArch64 object whose Unit stack
+  evidence `omega-image-emission` accepts.
 
 - **GENERAL-CALL-CLOBBERS.** Extend live-across-call allocation and clobber
   validation from the landed attached-Unit fork/join slice through general
@@ -195,6 +194,13 @@ needed for independent replay through publication.
   unwind, object, and callable matrices. Existing selected-lowering and
   post-allocation matrices do not claim physical spill insertion, final frame
   layout, or unwind completion.
+
+  `omega --target <name>` publishes no retained native artifact on any target:
+  `omega-image/src/output.rs` leaves `compiler_function_validation` `None` and
+  the workspace has no producer for it, so `publish_retained_native_artifact`
+  stops at `native publication requires compiler-function validation evidence`.
+  Acceptance: an empty-entry sample publishes an executable on each supported
+  target with that evidence derived, not omitted.
 
 - **BENCHMARKS.** Publish versioned compile-time, peak-memory, code-size, and
   runtime benchmarks keyed by exact rule selection and target.

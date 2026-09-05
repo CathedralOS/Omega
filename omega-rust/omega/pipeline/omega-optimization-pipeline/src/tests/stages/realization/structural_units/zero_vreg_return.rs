@@ -331,3 +331,81 @@ fn zero_vreg_unit_return_reaches_replayed_homes_and_machine_custody() {
         assert_eq!(artifact.artifact().statistics.relocation_records, 0);
     }
 }
+
+/// The ordinary machine emitter gives every AArch64 Unit function a
+/// sixteen-byte frame and saves the incoming link register in it, and the
+/// object boundary rejects an AArch64 Unit function without that pair. The
+/// optimized Unit route emits the same five instructions; x86-64 keeps the
+/// bare return, which is the shape that boundary admits there.
+#[test]
+fn optimized_unit_return_carries_the_ordinary_aarch64_frame_and_link_save() {
+    const AARCH64_FRAMED_UNIT_RETURN: [u32; 5] = [
+        0xd100_43ff, // sub sp, sp, #16
+        0xf900_03fe, // str x30, [sp]
+        0xf940_03fe, // ldr x30, [sp]
+        0x9100_43ff, // add sp, sp, #16
+        0xd65f_03c0, // ret
+    ];
+    for target in [
+        NativeTarget::linux_x64(),
+        NativeTarget::uefi_x64(),
+        NativeTarget::linux_arm64(),
+    ] {
+        let (_, _, selected) = staged_unit_return(target);
+        let ranges =
+            stage_optimized_live_ranges(stage_optimized_liveness(selected).unwrap()).unwrap();
+        let homes =
+            stage_optimized_register_homes(stage_optimized_allocation_legality(ranges).unwrap())
+                .unwrap();
+        let realization =
+            stage_optimized_unit_function_relative_realization(homes.try_into().unwrap()).unwrap();
+        let emitted = stage_optimized_function_fragment_emission(
+            FunctionFragmentReplayInputs::UnitBaseline(Box::new(realization)).into(),
+        )
+        .unwrap();
+        match target.architecture {
+            omega_target::Architecture::X86_64 => {
+                assert!(emitted.source().frame_protocol().is_none());
+                let [fragment] = emitted.fragments().functions.as_slice() else {
+                    panic!("one Unit fragment");
+                };
+                assert_eq!(fragment.bytes, vec![0xc3]);
+            }
+            omega_target::Architecture::Aarch64 => {
+                assert!(emitted.source().frame_protocol().is_some());
+                let applied = stage_function_fragment_frame_application(emitted).unwrap();
+                validate_function_fragment_frame_application(&applied).unwrap();
+                let [fragment] = applied.fragments().functions.as_slice() else {
+                    panic!("one Unit fragment");
+                };
+                assert_eq!(
+                    fragment.bytes,
+                    AARCH64_FRAMED_UNIT_RETURN
+                        .into_iter()
+                        .flat_map(u32::to_le_bytes)
+                        .collect::<Vec<_>>()
+                );
+                let [row] = applied.application().functions.as_slice() else {
+                    panic!("one applied frame protocol");
+                };
+                assert_eq!(row.prologue_function_offset, 0);
+                assert_eq!(row.prologue_byte_count, 8);
+                let [epilogue] = row.epilogues.as_slice() else {
+                    panic!("one applied epilogue");
+                };
+                assert_eq!(epilogue.function_offset, 8);
+                assert_eq!(epilogue.byte_count, 8);
+                let [block] = fragment.blocks.as_slice() else {
+                    panic!("one block");
+                };
+                let [instruction] = block.instructions.as_slice() else {
+                    panic!("one instruction");
+                };
+                assert_eq!(block.offset, 8);
+                assert_eq!(block.byte_count, 12);
+                assert_eq!(instruction.offset, 16);
+                assert_eq!(fragment.byte_count, 20);
+            }
+        }
+    }
+}

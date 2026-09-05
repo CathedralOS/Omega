@@ -16,6 +16,12 @@ pub use omega_machine_code::TargetFrameLayoutIdentity;
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum TargetFrameLayoutPolicy {
     CanonicalOrdinaryCallFrameV1,
+    /// Every AArch64 function gives the incoming link an exact frame slot,
+    /// whether or not it calls. Unit functions realized by the ordinary
+    /// machine emitter carry that slot unconditionally, and the object
+    /// boundary requires it of every AArch64 Unit function, so an optimized
+    /// Unit route must agree with them rather than take the leaf exemption.
+    CanonicalSavedReturnAddressFrameV1,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

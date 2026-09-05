@@ -12,6 +12,7 @@ pub(super) struct CurrentFunctionFragmentInput {
     pub(super) environment: crate::ValidatedTargetRegisterEnvironment,
     pub(super) encoding: crate::StagedOptimizedSelectedFormEncoding,
     pub(super) frame_protocol: Option<crate::ValidatedTargetFrameProtocolEncoding>,
+    pub(super) frame_layout: Option<crate::ValidatedTargetFrameLayout>,
     pub(super) exit: crate::ValidatedWholeFunctionExitContract,
     pub(super) manifest: crate::ValidatedFunctionRelativeOptimizationRealizationManifest,
     pub(super) post_allocation_manifest:
@@ -38,9 +39,8 @@ impl CurrentFunctionFragmentInput {
             homes,
             environment: replay.register_environment().clone(),
             encoding: replay.encoding().clone(),
-            frame_protocol: replay
-                .fixed_frame_realization()
-                .map(|value| value.protocol().clone()),
+            frame_protocol: replay.frame_protocol().cloned(),
+            frame_layout: replay.frame_layout().cloned(),
             exit: replay.exit_contract().clone(),
             manifest: replay.function_relative_manifest().clone(),
             post_allocation_manifest: replay.post_allocation_manifest().clone(),
@@ -62,6 +62,7 @@ impl CurrentFunctionFragmentInput {
             || self.environment != expected.environment
             || self.encoding != expected.encoding
             || self.frame_protocol != expected.frame_protocol
+            || self.frame_layout != expected.frame_layout
             || self.exit != expected.exit
             || self.manifest != expected.manifest
             || self.post_allocation_manifest != expected.post_allocation_manifest
