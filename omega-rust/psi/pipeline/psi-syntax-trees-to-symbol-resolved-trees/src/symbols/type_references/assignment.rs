@@ -65,6 +65,23 @@ pub(in crate::symbols) fn assign_type_reference_symbols(
     let data_payload_fields = &mut program.tables.declarations.data_payload_fields;
     let child_type_references = &mut program.tables.declarations.child_type_references;
     program
+        .tables
+        .types
+        .generic_application_origins
+        .for_each_mut(|_, origin| {
+            for handle in [origin.instance, origin.application] {
+                let mut reference = std::mem::take(child_type_references.get_mut(handle));
+                assign_type_reference_symbol_with_locals_and_constraints(
+                    symbols,
+                    child_type_references,
+                    type_constraints,
+                    &[],
+                    &mut reference,
+                );
+                *child_type_references.get_mut(handle) = reference;
+            }
+        });
+    program
         .roots
         .const_declarations
         .for_each_mut(|declaration| {

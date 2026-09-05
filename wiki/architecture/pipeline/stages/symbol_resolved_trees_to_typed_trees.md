@@ -77,6 +77,17 @@ Must own:
   declarations, internal state signatures, locals, and casts. Primitive types,
   local binders, and source-free compiler nodes do not become package
   selections.
+- Closed generic applications retain the exposure of each original use, not
+  the shared generated instance's declaration visibility. Lowering records the
+  original base and argument tokens once under that use's enclosing exposure.
+  Derived instance fields do not create public-interface selections, while
+  authored public template fields and public concrete applications still
+  require public selected declarations.
+- Closed-data method signatures likewise do not invent source selections from
+  substituted types. Suppression requires a verified association to the exact
+  authored template and closed owner, with unchanged visibility and supply mode.
+  Original template signatures remain checked; body call and operator custody
+  continues through the existing authored-copy reconciliation.
 
 Must not own:
 

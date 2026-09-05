@@ -8,6 +8,20 @@ pub(crate) fn lower_data_definition(
     lowerer: &mut Lowerer,
     data_definition: &resolved::data::DataDefinition,
 ) -> Result<typed::data::DataDefinition, Diagnostic> {
+    let exposure = data_definition
+        .generic_instance
+        .is_none()
+        .then_some(lowerer.type_reference_exposure)
+        .flatten();
+    lowerer.with_type_reference_exposure(exposure, |lowerer| {
+        lower_data_definition_contents(lowerer, data_definition)
+    })
+}
+
+fn lower_data_definition_contents(
+    lowerer: &mut Lowerer,
+    data_definition: &resolved::data::DataDefinition,
+) -> Result<typed::data::DataDefinition, Diagnostic> {
     let mut typed_data_definition = typed::data::DataDefinition {
         symbol: data_definition.symbol,
         name: crate::name::lower_name(&data_definition.name),

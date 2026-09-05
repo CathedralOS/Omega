@@ -11,6 +11,7 @@ use std::ops::{Deref, DerefMut};
 pub struct Machine {
     pub symbol: SymbolHandle,
     pub name: DiagnosticName,
+    pub generic_data_origin: GenericDataMachineOrigin,
     pub attached_data: Option<DiagnosticName>,
     /// Exact nominal declaration named by `attached_data`. Spelling remains
     /// diagnostic only; semantic consumers must use this symbol.
@@ -54,6 +55,16 @@ pub struct Machine {
     pub compiler_selection_partition:
         Option<psi_language_semantics::declaration_selection::CompilerDerivedSelectionPartition>,
     pub storage: MachineStorage,
+}
+
+/// Compiler-owned derivation, separate from trait-default selection partitions.
+/// The declaration token settles to one original template and one closed data
+/// owner before typed lowering can suppress substituted signature occurrences.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct GenericDataMachineOrigin {
+    pub template_source: DiagnosticName,
+    pub template: SymbolHandle,
+    pub closed_owner: SymbolHandle,
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]

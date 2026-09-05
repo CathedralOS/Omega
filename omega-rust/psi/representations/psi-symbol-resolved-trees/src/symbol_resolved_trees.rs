@@ -139,6 +139,7 @@ pub struct SymbolResolvedDeclarationStorage {
 pub struct SymbolResolvedTypeStorage {
     pub constraints: Arena<types::TypeConstraint>,
     pub references: types::TypeReferenceTable,
+    pub generic_application_origins: Arena<types::GenericApplicationOrigin>,
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]

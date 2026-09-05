@@ -669,6 +669,9 @@ pub struct GenericConformanceBound {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Machine {
     pub name: Identifier,
+    /// Exact authored template token for a method cloned onto closed generic
+    /// data. Empty on authored declarations and other synthesis families.
+    pub generic_data_template: Identifier,
     pub attached_data: Option<Identifier>,
     /// Source-level package visibility. This is independent from `boundary`:
     /// an ordinary public library callable remains checked Omega code while

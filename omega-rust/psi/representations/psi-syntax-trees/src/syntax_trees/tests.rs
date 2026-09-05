@@ -15,6 +15,91 @@ use crate::types::{TypeReferenceHandle, TypeReferenceNode};
 use psi_arena::HandleSpan;
 
 #[test]
+fn copying_nested_generic_origins_remaps_handles_and_preserves_occurrence_tokens() {
+    let token = |name: &str, start| {
+        Identifier::new(
+            name,
+            psi_source::SourceSpan::new(
+                Default::default(),
+                psi_source::Span::new(start, start + name.len()),
+            ),
+        )
+    };
+    let mut source = SyntaxTrees::new(Default::default());
+    let secret = source.type_references.insert_named(token("Secret", 40));
+    let arguments = source
+        .type_references
+        .insert_type_reference_handles([secret]);
+    let inner_application = source
+        .type_references
+        .insert_generic(token("Envelope", 30), arguments);
+    let inner = source
+        .type_references
+        .insert_named(token("Envelope<Secret>", 30));
+    source
+        .type_references
+        .retain_generic_application_origin(inner, inner_application);
+    let arguments = source
+        .type_references
+        .insert_type_reference_handles([inner]);
+    let outer_application = source
+        .type_references
+        .insert_generic(token("Envelope", 20), arguments);
+    let outer = source
+        .type_references
+        .insert_named(token("Envelope<Envelope<Secret>>", 20));
+    source
+        .type_references
+        .retain_generic_application_origin(outer, outer_application);
+
+    let mut destination = SyntaxTrees::new(Default::default());
+    for _ in 0..16 {
+        destination.type_references.insert_unit();
+    }
+    let copied = destination.copy_type_reference_handle(&source, outer);
+    assert_ne!(copied, outer);
+    let application = destination
+        .type_references
+        .generic_application_origin(copied);
+    let TypeReferenceNode::Generic {
+        base_name,
+        arguments,
+        ..
+    } = destination.type_references.type_reference(application)
+    else {
+        panic!("outer application");
+    };
+    assert_eq!(base_name.source_span(), token("Envelope", 20).source_span());
+    let inner = destination
+        .type_references
+        .type_reference_handles(*arguments)[0];
+    let application = destination
+        .type_references
+        .generic_application_origin(inner);
+    let TypeReferenceNode::Generic {
+        base_name,
+        arguments,
+        ..
+    } = destination.type_references.type_reference(application)
+    else {
+        panic!("inner application");
+    };
+    assert_eq!(base_name.source_span(), token("Envelope", 30).source_span());
+    let secret = destination
+        .type_references
+        .type_reference_handles(*arguments)[0];
+    let TypeReferenceNode::Named(name) = destination.type_references.type_reference(secret) else {
+        panic!("exact private payload");
+    };
+    assert_eq!(name.as_str(), "Secret");
+    assert_eq!(name.source_span(), token("Secret", 40).source_span());
+    assert!(
+        destination.type_references.generic_nodes().is_empty(),
+        "inert origins are not new synthesis work"
+    );
+}
+
+#[test]
 fn syntax_trees_extend_from_preserves_data_visibility() {
     let mut file = SyntaxTrees::new(Default::default());
     file.push_root_item(Item::Data(DataDefinition {
@@ -175,6 +260,7 @@ fn syntax_trees_collect_state_expression_and_type_payloads() {
 
     syntax_trees.push_root_item(Item::Machine(Machine {
         name: Identifier::generated("Main"),
+        generic_data_template: Default::default(),
         attached_data: None,
         is_public: false,
         target: None,
@@ -230,6 +316,7 @@ fn syntax_trees_extend_from_preserves_root_payload_handles() {
     let state = file.items.append_state_handle(state);
     file.push_root_item(Item::Machine(Machine {
         name: Identifier::generated("main"),
+        generic_data_template: Default::default(),
         attached_data: None,
         is_public: true,
         target: None,
@@ -373,6 +460,7 @@ fn syntax_trees_extend_from_preserves_statement_call_arguments() {
     let state = file.items.append_state_handle(state);
     file.push_root_item(Item::Machine(Machine {
         name: Identifier::generated("main"),
+        generic_data_template: Default::default(),
         attached_data: None,
         is_public: false,
         target: None,
@@ -502,6 +590,7 @@ fn syntax_trees_extend_from_preserves_nested_expression_argument_spans() {
     let state = file.items.append_state_handle(state);
     file.push_root_item(Item::Machine(Machine {
         name: Identifier::generated("main"),
+        generic_data_template: Default::default(),
         attached_data: None,
         is_public: false,
         target: None,

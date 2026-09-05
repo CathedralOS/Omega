@@ -11,6 +11,15 @@ mod tests;
 
 pub type TypeReferenceHandle = Handle<TypeReferenceNode>;
 
+/// One authored generic application and the exact closed occurrence replacing
+/// it. Declaration exposure is supplied by the containing typed source context,
+/// never by the visibility of the synthesized data declaration.
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub struct GenericApplicationOrigin {
+    pub instance: Handle<TypeReference>,
+    pub application: Handle<TypeReference>,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub enum TypeReference {
     Reference(ReferenceTypeReference),
