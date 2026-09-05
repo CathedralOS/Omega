@@ -1,7 +1,7 @@
 //! Provider-aware admission into physical optimizer routing.
 
+use omega_abstract_operations_optimizer::ValidatedOptimizedAbstractPlan;
 use omega_abstract_operations_to_target_operations::AdmittedBoundarySettlement;
-use omega_optimization_run_to_abstract_operations::ValidatedOptimizedAbstractPlan;
 use omega_target::NativeTarget;
 
 use omega_abstract_operations_to_target_operations::lower_optimized_to_target_operations_with_provider_executions;

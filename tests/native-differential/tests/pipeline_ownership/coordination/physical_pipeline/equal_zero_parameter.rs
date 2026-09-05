@@ -9,7 +9,7 @@ use omega_post_allocation_machine_to_optimized_machine::{
 fn optimized_source_with_budget(
     selections: OptimizationSelections,
     budget: OptimizationWorkBudget,
-) -> omega_optimization_run_to_abstract_operations::ValidatedOptimizedAbstractPlan {
+) -> omega_abstract_operations_optimizer::ValidatedOptimizedAbstractPlan {
     let (semantic, proof) = conditional_u64_equal_zero_parameter_artifact();
     optimize_artifact_sections(
         &semantic,
@@ -22,7 +22,7 @@ fn optimized_source_with_budget(
 
 fn optimized_source(
     selections: OptimizationSelections,
-) -> omega_optimization_run_to_abstract_operations::ValidatedOptimizedAbstractPlan {
+) -> omega_abstract_operations_optimizer::ValidatedOptimizedAbstractPlan {
     optimized_source_with_budget(selections, selected_lowering_budget())
 }
 

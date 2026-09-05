@@ -26,27 +26,27 @@ pub(crate) const ENTRANCES: &[RequiredCoordinationEntrance] = &[
         coordination_marker: "pub(super) fn lower_operation",
     },
     RequiredCoordinationEntrance {
-        path: "omega-rust/omega/pipeline/omega-optimization-run-to-abstract-operations/src/lib.rs",
-        coordination_marker: "pub fn project_optimization_run",
+        path: "omega-rust/omega/pipeline/omega-abstract-operations-optimizer/src/publication/mod.rs",
+        coordination_marker: "pub fn publish_optimization_run",
     },
     RequiredCoordinationEntrance {
-        path: "omega-rust/omega/pipeline/omega-optimization-run-to-abstract-operations/src/replay/mod.rs",
+        path: "omega-rust/omega/pipeline/omega-abstract-operations-optimizer/src/publication/replay/mod.rs",
         coordination_marker: "pub(super) fn validate",
     },
     RequiredCoordinationEntrance {
-        path: "omega-rust/omega/pipeline/omega-optimization-run-to-abstract-operations/src/replay/candidate_decisions/mod.rs",
+        path: "omega-rust/omega/pipeline/omega-abstract-operations-optimizer/src/publication/replay/candidate_decisions/mod.rs",
         coordination_marker: "manifests::validate",
     },
     RequiredCoordinationEntrance {
-        path: "omega-rust/omega/pipeline/omega-optimization-run-to-abstract-operations/src/replay/candidate_decisions/mod.rs",
+        path: "omega-rust/omega/pipeline/omega-abstract-operations-optimizer/src/publication/replay/candidate_decisions/mod.rs",
         coordination_marker: "declarations::validate",
     },
     RequiredCoordinationEntrance {
-        path: "omega-rust/omega/pipeline/omega-optimization-run-to-abstract-operations/src/replay/candidate_decisions/mod.rs",
+        path: "omega-rust/omega/pipeline/omega-abstract-operations-optimizer/src/publication/replay/candidate_decisions/mod.rs",
         coordination_marker: "baseline::validate",
     },
     RequiredCoordinationEntrance {
-        path: "omega-rust/omega/pipeline/omega-optimization-run-to-abstract-operations/src/source/mod.rs",
+        path: "omega-rust/omega/pipeline/omega-abstract-operations-optimizer/src/publication/source/mod.rs",
         coordination_marker: "pub(super) fn project_plan",
     },
     RequiredCoordinationEntrance {

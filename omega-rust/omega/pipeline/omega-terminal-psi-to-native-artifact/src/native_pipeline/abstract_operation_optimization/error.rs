@@ -1,5 +1,5 @@
 use omega_abstract_operations_optimizer::OptimizationRunError;
-use omega_optimization_run_to_abstract_operations::OptimizedAbstractProjectionError;
+use omega_abstract_operations_optimizer::OptimizedAbstractProjectionError;
 use omega_psi_to_abstract_operations::{
     ArtifactLoweringError, VerifiedPsiOptimizationUnitBuildError,
 };

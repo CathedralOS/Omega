@@ -9,6 +9,7 @@ name = "omega_abstract_operations_to_target_operations"
 path = "src/lib.rs"
 
 [dependencies]
+omega-abstract-operations-optimizer = { path = "../omega-abstract-operations-optimizer" }
 omega-calling-conventions = { path = "../../representations/omega-calling-conventions" }
 omega-effects = { path = "../../representations/omega-effects" }
 omega-function-identity = { path = "../../representations/omega-function-identity" }
@@ -16,7 +17,6 @@ omega-target = { path = "../../representations/omega-target" }
 omega-abstract-operations = { path = "../../representations/omega-abstract-operations" }
 omega-installation-evidence = { path = "../../representations/omega-installation-evidence" }
 omega-target-operations = { path = "../../representations/omega-target-operations" }
-omega-optimization-run-to-abstract-operations = { path = "../omega-optimization-run-to-abstract-operations" }
 omega-psi-to-abstract-operations = { path = "../omega-psi-to-abstract-operations" }
 psi-core = { path = "../../../psi/foundation/psi-core" }
 psi-access-plans = { path = "../../../psi/foundation/psi-access-plans" }

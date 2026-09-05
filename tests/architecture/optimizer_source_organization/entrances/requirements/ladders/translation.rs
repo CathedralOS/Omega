@@ -55,13 +55,13 @@ pub(crate) const LADDERS: &[SemanticLadder] = &[
     SemanticLadder {
         family: "pre-physical optimization manifest custody tests",
         paths: &[
-            "omega-rust/omega/pipeline/omega-optimization-run-to-abstract-operations/src/tests/manifests/mod.rs",
-            "omega-rust/omega/pipeline/omega-optimization-run-to-abstract-operations/src/tests/manifests/fixture.rs",
-            "omega-rust/omega/pipeline/omega-optimization-run-to-abstract-operations/src/tests/manifests/positive.rs",
-            "omega-rust/omega/pipeline/omega-optimization-run-to-abstract-operations/src/tests/manifests/fields.rs",
-            "omega-rust/omega/pipeline/omega-optimization-run-to-abstract-operations/src/tests/manifests/wire.rs",
-            "omega-rust/omega/pipeline/omega-optimization-run-to-abstract-operations/src/tests/manifests/wire_offsets.rs",
-            "omega-rust/omega/pipeline/omega-optimization-run-to-abstract-operations/src/tests/manifests/multipass.rs",
+            "tests/native-differential/tests/abstract_publication/manifests/mod.rs",
+            "tests/native-differential/tests/abstract_publication/manifests/fixture.rs",
+            "tests/native-differential/tests/abstract_publication/manifests/positive.rs",
+            "tests/native-differential/tests/abstract_publication/manifests/fields.rs",
+            "tests/native-differential/tests/abstract_publication/manifests/wire.rs",
+            "tests/native-differential/tests/abstract_publication/manifests/wire_offsets.rs",
+            "tests/native-differential/tests/abstract_publication/manifests/multipass.rs",
         ],
     },
     SemanticLadder {

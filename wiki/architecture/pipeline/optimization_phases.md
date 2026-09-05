@@ -151,6 +151,13 @@ the external decision schema live in `omega-optimization-core/src/decisions`;
 their record-only builder and codecs never choose a rewrite. Offline policy
 tools consume this data directly, without depending on the executing optimizer.
 
+Abstract optimization includes its own publication step. The native coordinator
+calls `optimize_abstract_operations`; it does not schedule the pass manager and
+projection separately. The output exposes the current abstract program directly
+and retains replay inputs and `AbstractOptimizationEvidence` separately. It
+does not retain the executing session or its analysis cache. Publication replay
+remains independent of the pass execution algorithm.
+
 `build.omg` remains the source of exact opt-in selections. Its one ergonomic
 selection surface is projected into phase-specific closed sets:
 

@@ -31,7 +31,9 @@ use psi_terminal::{
     TerminalPsiIdentity, TerminalRootServiceReach,
 };
 
+mod evidence;
 mod identity;
+pub use evidence::*;
 mod ledger;
 mod observation;
 mod rewrite;

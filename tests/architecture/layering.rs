@@ -2441,7 +2441,7 @@ fn component_era_artifact_occurrence_joins_require_strong_installation_evidence(
 fn optimization_projection_stops_before_target_realization() {
     let root = workspace_root();
     let projection_root =
-        root.join("omega-rust/omega/pipeline/omega-optimization-run-to-abstract-operations");
+        root.join("omega-rust/omega/pipeline/omega-abstract-operations-optimizer");
     let manifest_path = projection_root.join("Cargo.toml");
     let manifest = std::fs::read_to_string(&manifest_path)
         .unwrap_or_else(|error| panic!("failed to read {}: {error}", manifest_path.display()));
@@ -2460,7 +2460,7 @@ fn optimization_projection_stops_before_target_realization() {
         );
     }
 
-    let projection_source_path = projection_root.join("src/lib.rs");
+    let projection_source_path = projection_root.join("src/publication/mod.rs");
     let projection_source =
         std::fs::read_to_string(&projection_source_path).unwrap_or_else(|error| {
             panic!(
@@ -2490,7 +2490,7 @@ fn optimization_projection_stops_before_target_realization() {
         !projection_root.join("src/projection").exists(),
         "projection mechanics and tests must remain in the named replay, source, and tests taxonomies",
     );
-    let source_projection = recursive_rust_source(&projection_root.join("src/source"));
+    let source_projection = recursive_rust_source(&projection_root.join("src/publication/source"));
     for forbidden in [
         "built_in_psi_registries",
         "OptimizationDecisionRecord",
@@ -2502,8 +2502,17 @@ fn optimization_projection_stops_before_target_realization() {
             "source-shape projection must not consume optimizer replay custody; found {forbidden}",
         );
     }
-    let run_replay = recursive_rust_source(&projection_root.join("src/replay"));
-    for forbidden in ["AbstractOperationPlan", "AbstractFunction", "project_plan"] {
+    let run_replay = recursive_rust_source(&projection_root.join("src/publication/replay"));
+    for forbidden in [
+        "AbstractOperationPlan",
+        "AbstractFunction",
+        "project_plan",
+        "pass_manager::execution",
+        "run_psi_pipeline(",
+        "run_psi_registry(",
+        "run_registries(",
+        "replay_psi_pipeline(",
+    ] {
         assert!(
             !run_replay.contains(forbidden),
             "optimizer replay must not construct source projection shape; found {forbidden}",
@@ -2523,10 +2532,47 @@ fn optimization_projection_stops_before_target_realization() {
     }
     assert!(
         !projection_root
-            .join("src/replay/applied_decisions.rs")
+            .join("src/publication/replay/applied_decisions.rs")
             .exists(),
         "the retired flat Applied-only decision replay must not return",
     );
+
+    assert!(
+        !root
+            .join(
+                "omega-rust/omega/pipeline/omega-optimization-run-to-abstract-operations/Cargo.toml"
+            )
+            .exists(),
+        "publication is part of abstract optimization, not a separate stage"
+    );
+    let output = std::fs::read_to_string(projection_root.join("src/publication/model.rs")).unwrap();
+    let fields = output
+        .split("pub struct ValidatedOptimizedAbstractPlan {")
+        .nth(1)
+        .unwrap()
+        .split('}')
+        .next()
+        .unwrap();
+    assert!(fields.contains("plan: Arc<AbstractOperationPlan>"));
+    assert!(fields.contains("evidence: AbstractOptimizationEvidence"));
+    assert!(
+        !fields.contains("OptimizationRun") && !fields.contains("Session"),
+        "published current data must not retain the executing optimizer"
+    );
+    let coordinator = std::fs::read_to_string(root.join(
+        "omega-rust/omega/pipeline/omega-terminal-psi-to-native-artifact/src/native_pipeline/abstract_operation_optimization/mod.rs"
+    )).unwrap();
+    assert!(coordinator.contains("optimize_abstract_operations("));
+    for private_step in [
+        "build_verified_psi_optimization_unit",
+        "run_psi_pipeline_for_projection",
+        "publish_optimization_run",
+    ] {
+        assert!(
+            !coordinator.contains(private_step),
+            "coordinator schedules optimizer internals: {private_step}"
+        );
+    }
 
     let realization_root =
         root.join("omega-rust/omega/pipeline/omega-abstract-operations-to-target-operations/src");

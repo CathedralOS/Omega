@@ -289,11 +289,11 @@ name = "omega-abstract-operations-to-target-operations"
 version = "0.1.0"
 dependencies = [
  "omega-abstract-operations",
+ "omega-abstract-operations-optimizer",
  "omega-calling-conventions",
  "omega-effects",
  "omega-function-identity",
  "omega-installation-evidence",
- "omega-optimization-run-to-abstract-operations",
  "omega-psi-to-abstract-operations",
  "omega-target",
  "omega-target-operations",
@@ -971,7 +971,6 @@ dependencies = [
  "omega-native-artifact",
  "omega-object-file",
  "omega-optimization-core",
- "omega-optimization-run-to-abstract-operations",
  "omega-optimization-unit",
  "omega-optimization-validation",
  "omega-physical-instructions",
@@ -1055,28 +1054,6 @@ version = "0.1.0"
 dependencies = [
  "omega-optimization-core",
  "sha2",
-]
-
-[[package]]
-name = "omega-optimization-run-to-abstract-operations"
-version = "0.1.0"
-dependencies = [
- "omega-abstract-operations",
- "omega-abstract-operations-optimizer",
- "omega-abstract-operations-to-target-operations",
- "omega-optimization-core",
- "omega-optimization-unit",
- "omega-optimization-validation",
- "omega-psi-to-abstract-operations",
- "omega-target",
- "omega-target-operations",
- "psi-checked-trees-to-terminal",
- "psi-core",
- "psi-proof-admission",
- "psi-terminal",
- "psi-terminal-codec",
- "psi-terminal-fuel",
- "psi-terminal-verifier",
 ]
 
 [[package]]
@@ -1667,7 +1644,6 @@ dependencies = [
  "omega-native-artifact",
  "omega-object-file",
  "omega-optimization-core",
- "omega-optimization-run-to-abstract-operations",
  "omega-optimization-validation",
  "omega-post-allocation-machine-to-frame-layout",
  "omega-post-allocation-machine-to-optimized-machine",

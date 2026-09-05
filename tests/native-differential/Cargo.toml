@@ -70,7 +70,6 @@ omega-component-deployment = { path = "../../omega-rust/omega/build/omega-compon
 omega-effects = { path = "../../omega-rust/omega/representations/omega-effects" }
 omega-isa-aarch64 = { path = "../../omega-rust/omega/backend/instruction_set_architectures/omega-isa-aarch64" }
 omega-isa-x86_64 = { path = "../../omega-rust/omega/backend/instruction_set_architectures/omega-isa-x86_64" }
-omega-optimization-run-to-abstract-operations = { path = "../../omega-rust/omega/pipeline/omega-optimization-run-to-abstract-operations" }
 omega-optimization-core = { path = "../../omega-rust/omega/representations/omega-optimization-core" }
 omega-target-operations-to-selected-instructions = { path = "../../omega-rust/omega/pipeline/omega-target-operations-to-selected-instructions" }
 omega-abstract-operations-optimizer = { path = "../../omega-rust/omega/pipeline/omega-abstract-operations-optimizer" }

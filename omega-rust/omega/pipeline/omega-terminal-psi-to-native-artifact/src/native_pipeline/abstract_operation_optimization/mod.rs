@@ -2,8 +2,8 @@
 //!
 //! [`request`] owns exact opt-in selections and bounded work. [`error`] owns
 //! the closed stage failures. This entrance visibly performs artifact
-//! admission, verified-unit construction, the selected abstract pass run, and
-//! independent abstract-plan projection in that order.
+//! admission followed by the complete abstract optimization phase. Unit
+//! construction, pass execution and publication belong to that phase.
 
 mod error;
 mod request;
@@ -14,13 +14,11 @@ pub use request::{
     compiler_baseline_request_v1,
 };
 
-use omega_abstract_operations_optimizer::run_psi_pipeline_for_projection;
-use omega_optimization_run_to_abstract_operations::{
-    ValidatedOptimizedAbstractPlan, project_optimization_run,
+use omega_abstract_operations_optimizer::{
+    AbstractOptimizationError, ValidatedOptimizedAbstractPlan, optimize_abstract_operations,
 };
 use omega_psi_to_abstract_operations::{
-    VerifiedPsiOptimizationInput, build_verified_psi_optimization_unit,
-    lower_artifact_sections_for_optimization,
+    VerifiedPsiOptimizationInput, lower_artifact_sections_for_optimization,
 };
 use psi_proof_admission::AdmissionProfile;
 
@@ -40,24 +38,17 @@ pub fn optimize_verified_abstract_input(
     request: impl Into<OptimizationPipelineRequest>,
 ) -> Result<ValidatedOptimizedAbstractPlan, OptimizationPipelineError> {
     let request = request.into();
-    run_verified_abstract_input(input, &request)
-}
-
-fn run_verified_abstract_input(
-    input: VerifiedPsiOptimizationInput,
-    request: &OptimizationPipelineRequest,
-) -> Result<ValidatedOptimizedAbstractPlan, OptimizationPipelineError> {
-    let verified = build_verified_psi_optimization_unit(
+    optimize_abstract_operations(
         input,
-        psi_terminal_fuel::TerminalFuelSchedule::CURRENT.identity(),
-    )
-    .map_err(OptimizationPipelineError::UnitBuild)?;
-    let run = run_psi_pipeline_for_projection(
-        verified,
         request.selections(),
         request.psi_projection(),
         request.budget_per_pass(),
     )
-    .map_err(OptimizationPipelineError::Run)?;
-    project_optimization_run(run).map_err(OptimizationPipelineError::AbstractProjection)
+    .map_err(|error| match error {
+        AbstractOptimizationError::UnitBuild(error) => OptimizationPipelineError::UnitBuild(error),
+        AbstractOptimizationError::Run(error) => OptimizationPipelineError::Run(error),
+        AbstractOptimizationError::Publication(error) => {
+            OptimizationPipelineError::AbstractProjection(error)
+        }
+    })
 }

@@ -10,7 +10,6 @@ path = "src/lib.rs"
 
 [dependencies]
 omega-abstract-operations-optimizer = { path = "../omega-abstract-operations-optimizer" }
-omega-optimization-run-to-abstract-operations = { path = "../omega-optimization-run-to-abstract-operations" }
 omega-optimization-validation = { path = "../omega-optimization-validation" }
 omega-post-allocation-machine-to-frame-layout = { path = "../omega-post-allocation-machine-to-frame-layout" }
 omega-post-allocation-machine-to-optimized-machine = { path = "../omega-post-allocation-machine-to-optimized-machine" }
