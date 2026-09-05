@@ -1,5 +1,8 @@
 use super::*;
 
+#[path = "../fixture_rosters/proof_and_float_suites.rs"]
+pub(super) mod fixture_roster;
+
 #[test]
 fn fail_canaries_reject_with_expected_diagnostic_fragment() {
     // COLLECT-ALL, not first-panic: one regressed member must not exempt the
@@ -109,23 +112,14 @@ fn fail_canaries_reject_with_expected_diagnostic_fragment() {
 
 #[test]
 fn decode_requirement_surface_compiles() {
-    let canary = pass_canary("wire/decode_requirement_surface");
+    let canary = pass_canary(fixture_roster::WIRE_DECODE_REQUIREMENT_SURFACE);
     compile_canary_without_output(&canary)
         .expect("strict, projecting, and preserving decode requirements should compile");
 }
 
 #[test]
 fn range_gated_establishment_canaries_compile() {
-    for name in [
-        "dependent/range_sugar_gated_construction_compile",
-        "dependent/nested_gated_construction_compile",
-        "dependent/zero_case_absorbs_nested_gate_compile",
-        "dependent/range_gated_machine_establishment_compile",
-        "dependent/data_where_cross_state_establish",
-        "dependent/data_where_callee_establishes",
-        "dependent/data_where_multistate_callee",
-        "dependent/data_where_gated_literal_proves",
-    ] {
+    for &name in fixture_roster::RANGE_GATED_ESTABLISHMENT_PASS_CANARIES {
         let canary = pass_canary(name);
         check_canary(&canary).unwrap_or_else(|diagnostics| {
             panic!(
@@ -143,13 +137,7 @@ fn range_gated_establishment_canaries_compile() {
 
 #[test]
 fn range_gated_establishment_canaries_reject_unsafe_uses() {
-    for name in [
-        "arithmetic/zii_range_excludes_zero_rejected",
-        "range/element_range_zero_excluded",
-        "dependent/range_sugar_gated_field_omitted_rejected",
-        "dependent/nested_gated_field_omitted_rejected",
-        "dependent/data_where_gated_machine_unestablished_rejected",
-    ] {
+    for &name in fixture_roster::RANGE_GATED_ESTABLISHMENT_FILE_FAIL_CANARIES {
         let canary = fail_canary(name);
         let expected = fs::read_to_string(canary.join("expected.txt"))
             .expect("range-gated fail canary should carry expected.txt");
@@ -172,11 +160,7 @@ fn range_gated_establishment_canaries_reject_unsafe_uses() {
 
 #[test]
 fn default_domain_membership_canaries_compile() {
-    for name in [
-        "dependent/data_where_membership_literal_compile",
-        "dependent/data_where_membership_window_restored_compile",
-        "dependent/data_where_membership_zero_valid_compile",
-    ] {
+    for &name in fixture_roster::DEFAULT_DOMAIN_MEMBERSHIP_PASS_CANARIES {
         let canary = pass_canary(name);
         check_canary(&canary).unwrap_or_else(|diagnostics| {
             panic!(
@@ -194,11 +178,7 @@ fn default_domain_membership_canaries_compile() {
 
 #[test]
 fn default_domain_membership_canaries_reject_invalid_claims() {
-    for name in [
-        "dependent/data_where_membership_literal_rejected",
-        "dependent/data_where_membership_carrier_mismatch_rejected",
-        "dependent/data_where_ambiguous_domain_short_name_rejected",
-    ] {
+    for &name in fixture_roster::DEFAULT_DOMAIN_MEMBERSHIP_FILE_FAIL_CANARIES {
         let canary = fail_canary(name);
         let expected = fs::read_to_string(canary.join("expected.txt"))
             .expect("membership fail canary should carry expected.txt");
@@ -221,7 +201,7 @@ fn default_domain_membership_canaries_reject_invalid_claims() {
 
 #[test]
 fn default_domain_standing_bound_canaries() {
-    let pass = pass_canary("dependent/data_where_standing_bound_exit");
+    let pass = pass_canary(fixture_roster::DEPENDENT_DATA_WHERE_STANDING_BOUND_EXIT);
     compile_canary_without_output(&pass).unwrap_or_else(|diagnostics| {
         panic!(
             "{} failed:\n{}",
@@ -234,7 +214,7 @@ fn default_domain_standing_bound_canaries() {
         )
     });
 
-    let fail = fail_canary("dependent/data_where_standing_bound_absent_rejected");
+    let fail = fail_canary(fixture_roster::DEPENDENT_DATA_WHERE_STANDING_BOUND_ABSENT_REJECTED);
     let expected = fs::read_to_string(fail.join("expected.txt"))
         .expect("standing-bound fail canary should carry expected.txt");
     let diagnostics = compile_canary_without_output(&fail)
@@ -255,14 +235,7 @@ fn default_domain_standing_bound_canaries() {
 
 #[test]
 fn default_domain_measure_and_symbolic_canaries() {
-    for name in [
-        "dependent/data_where_length_construction_compile",
-        "dependent/data_where_length_window_compile",
-        "dependent/data_where_length_zero_valid_compile",
-        "dependent/data_where_symbolic_equal_construction_compile",
-        "dependent/data_where_symbolic_equal_window_compile",
-        "dependent/data_where_capacity_measure_compile",
-    ] {
+    for &name in fixture_roster::DEFAULT_DOMAIN_MEASURE_PASS_CANARIES {
         let canary = pass_canary(name);
         check_canary(&canary).unwrap_or_else(|diagnostics| {
             panic!(
@@ -277,10 +250,7 @@ fn default_domain_measure_and_symbolic_canaries() {
         });
     }
 
-    for name in [
-        "dependent/data_where_length_mismatch_rejected",
-        "dependent/data_where_capacity_mismatch_rejected",
-    ] {
+    for &name in fixture_roster::DEFAULT_DOMAIN_MEASURE_FILE_FAIL_CANARIES {
         let canary = fail_canary(name);
         let expected = fs::read_to_string(canary.join("expected.txt"))
             .expect("default-domain fail canary should carry expected.txt");
@@ -300,12 +270,7 @@ fn default_domain_measure_and_symbolic_canaries() {
         );
     }
 
-    for name in [
-        "dependent/data_where_param_write_unproven",
-        "dependent/data_where_cross_state_unknown_refuses",
-        "dependent/data_where_symbolic_correlation_stale_rejected",
-        "dependent/data_where_invariant_window_unclosed_rejected",
-    ] {
+    for &name in fixture_roster::DEFAULT_DOMAIN_STALE_FACT_FAIL_CANARIES {
         let canary = fail_canary(name);
         assert!(
             check_canary(&canary).is_err(),
@@ -317,7 +282,7 @@ fn default_domain_measure_and_symbolic_canaries() {
 
 #[test]
 fn default_domain_product_hypothesis_canary() {
-    let canary = pass_canary("dependent/data_where_product_hypothesis");
+    let canary = pass_canary(fixture_roster::DEPENDENT_DATA_WHERE_PRODUCT_HYPOTHESIS);
     check_canary(&canary).unwrap_or_else(|diagnostics| {
         panic!(
             "{} failed:\n{}",
@@ -330,11 +295,7 @@ fn default_domain_product_hypothesis_canary() {
         )
     });
 
-    for name in [
-        "dependent/data_where_gated_machine_unestablished_rejected",
-        "dependent/data_where_read_before_establish",
-        "dependent/data_where_invariant_window_unclosed_rejected",
-    ] {
+    for &name in fixture_roster::DEFAULT_DOMAIN_PRODUCT_FAIL_CANARIES {
         let canary = fail_canary(name);
         assert!(
             check_canary(&canary).is_err(),
@@ -346,11 +307,7 @@ fn default_domain_product_hypothesis_canary() {
 
 #[test]
 fn default_domain_symbolic_correlation_canaries() {
-    for name in [
-        "dependent/data_where_symbolic_affine_window_compile",
-        "dependent/data_where_commutative_correlation_compile",
-        "dependent/data_where_flow_proven_construction_compile",
-    ] {
+    for &name in fixture_roster::DEFAULT_DOMAIN_CORRELATION_PASS_CANARIES {
         let canary = pass_canary(name);
         check_canary(&canary).unwrap_or_else(|diagnostics| {
             panic!(
@@ -365,10 +322,7 @@ fn default_domain_symbolic_correlation_canaries() {
         });
     }
 
-    for name in [
-        "dependent/data_where_symbolic_correlation_stale_rejected",
-        "dependent/data_where_cross_state_unknown_refuses",
-    ] {
+    for &name in fixture_roster::DEFAULT_DOMAIN_CORRELATION_FAIL_CANARIES {
         let canary = fail_canary(name);
         assert!(
             check_canary(&canary).is_err(),
@@ -380,10 +334,7 @@ fn default_domain_symbolic_correlation_canaries() {
 
 #[test]
 fn commutative_semiring_core_canaries() {
-    for name in [
-        "proofs/ring_rearrange_core_nat",
-        "traits/ring_requirement_satisfies_exit",
-    ] {
+    for &name in fixture_roster::COMMUTATIVE_SEMIRING_PASS_CANARIES {
         let canary = pass_canary(name);
         compile_canary_without_output(&canary).unwrap_or_else(|diagnostics| {
             panic!(
@@ -398,10 +349,7 @@ fn commutative_semiring_core_canaries() {
         });
     }
 
-    for name in [
-        "proofs/polynomial_expand_core_nat",
-        "proofs/proof_nat_structural_lemmas",
-    ] {
+    for &name in fixture_roster::COMMUTATIVE_SEMIRING_CHECKED_PASS_CANARIES {
         let canary = pass_canary(name);
         check_canary(&canary).unwrap_or_else(|diagnostics| {
             panic!(
@@ -419,7 +367,7 @@ fn commutative_semiring_core_canaries() {
 
 #[test]
 fn exact_nat_subtraction_requires_a_prior_order_fact() {
-    let accepted = pass_canary("proofs/nat_exact_subtraction_compile");
+    let accepted = pass_canary(fixture_roster::PROOFS_NAT_EXACT_SUBTRACTION_COMPILE);
     check_canary(&accepted).unwrap_or_else(|diagnostics| {
         panic!(
             "{} failed to reach checked semantics:\n{}",
@@ -432,7 +380,7 @@ fn exact_nat_subtraction_requires_a_prior_order_fact() {
         )
     });
 
-    let rejected = fail_canary("proofs/nat_exact_subtraction_requires_order");
+    let rejected = fail_canary(fixture_roster::PROOFS_NAT_EXACT_SUBTRACTION_REQUIRES_ORDER);
     let diagnostics = check_canary(&rejected)
         .expect_err("bare Nat subtraction without its order fact must reject");
     let combined = diagnostics
@@ -450,7 +398,7 @@ fn exact_nat_subtraction_requires_a_prior_order_fact() {
 
 #[test]
 fn algebraic_normalization_requires_an_exact_licensed_conformance() {
-    let licensed = pass_canary("proofs/ring_rearrange_core_nat");
+    let licensed = pass_canary(fixture_roster::PROOFS_RING_REARRANGE_CORE_NAT);
     check_canary(&licensed).unwrap_or_else(|diagnostics| {
         panic!(
             "{} failed to reach checked semantics with its selected conformance:\n{}",
@@ -463,10 +411,7 @@ fn algebraic_normalization_requires_an_exact_licensed_conformance() {
         )
     });
 
-    for name in [
-        "proofs/ring_rearrange_unlicensed_rejected",
-        "proofs/ring_rearrange_false_shuffle_rejected",
-    ] {
+    for &name in fixture_roster::ALGEBRAIC_NORMALIZATION_FAIL_CANARIES {
         let canary = fail_canary(name);
         let diagnostics = check_canary(&canary)
             .expect_err("unlicensed or unequal normalization must reject in checked semantics");
@@ -485,7 +430,7 @@ fn algebraic_normalization_requires_an_exact_licensed_conformance() {
 
 #[test]
 fn ring_identity_slot_bridge_canary_compiles() {
-    let canary = pass_canary("proofs/ring_identity_slot_bridge_compile");
+    let canary = pass_canary(fixture_roster::PROOFS_RING_IDENTITY_SLOT_BRIDGE_COMPILE);
     compile_canary_without_output(&canary).unwrap_or_else(|diagnostics| {
         panic!(
             "{} failed:\n{}",
@@ -501,7 +446,7 @@ fn ring_identity_slot_bridge_canary_compiles() {
 
 #[test]
 fn integer_measured_nat_induction_canary_compiles() {
-    let canary = pass_canary("proofs/integer_measured_nat_induction_compile");
+    let canary = pass_canary(fixture_roster::PROOFS_INTEGER_MEASURED_NAT_INDUCTION_COMPILE);
     check_canary(&canary).unwrap_or_else(|diagnostics| {
         panic!(
             "{} failed to reach checked semantics:\n{}",
@@ -517,7 +462,8 @@ fn integer_measured_nat_induction_canary_compiles() {
 
 #[test]
 fn proof_joint_scc_ranking_canaries_reach_checked_semantics() {
-    let canary = pass_canary("termination/proof_non_tail_joint_machine_cycle_compile");
+    let canary =
+        pass_canary(fixture_roster::TERMINATION_PROOF_NON_TAIL_JOINT_MACHINE_CYCLE_COMPILE);
     check_canary(&canary).unwrap_or_else(|diagnostics| {
         panic!(
             "{} failed to reach checked semantics:\n{}",
@@ -530,16 +476,7 @@ fn proof_joint_scc_ranking_canaries_reach_checked_semantics() {
         )
     });
 
-    for (name, expected) in [
-        (
-            "termination/proof_joint_machine_cycle_nondecreasing",
-            "does not structurally decrease",
-        ),
-        (
-            "termination/proof_joint_machine_cycle_unmeasured",
-            "unmeasured proof machine",
-        ),
-    ] {
+    for &(name, expected) in fixture_roster::PROOF_JOINT_RANKING_FAIL_CANARIES {
         let canary = fail_canary(name);
         let diagnostics = check_canary(&canary)
             .expect_err("an invalid proof-machine SCC must reject in checked semantics");
@@ -558,7 +495,7 @@ fn proof_joint_scc_ranking_canaries_reach_checked_semantics() {
 
 #[test]
 fn exact_float_to_int_proof_canaries() {
-    let canary = pass_canary("float/float_to_int_exact_proofs_exit");
+    let canary = pass_canary(fixture_roster::FLOAT_FLOAT_TO_INT_EXACT_PROOFS_EXIT);
     compile_canary_without_output(&canary).unwrap_or_else(|diagnostics| {
         panic!(
             "{} failed:\n{}",
@@ -571,10 +508,7 @@ fn exact_float_to_int_proof_canaries() {
         )
     });
 
-    for name in [
-        "arithmetic/float_cast_unproven_rejected",
-        "arithmetic/float_to_int_exact_unproven",
-    ] {
+    for &name in fixture_roster::EXACT_FLOAT_TO_INT_FAIL_CANARIES {
         let canary = fail_canary(name);
         assert!(
             compile_canary_without_output(&canary).is_err(),
@@ -586,7 +520,7 @@ fn exact_float_to_int_proof_canaries() {
 
 #[test]
 fn generic_float_builtins_retain_exact_provider_evidence() {
-    let canary = pass_canary("arithmetic/runtime_float_min_max_abs_clamp_exit");
+    let canary = pass_canary(fixture_roster::ARITHMETIC_RUNTIME_FLOAT_MIN_MAX_ABS_CLAMP_EXIT);
     let checked = compile_to_checked(&canary.join("main.omg"), None)
         .expect("generic float builtins should compile to checked trees");
     let uses = checked
@@ -624,7 +558,7 @@ fn generic_float_builtins_retain_exact_provider_evidence() {
 fn runtime_float_min_max_abs_clamp_exit_canary_runs() {
     // Float min/max on SSE (maxsd/minsd), plus abs/clamp over floats which
     // desugar to them: max(3,7)+min(3,7)+abs(-12)+clamp(300,0,200) = 222.
-    let canary = pass_canary("arithmetic/runtime_float_min_max_abs_clamp_exit");
+    let canary = pass_canary(fixture_roster::ARITHMETIC_RUNTIME_FLOAT_MIN_MAX_ABS_CLAMP_EXIT);
     let build_dir = std::env::temp_dir().join(format!("omega-float-minmax-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
 
@@ -652,7 +586,7 @@ fn runtime_shared_ref_param_member_exit_canary_runs() {
     // Shared &Struct param (non-boundary): content-spill convention; the callee
     // reads a=7 and b=35 through the ref -> got=42 (the exit). A pointee
     // misresolution dereferences the spilled content and crashes (0xC0000005).
-    let canary = pass_canary("calls/runtime_shared_ref_param_member_exit");
+    let canary = pass_canary(fixture_roster::CALLS_RUNTIME_SHARED_REF_PARAM_MEMBER_EXIT);
     let build_dir = std::env::temp_dir().join(format!("omega-sharedref-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
 
@@ -688,7 +622,7 @@ fn runtime_shared_ref_param_large_deref_exit_canary_runs() {
     // table.boot_services` shape) MUST dereference. Reading the slot inline
     // instead fetched garbage -- Cathedral's M2 boot dispatched get_memory_map
     // through it and #UD'd under QEMU. value=42 at offset 16 -> exit 42.
-    let canary = pass_canary("calls/runtime_shared_ref_param_large_deref_exit");
+    let canary = pass_canary(fixture_roster::CALLS_RUNTIME_SHARED_REF_PARAM_LARGE_DEREF_EXIT);
     let build_dir =
         std::env::temp_dir().join(format!("omega-sharedref-large-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
@@ -719,7 +653,7 @@ stderr:
 
 #[test]
 fn runtime_large_shared_ref_direct_assignment_exit_canary_runs() {
-    let canary = pass_canary("calls/runtime_large_shared_ref_direct_assignment_exit");
+    let canary = pass_canary(fixture_roster::CALLS_RUNTIME_LARGE_SHARED_REF_DIRECT_ASSIGNMENT_EXIT);
     let build_dir = std::env::temp_dir().join(format!(
         "omega-large-shared-ref-direct-assignment-{}",
         std::process::id()
@@ -750,7 +684,7 @@ fn runtime_same_type_contained_direct_fields_exit_canary_runs() {
     // The SOUND pattern for two same-type contained machines: DIRECT field access
     // (not method calls, which alias to the first field of the type). a -> 13,
     // b -> 21 independently -> exit 70.
-    let canary = pass_canary("calls/runtime_same_type_contained_direct_fields_exit");
+    let canary = pass_canary(fixture_roster::CALLS_RUNTIME_SAME_TYPE_CONTAINED_DIRECT_FIELDS_EXIT);
     let build_dir =
         std::env::temp_dir().join(format!("omega-sametype-direct-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
@@ -782,7 +716,7 @@ fn runtime_sum_field_store_payload_exit_canary_runs() {
     // Regression for the sum-type field-store payload-offset miscompile: storing
     // Tx::Transfer{to:3, amount:40} into a field then matching must read to=3,
     // amount=40 -> exit 70 (before the fix: to=40, amount=0).
-    let canary = pass_canary("control_flow/runtime_sum_field_store_payload_exit");
+    let canary = pass_canary(fixture_roster::CONTROL_FLOW_RUNTIME_SUM_FIELD_STORE_PAYLOAD_EXIT);
     let build_dir = std::env::temp_dir().join(format!("omega-sumfield-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
 
@@ -812,7 +746,7 @@ fn runtime_sum_field_store_payload_exit_canary_runs() {
 fn runtime_argmax_index_exit_canary_runs() {
     // argmax over [4,15,8,42,16,23]: the maximum 42 is at index 3 -> exit 70;
     // a wrong index-capture -> exit 71.
-    let canary = pass_canary("collections/runtime_argmax_index_exit");
+    let canary = pass_canary(fixture_roster::COLLECTIONS_RUNTIME_ARGMAX_INDEX_EXIT);
     let build_dir = std::env::temp_dir().join(format!("omega-argmax-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
 
@@ -842,7 +776,7 @@ fn runtime_argmax_index_exit_canary_runs() {
 fn runtime_bracket_matcher_stack_exit_canary_runs() {
     // Stack-based bracket matcher over "([)]" (mis-nested). Correct verdict is
     // UNBALANCED -> exit 70; a count-only or broken matcher -> exit 71.
-    let canary = pass_canary("collections/runtime_bracket_matcher_stack_exit");
+    let canary = pass_canary(fixture_roster::COLLECTIONS_RUNTIME_BRACKET_MATCHER_STACK_EXIT);
     let build_dir = std::env::temp_dir().join(format!("omega-bracket-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
 
@@ -872,7 +806,7 @@ fn runtime_bracket_matcher_stack_exit_canary_runs() {
 fn runtime_palindrome_two_pointer_exit_canary_runs() {
     // Two-pointer palindrome over [1,2,3,4,1] (NOT a palindrome): must detect the
     // arr[1]=2 vs arr[3]=4 mismatch -> exit 70; missing it -> exit 71.
-    let canary = pass_canary("collections/runtime_palindrome_two_pointer_exit");
+    let canary = pass_canary(fixture_roster::COLLECTIONS_RUNTIME_PALINDROME_TWO_POINTER_EXIT);
     let build_dir = std::env::temp_dir().join(format!("omega-palindrome-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
 
@@ -902,7 +836,8 @@ fn runtime_palindrome_two_pointer_exit_canary_runs() {
 fn runtime_cross_array_indexed_guard_compare_exit_canary_runs() {
     // PROBE: `a[i] < b[j]` (two different arrays, both runtime indices) in a
     // guard. a[1]=20 < b[3]=4 is FALSE; reverse TRUE -> exit 70.
-    let canary = pass_canary("collections/runtime_cross_array_indexed_guard_compare_exit");
+    let canary =
+        pass_canary(fixture_roster::COLLECTIONS_RUNTIME_CROSS_ARRAY_INDEXED_GUARD_COMPARE_EXIT);
     let build_dir =
         std::env::temp_dir().join(format!("omega-cross-idx-guard-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
@@ -933,7 +868,7 @@ fn runtime_cross_array_indexed_guard_compare_exit_canary_runs() {
 fn runtime_dual_indexed_guard_equality_exit_canary_runs() {
     // PROBE: `arr[i] == arr[j]` (equality op, both runtime indices) in a guard.
     // arr[0]=10 == arr[3]=10 TRUE; arr[0]=10 == arr[1]=20 FALSE -> exit 70.
-    let canary = pass_canary("collections/runtime_dual_indexed_guard_equality_exit");
+    let canary = pass_canary(fixture_roster::COLLECTIONS_RUNTIME_DUAL_INDEXED_GUARD_EQUALITY_EXIT);
     let build_dir = std::env::temp_dir().join(format!("omega-dual-idx-eq-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
 
@@ -963,7 +898,7 @@ fn runtime_dual_indexed_guard_equality_exit_canary_runs() {
 fn runtime_dual_indexed_guard_compare_exit_canary_runs() {
     // PROBE: `arr[i] < arr[j]` (both runtime indices) in a guard. arr[1]=20 <
     // arr[3]=40 is TRUE -> exit 70. Exit 71 = silent miscompile.
-    let canary = pass_canary("collections/runtime_dual_indexed_guard_compare_exit");
+    let canary = pass_canary(fixture_roster::COLLECTIONS_RUNTIME_DUAL_INDEXED_GUARD_COMPARE_EXIT);
     let build_dir =
         std::env::temp_dir().join(format!("omega-dual-idx-guard-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
@@ -996,7 +931,7 @@ fn runtime_float_running_min_max_fold_exit_canary_runs() {
     // self.cur)` reads an accumulator field, feeds minsd/maxsd, and writes it
     // back each iteration (the constant-operand canary never reaches this
     // field-read-then-write-back path). Over [5, 2, 8, 3]: lo->2, hi->8, sum 10.
-    let canary = pass_canary("arithmetic/runtime_float_running_min_max_fold_exit");
+    let canary = pass_canary(fixture_roster::ARITHMETIC_RUNTIME_FLOAT_RUNNING_MIN_MAX_FOLD_EXIT);
     let build_dir =
         std::env::temp_dir().join(format!("omega-float-minmax-fold-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
@@ -1023,7 +958,7 @@ fn runtime_float_running_min_max_fold_exit_canary_runs() {
 #[test]
 fn runtime_clamp_desugar_exit_canary_runs() {
     // `clamp(x, lo, hi)` = `min(max(x, lo), hi)`: 300->255, -5->0, 128->128.
-    let canary = pass_canary("arithmetic/runtime_clamp_desugar_exit");
+    let canary = pass_canary(fixture_roster::ARITHMETIC_RUNTIME_CLAMP_DESUGAR_EXIT);
     let build_dir = std::env::temp_dir().join(format!("omega-clamp-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
 
@@ -1050,7 +985,7 @@ fn runtime_clamp_narrowing_exit_canary_runs() {
     // clamp's [0,100] result interval flows to the decision-17 narrowing check,
     // so `self.i8 = clamp(self.i32, 0, 100)` compiles AND the backend stores the
     // clamped value: clamp(300,0,100)=100 lands in i8, read back = exit 100.
-    let canary = pass_canary("arithmetic/runtime_clamp_narrowing_exit");
+    let canary = pass_canary(fixture_roster::ARITHMETIC_RUNTIME_CLAMP_NARROWING_EXIT);
     let build_dir = std::env::temp_dir().join(format!("omega-clamp-narrow-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
 
@@ -1077,7 +1012,7 @@ fn runtime_negative_float_to_int_exit_canary_runs() {
     // Negative f64 -> i32 truncates toward zero: -3.7 -> -3, -100.0 -> -100.
     // Guards on the results and exits 70 (a positive code) so the assertion is
     // robust to shells that mangle negative process exit codes.
-    let canary = pass_canary("arithmetic/runtime_negative_float_to_int_exit");
+    let canary = pass_canary(fixture_roster::ARITHMETIC_RUNTIME_NEGATIVE_FLOAT_TO_INT_EXIT);
     let build_dir = std::env::temp_dir().join(format!("omega-negfloat-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
 
@@ -1101,7 +1036,7 @@ fn runtime_negative_float_to_int_exit_canary_runs() {
 
 #[test]
 fn float_to_int_policy_canary_runs() {
-    let canary = pass_canary("float/float_to_int_policy_exit");
+    let canary = pass_canary(fixture_roster::FLOAT_FLOAT_TO_INT_POLICY_EXIT);
     let build_dir =
         std::env::temp_dir().join(format!("omega-float-int-policy-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
@@ -1127,7 +1062,7 @@ fn float_to_int_policy_canary_runs() {
 
 #[test]
 fn float_to_int_exact_proofs_canary_runs() {
-    let canary = pass_canary("float/float_to_int_exact_proofs_exit");
+    let canary = pass_canary(fixture_roster::FLOAT_FLOAT_TO_INT_EXACT_PROOFS_EXIT);
     let build_dir =
         std::env::temp_dir().join(format!("omega-float-int-exact-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
@@ -1147,10 +1082,7 @@ fn float_to_int_exact_proofs_canary_runs() {
 
 #[test]
 fn float_to_int_trapping_canaries_abort() {
-    for name in [
-        "float/float_to_int_trapping_nan_traps",
-        "float/float_to_int_trapping_overflow_traps",
-    ] {
+    for &name in fixture_roster::FLOAT_TO_INT_TRAPPING_PASS_CANARIES {
         let canary = pass_canary(name);
         let leaf = name.rsplit('/').next().unwrap_or("trap");
         let build_dir =
@@ -1176,7 +1108,7 @@ fn float_to_int_trapping_canaries_abort() {
 
 #[test]
 fn float_saturating_arithmetic_canary_runs() {
-    let canary = pass_canary("float/float_saturating_arithmetic_exit");
+    let canary = pass_canary(fixture_roster::FLOAT_FLOAT_SATURATING_ARITHMETIC_EXIT);
     let build_dir =
         std::env::temp_dir().join(format!("omega-float-saturating-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
@@ -1202,13 +1134,7 @@ fn float_saturating_arithmetic_canary_runs() {
 
 #[test]
 fn float_trapping_arithmetic_canaries_abort() {
-    for name in [
-        "float/float_trapping_overflow_traps",
-        "float/float_trapping_divide_zero_traps",
-        "float/float_trapping_invalid_traps",
-        "float/float_trapping_propagated_nan_traps",
-        "float/float_trapping_propagated_infinity_traps",
-    ] {
+    for &name in fixture_roster::FLOAT_TRAPPING_ARITHMETIC_PASS_CANARIES {
         let canary = pass_canary(name);
         let leaf = name.rsplit('/').next().unwrap_or("trap");
         let build_dir =
@@ -1231,7 +1157,7 @@ fn float_trapping_arithmetic_canaries_abort() {
 fn runtime_sqrt_builtin_exit_canary_runs() {
     // `sqrt(x)` unary float builtin: f64 sqrt(64)=8, f32 sqrt(9)=3, via the
     // native sqrtsd/sqrtss path (both operands = x on the binary SSE lane).
-    let canary = pass_canary("arithmetic/runtime_sqrt_builtin_exit");
+    let canary = pass_canary(fixture_roster::ARITHMETIC_RUNTIME_SQRT_BUILTIN_EXIT);
     let build_dir = std::env::temp_dir().join(format!("omega-sqrt-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
 
@@ -1257,7 +1183,7 @@ fn runtime_sqrt_builtin_exit_canary_runs() {
 fn runtime_abs_desugar_exit_canary_runs() {
     // `abs(x)` desugars to `max(x, 0 - x)` (frontend-only; min/max are binary
     // builtins). abs(-70)=70 and abs(12)=12; exit 70 confirms both.
-    let canary = pass_canary("arithmetic/runtime_abs_desugar_exit");
+    let canary = pass_canary(fixture_roster::ARITHMETIC_RUNTIME_ABS_DESUGAR_EXIT);
     let build_dir = std::env::temp_dir().join(format!("omega-abs-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
 
@@ -1285,7 +1211,7 @@ fn runtime_float_self_compare_nan_exit_canary_runs() {
     // NaN operand: TRUE/FALSE per IEEE. Was silently folded to constants by
     // the untyped reflexive fold; the fold is TYPE-GATED now and float
     // self-compares lower to the real ucomis* runtime compare.
-    let canary = pass_canary("arithmetic/runtime_float_self_compare_nan_exit");
+    let canary = pass_canary(fixture_roster::ARITHMETIC_RUNTIME_FLOAT_SELF_COMPARE_NAN_EXIT);
     let build_dir =
         std::env::temp_dir().join(format!("omega-nan-self-compare-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
@@ -1314,7 +1240,7 @@ fn runtime_total_order_satisfiers_exit_canary_runs() {
     // F6: the explicit f32/f64 total orders are named trait satisfiers, and a
     // generic consumer selects their concrete machine symbols statically. Raw
     // NaN payloads and signed zero distinguish this from arithmetic `<`.
-    let canary = pass_canary("float/runtime_total_order_satisfiers_exit");
+    let canary = pass_canary(fixture_roster::FLOAT_RUNTIME_TOTAL_ORDER_SATISFIERS_EXIT);
     let main_path = canary.join("main.omg");
 
     let checked = compile_to_checked(&main_path, None)
@@ -1397,7 +1323,7 @@ fn build_runtime_float_semantics_twins_agree() {
     // invariant lives with the float plan suite.
     const EXPECTED_DIFFERENTIAL_RESULT_IDENTITY: u64 = 0xc8d6_5187_ebc2_db51;
 
-    let canary = pass_canary("float/build_runtime_semantics_twins");
+    let canary = pass_canary(fixture_roster::FLOAT_BUILD_RUNTIME_SEMANTICS_TWINS);
     let main_path = canary.join("main.omg");
     let checked = compile_to_checked(&main_path, None)
         .expect("float semantic twins should compile and evaluate their array length");
@@ -1553,7 +1479,7 @@ fn linux_arm64_float_semantic_edge_twin_retains_artifact_evidence() {
         }
     }
 
-    let canary = pass_canary("float/build_runtime_semantics_twins");
+    let canary = pass_canary(fixture_roster::FLOAT_BUILD_RUNTIME_SEMANTICS_TWINS);
     let scratch = std::env::temp_dir().join(format!(
         "omega-linux-arm64-float-semantic-edge-twin-{}",
         std::process::id()
@@ -1756,7 +1682,7 @@ fn linux_x64_baseline_float_semantic_edge_twin_retains_artifact_evidence() {
         }
     }
 
-    let canary = pass_canary("float/build_runtime_semantics_twins_x86_baseline");
+    let canary = pass_canary(fixture_roster::FLOAT_BUILD_RUNTIME_SEMANTICS_TWINS_X86_BASELINE);
     let main_path = canary.join("main.omg");
     let scratch = std::env::temp_dir().join(format!(
         "omega-x86-baseline-float-semantic-edge-twin-{}",
@@ -1939,7 +1865,7 @@ fn windows_x64_baseline_float_semantic_edge_twin_retains_artifact_evidence() {
         }
     }
 
-    let canary = pass_canary("float/build_runtime_semantics_twins_windows_x64");
+    let canary = pass_canary(fixture_roster::FLOAT_BUILD_RUNTIME_SEMANTICS_TWINS_WINDOWS_X64);
     let main_path = canary.join("main.omg");
     let scratch = std::env::temp_dir().join(format!(
         "omega-windows-x64-baseline-float-semantic-edge-twin-{}",
