@@ -6,7 +6,7 @@ use omega_machine_optimizer::{
     selected_post_allocation_machine_rule,
 };
 use omega_optimization_core::{Optimization, OptimizationExecutionPhase, OptimizationSelections};
-use omega_regalloc::{
+use omega_selected_instructions_to_register_homes::{
     ALLOCATION_RECOVERY_RULE_CATALOG, AllocationRecoveryRuleCatalogError,
     RegisterAllocationRuleTargetApplicability, SELECTED_LOWERING_RULE_CATALOG,
     SelectedLoweringRuleCatalogError, resolve_selected_lowering_rules,

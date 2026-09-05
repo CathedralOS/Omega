@@ -1,13 +1,13 @@
 use omega_optimization_core::{
     PrePhysicalOptimizationManifestIdentity, SelectedLoweringOptimizationCompletionIdentity,
 };
-use omega_regalloc::{
+use omega_register_model::TargetRegisterEnvironmentIdentity;
+use omega_selected_instructions::SelectedInstructionPlanIdentity;
+use omega_selected_instructions_to_register_homes::{
     AllocationLegalityIdentity, AllocatorAvailabilityIdentity, FixedViewCopyIdentity,
     LiteralFoldIdentity, LiveRangeIdentity, LivenessIdentity, PressureRematerializationIdentity,
     RegisterHomeIdentity,
 };
-use omega_register_model::TargetRegisterEnvironmentIdentity;
-use omega_selected_instructions::SelectedInstructionPlanIdentity;
 use omega_target::{Architecture, ObjectFormat};
 
 use super::fixture::{staged, validate};
@@ -50,7 +50,7 @@ fn stale_outer_identity_fails_both_codec_and_independent_admission() {
 
     assert_eq!(
         PostAllocationOptimizationManifest::decode(&candidate.encode()),
-        Err(omega_regalloc::PostAllocationOptimizationManifestDecodeError::IdentityMismatch)
+        Err(omega_selected_instructions_to_register_homes::PostAllocationOptimizationManifestDecodeError::IdentityMismatch)
     );
     assert_eq!(
         validate(&source, &candidate),

@@ -12,6 +12,5 @@ path = "src/lib.rs"
 omega-physical-instructions = { path = "../../representations/omega-physical-instructions" }
 omega-selected-instructions-to-register-homes = { path = "../omega-selected-instructions-to-register-homes" }
 omega-machine-optimizer = { path = "../omega-machine-optimizer" }
-omega-regalloc = { path = "../omega-regalloc" }
 omega-selected-instructions-to-machine-effects = { path = "../omega-selected-instructions-to-machine-effects" }
 omega-target-to-register-environment = { path = "../omega-target-to-register-environment" }

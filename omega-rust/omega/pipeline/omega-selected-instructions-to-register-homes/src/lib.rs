@@ -5,6 +5,8 @@
 //! Analyses, pre-allocation rewrites, and home assignment share one phase owner.
 //! Rewrites invalidate allocation facts and independently replay their replacements.
 //! Rule-specific implementation modules are not separate pipeline stages.
+//! Liveness, live ranges, legality, recovery and assignment are internal steps
+//! of this transform, not a second allocator crate behind its public entrance.
 
 mod analyses;
 mod assignment;
@@ -13,6 +15,7 @@ mod rewrites;
 
 pub use analyses::*;
 pub use assignment::*;
+pub use omega_register_model::*;
 pub use output::{
     AllocationEvidence, AllocationOutput, AllocationReplayError, AllocationSource,
     RetainedAllocation,

@@ -1,11 +1,11 @@
 use std::collections::BTreeSet;
 
-use omega_regalloc::{
+use omega_register_model::ValidatedPhysicalRegisterModel;
+use omega_selected_instructions::SelectedStructuralUnitFunction;
+use omega_selected_instructions_to_register_homes::{
     FunctionRegisterHomes, ValidatedAllocationLegality, ValidatedLiveRanges,
     ValidatedRegisterHomes, ValidatedSelectedAnalysis,
 };
-use omega_register_model::ValidatedPhysicalRegisterModel;
-use omega_selected_instructions::SelectedStructuralUnitFunction;
 use psi_core::MachineId;
 
 use crate::{

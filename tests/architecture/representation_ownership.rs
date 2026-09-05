@@ -266,10 +266,54 @@ fn program_representations_have_named_roots_and_concept_owners() {
 }
 
 #[test]
+fn allocation_algorithms_and_staging_have_one_transform_owner() {
+    let root = repository();
+    let retired = root.join("omega-rust/omega/pipeline/omega-regalloc");
+    assert!(!retired.join("Cargo.toml").exists());
+    assert!(!retired.join("src/lib.rs").exists());
+    let workspace = std::fs::read_to_string(root.join("Cargo.toml")).unwrap();
+    assert!(!workspace.contains("omega-regalloc"));
+
+    let owner =
+        root.join("omega-rust/omega/pipeline/omega-selected-instructions-to-register-homes/src");
+    let source = rust_source(&owner);
+    assert!(!source.contains("omega_regalloc::"));
+    for declaration in [
+        "pub fn analyze_liveness",
+        "pub fn validate_liveness",
+        "pub fn stage_optimized_liveness",
+        "pub fn analyze_live_ranges",
+        "pub fn validate_live_ranges",
+        "pub fn stage_optimized_live_ranges",
+        "pub fn stage_register_allocation",
+    ] {
+        assert_eq!(source.matches(declaration).count(), 1, "{declaration}");
+    }
+    // Assignment may obtain target ABI policy, but the read-only liveness and
+    // interval algorithms consume explicit selected facts and register data.
+    for analysis in ["liveness", "live_ranges"] {
+        let source = rust_source(&owner.join("analyses").join(analysis));
+        for forbidden in [
+            "omega_isa_",
+            "omega_machine_emission",
+            "omega_optimization_pipeline",
+        ] {
+            assert!(
+                !source.contains(forbidden),
+                "{analysis} depends on {forbidden}"
+            );
+        }
+    }
+}
+
+#[test]
 fn register_home_data_is_independent_of_allocation_authority() {
     let owner = repository().join("omega-rust/omega/representations/omega-register-homes");
     let representation = rust_source(&owner.join("src"));
-    let allocator = rust_source(&repository().join("omega-rust/omega/pipeline/omega-regalloc/src"));
+    let allocator = rust_source(
+        &repository()
+            .join("omega-rust/omega/pipeline/omega-selected-instructions-to-register-homes/src"),
+    );
     for declaration in [
         "pub struct RegisterHomePlan {",
         "pub struct FunctionRegisterHomes {",
@@ -292,7 +336,7 @@ fn register_home_data_is_independent_of_allocation_authority() {
     assert!(!representation.contains("ValidatedRegisterHomes"));
     assert!(allocator.contains("pub struct ValidatedRegisterHomes {"));
     let manifest = std::fs::read_to_string(owner.join("Cargo.toml")).unwrap();
-    assert!(!manifest.contains("omega-regalloc"));
+    assert!(!manifest.contains("omega-selected-instructions-to-register-homes"));
     assert!(!manifest.contains("/pipeline/"));
 }
 
@@ -326,7 +370,7 @@ fn physical_instruction_data_is_independent_of_optimizer_authority() {
     assert!(optimizer.contains("pub struct ValidatedPostAllocationMachinePlan {"));
     let manifest = std::fs::read_to_string(owner.join("Cargo.toml")).unwrap();
     assert!(!manifest.contains("omega-machine-optimizer"));
-    assert!(!manifest.contains("omega-regalloc"));
+    assert!(!manifest.contains("omega-selected-instructions-to-register-homes"));
     assert!(!manifest.contains("/pipeline/"));
 }
 
@@ -761,6 +805,8 @@ fn effect_analysis_does_not_depend_on_optimizer_history() {
     let source = rust_source(&stage.join("src"));
     for forbidden in [
         "StagedOptimized",
+        "RetainedAllocation",
+        "AllocationSource",
         "_after_",
         "source_legality_stage",
         "pub struct PreAllocationMachineEffectPlan",
@@ -773,7 +819,6 @@ fn effect_analysis_does_not_depend_on_optimizer_history() {
     let manifest = std::fs::read_to_string(stage.join("Cargo.toml")).unwrap();
     for forbidden in [
         "omega-allocation-legality-to-",
-        "omega-selected-instructions-to-register-homes",
         "omega-target-operations-to-selected-instructions",
     ] {
         assert!(
@@ -781,6 +826,9 @@ fn effect_analysis_does_not_depend_on_optimizer_history() {
             "effect stage depends on a producer: {forbidden}"
         );
     }
+    // Allocation owns the sealed current-selected interface as well as its
+    // algorithms. Sharing that interface does not authorize stage ancestry.
+    assert!(source.contains("ValidatedSelectedAnalysis"));
     let construction = std::fs::read_to_string(root.join(
         "omega-rust/omega/pipeline/omega-register-homes-to-post-allocation-machine/src/construction/mod.rs",
     )).unwrap();

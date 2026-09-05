@@ -4,9 +4,9 @@ use omega_isa_x86_64::{
 use omega_machine_optimizer::{
     Aarch64CbnzInstructionDisposition, Aarch64SameViewCopyInstructionDisposition,
 };
-use omega_regalloc::ValidatedSelectedAnalysis;
 use omega_register_model::ValidatedPhysicalRegisterModel;
 use omega_selected_instructions::{SelectedInstruction, SelectedTerminator};
+use omega_selected_instructions_to_register_homes::ValidatedSelectedAnalysis;
 use omega_target::Architecture;
 
 use crate::{

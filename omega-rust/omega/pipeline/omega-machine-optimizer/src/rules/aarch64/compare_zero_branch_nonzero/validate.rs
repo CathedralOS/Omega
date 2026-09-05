@@ -1,14 +1,14 @@
 use std::collections::BTreeSet;
 
 use omega_optimization_core::{OptimizationWorkBudget, OptimizationWorkUsage};
-use omega_regalloc::{
-    BlockLiveness, InstructionLiveness, ValidatedLiveness, ValidatedSelectedAnalysis,
-};
 use omega_register_model::{RegisterOperandAccess, RegisterUnitId, ValidatedPhysicalRegisterModel};
 use omega_selected_instructions::{
     MachineAlternativeFamily, MachineEncodedControlEffect, MachineEncodedMemoryEffect,
     MachineEncodedStackEffect, MachineEncodedTrapBehavior, SelectedInstruction,
     SelectedInstructionKind, SelectedTerminator,
+};
+use omega_selected_instructions_to_register_homes::{
+    BlockLiveness, InstructionLiveness, ValidatedLiveness, ValidatedSelectedAnalysis,
 };
 use omega_target::Architecture;
 
@@ -297,7 +297,8 @@ fn validate_roots(inputs: &CbnzFusionInputs<'_>) -> Result<(), Aarch64CbnzFusion
     if machine.identity != inputs.source_identity
         || machine.selected != inputs.selected_identity
         || inputs.selected.target != machine.target
-        || omega_regalloc::liveness_identity(inputs.liveness) != inputs.liveness_identity
+        || omega_selected_instructions_to_register_homes::liveness_identity(inputs.liveness)
+            != inputs.liveness_identity
         || inputs.liveness.selected != inputs.selected_identity
         || inputs.liveness.target != machine.target
         || machine.physical_register_model != inputs.physical.identity()

@@ -1,5 +1,5 @@
 use omega_optimization_validation::PrePhysicalOptimizationManifest;
-use omega_regalloc::PostAllocationOptimizationManifest;
+use omega_selected_instructions_to_register_homes::PostAllocationOptimizationManifest;
 
 use crate::{
     FunctionFragmentEmissionManifest, FunctionFragmentObjectContainerManifest,

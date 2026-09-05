@@ -2,11 +2,11 @@ use super::{
     AllocationEvidence, AllocationOutput, AllocationReplayError, AllocationSource,
     ProjectAllocation, sealed,
 };
+use crate::SelectedProgramRef;
 use crate::{
     StagedOptimizedActiveResidentRematerialization,
     validate_optimized_active_resident_rematerialization,
 };
-use omega_regalloc::SelectedProgramRef;
 
 impl sealed::Sealed for StagedOptimizedActiveResidentRematerialization {}
 

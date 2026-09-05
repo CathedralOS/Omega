@@ -8,7 +8,12 @@ use super::{
     recursive_spill_insertion::sources as recursive_sources,
 };
 
-fn sources(target: NativeTarget) -> (Sources, omega_regalloc::ValidatedRecursiveSpillInsertion) {
+fn sources(
+    target: NativeTarget,
+) -> (
+    Sources,
+    omega_selected_instructions_to_register_homes::ValidatedRecursiveSpillInsertion,
+) {
     let (sources, actions) = recursive_sources(target);
     let recursive = sources
         .schedule_recursive_spills(&actions, selected_lowering_budget())
@@ -17,15 +22,15 @@ fn sources(target: NativeTarget) -> (Sources, omega_regalloc::ValidatedRecursive
 }
 
 fn lower(
-    source: &omega_regalloc::ValidatedRecursiveSpillInsertion,
+    source: &omega_selected_instructions_to_register_homes::ValidatedRecursiveSpillInsertion,
     budget: OptimizationWorkBudget,
 ) -> Result<
-    omega_regalloc::ValidatedSpillPseudoInstructions,
-    omega_regalloc::SpillPseudoInstructionError,
+    omega_selected_instructions_to_register_homes::ValidatedSpillPseudoInstructions,
+    omega_selected_instructions_to_register_homes::SpillPseudoInstructionError,
 > {
-    omega_regalloc::lower_recursive_spill_pseudos(
+    omega_selected_instructions_to_register_homes::lower_recursive_spill_pseudos(
         source,
-        omega_regalloc::SpillPseudoInstructionPolicy::RecursiveLogicalScheduleV1,
+        omega_selected_instructions_to_register_homes::SpillPseudoInstructionPolicy::RecursiveLogicalScheduleV1,
         budget,
     )
 }
@@ -54,28 +59,28 @@ fn recursive_schedule_becomes_linked_target_neutral_pseudos_on_both_targets() {
                 .instructions
                 .iter()
                 .copied()
-                .map(omega_regalloc::SpillPseudoInstruction::id)
+                .map(omega_selected_instructions_to_register_homes::SpillPseudoInstruction::id)
                 .map(|id| id.ordinal)
                 .collect::<Vec<_>>(),
             vec![0, 1, 2, 3, 4, 5]
         );
         assert!(matches!(
             function.instructions[1],
-            omega_regalloc::SpillPseudoInstruction::Store {
+            omega_selected_instructions_to_register_homes::SpillPseudoInstruction::Store {
                 action,
-                before_reload: Some(omega_regalloc::SpillPseudoInstructionId { ordinal: 2 }),
-                source: omega_regalloc::SpillPseudoStoredValue::Original(_),
+                before_reload: Some(omega_selected_instructions_to_register_homes::SpillPseudoInstructionId { ordinal: 2 }),
+                source: omega_selected_instructions_to_register_homes::SpillPseudoStoredValue::Original(_),
                 ..
             } if action == id(1, 0)
         ));
         assert!(matches!(
             function.instructions[3],
-            omega_regalloc::SpillPseudoInstruction::Store {
+            omega_selected_instructions_to_register_homes::SpillPseudoInstruction::Store {
                 action,
-                before_reload: Some(omega_regalloc::SpillPseudoInstructionId { ordinal: 4 }),
-                source: omega_regalloc::SpillPseudoStoredValue::Reload {
+                before_reload: Some(omega_selected_instructions_to_register_homes::SpillPseudoInstructionId { ordinal: 4 }),
+                source: omega_selected_instructions_to_register_homes::SpillPseudoStoredValue::Reload {
                     action: source,
-                    producer: omega_regalloc::SpillPseudoInstructionId { ordinal: 2 },
+                    producer: omega_selected_instructions_to_register_homes::SpillPseudoInstructionId { ordinal: 2 },
                 },
                 ..
             } if action == id(2, 0) && source == id(0, 0)
@@ -98,52 +103,60 @@ fn independent_replay_rejects_every_root_and_pseudo_surface_corruption() {
             .plan()
             .clone();
         for corrupt in [
-            |plan: &mut omega_regalloc::SpillPseudoInstructionPlan| {
+            |plan: &mut omega_selected_instructions_to_register_homes::SpillPseudoInstructionPlan| {
                 plan.recursive_spill_insertion =
-                    omega_regalloc::RecursiveSpillInsertionIdentity::from_bytes([0xf1; 32]);
+                    omega_selected_instructions_to_register_homes::RecursiveSpillInsertionIdentity::from_bytes([0xf1; 32]);
             },
-            |plan: &mut omega_regalloc::SpillPseudoInstructionPlan| {
+            |plan: &mut omega_selected_instructions_to_register_homes::SpillPseudoInstructionPlan| {
                 plan.register_environment =
                     omega_register_model::TargetRegisterEnvironmentIdentity::from_bytes([0xf2; 32]);
             },
-            |plan: &mut omega_regalloc::SpillPseudoInstructionPlan| {
+            |plan: &mut omega_selected_instructions_to_register_homes::SpillPseudoInstructionPlan| {
                 plan.allocator_availability =
-                    omega_regalloc::AllocatorAvailabilityIdentity::from_bytes([0xf3; 32]);
+                    omega_selected_instructions_to_register_homes::AllocatorAvailabilityIdentity::from_bytes([0xf3; 32]);
             },
-            |plan: &mut omega_regalloc::SpillPseudoInstructionPlan| {
+            |plan: &mut omega_selected_instructions_to_register_homes::SpillPseudoInstructionPlan| {
                 plan.optimization_unit =
                     omega_optimization_core::OptimizationUnitIdentity::from_bytes([0xf4; 32]);
             },
-            |plan: &mut omega_regalloc::SpillPseudoInstructionPlan| {
+            |plan: &mut omega_selected_instructions_to_register_homes::SpillPseudoInstructionPlan| {
                 plan.fuel_schedule = psi_core::FuelScheduleIdentity::new(99_960).unwrap();
             },
         ] {
             let mut changed = canonical.clone();
             corrupt(&mut changed);
             assert_eq!(
-                omega_regalloc::validate_spill_pseudo_instructions(&recursive, changed),
-                Err(omega_regalloc::SpillPseudoInstructionError::RootMismatch)
+                omega_selected_instructions_to_register_homes::validate_spill_pseudo_instructions(&recursive, changed),
+                Err(omega_selected_instructions_to_register_homes::SpillPseudoInstructionError::RootMismatch)
             );
         }
 
-        let mutations: [fn(&mut omega_regalloc::SpillPseudoInstructionPlan); 6] = [
+        let mutations: [fn(
+            &mut omega_selected_instructions_to_register_homes::SpillPseudoInstructionPlan,
+        ); 6] = [
             |plan| plan.functions[0].storage[2].spill_area_offset += 8,
             |plan| match &mut plan.functions[0].instructions[3] {
-                omega_regalloc::SpillPseudoInstruction::Store { id, .. } => id.ordinal += 1,
+                omega_selected_instructions_to_register_homes::SpillPseudoInstruction::Store {
+                    id,
+                    ..
+                } => id.ordinal += 1,
                 _ => unreachable!(),
             },
             |plan| match &mut plan.functions[0].instructions[3] {
-                omega_regalloc::SpillPseudoInstruction::Store { before_reload, .. } => {
-                    *before_reload = None
-                }
+                omega_selected_instructions_to_register_homes::SpillPseudoInstruction::Store {
+                    before_reload,
+                    ..
+                } => *before_reload = None,
                 _ => unreachable!(),
             },
             |plan| match &mut plan.functions[0].instructions[3] {
-                omega_regalloc::SpillPseudoInstruction::Store { source, .. } => {
-                    *source = omega_regalloc::SpillPseudoStoredValue::Original(
+                omega_selected_instructions_to_register_homes::SpillPseudoInstruction::Store {
+                    source,
+                    ..
+                } => *source =
+                    omega_selected_instructions_to_register_homes::SpillPseudoStoredValue::Original(
                         omega_selected_instructions::VirtualRegisterId(0),
-                    )
-                }
+                    ),
                 _ => unreachable!(),
             },
             |plan| plan.functions[0].rewrites[3].producer.ordinal -= 1,
@@ -155,16 +168,16 @@ fn independent_replay_rejects_every_root_and_pseudo_surface_corruption() {
             let mut changed = canonical.clone();
             mutate(&mut changed);
             assert_eq!(
-                omega_regalloc::validate_spill_pseudo_instructions(&recursive, changed),
-                Err(omega_regalloc::SpillPseudoInstructionError::NonCanonicalFunctions)
+                omega_selected_instructions_to_register_homes::validate_spill_pseudo_instructions(&recursive, changed),
+                Err(omega_selected_instructions_to_register_homes::SpillPseudoInstructionError::NonCanonicalFunctions)
             );
         }
 
         let mut usage = canonical;
         usage.usage.validation_steps += 1;
         assert_eq!(
-            omega_regalloc::validate_spill_pseudo_instructions(&recursive, usage),
-            Err(omega_regalloc::SpillPseudoInstructionError::UsageMismatch)
+            omega_selected_instructions_to_register_homes::validate_spill_pseudo_instructions(&recursive, usage),
+            Err(omega_selected_instructions_to_register_homes::SpillPseudoInstructionError::UsageMismatch)
         );
     }
 }
@@ -184,7 +197,7 @@ fn exact_budget_each_representable_axis_and_cross_target_roots_fail_closed() {
         for budget in insufficient {
             assert!(matches!(
                 lower(&recursive, budget),
-                Err(omega_regalloc::SpillPseudoInstructionError::BudgetExceeded {
+                Err(omega_selected_instructions_to_register_homes::SpillPseudoInstructionError::BudgetExceeded {
                     required,
                     budget: actual,
                 }) if required == exact_usage() && actual == budget
@@ -196,13 +209,16 @@ fn exact_budget_each_representable_axis_and_cross_target_roots_fail_closed() {
     let foreign = lower(&x86, exact).unwrap().plan().clone();
     let (_, arm) = sources(NativeTarget::linux_arm64());
     assert_eq!(
-        omega_regalloc::validate_spill_pseudo_instructions(&arm, foreign),
-        Err(omega_regalloc::SpillPseudoInstructionError::RootMismatch)
+        omega_selected_instructions_to_register_homes::validate_spill_pseudo_instructions(&arm, foreign),
+        Err(omega_selected_instructions_to_register_homes::SpillPseudoInstructionError::RootMismatch)
     );
 }
 
-const fn id(epoch: u32, ordinal: u32) -> omega_regalloc::GeneralizedSpillActionId {
-    omega_regalloc::GeneralizedSpillActionId { epoch, ordinal }
+const fn id(
+    epoch: u32,
+    ordinal: u32,
+) -> omega_selected_instructions_to_register_homes::GeneralizedSpillActionId {
+    omega_selected_instructions_to_register_homes::GeneralizedSpillActionId { epoch, ordinal }
 }
 
 const fn exact_usage() -> OptimizationWorkUsage {

@@ -1,8 +1,8 @@
 //! Ordinary function and block construction in source order.
 
-use omega_regalloc::ValidatedRegisterHomes;
 use omega_register_model::ValidatedPhysicalRegisterModel;
 use omega_selected_instructions::{SelectedBlock, SelectedInstruction, SelectedInstructionPlan};
+use omega_selected_instructions_to_register_homes::ValidatedRegisterHomes;
 
 use crate::{
     BlockMachineEffects, PostAllocationMachineBlock, PostAllocationMachineError,
@@ -71,7 +71,7 @@ fn build_block(
     block_index: usize,
     selected: &SelectedBlock,
     effects: &BlockMachineEffects,
-    homes: &omega_regalloc::FunctionRegisterHomes,
+    homes: &omega_selected_instructions_to_register_homes::FunctionRegisterHomes,
     physical: &ValidatedPhysicalRegisterModel,
 ) -> Result<PostAllocationMachineBlock, PostAllocationMachineError> {
     if effects.block != selected.id {

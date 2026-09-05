@@ -13,13 +13,13 @@ pub use omega_selected_instructions::{
 };
 pub use validate::validate_pre_allocation_machine_effects;
 
-use omega_regalloc::ValidatedSelectedAnalysis;
 use omega_register_model::{
     TargetRegisterEnvironmentConstraintKeys, TargetRegisterEnvironmentIdentity,
     ValidatedPhysicalRegisterModel, ValidatedRegisterConstraintCatalog,
     ValidatedRegisterReservationProfile,
 };
 use omega_selected_instructions::ValidatedMachineEffectCatalog;
+use omega_selected_instructions_to_register_homes::ValidatedSelectedAnalysis;
 
 /// Compute and independently reconstruct the complete pre-allocation effect
 /// sidecar. This grants no transformation, home, emission, or publication

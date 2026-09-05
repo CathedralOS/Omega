@@ -1,11 +1,11 @@
-use omega_optimization_core::OptimizationWorkBudget;
-use omega_regalloc::{
+use crate::{
     FixedPrecoloredIntervalPolicy, FixedPrecoloredSegmentHomePolicy,
     FixedPrecoloredSplitRequirementPolicy, ValidatedFixedPrecoloredIntervals,
     ValidatedFixedPrecoloredSegmentHomes, ValidatedFixedPrecoloredSplitRequirements,
     analyze_fixed_precolored_intervals, analyze_fixed_precolored_split_requirements,
     assign_fixed_precolored_segment_homes,
 };
+use omega_optimization_core::OptimizationWorkBudget;
 
 use crate::StagedOptimizedAllocationLegality;
 

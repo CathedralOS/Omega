@@ -1,4 +1,6 @@
-use omega_regalloc::{FixedViewCopyIdentity, PostAllocationOptimizationManifestDecodeError};
+use omega_selected_instructions_to_register_homes::{
+    FixedViewCopyIdentity, PostAllocationOptimizationManifestDecodeError,
+};
 
 use super::fixture::staged;
 use super::wire_offsets::locate;

@@ -1,15 +1,15 @@
 use super::RegisterAllocationError;
 use crate::{
+    FixedViewCopyPolicy, PressureRematerializationPolicy, RecoveryClassificationPolicy,
+    SpillChoicePolicy,
+};
+use crate::{
     StagedOptimizedActiveResidentRematerialization, StagedOptimizedLiveRanges,
     StagedOptimizedRegisterHomesAfterFixedViewCopies,
     stage_optimized_active_resident_rematerialization, stage_optimized_allocation_legality,
     stage_optimized_allocation_legality_for_active_resident_immediate_u64_multi_use_rematerialization_v1,
     stage_optimized_fixed_precolored_segment_homes, stage_optimized_fixed_view_copies,
     stage_optimized_register_homes_after_fixed_view_copies, stage_optimized_selected_reanalysis,
-};
-use omega_regalloc::{
-    FixedViewCopyPolicy, PressureRematerializationPolicy, RecoveryClassificationPolicy,
-    SpillChoicePolicy,
 };
 
 pub fn stage_fixed_view_register_allocation(

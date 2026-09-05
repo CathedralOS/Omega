@@ -29,7 +29,7 @@ fn both_recursive_paths_project_exact_abstract_accesses_on_both_targets() {
             assert_eq!(first.receipt().usage(), EXACT_USAGE);
             assert_eq!(
                 first.receipt().identity(),
-                omega_regalloc::abstract_spill_memory_effect_plan_identity(first.plan()),
+                omega_selected_instructions_to_register_homes::abstract_spill_memory_effect_plan_identity(first.plan()),
             );
             assert_eq!(
                 first.receipt().homed_spill_pseudo_instructions(),
@@ -45,10 +45,10 @@ fn both_recursive_paths_project_exact_abstract_accesses_on_both_targets() {
             for (effect, pseudo) in function.effects.iter().zip(&pseudos.instructions) {
                 assert_exact_effect(effect, pseudo, pseudos);
                 let (storage, write) = match effect {
-                    omega_regalloc::AbstractSpillMemoryEffect::Write { storage, .. } => {
+                    omega_selected_instructions_to_register_homes::AbstractSpillMemoryEffect::Write { storage, .. } => {
                         (*storage, true)
                     }
-                    omega_regalloc::AbstractSpillMemoryEffect::Read { storage, .. } => {
+                    omega_selected_instructions_to_register_homes::AbstractSpillMemoryEffect::Read { storage, .. } => {
                         (*storage, false)
                     }
                 };
@@ -60,8 +60,8 @@ fn both_recursive_paths_project_exact_abstract_accesses_on_both_targets() {
             assert!(
                 function.effects.iter().any(|effect| matches!(
                     effect,
-                    omega_regalloc::AbstractSpillMemoryEffect::Write {
-                        source: omega_regalloc::SpillPseudoStoredValue::Original(
+                    omega_selected_instructions_to_register_homes::AbstractSpillMemoryEffect::Write {
+                        source: omega_selected_instructions_to_register_homes::SpillPseudoStoredValue::Original(
                             omega_selected_instructions::VirtualRegisterId(5)
                         ),
                         ..

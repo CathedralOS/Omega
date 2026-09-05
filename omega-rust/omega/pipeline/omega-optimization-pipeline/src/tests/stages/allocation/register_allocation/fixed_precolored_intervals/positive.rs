@@ -29,7 +29,9 @@ fn selected_fixed_constraints_become_exact_precolored_point_intervals() {
         );
         assert_eq!(
             first.receipt().identity(),
-            omega_regalloc::fixed_precolored_interval_plan_identity(first.plan()),
+            omega_selected_instructions_to_register_homes::fixed_precolored_interval_plan_identity(
+                first.plan()
+            ),
         );
 
         let environment = source
@@ -56,14 +58,13 @@ fn selected_fixed_constraints_become_exact_precolored_point_intervals() {
                 (1, 2, 6, 7, named(integer_result)),
             ],
         );
-        assert!(
-            rows[..2]
-                .iter()
-                .all(|row| matches!(row.site, omega_regalloc::VirtualFixedConstraintSite::Entry))
-        );
+        assert!(rows[..2].iter().all(|row| matches!(
+            row.site,
+            omega_selected_instructions_to_register_homes::VirtualFixedConstraintSite::Entry
+        )));
         assert!(rows[2..].iter().all(|row| matches!(
             row.site,
-            omega_regalloc::VirtualFixedConstraintSite::Operand { .. }
+            omega_selected_instructions_to_register_homes::VirtualFixedConstraintSite::Operand { .. }
         )));
     }
 }

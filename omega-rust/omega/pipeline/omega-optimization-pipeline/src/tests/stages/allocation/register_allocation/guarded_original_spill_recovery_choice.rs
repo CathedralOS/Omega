@@ -10,16 +10,16 @@ fn sources(
     target: NativeTarget,
 ) -> (
     Sources,
-    omega_regalloc::ValidatedGeneralizedReloadValueHomes,
-    omega_regalloc::ValidatedGeneralizedSpillRecoveryWorklist,
+    omega_selected_instructions_to_register_homes::ValidatedGeneralizedReloadValueHomes,
+    omega_selected_instructions_to_register_homes::ValidatedGeneralizedSpillRecoveryWorklist,
 ) {
     let sources = Sources::from_legality(
         staged_active_resident_original_victim_chain_two_view_legality(target),
     );
     let homes = sources.assign(selected_lowering_budget()).unwrap();
-    let worklist = omega_regalloc::seed_generalized_spill_recovery_worklist(
+    let worklist = omega_selected_instructions_to_register_homes::seed_generalized_spill_recovery_worklist(
         &homes,
-        omega_regalloc::GeneralizedSpillRecoveryWorklistPolicy::EpochOnePressureToEpochTwoV1,
+        omega_selected_instructions_to_register_homes::GeneralizedSpillRecoveryWorklistPolicy::EpochOnePressureToEpochTwoV1,
         selected_lowering_budget(),
     )
     .unwrap();
@@ -43,7 +43,9 @@ fn exact_graph_selects_an_eligible_original_before_the_reload() {
         assert_ne!(first.receipt().identity(), legacy.receipt().identity());
         assert_eq!(
             legacy.plan().choices[0].selected_victim,
-            omega_regalloc::GeneralizedReloadCoexistingValue::Reload(action(0, 0))
+            omega_selected_instructions_to_register_homes::GeneralizedReloadCoexistingValue::Reload(
+                action(0, 0)
+            )
         );
         assert_eq!(first.receipt().choice_count(), 1);
         assert_eq!(first.receipt().contender_count(), 2);
@@ -55,7 +57,7 @@ fn exact_graph_selects_an_eligible_original_before_the_reload() {
         assert_eq!(choice.point, LiveRangePoint(14));
         assert_eq!(
             choice.selected_victim,
-            omega_regalloc::GeneralizedReloadCoexistingValue::Original(VirtualRegisterId(5))
+            omega_selected_instructions_to_register_homes::GeneralizedReloadCoexistingValue::Original(VirtualRegisterId(5))
         );
         assert_eq!(choice.selected_victim_view, choice.reclaimed_view);
         assert_eq!(
@@ -65,8 +67,8 @@ fn exact_graph_selects_an_eligible_original_before_the_reload() {
                 .map(|resident| resident.value)
                 .collect::<Vec<_>>(),
             vec![
-                omega_regalloc::GeneralizedReloadCoexistingValue::Original(VirtualRegisterId(5)),
-                omega_regalloc::GeneralizedReloadCoexistingValue::Reload(action(0, 0)),
+                omega_selected_instructions_to_register_homes::GeneralizedReloadCoexistingValue::Original(VirtualRegisterId(5)),
+                omega_selected_instructions_to_register_homes::GeneralizedReloadCoexistingValue::Reload(action(0, 0)),
             ]
         );
         assert_eq!(
@@ -77,13 +79,13 @@ fn exact_graph_selects_an_eligible_original_before_the_reload() {
                 .collect::<Vec<_>>(),
             vec![
                 (
-                    omega_regalloc::GeneralizedReloadCoexistingValue::Original(VirtualRegisterId(
+                    omega_selected_instructions_to_register_homes::GeneralizedReloadCoexistingValue::Original(VirtualRegisterId(
                         5
                     ),),
                     LiveRangePoint(17),
                 ),
                 (
-                    omega_regalloc::GeneralizedReloadCoexistingValue::Reload(action(0, 0)),
+                    omega_selected_instructions_to_register_homes::GeneralizedReloadCoexistingValue::Reload(action(0, 0)),
                     LiveRangePoint(19),
                 ),
             ]
@@ -119,7 +121,7 @@ fn independent_replay_rejects_reload_original_and_root_forgery() {
             .iter()
             .find(|contender| {
                 contender.value
-                    == omega_regalloc::GeneralizedReloadCoexistingValue::Reload(action(0, 0))
+                    == omega_selected_instructions_to_register_homes::GeneralizedReloadCoexistingValue::Reload(action(0, 0))
             })
             .copied()
             .unwrap();
@@ -128,15 +130,15 @@ fn independent_replay_rejects_reload_original_and_root_forgery() {
         reload.choices[0].reclaimed_view = contender.reclaimed_view;
         assert_eq!(
             sources.validate_generalized_victim(&homes, &worklist, reload),
-            Err(omega_regalloc::GeneralizedSpillRecoveryChoiceError::NonCanonicalChoices)
+            Err(omega_selected_instructions_to_register_homes::GeneralizedSpillRecoveryChoiceError::NonCanonicalChoices)
         );
 
         let mut original = canonical.clone();
         original.choices[0].selected_victim =
-            omega_regalloc::GeneralizedReloadCoexistingValue::Original(VirtualRegisterId(6));
+            omega_selected_instructions_to_register_homes::GeneralizedReloadCoexistingValue::Original(VirtualRegisterId(6));
         assert_eq!(
             sources.validate_generalized_victim(&homes, &worklist, original),
-            Err(omega_regalloc::GeneralizedSpillRecoveryChoiceError::NonCanonicalChoices)
+            Err(omega_selected_instructions_to_register_homes::GeneralizedSpillRecoveryChoiceError::NonCanonicalChoices)
         );
 
         let mut root = canonical;
@@ -144,7 +146,7 @@ fn independent_replay_rejects_reload_original_and_root_forgery() {
             omega_selected_instructions::SelectedInstructionPlanIdentity::from_bytes([0x85; 32]);
         assert_eq!(
             sources.validate_generalized_victim(&homes, &worklist, root),
-            Err(omega_regalloc::GeneralizedSpillRecoveryChoiceError::RootMismatch)
+            Err(omega_selected_instructions_to_register_homes::GeneralizedSpillRecoveryChoiceError::RootMismatch)
         );
     }
 
@@ -157,7 +159,7 @@ fn independent_replay_rejects_reload_original_and_root_forgery() {
     let (arm, arm_homes, arm_worklist) = sources(NativeTarget::linux_arm64());
     assert_eq!(
         arm.validate_generalized_victim(&arm_homes, &arm_worklist, foreign),
-        Err(omega_regalloc::GeneralizedSpillRecoveryChoiceError::RootMismatch)
+        Err(omega_selected_instructions_to_register_homes::GeneralizedSpillRecoveryChoiceError::RootMismatch)
     );
 }
 
@@ -183,7 +185,7 @@ fn guarded_original_choice_has_exact_representable_budget_boundaries() {
                     policy(),
                     budget,
                 ),
-                Err(omega_regalloc::GeneralizedSpillRecoveryChoiceError::BudgetExceeded {
+                Err(omega_selected_instructions_to_register_homes::GeneralizedSpillRecoveryChoiceError::BudgetExceeded {
                     required,
                     budget: actual,
                 }) if required == exact_usage() && actual == budget
@@ -192,12 +194,16 @@ fn guarded_original_choice_has_exact_representable_budget_boundaries() {
     }
 }
 
-const fn policy() -> omega_regalloc::GeneralizedSpillRecoveryChoicePolicy {
-    omega_regalloc::GeneralizedSpillRecoveryChoicePolicy::EpochTwoEligibleOriginalBeforeReloadThenFarthestEndThenHighestValueV1
+const fn policy()
+-> omega_selected_instructions_to_register_homes::GeneralizedSpillRecoveryChoicePolicy {
+    omega_selected_instructions_to_register_homes::GeneralizedSpillRecoveryChoicePolicy::EpochTwoEligibleOriginalBeforeReloadThenFarthestEndThenHighestValueV1
 }
 
-const fn action(epoch: u32, ordinal: u32) -> omega_regalloc::GeneralizedSpillActionId {
-    omega_regalloc::GeneralizedSpillActionId { epoch, ordinal }
+const fn action(
+    epoch: u32,
+    ordinal: u32,
+) -> omega_selected_instructions_to_register_homes::GeneralizedSpillActionId {
+    omega_selected_instructions_to_register_homes::GeneralizedSpillActionId { epoch, ordinal }
 }
 
 fn exact_budget() -> OptimizationWorkBudget {

@@ -79,9 +79,8 @@ candidate facts rather than asking an allocator to rederive them.
 
 ## Implementation Map
 
-- `pipeline/omega-regalloc` owns the range model, computation, identity,
-  independent replay, and opaque validated result.
-- `pipeline/omega-selected-instructions-to-register-homes` owns the executable stage and nested
-  cross-stage custody.
-- `omega-selected-instructions` and the liveness artifact remain the
-  authoritative inputs; transitional assigned scratch homes are not consulted.
+- `omega-selected-instructions-to-register-homes/src/analyses/live_ranges/`
+  owns interval computation, identity and independent replay. Its `staging/`
+  module retains cross-step custody.
+- Selected instructions and validated liveness are the inputs; transitional
+  assigned scratch homes are not consulted.

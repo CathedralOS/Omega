@@ -235,9 +235,16 @@ fn fixture() -> (
         identity: source_identity,
         selected: selected_identity,
         effects: PreAllocationMachineEffectIdentity::from_bytes([4; 32]),
-        ranges: omega_regalloc::LiveRangeIdentity::from_bytes([5; 32]),
-        legality: omega_regalloc::AllocationLegalityIdentity::from_bytes([6; 32]),
-        homes: omega_regalloc::RegisterHomeIdentity::from_bytes([7; 32]),
+        ranges: omega_selected_instructions_to_register_homes::LiveRangeIdentity::from_bytes(
+            [5; 32],
+        ),
+        legality:
+            omega_selected_instructions_to_register_homes::AllocationLegalityIdentity::from_bytes(
+                [6; 32],
+            ),
+        homes: omega_selected_instructions_to_register_homes::RegisterHomeIdentity::from_bytes(
+            [7; 32],
+        ),
         post_allocation_manifest: PostAllocationOptimizationManifestIdentity::from_bytes([8; 32]),
         target: NativeTarget::linux_arm64(),
         register_environment: TargetRegisterEnvironmentIdentity::from_bytes([9; 32]),

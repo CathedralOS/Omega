@@ -34,11 +34,11 @@ pub(crate) const ENTRANCES: &[RequiredCoordinationEntrance] = &[
         coordination_marker: "pub fn stage_optimized_register_homes",
     },
     RequiredCoordinationEntrance {
-        path: "omega-rust/omega/pipeline/omega-selected-instructions-to-register-homes/src/analyses/liveness/mod.rs",
+        path: "omega-rust/omega/pipeline/omega-selected-instructions-to-register-homes/src/analyses/liveness/staging/mod.rs",
         coordination_marker: "pub fn stage_optimized_liveness",
     },
     RequiredCoordinationEntrance {
-        path: "omega-rust/omega/pipeline/omega-selected-instructions-to-register-homes/src/analyses/live_ranges/mod.rs",
+        path: "omega-rust/omega/pipeline/omega-selected-instructions-to-register-homes/src/analyses/live_ranges/staging/mod.rs",
         coordination_marker: "pub fn stage_optimized_live_ranges",
     },
     RequiredCoordinationEntrance {

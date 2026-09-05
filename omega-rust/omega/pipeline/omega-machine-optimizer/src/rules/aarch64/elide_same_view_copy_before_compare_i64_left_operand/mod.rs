@@ -17,10 +17,10 @@ mod tests;
 use crate::{Aarch64SameViewCopyElisionError, ValidatedAarch64SameViewCopyElision};
 
 pub fn optimize_aarch64_same_view_copy_i64_before_compare_i64_left_operand<
-    S: omega_regalloc::ValidatedSelectedAnalysis,
+    S: omega_selected_instructions_to_register_homes::ValidatedSelectedAnalysis,
 >(
     selected: &S,
-    liveness: &omega_regalloc::ValidatedLiveness,
+    liveness: &omega_selected_instructions_to_register_homes::ValidatedLiveness,
     source: &crate::ValidatedPostAllocationMachinePlan,
     physical: &omega_register_model::ValidatedPhysicalRegisterModel,
     budget: omega_optimization_core::OptimizationWorkBudget,

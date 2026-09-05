@@ -8,7 +8,7 @@ pub(super) struct CurrentFunctionFragmentInput {
     pub(super) program: ResolvedMachineProgram,
     pub(super) machine: crate::StagedOptimizedPostAllocationMachinePlan,
     pub(super) layout: crate::StagedOptimizedResolvedSelectedFormLayout,
-    pub(super) homes: omega_regalloc::ValidatedRegisterHomes,
+    pub(super) homes: omega_selected_instructions_to_register_homes::ValidatedRegisterHomes,
     pub(super) environment: crate::ValidatedTargetRegisterEnvironment,
     pub(super) encoding: crate::StagedOptimizedSelectedFormEncoding,
     pub(super) frame_protocol: Option<crate::ValidatedTargetFrameProtocolEncoding>,
@@ -16,7 +16,7 @@ pub(super) struct CurrentFunctionFragmentInput {
     pub(super) exit: crate::ValidatedWholeFunctionExitContract,
     pub(super) manifest: crate::ValidatedFunctionRelativeOptimizationRealizationManifest,
     pub(super) post_allocation_manifest:
-        omega_regalloc::ValidatedPostAllocationOptimizationManifest,
+        omega_selected_instructions_to_register_homes::ValidatedPostAllocationOptimizationManifest,
     pub(super) target_input: Arc<crate::ValidatedOptimizedTargetOperations>,
     pub(super) source_kind: FunctionFragmentEmissionSourceKind,
 }

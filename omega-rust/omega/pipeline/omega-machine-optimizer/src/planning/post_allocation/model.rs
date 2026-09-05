@@ -2,9 +2,9 @@ use crate::{
     PostAllocationMachineIdentity, PostAllocationMachinePlan, PreAllocationMachineEffectIdentity,
 };
 use omega_optimization_core::PostAllocationOptimizationManifestIdentity;
-use omega_regalloc::RegisterHomeIdentity;
 use omega_register_model::TargetRegisterEnvironmentIdentity;
 use omega_selected_instructions::SelectedInstructionPlanIdentity;
+use omega_selected_instructions_to_register_homes::RegisterHomeIdentity;
 use psi_core::MachineId;
 use std::sync::Arc;
 

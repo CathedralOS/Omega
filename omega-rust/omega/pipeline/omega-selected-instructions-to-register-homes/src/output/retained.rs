@@ -33,9 +33,7 @@ impl RetainedAllocation {
     }
 
     #[cfg(feature = "test-support")]
-    pub fn fixed_view_copy_proof_for_test(
-        &self,
-    ) -> Option<&omega_regalloc::ValidatedFixedViewCopies> {
+    pub fn fixed_view_copy_proof_for_test(&self) -> Option<&crate::ValidatedFixedViewCopies> {
         match &self.replay {
             ReplayInputs::FixedView(source) => {
                 Some(source.reanalysis_stage().transformation_stage().copies())
@@ -47,7 +45,7 @@ impl RetainedAllocation {
     #[cfg(feature = "test-support")]
     pub fn rematerialization_availability_for_test(
         &self,
-    ) -> Option<&omega_regalloc::ValidatedAllocatorAvailability> {
+    ) -> Option<&crate::ValidatedAllocatorAvailability> {
         match &self.replay {
             ReplayInputs::Rematerialization(source) => {
                 Some(source.source().allocator_availability())
@@ -61,7 +59,7 @@ impl RetainedAllocation {
     #[cfg(feature = "test-support")]
     pub fn rematerialization_proof_for_test(
         &self,
-    ) -> Option<&omega_regalloc::ValidatedPressureRematerialization> {
+    ) -> Option<&crate::ValidatedPressureRematerialization> {
         match &self.replay {
             ReplayInputs::Rematerialization(source) => Some(source.rematerialization()),
             _ => None,

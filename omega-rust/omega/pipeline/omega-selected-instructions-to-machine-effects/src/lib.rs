@@ -14,7 +14,7 @@ mod error;
 pub use error::MachineEffectStageError;
 
 use omega_machine_optimizer::ValidatedPreAllocationMachineEffects;
-use omega_regalloc::ValidatedSelectedAnalysis;
+use omega_selected_instructions_to_register_homes::ValidatedSelectedAnalysis;
 use omega_target_to_register_environment::ValidatedTargetRegisterEnvironment;
 
 /// Construct and independently replay effects for the current selected program.

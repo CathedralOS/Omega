@@ -15,49 +15,51 @@ fn replay_rejects_every_root_placement_dependency_and_usage_corruption() {
             let source = build(constructor, target);
             let canonical = constrain(&source, exact_budget()).unwrap().plan().clone();
             let identity =
-                omega_regalloc::abstract_spill_access_constraint_plan_identity(&canonical);
+                omega_selected_instructions_to_register_homes::abstract_spill_access_constraint_plan_identity(&canonical);
             for corrupt in ROOT_MUTATIONS {
                 let mut changed = canonical.clone();
                 corrupt(&mut changed);
                 assert_ne!(
-                    omega_regalloc::abstract_spill_access_constraint_plan_identity(&changed),
+                    omega_selected_instructions_to_register_homes::abstract_spill_access_constraint_plan_identity(&changed),
                     identity
                 );
                 assert_eq!(
                     validate(&source, changed),
-                    Err(omega_regalloc::AbstractSpillAccessConstraintError::RootMismatch),
+                    Err(omega_selected_instructions_to_register_homes::AbstractSpillAccessConstraintError::RootMismatch),
                 );
             }
             for corrupt in CONTENT_MUTATIONS {
                 let mut changed = canonical.clone();
                 corrupt(&mut changed);
                 assert_ne!(
-                    omega_regalloc::abstract_spill_access_constraint_plan_identity(&changed),
+                    omega_selected_instructions_to_register_homes::abstract_spill_access_constraint_plan_identity(&changed),
                     identity
                 );
                 assert_eq!(
                     validate(&source, changed),
-                    Err(omega_regalloc::AbstractSpillAccessConstraintError::NonCanonicalFunctions),
+                    Err(omega_selected_instructions_to_register_homes::AbstractSpillAccessConstraintError::NonCanonicalFunctions),
                 );
             }
             let mut usage = canonical;
             usage.usage.iterations += 1;
             assert_ne!(
-                omega_regalloc::abstract_spill_access_constraint_plan_identity(&usage),
+                omega_selected_instructions_to_register_homes::abstract_spill_access_constraint_plan_identity(&usage),
                 identity
             );
             assert_eq!(
                 validate(&source, usage),
-                Err(omega_regalloc::AbstractSpillAccessConstraintError::UsageMismatch),
+                Err(omega_selected_instructions_to_register_homes::AbstractSpillAccessConstraintError::UsageMismatch),
             );
         }
     }
 }
 
-const ROOT_MUTATIONS: [fn(&mut omega_regalloc::AbstractSpillAccessConstraintPlan); 5] = [
+const ROOT_MUTATIONS: [fn(
+    &mut omega_selected_instructions_to_register_homes::AbstractSpillAccessConstraintPlan,
+); 5] = [
     |plan| {
         plan.abstract_spill_memory_effects =
-            omega_regalloc::AbstractSpillMemoryEffectPlanIdentity::from_bytes([0xe0; 32])
+            omega_selected_instructions_to_register_homes::AbstractSpillMemoryEffectPlanIdentity::from_bytes([0xe0; 32])
     },
     |plan| {
         plan.register_environment =
@@ -65,7 +67,9 @@ const ROOT_MUTATIONS: [fn(&mut omega_regalloc::AbstractSpillAccessConstraintPlan
     },
     |plan| {
         plan.allocator_availability =
-            omega_regalloc::AllocatorAvailabilityIdentity::from_bytes([0xe2; 32])
+            omega_selected_instructions_to_register_homes::AllocatorAvailabilityIdentity::from_bytes(
+                [0xe2; 32],
+            )
     },
     |plan| {
         plan.optimization_unit =
@@ -74,12 +78,17 @@ const ROOT_MUTATIONS: [fn(&mut omega_regalloc::AbstractSpillAccessConstraintPlan
     |plan| plan.fuel_schedule = psi_core::FuelScheduleIdentity::new(99_992).unwrap(),
 ];
 
-const CONTENT_MUTATIONS: [fn(&mut omega_regalloc::AbstractSpillAccessConstraintPlan); 13] = [
+const CONTENT_MUTATIONS: [fn(
+    &mut omega_selected_instructions_to_register_homes::AbstractSpillAccessConstraintPlan,
+); 13] = [
     |plan| plan.functions[0].placements[0].pseudo.ordinal += 1,
     |plan| plan.functions[0].placements[0].block_ordinal += 1,
     |plan| plan.functions[0].placements[0].point.0 += 1,
     |plan| plan.functions[0].placements[0].before_instruction.0 += 1,
-    |plan| plan.functions[0].placements[0].kind = omega_regalloc::AbstractSpillAccessKind::Read,
+    |plan| {
+        plan.functions[0].placements[0].kind =
+            omega_selected_instructions_to_register_homes::AbstractSpillAccessKind::Read
+    },
     |plan| plan.functions[0].placements[0].storage.epoch += 1,
     |plan| plan.functions[0].placements[0].spill_area_offset += 8,
     |plan| plan.functions[0].placements[0].size_bytes += 8,
@@ -88,7 +97,7 @@ const CONTENT_MUTATIONS: [fn(&mut omega_regalloc::AbstractSpillAccessConstraintP
     |plan| plan.functions[0].dependencies[0].after.ordinal += 1,
     |plan| {
         plan.functions[0].dependencies[0].reason =
-            omega_regalloc::AbstractSpillAccessDependencyReason::DeclaredBeforeReload;
+            omega_selected_instructions_to_register_homes::AbstractSpillAccessDependencyReason::DeclaredBeforeReload;
     },
     |plan| plan.functions[0].dependencies.pop().map(|_| ()).unwrap(),
 ];

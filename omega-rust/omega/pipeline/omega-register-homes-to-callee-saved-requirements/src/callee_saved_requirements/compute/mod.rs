@@ -9,8 +9,8 @@ use std::collections::BTreeSet;
 
 use omega_optimization_core::OptimizationWorkBudget;
 
-use omega_regalloc::ValidatedSelectedAnalysis;
 use omega_selected_instructions_to_register_homes::AllocationOutput;
+use omega_selected_instructions_to_register_homes::ValidatedSelectedAnalysis;
 use omega_target_to_register_environment::selected_abi_preservation;
 
 use super::{

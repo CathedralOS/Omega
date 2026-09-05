@@ -6,7 +6,7 @@ use omega_optimization_core::{
     Optimization, OptimizationExecutionPhase, OptimizationSelections,
     PostTerminalOptimizationSelections,
 };
-use omega_regalloc::AllocationRecoveryRuleCatalogError;
+use omega_selected_instructions_to_register_homes::AllocationRecoveryRuleCatalogError;
 use omega_target::Architecture;
 
 use crate::FunctionRelativeLayoutCatalogError;

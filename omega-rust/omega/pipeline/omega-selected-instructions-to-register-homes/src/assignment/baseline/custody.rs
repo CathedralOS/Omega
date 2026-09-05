@@ -1,5 +1,5 @@
+use crate::RegisterHomeValidationReceipt;
 use omega_optimization_core::PostAllocationOptimizationManifestIdentity;
-use omega_regalloc::RegisterHomeValidationReceipt;
 
 use crate::StagedOptimizedAllocationLegalityCustodyReceipt;
 use crate::StagedOptimizedSelectedReanalysisCustodyReceipt;

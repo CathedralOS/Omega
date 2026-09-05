@@ -1,14 +1,10 @@
 //! Optimizer module role: executable entrance. Selected-lowering literal-fold stage entrance.
 //!
-//! `omega_regalloc::rules` owns the exact-name catalog. This file consumes its
+//! `crate::rules` owns the exact-name catalog. This file consumes its
 //! selected policy and owns custody-stage dispatch; lower rungs separate
 //! carriers, execution/replay, scheduling receipts, and work accounting.
 
-use omega_optimization_core::{
-    Optimization, OptimizationSelectionIdentity, OptimizationSelections, OptimizationWorkBudget,
-    OptimizationWorkUsage, SelectedLoweringOptimizationCompletionIdentity,
-};
-use omega_regalloc::{
+use crate::{
     AllocationLegalityError, LiteralFoldError, LiteralFoldIdentity, LiteralFoldPolicy,
     LiveRangeError, LivenessError, RecoveryClassificationError, RecoveryClassificationPolicy,
     SpillChoiceError, SpillChoicePolicy, ValidatedAllocationLegality, ValidatedLiteralFold,
@@ -16,6 +12,10 @@ use omega_regalloc::{
     ValidatedSelectedAnalysis, ValidatedSpillChoices, analyze_allocation_legality,
     analyze_live_ranges, analyze_liveness, choose_spill_victims, classify_pressure_recovery,
     fold_selected_incoming_literal, resolve_selected_lowering_rules,
+};
+use omega_optimization_core::{
+    Optimization, OptimizationSelectionIdentity, OptimizationSelections, OptimizationWorkBudget,
+    OptimizationWorkUsage, SelectedLoweringOptimizationCompletionIdentity,
 };
 use omega_selected_instructions::SelectedInstructionPlanIdentity;
 
@@ -34,20 +34,19 @@ pub use execution::{
     validate_optimized_literal_fold_custody, validate_selected_lowering_optimization_custody,
 };
 pub use model::*;
-pub use omega_regalloc::ORDERED_SELECTED_LOWERING_RULES;
 
-impl From<omega_regalloc::SelectedLoweringRuleCatalogError> for OptimizedLiteralFoldCustodyError {
-    fn from(error: omega_regalloc::SelectedLoweringRuleCatalogError) -> Self {
+impl From<crate::SelectedLoweringRuleCatalogError> for OptimizedLiteralFoldCustodyError {
+    fn from(error: crate::SelectedLoweringRuleCatalogError) -> Self {
         match error {
-            omega_regalloc::SelectedLoweringRuleCatalogError::WrongPhase(_) => {
+            crate::SelectedLoweringRuleCatalogError::WrongPhase(_) => {
                 Self::SelectionProjectionMismatch
             }
-            omega_regalloc::SelectedLoweringRuleCatalogError::MissingSelection => {
+            crate::SelectedLoweringRuleCatalogError::MissingSelection => {
                 Self::MissingSelectedLoweringOptimization
             }
-            omega_regalloc::SelectedLoweringRuleCatalogError::UnsupportedSelection(
-                optimization,
-            ) => Self::UnsupportedSelectedLoweringOptimization(optimization),
+            crate::SelectedLoweringRuleCatalogError::UnsupportedSelection(optimization) => {
+                Self::UnsupportedSelectedLoweringOptimization(optimization)
+            }
         }
     }
 }

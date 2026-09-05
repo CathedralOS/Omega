@@ -26,7 +26,8 @@ fn replay_rejects_every_root_usage_roster_function_unit_and_witness_corruption()
     );
 
     let mut homes = canonical.clone();
-    homes.homes = omega_regalloc::RegisterHomeIdentity::from_bytes([0x32; 32]);
+    homes.homes =
+        omega_selected_instructions_to_register_homes::RegisterHomeIdentity::from_bytes([0x32; 32]);
     assert_eq!(
         validate_allocated_callee_saved_requirements(&source, homes),
         Err(AllocatedCalleeSavedRequirementError::RootMismatch)

@@ -21,7 +21,7 @@ pub fn aarch64_same_view_copy_elision_identity(
 pub(crate) fn revision_identity(
     source: crate::PostAllocationMachineIdentity,
     selected: omega_selected_instructions::SelectedInstructionPlanIdentity,
-    liveness: omega_regalloc::LivenessIdentity,
+    liveness: omega_selected_instructions_to_register_homes::LivenessIdentity,
     target: omega_target::NativeTarget,
     physical: omega_register_model::PhysicalRegisterModelIdentity,
     functions: &[crate::Aarch64SameViewCopyElisionFunction],

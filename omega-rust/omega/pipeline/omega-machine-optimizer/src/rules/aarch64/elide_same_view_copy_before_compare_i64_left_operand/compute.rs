@@ -1,6 +1,6 @@
 use omega_optimization_core::OptimizationWorkBudget;
-use omega_regalloc::{ValidatedLiveness, ValidatedSelectedAnalysis};
 use omega_register_model::ValidatedPhysicalRegisterModel;
+use omega_selected_instructions_to_register_homes::{ValidatedLiveness, ValidatedSelectedAnalysis};
 
 use crate::{
     Aarch64SameViewCopyElisionError, Aarch64SameViewCopyElisionPlan, SameViewCopyInputs,

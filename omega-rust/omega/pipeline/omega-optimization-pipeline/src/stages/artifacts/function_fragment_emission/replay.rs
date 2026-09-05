@@ -1,5 +1,5 @@
 use super::FunctionFragmentEmissionSourceKind;
-use omega_regalloc::ValidatedSelectedAnalysis;
+use omega_selected_instructions_to_register_homes::ValidatedSelectedAnalysis;
 
 use crate::{
     StagedAllocationRecoveryFunctionRelativeRealization,
@@ -109,7 +109,9 @@ impl FunctionFragmentReplayInputs {
         }
     }
 
-    pub fn register_homes(&self) -> &omega_regalloc::ValidatedRegisterHomes {
+    pub fn register_homes(
+        &self,
+    ) -> &omega_selected_instructions_to_register_homes::ValidatedRegisterHomes {
         self.allocation().current().homes()
     }
 
@@ -145,7 +147,8 @@ impl FunctionFragmentReplayInputs {
 
     pub fn post_allocation_manifest(
         &self,
-    ) -> &omega_regalloc::ValidatedPostAllocationOptimizationManifest {
+    ) -> &omega_selected_instructions_to_register_homes::ValidatedPostAllocationOptimizationManifest
+    {
         self.allocation().current().post_allocation_manifest()
     }
 }

@@ -3,8 +3,8 @@
 //! Policy, ordinary rows, structural rows, and aggregate identity descend
 //! separately. Candidate branch bytes are accepted only by target decoders.
 
-use omega_regalloc::ValidatedSelectedAnalysis;
 use omega_register_model::ValidatedPhysicalRegisterModel;
+use omega_selected_instructions_to_register_homes::ValidatedSelectedAnalysis;
 
 use omega_post_allocation_machine_to_optimized_machine::StagedOptimizedPostAllocationMachineOptimization;
 use omega_post_allocation_machine_to_selected_form_encoding::{

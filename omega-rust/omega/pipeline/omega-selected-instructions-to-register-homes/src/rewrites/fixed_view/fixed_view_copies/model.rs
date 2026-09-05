@@ -1,9 +1,9 @@
+use crate::{
+    FixedViewCopyError, FixedViewCopyIdentity, FixedViewCopyPolicy, ValidatedFixedViewCopies,
+};
 use omega_optimization_core::{
     OptimizationIdentityBundleIdentity, OptimizationUnitIdentity, OptimizationWorkUsage,
     OptimizedAbstractPlanProjectionIdentity, PrePhysicalOptimizationManifestIdentity,
-};
-use omega_regalloc::{
-    FixedViewCopyError, FixedViewCopyIdentity, FixedViewCopyPolicy, ValidatedFixedViewCopies,
 };
 use omega_selected_instructions::SelectedInstructionPlanIdentity;
 use psi_core::{FuelScheduleIdentity, MachineId};
@@ -50,14 +50,14 @@ pub struct StagedOptimizedFixedViewCopyCustodyReceipt {
     pub(super) optimization_unit: OptimizationUnitIdentity,
     pub(super) fuel_schedule: FuelScheduleIdentity,
     pub(super) register_environment: omega_register_model::TargetRegisterEnvironmentIdentity,
-    pub(super) allocator_availability: omega_regalloc::AllocatorAvailabilityIdentity,
+    pub(super) allocator_availability: crate::AllocatorAvailabilityIdentity,
     pub(super) source_selected: SelectedInstructionPlanIdentity,
-    pub(super) source_liveness: omega_regalloc::LivenessIdentity,
-    pub(super) source_ranges: omega_regalloc::LiveRangeIdentity,
-    pub(super) source_legality: omega_regalloc::AllocationLegalityIdentity,
-    pub(super) fixed_intervals: omega_regalloc::FixedPrecoloredIntervalPlanIdentity,
-    pub(super) split_requirements: omega_regalloc::FixedPrecoloredSplitRequirementPlanIdentity,
-    pub(super) segment_homes: omega_regalloc::FixedPrecoloredSegmentHomePlanIdentity,
+    pub(super) source_liveness: crate::LivenessIdentity,
+    pub(super) source_ranges: crate::LiveRangeIdentity,
+    pub(super) source_legality: crate::AllocationLegalityIdentity,
+    pub(super) fixed_intervals: crate::FixedPrecoloredIntervalPlanIdentity,
+    pub(super) split_requirements: crate::FixedPrecoloredSplitRequirementPlanIdentity,
+    pub(super) segment_homes: crate::FixedPrecoloredSegmentHomePlanIdentity,
     pub(super) transformation: FixedViewCopyIdentity,
     pub(super) transformed_selected: SelectedInstructionPlanIdentity,
     pub(super) policy: FixedViewCopyPolicy,
@@ -96,30 +96,28 @@ impl StagedOptimizedFixedViewCopyCustodyReceipt {
     ) -> omega_register_model::TargetRegisterEnvironmentIdentity {
         self.register_environment
     }
-    pub const fn allocator_availability(self) -> omega_regalloc::AllocatorAvailabilityIdentity {
+    pub const fn allocator_availability(self) -> crate::AllocatorAvailabilityIdentity {
         self.allocator_availability
     }
     pub const fn source_selected(self) -> SelectedInstructionPlanIdentity {
         self.source_selected
     }
-    pub const fn source_liveness(self) -> omega_regalloc::LivenessIdentity {
+    pub const fn source_liveness(self) -> crate::LivenessIdentity {
         self.source_liveness
     }
-    pub const fn source_ranges(self) -> omega_regalloc::LiveRangeIdentity {
+    pub const fn source_ranges(self) -> crate::LiveRangeIdentity {
         self.source_ranges
     }
-    pub const fn source_legality(self) -> omega_regalloc::AllocationLegalityIdentity {
+    pub const fn source_legality(self) -> crate::AllocationLegalityIdentity {
         self.source_legality
     }
-    pub const fn fixed_intervals(self) -> omega_regalloc::FixedPrecoloredIntervalPlanIdentity {
+    pub const fn fixed_intervals(self) -> crate::FixedPrecoloredIntervalPlanIdentity {
         self.fixed_intervals
     }
-    pub const fn split_requirements(
-        self,
-    ) -> omega_regalloc::FixedPrecoloredSplitRequirementPlanIdentity {
+    pub const fn split_requirements(self) -> crate::FixedPrecoloredSplitRequirementPlanIdentity {
         self.split_requirements
     }
-    pub const fn segment_homes(self) -> omega_regalloc::FixedPrecoloredSegmentHomePlanIdentity {
+    pub const fn segment_homes(self) -> crate::FixedPrecoloredSegmentHomePlanIdentity {
         self.segment_homes
     }
     pub const fn transformation(self) -> FixedViewCopyIdentity {

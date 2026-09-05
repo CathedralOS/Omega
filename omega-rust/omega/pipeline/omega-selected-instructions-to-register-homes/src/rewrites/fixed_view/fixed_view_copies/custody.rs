@@ -1,4 +1,4 @@
-use omega_regalloc::FixedViewCopyValidationReceipt;
+use crate::FixedViewCopyValidationReceipt;
 
 use crate::StagedOptimizedFixedPrecoloredSegmentHomeCustodyReceipt;
 

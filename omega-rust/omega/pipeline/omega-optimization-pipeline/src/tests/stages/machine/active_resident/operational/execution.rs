@@ -1,7 +1,7 @@
 //! Positive, disabled, deterministic, and fixed-point behavior.
 
 use omega_optimization_core::OptimizationWorkBudget;
-use omega_regalloc::{
+use omega_selected_instructions_to_register_homes::{
     PostAllocationSelectedTransformation, PressureRematerializationError, choose_spill_victims,
     classify_pressure_recovery, rematerialize_selected_active_resident,
 };

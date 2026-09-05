@@ -1,10 +1,12 @@
 use omega_optimization_core::{OptimizationWorkBudget, OptimizationWorkUsage};
-use omega_regalloc::{LivenessPlan, ValidatedLiveness, ValidatedSelectedAnalysis};
 use omega_register_model::{RegisterOperandAccess, RegisterUnitId, ValidatedPhysicalRegisterModel};
 use omega_selected_instructions::{
     MachineAlternativeFamily, MachineEncodedControlEffect, MachineEncodedMemoryEffect,
     MachineEncodedStackEffect, MachineEncodedTrapBehavior, MachineSizeKnowledge,
     SelectedInstruction, SelectedInstructionKind, SelectedInstructionPlan,
+};
+use omega_selected_instructions_to_register_homes::{
+    LivenessPlan, ValidatedLiveness, ValidatedSelectedAnalysis,
 };
 use omega_target::Architecture;
 use psi_core::IntegerValue;
@@ -45,7 +47,7 @@ pub(crate) fn compute_from_parts(
     selected: &SelectedInstructionPlan,
     selected_identity: omega_selected_instructions::SelectedInstructionPlanIdentity,
     liveness: &LivenessPlan,
-    liveness_identity: omega_regalloc::LivenessIdentity,
+    liveness_identity: omega_selected_instructions_to_register_homes::LivenessIdentity,
     source: &PostAllocationMachinePlan,
     source_identity: crate::PostAllocationMachineIdentity,
     physical: &ValidatedPhysicalRegisterModel,
@@ -274,7 +276,7 @@ fn validate_roots(
     selected: &SelectedInstructionPlan,
     selected_identity: omega_selected_instructions::SelectedInstructionPlanIdentity,
     liveness: &LivenessPlan,
-    _liveness_identity: omega_regalloc::LivenessIdentity,
+    _liveness_identity: omega_selected_instructions_to_register_homes::LivenessIdentity,
     source: &PostAllocationMachinePlan,
     source_identity: crate::PostAllocationMachineIdentity,
     physical: &ValidatedPhysicalRegisterModel,
@@ -460,7 +462,10 @@ fn qualified_write(
     })
 }
 
-fn flags_live_out(live: &omega_regalloc::InstructionLiveness, rflags: &[RegisterUnitId]) -> bool {
+fn flags_live_out(
+    live: &omega_selected_instructions_to_register_homes::InstructionLiveness,
+    rflags: &[RegisterUnitId],
+) -> bool {
     live.unit_live_out.iter().any(|unit| rflags.contains(unit))
 }
 

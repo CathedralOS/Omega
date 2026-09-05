@@ -17,9 +17,11 @@ pub use validate::validate_x86_xor_zero_materialization;
 /// Select the symbolic three-byte XOR-zero form only when independently
 /// validated selected-CFG liveness proves every canonical RFLAGS unit dead.
 /// This owns no encoded bytes and grants no emission authority.
-pub fn optimize_x86_materialize_i64_zero_with_xor<S: omega_regalloc::ValidatedSelectedAnalysis>(
+pub fn optimize_x86_materialize_i64_zero_with_xor<
+    S: omega_selected_instructions_to_register_homes::ValidatedSelectedAnalysis,
+>(
     selected: &S,
-    liveness: &omega_regalloc::ValidatedLiveness,
+    liveness: &omega_selected_instructions_to_register_homes::ValidatedLiveness,
     source: &crate::ValidatedPostAllocationMachinePlan,
     physical: &omega_register_model::ValidatedPhysicalRegisterModel,
     budget: omega_optimization_core::OptimizationWorkBudget,

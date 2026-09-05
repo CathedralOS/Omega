@@ -11,8 +11,8 @@ mod validation;
 pub use model::*;
 pub use validation::validate_optimized_fixed_view_copy_custody;
 
+use crate::FixedViewCopyPolicy;
 use omega_optimization_core::OptimizationWorkBudget;
-use omega_regalloc::FixedViewCopyPolicy;
 
 use crate::StagedOptimizedFixedPrecoloredSegmentHomes;
 

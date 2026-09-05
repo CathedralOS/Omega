@@ -2,13 +2,13 @@
 
 use std::sync::Arc;
 
-use omega_abstract_operations_to_target_operations::ValidatedOptimizedTargetOperations;
-use omega_optimization_core::{OptimizationSelections, OptimizationWorkBudget};
-use omega_regalloc::{
+use crate::{
     OwnedSelectedProgram, SelectedProgramRef, ValidatedAllocationLegality, ValidatedLiveRanges,
     ValidatedLiveness, ValidatedPostAllocationOptimizationManifest, ValidatedRegisterHomes,
     ValidatedSelectedAnalysis,
 };
+use omega_abstract_operations_to_target_operations::ValidatedOptimizedTargetOperations;
+use omega_optimization_core::{OptimizationSelections, OptimizationWorkBudget};
 use omega_register_homes::AllocatedProgram;
 use omega_target_to_register_environment::ValidatedTargetRegisterEnvironment;
 

@@ -1,8 +1,8 @@
 //! Structural-Unit function custody and construction.
 
-use omega_regalloc::ValidatedRegisterHomes;
 use omega_register_model::ValidatedPhysicalRegisterModel;
 use omega_selected_instructions::{SelectedInstructionPlan, SelectedStructuralUnitFunction};
+use omega_selected_instructions_to_register_homes::ValidatedRegisterHomes;
 
 use crate::{
     PostAllocationMachineError, PostAllocationStructuralUnitFunction,
@@ -37,7 +37,7 @@ fn build_function(
     function_index: usize,
     selected: &SelectedStructuralUnitFunction,
     effects: &StructuralUnitFunctionMachineEffects,
-    homes: &omega_regalloc::FunctionRegisterHomes,
+    homes: &omega_selected_instructions_to_register_homes::FunctionRegisterHomes,
     physical: &ValidatedPhysicalRegisterModel,
 ) -> Result<PostAllocationStructuralUnitFunction, PostAllocationMachineError> {
     if effects.machine != selected.machine
@@ -117,7 +117,10 @@ pub(super) fn unique_effect(
 pub(super) fn unique_home(
     homes: &ValidatedRegisterHomes,
     machine: psi_core::MachineId,
-) -> Result<&omega_regalloc::FunctionRegisterHomes, PostAllocationMachineError> {
+) -> Result<
+    &omega_selected_instructions_to_register_homes::FunctionRegisterHomes,
+    PostAllocationMachineError,
+> {
     let matches = homes
         .plan()
         .structural_unit_functions

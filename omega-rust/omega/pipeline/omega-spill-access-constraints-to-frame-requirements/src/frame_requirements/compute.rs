@@ -2,7 +2,7 @@
 
 use crate::ValidatedTargetRegisterEnvironment;
 use omega_optimization_core::{OptimizationWorkBudget, OptimizationWorkUsage};
-use omega_regalloc::ValidatedAbstractSpillAccessConstraints;
+use omega_selected_instructions_to_register_homes::ValidatedAbstractSpillAccessConstraints;
 use omega_target_to_register_environment::selected_abi_preservation;
 
 use super::{
@@ -89,7 +89,7 @@ fn count(value: usize) -> Result<u64, SpillFrameRequirementError> {
 }
 
 fn derive_function(
-    function: &omega_regalloc::FunctionAbstractSpillAccessConstraints,
+    function: &omega_selected_instructions_to_register_homes::FunctionAbstractSpillAccessConstraints,
     abi: FrameAbiPreservationConvention,
     stack_alignment: u16,
     red_zone_capacity_bytes: u16,
@@ -114,7 +114,7 @@ pub(crate) fn derive_zero_access_requirement_for_test(
     machine: psi_core::MachineId,
 ) -> FunctionSpillFrameRequirements {
     derive_function(
-        &omega_regalloc::FunctionAbstractSpillAccessConstraints {
+        &omega_selected_instructions_to_register_homes::FunctionAbstractSpillAccessConstraints {
             machine,
             spill_area_bytes: 0,
             placements: Vec::new(),

@@ -1,6 +1,6 @@
 use omega_optimization_core::{OptimizationWorkBudget, OptimizationWorkUsage};
-use omega_regalloc::AbstractSpillAccessConstraintPlanIdentity;
 use omega_register_model::TargetRegisterEnvironmentIdentity;
+use omega_selected_instructions_to_register_homes::AbstractSpillAccessConstraintPlanIdentity;
 use omega_target::NativeTarget;
 use psi_core::MachineId;
 

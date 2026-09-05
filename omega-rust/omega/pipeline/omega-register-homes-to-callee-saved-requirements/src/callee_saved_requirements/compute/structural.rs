@@ -11,7 +11,7 @@ use super::{
 pub(super) fn derive(
     traversal: &mut DirectTraversal<'_>,
     selected: &[omega_selected_instructions::SelectedStructuralUnitFunction],
-    homes: &[omega_regalloc::FunctionRegisterHomes],
+    homes: &[omega_selected_instructions_to_register_homes::FunctionRegisterHomes],
 ) -> Result<(), AllocatedCalleeSavedRequirementError> {
     if selected.len() != homes.len() {
         return Err(AllocatedCalleeSavedRequirementError::FunctionRosterMismatch);

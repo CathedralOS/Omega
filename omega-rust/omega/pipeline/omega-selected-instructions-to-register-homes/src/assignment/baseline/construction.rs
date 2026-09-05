@@ -1,4 +1,4 @@
-use omega_regalloc::{
+use crate::{
     PostAllocationSelectedTransformation, assign_register_homes,
     project_post_allocation_optimization_manifest, validate_register_homes,
 };

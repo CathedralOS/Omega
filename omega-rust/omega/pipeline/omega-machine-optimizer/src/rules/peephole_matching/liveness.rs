@@ -1,4 +1,4 @@
-use omega_regalloc::{BlockLiveness, InstructionLiveness};
+use omega_selected_instructions_to_register_homes::{BlockLiveness, InstructionLiveness};
 
 use super::{
     InstructionPairMatchError, InstructionPairPattern, MatchedPhysicalRead,

@@ -65,7 +65,7 @@ omega-optimization-core = { path = "../../omega-rust/omega/representations/omega
 omega-optimization-pipeline = { path = "../../omega-rust/omega/pipeline/omega-optimization-pipeline" }
 omega-target-operations-to-selected-instructions = { path = "../../omega-rust/omega/pipeline/omega-target-operations-to-selected-instructions" }
 omega-abstract-operations-optimizer = { path = "../../omega-rust/omega/pipeline/omega-abstract-operations-optimizer" }
-omega-regalloc = { path = "../../omega-rust/omega/pipeline/omega-regalloc" }
+omega-selected-instructions-to-register-homes = { path = "../../omega-rust/omega/pipeline/omega-selected-instructions-to-register-homes" }
 omega-register-model = { path = "../../omega-rust/omega/representations/omega-register-model" }
 omega-optimization-unit = { path = "../../omega-rust/omega/representations/omega-optimization-unit" }
 omega-optimization-validation = { path = "../../omega-rust/omega/pipeline/omega-optimization-validation" }

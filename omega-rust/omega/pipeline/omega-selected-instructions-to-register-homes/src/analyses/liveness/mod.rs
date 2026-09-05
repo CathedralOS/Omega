@@ -1,26 +1,28 @@
-//! Optimizer module role: executable entrance. Selected instructions to validated liveness.
-//!
-//! This crate owns the analysis-to-independent-replay join. No liveness
-//! result receives stage custody before replay reconstructs its exact receipt.
+//! Optimizer module role: executable entrance. Selected-CFG liveness compute -> independent validation entrance.
 
-mod compute;
-mod custody;
-mod model;
-mod validation;
+use crate::*;
 
+pub(crate) mod compute;
+pub(crate) mod identity;
+pub(crate) mod model;
+pub(crate) mod validate;
+
+#[cfg(test)]
+pub(crate) mod tests;
+
+pub use identity::liveness_identity;
 pub use model::*;
-pub use validation::validate_optimized_liveness_custody;
+pub use validate::validate_liveness;
 
-use omega_target_operations_to_selected_instructions::StagedOptimizedSelectedInstructions;
-
-pub fn stage_optimized_liveness(
-    selected: StagedOptimizedSelectedInstructions,
-) -> Result<StagedOptimizedLiveness, OptimizedLivenessCustodyError> {
-    let liveness = compute::compute_liveness(&selected)?;
-    let custody = validate_optimized_liveness_custody(&selected, &liveness)?;
-    Ok(StagedOptimizedLiveness {
-        selected,
-        liveness,
-        custody,
-    })
+/// Compute and independently replay bounded selected-CFG liveness facts.
+/// The result grants no interval, allocation, emission, or publication
+/// authority.
+pub fn analyze_liveness<S: ValidatedSelectedAnalysis>(
+    selected: &S,
+) -> Result<ValidatedLiveness, LivenessError> {
+    let plan = compute::compute_terminal_liveness(selected)?;
+    validate_liveness(selected, plan)
 }
+
+mod staging;
+pub use staging::*;

@@ -10,16 +10,16 @@ fn sources(
     target: NativeTarget,
 ) -> (
     Sources,
-    omega_regalloc::ValidatedGeneralizedReloadValueHomes,
-    omega_regalloc::ValidatedGeneralizedSpillRecoveryChoices,
+    omega_selected_instructions_to_register_homes::ValidatedGeneralizedReloadValueHomes,
+    omega_selected_instructions_to_register_homes::ValidatedGeneralizedSpillRecoveryChoices,
 ) {
     let sources = Sources::from_legality(
         staged_active_resident_original_victim_chain_two_view_legality(target),
     );
     let homes = sources.assign(selected_lowering_budget()).unwrap();
-    let worklist = omega_regalloc::seed_generalized_spill_recovery_worklist(
+    let worklist = omega_selected_instructions_to_register_homes::seed_generalized_spill_recovery_worklist(
         &homes,
-        omega_regalloc::GeneralizedSpillRecoveryWorklistPolicy::EpochOnePressureToEpochTwoV1,
+        omega_selected_instructions_to_register_homes::GeneralizedSpillRecoveryWorklistPolicy::EpochOnePressureToEpochTwoV1,
         selected_lowering_budget(),
     )
     .unwrap();
@@ -27,7 +27,7 @@ fn sources(
         .choose_generalized_victim_with_policy(
             &homes,
             &worklist,
-            omega_regalloc::GeneralizedSpillRecoveryChoicePolicy::EpochTwoEligibleOriginalBeforeReloadThenFarthestEndThenHighestValueV1,
+            omega_selected_instructions_to_register_homes::GeneralizedSpillRecoveryChoicePolicy::EpochTwoEligibleOriginalBeforeReloadThenFarthestEndThenHighestValueV1,
             selected_lowering_budget(),
         )
         .unwrap();
@@ -56,12 +56,15 @@ fn selected_original_becomes_exact_target_neutral_logical_obligations() {
         let mut detached = first.plan().clone();
         detached.selected = None;
         assert_ne!(
-            omega_regalloc::generalized_spill_recovery_action_identity(&detached),
+            omega_selected_instructions_to_register_homes::generalized_spill_recovery_action_identity(&detached),
             first.receipt().identity()
         );
 
         let action = &first.plan().actions[0];
-        let victim = omega_regalloc::GeneralizedSpillRecoveryVictim::Original(VirtualRegisterId(5));
+        let victim =
+            omega_selected_instructions_to_register_homes::GeneralizedSpillRecoveryVictim::Original(
+                VirtualRegisterId(5),
+            );
         assert_eq!(action.source_work_item.epoch, 2);
         assert_eq!(action.source_work_item.ordinal, 0);
         assert_eq!(action.pressure_point, LiveRangePoint(14));
@@ -92,61 +95,61 @@ fn independent_replay_rejects_every_new_root_and_action_surface_mutation() {
             .plan()
             .clone();
         for corrupt in [
-            |plan: &mut omega_regalloc::GeneralizedSpillRecoveryActionPlan| {
+            |plan: &mut omega_selected_instructions_to_register_homes::GeneralizedSpillRecoveryActionPlan| {
                 plan.selected = Some(
                     omega_selected_instructions::SelectedInstructionPlanIdentity::from_bytes(
                         [0xc1; 32],
                     ),
                 )
             },
-            |plan: &mut omega_regalloc::GeneralizedSpillRecoveryActionPlan| {
-                plan.ranges = Some(omega_regalloc::LiveRangeIdentity::from_bytes([0xc2; 32]))
+            |plan: &mut omega_selected_instructions_to_register_homes::GeneralizedSpillRecoveryActionPlan| {
+                plan.ranges = Some(omega_selected_instructions_to_register_homes::LiveRangeIdentity::from_bytes([0xc2; 32]))
             },
-            |plan: &mut omega_regalloc::GeneralizedSpillRecoveryActionPlan| plan.selected = None,
-            |plan: &mut omega_regalloc::GeneralizedSpillRecoveryActionPlan| plan.ranges = None,
-            |plan: &mut omega_regalloc::GeneralizedSpillRecoveryActionPlan| {
-                plan.policy = omega_regalloc::GeneralizedSpillRecoveryActionPolicy::EpochTwoReloadVictimLaterGeneralizedRewritesV1
+            |plan: &mut omega_selected_instructions_to_register_homes::GeneralizedSpillRecoveryActionPlan| plan.selected = None,
+            |plan: &mut omega_selected_instructions_to_register_homes::GeneralizedSpillRecoveryActionPlan| plan.ranges = None,
+            |plan: &mut omega_selected_instructions_to_register_homes::GeneralizedSpillRecoveryActionPlan| {
+                plan.policy = omega_selected_instructions_to_register_homes::GeneralizedSpillRecoveryActionPolicy::EpochTwoReloadVictimLaterGeneralizedRewritesV1
             },
         ] {
             let mut changed = canonical.clone();
             corrupt(&mut changed);
             assert_eq!(
                 sources.validate_original_recovery_actions(&homes, &choices, changed),
-                Err(omega_regalloc::GeneralizedSpillRecoveryActionError::RootMismatch)
+                Err(omega_selected_instructions_to_register_homes::GeneralizedSpillRecoveryActionError::RootMismatch)
             );
         }
         for corrupt in [
-            |plan: &mut omega_regalloc::GeneralizedSpillRecoveryActionPlan| {
+            |plan: &mut omega_selected_instructions_to_register_homes::GeneralizedSpillRecoveryActionPlan| {
                 plan.actions[0].victim =
-                    omega_regalloc::GeneralizedSpillRecoveryVictim::Original(VirtualRegisterId(6))
+                    omega_selected_instructions_to_register_homes::GeneralizedSpillRecoveryVictim::Original(VirtualRegisterId(6))
             },
-            |plan: &mut omega_regalloc::GeneralizedSpillRecoveryActionPlan| {
+            |plan: &mut omega_selected_instructions_to_register_homes::GeneralizedSpillRecoveryActionPlan| {
                 plan.actions[0].store.source =
-                    omega_regalloc::GeneralizedSpillRecoveryVictim::Reload(id(0, 0))
+                    omega_selected_instructions_to_register_homes::GeneralizedSpillRecoveryVictim::Reload(id(0, 0))
             },
-            |plan: &mut omega_regalloc::GeneralizedSpillRecoveryActionPlan| {
+            |plan: &mut omega_selected_instructions_to_register_homes::GeneralizedSpillRecoveryActionPlan| {
                 plan.actions[0].victim_class.0 += 1
             },
-            |plan: &mut omega_regalloc::GeneralizedSpillRecoveryActionPlan| {
+            |plan: &mut omega_selected_instructions_to_register_homes::GeneralizedSpillRecoveryActionPlan| {
                 plan.actions[0].reload.before_instruction.0 += 1
             },
-            |plan: &mut omega_regalloc::GeneralizedSpillRecoveryActionPlan| {
+            |plan: &mut omega_selected_instructions_to_register_homes::GeneralizedSpillRecoveryActionPlan| {
                 plan.actions[0].rewrites[0].operand += 1
             },
-            |plan: &mut omega_regalloc::GeneralizedSpillRecoveryActionPlan| plan.actions.clear(),
+            |plan: &mut omega_selected_instructions_to_register_homes::GeneralizedSpillRecoveryActionPlan| plan.actions.clear(),
         ] {
             let mut changed = canonical.clone();
             corrupt(&mut changed);
             assert_eq!(
                 sources.validate_original_recovery_actions(&homes, &choices, changed),
-                Err(omega_regalloc::GeneralizedSpillRecoveryActionError::NonCanonicalActions)
+                Err(omega_selected_instructions_to_register_homes::GeneralizedSpillRecoveryActionError::NonCanonicalActions)
             );
         }
         let mut usage = canonical;
         usage.usage.validation_steps += 1;
         assert_eq!(
             sources.validate_original_recovery_actions(&homes, &choices, usage),
-            Err(omega_regalloc::GeneralizedSpillRecoveryActionError::UsageMismatch)
+            Err(omega_selected_instructions_to_register_homes::GeneralizedSpillRecoveryActionError::UsageMismatch)
         );
     }
 }
@@ -169,7 +172,7 @@ fn exact_budget_cross_target_custody_and_recursive_refusal_are_typed() {
             .unwrap();
         assert!(matches!(
             sources.plan_original_recovery_actions(&homes, &choices, insufficient),
-            Err(omega_regalloc::GeneralizedSpillRecoveryActionError::BudgetExceeded {
+            Err(omega_selected_instructions_to_register_homes::GeneralizedSpillRecoveryActionError::BudgetExceeded {
                 required,
                 budget,
             }) if required == exact_usage() && budget == insufficient
@@ -177,10 +180,10 @@ fn exact_budget_cross_target_custody_and_recursive_refusal_are_typed() {
         assert_eq!(
             sources.schedule_recursive_spills(&actions, selected_lowering_budget()),
             Err(
-                omega_regalloc::RecursiveSpillInsertionError::UnsupportedRecoveryVictim {
+                omega_selected_instructions_to_register_homes::RecursiveSpillInsertionError::UnsupportedRecoveryVictim {
                     function: 0,
                     action: id(2, 0),
-                    victim: omega_regalloc::GeneralizedSpillRecoveryVictim::Original(
+                    victim: omega_selected_instructions_to_register_homes::GeneralizedSpillRecoveryVictim::Original(
                         VirtualRegisterId(5),
                     ),
                 }
@@ -197,12 +200,15 @@ fn exact_budget_cross_target_custody_and_recursive_refusal_are_typed() {
     let (arm, arm_homes, arm_choices) = sources(NativeTarget::linux_arm64());
     assert_eq!(
         arm.validate_original_recovery_actions(&arm_homes, &arm_choices, foreign),
-        Err(omega_regalloc::GeneralizedSpillRecoveryActionError::RootMismatch)
+        Err(omega_selected_instructions_to_register_homes::GeneralizedSpillRecoveryActionError::RootMismatch)
     );
 }
 
-const fn id(epoch: u32, ordinal: u32) -> omega_regalloc::GeneralizedSpillActionId {
-    omega_regalloc::GeneralizedSpillActionId { epoch, ordinal }
+const fn id(
+    epoch: u32,
+    ordinal: u32,
+) -> omega_selected_instructions_to_register_homes::GeneralizedSpillActionId {
+    omega_selected_instructions_to_register_homes::GeneralizedSpillActionId { epoch, ordinal }
 }
 
 fn exact_budget() -> OptimizationWorkBudget {

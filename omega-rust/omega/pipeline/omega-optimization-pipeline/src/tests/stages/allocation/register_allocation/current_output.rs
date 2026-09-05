@@ -1,5 +1,5 @@
 use crate::tests::*;
-use omega_regalloc::ValidatedSelectedAnalysis;
+use omega_selected_instructions_to_register_homes::ValidatedSelectedAnalysis;
 
 fn callee_saved_budget() -> OptimizationWorkBudget {
     // Requirement traversal counts every selected operand, unlike rewrite rounds.

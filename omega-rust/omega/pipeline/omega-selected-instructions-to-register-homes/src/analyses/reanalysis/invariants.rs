@@ -1,4 +1,4 @@
-use omega_regalloc::ValidatedAllocationLegality;
+use crate::ValidatedAllocationLegality;
 
 use super::model::OptimizedSelectedReanalysisError;
 

@@ -17,10 +17,10 @@ pub use omega_frame_layout_to_frame_protocol::*;
 pub use omega_post_allocation_machine_to_frame_layout::*;
 pub use omega_post_allocation_machine_to_optimized_machine::*;
 pub use omega_post_allocation_machine_to_selected_form_encoding::*;
-pub use omega_regalloc::ORDERED_ALLOCATION_RECOVERY_RULES;
 pub use omega_register_homes_to_callee_saved_requirements::*;
 pub use omega_register_homes_to_post_allocation_machine::*;
 pub use omega_selected_instructions_to_machine_effects::*;
+pub use omega_selected_instructions_to_register_homes::ORDERED_ALLOCATION_RECOVERY_RULES;
 pub use omega_selected_instructions_to_register_homes::*;
 pub use omega_spill_access_constraints_to_frame_requirements::*;
 pub use omega_target_operations_to_selected_instructions::{

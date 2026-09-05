@@ -19,9 +19,9 @@ pub(crate) use model::{
     OperandWritePattern, PairInstruction, UnitSetPattern, ViewPattern,
 };
 
-use omega_regalloc::{BlockLiveness, InstructionLiveness};
 use omega_register_model::ValidatedPhysicalRegisterModel;
 use omega_selected_instructions::SelectedInstruction;
+use omega_selected_instructions_to_register_homes::{BlockLiveness, InstructionLiveness};
 
 use crate::PostAllocationMachineInstruction;
 

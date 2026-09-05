@@ -130,7 +130,8 @@ struct MachineEvidence {
     commits: Vec<omega_abstract_operations_optimizer::PsiOptimizationCommit>,
     ledger: omega_optimization_unit::PsiTransformationLedger,
     pre_manifest: omega_optimization_validation::PrePhysicalOptimizationManifest,
-    post_manifest: omega_regalloc::PostAllocationOptimizationManifest,
+    post_manifest:
+        omega_selected_instructions_to_register_homes::PostAllocationOptimizationManifest,
     home_custody: StagedOptimizedRegisterHomeCustodyReceipt,
     machine_custody: StagedOptimizedPostAllocationMachineCustodyReceipt,
     optimization: StagedOptimizedPostAllocationMachineOptimization,

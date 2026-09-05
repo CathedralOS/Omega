@@ -14,49 +14,51 @@ fn independent_replay_rejects_roots_geometry_views_lineage_and_order() {
         ] {
             let source = build(constructor, target);
             let canonical = lower(&source, exact_budget()).unwrap().plan().clone();
-            let identity = omega_regalloc::abstract_spill_memory_effect_plan_identity(&canonical);
+            let identity = omega_selected_instructions_to_register_homes::abstract_spill_memory_effect_plan_identity(&canonical);
             for corrupt in ROOT_MUTATIONS {
                 let mut changed = canonical.clone();
                 corrupt(&mut changed);
                 assert_ne!(
-                    omega_regalloc::abstract_spill_memory_effect_plan_identity(&changed),
+                    omega_selected_instructions_to_register_homes::abstract_spill_memory_effect_plan_identity(&changed),
                     identity,
                 );
                 assert_eq!(
                     validate(&source, changed),
-                    Err(omega_regalloc::AbstractSpillMemoryEffectError::RootMismatch),
+                    Err(omega_selected_instructions_to_register_homes::AbstractSpillMemoryEffectError::RootMismatch),
                 );
             }
             for corrupt in EFFECT_MUTATIONS {
                 let mut changed = canonical.clone();
                 corrupt(&mut changed);
                 assert_ne!(
-                    omega_regalloc::abstract_spill_memory_effect_plan_identity(&changed),
+                    omega_selected_instructions_to_register_homes::abstract_spill_memory_effect_plan_identity(&changed),
                     identity,
                 );
                 assert_eq!(
                     validate(&source, changed),
-                    Err(omega_regalloc::AbstractSpillMemoryEffectError::NonCanonicalFunctions),
+                    Err(omega_selected_instructions_to_register_homes::AbstractSpillMemoryEffectError::NonCanonicalFunctions),
                 );
             }
             let mut usage = canonical;
             usage.usage.validation_steps += 1;
             assert_ne!(
-                omega_regalloc::abstract_spill_memory_effect_plan_identity(&usage),
+                omega_selected_instructions_to_register_homes::abstract_spill_memory_effect_plan_identity(&usage),
                 identity,
             );
             assert_eq!(
                 validate(&source, usage),
-                Err(omega_regalloc::AbstractSpillMemoryEffectError::UsageMismatch),
+                Err(omega_selected_instructions_to_register_homes::AbstractSpillMemoryEffectError::UsageMismatch),
             );
         }
     }
 }
 
-const ROOT_MUTATIONS: [fn(&mut omega_regalloc::AbstractSpillMemoryEffectPlan); 5] = [
+const ROOT_MUTATIONS: [fn(
+    &mut omega_selected_instructions_to_register_homes::AbstractSpillMemoryEffectPlan,
+); 5] = [
     |plan| {
         plan.homed_spill_pseudo_instructions =
-            omega_regalloc::HomedSpillPseudoInstructionPlanIdentity::from_bytes([0xd0; 32]);
+            omega_selected_instructions_to_register_homes::HomedSpillPseudoInstructionPlanIdentity::from_bytes([0xd0; 32]);
     },
     |plan| {
         plan.register_environment =
@@ -64,7 +66,7 @@ const ROOT_MUTATIONS: [fn(&mut omega_regalloc::AbstractSpillMemoryEffectPlan); 5
     },
     |plan| {
         plan.allocator_availability =
-            omega_regalloc::AllocatorAvailabilityIdentity::from_bytes([0xd2; 32]);
+            omega_selected_instructions_to_register_homes::AllocatorAvailabilityIdentity::from_bytes([0xd2; 32]);
     },
     |plan| {
         plan.optimization_unit =
@@ -73,44 +75,60 @@ const ROOT_MUTATIONS: [fn(&mut omega_regalloc::AbstractSpillMemoryEffectPlan); 5
     |plan| plan.fuel_schedule = psi_core::FuelScheduleIdentity::new(99_991).unwrap(),
 ];
 
-const EFFECT_MUTATIONS: [fn(&mut omega_regalloc::AbstractSpillMemoryEffectPlan); 9] = [
+const EFFECT_MUTATIONS: [fn(
+    &mut omega_selected_instructions_to_register_homes::AbstractSpillMemoryEffectPlan,
+); 9] = [
     |plan| match &mut plan.functions[0].effects[0] {
-        omega_regalloc::AbstractSpillMemoryEffect::Write { source_view, .. } => source_view.0 += 1,
+        omega_selected_instructions_to_register_homes::AbstractSpillMemoryEffect::Write {
+            source_view,
+            ..
+        } => source_view.0 += 1,
         _ => unreachable!(),
     },
     |plan| match &mut plan.functions[0].effects[0] {
-        omega_regalloc::AbstractSpillMemoryEffect::Write {
-            spill_area_offset, ..
+        omega_selected_instructions_to_register_homes::AbstractSpillMemoryEffect::Write {
+            spill_area_offset,
+            ..
         } => *spill_area_offset += 8,
         _ => unreachable!(),
     },
     |plan| match &mut plan.functions[0].effects[0] {
-        omega_regalloc::AbstractSpillMemoryEffect::Write { size_bytes, .. } => *size_bytes += 8,
+        omega_selected_instructions_to_register_homes::AbstractSpillMemoryEffect::Write {
+            size_bytes,
+            ..
+        } => *size_bytes += 8,
         _ => unreachable!(),
     },
     |plan| match &mut plan.functions[0].effects[0] {
-        omega_regalloc::AbstractSpillMemoryEffect::Write {
-            alignment_bytes, ..
+        omega_selected_instructions_to_register_homes::AbstractSpillMemoryEffect::Write {
+            alignment_bytes,
+            ..
         } => *alignment_bytes *= 2,
         _ => unreachable!(),
     },
     |plan| match &mut plan.functions[0].effects[2] {
-        omega_regalloc::AbstractSpillMemoryEffect::Read {
-            destination_class, ..
+        omega_selected_instructions_to_register_homes::AbstractSpillMemoryEffect::Read {
+            destination_class,
+            ..
         } => destination_class.0 += 1,
         _ => unreachable!(),
     },
     |plan| match &mut plan.functions[0].effects[2] {
-        omega_regalloc::AbstractSpillMemoryEffect::Read {
-            destination_view, ..
+        omega_selected_instructions_to_register_homes::AbstractSpillMemoryEffect::Read {
+            destination_view,
+            ..
         } => destination_view.0 += 1,
         _ => unreachable!(),
     },
     |plan| match &mut plan.functions[0].effects[0] {
-        omega_regalloc::AbstractSpillMemoryEffect::Write { source, .. } => {
-            *source = omega_regalloc::SpillPseudoStoredValue::Original(
-                omega_selected_instructions::VirtualRegisterId(99),
-            );
+        omega_selected_instructions_to_register_homes::AbstractSpillMemoryEffect::Write {
+            source,
+            ..
+        } => {
+            *source =
+                omega_selected_instructions_to_register_homes::SpillPseudoStoredValue::Original(
+                    omega_selected_instructions::VirtualRegisterId(99),
+                );
         }
         _ => unreachable!(),
     },

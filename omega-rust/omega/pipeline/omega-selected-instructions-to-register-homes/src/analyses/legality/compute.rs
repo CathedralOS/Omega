@@ -1,4 +1,4 @@
-use omega_regalloc::{
+use crate::{
     ValidatedAllocatorAvailability, analyze_allocation_legality, validate_allocation_legality,
     validate_allocator_availability,
 };

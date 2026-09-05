@@ -1,4 +1,4 @@
-use omega_regalloc::{ValidatedAllocationLegality, ValidatedLiveRanges, ValidatedLiveness};
+use crate::{ValidatedAllocationLegality, ValidatedLiveRanges, ValidatedLiveness};
 
 use crate::StagedOptimizedFixedViewCopyCustodyReceipt;
 

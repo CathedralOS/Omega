@@ -1,5 +1,5 @@
-use omega_regalloc::ValidatedSelectedAnalysis;
 use omega_selected_instructions_to_register_homes::AllocationSource;
+use omega_selected_instructions_to_register_homes::ValidatedSelectedAnalysis;
 
 use super::{
     AllocatedCalleeSavedRequirementError, AllocatedCalleeSavedRequirementPlan,

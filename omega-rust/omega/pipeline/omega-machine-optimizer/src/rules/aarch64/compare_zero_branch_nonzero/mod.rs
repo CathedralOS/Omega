@@ -18,10 +18,10 @@ pub use validate::validate_aarch64_cbnz_fusion;
 /// Apply this exact named transformation without assigning a displacement or
 /// encoding bytes.
 pub fn optimize_aarch64_compare_i64_zero_branch_nonzero_to_cbnz<
-    S: omega_regalloc::ValidatedSelectedAnalysis,
+    S: omega_selected_instructions_to_register_homes::ValidatedSelectedAnalysis,
 >(
     selected: &S,
-    liveness: &omega_regalloc::ValidatedLiveness,
+    liveness: &omega_selected_instructions_to_register_homes::ValidatedLiveness,
     source: &crate::ValidatedPostAllocationMachinePlan,
     physical: &omega_register_model::ValidatedPhysicalRegisterModel,
     budget: omega_optimization_core::OptimizationWorkBudget,

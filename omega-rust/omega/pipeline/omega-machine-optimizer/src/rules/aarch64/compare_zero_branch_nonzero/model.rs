@@ -1,5 +1,4 @@
 use omega_optimization_core::{OptimizationWorkBudget, OptimizationWorkUsage};
-use omega_regalloc::{LivenessIdentity, LivenessPlan};
 use omega_register_model::{
     PhysicalRegisterModelIdentity, RegisterClassId, RegisterUnitId, RegisterViewId,
     ValidatedPhysicalRegisterModel,
@@ -8,6 +7,7 @@ use omega_selected_instructions::{
     SelectedBlockId, SelectedInstructionId, SelectedInstructionPlan,
     SelectedInstructionPlanIdentity, VirtualRegisterId,
 };
+use omega_selected_instructions_to_register_homes::{LivenessIdentity, LivenessPlan};
 use omega_target::NativeTarget;
 use psi_core::{EdgeId, MachineId};
 

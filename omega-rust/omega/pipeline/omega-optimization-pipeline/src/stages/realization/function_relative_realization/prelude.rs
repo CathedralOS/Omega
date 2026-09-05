@@ -6,8 +6,8 @@ pub(super) use omega_optimization_core::{
     OptimizationWorkBudget, PostAllocationOptimizationManifestIdentity,
     PrePhysicalOptimizationManifestIdentity, SelectedLoweringOptimizationCompletionIdentity,
 };
-pub(super) use omega_regalloc::ValidatedSelectedAnalysis;
 pub(super) use omega_selected_instructions::SelectedInstructionPlanIdentity;
+pub(super) use omega_selected_instructions_to_register_homes::ValidatedSelectedAnalysis;
 pub(super) use omega_target::{Architecture, NativeTarget, ObjectFormat};
 
 pub(super) use crate::{

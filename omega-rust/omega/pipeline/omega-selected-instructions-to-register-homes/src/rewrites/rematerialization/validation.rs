@@ -1,4 +1,4 @@
-use omega_regalloc::{
+use crate::{
     PostAllocationSelectedTransformation, PressureRematerializationPolicy,
     RecoveryClassificationPolicy, SpillChoicePolicy, validate_allocation_legality,
     validate_live_ranges, validate_liveness, validate_post_allocation_optimization_manifest,

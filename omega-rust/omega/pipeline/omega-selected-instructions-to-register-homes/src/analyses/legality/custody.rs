@@ -1,4 +1,4 @@
-use omega_regalloc::{AllocationLegalityValidationReceipt, AllocatorAvailabilityIdentity};
+use crate::{AllocationLegalityValidationReceipt, AllocatorAvailabilityIdentity};
 
 use crate::StagedOptimizedLiveRangeCustodyReceipt;
 

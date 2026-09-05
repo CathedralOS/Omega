@@ -7,10 +7,8 @@ use crate::Audit;
 
 const SELECTION_SOURCE: &str =
     "omega-rust/omega/representations/omega-optimization-core/src/selection.rs";
-const SELECTED_LOWERING_CATALOG: &str =
-    "omega-rust/omega/pipeline/omega-regalloc/src/rules/selected_lowering/catalog.rs";
-const ALLOCATION_RECOVERY_CATALOG: &str =
-    "omega-rust/omega/pipeline/omega-regalloc/src/rules/allocation_recovery/catalog.rs";
+const SELECTED_LOWERING_CATALOG: &str = "omega-rust/omega/pipeline/omega-selected-instructions-to-register-homes/src/rewrites/selected_lowering/catalog.rs";
+const ALLOCATION_RECOVERY_CATALOG: &str = "omega-rust/omega/pipeline/omega-selected-instructions-to-register-homes/src/rewrites/allocation_recovery/catalog.rs";
 const POST_ALLOCATION_CATALOG: &str =
     "omega-rust/omega/pipeline/omega-machine-optimizer/src/rules/catalog.rs";
 const FUNCTION_RELATIVE_LAYOUT_CATALOG: &str = "omega-rust/omega/pipeline/omega-selected-form-encoding-to-resolved-layout/src/x86_branch_relaxation/catalog.rs";

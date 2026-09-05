@@ -52,7 +52,9 @@ pub fn validate_allocation_recovery_function_relative_realization(
     Ok(expected)
 }
 
-fn validate_selected<S: omega_regalloc::ValidatedSelectedAnalysis>(
+fn validate_selected<
+    S: omega_selected_instructions_to_register_homes::ValidatedSelectedAnalysis,
+>(
     selected: &S,
     staged: &StagedAllocationRecoveryFunctionRelativeRealization,
 ) -> Result<(), AllocationRecoveryFunctionRelativeRealizationError> {

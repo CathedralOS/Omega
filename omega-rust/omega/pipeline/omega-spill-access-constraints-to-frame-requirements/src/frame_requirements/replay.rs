@@ -1,7 +1,7 @@
 //! Independent indexed replay of spill geometry and ABI selection.
 
 use omega_optimization_core::{OptimizationWorkBudget, OptimizationWorkUsage};
-use omega_regalloc::ValidatedAbstractSpillAccessConstraints;
+use omega_selected_instructions_to_register_homes::ValidatedAbstractSpillAccessConstraints;
 
 use crate::ValidatedTargetRegisterEnvironment;
 use omega_target_to_register_environment::selected_abi_preservation;
@@ -75,7 +75,7 @@ pub(super) fn reconstruct(
 }
 
 fn reconstruct_function(
-    function: &omega_regalloc::FunctionAbstractSpillAccessConstraints,
+    function: &omega_selected_instructions_to_register_homes::FunctionAbstractSpillAccessConstraints,
     alignment: u64,
     abi: FrameAbiPreservationConvention,
     stack_alignment: u16,
@@ -96,7 +96,7 @@ pub(crate) fn replay_zero_access_requirement_for_test(
     machine: psi_core::MachineId,
 ) -> FunctionSpillFrameRequirements {
     reconstruct_function(
-        &omega_regalloc::FunctionAbstractSpillAccessConstraints {
+        &omega_selected_instructions_to_register_homes::FunctionAbstractSpillAccessConstraints {
             machine,
             spill_area_bytes: 0,
             placements: Vec::new(),

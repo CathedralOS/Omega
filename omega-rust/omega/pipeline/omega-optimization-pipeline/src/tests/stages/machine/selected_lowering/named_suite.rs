@@ -1,5 +1,5 @@
 use crate::tests::*;
-use omega_regalloc::ValidatedSelectedAnalysis;
+use omega_selected_instructions_to_register_homes::ValidatedSelectedAnalysis;
 
 #[test]
 fn named_selected_lowering_suite_reaches_a_verified_fixed_point_on_both_architectures() {

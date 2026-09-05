@@ -12,8 +12,10 @@ use super::super::PhysicalOptimizationPhaseSelections;
 pub(crate) use model::{ResolvedPhysicalPhaseComposition, ResolvedRealizationPlan};
 use omega_machine_optimizer::selected_post_allocation_machine_rule;
 use omega_optimization_core::Optimization;
-use omega_regalloc::{resolve_selected_lowering_rules, selected_allocation_recovery_rule};
 use omega_selected_form_encoding_to_resolved_layout::x86_rel8_selected;
+use omega_selected_instructions_to_register_homes::{
+    resolve_selected_lowering_rules, selected_allocation_recovery_rule,
+};
 use omega_target::Architecture;
 
 pub(crate) fn resolve_physical_phase_composition(

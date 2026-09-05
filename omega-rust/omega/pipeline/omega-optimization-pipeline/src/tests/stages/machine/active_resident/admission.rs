@@ -50,7 +50,7 @@ fn active_resident_stage_declines_default_single_use_and_exhausted_budget() {
                 OptimizationWorkBudget::new(1, 1, 1, 1, 1).unwrap(),
             ),
             Err(OptimizedActiveResidentRematerializationError::SpillChoice(
-                omega_regalloc::SpillChoiceError::BudgetExceeded { .. }
+                omega_selected_instructions_to_register_homes::SpillChoiceError::BudgetExceeded { .. }
             ))
         ));
     }

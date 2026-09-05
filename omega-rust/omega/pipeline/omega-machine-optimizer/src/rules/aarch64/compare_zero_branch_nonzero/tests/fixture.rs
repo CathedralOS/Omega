@@ -3,10 +3,6 @@ use omega_optimization_core::{
     OptimizationUnitIdentity, OptimizationWorkBudget, PostAllocationOptimizationManifestIdentity,
 };
 use omega_optimization_unit::{FuelSettlement, PsiProvenance};
-use omega_regalloc::{
-    BlockLiveness, FunctionLiveness, InstructionLiveness, LivenessPlan, LivenessPosition,
-    liveness_identity,
-};
 use omega_register_model::{
     RegisterConstraintCatalogIdentity, RegisterConstraintFamily, RegisterConstraintKey,
     RegisterOperandAccess, TargetRegisterEnvironmentIdentity, ValidatedPhysicalRegisterModel,
@@ -21,6 +17,10 @@ use omega_selected_instructions::{
     SelectedInstructionKind, SelectedInstructionPlan, SelectedInstructionPlanIdentity,
     SelectedInstructionProvenance, SelectedOperand, SelectedSuccessor, SelectedTerminator,
     VirtualRegisterId,
+};
+use omega_selected_instructions_to_register_homes::{
+    BlockLiveness, FunctionLiveness, InstructionLiveness, LivenessPlan, LivenessPosition,
+    liveness_identity,
 };
 use omega_target::NativeTarget;
 use omega_target_operations::TerminalPsiProvenance;
@@ -250,9 +250,16 @@ pub(super) fn fixture() -> Fixture {
         identity: source_identity,
         selected: selected_identity,
         effects: PreAllocationMachineEffectIdentity::from_bytes([5; 32]),
-        ranges: omega_regalloc::LiveRangeIdentity::from_bytes([6; 32]),
-        legality: omega_regalloc::AllocationLegalityIdentity::from_bytes([7; 32]),
-        homes: omega_regalloc::RegisterHomeIdentity::from_bytes([8; 32]),
+        ranges: omega_selected_instructions_to_register_homes::LiveRangeIdentity::from_bytes(
+            [6; 32],
+        ),
+        legality:
+            omega_selected_instructions_to_register_homes::AllocationLegalityIdentity::from_bytes(
+                [7; 32],
+            ),
+        homes: omega_selected_instructions_to_register_homes::RegisterHomeIdentity::from_bytes(
+            [8; 32],
+        ),
         post_allocation_manifest: PostAllocationOptimizationManifestIdentity::from_bytes([9; 32]),
         target: selected.target,
         register_environment: TargetRegisterEnvironmentIdentity::from_bytes([10; 32]),

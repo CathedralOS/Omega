@@ -1,10 +1,10 @@
 use std::collections::BTreeSet;
 
-use omega_regalloc::InstructionLiveness;
 use omega_register_model::ValidatedPhysicalRegisterModel;
 use omega_selected_instructions::{
     MachineSemanticKind, SelectedInstruction, SelectedInstructionKind,
 };
+use omega_selected_instructions_to_register_homes::InstructionLiveness;
 
 use crate::{PhysicalOperandFootprint, PostAllocationMachineInstruction};
 

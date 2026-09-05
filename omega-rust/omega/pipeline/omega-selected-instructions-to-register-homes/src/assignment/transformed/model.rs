@@ -1,8 +1,8 @@
-use omega_optimization_core::PostAllocationOptimizationManifestIdentity;
-use omega_regalloc::{
+use crate::{
     PostAllocationOptimizationManifestError, RegisterHomeError, RegisterHomeIdentity,
     ValidatedPostAllocationOptimizationManifest, ValidatedRegisterHomes,
 };
+use omega_optimization_core::PostAllocationOptimizationManifestIdentity;
 
 use crate::{
     OptimizedLiteralFoldCustodyError, StagedOptimizedLiteralFoldCustodyReceipt,

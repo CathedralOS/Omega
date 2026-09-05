@@ -1,6 +1,6 @@
 use crate::FunctionFragmentReplayInputs;
 use crate::tests::*;
-use omega_regalloc::ValidatedSelectedAnalysis;
+use omega_selected_instructions_to_register_homes::ValidatedSelectedAnalysis;
 
 pub(super) fn realize_and_publish_structural_call(homes: StagedOptimizedRegisterHomes) {
     let current = homes.replay_allocation().unwrap();

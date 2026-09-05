@@ -1,5 +1,4 @@
 use omega_optimization_core::{OptimizationWorkBudget, OptimizationWorkUsage};
-use omega_regalloc::ValidatedSelectedAnalysis;
 use omega_register_model::{
     RegisterOperandAccess, RegisterWriteSemantics, ValidatedPhysicalRegisterModel,
 };
@@ -8,6 +7,7 @@ use omega_selected_instructions::{
     MachineEncodedStackEffect, MachineEncodedTrapBehavior, MachineSizeKnowledge,
     SelectedInstruction, SelectedInstructionKind, SelectedInstructionPlan,
 };
+use omega_selected_instructions_to_register_homes::ValidatedSelectedAnalysis;
 use omega_target::Architecture;
 use psi_core::IntegerValue;
 

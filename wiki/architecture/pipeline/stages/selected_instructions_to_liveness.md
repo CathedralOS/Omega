@@ -75,11 +75,8 @@ homes.
 
 ## Implementation Map
 
-- `pipeline/omega-regalloc` owns computation, the data-only liveness
-  shapes, content identity, and independent validation.
-- `pipeline/omega-selected-instructions-to-register-homes` owns the executable stage
-  and nested cross-stage custody.
-- `omega-selected-instructions` remains the selected-CFG
-  representation owner.
-- Target ISA and register-model crates remain the authorities for canonical
-  physical units, views, classes, and instruction constraint rows.
+- `omega-selected-instructions-to-register-homes/src/analyses/liveness/` owns
+  computation, content identity and independent validation. Its `staging/`
+  module binds those facts to the admitted pipeline input.
+- `omega-selected-instructions` owns the selected CFG; register-model and ISA
+  catalogs supply physical units, views and instruction constraints.

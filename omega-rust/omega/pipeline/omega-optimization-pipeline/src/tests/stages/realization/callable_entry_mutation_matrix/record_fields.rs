@@ -8,13 +8,13 @@ use omega_optimization_core::{
     OptimizedObjectArtifactManifestIdentity, RelocationFreeObjectContainerIdentity,
     RelocationFreeObjectPlanIdentity,
 };
-use omega_regalloc::RegisterHomeIdentity;
 use omega_register_model::{
     PhysicalRegisterModelIdentity, RegisterClassId, RegisterUnitId, RegisterViewId,
 };
 use omega_selected_instructions::{
     SelectedInstructionId, SelectedInstructionPlanIdentity, VirtualRegisterId,
 };
+use omega_selected_instructions_to_register_homes::RegisterHomeIdentity;
 use omega_target::{Architecture, ObjectFormat};
 use psi_core::{EdgeId, ScalarType, ValueId};
 use psi_terminal::SemanticFingerprint;

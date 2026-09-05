@@ -1,8 +1,8 @@
 use std::collections::{BTreeMap, BTreeSet};
 
-use omega_regalloc::ValidatedSelectedAnalysis;
 use omega_register_model::ValidatedPhysicalRegisterModel;
 use omega_selected_instructions::{SelectedInstructionKind, SelectedTerminator};
+use omega_selected_instructions_to_register_homes::ValidatedSelectedAnalysis;
 
 use omega_frame_layout_to_frame_protocol::ValidatedTargetFrameProtocolEncoding;
 use omega_post_allocation_machine_to_frame_layout::ValidatedTargetFrameLayout;

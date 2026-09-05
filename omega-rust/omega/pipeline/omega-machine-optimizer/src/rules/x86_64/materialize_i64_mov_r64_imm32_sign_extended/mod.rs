@@ -17,7 +17,7 @@ pub use validate::validate_x86_mov_r64_imm32_sign_extended_materialization;
 /// Select the flag-preserving seven-byte form for an exact sign-extended i32
 /// bit pattern, then independently replay the symbolic decision.
 pub fn optimize_x86_materialize_i64_with_mov_r64_imm32_sign_extended<
-    S: omega_regalloc::ValidatedSelectedAnalysis,
+    S: omega_selected_instructions_to_register_homes::ValidatedSelectedAnalysis,
 >(
     selected: &S,
     source: &crate::ValidatedPostAllocationMachinePlan,

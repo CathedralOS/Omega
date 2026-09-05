@@ -43,7 +43,7 @@ impl<'model> DirectTraversal<'model> {
         machine: psi_core::MachineId,
         block: SelectedBlockId,
         instruction: &SelectedInstruction,
-        homes: &omega_regalloc::FunctionRegisterHomes,
+        homes: &omega_selected_instructions_to_register_homes::FunctionRegisterHomes,
         units: &mut BTreeMap<RegisterUnitId, Vec<CalleeSavedModificationWitness>>,
     ) -> Result<(), AllocatedCalleeSavedRequirementError> {
         self.instruction_count = add(self.instruction_count, 1)?;

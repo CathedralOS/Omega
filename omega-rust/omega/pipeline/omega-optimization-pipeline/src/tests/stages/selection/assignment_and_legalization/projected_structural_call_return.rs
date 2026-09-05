@@ -72,7 +72,7 @@ fn projected_structural_call_return_reaches_selection_on_all_targets_only() {
         assert!(matches!(
             stage_optimized_liveness(selected),
             Err(OptimizedLivenessCustodyError::Analysis(
-                omega_regalloc::LivenessError::ProjectedStructuralCallReturnUnsupported
+                omega_selected_instructions_to_register_homes::LivenessError::ProjectedStructuralCallReturnUnsupported
             ))
         ));
     }

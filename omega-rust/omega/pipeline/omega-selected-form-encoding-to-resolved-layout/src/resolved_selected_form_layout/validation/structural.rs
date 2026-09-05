@@ -1,4 +1,4 @@
-use omega_regalloc::ValidatedSelectedAnalysis;
+use omega_selected_instructions_to_register_homes::ValidatedSelectedAnalysis;
 
 use omega_post_allocation_machine_to_selected_form_encoding::{
     SelectedFormEncodingState, StagedOptimizedSelectedFormEncoding,

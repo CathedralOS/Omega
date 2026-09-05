@@ -61,10 +61,9 @@ rematerialization, coalescing, spills, and frames remain unsupported.
 
 ## Implementation Map
 
-- `pipeline/omega-regalloc` owns the artifact,
-  producer, independent replay, work-budget gate, and identity.
-- `pipeline/omega-selected-instructions-to-register-homes` owns the fixed
-  interval/segment-home prerequisite and nested source-to-transformation
-  custody.
-- ISA catalogs own the exact `CopyI64` rows; the target register environment
-  binds the selected row key.
+- `omega-selected-instructions-to-register-homes/src/rewrites/allocation_recovery/fixed_view_copy/`
+  owns the producer, independent replay, budget gate and identity.
+  The adjacent `rewrites/fixed_view/` entrances bind interval and segment-home
+  prerequisites to the transformation.
+- ISA catalogs own exact `CopyI64` rows; the target register environment binds
+  the selected row key.

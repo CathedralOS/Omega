@@ -1,4 +1,4 @@
-use omega_regalloc::{
+use crate::{
     ValidatedFixedPrecoloredIntervals, ValidatedFixedPrecoloredSegmentHomes,
     ValidatedFixedPrecoloredSplitRequirements, validate_fixed_precolored_intervals,
     validate_fixed_precolored_segment_homes, validate_fixed_precolored_split_requirements,

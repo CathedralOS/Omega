@@ -1,4 +1,4 @@
-use omega_regalloc::{
+use crate::{
     FixedPrecoloredIntervalValidationReceipt, FixedPrecoloredSegmentHomeValidationReceipt,
     FixedPrecoloredSplitRequirementValidationReceipt,
 };

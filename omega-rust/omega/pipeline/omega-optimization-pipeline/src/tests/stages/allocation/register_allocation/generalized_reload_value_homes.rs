@@ -11,8 +11,8 @@ use super::{
 
 pub(super) struct Sources {
     reloads: ReloadSources,
-    recovery: omega_regalloc::ValidatedSpillRecoveryActions,
-    generalized: omega_regalloc::ValidatedGeneralizedSpillInsertion,
+    recovery: omega_selected_instructions_to_register_homes::ValidatedSpillRecoveryActions,
+    generalized: omega_selected_instructions_to_register_homes::ValidatedGeneralizedSpillInsertion,
 }
 
 impl Sources {
@@ -26,10 +26,10 @@ impl Sources {
 
     fn from_reload_sources(reloads: ReloadSources) -> Self {
         let recovery = plan_recovery(&reloads, selected_lowering_budget()).unwrap();
-        let generalized = omega_regalloc::schedule_generalized_spill_insertion(
+        let generalized = omega_selected_instructions_to_register_homes::schedule_generalized_spill_insertion(
             reloads.insertion(),
             &recovery,
-            omega_regalloc::GeneralizedSpillInsertionPolicy::EpochZeroAndOneBlockLocalUnsignedU64ClosedIntervalFirstFitV1,
+            omega_selected_instructions_to_register_homes::GeneralizedSpillInsertionPolicy::EpochZeroAndOneBlockLocalUnsignedU64ClosedIntervalFirstFitV1,
             selected_lowering_budget(),
         )
         .unwrap();
@@ -44,13 +44,13 @@ impl Sources {
         &self,
         budget: OptimizationWorkBudget,
     ) -> Result<
-        omega_regalloc::ValidatedGeneralizedReloadValueHomes,
-        omega_regalloc::GeneralizedReloadValueHomeError,
+        omega_selected_instructions_to_register_homes::ValidatedGeneralizedReloadValueHomes,
+        omega_selected_instructions_to_register_homes::GeneralizedReloadValueHomeError,
     > {
         let ranges = self.reloads.legality().live_range_stage();
         let selected = ranges.liveness_stage().selected_stage();
         let environment = selected.register_environment();
-        omega_regalloc::assign_generalized_reload_value_homes(
+        omega_selected_instructions_to_register_homes::assign_generalized_reload_value_homes(
             &self.generalized,
             self.reloads.insertion(),
             &self.recovery,
@@ -61,43 +61,43 @@ impl Sources {
             environment.constraints(),
             environment.reservations(),
             environment.allocation_constraint_keys(),
-            omega_regalloc::GeneralizedReloadValueHomePolicy::EpochZeroAndOneBlockLocalLowestCompatibleViewV1,
+            omega_selected_instructions_to_register_homes::GeneralizedReloadValueHomePolicy::EpochZeroAndOneBlockLocalLowestCompatibleViewV1,
             budget,
         )
     }
 
     pub(super) fn choose_generalized_victim(
         &self,
-        homes: &omega_regalloc::ValidatedGeneralizedReloadValueHomes,
-        worklist: &omega_regalloc::ValidatedGeneralizedSpillRecoveryWorklist,
+        homes: &omega_selected_instructions_to_register_homes::ValidatedGeneralizedReloadValueHomes,
+        worklist: &omega_selected_instructions_to_register_homes::ValidatedGeneralizedSpillRecoveryWorklist,
         budget: OptimizationWorkBudget,
     ) -> Result<
-        omega_regalloc::ValidatedGeneralizedSpillRecoveryChoices,
-        omega_regalloc::GeneralizedSpillRecoveryChoiceError,
+        omega_selected_instructions_to_register_homes::ValidatedGeneralizedSpillRecoveryChoices,
+        omega_selected_instructions_to_register_homes::GeneralizedSpillRecoveryChoiceError,
     > {
         self.choose_generalized_victim_with_policy(
             homes,
             worklist,
-            omega_regalloc::GeneralizedSpillRecoveryChoicePolicy::EpochTwoFarthestEndThenHighestValueV1,
+            omega_selected_instructions_to_register_homes::GeneralizedSpillRecoveryChoicePolicy::EpochTwoFarthestEndThenHighestValueV1,
             budget,
         )
     }
 
     pub(super) fn choose_generalized_victim_with_policy(
         &self,
-        homes: &omega_regalloc::ValidatedGeneralizedReloadValueHomes,
-        worklist: &omega_regalloc::ValidatedGeneralizedSpillRecoveryWorklist,
-        policy: omega_regalloc::GeneralizedSpillRecoveryChoicePolicy,
+        homes: &omega_selected_instructions_to_register_homes::ValidatedGeneralizedReloadValueHomes,
+        worklist: &omega_selected_instructions_to_register_homes::ValidatedGeneralizedSpillRecoveryWorklist,
+        policy: omega_selected_instructions_to_register_homes::GeneralizedSpillRecoveryChoicePolicy,
         budget: OptimizationWorkBudget,
     ) -> Result<
-        omega_regalloc::ValidatedGeneralizedSpillRecoveryChoices,
-        omega_regalloc::GeneralizedSpillRecoveryChoiceError,
+        omega_selected_instructions_to_register_homes::ValidatedGeneralizedSpillRecoveryChoices,
+        omega_selected_instructions_to_register_homes::GeneralizedSpillRecoveryChoiceError,
     > {
         let legality = self.reloads.legality();
         let ranges = legality.live_range_stage();
         let selected = ranges.liveness_stage().selected_stage();
         let environment = selected.register_environment();
-        omega_regalloc::choose_generalized_spill_recovery_victims(
+        omega_selected_instructions_to_register_homes::choose_generalized_spill_recovery_victims(
             worklist,
             homes,
             selected.selected(),
@@ -114,18 +114,18 @@ impl Sources {
 
     pub(super) fn validate_generalized_victim(
         &self,
-        homes: &omega_regalloc::ValidatedGeneralizedReloadValueHomes,
-        worklist: &omega_regalloc::ValidatedGeneralizedSpillRecoveryWorklist,
-        plan: omega_regalloc::GeneralizedSpillRecoveryChoicePlan,
+        homes: &omega_selected_instructions_to_register_homes::ValidatedGeneralizedReloadValueHomes,
+        worklist: &omega_selected_instructions_to_register_homes::ValidatedGeneralizedSpillRecoveryWorklist,
+        plan: omega_selected_instructions_to_register_homes::GeneralizedSpillRecoveryChoicePlan,
     ) -> Result<
-        omega_regalloc::ValidatedGeneralizedSpillRecoveryChoices,
-        omega_regalloc::GeneralizedSpillRecoveryChoiceError,
+        omega_selected_instructions_to_register_homes::ValidatedGeneralizedSpillRecoveryChoices,
+        omega_selected_instructions_to_register_homes::GeneralizedSpillRecoveryChoiceError,
     > {
         let legality = self.reloads.legality();
         let ranges = legality.live_range_stage();
         let selected = ranges.liveness_stage().selected_stage();
         let environment = selected.register_environment();
-        omega_regalloc::validate_generalized_spill_recovery_choices(
+        omega_selected_instructions_to_register_homes::validate_generalized_spill_recovery_choices(
             worklist,
             homes,
             selected.selected(),
@@ -141,32 +141,32 @@ impl Sources {
 
     pub(super) fn plan_generalized_recovery_actions(
         &self,
-        homes: &omega_regalloc::ValidatedGeneralizedReloadValueHomes,
-        choices: &omega_regalloc::ValidatedGeneralizedSpillRecoveryChoices,
+        homes: &omega_selected_instructions_to_register_homes::ValidatedGeneralizedReloadValueHomes,
+        choices: &omega_selected_instructions_to_register_homes::ValidatedGeneralizedSpillRecoveryChoices,
         budget: OptimizationWorkBudget,
     ) -> Result<
-        omega_regalloc::ValidatedGeneralizedSpillRecoveryActions,
-        omega_regalloc::GeneralizedSpillRecoveryActionError,
+        omega_selected_instructions_to_register_homes::ValidatedGeneralizedSpillRecoveryActions,
+        omega_selected_instructions_to_register_homes::GeneralizedSpillRecoveryActionError,
     > {
-        omega_regalloc::plan_generalized_spill_recovery_actions(
+        omega_selected_instructions_to_register_homes::plan_generalized_spill_recovery_actions(
             &self.generalized,
             homes,
             choices,
-            omega_regalloc::GeneralizedSpillRecoveryActionPolicy::EpochTwoReloadVictimLaterGeneralizedRewritesV1,
+            omega_selected_instructions_to_register_homes::GeneralizedSpillRecoveryActionPolicy::EpochTwoReloadVictimLaterGeneralizedRewritesV1,
             budget,
         )
     }
 
     pub(super) fn validate_generalized_recovery_actions(
         &self,
-        homes: &omega_regalloc::ValidatedGeneralizedReloadValueHomes,
-        choices: &omega_regalloc::ValidatedGeneralizedSpillRecoveryChoices,
-        plan: omega_regalloc::GeneralizedSpillRecoveryActionPlan,
+        homes: &omega_selected_instructions_to_register_homes::ValidatedGeneralizedReloadValueHomes,
+        choices: &omega_selected_instructions_to_register_homes::ValidatedGeneralizedSpillRecoveryChoices,
+        plan: omega_selected_instructions_to_register_homes::GeneralizedSpillRecoveryActionPlan,
     ) -> Result<
-        omega_regalloc::ValidatedGeneralizedSpillRecoveryActions,
-        omega_regalloc::GeneralizedSpillRecoveryActionError,
+        omega_selected_instructions_to_register_homes::ValidatedGeneralizedSpillRecoveryActions,
+        omega_selected_instructions_to_register_homes::GeneralizedSpillRecoveryActionError,
     > {
-        omega_regalloc::validate_generalized_spill_recovery_actions(
+        omega_selected_instructions_to_register_homes::validate_generalized_spill_recovery_actions(
             &self.generalized,
             homes,
             choices,
@@ -176,16 +176,16 @@ impl Sources {
 
     pub(super) fn plan_original_recovery_actions(
         &self,
-        homes: &omega_regalloc::ValidatedGeneralizedReloadValueHomes,
-        choices: &omega_regalloc::ValidatedGeneralizedSpillRecoveryChoices,
+        homes: &omega_selected_instructions_to_register_homes::ValidatedGeneralizedReloadValueHomes,
+        choices: &omega_selected_instructions_to_register_homes::ValidatedGeneralizedSpillRecoveryChoices,
         budget: OptimizationWorkBudget,
     ) -> Result<
-        omega_regalloc::ValidatedGeneralizedSpillRecoveryActions,
-        omega_regalloc::GeneralizedSpillRecoveryActionError,
+        omega_selected_instructions_to_register_homes::ValidatedGeneralizedSpillRecoveryActions,
+        omega_selected_instructions_to_register_homes::GeneralizedSpillRecoveryActionError,
     > {
         let ranges = self.reloads.legality().live_range_stage();
         let selected = ranges.liveness_stage().selected_stage();
-        omega_regalloc::plan_generalized_original_spill_recovery_actions(
+        omega_selected_instructions_to_register_homes::plan_generalized_original_spill_recovery_actions(
             &self.generalized,
             homes,
             choices,
@@ -197,16 +197,16 @@ impl Sources {
 
     pub(super) fn validate_original_recovery_actions(
         &self,
-        homes: &omega_regalloc::ValidatedGeneralizedReloadValueHomes,
-        choices: &omega_regalloc::ValidatedGeneralizedSpillRecoveryChoices,
-        plan: omega_regalloc::GeneralizedSpillRecoveryActionPlan,
+        homes: &omega_selected_instructions_to_register_homes::ValidatedGeneralizedReloadValueHomes,
+        choices: &omega_selected_instructions_to_register_homes::ValidatedGeneralizedSpillRecoveryChoices,
+        plan: omega_selected_instructions_to_register_homes::GeneralizedSpillRecoveryActionPlan,
     ) -> Result<
-        omega_regalloc::ValidatedGeneralizedSpillRecoveryActions,
-        omega_regalloc::GeneralizedSpillRecoveryActionError,
+        omega_selected_instructions_to_register_homes::ValidatedGeneralizedSpillRecoveryActions,
+        omega_selected_instructions_to_register_homes::GeneralizedSpillRecoveryActionError,
     > {
         let ranges = self.reloads.legality().live_range_stage();
         let selected = ranges.liveness_stage().selected_stage();
-        omega_regalloc::validate_generalized_original_spill_recovery_actions(
+        omega_selected_instructions_to_register_homes::validate_generalized_original_spill_recovery_actions(
             &self.generalized,
             homes,
             choices,
@@ -218,62 +218,66 @@ impl Sources {
 
     pub(super) fn schedule_recursive_spills(
         &self,
-        recovery: &omega_regalloc::ValidatedGeneralizedSpillRecoveryActions,
+        recovery: &omega_selected_instructions_to_register_homes::ValidatedGeneralizedSpillRecoveryActions,
         budget: OptimizationWorkBudget,
     ) -> Result<
-        omega_regalloc::ValidatedRecursiveSpillInsertion,
-        omega_regalloc::RecursiveSpillInsertionError,
+        omega_selected_instructions_to_register_homes::ValidatedRecursiveSpillInsertion,
+        omega_selected_instructions_to_register_homes::RecursiveSpillInsertionError,
     > {
-        omega_regalloc::schedule_recursive_spill_insertion(
+        omega_selected_instructions_to_register_homes::schedule_recursive_spill_insertion(
             &self.generalized,
             recovery,
-            omega_regalloc::RecursiveSpillInsertionPolicy::EpochTwoReloadVictimBlockLocalUnsignedU64ClosedIntervalFirstFitV1,
+            omega_selected_instructions_to_register_homes::RecursiveSpillInsertionPolicy::EpochTwoReloadVictimBlockLocalUnsignedU64ClosedIntervalFirstFitV1,
             budget,
         )
     }
 
     pub(super) fn schedule_original_recursive_spills(
         &self,
-        recovery: &omega_regalloc::ValidatedGeneralizedSpillRecoveryActions,
+        recovery: &omega_selected_instructions_to_register_homes::ValidatedGeneralizedSpillRecoveryActions,
         budget: OptimizationWorkBudget,
     ) -> Result<
-        omega_regalloc::ValidatedRecursiveSpillInsertion,
-        omega_regalloc::RecursiveSpillInsertionError,
+        omega_selected_instructions_to_register_homes::ValidatedRecursiveSpillInsertion,
+        omega_selected_instructions_to_register_homes::RecursiveSpillInsertionError,
     > {
-        omega_regalloc::schedule_recursive_spill_insertion(
+        omega_selected_instructions_to_register_homes::schedule_recursive_spill_insertion(
             &self.generalized,
             recovery,
-            omega_regalloc::RecursiveSpillInsertionPolicy::EpochTwoOriginalVictimBlockLocalUnsignedU64ClosedIntervalFirstFitV2,
+            omega_selected_instructions_to_register_homes::RecursiveSpillInsertionPolicy::EpochTwoOriginalVictimBlockLocalUnsignedU64ClosedIntervalFirstFitV2,
             budget,
         )
     }
 
     pub(super) fn validate_recursive_spills(
         &self,
-        recovery: &omega_regalloc::ValidatedGeneralizedSpillRecoveryActions,
-        plan: omega_regalloc::RecursiveSpillInsertionPlan,
+        recovery: &omega_selected_instructions_to_register_homes::ValidatedGeneralizedSpillRecoveryActions,
+        plan: omega_selected_instructions_to_register_homes::RecursiveSpillInsertionPlan,
     ) -> Result<
-        omega_regalloc::ValidatedRecursiveSpillInsertion,
-        omega_regalloc::RecursiveSpillInsertionError,
+        omega_selected_instructions_to_register_homes::ValidatedRecursiveSpillInsertion,
+        omega_selected_instructions_to_register_homes::RecursiveSpillInsertionError,
     > {
-        omega_regalloc::validate_recursive_spill_insertion(&self.generalized, recovery, plan)
+        omega_selected_instructions_to_register_homes::validate_recursive_spill_insertion(
+            &self.generalized,
+            recovery,
+            plan,
+        )
     }
 
     pub(super) fn assign_recursive_reload_homes(
         &self,
-        recursive: &omega_regalloc::ValidatedRecursiveSpillInsertion,
-        recovery: &omega_regalloc::ValidatedGeneralizedSpillRecoveryActions,
-        prior: &omega_regalloc::ValidatedGeneralizedReloadValueHomes,
+        recursive: &omega_selected_instructions_to_register_homes::ValidatedRecursiveSpillInsertion,
+        recovery: &omega_selected_instructions_to_register_homes::ValidatedGeneralizedSpillRecoveryActions,
+        prior: &omega_selected_instructions_to_register_homes::ValidatedGeneralizedReloadValueHomes,
         budget: OptimizationWorkBudget,
     ) -> Result<
-        omega_regalloc::ValidatedRecursiveReloadValueHomes,
-        omega_regalloc::RecursiveReloadValueHomeError,
+        omega_selected_instructions_to_register_homes::ValidatedRecursiveReloadValueHomes,
+        omega_selected_instructions_to_register_homes::RecursiveReloadValueHomeError,
     > {
         let legality = self.reloads.legality();
         let ranges = legality.live_range_stage();
         let selected = ranges.liveness_stage().selected_stage();
         let environment = selected.register_environment();
-        omega_regalloc::assign_recursive_reload_value_homes(
+        omega_selected_instructions_to_register_homes::assign_recursive_reload_value_homes(
             recursive,
             recovery,
             prior,
@@ -284,26 +288,26 @@ impl Sources {
             environment.constraints(),
             environment.reservations(),
             environment.allocation_constraint_keys(),
-            omega_regalloc::RecursiveReloadValueHomePolicy::CompleteBlockLocalLowestCompatibleViewV1,
+            omega_selected_instructions_to_register_homes::RecursiveReloadValueHomePolicy::CompleteBlockLocalLowestCompatibleViewV1,
             budget,
         )
     }
 
     pub(super) fn validate_recursive_reload_homes(
         &self,
-        recursive: &omega_regalloc::ValidatedRecursiveSpillInsertion,
-        recovery: &omega_regalloc::ValidatedGeneralizedSpillRecoveryActions,
-        prior: &omega_regalloc::ValidatedGeneralizedReloadValueHomes,
-        plan: omega_regalloc::RecursiveReloadValueHomePlan,
+        recursive: &omega_selected_instructions_to_register_homes::ValidatedRecursiveSpillInsertion,
+        recovery: &omega_selected_instructions_to_register_homes::ValidatedGeneralizedSpillRecoveryActions,
+        prior: &omega_selected_instructions_to_register_homes::ValidatedGeneralizedReloadValueHomes,
+        plan: omega_selected_instructions_to_register_homes::RecursiveReloadValueHomePlan,
     ) -> Result<
-        omega_regalloc::ValidatedRecursiveReloadValueHomes,
-        omega_regalloc::RecursiveReloadValueHomeError,
+        omega_selected_instructions_to_register_homes::ValidatedRecursiveReloadValueHomes,
+        omega_selected_instructions_to_register_homes::RecursiveReloadValueHomeError,
     > {
         let legality = self.reloads.legality();
         let ranges = legality.live_range_stage();
         let selected = ranges.liveness_stage().selected_stage();
         let environment = selected.register_environment();
-        omega_regalloc::validate_recursive_reload_value_homes(
+        omega_selected_instructions_to_register_homes::validate_recursive_reload_value_homes(
             recursive,
             recovery,
             prior,
@@ -320,15 +324,15 @@ impl Sources {
 
     fn validate(
         &self,
-        candidate: omega_regalloc::GeneralizedReloadValueHomePlan,
+        candidate: omega_selected_instructions_to_register_homes::GeneralizedReloadValueHomePlan,
     ) -> Result<
-        omega_regalloc::ValidatedGeneralizedReloadValueHomes,
-        omega_regalloc::GeneralizedReloadValueHomeError,
+        omega_selected_instructions_to_register_homes::ValidatedGeneralizedReloadValueHomes,
+        omega_selected_instructions_to_register_homes::GeneralizedReloadValueHomeError,
     > {
         let ranges = self.reloads.legality().live_range_stage();
         let selected = ranges.liveness_stage().selected_stage();
         let environment = selected.register_environment();
-        omega_regalloc::validate_generalized_reload_value_homes(
+        omega_selected_instructions_to_register_homes::validate_generalized_reload_value_homes(
             &self.generalized,
             self.reloads.insertion(),
             &self.recovery,
@@ -357,7 +361,7 @@ fn first_reload_gets_a_home_and_second_retains_exact_pressure_on_both_targets() 
         assert_eq!(first.plan().functions[0].outcomes.len(), 2);
         assert_eq!(first.receipt().usage(), exact_usage());
 
-        let omega_regalloc::GeneralizedReloadValueHomeOutcome::Assigned(assigned) =
+        let omega_selected_instructions_to_register_homes::GeneralizedReloadValueHomeOutcome::Assigned(assigned) =
             &first.plan().functions[0].outcomes[0]
         else {
             panic!("epoch-zero reload must be assigned")
@@ -369,10 +373,10 @@ fn first_reload_gets_a_home_and_second_retains_exact_pressure_on_both_targets() 
         assert_eq!(assigned.coexisting_homes.len(), 2);
         assert!(assigned.coexisting_homes.iter().any(|home| {
             home.value
-                == omega_regalloc::GeneralizedReloadCoexistingValue::Original(VirtualRegisterId(5))
+                == omega_selected_instructions_to_register_homes::GeneralizedReloadCoexistingValue::Original(VirtualRegisterId(5))
         }));
 
-        let omega_regalloc::GeneralizedReloadValueHomeOutcome::Pressure(pressure) =
+        let omega_selected_instructions_to_register_homes::GeneralizedReloadValueHomeOutcome::Pressure(pressure) =
             &first.plan().functions[0].outcomes[1]
         else {
             panic!("epoch-one reload must retain recursive pressure")
@@ -383,11 +387,11 @@ fn first_reload_gets_a_home_and_second_retains_exact_pressure_on_both_targets() 
         assert_eq!(pressure.candidates.len(), 2);
         assert_eq!(pressure.blocking_homes.len(), 2);
         assert!(pressure.blocking_homes.iter().any(|home| {
-            home.value == omega_regalloc::GeneralizedReloadCoexistingValue::Reload(action(0, 0))
+            home.value == omega_selected_instructions_to_register_homes::GeneralizedReloadCoexistingValue::Reload(action(0, 0))
         }));
         assert!(pressure.blocking_homes.iter().any(|home| {
             home.value
-                == omega_regalloc::GeneralizedReloadCoexistingValue::Original(VirtualRegisterId(5))
+                == omega_selected_instructions_to_register_homes::GeneralizedReloadCoexistingValue::Original(VirtualRegisterId(5))
         }));
     }
 }
@@ -403,46 +407,46 @@ fn replay_rejects_root_assigned_pressure_roster_and_usage_corruption() {
             .clone();
         let mut root = canonical.clone();
         root.generalized_spill_insertion =
-            omega_regalloc::GeneralizedSpillInsertionIdentity::from_bytes([0xa7; 32]);
+            omega_selected_instructions_to_register_homes::GeneralizedSpillInsertionIdentity::from_bytes([0xa7; 32]);
         assert_eq!(
             sources.validate(root),
-            Err(omega_regalloc::GeneralizedReloadValueHomeError::RootMismatch)
+            Err(omega_selected_instructions_to_register_homes::GeneralizedReloadValueHomeError::RootMismatch)
         );
 
         for corrupt in [
-            |plan: &mut omega_regalloc::GeneralizedReloadValueHomePlan| {
-                let omega_regalloc::GeneralizedReloadValueHomeOutcome::Assigned(row) =
+            |plan: &mut omega_selected_instructions_to_register_homes::GeneralizedReloadValueHomePlan| {
+                let omega_selected_instructions_to_register_homes::GeneralizedReloadValueHomeOutcome::Assigned(row) =
                     &mut plan.functions[0].outcomes[0]
                 else {
                     unreachable!()
                 };
                 row.view.0 += 1;
             },
-            |plan: &mut omega_regalloc::GeneralizedReloadValueHomePlan| {
-                let omega_regalloc::GeneralizedReloadValueHomeOutcome::Assigned(row) =
+            |plan: &mut omega_selected_instructions_to_register_homes::GeneralizedReloadValueHomePlan| {
+                let omega_selected_instructions_to_register_homes::GeneralizedReloadValueHomeOutcome::Assigned(row) =
                     &mut plan.functions[0].outcomes[0]
                 else {
                     unreachable!()
                 };
                 row.coexisting_homes.clear();
             },
-            |plan: &mut omega_regalloc::GeneralizedReloadValueHomePlan| {
-                let omega_regalloc::GeneralizedReloadValueHomeOutcome::Pressure(row) =
+            |plan: &mut omega_selected_instructions_to_register_homes::GeneralizedReloadValueHomePlan| {
+                let omega_selected_instructions_to_register_homes::GeneralizedReloadValueHomeOutcome::Pressure(row) =
                     &mut plan.functions[0].outcomes[1]
                 else {
                     unreachable!()
                 };
                 row.candidates.reverse();
             },
-            |plan: &mut omega_regalloc::GeneralizedReloadValueHomePlan| {
-                let omega_regalloc::GeneralizedReloadValueHomeOutcome::Pressure(row) =
+            |plan: &mut omega_selected_instructions_to_register_homes::GeneralizedReloadValueHomePlan| {
+                let omega_selected_instructions_to_register_homes::GeneralizedReloadValueHomeOutcome::Pressure(row) =
                     &mut plan.functions[0].outcomes[1]
                 else {
                     unreachable!()
                 };
                 row.blocking_homes.pop();
             },
-            |plan: &mut omega_regalloc::GeneralizedReloadValueHomePlan| {
+            |plan: &mut omega_selected_instructions_to_register_homes::GeneralizedReloadValueHomePlan| {
                 plan.functions[0].outcomes.swap(0, 1);
             },
         ] {
@@ -451,7 +455,7 @@ fn replay_rejects_root_assigned_pressure_roster_and_usage_corruption() {
             assert_eq!(
                 sources.validate(changed),
                 Err(
-                    omega_regalloc::GeneralizedReloadValueHomeError::NonCanonicalAssignments {
+                    omega_selected_instructions_to_register_homes::GeneralizedReloadValueHomeError::NonCanonicalAssignments {
                         function: 0,
                     }
                 )
@@ -461,7 +465,7 @@ fn replay_rejects_root_assigned_pressure_roster_and_usage_corruption() {
         usage.usage.validation_steps += 1;
         assert_eq!(
             sources.validate(usage),
-            Err(omega_regalloc::GeneralizedReloadValueHomeError::UsageMismatch)
+            Err(omega_selected_instructions_to_register_homes::GeneralizedReloadValueHomeError::UsageMismatch)
         );
     }
 }
@@ -481,7 +485,7 @@ fn exact_budget_representable_first_over_axes_and_cross_target_roots_are_typed()
         for budget in insufficient {
             assert!(matches!(
                 sources.assign(budget),
-                Err(omega_regalloc::GeneralizedReloadValueHomeError::BudgetExceeded {
+                Err(omega_selected_instructions_to_register_homes::GeneralizedReloadValueHomeError::BudgetExceeded {
                     required,
                     budget: actual,
                 }) if required == exact_usage() && actual == budget
@@ -494,12 +498,15 @@ fn exact_budget_representable_first_over_axes_and_cross_target_roots_are_typed()
     let arm = Sources::new(NativeTarget::linux_arm64());
     assert_eq!(
         arm.validate(plan),
-        Err(omega_regalloc::GeneralizedReloadValueHomeError::RootMismatch)
+        Err(omega_selected_instructions_to_register_homes::GeneralizedReloadValueHomeError::RootMismatch)
     );
 }
 
-const fn action(epoch: u32, ordinal: u32) -> omega_regalloc::GeneralizedSpillActionId {
-    omega_regalloc::GeneralizedSpillActionId { epoch, ordinal }
+const fn action(
+    epoch: u32,
+    ordinal: u32,
+) -> omega_selected_instructions_to_register_homes::GeneralizedSpillActionId {
+    omega_selected_instructions_to_register_homes::GeneralizedSpillActionId { epoch, ordinal }
 }
 
 const fn exact_usage() -> OptimizationWorkUsage {

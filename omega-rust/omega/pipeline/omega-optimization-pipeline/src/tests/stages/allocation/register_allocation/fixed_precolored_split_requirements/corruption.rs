@@ -13,19 +13,19 @@ fn independent_replay_rejects_segment_and_opening_corruption() {
         .clear();
     assert_eq!(
         validate(&fixture, domain),
-        Err(omega_regalloc::FixedPrecoloredSplitRequirementError::NonCanonicalFunctions)
+        Err(omega_selected_instructions_to_register_homes::FixedPrecoloredSplitRequirementError::NonCanonicalFunctions)
     );
 
     let mut opening = canonical.plan().clone();
     opening.functions[0].registers[0].fragments[0].segments[0].opening =
-        omega_regalloc::FixedPrecoloredSourceSegmentOpening::IncompatibleFixedUseDomainBoundaryV1 {
+        omega_selected_instructions_to_register_homes::FixedPrecoloredSourceSegmentOpening::IncompatibleFixedUseDomainBoundaryV1 {
             incoming: None,
-            site: omega_regalloc::VirtualFixedConstraintSite::Entry,
+            site: omega_selected_instructions_to_register_homes::VirtualFixedConstraintSite::Entry,
             destination_view: omega_register_model::RegisterViewId(0),
         };
     assert_eq!(
         validate(&fixture, opening),
-        Err(omega_regalloc::FixedPrecoloredSplitRequirementError::NonCanonicalFunctions)
+        Err(omega_selected_instructions_to_register_homes::FixedPrecoloredSplitRequirementError::NonCanonicalFunctions)
     );
 }
 
@@ -59,7 +59,7 @@ fn independent_replay_rejects_every_output_layer() {
 
     let mut plan = original.clone();
     plan.functions[0].registers[1].fragments[1].segments[0].id =
-        omega_regalloc::FixedPrecoloredSourceSegmentId(99);
+        omega_selected_instructions_to_register_homes::FixedPrecoloredSourceSegmentId(99);
     corruptions.push(plan);
 
     let mut plan = original.clone();
@@ -67,7 +67,7 @@ fn independent_replay_rejects_every_output_layer() {
     corruptions.push(plan);
 
     let mut plan = original.clone();
-    let omega_regalloc::FixedPrecoloredSourceSegmentOpening::IncompatibleFixedUseDomainBoundaryV1 {
+    let omega_selected_instructions_to_register_homes::FixedPrecoloredSourceSegmentOpening::IncompatibleFixedUseDomainBoundaryV1 {
         incoming: Some(mut connector),
         site,
         destination_view,
@@ -77,7 +77,7 @@ fn independent_replay_rejects_every_output_layer() {
     };
     connector.polarity_ordinal = 99;
     plan.functions[0].registers[1].fragments[1].segments[0].opening =
-        omega_regalloc::FixedPrecoloredSourceSegmentOpening::IncompatibleFixedUseDomainBoundaryV1 {
+        omega_selected_instructions_to_register_homes::FixedPrecoloredSourceSegmentOpening::IncompatibleFixedUseDomainBoundaryV1 {
             incoming: Some(connector),
             site,
             destination_view,
@@ -87,7 +87,7 @@ fn independent_replay_rejects_every_output_layer() {
     for corruption in corruptions {
         assert_eq!(
             validate(&fixture, corruption),
-            Err(omega_regalloc::FixedPrecoloredSplitRequirementError::NonCanonicalFunctions)
+            Err(omega_selected_instructions_to_register_homes::FixedPrecoloredSplitRequirementError::NonCanonicalFunctions)
         );
     }
 }
@@ -98,23 +98,23 @@ fn root_and_usage_substitution_fail_closed() {
     let canonical = analyze(&fixture, generous_budget()).unwrap();
 
     let mut root = canonical.plan().clone();
-    root.fixed_intervals = omega_regalloc::FixedPrecoloredIntervalPlanIdentity::from_bytes([9; 32]);
+    root.fixed_intervals = omega_selected_instructions_to_register_homes::FixedPrecoloredIntervalPlanIdentity::from_bytes([9; 32]);
     assert_eq!(
         validate(&fixture, root),
-        Err(omega_regalloc::FixedPrecoloredSplitRequirementError::RootMismatch)
+        Err(omega_selected_instructions_to_register_homes::FixedPrecoloredSplitRequirementError::RootMismatch)
     );
 
     let mut target = canonical.plan().clone();
     target.target = NativeTarget::linux_arm64();
     assert_eq!(
         validate(&fixture, target),
-        Err(omega_regalloc::FixedPrecoloredSplitRequirementError::RootMismatch)
+        Err(omega_selected_instructions_to_register_homes::FixedPrecoloredSplitRequirementError::RootMismatch)
     );
 
     let mut usage = canonical.plan().clone();
     usage.usage.commits += 1;
     assert_eq!(
         validate(&fixture, usage),
-        Err(omega_regalloc::FixedPrecoloredSplitRequirementError::UsageMismatch)
+        Err(omega_selected_instructions_to_register_homes::FixedPrecoloredSplitRequirementError::UsageMismatch)
     );
 }

@@ -387,9 +387,10 @@ keeps the compiler-owned build protocol independent of whether std exists.
   source-shaped backend fallback is an architecture violation.
 - `omega-machine-emission` produces production machine code, and
   `backend/object/*` owns sections, symbols, and relocations.
-- `pipeline/optimization/*` owns reusable optimization, validation, register
-  allocation, and machine-optimization logic. In particular, `omega-regalloc`
-  and `omega-machine-optimizer` own their algorithms. The bounded target-to-assigned
+- `omega-selected-instructions-to-register-homes` owns selected analyses,
+  allocation, recovery and their independent replay as internal transform steps.
+  `omega-machine-optimizer` still owns machine algorithms pending consolidation
+  into the named machine-optimization transform. The bounded target-to-assigned
   publication adapter is not a substitute for either owner and must disappear
   once the selected physical conveyor has complete operation coverage.
 - `backend/instruction_set_architectures/*` owns ISA definitions and encodings.

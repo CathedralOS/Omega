@@ -1,7 +1,5 @@
+use crate::{FixedViewCopyPolicy, ValidatedFixedViewCopies, materialize_fixed_view_copies};
 use omega_optimization_core::OptimizationWorkBudget;
-use omega_regalloc::{
-    FixedViewCopyPolicy, ValidatedFixedViewCopies, materialize_fixed_view_copies,
-};
 
 use crate::StagedOptimizedFixedPrecoloredSegmentHomes;
 
