@@ -1,5 +1,6 @@
 //! Fixture inventory is independent of host eligibility and compile filters.
 use super::abi_runtime_values_and_strings::fixture_roster as abi_runtime_values_and_strings;
+use super::arithmetic_and_data::fixture_roster as arithmetic_and_data;
 use super::artifact_footprints::fixture_roster as artifact_footprints;
 use super::atomics_and_target_canaries::fixture_roster as atomics_and_target_canaries;
 use super::content_text_and_carriers::fixture_roster as content_text_and_carriers;
@@ -8,6 +9,7 @@ use super::float_plans_and_policies::fixture_roster as float_plans_and_policies;
 use super::generics_and_dependent_facts::fixture_roster as generics_and_dependent_facts;
 use super::host_text_filesystem_and_abi::fixture_roster as host_text_filesystem_and_abi;
 use super::layouts_and_pending::fixture_roster as layouts_and_pending;
+use super::proof_and_float_suites::fixture_roster as proof_and_float_suites;
 use super::providers_float_and_console::fixture_roster as providers_float_and_console;
 use super::ranges_storage_and_entries::fixture_roster as ranges_storage_and_entries;
 use super::reports_and_capabilities::fixture_roster as reports_and_capabilities;
@@ -52,6 +54,16 @@ fn pass_roster() -> Vec<&'static str> {
     CHECKED_ONLY_PASS_CANARIES
         .iter()
         .chain(ACTIVE_PASS_CANARIES)
+        .chain(arithmetic_and_data::PASS_CANARIES)
+        .chain(proof_and_float_suites::PASS_CANARIES)
+        .chain(proof_and_float_suites::RANGE_GATED_ESTABLISHMENT_PASS_CANARIES)
+        .chain(proof_and_float_suites::DEFAULT_DOMAIN_MEMBERSHIP_PASS_CANARIES)
+        .chain(proof_and_float_suites::DEFAULT_DOMAIN_MEASURE_PASS_CANARIES)
+        .chain(proof_and_float_suites::DEFAULT_DOMAIN_CORRELATION_PASS_CANARIES)
+        .chain(proof_and_float_suites::COMMUTATIVE_SEMIRING_PASS_CANARIES)
+        .chain(proof_and_float_suites::COMMUTATIVE_SEMIRING_CHECKED_PASS_CANARIES)
+        .chain(proof_and_float_suites::FLOAT_TO_INT_TRAPPING_PASS_CANARIES)
+        .chain(proof_and_float_suites::FLOAT_TRAPPING_ARITHMETIC_PASS_CANARIES)
         .chain(atomics_and_target_canaries::PASS_CANARIES)
         .chain(surface_and_targets::PASS_CANARIES)
         .chain(surface_and_targets::RECENT_ENCODER_PASS_CANARIES)
@@ -161,6 +173,10 @@ fn file_expectation_fail_roster() -> Vec<&'static str> {
     CHECKED_ONLY_FAIL_CANARIES
         .iter()
         .chain(ACTIVE_FAIL_CANARIES)
+        .chain(proof_and_float_suites::FILE_EXPECTATION_FAIL_CANARIES)
+        .chain(proof_and_float_suites::RANGE_GATED_ESTABLISHMENT_FILE_FAIL_CANARIES)
+        .chain(proof_and_float_suites::DEFAULT_DOMAIN_MEMBERSHIP_FILE_FAIL_CANARIES)
+        .chain(proof_and_float_suites::DEFAULT_DOMAIN_MEASURE_FILE_FAIL_CANARIES)
         .chain(surface_and_targets::FILE_EXPECTATION_FAIL_CANARIES)
         .chain(no_selection_golden::FILE_EXPECTATION_FAIL_CANARIES)
         .chain(generics_and_dependent_facts::FILE_EXPECTATION_FAIL_CANARIES)
@@ -172,6 +188,37 @@ fn file_expectation_fail_roster() -> Vec<&'static str> {
 fn fail_roster() -> Vec<&'static str> {
     file_expectation_fail_roster()
         .into_iter()
+        .chain(proof_and_float_suites::FAIL_CANARIES.iter().copied())
+        .chain(
+            proof_and_float_suites::DEFAULT_DOMAIN_STALE_FACT_FAIL_CANARIES
+                .iter()
+                .copied(),
+        )
+        .chain(
+            proof_and_float_suites::DEFAULT_DOMAIN_PRODUCT_FAIL_CANARIES
+                .iter()
+                .copied(),
+        )
+        .chain(
+            proof_and_float_suites::DEFAULT_DOMAIN_CORRELATION_FAIL_CANARIES
+                .iter()
+                .copied(),
+        )
+        .chain(
+            proof_and_float_suites::ALGEBRAIC_NORMALIZATION_FAIL_CANARIES
+                .iter()
+                .copied(),
+        )
+        .chain(
+            proof_and_float_suites::PROOF_JOINT_RANKING_FAIL_CANARIES
+                .iter()
+                .map(|entry| entry.0),
+        )
+        .chain(
+            proof_and_float_suites::EXACT_FLOAT_TO_INT_FAIL_CANARIES
+                .iter()
+                .copied(),
+        )
         .chain(reports_and_capabilities::FAIL_CANARIES.iter().copied())
         .chain(atomics_and_target_canaries::FAIL_CANARIES.iter().copied())
         .chain(concurrency_carry::FAIL_CANARIES.iter().map(|entry| entry.0))
