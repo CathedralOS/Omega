@@ -1,13 +1,14 @@
 data Main {
-    health: i32;
+    health: i32 [1..=100];
 }
 
 machine Main::main(&mut self) {
+    self.health = 100;
+
     transition {
         _ -> wounded(self.health)
     }
 
-
-    state wounded(value: i32) {
+    state wounded(value: i32 [1..=50]) {
     }
 }

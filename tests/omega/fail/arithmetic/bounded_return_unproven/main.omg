@@ -1,9 +1,12 @@
 data Main {
 }
 
-machine Main::main(&mut self) -> i32 {
+machine Main::main(&mut self) -> i32 [1..=50] {
+    transition {
+        _ -> answer()
+    }
 
-    state answer() {
+    state answer() -> i32 [1..=50] {
         100
     }
 }

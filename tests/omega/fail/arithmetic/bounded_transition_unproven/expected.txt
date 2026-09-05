@@ -1,1 +1,1 @@
-cannot prove transition argument `health` satisfies bounded parameter `value`
+cannot prove transition argument `self.health` satisfies bounded parameter `value`

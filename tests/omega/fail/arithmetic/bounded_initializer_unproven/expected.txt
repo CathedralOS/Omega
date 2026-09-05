@@ -1,1 +1,1 @@
-cannot prove initializer `500` satisfies bounded value
+local `health` stores a value not provably within its declared range
