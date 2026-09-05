@@ -35,7 +35,7 @@ pub(super) fn written_paths(
         active_states,
     )?;
     let mut written = Vec::new();
-    for leaf in leaves {
+    for leaf in leaves.references {
         if !written.contains(&leaf.origin.path) {
             written.push(leaf.origin.path);
         }
@@ -51,6 +51,13 @@ pub(in crate::calls::write_frames) struct ReferenceLeaf {
     pub origin: FramePlaceOrigin,
 }
 
+#[derive(Default)]
+pub(in crate::calls::write_frames) struct AggregateOrigins {
+    pub references: Vec<ReferenceLeaf>,
+    /// Each path ends in the selected Case, including empty payload cases.
+    pub cases: Vec<Vec<PlaceSegment>>,
+}
+
 pub(in crate::calls::write_frames) fn reference_leaves(
     program: &TypedTrees,
     caller_machine: &Machine,
@@ -59,7 +66,31 @@ pub(in crate::calls::write_frames) fn reference_leaves(
     suffix: &str,
     symbols: &TopLevelSymbols<'_>,
     active_states: &mut Vec<SymbolHandle>,
-) -> Option<Vec<ReferenceLeaf>> {
+) -> Option<AggregateOrigins> {
+    reference_leaves_with_stored_origins(
+        program,
+        caller_machine,
+        argument,
+        expected_type,
+        suffix,
+        symbols,
+        active_states,
+        &|_, _| None,
+    )
+}
+
+/// State transfer supplies prior value evidence; the shared walker only
+/// attaches those leaves beneath the current literal's structural prefix.
+pub(in crate::calls::write_frames) fn reference_leaves_with_stored_origins(
+    program: &TypedTrees,
+    caller_machine: &Machine,
+    argument: ExpressionHandle,
+    expected_type: TypeReferenceHandle,
+    suffix: &str,
+    symbols: &TopLevelSymbols<'_>,
+    active_states: &mut Vec<SymbolHandle>,
+    stored_origins: &impl Fn(ExpressionHandle, TypeReferenceHandle) -> Option<AggregateOrigins>,
+) -> Option<AggregateOrigins> {
     let mut pending = vec![(
         argument,
         expected_type,
@@ -68,12 +99,46 @@ pub(in crate::calls::write_frames) fn reference_leaves(
         Vec::new(),
         false,
     )];
-    let mut leaves = Vec::new();
+    let mut leaves = AggregateOrigins::default();
     while let Some((expression, reference, suffix, local_suffix, local_segments, local_coarse)) =
         pending.pop()
     {
         if !reference.is_valid() {
             return None;
+        }
+        if !matches!(
+            program.expression_table.expression(expression),
+            ExpressionNode::StructLiteral(_) | ExpressionNode::ArrayLiteral(_)
+        ) && program.primitive_type_reference(reference).is_none()
+            && matches!(
+                program.type_reference_table.type_reference(reference),
+                TypeReferenceNode::Named { .. } | TypeReferenceNode::FixedArray { .. }
+            )
+        {
+            // Public argument queries cannot replay a caller prefix inside raw
+            // frame inference. Their default resolver refuses this boundary;
+            // declaration transfer supplies the already-established evidence.
+            if !suffix.is_empty() {
+                return None;
+            }
+            let moved = stored_origins(expression, reference)?;
+            for case in moved.cases {
+                let mut selection = local_segments.clone();
+                selection.extend(case);
+                leaves.cases.push(selection);
+            }
+            for mut leaf in moved.references {
+                let mut segments = local_segments.clone();
+                segments.extend(leaf.local_segments);
+                leaf.local_segments = segments;
+                leaf.local_suffix = if local_coarse {
+                    local_suffix.clone()
+                } else {
+                    append_place_suffix(&local_suffix, &leaf.local_suffix)
+                };
+                leaves.references.push(leaf);
+            }
+            continue;
         }
         match program.type_reference_table.type_reference(reference) {
             TypeReferenceNode::Constrained { base_type, .. } => {
@@ -106,7 +171,7 @@ pub(in crate::calls::write_frames) fn reference_leaves(
                     FramePathPrecision::Exact => append_place_suffix(&origin.path, suffix),
                     FramePathPrecision::CollectionCoarse => origin.path,
                 };
-                leaves.push(ReferenceLeaf {
+                leaves.references.push(ReferenceLeaf {
                     local_suffix,
                     local_segments,
                     origin: FramePlaceOrigin {
@@ -185,6 +250,7 @@ pub(in crate::calls::write_frames) fn reference_leaves(
                     local_segments.push(PlaceSegment::Case {
                         variant: variant.symbol,
                     });
+                    leaves.cases.push(local_segments.clone());
                     for field in program.data_payload_fields(variant) {
                         fields.push((field.name.as_str(), field.symbol, field.type_reference));
                     }

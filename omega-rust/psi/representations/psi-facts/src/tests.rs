@@ -691,3 +691,177 @@ fn expression_places_resolve_attached_data_members() {
         }
     );
 }
+
+#[test]
+fn expression_places_resolve_exact_local_and_collection_element_types() {
+    use psi_symbols::{SymbolKind, SymbolNameRef, SymbolTableBuilder};
+    use psi_typed_trees::statement::{StatementNode, TableLocalData};
+    use psi_typed_trees::types::{FixedArrayLength, TypeReferenceNode};
+    for (shape, indexed, malformed) in [
+        ("record", false, "none"),
+        ("array", true, "none"),
+        ("slice", true, "none"),
+        ("array", true, "stale"),
+        ("record", false, "wrong_parent"),
+    ] {
+        let mut symbols = SymbolTableBuilder::default();
+        let root = symbols.insert_root(SymbolKind::Root, SymbolNameRef::Static("root"));
+        let children = symbols.insert_children(
+            root,
+            [
+                (SymbolKind::Data, SymbolNameRef::Static("Outer")),
+                (SymbolKind::Machine, SymbolNameRef::Static("main")),
+            ],
+        );
+        let children: Vec<_> = SymbolTableBuilder::child_handles(children).collect();
+        let data_symbol = children[0];
+        let machine_symbol = children[1];
+        let field_symbol = symbols
+            .insert_children(
+                data_symbol,
+                [(SymbolKind::Field, SymbolNameRef::Static("inner"))],
+            )
+            .start();
+        let states = symbols.insert_children(
+            machine_symbol,
+            [
+                (SymbolKind::State, SymbolNameRef::Static("entry")),
+                (SymbolKind::State, SymbolNameRef::Static("foreign")),
+            ],
+        );
+        let states: Vec<_> = SymbolTableBuilder::child_handles(states).collect();
+        let local_symbol = symbols
+            .insert_children(
+                if malformed == "wrong_parent" {
+                    states[1]
+                } else {
+                    states[0]
+                },
+                [(SymbolKind::Local, SymbolNameRef::Static("value"))],
+            )
+            .start();
+        let mut program = TypedTrees {
+            symbols: symbols.finish(),
+            ..TypedTrees::default()
+        };
+        let record = program
+            .type_reference_table
+            .insert(TypeReferenceNode::Named {
+                name: Identifier::generated("Outer"),
+                symbol: data_symbol,
+            });
+        let local_type = match shape {
+            "array" => program
+                .type_reference_table
+                .insert(TypeReferenceNode::FixedArray {
+                    element_type: record,
+                    length: FixedArrayLength::Literal(2),
+                }),
+            "slice" => program
+                .type_reference_table
+                .insert(TypeReferenceNode::Slice {
+                    element_type: record,
+                }),
+            _ => record,
+        };
+        let mut data = DataDefinition {
+            symbol: data_symbol,
+            name: Identifier::generated("Outer"),
+            ..DataDefinition::default()
+        };
+        program.push_data_member(
+            &mut data,
+            DataMember::Field(DataField {
+                identity: None,
+                symbol: field_symbol,
+                name: Identifier::generated("inner"),
+                relevance: Default::default(),
+                type_reference: TypeReferenceHandle::invalid(),
+            }),
+        );
+        program.push_data_definition(data);
+        let mut state = psi_typed_trees::state::State {
+            symbol: states[0],
+            name: Identifier::generated("entry"),
+            ..Default::default()
+        };
+        program.statement_table.push_statement(
+            &mut state.statement_nodes,
+            StatementNode::LocalData(TableLocalData {
+                symbol: local_symbol,
+                name: Identifier::generated("value"),
+                type_reference: local_type,
+                ..Default::default()
+            }),
+        );
+        let mut machine = psi_typed_trees::machine::Machine {
+            symbol: machine_symbol,
+            name: Identifier::generated("main"),
+            ..Default::default()
+        };
+        program.push_machine_state(&mut machine, state);
+        program.push_machine(machine);
+        let root_symbol = if malformed == "stale" {
+            SymbolHandle::from_parts(local_symbol.arena_index(), local_symbol.generation() + 1)
+        } else {
+            local_symbol
+        };
+        let mut members = HandleSpan::empty();
+        program
+            .expression_table
+            .push_name_path_member(&mut members, Identifier::generated("value"));
+        let mut member_symbols = HandleSpan::empty();
+        program
+            .expression_table
+            .push_name_path_member_symbol(&mut member_symbols, root_symbol);
+        let mut receiver = program
+            .expression_table
+            .insert(ExpressionNode::Name(TableNamePath {
+                members,
+                member_symbols,
+                head_symbol: root_symbol,
+                symbol: root_symbol,
+            }));
+        if indexed {
+            let index = program.expression_table.insert(ExpressionNode::Integer(
+                psi_numerics::literals::IntegerLiteral::from_value(0),
+            ));
+            receiver =
+                program
+                    .expression_table
+                    .insert(ExpressionNode::Indexed(TableIndexedExpression {
+                        collection: receiver,
+                        index,
+                    }));
+        }
+        let expression =
+            program
+                .expression_table
+                .insert(ExpressionNode::Member(TableMemberExpression {
+                    receiver,
+                    member_symbol: SymbolHandle::invalid(),
+                    member: Identifier::generated("inner"),
+                    case_variant: None,
+                }));
+        let mut facts = FactPlan::default();
+        let place = facts.append_place_from_expression(&program, expression);
+        let place = facts.places.get(place);
+        let segments = facts.place_segments.span_or_empty(place.segments);
+        assert_eq!(place.root, PlaceRoot::Symbol(root_symbol));
+        assert_eq!(segments.len(), if indexed { 2 } else { 1 });
+        if indexed {
+            assert_eq!(segments[0], PlaceSegment::FixedIndex { index: 0 });
+        }
+        assert_eq!(
+            segments.last(),
+            Some(&PlaceSegment::Field {
+                symbol: if malformed == "none" {
+                    field_symbol
+                } else {
+                    SymbolHandle::invalid()
+                },
+            }),
+            "{shape} {malformed}"
+        );
+    }
+}

@@ -4,7 +4,7 @@
 //! and closes its writes over the canonical storage paths and live local names
 //! used by fact consumers. It never publishes prefix writes as call writes.
 
-use super::stored_origins::{StoredWriteOrigin, expand_write_path, place_suffix};
+use super::stored_origins::{StoredLocalOrigins, expand_write_path, place_suffix};
 use super::{
     ExpressionHandle, ExpressionNode, FramePathPrecision, FramePlaceOrigin, Machine,
     StateWriteQuery, StatementNode, SymbolHandle, TableCall, TopLevelSymbols, TypedTrees,
@@ -150,6 +150,7 @@ pub(super) fn local_write_origins_before_statement(
     )?;
     let mut origins = stored
         .into_iter()
+        .flat_map(|local| local.references)
         .map(|leaf| LocalWriteOrigin {
             local_symbol: leaf.local_symbol,
             local_segments: leaf.local_segments,
@@ -224,15 +225,20 @@ pub(super) fn close_caller_aliases(
         for (alias, origin, local_coarse) in aliases
             .iter()
             .map(|(alias, origin)| (alias, origin, false))
-            .chain(stored.iter().map(|leaf| {
-                (
-                    &leaf.local_path,
-                    &leaf.origin,
-                    leaf.local_segments.iter().any(|segment| {
-                        matches!(segment, psi_facts::PlaceSegment::FixedIndex { .. })
+            .chain(
+                stored
+                    .iter()
+                    .flat_map(|local| &local.references)
+                    .map(|leaf| {
+                        (
+                            &leaf.local_path,
+                            &leaf.origin,
+                            leaf.local_segments.iter().any(|segment| {
+                                matches!(segment, psi_facts::PlaceSegment::FixedIndex { .. })
+                            }),
+                        )
                     }),
-                )
-            }))
+            )
         {
             let spelling = if let Some(suffix) = place_suffix(&origin.path, &path) {
                 match (origin.precision, local_coarse) {
@@ -257,7 +263,7 @@ fn caller_aliases_at_site(
     machine: &Machine,
     symbols: &TopLevelSymbols<'_>,
     site: CallerWriteSite<'_>,
-) -> Option<(Vec<(String, FramePlaceOrigin)>, Vec<StoredWriteOrigin>)> {
+) -> Option<(Vec<(String, FramePlaceOrigin)>, Vec<StoredLocalOrigins>)> {
     let may_declare_alias = |statement: &StatementNode| {
         matches!(statement, StatementNode::LocalData(local)
             if type_may_carry_write(program, local.type_reference)

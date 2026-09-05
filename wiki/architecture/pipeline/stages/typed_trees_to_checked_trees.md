@@ -836,10 +836,26 @@ Current ownership is:
   An expression-rooted actual is not a storage identity: direct call projection
   and transitive summary propagation reconstruct its complete shared frame
   instead of dropping its reference leaves as private expression roots.
-  Moved carrier values and aggregate call results still need general leaf-origin
-  transfer; passing an aggregate by value does not erase its mutable references.
-  The same restriction applies to
-  exclusive references to
+  Moves from preceding local aggregates reuse their established leaves, including
+  moves nested in a new local record, selected-case, or array literal. Exact
+  field/case and fixed-index selection removes only the selected source prefix;
+  runtime-index selection unions matching fixed-element leaves. The source must
+  name the exact earlier local declaration, and each selector is checked against
+  its declared owning type before the projected type is compared with the
+  destination. Unknown/stale/foreign roots, mismatched nominal types or array
+  lengths, invalid literal indexes, and traversal through a loaded reference
+  remain opaque. Local origin evidence retains selected cases alongside reference
+  leaves, including empty cases. Payload selection must agree with every
+  possible retained case; an absent payload cannot become a private value with
+  an empty frame. Whole empty cases and genuinely shared-only subrecords still
+  transport without writes.
+  Shared place normalization recovers local declaration types and retains array
+  element types for subsequent field selection; normalization alone supplies no
+  origin evidence or move permission.
+  Parameter-rooted carrier moves, moved values nested in immediate call
+  literals, and aggregate call results still need general leaf-origin transfer;
+  passing an aggregate by value does not erase its mutable references.
+  The same restriction applies to exclusive references to
   reference-bearing carriers; primitive slices retain their collection reach.
   A rejected trait-receiver call stays opaque through every fallback consumer,
   including direct-call queries and state-summary equations. It cannot regain
