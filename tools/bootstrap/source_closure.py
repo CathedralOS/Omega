@@ -8,23 +8,26 @@ import tempfile
 from pathlib import Path, PurePosixPath
 
 
-HEADER = "EpsilonSourceClosureV1"
+HEADERS = {"DeltaSourceClosureV1": ".delta", "EpsilonSourceClosureV1": ".epsilon"}
+SOURCE_SUFFIXES = {".beta", ".gamma", ".delta", ".epsilon", ".omg"}
 IDENTITY = re.compile(r"[0-9a-f]{64}")
 DECIMAL = re.compile(r"0|[1-9][0-9]*")
 
 
 def fail(message: str) -> None:
-    raise SystemExit(f"epsilon source closure: {message}")
+    raise SystemExit(f"source closure: {message}")
 
 
-def source_path(root: Path, spelling: str) -> Path:
+def source_path(root: Path, spelling: str, suffix: str) -> Path:
     relative = PurePosixPath(spelling)
-    if relative.is_absolute() or not relative.parts or any(
+    if str(relative) != spelling or relative.is_absolute() or not relative.parts or any(
         part in ("", ".", "..") for part in relative.parts
     ):
         fail(f"noncanonical member path: {spelling}")
-    if "\\" in spelling:
+    if "\\" in spelling or ":" in spelling or any(not 33 <= ord(byte) <= 126 for byte in spelling):
         fail(f"noncanonical member path: {spelling}")
+    if relative.suffix != suffix:
+        fail(f"member suffix is not {suffix}: {spelling}")
     candidate = root
     for part in relative.parts:
         candidate = candidate / part
@@ -43,14 +46,32 @@ def source_bytes(path: Path, spelling: str) -> bytes:
     return data
 
 
+def check_inventory(root: Path, members: set[str]) -> None:
+    # Discovery checks the authored set; only manifest rows select and order bytes.
+    found = set()
+    for directory, children, files in os.walk(root, onerror=lambda error: fail(str(error))):
+        for child in children:
+            if (Path(directory) / child).is_symlink():
+                fail(f"source inventory traverses a symbolic link: {child}")
+        for name in files:
+            path = Path(directory) / name
+            if path.suffix in SOURCE_SUFFIXES:
+                found.add(path.relative_to(root).as_posix())
+    if found != members:
+        fail(f"source inventory differs from manifest: {sorted(found ^ members)}")
+
+
 def materialize(manifest_path: Path) -> bytes:
     manifest_bytes = manifest_path.read_bytes()
     try:
         lines = manifest_bytes.decode("ascii").splitlines()
     except UnicodeDecodeError:
         fail("manifest is not ASCII")
-    if not lines or lines[0] != HEADER:
-        fail("manifest header is not EpsilonSourceClosureV1")
+    if any(byte not in (9, 10, 13) and not 32 <= byte <= 126 for byte in manifest_bytes):
+        fail("manifest contains a forbidden byte")
+    if not lines or lines[0] not in HEADERS:
+        fail("manifest header is not DeltaSourceClosureV1 or EpsilonSourceClosureV1")
+    suffix = HEADERS[lines[0]]
     if len(lines) == 1:
         fail("manifest has no members")
 
@@ -75,13 +96,12 @@ def materialize(manifest_path: Path) -> bytes:
             fail(f"duplicate member path at line {line_number}")
         paths.add(spelling)
 
-        path = source_path(manifest_path.parent, spelling)
+        path = source_path(manifest_path.parent, spelling, suffix)
         data = source_bytes(path, spelling)
-        expected_length = int(length_text)
-        if len(data) != expected_length:
+        if str(len(data)) != length_text:
             fail(
                 f"member length changed for {spelling}: "
-                f"expected {expected_length}, found {len(data)}"
+                f"expected {length_text}, found {len(data)}"
             )
         digest = hashlib.sha256(data).hexdigest()
         if digest != expected_digest:
@@ -90,6 +110,7 @@ def materialize(manifest_path: Path) -> bytes:
                 f"expected {expected_digest}, found {digest}"
             )
         result.extend(data)
+    check_inventory(manifest_path.parent, paths)
     return bytes(result)
 
 
@@ -107,11 +128,14 @@ def write_atomic(path: Path, data: bytes) -> None:
 
 def main() -> None:
     if len(sys.argv) != 3:
-        fail("usage: materialize_source_closure.py MANIFEST OUTPUT")
+        fail("usage: source_closure.py MANIFEST OUTPUT")
     manifest_path = Path(sys.argv[1])
     if manifest_path.is_symlink() or not manifest_path.is_file():
         fail("manifest is not a regular file")
-    write_atomic(Path(sys.argv[2]), materialize(manifest_path))
+    try:
+        write_atomic(Path(sys.argv[2]), materialize(manifest_path))
+    except OSError as error:
+        fail(str(error))
 
 
 if __name__ == "__main__":

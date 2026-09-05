@@ -1,0 +1,100 @@
+
+(data EpsilonTypeParseOutcome
+  (EpsilonTypeParsed EpsilonType)
+  (EpsilonTypeParseRejected EpsilonRejectReason Int))
+
+(data EpsilonExpressionParseOutcome
+  (EpsilonExpressionParsed EpsilonExpression)
+  (EpsilonExpressionParseRejected EpsilonRejectReason Int))
+
+(data EpsilonArgumentsParseOutcome
+  (EpsilonArgumentsParsed EpsilonExpressionList Int)
+  (EpsilonArgumentsParseRejected EpsilonRejectReason Int))
+
+(data EpsilonBinderParseOutcome
+  (EpsilonBinderParsed EpsilonOptionalBinder)
+  (EpsilonBinderParseRejected EpsilonRejectReason Int))
+
+(data EpsilonPatternParseOutcome
+  (EpsilonPatternParsed EpsilonPattern)
+  (EpsilonPatternParseRejected EpsilonRejectReason Int))
+
+(data EpsilonContinuationParseOutcome
+  (EpsilonContinuationParsed EpsilonContinuation)
+  (EpsilonContinuationParseRejected EpsilonRejectReason Int))
+
+(data EpsilonArmParseOutcome
+  (EpsilonArmParsed EpsilonArm)
+  (EpsilonArmParseRejected EpsilonRejectReason Int))
+
+(data EpsilonArmListParseOutcome
+  (EpsilonArmListParsed EpsilonArmList Int)
+  (EpsilonArmListParseRejected EpsilonRejectReason Int))
+
+(data EpsilonTransitionParseOutcome
+  (EpsilonTransitionParsed EpsilonTerminal)
+  (EpsilonTransitionParseRejected EpsilonRejectReason Int))
+
+(data EpsilonParameterParseOutcome
+  (EpsilonParameterParsed EpsilonParameter)
+  (EpsilonParameterParseRejected EpsilonRejectReason Int))
+
+(data EpsilonParameterListParseOutcome
+  (EpsilonParameterListParsed EpsilonParameterList Int)
+  (EpsilonParameterListParseRejected EpsilonRejectReason Int))
+
+(data EpsilonStatementParseOutcome
+  (EpsilonStatementParsed EpsilonStatement)
+  (EpsilonStatementParseRejected EpsilonRejectReason Int))
+
+(data EpsilonTerminalParseOutcome
+  (EpsilonTerminalParsed EpsilonTerminal)
+  (EpsilonTerminalParseRejected EpsilonRejectReason Int))
+
+(data EpsilonStateBodyParseOutcome
+  (EpsilonStateBodyParsed EpsilonStateBody)
+  (EpsilonStateBodyParseRejected EpsilonRejectReason Int))
+
+(data EpsilonStateParseOutcome
+  (EpsilonStateParsed EpsilonState)
+  (EpsilonStateParseRejected EpsilonRejectReason Int))
+
+(data EpsilonMachineBodyParseOutcome
+  (EpsilonMachineBodyParsed EpsilonMachineBody)
+  (EpsilonMachineBodyParseRejected EpsilonRejectReason Int))
+
+(data EpsilonReturnTypeParseOutcome
+  (EpsilonReturnTypeParsed EpsilonOptionalType Int)
+  (EpsilonReturnTypeParseRejected EpsilonRejectReason Int))
+
+(data EpsilonBoundaryMachineParseOutcome
+  (EpsilonBoundaryMachineParsed EpsilonBoundaryMachine)
+  (EpsilonBoundaryMachineParseRejected EpsilonRejectReason Int))
+
+(data EpsilonBoundaryMachineListParseOutcome
+  (EpsilonBoundaryMachineListParsed EpsilonBoundaryMachineList Int)
+  (EpsilonBoundaryMachineListParseRejected EpsilonRejectReason Int))
+
+(data EpsilonDataMemberParseOutcome
+  (EpsilonDataMemberParsed EpsilonDataMember)
+  (EpsilonDataMemberParseRejected EpsilonRejectReason Int))
+
+(data EpsilonDataMemberListParseOutcome
+  (EpsilonDataMemberListParsed EpsilonDataMemberList Int)
+  (EpsilonDataMemberListParseRejected EpsilonRejectReason Int))
+
+(data EpsilonDeclarationParseOutcome
+  (EpsilonDeclarationParsed EpsilonDeclaration)
+  (EpsilonDeclarationParseRejected EpsilonRejectReason Int))
+
+(data EpsilonQualifiedNameParseOutcome
+  (EpsilonQualifiedNameParsed EpsilonQualifiedName)
+  (EpsilonQualifiedNameParseRejected EpsilonRejectReason Int))
+
+(data EpsilonMachineInputsParseOutcome
+  (EpsilonMachineInputsParsed EpsilonMachineInputs Int)
+  (EpsilonMachineInputsParseRejected EpsilonRejectReason Int))
+
+(data EpsilonProgramParseOutcome
+  (EpsilonProgramParsed EpsilonProgram)
+  (EpsilonProgramParseRejected EpsilonRejectReason Int))

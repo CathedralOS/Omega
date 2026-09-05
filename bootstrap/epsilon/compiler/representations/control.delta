@@ -1,0 +1,93 @@
+
+; A state transfer is control identity, not a callable or expression result.
+; Resolution is retained even when arity or argument typing prevents a
+; completed transfer, so lowering can require the stronger exact-AST fact.
+(data EpsilonStateApplicationProgress
+  (EpsilonStateApplicationResolved)
+  (EpsilonStateApplicationComplete))
+
+(data EpsilonStateApplicationReference
+  (EpsilonStateApplicationReferenceSyntax EpsilonExpression EpsilonDeclaration
+    EpsilonState EpsilonStateApplicationProgress))
+
+(data EpsilonStateApplicationReferenceList
+  (NoEpsilonStateApplicationReferences)
+  (MoreEpsilonStateApplicationReferences EpsilonStateApplicationReference
+    EpsilonStateApplicationReferenceList))
+
+(data EpsilonStateApplicationReferenceLookup
+  (NoEpsilonStateApplicationReference)
+  (OneEpsilonStateApplicationReference EpsilonDeclaration EpsilonState
+    EpsilonStateApplicationProgress))
+
+; A transition subject is classified once from its complete expression fact.
+; Later pattern, reachability, and lowering passes consume this exact terminal
+; custody rather than re-resolving the subject expression.
+(data EpsilonTransitionSubjectKind
+  (EpsilonScalarTransitionSubject)
+  (EpsilonSumTransitionSubject EpsilonDeclaration))
+
+(data EpsilonTransitionSubjectReference
+  (EpsilonTransitionSubjectReferenceSyntax EpsilonTerminal
+    EpsilonTransitionSubjectKind))
+
+(data EpsilonTransitionSubjectReferenceList
+  (NoEpsilonTransitionSubjectReferences)
+  (MoreEpsilonTransitionSubjectReferences EpsilonTransitionSubjectReference
+    EpsilonTransitionSubjectReferenceList))
+
+(data EpsilonTransitionSubjectReferenceLookup
+  (NoEpsilonTransitionSubjectReference)
+  (OneEpsilonTransitionSubjectReference EpsilonTransitionSubjectKind))
+
+(data EpsilonTransitionPatternKind
+  (EpsilonScalarPatternSelector Int)
+  (EpsilonTransitionWildcard)
+  (EpsilonSumCasePattern EpsilonDeclaration EpsilonResolvedSumCase))
+
+(data EpsilonTransitionPatternIdentity
+  (EpsilonScalarPatternIdentity Int)
+  (EpsilonSumCasePatternIdentity EpsilonDeclaration EpsilonResolvedSumCase))
+
+; D57 keeps each premise as an independently searchable fact. Wildcards have
+; no semantic identity and therefore never produce an identity-owned fact.
+(data EpsilonTransitionPatternReference
+  (EpsilonTransitionPatternNameResolved EpsilonTerminal EpsilonPattern
+    EpsilonTransitionPatternKind)
+  (EpsilonTransitionPatternSubjectAdmitted EpsilonTerminal EpsilonPattern
+    EpsilonTransitionPatternKind)
+  (EpsilonTransitionPatternIdentityOwned EpsilonTerminal EpsilonPattern
+    EpsilonTransitionPatternIdentity)
+  (EpsilonTransitionPatternComplete EpsilonTerminal EpsilonPattern
+    EpsilonTransitionPatternKind))
+
+(data EpsilonTransitionPatternReferenceList
+  (NoEpsilonTransitionPatternReferences)
+  (MoreEpsilonTransitionPatternReferences EpsilonTransitionPatternReference
+    EpsilonTransitionPatternReferenceList))
+
+(data EpsilonTransitionPatternKindLookup
+  (NoEpsilonTransitionPatternKind)
+  (OneEpsilonTransitionPatternKind EpsilonTransitionPatternKind))
+
+(data EpsilonTransitionCoverageState
+  (EpsilonTransitionCoverageComplete)
+  (EpsilonTransitionCoverageMissing)
+  (EpsilonTransitionCoverageUnresolved))
+
+; D57 assigns missing complete coverage to `NonexhaustiveSum` at the transition
+; subject. Unresolved keeps an invalid or incomplete pattern premise from
+; manufacturing that later coverage judgment.
+(data EpsilonTransitionCoverageReference
+  (EpsilonTransitionCoverageReferenceSyntax EpsilonTerminal EpsilonDeclaration
+    EpsilonTransitionCoverageState))
+
+(data EpsilonTransitionCoverageReferenceList
+  (NoEpsilonTransitionCoverageReferences)
+  (MoreEpsilonTransitionCoverageReferences EpsilonTransitionCoverageReference
+    EpsilonTransitionCoverageReferenceList))
+
+(data EpsilonControlReferenceLedger
+  (EpsilonControlReferenceLedgerSyntax EpsilonStateApplicationReferenceList
+    EpsilonTransitionSubjectReferenceList EpsilonTransitionPatternReferenceList
+    EpsilonTransitionCoverageReferenceList))

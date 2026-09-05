@@ -1,0 +1,130 @@
+
+; ---- ordered local and expression-fact resolution ------------------------
+
+(def epsilon_local_binding_name ((bindingValue EpsilonLocalBinding))
+  EpsilonName
+  (match bindingValue
+    ((EpsilonReceiverLocal name typeValue) name)
+    ((EpsilonMachineParameterLocal parameterValue)
+      (match parameterValue
+        ((EpsilonParameterSyntax start end name typeValue)
+          name)))
+    ((EpsilonStateParameterLocal parameterValue)
+      (match parameterValue
+        ((EpsilonParameterSyntax start end name typeValue)
+          name)))
+    ((EpsilonLetLocal name typeValue statementValue)
+      name)
+    ((EpsilonTransitionBinderLocal patternValue name)
+      name)))
+
+(def epsilon_local_find_binding ((source Bytes) (target EpsilonName)
+  (bindings EpsilonLocalBindingList)) EpsilonLocalBindingLookup
+  (match bindings
+    (NoEpsilonLocalBindings NoEpsilonLocalBinding)
+    ((MoreEpsilonLocalBindings item rest)
+      (if (epsilon_names_equal source target
+          (epsilon_local_binding_name item))
+        (OneEpsilonLocalBinding item)
+        (epsilon_local_find_binding source target rest)))))
+
+(def epsilon_add_machine_parameter_bindings
+  ((parameters EpsilonParameterList) (bindings EpsilonLocalBindingList))
+  EpsilonLocalBindingList
+  (match parameters
+    (NoEpsilonParameters bindings)
+    ((MoreEpsilonParameters item rest)
+      (epsilon_add_machine_parameter_bindings rest
+        (MoreEpsilonLocalBindings
+          (EpsilonMachineParameterLocal item) bindings)))))
+
+; The reserved self token is normalized to an ordinary named receiver binding
+; carrying the keyword span and owner-derived nominal type.
+(def epsilon_add_catalog_machine_receiver_binding
+  ((machineDeclaration EpsilonDeclaration) (owner EpsilonCatalogMachineOwner)
+  (bindings EpsilonLocalBindingList)) EpsilonLocalBindingList
+  (match machineDeclaration
+    ((EpsilonBoundaryDeclaration start end name machines) bindings)
+    ((EpsilonDataDeclaration start end name members) bindings)
+    ((EpsilonMachineDeclaration start end name inputs returnType bodyValue)
+      (match inputs
+        ((NoEpsilonMachineInputs inputStart inputEnd) bindings)
+        ((EpsilonPlainMachineInputs inputStart inputEnd parameters) bindings)
+        ((EpsilonReceiverMachineInputs inputStart inputEnd selfName parameters)
+          (match owner
+            (EpsilonCatalogUnqualifiedMachine bindings)
+            ((EpsilonCatalogUnknownMachineOwner unknownOwner) bindings)
+            ((EpsilonCatalogDataMachineOwner ownerDeclaration)
+              (match ownerDeclaration
+                ((EpsilonBoundaryDeclaration ownerStart ownerEnd ownerName
+                  machines) bindings)
+                ((EpsilonMachineDeclaration ownerStart ownerEnd ownerName
+                  ownerInputs ownerReturn ownerBody) bindings)
+                ((EpsilonDataDeclaration ownerStart ownerEnd ownerName members)
+                  (match selfName
+                    ((EpsilonNameSpan selfStart selfEnd)
+                    (MoreEpsilonLocalBindings
+                      (EpsilonReceiverLocal selfName
+                        (EpsilonNamedType selfStart selfEnd ownerName))
+                      bindings))))))))))))
+
+(def epsilon_add_state_parameter_bindings
+  ((parameters EpsilonParameterList) (bindings EpsilonLocalBindingList))
+  EpsilonLocalBindingList
+  (match parameters
+    (NoEpsilonParameters bindings)
+    ((MoreEpsilonParameters item rest)
+      (epsilon_add_state_parameter_bindings rest
+        (MoreEpsilonLocalBindings
+          (EpsilonStateParameterLocal item) bindings)))))
+
+(def epsilon_add_transition_binder_names ((patternValue EpsilonPattern)
+  (names EpsilonNameList) (bindings EpsilonLocalBindingList))
+  EpsilonLocalBindingList
+  (match names
+    (NoEpsilonNames bindings)
+    ((MoreEpsilonNames item rest)
+      (epsilon_add_transition_binder_names patternValue rest
+        (MoreEpsilonLocalBindings
+          (EpsilonTransitionBinderLocal patternValue item) bindings)))))
+
+(def epsilon_add_transition_pattern_bindings ((patternValue EpsilonPattern)
+  (bindings EpsilonLocalBindingList)) EpsilonLocalBindingList
+  (match patternValue
+    ((EpsilonIntegerPattern start end literal) bindings)
+    ((EpsilonTruePattern start end) bindings)
+    ((EpsilonFalsePattern start end) bindings)
+    ((EpsilonWildcardPattern start end) bindings)
+    ((EpsilonCasePattern start end owner name binder)
+      (match binder
+        (NoEpsilonBinder bindings)
+        ((SomeEpsilonBinder binderStart binderEnd names)
+          (epsilon_add_transition_binder_names patternValue names bindings))))))
+
+(def epsilon_collect_pending_lets ((statements EpsilonStatementList)
+  (pending EpsilonLocalBindingList)) EpsilonLocalBindingList
+  (match statements
+    (NoEpsilonStatements pending)
+    ((MoreEpsilonStatements item rest)
+      (match item
+        ((EpsilonLetStatement start end name typeValue initializer)
+          (epsilon_collect_pending_lets rest
+            (MoreEpsilonLocalBindings
+              (EpsilonLetLocal name typeValue item) pending)))
+        ((EpsilonAssignmentStatement start end placeValue assignedValue)
+          (epsilon_collect_pending_lets rest pending))
+        ((EpsilonPostfixStatement start end expressionValue)
+          (epsilon_collect_pending_lets rest pending))
+        ((EpsilonAssertStatement start end expressionValue)
+          (epsilon_collect_pending_lets rest pending))))))
+
+(def epsilon_remove_pending_binding ((source Bytes) (target EpsilonName)
+  (pending EpsilonLocalBindingList)) EpsilonLocalBindingList
+  (match pending
+    (NoEpsilonLocalBindings NoEpsilonLocalBindings)
+    ((MoreEpsilonLocalBindings item rest)
+      (if (epsilon_names_equal source target
+          (epsilon_local_binding_name item))
+        rest
+        (MoreEpsilonLocalBindings item
+          (epsilon_remove_pending_binding source target rest))))))

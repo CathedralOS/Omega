@@ -1,0 +1,214 @@
+
+(def epsilon_local_scan_named_transition_subject ((source Bytes)
+  (terminalValue EpsilonTerminal) (subject EpsilonExpression) (name EpsilonName)
+  (scan EpsilonLocalResolutionScan)) EpsilonLocalResolutionScan
+  (match scan
+    ((EpsilonLocalResolutionScanSyntax catalog references fields callables
+      control types candidate)
+      (match catalog
+        ((EpsilonResolutionCatalogSyntax rows)
+          (match (epsilon_catalog_find_owner source name rows)
+            (NoEpsilonCatalogOwner scan)
+            ((OneEpsilonCatalogBoundaryOwner ownerValue)
+              (epsilon_local_scan_add_candidate TypeMismatch
+                (epsilon_expression_start subject) scan))
+            ((OneEpsilonCatalogDataOwner ownerValue shape)
+              (match shape
+                (EpsilonRecordShape
+                  (epsilon_local_scan_add_candidate TypeMismatch
+                    (epsilon_expression_start subject) scan))
+                (EpsilonSumShape
+                  (epsilon_local_scan_add_transition_subject terminalValue
+                    (EpsilonSumTransitionSubject ownerValue) scan))))))))))
+
+(def epsilon_local_scan_transition_subject ((source Bytes)
+  (terminalValue EpsilonTerminal) (subject EpsilonExpression)
+  (scan EpsilonLocalResolutionScan)) EpsilonLocalResolutionScan
+  (let categoryScan EpsilonLocalResolutionScan
+    (epsilon_local_scan_value_use_candidate subject subject scan)
+    (match categoryScan
+      ((EpsilonLocalResolutionScanSyntax catalog references fields callables
+        control types candidate)
+        (match (epsilon_find_expression_result subject types)
+          (NoEpsilonExpressionResult categoryScan)
+          ((OneEpsilonExpressionResult resultValue)
+            (match resultValue
+              (EpsilonResultlessExpressionResult categoryScan)
+              (EpsilonNeverExpressionResult categoryScan)
+              ((EpsilonValueExpressionResult typeValue placeType)
+                (match typeValue
+                  ((EpsilonI32Type start end)
+                    (epsilon_local_scan_add_transition_subject terminalValue
+                      EpsilonScalarTransitionSubject categoryScan))
+                  ((EpsilonNamedType start end name)
+                    (epsilon_local_scan_named_transition_subject source
+                      terminalValue subject name categoryScan))
+                  ((EpsilonU8Type start end)
+                    (epsilon_local_scan_add_candidate TypeMismatch
+                      (epsilon_expression_start subject) categoryScan))
+                  ((EpsilonNeverType start end)
+                    (epsilon_local_scan_add_candidate TypeMismatch
+                      (epsilon_expression_start subject) categoryScan))
+                  ((EpsilonArrayType start end element lengthValue)
+                    (epsilon_local_scan_add_candidate TypeMismatch
+                      (epsilon_expression_start subject) categoryScan))
+                  ((EpsilonViewType start end element)
+                    (epsilon_local_scan_add_candidate TypeMismatch
+                      (epsilon_expression_start subject) categoryScan)))))))))))
+
+(def epsilon_local_scan_scalar_transition_pattern ((terminalValue EpsilonTerminal)
+  (patternValue EpsilonPattern) (selector Int)
+  (scan EpsilonLocalResolutionScan)) EpsilonLocalResolutionScan
+  (let kind EpsilonTransitionPatternKind
+    (EpsilonScalarPatternSelector selector)
+    (let namedScan EpsilonLocalResolutionScan
+      (epsilon_local_scan_add_transition_pattern_name terminalValue patternValue
+        kind scan)
+      (match namedScan
+        ((EpsilonLocalResolutionScanSyntax catalog references fields callables
+          control types candidate)
+          (match (epsilon_control_find_transition_subject terminalValue control)
+            (NoEpsilonTransitionSubjectReference namedScan)
+            ((OneEpsilonTransitionSubjectReference subjectKind)
+              (match subjectKind
+                ((EpsilonSumTransitionSubject ownerValue)
+                  (epsilon_local_scan_add_candidate TypeMismatch
+                    (epsilon_pattern_start patternValue) namedScan))
+                (EpsilonScalarTransitionSubject
+                  (let admittedScan EpsilonLocalResolutionScan
+                    (epsilon_local_scan_add_transition_pattern_admission
+                      terminalValue patternValue kind namedScan)
+                    (let identity EpsilonTransitionPatternIdentity
+                      (EpsilonScalarPatternIdentity selector)
+                      (if (epsilon_local_scan_transition_identity_is_owned
+                        terminalValue identity admittedScan)
+                        (epsilon_local_scan_add_candidate DuplicatePattern
+                          (epsilon_pattern_start patternValue) admittedScan)
+                        (epsilon_local_scan_add_transition_pattern_complete
+                          terminalValue patternValue kind
+                          (epsilon_local_scan_add_transition_pattern_identity
+                            terminalValue patternValue identity
+                            admittedScan))))))))))))))
+
+(def epsilon_local_scan_wildcard_transition_pattern
+  ((terminalValue EpsilonTerminal) (patternValue EpsilonPattern)
+   (scan EpsilonLocalResolutionScan)) EpsilonLocalResolutionScan
+  (let namedScan EpsilonLocalResolutionScan
+    (epsilon_local_scan_add_transition_pattern_name terminalValue patternValue
+      EpsilonTransitionWildcard scan)
+    (match namedScan
+      ((EpsilonLocalResolutionScanSyntax catalog references fields callables
+        control types candidate)
+        (match (epsilon_control_find_transition_subject terminalValue control)
+          (NoEpsilonTransitionSubjectReference namedScan)
+          ((OneEpsilonTransitionSubjectReference subjectKind)
+            (epsilon_local_scan_add_transition_pattern_complete terminalValue
+              patternValue EpsilonTransitionWildcard
+              (epsilon_local_scan_add_transition_pattern_admission terminalValue
+                patternValue EpsilonTransitionWildcard namedScan))))))))
+
+(def epsilon_local_scan_finish_admitted_case_transition_pattern
+  ((terminalValue EpsilonTerminal) (patternValue EpsilonPattern)
+   (binder EpsilonOptionalBinder) (ownerValue EpsilonDeclaration)
+   (caseValue EpsilonResolvedSumCase) (admittedScan EpsilonLocalResolutionScan))
+  EpsilonLocalResolutionScan
+  (let identity EpsilonTransitionPatternIdentity
+    (EpsilonSumCasePatternIdentity ownerValue caseValue)
+    (if (epsilon_local_scan_transition_identity_is_owned terminalValue identity
+      admittedScan)
+      (epsilon_local_scan_add_candidate DuplicatePattern
+        (epsilon_pattern_start patternValue) admittedScan)
+      (let identityScan EpsilonLocalResolutionScan
+        (epsilon_local_scan_add_transition_pattern_identity terminalValue
+          patternValue identity admittedScan)
+        (if (eq (epsilon_optional_binder_count binder)
+          (epsilon_parameter_list_count
+            (epsilon_resolved_sum_case_parameters caseValue)))
+          (epsilon_local_scan_add_transition_pattern_complete terminalValue
+            patternValue (EpsilonSumCasePattern ownerValue caseValue)
+            identityScan)
+          (epsilon_local_scan_add_candidate ArityMismatch
+            (epsilon_pattern_start patternValue) identityScan))))))
+
+(def epsilon_local_scan_resolved_case_transition_pattern
+  ((terminalValue EpsilonTerminal) (patternValue EpsilonPattern)
+   (binder EpsilonOptionalBinder) (ownerValue EpsilonDeclaration)
+   (caseValue EpsilonResolvedSumCase) (scan EpsilonLocalResolutionScan))
+  EpsilonLocalResolutionScan
+  (let kind EpsilonTransitionPatternKind
+    (EpsilonSumCasePattern ownerValue caseValue)
+    (let namedScan EpsilonLocalResolutionScan
+      (epsilon_local_scan_add_transition_pattern_name terminalValue patternValue
+        kind scan)
+      (match namedScan
+        ((EpsilonLocalResolutionScanSyntax catalog references fields callables
+          control types candidate)
+          (match (epsilon_control_find_transition_subject terminalValue control)
+            (NoEpsilonTransitionSubjectReference namedScan)
+            ((OneEpsilonTransitionSubjectReference subjectKind)
+              (match subjectKind
+                (EpsilonScalarTransitionSubject
+                  (epsilon_local_scan_add_candidate TypeMismatch
+                    (epsilon_pattern_start patternValue) namedScan))
+                ((EpsilonSumTransitionSubject subjectOwner)
+                  (if (epsilon_data_declarations_same_identity subjectOwner
+                    ownerValue)
+                    (let admittedScan EpsilonLocalResolutionScan
+                      (epsilon_local_scan_add_transition_pattern_admission
+                        terminalValue patternValue kind namedScan)
+                      (epsilon_local_scan_finish_admitted_case_transition_pattern
+                        terminalValue patternValue binder ownerValue caseValue
+                        admittedScan))
+                    (epsilon_local_scan_add_candidate TypeMismatch
+                      (epsilon_pattern_start patternValue) namedScan)))))))))))
+
+(def epsilon_local_scan_case_transition_pattern ((source Bytes)
+  (terminalValue EpsilonTerminal) (patternValue EpsilonPattern)
+  (owner EpsilonName) (name EpsilonName) (binder EpsilonOptionalBinder)
+  (scan EpsilonLocalResolutionScan)) EpsilonLocalResolutionScan
+  (match scan
+    ((EpsilonLocalResolutionScanSyntax catalog references fields callables
+      control types candidate)
+      (match catalog
+        ((EpsilonResolutionCatalogSyntax rows)
+          (match (epsilon_catalog_find_owner source owner rows)
+            (NoEpsilonCatalogOwner
+              (epsilon_local_scan_add_candidate UnknownName
+                (epsilon_name_start owner) scan))
+            ((OneEpsilonCatalogBoundaryOwner ownerValue)
+              (epsilon_local_scan_add_candidate TypeMismatch
+                (epsilon_pattern_start patternValue) scan))
+            ((OneEpsilonCatalogDataOwner ownerValue shape)
+              (match shape
+                (EpsilonRecordShape
+                  (epsilon_local_scan_add_candidate TypeMismatch
+                    (epsilon_pattern_start patternValue) scan))
+                (EpsilonSumShape
+                  (match (epsilon_catalog_find_sum_case source owner name rows)
+                    (NoEpsilonCatalogSumCase
+                      (epsilon_local_scan_add_candidate UnknownName
+                        (epsilon_name_start name) scan))
+                    ((OneEpsilonCatalogSumCase caseOwner caseValue)
+                      (epsilon_local_scan_resolved_case_transition_pattern
+                        terminalValue patternValue binder caseOwner caseValue
+                        scan))))))))))))
+
+(def epsilon_local_scan_transition_pattern ((source Bytes)
+  (terminalValue EpsilonTerminal) (patternValue EpsilonPattern)
+  (scan EpsilonLocalResolutionScan)) EpsilonLocalResolutionScan
+  (match patternValue
+    ((EpsilonIntegerPattern start end literal)
+      (epsilon_local_scan_scalar_transition_pattern terminalValue patternValue
+        (epsilon_integer_literal_value literal) scan))
+    ((EpsilonTruePattern start end)
+      (epsilon_local_scan_scalar_transition_pattern terminalValue patternValue 1
+        scan))
+    ((EpsilonFalsePattern start end)
+      (epsilon_local_scan_scalar_transition_pattern terminalValue patternValue 0
+        scan))
+    ((EpsilonWildcardPattern start end)
+      (epsilon_local_scan_wildcard_transition_pattern terminalValue patternValue
+        scan))
+    ((EpsilonCasePattern start end owner name binder)
+      (epsilon_local_scan_case_transition_pattern source terminalValue
+        patternValue owner name binder scan))))

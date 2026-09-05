@@ -14,7 +14,7 @@ command -v python3 >/dev/null 2>&1 || {
 
 TMP=$(mktemp -d)
 trap 'rm -rf -- "$TMP"' EXIT HUP INT TERM
-COMPILER="$OMEGA_REPO_ROOT/bootstrap/delta/compiler/delta_compiler.gamma"
+COMPILER="$OMEGA_PATH_DELTA_COMPILER_SOURCE"
 SOURCE="$GATE_DIR/nullary_match.delta"
 EXPECTED="$GATE_DIR/nullary_match.gamma"
 PAYLOAD_SOURCE="$GATE_DIR/payload_match.delta"
@@ -27,7 +27,9 @@ BYTES_SOURCE="$GATE_DIR/bytes_rope.delta"
 BYTES_EXPECTED="$GATE_DIR/bytes_rope.gamma"
 FORWARD_SOURCE="$GATE_DIR/forward_mutual_nominals.delta"
 FORWARD_EXPECTED="$GATE_DIR/forward_mutual_nominals.gamma"
-EPSILON_SOURCE="$OMEGA_REPO_ROOT/bootstrap/epsilon/compiler/epsilon_compiler.delta"
+EPSILON_SOURCE="$TMP/epsilon_compiler.delta"
+python3 "$OMEGA_REPO_ROOT/tools/bootstrap/source_closure.py" \
+    "$OMEGA_PATH_EPSILON_COMPILER_SOURCES" "$EPSILON_SOURCE"
 
 materialize_gamma_evaluator "$TMP/evaluator" >/dev/null
 

@@ -1,0 +1,227 @@
+
+; ---- state and machine bodies ------------------------------------------
+
+(def epsilon_statement_end ((statementValue EpsilonStatement)) Int
+  (match statementValue
+    ((EpsilonLetStatement start end name typeValue expressionValue) end)
+    ((EpsilonAssignmentStatement start end left right) end)
+    ((EpsilonPostfixStatement start end expressionValue) end)
+    ((EpsilonAssertStatement start end expressionValue) end)))
+
+(def epsilon_terminal_end ((terminalValue EpsilonTerminal)) Int
+  (match terminalValue
+    ((EpsilonTransitionTerminal start end expressionValue arms) end)
+    ((EpsilonReturnTerminal start end expressionValue) end)))
+
+(def epsilon_state_body_end ((bodyValue EpsilonStateBody)) Int
+  (match bodyValue
+    ((EpsilonStateBodySyntax start end statements terminalValue) end)))
+
+(def epsilon_state_end ((stateValue EpsilonState)) Int
+  (match stateValue
+    ((EpsilonStateSyntax start end name parameters bodyValue) end)))
+
+(def epsilon_reverse_statements ((input EpsilonStatementList)
+  (output EpsilonStatementList)) EpsilonStatementList
+  (match input
+    (NoEpsilonStatements output)
+    ((MoreEpsilonStatements item rest)
+      (epsilon_reverse_statements rest (MoreEpsilonStatements item output)))))
+
+(def epsilon_reverse_states ((input EpsilonStateList) (output EpsilonStateList)) EpsilonStateList
+  (match input
+    (NoEpsilonStates output)
+    ((MoreEpsilonStates item rest)
+      (epsilon_reverse_states rest (MoreEpsilonStates item output)))))
+
+(def epsilon_state_body_reject_at ((source Bytes) (cursor Int)) EpsilonStateBodyParseOutcome
+  (let start Int (epsilon_token_start source cursor)
+    (if (eq start (bytes_length source))
+      (EpsilonStateBodyParseRejected UnexpectedEnd start)
+      (EpsilonStateBodyParseRejected UnexpectedToken start))))
+
+(def epsilon_state_reject_at ((source Bytes) (cursor Int)) EpsilonStateParseOutcome
+  (let start Int (epsilon_token_start source cursor)
+    (if (eq start (bytes_length source))
+      (EpsilonStateParseRejected UnexpectedEnd start)
+      (EpsilonStateParseRejected UnexpectedToken start))))
+
+(def epsilon_machine_body_reject_at ((source Bytes) (cursor Int)) EpsilonMachineBodyParseOutcome
+  (let start Int (epsilon_token_start source cursor)
+    (if (eq start (bytes_length source))
+      (EpsilonMachineBodyParseRejected UnexpectedEnd start)
+      (EpsilonMachineBodyParseRejected UnexpectedToken start))))
+
+(def epsilon_parse_explicit_terminal ((source Bytes) (cursor Int)) EpsilonTerminalParseOutcome
+  (let start Int (epsilon_token_start source cursor)
+    (let code Int (epsilon_token_code source start)
+      (if (eq code 18)
+        (epsilon_parse_return_terminal source start)
+        (if (eq code 16)
+          (let transitionOutcome EpsilonTransitionParseOutcome (epsilon_parse_transition source start)
+            (match transitionOutcome
+              ((EpsilonTransitionParseRejected reasonValue errorOffset)
+                (EpsilonTerminalParseRejected reasonValue errorOffset))
+              ((EpsilonTransitionParsed terminalValue)
+                (EpsilonTerminalParsed terminalValue))))
+          (epsilon_terminal_reject_at source cursor))))))
+
+(def epsilon_finish_state_terminal ((source Bytes) (bodyStart Int)
+  (statements EpsilonStatementList) (terminalValue EpsilonTerminal)) EpsilonStateBodyParseOutcome
+  (let closeStart Int (epsilon_token_start source (epsilon_terminal_end terminalValue))
+    (if (eq (epsilon_token_code source closeStart) 31)
+      (let bodyEnd Int (epsilon_token_end source closeStart)
+        (EpsilonStateBodyParsed
+          (EpsilonStateBodySyntax bodyStart bodyEnd
+            (epsilon_reverse_statements statements NoEpsilonStatements)
+            (SomeEpsilonTerminal terminalValue))))
+      (epsilon_state_body_reject_at source (epsilon_terminal_end terminalValue)))))
+
+(def epsilon_parse_state_body_items ((source Bytes) (bodyStart Int) (cursor Int)
+  (statements EpsilonStatementList)) EpsilonStateBodyParseOutcome
+  (let start Int (epsilon_token_start source cursor)
+    (let code Int (epsilon_token_code source start)
+      (if (eq code 0)
+        (EpsilonStateBodyParseRejected UnexpectedEnd start)
+        (if (eq code 31)
+          (let bodyEnd Int (epsilon_token_end source start)
+            (EpsilonStateBodyParsed
+              (EpsilonStateBodySyntax bodyStart bodyEnd
+                (epsilon_reverse_statements statements NoEpsilonStatements)
+                NoEpsilonTerminal)))
+          (if (eq code 18)
+            (let terminalOutcome EpsilonTerminalParseOutcome (epsilon_parse_explicit_terminal source start)
+              (match terminalOutcome
+                ((EpsilonTerminalParseRejected reasonValue errorOffset)
+                  (EpsilonStateBodyParseRejected reasonValue errorOffset))
+                ((EpsilonTerminalParsed terminalValue)
+                  (epsilon_finish_state_terminal source bodyStart statements terminalValue))))
+            (if (eq code 16)
+              (let terminalOutcome EpsilonTerminalParseOutcome (epsilon_parse_explicit_terminal source start)
+                (match terminalOutcome
+                  ((EpsilonTerminalParseRejected reasonValue errorOffset)
+                    (EpsilonStateBodyParseRejected reasonValue errorOffset))
+                  ((EpsilonTerminalParsed terminalValue)
+                    (epsilon_finish_state_terminal source bodyStart statements terminalValue))))
+              (if (eq code 15)
+                (EpsilonStateBodyParseRejected UnexpectedToken start)
+                (let statementOutcome EpsilonStatementParseOutcome (epsilon_parse_statement source start)
+                  (match statementOutcome
+                    ((EpsilonStatementParseRejected reasonValue errorOffset)
+                      (EpsilonStateBodyParseRejected reasonValue errorOffset))
+                    ((EpsilonStatementParsed statementValue)
+                      (epsilon_parse_state_body_items source bodyStart
+                        (epsilon_statement_end statementValue)
+                        (MoreEpsilonStatements statementValue statements)))))))))))))
+
+(def epsilon_parse_state_body ((source Bytes) (cursor Int)) EpsilonStateBodyParseOutcome
+  (let bodyStart Int (epsilon_token_start source cursor)
+    (if (eq (epsilon_token_code source bodyStart) 30)
+      (epsilon_parse_state_body_items source bodyStart
+        (epsilon_token_end source bodyStart) NoEpsilonStatements)
+      (epsilon_state_body_reject_at source cursor))))
+
+(def epsilon_finish_state ((source Bytes) (stateStart Int) (nameStart Int)
+  (nameEnd Int) (parameters EpsilonParameterList) (cursor Int)) EpsilonStateParseOutcome
+  (let bodyOutcome EpsilonStateBodyParseOutcome (epsilon_parse_state_body source cursor)
+    (match bodyOutcome
+      ((EpsilonStateBodyParseRejected reasonValue errorOffset)
+        (EpsilonStateParseRejected reasonValue errorOffset))
+      ((EpsilonStateBodyParsed bodyValue)
+        (EpsilonStateParsed
+          (EpsilonStateSyntax stateStart (epsilon_state_body_end bodyValue)
+            (EpsilonNameSpan nameStart nameEnd) parameters bodyValue))))))
+
+(def epsilon_parse_state ((source Bytes) (cursor Int)) EpsilonStateParseOutcome
+  (let stateStart Int (epsilon_token_start source cursor)
+    (if (eq (epsilon_token_code source stateStart) 15)
+      (let nameStart Int (epsilon_token_start source (epsilon_token_end source stateStart))
+        (if (eq (epsilon_token_code source nameStart) 1)
+          (let nameEnd Int (epsilon_token_end source nameStart)
+            (let openStart Int (epsilon_token_start source nameEnd)
+              (if (eq (epsilon_token_code source openStart) 32)
+                (let parametersOutcome EpsilonParameterListParseOutcome
+                  (epsilon_parse_parameters_acc source (epsilon_token_end source openStart)
+                    33 NoEpsilonParameters)
+                  (match parametersOutcome
+                    ((EpsilonParameterListParseRejected reasonValue errorOffset)
+                      (EpsilonStateParseRejected reasonValue errorOffset))
+                    ((EpsilonParameterListParsed parameters closeStart)
+                      (epsilon_finish_state source stateStart nameStart nameEnd parameters
+                        (epsilon_token_end source closeStart)))))
+                (epsilon_state_reject_at source nameEnd))))
+          (epsilon_state_reject_at source (epsilon_token_end source stateStart))))
+      (epsilon_state_reject_at source cursor))))
+
+(def epsilon_finish_machine_body ((source Bytes) (bodyStart Int) (cursor Int)
+  (statements EpsilonStatementList) (terminalValue EpsilonOptionalTerminal)
+  (states EpsilonStateList)) EpsilonMachineBodyParseOutcome
+  (let closeStart Int (epsilon_token_start source cursor)
+    (if (eq (epsilon_token_code source closeStart) 31)
+      (let bodyEnd Int (epsilon_token_end source closeStart)
+        (EpsilonMachineBodyParsed
+          (EpsilonMachineBodySyntax bodyStart bodyEnd
+            (epsilon_reverse_statements statements NoEpsilonStatements)
+            terminalValue (epsilon_reverse_states states NoEpsilonStates))))
+      (epsilon_machine_body_reject_at source cursor))))
+
+(def epsilon_parse_machine_states ((source Bytes) (bodyStart Int) (cursor Int)
+  (statements EpsilonStatementList) (terminalValue EpsilonOptionalTerminal)
+  (states EpsilonStateList)) EpsilonMachineBodyParseOutcome
+  (let start Int (epsilon_token_start source cursor)
+    (let code Int (epsilon_token_code source start)
+      (if (eq code 0)
+        (EpsilonMachineBodyParseRejected UnexpectedEnd start)
+        (if (eq code 31)
+          (epsilon_finish_machine_body source bodyStart start statements terminalValue states)
+          (if (eq code 15)
+            (let stateOutcome EpsilonStateParseOutcome (epsilon_parse_state source start)
+              (match stateOutcome
+                ((EpsilonStateParseRejected reasonValue errorOffset)
+                  (EpsilonMachineBodyParseRejected reasonValue errorOffset))
+                ((EpsilonStateParsed stateValue)
+                  (epsilon_parse_machine_states source bodyStart (epsilon_state_end stateValue)
+                    statements terminalValue (MoreEpsilonStates stateValue states)))))
+            (EpsilonMachineBodyParseRejected UnexpectedToken start)))))))
+
+(def epsilon_parse_machine_terminal ((source Bytes) (bodyStart Int) (cursor Int)
+  (statements EpsilonStatementList)) EpsilonMachineBodyParseOutcome
+  (let terminalOutcome EpsilonTerminalParseOutcome (epsilon_parse_explicit_terminal source cursor)
+    (match terminalOutcome
+      ((EpsilonTerminalParseRejected reasonValue errorOffset)
+        (EpsilonMachineBodyParseRejected reasonValue errorOffset))
+      ((EpsilonTerminalParsed terminalValue)
+        (epsilon_parse_machine_states source bodyStart (epsilon_terminal_end terminalValue)
+          statements (SomeEpsilonTerminal terminalValue) NoEpsilonStates)))))
+
+(def epsilon_parse_machine_body_items ((source Bytes) (bodyStart Int) (cursor Int)
+  (statements EpsilonStatementList)) EpsilonMachineBodyParseOutcome
+  (let start Int (epsilon_token_start source cursor)
+    (let code Int (epsilon_token_code source start)
+      (if (eq code 0)
+        (EpsilonMachineBodyParseRejected UnexpectedEnd start)
+        (if (eq code 31)
+          (epsilon_finish_machine_body source bodyStart start statements
+            NoEpsilonTerminal NoEpsilonStates)
+          (if (eq code 15)
+            (epsilon_parse_machine_states source bodyStart start statements
+              NoEpsilonTerminal NoEpsilonStates)
+            (if (eq code 18)
+              (epsilon_parse_machine_terminal source bodyStart start statements)
+              (if (eq code 16)
+                (epsilon_parse_machine_terminal source bodyStart start statements)
+                (let statementOutcome EpsilonStatementParseOutcome (epsilon_parse_statement source start)
+                  (match statementOutcome
+                    ((EpsilonStatementParseRejected reasonValue errorOffset)
+                      (EpsilonMachineBodyParseRejected reasonValue errorOffset))
+                    ((EpsilonStatementParsed statementValue)
+                      (epsilon_parse_machine_body_items source bodyStart
+                        (epsilon_statement_end statementValue)
+                        (MoreEpsilonStatements statementValue statements)))))))))))))
+
+(def epsilon_parse_machine_body ((source Bytes) (cursor Int)) EpsilonMachineBodyParseOutcome
+  (let bodyStart Int (epsilon_token_start source cursor)
+    (if (eq (epsilon_token_code source bodyStart) 30)
+      (epsilon_parse_machine_body_items source bodyStart
+        (epsilon_token_end source bodyStart) NoEpsilonStatements)
+      (epsilon_machine_body_reject_at source cursor))))

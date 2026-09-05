@@ -1,0 +1,377 @@
+
+(def epsilon_reverse_resolved_local_references
+  ((input EpsilonResolvedLocalReferenceList)
+   (output EpsilonResolvedLocalReferenceList)) EpsilonResolvedLocalReferenceList
+  (match input
+    (NoEpsilonResolvedLocalReferences output)
+    ((MoreEpsilonResolvedLocalReferences item rest)
+      (epsilon_reverse_resolved_local_references rest
+        (MoreEpsilonResolvedLocalReferences item output)))))
+
+(def epsilon_expression_kind ((expressionValue EpsilonExpression)) Int
+  (match expressionValue
+    ((EpsilonIntegerExpression start end literal) 0)
+    ((EpsilonCharacterExpression start end literal) 1)
+    ((EpsilonStringExpression start end literal) 2)
+    ((EpsilonTrueExpression start end) 3)
+    ((EpsilonFalseExpression start end) 4)
+    ((EpsilonNameExpression start end name) 6)
+    ((EpsilonQualifiedExpression start end owner name arguments) 7)
+    ((EpsilonGroupedExpression start end inner) 8)
+    ((EpsilonFieldExpression start end base field) 9)
+    ((EpsilonCallExpression start end base arguments) 10)
+    ((EpsilonIndexExpression start end base indexValue) 11)
+    ((EpsilonSliceExpression start end base low high) 12)
+    ((EpsilonNegateExpression start end operand) 13)
+    ((EpsilonBinaryExpression start end operator operatorStart operatorEnd
+      left right) 14)))
+
+; Postfix nodes inherit their base's start coordinate, so a source offset alone
+; is not an expression identity. Constructor plus exact span is sufficient for
+; the parser's tree-shaped AST and prevents a base fact from answering for its
+; enclosing field, call, index, or slice.
+(def epsilon_expressions_same_identity ((left EpsilonExpression)
+  (right EpsilonExpression)) Int
+  (if (eq (epsilon_expression_kind left) (epsilon_expression_kind right))
+    (if (eq (epsilon_expression_start left) (epsilon_expression_start right))
+      (eq (epsilon_expression_end left) (epsilon_expression_end right))
+      0)
+    0))
+
+(def epsilon_find_resolved_local_reference ((target EpsilonExpression)
+  (references EpsilonResolvedLocalReferenceList))
+  EpsilonResolvedLocalReferenceLookup
+  (match references
+    (NoEpsilonResolvedLocalReferences NoEpsilonResolvedLocalReference)
+    ((MoreEpsilonResolvedLocalReferences item rest)
+      (match item
+        ((EpsilonResolvedLocalReferenceSyntax expressionValue bindingValue)
+          (if (epsilon_expressions_same_identity target expressionValue)
+            (OneEpsilonResolvedLocalReference bindingValue)
+            (epsilon_find_resolved_local_reference target rest)))))))
+
+(def epsilon_reverse_resolved_field_references
+  ((input EpsilonResolvedFieldReferenceList)
+   (output EpsilonResolvedFieldReferenceList)) EpsilonResolvedFieldReferenceList
+  (match input
+    (NoEpsilonResolvedFieldReferences output)
+    ((MoreEpsilonResolvedFieldReferences item rest)
+      (epsilon_reverse_resolved_field_references rest
+        (MoreEpsilonResolvedFieldReferences item output)))))
+
+(def epsilon_find_resolved_field_reference ((target EpsilonExpression)
+  (references EpsilonResolvedFieldReferenceList))
+  EpsilonResolvedFieldReferenceLookup
+  (match references
+    (NoEpsilonResolvedFieldReferences NoEpsilonResolvedFieldReference)
+    ((MoreEpsilonResolvedFieldReferences item rest)
+      (match item
+        ((EpsilonResolvedFieldReferenceSyntax expressionValue owner member)
+          (if (epsilon_expressions_same_identity target expressionValue)
+            (OneEpsilonResolvedFieldReference owner member)
+            (epsilon_find_resolved_field_reference target rest)))))))
+
+(def epsilon_reverse_resolved_callable_references
+  ((input EpsilonResolvedCallableReferenceList)
+   (output EpsilonResolvedCallableReferenceList))
+  EpsilonResolvedCallableReferenceList
+  (match input
+    (NoEpsilonResolvedCallableReferences output)
+    ((MoreEpsilonResolvedCallableReferences item rest)
+      (epsilon_reverse_resolved_callable_references rest
+        (MoreEpsilonResolvedCallableReferences item output)))))
+
+(def epsilon_find_resolved_callable_reference
+  ((target EpsilonExpression)
+   (references EpsilonResolvedCallableReferenceList))
+  EpsilonResolvedCallableReferenceLookup
+  (match references
+    (NoEpsilonResolvedCallableReferences NoEpsilonResolvedCallableReference)
+    ((MoreEpsilonResolvedCallableReferences item rest)
+      (match item
+        ((EpsilonResolvedCallableReferenceSyntax expressionValue callable)
+          (if (epsilon_expressions_same_identity target expressionValue)
+            (OneEpsilonResolvedCallableReference callable)
+            (epsilon_find_resolved_callable_reference target rest)))))))
+
+(def epsilon_reverse_state_application_references
+  ((input EpsilonStateApplicationReferenceList)
+   (output EpsilonStateApplicationReferenceList))
+  EpsilonStateApplicationReferenceList
+  (match input
+    (NoEpsilonStateApplicationReferences output)
+    ((MoreEpsilonStateApplicationReferences item rest)
+      (epsilon_reverse_state_application_references rest
+        (MoreEpsilonStateApplicationReferences item output)))))
+
+(def epsilon_find_state_application_reference
+  ((target EpsilonExpression) (references EpsilonStateApplicationReferenceList))
+  EpsilonStateApplicationReferenceLookup
+  (match references
+    (NoEpsilonStateApplicationReferences NoEpsilonStateApplicationReference)
+    ((MoreEpsilonStateApplicationReferences item rest)
+      (match item
+        ((EpsilonStateApplicationReferenceSyntax expressionValue machineValue
+          stateValue progress)
+          (if (epsilon_expressions_same_identity target expressionValue)
+            (match progress
+              (EpsilonStateApplicationComplete
+                (OneEpsilonStateApplicationReference machineValue stateValue
+                  progress))
+              (EpsilonStateApplicationResolved
+                (match (epsilon_find_state_application_reference target rest)
+                  (NoEpsilonStateApplicationReference
+                    (OneEpsilonStateApplicationReference machineValue stateValue
+                      progress))
+                  ((OneEpsilonStateApplicationReference laterMachine laterState
+                    laterProgress)
+                    (OneEpsilonStateApplicationReference laterMachine laterState
+                      laterProgress)))))
+            (epsilon_find_state_application_reference target rest)))))))
+
+(def epsilon_patterns_same_identity ((left EpsilonPattern) (right EpsilonPattern)) Int
+  (match left
+    ((EpsilonIntegerPattern leftStart leftEnd leftLiteral)
+      (match right
+        ((EpsilonIntegerPattern rightStart rightEnd rightLiteral)
+          (if (eq leftStart rightStart) (eq leftEnd rightEnd) 0))
+        ((EpsilonTruePattern rightStart rightEnd) 0)
+        ((EpsilonFalsePattern rightStart rightEnd) 0)
+        ((EpsilonWildcardPattern rightStart rightEnd) 0)
+        ((EpsilonCasePattern rightStart rightEnd rightOwner rightName rightBinder)
+          0)))
+    ((EpsilonTruePattern leftStart leftEnd)
+      (match right
+        ((EpsilonIntegerPattern rightStart rightEnd rightLiteral) 0)
+        ((EpsilonTruePattern rightStart rightEnd)
+          (if (eq leftStart rightStart) (eq leftEnd rightEnd) 0))
+        ((EpsilonFalsePattern rightStart rightEnd) 0)
+        ((EpsilonWildcardPattern rightStart rightEnd) 0)
+        ((EpsilonCasePattern rightStart rightEnd rightOwner rightName rightBinder)
+          0)))
+    ((EpsilonFalsePattern leftStart leftEnd)
+      (match right
+        ((EpsilonIntegerPattern rightStart rightEnd rightLiteral) 0)
+        ((EpsilonTruePattern rightStart rightEnd) 0)
+        ((EpsilonFalsePattern rightStart rightEnd)
+          (if (eq leftStart rightStart) (eq leftEnd rightEnd) 0))
+        ((EpsilonWildcardPattern rightStart rightEnd) 0)
+        ((EpsilonCasePattern rightStart rightEnd rightOwner rightName rightBinder)
+          0)))
+    ((EpsilonWildcardPattern leftStart leftEnd)
+      (match right
+        ((EpsilonIntegerPattern rightStart rightEnd rightLiteral) 0)
+        ((EpsilonTruePattern rightStart rightEnd) 0)
+        ((EpsilonFalsePattern rightStart rightEnd) 0)
+        ((EpsilonWildcardPattern rightStart rightEnd)
+          (if (eq leftStart rightStart) (eq leftEnd rightEnd) 0))
+        ((EpsilonCasePattern rightStart rightEnd rightOwner rightName rightBinder)
+          0)))
+    ((EpsilonCasePattern leftStart leftEnd leftOwner leftName leftBinder)
+      (match right
+        ((EpsilonIntegerPattern rightStart rightEnd rightLiteral) 0)
+        ((EpsilonTruePattern rightStart rightEnd) 0)
+        ((EpsilonFalsePattern rightStart rightEnd) 0)
+        ((EpsilonWildcardPattern rightStart rightEnd) 0)
+        ((EpsilonCasePattern rightStart rightEnd rightOwner rightName rightBinder)
+          (if (eq leftStart rightStart) (eq leftEnd rightEnd) 0))))))
+
+(def epsilon_terminals_same_identity ((left EpsilonTerminal)
+  (right EpsilonTerminal)) Int
+  (match left
+    ((EpsilonTransitionTerminal leftStart leftEnd leftSubject leftArms)
+      (match right
+        ((EpsilonTransitionTerminal rightStart rightEnd rightSubject rightArms)
+          (if (eq leftStart rightStart) (eq leftEnd rightEnd) 0))
+        ((EpsilonReturnTerminal rightStart rightEnd rightExpression) 0)))
+    ((EpsilonReturnTerminal leftStart leftEnd leftExpression)
+      (match right
+        ((EpsilonTransitionTerminal rightStart rightEnd rightSubject rightArms) 0)
+        ((EpsilonReturnTerminal rightStart rightEnd rightExpression)
+          (if (eq leftStart rightStart) (eq leftEnd rightEnd) 0))))))
+
+(def epsilon_reverse_transition_subject_references
+  ((input EpsilonTransitionSubjectReferenceList)
+   (output EpsilonTransitionSubjectReferenceList))
+  EpsilonTransitionSubjectReferenceList
+  (match input
+    (NoEpsilonTransitionSubjectReferences output)
+    ((MoreEpsilonTransitionSubjectReferences item rest)
+      (epsilon_reverse_transition_subject_references rest
+        (MoreEpsilonTransitionSubjectReferences item output)))))
+
+(def epsilon_find_transition_subject_reference ((target EpsilonTerminal)
+  (references EpsilonTransitionSubjectReferenceList))
+  EpsilonTransitionSubjectReferenceLookup
+  (match references
+    (NoEpsilonTransitionSubjectReferences NoEpsilonTransitionSubjectReference)
+    ((MoreEpsilonTransitionSubjectReferences item rest)
+      (match item
+        ((EpsilonTransitionSubjectReferenceSyntax terminalValue kind)
+          (if (epsilon_terminals_same_identity target terminalValue)
+            (OneEpsilonTransitionSubjectReference kind)
+            (epsilon_find_transition_subject_reference target rest)))))))
+
+(def epsilon_reverse_transition_pattern_references
+  ((input EpsilonTransitionPatternReferenceList)
+   (output EpsilonTransitionPatternReferenceList))
+  EpsilonTransitionPatternReferenceList
+  (match input
+    (NoEpsilonTransitionPatternReferences output)
+    ((MoreEpsilonTransitionPatternReferences item rest)
+      (epsilon_reverse_transition_pattern_references rest
+        (MoreEpsilonTransitionPatternReferences item output)))))
+
+(def epsilon_reverse_transition_coverage_references
+  ((input EpsilonTransitionCoverageReferenceList)
+   (output EpsilonTransitionCoverageReferenceList))
+  EpsilonTransitionCoverageReferenceList
+  (match input
+    (NoEpsilonTransitionCoverageReferences output)
+    ((MoreEpsilonTransitionCoverageReferences item rest)
+      (epsilon_reverse_transition_coverage_references rest
+        (MoreEpsilonTransitionCoverageReferences item output)))))
+
+(def epsilon_find_transition_pattern_name_resolved ((target EpsilonPattern)
+  (references EpsilonTransitionPatternReferenceList))
+  EpsilonTransitionPatternKindLookup
+  (match references
+    (NoEpsilonTransitionPatternReferences NoEpsilonTransitionPatternKind)
+    ((MoreEpsilonTransitionPatternReferences item rest)
+      (match item
+        ((EpsilonTransitionPatternNameResolved terminalValue patternValue kind)
+          (if (epsilon_patterns_same_identity target patternValue)
+            (OneEpsilonTransitionPatternKind kind)
+            (epsilon_find_transition_pattern_name_resolved target rest)))
+        ((EpsilonTransitionPatternSubjectAdmitted terminalValue patternValue kind)
+          (epsilon_find_transition_pattern_name_resolved target rest))
+        ((EpsilonTransitionPatternIdentityOwned terminalValue patternValue identity)
+          (epsilon_find_transition_pattern_name_resolved target rest))
+        ((EpsilonTransitionPatternComplete terminalValue patternValue kind)
+          (epsilon_find_transition_pattern_name_resolved target rest))))))
+
+(def epsilon_find_transition_pattern_subject_admitted ((target EpsilonPattern)
+  (references EpsilonTransitionPatternReferenceList))
+  EpsilonTransitionPatternKindLookup
+  (match references
+    (NoEpsilonTransitionPatternReferences NoEpsilonTransitionPatternKind)
+    ((MoreEpsilonTransitionPatternReferences item rest)
+      (match item
+        ((EpsilonTransitionPatternNameResolved terminalValue patternValue kind)
+          (epsilon_find_transition_pattern_subject_admitted target rest))
+        ((EpsilonTransitionPatternSubjectAdmitted terminalValue patternValue kind)
+          (if (epsilon_patterns_same_identity target patternValue)
+            (OneEpsilonTransitionPatternKind kind)
+            (epsilon_find_transition_pattern_subject_admitted target rest)))
+        ((EpsilonTransitionPatternIdentityOwned terminalValue patternValue identity)
+          (epsilon_find_transition_pattern_subject_admitted target rest))
+        ((EpsilonTransitionPatternComplete terminalValue patternValue kind)
+          (epsilon_find_transition_pattern_subject_admitted target rest))))))
+
+(def epsilon_find_transition_pattern_complete ((target EpsilonPattern)
+  (references EpsilonTransitionPatternReferenceList))
+  EpsilonTransitionPatternKindLookup
+  (match references
+    (NoEpsilonTransitionPatternReferences NoEpsilonTransitionPatternKind)
+    ((MoreEpsilonTransitionPatternReferences item rest)
+      (match item
+        ((EpsilonTransitionPatternNameResolved terminalValue patternValue kind)
+          (epsilon_find_transition_pattern_complete target rest))
+        ((EpsilonTransitionPatternSubjectAdmitted terminalValue patternValue kind)
+          (epsilon_find_transition_pattern_complete target rest))
+        ((EpsilonTransitionPatternIdentityOwned terminalValue patternValue identity)
+          (epsilon_find_transition_pattern_complete target rest))
+        ((EpsilonTransitionPatternComplete terminalValue patternValue kind)
+          (if (epsilon_patterns_same_identity target patternValue)
+            (OneEpsilonTransitionPatternKind kind)
+            (epsilon_find_transition_pattern_complete target rest)))))))
+
+(def epsilon_resolved_sum_cases_same_identity ((left EpsilonResolvedSumCase)
+  (right EpsilonResolvedSumCase)) Int
+  (match left
+    ((EpsilonResolvedSumCaseSyntax leftStart leftEnd leftName leftParameters)
+      (match right
+        ((EpsilonResolvedSumCaseSyntax rightStart rightEnd rightName
+          rightParameters)
+          (if (eq leftStart rightStart) (eq leftEnd rightEnd) 0))))))
+
+(def epsilon_transition_pattern_identities_same
+  ((left EpsilonTransitionPatternIdentity)
+   (right EpsilonTransitionPatternIdentity)) Int
+  (match left
+    ((EpsilonScalarPatternIdentity leftValue)
+      (match right
+        ((EpsilonScalarPatternIdentity rightValue) (eq leftValue rightValue))
+        ((EpsilonSumCasePatternIdentity rightOwner rightCase) 0)))
+    ((EpsilonSumCasePatternIdentity leftOwner leftCase)
+      (match right
+        ((EpsilonScalarPatternIdentity rightValue) 0)
+        ((EpsilonSumCasePatternIdentity rightOwner rightCase)
+          (if (epsilon_data_declarations_same_identity leftOwner rightOwner)
+            (epsilon_resolved_sum_cases_same_identity leftCase rightCase)
+            0))))))
+
+(def epsilon_transition_pattern_identity_is_owned
+  ((targetTerminal EpsilonTerminal)
+   (targetIdentity EpsilonTransitionPatternIdentity)
+   (references EpsilonTransitionPatternReferenceList)) Int
+  (match references
+    (NoEpsilonTransitionPatternReferences 0)
+    ((MoreEpsilonTransitionPatternReferences item rest)
+      (match item
+        ((EpsilonTransitionPatternNameResolved terminalValue patternValue kind)
+          (epsilon_transition_pattern_identity_is_owned targetTerminal
+            targetIdentity rest))
+        ((EpsilonTransitionPatternSubjectAdmitted terminalValue patternValue kind)
+          (epsilon_transition_pattern_identity_is_owned targetTerminal
+            targetIdentity rest))
+        ((EpsilonTransitionPatternIdentityOwned terminalValue patternValue identity)
+          (if (epsilon_terminals_same_identity targetTerminal terminalValue)
+            (if (epsilon_transition_pattern_identities_same targetIdentity
+              identity)
+              1
+              (epsilon_transition_pattern_identity_is_owned targetTerminal
+                targetIdentity rest))
+            (epsilon_transition_pattern_identity_is_owned targetTerminal
+              targetIdentity rest)))
+        ((EpsilonTransitionPatternComplete terminalValue patternValue kind)
+          (epsilon_transition_pattern_identity_is_owned targetTerminal
+            targetIdentity rest))))))
+
+(def epsilon_control_find_state_application ((target EpsilonExpression)
+  (control EpsilonControlReferenceLedger)) EpsilonStateApplicationReferenceLookup
+  (match control
+    ((EpsilonControlReferenceLedgerSyntax stateApplications subjects cases
+      coverages)
+      (epsilon_find_state_application_reference target stateApplications))))
+
+(def epsilon_control_find_transition_subject ((target EpsilonTerminal)
+  (control EpsilonControlReferenceLedger))
+  EpsilonTransitionSubjectReferenceLookup
+  (match control
+    ((EpsilonControlReferenceLedgerSyntax stateApplications subjects patterns
+      coverages)
+      (epsilon_find_transition_subject_reference target subjects))))
+
+(def epsilon_control_find_complete_transition_pattern ((target EpsilonPattern)
+  (control EpsilonControlReferenceLedger))
+  EpsilonTransitionPatternKindLookup
+  (match control
+    ((EpsilonControlReferenceLedgerSyntax stateApplications subjects patterns
+      coverages)
+      (epsilon_find_transition_pattern_complete target patterns))))
+
+(def epsilon_reverse_control_references ((control EpsilonControlReferenceLedger))
+  EpsilonControlReferenceLedger
+  (match control
+    ((EpsilonControlReferenceLedgerSyntax stateApplications subjects cases
+      coverages)
+      (EpsilonControlReferenceLedgerSyntax
+        (epsilon_reverse_state_application_references stateApplications
+          NoEpsilonStateApplicationReferences)
+        (epsilon_reverse_transition_subject_references subjects
+          NoEpsilonTransitionSubjectReferences)
+        (epsilon_reverse_transition_pattern_references cases
+          NoEpsilonTransitionPatternReferences)
+        (epsilon_reverse_transition_coverage_references coverages
+          NoEpsilonTransitionCoverageReferences)))))

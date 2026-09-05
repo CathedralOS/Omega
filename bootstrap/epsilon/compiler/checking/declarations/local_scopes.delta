@@ -1,0 +1,301 @@
+
+; ---- D22/D24 declaration census ---------------------------------------
+
+(def epsilon_census_min_present ((leftReason EpsilonRejectReason)
+  (leftOffset Int) (right EpsilonCensusCandidate)) EpsilonCensusCandidate
+  (match right
+    (NoEpsilonCensusCandidate
+      (EpsilonCensusCandidateAt leftReason leftOffset))
+    ((EpsilonCensusCandidateAt rightReason rightOffset)
+      (if (lt rightOffset leftOffset)
+        (EpsilonCensusCandidateAt rightReason rightOffset)
+        (EpsilonCensusCandidateAt leftReason leftOffset)))))
+
+(def epsilon_census_min ((left EpsilonCensusCandidate)
+  (right EpsilonCensusCandidate)) EpsilonCensusCandidate
+  (match left
+    (NoEpsilonCensusCandidate right)
+    ((EpsilonCensusCandidateAt leftReason leftOffset)
+      (epsilon_census_min_present leftReason leftOffset right))))
+
+(def epsilon_census_duplicate ((offset Int)) EpsilonCensusCandidate
+  (EpsilonCensusCandidateAt DuplicateName offset))
+
+(def epsilon_name_start ((nameValue EpsilonName)) Int
+  (match nameValue ((EpsilonNameSpan start end) start)))
+
+(def epsilon_name_end ((nameValue EpsilonName)) Int
+  (match nameValue ((EpsilonNameSpan start end) end)))
+
+(def epsilon_name_bytes_equal ((source Bytes) (left Int) (right Int)
+  (remaining Int)) Int
+  (if (eq remaining 0)
+    1
+    (if (eq (bytes_get source left) (bytes_get source right))
+      (epsilon_name_bytes_equal source (+ left 1) (+ right 1)
+        (- remaining 1))
+      0)))
+
+(def epsilon_names_equal ((source Bytes) (left EpsilonName)
+  (right EpsilonName)) Int
+  (let leftStart Int (epsilon_name_start left)
+    (let rightStart Int (epsilon_name_start right)
+      (let leftLength Int (- (epsilon_name_end left) leftStart)
+        (let rightLength Int (- (epsilon_name_end right) rightStart)
+          (if (eq leftLength rightLength)
+            (epsilon_name_bytes_equal source leftStart rightStart leftLength)
+            0))))))
+
+(def epsilon_census_name_in_list ((source Bytes) (nameValue EpsilonName)
+  (names EpsilonNameList)) Int
+  (match names
+    (NoEpsilonNames 0)
+    ((MoreEpsilonNames item rest)
+      (if (epsilon_names_equal source nameValue item)
+        1
+        (epsilon_census_name_in_list source nameValue rest)))))
+
+(def epsilon_census_name_against_names ((source Bytes)
+  (nameValue EpsilonName) (names EpsilonNameList)) EpsilonCensusCandidate
+  (match names
+    (NoEpsilonNames NoEpsilonCensusCandidate)
+    ((MoreEpsilonNames item rest)
+      (let current EpsilonCensusCandidate
+        (if (epsilon_names_equal source nameValue item)
+          (epsilon_census_duplicate (epsilon_name_start item))
+          NoEpsilonCensusCandidate)
+        (epsilon_census_min current
+          (epsilon_census_name_against_names source nameValue rest))))))
+
+(def epsilon_census_name_list_duplicates ((source Bytes)
+  (names EpsilonNameList)) EpsilonCensusCandidate
+  (match names
+    (NoEpsilonNames NoEpsilonCensusCandidate)
+    ((MoreEpsilonNames item rest)
+      (epsilon_census_min
+        (epsilon_census_name_against_names source item rest)
+        (epsilon_census_name_list_duplicates source rest)))))
+
+(def epsilon_parameter_start ((parameterValue EpsilonParameter)) Int
+  (match parameterValue
+    ((EpsilonParameterSyntax start end name typeValue) start)))
+
+(def epsilon_parameter_name ((parameterValue EpsilonParameter)) EpsilonName
+  (match parameterValue
+    ((EpsilonParameterSyntax start end name typeValue) name)))
+
+(def epsilon_census_parameter_against ((source Bytes) (nameValue EpsilonName)
+  (parameters EpsilonParameterList)) EpsilonCensusCandidate
+  (match parameters
+    (NoEpsilonParameters NoEpsilonCensusCandidate)
+    ((MoreEpsilonParameters item rest)
+      (let current EpsilonCensusCandidate
+        (if (epsilon_names_equal source nameValue (epsilon_parameter_name item))
+          (epsilon_census_duplicate (epsilon_parameter_start item))
+          NoEpsilonCensusCandidate)
+        (epsilon_census_min current
+          (epsilon_census_parameter_against source nameValue rest))))))
+
+(def epsilon_census_parameter_duplicates ((source Bytes)
+  (parameters EpsilonParameterList)) EpsilonCensusCandidate
+  (match parameters
+    (NoEpsilonParameters NoEpsilonCensusCandidate)
+    ((MoreEpsilonParameters item rest)
+      (epsilon_census_min
+        (epsilon_census_parameter_against source (epsilon_parameter_name item) rest)
+        (epsilon_census_parameter_duplicates source rest)))))
+
+(def epsilon_census_parameter_outer_collisions ((source Bytes)
+  (parameters EpsilonParameterList)
+  (environment EpsilonNameList)) EpsilonCensusCandidate
+  (match parameters
+    (NoEpsilonParameters NoEpsilonCensusCandidate)
+    ((MoreEpsilonParameters item rest)
+      (let current EpsilonCensusCandidate
+        (if (epsilon_census_name_in_list source (epsilon_parameter_name item)
+          environment)
+          (epsilon_census_duplicate (epsilon_parameter_start item))
+          NoEpsilonCensusCandidate)
+        (epsilon_census_min current
+          (epsilon_census_parameter_outer_collisions source rest environment))))))
+
+(def epsilon_census_prepend_parameters ((parameters EpsilonParameterList)
+  (environment EpsilonNameList)) EpsilonNameList
+  (match parameters
+    (NoEpsilonParameters environment)
+    ((MoreEpsilonParameters item rest)
+      (MoreEpsilonNames (epsilon_parameter_name item)
+        (epsilon_census_prepend_parameters rest environment)))))
+
+(def epsilon_census_inputs_parameters ((inputs EpsilonMachineInputs)) EpsilonParameterList
+  (match inputs
+    ((NoEpsilonMachineInputs start end) NoEpsilonParameters)
+    ((EpsilonPlainMachineInputs start end parameters) parameters)
+    ((EpsilonReceiverMachineInputs start end selfName parameters)
+      parameters)))
+
+(def epsilon_census_scan_statements ((source Bytes)
+  (statements EpsilonStatementList)
+  (environment EpsilonNameList)) EpsilonCensusLocalScan
+  (match statements
+    (NoEpsilonStatements
+      (EpsilonCensusLocalScanResult NoEpsilonCensusCandidate environment))
+    ((MoreEpsilonStatements item rest)
+      (match item
+        ((EpsilonLetStatement start end name typeValue expressionValue)
+          (let current EpsilonCensusCandidate
+            (if (epsilon_census_name_in_list source name environment)
+              (epsilon_census_duplicate start)
+              NoEpsilonCensusCandidate)
+            (let tailScan EpsilonCensusLocalScan
+              (epsilon_census_scan_statements source rest
+                (MoreEpsilonNames name environment))
+              (match tailScan
+                ((EpsilonCensusLocalScanResult tailCandidate tailEnvironment)
+                  (EpsilonCensusLocalScanResult
+                    (epsilon_census_min current tailCandidate)
+                    tailEnvironment))))))
+        ((EpsilonAssignmentStatement start end placeValue expressionValue)
+          (epsilon_census_scan_statements source rest environment))
+        ((EpsilonPostfixStatement start end expressionValue)
+          (epsilon_census_scan_statements source rest environment))
+        ((EpsilonAssertStatement start end expressionValue)
+          (epsilon_census_scan_statements source rest environment))))))
+
+(def epsilon_census_binder_outer_collisions ((source Bytes)
+  (names EpsilonNameList) (environment EpsilonNameList)) EpsilonCensusCandidate
+  (match names
+    (NoEpsilonNames NoEpsilonCensusCandidate)
+    ((MoreEpsilonNames item rest)
+      (let current EpsilonCensusCandidate
+        (if (epsilon_census_name_in_list source item environment)
+          (epsilon_census_duplicate (epsilon_name_start item))
+          NoEpsilonCensusCandidate)
+        (epsilon_census_min current
+          (epsilon_census_binder_outer_collisions source rest environment))))))
+
+(def epsilon_census_optional_binder ((source Bytes)
+  (binder EpsilonOptionalBinder)
+  (environment EpsilonNameList)) EpsilonCensusCandidate
+  (match binder
+    (NoEpsilonBinder NoEpsilonCensusCandidate)
+    ((SomeEpsilonBinder start end names)
+      (epsilon_census_min
+        (epsilon_census_name_list_duplicates source names)
+        (epsilon_census_binder_outer_collisions source names environment)))))
+
+(def epsilon_census_pattern_binder ((source Bytes) (patternValue EpsilonPattern)
+  (environment EpsilonNameList)) EpsilonCensusCandidate
+  (match patternValue
+    ((EpsilonIntegerPattern start end literal) NoEpsilonCensusCandidate)
+    ((EpsilonTruePattern start end) NoEpsilonCensusCandidate)
+    ((EpsilonFalsePattern start end) NoEpsilonCensusCandidate)
+    ((EpsilonWildcardPattern start end) NoEpsilonCensusCandidate)
+    ((EpsilonCasePattern start end owner name binder)
+      (epsilon_census_optional_binder source binder environment))))
+
+(def epsilon_census_arms ((source Bytes) (arms EpsilonArmList)
+  (environment EpsilonNameList)) EpsilonCensusCandidate
+  (match arms
+    (NoEpsilonArms NoEpsilonCensusCandidate)
+    ((MoreEpsilonArms item rest)
+      (match item
+        ((EpsilonArmSyntax start end patternValue continuationValue)
+          (epsilon_census_min
+            (epsilon_census_pattern_binder source patternValue environment)
+            (epsilon_census_arms source rest environment)))))))
+
+(def epsilon_census_optional_terminal ((source Bytes)
+  (terminalValue EpsilonOptionalTerminal)
+  (environment EpsilonNameList)) EpsilonCensusCandidate
+  (match terminalValue
+    (NoEpsilonTerminal NoEpsilonCensusCandidate)
+    ((SomeEpsilonTerminal terminal)
+      (match terminal
+        ((EpsilonTransitionTerminal start end subject arms)
+          (epsilon_census_arms source arms environment))
+        ((EpsilonReturnTerminal start end expressionValue)
+          NoEpsilonCensusCandidate)))))
+
+(def epsilon_census_block ((source Bytes) (statements EpsilonStatementList)
+  (terminalValue EpsilonOptionalTerminal)
+  (environment EpsilonNameList)) EpsilonCensusCandidate
+  (let localScan EpsilonCensusLocalScan (epsilon_census_scan_statements source statements environment)
+    (match localScan
+      ((EpsilonCensusLocalScanResult localCandidate finalEnvironment)
+        (epsilon_census_min localCandidate
+          (epsilon_census_optional_terminal source terminalValue
+            finalEnvironment))))))
+
+(def epsilon_state_start ((stateValue EpsilonState)) Int
+  (match stateValue
+    ((EpsilonStateSyntax start end name parameters bodyValue) start)))
+
+(def epsilon_state_name ((stateValue EpsilonState)) EpsilonName
+  (match stateValue
+    ((EpsilonStateSyntax start end name parameters bodyValue) name)))
+
+(def epsilon_census_state_against ((source Bytes) (nameValue EpsilonName)
+  (states EpsilonStateList)) EpsilonCensusCandidate
+  (match states
+    (NoEpsilonStates NoEpsilonCensusCandidate)
+    ((MoreEpsilonStates item rest)
+      (let current EpsilonCensusCandidate
+        (if (epsilon_names_equal source nameValue (epsilon_state_name item))
+          (epsilon_census_duplicate (epsilon_state_start item))
+          NoEpsilonCensusCandidate)
+        (epsilon_census_min current
+          (epsilon_census_state_against source nameValue rest))))))
+
+(def epsilon_census_state_duplicates ((source Bytes)
+  (states EpsilonStateList)) EpsilonCensusCandidate
+  (match states
+    (NoEpsilonStates NoEpsilonCensusCandidate)
+    ((MoreEpsilonStates item rest)
+      (epsilon_census_min
+        (epsilon_census_state_against source (epsilon_state_name item) rest)
+        (epsilon_census_state_duplicates source rest)))))
+
+(def epsilon_census_state_scope ((source Bytes) (stateValue EpsilonState)
+  (machineEnvironment EpsilonNameList)) EpsilonCensusCandidate
+  (match stateValue
+    ((EpsilonStateSyntax start end name parameters bodyValue)
+      (let parameterCandidates EpsilonCensusCandidate
+        (epsilon_census_min
+          (epsilon_census_parameter_duplicates source parameters)
+          (epsilon_census_parameter_outer_collisions source parameters
+            machineEnvironment))
+        (let stateEnvironment EpsilonNameList
+          (epsilon_census_prepend_parameters parameters machineEnvironment)
+          (match bodyValue
+            ((EpsilonStateBodySyntax bodyStart bodyEnd statements terminalValue)
+              (epsilon_census_min parameterCandidates
+                (epsilon_census_block source statements terminalValue
+                  stateEnvironment)))))))))
+
+(def epsilon_census_state_scopes ((source Bytes) (states EpsilonStateList)
+  (machineEnvironment EpsilonNameList)) EpsilonCensusCandidate
+  (match states
+    (NoEpsilonStates NoEpsilonCensusCandidate)
+    ((MoreEpsilonStates item rest)
+      (epsilon_census_min
+        (epsilon_census_state_scope source item machineEnvironment)
+        (epsilon_census_state_scopes source rest machineEnvironment)))))
+
+(def epsilon_census_machine_scope ((source Bytes) (inputs EpsilonMachineInputs)
+  (bodyValue EpsilonMachineBody)) EpsilonCensusCandidate
+  (let parameters EpsilonParameterList (epsilon_census_inputs_parameters inputs)
+    (let parameterCandidates EpsilonCensusCandidate
+      (epsilon_census_parameter_duplicates source parameters)
+      (let machineEnvironment EpsilonNameList
+        (epsilon_census_prepend_parameters parameters NoEpsilonNames)
+        (match bodyValue
+          ((EpsilonMachineBodySyntax start end statements terminalValue states)
+            (epsilon_census_min parameterCandidates
+              (epsilon_census_min
+                (epsilon_census_block source statements terminalValue
+                  machineEnvironment)
+                (epsilon_census_min
+                  (epsilon_census_state_duplicates source states)
+                  (epsilon_census_state_scopes source states
+                    machineEnvironment))))))))))

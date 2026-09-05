@@ -1,0 +1,69 @@
+
+; Ordered body resolution keeps the exact source declaration behind every
+; bare local-value reference. A transition binder retains its complete pattern
+; because its eventual type comes from the resolved case payload position.
+(data EpsilonLocalBinding
+  (EpsilonReceiverLocal EpsilonName EpsilonType)
+  (EpsilonMachineParameterLocal EpsilonParameter)
+  (EpsilonStateParameterLocal EpsilonParameter)
+  (EpsilonLetLocal EpsilonName EpsilonType EpsilonStatement)
+  (EpsilonTransitionBinderLocal EpsilonPattern EpsilonName))
+
+(data EpsilonLocalBindingList
+  (NoEpsilonLocalBindings)
+  (MoreEpsilonLocalBindings EpsilonLocalBinding EpsilonLocalBindingList))
+
+(data EpsilonLocalBindingLookup
+  (NoEpsilonLocalBinding)
+  (OneEpsilonLocalBinding EpsilonLocalBinding))
+
+(data EpsilonResolvedLocalReference
+  (EpsilonResolvedLocalReferenceSyntax EpsilonExpression EpsilonLocalBinding))
+
+(data EpsilonResolvedLocalReferenceList
+  (NoEpsilonResolvedLocalReferences)
+  (MoreEpsilonResolvedLocalReferences EpsilonResolvedLocalReference EpsilonResolvedLocalReferenceList))
+
+(data EpsilonResolvedLocalReferenceLookup
+  (NoEpsilonResolvedLocalReference)
+  (OneEpsilonResolvedLocalReference EpsilonLocalBinding))
+
+; Field custody retains both the nominal record declaration and exact authored
+; member. Later layout/lowering can recover declaration order without another
+; semantic lookup or a private numeric member identity.
+(data EpsilonResolvedFieldReference
+  (EpsilonResolvedFieldReferenceSyntax EpsilonExpression EpsilonDeclaration
+    EpsilonDataMember))
+
+(data EpsilonResolvedFieldReferenceList
+  (NoEpsilonResolvedFieldReferences)
+  (MoreEpsilonResolvedFieldReferences EpsilonResolvedFieldReference
+    EpsilonResolvedFieldReferenceList))
+
+(data EpsilonResolvedFieldReferenceLookup
+  (NoEpsilonResolvedFieldReference)
+  (OneEpsilonResolvedFieldReference EpsilonDeclaration EpsilonDataMember))
+
+; Callable custody is retained before context, arity, or argument typing.
+; Constructor and machine identities stay distinct after D36's census; the
+; expression row gives lowering exact source authority without repeating a
+; preferred-order catalog lookup.
+(data EpsilonResolvedCallable
+  (EpsilonResolvedConstructorCallable EpsilonDeclaration EpsilonDataMember)
+  (EpsilonResolvedDataMachineCallable EpsilonDeclaration EpsilonDeclaration)
+  (EpsilonResolvedUnqualifiedMachineCallable EpsilonDeclaration)
+  (EpsilonResolvedBoundaryMachineCallable EpsilonDeclaration
+    EpsilonBoundaryMachine))
+
+(data EpsilonResolvedCallableReference
+  (EpsilonResolvedCallableReferenceSyntax EpsilonExpression
+    EpsilonResolvedCallable))
+
+(data EpsilonResolvedCallableReferenceList
+  (NoEpsilonResolvedCallableReferences)
+  (MoreEpsilonResolvedCallableReferences EpsilonResolvedCallableReference
+    EpsilonResolvedCallableReferenceList))
+
+(data EpsilonResolvedCallableReferenceLookup
+  (NoEpsilonResolvedCallableReference)
+  (OneEpsilonResolvedCallableReference EpsilonResolvedCallable))

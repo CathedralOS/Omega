@@ -1,0 +1,187 @@
+
+(data EpsilonLexicalOutcome
+  (LexicallyValid)
+  (LexicallyRejected EpsilonRejectReason Int))
+
+; Native syntax values retain packed-source coordinates directly. Lists and
+; optionals are recursive Delta values; no syntax node is a Bytes record or a
+; numeric arena reference.
+(data EpsilonName
+  (EpsilonNameSpan Int Int))
+
+(data EpsilonIntegerLiteral
+  (EpsilonIntegerSpan Int Int Int))
+
+(data EpsilonCharacterLiteral
+  (EpsilonCharacterSpan Int Int Int))
+
+(data EpsilonStringLiteral
+  (EpsilonStringSpan Int Int))
+
+(data EpsilonDeclarationList
+  (NoEpsilonDeclarations)
+  (MoreEpsilonDeclarations EpsilonDeclaration EpsilonDeclarationList))
+
+(data EpsilonBoundaryMachineList
+  (NoEpsilonBoundaryMachines)
+  (MoreEpsilonBoundaryMachines EpsilonBoundaryMachine EpsilonBoundaryMachineList))
+
+(data EpsilonDataMemberList
+  (NoEpsilonDataMembers)
+  (MoreEpsilonDataMembers EpsilonDataMember EpsilonDataMemberList))
+
+(data EpsilonParameterList
+  (NoEpsilonParameters)
+  (MoreEpsilonParameters EpsilonParameter EpsilonParameterList))
+
+(data EpsilonStatementList
+  (NoEpsilonStatements)
+  (MoreEpsilonStatements EpsilonStatement EpsilonStatementList))
+
+(data EpsilonStateList
+  (NoEpsilonStates)
+  (MoreEpsilonStates EpsilonState EpsilonStateList))
+
+(data EpsilonArmList
+  (NoEpsilonArms)
+  (MoreEpsilonArms EpsilonArm EpsilonArmList))
+
+(data EpsilonNameList
+  (NoEpsilonNames)
+  (MoreEpsilonNames EpsilonName EpsilonNameList))
+
+(data EpsilonExpressionList
+  (NoEpsilonExpressions)
+  (MoreEpsilonExpressions EpsilonExpression EpsilonExpressionList))
+
+(data EpsilonOptionalType
+  (NoEpsilonType)
+  (SomeEpsilonType Int Int EpsilonType))
+
+(data EpsilonOptionalExpression
+  (NoEpsilonExpression)
+  (SomeEpsilonExpression EpsilonExpression))
+
+(data EpsilonOptionalTerminal
+  (NoEpsilonTerminal)
+  (SomeEpsilonTerminal EpsilonTerminal))
+
+(data EpsilonOptionalBinder
+  (NoEpsilonBinder)
+  (SomeEpsilonBinder Int Int EpsilonNameList))
+
+(data EpsilonOptionalPayload
+  (NoEpsilonPayload)
+  (SomeEpsilonPayload Int Int EpsilonParameterList))
+
+; This optional preserves the syntactic distinction between a qualified name
+; and the same name followed by an empty argument list.
+(data EpsilonOptionalArguments
+  (NoEpsilonArguments)
+  (SomeEpsilonArguments Int Int EpsilonExpressionList))
+
+(data EpsilonProgram
+  (EpsilonSyntaxProgram Int Int EpsilonDeclarationList))
+
+(data EpsilonDeclaration
+  (EpsilonBoundaryDeclaration Int Int EpsilonName EpsilonBoundaryMachineList)
+  (EpsilonDataDeclaration Int Int EpsilonName EpsilonDataMemberList)
+  (EpsilonMachineDeclaration Int Int EpsilonQualifiedName EpsilonMachineInputs EpsilonOptionalType EpsilonMachineBody))
+
+(data EpsilonBoundaryMachine
+  (EpsilonBoundaryMachineSyntax Int Int EpsilonName EpsilonParameterList EpsilonOptionalType))
+
+(data EpsilonDataMember
+  (EpsilonFieldMember Int Int EpsilonName EpsilonType)
+  (EpsilonCaseMember Int Int EpsilonName EpsilonOptionalPayload))
+
+(data EpsilonQualifiedName
+  (EpsilonUnqualifiedName Int Int EpsilonName)
+  (EpsilonQualifiedNameSyntax Int Int EpsilonName EpsilonName))
+
+(data EpsilonMachineInputs
+  (NoEpsilonMachineInputs Int Int)
+  (EpsilonPlainMachineInputs Int Int EpsilonParameterList)
+  (EpsilonReceiverMachineInputs Int Int EpsilonName EpsilonParameterList))
+
+(data EpsilonParameter
+  (EpsilonParameterSyntax Int Int EpsilonName EpsilonType))
+
+(data EpsilonType
+  (EpsilonI32Type Int Int)
+  (EpsilonU8Type Int Int)
+  (EpsilonNeverType Int Int)
+  (EpsilonNamedType Int Int EpsilonName)
+  (EpsilonArrayType Int Int EpsilonType EpsilonIntegerLiteral)
+  (EpsilonViewType Int Int EpsilonType))
+
+(data EpsilonMachineBody
+  (EpsilonMachineBodySyntax Int Int EpsilonStatementList EpsilonOptionalTerminal EpsilonStateList))
+
+(data EpsilonStateBody
+  (EpsilonStateBodySyntax Int Int EpsilonStatementList EpsilonOptionalTerminal))
+
+(data EpsilonState
+  (EpsilonStateSyntax Int Int EpsilonName EpsilonParameterList EpsilonStateBody))
+
+(data EpsilonStatement
+  (EpsilonLetStatement Int Int EpsilonName EpsilonType EpsilonExpression)
+  (EpsilonAssignmentStatement Int Int EpsilonExpression EpsilonExpression)
+  ; D53 keeps every semicolon-terminated postfix form syntactically a statement.
+  ; Resolution may give a successful `never` call NoNormalReturn semantics.
+  (EpsilonPostfixStatement Int Int EpsilonExpression)
+  (EpsilonAssertStatement Int Int EpsilonExpression))
+
+(data EpsilonTerminal
+  (EpsilonTransitionTerminal Int Int EpsilonExpression EpsilonArmList)
+  (EpsilonReturnTerminal Int Int EpsilonOptionalExpression))
+
+(data EpsilonArm
+  (EpsilonArmSyntax Int Int EpsilonPattern EpsilonContinuation))
+
+(data EpsilonPattern
+  (EpsilonIntegerPattern Int Int EpsilonIntegerLiteral)
+  (EpsilonTruePattern Int Int)
+  (EpsilonFalsePattern Int Int)
+  (EpsilonWildcardPattern Int Int)
+  (EpsilonCasePattern Int Int EpsilonName EpsilonName EpsilonOptionalBinder))
+
+(data EpsilonContinuation
+  (EpsilonExpressionContinuation Int Int EpsilonExpression)
+  (EpsilonReturnContinuation Int Int EpsilonOptionalExpression))
+
+(data EpsilonBinaryOperator
+  (EpsilonLogicalOr)
+  (EpsilonLogicalAnd)
+  (EpsilonBitOr)
+  (EpsilonBitXor)
+  (EpsilonBitAnd)
+  (EpsilonEqual)
+  (EpsilonNotEqual)
+  (EpsilonLess)
+  (EpsilonLessEqual)
+  (EpsilonGreater)
+  (EpsilonGreaterEqual)
+  (EpsilonShiftLeft)
+  (EpsilonShiftRight)
+  (EpsilonAdd)
+  (EpsilonSubtract)
+  (EpsilonMultiply)
+  (EpsilonDivide)
+  (EpsilonRemainder))
+
+(data EpsilonExpression
+  (EpsilonIntegerExpression Int Int EpsilonIntegerLiteral)
+  (EpsilonCharacterExpression Int Int EpsilonCharacterLiteral)
+  (EpsilonStringExpression Int Int EpsilonStringLiteral)
+  (EpsilonTrueExpression Int Int)
+  (EpsilonFalseExpression Int Int)
+  (EpsilonNameExpression Int Int EpsilonName)
+  (EpsilonQualifiedExpression Int Int EpsilonName EpsilonName EpsilonOptionalArguments)
+  (EpsilonGroupedExpression Int Int EpsilonExpression)
+  (EpsilonFieldExpression Int Int EpsilonExpression EpsilonName)
+  (EpsilonCallExpression Int Int EpsilonExpression EpsilonExpressionList)
+  (EpsilonIndexExpression Int Int EpsilonExpression EpsilonExpression)
+  (EpsilonSliceExpression Int Int EpsilonExpression EpsilonOptionalExpression EpsilonOptionalExpression)
+  (EpsilonNegateExpression Int Int EpsilonExpression)
+  (EpsilonBinaryExpression Int Int EpsilonBinaryOperator Int Int EpsilonExpression EpsilonExpression))

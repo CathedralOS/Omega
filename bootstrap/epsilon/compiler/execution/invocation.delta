@@ -1,0 +1,50 @@
+
+; Transfers stay tail calls: entering a state never retains the old block frame.
+(def epsilon_evaluator_resume ((context EpsilonEvaluatorInvocation)
+  (outcome EpsilonEvaluatorBlockOutcome)) EpsilonEvaluatorSliceOutcome
+  (match outcome
+    ((EpsilonEvaluatorBlockFalloff locals fields output)
+      (EpsilonEvaluatorSliceExit 0 output))
+    ((EpsilonEvaluatorBlockTransfer stateValue locals fields output)
+      (match stateValue
+        ((EpsilonStateSyntax start end name parameters bodyValue)
+          (match bodyValue
+            ((EpsilonStateBodySyntax bodyStart bodyEnd statements terminalValue)
+              (epsilon_evaluator_resume context
+                (epsilon_evaluate_block context statements terminalValue locals
+                  fields output)))))))
+    ((EpsilonEvaluatorBlockExit code output) (EpsilonEvaluatorSliceExit code output))
+    ((EpsilonEvaluatorBlockTrap kind output) (EpsilonEvaluatorSliceTrap kind output))
+    ((EpsilonEvaluatorBlockInternal offset) (EpsilonEvaluatorSliceInternal offset))
+    (EpsilonEvaluatorBlockUnsupported EpsilonEvaluatorSliceUnsupported)))
+
+(def epsilon_evaluate_entry_declarations ((source Bytes)
+  (declarations EpsilonDeclarationList)
+  (references EpsilonResolvedLocalReferenceList)
+  (fieldReferences EpsilonResolvedFieldReferenceList)
+  (callables EpsilonResolvedCallableReferenceList)
+  (control EpsilonControlReferenceLedger)) EpsilonEvaluatorSliceOutcome
+  (match declarations
+    (NoEpsilonDeclarations (EpsilonEvaluatorSliceInternal 0))
+    ((MoreEpsilonDeclarations item rest)
+      (match item
+        ((EpsilonBoundaryDeclaration start end name machines)
+          (epsilon_evaluate_entry_declarations source rest references
+            fieldReferences callables control))
+        ((EpsilonDataDeclaration start end name members)
+          (epsilon_evaluate_entry_declarations source rest references
+            fieldReferences callables control))
+        ((EpsilonMachineDeclaration start end name inputs returnType bodyValue)
+          (if (epsilon_qualified_name_is_main_entry source name)
+            (match bodyValue
+              ((EpsilonMachineBodySyntax bodyStart bodyEnd statements
+                terminalValue states)
+                (let context EpsilonEvaluatorInvocation
+                  (EpsilonEvaluatorInvocationContext source item references
+                    fieldReferences callables control)
+                  (epsilon_evaluator_resume context
+                    (epsilon_evaluate_block context statements terminalValue
+                      NoEpsilonEvaluatorLocalValues NoEpsilonEvaluatorFieldValues
+                      (bytes_empty))))))
+            (epsilon_evaluate_entry_declarations source rest references
+              fieldReferences callables control)))))))

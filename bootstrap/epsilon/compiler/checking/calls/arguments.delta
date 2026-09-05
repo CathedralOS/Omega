@@ -1,0 +1,247 @@
+
+(def epsilon_expression_list_count ((expressions EpsilonExpressionList)) Int
+  (match expressions
+    (NoEpsilonExpressions 0)
+    ((MoreEpsilonExpressions item rest)
+      (+ 1 (epsilon_expression_list_count rest)))))
+
+(def epsilon_parameter_list_count ((parameters EpsilonParameterList)) Int
+  (match parameters
+    (NoEpsilonParameters 0)
+    ((MoreEpsilonParameters item rest)
+      (+ 1 (epsilon_parameter_list_count rest)))))
+
+(def epsilon_name_list_count ((names EpsilonNameList)) Int
+  (match names
+    (NoEpsilonNames 0)
+    ((MoreEpsilonNames item rest) (+ 1 (epsilon_name_list_count rest)))))
+
+(def epsilon_optional_binder_count ((binder EpsilonOptionalBinder)) Int
+  (match binder
+    (NoEpsilonBinder 0)
+    ((SomeEpsilonBinder start end names) (epsilon_name_list_count names))))
+
+(def epsilon_data_declarations_same_identity ((left EpsilonDeclaration)
+  (right EpsilonDeclaration)) Int
+  (match left
+    ((EpsilonBoundaryDeclaration leftStart leftEnd leftName leftMachines) 0)
+    ((EpsilonMachineDeclaration leftStart leftEnd leftName leftInputs
+      leftReturn leftBody) 0)
+    ((EpsilonDataDeclaration leftStart leftEnd leftName leftMembers)
+      (match right
+        ((EpsilonBoundaryDeclaration rightStart rightEnd rightName rightMachines)
+          0)
+        ((EpsilonMachineDeclaration rightStart rightEnd rightName rightInputs
+          rightReturn rightBody) 0)
+        ((EpsilonDataDeclaration rightStart rightEnd rightName rightMembers)
+          (if (eq leftStart rightStart) (eq leftEnd rightEnd) 0))))))
+
+(def epsilon_optional_arguments_count ((arguments EpsilonOptionalArguments)) Int
+  (match arguments
+    (NoEpsilonArguments 0)
+    ((SomeEpsilonArguments openStart closeEnd values)
+      (epsilon_expression_list_count values))))
+
+(def epsilon_argument_value_type_compatible ((source Bytes)
+  (actual EpsilonType) (expected EpsilonType) (storedEstablishment Int)) Int
+  (if storedEstablishment
+    (match expected
+      ((EpsilonU8Type start end) (epsilon_type_is_i32 actual))
+      ((EpsilonI32Type start end) (epsilon_types_equal source actual expected))
+      ((EpsilonNeverType start end) (epsilon_types_equal source actual expected))
+      ((EpsilonNamedType start end name)
+        (epsilon_types_equal source actual expected))
+      ((EpsilonArrayType start end element lengthValue)
+        (epsilon_types_equal source actual expected))
+      ((EpsilonViewType start end element)
+        (epsilon_types_equal source actual expected)))
+    (epsilon_types_equal source actual expected)))
+
+(def epsilon_argument_type_join_merge ((left EpsilonArgumentTypeJoin)
+  (right EpsilonArgumentTypeJoin)) EpsilonArgumentTypeJoin
+  (match left
+    (EpsilonArgumentsIncomplete EpsilonArgumentsIncomplete)
+    (EpsilonArgumentsTypeMismatch
+      (match right
+        (EpsilonArgumentsIncomplete EpsilonArgumentsIncomplete)
+        (EpsilonArgumentsCompatible EpsilonArgumentsTypeMismatch)
+        (EpsilonArgumentsTypeMismatch EpsilonArgumentsTypeMismatch)))
+    (EpsilonArgumentsCompatible right)))
+
+(def epsilon_argument_types_join ((source Bytes)
+  (arguments EpsilonExpressionList) (parameters EpsilonParameterList)
+  (types EpsilonTypedExpressionList) (storedEstablishment Int))
+  EpsilonArgumentTypeJoin
+  (match arguments
+    (NoEpsilonExpressions
+      (match parameters
+        (NoEpsilonParameters EpsilonArgumentsCompatible)
+        ((MoreEpsilonParameters parameter rest)
+          EpsilonArgumentsIncomplete)))
+    ((MoreEpsilonExpressions argument argumentRest)
+      (match parameters
+        (NoEpsilonParameters EpsilonArgumentsIncomplete)
+        ((MoreEpsilonParameters parameter parameterRest)
+          (match parameter
+            ((EpsilonParameterSyntax start end name expectedType)
+              (let current EpsilonArgumentTypeJoin
+                (match (epsilon_find_expression_result argument types)
+                  (NoEpsilonExpressionResult EpsilonArgumentsIncomplete)
+                  ((OneEpsilonExpressionResult resultValue)
+                    (match resultValue
+                      ((EpsilonValueExpressionResult actualType placeType)
+                        (if (epsilon_argument_value_type_compatible source
+                          actualType expectedType storedEstablishment)
+                          EpsilonArgumentsCompatible
+                          EpsilonArgumentsTypeMismatch))
+                      (EpsilonResultlessExpressionResult
+                        EpsilonArgumentsIncomplete)
+                      (EpsilonNeverExpressionResult
+                        EpsilonArgumentsIncomplete))))
+                (epsilon_argument_type_join_merge current
+                  (epsilon_argument_types_join source argumentRest parameterRest
+                    types storedEstablishment))))))))))
+
+(def epsilon_optional_argument_types_join ((source Bytes)
+  (arguments EpsilonOptionalArguments) (parameters EpsilonParameterList)
+  (types EpsilonTypedExpressionList) (storedEstablishment Int))
+  EpsilonArgumentTypeJoin
+  (match arguments
+    (NoEpsilonArguments
+      (match parameters
+        (NoEpsilonParameters EpsilonArgumentsCompatible)
+        ((MoreEpsilonParameters item rest) EpsilonArgumentsIncomplete)))
+    ((SomeEpsilonArguments openStart closeEnd values)
+      (epsilon_argument_types_join source values parameters types
+        storedEstablishment))))
+
+(def epsilon_local_scan_add_machine_result ((expressionValue EpsilonExpression)
+  (returnType EpsilonOptionalType) (scan EpsilonLocalResolutionScan))
+  EpsilonLocalResolutionScan
+  (match returnType
+    (NoEpsilonType
+      (epsilon_local_scan_add_result expressionValue
+        EpsilonResultlessExpressionResult scan))
+    ((SomeEpsilonType start end typeValue)
+      (match typeValue
+        ((EpsilonNeverType typeStart typeEnd)
+          (epsilon_local_scan_add_result expressionValue
+            EpsilonNeverExpressionResult scan))
+        ((EpsilonI32Type typeStart typeEnd)
+          (epsilon_local_scan_add_value expressionValue typeValue
+            NoEpsilonPlaceType scan))
+        ((EpsilonU8Type typeStart typeEnd)
+          (epsilon_local_scan_add_value expressionValue typeValue
+            NoEpsilonPlaceType scan))
+        ((EpsilonNamedType typeStart typeEnd name)
+          (epsilon_local_scan_add_value expressionValue typeValue
+            NoEpsilonPlaceType scan))
+        ((EpsilonArrayType typeStart typeEnd element lengthValue)
+          (epsilon_local_scan_add_value expressionValue typeValue
+            NoEpsilonPlaceType scan))
+        ((EpsilonViewType typeStart typeEnd element)
+          (epsilon_local_scan_add_value expressionValue typeValue
+            NoEpsilonPlaceType scan))))))
+
+; An argument's category is a sibling of the enclosing callable's admission
+; and arity. D52 anchors a resultless argument's TypeMismatch at the authored
+; argument expression start, including outer grouping. The existing `never`
+; sibling keeps the core
+; call-head anchor, and the later all-value join owns application-anchored type
+; mismatch.
+(def epsilon_local_scan_argument_terminal_candidates
+  ((arguments EpsilonExpressionList) (scan EpsilonLocalResolutionScan))
+  EpsilonLocalResolutionScan
+  (match arguments
+    (NoEpsilonExpressions scan)
+    ((MoreEpsilonExpressions item rest)
+      (let nextScan EpsilonLocalResolutionScan
+        (match scan
+          ((EpsilonLocalResolutionScanSyntax catalog references fields callables stateApplications
+            types candidate)
+            (match (epsilon_find_expression_result item types)
+              (NoEpsilonExpressionResult scan)
+              ((OneEpsilonExpressionResult resultValue)
+                (match resultValue
+                  ((EpsilonValueExpressionResult typeValue placeType) scan)
+                  (EpsilonResultlessExpressionResult
+                    (epsilon_local_scan_add_candidate TypeMismatch
+                      (epsilon_expression_start item) scan))
+                  (EpsilonNeverExpressionResult
+                    (epsilon_local_scan_add_candidate InvalidTerminal
+                      (epsilon_expression_start (epsilon_call_head_core item))
+                      scan)))))))
+        (epsilon_local_scan_argument_terminal_candidates rest nextScan)))))
+
+; Every admitted callable spelling converges here after identity and category
+; resolution. Arity depends on the signature plus authored argument count; the
+; sibling argument-type join additionally waits for every complete value fact.
+; A receiver is implicit and therefore never appears in either list.
+(def epsilon_local_scan_admitted_signature_application ((source Bytes)
+  (expressionValue EpsilonExpression) (arguments EpsilonExpressionList)
+  (parameters EpsilonParameterList) (returnType EpsilonOptionalType)
+  (scan EpsilonLocalResolutionScan))
+  EpsilonLocalResolutionScan
+  (if (eq (epsilon_expression_list_count arguments)
+    (epsilon_parameter_list_count parameters))
+    (match scan
+      ((EpsilonLocalResolutionScanSyntax catalog references fields
+        callables stateApplications types candidate)
+        (match (epsilon_argument_types_join source arguments parameters
+          types 0)
+          (EpsilonArgumentsCompatible
+            (epsilon_local_scan_add_machine_result expressionValue
+              returnType scan))
+          (EpsilonArgumentsIncomplete scan)
+          (EpsilonArgumentsTypeMismatch
+            (epsilon_local_scan_add_candidate TypeMismatch
+              (epsilon_expression_start expressionValue) scan)))))
+    (epsilon_local_scan_add_candidate ArityMismatch
+      (epsilon_expression_start expressionValue) scan)))
+
+(def epsilon_local_scan_admitted_machine_application ((source Bytes)
+  (expressionValue EpsilonExpression) (arguments EpsilonExpressionList)
+  (machineDeclaration EpsilonDeclaration) (scan EpsilonLocalResolutionScan))
+  EpsilonLocalResolutionScan
+  (match machineDeclaration
+    ((EpsilonBoundaryDeclaration start end name machines) scan)
+    ((EpsilonDataDeclaration start end name members) scan)
+    ((EpsilonMachineDeclaration start end name inputs returnType bodyValue)
+      (epsilon_local_scan_admitted_signature_application source expressionValue
+        arguments (epsilon_machine_input_parameters inputs) returnType scan))))
+
+(def epsilon_state_parameters ((stateValue EpsilonState)) EpsilonParameterList
+  (match stateValue
+    ((EpsilonStateSyntax start end name parameters bodyValue) parameters)))
+
+; State identity is retained before arity and argument typing, but only the
+; stronger complete row authorizes lowering a transfer. A state is not an
+; expression result and never enters the callable ledger.
+(def epsilon_local_scan_admitted_state_application ((source Bytes)
+  (expressionValue EpsilonExpression) (arguments EpsilonExpressionList)
+  (machineValue EpsilonDeclaration) (stateValue EpsilonState)
+  (scan EpsilonLocalResolutionScan)) EpsilonLocalResolutionScan
+  (let parameters EpsilonParameterList (epsilon_state_parameters stateValue)
+    (if (eq (epsilon_expression_list_count arguments)
+      (epsilon_parameter_list_count parameters))
+      (match scan
+        ((EpsilonLocalResolutionScanSyntax catalog references fields callables
+          stateApplications types candidate)
+          (match (epsilon_argument_types_join source arguments parameters
+            types 0)
+            (EpsilonArgumentsCompatible
+              (epsilon_local_scan_add_state_application expressionValue
+                machineValue stateValue EpsilonStateApplicationComplete scan))
+            (EpsilonArgumentsIncomplete
+              (epsilon_local_scan_add_state_application expressionValue
+                machineValue stateValue EpsilonStateApplicationResolved scan))
+            (EpsilonArgumentsTypeMismatch
+              (epsilon_local_scan_add_candidate TypeMismatch
+                (epsilon_expression_start expressionValue)
+                (epsilon_local_scan_add_state_application expressionValue
+                  machineValue stateValue EpsilonStateApplicationResolved
+                  scan))))))
+      (epsilon_local_scan_add_candidate ArityMismatch
+        (epsilon_expression_start expressionValue)
+        (epsilon_local_scan_add_state_application expressionValue machineValue
+          stateValue EpsilonStateApplicationResolved scan)))))

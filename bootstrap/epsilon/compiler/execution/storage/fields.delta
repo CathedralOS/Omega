@@ -1,0 +1,93 @@
+
+(def epsilon_evaluator_expression_is_receiver ((expressionValue EpsilonExpression)
+  (references EpsilonResolvedLocalReferenceList)) Int
+  (match (epsilon_find_resolved_local_reference expressionValue references)
+    (NoEpsilonResolvedLocalReference 0)
+    ((OneEpsilonResolvedLocalReference bindingValue)
+      (match bindingValue
+        ((EpsilonReceiverLocal name typeValue) 1)
+        ((EpsilonMachineParameterLocal parameterValue) 0)
+        ((EpsilonStateParameterLocal parameterValue) 0)
+        ((EpsilonLetLocal name typeValue statementValue) 0)
+        ((EpsilonTransitionBinderLocal patternValue name) 0)))))
+
+(def epsilon_evaluator_scalar_storage_kind ((typeValue EpsilonType)) Int
+  (match typeValue
+    ((EpsilonI32Type start end) 1)
+    ((EpsilonU8Type start end) 2)
+    ((EpsilonNeverType start end) 0)
+    ((EpsilonNamedType start end name) 0)
+    ((EpsilonArrayType start end element lengthValue) 0)
+    ((EpsilonViewType start end element) 0)))
+
+(def epsilon_evaluator_check_scalar_store ((typeValue EpsilonType) (value Int))
+  EpsilonEvaluatorScalarOutcome
+  (let kind Int (epsilon_evaluator_scalar_storage_kind typeValue)
+    (if (eq kind 1)
+      (EpsilonEvaluatorScalarValue value)
+      (if (eq kind 2)
+        (if (if (lt value 0) 1 (lt 255 value))
+          (EpsilonEvaluatorScalarTrapped 5)
+          (EpsilonEvaluatorScalarValue value))
+        EpsilonEvaluatorScalarUnsupported))))
+
+(def epsilon_evaluate_resolved_field_scalar ((expressionValue EpsilonExpression)
+  (base EpsilonExpression) (references EpsilonResolvedLocalReferenceList)
+  (fieldReferences EpsilonResolvedFieldReferenceList)
+  (fields EpsilonEvaluatorFieldValueList)) EpsilonEvaluatorScalarOutcome
+  (if (epsilon_evaluator_expression_is_receiver base references)
+    (match (epsilon_find_resolved_field_reference expressionValue fieldReferences)
+      (NoEpsilonResolvedFieldReference EpsilonEvaluatorScalarUnsupported)
+      ((OneEpsilonResolvedFieldReference owner memberValue)
+        (match memberValue
+          ((EpsilonFieldMember start end name typeValue)
+            (if (epsilon_evaluator_scalar_storage_kind typeValue)
+              (EpsilonEvaluatorScalarValue
+                (epsilon_evaluate_field_home owner memberValue fields))
+              EpsilonEvaluatorScalarUnsupported))
+          ((EpsilonCaseMember start end name payload)
+            EpsilonEvaluatorScalarUnsupported))))
+    EpsilonEvaluatorScalarUnsupported))
+
+(def epsilon_evaluator_assign_field ((placeValue EpsilonExpression)
+  (value Int) (references EpsilonResolvedLocalReferenceList)
+  (fieldReferences EpsilonResolvedFieldReferenceList)
+  (fields EpsilonEvaluatorFieldValueList)) EpsilonEvaluatorAssignmentOutcome
+  (match placeValue
+    ((EpsilonFieldExpression start end base member)
+      (if (epsilon_evaluator_expression_is_receiver base references)
+        (match (epsilon_find_resolved_field_reference placeValue fieldReferences)
+          (NoEpsilonResolvedFieldReference EpsilonEvaluatorAssignmentUnsupported)
+          ((OneEpsilonResolvedFieldReference owner memberValue)
+            (match memberValue
+              ((EpsilonFieldMember fieldStart fieldEnd fieldName typeValue)
+                (match (epsilon_evaluator_check_scalar_store typeValue value)
+                  (EpsilonEvaluatorScalarUnsupported
+                    EpsilonEvaluatorAssignmentUnsupported)
+                  ((EpsilonEvaluatorScalarTrapped kind)
+                    (EpsilonEvaluatorAssignmentTrapped kind))
+                  ((EpsilonEvaluatorScalarValue storedValue)
+                    (EpsilonEvaluatorAssignmentUpdated
+                      (epsilon_evaluator_set_field_home owner memberValue
+                        storedValue fields)))))
+              ((EpsilonCaseMember caseStart caseEnd caseName payload)
+                EpsilonEvaluatorAssignmentUnsupported))))
+        EpsilonEvaluatorAssignmentUnsupported))
+    ((EpsilonIntegerExpression start end literal) EpsilonEvaluatorAssignmentUnsupported)
+    ((EpsilonCharacterExpression start end literal) EpsilonEvaluatorAssignmentUnsupported)
+    ((EpsilonStringExpression start end literal) EpsilonEvaluatorAssignmentUnsupported)
+    ((EpsilonTrueExpression start end) EpsilonEvaluatorAssignmentUnsupported)
+    ((EpsilonFalseExpression start end) EpsilonEvaluatorAssignmentUnsupported)
+    ((EpsilonNameExpression start end name) EpsilonEvaluatorAssignmentUnsupported)
+    ((EpsilonQualifiedExpression start end owner name arguments)
+      EpsilonEvaluatorAssignmentUnsupported)
+    ((EpsilonGroupedExpression start end inner) EpsilonEvaluatorAssignmentUnsupported)
+    ((EpsilonCallExpression start end callBase arguments)
+      EpsilonEvaluatorAssignmentUnsupported)
+    ((EpsilonIndexExpression start end indexBase indexValue)
+      EpsilonEvaluatorAssignmentUnsupported)
+    ((EpsilonSliceExpression start end sliceBase low high)
+      EpsilonEvaluatorAssignmentUnsupported)
+    ((EpsilonNegateExpression start end operand) EpsilonEvaluatorAssignmentUnsupported)
+    ((EpsilonBinaryExpression start end operator operatorStart operatorEnd
+      left right) EpsilonEvaluatorAssignmentUnsupported)))

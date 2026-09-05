@@ -1,0 +1,36 @@
+
+; Declaration collection returns the original native syntax value after one
+; complete D22/D24 census. Candidates are accumulated rather than returned at
+; first traversal sight so source order of the collector cannot choose between
+; scoped DuplicateName and InvalidBoundary failures.
+(data EpsilonCensusCandidate
+  (NoEpsilonCensusCandidate)
+  (EpsilonCensusCandidateAt EpsilonRejectReason Int))
+
+(data EpsilonOwnerKind
+  (EpsilonBoundaryOwnerKind)
+  (EpsilonDataOwnerKind))
+
+(data EpsilonOwnerRow
+  (EpsilonOwnerRowSyntax Int EpsilonName EpsilonOwnerKind))
+
+(data EpsilonOwnerRowList
+  (NoEpsilonOwnerRows)
+  (MoreEpsilonOwnerRows EpsilonOwnerRow EpsilonOwnerRowList))
+
+(data EpsilonMachineRow
+  (EpsilonMachineRowSyntax Int EpsilonQualifiedName))
+
+(data EpsilonMachineRowList
+  (NoEpsilonMachineRows)
+  (MoreEpsilonMachineRows EpsilonMachineRow EpsilonMachineRowList))
+
+(data EpsilonCollectedProgram
+  (EpsilonCollectedProgramSyntax EpsilonProgram EpsilonOwnerRowList EpsilonMachineRowList))
+
+(data EpsilonCensusOutcome
+  (EpsilonCensusAccepted EpsilonCollectedProgram)
+  (EpsilonCensusRejected EpsilonRejectReason Int))
+
+(data EpsilonCensusLocalScan
+  (EpsilonCensusLocalScanResult EpsilonCensusCandidate EpsilonNameList))

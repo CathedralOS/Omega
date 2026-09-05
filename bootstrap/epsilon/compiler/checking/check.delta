@@ -1,0 +1,39 @@
+
+(def epsilon_parse_through_expression_facts ((source Bytes))
+  EpsilonLocalResolutionOutcome
+  (match (epsilon_parse_collect_form_and_catalog source)
+    ((EpsilonCatalogRejected reasonValue errorOffset)
+      (EpsilonLocalResolutionRejected reasonValue errorOffset))
+    ((EpsilonCatalogInternal errorOffset)
+      (EpsilonLocalResolutionInternal errorOffset))
+    ((EpsilonCatalogAccepted cataloged)
+      (EpsilonLocalResolutionAccepted
+        (epsilon_resolve_cataloged_locals source cataloged)))))
+
+(def epsilon_finish_body_check ((resolved EpsilonLocallyResolvedProgram))
+  EpsilonLocalResolutionOutcome
+  (match resolved
+    ((EpsilonLocallyResolvedProgramSyntax cataloged references fields callables
+      control types candidate)
+      (match candidate
+        (NoEpsilonFinalCandidate
+          (EpsilonLocalResolutionAccepted resolved))
+        ((EpsilonFinalCandidateAt errorOffset reasons)
+          (match reasons
+            (NoEpsilonFinalReasons
+              (EpsilonLocalResolutionInternal errorOffset))
+            ((MoreEpsilonFinalReasons reasonValue rest)
+              (match rest
+                (NoEpsilonFinalReasons
+                  (EpsilonLocalResolutionRejected reasonValue errorOffset))
+                ((MoreEpsilonFinalReasons conflictingReason conflictingRest)
+                  (EpsilonLocalResolutionInternal errorOffset))))))))))
+
+(def epsilon_check_through_body ((source Bytes)) EpsilonLocalResolutionOutcome
+  (match (epsilon_parse_through_expression_facts source)
+    ((EpsilonLocalResolutionRejected reasonValue errorOffset)
+      (EpsilonLocalResolutionRejected reasonValue errorOffset))
+    ((EpsilonLocalResolutionInternal errorOffset)
+      (EpsilonLocalResolutionInternal errorOffset))
+    ((EpsilonLocalResolutionAccepted resolved)
+      (epsilon_finish_body_check resolved))))

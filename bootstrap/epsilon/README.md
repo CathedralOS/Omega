@@ -54,9 +54,12 @@ first C tape only when its ordinary `alpha_bootstrap` target is selected.
 
 - [`FEATURE_LEDGER.md`](FEATURE_LEDGER.md) records Epsilon feature rationale and
   change control.
-- `compiler/` owns the in-progress Delta-written Epsilon evaluator and its
+- [`compiler/`](compiler/README.md) owns the in-progress Delta-written Epsilon evaluator and its
   refinement evidence. The retained path is unchanged during the experiment;
-  it may be renamed after the execution boundary stabilizes. The source currently
+  it may be renamed after the execution boundary stabilizes. Start at its
+  `epsilon_compiler.delta` entry; `epsilon_compiler.delta.sources` orders the
+  concept-owned authoring members into one exact Delta translation unit.
+  The source currently
   contains final compiler material through complete parsing, the D22/D24
   source-shaped identity census including D51's receiver-only qualified-machine
   syntax and removal of the superseded case/machine collision registry, D31

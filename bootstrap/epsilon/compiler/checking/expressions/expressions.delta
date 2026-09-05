@@ -1,0 +1,284 @@
+
+(def epsilon_local_scan_propagate_result ((expressionValue EpsilonExpression)
+  (child EpsilonExpression) (scan EpsilonLocalResolutionScan))
+  EpsilonLocalResolutionScan
+  (match scan
+    ((EpsilonLocalResolutionScanSyntax catalog references fields callables stateApplications types
+      candidate)
+      (match (epsilon_find_expression_result child types)
+        (NoEpsilonExpressionResult scan)
+        ((OneEpsilonExpressionResult resultValue)
+          (epsilon_local_scan_add_result expressionValue resultValue scan))))))
+
+(def epsilon_local_scan_require_i32 ((expressionValue EpsilonExpression)
+  (child EpsilonExpression) (scan EpsilonLocalResolutionScan))
+  EpsilonLocalResolutionScan
+  (let categoryScan EpsilonLocalResolutionScan
+    (epsilon_local_scan_value_use_candidate expressionValue child scan)
+    (match categoryScan
+    ((EpsilonLocalResolutionScanSyntax catalog references fields callables stateApplications types
+      candidate)
+      (match (epsilon_find_expression_result child types)
+        (NoEpsilonExpressionResult categoryScan)
+        ((OneEpsilonExpressionResult resultValue)
+          (match resultValue
+            ((EpsilonValueExpressionResult typeValue placeType)
+              (if (epsilon_type_is_i32 typeValue)
+                (epsilon_local_scan_add_value expressionValue
+                  (epsilon_expression_i32_type expressionValue)
+                  NoEpsilonPlaceType categoryScan)
+                (epsilon_local_scan_add_candidate TypeMismatch
+                  (epsilon_expression_start expressionValue) categoryScan)))
+            (EpsilonResultlessExpressionResult categoryScan)
+            (EpsilonNeverExpressionResult categoryScan))))))))
+
+(def epsilon_local_scan_binary_i32 ((expressionValue EpsilonExpression)
+  (left EpsilonExpression) (right EpsilonExpression)
+  (scan EpsilonLocalResolutionScan)) EpsilonLocalResolutionScan
+  (let categoryScan EpsilonLocalResolutionScan
+    (epsilon_local_scan_value_use_candidate expressionValue right
+      (epsilon_local_scan_value_use_candidate expressionValue left scan))
+    (match categoryScan
+    ((EpsilonLocalResolutionScanSyntax catalog references fields callables stateApplications types
+      candidate)
+      (match (epsilon_find_expression_result left types)
+        (NoEpsilonExpressionResult categoryScan)
+        ((OneEpsilonExpressionResult leftResult)
+          (match (epsilon_find_expression_result right types)
+            (NoEpsilonExpressionResult categoryScan)
+            ((OneEpsilonExpressionResult rightResult)
+              (match leftResult
+                ((EpsilonValueExpressionResult leftType leftPlace)
+                  (match rightResult
+                    ((EpsilonValueExpressionResult rightType rightPlace)
+                      (if (epsilon_type_is_i32 leftType)
+                        (if (epsilon_type_is_i32 rightType)
+                          (epsilon_local_scan_add_value expressionValue
+                            (epsilon_expression_i32_type expressionValue)
+                            NoEpsilonPlaceType categoryScan)
+                          (epsilon_local_scan_add_candidate TypeMismatch
+                            (epsilon_expression_start expressionValue)
+                            categoryScan))
+                        (epsilon_local_scan_add_candidate TypeMismatch
+                          (epsilon_expression_start expressionValue)
+                          categoryScan)))
+                    (EpsilonResultlessExpressionResult categoryScan)
+                    (EpsilonNeverExpressionResult categoryScan)))
+                (EpsilonResultlessExpressionResult categoryScan)
+                (EpsilonNeverExpressionResult categoryScan))))))))))
+
+(def epsilon_expression_use_resolves_local_value ((useValue EpsilonExpressionUse))
+  Int
+  (match useValue
+    (EpsilonOrdinaryExpressionUse 1)
+    (EpsilonCallHeadExpressionUse 0)
+    ((EpsilonPostfixStatementExpressionUse statementStart) 1)
+    ((EpsilonTransitionContinuationExpressionUse machineValue continuationStart)
+      1)))
+
+; Every nested operand, argument, receiver, index, and bound is an ordinary
+; value position. Only the exact outer name/selector retains the grammar-
+; selected call, statement, or continuation namespace.
+(def epsilon_resolve_local_expression_context ((source Bytes)
+  (expressionValue EpsilonExpression) (active EpsilonLocalBindingList)
+  (pending EpsilonLocalBindingList) (scan EpsilonLocalResolutionScan)
+  (useValue EpsilonExpressionUse))
+  EpsilonLocalResolutionScan
+  (match expressionValue
+    ((EpsilonIntegerExpression start end literal)
+      (epsilon_local_scan_add_value expressionValue
+        (epsilon_expression_i32_type expressionValue) NoEpsilonPlaceType scan))
+    ((EpsilonCharacterExpression start end literal)
+      (epsilon_local_scan_add_value expressionValue
+        (epsilon_expression_i32_type expressionValue) NoEpsilonPlaceType scan))
+    ((EpsilonStringExpression start end literal)
+      (epsilon_local_scan_add_value expressionValue
+        (epsilon_expression_string_type expressionValue) NoEpsilonPlaceType scan))
+    ((EpsilonTrueExpression start end)
+      (epsilon_local_scan_add_value expressionValue
+        (epsilon_expression_i32_type expressionValue) NoEpsilonPlaceType scan))
+    ((EpsilonFalseExpression start end)
+      (epsilon_local_scan_add_value expressionValue
+        (epsilon_expression_i32_type expressionValue) NoEpsilonPlaceType scan))
+    ((EpsilonNameExpression start end name)
+      (match useValue
+        ((EpsilonPostfixStatementExpressionUse statementStart)
+          (epsilon_resolve_local_postfix_statement_name source expressionValue
+            name statementStart active pending scan))
+        (EpsilonOrdinaryExpressionUse
+          (epsilon_resolve_local_value_name source expressionValue name active
+            pending scan))
+        (EpsilonCallHeadExpressionUse scan)
+        ((EpsilonTransitionContinuationExpressionUse machineValue
+          continuationStart)
+          (epsilon_local_scan_transition_bare_name source expressionValue name
+            active pending machineValue continuationStart scan))))
+    ((EpsilonQualifiedExpression start end owner name arguments)
+      (match arguments
+        (NoEpsilonArguments
+          (epsilon_local_scan_qualified_callable_fact source expressionValue
+            owner name arguments useValue scan))
+        ((SomeEpsilonArguments openStart closeEnd values)
+          (let argumentScan EpsilonLocalResolutionScan
+            (epsilon_local_scan_argument_terminal_candidates values
+              (epsilon_resolve_local_expression_list source values active pending
+                scan))
+            (epsilon_local_scan_qualified_callable_fact source expressionValue
+              owner name arguments useValue argumentScan)))))
+    ((EpsilonGroupedExpression start end inner)
+      (epsilon_local_scan_propagate_result expressionValue inner
+        (epsilon_resolve_local_expression_context source inner active pending
+          scan useValue)))
+    ((EpsilonFieldExpression start end base member)
+      (let nextScan EpsilonLocalResolutionScan
+        (epsilon_resolve_local_expression source base active pending scan)
+        (if (epsilon_expression_use_resolves_local_value useValue)
+          (epsilon_local_scan_field_fact source expressionValue base member
+            useValue nextScan)
+          nextScan)))
+    ((EpsilonCallExpression start end base arguments)
+      (let childScan EpsilonLocalResolutionScan
+        (epsilon_resolve_local_expression_list source arguments active pending
+          (epsilon_resolve_local_expression_context source base active pending
+            scan EpsilonCallHeadExpressionUse))
+        (let argumentScan EpsilonLocalResolutionScan
+          (epsilon_local_scan_argument_terminal_candidates arguments childScan)
+          (let contextualScan EpsilonLocalResolutionScan
+            (epsilon_local_scan_non_named_call_head_field_fact source base
+              useValue argumentScan)
+            (let receiverScan EpsilonLocalResolutionScan
+              (epsilon_local_scan_receiver_application source expressionValue
+                base arguments useValue contextualScan)
+              (match useValue
+                ((EpsilonTransitionContinuationExpressionUse machineValue
+                  continuationStart)
+                  (epsilon_local_scan_transition_unqualified_application source
+                    expressionValue base arguments active pending machineValue
+                    continuationStart receiverScan))
+                (EpsilonOrdinaryExpressionUse
+                  (epsilon_local_scan_unqualified_machine_application source
+                    expressionValue base arguments active pending useValue
+                    (epsilon_local_scan_reject_value_call expressionValue base
+                      receiverScan)))
+                (EpsilonCallHeadExpressionUse
+                  (epsilon_local_scan_unqualified_machine_application source
+                    expressionValue base arguments active pending useValue
+                    (epsilon_local_scan_reject_value_call expressionValue base
+                      receiverScan)))
+                ((EpsilonPostfixStatementExpressionUse statementStart)
+                  (epsilon_local_scan_unqualified_machine_application source
+                    expressionValue base arguments active pending useValue
+                    (epsilon_local_scan_reject_value_call expressionValue base
+                      receiverScan)))))))))
+    ((EpsilonIndexExpression start end base indexValue)
+      (epsilon_local_scan_index_fact expressionValue base indexValue
+        (epsilon_resolve_local_expression source indexValue active pending
+          (epsilon_resolve_local_expression source base active pending scan))))
+    ((EpsilonSliceExpression start end base low high)
+      (epsilon_local_scan_slice_fact expressionValue base low high
+        (epsilon_resolve_local_optional_expression source high active pending
+          (epsilon_resolve_local_optional_expression source low active pending
+            (epsilon_resolve_local_expression source base active pending
+              scan)))))
+    ((EpsilonNegateExpression start end operand)
+      (epsilon_local_scan_require_i32 expressionValue operand
+        (epsilon_resolve_local_expression source operand active pending scan)))
+    ((EpsilonBinaryExpression start end operatorValue operatorStart operatorEnd
+      left right)
+      (epsilon_local_scan_binary_i32 expressionValue left right
+        (epsilon_resolve_local_expression source right active pending
+          (epsilon_resolve_local_expression source left active pending scan))))))
+
+(def epsilon_resolve_local_expression ((source Bytes)
+  (expressionValue EpsilonExpression) (active EpsilonLocalBindingList)
+  (pending EpsilonLocalBindingList) (scan EpsilonLocalResolutionScan))
+  EpsilonLocalResolutionScan
+  (epsilon_resolve_local_expression_context source expressionValue active
+    pending scan EpsilonOrdinaryExpressionUse))
+
+(def epsilon_expression_has_authored_application
+  ((expressionValue EpsilonExpression)) Int
+  (match (epsilon_call_head_core expressionValue)
+    ((EpsilonQualifiedExpression start end owner name argumentsValue)
+      (match argumentsValue
+        (NoEpsilonArguments 0)
+        ((SomeEpsilonArguments openStart closeEnd values) 1)))
+    ((EpsilonCallExpression start end base arguments) 1)
+    ((EpsilonIntegerExpression start end literal) 0)
+    ((EpsilonCharacterExpression start end literal) 0)
+    ((EpsilonStringExpression start end literal) 0)
+    ((EpsilonTrueExpression start end) 0)
+    ((EpsilonFalseExpression start end) 0)
+    ((EpsilonNameExpression start end name) 0)
+    ((EpsilonGroupedExpression start end inner) 0)
+    ((EpsilonFieldExpression start end base field) 0)
+    ((EpsilonIndexExpression start end base indexValue) 0)
+    ((EpsilonSliceExpression start end base low high) 0)
+    ((EpsilonNegateExpression start end operand) 0)
+    ((EpsilonBinaryExpression start end operator operatorStart operatorEnd
+      left right) 0)))
+
+; A discarded postfix statement admits only an exact resolved machine
+; application. Custody plus authored application shape establishes category
+; before arity/type completion: a failed admitted machine therefore receives no
+; dependent statement mismatch. Successful value/resultless results are
+; discardable, and a successful `never` result is retained for later block flow.
+(def epsilon_local_scan_postfix_statement_admission
+  ((expressionValue EpsilonExpression) (scan EpsilonLocalResolutionScan))
+  EpsilonLocalResolutionScan
+  (match scan
+    ((EpsilonLocalResolutionScanSyntax catalog references fields callables stateApplications types
+      candidate)
+      (match (epsilon_find_resolved_callable_reference_normalized expressionValue
+        callables)
+        ((OneEpsilonResolvedCallableReference callable)
+          (match callable
+            ((EpsilonResolvedConstructorCallable ownerDeclaration caseValue)
+              (epsilon_local_scan_add_candidate TypeMismatch
+                (epsilon_expression_start expressionValue) scan))
+            ((EpsilonResolvedDataMachineCallable ownerDeclaration
+              machineDeclaration)
+              (if (epsilon_expression_has_authored_application expressionValue)
+                scan
+                (epsilon_local_scan_add_candidate TypeMismatch
+                  (epsilon_expression_start expressionValue) scan)))
+            ((EpsilonResolvedUnqualifiedMachineCallable machineDeclaration)
+              (if (epsilon_expression_has_authored_application expressionValue)
+                scan
+                (epsilon_local_scan_add_candidate TypeMismatch
+                  (epsilon_expression_start expressionValue) scan)))
+            ((EpsilonResolvedBoundaryMachineCallable ownerDeclaration memberValue)
+              (if (epsilon_expression_has_authored_application expressionValue)
+                scan
+                (epsilon_local_scan_add_candidate TypeMismatch
+                  (epsilon_expression_start expressionValue) scan)))))
+        (NoEpsilonResolvedCallableReference
+          (match (epsilon_find_expression_result expressionValue types)
+            (NoEpsilonExpressionResult scan)
+            ((OneEpsilonExpressionResult resultValue)
+              (match resultValue
+                ((EpsilonValueExpressionResult typeValue placeType)
+                  (epsilon_local_scan_add_candidate TypeMismatch
+                    (epsilon_expression_start expressionValue) scan))
+                (EpsilonResultlessExpressionResult scan)
+                (EpsilonNeverExpressionResult scan)))))))))
+
+(def epsilon_resolve_local_postfix_statement_expression ((source Bytes)
+  (expressionValue EpsilonExpression) (active EpsilonLocalBindingList)
+  (pending EpsilonLocalBindingList) (scan EpsilonLocalResolutionScan))
+  EpsilonLocalResolutionScan
+  (epsilon_local_scan_postfix_statement_admission expressionValue
+    (epsilon_resolve_local_expression_context source expressionValue active
+      pending scan
+        (EpsilonPostfixStatementExpressionUse
+          (epsilon_expression_start expressionValue)))))
+
+(def epsilon_resolve_local_transition_continuation_expression ((source Bytes)
+  (expressionValue EpsilonExpression) (active EpsilonLocalBindingList)
+  (machineValue EpsilonDeclaration) (continuationStart Int)
+  (scan EpsilonLocalResolutionScan)) EpsilonLocalResolutionScan
+  (epsilon_local_scan_transition_admission expressionValue continuationStart
+    (epsilon_resolve_local_expression_context source expressionValue active
+      NoEpsilonLocalBindings scan
+      (EpsilonTransitionContinuationExpressionUse machineValue
+        continuationStart))))

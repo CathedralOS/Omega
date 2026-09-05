@@ -1,0 +1,369 @@
+
+(def epsilon_find_data_declaration ((source Bytes) (owner EpsilonName)
+  (declarations EpsilonDeclarationList)) EpsilonDataDeclarationLookup
+  (match declarations
+    (NoEpsilonDeclarations NoEpsilonDataDeclaration)
+    ((MoreEpsilonDeclarations item rest)
+      (match item
+        ((EpsilonBoundaryDeclaration start end name machines)
+          (epsilon_find_data_declaration source owner rest))
+        ((EpsilonDataDeclaration start end name members)
+          (if (epsilon_names_equal source owner name)
+            (OneEpsilonDataDeclaration item)
+            (epsilon_find_data_declaration source owner rest)))
+        ((EpsilonMachineDeclaration start end name inputs returnType bodyValue)
+          (epsilon_find_data_declaration source owner rest))))))
+
+(def epsilon_catalog_machine_owner ((source Bytes)
+  (nameValue EpsilonQualifiedName) (declarations EpsilonDeclarationList))
+  EpsilonCatalogMachineOwner
+  (match nameValue
+    ((EpsilonUnqualifiedName start end name)
+      EpsilonCatalogUnqualifiedMachine)
+    ((EpsilonQualifiedNameSyntax start end owner name)
+      (match (epsilon_find_data_declaration source owner declarations)
+        (NoEpsilonDataDeclaration (EpsilonCatalogUnknownMachineOwner owner))
+        ((OneEpsilonDataDeclaration declarationValue)
+          (EpsilonCatalogDataMachineOwner declarationValue))))))
+
+(def epsilon_reverse_catalog_declarations
+  ((input EpsilonCatalogDeclarationList)
+   (output EpsilonCatalogDeclarationList)) EpsilonCatalogDeclarationList
+  (match input
+    (NoEpsilonCatalogDeclarations output)
+    ((MoreEpsilonCatalogDeclarations item rest)
+      (epsilon_reverse_catalog_declarations rest
+        (MoreEpsilonCatalogDeclarations item output)))))
+
+(def epsilon_catalog_declarations_acc ((source Bytes)
+  (declarations EpsilonDeclarationList)
+  (allDeclarations EpsilonDeclarationList)
+  (accumulator EpsilonCatalogDeclarationList)) EpsilonCatalogDeclarationList
+  (match declarations
+    (NoEpsilonDeclarations
+      (epsilon_reverse_catalog_declarations accumulator
+        NoEpsilonCatalogDeclarations))
+    ((MoreEpsilonDeclarations item rest)
+      (let row EpsilonCatalogDeclaration
+        (match item
+          ((EpsilonBoundaryDeclaration start end name machines)
+            (EpsilonCatalogBoundaryDeclaration item))
+          ((EpsilonDataDeclaration start end name members)
+            (EpsilonCatalogDataDeclaration item
+              (epsilon_data_shape_kind members)))
+          ((EpsilonMachineDeclaration start end name inputs returnType bodyValue)
+            (EpsilonCatalogMachineDeclaration item
+              (epsilon_catalog_machine_owner source name allDeclarations))))
+        (epsilon_catalog_declarations_acc source rest allDeclarations
+          (MoreEpsilonCatalogDeclarations row accumulator))))))
+
+(def epsilon_catalog_unknown_machine_owner_candidate
+  ((rows EpsilonCatalogDeclarationList)) EpsilonFinalCandidate
+  (match rows
+    (NoEpsilonCatalogDeclarations NoEpsilonFinalCandidate)
+    ((MoreEpsilonCatalogDeclarations row rest)
+      (let current EpsilonFinalCandidate
+        (match row
+          ((EpsilonCatalogBoundaryDeclaration declarationValue)
+            NoEpsilonFinalCandidate)
+          ((EpsilonCatalogDataDeclaration declarationValue shape)
+            NoEpsilonFinalCandidate)
+          ((EpsilonCatalogMachineDeclaration declarationValue owner)
+            (match owner
+              (EpsilonCatalogUnqualifiedMachine NoEpsilonFinalCandidate)
+              ((EpsilonCatalogDataMachineOwner ownerDeclaration)
+                NoEpsilonFinalCandidate)
+              ((EpsilonCatalogUnknownMachineOwner unknownOwner)
+                (epsilon_final_candidate_add UnknownName
+                  (epsilon_name_start unknownOwner) NoEpsilonFinalCandidate)))))
+        (epsilon_final_candidate_merge current
+          (epsilon_catalog_unknown_machine_owner_candidate rest))))))
+
+(def epsilon_catalog_find_owner ((source Bytes) (target EpsilonName)
+  (rows EpsilonCatalogDeclarationList)) EpsilonCatalogOwnerLookup
+  (match rows
+    (NoEpsilonCatalogDeclarations NoEpsilonCatalogOwner)
+    ((MoreEpsilonCatalogDeclarations row rest)
+      (match row
+        ((EpsilonCatalogBoundaryDeclaration declarationValue)
+          (match declarationValue
+            ((EpsilonBoundaryDeclaration start end name machines)
+              (if (epsilon_names_equal source target name)
+                (OneEpsilonCatalogBoundaryOwner declarationValue)
+                (epsilon_catalog_find_owner source target rest)))
+            ((EpsilonDataDeclaration start end name members)
+              (epsilon_catalog_find_owner source target rest))
+            ((EpsilonMachineDeclaration start end name inputs returnType bodyValue)
+              (epsilon_catalog_find_owner source target rest))))
+        ((EpsilonCatalogDataDeclaration declarationValue shape)
+          (match declarationValue
+            ((EpsilonBoundaryDeclaration start end name machines)
+              (epsilon_catalog_find_owner source target rest))
+            ((EpsilonDataDeclaration start end name members)
+              (if (epsilon_names_equal source target name)
+                (OneEpsilonCatalogDataOwner declarationValue shape)
+                (epsilon_catalog_find_owner source target rest)))
+            ((EpsilonMachineDeclaration start end name inputs returnType bodyValue)
+              (epsilon_catalog_find_owner source target rest))))
+        ((EpsilonCatalogMachineDeclaration declarationValue owner)
+          (epsilon_catalog_find_owner source target rest))))))
+
+(def epsilon_catalog_find_unqualified_machine ((source Bytes)
+  (target EpsilonName) (rows EpsilonCatalogDeclarationList))
+  EpsilonCatalogMachineLookup
+  (match rows
+    (NoEpsilonCatalogDeclarations NoEpsilonCatalogMachine)
+    ((MoreEpsilonCatalogDeclarations row rest)
+      (match row
+        ((EpsilonCatalogBoundaryDeclaration declarationValue)
+          (epsilon_catalog_find_unqualified_machine source target rest))
+        ((EpsilonCatalogDataDeclaration declarationValue shape)
+          (epsilon_catalog_find_unqualified_machine source target rest))
+        ((EpsilonCatalogMachineDeclaration declarationValue owner)
+          (match declarationValue
+            ((EpsilonBoundaryDeclaration start end name machines)
+              (epsilon_catalog_find_unqualified_machine source target rest))
+            ((EpsilonDataDeclaration start end name members)
+              (epsilon_catalog_find_unqualified_machine source target rest))
+            ((EpsilonMachineDeclaration start end name inputs returnType bodyValue)
+              (match name
+                ((EpsilonUnqualifiedName nameStart nameEnd machineName)
+                  (if (epsilon_names_equal source target machineName)
+                    (OneEpsilonCatalogMachine declarationValue)
+                    (epsilon_catalog_find_unqualified_machine source target
+                      rest)))
+                ((EpsilonQualifiedNameSyntax nameStart nameEnd machineOwner
+                  machineName)
+                  (epsilon_catalog_find_unqualified_machine source target
+                    rest))))))))))
+
+; Semantic qualified application lookup excludes unresolved owner spellings.
+; D36 application identity requires the exact resolved data owner as custody,
+; so there is one qualified-machine walk rather than a raw spelling-only twin.
+(def epsilon_catalog_find_qualified_data_machine ((source Bytes)
+  (targetOwner EpsilonName) (targetName EpsilonName)
+  (rows EpsilonCatalogDeclarationList)) EpsilonCatalogDataMachineLookup
+  (match rows
+    (NoEpsilonCatalogDeclarations NoEpsilonCatalogDataMachine)
+    ((MoreEpsilonCatalogDeclarations row rest)
+      (match row
+        ((EpsilonCatalogBoundaryDeclaration declarationValue)
+          (epsilon_catalog_find_qualified_data_machine source targetOwner
+            targetName rest))
+        ((EpsilonCatalogDataDeclaration declarationValue shape)
+          (epsilon_catalog_find_qualified_data_machine source targetOwner
+            targetName rest))
+        ((EpsilonCatalogMachineDeclaration declarationValue owner)
+          (match owner
+            (EpsilonCatalogUnqualifiedMachine
+              (epsilon_catalog_find_qualified_data_machine source targetOwner
+                targetName rest))
+            ((EpsilonCatalogUnknownMachineOwner unknownOwner)
+              (epsilon_catalog_find_qualified_data_machine source targetOwner
+                targetName rest))
+            ((EpsilonCatalogDataMachineOwner ownerDeclaration)
+              (match declarationValue
+                ((EpsilonBoundaryDeclaration start end name machines)
+                  (epsilon_catalog_find_qualified_data_machine source targetOwner
+                    targetName rest))
+                ((EpsilonDataDeclaration start end name members)
+                  (epsilon_catalog_find_qualified_data_machine source targetOwner
+                    targetName rest))
+                ((EpsilonMachineDeclaration start end name inputs returnType
+                  bodyValue)
+                  (match name
+                    ((EpsilonUnqualifiedName nameStart nameEnd machineName)
+                      (epsilon_catalog_find_qualified_data_machine source
+                        targetOwner targetName rest))
+                    ((EpsilonQualifiedNameSyntax nameStart nameEnd machineOwner
+                      machineName)
+                      (if (epsilon_names_equal source targetOwner machineOwner)
+                        (if (epsilon_names_equal source targetName machineName)
+                          (OneEpsilonCatalogDataMachine ownerDeclaration
+                            declarationValue)
+                          (epsilon_catalog_find_qualified_data_machine source
+                            targetOwner targetName rest))
+                        (epsilon_catalog_find_qualified_data_machine source
+                          targetOwner targetName rest)))))))))))))
+
+(def epsilon_catalog_find_boundary_machine ((source Bytes)
+  (target EpsilonName) (machines EpsilonBoundaryMachineList))
+  EpsilonCatalogBoundaryMemberLookup
+  (match machines
+    (NoEpsilonBoundaryMachines NoEpsilonCatalogBoundaryMember)
+    ((MoreEpsilonBoundaryMachines item rest)
+      (match item
+        ((EpsilonBoundaryMachineSyntax start end name parameters returnType)
+          (if (epsilon_names_equal source target name)
+            (OneEpsilonCatalogBoundaryMember item)
+            (epsilon_catalog_find_boundary_machine source target rest)))))))
+
+(def epsilon_catalog_find_boundary_member ((source Bytes)
+  (owner EpsilonName) (member EpsilonName)
+  (rows EpsilonCatalogDeclarationList)) EpsilonCatalogBoundaryMemberLookup
+  (match (epsilon_catalog_find_owner source owner rows)
+    (NoEpsilonCatalogOwner NoEpsilonCatalogBoundaryMember)
+    ((OneEpsilonCatalogDataOwner declarationValue shape)
+      NoEpsilonCatalogBoundaryMember)
+    ((OneEpsilonCatalogBoundaryOwner declarationValue)
+      (match declarationValue
+        ((EpsilonBoundaryDeclaration start end name machines)
+          (epsilon_catalog_find_boundary_machine source member machines))
+        ((EpsilonDataDeclaration start end name members)
+          NoEpsilonCatalogBoundaryMember)
+        ((EpsilonMachineDeclaration start end name inputs returnType bodyValue)
+          NoEpsilonCatalogBoundaryMember)))))
+
+(def epsilon_catalog_find_member_in_data ((source Bytes)
+  (target EpsilonName) (ownerValue EpsilonDeclaration)
+  (members EpsilonDataMemberList))
+  EpsilonCatalogDataMemberLookup
+  (match members
+    (NoEpsilonDataMembers NoEpsilonCatalogDataMember)
+    ((MoreEpsilonDataMembers item rest)
+      (match item
+        ((EpsilonFieldMember start end name typeValue)
+          (if (epsilon_names_equal source target name)
+            (OneEpsilonCatalogField ownerValue item)
+            (epsilon_catalog_find_member_in_data source target ownerValue
+              rest)))
+        ((EpsilonCaseMember start end name payload)
+          (if (epsilon_names_equal source target name)
+            (OneEpsilonCatalogCase ownerValue item)
+            (epsilon_catalog_find_member_in_data source target ownerValue
+              rest)))))))
+
+(def epsilon_catalog_find_data_member ((source Bytes) (owner EpsilonName)
+  (member EpsilonName) (rows EpsilonCatalogDeclarationList))
+  EpsilonCatalogDataMemberLookup
+  (match (epsilon_catalog_find_owner source owner rows)
+    (NoEpsilonCatalogOwner NoEpsilonCatalogDataMember)
+    ((OneEpsilonCatalogBoundaryOwner declarationValue)
+      NoEpsilonCatalogDataMember)
+    ((OneEpsilonCatalogDataOwner declarationValue shape)
+      (match declarationValue
+        ((EpsilonBoundaryDeclaration start end name machines)
+          NoEpsilonCatalogDataMember)
+        ((EpsilonDataDeclaration start end name members)
+          (epsilon_catalog_find_member_in_data source member declarationValue
+            members))
+        ((EpsilonMachineDeclaration start end name inputs returnType bodyValue)
+          NoEpsilonCatalogDataMember)))))
+
+(def epsilon_catalog_find_sum_case_in_data ((source Bytes)
+  (target EpsilonName) (ownerValue EpsilonDeclaration)
+  (members EpsilonDataMemberList)) EpsilonCatalogSumCaseLookup
+  (match members
+    (NoEpsilonDataMembers NoEpsilonCatalogSumCase)
+    ((MoreEpsilonDataMembers item rest)
+      (match item
+        ((EpsilonFieldMember start end name typeValue)
+          (epsilon_catalog_find_sum_case_in_data source target ownerValue rest))
+        ((EpsilonCaseMember start end name payload)
+          (if (epsilon_names_equal source target name)
+            (OneEpsilonCatalogSumCase ownerValue
+              (EpsilonResolvedSumCaseSyntax start end name
+                (epsilon_optional_payload_parameters payload)))
+            (epsilon_catalog_find_sum_case_in_data source target ownerValue
+              rest)))))))
+
+(def epsilon_catalog_find_sum_case ((source Bytes) (owner EpsilonName)
+  (caseName EpsilonName) (rows EpsilonCatalogDeclarationList))
+  EpsilonCatalogSumCaseLookup
+  (match (epsilon_catalog_find_owner source owner rows)
+    (NoEpsilonCatalogOwner NoEpsilonCatalogSumCase)
+    ((OneEpsilonCatalogBoundaryOwner declarationValue)
+      NoEpsilonCatalogSumCase)
+    ((OneEpsilonCatalogDataOwner declarationValue shape)
+      (match shape
+        (EpsilonRecordShape NoEpsilonCatalogSumCase)
+        (EpsilonSumShape
+          (match declarationValue
+            ((EpsilonBoundaryDeclaration start end name machines)
+              NoEpsilonCatalogSumCase)
+            ((EpsilonDataDeclaration start end name members)
+              (epsilon_catalog_find_sum_case_in_data source caseName
+                declarationValue members))
+            ((EpsilonMachineDeclaration start end name inputs returnType
+              bodyValue)
+              NoEpsilonCatalogSumCase)))))))
+
+(def epsilon_catalog_find_state_in_list ((source Bytes) (target EpsilonName)
+  (states EpsilonStateList)) EpsilonCatalogStateLookup
+  (match states
+    (NoEpsilonStates NoEpsilonCatalogState)
+    ((MoreEpsilonStates item rest)
+      (match item
+        ((EpsilonStateSyntax start end name parameters bodyValue)
+          (if (epsilon_names_equal source target name)
+            (OneEpsilonCatalogState item)
+            (epsilon_catalog_find_state_in_list source target rest)))))))
+
+(def epsilon_catalog_find_state ((source Bytes)
+  (machineValue EpsilonDeclaration) (target EpsilonName)) EpsilonCatalogStateLookup
+  (match machineValue
+    ((EpsilonBoundaryDeclaration start end name machines)
+      NoEpsilonCatalogState)
+    ((EpsilonDataDeclaration start end name members)
+      NoEpsilonCatalogState)
+    ((EpsilonMachineDeclaration start end name inputs returnType bodyValue)
+      (match bodyValue
+        ((EpsilonMachineBodySyntax bodyStart bodyEnd statements terminalValue
+          states)
+          (epsilon_catalog_find_state_in_list source target states))))))
+
+(def epsilon_machine_input_parameters ((inputs EpsilonMachineInputs))
+  EpsilonParameterList
+  (match inputs
+    ((NoEpsilonMachineInputs start end) NoEpsilonParameters)
+    ((EpsilonPlainMachineInputs start end parameters) parameters)
+    ((EpsilonReceiverMachineInputs start end selfName parameters)
+      parameters)))
+
+(def epsilon_constructor_parameters ((memberValue EpsilonDataMember))
+  EpsilonParameterList
+  (match memberValue
+    ((EpsilonFieldMember start end name typeValue) NoEpsilonParameters)
+    ((EpsilonCaseMember start end name payload)
+      (match payload
+        (NoEpsilonPayload NoEpsilonParameters)
+        ((SomeEpsilonPayload payloadStart payloadEnd parameters) parameters)))))
+
+(def epsilon_optional_payload_parameters ((payload EpsilonOptionalPayload))
+  EpsilonParameterList
+  (match payload
+    (NoEpsilonPayload NoEpsilonParameters)
+    ((SomeEpsilonPayload payloadStart payloadEnd parameters) parameters)))
+
+(def epsilon_resolved_sum_case_parameters ((caseValue EpsilonResolvedSumCase))
+  EpsilonParameterList
+  (match caseValue
+    ((EpsilonResolvedSumCaseSyntax start end name parameters) parameters)))
+
+(def epsilon_catalog_formed_program ((source Bytes)
+  (formed EpsilonFormedProgram))
+  EpsilonCatalogedProgram
+  (match formed
+    ((EpsilonFormedProgramSyntax collected shapes valueEdges)
+      (match collected
+        ((EpsilonCollectedProgramSyntax program owners machines)
+          (match program
+            ((EpsilonSyntaxProgram start end declarations)
+              (let rows EpsilonCatalogDeclarationList
+                (epsilon_catalog_declarations_acc source declarations
+                  declarations NoEpsilonCatalogDeclarations)
+                (EpsilonCatalogedProgramSyntax formed
+                  (EpsilonCatalogStateSyntax
+                    (EpsilonResolutionCatalogSyntax rows)
+                    (epsilon_catalog_unknown_machine_owner_candidate
+                      rows)))))))))))
+
+(def epsilon_parse_collect_form_and_catalog ((source Bytes))
+  EpsilonCatalogOutcome
+  (match (epsilon_parse_collect_and_form_types source)
+    ((EpsilonTypeFormationRejected reasonValue errorOffset)
+      (EpsilonCatalogRejected reasonValue errorOffset))
+    ((EpsilonTypeFormationInternal errorOffset)
+      (EpsilonCatalogInternal errorOffset))
+    ((EpsilonTypeFormationAccepted formed)
+      (EpsilonCatalogAccepted (epsilon_catalog_formed_program source formed)))))

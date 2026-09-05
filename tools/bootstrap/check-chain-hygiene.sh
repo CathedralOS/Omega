@@ -6,6 +6,11 @@ SCRIPT_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd -P)
 OMEGA_REPO_ROOT=$(CDPATH= cd -- "$SCRIPT_DIR/../.." && pwd -P)
 . "$SCRIPT_DIR/paths.sh"
 
+command -v python3 >/dev/null 2>&1 || {
+  echo "bootstrap chain topology: skipped (python3 absent)"
+  exit 0
+}
+
 fail() {
   echo "bootstrap paths: $*" >&2
   exit 1
@@ -43,8 +48,7 @@ for required in \
   "$OMEGA_PATH_OMEGA_D" \
   "$OMEGA_PATH_OMEGA_COMPILER" \
   "$OMEGA_REPO_ROOT/source/library" \
-  "$OMEGA_REPO_ROOT/source/psi" \
-  "$OMEGA_REPO_ROOT/tools/bootstrap/epsilon"
+  "$OMEGA_REPO_ROOT/source/psi"
 do
   [ -d "$required" ] || fail "required owner is absent: $required"
 done
@@ -79,14 +83,14 @@ done
   fail "Gamma composed-artifact contract is absent"
 [ -f "$OMEGA_PATH_DELTA/LANGUAGE.md" ] || fail "Delta contract is absent"
 [ -f "$OMEGA_PATH_EPSILON/LANGUAGE.md" ] || fail "Epsilon contract is absent"
-[ -f "$OMEGA_PATH_EPSILON_COMPILER_SOURCE" ] ||
-  fail "Delta-written Epsilon compiler source is absent"
+[ -f "$OMEGA_PATH_EPSILON_COMPILER_SOURCES" ] ||
+  fail "Delta-written Epsilon evaluator source manifest is absent"
 [ -f "$OMEGA_PATH_OMEGA_COMPILER_SOURCES" ] ||
   fail "Epsilon-written Omega D source manifest is absent"
-[ -x "$OMEGA_REPO_ROOT/tools/bootstrap/epsilon/materialize_source_closure.py" ] ||
-  fail "Epsilon source-closure materializer is not executable"
-[ -x "$OMEGA_REPO_ROOT/tests/bootstrap/epsilon-source-closure.sh" ] ||
-  fail "Epsilon source-closure gate is not executable"
+[ -x "$OMEGA_REPO_ROOT/tools/bootstrap/source_closure.py" ] ||
+  fail "source-closure materializer is not executable"
+[ -x "$OMEGA_REPO_ROOT/tests/bootstrap/source-closure.sh" ] ||
+  fail "source-closure gate is not executable"
 [ -f "$OMEGA_PATH_OMEGA/build.omg" ] || fail "Omega C build root is absent"
 [ -f "$OMEGA_PATH_OMEGA/main.omg" ] || fail "Omega C main root is absent"
 
@@ -105,7 +109,8 @@ for retired in \
   "$OMEGA_REPO_ROOT/tools/alpha" \
   "$OMEGA_REPO_ROOT/bootstrap/alpha/checker" \
   "$OMEGA_REPO_ROOT/tests/proof-checker" \
-  "$OMEGA_REPO_ROOT/tools/bootstrap/proof-checker"
+  "$OMEGA_REPO_ROOT/tools/bootstrap/proof-checker" \
+  "$OMEGA_REPO_ROOT/tools/bootstrap/epsilon/materialize_source_closure.py"
 do
   [ ! -e "$retired" ] || fail "retired owner remains: $retired"
 done
@@ -139,16 +144,12 @@ bootstrap/epsilon/compiler/epsilon_compiler.delta'
 [ "$tracked_compiler_sources" = "$expected_compiler_sources" ] ||
   fail "compiler source exists outside selected edges"
 
-tracked_omega_d_sources=$(find "$OMEGA_PATH_OMEGA_COMPILER" -type f \
-  -name '*.epsilon' -print | sed "s#^$OMEGA_REPO_ROOT/##" | sort)
-expected_omega_d_sources='bootstrap/omega/compiler/alpha_tape.epsilon
-bootstrap/omega/compiler/lexer.epsilon
-bootstrap/omega/compiler/lexical_classification.epsilon
-bootstrap/omega/compiler/parser.epsilon
-bootstrap/omega/compiler/representations.epsilon
-bootstrap/omega/compiler/request_and_utf8.epsilon'
-[ "$tracked_omega_d_sources" = "$expected_omega_d_sources" ] ||
-  fail "Omega D source members differ from the selected closure"
+PACKED_DIR=$(mktemp -d)
+trap 'rm -rf -- "$PACKED_DIR"' EXIT HUP INT TERM
+python3 "$OMEGA_REPO_ROOT/tools/bootstrap/source_closure.py" \
+  "$OMEGA_PATH_EPSILON_COMPILER_SOURCES" "$PACKED_DIR/evaluator.delta"
+python3 "$OMEGA_REPO_ROOT/tools/bootstrap/source_closure.py" \
+  "$OMEGA_PATH_OMEGA_COMPILER_SOURCES" "$PACKED_DIR/compiler.epsilon"
 
 tracked_compiler_tapes=$(find \
   "$OMEGA_PATH_BETA_COMPILER" "$OMEGA_PATH_DELTA_COMPILER" \
@@ -162,7 +163,7 @@ expected_compiler_tapes='bootstrap/beta/compiler/beta_compiler_bytecode.tape'
 stale_paths=$(grep -RInE \
   --exclude-dir=target --exclude-dir=build \
   --exclude=decisions.md --exclude=check-chain-hygiene.sh \
-  'tools/alpha(/|$)|tools/bootstrap/proof-checker(/|$)|bootstrap/alpha/checker|tests/proof-checker|omega_compiler\.delta|\.alphaasm|alpha_tape_assembler|Alpha Tape Assembly|beta_evaluator|BETAREQ|OMEGA_PATH_ALPHA_TAPE|OMEGA_PATH_BETA_EVALUATOR' \
+  'tools/alpha(/|$)|tools/bootstrap/proof-checker(/|$)|bootstrap/alpha/checker|tests/proof-checker|omega_compiler\.delta|\.alphaasm|alpha_tape_assembler|Alpha Tape Assembly|beta_evaluator|BETAREQ|OMEGA_PATH_ALPHA_TAPE|OMEGA_PATH_BETA_EVALUATOR|tools/bootstrap/epsilon/materialize_source_closure\.py|OMEGA_PATH_EPSILON_COMPILER_SOURCE([^S]|$)' \
   "$OMEGA_PATH_BOOTSTRAP" "$OMEGA_REPO_ROOT/source" "$OMEGA_REPO_ROOT/tests" \
   "$OMEGA_REPO_ROOT/tools" "$OMEGA_REPO_ROOT/wiki" \
   "$OMEGA_REPO_ROOT/README.md" "$OMEGA_REPO_ROOT/TASKS_BOOTSTRAP.md" || true)
@@ -179,23 +180,7 @@ for bootstrap_source in \
   "$OMEGA_PATH_DELTA/LANGUAGE.md" \
   "$OMEGA_PATH_DELTA_COMPILER_SOURCE" \
   "$OMEGA_PATH_DELTA_COMPILER_COMPOSED" \
-  "$OMEGA_PATH_CONCATENATIVE_DELTA_COMPILER_SOURCE" \
-  "$OMEGA_PATH_EPSILON_COMPILER_SOURCE"
-do
-  if ! od -An -tu1 -v "$bootstrap_source" | awk '
-    {
-      for (i = 1; i <= NF; i++) {
-        b = $i + 0
-        if (b != 9 && b != 10 && b != 13 && (b < 32 || b > 126)) exit 1
-      }
-    }
-  '; then
-    fail "bootstrap source contains a forbidden byte: $bootstrap_source"
-  fi
-done
-
-find "$OMEGA_PATH_OMEGA_COMPILER" -type f -name '*.epsilon' -print | sort |
-while IFS= read -r bootstrap_source
+  "$OMEGA_PATH_CONCATENATIVE_DELTA_COMPILER_SOURCE"
 do
   if ! od -An -tu1 -v "$bootstrap_source" | awk '
     {

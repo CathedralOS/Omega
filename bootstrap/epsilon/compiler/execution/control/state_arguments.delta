@@ -1,0 +1,59 @@
+
+(def epsilon_evaluate_state_arguments ((context EpsilonEvaluatorInvocation)
+  (parameters EpsilonParameterList) (arguments EpsilonExpressionList)
+  (locals EpsilonEvaluatorLocalValueList)
+  (fields EpsilonEvaluatorFieldValueList)
+  (bound EpsilonEvaluatorLocalValueList)) EpsilonEvaluatorArgumentsOutcome
+  (match parameters
+    (NoEpsilonParameters
+      (match arguments
+        (NoEpsilonExpressions (EpsilonEvaluatorArgumentsBound bound))
+        ((MoreEpsilonExpressions item rest) EpsilonEvaluatorArgumentsInternal)))
+    ((MoreEpsilonParameters parameterValue remainingParameters)
+      (match arguments
+        (NoEpsilonExpressions EpsilonEvaluatorArgumentsInternal)
+        ((MoreEpsilonExpressions expressionValue remainingArguments)
+          (match parameterValue
+            ((EpsilonParameterSyntax start end name typeValue)
+              (if (epsilon_type_is_i32 typeValue)
+                (match context
+                  ((EpsilonEvaluatorInvocationContext source machineValue
+                    references fieldReferences callables control)
+                    (match (epsilon_evaluate_scalar_expression expressionValue
+                      references fieldReferences locals fields)
+                      (EpsilonEvaluatorScalarUnsupported
+                        EpsilonEvaluatorArgumentsUnsupported)
+                      ((EpsilonEvaluatorScalarTrapped kind)
+                        (EpsilonEvaluatorArgumentsTrapped kind))
+                      ((EpsilonEvaluatorScalarValue value)
+                        (epsilon_evaluate_state_arguments context
+                          remainingParameters remainingArguments locals fields
+                          (MoreEpsilonEvaluatorLocalValues
+                            (EpsilonEvaluatorParameterValue parameterValue value)
+                            bound))))))
+                EpsilonEvaluatorArgumentsUnsupported))))))))
+
+(def epsilon_evaluate_state_application ((context EpsilonEvaluatorInvocation)
+  (targetMachine EpsilonDeclaration) (stateValue EpsilonState)
+  (arguments EpsilonExpressionList) (locals EpsilonEvaluatorLocalValueList)
+  (fields EpsilonEvaluatorFieldValueList) (output Bytes))
+  EpsilonEvaluatorBlockOutcome
+  (match context
+    ((EpsilonEvaluatorInvocationContext source machineValue references
+      fieldReferences callables control)
+      (if (eq (epsilon_declaration_end machineValue)
+              (epsilon_declaration_end targetMachine))
+        (match stateValue
+          ((EpsilonStateSyntax start end name parameters bodyValue)
+            (match (epsilon_evaluate_state_arguments context parameters arguments
+              locals fields NoEpsilonEvaluatorLocalValues)
+              (EpsilonEvaluatorArgumentsUnsupported
+                EpsilonEvaluatorBlockUnsupported)
+              (EpsilonEvaluatorArgumentsInternal
+                (EpsilonEvaluatorBlockInternal start))
+              ((EpsilonEvaluatorArgumentsTrapped kind)
+                (EpsilonEvaluatorBlockTrap kind output))
+              ((EpsilonEvaluatorArgumentsBound bound)
+                (EpsilonEvaluatorBlockTransfer stateValue bound fields output)))))
+        (EpsilonEvaluatorBlockInternal
+          (epsilon_declaration_end targetMachine))))))

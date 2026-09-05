@@ -21,7 +21,12 @@ bootstrap/
       concatenative-compiler/    downgraded former Delta compiler
   epsilon/                       fixed-storage compiler-host language
     compiler/
-      epsilon_compiler.delta     incomplete Delta-written Epsilon evaluator
+      epsilon_compiler.delta     checked evaluator entrance
+      epsilon_compiler.delta.sources ordered Delta source manifest
+      representations/           syntax, checked facts, and execution values
+      lexical/, parsing/         source validation and syntax construction
+      checking/                  declarations, types, calls, and body judgments
+      execution/                 invocation, storage, scalars, and control
   omega/
     compiler/*.epsilon           incomplete Epsilon-written Omega compiler D
     omega_compiler.epsilon.sources canonical D member manifest
@@ -38,6 +43,7 @@ tools/
   bootstrap/alpha/               seed selection and tape stamping
   bootstrap/beta/                Beta compiler materialization and builds
   bootstrap/paths.sh             replaceable path registry
+  bootstrap/source_closure.py    byte-only Delta/Epsilon manifest materializer
   bootstrap/check-chain-hygiene.sh
 
 tests/
@@ -66,7 +72,7 @@ its source suffix names the language implementing it:
 | Beta compiler | `bootstrap/beta/compiler/beta_compiler.beta` |
 | Gamma evaluator | `bootstrap/gamma/evaluator/gamma_evaluator.beta` |
 | Delta compiler | `bootstrap/delta/compiler/delta_compiler.gamma` (selected staged implementation) |
-| Epsilon evaluator | `bootstrap/epsilon/compiler/epsilon_compiler.delta` |
+| Epsilon evaluator | `bootstrap/epsilon/compiler/epsilon_compiler.delta.sources`; entrance `epsilon_compiler.delta` |
 | Omega `D` | `bootstrap/omega/omega_compiler.epsilon.sources` and `bootstrap/omega/compiler/*.epsilon` |
 | Omega `C` | `source/omega/build.omg`, `source/omega/main.omg` |
 

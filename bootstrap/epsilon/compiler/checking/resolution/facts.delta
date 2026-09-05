@@ -1,0 +1,280 @@
+
+(def epsilon_reverse_typed_expressions ((input EpsilonTypedExpressionList)
+  (output EpsilonTypedExpressionList)) EpsilonTypedExpressionList
+  (match input
+    (NoEpsilonTypedExpressions output)
+    ((MoreEpsilonTypedExpressions item rest)
+      (epsilon_reverse_typed_expressions rest
+        (MoreEpsilonTypedExpressions item output)))))
+
+(def epsilon_find_expression_result ((target EpsilonExpression)
+  (expressions EpsilonTypedExpressionList)) EpsilonExpressionResultLookup
+  (match expressions
+    (NoEpsilonTypedExpressions NoEpsilonExpressionResult)
+    ((MoreEpsilonTypedExpressions item rest)
+      (match item
+        ((EpsilonTypedExpressionSyntax expressionValue resultValue)
+          (if (epsilon_expressions_same_identity target expressionValue)
+            (OneEpsilonExpressionResult resultValue)
+            (epsilon_find_expression_result target rest)))))))
+
+(def epsilon_binder_parameter_type ((source Bytes) (target EpsilonName)
+  (names EpsilonNameList) (parameters EpsilonParameterList))
+  EpsilonLocalBindingTypeLookup
+  (match names
+    (NoEpsilonNames NoEpsilonLocalBindingType)
+    ((MoreEpsilonNames name restNames)
+      (match parameters
+        (NoEpsilonParameters NoEpsilonLocalBindingType)
+        ((MoreEpsilonParameters parameterValue restParameters)
+          (if (epsilon_names_equal source target name)
+            (match parameterValue
+              ((EpsilonParameterSyntax start end parameterName typeValue)
+                (OneEpsilonLocalBindingType typeValue)))
+            (epsilon_binder_parameter_type source target restNames
+              restParameters)))))))
+
+(def epsilon_transition_binder_type ((source Bytes) (patternValue EpsilonPattern)
+  (target EpsilonName) (control EpsilonControlReferenceLedger))
+  EpsilonLocalBindingTypeLookup
+  (match (epsilon_control_find_complete_transition_pattern patternValue control)
+    (NoEpsilonTransitionPatternKind NoEpsilonLocalBindingType)
+    ((OneEpsilonTransitionPatternKind kind)
+      (match kind
+        ((EpsilonScalarPatternSelector value) NoEpsilonLocalBindingType)
+        (EpsilonTransitionWildcard NoEpsilonLocalBindingType)
+        ((EpsilonSumCasePattern ownerValue caseValue)
+          (match patternValue
+            ((EpsilonIntegerPattern start end literal)
+              NoEpsilonLocalBindingType)
+            ((EpsilonTruePattern start end) NoEpsilonLocalBindingType)
+            ((EpsilonFalsePattern start end) NoEpsilonLocalBindingType)
+            ((EpsilonWildcardPattern start end) NoEpsilonLocalBindingType)
+            ((EpsilonCasePattern start end owner name binder)
+              (match binder
+                (NoEpsilonBinder NoEpsilonLocalBindingType)
+                ((SomeEpsilonBinder binderStart binderEnd names)
+                  (epsilon_binder_parameter_type source target names
+                    (epsilon_resolved_sum_case_parameters caseValue)))))))))))
+
+(def epsilon_local_binding_type ((source Bytes)
+  (bindingValue EpsilonLocalBinding) (control EpsilonControlReferenceLedger))
+  EpsilonLocalBindingTypeLookup
+  (match bindingValue
+    ((EpsilonReceiverLocal name typeValue)
+      (OneEpsilonLocalBindingType typeValue))
+    ((EpsilonMachineParameterLocal parameterValue)
+      (match parameterValue
+        ((EpsilonParameterSyntax start end name typeValue)
+          (OneEpsilonLocalBindingType typeValue))))
+    ((EpsilonStateParameterLocal parameterValue)
+      (match parameterValue
+        ((EpsilonParameterSyntax start end name typeValue)
+          (OneEpsilonLocalBindingType typeValue))))
+    ((EpsilonLetLocal name typeValue statementValue)
+      (OneEpsilonLocalBindingType typeValue))
+    ((EpsilonTransitionBinderLocal patternValue name)
+      (epsilon_transition_binder_type source patternValue name control))))
+
+(def epsilon_local_scan_binding_type ((source Bytes)
+  (bindingValue EpsilonLocalBinding) (scan EpsilonLocalResolutionScan))
+  EpsilonLocalBindingTypeLookup
+  (match scan
+    ((EpsilonLocalResolutionScanSyntax catalog references fields callables
+      control types candidate)
+      (epsilon_local_binding_type source bindingValue control))))
+
+; `u8` names storage, not an arithmetic value type. Reading one storage slot
+; yields a zero-extended `i32`; every other complete value keeps its type.
+(def epsilon_storage_read_type ((expressionValue EpsilonExpression)
+  (typeValue EpsilonType)) EpsilonType
+  (match typeValue
+    ((EpsilonU8Type start end)
+      (EpsilonI32Type (epsilon_expression_start expressionValue)
+        (epsilon_expression_end expressionValue)))
+    ((EpsilonI32Type start end) typeValue)
+    ((EpsilonNeverType start end) typeValue)
+    ((EpsilonNamedType start end name) typeValue)
+    ((EpsilonArrayType start end element lengthValue) typeValue)
+    ((EpsilonViewType start end element) typeValue)))
+
+(def epsilon_type_is_i32 ((typeValue EpsilonType)) Int
+  (match typeValue
+    ((EpsilonI32Type start end) 1)
+    ((EpsilonU8Type start end) 0)
+    ((EpsilonNeverType start end) 0)
+    ((EpsilonNamedType start end name) 0)
+    ((EpsilonArrayType start end element lengthValue) 0)
+    ((EpsilonViewType start end element) 0)))
+
+(def epsilon_local_scan_add_result ((expressionValue EpsilonExpression)
+  (resultValue EpsilonExpressionResult) (scan EpsilonLocalResolutionScan))
+  EpsilonLocalResolutionScan
+  (match scan
+    ((EpsilonLocalResolutionScanSyntax catalog references fields callables stateApplications types
+      candidate)
+      (EpsilonLocalResolutionScanSyntax catalog references fields callables
+        stateApplications
+        (MoreEpsilonTypedExpressions
+          (EpsilonTypedExpressionSyntax expressionValue resultValue) types)
+        candidate))))
+
+(def epsilon_local_scan_add_value ((expressionValue EpsilonExpression)
+  (typeValue EpsilonType) (placeType EpsilonOptionalPlaceType)
+  (scan EpsilonLocalResolutionScan)) EpsilonLocalResolutionScan
+  (epsilon_local_scan_add_result expressionValue
+    (EpsilonValueExpressionResult typeValue placeType) scan))
+
+(def epsilon_local_scan_add_reference ((expressionValue EpsilonExpression)
+  (bindingValue EpsilonLocalBinding) (scan EpsilonLocalResolutionScan))
+  EpsilonLocalResolutionScan
+  (match scan
+    ((EpsilonLocalResolutionScanSyntax catalog references fields callables stateApplications types
+      candidate)
+      (EpsilonLocalResolutionScanSyntax catalog
+        (MoreEpsilonResolvedLocalReferences
+          (EpsilonResolvedLocalReferenceSyntax expressionValue bindingValue)
+          references)
+        fields callables stateApplications types candidate))))
+
+(def epsilon_local_scan_add_field_reference ((expressionValue EpsilonExpression)
+  (owner EpsilonDeclaration) (member EpsilonDataMember)
+  (scan EpsilonLocalResolutionScan)) EpsilonLocalResolutionScan
+  (match scan
+    ((EpsilonLocalResolutionScanSyntax catalog references fields callables stateApplications types
+      candidate)
+      (EpsilonLocalResolutionScanSyntax catalog references
+        (MoreEpsilonResolvedFieldReferences
+          (EpsilonResolvedFieldReferenceSyntax expressionValue owner member)
+          fields)
+        callables stateApplications types candidate))))
+
+(def epsilon_local_scan_add_callable_reference
+  ((expressionValue EpsilonExpression)
+   (callable EpsilonResolvedCallable)
+   (scan EpsilonLocalResolutionScan)) EpsilonLocalResolutionScan
+  (match scan
+    ((EpsilonLocalResolutionScanSyntax catalog references fields callables stateApplications types
+      candidate)
+      (EpsilonLocalResolutionScanSyntax catalog references fields
+        (MoreEpsilonResolvedCallableReferences
+          (EpsilonResolvedCallableReferenceSyntax expressionValue callable)
+          callables)
+        stateApplications types candidate))))
+
+(def epsilon_local_scan_add_state_application
+  ((expressionValue EpsilonExpression) (machineValue EpsilonDeclaration)
+   (stateValue EpsilonState) (progress EpsilonStateApplicationProgress)
+   (scan EpsilonLocalResolutionScan)) EpsilonLocalResolutionScan
+  (match scan
+    ((EpsilonLocalResolutionScanSyntax catalog references fields callables
+      stateApplications types candidate)
+      (match stateApplications
+        ((EpsilonControlReferenceLedgerSyntax states subjects patterns coverages)
+          (EpsilonLocalResolutionScanSyntax catalog references fields callables
+            (EpsilonControlReferenceLedgerSyntax
+              (MoreEpsilonStateApplicationReferences
+                (EpsilonStateApplicationReferenceSyntax expressionValue
+                  machineValue stateValue progress)
+                states)
+              subjects patterns coverages)
+            types candidate))))))
+
+(def epsilon_local_scan_add_transition_subject ((terminalValue EpsilonTerminal)
+  (kind EpsilonTransitionSubjectKind) (scan EpsilonLocalResolutionScan))
+  EpsilonLocalResolutionScan
+  (match scan
+    ((EpsilonLocalResolutionScanSyntax catalog references fields callables
+      control types candidate)
+      (match control
+        ((EpsilonControlReferenceLedgerSyntax states subjects patterns coverages)
+          (EpsilonLocalResolutionScanSyntax catalog references fields callables
+            (EpsilonControlReferenceLedgerSyntax states
+              (MoreEpsilonTransitionSubjectReferences
+                (EpsilonTransitionSubjectReferenceSyntax terminalValue kind)
+                subjects)
+              patterns coverages)
+            types candidate))))))
+
+(def epsilon_local_scan_add_transition_pattern_reference
+  ((reference EpsilonTransitionPatternReference)
+  (scan EpsilonLocalResolutionScan)) EpsilonLocalResolutionScan
+  (match scan
+    ((EpsilonLocalResolutionScanSyntax catalog references fields callables
+      control types candidate)
+      (match control
+        ((EpsilonControlReferenceLedgerSyntax states subjects patterns coverages)
+          (EpsilonLocalResolutionScanSyntax catalog references fields callables
+            (EpsilonControlReferenceLedgerSyntax states subjects
+              (MoreEpsilonTransitionPatternReferences
+                reference patterns)
+              coverages)
+            types candidate))))))
+
+(def epsilon_local_scan_add_transition_pattern_name
+  ((terminalValue EpsilonTerminal) (patternValue EpsilonPattern)
+   (kind EpsilonTransitionPatternKind) (scan EpsilonLocalResolutionScan))
+  EpsilonLocalResolutionScan
+  (epsilon_local_scan_add_transition_pattern_reference
+    (EpsilonTransitionPatternNameResolved terminalValue patternValue kind)
+    scan))
+
+(def epsilon_local_scan_add_transition_pattern_admission
+  ((terminalValue EpsilonTerminal) (patternValue EpsilonPattern)
+   (kind EpsilonTransitionPatternKind) (scan EpsilonLocalResolutionScan))
+  EpsilonLocalResolutionScan
+  (epsilon_local_scan_add_transition_pattern_reference
+    (EpsilonTransitionPatternSubjectAdmitted terminalValue patternValue kind)
+    scan))
+
+(def epsilon_local_scan_add_transition_pattern_identity
+  ((terminalValue EpsilonTerminal) (patternValue EpsilonPattern)
+   (identity EpsilonTransitionPatternIdentity)
+   (scan EpsilonLocalResolutionScan)) EpsilonLocalResolutionScan
+  (epsilon_local_scan_add_transition_pattern_reference
+    (EpsilonTransitionPatternIdentityOwned terminalValue patternValue identity)
+    scan))
+
+(def epsilon_local_scan_add_transition_pattern_complete
+  ((terminalValue EpsilonTerminal) (patternValue EpsilonPattern)
+   (kind EpsilonTransitionPatternKind) (scan EpsilonLocalResolutionScan))
+  EpsilonLocalResolutionScan
+  (epsilon_local_scan_add_transition_pattern_reference
+    (EpsilonTransitionPatternComplete terminalValue patternValue kind)
+    scan))
+
+(def epsilon_local_scan_transition_identity_is_owned
+  ((terminalValue EpsilonTerminal)
+   (identity EpsilonTransitionPatternIdentity)
+   (scan EpsilonLocalResolutionScan)) Int
+  (match scan
+    ((EpsilonLocalResolutionScanSyntax catalog references fields callables
+      control types candidate)
+      (match control
+        ((EpsilonControlReferenceLedgerSyntax states subjects patterns coverages)
+          (epsilon_transition_pattern_identity_is_owned terminalValue identity
+            patterns))))))
+
+(def epsilon_local_scan_add_transition_coverage ((terminalValue EpsilonTerminal)
+  (ownerValue EpsilonDeclaration) (state EpsilonTransitionCoverageState)
+  (scan EpsilonLocalResolutionScan)) EpsilonLocalResolutionScan
+  (match scan
+    ((EpsilonLocalResolutionScanSyntax catalog references fields callables
+      control types candidate)
+      (match control
+        ((EpsilonControlReferenceLedgerSyntax states subjects patterns coverages)
+          (EpsilonLocalResolutionScanSyntax catalog references fields callables
+            (EpsilonControlReferenceLedgerSyntax states subjects patterns
+              (MoreEpsilonTransitionCoverageReferences
+                (EpsilonTransitionCoverageReferenceSyntax terminalValue
+                  ownerValue state)
+                coverages))
+            types candidate))))))
+
+(def epsilon_local_scan_add_candidate ((reasonValue EpsilonRejectReason)
+  (offset Int) (scan EpsilonLocalResolutionScan)) EpsilonLocalResolutionScan
+  (match scan
+    ((EpsilonLocalResolutionScanSyntax catalog references fields callables stateApplications types
+      candidate)
+      (EpsilonLocalResolutionScanSyntax catalog references fields callables stateApplications types
+        (epsilon_final_candidate_add reasonValue offset candidate)))))

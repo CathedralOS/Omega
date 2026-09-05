@@ -1,0 +1,164 @@
+
+(def epsilon_expression_use_qualified_failure_anchor
+  ((expressionValue EpsilonExpression) (useValue EpsilonExpressionUse)) Int
+  (match useValue
+    (EpsilonOrdinaryExpressionUse (epsilon_expression_start expressionValue))
+    (EpsilonCallHeadExpressionUse (epsilon_expression_start expressionValue))
+    ((EpsilonPostfixStatementExpressionUse statementStart) statementStart)
+    ((EpsilonTransitionContinuationExpressionUse machineValue continuationStart)
+      continuationStart)))
+
+(def epsilon_local_scan_constructor_value_application ((source Bytes)
+  (expressionValue EpsilonExpression) (ownerName EpsilonName)
+  (arguments EpsilonOptionalArguments) (caseValue EpsilonDataMember)
+  (scan EpsilonLocalResolutionScan)) EpsilonLocalResolutionScan
+  (let parameters EpsilonParameterList (epsilon_constructor_parameters caseValue)
+    (if (eq (epsilon_optional_arguments_count arguments)
+      (epsilon_parameter_list_count parameters))
+      (match scan
+        ((EpsilonLocalResolutionScanSyntax catalog references fields
+          callables stateApplications types candidate)
+          (match (epsilon_optional_argument_types_join source arguments
+            parameters types 1)
+            (EpsilonArgumentsCompatible
+              (epsilon_local_scan_add_value expressionValue
+                (EpsilonNamedType (epsilon_expression_start expressionValue)
+                  (epsilon_expression_end expressionValue) ownerName)
+                NoEpsilonPlaceType scan))
+            (EpsilonArgumentsIncomplete scan)
+            (EpsilonArgumentsTypeMismatch
+              (epsilon_local_scan_add_candidate TypeMismatch
+                (epsilon_expression_start expressionValue) scan)))))
+      (epsilon_local_scan_add_candidate ArityMismatch
+        (epsilon_expression_start expressionValue) scan))))
+
+(def epsilon_local_scan_constructor_application ((source Bytes)
+  (expressionValue EpsilonExpression) (ownerName EpsilonName)
+  (arguments EpsilonOptionalArguments) (ownerDeclaration EpsilonDeclaration)
+  (caseValue EpsilonDataMember) (useValue EpsilonExpressionUse)
+  (scan EpsilonLocalResolutionScan)) EpsilonLocalResolutionScan
+  (let identityScan EpsilonLocalResolutionScan
+    (epsilon_local_scan_add_callable_reference expressionValue
+      (EpsilonResolvedConstructorCallable ownerDeclaration caseValue) scan)
+    (match useValue
+      (EpsilonOrdinaryExpressionUse
+        (epsilon_local_scan_constructor_value_application source expressionValue
+          ownerName arguments caseValue identityScan))
+      (EpsilonCallHeadExpressionUse
+        (epsilon_local_scan_constructor_value_application source expressionValue
+          ownerName arguments caseValue identityScan))
+      ((EpsilonPostfixStatementExpressionUse statementStart)
+        (epsilon_local_scan_add_candidate TypeMismatch
+          statementStart identityScan))
+      ((EpsilonTransitionContinuationExpressionUse machineValue continuationStart)
+        (epsilon_local_scan_add_candidate InvalidControlTarget
+          continuationStart identityScan)))))
+
+(def epsilon_local_scan_wrong_qualified_callable_kind
+  ((expressionValue EpsilonExpression) (useValue EpsilonExpressionUse)
+   (scan EpsilonLocalResolutionScan)) EpsilonLocalResolutionScan
+  (match useValue
+    (EpsilonOrdinaryExpressionUse
+      (epsilon_local_scan_add_candidate TypeMismatch
+        (epsilon_expression_start expressionValue) scan))
+    (EpsilonCallHeadExpressionUse
+      (epsilon_local_scan_add_candidate TypeMismatch
+        (epsilon_expression_start expressionValue) scan))
+    ((EpsilonPostfixStatementExpressionUse statementStart)
+      (epsilon_local_scan_add_candidate TypeMismatch
+        statementStart scan))
+    ((EpsilonTransitionContinuationExpressionUse machineValue continuationStart)
+      (epsilon_local_scan_add_candidate InvalidControlTarget continuationStart
+        scan))))
+
+(def epsilon_local_scan_qualified_callable_fact ((source Bytes)
+  (expressionValue EpsilonExpression) (ownerName EpsilonName) (memberName EpsilonName)
+  (arguments EpsilonOptionalArguments) (useValue EpsilonExpressionUse)
+  (scan EpsilonLocalResolutionScan)) EpsilonLocalResolutionScan
+  (match scan
+    ((EpsilonLocalResolutionScanSyntax catalog references fields callables stateApplications types
+      candidate)
+      (match catalog
+        ((EpsilonResolutionCatalogSyntax rows)
+          (match (epsilon_catalog_find_owner source ownerName rows)
+            (NoEpsilonCatalogOwner
+              (epsilon_local_scan_add_candidate UnknownName
+                (epsilon_name_start ownerName) scan))
+            ((OneEpsilonCatalogBoundaryOwner ownerDeclaration)
+              (match (epsilon_catalog_find_boundary_member source ownerName
+                memberName rows)
+                (NoEpsilonCatalogBoundaryMember
+                  (epsilon_local_scan_add_candidate UnknownName
+                    (epsilon_name_start memberName) scan))
+                ((OneEpsilonCatalogBoundaryMember memberValue)
+                  (epsilon_local_scan_wrong_qualified_callable_kind
+                    expressionValue useValue scan))))
+            ((OneEpsilonCatalogDataOwner ownerDeclaration shape)
+              (match (epsilon_catalog_find_data_member source ownerName
+                memberName rows)
+                ((OneEpsilonCatalogCase caseOwner caseValue)
+                  (epsilon_local_scan_constructor_application source
+                    expressionValue ownerName arguments caseOwner caseValue
+                    useValue scan))
+                ((OneEpsilonCatalogField fieldOwner fieldValue)
+                  (epsilon_local_scan_wrong_qualified_callable_kind
+                    expressionValue useValue scan))
+                (NoEpsilonCatalogDataMember
+                  (epsilon_local_scan_add_candidate UnknownName
+                    (epsilon_name_start memberName) scan))))))))))
+
+; Parentheses do not create a distinct callable identity. The outer
+; application remains the custody/result key while this allocation-free view
+; exposes only the grammar-selected core head.
+(def epsilon_call_head_core ((expressionValue EpsilonExpression)) EpsilonExpression
+  (match expressionValue
+    ((EpsilonGroupedExpression start end inner) (epsilon_call_head_core inner))
+    ((EpsilonIntegerExpression start end literal) expressionValue)
+    ((EpsilonCharacterExpression start end literal) expressionValue)
+    ((EpsilonStringExpression start end literal) expressionValue)
+    ((EpsilonTrueExpression start end) expressionValue)
+    ((EpsilonFalseExpression start end) expressionValue)
+    ((EpsilonNameExpression start end name) expressionValue)
+    ((EpsilonQualifiedExpression start end owner name arguments) expressionValue)
+    ((EpsilonFieldExpression start end base field) expressionValue)
+    ((EpsilonCallExpression start end base arguments) expressionValue)
+    ((EpsilonIndexExpression start end base indexValue) expressionValue)
+    ((EpsilonSliceExpression start end base low high) expressionValue)
+    ((EpsilonNegateExpression start end operand) expressionValue)
+    ((EpsilonBinaryExpression start end operator operatorStart operatorEnd
+      left right) expressionValue)))
+
+; If a call-head selector resolves to an authored field rather than a receiver
+; machine, materialize the ordinary field result on the exact selector and
+; carry it through authored parentheses. The general value-call rule then owns
+; the outer TypeMismatch. This preserves field custody and never chooses a
+; callable merely because a field shares its spelling.
+(def epsilon_local_scan_propagate_grouped_call_head_result
+  ((callBase EpsilonExpression) (scan EpsilonLocalResolutionScan))
+  EpsilonLocalResolutionScan
+  (match callBase
+    ((EpsilonGroupedExpression start end inner)
+      (match scan
+        ((EpsilonLocalResolutionScanSyntax catalog references fields callables stateApplications
+          types candidate)
+          (match (epsilon_find_expression_result callBase types)
+            ((OneEpsilonExpressionResult resultValue) scan)
+            (NoEpsilonExpressionResult
+              (let nextScan EpsilonLocalResolutionScan
+                (epsilon_local_scan_propagate_grouped_call_head_result inner scan)
+                (epsilon_local_scan_propagate_result callBase inner
+                  nextScan)))))))
+    ((EpsilonIntegerExpression start end literal) scan)
+    ((EpsilonCharacterExpression start end literal) scan)
+    ((EpsilonStringExpression start end literal) scan)
+    ((EpsilonTrueExpression start end) scan)
+    ((EpsilonFalseExpression start end) scan)
+    ((EpsilonNameExpression start end name) scan)
+    ((EpsilonQualifiedExpression start end owner name argumentsValue) scan)
+    ((EpsilonFieldExpression start end base member) scan)
+    ((EpsilonCallExpression start end base callArguments) scan)
+    ((EpsilonIndexExpression start end base indexValue) scan)
+    ((EpsilonSliceExpression start end base low high) scan)
+    ((EpsilonNegateExpression start end operand) scan)
+    ((EpsilonBinaryExpression start end operator operatorStart operatorEnd
+      left right) scan)))

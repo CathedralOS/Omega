@@ -9,8 +9,12 @@ packages, heap, proof language, dependent types, or implicit host services.
 
 The normative contract is
 [`bootstrap/epsilon/LANGUAGE.md`](../../../../bootstrap/epsilon/LANGUAGE.md). The
-Delta-written evaluator source at `bootstrap/epsilon/compiler/epsilon_compiler.delta`
-is incomplete and has no final composed artifact. Epsilon's sole language-chain customer
+Delta-written evaluator closure selected by
+`bootstrap/epsilon/compiler/epsilon_compiler.delta.sources` is incomplete and
+has no final composed artifact. Its small `epsilon_compiler.delta` entrance
+leads into concept-owned checking and execution areas; see the
+[source guide](../../../../bootstrap/epsilon/compiler/README.md).
+Epsilon's sole language-chain customer
 is the first full Omega compiler closure `D` selected by
 `bootstrap/omega/omega_compiler.epsilon.sources`.
 

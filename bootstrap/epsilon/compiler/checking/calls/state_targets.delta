@@ -1,0 +1,197 @@
+
+; Explicit transition applications join the current machine's state namespace
+; with the global unqualified-machine namespace before either identity is
+; admitted. Arity and expected result never disambiguate the collision.
+(def epsilon_local_scan_transition_unqualified_application ((source Bytes)
+  (expressionValue EpsilonExpression) (callBase EpsilonExpression)
+  (arguments EpsilonExpressionList) (active EpsilonLocalBindingList)
+  (pending EpsilonLocalBindingList) (machineValue EpsilonDeclaration)
+  (continuationStart Int) (scan EpsilonLocalResolutionScan))
+  EpsilonLocalResolutionScan
+  (match (epsilon_call_head_core callBase)
+    ((EpsilonNameExpression start end name)
+      (match scan
+        ((EpsilonLocalResolutionScanSyntax catalog references fields callables
+          stateApplications types candidate)
+          (match catalog
+            ((EpsilonResolutionCatalogSyntax rows)
+              (let stateLookup EpsilonCatalogStateLookup
+                (epsilon_catalog_find_state source machineValue name)
+                (let machineLookup EpsilonCatalogMachineLookup
+                  (epsilon_catalog_find_unqualified_machine source name rows)
+                  (match stateLookup
+                    ((OneEpsilonCatalogState stateValue)
+                      (match machineLookup
+                        ((OneEpsilonCatalogMachine targetMachine)
+                          (epsilon_local_scan_add_candidate InvalidControlTarget
+                            continuationStart scan))
+                        (NoEpsilonCatalogMachine
+                          (epsilon_local_scan_admitted_state_application source
+                            expressionValue arguments machineValue stateValue
+                            scan))))
+                    (NoEpsilonCatalogState
+                      (match machineLookup
+                        ((OneEpsilonCatalogMachine targetMachine)
+                          (epsilon_local_scan_admitted_machine_application source
+                            expressionValue arguments targetMachine
+                            (epsilon_local_scan_add_callable_reference
+                              expressionValue
+                              (EpsilonResolvedUnqualifiedMachineCallable
+                                targetMachine)
+                              scan)))
+                        (NoEpsilonCatalogMachine
+                          (epsilon_local_scan_propagate_grouped_call_head_result
+                            callBase
+                            (epsilon_resolve_local_value_name source
+                              (EpsilonNameExpression start end name) name active
+                              pending scan)))))))))))))
+    ((EpsilonIntegerExpression start end literal) scan)
+    ((EpsilonCharacterExpression start end literal) scan)
+    ((EpsilonStringExpression start end literal) scan)
+    ((EpsilonTrueExpression start end) scan)
+    ((EpsilonFalseExpression start end) scan)
+    ((EpsilonQualifiedExpression start end owner name argumentsValue) scan)
+    ((EpsilonGroupedExpression start end inner) scan)
+    ((EpsilonFieldExpression start end base field) scan)
+    ((EpsilonCallExpression start end base innerArguments) scan)
+    ((EpsilonIndexExpression start end base indexValue) scan)
+    ((EpsilonSliceExpression start end base low high) scan)
+    ((EpsilonNegateExpression start end operand) scan)
+    ((EpsilonBinaryExpression start end operator operatorStart operatorEnd
+      left right) scan)))
+
+; D50 settles a state-only bare spelling as InvalidControlTarget independent of
+; state arity. A
+; state/machine collision is already invalid, a machine-only spelling is a
+; known but unapplied control target, and genuine namespace absence may fall
+; back to a local value judgment without inventing a target. A bare state never
+; enters stateApplications because no application was authored.
+(def epsilon_local_scan_transition_bare_name ((source Bytes)
+  (expressionValue EpsilonExpression) (name EpsilonName)
+  (active EpsilonLocalBindingList) (pending EpsilonLocalBindingList)
+  (machineValue EpsilonDeclaration) (continuationStart Int)
+  (scan EpsilonLocalResolutionScan)) EpsilonLocalResolutionScan
+  (match scan
+    ((EpsilonLocalResolutionScanSyntax catalog references fields callables
+      stateApplications types candidate)
+      (match catalog
+        ((EpsilonResolutionCatalogSyntax rows)
+          (let stateLookup EpsilonCatalogStateLookup (epsilon_catalog_find_state source machineValue name)
+            (let machineLookup EpsilonCatalogMachineLookup
+              (epsilon_catalog_find_unqualified_machine source name rows)
+              (match stateLookup
+                ((OneEpsilonCatalogState stateValue)
+                  (match machineLookup
+                    ((OneEpsilonCatalogMachine targetMachine)
+                      (epsilon_local_scan_add_candidate InvalidControlTarget
+                        continuationStart scan))
+                    (NoEpsilonCatalogMachine
+                      (epsilon_local_scan_add_candidate InvalidControlTarget
+                        continuationStart scan))))
+                (NoEpsilonCatalogState
+                  (match machineLookup
+                    ((OneEpsilonCatalogMachine targetMachine)
+                      (epsilon_local_scan_add_candidate InvalidControlTarget
+                        continuationStart
+                        (epsilon_local_scan_add_callable_reference expressionValue
+                          (EpsilonResolvedUnqualifiedMachineCallable targetMachine)
+                          scan)))
+                    (NoEpsilonCatalogMachine
+                      (epsilon_resolve_local_value_name source expressionValue
+                        name active pending scan))))))))))))
+
+(def epsilon_local_scan_transition_result_candidate
+  ((expressionValue EpsilonExpression) (continuationStart Int)
+   (scan EpsilonLocalResolutionScan)) EpsilonLocalResolutionScan
+  (match scan
+    ((EpsilonLocalResolutionScanSyntax catalog references fields callables
+      stateApplications types candidate)
+      (match (epsilon_find_expression_result expressionValue types)
+        ((OneEpsilonExpressionResult resultValue)
+          (match resultValue
+            ((EpsilonValueExpressionResult typeValue placeType)
+              (epsilon_local_scan_add_candidate InvalidControlTarget
+                continuationStart scan))
+            (EpsilonResultlessExpressionResult
+              (epsilon_local_scan_add_candidate InvalidControlTarget
+                continuationStart scan))
+            (EpsilonNeverExpressionResult
+              (epsilon_local_scan_add_candidate InvalidTerminal
+                (epsilon_expression_start
+                  (epsilon_call_head_core expressionValue))
+                scan))))
+        (NoEpsilonExpressionResult
+          (match expressionValue
+            ((EpsilonCallExpression start end base arguments)
+              (match (epsilon_find_expression_result base types)
+                (NoEpsilonExpressionResult scan)
+                ((OneEpsilonExpressionResult baseResult)
+                  (match baseResult
+                    ((EpsilonValueExpressionResult typeValue placeType)
+                      (epsilon_local_scan_add_candidate InvalidControlTarget
+                        continuationStart scan))
+                    (EpsilonResultlessExpressionResult
+                      (epsilon_local_scan_add_candidate InvalidControlTarget
+                        continuationStart scan))
+                    (EpsilonNeverExpressionResult
+                      (epsilon_local_scan_add_candidate InvalidTerminal
+                        (epsilon_expression_start (epsilon_call_head_core base))
+                        scan))))))
+            ((EpsilonIntegerExpression start end literal) scan)
+            ((EpsilonCharacterExpression start end literal) scan)
+            ((EpsilonStringExpression start end literal) scan)
+            ((EpsilonTrueExpression start end) scan)
+            ((EpsilonFalseExpression start end) scan)
+            ((EpsilonNameExpression start end name) scan)
+            ((EpsilonQualifiedExpression start end owner name argumentsValue)
+              scan)
+            ((EpsilonGroupedExpression start end inner) scan)
+            ((EpsilonFieldExpression start end base field) scan)
+            ((EpsilonIndexExpression start end base indexValue) scan)
+            ((EpsilonSliceExpression start end base low high) scan)
+            ((EpsilonNegateExpression start end operand) scan)
+            ((EpsilonBinaryExpression start end operator operatorStart operatorEnd
+              left right) scan)))))))
+
+; Identity/category admission is a postpass over the exact continuation. A
+; resolved state or applied machine remains admitted even when later premises
+; are incomplete; constructors and completed non-control values are rejected
+; before any dependent arity/type guess.
+(def epsilon_local_scan_transition_admission
+  ((expressionValue EpsilonExpression) (continuationStart Int)
+   (scan EpsilonLocalResolutionScan)) EpsilonLocalResolutionScan
+  (match scan
+    ((EpsilonLocalResolutionScanSyntax catalog references fields callables
+      stateApplications types candidate)
+      (match (epsilon_control_find_state_application
+        (epsilon_call_head_core expressionValue) stateApplications)
+        ((OneEpsilonStateApplicationReference machineValue stateValue progress)
+          scan)
+        (NoEpsilonStateApplicationReference
+          (match (epsilon_find_resolved_callable_reference_normalized
+            expressionValue callables)
+            ((OneEpsilonResolvedCallableReference callable)
+              (match callable
+                ((EpsilonResolvedConstructorCallable ownerDeclaration caseValue)
+                  (epsilon_local_scan_add_candidate InvalidControlTarget
+                    continuationStart scan))
+                ((EpsilonResolvedDataMachineCallable ownerDeclaration
+                  machineDeclaration)
+                  (if (epsilon_expression_has_authored_application expressionValue)
+                    scan
+                    (epsilon_local_scan_add_candidate InvalidControlTarget
+                      continuationStart scan)))
+                ((EpsilonResolvedUnqualifiedMachineCallable machineDeclaration)
+                  (if (epsilon_expression_has_authored_application expressionValue)
+                    scan
+                    (epsilon_local_scan_add_candidate InvalidControlTarget
+                      continuationStart scan)))
+                ((EpsilonResolvedBoundaryMachineCallable ownerDeclaration
+                  memberValue)
+                  (if (epsilon_expression_has_authored_application expressionValue)
+                    scan
+                    (epsilon_local_scan_add_candidate InvalidControlTarget
+                      continuationStart scan)))))
+            (NoEpsilonResolvedCallableReference
+              (epsilon_local_scan_transition_result_candidate expressionValue
+                continuationStart scan))))))))

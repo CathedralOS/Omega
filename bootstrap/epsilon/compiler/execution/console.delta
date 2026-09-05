@@ -1,0 +1,61 @@
+
+(def epsilon_evaluate_one_scalar_argument
+  ((context EpsilonEvaluatorInvocation) (arguments EpsilonExpressionList)
+  (locals EpsilonEvaluatorLocalValueList)
+  (fields EpsilonEvaluatorFieldValueList)) EpsilonEvaluatorScalarOutcome
+  (match arguments
+    (NoEpsilonExpressions EpsilonEvaluatorScalarUnsupported)
+    ((MoreEpsilonExpressions item rest)
+      (match rest
+        (NoEpsilonExpressions
+          (match context
+            ((EpsilonEvaluatorInvocationContext source machineValue references
+              fieldReferences callables control)
+              (epsilon_evaluate_scalar_expression item references fieldReferences
+                locals fields))))
+        ((MoreEpsilonExpressions nextItem nextRest)
+          EpsilonEvaluatorScalarUnsupported)))))
+
+(def epsilon_evaluate_console_scalar_effect ((context EpsilonEvaluatorInvocation)
+  (kind Int) (arguments EpsilonExpressionList)
+  (locals EpsilonEvaluatorLocalValueList)
+  (fields EpsilonEvaluatorFieldValueList) (output Bytes))
+  EpsilonEvaluatorStatementEffect
+  (match (epsilon_evaluate_one_scalar_argument context arguments locals fields)
+    (EpsilonEvaluatorScalarUnsupported EpsilonEvaluatorStatementUnsupported)
+    ((EpsilonEvaluatorScalarTrapped trapKind)
+      (EpsilonEvaluatorTrap trapKind output))
+    ((EpsilonEvaluatorScalarValue value)
+      (if (eq kind 1)
+        (EpsilonEvaluatorExit value output)
+        (if (eq kind 2)
+          (if (if (lt value 0) 1 (lt 255 value))
+            (EpsilonEvaluatorTrap 5 output)
+            (EpsilonEvaluatorContinue
+              (bytes_concat output (bytes_single value))))
+          EpsilonEvaluatorStatementUnsupported)))))
+
+(def epsilon_evaluate_console_call ((context EpsilonEvaluatorInvocation)
+  (expressionValue EpsilonExpression) (arguments EpsilonExpressionList)
+  (locals EpsilonEvaluatorLocalValueList)
+  (fields EpsilonEvaluatorFieldValueList) (output Bytes))
+  EpsilonEvaluatorStatementEffect
+  (match context
+    ((EpsilonEvaluatorInvocationContext source machineValue references
+      fieldReferences callables control)
+      (match (epsilon_find_resolved_callable_reference_normalized expressionValue
+        callables)
+        (NoEpsilonResolvedCallableReference EpsilonEvaluatorStatementUnsupported)
+        ((OneEpsilonResolvedCallableReference callable)
+          (match callable
+            ((EpsilonResolvedBoundaryMachineCallable owner memberValue)
+              (epsilon_evaluate_console_scalar_effect context
+                (epsilon_console_member_kind source
+                  (epsilon_boundary_machine_name memberValue))
+                arguments locals fields output))
+            ((EpsilonResolvedConstructorCallable owner caseValue)
+              EpsilonEvaluatorStatementUnsupported)
+            ((EpsilonResolvedDataMachineCallable owner targetMachine)
+              EpsilonEvaluatorStatementUnsupported)
+            ((EpsilonResolvedUnqualifiedMachineCallable targetMachine)
+              EpsilonEvaluatorStatementUnsupported)))))))

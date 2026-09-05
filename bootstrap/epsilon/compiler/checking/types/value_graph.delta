@@ -1,0 +1,226 @@
+
+(def epsilon_reverse_data_shape_rows ((input EpsilonDataShapeRowList)
+  (output EpsilonDataShapeRowList)) EpsilonDataShapeRowList
+  (match input
+    (NoEpsilonDataShapeRows output)
+    ((MoreEpsilonDataShapeRows item rest)
+      (epsilon_reverse_data_shape_rows rest
+        (MoreEpsilonDataShapeRows item output)))))
+
+(def epsilon_collect_data_shape_rows_acc ((declarations EpsilonDeclarationList)
+  (accumulator EpsilonDataShapeRowList)) EpsilonDataShapeRowList
+  (match declarations
+    (NoEpsilonDeclarations
+      (epsilon_reverse_data_shape_rows accumulator NoEpsilonDataShapeRows))
+    ((MoreEpsilonDeclarations item rest)
+      (match item
+        ((EpsilonBoundaryDeclaration start end name machines)
+          (epsilon_collect_data_shape_rows_acc rest accumulator))
+        ((EpsilonDataDeclaration start end name members)
+          (epsilon_collect_data_shape_rows_acc rest
+            (MoreEpsilonDataShapeRows
+              (EpsilonDataShapeRowSyntax start name
+                (epsilon_data_shape_kind members))
+              accumulator)))
+        ((EpsilonMachineDeclaration start end name inputs returnType bodyValue)
+          (epsilon_collect_data_shape_rows_acc rest accumulator))))))
+
+; Only value-owning data edges participate in recursion.  A forbidden view in
+; stored data suppresses its child defects in the placement pass and likewise
+; contributes no by-value graph edge here.  The complete immutable edge list
+; is retained for later layout; cycle classification performs one visited-set
+; graph walk per edge, avoiding path-exponential expansion through diamonds.
+(def epsilon_name_is_data_owner ((source Bytes) (target EpsilonName)
+  (declarations EpsilonDeclarationList)) Int
+  (match declarations
+    (NoEpsilonDeclarations 0)
+    ((MoreEpsilonDeclarations item rest)
+      (match item
+        ((EpsilonBoundaryDeclaration start end name machines)
+          (epsilon_name_is_data_owner source target rest))
+        ((EpsilonDataDeclaration start end name members)
+          (if (epsilon_names_equal source target name)
+            1
+            (epsilon_name_is_data_owner source target rest)))
+        ((EpsilonMachineDeclaration start end name inputs returnType bodyValue)
+          (epsilon_name_is_data_owner source target rest))))))
+
+(def epsilon_collect_type_value_edges ((source Bytes) (ownerStart Int)
+  (owner EpsilonName) (typeValue EpsilonType)
+  (declarations EpsilonDeclarationList) (accumulator EpsilonValueEdgeList))
+  EpsilonValueEdgeList
+  (match typeValue
+    ((EpsilonI32Type start end) accumulator)
+    ((EpsilonU8Type start end) accumulator)
+    ((EpsilonNeverType start end) accumulator)
+    ((EpsilonNamedType start end name)
+      (if (epsilon_name_is_console_type source name)
+        accumulator
+        (if (epsilon_name_is_data_owner source name declarations)
+          (MoreEpsilonValueEdges
+            (EpsilonValueEdgeSyntax ownerStart owner name start) accumulator)
+          accumulator)))
+    ((EpsilonArrayType start end elementType lengthValue)
+      (epsilon_collect_type_value_edges source ownerStart owner elementType
+        declarations accumulator))
+    ((EpsilonViewType start end elementType) accumulator)))
+
+(def epsilon_collect_parameter_value_edges ((source Bytes) (ownerStart Int)
+  (owner EpsilonName) (parameters EpsilonParameterList)
+  (declarations EpsilonDeclarationList) (accumulator EpsilonValueEdgeList))
+  EpsilonValueEdgeList
+  (match parameters
+    (NoEpsilonParameters accumulator)
+    ((MoreEpsilonParameters item rest)
+      (match item
+        ((EpsilonParameterSyntax start end name typeValue)
+          (epsilon_collect_parameter_value_edges source ownerStart owner rest
+            declarations
+            (epsilon_collect_type_value_edges source ownerStart owner typeValue
+              declarations accumulator)))))))
+
+(def epsilon_collect_payload_value_edges ((source Bytes) (ownerStart Int)
+  (owner EpsilonName) (payload EpsilonOptionalPayload)
+  (declarations EpsilonDeclarationList) (accumulator EpsilonValueEdgeList))
+  EpsilonValueEdgeList
+  (match payload
+    (NoEpsilonPayload accumulator)
+    ((SomeEpsilonPayload start end parameters)
+      (epsilon_collect_parameter_value_edges source ownerStart owner parameters
+        declarations accumulator))))
+
+(def epsilon_collect_member_value_edges ((source Bytes) (ownerStart Int)
+  (owner EpsilonName) (members EpsilonDataMemberList)
+  (declarations EpsilonDeclarationList) (accumulator EpsilonValueEdgeList))
+  EpsilonValueEdgeList
+  (match members
+    (NoEpsilonDataMembers accumulator)
+    ((MoreEpsilonDataMembers item rest)
+      (let next EpsilonValueEdgeList
+        (match item
+          ((EpsilonFieldMember start end name typeValue)
+            (if (epsilon_is_main_console_field source owner name)
+              accumulator
+              (epsilon_collect_type_value_edges source ownerStart owner typeValue
+                declarations accumulator)))
+          ((EpsilonCaseMember start end name payload)
+            (epsilon_collect_payload_value_edges source ownerStart owner payload
+              declarations accumulator)))
+        (epsilon_collect_member_value_edges source ownerStart owner rest
+          declarations next)))))
+
+(def epsilon_reverse_value_edges ((input EpsilonValueEdgeList)
+  (output EpsilonValueEdgeList)) EpsilonValueEdgeList
+  (match input
+    (NoEpsilonValueEdges output)
+    ((MoreEpsilonValueEdges item rest)
+      (epsilon_reverse_value_edges rest (MoreEpsilonValueEdges item output)))))
+
+(def epsilon_collect_value_edges_acc ((source Bytes)
+  (declarations EpsilonDeclarationList)
+  (allDeclarations EpsilonDeclarationList)
+  (accumulator EpsilonValueEdgeList)) EpsilonValueEdgeList
+  (match declarations
+    (NoEpsilonDeclarations
+      (epsilon_reverse_value_edges accumulator NoEpsilonValueEdges))
+    ((MoreEpsilonDeclarations item rest)
+      (match item
+        ((EpsilonBoundaryDeclaration start end name machines)
+          (epsilon_collect_value_edges_acc source rest allDeclarations
+            accumulator))
+        ((EpsilonDataDeclaration start end name members)
+          (epsilon_collect_value_edges_acc source rest allDeclarations
+            (epsilon_collect_member_value_edges source start name members
+              allDeclarations accumulator)))
+        ((EpsilonMachineDeclaration start end name inputs returnType bodyValue)
+          (epsilon_collect_value_edges_acc source rest allDeclarations
+            accumulator))))))
+
+(def epsilon_value_graph_scan_edges ((source Bytes) (current EpsilonName)
+  (goal EpsilonName) (search EpsilonValueEdgeList) (allEdges EpsilonValueEdgeList)
+  (visited EpsilonNameList)) EpsilonReachabilityScan
+  (match search
+    (NoEpsilonValueEdges (EpsilonReachabilityScanResult 0 visited))
+    ((MoreEpsilonValueEdges item rest)
+      (match item
+        ((EpsilonValueEdgeSyntax ownerStart edgeSource edgeTarget typeOffset)
+          (if (epsilon_names_equal source current edgeSource)
+            (match (epsilon_value_graph_reaches source edgeTarget goal allEdges
+              visited)
+              ((EpsilonReachabilityScanResult reached nextVisited)
+                (if reached
+                  (EpsilonReachabilityScanResult 1 nextVisited)
+                  (epsilon_value_graph_scan_edges source current goal rest
+                    allEdges nextVisited))))
+            (epsilon_value_graph_scan_edges source current goal rest allEdges
+              visited)))))))
+
+(def epsilon_value_graph_reaches ((source Bytes) (current EpsilonName)
+  (goal EpsilonName) (edges EpsilonValueEdgeList) (visited EpsilonNameList))
+  EpsilonReachabilityScan
+  (if (epsilon_names_equal source current goal)
+    (EpsilonReachabilityScanResult 1 visited)
+    (if (epsilon_census_name_in_list source current visited)
+      (EpsilonReachabilityScanResult 0 visited)
+      (epsilon_value_graph_scan_edges source current goal edges edges
+        (MoreEpsilonNames current visited)))))
+
+(def epsilon_recursive_edge_candidate ((source Bytes) (edge EpsilonValueEdge)
+  (edges EpsilonValueEdgeList)) EpsilonTypeFormationCandidate
+  (match edge
+    ((EpsilonValueEdgeSyntax ownerStart edgeSource edgeTarget typeOffset)
+      (match (epsilon_value_graph_reaches source edgeTarget edgeSource edges
+        NoEpsilonNames)
+        ((EpsilonReachabilityScanResult reached visited)
+          (if reached
+            (EpsilonTypeFormationCandidateAt RecursiveValueType typeOffset)
+            NoEpsilonTypeFormationCandidate))))))
+
+(def epsilon_validate_recursive_edges ((source Bytes)
+  (search EpsilonValueEdgeList) (allEdges EpsilonValueEdgeList))
+  EpsilonTypeFormationCandidate
+  (match search
+    (NoEpsilonValueEdges NoEpsilonTypeFormationCandidate)
+    ((MoreEpsilonValueEdges item rest)
+      (epsilon_type_formation_candidate_min
+        (epsilon_recursive_edge_candidate source item allEdges)
+        (epsilon_validate_recursive_edges source rest allEdges)))))
+
+(def epsilon_form_collected_types ((source Bytes)
+  (collected EpsilonCollectedProgram)) EpsilonTypeFormationOutcome
+  (match collected
+    ((EpsilonCollectedProgramSyntax program owners machines)
+      (match program
+        ((EpsilonSyntaxProgram start end declarations)
+          (let valueEdges EpsilonValueEdgeList
+            (epsilon_collect_value_edges_acc source declarations declarations
+              NoEpsilonValueEdges)
+            (let candidate EpsilonTypeFormationCandidate
+              (epsilon_type_formation_candidate_min
+                (epsilon_validate_data_shapes declarations)
+                (epsilon_type_formation_candidate_min
+                  (epsilon_validate_declaration_formed_types source declarations
+                    owners)
+                  (epsilon_type_formation_candidate_min
+                    (epsilon_validate_recursive_edges source valueEdges
+                      valueEdges)
+                    (epsilon_entry_shape_candidate source declarations))))
+              (match candidate
+                (NoEpsilonTypeFormationCandidate
+                  (EpsilonTypeFormationAccepted
+                    (EpsilonFormedProgramSyntax collected
+                      (epsilon_collect_data_shape_rows_acc declarations
+                        NoEpsilonDataShapeRows)
+                      valueEdges)))
+                ((EpsilonTypeFormationCandidateAt reasonValue errorOffset)
+                  (EpsilonTypeFormationRejected reasonValue errorOffset))
+                ((EpsilonTypeFormationConflict errorOffset)
+                  (EpsilonTypeFormationInternal errorOffset))))))))))
+
+(def epsilon_parse_collect_and_form_types ((source Bytes))
+  EpsilonTypeFormationOutcome
+  (match (epsilon_parse_and_collect_program source)
+    ((EpsilonCensusRejected reasonValue errorOffset)
+      (EpsilonTypeFormationRejected reasonValue errorOffset))
+    ((EpsilonCensusAccepted collected)
+      (epsilon_form_collected_types source collected))))
