@@ -16,7 +16,7 @@ package_commands/
 ```
 
 ```text
-omega install <source> [--rev <revision>] [--as <alias>]
+omega install <source> [--rev <revision>] [--package <declared-name>] [--as <alias>]
 omega update [package-or-alias...] [--to <revision>]
 omega install --resume
 omega update --resume
@@ -31,8 +31,20 @@ The project must already have a valid `build.omg`.
 Install supports Git HTTPS/SSH and local sources through existing adapters.
 The fetched `build.omg` supplies the package name and default import alias;
 `--as` is an optional local override. Git defaults to `HEAD` when `--rev` is
-omitted. Named workspace selection is supported by declarations/resolution but
-does not yet have an install flag. Complex declaration layouts receive a
+omitted. `--package <declared-name>` selects one Git workspace member by its own
+package declaration. The resolver discovers the member inside the verified
+workspace; no member path is accepted. Omission keeps root selection, and local
+sources use their package directory directly. The member's declared name still
+supplies its default alias; `--as` overrides only that local alias. Unknown or
+duplicate declared names reject before publication. For example:
+
+```text
+omega install https://example.org/team/libraries.git --package exact-math
+omega install https://example.org/team/libraries.git --package exact-math --as math
+```
+
+Selection stays in the proposed declaration and source graph during review.
+Resume uses it without repeating `--package`. Complex declaration layouts receive a
 manual-patch diagnostic rather than an unsafe automatic rewrite.
 
 Update without selections refreshes the graph. Selections resolve a root alias

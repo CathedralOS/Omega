@@ -3,7 +3,7 @@
 use super::model::{PackageCommand, PackageCommandError, PackageCommandKind, failure};
 use crate::declarations::{
     AliasName, BuildDependencyEditPlan, BuildFileReplacement, DependencySourceRequest, PackageKey,
-    PackageSelection, plan_dependency_addition_from_source,
+    PackageName, PackageSelection, plan_dependency_addition_from_source,
     plan_dependency_replacement_from_source,
 };
 use crate::lock::PackageLock;
@@ -31,9 +31,10 @@ pub(super) fn plan(
             source,
             revision,
             alias,
+            package,
         } => {
             let alias = alias.map(AliasName::parse).transpose().map_err(failure)?;
-            let request = source_request(source, revision, alias)?;
+            let request = source_request(source, revision, alias, package)?;
             let edit = plan_dependency_addition_from_source(
                 build_path.clone(),
                 before.to_owned(),
@@ -144,20 +145,31 @@ fn source_request(
     source: String,
     revision: Option<String>,
     alias: Option<AliasName>,
+    package: Option<String>,
 ) -> Result<DependencySourceRequest, PackageCommandError> {
     let network = source.contains("://") && !source.starts_with("file://")
         || source
             .split_once('@')
             .is_some_and(|(_, tail)| tail.contains(':'));
     if network {
+        let selection = package
+            .map(PackageName::parse)
+            .transpose()
+            .map_err(failure)?
+            .map_or(PackageSelection::Root, PackageSelection::Named);
         let request = GitSourceRequest::new(source, revision).map_err(failure)?;
         Ok(DependencySourceRequest::Git {
             explicit_alias: alias,
             repository: request.requested_locator().to_owned(),
             revision: request.requested_revision().to_owned(),
-            selection: PackageSelection::Root,
+            selection,
         })
     } else {
+        if package.is_some() {
+            return Err(failure(
+                "--package is only valid for a Git source; use the local package directory directly",
+            ));
+        }
         let request = crate::operations::PackageSourceRequest::parse(
             crate::operations::SourceAdapter::Local,
             source,

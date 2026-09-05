@@ -1,5 +1,7 @@
 use super::*;
 
+mod named;
+
 fn parse(kind: PackageCommandKind, arguments: &[&str]) -> (PackageCommand, PackageCommandOptions) {
     parse_arguments(kind, arguments.iter().map(OsString::from))
         .unwrap_or_else(|error| panic!("{arguments:?}: {error}"))
@@ -26,6 +28,7 @@ fn install_preserves_source_and_leaves_defaults_to_manager() {
             source: actual,
             revision,
             alias,
+            package,
         } = command
         else {
             panic!("expected install");
@@ -33,6 +36,7 @@ fn install_preserves_source_and_leaves_defaults_to_manager() {
         assert_eq!(actual, source);
         assert!(revision.is_none());
         assert!(alias.is_none());
+        assert!(package.is_none());
         assert_eq!(options.project_root, PathBuf::from("."));
         assert!(options.targets.is_empty());
     }
@@ -60,6 +64,7 @@ fn install_accepts_options_before_and_after_source() {
         source,
         revision,
         alias,
+        package,
     } = command
     else {
         panic!("expected install");
@@ -67,6 +72,7 @@ fn install_accepts_options_before_and_after_source() {
     assert_eq!(source, "../source");
     assert_eq!(revision.as_deref(), Some("release/版本"));
     assert_eq!(alias.as_deref(), Some("renamed"));
+    assert!(package.is_none());
     assert_eq!(options.project_root, PathBuf::from("../my project"));
     assert_eq!(
         options.targets,

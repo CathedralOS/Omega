@@ -41,6 +41,7 @@ fn install() -> PackageCommand {
         source: "../dependency".into(),
         revision: None,
         alias: Some("dependency".into()),
+        package: None,
     }
 }
 

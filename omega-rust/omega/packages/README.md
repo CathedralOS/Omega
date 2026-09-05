@@ -36,8 +36,9 @@ Follow the supported source-change flow through:
 per-target review files, `--resume`, and recoverable publication. Start at the
 [command operation](manager/src/operations/package_commands/README.md) for usage
 and its source map. The [task board](../../../TASKS_PACKAGE_MANAGER.md) contains
-only remaining work, including named workspace selection at the CLI and source
-audit integration.
+only remaining work, including source audit integration. Install can select a
+Git workspace member with `--package <declared-name>`; its declared name still
+supplies the default import alias.
 
 The lock codec stores readable, receipt-free policy baselines and historical
 decisions beside exact source graphs. Old source is not required to read or

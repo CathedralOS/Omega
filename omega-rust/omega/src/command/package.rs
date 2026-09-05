@@ -52,7 +52,7 @@ fn exit_status(status: PackageCommandStatus) -> i32 {
 fn usage(kind: &PackageCommandKind) -> &'static str {
     match kind {
         PackageCommandKind::Install => {
-            "usage: omega install <source> [--rev <revision>] [--as <alias>] [--target <name>]... [--project <dir>]\n       omega install --resume [--project <dir>]\n       omega install --discard-review [--project <dir>]\n       omega install --help\n--discard-review abandons pending review; it does not discard publication recovery."
+            "usage: omega install <source> [--rev <revision>] [--package <declared-name>] [--as <alias>] [--target <name>]... [--project <dir>]\n       omega install --resume [--project <dir>]\n       omega install --discard-review [--project <dir>]\n       omega install --help\n--package selects a Git workspace member by its declared name.\n--discard-review abandons pending review; it does not discard publication recovery."
         }
         PackageCommandKind::Update => {
             "usage: omega update [package-or-alias...] [--to <revision>] [--target <name>]... [--project <dir>]\n       omega update --resume [--project <dir>]\n       omega update --discard-review [--project <dir>]\n       omega update --help\n--discard-review abandons pending review; it does not discard publication recovery."
@@ -67,6 +67,7 @@ fn parse_arguments(
     let mut positionals = Vec::new();
     let mut revision = None;
     let mut alias = None;
+    let mut package = None;
     let mut project_root = None;
     let mut targets = Vec::new();
     let mut resume = false;
@@ -97,6 +98,15 @@ fn parse_arguments(
                     return Err(format!("duplicate {argument}"));
                 }
                 revision = Some(take_text(&mut arguments, &argument)?);
+            }
+            "--package" => {
+                if !matches!(kind, PackageCommandKind::Install) {
+                    return Err("--package is only valid for install".to_owned());
+                }
+                if package.is_some() {
+                    return Err("duplicate --package".to_owned());
+                }
+                package = Some(take_text(&mut arguments, &argument)?);
             }
             "--as" => {
                 if !matches!(kind, PackageCommandKind::Install) {
@@ -137,7 +147,11 @@ fn parse_arguments(
         return Err("--resume and --discard-review cannot be combined".to_owned());
     }
     if (resume || discard_review)
-        && (!positionals.is_empty() || revision.is_some() || alias.is_some() || !targets.is_empty())
+        && (!positionals.is_empty()
+            || revision.is_some()
+            || alias.is_some()
+            || package.is_some()
+            || !targets.is_empty())
     {
         return Err("--resume and --discard-review allow only --project".to_owned());
     }
@@ -156,6 +170,7 @@ fn parse_arguments(
                     .ok_or_else(|| "install requires a source".to_owned())?,
                 revision,
                 alias,
+                package,
             },
             PackageCommandKind::Update => PackageCommand::Update {
                 packages: positionals,
