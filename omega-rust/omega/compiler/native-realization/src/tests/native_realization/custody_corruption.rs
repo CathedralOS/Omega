@@ -52,7 +52,7 @@ fn rejects_source_signature_target_and_artifact_substitution() {
         "#,
     );
     let substituted_artifact =
-        checked_trees_to_terminal_psi::produce_terminal_artifact(&scalar, "Main::launch")
+        terminal_production::produce_terminal_artifact(&scalar, "Main::launch")
             .expect("different canonical artifact");
     assert!(matches!(
         validate_native_program_entry_settlement(

@@ -14,7 +14,7 @@ const GOVERNED_ROOTS: &[&str] = &[
     "omega-rust/omega/backend/machine-emission/src/exit_contract",
     "omega-rust/omega/backend/machine-emission/src/fragments",
     "omega-rust/omega/backend/machine-emission/src/frame_application",
-    "omega-rust/psi/pipeline/checked-trees-to-terminal-psi/src/preterminal_optimization",
+    "omega-rust/psi/pipeline/lowered-psi-to-lowered-psi/src",
     "omega-rust/psi/representations/optimization/src",
     "omega-rust/omega/backend/plans/program-entry-plan/src/optimized_semantic_entry",
     "omega-rust/omega/backend/plans/program-entry-plan/src/optimized_semantic_wrapper",
@@ -65,7 +65,7 @@ pub(super) struct RuleStageDescriptor {
 
 pub(super) const RULE_STAGES: &[RuleStageDescriptor] = &[
     RuleStageDescriptor {
-        entrance: "omega-rust/psi/pipeline/checked-trees-to-terminal-psi/src/preterminal_optimization/mod.rs",
+        entrance: "omega-rust/psi/pipeline/lowered-psi-to-lowered-psi/src/lib.rs",
         catalog: "omega-rust/psi/representations/optimization/src/catalog.rs",
         coordination_marker: "pub fn run_psi_optimization",
         catalog_marker: "PRETERMINAL_PSI_PASS_CATALOG",

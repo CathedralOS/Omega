@@ -12,7 +12,7 @@ fn boolean_parameter_sourced_write_only_store_reaches_canonical_installation() {
             }
         "#,
     );
-    let lowered = checked_trees_to_terminal_psi::lower_machine(&checked, "Sink::fill")
+    let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, "Sink::fill")
         .expect("Boolean parameter store reaches Terminal production");
     let entry = lowered
         .semantic_module
@@ -192,7 +192,7 @@ fn multiple_boolean_parameters_reach_a_write_only_store_and_canonical_installati
             }
         "#,
     );
-    let lowered = checked_trees_to_terminal_psi::lower_machine(&checked, "Root::enter")
+    let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, "Root::enter")
         .expect("Boolean caller reaches verified Terminal production");
     let root = lowered
         .semantic_module

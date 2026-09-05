@@ -65,7 +65,7 @@ Current roots:
   compatibility, and signature normalization;
 - `pipeline/typed-trees-to-checked-trees`: Psi-owned semantic checking and
   checked-fact construction;
-- `pipeline/checked-trees-to-terminal-psi`: fail-closed vertical-slice
+- `pipeline/checked-trees-to-lowered-psi`: fail-closed vertical-slice
   production from checked semantics into terminal Psi, including current
   scalar/control/call/crash and content-evidence slices;
 - `semantics/validation`: target-neutral cross-semantic source validation;

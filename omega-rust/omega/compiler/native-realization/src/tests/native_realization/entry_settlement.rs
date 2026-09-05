@@ -101,7 +101,7 @@ fn independently_settles_exact_fused_service_root() {
 
 pub(crate) fn fused_service_custody() -> (
     terminal_codec::CanonicalTerminalArtifact,
-    checked_trees_to_terminal_psi::CheckedProgramEntryTerminalReceipt,
+    terminal_production::CheckedProgramEntryTerminalReceipt,
     program_entry_plan::SelectedProgramEntrySourceSignature,
     program_entry_plan::ProgramEntryFusedServiceEstablishment,
 ) {
@@ -134,13 +134,12 @@ pub(crate) fn fused_service_custody() -> (
             Vec::new(),
         )
         .expect("provisional hosted source signature");
-    let provisional_artifact =
-        checked_trees_to_terminal_psi::produce_program_entry_terminal_artifact(
-            &checked,
-            "Main::launch",
-            provisional.identity().bytes(),
-        )
-        .expect("provisional ProgramEntry Terminal artifact");
+    let provisional_artifact = terminal_production::produce_program_entry_terminal_artifact(
+        &checked,
+        "Main::launch",
+        provisional.identity().bytes(),
+    )
+    .expect("provisional ProgramEntry Terminal artifact");
     let module = terminal_codec::decode_module(provisional_artifact.artifact().semantic_bytes())
         .expect("decode provisional Terminal module");
     let entry = module
@@ -177,7 +176,7 @@ pub(crate) fn fused_service_custody() -> (
         Vec::new(),
     )
     .expect("hosted source signature");
-    let produced = checked_trees_to_terminal_psi::produce_program_entry_terminal_artifact(
+    let produced = terminal_production::produce_program_entry_terminal_artifact(
         &checked,
         "Main::launch",
         source.identity().bytes(),

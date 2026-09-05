@@ -5,21 +5,12 @@
 //! prior semantic-axiom rows so later proof rules do not need to trust an
 //! analyzer's coefficients or endpoint arithmetic.
 
+pub use terminal_psi::IntegerAffineWitness;
+
 use semantic_vocabulary::{
     IntegerCarrier, IntegerMathTerm, IntegerSign, IntegerType, IntegerValue, Proposition,
     PropositionContext, ScalarTerm, ScalarType,
 };
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct IntegerAffineWitness {
-    pub root: ScalarTerm,
-    pub target: ScalarTerm,
-    pub definition_axioms: Vec<usize>,
-    /// One optional, earlier equality landing the non-chain operand at each
-    /// affine definition. The vector is position-aligned with
-    /// `definition_axioms`; `None` means that definition embeds its literal.
-    pub literal_axioms: Vec<Option<usize>>,
-}
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CheckedIntegerAffineForm {

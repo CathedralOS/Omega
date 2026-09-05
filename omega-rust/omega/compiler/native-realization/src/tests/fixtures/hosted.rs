@@ -1,7 +1,7 @@
 //! Hosted ProgramEntry artifact, terminal receipt, and source-signature custody.
 
 use super::checked_source::checked;
-use checked_trees_to_terminal_psi::CheckedProgramEntryTerminalReceipt;
+use terminal_production::CheckedProgramEntryTerminalReceipt;
 
 pub(in crate::tests) fn hosted_custody() -> (
     terminal_codec::CanonicalTerminalArtifact,
@@ -33,7 +33,7 @@ pub(in crate::tests) fn hosted_custody() -> (
         Vec::new(),
     )
     .expect("hosted source signature");
-    let produced = checked_trees_to_terminal_psi::produce_program_entry_terminal_artifact(
+    let produced = terminal_production::produce_program_entry_terminal_artifact(
         &checked,
         "Main::launch",
         source.identity().bytes(),

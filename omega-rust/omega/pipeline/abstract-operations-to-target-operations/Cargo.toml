@@ -24,7 +24,7 @@ terminal-psi = { path = "../../../psi/representations/terminal-psi" }
 
 [dev-dependencies]
 terminal-psi-to-abstract-operations = { path = "../terminal-psi-to-abstract-operations" }
-checked-trees-to-terminal-psi = { path = "../../../psi/pipeline/checked-trees-to-terminal-psi" }
+checked-trees-to-lowered-psi = { path = "../../../psi/pipeline/checked-trees-to-lowered-psi" }
 proof-admission = { path = "../../../psi/semantics/proof-admission" }
 symbols = { path = "../../../psi/foundation/symbols" }
 source-files-to-tokens = { path = "../../../psi/pipeline/source-files-to-tokens" }

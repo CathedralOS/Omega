@@ -435,9 +435,8 @@ mod tests {
             let checked = crate::tests::fixtures::checked_source::checked(
                 "data Main {} machine Main::launch() {}",
             );
-            let artifact =
-                checked_trees_to_terminal_psi::produce_terminal_artifact(&checked, "Main::launch")
-                    .expect("canonical empty-machine Terminal artifact");
+            let artifact = terminal_production::produce_terminal_artifact(&checked, "Main::launch")
+                .expect("canonical empty-machine Terminal artifact");
             let input =
                 terminal_psi_to_abstract_operations::lower_artifact_sections_for_optimization(
                     artifact.semantic_bytes(),

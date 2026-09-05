@@ -8,7 +8,7 @@ use super::diagnostics::realization_error;
 
 pub(super) fn retain_boundary_application_coverage(
     artifact: &terminal_codec::CanonicalTerminalArtifact,
-    checked_scope: Option<&checked_trees_to_terminal_psi::CheckedBoundaryOperatorApplicationScope>,
+    checked_scope: Option<&lowered_psi_to_terminal_psi::CheckedBoundaryOperatorApplicationScope>,
     supplied: Option<&TerminalBoundaryApplicationCoverage>,
 ) -> Result<Option<TerminalBoundaryApplicationCoverage>, Vec<Diagnostic>> {
     let Some(checked_scope) = checked_scope else {

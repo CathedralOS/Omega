@@ -9,9 +9,8 @@ fn optimized_target(
     selections: OptimizationSelections,
 ) -> ValidatedOptimizedTargetOperations {
     let checked = checked("data Main {} machine Main::launch() {}");
-    let artifact =
-        checked_trees_to_terminal_psi::produce_terminal_artifact(&checked, "Main::launch")
-            .expect("publish independent Terminal fixture");
+    let artifact = terminal_production::produce_terminal_artifact(&checked, "Main::launch")
+        .expect("publish independent Terminal fixture");
     let input = terminal_psi_to_abstract_operations::lower_artifact_sections_for_optimization(
         artifact.semantic_bytes(),
         artifact.proof_bytes(),
@@ -109,9 +108,8 @@ fn ordinary_and_ranked_outputs_own_the_same_representation() {
             }
         "#,
     );
-    let artifact =
-        checked_trees_to_terminal_psi::produce_terminal_artifact(&checked, "Root::countdown")
-            .expect("publish ranked Terminal fixture");
+    let artifact = terminal_production::produce_terminal_artifact(&checked, "Root::countdown")
+        .expect("publish ranked Terminal fixture");
     let native =
         terminal_psi_to_abstract_operations::lower_artifact_sections_for_native_realization(
             artifact.semantic_bytes(),

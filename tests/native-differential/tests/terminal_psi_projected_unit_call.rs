@@ -1,6 +1,6 @@
 use abstract_operations_to_target_operations::lower_to_target_operations;
 use calling_conventions::ValueShape;
-use checked_trees_to_terminal_psi::lower_machine;
+use checked_trees_to_lowered_psi::lower_machine;
 use image_emission::{
     InstallationError, build_installation_record, build_object_artifact,
     decode_installation_record, derive_stack_demand, emit_executable_image,

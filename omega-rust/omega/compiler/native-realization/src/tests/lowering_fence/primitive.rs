@@ -17,7 +17,7 @@ fn verified_write_only_primitive_store_reaches_exact_machine_emission() {
             }
         "#,
     );
-    let lowered = checked_trees_to_terminal_psi::lower_machine(&checked, "Root::enter")
+    let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, "Root::enter")
         .expect("write-only store reaches verified Terminal production");
     let semantic = terminal_codec::encode_module(&lowered.semantic_module)
         .expect("encode write-only store semantics");
@@ -220,7 +220,7 @@ fn finite_literal_write_only_subloan_reaches_both_linux_artifacts() {
             }
         "#,
     );
-    let lowered = checked_trees_to_terminal_psi::lower_machine(&checked, "Root::forward")
+    let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, "Root::forward")
         .expect("finite literal write-only subloan reaches verified Terminal");
     let semantic = terminal_codec::encode_module(&lowered.semantic_module)
         .expect("encode projected write-only semantics");

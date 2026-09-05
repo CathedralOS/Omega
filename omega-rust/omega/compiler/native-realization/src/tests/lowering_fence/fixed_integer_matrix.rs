@@ -28,7 +28,7 @@ fn parameter_sourced_store_and_caller_cover_all_native_fixed_integers() {
             "#,
         );
         let checked = checked(&source);
-        let lowered = checked_trees_to_terminal_psi::lower_machine(&checked, "Root::enter")
+        let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, "Root::enter")
             .unwrap_or_else(|error| panic!("{source_type} reaches Terminal production: {error:?}"));
         let root = lowered
             .semantic_module

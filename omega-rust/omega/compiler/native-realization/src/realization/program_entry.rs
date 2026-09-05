@@ -1,7 +1,7 @@
 //! Checked ProgramEntry settlement before ordinary native realization.
 
-use checked_trees_to_terminal_psi::ProducedProgramEntryTerminalArtifact;
 use diagnostics::Diagnostic;
+use terminal_production::ProducedProgramEntryTerminalArtifact;
 
 use crate::entry_settlement::validate_native_program_entry_settlement;
 

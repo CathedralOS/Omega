@@ -14,6 +14,10 @@ experimental-external-optimization-policy = [
 ]
 
 [dependencies]
+lowered-psi = { path = "../../../psi/representations/lowered-psi" }
+lowered-psi-to-lowered-psi = { path = "../../../psi/pipeline/lowered-psi-to-lowered-psi" }
+lowered-psi-to-terminal-psi = { path = "../../../psi/pipeline/lowered-psi-to-terminal-psi" }
+terminal-production = { path = "../../../psi/compiler/terminal-production" }
 build-declarations = { path = "../../build/build-declarations" }
 build-evaluation = { path = "../../build/build-evaluation" }
 build-output = { path = "../../build/build-output" }
@@ -64,7 +68,7 @@ target = { path = "../../representations/target" }
 typed-trees = { path = "../../../psi/representations/typed-trees" }
 terminal-psi = { path = "../../../psi/representations/terminal-psi" }
 visualizations = { path = "../../tooling/visualizations" }
-checked-trees-to-terminal-psi = { path = "../../../psi/pipeline/checked-trees-to-terminal-psi" }
+checked-trees-to-lowered-psi = { path = "../../../psi/pipeline/checked-trees-to-lowered-psi" }
 terminal-codec = { path = "../../../psi/semantics/terminal-codec" }
 terminal-verifier = { path = "../../../psi/semantics/terminal-verifier" }
 proof-admission = { path = "../../../psi/semantics/proof-admission" }

@@ -126,7 +126,7 @@ fn project_source_entry(source: &str, entry: &str) -> (Vec<u8>, Vec<u8>) {
     let resolved = lower_syntax_trees(&syntax).expect("resolve O1 source");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type O1 source");
     let checked = lower_typed_trees(typed).expect("check O1 source");
-    let lowered = checked_trees_to_terminal_psi::lower_machine(&checked, entry)
+    let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, entry)
         .expect("lower O1 source to terminal Psi");
     (
         terminal_codec::encode_module(&lowered.semantic_module).expect("encode O1 terminal Psi"),

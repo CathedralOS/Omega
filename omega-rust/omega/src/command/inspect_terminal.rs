@@ -27,7 +27,7 @@ pub(super) fn run(arguments: impl Iterator<Item = std::ffi::OsString>) {
             std::process::exit(1);
         }
     };
-    let lowered = match checked_trees_to_terminal_psi::lower_machine(&checked, &arguments.machine) {
+    let lowered = match checked_trees_to_lowered_psi::lower_machine(&checked, &arguments.machine) {
         Ok(lowered) => lowered,
         Err(error) => {
             eprintln!(

@@ -3,9 +3,9 @@ use optimization_core::{OptimizationSelections, PostTerminalOptimizationSelectio
 
 pub(super) struct PreparedTerminalNativeArtifact {
     artifact: terminal_codec::CanonicalTerminalArtifact,
-    checked_program_entry: checked_trees_to_terminal_psi::CheckedProgramEntryTerminalReceipt,
+    checked_program_entry: terminal_production::CheckedProgramEntryTerminalReceipt,
     checked_boundary_operator_scope:
-        checked_trees_to_terminal_psi::CheckedBoundaryOperatorApplicationScope,
+        lowered_psi_to_terminal_psi::CheckedBoundaryOperatorApplicationScope,
 }
 
 impl PreparedTerminalNativeArtifact {
@@ -33,22 +33,21 @@ pub(super) fn prepare_terminal_artifact(
 ) -> Result<PreparedTerminalNativeArtifact, Vec<Diagnostic>> {
     let entry_machine = admission.program_entry.machine_name().to_owned();
     let psi_optimizations = optimization_selections.project_psi();
-    let produced =
-        checked_trees_to_terminal_psi::produce_program_entry_terminal_artifact_with_optimizations(
-            checked,
-            &entry_machine,
-            admission
-                .program_entry
-                .source_signature()
-                .identity()
-                .bytes(),
-            psi_optimizations.selections().clone(),
-        )
-        .map_err(|error| {
-            vec![Diagnostic::error(format!(
-                "native-artifact Terminal production failed: {error}"
-            ))]
-        })?;
+    let produced = terminal_production::produce_program_entry_terminal_artifact_with_optimizations(
+        checked,
+        &entry_machine,
+        admission
+            .program_entry
+            .source_signature()
+            .identity()
+            .bytes(),
+        psi_optimizations.selections().clone(),
+    )
+    .map_err(|error| {
+        vec![Diagnostic::error(format!(
+            "native-artifact Terminal production failed: {error}"
+        ))]
+    })?;
     let (
         artifact,
         checked_program_entry,

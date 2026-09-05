@@ -35,7 +35,7 @@ renaming their crates does not satisfy this acceptance condition.
 
 | Whole move | What must disappear or change |
 | --- | --- |
-| Connect the visible stage sequence | Keep `terminal-psi-to-abstract-operations` as the Omega program entrance. Consolidate remaining supporting calculations under their owning program stages. Finish the explicit pre-Terminal and selected-instruction X-to-X seams without introducing alternate downstream representations. |
+| Connect the visible stage sequence | Keep `terminal-psi-to-abstract-operations` as the Omega program entrance. Consolidate remaining supporting calculations under their owning program stages. Finish the selected-instruction X-to-X seam without introducing alternate downstream representations. |
 | Finish the remaining crate disposition | For every other Omega and Psi pipeline crate, decide keep, merge, move or delete and implement that decision. Preserve genuine representation/invariant boundaries, not the existing package count. |
 
 Keep a compact disposition map while executing this move. It is an inventory,
@@ -56,7 +56,7 @@ Sweep all Omega and Psi representations, not just the last one touched.
   values, storage, calls, ownership or evidence where those concepts exist.
   Do not impose one universal folder template.
 - Durable program schemas live in representations, including reusable
-  pre-Terminal data such as `LoweredTerminalPsi`; transformation scratch
+  pre-Terminal data such as `LoweredPsi`; transformation scratch
   stays private to its producer.
 - Ordinary consumers read current data. Historical inputs needed for replay
   remain explicit evidence, not the route to finding the current program.
@@ -89,7 +89,7 @@ explicit inside their proper stages.
 ## 4. Deliver optimized portable Psi
 
 Replace the identity-only pre-Terminal optimization implementation in
-`checked-trees-to-terminal-psi/src/preterminal_optimization/mod.rs`.
+`lowered-psi-to-lowered-psi/src/lib.rs`.
 
 Move applicable target-neutral rewrites and independent checks before Terminal:
 control-flow cleanup, SCCP, copy propagation, GVN, dead pure scalar elimination

@@ -117,7 +117,7 @@ fn layer_of(manifest_path: &str) -> Option<&'static str> {
         Some("tooling")
     } else if m("/omega-rust/omega/build/") {
         Some("build")
-    } else if m("/omega-rust/omega/compiler/") {
+    } else if m("/omega-rust/omega/compiler/") || m("/omega-rust/psi/compiler/") {
         Some("compiler")
     } else if m("/omega-rust/omega/packages/") {
         Some("packages")
@@ -1721,13 +1721,13 @@ fn checked_semantics_are_psi_owned_without_provider_realization() {
 #[test]
 fn first_psi_source_slice_stays_fail_closed() {
     let root = workspace_root();
-    let source_root = root.join("omega-rust/psi/pipeline/checked-trees-to-terminal-psi/src");
+    let source_root = root.join("omega-rust/psi/pipeline/checked-trees-to-lowered-psi/src");
     let path = source_root.join("lib.rs");
     let source = std::fs::read_to_string(&path)
         .unwrap_or_else(|error| panic!("failed to read {}: {error}", path.display()));
     let production_source = recursive_production_rust_source(&source_root);
     let manifest_path =
-        root.join("omega-rust/psi/pipeline/checked-trees-to-terminal-psi/Cargo.toml");
+        root.join("omega-rust/psi/pipeline/checked-trees-to-lowered-psi/Cargo.toml");
     let manifest = std::fs::read_to_string(&manifest_path)
         .unwrap_or_else(|error| panic!("failed to read {}: {error}", manifest_path.display()));
     let production_manifest = manifest
@@ -1750,7 +1750,7 @@ fn first_psi_source_slice_stays_fail_closed() {
     );
     assert!(
         !root
-            .join("omega-rust/omega/pipeline/omega-checked-trees-to-terminal-psi")
+            .join("omega-rust/omega/pipeline/omega-checked-trees-to-lowered-psi")
             .exists(),
         "the deleted Omega-to-Psi reverse bridge must not return"
     );
@@ -1760,7 +1760,7 @@ fn first_psi_source_slice_stays_fail_closed() {
 fn direct_add_proof_search_keeps_small_taxonomic_entrances() {
     let root = workspace_root();
     let direct_add = root.join(
-        "omega-rust/psi/pipeline/checked-trees-to-terminal-psi/src/nonzero_divisor_certificate/integer_selection/direct_add",
+        "omega-rust/psi/pipeline/checked-trees-to-lowered-psi/src/nonzero_divisor_certificate/integer_selection/direct_add",
     );
     for (entrance, modules) in [
         (
@@ -1795,7 +1795,7 @@ fn composed_unit_lowering_keeps_small_taxonomic_entrances() {
     let typed =
         root.join("omega-rust/psi/pipeline/typed-trees-to-checked-trees/src/flow/terminal_unit");
     let terminal =
-        root.join("omega-rust/psi/pipeline/checked-trees-to-terminal-psi/src/attached_unit");
+        root.join("omega-rust/psi/pipeline/checked-trees-to-lowered-psi/src/attached_unit");
     for (entrance, limit, modules) in [
         (
             typed.join("composed_control.rs"),
@@ -1896,18 +1896,67 @@ fn composed_unit_lowering_keeps_small_taxonomic_entrances() {
 }
 
 #[test]
+fn preterminal_stages_consume_representation_data_without_producer_dependencies() {
+    let root = workspace_root();
+    for stage in ["lowered-psi-to-lowered-psi", "lowered-psi-to-terminal-psi"] {
+        let manifest = std::fs::read_to_string(
+            root.join(format!("omega-rust/psi/pipeline/{stage}/Cargo.toml")),
+        )
+        .expect("read pre-Terminal stage manifest");
+        assert!(manifest.contains("lowered-psi ="));
+        assert!(!manifest.contains("checked-trees-to-lowered-psi"));
+        assert!(!manifest.contains("terminal-production"));
+    }
+    let representation = std::fs::read_to_string(
+        root.join("omega-rust/psi/representations/lowered-psi/src/lowered_psi.rs"),
+    )
+    .expect("read lowered Psi root");
+    assert!(representation.contains("pub struct LoweredPsi"));
+    for forbidden in [
+        "terminal_verifier::",
+        "terminal_codec::",
+        "checked_trees_to_",
+    ] {
+        assert!(!representation.contains(forbidden));
+    }
+    let report = std::fs::read_to_string(
+        root.join("omega-rust/omega/compiler/compilation-report/Cargo.toml"),
+    )
+    .expect("read compilation report manifest");
+    assert!(!report.contains("terminal-production"));
+    assert!(!report.contains("checked-trees-to-lowered-psi"));
+    assert!(
+        !root
+            .join("omega-rust/psi/pipeline/checked-trees-to-terminal-psi")
+            .exists()
+    );
+}
+
+#[test]
 fn terminal_component_staging_consumes_only_the_psi_owned_artifact() {
     let root = workspace_root();
-    let producer_path =
-        root.join("omega-rust/psi/pipeline/checked-trees-to-terminal-psi/src/lib.rs");
+    let producer_path = root.join("omega-rust/psi/compiler/terminal-production/src/production.rs");
     let producer = std::fs::read_to_string(&producer_path)
         .unwrap_or_else(|error| panic!("failed to read {}: {error}", producer_path.display()));
     assert!(
         producer.contains("pub fn produce_terminal_artifact_with_optimizations(")
             && producer.contains("run_psi_optimization(")
-            && producer.contains("CanonicalTerminalArtifact::from_parts("),
+            && producer.contains("finalize_terminal_artifact("),
         "Psi must own the selected optimization stage and exact checked-to-canonical-Terminal-artifact handoff"
     );
+    let publication = std::fs::read_to_string(
+        root.join("omega-rust/psi/pipeline/lowered-psi-to-terminal-psi/src/lib.rs"),
+    )
+    .expect("read Terminal publication");
+    assert!(publication.contains("optimized: &PsiOptimizationStageResult"));
+    assert!(publication.contains("CanonicalTerminalArtifact::from_parts("));
+    let lowering = std::fs::read_to_string(
+        root.join("omega-rust/psi/pipeline/checked-trees-to-lowered-psi/src/lib.rs"),
+    )
+    .expect("read checked lowering");
+    assert!(!lowering.contains("pub fn produce_terminal_artifact"));
+    assert!(!lowering.contains("mod preterminal_optimization"));
+    assert!(!lowering.contains("CanonicalTerminalArtifact::from_parts("));
 
     let compiler_terminal_path =
         root.join("omega-rust/omega/compiler/compiler/src/compiler/terminal_product.rs");

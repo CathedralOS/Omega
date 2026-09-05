@@ -22,7 +22,7 @@ use calling_conventions::{
     StackDomainRef, StateFootprintEvidence, evaluate_ordinary_boundary_entry_plan,
     validate_entry_stack_domain_closure,
 };
-use checked_trees_to_terminal_psi::{LoweringError, lower_machine};
+use checked_trees_to_lowered_psi::{LoweringError, lower_machine};
 use compiler::{
     ArtifactEmissionPolicy, CheckedCompilation, CompileOptions, CompileRequest,
     RequestedCompileProduct, compile_to_checked,
@@ -197,12 +197,13 @@ fn stage_terminal_component(
         )]
     })?;
     let entry_machine = selected_program_entry.machine_name();
-    let artifact = checked_trees_to_terminal_psi::produce_terminal_artifact(checked, entry_machine)
-        .map_err(|error| {
+    let artifact = terminal_production::produce_terminal_artifact(checked, entry_machine).map_err(
+        |error| {
             vec![diagnostics::Diagnostic::error(format!(
                 "terminal component artifact production failed: {error}"
             ))]
-        })?;
+        },
+    )?;
     let post_terminal_optimizations = checked.optimization_selections().project_post_terminal();
     let native_artifact = realize_native_artifact(
         artifact,

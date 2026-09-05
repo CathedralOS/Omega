@@ -1,6 +1,6 @@
 use abstract_operations::AbstractOperation;
 use abstract_operations_to_target_operations::lower_to_target_operations;
-use checked_trees_to_terminal_psi::lower_machine;
+use checked_trees_to_lowered_psi::lower_machine;
 use image_emission::{
     build_installation_record, build_object_artifact, decode_installation_record,
     emit_executable_image, encode_installation_record, validate_installation_record,

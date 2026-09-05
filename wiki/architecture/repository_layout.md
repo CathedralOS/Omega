@@ -123,6 +123,7 @@ Omega/
 |   |   |   |-- [CRATE] flow-effects/                    # Target-neutral operational, reach, invocation, and capability-flow facts.
 |   |   |   |-- [CRATE] checked-trees/              # Checked proof, borrow, flow, reach, value, and admissibility evidence.
 |   |   |   |-- [CRATE] optimization/               # Closed pre-Terminal pass names, selections, encoding, and identity.
+|   |   |   |-- [CRATE] lowered-psi/                # Unsealed semantics and proof/debug/source companions.
 |   |   |   `-- [CRATE] terminal-psi/               # Self-contained Terminal Psi module and closed operation vocabulary.
 |   |   |-- pipeline/
 |   |   |   |-- [CRATE] source-files-to-tokens/     # Psi-owned Omega source lexer.
@@ -130,7 +131,11 @@ Omega/
 |   |   |   |-- [CRATE] syntax-trees-to-symbol-resolved-trees/ # Psi-owned name and symbol resolution.
 |   |   |   |-- [CRATE] symbol-resolved-trees-to-typed-trees/ # Psi-owned type/signature normalization.
 |   |   |   |-- [CRATE] typed-trees-to-checked-trees/ # Psi-owned semantic checking and checked-fact construction.
-|   |   |   `-- [CRATE] checked-trees-to-terminal-psi/   # Fail-closed executable slice plus checked content-evidence production.
+|   |   |   |-- [CRATE] checked-trees-to-lowered-psi/ # Checked vocabulary lowering and source joins.
+|   |   |   |-- [CRATE] lowered-psi-to-lowered-psi/   # Selected pre-Terminal optimization.
+|   |   |   `-- [CRATE] lowered-psi-to-terminal-psi/  # Canonical publication and checked source-scope custody.
+|   |   |-- compiler/
+|   |   |   `-- [CRATE] terminal-production/         # Sequences the three stages and retains product receipts.
 |   |   `-- semantics/
 |   |       |-- [CRATE] validation/                 # Cross-semantic source validation and diagnostics.
 |   |       |-- [CRATE] proof/                      # Source proof obligations, planning, and checking.

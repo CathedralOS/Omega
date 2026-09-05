@@ -11,6 +11,10 @@ path = "src/main.rs"
 test = false
 
 [dependencies]
+lowered-psi = { path = "../psi/representations/lowered-psi" }
+lowered-psi-to-lowered-psi = { path = "../psi/pipeline/lowered-psi-to-lowered-psi" }
+lowered-psi-to-terminal-psi = { path = "../psi/pipeline/lowered-psi-to-terminal-psi" }
+terminal-production = { path = "../psi/compiler/terminal-production" }
 cap-std = "4.0.3"
 compiler = { path = "compiler/compiler" }
 core = { path = "representations/core" }
@@ -20,7 +24,7 @@ package-compilation = { path = "build/package-compilation" }
 resolver-execution = { path = "packages/sources/execution" }
 target = { path = "representations/target" }
 trust-ledger = { path = "build/trust-ledger" }
-checked-trees-to-terminal-psi = { path = "../psi/pipeline/checked-trees-to-terminal-psi" }
+checked-trees-to-lowered-psi = { path = "../psi/pipeline/checked-trees-to-lowered-psi" }
 semantic-vocabulary = { path = "../psi/foundation/semantic-vocabulary" }
 diagnostics = { path = "../psi/foundation/diagnostics" }
 checked-interpreter = { path = "../psi/semantics/checked-interpreter" }

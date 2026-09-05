@@ -37,7 +37,7 @@ dependencies = [
  "abstract-operations-to-abstract-operations",
  "access-plans",
  "calling-conventions",
- "checked-trees-to-terminal-psi",
+ "checked-trees-to-lowered-psi",
  "effects",
  "function-identity",
  "installation-evidence",
@@ -333,7 +333,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "checked-trees-to-terminal-psi"
+name = "checked-trees-to-lowered-psi"
 version = "0.1.0"
 dependencies = [
  "arena",
@@ -341,6 +341,9 @@ dependencies = [
  "facts",
  "language-core",
  "language-semantics",
+ "lowered-psi",
+ "lowered-psi-to-lowered-psi",
+ "lowered-psi-to-terminal-psi",
  "numerics",
  "optimization",
  "proof-admission",
@@ -356,6 +359,7 @@ dependencies = [
  "terminal-fixed-fuel",
  "terminal-fuel",
  "terminal-interpreter",
+ "terminal-production",
  "terminal-psi",
  "terminal-verifier",
  "tokens-to-syntax-trees",
@@ -382,10 +386,11 @@ dependencies = [
  "boundary-applications",
  "build-evaluation",
  "calling-conventions",
- "checked-trees-to-terminal-psi",
  "effects",
  "function-identity",
  "image",
+ "lowered-psi",
+ "lowered-psi-to-terminal-psi",
  "native-artifact",
  "optimization-core",
  "package-compilation",
@@ -417,7 +422,7 @@ dependencies = [
  "calling-conventions",
  "checked-interpreter",
  "checked-trees",
- "checked-trees-to-terminal-psi",
+ "checked-trees-to-lowered-psi",
  "compilation-report",
  "core",
  "diagnostics",
@@ -433,6 +438,9 @@ dependencies = [
  "language-semantics",
  "layout",
  "layout-plans",
+ "lowered-psi",
+ "lowered-psi-to-lowered-psi",
+ "lowered-psi-to-terminal-psi",
  "machine-code",
  "machine-emission",
  "native-realization",
@@ -462,6 +470,7 @@ dependencies = [
  "task-plans",
  "terminal-codec",
  "terminal-interpreter",
+ "terminal-production",
  "terminal-psi",
  "terminal-psi-to-abstract-operations",
  "terminal-verifier",
@@ -730,7 +739,7 @@ dependencies = [
  "abstract-operations-to-target-operations",
  "assigned-target-operations",
  "calling-conventions",
- "checked-trees-to-terminal-psi",
+ "checked-trees-to-lowered-psi",
  "diagnostics",
  "executable-installation",
  "extents",
@@ -945,6 +954,38 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "32a66949e030da00e8c7d4434b251670a91556f4144941d37452769c25d58a53"
 
 [[package]]
+name = "lowered-psi"
+version = "0.1.0"
+dependencies = [
+ "checked-trees",
+ "semantic-vocabulary",
+ "symbols",
+ "terminal-psi",
+]
+
+[[package]]
+name = "lowered-psi-to-lowered-psi"
+version = "0.1.0"
+dependencies = [
+ "lowered-psi",
+ "optimization",
+ "terminal-codec",
+ "terminal-psi",
+ "terminal-verifier",
+]
+
+[[package]]
+name = "lowered-psi-to-terminal-psi"
+version = "0.1.0"
+dependencies = [
+ "checked-trees",
+ "lowered-psi",
+ "lowered-psi-to-lowered-psi",
+ "semantic-vocabulary",
+ "terminal-codec",
+]
+
+[[package]]
 name = "machine-code"
 version = "0.1.0"
 dependencies = [
@@ -974,7 +1015,7 @@ dependencies = [
  "abstract-operations-to-target-operations",
  "assigned-target-operations",
  "calling-conventions",
- "checked-trees-to-terminal-psi",
+ "checked-trees-to-lowered-psi",
  "diagnostics",
  "iced-x86",
  "installation-evidence",
@@ -1061,7 +1102,7 @@ dependencies = [
  "boundary-applications",
  "calling-conventions",
  "checked-trees",
- "checked-trees-to-terminal-psi",
+ "checked-trees-to-lowered-psi",
  "diagnostics",
  "effects",
  "function-identity",
@@ -1070,6 +1111,9 @@ dependencies = [
  "isa-aarch64",
  "isa-x86_64",
  "language-semantics",
+ "lowered-psi",
+ "lowered-psi-to-lowered-psi",
+ "lowered-psi-to-terminal-psi",
  "machine-code",
  "machine-emission",
  "native-artifact",
@@ -1102,6 +1146,7 @@ dependencies = [
  "terminal-codec",
  "terminal-fuel",
  "terminal-interpreter",
+ "terminal-production",
  "terminal-psi",
  "terminal-psi-to-abstract-operations",
  "terminal-verifier",
@@ -1152,10 +1197,13 @@ version = "0.1.0"
 dependencies = [
  "cap-std",
  "checked-interpreter",
- "checked-trees-to-terminal-psi",
+ "checked-trees-to-lowered-psi",
  "compiler",
  "core",
  "diagnostics",
+ "lowered-psi",
+ "lowered-psi-to-lowered-psi",
+ "lowered-psi-to-terminal-psi",
  "package-compilation",
  "package-manager",
  "package-source",
@@ -1164,6 +1212,7 @@ dependencies = [
  "semantic-vocabulary",
  "target",
  "terminal-fixed-fuel",
+ "terminal-production",
  "terminal-psi",
  "terminal-verifier",
  "trust-ledger",
@@ -1204,7 +1253,7 @@ dependencies = [
  "calling-conventions",
  "checked-interpreter",
  "checked-trees",
- "checked-trees-to-terminal-psi",
+ "checked-trees-to-lowered-psi",
  "compiler",
  "component-candidate",
  "component-deployment",
@@ -1222,6 +1271,7 @@ dependencies = [
  "language-semantics",
  "layout-plans",
  "legalized-operations",
+ "lowered-psi",
  "machine-code",
  "machine-emission",
  "native-artifact",
@@ -1257,6 +1307,7 @@ dependencies = [
  "terminal-fixed-fuel",
  "terminal-fuel",
  "terminal-interpreter",
+ "terminal-production",
  "terminal-psi",
  "terminal-psi-to-abstract-operations",
  "terminal-verifier",
@@ -1310,7 +1361,7 @@ name = "optimization-unit-semantics"
 version = "0.1.0"
 dependencies = [
  "abstract-operations",
- "checked-trees-to-terminal-psi",
+ "checked-trees-to-lowered-psi",
  "language-semantics",
  "optimization-core",
  "optimization-unit",
@@ -1548,6 +1599,7 @@ version = "0.1.0"
 dependencies = [
  "numerics",
  "semantic-vocabulary",
+ "terminal-psi",
 ]
 
 [[package]]
@@ -2005,7 +2057,7 @@ dependencies = [
  "abstract-operations-to-target-operations",
  "assigned-target-operations",
  "calling-conventions",
- "checked-trees-to-terminal-psi",
+ "checked-trees-to-lowered-psi",
  "function-identity",
  "proof-admission",
  "runtime-abi",
@@ -2104,6 +2156,21 @@ dependencies = [
 ]
 
 [[package]]
+name = "terminal-production"
+version = "0.1.0"
+dependencies = [
+ "checked-trees",
+ "checked-trees-to-lowered-psi",
+ "lowered-psi",
+ "lowered-psi-to-lowered-psi",
+ "lowered-psi-to-terminal-psi",
+ "optimization",
+ "semantic-vocabulary",
+ "terminal-codec",
+ "terminal-psi",
+]
+
+[[package]]
 name = "terminal-psi"
 version = "0.1.0"
 dependencies = [
@@ -2118,7 +2185,7 @@ name = "terminal-psi-to-abstract-operations"
 version = "0.1.0"
 dependencies = [
  "abstract-operations",
- "checked-trees-to-terminal-psi",
+ "checked-trees-to-lowered-psi",
  "installation-evidence",
  "optimization-unit",
  "optimization-unit-semantics",

@@ -1,5 +1,5 @@
 use super::calling_plans::validate_paired_calling_plans;
-use checked_trees_to_terminal_psi::CheckedProgramEntryTerminalReceipt;
+use terminal_production::CheckedProgramEntryTerminalReceipt;
 
 /// Exact build-owned source-entry custody carried into native realization.
 /// This is declaration and calling-contract evidence only: it owns no runtime

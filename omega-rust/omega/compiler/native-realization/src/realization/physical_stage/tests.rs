@@ -19,7 +19,7 @@ fn identity_return_programs_use_fragments_and_preserve_native_bytes() {
         .find(|machine| machine.name == "Main::launch")
         .unwrap();
     let artifact =
-        checked_trees_to_terminal_psi::produce_terminal_artifact(&checked, "Main::launch").unwrap();
+        terminal_production::produce_terminal_artifact(&checked, "Main::launch").unwrap();
     let profile = proof_admission::AdmissionProfile::default();
     let selections = optimization_core::PostTerminalOptimizationSelections::default();
     let providers = effects::SelectedProviderPlanFacts::default();
@@ -138,7 +138,7 @@ fn result_and_runtime_parameter_programs_stay_outside_return_migration() {
     let checked =
         crate::tests::fixtures::checked_source::checked("data Main {} machine Main::launch() {}");
     let artifact =
-        checked_trees_to_terminal_psi::produce_terminal_artifact(&checked, "Main::launch").unwrap();
+        terminal_production::produce_terminal_artifact(&checked, "Main::launch").unwrap();
     let input = lower_realization_input(
         artifact.semantic_bytes(),
         artifact.proof_bytes(),

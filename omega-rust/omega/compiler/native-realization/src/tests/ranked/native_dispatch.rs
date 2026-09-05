@@ -20,7 +20,7 @@ const RANKED_COUNTDOWN_SOURCE: &str = r#"
 #[test]
 fn ranked_native_dispatch_emits_exact_machine_body_and_semantic_code_attribution() {
     let checked = checked(RANKED_COUNTDOWN_SOURCE);
-    let lowered = checked_trees_to_terminal_psi::lower_machine(&checked, "Root::countdown")
+    let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, "Root::countdown")
         .expect("lower ranked Terminal Psi");
     let semantic =
         terminal_codec::encode_module(&lowered.semantic_module).expect("encode ranked semantics");

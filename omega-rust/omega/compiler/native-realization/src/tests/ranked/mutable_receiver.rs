@@ -20,7 +20,7 @@ const RANKED_RECEIVER_COUNTDOWN_SOURCE: &str = r#"
 #[test]
 fn ranked_mutable_receiver_survives_both_native_object_and_image_replays() {
     let checked = checked(RANKED_RECEIVER_COUNTDOWN_SOURCE);
-    let lowered = checked_trees_to_terminal_psi::lower_machine(&checked, "Root::countdown")
+    let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, "Root::countdown")
         .expect("lower ranked receiver Terminal Psi");
     let semantic = terminal_codec::encode_module(&lowered.semantic_module)
         .expect("encode ranked receiver semantics");

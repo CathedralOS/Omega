@@ -2,7 +2,7 @@ use super::super::RequiredCoordinationEntrance;
 
 pub(crate) const ENTRANCES: &[RequiredCoordinationEntrance] = &[
     RequiredCoordinationEntrance {
-        path: "omega-rust/psi/pipeline/checked-trees-to-terminal-psi/src/preterminal_optimization/mod.rs",
+        path: "omega-rust/psi/pipeline/lowered-psi-to-lowered-psi/src/lib.rs",
         coordination_marker: "pub fn run_psi_optimization",
     },
     RequiredCoordinationEntrance {

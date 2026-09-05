@@ -45,7 +45,7 @@ abstract-operations = { path = "../../representations/abstract-operations" }
 abstract-operations-to-target-operations = { path = "../../pipeline/abstract-operations-to-target-operations" }
 terminal-psi-to-abstract-operations = { path = "../../pipeline/terminal-psi-to-abstract-operations" }
 target-operations-to-assigned-target-operations = { path = "../../pipeline/target-operations-to-assigned-target-operations" }
-checked-trees-to-terminal-psi = { path = "../../../psi/pipeline/checked-trees-to-terminal-psi" }
+checked-trees-to-lowered-psi = { path = "../../../psi/pipeline/checked-trees-to-lowered-psi" }
 proof-admission = { path = "../../../psi/semantics/proof-admission" }
 source-files-to-tokens = { path = "../../../psi/pipeline/source-files-to-tokens" }
 symbol-resolved-trees-to-typed-trees = { path = "../../../psi/pipeline/symbol-resolved-trees-to-typed-trees" }

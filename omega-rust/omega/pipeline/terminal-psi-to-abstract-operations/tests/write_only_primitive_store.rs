@@ -32,7 +32,7 @@ fn verified_source_store_retains_exact_mutable_parameter_and_preceding_value() {
     let resolved = lower_syntax_trees(&syntax).expect("resolve source");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type source");
     let checked = lower_typed_trees(typed).expect("check source");
-    let terminal = checked_trees_to_terminal_psi::lower_machine(&checked, "Harness::exercise")
+    let terminal = checked_trees_to_lowered_psi::lower_machine(&checked, "Harness::exercise")
         .expect("mutable source store lowers to verified Terminal Psi");
     let semantic = encode_module(&terminal.semantic_module).expect("encode semantics");
     let proof = encode_proof_bundle(&terminal.proof_bundle).expect("encode proof");
@@ -107,7 +107,7 @@ fn verified_boolean_store_retains_exact_write_only_parameter_and_preceding_value
     let resolved = lower_syntax_trees(&syntax).expect("resolve source");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type source");
     let checked = lower_typed_trees(typed).expect("check source");
-    let terminal = checked_trees_to_terminal_psi::lower_machine(&checked, "Root::enter")
+    let terminal = checked_trees_to_lowered_psi::lower_machine(&checked, "Root::enter")
         .expect("write-only Boolean source lowers to verified Terminal Psi");
     let semantic = encode_module(&terminal.semantic_module).expect("encode semantics");
     let proof = encode_proof_bundle(&terminal.proof_bundle).expect("encode proof");
@@ -173,7 +173,7 @@ fn verified_ieee_float_store_retains_exact_write_only_parameter_and_preceding_va
     let resolved = lower_syntax_trees(&syntax).expect("resolve source");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type source");
     let checked = lower_typed_trees(typed).expect("check source");
-    let terminal = checked_trees_to_terminal_psi::lower_machine(&checked, "Root::enter")
+    let terminal = checked_trees_to_lowered_psi::lower_machine(&checked, "Root::enter")
         .expect("write-only IEEE float source lowers to verified Terminal Psi");
     let semantic = encode_module(&terminal.semantic_module).expect("encode semantics");
     let proof = encode_proof_bundle(&terminal.proof_bundle).expect("encode proof");
@@ -237,7 +237,7 @@ fn verified_fixed_integer_parameter_store_retains_exact_runtime_source() {
     let resolved = lower_syntax_trees(&syntax).expect("resolve source");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type source");
     let checked = lower_typed_trees(typed).expect("check source");
-    let terminal = checked_trees_to_terminal_psi::lower_machine(&checked, "Sink::fill")
+    let terminal = checked_trees_to_lowered_psi::lower_machine(&checked, "Sink::fill")
         .expect("write-only fixed-integer parameter store lowers to verified Terminal Psi");
     let semantic = encode_module(&terminal.semantic_module).expect("encode semantics");
     let proof = encode_proof_bundle(&terminal.proof_bundle).expect("encode proof");

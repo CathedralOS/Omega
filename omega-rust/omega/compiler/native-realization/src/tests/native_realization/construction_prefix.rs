@@ -18,11 +18,9 @@ fn construction_prefix_reaches_native_image_and_installation_custody() {
     for prefix_length in 2_usize..=25 {
         let source = construction_prefix_source(prefix_length);
         let checked = checked(&source);
-        let terminal = checked_trees_to_terminal_psi::produce_terminal_artifact(
-            &checked,
-            "Root::cleanup_prefix",
-        )
-        .expect("canonical construction-prefix artifact");
+        let terminal =
+            terminal_production::produce_terminal_artifact(&checked, "Root::cleanup_prefix")
+                .expect("canonical construction-prefix artifact");
         let abstract_plan = terminal_psi_to_abstract_operations::lower_artifact_sections(
             terminal.semantic_bytes(),
             terminal.proof_bytes(),

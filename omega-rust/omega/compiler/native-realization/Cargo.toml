@@ -9,6 +9,10 @@ name = "native_realization"
 path = "src/lib.rs"
 
 [dependencies]
+lowered-psi = { path = "../../../psi/representations/lowered-psi" }
+lowered-psi-to-lowered-psi = { path = "../../../psi/pipeline/lowered-psi-to-lowered-psi" }
+lowered-psi-to-terminal-psi = { path = "../../../psi/pipeline/lowered-psi-to-terminal-psi" }
+terminal-production = { path = "../../../psi/compiler/terminal-production" }
 abstract-operations-to-abstract-operations = { path = "../../pipeline/abstract-operations-to-abstract-operations" }
 post-allocation-machine-to-post-allocation-machine = { path = "../../pipeline/post-allocation-machine-to-post-allocation-machine" }
 register-homes-to-post-allocation-machine = { path = "../../pipeline/register-homes-to-post-allocation-machine" }
@@ -42,7 +46,7 @@ target-operations = { path = "../../representations/target-operations" }
 target-operations-to-assigned-target-operations = { path = "../../pipeline/target-operations-to-assigned-target-operations" }
 diagnostics = { path = "../../../psi/foundation/diagnostics" }
 semantic-vocabulary = { path = "../../../psi/foundation/semantic-vocabulary" }
-checked-trees-to-terminal-psi = { path = "../../../psi/pipeline/checked-trees-to-terminal-psi" }
+checked-trees-to-lowered-psi = { path = "../../../psi/pipeline/checked-trees-to-lowered-psi" }
 proof-admission = { path = "../../../psi/semantics/proof-admission" }
 numerics = { path = "../../../psi/foundation/numerics" }
 symbols = { path = "../../../psi/foundation/symbols" }

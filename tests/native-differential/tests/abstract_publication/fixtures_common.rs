@@ -103,7 +103,7 @@ fn replace_truth_placeholders_with_checked_operation_certificates(
             .iter()
             .map(|parameter| parameter.id)
             .collect();
-        let certificate = checked_trees_to_terminal_psi::produce_checked_canonical_integer_proof(
+        let certificate = checked_trees_to_lowered_psi::produce_checked_canonical_integer_proof(
             &context,
             &question.obligation.proposition,
             &machine.contract.requires,
