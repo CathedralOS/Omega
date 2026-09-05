@@ -190,7 +190,7 @@ impl StagedPostAllocationMachineFunctionRelativeRealizationCustodyReceipt {
 
 #[derive(Debug)]
 pub struct StagedSelectedLoweringFunctionRelativeRealization {
-    pub(super) homes: StagedOptimizedRegisterHomesAfterSelectedLowering,
+    pub(super) allocation: RetainedAllocation,
     pub(super) machine: StagedOptimizedPostAllocationMachinePlan,
     pub(super) encoding: StagedOptimizedSelectedFormEncoding,
     pub(super) baseline_layout: StagedOptimizedResolvedSelectedFormLayout,
@@ -201,8 +201,12 @@ pub struct StagedSelectedLoweringFunctionRelativeRealization {
 }
 
 impl StagedSelectedLoweringFunctionRelativeRealization {
-    pub const fn homes(&self) -> &StagedOptimizedRegisterHomesAfterSelectedLowering {
-        &self.homes
+    pub const fn allocation(&self) -> &RetainedAllocation {
+        &self.allocation
+    }
+    #[cfg(test)]
+    pub(crate) fn allocation_mut(&mut self) -> &mut RetainedAllocation {
+        &mut self.allocation
     }
     pub const fn machine(&self) -> &StagedOptimizedPostAllocationMachinePlan {
         &self.machine
@@ -250,7 +254,7 @@ impl StagedSelectedLoweringFunctionRelativeRealization {
 /// retained in its manifest and custody rather than synthesized.
 #[derive(Debug)]
 pub struct StagedFunctionRelativeLayoutOptimizationRealization {
-    pub(super) homes: StagedOptimizedRegisterHomes,
+    pub(super) allocation: RetainedAllocation,
     pub(super) machine: StagedOptimizedPostAllocationMachinePlan,
     pub(super) encoding: StagedOptimizedSelectedFormEncoding,
     pub(super) baseline_layout: StagedOptimizedResolvedSelectedFormLayout,
@@ -261,8 +265,12 @@ pub struct StagedFunctionRelativeLayoutOptimizationRealization {
 }
 
 impl StagedFunctionRelativeLayoutOptimizationRealization {
-    pub const fn homes(&self) -> &StagedOptimizedRegisterHomes {
-        &self.homes
+    pub const fn allocation(&self) -> &RetainedAllocation {
+        &self.allocation
+    }
+    #[cfg(test)]
+    pub(crate) fn allocation_mut(&mut self) -> &mut RetainedAllocation {
+        &mut self.allocation
     }
     pub const fn machine(&self) -> &StagedOptimizedPostAllocationMachinePlan {
         &self.machine

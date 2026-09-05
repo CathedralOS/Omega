@@ -1,31 +1,24 @@
 use super::super::{assembly::*, carriers::*, error::*, prelude::*};
+use omega_selected_instructions_to_register_homes::{AllocationSource, RetainedAllocation};
 
 pub fn stage_function_relative_layout_optimization_realization(
-    homes: StagedOptimizedRegisterHomes,
+    allocation: RetainedAllocation,
 ) -> Result<
     StagedFunctionRelativeLayoutOptimizationRealization,
     FunctionRelativeOptimizationRealizationError,
 > {
-    validate_optimized_register_home_custody(
-        homes.legality_stage(),
-        homes.homes(),
-        homes.post_allocation_manifest(),
-    )
-    .map_err(FunctionRelativeOptimizationRealizationError::DirectHomes)?;
-    let machine = stage_optimized_post_allocation_machine_plan(&homes)
+    let current = allocation
+        .replay_allocation()
+        .map_err(FunctionRelativeOptimizationRealizationError::Allocation)?;
+    let source = baseline_allocation_source(&current)?;
+    let machine = stage_optimized_post_allocation_machine_plan(&current)
         .map_err(FunctionRelativeOptimizationRealizationError::PostAllocationMachine)?;
-    let selected_stage = homes
-        .legality_stage()
-        .live_range_stage()
-        .liveness_stage()
-        .selected_stage();
-    let selected = selected_stage.selected();
-    let physical = selected_stage.register_environment().physical();
-    let optimized = selected_stage.optimized_target().optimized();
-    let selections = optimized.selections();
+    let selected = current.selected();
+    let physical = current.register_environment().physical();
+    let selections = current.selections();
     if !rel8_selected(
         selections,
-        selected_stage.optimized_target().target().architecture,
+        current.register_environment().target().architecture,
     )? {
         return Err(
             FunctionRelativeOptimizationRealizationError::MissingFunctionRelativeLayoutOptimization,
@@ -43,7 +36,7 @@ pub fn stage_function_relative_layout_optimization_realization(
         physical,
         &encoding,
         &baseline_layout,
-        optimized.budget_per_pass(),
+        current.budget_per_pass(),
     )
     .map_err(FunctionRelativeOptimizationRealizationError::X86BranchRelaxation)?;
     let exit_contract = stage_whole_function_exit_contract_after_x86_branch_relaxation(
@@ -56,16 +49,16 @@ pub fn stage_function_relative_layout_optimization_realization(
     )
     .map_err(FunctionRelativeOptimizationRealizationError::ExitContract)?;
     let manifest = expected_direct_manifest(
-        &homes,
+        &current,
         &machine,
         &encoding,
         &baseline_layout,
         &relaxation,
         &exit_contract,
     )?;
-    let custody = direct_custody_receipt(&homes, &machine, &relaxation, &exit_contract, &manifest);
+    let custody = direct_custody_receipt(source, &machine, &relaxation, &exit_contract, &manifest);
     Ok(StagedFunctionRelativeLayoutOptimizationRealization {
-        homes,
+        allocation,
         machine,
         encoding,
         baseline_layout,
@@ -82,33 +75,26 @@ pub fn validate_function_relative_layout_optimization_realization_custody(
     StagedFunctionRelativeLayoutOptimizationRealizationCustodyReceipt,
     FunctionRelativeOptimizationRealizationError,
 > {
-    let source = validate_optimized_register_home_custody(
-        staged.homes.legality_stage(),
-        staged.homes.homes(),
-        staged.homes.post_allocation_manifest(),
-    )
-    .map_err(FunctionRelativeOptimizationRealizationError::DirectHomes)?;
-    if source != staged.homes.custody() {
+    let current = staged
+        .allocation
+        .replay_allocation()
+        .map_err(FunctionRelativeOptimizationRealizationError::Allocation)?;
+    let source = baseline_allocation_source(&current)?;
+    if source != staged.custody.source() {
         return Err(FunctionRelativeOptimizationRealizationError::ReceiptMismatch);
     }
     let machine =
-        validate_optimized_post_allocation_machine_plan_custody(&staged.homes, &staged.machine)
+        validate_optimized_post_allocation_machine_plan_custody(&current, &staged.machine)
             .map_err(FunctionRelativeOptimizationRealizationError::PostAllocationMachine)?;
     if &machine != staged.machine.custody() {
         return Err(FunctionRelativeOptimizationRealizationError::ReceiptMismatch);
     }
-    let selected_stage = staged
-        .homes
-        .legality_stage()
-        .live_range_stage()
-        .liveness_stage()
-        .selected_stage();
-    let selected = selected_stage.selected();
-    let physical = selected_stage.register_environment().physical();
-    let selections = selected_stage.optimized_target().optimized().selections();
+    let selected = current.selected();
+    let physical = current.register_environment().physical();
+    let selections = current.selections();
     if !rel8_selected(
         selections,
-        selected_stage.optimized_target().target().architecture,
+        current.register_environment().target().architecture,
     )? {
         return Err(
             FunctionRelativeOptimizationRealizationError::MissingFunctionRelativeLayoutOptimization,
@@ -149,7 +135,7 @@ pub fn validate_function_relative_layout_optimization_realization_custody(
     )
     .map_err(FunctionRelativeOptimizationRealizationError::ExitContract)?;
     let manifest = expected_direct_manifest(
-        &staged.homes,
+        &current,
         &staged.machine,
         &staged.encoding,
         &staged.baseline_layout,
@@ -160,7 +146,7 @@ pub fn validate_function_relative_layout_optimization_realization_custody(
         return Err(FunctionRelativeOptimizationRealizationError::RootMismatch);
     }
     let custody = direct_custody_receipt(
-        &staged.homes,
+        source,
         &staged.machine,
         &staged.relaxation,
         &staged.exit_contract,

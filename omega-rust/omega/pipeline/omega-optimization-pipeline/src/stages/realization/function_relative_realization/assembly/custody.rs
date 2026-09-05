@@ -2,13 +2,13 @@ use super::super::prelude::*;
 use super::super::{carriers::*, model::*};
 
 pub(in crate::stages::realization::function_relative_realization) fn custody_receipt(
-    homes: &StagedOptimizedRegisterHomesAfterSelectedLowering,
+    source: &StagedOptimizedPostSelectedLoweringHomeCustodyReceipt,
     machine: &StagedOptimizedPostAllocationMachinePlan,
     exit_contract: &ValidatedWholeFunctionExitContract,
     manifest: &ValidatedFunctionRelativeOptimizationRealizationManifest,
 ) -> StagedSelectedLoweringFunctionRelativeRealizationCustodyReceipt {
     StagedSelectedLoweringFunctionRelativeRealizationCustodyReceipt {
-        source: homes.custody().clone(),
+        source: source.clone(),
         machine: machine.custody().clone(),
         exit_contract: exit_contract.identity(),
         realization: manifest.record.identity,
@@ -16,14 +16,14 @@ pub(in crate::stages::realization::function_relative_realization) fn custody_rec
 }
 
 pub(in crate::stages::realization::function_relative_realization) fn direct_custody_receipt(
-    homes: &StagedOptimizedRegisterHomes,
+    source: StagedOptimizedRegisterHomeCustodyReceipt,
     machine: &StagedOptimizedPostAllocationMachinePlan,
     relaxation: &StagedOptimizedX86BranchRelaxation,
     exit_contract: &ValidatedWholeFunctionExitContract,
     manifest: &ValidatedFunctionRelativeOptimizationRealizationManifest,
 ) -> StagedFunctionRelativeLayoutOptimizationRealizationCustodyReceipt {
     StagedFunctionRelativeLayoutOptimizationRealizationCustodyReceipt {
-        source: homes.custody(),
+        source,
         machine: machine.custody().clone(),
         relaxation: relaxation.identity(),
         exit_contract: exit_contract.identity(),

@@ -3,8 +3,10 @@ use super::super::{
     FunctionRelativeOptimizationRealizationScope, FunctionRelativeOptimizationRealizationStage,
     FunctionRelativeOptimizationUnavailableData, error::*, model::*,
 };
+use super::allocation::{baseline_allocation_source, selected_lowering_source};
 use super::rel8::{final_layout, rel8_selected, validate_relaxation_manifest_roots};
 use super::statistics::function_relative_statistics;
+use omega_selected_instructions_to_register_homes::AllocationOutput;
 
 #[allow(clippy::too_many_arguments)]
 pub(in crate::stages::realization::function_relative_realization) fn expected_allocated_post_allocation_machine_manifest(
@@ -189,7 +191,7 @@ fn exit_custody_matches(
 }
 
 pub(in crate::stages::realization::function_relative_realization) fn expected_manifest(
-    homes: &StagedOptimizedRegisterHomesAfterSelectedLowering,
+    allocation: &AllocationOutput<'_>,
     machine: &StagedOptimizedPostAllocationMachinePlan,
     encoding: &StagedOptimizedSelectedFormEncoding,
     baseline_layout: &StagedOptimizedResolvedSelectedFormLayout,
@@ -199,16 +201,9 @@ pub(in crate::stages::realization::function_relative_realization) fn expected_ma
     ValidatedFunctionRelativeOptimizationRealizationManifest,
     FunctionRelativeOptimizationRealizationError,
 > {
-    let run = homes.selected_lowering_run();
-    let completion = run.custody();
-    let selections = run
-        .source_legality_stage()
-        .live_range_stage()
-        .liveness_stage()
-        .selected_stage()
-        .optimized_target()
-        .optimized()
-        .selections();
+    let source = selected_lowering_source(allocation)?;
+    let completion = source.source();
+    let selections = allocation.selections();
     let selected_lowering_selections = selections
         .for_phase(OptimizationExecutionPhase::SelectedLowering)
         .identity();
@@ -218,7 +213,7 @@ pub(in crate::stages::realization::function_relative_realization) fn expected_ma
     let post_allocation_machine_selections = selections
         .for_phase(OptimizationExecutionPhase::PostAllocationMachine)
         .identity();
-    let post = homes.post_allocation_manifest().record();
+    let post = allocation.post_allocation_manifest().record();
     if completion.selections() != selections.identity()
         || completion.selected_lowering_selections() != selected_lowering_selections
         || post.selected_lowering_completion != Some(completion.identity())
@@ -289,7 +284,7 @@ pub(in crate::stages::realization::function_relative_realization) fn expected_ma
 }
 
 pub(in crate::stages::realization::function_relative_realization) fn expected_direct_manifest(
-    homes: &StagedOptimizedRegisterHomes,
+    allocation: &AllocationOutput<'_>,
     machine: &StagedOptimizedPostAllocationMachinePlan,
     encoding: &StagedOptimizedSelectedFormEncoding,
     baseline_layout: &StagedOptimizedResolvedSelectedFormLayout,
@@ -299,13 +294,7 @@ pub(in crate::stages::realization::function_relative_realization) fn expected_di
     ValidatedFunctionRelativeOptimizationRealizationManifest,
     FunctionRelativeOptimizationRealizationError,
 > {
-    let selected_stage = homes
-        .legality_stage()
-        .live_range_stage()
-        .liveness_stage()
-        .selected_stage();
-    let optimized = selected_stage.optimized_target().optimized();
-    let selections = optimized.selections();
+    let selections = allocation.selections();
     let selected_lowering_selections = selections
         .for_phase(OptimizationExecutionPhase::SelectedLowering)
         .identity();
@@ -322,9 +311,9 @@ pub(in crate::stages::realization::function_relative_realization) fn expected_di
     {
         return Err(FunctionRelativeOptimizationRealizationError::RootMismatch);
     }
-    let source = homes.custody();
+    let source = baseline_allocation_source(allocation)?;
     let selected = source.selected();
-    let post = homes.post_allocation_manifest().record();
+    let post = allocation.post_allocation_manifest().record();
     if post.selected_lowering_completion.is_some()
         || post.selected != selected
         || post.target != baseline_layout.target()

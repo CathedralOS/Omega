@@ -11,7 +11,7 @@ pub fn stage_fixed_frame_function_relative_realization(
     let current = allocation
         .replay_allocation()
         .map_err(FunctionRelativeOptimizationRealizationError::Allocation)?;
-    let source = fixed_frame_source(&current)?;
+    let source = baseline_allocation_source(&current)?;
     let machine = stage_optimized_post_allocation_machine_plan(&current)
         .map_err(FunctionRelativeOptimizationRealizationError::PostAllocationMachine)?;
     let selected = current.selected();
@@ -100,7 +100,7 @@ pub fn validate_fixed_frame_function_relative_realization(
         .allocation
         .replay_allocation()
         .map_err(FunctionRelativeOptimizationRealizationError::Allocation)?;
-    let source = fixed_frame_source(&current)?;
+    let source = baseline_allocation_source(&current)?;
     let machine =
         validate_optimized_post_allocation_machine_plan_custody(&current, &staged.machine)
             .map_err(FunctionRelativeOptimizationRealizationError::PostAllocationMachine)?;

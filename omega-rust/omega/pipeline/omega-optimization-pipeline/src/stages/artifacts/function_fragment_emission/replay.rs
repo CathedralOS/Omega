@@ -25,6 +25,18 @@ pub(crate) enum FunctionFragmentReplayInputs {
 }
 
 impl FunctionFragmentReplayInputs {
+    fn allocation(&self) -> &omega_selected_instructions_to_register_homes::RetainedAllocation {
+        match self {
+            Self::X86Rel8Direct(realization) => realization.allocation(),
+            Self::SelectedLowering(realization) => realization.allocation(),
+            Self::PostAllocationMachine(realization) => realization.allocation(),
+            Self::AllocationRecovery(realization) => realization.allocation(),
+            Self::UnitBaseline(realization) => realization.allocation(),
+            Self::StructuralUnit(realization) => realization.allocation(),
+            Self::FixedFrame(realization) => realization.allocation(),
+        }
+    }
+
     pub fn source_kind(&self) -> FunctionFragmentEmissionSourceKind {
         match self {
             Self::X86Rel8Direct(_) => FunctionFragmentEmissionSourceKind::X86Rel8V1,
@@ -86,50 +98,11 @@ impl FunctionFragmentReplayInputs {
     }
 
     pub fn register_homes(&self) -> &omega_regalloc::ValidatedRegisterHomes {
-        match self {
-            Self::X86Rel8Direct(realization) => realization.homes().homes(),
-            Self::SelectedLowering(realization) => realization.homes().homes(),
-            Self::PostAllocationMachine(realization) => realization.allocation().current().homes(),
-            Self::AllocationRecovery(realization) => realization.allocation().current().homes(),
-            Self::UnitBaseline(realization) => realization.allocation().current().homes(),
-            Self::StructuralUnit(realization) => realization.allocation().current().homes(),
-            Self::FixedFrame(realization) => realization.allocation().current().homes(),
-        }
+        self.allocation().current().homes()
     }
 
     pub fn register_environment(&self) -> &crate::ValidatedTargetRegisterEnvironment {
-        match self {
-            Self::X86Rel8Direct(realization) => realization
-                .homes()
-                .legality_stage()
-                .live_range_stage()
-                .liveness_stage()
-                .selected_stage()
-                .register_environment(),
-            Self::SelectedLowering(realization) => realization
-                .homes()
-                .selected_lowering_run()
-                .source_legality_stage()
-                .live_range_stage()
-                .liveness_stage()
-                .selected_stage()
-                .register_environment(),
-            Self::PostAllocationMachine(realization) => {
-                realization.allocation().current().register_environment()
-            }
-            Self::AllocationRecovery(realization) => {
-                realization.allocation().current().register_environment()
-            }
-            Self::UnitBaseline(realization) => {
-                realization.allocation().current().register_environment()
-            }
-            Self::StructuralUnit(realization) => {
-                realization.allocation().current().register_environment()
-            }
-            Self::FixedFrame(realization) => {
-                realization.allocation().current().register_environment()
-            }
-        }
+        self.allocation().current().register_environment()
     }
 
     pub const fn exit_contract(&self) -> &crate::ValidatedWholeFunctionExitContract {
@@ -161,30 +134,7 @@ impl FunctionFragmentReplayInputs {
     pub fn post_allocation_manifest(
         &self,
     ) -> &omega_regalloc::ValidatedPostAllocationOptimizationManifest {
-        match self {
-            Self::X86Rel8Direct(realization) => realization.homes().post_allocation_manifest(),
-            Self::SelectedLowering(realization) => realization.homes().post_allocation_manifest(),
-            Self::PostAllocationMachine(realization) => realization
-                .allocation()
-                .current()
-                .post_allocation_manifest(),
-            Self::AllocationRecovery(realization) => realization
-                .allocation()
-                .current()
-                .post_allocation_manifest(),
-            Self::UnitBaseline(realization) => realization
-                .allocation()
-                .current()
-                .post_allocation_manifest(),
-            Self::StructuralUnit(realization) => realization
-                .allocation()
-                .current()
-                .post_allocation_manifest(),
-            Self::FixedFrame(realization) => realization
-                .allocation()
-                .current()
-                .post_allocation_manifest(),
-        }
+        self.allocation().current().post_allocation_manifest()
     }
 }
 
@@ -192,79 +142,14 @@ impl FunctionFragmentReplayInputs {
     pub fn shared_selected_plan(
         &self,
     ) -> std::sync::Arc<omega_selected_instructions::SelectedInstructionPlan> {
-        match self {
-            Self::X86Rel8Direct(realization) => realization
-                .homes()
-                .legality_stage()
-                .live_range_stage()
-                .liveness_stage()
-                .selected_stage()
-                .selected()
-                .shared_selected_plan(),
-            Self::SelectedLowering(realization) => {
-                shared_selected_after_lowering(realization.homes())
-            }
-            Self::PostAllocationMachine(realization) => realization
-                .allocation()
-                .current()
-                .selected()
-                .shared_selected_plan(),
-            Self::AllocationRecovery(realization) => realization
-                .allocation()
-                .current()
-                .selected()
-                .shared_selected_plan(),
-            Self::UnitBaseline(realization) => realization
-                .allocation()
-                .current()
-                .selected()
-                .shared_selected_plan(),
-            Self::StructuralUnit(realization) => realization
-                .allocation()
-                .current()
-                .selected()
-                .shared_selected_plan(),
-            Self::FixedFrame(realization) => realization
-                .allocation()
-                .current()
-                .selected()
-                .shared_selected_plan(),
-        }
+        self.allocation()
+            .current()
+            .selected()
+            .shared_selected_plan()
     }
 
     pub fn target_input_owner(&self) -> &std::sync::Arc<crate::ValidatedOptimizedTargetOperations> {
-        match self {
-            Self::X86Rel8Direct(realization) => realization
-                .homes()
-                .legality_stage()
-                .live_range_stage()
-                .liveness_stage()
-                .selected_stage()
-                .optimized_target_owner(),
-            Self::SelectedLowering(realization) => realization
-                .homes()
-                .selected_lowering_run()
-                .source_legality_stage()
-                .live_range_stage()
-                .liveness_stage()
-                .selected_stage()
-                .optimized_target_owner(),
-            Self::PostAllocationMachine(realization) => {
-                realization.allocation().current().target_input_owner()
-            }
-            Self::AllocationRecovery(realization) => {
-                realization.allocation().current().target_input_owner()
-            }
-            Self::UnitBaseline(realization) => {
-                realization.allocation().current().target_input_owner()
-            }
-            Self::StructuralUnit(realization) => {
-                realization.allocation().current().target_input_owner()
-            }
-            Self::FixedFrame(realization) => {
-                realization.allocation().current().target_input_owner()
-            }
-        }
+        self.allocation().current().target_input_owner()
     }
 
     pub fn encoding(&self) -> &crate::StagedOptimizedSelectedFormEncoding {
@@ -277,20 +162,5 @@ impl FunctionFragmentReplayInputs {
             Self::StructuralUnit(realization) => realization.encoding(),
             Self::FixedFrame(realization) => realization.encoding(),
         }
-    }
-}
-fn shared_selected_after_lowering(
-    homes: &crate::StagedOptimizedRegisterHomesAfterSelectedLowering,
-) -> std::sync::Arc<omega_selected_instructions::SelectedInstructionPlan> {
-    let run = homes.selected_lowering_run();
-    match run.steps().last() {
-        Some(step) => step.fold().shared_selected_plan(),
-        None => run
-            .source_legality_stage()
-            .live_range_stage()
-            .liveness_stage()
-            .selected_stage()
-            .selected()
-            .shared_selected_plan(),
     }
 }

@@ -155,6 +155,12 @@ In `omega-rust/omega/pipeline/`:
   ownership does not silently widen their admitted source roles. The identity
   route converts its allocation once and classifies the current selected
   program, without walking earlier stage objects for its input or budget.
+- Selected-lowering and direct branch-relaxation realization also retain current
+  allocation data. Selected-lowering no longer chooses its program by inspecting
+  the last rewrite step. The original completion receipt supplies its evidence
+  joins; baseline and relaxed layouts remain distinct checked artifacts.
+  Function-fragment replay uses one current-allocation accessor across its seven
+  roles. Those roles select retained evidence, not a current program representation.
 
 Fragment emission and structural placement select algorithms by program shape,
 not optimization history. Frame application reads the retained current protocol,
@@ -175,8 +181,9 @@ identity, and codec areas. Its version-5 frame and version-6 content identity
 are unchanged. Construction and independent admission remain outside the
 representation; selected-form encoding imports the raw data from this owner.
 
-Next: audit earlier realization producers and remove old producer-stage packaging
-where only replay inputs are required. Retain transformation evidence
+Next: audit the remaining public native and artifact entrances against this same
+boundary. The migrated function-relative producers and their emission consumer
+are not proof that every native path is converged. Retain transformation evidence
 separately with exact bindings. Replay may require prior inputs, but execution
 must not recover its current program by traversing those inputs. Do not discard
 proof inputs merely to make the ownership graph look smaller.
@@ -355,8 +362,8 @@ keep rule-specific proof obligations and domain-separated identities explicit.
 5. Complete applicable nonempty pre-Terminal optimization execution (D), with
    the remaining work kept visible until its behavioral controls pass.
 
-The next A boundaries are the selected-lowering and layout-optimization
-realization producers. Keep B convergence separate: sharing current target
+The next audit covers the outer native physical entrance and the remaining
+artifact/analysis owners. Keep B convergence separate: sharing current target
 data has not yet unified the assigned and optimized physical implementations.
 Likewise, extracting an algorithm from the umbrella coordinator must give it a
 real transform owner, not merely another package beside the coordinator.

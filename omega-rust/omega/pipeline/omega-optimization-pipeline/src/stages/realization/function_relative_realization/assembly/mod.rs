@@ -1,7 +1,9 @@
 //! Optimizer module role: executable entrance.
 use super::prelude::*;
 use super::{error::*, model::*};
+use omega_selected_instructions_to_register_homes::AllocationOutput;
 
+mod allocation;
 mod custody;
 mod fixed_frame;
 mod manifests;
@@ -9,6 +11,7 @@ mod rel8;
 mod statistics;
 mod validation;
 
+pub(super) use allocation::*;
 pub(super) use custody::*;
 pub(super) use fixed_frame::*;
 pub(super) use manifests::{
@@ -19,13 +22,9 @@ pub(super) use rel8::*;
 pub(crate) use statistics::{function_relative_statistics, seal_function_relative_manifest};
 pub(super) use validation::validate_realization_artifacts;
 
-pub(super) fn build_realization<S: ValidatedSelectedAnalysis>(
-    selected: &S,
-    homes: &StagedOptimizedRegisterHomesAfterSelectedLowering,
+pub(super) fn build_realization(
+    allocation: &AllocationOutput<'_>,
     machine: &StagedOptimizedPostAllocationMachinePlan,
-    physical: &omega_register_model::ValidatedPhysicalRegisterModel,
-    selections: &OptimizationSelections,
-    budget: OptimizationWorkBudget,
 ) -> Result<
     (
         StagedOptimizedSelectedFormEncoding,
@@ -36,6 +35,10 @@ pub(super) fn build_realization<S: ValidatedSelectedAnalysis>(
     ),
     FunctionRelativeOptimizationRealizationError,
 > {
+    let selected = allocation.selected();
+    let physical = allocation.register_environment().physical();
+    let selections = allocation.selections();
+    let budget = allocation.budget_per_pass();
     let encoding =
         stage_optimized_layout_independent_selected_form_encoding(selected, machine, physical)
             .map_err(FunctionRelativeOptimizationRealizationError::Encoding)?;
@@ -60,7 +63,7 @@ pub(super) fn build_realization<S: ValidatedSelectedAnalysis>(
         relaxation.as_ref(),
     )?;
     let manifest = expected_manifest(
-        homes,
+        allocation,
         machine,
         &encoding,
         &baseline_layout,

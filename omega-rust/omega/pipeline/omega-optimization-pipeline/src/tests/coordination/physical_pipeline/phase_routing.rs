@@ -2,6 +2,7 @@
 
 use crate::FunctionFragmentReplayInputs;
 use omega_optimization_core::PostTerminalOptimizationSelections;
+use omega_selected_instructions_to_register_homes::AllocationEvidence;
 
 use crate::tests::{
     AdmissionProfile, ExplicitOptimizationRequest, FunctionRelativeOptimizationUnavailableData,
@@ -97,12 +98,16 @@ fn compiler_facing_physical_pipeline_routes_psi_only_and_selected_lowering_suite
             let realization = (staged).selected_lowering_for_test().unwrap_or_else(|| {
                 panic!("selected-lowering phase must run when its exact family is selected")
             });
-            let homes = realization.homes();
+            let allocation = realization.allocation().current();
+            let AllocationEvidence::SelectedLowering(source) = allocation.evidence() else {
+                panic!("selected-lowering realization must retain its completion receipt")
+            };
+            let completion = source.source();
             let machine = realization.machine();
             assert_eq!(staged.selections(), selections.identity());
             assert_eq!(
                 staged.selected_lowering_completion(),
-                Some(homes.selected_lowering_run().custody().identity())
+                Some(completion.identity())
             );
             assert_eq!(
                 staged
@@ -111,10 +116,17 @@ fn compiler_facing_physical_pipeline_routes_psi_only_and_selected_lowering_suite
                     .custody(),
                 realization.custody()
             );
-            assert!(homes.selected_lowering_run().steps().is_empty());
+            assert_eq!(completion.action_count(), 0);
+            assert!(
+                allocation
+                    .post_allocation_manifest()
+                    .record()
+                    .selected_transformations
+                    .is_empty()
+            );
             assert_eq!(
                 machine.machine().receipt().post_allocation_manifest(),
-                homes.post_allocation_manifest().record().identity
+                allocation.post_allocation_manifest().record().identity
             );
             assert_eq!(
                 realization.manifest().record().selections,
