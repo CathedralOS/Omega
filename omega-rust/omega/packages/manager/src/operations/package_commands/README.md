@@ -30,6 +30,21 @@ accept repeated `--target <name>`; they retain every existing lock target and
 add requested ones. First acceptance defaults to the host when none is named.
 The project must already have a valid `build.omg`.
 
+`--offline` restricts repository acquisition for this invocation. Local source
+work and cached accepted/proposed Git pins remain usable; missing recorded
+content fails without fetching or changing accepted files. New or explicitly
+refreshed Git requests reject even if a moving selector was cached earlier.
+In particular, `omega update --offline` does not silently preserve the Git
+repositories it was asked to update. Resolve an update online first, then use
+`omega update --resume --offline` to finish its review from cached proposed pins.
+The same applies to install/resume, including named workspace packages.
+
+This option also prevents old-source diff recovery from fetching. Missing old
+bytes produce standalone candidate diagnostics; accepted lock policy still
+supplies the capability comparison. Offline mode does not disable compiler
+checking, scoped build outputs, review decisions, or publication recovery.
+It is not a sandbox for a program later executed by the user.
+
 Install supports Git HTTPS/SSH and local sources through existing adapters.
 The fetched `build.omg` supplies the package name and default import alias;
 `--as` is an optional local override. Git defaults to `HEAD` when `--rev` is
@@ -85,7 +100,7 @@ Ignored `build/package-manager/` contains:
 - `transaction.lock` and `pending`: the separate publication mutex and
   commit-intent journal, owned by [publication](../publication/README.md).
 
-Resume fetches only the proposed exact pins if needed, recompiles, and rejects
+Resume fetches only the proposed exact pins if needed and not offline, recompiles, and rejects
 source, graph, accepted-file, or finding drift. Missing old source does not
 prevent comparison with accepted policy. Source diagnostics recover recorded
 Git commits and named members without refreshing selectors. Changed local

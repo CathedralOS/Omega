@@ -3,9 +3,9 @@
 use super::{PackageFileTransaction, PackagePublicationError, PackagePublicationLimits};
 use crate::lock::{PackageLock, PackageLockRecoveryLimits};
 use crate::resolution::graph::{
-    CanonicalSourceClosureSubjectLimits, PackageRootSourceRequest, PackageSourceClosureLimits,
-    ResolveExternalLocalPackageClosureError, ResolvedPackageSourceClosure,
-    resolve_external_local_project_closure_with_storage,
+    CanonicalSourceClosureSubjectLimits, GitResolutionOptions, PackageRootSourceRequest,
+    PackageSourceClosureLimits, ResolveExternalLocalPackageClosureError,
+    ResolvedPackageSourceClosure, resolve_external_local_project_closure_with_options,
     resolve_locked_local_project_closure_with_storage,
 };
 use crate::resolution::package_compilation_inputs;
@@ -19,6 +19,13 @@ use std::path::{Path, PathBuf};
 use target::TargetProfile;
 
 pub(super) const LOCAL_PROJECT_CONTEXT: &[u8] = b"omega-local-project-v1";
+
+/// Invocation-local source acquisition choices; never stored as lock policy.
+#[derive(Debug, Clone, Copy)]
+pub struct LocalProjectPreparationOptions {
+    pub target: TargetProfile,
+    pub offline: bool,
+}
 
 /// The compiler entry and exact package graph prepared from one local project.
 pub struct PreparedLocalProject {
@@ -117,18 +124,50 @@ pub fn prepare_local_project_for_target(
     entry_path: &Path,
     target: TargetProfile,
 ) -> Result<Option<PreparedLocalProject>, PrepareLocalProjectError> {
-    prepare_with_storage(entry_path, target, |root| {
+    prepare_local_project_with_options(
+        entry_path,
+        LocalProjectPreparationOptions {
+            target,
+            offline: false,
+        },
+    )
+}
+
+/// Offline preparation permits normal local root edits and cached accepted Git
+/// pins. Unlocked local graphs work, but any unrecorded Git request rejects.
+pub fn prepare_local_project_with_options(
+    entry_path: &Path,
+    options: LocalProjectPreparationOptions,
+) -> Result<Option<PreparedLocalProject>, PrepareLocalProjectError> {
+    prepare_with_options_and_storage(entry_path, options, |root| {
         SourceResolverStorage::for_current_user_excluding_primary_git_roots(std::slice::from_ref(
             &root.to_path_buf(),
         ))
     })
 }
 
+#[cfg(test)]
 fn prepare_with_storage(
     entry_path: &Path,
     target: TargetProfile,
     open_storage: impl FnOnce(&Path) -> Result<SourceResolverStorage, SourceResolveError>,
 ) -> Result<Option<PreparedLocalProject>, PrepareLocalProjectError> {
+    prepare_with_options_and_storage(
+        entry_path,
+        LocalProjectPreparationOptions {
+            target,
+            offline: false,
+        },
+        open_storage,
+    )
+}
+
+fn prepare_with_options_and_storage(
+    entry_path: &Path,
+    options: LocalProjectPreparationOptions,
+    open_storage: impl FnOnce(&Path) -> Result<SourceResolverStorage, SourceResolveError>,
+) -> Result<Option<PreparedLocalProject>, PrepareLocalProjectError> {
+    let LocalProjectPreparationOptions { target, offline } = options;
     let project_root = entry_path
         .parent()
         .filter(|parent| !parent.as_os_str().is_empty())
@@ -219,7 +258,11 @@ fn prepare_with_storage(
                 requested_root: canonical_project_root.clone(),
                 source_context: ExternalSourceContext::derive(LOCAL_PROJECT_CONTEXT),
             },
-            GitExactRevisionAcquisition::AllowFetch,
+            if offline {
+                GitExactRevisionAcquisition::Offline
+            } else {
+                GitExactRevisionAcquisition::AllowFetch
+            },
             &storage,
             LocalSourceLimits::default(),
             PackageSourceClosureLimits::default(),
@@ -227,12 +270,16 @@ fn prepare_with_storage(
         )
         .map_err(|error| PrepareLocalProjectError::Locked(error.to_string()))?
     } else {
-        resolve_external_local_project_closure_with_storage(
+        resolve_external_local_project_closure_with_options(
             &canonical_project_root,
             ExternalSourceContext::derive(LOCAL_PROJECT_CONTEXT),
             &storage,
             LocalSourceLimits::default(),
             PackageSourceClosureLimits::default(),
+            GitResolutionOptions {
+                pins: None,
+                offline,
+            },
         )
         .map_err(PrepareLocalProjectError::Closure)?
     };

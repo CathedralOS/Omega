@@ -133,7 +133,8 @@ fn parse_inspect_terminal_arguments(
             if machine.is_some() {
                 return None;
             }
-            machine = arguments.next().and_then(|value| value.into_string().ok());
+            machine = super::compile_option_value(&mut arguments)
+                .and_then(|value| value.into_string().ok());
             machine.as_ref()?;
             continue;
         }
@@ -141,7 +142,8 @@ fn parse_inspect_terminal_arguments(
             if target_name.is_some() {
                 return None;
             }
-            target_name = arguments.next().and_then(|value| value.into_string().ok());
+            target_name = super::compile_option_value(&mut arguments)
+                .and_then(|value| value.into_string().ok());
             target_name.as_ref()?;
             continue;
         }
@@ -472,4 +474,24 @@ fn service_identity(module: &TerminalModule, id: ServiceId) -> Option<&str> {
         .iter()
         .find(|declaration| declaration.id == id)
         .map(|declaration| declaration.identity.as_str())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::ffi::OsString;
+
+    #[test]
+    fn terminal_inspection_rejects_offline_in_every_position() {
+        let ordinary = ["--machine", "main", "--target", "linux_x64", "main.omg"];
+        assert!(parse_inspect_terminal_arguments(ordinary.iter().map(OsString::from)).is_some());
+        for position in 0..=ordinary.len() {
+            let mut arguments = ordinary.to_vec();
+            arguments.insert(position, "--offline");
+            assert!(
+                parse_inspect_terminal_arguments(arguments.iter().map(OsString::from)).is_none(),
+                "{arguments:?}"
+            );
+        }
+    }
 }

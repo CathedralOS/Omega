@@ -16,6 +16,8 @@ pub struct PackageInspectionOptions {
     pub targets: Vec<TargetProfile>,
     /// Include full compiler-owned normalized policy after the readable summary.
     pub details: bool,
+    /// Restrict Git acquisition to cached exact pins, without selector refresh.
+    pub offline: bool,
 }
 
 #[derive(Debug)]
@@ -48,10 +50,18 @@ pub fn inspect_packages(
     let transaction =
         PackageFileTransaction::open(&options.project_root, PackagePublicationLimits::default())
             .map_err(failure)?;
-    execution::inspect(&transaction, options.targets, options.details, |root| {
-        SourceResolverStorage::for_current_user_excluding_primary_git_roots(&[root.to_path_buf()])
+    execution::inspect(
+        &transaction,
+        options.targets,
+        options.details,
+        options.offline,
+        |root| {
+            SourceResolverStorage::for_current_user_excluding_primary_git_roots(&[
+                root.to_path_buf()
+            ])
             .map_err(failure)
-    })
+        },
+    )
 }
 
 pub fn inspect_packages_with_storage(
@@ -61,7 +71,11 @@ pub fn inspect_packages_with_storage(
     let transaction =
         PackageFileTransaction::open(&options.project_root, PackagePublicationLimits::default())
             .map_err(failure)?;
-    execution::inspect(&transaction, options.targets, options.details, |_| {
-        Ok(storage)
-    })
+    execution::inspect(
+        &transaction,
+        options.targets,
+        options.details,
+        options.offline,
+        |_| Ok(storage),
+    )
 }

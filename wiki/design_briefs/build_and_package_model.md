@@ -3026,6 +3026,17 @@ controls preserved pins only, not network access for explicitly refreshed or new
 requests. Freshly acquired content must match the recorded resolution. There
 is no fallback from an unavailable old pin to a newer selector result.
 
+`GitResolutionOptions::offline` is the separate whole-invocation restriction:
+it overrides preserved-pin fetch permission and rejects every new or refreshed
+Git request, including requests discovered transitively. The command's
+`--offline` uses this policy and exact-pin offline recovery for locked
+compilation, inspection, and install/update resume. Local roots remain editable
+and local-only graphs need no lock. Resume uses the proposal's exact pins, not
+the current branch tip. Historical-source diagnostics also obey the option;
+an unavailable old checkout does not prevent comparison against lock policy.
+The flag changes no lock/proposal schema and does not disable compilation,
+scoped build outputs, project decisions, or pending-publication recovery.
+
 ## Package reach boundary
 
 The package is the dependency-reach boundary:

@@ -4,6 +4,8 @@ mod output;
 mod package;
 mod probe;
 mod samples;
+#[cfg(test)]
+mod tests;
 
 use std::path::PathBuf;
 
@@ -88,7 +90,7 @@ fn dispatch() {
         audit::run(raw_arguments);
         return;
     }
-    let arguments = parse_arguments().unwrap_or_else(|error| {
+    let arguments = parse_arguments(std::env::args_os().skip(1)).unwrap_or_else(|error| {
         if !error.is_empty() {
             eprintln!("{error}");
         }
@@ -118,9 +120,12 @@ fn dispatch() {
                 eprintln!("{diagnostic}");
                 std::process::exit(1);
             });
-    let prepared_project = match package_manager::operations::prepare_local_project_for_target(
+    let prepared_project = match package_manager::operations::prepare_local_project_with_options(
         &options.root_path,
-        target_profile,
+        package_manager::operations::LocalProjectPreparationOptions {
+            target: target_profile,
+            offline: arguments.offline,
+        },
     ) {
         Ok(prepared) => prepared,
         Err(error) => {
@@ -319,6 +324,7 @@ struct CliArguments {
     accept_admissions: bool,
     build_dir: Option<PathBuf>,
     check_only: bool,
+    offline: bool,
     output_only: bool,
     package_root_policy: Option<PathBuf>,
     root_path: PathBuf,
@@ -327,21 +333,31 @@ struct CliArguments {
 }
 
 fn usage() -> &'static str {
-    "usage: omega [--check] [--accept-admissions] [--output-only] [--package-root-policy <file>] [--build-dir <dir>] [--target <name>] [--disable-optimization <ExactName>]... <root.omg>\n       omega run [--both] [--keep] [--target <name>] <root.omg>\n       omega inspect-terminal --machine <qualified> [--target <name>] <root.omg>\n       omega audit source --kind <local|git> <locator> [--rev <rev>]\n       omega audit packages [--project <dir>] [--target <name>]... [--details]\n       omega install <source> [--rev <revision>] [--package <declared-name>] [--as <alias>] [--target <name>]... [--project <dir>]\n       omega update [package-or-alias...] [--to <revision>] [--target <name>]... [--project <dir>]\n       omega install|update --resume [--project <dir>]\n       omega install|update --discard-review [--project <dir>]\n       omega refresh-samples [samples-dir]"
+    "usage: omega [--check] [--offline] [--accept-admissions] [--output-only] [--package-root-policy <file>] [--build-dir <dir>] [--target <name>] [--disable-optimization <ExactName>]... <root.omg>\n       omega run [--both] [--keep] [--target <name>] <root.omg>\n       omega inspect-terminal --machine <qualified> [--target <name>] <root.omg>\n       omega audit source --kind <local|git> <locator> [--rev <rev>]\n       omega audit packages [--project <dir>] [--target <name>]... [--details] [--offline]\n       omega install <source> [--rev <revision>] [--package <declared-name>] [--as <alias>] [--target <name>]... [--project <dir>] [--offline]\n       omega update [package-or-alias...] [--to <revision>] [--target <name>]... [--project <dir>] [--offline]\n       omega install|update --resume [--project <dir>] [--offline]\n       omega install|update --discard-review [--project <dir>] [--offline]\n       omega refresh-samples [samples-dir]\n--offline disables package source network acquisition for this invocation.\nrun and inspect-terminal do not support --offline."
 }
 
-fn parse_arguments() -> Result<CliArguments, String> {
+fn parse_arguments(
+    mut arguments: impl Iterator<Item = std::ffi::OsString>,
+) -> Result<CliArguments, String> {
     let mut accept_admissions = false;
     let mut build_dir = None;
     let mut check_only = false;
     let mut disabled_optimizations = Vec::new();
+    let mut offline = false;
     let mut output_only = false;
     let mut package_root_policy = None;
     let mut root_path = None;
     let mut target_name = None;
-    let mut arguments = std::env::args_os().skip(1);
 
     while let Some(argument) = arguments.next() {
+        if argument == "--offline" {
+            if offline {
+                return Err("duplicate --offline".into());
+            }
+            offline = true;
+            continue;
+        }
+
         if argument == "--check" {
             check_only = true;
             continue;
@@ -358,7 +374,7 @@ fn parse_arguments() -> Result<CliArguments, String> {
         }
 
         if argument == "--package-root-policy" {
-            package_root_policy = arguments.next().map(PathBuf::from);
+            package_root_policy = compile_option_value(&mut arguments).map(PathBuf::from);
             if package_root_policy.is_none() {
                 return Err("--package-root-policy requires a file".into());
             }
@@ -366,7 +382,7 @@ fn parse_arguments() -> Result<CliArguments, String> {
         }
 
         if argument == "--build-dir" {
-            build_dir = arguments.next().map(PathBuf::from);
+            build_dir = compile_option_value(&mut arguments).map(PathBuf::from);
             if build_dir.is_none() {
                 return Err("--build-dir requires a directory".into());
             }
@@ -374,8 +390,7 @@ fn parse_arguments() -> Result<CliArguments, String> {
         }
 
         if argument == "--target" {
-            target_name = arguments
-                .next()
+            target_name = compile_option_value(&mut arguments)
                 .and_then(|target_name| target_name.into_string().ok());
             if target_name.is_none() {
                 return Err("--target requires a UTF-8 target name".into());
@@ -384,7 +399,7 @@ fn parse_arguments() -> Result<CliArguments, String> {
         }
 
         if argument == "--disable-optimization" {
-            let Some(name) = arguments.next() else {
+            let Some(name) = compile_option_value(&mut arguments) else {
                 return Err("--disable-optimization requires one exact optimization name".into());
             };
             let name = name.into_string().map_err(|_| {
@@ -421,10 +436,19 @@ fn parse_arguments() -> Result<CliArguments, String> {
         accept_admissions,
         build_dir,
         check_only,
+        offline,
         output_only,
         package_root_policy,
         root_path: root_path.ok_or_else(|| "missing root Omega source path".to_owned())?,
         target_name,
         optimization_rollback,
     })
+}
+
+fn compile_option_value(
+    arguments: &mut impl Iterator<Item = std::ffi::OsString>,
+) -> Option<std::ffi::OsString> {
+    arguments
+        .next()
+        .filter(|value| !value.is_empty() && !value.as_encoded_bytes().starts_with(b"--"))
 }

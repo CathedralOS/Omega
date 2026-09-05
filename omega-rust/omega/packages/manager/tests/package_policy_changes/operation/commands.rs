@@ -33,6 +33,7 @@ fn execute(
         PackageCommandOptions {
             project_root: tree.path("sources/root"),
             targets,
+            offline: false,
         },
         &tree.storage("command-cache"),
     )

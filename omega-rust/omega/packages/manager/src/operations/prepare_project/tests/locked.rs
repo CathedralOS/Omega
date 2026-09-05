@@ -10,6 +10,7 @@ use std::fs;
 
 mod fixture;
 mod git;
+mod offline;
 use fixture::Project;
 
 #[test]
@@ -165,8 +166,18 @@ fn incompatible_lock_rejects_before_acquisition() {
 
 #[test]
 fn recovery_precedes_baseline_loading_and_deleted_declaration_standalone_gate() {
-    for deleted in [false, true] {
+    for (deleted, offline) in [(false, false), (true, false), (false, true), (true, true)] {
         let project = Project::new("package");
+        let prepare = || {
+            prepare_with_options_and_storage(
+                &project.root().join("main.omg"),
+                LocalProjectPreparationOptions {
+                    target: TargetProfile::host(),
+                    offline,
+                },
+                |_| Ok(project.storage()),
+            )
+        };
         project.lock();
         let after_build = fs::read_to_string(project.root().join("build.omg")).unwrap();
         let after_lock = fs::read_to_string(project.root().join("omega.lock")).unwrap();
@@ -191,7 +202,7 @@ fn recovery_precedes_baseline_loading_and_deleted_declaration_standalone_gate() 
         if deleted {
             fs::remove_file(project.root().join("build.omg")).unwrap();
             assert!(matches!(
-                project.prepare(),
+                prepare(),
                 Err(PrepareLocalProjectError::Publication(_))
             ));
             assert_eq!(
@@ -200,7 +211,7 @@ fn recovery_precedes_baseline_loading_and_deleted_declaration_standalone_gate() 
             );
             assert!(!project.root().join("build.omg").exists());
         } else {
-            assert!(project.prepare().unwrap().is_some());
+            assert!(prepare().unwrap().is_some());
             assert_eq!(
                 fs::read_to_string(project.root().join("build.omg")).unwrap(),
                 after_build

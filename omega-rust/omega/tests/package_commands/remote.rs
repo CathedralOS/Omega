@@ -78,6 +78,8 @@ fn install_update_and_import(repository: &str) {
     );
     let accepted = fixture.accepted_files();
     assert_status(&fixture.omega(&["--check", "main.omg"]), 0);
+    assert_status(&fixture.omega(&["--check", "--offline", "main.omg"]), 0);
+    assert_status(&fixture.omega(&["audit", "packages", "--offline"]), 0);
     assert_eq!(fixture.accepted_files(), accepted);
 }
 

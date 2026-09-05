@@ -9,6 +9,17 @@ use package_source::git::resolution::GitExactRevisionAcquisition;
 use package_source::{GitSourceRequest, ImmutableSourceResolution};
 use std::fmt;
 
+/// Git selection policy for one complete dependency traversal.
+///
+/// Offline resolution requires an unchanged accepted request and verified cached
+/// objects. It forbids new or refreshed Git selections and overrides preserved
+/// pins' exact-fetch permission. Local Path dependencies remain available.
+#[derive(Debug, Clone, Copy, Default)]
+pub struct GitResolutionOptions<'a> {
+    pub pins: Option<GitDependencyPins<'a>>,
+    pub offline: bool,
+}
+
 /// A borrowed resolution policy, not an acceptance or compiler-review result.
 ///
 /// Unchanged locator/revision requests retain their recorded commit and tree.

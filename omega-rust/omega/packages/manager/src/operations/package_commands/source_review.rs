@@ -12,6 +12,7 @@ use crate::review::{
     PackageSourcePatchError, PackageSourcePatchLimits, render_package_source_patch,
 };
 use package_source::SourceResolverStorage;
+use package_source::git::resolution::GitExactRevisionAcquisition;
 use platform_custody::record_file::RecordFileRoot;
 
 const SOURCE_DOCUMENT: &str = "source-diff.txt";
@@ -23,6 +24,7 @@ pub(super) fn prepare(
     accepted: Option<&PackageLock>,
     candidate: &ResolvedPackageSourceClosure,
     storage: &SourceResolverStorage,
+    acquisition: GitExactRevisionAcquisition,
 ) -> Result<String, PackageCommandError> {
     // All lock targets share the same exact source graph. Source text is
     // target-neutral and is rendered once, independently of policy decisions.
@@ -41,7 +43,7 @@ pub(super) fn prepare(
         });
         let baseline = match (subject, expected) {
             (Some(subject), Some(expected)) => {
-                old_sources::recover(subject, expected, candidate, storage).map(Some)
+                old_sources::recover(subject, expected, candidate, storage, acquisition).map(Some)
             }
             _ => Ok(None),
         };

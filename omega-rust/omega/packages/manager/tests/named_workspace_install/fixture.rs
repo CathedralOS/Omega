@@ -62,9 +62,11 @@ pub(super) fn run(test: &str, operation: impl FnOnce(&Fixture)) {
     // This is a test transport endpoint, not a replacement for source parsing
     // or semantic discovery. The server always serves this temporary repo.
     let script = format!(
-        "#!/bin/sh\ncase \"$*\" in\n *git-upload-pack*) exec git upload-pack {} ;;\n *) exit 2 ;;\nesac\n",
+        "#!/bin/sh\nprintf 'call\\n' >> {}\ncase \"$*\" in\n *git-upload-pack*) exec git upload-pack {} ;;\n *) exit 2 ;;\nesac\n",
+        quote(fixture.path("transport-calls").to_str().unwrap()),
         quote(fixture.path("repository").to_str().unwrap())
     );
+    fixture.write("transport-calls", "");
     fixture.write("ssh-transport.sh", &script);
     let output = Command::new(std::env::current_exe().unwrap())
         .args(["--exact", &format!("cases::{test}"), "--nocapture"])
@@ -84,6 +86,11 @@ pub(super) fn run(test: &str, operation: impl FnOnce(&Fixture)) {
         "{test}\nstdout:\n{}\nstderr:\n{}",
         String::from_utf8_lossy(&output.stdout),
         String::from_utf8_lossy(&output.stderr)
+    );
+    assert!(
+        String::from_utf8_lossy(&output.stdout).contains("1 passed; 0 failed"),
+        "child must execute exactly cases::{test}: {}",
+        String::from_utf8_lossy(&output.stdout)
     );
 }
 
@@ -143,6 +150,19 @@ impl Fixture {
         &self,
         command: PackageCommand,
     ) -> Result<PackageCommandOutcome, PackageCommandError> {
+        self.execute_with_offline(command, false)
+    }
+
+    pub(super) fn transport_calls(&self) -> usize {
+        self.read("transport-calls").lines().count()
+    }
+
+    pub(super) fn execute_with_offline(
+        &self,
+        command: PackageCommand,
+        offline: bool,
+    ) -> Result<PackageCommandOutcome, PackageCommandError> {
+        let calls = self.transport_calls();
         let targets = if matches!(
             command,
             PackageCommand::Resume { .. } | PackageCommand::DiscardReview
@@ -151,14 +171,23 @@ impl Fixture {
         } else {
             vec![TargetProfile::WindowsX64]
         };
-        execute_package_command_with_storage(
+        let result = execute_package_command_with_storage(
             command,
             PackageCommandOptions {
                 project_root: self.path("root"),
                 targets,
+                offline,
             },
             &SourceResolverStorage::for_hardened_base(self.path("cache")).unwrap(),
-        )
+        );
+        if offline {
+            assert_eq!(
+                self.transport_calls(),
+                calls,
+                "offline command used transport"
+            );
+        }
+        result
     }
 
     pub(super) fn install(
@@ -178,6 +207,27 @@ impl Fixture {
         self.execute(PackageCommand::Resume {
             kind: PackageCommandKind::Install,
         })
+    }
+
+    #[allow(dead_code)]
+    pub(super) fn accept_required(&self, outcome: &PackageCommandOutcome) {
+        let mut decisions = 0;
+        for path in &outcome.review_paths {
+            let before = fs::read_to_string(path).unwrap();
+            let after: String = before
+                .split_inclusive('\n')
+                .map(|line| {
+                    if line.starts_with("decision ") {
+                        decisions += 1;
+                        format!("{} accept\n", line.strip_suffix(" pending\n").unwrap())
+                    } else {
+                        line.to_owned()
+                    }
+                })
+                .collect();
+            fs::write(path, after).unwrap();
+        }
+        assert!(decisions > 0, "fixture must require an explicit decision");
     }
 
     pub(super) fn pair(&self) -> (String, Option<String>) {

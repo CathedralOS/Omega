@@ -33,6 +33,8 @@ pub struct PackageCommandOptions {
     /// Explicit targets augment every previously accepted target. Empty uses
     /// existing targets, or the compiler's default target on first admission.
     pub targets: Vec<TargetProfile>,
+    /// Use cached recorded Git pins only; never fetch or refresh a selector.
+    pub offline: bool,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
