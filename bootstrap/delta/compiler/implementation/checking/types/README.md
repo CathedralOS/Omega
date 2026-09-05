@@ -34,9 +34,18 @@ ordinary visit/resume transitions do not allocate phase outcomes.
 | [matches.gamma](matches.gamma) | A subject retains the match and outer locals; each arm body retains the remaining arms, subject owner, outer locals, coverage trie/count, preceding arm type, and constructor count |
 | [identities.gamma](identities.gamma) | Builtin type identities and source-node rejection anchoring |
 
+[`../environments.gamma`](../environments.gamma) owns each local environment's
+active-binding count and exact-name trie, plus its shared row provision. The
+parameter environment supplies both to the body checker. New parameters, lets,
+and pattern binders provision against the same 65,536-active-row limit before
+insertion; refusal is `Incomplete` code 5 at the new binder's source start.
+Role-specific annotation and duplicate checks remain with their callers.
+
 Local environments and coverage tries are immutable. An initializer sees the
 outer environment, while its body sees the extended root. Parent continuations
-already retain their own roots, so a let body needs no restoration frame.
+already retain their own environments, so names and counts restore together
+without a let-body restoration frame. Pending body bindings do not consume
+rows in the separate environment used to check that let's initializer.
 Every match retains its own coverage trie; nested matches cannot overwrite an
 outer match's coverage. Each arm begins with the saved outer locals, allowing
 disjoint arms to reuse binder spellings.
@@ -62,7 +71,8 @@ body diagnostics.
   preempts an earlier applicable argument failure.
 - An `if` checks its condition, true branch, and false branch in order. The
   condition must be `Int`, and both branches must synthesize the same type.
-- A body `let` resolves its annotation, checks the binder conflict, checks its
+- A body `let` resolves its annotation, checks the binder conflict, provisions
+  its body binding, checks its
   initializer in the outer environment, compares the initializer's type, then
   checks its body. Declaration parameters retain their separate documented
   binder-before-own-annotation traversal.
@@ -71,6 +81,7 @@ body diagnostics.
   Exhaustiveness is checked after all accepted arms. Pattern binders are
   visited in order: a name in the saved outer environment is an active conflict;
   otherwise a name already introduced by the same pattern is a duplicate binder.
+  Only a fresh name requests an additional active-environment row.
 
 Body failures use Reject tag 1, Delta-source coordinate space 1, and zero
 resource fields:
@@ -96,8 +107,9 @@ separate observations and are never remapped into these compiler diagnostics.
 
 Explicit continuations remove source-nesting-dependent Gamma return contexts
 from expression typing. Their ordinary immutable pair allocations still belong
-to the selected Gamma evaluator's finite resources. This does not implement
-compiler-owned resource accounting or canonical internal-failure publication.
+to the selected Gamma evaluator's finite resources. The active-binding count
+does not account for those continuation allocations or implement other
+compiler-owned storage bounds or canonical internal-failure publication.
 
 The [lowering phase](../../lowering/README.md) consumes the completed typing
 judgment and builds every expanded Gamma body before publication under

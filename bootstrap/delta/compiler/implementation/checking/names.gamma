@@ -193,6 +193,7 @@
 (def function_metadata_parameter_types ((metadata Int)) Int
   (first (second (second (second metadata)))))
 
+; The complete parameter environment retains its active count beside its trie.
 (def function_metadata_parameter_locals ((metadata Int)) Int
   (first (second (second (second (second metadata))))))
 

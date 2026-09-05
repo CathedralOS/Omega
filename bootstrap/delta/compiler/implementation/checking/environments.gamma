@@ -1,0 +1,26 @@
+; A local environment is (pair active-count exact-name-trie). Parameters,
+; lets, and pattern binders share this one count. Saved immutable environments
+; restore names and count together when checking sibling scopes or match arms.
+(def local_environment ((count Int) (names Int)) Int
+  (pair count names))
+
+(def local_environment_lookup
+  ((locals Int) (start Int) (after Int)) Int
+  (name_trie_find_option (second locals) after start))
+
+; The caller has checked its role-specific conflict and annotation premises.
+; Provision precedes trie insertion and, for a let, initializer checking.
+; This counts active authored bindings, not trie nodes or retained snapshots.
+(def local_environment_provision ((count Int) (name Int)) Int
+  (if (lt count 65536)
+    (compiler_complete (+ count 1))
+    (compiler_failure 2 1 5 (syntax_start name) 65536 (+ count 1))))
+
+(def local_environment_bind ((locals Int) (name Int) (type Int)) Int
+  (let provision Int (local_environment_provision (first locals) name)
+    (if (eq (first provision) 0)
+      (compiler_complete
+        (local_environment (second provision)
+          (name_trie_insert (second locals) (syntax_after name)
+            (syntax_start name) type)))
+      provision)))

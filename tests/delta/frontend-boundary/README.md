@@ -128,6 +128,13 @@ and constructor owners, preserve every function payload, and revisit 1,024-byte
 prefixes after unrelated insertions. Each accepted program is compiled twice
 and must preserve the same binary application input as the other controls.
 
+[`parameter_cursors.py`](parameter_cursors.py) adds four exact rejection
+controls and two accepted programs for the separate parameter builder. They
+check duplicate/annotation ordering, absent prefixes and extensions after
+finishing the environment, and retained mixed `Int`/`Bytes`/nominal types after
+leaving and revisiting short and 1,024-byte prefixes. Both accepted programs
+compile twice and preserve the same binary application input.
+
 The expected coordinates are literal authored fixture facts or lengths of
 explicit fixture-construction prefixes, never source searches. Whole-frame
 comparison checks the reason, halt/tag agreement, coordinate space, reserved

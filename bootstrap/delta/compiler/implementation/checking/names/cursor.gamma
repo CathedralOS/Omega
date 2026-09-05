@@ -1,4 +1,4 @@
-; A census cursor is (pair focus (pair depth (pair source-start ancestors))).
+; A name cursor is (pair focus (pair depth (pair source-start ancestors))).
 ; Focus uses the ordinary name trie. Each counted ancestor is an existing
 ; parent node, without its outer presence wrapper, followed by older ancestors.
 ; The source prefix identifies the edges from the root to this focus exactly.
@@ -31,7 +31,7 @@
         0))
     0))
 
-; Only the completed census materializes roots for the ordinary global catalog.
+; A completed builder materializes a root for ordinary name lookup.
 ; Existing immutable cursor snapshots remain independently finishable.
 (def identity_cursor_finish ((cursor Int)) Int
   (name_trie_rebuild (identity_cursor_focus cursor)

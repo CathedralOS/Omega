@@ -15,12 +15,12 @@
               (typing_reject 12 node)))
           (if (if (is_digit byte) 1 (eq byte 45))
             (typing_resume (int_type) depth frames globals)
-            (let found Int (name_trie_find_option locals after start)
+            (let found Int (local_environment_lookup locals start after)
               (if (first found)
                 (typing_resume (second found) depth frames globals)
                 (typing_reject 14 node)))))))))
 
-; Preserve body-let order: annotation, active conflict, outer initializer.
+; Preserve body-let order: annotation, active conflict, provision, initializer.
 ; Frame payload is (pair initializer (pair declared-type (pair body locals))).
 (def typing_let
   ((node Int) (locals Int) (depth Int) (frames Int) (globals Int)) Int
@@ -31,20 +31,21 @@
       (if (first resolved)
         (let name Int (syntax_child node 1)
           (let prior Int
-            (name_trie_find_option locals (syntax_after name) (syntax_start name))
+            (local_environment_lookup locals (syntax_start name) (syntax_after name))
             (if (first prior)
               (typing_reject 9 name)
               (let extended Int
-                (name_trie_insert locals (syntax_after name) (syntax_start name)
-                  (second resolved))
-                (let initializer Int (syntax_child node 3)
-                  (typing_visit initializer locals (+ depth 1)
-                    (typing_frame 4
-                      (pair initializer
-                        (pair (second resolved)
-                          (pair (syntax_child node 4) extended)))
-                      frames)
-                    globals))))))
+                (local_environment_bind locals name (second resolved))
+                (if (eq (first extended) 0)
+                  (let initializer Int (syntax_child node 3)
+                    (typing_visit initializer locals (+ depth 1)
+                      (typing_frame 4
+                        (pair initializer
+                          (pair (second resolved)
+                            (pair (syntax_child node 4) (second extended))))
+                        frames)
+                      globals))
+                  extended)))))
         (typing_reject 11 annotation)))))
 
 (def typing_resume_initializer
@@ -65,12 +66,15 @@
     (let binder Int (first binders)
       (let start Int (syntax_start binder)
         (let after Int (syntax_after binder)
-          (let active Int (name_trie_find_option outer after start)
+          (let active Int (local_environment_lookup outer start after)
             (if (first active)
               (typing_reject 9 binder)
-              (let repeated Int (name_trie_find_option locals after start)
+              (let repeated Int (local_environment_lookup locals start after)
                 (if (first repeated)
                   (typing_reject 10 binder)
-                  (typing_pattern_bindings
-                    (- count 1) (second binders) (second types) outer
-                    (name_trie_insert locals after start (first types))))))))))))
+                  (let bound Int (local_environment_bind locals binder (first types))
+                    (if (eq (first bound) 0)
+                      (typing_pattern_bindings
+                        (- count 1) (second binders) (second types) outer
+                        (second bound))
+                      bound)))))))))))

@@ -196,12 +196,42 @@ away or the complete census finishes its ordinary catalog roots. This reduces
 discarded path copies while preserving authored order, exact duplicates, and
 every row-provision boundary above.
 
+The same [`name-construction helpers`](../checking/names/README.md) serve
+parameter cataloging. Parameters retain their role-specific conflict,
+annotation, and active-row provision order; only their completed name trie and
+active count pass to body checking. Cursor reuse changes neither global-row
+nor active-environment accounting.
+
 This is not Gamma's separate 4,096-function limit on an executable generated
 program. Authored functions, fixed runtime helpers, adapters, and extracted
 normalization helpers all consume that later evaluator limit. Census admission
 at 32,768 therefore does not claim successful generated-program admission.
 Other compiler-owned resource/internal outcomes remain open; a physical
 evaluator failure is not a substitute for this exact compiler-owned refusal.
+
+## Active local-row provision
+
+[`../checking/environments.gamma`](../checking/environments.gamma) owns the
+immutable `(active-count, exact-name-trie)` environment. Each function starts
+at zero. Successful parameter insertion advances the count, and its completed
+signature supplies that same environment to body checking. Lets and pattern
+binders extend it once per admitted fresh binding.
+
+At 65,536 active bindings, the next fresh name returns tag 2, resource code 5,
+coordinate space 1, its exact source start, limit 65,536, and requested 65,537.
+The check precedes trie insertion and does not allocate a refused binding.
+Parameter duplicate lookup and own-annotation resolution precede provision;
+body lets resolve annotation, check conflict, provision, then check initializer
+against the original outer environment. Patterns check outer conflicts and
+within-pattern repetition before provision. Those semantic failures retain
+their existing codes rather than becoming resource failures at capacity.
+
+Continuations save complete environments. Initializers do not see their pending
+body binding, and sibling scopes and match arms restore the saved count with
+the saved names. Retained roots, metadata copies, and trie nodes do not advance
+the active count. Match coverage remains a separate ordinary trie. This bound
+is compiler-owned active binding accounting, not Gamma's physical environment
+capacity or Delta's separate generated local-slot resource.
 
 ## Body traversal and coordinates
 
@@ -246,8 +276,8 @@ historical table is recoverable at
 detached table participates in execution. D125 removes profile 2, not the
 request-failure identities.
 
-Canonical frontend rejection and the owned source-byte, function-row, and
-parse-depth refusals
+Canonical frontend rejection and the owned source-byte, global-row,
+active-environment, and parse-depth refusals
 are not full DCOUT or Delta-edge closure. Other resource/internal outcomes do
 not yet carry compiler-owned evidence. Lowering constructs a complete expanded
 Gamma plan before publication, and records the height of every generated
