@@ -1,9 +1,9 @@
 use crate::pipeline::frontend::ParsedSources;
 use crate::pipeline::source::SourceFile;
-use crate::source::SourceMap;
 use arena::Arena;
 use diagnostics::Diagnostic;
 use semantic_vocabulary::PackageKeyIdentity;
+use source::SourceMap;
 use source::SourceOrigin;
 use std::path::{Path, PathBuf};
 use syntax_trees::SyntaxTrees;

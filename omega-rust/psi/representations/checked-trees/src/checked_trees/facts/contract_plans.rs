@@ -964,8 +964,7 @@ impl CrashPlan {
                     .is_none_or(|published| published.cause != site.cause)
             }) || site
                 .frontier_lower_bound
-                .iter()
-                .any(|identity| *identity == language_semantics::PermissionClaimIdentity::Unknown)
+                .contains(&language_semantics::PermissionClaimIdentity::Unknown)
         }) {
             return None;
         }
