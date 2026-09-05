@@ -2,6 +2,7 @@ mod accesses;
 mod aggregate_calls;
 mod certificates;
 mod checks;
+mod literal_moves;
 mod mutation;
 mod mutation_transitive;
 mod ordinals;

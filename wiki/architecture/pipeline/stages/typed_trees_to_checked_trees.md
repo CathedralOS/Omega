@@ -711,6 +711,12 @@ Current ownership is:
   storage footprint: a write through an authorized local reference is not a new
   direct access to its borrowed owner. Fact invalidation consumes storage
   origins; loan compatibility checks consume the route used by the call.
+  A literal constructor is not a caller storage address. Owned call operands
+  reuse the move-event traversal to identify transferred source values; access
+  routes project literal fields and elements to their actual expressions before
+  applying the existing loan-compatibility checks. Moving a local carrier inside
+  a literal therefore retains its local route rather than creating an unknown
+  expression-rooted access. Storage-origin expansion remains separate.
   Direct assignment demand stops the same state transfer at the store and
   reports either local-binding replacement or a storage write. Structured
   summaries and statement invalidation use that verdict before projecting local
@@ -863,9 +869,21 @@ Current ownership is:
   generic or recursive carrier shapes, and loaded reference carriers remain
   opaque. Borrowing incoming carrier slots also stays opaque because replacing
   a reference would invalidate its parameter-relative origin.
-  Moved values nested in immediate call literals and aggregate call results
-  still need general leaf-origin transfer; passing an aggregate by value does
-  not erase its mutable references.
+  Immediate call literals also transport moved local and parameter carriers.
+  Raw instantiation derives symbolic reference-leaf paths from the exact source
+  declaration and projected type, then filters the callee's demand against the
+  declared fields. A demand beneath an exact reference composes its remaining
+  suffix; collection origins absorb it. A disjoint owned field has no caller
+  writes, while an unknown field cannot become a complete empty frame.
+  Ordinary state transfer, cycle equations, and public caller closure resolve
+  symbolic local paths against frozen prefix origins before treating them as
+  private storage. Raw call inference never recursively reconstructs its own
+  caller prefix. Public demand also validates a prefix with incoming carriers
+  even when it has no alias-bearing local declarations, so earlier slot
+  replacement cannot preserve a stale parameter-relative frame.
+  Immediate-literal payload projections that need contextual active-case
+  evidence and aggregate call results still need general origin transfer;
+  passing an aggregate by value does not erase its mutable references.
   The same restriction applies to exclusive references to
   reference-bearing carriers; primitive slices retain their collection reach.
   A rejected trait-receiver call stays opaque through every fallback consumer,

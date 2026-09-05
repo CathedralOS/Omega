@@ -411,6 +411,23 @@ fn instantiate_call_relative_places(
             if parameter.symbol != parameter_symbol {
                 continue;
             }
+            if let Some(expression) = argument
+                && matches!(namespace, WritePlaceNamespace::AccessRoute)
+                && matches!(
+                    program.expression_table.expression(expression),
+                    ExpressionNode::StructLiteral(_) | ExpressionNode::ArrayLiteral(_)
+                )
+                && let Some(places) = crate::flow::literal_argument_access_places(
+                    program,
+                    caller_state_symbol,
+                    borrow_call.statement_index,
+                    expression,
+                    parameter.type_reference,
+                    &relative_place.segments,
+                )
+            {
+                return Some(places);
+            }
             argument.and_then(|expression| {
                 canonical_place_from_expression_in_state(
                     program,

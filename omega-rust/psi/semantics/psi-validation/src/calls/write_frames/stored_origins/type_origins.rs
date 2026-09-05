@@ -1,4 +1,4 @@
-//! Type-derived origins for incoming owned aggregate values. Cases are possible,
+//! Type-derived symbolic origins for owned aggregate values. Cases are possible,
 //! not selected by a constructor; arrays retain one unknown-element selector.
 
 use super::{FramePathPrecision, FramePlaceOrigin, StoredLocalOrigins, StoredWriteOrigin};
@@ -6,19 +6,20 @@ use psi_facts::PlaceSegment;
 use psi_symbols::{SymbolHandle, SymbolKind};
 use psi_typed_trees::TypedTrees;
 use psi_typed_trees::data::DataMember;
-use psi_typed_trees::signature::StateParameter;
 use psi_typed_trees::types::{FixedArrayLength, TypeReferenceHandle, TypeReferenceNode};
 
-pub(super) fn parameter_origins(
+pub(super) fn declared_origins(
     program: &TypedTrees,
-    parameter: &StateParameter,
+    symbol: SymbolHandle,
+    name: &str,
+    reference: TypeReferenceHandle,
 ) -> Option<StoredLocalOrigins> {
     let mut origins = StoredLocalOrigins {
-        local_symbol: parameter.symbol,
+        local_symbol: symbol,
         references: Vec::new(),
         cases: Vec::new(),
     };
-    let mut pending = vec![(parameter.type_reference, Vec::new(), Vec::new())];
+    let mut pending = vec![(reference, Vec::new(), Vec::new())];
     while let Some((reference, segments, mut visiting)) = pending.pop() {
         if !reference.is_valid() || visiting.contains(&reference) {
             return None;
@@ -43,7 +44,7 @@ pub(super) fn parameter_origins(
                 ) {
                     return None;
                 }
-                let mut path = parameter.name.as_str().to_owned();
+                let mut path = name.to_owned();
                 let mut precision = FramePathPrecision::Exact;
                 for segment in &segments {
                     match segment {
@@ -59,7 +60,7 @@ pub(super) fn parameter_origins(
                     }
                 }
                 origins.references.push(StoredWriteOrigin {
-                    local_symbol: parameter.symbol,
+                    local_symbol: symbol,
                     local_path: path.clone(),
                     local_segments: segments,
                     origin: FramePlaceOrigin { path, precision },
@@ -128,6 +129,60 @@ pub(super) fn parameter_origins(
         }
     }
     Some(origins)
+}
+
+/// A disjoint owned field has no reference leaves, but an unknown field is
+/// not evidence of an empty frame. Validate the demand before filtering leaves.
+pub(in crate::calls::write_frames) fn demand_is_declared(
+    program: &TypedTrees,
+    reference: TypeReferenceHandle,
+    suffix: &str,
+) -> bool {
+    let mut pending = vec![(reference, suffix)];
+    let mut visited = Vec::new();
+    while let Some((reference, suffix)) = pending.pop() {
+        if !reference.is_valid() || visited.contains(&(reference, suffix)) {
+            continue;
+        }
+        visited.push((reference, suffix));
+        if suffix.is_empty() {
+            return true;
+        }
+        match program.type_reference_table.type_reference(reference) {
+            TypeReferenceNode::Constrained { base_type, .. } => pending.push((*base_type, suffix)),
+            TypeReferenceNode::Reference { referee, .. } => pending.push((*referee, suffix)),
+            TypeReferenceNode::Named { symbol, .. } => {
+                let Some(suffix) = suffix.strip_prefix('.') else {
+                    continue;
+                };
+                let (field_name, rest) = super::split_place_root(suffix);
+                let Some(definition) = program
+                    .data_definitions()
+                    .iter()
+                    .find(|definition| definition.symbol == *symbol)
+                else {
+                    continue;
+                };
+                for member in program.data_members(definition) {
+                    match member {
+                        DataMember::Field(field) if field.name.as_str() == field_name => {
+                            pending.push((field.type_reference, rest));
+                        }
+                        DataMember::Variant(variant) => {
+                            for field in program.data_payload_fields(variant) {
+                                if field.name.as_str() == field_name {
+                                    pending.push((field.type_reference, rest));
+                                }
+                            }
+                        }
+                        _ => {}
+                    }
+                }
+            }
+            _ => {}
+        }
+    }
+    false
 }
 
 type PendingOrigin = (

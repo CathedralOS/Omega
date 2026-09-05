@@ -9,6 +9,7 @@ use psi_symbols::SymbolKind;
 use psi_typed_trees::TypedTrees;
 use psi_typed_trees::data::DataMember;
 use psi_typed_trees::expression::{ExpressionHandle, ExpressionNode};
+use psi_typed_trees::machine::Machine;
 use psi_typed_trees::state::State;
 use psi_typed_trees::statement::{StatementNode, TableLocalData};
 use psi_typed_trees::types::{FixedArrayLength, TypeReferenceHandle, TypeReferenceNode};
@@ -20,6 +21,41 @@ pub(super) fn moved_reference_leaves(
     expression: ExpressionHandle,
     expected: TypeReferenceHandle,
     stored: &[StoredLocalOrigins],
+) -> Option<AggregateOrigins> {
+    let before = program
+        .statement_table
+        .statements(state.statement_nodes)
+        .iter()
+        .find(|statement| {
+            matches!(statement, StatementNode::LocalData(local)
+            if std::ptr::eq(local, destination))
+        })?;
+    reference_leaves_before_statement(program, state, before, expression, expected, Some(stored))
+}
+
+/// Raw call instantiation retains symbolic binding paths. The existing caller
+/// prefix transfer must expand those paths before filtering local storage.
+pub(in crate::calls::write_frames) fn symbolic_reference_leaves(
+    program: &TypedTrees,
+    machine: &Machine,
+    expression: ExpressionHandle,
+    expected: TypeReferenceHandle,
+) -> Option<AggregateOrigins> {
+    let (state, before, _) = super::super::caller_aliases::caller_statement_at_site(
+        program,
+        machine,
+        super::super::caller_aliases::CallerWriteSite::Expression(expression),
+    )?;
+    reference_leaves_before_statement(program, state, before, expression, expected, None)
+}
+
+fn reference_leaves_before_statement(
+    program: &TypedTrees,
+    state: &State,
+    before: &StatementNode,
+    expression: ExpressionHandle,
+    expected: TypeReferenceHandle,
+    stored: Option<&[StoredLocalOrigins]>,
 ) -> Option<AggregateOrigins> {
     let mut root_expression = expression;
     let root_name = loop {
@@ -64,10 +100,7 @@ pub(super) fn moved_reference_leaves(
             .statement_table
             .statements(state.statement_nodes)
             .iter()
-            .take_while(|statement| {
-                !matches!(statement, StatementNode::LocalData(local)
-                if std::ptr::eq(local, destination))
-            })
+            .take_while(|statement| !std::ptr::eq(*statement, before))
             .find_map(|statement| match statement {
                 StatementNode::LocalData(local) if local.symbol == root => Some(local),
                 _ => None,
@@ -88,14 +121,19 @@ pub(super) fn moved_reference_leaves(
     if !crate::type_references::type_references_match(program, actual, expected) {
         return None;
     }
-    let parameter_origins = if let Some(parameter) = parameter {
-        Some(super::parameters::parameter_origins(program, parameter)?)
+    let declared_origins = if parameter.is_some() || stored.is_none() {
+        Some(super::type_origins::declared_origins(
+            program,
+            root,
+            source_name,
+            source_reference,
+        )?)
     } else {
         None
     };
-    let established = parameter_origins
-        .as_ref()
-        .or_else(|| stored.iter().find(|local| local.local_symbol == root));
+    let established = declared_origins.as_ref().or_else(|| {
+        stored.and_then(|stored| stored.iter().find(|local| local.local_symbol == root))
+    });
     if established.is_none()
         && !super::super::type_is_caller_isolated_local(program, source_reference)
     {
@@ -145,9 +183,9 @@ pub(super) fn moved_reference_leaves(
             leaves.cases.push(case[segments.len()..].to_vec());
         }
     }
-    // Reaching this transfer means every preceding declaration was accounted
-    // for. Zero matching exclusive leaves is therefore a proven private value,
-    // not permission to infer origins from an unknown initializer.
+    // Zero leaves follows a validated shape/projection, not failed lookup.
+    // Symbolic paths still require caller-prefix expansion; only the frozen
+    // transfer has already accounted for the preceding declarations here.
     Some(leaves)
 }
 

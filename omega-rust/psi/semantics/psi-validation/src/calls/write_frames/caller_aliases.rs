@@ -275,19 +275,28 @@ fn caller_aliases_at_site(
             if type_may_carry_write(program, local.type_reference)
                 && !type_is_caller_isolated_local(program, local.type_reference))
     };
+    let has_incoming_carrier = |state: &psi_typed_trees::state::State| {
+        program.state_parameters(state).iter().any(|parameter| {
+            !super::type_reference_is_reference(program, parameter.type_reference)
+                && type_may_carry_write(program, parameter.type_reference)
+                && !type_is_caller_isolated_local(program, parameter.type_reference)
+        })
+    };
     if !program.machine_states(machine).iter().any(|state| {
-        program
-            .statement_table
-            .statements(state.statement_nodes)
-            .iter()
-            .any(may_declare_alias)
+        has_incoming_carrier(state)
+            || program
+                .statement_table
+                .statements(state.statement_nodes)
+                .iter()
+                .any(may_declare_alias)
     }) {
         return Some((Vec::new(), Vec::new()));
     }
     let (state, statement, index) = caller_statement_at_site(program, machine, site)?;
-    if !program.statement_table.statements(state.statement_nodes)[..index]
-        .iter()
-        .any(may_declare_alias)
+    if !has_incoming_carrier(state)
+        && !program.statement_table.statements(state.statement_nodes)[..index]
+            .iter()
+            .any(may_declare_alias)
     {
         return Some((Vec::new(), Vec::new()));
     }

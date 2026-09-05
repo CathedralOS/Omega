@@ -15,6 +15,7 @@ mod write_frame_computed_indexes;
 mod write_frame_computed_receivers;
 mod write_frame_cycles;
 mod write_frame_indexed_calls;
+mod write_frame_literal_moves;
 mod write_frame_moved_aggregates;
 mod write_frame_parameter_aggregates;
 mod write_frame_returned_places;

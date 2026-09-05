@@ -151,53 +151,31 @@ pub(crate) fn owned_call_operand_places(
     caller_state_symbol: SymbolHandle,
     borrow_call: &BorrowCallFact,
 ) -> Vec<CanonicalPlace> {
-    let Some(call_site) = find_call_site(
-        program,
-        caller_machine_symbol,
-        caller_state_symbol,
-        borrow_call.statement_index,
-        borrow_call.call_ordinal,
-    ) else {
-        return Vec::new();
-    };
-    let arguments = call_site_argument_expressions(program, &call_site);
-    let Some(parameters) = call_target_parameters(program, borrow_call.target_symbol) else {
-        return Vec::new();
-    };
-    let includes_explicit_self =
-        parameters.iter().any(|parameter| parameter.is_self) && arguments.len() == parameters.len();
-    let mut places = Vec::new();
-
-    if !includes_explicit_self
-        && borrow_call.has_receiver
-        && let Some(receiver) = owned_method_receiver_place(
-            program,
-            caller_state_symbol,
-            borrow_call.statement_index,
-            &call_site,
-            parameters,
-            borrow_call.receiver_symbol,
-        )
-    {
-        places.push(receiver);
-    }
-
-    for (parameter, argument) in parameters
+    let Some(machine) = program
+        .machines()
         .iter()
-        .filter(|parameter| includes_explicit_self || !parameter.is_self)
-        .zip(arguments)
-    {
-        if !type_requires_ownership(program, parameter.type_reference) {
-            continue;
-        }
-        if let Some(place) = canonical_place_from_expression_in_state(
-            program,
-            caller_state_symbol,
-            borrow_call.statement_index,
-            *argument,
-        ) {
-            places.push(place);
-        }
-    }
-    places
+        .find(|machine| machine.symbol == caller_machine_symbol)
+    else {
+        return Vec::new();
+    };
+    let Some(state) = program
+        .machine_states(machine)
+        .iter()
+        .find(|state| state.symbol == caller_state_symbol)
+    else {
+        return Vec::new();
+    };
+    // Constructor values have no caller storage root. Reuse the same typed
+    // ownership discovery as move checking so nested literals contribute
+    // their moved operands rather than an unknown constructor place.
+    let mut segments = psi_arena::Arena::default();
+    let mut sink = DirectMoveEventSink::new(&mut segments);
+    append_call_ownership_events(program, &mut sink, machine, state, borrow_call);
+    sink.finish()
+        .into_iter()
+        .map(|event| CanonicalPlace {
+            root: event.root,
+            segments: segments.span_or_empty(event.segments).to_vec(),
+        })
+        .collect()
 }
