@@ -88,6 +88,24 @@ pins. Audit output reports current findings and does not approve changes or
 certify earlier project decisions. The nominal NetworkHost fixtures disclose
 reach and invocation but do not contain a concrete network provider.
 
+## Generated process authority
+
+The pure `generated-table` pin in the table remains unchanged. Its separate
+`process-authority` fixture branch retains exact commit
+`46cb5db4f74d745b735f383d3f22940ac3909c28`, which adds the pinned
+`host-services` dependency and generates `terminate` alongside `table_size`.
+The build uses only compiler source/output facets; generated runtime code
+introduces process authority. Tests use the commit, never the branch selector.
+
+```text
+mbx test -p omega --test package_commands remote_authority::generated:: -- --ignored --test-threads=1
+```
+
+These SSH tests cover initial review and upgrade from the pure pin, exact
+dependency pins, independent dangerous-authority decisions, generated API use
+through ordinary checking, and read-only audit output. They do not execute
+process termination or claim independent HTTPS closure coverage.
+
 ## Named workspace
 
 `library-workbench` is a workspace catalog rather than an importable root

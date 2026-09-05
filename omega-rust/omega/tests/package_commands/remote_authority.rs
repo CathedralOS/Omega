@@ -6,6 +6,8 @@ use package_source::ImmutableSourceResolution;
 use std::fs;
 use std::process::Output;
 
+#[path = "remote_authority/generated.rs"]
+mod generated;
 #[path = "remote_authority/transitions.rs"]
 mod transitions;
 
