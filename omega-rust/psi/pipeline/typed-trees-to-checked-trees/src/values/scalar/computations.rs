@@ -1,4 +1,4 @@
-//! Checked execution plans for call-bearing scalar transition arguments.
+//! Checked execution plans for call-bearing scalar arguments and returns.
 
 use super::*;
 use checked_trees::{
@@ -42,12 +42,8 @@ pub(crate) fn build_checked_scalar_computation_plans(
                 continue;
             };
             let mut locals = Vec::new();
-            for (statement_index, statement) in program
-                .statement_table
-                .statements(state.statement_nodes)
-                .iter()
-                .enumerate()
-            {
+            let statements = program.statement_table.statements(state.statement_nodes);
+            for (statement_index, statement) in statements.iter().enumerate() {
                 if let StatementNode::LocalData(local) = statement {
                     if let Some(primitive_type) =
                         program.primitive_type_reference(local.type_reference)
@@ -63,10 +59,35 @@ pub(crate) fn build_checked_scalar_computation_plans(
                     }
                     continue;
                 }
-                let StatementNode::Transition(transition) = statement else {
+                let Ok(statement_ordinal) = u32::try_from(statement_index) else {
                     continue;
                 };
-                let Ok(statement_ordinal) = u32::try_from(statement_index) else {
+                let mut builder = Builder {
+                    program,
+                    operators,
+                    flow,
+                    exact_integer_casts,
+                    machine: machine.symbol,
+                    state: state.symbol,
+                    statement_index,
+                    parameters,
+                    parameter_types: &parameter_types,
+                    locals: &locals,
+                    plans: &mut plans,
+                };
+                if let StatementNode::Expression(expression) = statement
+                    && statement_index + 1 == statements.len()
+                    && let Some(result_type) = program.primitive_type_reference(state.return_type)
+                {
+                    builder.record_root(
+                        pure,
+                        statement_ordinal,
+                        CheckedScalarExpressionRole::Return,
+                        *expression,
+                        result_type,
+                    );
+                }
+                let StatementNode::Transition(transition) = statement else {
                     continue;
                 };
                 for (target, continuation) in
@@ -74,6 +95,25 @@ pub(crate) fn build_checked_scalar_computation_plans(
                 {
                     if !target.is_valid() {
                         continue;
+                    }
+                    if transition.exit == typed_trees::statement::TransitionExit::Ordinary
+                        && let TransitionTargetNode::Value(expression) =
+                            program.statement_table.transition_target(target)
+                        && let Some(result_type) =
+                            program.primitive_type_reference(state.return_type)
+                    {
+                        let role = if continuation {
+                            CheckedScalarExpressionRole::ContinuationReturn
+                        } else {
+                            CheckedScalarExpressionRole::Return
+                        };
+                        builder.record_root(
+                            pure,
+                            statement_ordinal,
+                            role,
+                            *expression,
+                            result_type,
+                        );
                     }
                     let TransitionTargetNode::Named {
                         path,
@@ -110,39 +150,18 @@ pub(crate) fn build_checked_scalar_computation_plans(
                         } else {
                             CheckedScalarExpressionRole::TransitionArgument { argument_ordinal }
                         };
-                        if pure
-                            .expression_at(state.symbol, statement_ordinal, role)
-                            .is_some()
-                        {
-                            continue;
-                        }
                         let Some(expected_type) =
                             program.primitive_type_reference(parameter.type_reference)
                         else {
                             continue;
                         };
-                        let mut builder = Builder {
-                            program,
-                            operators,
-                            flow,
-                            exact_integer_casts,
-                            machine: machine.symbol,
-                            state: state.symbol,
-                            statement_index,
-                            parameters,
-                            parameter_types: &parameter_types,
-                            locals: &locals,
-                            plans: &mut plans,
-                        };
-                        if let Some(root) = builder.expression(*argument, expected_type) {
-                            plans.roots.append(CheckedScalarComputationRoot {
-                                machine: machine.symbol,
-                                state: state.symbol,
-                                statement_ordinal,
-                                role,
-                                root,
-                            });
-                        }
+                        builder.record_root(
+                            pure,
+                            statement_ordinal,
+                            role,
+                            *argument,
+                            expected_type,
+                        );
                     }
                 }
             }
@@ -166,12 +185,39 @@ struct Builder<'program, 'plans> {
 }
 
 impl Builder<'_, '_> {
+    fn record_root(
+        &mut self,
+        pure: &CheckedScalarExpressionPlans,
+        statement_ordinal: u32,
+        role: CheckedScalarExpressionRole,
+        expression: ExpressionHandle,
+        expected_type: PrimitiveType,
+    ) {
+        if pure
+            .expression_at(self.state, statement_ordinal, role)
+            .is_some()
+        {
+            return;
+        }
+        if let Some(root) = self.expression(expression, expected_type) {
+            self.plans.nodes.get_mut(root).authored_root = expression;
+            self.plans.roots.append(CheckedScalarComputationRoot {
+                machine: self.machine,
+                state: self.state,
+                statement_ordinal,
+                role,
+                root,
+            });
+        }
+    }
+
     fn insert(
         &mut self,
         primitive_type: PrimitiveType,
         kind: CheckedScalarComputationKind,
     ) -> CheckedScalarComputationHandle {
         self.plans.nodes.append(CheckedScalarComputation {
+            authored_root: ExpressionHandle::invalid(),
             primitive_type,
             kind,
         })

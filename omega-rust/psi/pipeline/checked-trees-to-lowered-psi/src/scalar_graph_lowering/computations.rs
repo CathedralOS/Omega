@@ -7,6 +7,8 @@ use super::*;
 use arena::Handle;
 use checked_trees::{CheckedScalarComputation, CheckedScalarComputationKind};
 
+mod source_custody;
+
 type Computation = Handle<CheckedScalarComputation>;
 
 enum Argument {
@@ -57,7 +59,6 @@ impl<'a> Expansion<'a> {
         target: usize,
         target_types: &[PrimitiveType],
     ) -> Result<Option<usize>, LoweringError> {
-        let plans = &self.checked.facts.values.scalar_computations;
         let roles = (0..successor.argument_count)
             .map(|argument_ordinal| {
                 if successor.is_continuation {
@@ -66,11 +67,56 @@ impl<'a> Expansion<'a> {
                     CheckedScalarExpressionRole::TransitionArgument { argument_ordinal }
                 }
             })
-            .collect::<Vec<_>>();
+            .zip(target_types)
+            .map(|(role, primitive_type)| Ok((role, terminal_scalar_type(*primitive_type)?)))
+            .collect::<Result<Vec<_>, LoweringError>>()?;
+        self.destination(
+            Site {
+                state,
+                statement: successor.statement_ordinal,
+                bindings,
+            },
+            &roles,
+            source_types,
+            target,
+        )
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    pub(super) fn return_value(
+        &mut self,
+        state: symbols::SymbolHandle,
+        statement: u32,
+        role: CheckedScalarExpressionRole,
+        bindings: &storage::ScalarBindings,
+        source_types: &[ScalarType],
+        result_type: ScalarType,
+        target: usize,
+    ) -> Result<Option<usize>, LoweringError> {
+        self.destination(
+            Site {
+                state,
+                statement,
+                bindings,
+            },
+            &[(role, result_type)],
+            source_types,
+            target,
+        )
+    }
+
+    fn destination(
+        &mut self,
+        site: Site<'_>,
+        roles: &[(CheckedScalarExpressionRole, ScalarType)],
+        source_types: &[ScalarType],
+        target: usize,
+    ) -> Result<Option<usize>, LoweringError> {
+        let plans = &self.checked.facts.values.scalar_computations;
         if !plans.roots.iter().any(|(_, root)| {
-            root.state == state
-                && root.statement_ordinal == successor.statement_ordinal
-                && roles.contains(&root.role)
+            root.state == site.state
+                && root.statement_ordinal == site.statement
+                && roles.iter().any(|(role, _)| *role == root.role)
         }) {
             return Ok(None);
         }
@@ -88,17 +134,12 @@ impl<'a> Expansion<'a> {
                 "scalar computation calls need exact named proof-output operation custody",
             );
         }
-        let site = Site {
-            state,
-            statement: successor.statement_ordinal,
-            bindings,
-        };
         let mut arguments = Vec::with_capacity(roles.len());
         let mut argument_types = Vec::with_capacity(roles.len());
-        for (role, primitive_type) in roles.into_iter().zip(target_types) {
+        for &(role, expected_type) in roles {
             let mut roots = plans.roots.iter().map(|(_, root)| root).filter(|root| {
-                root.state == state
-                    && root.statement_ordinal == successor.statement_ordinal
+                root.state == site.state
+                    && root.statement_ordinal == site.statement
                     && root.role == role
             });
             let argument = if let Some(root) = roots.next() {
@@ -107,17 +148,18 @@ impl<'a> Expansion<'a> {
                         "scalar computation root custody is duplicated or mismatched",
                     );
                 }
+                source_custody::validate(self.checked, self.machine, &site, role, root.root)?;
                 Argument::Computation(root.root)
             } else {
-                Argument::Value(bindings.expression_at(
+                Argument::Value(site.bindings.expression_at(
                     self.checked,
-                    state,
+                    site.state,
                     site.statement,
                     role,
                 )?)
             };
             let argument_type = self.argument_type(&argument)?;
-            if argument_type != terminal_scalar_type(*primitive_type)? {
+            if argument_type != expected_type {
                 return unsupported("scalar computation result disagrees with its destination");
             }
             arguments.push(argument);

@@ -264,11 +264,27 @@ fn prepare_scalar_graph_machine_with_contract_mode(
         lower_content_evidence(checked, machine, entry_state.state)?;
     let return_sink = states
         .iter()
-        .any(|state| {
-            matches!(&state.terminator, CheckedScalarStateTerminator::Conditional {
-            when_true, when_false, ..
-        } if matches!(when_true, CheckedScalarBranchDestination::Return { .. })
-            || matches!(when_false, CheckedScalarBranchDestination::Return { .. }))
+        .any(|state| match &state.terminator {
+            CheckedScalarStateTerminator::Conditional {
+                when_true,
+                when_false,
+                ..
+            } => {
+                matches!(when_true, CheckedScalarBranchDestination::Return { .. })
+                    || matches!(when_false, CheckedScalarBranchDestination::Return { .. })
+            }
+            CheckedScalarStateTerminator::Return { statement_ordinal } => checked
+                .facts
+                .values
+                .scalar_computations
+                .roots
+                .iter()
+                .any(|(_, root)| {
+                    root.state == state.state
+                        && root.statement_ordinal == *statement_ordinal
+                        && root.role == CheckedScalarExpressionRole::Return
+                }),
+            _ => false,
         })
         .then_some(states.len());
     let lowered_state_count = states.len() + usize::from(return_sink.is_some());
@@ -395,17 +411,39 @@ fn prepare_scalar_graph_machine_with_contract_mode(
         }
         let terminator = match &state.terminator {
             CheckedScalarStateTerminator::Return { statement_ordinal } => {
-                let expression = scalar_bindings.expression_at(
-                    checked,
-                    state.state,
-                    *statement_ordinal,
-                    CheckedScalarExpressionRole::Return,
-                )?;
-                if expression.scalar_type() != result_type {
-                    return unsupported("checked scalar return type must match the machine result");
+                let computed_entry = if let Some(target) = return_sink {
+                    computations.return_value(
+                        state.state,
+                        *statement_ordinal,
+                        CheckedScalarExpressionRole::Return,
+                        &scalar_bindings,
+                        &value_types,
+                        result_type,
+                        target,
+                    )?
+                } else {
+                    None
+                };
+                if let Some(target) = computed_entry {
+                    LoweredScalarBranchTerminator::Jump {
+                        target,
+                        arguments: computations::parameters(&value_types),
+                    }
+                } else {
+                    let expression = scalar_bindings.expression_at(
+                        checked,
+                        state.state,
+                        *statement_ordinal,
+                        CheckedScalarExpressionRole::Return,
+                    )?;
+                    if expression.scalar_type() != result_type {
+                        return unsupported(
+                            "checked scalar return type must match the machine result",
+                        );
+                    }
+                    validate_direct_parameter_types(&expression, &value_types)?;
+                    LoweredScalarBranchTerminator::Return { expression }
                 }
-                validate_direct_parameter_types(&expression, &value_types)?;
-                LoweredScalarBranchTerminator::Return { expression }
             }
             CheckedScalarStateTerminator::Crash { statement_ordinal } => {
                 LoweredScalarBranchTerminator::Crash(lower_checked_crash_exit(

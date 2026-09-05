@@ -50,6 +50,9 @@ impl Default for CheckedScalarComputationRoot {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CheckedScalarComputation {
+    /// Exact authored outer expression when this node is a destination root.
+    /// Intermediate nodes use the zero handle; source spans are not identity.
+    pub authored_root: typed_trees::expression::ExpressionHandle,
     pub primitive_type: PrimitiveType,
     pub kind: CheckedScalarComputationKind,
 }
@@ -57,6 +60,7 @@ pub struct CheckedScalarComputation {
 impl Default for CheckedScalarComputation {
     fn default() -> Self {
         Self {
+            authored_root: Handle::invalid(),
             primitive_type: PrimitiveType::Bool,
             kind: CheckedScalarComputationKind::Value(CheckedScalarExpression::Boolean(Box::new(
                 CheckedBooleanExpression::Constant(false),

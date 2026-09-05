@@ -55,25 +55,33 @@ pub(super) fn lower_destination(
             statement_ordinal,
             is_continuation,
         } => {
-            let expression = scalar_bindings.expression_at(
-                checked,
+            let role = if *is_continuation {
+                CheckedScalarExpressionRole::ContinuationReturn
+            } else {
+                CheckedScalarExpressionRole::Return
+            };
+            let target = return_sink.ok_or(LoweringError::Unsupported(
+                "checked scalar branch return has no prepared return destination",
+            ))?;
+            if let Some(entry) = computations.return_value(
                 source_state,
                 *statement_ordinal,
-                if *is_continuation {
-                    CheckedScalarExpressionRole::ContinuationReturn
-                } else {
-                    CheckedScalarExpressionRole::Return
-                },
-            )?;
+                role,
+                scalar_bindings,
+                source_value_types,
+                result_type,
+                target,
+            )? {
+                return Ok((entry, computations::parameters(source_value_types)));
+            }
+            let expression =
+                scalar_bindings.expression_at(checked, source_state, *statement_ordinal, role)?;
             if expression.scalar_type() != result_type {
                 return unsupported(
                     "checked scalar branch return type must match the machine result",
                 );
             }
             validate_direct_parameter_types(&expression, source_value_types)?;
-            let target = return_sink.ok_or(LoweringError::Unsupported(
-                "checked scalar branch return has no prepared return destination",
-            ))?;
             Ok((target, vec![expression]))
         }
     }
