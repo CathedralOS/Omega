@@ -730,6 +730,12 @@ pub(crate) fn validate_call_arguments_handles_with_policy_retention(
         let value_env = argument_environments
             .get(argument_index)
             .unwrap_or(value_env);
+        crate::literals::validate_suffix_landing(
+            program,
+            *argument,
+            parameter.type_reference,
+            diagnostics,
+        );
         let expected_access = declared_reference_access(program, parameter.type_reference);
         let supplied_access = match program.expression_table.expression(*argument) {
             ExpressionNode::Borrow(borrow) => Some(borrow.access),
@@ -1102,8 +1108,14 @@ fn validate_value_call_argument_classes_with_receiver(
             .iter()
             .filter(|parameter| !parameter.is_self),
     ) {
-        // Class check first; narrowing only when the classes agree (a same-class
-        // numeric arg), so a cross-class arg is not double-reported. Mirrors the
+        crate::literals::validate_suffix_landing(
+            program,
+            *argument,
+            parameter.type_reference,
+            diagnostics,
+        );
+        // Narrowing is checked only when the numeric classes agree, so a
+        // cross-class argument is not reported twice. This matches the
         // statement/transition path in `validate_call_arguments_handles`.
         if !report_cross_class_argument(
             program,
