@@ -1,5 +1,8 @@
 mod support;
 
+#[path = "fixture_rosters/conformance_policy_source.rs"]
+mod fixture_roster;
+
 use package_evidence::encoding::PackagePolicyRecoveryLimits;
 use package_evidence::project_checked_conformance_policy;
 use package_evidence::record::PackagePolicyClosedConformanceApplication;
@@ -105,7 +108,9 @@ fn private_named_callback_slot_projects_exact_policy_without_public_exposure() {
         .ancestors()
         .nth(5)
         .unwrap()
-        .join("tests/omega/pass/layouts/private_callback_slot_demand_compile/main.omg");
+        .join("tests/omega/pass")
+        .join(fixture_roster::PRIVATE_CALLBACK_SLOT_DEMAND_COMPILE)
+        .join("main.omg");
     let (_source, checked) = compile_source(&fs::read_to_string(source).unwrap(), 0x63);
     let layout = checked
         .typed

@@ -3,6 +3,9 @@ use std::fs;
 use std::path::Path;
 use std::sync::atomic::{AtomicU64, Ordering};
 
+#[path = "../../tests/fixture_rosters/compiler_library.rs"]
+mod fixture_roster;
+
 static NEXT_MULTI_TARGET_FIXTURE: AtomicU64 = AtomicU64::new(0);
 
 struct MultiTargetFixture {
@@ -45,7 +48,10 @@ fn exact_target_invocation_needs_no_authored_target_declaration() {
         .ancestors()
         .nth(4)
         .expect("compiler crate should have the repository above it");
-    let root = repository.join("tests/omega/pass/optimizer/no_selection_empty_entry/main.omg");
+    let root = repository
+        .join("tests/omega/pass")
+        .join(fixture_roster::NO_SELECTION_EMPTY_ENTRY)
+        .join("main.omg");
     for target in [
         "linux_x86_64",
         "linux_arm64",
@@ -87,7 +93,10 @@ fn native_batch_reuses_exact_terminal_input_before_distinct_target_lowering() {
         .ancestors()
         .nth(4)
         .expect("compiler crate should have the repository above it");
-    let root = repository.join("tests/omega/pass/optimizer/no_selection_empty_entry/main.omg");
+    let root = repository
+        .join("tests/omega/pass")
+        .join(fixture_roster::NO_SELECTION_EMPTY_ENTRY)
+        .join("main.omg");
     let targets = ExplicitTargetSet::from_caller_names(["linux_x64", "linux_arm64"])
         .expect("hosted targets should canonicalize");
     let batch = MultiTargetCompileRequest::from_target_set(targets, |profile| {

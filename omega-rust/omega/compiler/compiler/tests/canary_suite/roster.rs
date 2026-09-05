@@ -32,8 +32,12 @@ use super::*;
 mod build_target_activation;
 #[path = "../fixture_rosters/call_acknowledgements.rs"]
 mod call_acknowledgements;
+#[path = "../fixture_rosters/compiler_library.rs"]
+mod compiler_library;
 #[path = "../fixture_rosters/concurrency_carry.rs"]
 mod concurrency_carry;
+#[path = "../../../../packages/review/evidence/tests/fixture_rosters/conformance_policy_source.rs"]
+mod conformance_policy_source;
 #[path = "../fixture_rosters/layout_plans.rs"]
 mod layout_plans;
 #[path = "../../../../../../tests/native-differential/fixture_rosters/content_custody.rs"]
@@ -62,6 +66,8 @@ fn pass_roster() -> Vec<&'static str> {
         CHECKED_ONLY_PASS_CANARIES,
         ACTIVE_PASS_CANARIES,
         root_fixture_roster::PASS_CANARIES,
+        compiler_library::PASS_CANARIES,
+        conformance_policy_source::PASS_CANARIES,
         inline_asm::PASS_CANARIES,
         entry_and_abi::PASS_CANARIES,
         recursion_slices_and_conversions::PASS_CANARIES,
