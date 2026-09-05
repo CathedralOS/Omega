@@ -179,11 +179,11 @@ class SourceClosure(unittest.TestCase):
              "621f507b214f0f26ba3c9d4d36a1bb54a26bdeecbcdffcc24a2cb1a266ab8cde", None),
             (Path(os.environ["OMEGA_PATH_EPSILON_COMPILER_SOURCES"]), 597945,
              "3f0590c012cbfcfc9a7110afe6d70eff2de2a4edb95f467dc46f370956e16e99", None),
-            (Path(os.environ["OMEGA_PATH_DELTA_COMPILER_SOURCES"]), 135346,
-             "081cc5ed3f22da5d7c49beca6573c802d31c894cd93f57dfe7bd9f986b6049d4",
+            (Path(os.environ["OMEGA_PATH_DELTA_COMPILER_SOURCES"]), 139282,
+             "356a61888caafa77717c720f470148cc2c7278407655cc1fba102d124ba6e6a7",
              Path(os.environ["OMEGA_PATH_DELTA_COMPILER_SOURCE"])),
-            (Path(os.environ["OMEGA_PATH_DELTA_COMPILER_SOURCES"]), 135045,
-             "a26c73ca9c336177ae6c7c0e23ab298fc83307ab892b4094d26878446c0558c9",
+            (Path(os.environ["OMEGA_PATH_DELTA_COMPILER_SOURCES"]), 138981,
+             "61c2f5c3970e1b17e328a226fbf30a39b550b16a64aed431f37110e6458d9ee7",
              Path(os.environ["OMEGA_PATH_DELTA_COMPILER_DEVELOPMENT_ENTRY"])),
         ]
         with tempfile.TemporaryDirectory() as temporary:

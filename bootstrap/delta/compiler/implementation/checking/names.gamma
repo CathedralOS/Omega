@@ -35,20 +35,23 @@
                   (name_children_replace
                     (second child_and_rest) byte child))))))))))
 
-(def name_trie_new_path ((end Int) (index Int) (payload Int)) Int
+(def name_trie_new_path
+  ((end Int) (index Int) (payload Int) (empty Int)) Int
   (name_trie_build_path index end
-    (pair 1 (pair (pair 1 payload) (empty_name_children)))))
+    (pair 1 (pair (pair 1 payload) empty)) empty))
 
-; Build a fresh suffix from its terminal backward, in the original allocation
-; order, without one Gamma return context or temporary frame per name byte.
-(def name_trie_build_path ((start Int) (end Int) (child Int)) Int
+; Build a fresh suffix from its terminal backward without one Gamma return
+; context or temporary frame per name byte.
+; Absent terminals and empty child lists share the caller's immutable carrier.
+(def name_trie_build_path
+  ((start Int) (end Int) (child Int) (empty Int)) Int
   (if (eq start end)
     child
     (let index Int (- end 1)
       (let children Int
-        (name_children_prepend (empty_name_children) (source_read index) child)
+        (name_children_prepend empty (source_read index) child)
         (name_trie_build_path start index
-          (pair 1 (pair (pair 0 0) children)))))))
+          (pair 1 (pair empty children)) empty)))))
 
 (def name_trie_insert
   ((trie Int) (end Int) (index Int) (payload Int)) Int
@@ -61,7 +64,7 @@
   ((trie Int) (end Int) (index Int) (payload Int)
    (depth Int) (ancestors Int)) Int
   (if (eq (first trie) 0)
-    (let inserted Int (name_trie_new_path end index payload)
+    (let inserted Int (name_trie_new_path end index payload trie)
       (name_trie_rebuild inserted index depth ancestors))
     (let node Int (second trie)
       (let terminal Int (first node)
@@ -76,7 +79,8 @@
                 (if (first child)
                   (name_trie_descend child end (+ index 1) payload
                     (+ depth 1) (pair node ancestors))
-                  (let inserted Int (name_trie_new_path end (+ index 1) payload)
+                  (let inserted Int
+                    (name_trie_new_path end (+ index 1) payload child)
                     (let next_children Int
                       (name_children_prepend children byte inserted)
                       (name_trie_rebuild (pair 1 (pair terminal next_children))

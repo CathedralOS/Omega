@@ -8,21 +8,20 @@
   ((type Int) (payload Int) (depth Int) (frames Int) (globals Int)) Int
   (let node Int (first payload)
     (if (lt 0 type)
-      (typing_match_next node type (- (syntax_count node) 2)
-        (syntax_drop_children (syntax_children node) 2) (second payload)
-        (empty_name_trie) 0 0 0 depth frames globals)
+      (typing_match_next (typing_match_context node type (second payload))
+        (syntax_drop_children (syntax_children node) 2)
+        (empty_identity_cursor) 0 depth frames globals)
       (typing_reject 15 (syntax_child node 1)))))
 
-; Each match owns its own immutable coverage root and arm-result sentinel.
-; The first accepted pattern supplies the subject owner's constructor count.
+; Each match owns its cursor and successful distinct-arm count. Fixed source,
+; owner, scope, and result facts are shared between its arm continuations.
 (def typing_match_next
-  ((node Int) (owner Int) (remaining Int) (arms Int) (locals Int)
-   (seen Int) (covered Int) (arm_type Int) (constructor_count Int)
+  ((context Int) (arms Int) (cursor Int) (covered Int)
    (depth Int) (frames Int) (globals Int)) Int
-  (if (eq remaining 0)
-    (if (eq covered constructor_count)
-      (typing_resume arm_type depth frames globals)
-      (typing_reject 18 node))
+  (if (eq covered (typing_match_arm_count context))
+    (if (eq covered (typing_match_constructor_count context))
+      (typing_resume (typing_match_result_type context) depth frames globals)
+      (typing_reject 18 (typing_match_node context)))
     (let pattern Int (syntax_child (first arms) 0)
       (let name Int
         (if (eq (syntax_count pattern) -1) pattern (syntax_child pattern 0))
@@ -30,69 +29,26 @@
           (name_trie_find_option (global_constructors globals)
             (syntax_after name) (syntax_start name))
           (if (first found)
-            (typing_match_constructor node owner remaining arms locals seen
-              covered arm_type pattern name (second found) depth frames globals)
+            (typing_match_constructor context arms cursor covered
+              pattern name (second found) depth frames globals)
             (typing_reject 12 name)))))))
 
-; Before the arm body: constructor owner, payload arity, duplicate case, binders.
-; Wrong-owner anchors at the constructor token; arity anchors at the pattern.
+; Owner and arity precede exact duplicate lookup, then binders and the body.
+; A cursor seek inserts no row; only admitted binders advance coverage.
 (def typing_match_constructor
-  ((node Int) (owner Int) (remaining Int) (arms Int) (locals Int)
-   (seen Int) (covered Int) (arm_type Int) (pattern Int) (name Int)
-   (metadata Int) (depth Int) (frames Int) (globals Int)) Int
-  (if (eq (constructor_metadata_owner metadata) owner)
+  ((context Int) (arms Int) (cursor Int) (covered Int)
+   (pattern Int) (name Int) (metadata Int)
+   (depth Int) (frames Int) (globals Int)) Int
+  (if (eq (constructor_metadata_owner metadata) (typing_match_owner context))
     (let arity Int (constructor_metadata_arity metadata)
       (let actual Int
         (if (eq (syntax_count pattern) -1) 0 (- (syntax_count pattern) 1))
         (if (eq actual arity)
-          (let prior Int
-            (name_trie_find_option seen (syntax_after name) (syntax_start name))
-            (if (first prior)
+          (let sought Int
+            (identity_cursor_seek cursor (syntax_start name) (syntax_after name))
+            (if (identity_cursor_present sought (syntax_after name))
               (typing_reject 17 name)
-              (let binders Int
-                (if (eq arity 0) 0
-                  (syntax_drop_children (syntax_children pattern) 1))
-                (let bound Int
-                  (typing_pattern_bindings arity binders
-                    (constructor_metadata_field_types metadata) locals locals)
-                  (if (eq (first bound) 0)
-                    (typing_visit (syntax_child (first arms) 1) (second bound)
-                      (+ depth 1)
-                      (typing_frame 7
-                        (typing_arm_state node owner remaining arms locals
-                          (name_trie_insert seen (syntax_after name)
-                            (syntax_start name) 1)
-                          (+ covered 1) arm_type
-                          (type_metadata_constructor_count
-                            (constructor_metadata_type metadata)))
-                        frames)
-                      globals)
-                    bound)))))
+              (typing_match_bindings context arms sought covered
+                pattern name metadata arity depth frames globals)))
           (typing_reject 16 pattern))))
     (typing_reject 15 name)))
-
-; Arm state: node, owner, remaining, arms, outer-locals, seen, covered,
-; prior-arm-type, constructor-count. Raw pair fields have this counted custody.
-(def typing_arm_state
-  ((node Int) (owner Int) (remaining Int) (arms Int) (locals Int)
-   (seen Int) (covered Int) (arm_type Int) (constructor_count Int)) Int
-  (pair node (pair owner (pair remaining (pair arms (pair locals
-    (pair seen (pair covered (pair arm_type constructor_count)))))))))
-
-(def typing_resume_arm
-  ((type Int) (payload Int) (depth Int) (frames Int) (globals Int)) Int
-  (let owner_and_rest Int (second payload)
-    (let remaining_and_rest Int (second owner_and_rest)
-      (let arms_and_rest Int (second remaining_and_rest)
-        (let locals_and_rest Int (second arms_and_rest)
-          (let seen_and_rest Int (second locals_and_rest)
-            (let covered_and_rest Int (second seen_and_rest)
-              (let types Int (second covered_and_rest)
-                (if (if (eq (first types) 0) 1 (eq type (first types)))
-                  (typing_match_next (first payload) (first owner_and_rest)
-                    (- (first remaining_and_rest) 1) (second (first arms_and_rest))
-                    (first locals_and_rest) (first seen_and_rest)
-                    (first covered_and_rest) type (second types)
-                    depth frames globals)
-                  (typing_reject 15
-                    (syntax_child (first (first arms_and_rest)) 1)))))))))))

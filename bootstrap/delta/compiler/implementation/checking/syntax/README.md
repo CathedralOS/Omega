@@ -53,6 +53,12 @@ wrappers, or reversed child lists. Shape probes use a private scalar result:
 `-1` means success, otherwise the value is the exact rejection coordinate.
 Only the completed declaration returns an outcome to the program coordinator;
 the public grammar entrance still returns the original program or its failure.
+Atom-role predicates also expose their scalar success or anchored failure to
+the arm coordinator. A bare constructor pattern or one-child parenthesized
+pattern can finish its name-role judgment before directly dispatching its body,
+without a pending-body frame. Other patterns retain the binder worklist.
+The direct path still enters the ordinary expression-role dispatcher, including
+its depth provision; it does not bypass body grammar or change error ordering.
 Nonexpression roles use depth zero; expression batches preserve expression
 levels and inherited match-arm levels.
 A function body starts at level 1; expression children

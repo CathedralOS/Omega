@@ -52,8 +52,7 @@
       (syntax_start node)
       (if (lt count minimum) (- (syntax_after node) 1) -1))))
 
-(def grammar_atom_role
-  ((role Int) (node Int) (count Int) (work Int)) Int
+(def grammar_atom_role_error ((role Int) (node Int)) Int
   (if (eq (syntax_count node) -1)
     (let start Int (syntax_start node)
       (let after Int (syntax_after node)
@@ -63,5 +62,12 @@
             (if (eq role 3)
               (upper_name_valid start after)
               (field_type_shape_valid start after)))
-          (if valid (grammar_run count work) (grammar_reject node)))))
-    (grammar_reject node)))
+          (if valid -1 start))))
+    (syntax_start node)))
+
+(def grammar_atom_role
+  ((role Int) (node Int) (count Int) (work Int)) Int
+  (let error Int (grammar_atom_role_error role node)
+    (if (eq error -1)
+      (grammar_run count work)
+      (compiler_source_rejection 4 error))))

@@ -30,7 +30,7 @@
 (def prepare_collected_source
   ((profile Int) (program Int) (collected Int)) Int
   (let resolution Int
-    (resolve_collected_declarations program collected (empty_name_trie))
+    (resolve_collected_declarations program collected)
     (if (eq (first resolution) 0)
       (let checked Int (second resolution)
         (let bodies Int (check_program_types program checked)

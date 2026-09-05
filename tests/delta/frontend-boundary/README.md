@@ -128,6 +128,15 @@ and constructor owners, preserve every function payload, and revisit 1,024-byte
 prefixes after unrelated insertions. Each accepted program is compiled twice
 and must preserve the same binary application input as the other controls.
 
+[`catalog_replacements.py`](catalog_replacements.py) adds four exact rejection
+controls and two binary-identity roundtrips for resolved catalog construction.
+Mixed payload/nullary declarations force replacements across shorter, longer,
+and unrelated prefixes while skipped nullary rows retain their terminals,
+children, owners, and tags. Mixed function signatures exercise replacement of
+raw function terminals without losing earlier prefix children. Annotation
+failures retain authored order before body checking, and a payload type
+mismatch requires the replaced row's resolved field type.
+
 [`parameter_cursors.py`](parameter_cursors.py) adds four exact rejection
 controls and two accepted programs for the separate parameter builder. They
 check duplicate/annotation ordering, absent prefixes and extensions after

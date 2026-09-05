@@ -48,6 +48,8 @@ Global collection starts at
 the private identity cursor, exact prefix navigation, and admitted insertion.
 Global census and parameter cataloging share these construction cursors;
 downstream phases receive ordinary completed tries and counted environments.
+Declaration resolution also starts cursors from the completed census roots,
+reusing final nullary metadata and replacing only unresolved typed payloads.
 
 [`checking/environments.gamma`](implementation/checking/environments.gamma)
 owns counted local environments and their shared active-row provision.
@@ -64,7 +66,7 @@ over-height fragments while retaining evaluation order and binding identity.
 [`emission/program.gamma`](implementation/emission/program.gamma) serializes
 the resulting Gamma plan; it does not select Delta lowering rules.
 
-`implementation/implementation.gamma.sources` selects all 59 shared members
+`implementation/implementation.gamma.sources` selects all 61 shared members
 with exact lengths, digests, and ordered identities. The byte-only source
 materializer validates that closed inventory and prefixes the explicitly
 selected entry. For the canonical entry, its application marker is therefore
@@ -195,6 +197,16 @@ in authored order; there is no sorting pass,
 lookahead past a refusal, mutation, or alternate downstream representation.
 Empty child lists and absent trie options reuse their identical immutable
 absence carrier rather than allocating a replacement on each miss.
+Fresh suffixes likewise share a known-empty carrier across their absent
+terminals and empty child lists, rather than allocating repeated empty pairs.
+
+Declaration resolution retains the census constructor and function indexes
+instead of rebuilding both from empty tries. It validates each raw row against
+its declaration in authored order. A nullary constructor already carries the
+final empty field-type spine, so no replacement is needed. Payload fields and
+function signatures still resolve completely before their existing terminal
+is replaced through a cursor. Only successful completion finishes the typed
+roots; original census roots remain immutable custody evidence throughout.
 
 The ancestor spine costs one additional immutable pair per traversed existing
 edge. It shares prior nodes rather than copying names or introducing a dense
@@ -336,7 +348,7 @@ The downgraded full compiler remains separate under
 ## Measurements
 
 ```text
-3,064-line / 135,346-byte canonical entry plus shared Gamma implementation
+3,158-line / 139,282-byte canonical entry plus shared Gamma implementation
 7-line / 195-byte nullary-ADT Delta fixture
   -> 3-line / 165-byte Gamma receipt
   -> selected Gamma evaluation produces byte 9

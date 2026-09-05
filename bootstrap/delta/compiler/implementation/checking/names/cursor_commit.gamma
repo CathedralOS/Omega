@@ -9,7 +9,7 @@
         (let index Int (+ start depth)
           (let updated Int
             (if (eq (first focus) 0)
-              (name_trie_new_path end index payload)
+              (name_trie_new_path end index payload focus)
               (let node Int (second focus)
                 (let terminal Int (first node)
                   (let children Int (second node)
@@ -20,5 +20,16 @@
                       (pair 1
                         (pair terminal
                           (name_children_prepend children (source_read index)
-                            (name_trie_new_path end (+ index 1) payload)))))))))
+                            (name_trie_new_path end (+ index 1) payload
+                              (if (first terminal)
+                                (empty_name_children) terminal))))))))))
             (pair updated (second cursor))))))))
+
+; Resolution updates an existing admitted identity, never inserts a new row.
+; Preserve child edges and every earlier immutable root. The caller retains
+; the original catalog for declaration custody checks throughout resolution.
+(def identity_cursor_replace ((cursor Int) (end Int) (payload Int)) Int
+  (if (identity_cursor_present cursor end)
+    (let node Int (second (identity_cursor_focus cursor))
+      (pair (pair 1 (pair (pair 1 payload) (second node))) (second cursor)))
+    (fail)))

@@ -1,0 +1,53 @@
+; Zero binders need no result wrapper. Nonempty patterns retain the ordinary
+; outer-conflict, repetition, and active-row provision checks in authored order.
+(def typing_match_bindings
+  ((context Int) (arms Int) (cursor Int) (covered Int)
+   (pattern Int) (name Int) (metadata Int) (arity Int)
+   (depth Int) (frames Int) (globals Int)) Int
+  (let outer Int (typing_match_locals context)
+    (if (eq arity 0)
+      (typing_match_body context arms cursor covered name metadata outer
+        depth frames globals)
+      (let bound Int
+        (typing_pattern_bindings arity
+          (syntax_drop_children (syntax_children pattern) 1)
+          (constructor_metadata_field_types metadata) outer outer)
+        (if (eq (first bound) 0)
+          (typing_match_body context arms cursor covered name metadata (second bound)
+            depth frames globals)
+          bound)))))
+
+; Commit coverage only after binders succeed. Nested matches save this complete
+; immutable cursor and context; they cannot change the enclosing arm's state.
+(def typing_match_body
+  ((context Int) (arms Int) (cursor Int) (covered Int)
+   (name Int) (metadata Int) (locals Int)
+   (depth Int) (frames Int) (globals Int)) Int
+  (let admitted Int
+    (if (eq covered 0)
+      (typing_match_context_types context
+        (type_metadata_constructor_count (constructor_metadata_type metadata)) 0)
+      context)
+    (typing_visit (syntax_child (first arms) 1) locals (+ depth 1)
+      (typing_frame 7
+        (typing_arm_state admitted arms
+          (identity_cursor_commit cursor (syntax_after name) 1) (+ covered 1))
+        frames)
+      globals)))
+
+(def typing_resume_arm
+  ((type Int) (payload Int) (depth Int) (frames Int) (globals Int)) Int
+  (let context Int (first payload)
+    (let state Int (second payload)
+      (let arms Int (first state)
+        (let coverage Int (second state)
+          (let covered Int (second coverage)
+            (if (if (eq covered 1) 1 (eq type (typing_match_result_type context)))
+              (let agreed Int
+                (if (eq covered 1)
+                  (typing_match_context_types context
+                    (typing_match_constructor_count context) type)
+                  context)
+                (typing_match_next agreed (second arms) (first coverage) covered
+                  depth frames globals))
+              (typing_reject 15 (syntax_child (first arms) 1)))))))))

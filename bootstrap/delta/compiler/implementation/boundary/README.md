@@ -202,6 +202,15 @@ annotation, and active-row provision order; only their completed name trie and
 active count pass to body checking. Cursor reuse changes neither global-row
 nor active-environment accounting.
 
+Declaration resolution initializes cursors from those completed census roots.
+It retains a nullary constructor's already-final empty field-type spine after
+the usual owner, tag, name-end, and arity assertions. Other constructor fields
+and every function signature resolve in authored order before replacing their
+existing terminal payload. Child edges and untouched rows remain shared; the
+raw roots still supply declaration custody checks. Only the completed phase
+publishes typed roots to body checking. Reusing an identical resolved row adds
+no shortcut around an annotation or a compiler-owned provision.
+
 This is not Gamma's separate 4,096-function limit on an executable generated
 program. Authored functions, fixed runtime helpers, adapters, and extracted
 normalization helpers all consume that later evaluator limit. Census admission
@@ -229,9 +238,9 @@ their existing codes rather than becoming resource failures at capacity.
 Continuations save complete environments. Initializers do not see their pending
 body binding, and sibling scopes and match arms restore the saved count with
 the saved names. Retained roots, metadata copies, and trie nodes do not advance
-the active count. Match coverage remains a separate ordinary trie. This bound
-is compiler-owned active binding accounting, not Gamma's physical environment
-capacity or Delta's separate generated local-slot resource.
+the active count. Match coverage retains its own exact-name cursor and count.
+This bound is compiler-owned active binding accounting, not Gamma's physical
+environment capacity or Delta's separate generated local-slot resource.
 
 ## Body traversal and coordinates
 

@@ -1,0 +1,34 @@
+; Fixed match facts: node, subject owner, original outer locals, total arms.
+; Context pairs those shared facts with constructor count and agreed arm type.
+; Count is learned from the first admitted pattern, type from its checked body.
+(def typing_match_context ((node Int) (owner Int) (locals Int)) Int
+  (pair (pair node (pair owner (pair locals (- (syntax_count node) 2))))
+    (pair 0 0)))
+
+(def typing_match_context_types
+  ((context Int) (constructor_count Int) (type Int)) Int
+  (pair (first context) (pair constructor_count type)))
+
+(def typing_match_node ((context Int)) Int
+  (first (first context)))
+
+(def typing_match_owner ((context Int)) Int
+  (first (second (first context))))
+
+(def typing_match_locals ((context Int)) Int
+  (first (second (second (first context)))))
+
+(def typing_match_arm_count ((context Int)) Int
+  (second (second (second (first context)))))
+
+(def typing_match_constructor_count ((context Int)) Int
+  (first (second context)))
+
+(def typing_match_result_type ((context Int)) Int
+  (second (second context)))
+
+; Current arms retain the just-checked body until resume for its failure anchor.
+; A payload has four fields in three pairs; fixed context is never recopied.
+(def typing_arm_state
+  ((context Int) (arms Int) (cursor Int) (covered Int)) Int
+  (pair context (pair arms (pair cursor covered))))
