@@ -1,18 +1,19 @@
 //! Bounded, symlink-safe record persistence under retained directory custody.
 
 use cap_fs_ext::{FollowSymlinks, OpenOptionsFollowExt};
-#[cfg(unix)]
-use cap_std::fs::OpenOptionsExt as CapabilityOpenOptionsExt;
 use cap_std::fs::{
     Dir as CapabilityDirectory, File as CapabilityFile, OpenOptions as CapabilityOpenOptions,
 };
 use std::ffi::{OsStr, OsString};
-use std::io::{Read, Seek, SeekFrom, Write};
+use std::io::{Read, Seek, SeekFrom};
 use std::path::{Path, PathBuf};
-use std::sync::atomic::{AtomicU64, Ordering};
 
-const MAXIMUM_STAGE_ATTEMPTS: u64 = 256;
-static NEXT_STAGE_ID: AtomicU64 = AtomicU64::new(0);
+#[cfg(test)]
+mod journal_tests;
+mod lock;
+mod stage;
+
+pub use lock::RecordFileLock;
 
 pub fn is_portable_record_file_name(value: &str, maximum_bytes: usize) -> bool {
     !value.is_empty()
@@ -87,12 +88,28 @@ impl RecordFileRoot {
         relative_path: &Path,
         limits: RecordFileLimits,
     ) -> Result<RootRecordRead<'_>, RecordFileError> {
+        self.read_optional(relative_path, limits)?.ok_or_else(|| {
+            io_error(
+                &self.display_path.join(relative_path),
+                std::io::ErrorKind::NotFound.into(),
+            )
+        })
+    }
+
+    /// Read a record if its pathname exists. Symlinks and invalid destinations
+    /// remain errors, including dangling symlinks. No lock is acquired.
+    pub fn read_optional(
+        &self,
+        relative_path: &Path,
+        limits: RecordFileLimits,
+    ) -> Result<Option<RootRecordRead<'_>>, RecordFileError> {
         let file_name = single_file_name(relative_path)?;
         let display_path = self.display_path.join(file_name);
-        let path_metadata = self
-            .directory
-            .symlink_metadata(file_name)
-            .map_err(|error| io_error(&display_path, error))?;
+        let path_metadata = match self.directory.symlink_metadata(file_name) {
+            Ok(metadata) => metadata,
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(None),
+            Err(error) => return Err(io_error(&display_path, error)),
+        };
         if path_metadata.file_type().is_symlink() || !path_metadata.is_file() {
             return Err(RecordFileError::NotRegularFile { path: display_path });
         }
@@ -115,13 +132,14 @@ impl RecordFileRoot {
         let bytes = read_bytes_bounded(&file, &display_path, limits)?;
         let mut read = RootRecordRead {
             bytes,
+            permissions: metadata.permissions(),
             file,
             root: self,
             file_name: file_name.to_os_string(),
             display_path,
         };
         read.verify_current(limits)?;
-        Ok(read)
+        Ok(Some(read))
     }
 
     pub fn write_new(
@@ -129,6 +147,18 @@ impl RecordFileRoot {
         relative_path: &Path,
         bytes: &[u8],
         limits: RecordFileLimits,
+    ) -> Result<(), RecordFileError> {
+        self.write_new_in(relative_path, bytes, limits, self)
+    }
+
+    /// Publish a new record from a synchronized stage beneath `staging`.
+    /// Cross-device hard-link errors propagate without a copy fallback.
+    pub fn write_new_in(
+        &self,
+        relative_path: &Path,
+        bytes: &[u8],
+        limits: RecordFileLimits,
+        staging: &RecordFileRoot,
     ) -> Result<(), RecordFileError> {
         if bytes.len() > limits.maximum_bytes {
             return Err(RecordFileError::ByteLimitExceeded {
@@ -138,33 +168,9 @@ impl RecordFileRoot {
         }
         let file_name = single_file_name(relative_path)?;
         let display_path = self.display_path.join(file_name);
-        let mut stage = create_exclusive_capability_stage(&self.directory, &self.display_path)?;
-        stage
-            .file
-            .write_all(bytes)
-            .map_err(|error| io_error(&stage.display_path, error))?;
-        stage
-            .file
-            .sync_all()
-            .map_err(|error| io_error(&stage.display_path, error))?;
-        stage
-            .file
-            .seek(SeekFrom::Start(0))
-            .map_err(|error| io_error(&stage.display_path, error))?;
-        let staged = read_bytes_bounded(&mut stage.file, &stage.display_path, limits)?;
-        if staged != bytes {
-            return Err(RecordFileError::ContentsChanged {
-                path: stage.display_path.clone(),
-            });
-        }
-        verify_capability_regular_identity(
-            &self.directory,
-            &stage.file_name,
-            &stage.file,
-            &stage.display_path,
-        )?;
+        let mut stage = stage::prepare(staging, bytes, limits, None)?;
 
-        match self
+        match stage
             .directory
             .hard_link(&stage.file_name, &self.directory, file_name)
         {
@@ -184,6 +190,7 @@ impl RecordFileRoot {
             )?;
             stage.remove()?;
             synchronize_directory(&self.directory, &self.display_path)?;
+            synchronize_directory(&staging.directory, &staging.display_path)?;
             verify_capability_regular_identity(
                 &self.directory,
                 file_name,
@@ -227,67 +234,8 @@ impl RecordFileRoot {
             return Err(RecordFileError::NotRegularFile { path: display_path });
         }
 
-        let mut stage = create_exclusive_capability_stage(&self.directory, &self.display_path)?;
-        stage
-            .file
-            .write_all(bytes)
-            .map_err(|error| io_error(&stage.display_path, error))?;
-        stage
-            .file
-            .sync_all()
-            .map_err(|error| io_error(&stage.display_path, error))?;
-        stage
-            .file
-            .seek(SeekFrom::Start(0))
-            .map_err(|error| io_error(&stage.display_path, error))?;
-        let staged = read_bytes_bounded(&mut stage.file, &stage.display_path, limits)?;
-        if staged != bytes {
-            return Err(RecordFileError::ContentsChanged {
-                path: stage.display_path.clone(),
-            });
-        }
-        verify_capability_regular_identity(
-            &self.directory,
-            &stage.file_name,
-            &stage.file,
-            &stage.display_path,
-        )?;
-
-        self.directory
-            .rename(&stage.file_name, &self.directory, file_name)
-            .map_err(|error| io_error(&display_path, error))?;
-        stage.removed = true;
-
-        let confirmation = (|| {
-            verify_capability_regular_identity(
-                &self.directory,
-                file_name,
-                &stage.file,
-                &display_path,
-            )?;
-            synchronize_directory(&self.directory, &self.display_path)?;
-            stage
-                .file
-                .seek(SeekFrom::Start(0))
-                .map_err(|error| io_error(&display_path, error))?;
-            let published = read_bytes_bounded(&mut stage.file, &display_path, limits)?;
-            if published != bytes {
-                return Err(RecordFileError::ContentsChanged {
-                    path: display_path.clone(),
-                });
-            }
-            verify_capability_regular_identity(
-                &self.directory,
-                file_name,
-                &stage.file,
-                &display_path,
-            )
-        })();
-
-        confirmation.map_err(|error| RecordFileError::PublishedButUnconfirmed {
-            path: display_path,
-            message: record_error_message(error),
-        })
+        let stage = stage::prepare(self, bytes, limits, None)?;
+        stage::replace(self, stage, file_name, &display_path, bytes, limits)
     }
 }
 
@@ -314,6 +262,7 @@ fn synchronize_directory(
 
 pub struct RootRecordRead<'root> {
     bytes: Vec<u8>,
+    permissions: cap_std::fs::Permissions,
     file: CapabilityFile,
     root: &'root RecordFileRoot,
     file_name: OsString,
@@ -323,6 +272,59 @@ pub struct RootRecordRead<'root> {
 impl RootRecordRead<'_> {
     pub fn bytes(&self) -> &[u8] {
         &self.bytes
+    }
+
+    /// Replace the observed record, preserving its captured file permissions.
+    ///
+    /// Old bytes and pathname identity are checked after staging and immediately
+    /// before atomic rename. Callers serialize journal operations; this does not
+    /// acquire a lock or provide filesystem compare-and-swap against an editor
+    /// between the check and rename. A confirmation failure after rename returns
+    /// `PublishedButUnconfirmed` because the replacement has already occurred.
+    pub fn replace(self, proposed: &[u8], limits: RecordFileLimits) -> Result<(), RecordFileError> {
+        let root = self.root;
+        self.replace_in(proposed, limits, root)
+    }
+
+    /// Replace the observed record using a synchronized stage beneath `staging`.
+    /// Uses the checks and permission preservation of [`Self::replace`].
+    /// Cross-device rename errors propagate without a copy fallback.
+    pub fn replace_in(
+        mut self,
+        proposed: &[u8],
+        limits: RecordFileLimits,
+        staging: &RecordFileRoot,
+    ) -> Result<(), RecordFileError> {
+        let stage = stage::prepare(staging, proposed, limits, Some(self.permissions.clone()))?;
+        self.verify_current(limits)?;
+        stage::replace(
+            self.root,
+            stage,
+            &self.file_name,
+            &self.display_path,
+            proposed,
+            limits,
+        )
+    }
+
+    /// Unlink the observed record after checking its bytes and pathname identity.
+    ///
+    /// Callers serialize journal operations; the check and unlink are not a
+    /// filesystem compare-and-swap. Directory synchronization uses the same
+    /// platform contract as replacement. If it fails after unlink, the result is
+    /// `PublishedButUnconfirmed` and the record has already been removed.
+    pub fn remove(mut self, limits: RecordFileLimits) -> Result<(), RecordFileError> {
+        self.verify_current(limits)?;
+        self.root
+            .directory
+            .remove_file(&self.file_name)
+            .map_err(|error| io_error(&self.display_path, error))?;
+        synchronize_directory(&self.root.directory, &self.root.display_path).map_err(|error| {
+            RecordFileError::PublishedButUnconfirmed {
+                path: self.display_path,
+                message: record_error_message(error),
+            }
+        })
     }
 
     pub fn verify_current(&mut self, limits: RecordFileLimits) -> Result<(), RecordFileError> {
@@ -359,88 +361,31 @@ fn single_file_name(path: &Path) -> Result<&OsStr, RecordFileError> {
     Ok(file_name)
 }
 
-struct PendingCapabilityRecord {
-    directory: CapabilityDirectory,
-    file_name: OsString,
-    display_path: PathBuf,
-    file: CapabilityFile,
-    removed: bool,
-}
-
-impl PendingCapabilityRecord {
-    fn remove(&mut self) -> Result<(), RecordFileError> {
-        self.directory
-            .remove_file(&self.file_name)
-            .map_err(|error| io_error(&self.display_path, error))?;
-        self.removed = true;
-        Ok(())
-    }
-}
-
-impl Drop for PendingCapabilityRecord {
-    fn drop(&mut self) {
-        if !self.removed {
-            let _ = self.directory.remove_file(&self.file_name);
-        }
-    }
-}
-
-fn create_exclusive_capability_stage(
-    directory: &CapabilityDirectory,
-    display_directory: &Path,
-) -> Result<PendingCapabilityRecord, RecordFileError> {
-    for _ in 0..MAXIMUM_STAGE_ATTEMPTS {
-        let stage_id = NEXT_STAGE_ID.fetch_add(1, Ordering::Relaxed);
-        let file_name = OsString::from(format!(
-            ".omega-record-stage-{}-{stage_id}",
-            std::process::id()
-        ));
-        let display_path = display_directory.join(&file_name);
-        let mut options = CapabilityOpenOptions::new();
-        options
-            .read(true)
-            .write(true)
-            .create_new(true)
-            .follow(FollowSymlinks::No);
-        #[cfg(unix)]
-        options.mode(0o600);
-        match directory.open_with(&file_name, &options) {
-            Ok(file) => {
-                return Ok(PendingCapabilityRecord {
-                    directory: directory
-                        .try_clone()
-                        .map_err(|error| io_error(display_directory, error))?,
-                    file_name,
-                    display_path,
-                    file,
-                    removed: false,
-                });
-            }
-            Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => continue,
-            Err(error) => return Err(io_error(&display_path, error)),
-        }
-    }
-    Err(RecordFileError::StageNameSpaceExhausted {
-        directory: display_directory.to_path_buf(),
-    })
-}
-
 fn verify_capability_regular_identity(
     directory: &CapabilityDirectory,
     relative_path: &OsStr,
     file: &CapabilityFile,
     display_path: &Path,
 ) -> Result<(), RecordFileError> {
-    let path_metadata = directory
-        .symlink_metadata(relative_path)
-        .map_err(|error| io_error(display_path, error))?;
     let handle_metadata = file
         .metadata()
+        .map_err(|error| io_error(display_path, error))?;
+    verify_regular_identity(directory, relative_path, &handle_metadata, display_path)
+}
+
+fn verify_regular_identity(
+    directory: &CapabilityDirectory,
+    relative_path: &OsStr,
+    handle_metadata: &cap_std::fs::Metadata,
+    display_path: &Path,
+) -> Result<(), RecordFileError> {
+    let path_metadata = directory
+        .symlink_metadata(relative_path)
         .map_err(|error| io_error(display_path, error))?;
     if path_metadata.file_type().is_symlink()
         || !path_metadata.is_file()
         || !handle_metadata.is_file()
-        || !same_capability_file_identity(&path_metadata, &handle_metadata)
+        || !same_capability_file_identity(&path_metadata, handle_metadata)
     {
         return Err(RecordFileError::NotRegularFile {
             path: display_path.to_path_buf(),
@@ -534,118 +479,4 @@ fn io_error(path: &Path, error: std::io::Error) -> RecordFileError {
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-    use cap_std::{ambient_authority, fs::Dir};
-    use std::fs;
-    use std::time::{SystemTime, UNIX_EPOCH};
-
-    #[test]
-    fn retained_read_detects_in_place_content_change() {
-        let stamp = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .expect("system clock should follow the Unix epoch")
-            .as_nanos();
-        let directory_path = std::env::temp_dir().join(format!(
-            "omega-root-record-content-change-{}-{stamp}",
-            std::process::id()
-        ));
-        fs::create_dir_all(&directory_path).expect("create policy directory");
-        let file_path = directory_path.join("policy.record");
-        fs::write(&file_path, b"first").expect("write initial record");
-        let directory = Dir::open_ambient_dir(&directory_path, ambient_authority())
-            .expect("open policy directory capability");
-        let root = RecordFileRoot::from_directory(directory, directory_path.clone())
-            .expect("bind policy directory capability");
-        let limits = RecordFileLimits { maximum_bytes: 5 };
-        let mut read = root
-            .read(Path::new("policy.record"), limits)
-            .expect("read initial record");
-
-        fs::write(&file_path, b"other").expect("replace bytes in the same file");
-
-        assert!(matches!(
-            read.verify_current(limits),
-            Err(RecordFileError::ContentsChanged { .. })
-        ));
-        let _ = fs::remove_dir_all(directory_path);
-    }
-
-    #[test]
-    fn rooted_replacement_publishes_exact_synchronized_bytes_without_a_stage_residue() {
-        let stamp = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .expect("system clock should follow the Unix epoch")
-            .as_nanos();
-        let directory_path = std::env::temp_dir().join(format!(
-            "omega-root-record-replacement-{}-{stamp}",
-            std::process::id()
-        ));
-        fs::create_dir_all(&directory_path).expect("create record directory");
-        fs::write(directory_path.join("config"), b"mutable helper bytes")
-            .expect("write existing control file");
-        let directory = Dir::open_ambient_dir(&directory_path, ambient_authority())
-            .expect("open record directory capability");
-        let root = RecordFileRoot::from_directory(directory, directory_path.clone())
-            .expect("bind record directory capability");
-
-        root.replace_existing(
-            Path::new("config"),
-            b"canonical bytes",
-            RecordFileLimits { maximum_bytes: 64 },
-        )
-        .expect("replace exact control file");
-
-        assert_eq!(
-            fs::read(directory_path.join("config")).expect("read replacement"),
-            b"canonical bytes"
-        );
-        assert!(
-            fs::read_dir(&directory_path)
-                .expect("list record directory")
-                .all(|entry| !entry
-                    .expect("record entry")
-                    .file_name()
-                    .to_string_lossy()
-                    .starts_with(".omega-record-stage-"))
-        );
-        let _ = fs::remove_dir_all(directory_path);
-    }
-
-    #[cfg(unix)]
-    #[test]
-    fn rooted_replacement_rejects_a_symlink_destination_without_touching_its_target() {
-        use std::os::unix::fs::symlink;
-
-        let stamp = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .expect("system clock should follow the Unix epoch")
-            .as_nanos();
-        let directory_path = std::env::temp_dir().join(format!(
-            "omega-root-record-replacement-link-{}-{stamp}",
-            std::process::id()
-        ));
-        fs::create_dir_all(&directory_path).expect("create record directory");
-        let target = directory_path.join("target");
-        fs::write(&target, b"outside replacement").expect("write symlink target");
-        symlink("target", directory_path.join("config")).expect("create destination symlink");
-        let directory = Dir::open_ambient_dir(&directory_path, ambient_authority())
-            .expect("open record directory capability");
-        let root = RecordFileRoot::from_directory(directory, directory_path.clone())
-            .expect("bind record directory capability");
-
-        assert!(matches!(
-            root.replace_existing(
-                Path::new("config"),
-                b"canonical bytes",
-                RecordFileLimits { maximum_bytes: 64 },
-            ),
-            Err(RecordFileError::NotRegularFile { .. })
-        ));
-        assert_eq!(
-            fs::read(target).expect("read symlink target"),
-            b"outside replacement"
-        );
-        let _ = fs::remove_dir_all(directory_path);
-    }
-}
+mod tests;
