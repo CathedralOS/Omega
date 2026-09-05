@@ -6,7 +6,10 @@ use psi_facts::{FactContextHandle, FactPayload, PlaceRoot, PlaceSegment};
 use psi_typed_trees::{TypedTrees, expression::ExpressionHandle, machine::Machine};
 
 use super::super::{
-    prover::{ScalarValue, evaluate_checked_scalar, evaluate_scalar, scalar_value_at_place},
+    prover::{
+        ScalarValue, evaluate_checked_scalar, evaluate_scalar, has_builtin_operators,
+        scalar_value_at_place,
+    },
     return_values::{exit_return_expression, is_result_reference},
 };
 use crate::flow::{canonical_place_from_expression_in_state, canonical_place_from_symbol};
@@ -209,30 +212,6 @@ impl ExitScalars<'_, '_> {
                 },
             },
         )
-    }
-}
-
-fn has_builtin_operators(
-    program: &TypedTrees,
-    operators: &psi_checked_trees::CheckedOperatorFacts,
-    expression: ExpressionHandle,
-) -> bool {
-    use psi_typed_trees::expression::ExpressionNode;
-    if operators.uses.iter().any(|(_, operator_use)| {
-        operator_use.expression == expression
-            && operator_use.status
-                != psi_checked_trees::CheckedOperatorResolutionStatus::BuiltinFallback
-    }) {
-        return false;
-    }
-    match program.expression_table.expression(expression) {
-        ExpressionNode::Binary(binary) => {
-            has_builtin_operators(program, operators, binary.left)
-                && has_builtin_operators(program, operators, binary.right)
-        }
-        ExpressionNode::Unary(unary) => has_builtin_operators(program, operators, unary.operand),
-        ExpressionNode::Borrow(borrow) => has_builtin_operators(program, operators, borrow.target),
-        _ => true,
     }
 }
 

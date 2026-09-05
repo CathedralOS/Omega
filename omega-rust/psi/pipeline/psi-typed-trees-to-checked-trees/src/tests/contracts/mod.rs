@@ -4,6 +4,7 @@ mod anonymous_integer_exits;
 mod assembly;
 mod assigned_values;
 mod byte_sequences;
+mod closed_boolean_calls;
 mod contract_entailment_certificates;
 mod fact_call_projections;
 mod indexing;

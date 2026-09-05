@@ -7,7 +7,8 @@ use psi_typed_trees::statement::StatementNode;
 
 use super::places::expression_is_boolean_place_like;
 use super::prover::{
-    call_entry_contexts_prove_boolean_contract_expression, semantic_contexts_prove_contract_fact,
+    call_entry_contexts_prove_boolean_contract_expression, closed_boolean_value,
+    semantic_contexts_prove_contract_fact,
 };
 use crate::labels::{
     call_target_label, canonical_place_label_from_parts, joined_place_label, machine_name,
@@ -56,36 +57,38 @@ pub(super) fn check_call_requires(
         for fact in facts.semantic.context_view(context).facts() {
             let satisfied = match fact.payload {
                 FactPayload::ContractBooleanExpression { expression, .. } => {
-                    call_entry_contexts_prove_boolean_contract_expression(
-                        program,
-                        &facts.semantic,
-                        state_flow,
-                        call_flow,
-                        &entry_contexts,
-                        expression,
-                    ) || if expression_is_boolean_place_like(program, expression) {
-                        semantic_contexts_prove_contract_fact(
+                    closed_boolean_value(program, &facts.operators, expression) == Some(true)
+                        || call_entry_contexts_prove_boolean_contract_expression(
                             program,
                             &facts.semantic,
-                            &entry_contexts,
-                            fact,
-                        )
-                    } else {
-                        // R1: a DOMINATING incoming-arm guard establishes a
-                        // boolean requires fact -- the ranges machinery's
-                        // IncomingGuard walk-back is the soundness gate
-                        // (single-predecessor edges, rewrite-fenced across
-                        // intermediate states), and the caller state's OWN
-                        // statements must preserve the named fields up to
-                        // the call (conservative whole-state scan).
-                        incoming_guard_proves_requires(
-                            program,
                             state_flow,
                             call_flow,
+                            &entry_contexts,
                             expression,
-                            incoming_guards,
                         )
-                    }
+                        || if expression_is_boolean_place_like(program, expression) {
+                            semantic_contexts_prove_contract_fact(
+                                program,
+                                &facts.semantic,
+                                &entry_contexts,
+                                fact,
+                            )
+                        } else {
+                            // R1: a DOMINATING incoming-arm guard establishes a
+                            // boolean requires fact -- the ranges machinery's
+                            // IncomingGuard walk-back is the soundness gate
+                            // (single-predecessor edges, rewrite-fenced across
+                            // intermediate states), and the caller state's OWN
+                            // statements must preserve the named fields up to
+                            // the call (conservative whole-state scan).
+                            incoming_guard_proves_requires(
+                                program,
+                                state_flow,
+                                call_flow,
+                                expression,
+                                incoming_guards,
+                            )
+                        }
                 }
                 _ => semantic_contexts_prove_contract_fact(
                     program,
