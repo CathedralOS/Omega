@@ -1,9 +1,12 @@
 use super::*;
 
+#[cfg(test)]
+mod tests;
+
 /// One recognized transition arm of an inductive machine body.
 struct TransitionArm {
-    /// The arm's guard expression (`None` for an always-firing arm, which
-    /// contributes no path fact).
+    /// The arm's own guard. Earlier arms must also have failed, including
+    /// when this arm has no additional test.
     guard: Option<ExpressionHandle>,
     kind: ArmKind,
 }
@@ -122,11 +125,42 @@ pub(super) fn inductive_transition_entailment(
         return;
     }
 
+    // This judgment uses one parameter namespace for the entire dispatch.
+    // A writing or opaque guard needs versioned facts; unreadable comparisons
+    // alone are not enough to suppress a stale proof or vacuity conclusion.
+    let call_frames = crate::CallFrameResolver::new(program);
+    if arms.iter().filter_map(|arm| arm.guard).any(|guard| {
+        !call_frames.as_ref().is_some_and(|frames| {
+            frames
+                .expression_write_frame(machine, guard)
+                .into_complete_paths()
+                .is_some_and(|paths| paths.is_empty())
+        })
+    }) {
+        record_inductive_stand_downs(
+            account_stand_downs,
+            machine,
+            ensures,
+            crate::ContractEntailmentStandDownReason::UnrecognizedInductiveBody,
+            ensures_coordinates,
+            stand_downs,
+        );
+        return;
+    }
+
     let trace = std::env::var("OMEGA_ENTAILMENT_TRACE").is_ok();
     let mut judged_arms = Vec::new();
     let mut every_arm_visible = true;
-    for arm in &arms {
-        let Some(judged) = prepare_arm(program, machine, root, requires, ensures, arm) else {
+    for (index, arm) in arms.iter().enumerate() {
+        let Some(judged) = prepare_arm(
+            program,
+            machine,
+            root,
+            requires,
+            ensures,
+            arm,
+            &arms[..index],
+        ) else {
             // The arm's value or argument list is unreadable: the whole body
             // cannot be anchored, so nothing can be judged or rejected.
             record_inductive_stand_downs(
@@ -252,22 +286,41 @@ fn prepare_arm<'program>(
     requires: &[ExpressionHandle],
     ensures: &[ExpressionHandle],
     arm: &TransitionArm,
+    preceding: &[TransitionArm],
 ) -> Option<JudgedArm<'program>> {
     let guard_display = match arm.guard {
         Some(guard) => program.expression_table.display_name(guard),
-        None => "<always>".to_owned(),
+        None if preceding.is_empty() => "<always>".to_owned(),
+        None => preceding
+            .iter()
+            .filter_map(|arm| arm.guard)
+            .map(|guard| failed_guard_display(program, guard))
+            .collect::<Vec<_>>()
+            .join(" && "),
     };
 
     let mut engine = Engine::with_result_atom(program, machine, root);
+    if preceding.iter().any(|arm| arm.guard.is_none()) {
+        return Some(JudgedArm {
+            engine,
+            vacuous: true,
+            fully_visible: true,
+            guard_display,
+        });
+    }
     let mut comparisons = Vec::new();
     let mut fully_visible = engine.collect_comparisons(requires, &mut comparisons);
     engine.collect_entry_range_hypotheses(&mut comparisons);
 
-    // The arm's path condition: the guard with its boolean polarity applied
-    // (`expr == false` lowers each dispatch arm; the negated comparison is the
-    // arm's fact). An unreadable guard only weakens proving power.
-    if let Some(guard) = arm.guard {
-        match guard_arm_comparison(&mut engine, guard) {
+    // Dispatch is ordered: preceding guards failed before this arm's own
+    // guard succeeded. In particular, an Always fallback is not unconstrained.
+    let guards = preceding
+        .iter()
+        .filter_map(|arm| arm.guard.map(|guard| (guard, false)))
+        .chain(arm.guard.map(|guard| (guard, true)))
+        .collect::<Vec<_>>();
+    for &(guard, polarity) in &guards {
+        match guard_arm_comparison(&mut engine, guard, polarity) {
             Some(comparison) => comparisons.push(comparison),
             None => fully_visible = false,
         }
@@ -290,10 +343,10 @@ fn prepare_arm<'program>(
             let mut gate_comparisons = Vec::new();
             gate_engine.collect_comparisons(requires, &mut gate_comparisons);
             gate_engine.collect_entry_range_hypotheses(&mut gate_comparisons);
-            if let Some(guard) = arm.guard
-                && let Some(comparison) = guard_arm_comparison(&mut gate_engine, guard)
-            {
-                gate_comparisons.push(comparison);
+            for &(guard, polarity) in &guards {
+                if let Some(comparison) = guard_arm_comparison(&mut gate_engine, guard, polarity) {
+                    gate_comparisons.push(comparison);
+                }
             }
             gate_engine.install_hypotheses(gate_comparisons);
 
@@ -347,6 +400,7 @@ fn prepare_arm<'program>(
 fn guard_arm_comparison(
     engine: &mut Engine<'_>,
     guard: ExpressionHandle,
+    expected: bool,
 ) -> Option<(BinaryOperator, Polynomial, Polynomial)> {
     let node = engine.program.expression_table.expression(guard).clone();
     if let ExpressionNode::Binary(binary) = &node
@@ -354,7 +408,7 @@ fn guard_arm_comparison(
         && let ExpressionNode::Boolean(polarity) =
             engine.program.expression_table.expression(binary.right)
     {
-        let polarity = *polarity;
+        let polarity = *polarity == expected;
         let (operator, left, right) = engine.comparison_polynomials(binary.left)?;
         let operator = if polarity {
             operator
@@ -363,7 +417,30 @@ fn guard_arm_comparison(
         };
         return Some((operator, left, right));
     }
-    engine.comparison_polynomials(guard)
+    let (operator, left, right) = engine.comparison_polynomials(guard)?;
+    Some((
+        if expected {
+            operator
+        } else {
+            negated_comparison(operator)?
+        },
+        left,
+        right,
+    ))
+}
+
+fn failed_guard_display(program: &TypedTrees, guard: ExpressionHandle) -> String {
+    if let ExpressionNode::Binary(binary) = program.expression_table.expression(guard)
+        && binary.operator == BinaryOperator::Equal
+        && let ExpressionNode::Boolean(polarity) = program.expression_table.expression(binary.right)
+    {
+        return format!(
+            "{} == {}",
+            program.expression_table.display_name(binary.left),
+            !polarity
+        );
+    }
+    format!("!({})", program.expression_table.display_name(guard))
 }
 
 /// The classical negation of a comparison operator (integer semantics).

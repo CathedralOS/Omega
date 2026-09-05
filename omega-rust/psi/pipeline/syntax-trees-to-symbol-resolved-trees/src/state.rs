@@ -561,9 +561,18 @@ fn lower_statement_into_pending(
     // `let`s landed between two arm transitions would SPLIT the run
     // (un-pairing `true`/`false` arms into a phantom fall-through), so the
     // lets of every arm after the first are spliced BEFORE the run's first
-    // transition instead. The hoisted reads are pure loads; evaluating them
-    // ahead of the whole dispatch has no observable effect.
-    let mut lowered = lower_statement_handle(lowerer, syntax_trees, statement, pending.len())?;
+    // transition instead. Target work after an earlier arm stays selected;
+    // only legacy guard-subject preprocessing supplies this shared prefix.
+    let has_preceding_transition = pending
+        .iter()
+        .any(|statement| matches!(statement, Statement::Transition(_)));
+    let mut lowered = lower_statement_handle(
+        lowerer,
+        syntax_trees,
+        statement,
+        pending.len(),
+        has_preceding_transition,
+    )?;
     let ends_in_transition = matches!(lowered.last(), Some(Statement::Transition(_)));
     if ends_in_transition {
         let lets_count = lowered.len() - 1;

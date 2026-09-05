@@ -34,130 +34,129 @@ pub(super) fn guarded_self_loop<'program>(
     })
 }
 
-/// An UNGUARDED (always) self-loop transition -- the shape the MR2
-/// terminal-tail rewrite produces (`{ _ -> countdown(n - 1) }` as the
-/// state's fall-through). Its edge facts come from the COMPLEMENTS of the
-/// guarded EXIT transitions before it (see `fall_through_exit_guards`),
-/// not from its own (absent) guard.
-pub(super) struct FallThroughSelfLoop<'program> {
-    pub(super) arguments: &'program [ExpressionHandle],
-    /// Guards of PRIOR exit transitions: control only reaches the loop when
-    /// every one of these was FALSE.
-    pub(super) refuted_exit_guards: Vec<ExpressionHandle>,
+/// A fact at one exact edge, including failed earlier tests.
+#[derive(Clone, Copy)]
+pub(super) struct GuardFact {
+    pub(super) expression: ExpressionHandle,
+    pub(super) holds: bool,
 }
 
-/// Match the state's Always-guarded self-loop reached by FALL-THROUGH, with
-/// the prior exit guards whose complements dominate it. A prior transition
-/// counts as an EXIT when it is guarded, its true-arm leaves (any valid
-/// target), and it has NO fall-through arm of its own (invalid
-/// continuation): reaching a later statement then proves the guard false.
-pub(super) fn fall_through_self_loop<'program>(
+pub(super) struct GuardedEdge<'program> {
+    pub(super) statement_ordinal: usize,
+    pub(super) is_continuation: bool,
+    pub(super) guards: Vec<GuardFact>,
+    pub(super) arguments: &'program [ExpressionHandle],
+}
+
+/// Collect every occurrence, not merely the first matching arm. An Always
+/// fallback retains failed earlier tests; a continuation refutes its own test.
+/// Intervening statements discard earlier facts instead of assuming no write.
+pub(super) fn edges_to_state<'program>(
     program: &'program typed_trees::TypedTrees,
-    state: &typed_trees::state::State,
-) -> Option<FallThroughSelfLoop<'program>> {
-    let statements = program.statement_table.statements(state.statement_nodes);
-    let mut refuted_exit_guards = Vec::new();
-    for statement in statements {
+    source: &typed_trees::state::State,
+    target_symbol: symbols::SymbolHandle,
+) -> Vec<GuardedEdge<'program>> {
+    let mut edges = Vec::new();
+    let mut previous = Vec::new();
+    for (statement_ordinal, statement) in program
+        .statement_table
+        .statements(source.statement_nodes)
+        .iter()
+        .enumerate()
+    {
         let StatementNode::Transition(transition) = statement else {
+            previous.clear();
             continue;
         };
-        match transition.guard {
-            TransitionGuardNode::When(guard) => {
-                if transition.target.is_valid() && !transition.continuation.is_valid() {
-                    refuted_exit_guards.push(guard);
-                }
+        let guard = match transition.guard {
+            TransitionGuardNode::When(expression) => Some(expression),
+            TransitionGuardNode::Always => None,
+        };
+        if guard.is_some_and(|guard| !stable_guard(program, source, guard)) {
+            previous.clear();
+        }
+        for (target_handle, is_continuation) in
+            [(transition.target, false), (transition.continuation, true)]
+        {
+            if !target_handle.is_valid() {
                 continue;
             }
-            TransitionGuardNode::Always => {}
+            let TransitionTargetNode::Named {
+                path, arguments, ..
+            } = program.statement_table.transition_target(target_handle)
+            else {
+                continue;
+            };
+            if !target_symbol_matches_state_symbol(program, target_symbol, path.symbol) {
+                continue;
+            }
+            let mut guards = previous.clone();
+            if let Some(expression) = guard {
+                guards.push(GuardFact {
+                    expression,
+                    holds: !is_continuation,
+                });
+            }
+            edges.push(GuardedEdge {
+                statement_ordinal,
+                is_continuation,
+                guards,
+                arguments: program.statement_table.expression_handles(*arguments),
+            });
         }
-        let target = program.statement_table.transition_target(transition.target);
-        let TransitionTargetNode::Named {
-            path, arguments, ..
-        } = target
-        else {
-            continue;
-        };
-        if !target_symbol_matches_state(program, state, path.symbol) {
-            continue;
+        if let Some(expression) = guard
+            && transition.target.is_valid()
+            && !transition.continuation.is_valid()
+            && stable_guard(program, source, expression)
+        {
+            previous.push(GuardFact {
+                expression,
+                holds: false,
+            });
+        } else {
+            previous.clear();
         }
-        return Some(FallThroughSelfLoop {
-            arguments: program.statement_table.expression_handles(*arguments),
-            refuted_exit_guards,
-        });
     }
-    None
+    edges
 }
 
-/// Does refuting `guard` prove `parameter > 0`? True for the base-case
-/// spellings `param == 0`, `param < 1`, and `param <= 0` (unsigned or not:
-/// the refutation gives param != 0 / param >= 1 / param >= 1, and the Nat
-/// ranking only fires for parameters with a well-founded non-negative
-/// order).
-pub(super) fn refuted_guard_proves_positive(
+/// Only immutable primitive parameters and literal Boolean/comparison structure
+/// supply facts across statements. Calls, storage reads, and projections are not
+/// assumed to retain their observed value.
+fn stable_guard(
     program: &typed_trees::TypedTrees,
-    guard: ExpressionHandle,
-    parameter: &typed_trees::signature::StateParameter,
+    state: &typed_trees::state::State,
+    expression: ExpressionHandle,
 ) -> bool {
-    use typed_trees::expression::BinaryOperator;
-    let normalized = normalize_boolean_guard(program, guard);
-    let ExpressionNode::Binary(binary) = program.expression_table.expression(normalized) else {
-        return false;
-    };
-    if !expression_is_parameter(program, binary.left, parameter) {
-        return false;
-    }
-    let ExpressionNode::Integer(literal) = program.expression_table.expression(binary.right) else {
-        return false;
-    };
-    match binary.operator {
-        BinaryOperator::Equal => literal.value_i64() == Some(0),
-        BinaryOperator::Less => literal.value_i64() == Some(1),
-        BinaryOperator::LessOrEqual => literal.value_i64() == Some(0),
+    use typed_trees::expression::{BinaryOperator, UnaryOperator};
+    match program.expression_table.expression(expression) {
+        ExpressionNode::Name(name) => program.state_parameters(state).iter().any(|parameter| {
+            parameter.symbol == name.symbol
+                && !parameter.is_mutable
+                && !parameter.is_self
+                && program
+                    .primitive_type_reference(parameter.type_reference)
+                    .is_some()
+        }),
+        ExpressionNode::Boolean(_) | ExpressionNode::Integer(_) => true,
+        ExpressionNode::Unary(unary) if unary.operator == UnaryOperator::LogicalNot => {
+            stable_guard(program, state, unary.operand)
+        }
+        ExpressionNode::Binary(binary)
+            if matches!(
+                binary.operator,
+                BinaryOperator::Equal
+                    | BinaryOperator::NotEqual
+                    | BinaryOperator::Less
+                    | BinaryOperator::LessOrEqual
+                    | BinaryOperator::Greater
+                    | BinaryOperator::GreaterOrEqual
+            ) =>
+        {
+            stable_guard(program, state, binary.left) && stable_guard(program, state, binary.right)
+        }
         _ => false,
     }
-}
-
-/// A guarded transition edge whose target is a specific state (used for
-/// cyclic / mutually-recursive edges where the target differs from the source).
-pub(super) struct GuardedEdge<'program> {
-    pub(super) guard: ExpressionHandle,
-    pub(super) arguments: &'program [ExpressionHandle],
-}
-
-/// Match ANY transition edge (guarded or Always) from a statement to
-/// `target_symbol`. The Always case (the MR2 terminal-tail rewrite's shape)
-/// carries an INVALID guard handle -- provers must not read it as a fact.
-pub(super) fn edge_to_any_guard<'program>(
-    program: &'program typed_trees::TypedTrees,
-    statement: &StatementNode,
-    target_symbol: symbols::SymbolHandle,
-) -> Option<GuardedEdge<'program>> {
-    let StatementNode::Transition(transition) = statement else {
-        return None;
-    };
-    let guard = match transition.guard {
-        TransitionGuardNode::When(guard) => guard,
-        TransitionGuardNode::Always => ExpressionHandle::invalid(),
-    };
-    for target_handle in [transition.target, transition.continuation] {
-        if !target_handle.is_valid() {
-            continue;
-        }
-        let TransitionTargetNode::Named {
-            path, arguments, ..
-        } = program.statement_table.transition_target(target_handle)
-        else {
-            continue;
-        };
-        if !target_symbol_matches_state_symbol(program, target_symbol, path.symbol) {
-            continue;
-        }
-        return Some(GuardedEdge {
-            guard,
-            arguments: program.statement_table.expression_handles(*arguments),
-        });
-    }
-    None
 }
 
 fn target_symbol_matches_state(
@@ -239,7 +238,7 @@ pub(super) fn normalize_boolean_guard(
     program: &typed_trees::TypedTrees,
     guard: ExpressionHandle,
 ) -> ExpressionHandle {
-    // An Always edge (edge_to_any_guard) carries no guard at all.
+    // An unguarded edge carries no positive expression fact.
     if !guard.is_valid() {
         return guard;
     }

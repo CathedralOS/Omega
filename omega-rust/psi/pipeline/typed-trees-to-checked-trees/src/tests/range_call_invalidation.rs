@@ -9,6 +9,70 @@ fn check(source: &str) -> Result<checked_trees::CheckedTrees, Vec<diagnostics::D
 }
 
 #[test]
+fn boolean_fallback_index_reads_use_the_prior_guard_complement() {
+    for (subject, first, last) in [
+        ("index >= 4", "true", "false"),
+        ("index < 4", "false", "true"),
+        ("index > 3", "true", "false"),
+        ("index <= 3", "false", "true"),
+    ] {
+        let source = format!(
+            "machine main(values: &[u64; 4], index: u64) -> u64 {{
+                 transition {subject} {{
+                     {first} -> 0
+                     {last} -> (values[index])
+                 }}
+             }}"
+        );
+        check(&source).unwrap_or_else(|diagnostics| panic!("{source}: {diagnostics:#?}"));
+    }
+}
+
+#[test]
+fn refuted_conjunction_does_not_prove_each_operand_false() {
+    let source = r#"
+        machine main(values: &[u64; 4], index: u64, selected: bool) -> u64 {
+            transition (index >= 4) && selected {
+                true -> 0
+                false -> (values[index])
+            }
+        }
+    "#;
+    let Err(diagnostics) = check(source) else {
+        panic!("a false selection alone cannot establish the index bound")
+    };
+    assert!(
+        diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.message.contains("index")),
+        "{diagnostics:#?}"
+    );
+}
+
+#[test]
+fn effectful_guard_cannot_restore_an_old_bound_in_its_fallback() {
+    let source = r#"
+        machine corrupt(index: &mut u64) -> bool { index = 255; false }
+        machine main(values: &[u64; 4]) -> u64 {
+            let mut index: u64 = 0;
+            transition (index >= 4) || corrupt(&mut index) {
+                true -> 0
+                false -> (values[index])
+            }
+        }
+    "#;
+    let Err(diagnostics) = check(source) else {
+        panic!("guard writes must invalidate the earlier index bound before fall-through")
+    };
+    assert!(
+        diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.message.contains("index")),
+        "{diagnostics:#?}"
+    );
+}
+
+#[test]
 fn mutating_calls_retire_local_index_values() {
     for call in [
         "set_index(&mut index);",

@@ -182,7 +182,7 @@ impl Prepared {
         // its result directly to the following statements, without placeholders.
         for prefix in self.prefixes.into_iter().rev() {
             let target = computations.push(continuation);
-            let target = computations.binding_value(
+            let target = computations.retained_value(
                 state,
                 prefix.statement_ordinal,
                 prefix.role,

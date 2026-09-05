@@ -15,6 +15,8 @@ use typed_trees_to_checked_trees::lower_typed_trees;
 mod call_result_bounds;
 #[path = "scalar_return_calls_source/computed_assignments.rs"]
 mod computed_assignments;
+#[path = "scalar_return_calls_source/computed_guards.rs"]
+mod computed_guards;
 #[path = "scalar_return_calls_source/computed_initializers.rs"]
 mod computed_initializers;
 #[path = "scalar_return_calls_source/computed_returns.rs"]

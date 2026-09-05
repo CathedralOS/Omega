@@ -2951,7 +2951,9 @@ reach cannot replace that selected row. Missing, duplicate, stale, or
 coordinate-mismatched applications fail closed; neither planning nor
 production scans conformances for a uniquely shaped realization.
 
-Guarded free return calls use the existing arm-local continuation normalization.
+Free scalar return calls remain in their authored arms for computation planning.
+Other supported guarded return calls use the existing arm-local continuation
+normalization.
 The continuation captures referenced state parameters and explicitly typed
 primitive local values, including the current value of mutable local storage.
 It evaluates the original scalar arguments and invokes the callee only after
@@ -2961,9 +2963,9 @@ selected continuation. Local places, borrows, recasts, and nested calls are not
 converted to value captures by this normalization. No additional Terminal
 call or return representation is introduced.
 
-Call-bearing scalar initializers, local assignments, state arguments, and returns retain
-arena-backed checked computation plans, separate from the pure scalar expressions
-consumed by proof.
+Call-bearing scalar initializers, local assignments, state arguments, guards,
+and returns retain arena-backed checked computation plans, separate from the
+pure scalar expressions consumed by proof.
 Their value leaves use the source state's checked scalar namespace; call nodes
 retain exact flow-call handles and authored occurrence ordinals; conditional
 nodes select one result; pure application templates consume only their computed
@@ -2977,6 +2979,23 @@ is manufactured. Each root node retains the exact authored outer expression
 handle, checked against its statement and destination role before expansion.
 Invalid handles, cycles, duplicate roots/call occurrences, swapped arm roots,
 and mismatched carriers or invocation coordinates reject before publication.
+
+Computed Boolean guards complete before either branch destination starts. A
+private dispatch block consumes the completed Boolean and retains the source
+value prefix for the selected branch. Guard roots rejoin the exact authored
+`When` expression and Boolean carrier. A single-subject Boolean dispatch with
+exactly opposite literal arms tests the subject once and treats its final arm
+as fall-through, in either authored arm order. Independent anonymous guards are
+not combined merely because their call expressions look alike. Longer computed
+dispatches still need explicit shared-subject planning.
+Existing lone-call comparison hoists still produce a direct-call binding and
+pure guard; retained nested or multi-call guards use computation roots.
+Publication also checks the authored fallback: a later independent `When`
+cannot reuse an unconditional edge from an earlier checked dispatch.
+Fall-through proof contexts retain failed earlier guards, including their
+Boolean polarity. Inductive contract and ranking judgments use those facts
+for the exact selected edge; range propagation still invalidates facts affected
+by guard effects or intervening writes.
 
 Immutable and mutable initializers and local assignments in free scalar machines
 use that same evaluation path. Each RHS completes before the following statement;
@@ -3037,16 +3056,16 @@ or transitivity, including case analysis over disjoined guarantees. Named-state
 forwarding retains exact immutable entry origins and rejects ambiguous joins,
 including backedges to the entry state spelled through its state or machine name.
 
-Remaining numeric policies and selected operator calls, guard destinations,
+Remaining numeric policies and selected operator calls, longer computed dispatches,
 borrowed/projected operands and writes, and named runtime proof outputs still
 need execution-plan extensions. Nonliteral contract arithmetic and result bounds
 that need caller-specific snapshots beyond immutable scalar formal comparisons
 still need complete transport. Source interval projection uses only immutable
 formal declarations and builtin required bounds, never a reread of caller
 storage. A call's carrier alone never proves a partial conversion.
-The older flat guarded-argument normalization remains on uncovered paths and
-must be retired as those paths move to checked computation planning; this work
-remains in `STATE-LOCAL-VALUE-FRONTIER`.
+The older flat guarded-argument and shared match-subject normalization remains
+on uncovered paths and must be retired as those paths move to checked computation
+planning; this work remains in `STATE-LOCAL-VALUE-FRONTIER`.
 
 Structural-operand Unit composition is a distinct checked operation, not a
 widened scalar `Call`. One free or hosted Unit body may bind a primitive result

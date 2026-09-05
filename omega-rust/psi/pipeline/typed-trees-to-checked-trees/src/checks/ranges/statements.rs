@@ -190,6 +190,13 @@ pub(super) fn check_statement<'program>(
                 transition.continuation,
                 diagnostics,
             );
+            // Reaching the next statement refutes a prior exit arm. Guard
+            // evaluation has already retired its write-affected facts, and
+            // only the existing read-only frame gate seeds a new complement.
+            // Target effects belong to the selected exit, not fall-through.
+            if transition.target.is_valid() && !transition.continuation.is_valid() {
+                *facts = continuation_facts;
+            }
         }
     }
 }

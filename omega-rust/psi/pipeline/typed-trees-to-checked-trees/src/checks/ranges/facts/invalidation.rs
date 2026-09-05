@@ -112,6 +112,34 @@ mod tests {
     use symbols::SymbolHandle;
 
     #[test]
+    fn direct_assignment_retires_only_its_index_bound() {
+        let mut facts = RangeFacts::new(&[]);
+        facts.prove_index_upper_bound("index".to_owned(), 4);
+        facts.prove_index_upper_bound("unrelated".to_owned(), 4);
+
+        facts.invalidate_assignment_bounds("index");
+
+        assert!(!facts.index_upper_bound_is_proven("index", 4));
+        assert!(facts.index_upper_bound_is_proven("unrelated", 4));
+    }
+
+    #[test]
+    fn precise_call_write_retires_only_its_index_bound() {
+        let mut facts = RangeFacts::new(&[]);
+        facts.prove_index_upper_bound("index".to_owned(), 4);
+        facts.prove_index_upper_bound("unrelated".to_owned(), 4);
+
+        facts.invalidate_call_writes(
+            &TypedTrees::default(),
+            &State::default(),
+            Some(&["index".to_owned()]),
+        );
+
+        assert!(!facts.index_upper_bound_is_proven("index", 4));
+        assert!(facts.index_upper_bound_is_proven("unrelated", 4));
+    }
+
+    #[test]
     fn unknown_call_retires_dynamic_values_and_relations_not_declared_extents() {
         let fields = [(SymbolHandle::invalid(), "fixed".to_owned(), 2)];
         let mut facts = RangeFacts::new(&fields);

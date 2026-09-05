@@ -5,6 +5,7 @@ use super::*;
 mod bindings;
 mod branch_destinations;
 mod computations;
+mod guards;
 mod storage;
 
 pub(super) fn checked_scalar_computation_call_targets(
@@ -360,21 +361,6 @@ fn prepare_scalar_graph_machine_with_contract_mode(
                     when_true,
                     when_false,
                 )?;
-                let LoweredDirectExpression::Boolean {
-                    expression: condition,
-                } = scalar_bindings.expression_at(
-                    checked,
-                    state.state,
-                    *guard_statement_ordinal,
-                    CheckedScalarExpressionRole::Guard,
-                )?
-                else {
-                    return unsupported("checked scalar graph guard must be Boolean");
-                };
-                let condition = *condition;
-                validate_short_circuit_expression(&condition)?;
-                validate_boolean_parameter_types(&condition, value_types)?;
-
                 let (when_true_target, when_true_arguments) =
                     branch_destinations::lower_destination(
                         checked,
@@ -399,13 +385,17 @@ fn prepare_scalar_graph_machine_with_contract_mode(
                         return_sink,
                         &mut computations,
                     )?;
-                LoweredScalarBranchTerminator::Conditional {
-                    condition,
-                    when_true_target,
-                    when_true_arguments,
-                    when_false_target,
-                    when_false_arguments,
-                }
+                guards::lower(
+                    checked,
+                    state.state,
+                    *guard_statement_ordinal,
+                    scalar_bindings,
+                    value_types,
+                    (when_true_target, when_true_arguments),
+                    (when_false_target, when_false_arguments),
+                    when_false,
+                    &mut computations,
+                )?
             }
             CheckedScalarStateTerminator::Jump(successor) => {
                 if successor.is_continuation {

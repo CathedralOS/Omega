@@ -36,12 +36,14 @@ pub(crate) fn lower_statement_handle(
     syntax_trees: &SyntaxTrees,
     statement: syntax::statement::StatementHandle,
     statement_index: usize,
+    has_preceding_transition: bool,
 ) -> Result<Vec<Statement>, Diagnostic> {
     lower_statement_node(
         lowerer,
         syntax_trees,
         syntax_trees.statements.statement(statement),
         statement_index,
+        has_preceding_transition,
     )
 }
 
@@ -50,6 +52,7 @@ fn lower_statement_node(
     syntax_trees: &SyntaxTrees,
     statement: &syntax::statement::StatementNode,
     statement_index: usize,
+    has_preceding_transition: bool,
 ) -> Result<Vec<Statement>, Diagnostic> {
     match statement {
         syntax::statement::StatementNode::AssemblyFact(fact) => {
@@ -291,10 +294,13 @@ fn lower_statement_node(
         }
         syntax::statement::StatementNode::Transition(transition) => {
             let mut hoisted = Vec::new();
-            let unconditional = matches!(
-                transition.guard,
-                syntax::statement::TransitionGuardNode::Always
-            );
+            // An Always fallback is selected only after earlier arms fail.
+            // Its target work cannot join the pre-dispatch hoist prefix.
+            let unconditional = !has_preceding_transition
+                && matches!(
+                    transition.guard,
+                    syntax::statement::TransitionGuardNode::Always
+                );
             let mut target = lower_transition_target_node(
                 lowerer,
                 syntax_trees,
@@ -302,16 +308,13 @@ fn lower_statement_node(
                 &mut hoisted,
                 unconditional,
             )?;
-            // A free or direct-self value-machine call as the TERMINAL value
-            // of an ALWAYS-guard arm (`transition { _ -> (self.sin(x + k)) }`) hoists
-            // into the let-bound spelling -- the only served route. Guarded
-            // arms keep the honest fence: their hoist would run the callee
-            // even when the arm is not taken.
-            if matches!(
-                transition.guard,
-                syntax::statement::TransitionGuardNode::Always
-            ) {
-                if let TransitionTarget::Value(expression) = target {
+            // Free scalar return calls keep their exact destination for checked
+            // computation lowering. Other unconditional calls retain the older
+            // let-bound route; guarded calls must stay behind arm selection.
+            if unconditional {
+                if let TransitionTarget::Value(expression) = target
+                    && !is_scalar_return_computation(lowerer, expression)
+                {
                     let rewritten =
                         hoist_terminal_value_machine_call(lowerer, expression, &mut hoisted);
                     if rewritten != expression {
@@ -340,10 +343,7 @@ fn lower_statement_node(
                     &mut hoisted,
                     unconditional,
                 )?;
-                if matches!(
-                    transition.guard,
-                    syntax::statement::TransitionGuardNode::Always
-                ) {
+                if unconditional {
                     // A lone wildcard arm is represented as the continuation
                     // of an Always transition. It is unconditional, so keep
                     // its existing target intact (including ownership-call
@@ -585,7 +585,7 @@ fn rewrite_children(
                     ExpressionNode::Indexed(_)
                 ) {
                 cast.value
-            } else if mode != OperandHoisting::Computation
+            } else if mode == OperandHoisting::Value
                 && !cast.form.is_recast()
                 && is_hoistable_value_cast_call(lowerer, cast.value)
             {
@@ -602,8 +602,8 @@ fn rewrite_children(
                 //        (__hoist as T in Policy)
                 //
                 // The callee's declared return types the synthetic local in
-                // `infer_hoist_temp_type`. Checked initializer, assignment, and return
-                // computations instead retain the original call beneath the
+                // `infer_hoist_temp_type`. Checked computations and guards
+                // instead retain the original call beneath the
                 // cast: moving it here could run it before an earlier sibling.
                 hoist_into_temp(lowerer, cast.value, hoisted)
             } else {
@@ -1004,6 +1004,27 @@ fn hoist_scalar_value_call_comparison(
     if !call_is_left && !call_is_right {
         return;
     }
+    let other_side = if call_is_left {
+        binary.right
+    } else {
+        binary.left
+    };
+    // A cast or nested expression does not hide its call's evaluation point.
+    // Keep both operands intact rather than moving one call ahead of the other.
+    // Literal match arms still share the existing single subject binding.
+    if expression_contains_call(lowerer, other_side) {
+        return;
+    }
+    // A right-side call cannot move ahead of an earlier read or operation:
+    // even without another call, that operand can observe storage or trap.
+    if call_is_right
+        && !matches!(
+            expressions.expression(binary.left),
+            ExpressionNode::Boolean(_) | ExpressionNode::Float(_) | ExpressionNode::Integer(_)
+        )
+    {
+        return;
+    }
     let call_side = if call_is_left {
         binary.left
     } else {
@@ -1157,6 +1178,56 @@ fn hoist_terminal_value_machine_call(
     }))
 }
 
+/// Preserve the free scalar spelling for checked return computation planning.
+/// This is only a normalization boundary: typing and checked call custody still
+/// select the exact callee and reject unsupported operands before publication.
+fn is_scalar_computation_state(lowerer: &Lowerer) -> bool {
+    let scalar_type = |type_reference: &TypeReference| {
+        let mut type_reference = type_reference;
+        while let TypeReference::Constrained(constrained) = type_reference {
+            type_reference = lowerer
+                .symbol_resolved_trees
+                .child_type_reference(constrained.base_type);
+        }
+        type_reference.primitive_type().is_some_and(|primitive| {
+            !matches!(
+                primitive,
+                symbol_resolved_trees::types::PrimitiveType::F32
+                    | symbol_resolved_trees::types::PrimitiveType::F64
+            )
+        })
+    };
+    lowerer.current_state_self_parameter.is_none()
+        && lowerer
+            .current_state_return_type
+            .as_ref()
+            .is_some_and(scalar_type)
+        && lowerer
+            .current_state_parameters
+            .iter()
+            .all(|(_, type_reference, is_mutable)| !is_mutable && scalar_type(type_reference))
+}
+
+fn is_scalar_return_computation(lowerer: &Lowerer, expression: ExpressionHandle) -> bool {
+    if !is_scalar_computation_state(lowerer) {
+        return false;
+    }
+    let ExpressionNode::Call(call) = lowerer
+        .symbol_resolved_trees
+        .tables
+        .bodies
+        .expressions
+        .expression(expression)
+    else {
+        return false;
+    };
+    !call.receiver.is_valid()
+        && call.machine_arguments.is_empty()
+        && call.evidence_arguments.is_empty()
+        && !is_integer_embedding_call(lowerer, call)
+        && !matches!(call.target.as_str(), "min" | "max" | "sqrt")
+}
+
 /// Keep a guarded return call inside its selected arm. The continuation
 /// captures referenced values, then evaluates the original arguments and call.
 /// Place-dependent and nested effectful arguments need their own evaluation
@@ -1165,6 +1236,9 @@ fn rewrite_guarded_call_arm(lowerer: &mut Lowerer, target: TransitionTarget) -> 
     let TransitionTarget::Value(expression) = target else {
         return target;
     };
+    if is_scalar_return_computation(lowerer, expression) {
+        return TransitionTarget::Value(expression);
+    }
     let expressions = &lowerer.symbol_resolved_trees.tables.bodies.expressions;
     let ExpressionNode::Call(call) = expressions.expression(expression) else {
         return TransitionTarget::Value(expression);
@@ -1248,6 +1322,9 @@ fn rewrite_guarded_transition_argument_calls(
     lowerer: &mut Lowerer,
     target: TransitionTarget,
 ) -> TransitionTarget {
+    if is_scalar_computation_state(lowerer) {
+        return target;
+    }
     let TransitionTarget::Named(named) = target else {
         return target;
     };
@@ -1430,6 +1507,37 @@ fn collect_synthesizable_argument_calls(
         | ExpressionNode::ZeroValue(_) => {}
     }
     Some(())
+}
+
+fn expression_contains_call(lowerer: &Lowerer, expression: ExpressionHandle) -> bool {
+    let expressions = &lowerer.symbol_resolved_trees.tables.bodies.expressions;
+    let contains = |child| expression_contains_call(lowerer, child);
+    match expressions.expression(expression) {
+        ExpressionNode::Call(_) => true,
+        ExpressionNode::Atomic(atomic) => contains(atomic.value),
+        ExpressionNode::ArrayLiteral(values) => expressions
+            .expression_handles(*values)
+            .iter()
+            .any(|value| contains(*value)),
+        ExpressionNode::Binary(binary) => contains(binary.left) || contains(binary.right),
+        ExpressionNode::Cast(cast) => contains(cast.value),
+        ExpressionNode::Indexed(indexed) => contains(indexed.collection) || contains(indexed.index),
+        ExpressionNode::Member(member) => contains(member.receiver),
+        ExpressionNode::Membership(membership) => contains(membership.value),
+        ExpressionNode::Borrow(borrow) => contains(borrow.target),
+        ExpressionNode::Range(range) => contains(range.start) || contains(range.end),
+        ExpressionNode::StructLiteral(literal) => expressions
+            .struct_fields(literal.fields)
+            .iter()
+            .any(|field| contains(field.value)),
+        ExpressionNode::Unary(unary) => contains(unary.operand),
+        ExpressionNode::Boolean(_)
+        | ExpressionNode::Float(_)
+        | ExpressionNode::Integer(_)
+        | ExpressionNode::Name(_)
+        | ExpressionNode::String(_)
+        | ExpressionNode::ZeroValue(_) => false,
+    }
 }
 
 fn collect_synthesized_argument_captures(
@@ -1922,7 +2030,7 @@ fn hoist_comparison_match_subject(
     let name = match lowerer.match_subject_temp(subject_key) {
         Some(existing) => DiagnosticName::generated(existing),
         None => {
-            hoist_operand_indexed_reads(lowerer, outer.left, hoisted, OperandHoisting::Value);
+            hoist_operand_indexed_reads(lowerer, outer.left, hoisted, OperandHoisting::Computation);
             let fresh = lowerer.next_hoist_name();
             lowerer.record_match_subject_temp(subject_key, fresh.clone());
             let name = DiagnosticName::generated(fresh);
@@ -2110,8 +2218,12 @@ fn lower_transition_target_node(
                     .bodies
                     .expressions
                     .expression_handles(arguments)[offset as usize];
-                let rewritten =
-                    hoist_operand_indexed_reads(lowerer, argument, hoisted, OperandHoisting::Value);
+                let rewritten = hoist_operand_indexed_reads(
+                    lowerer,
+                    argument,
+                    hoisted,
+                    OperandHoisting::Computation,
+                );
                 if rewritten != argument {
                     lowerer
                         .symbol_resolved_trees
