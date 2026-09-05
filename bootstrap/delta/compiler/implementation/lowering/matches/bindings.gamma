@@ -1,0 +1,27 @@
+; Each source binder gets one Gamma atom shared by its declaration and every
+; body reference. The return is (pair extended-locals reversed-binding-rows).
+(def lowering_match_bindings
+  ((count Int) (nodes Int) (locals Int) (payload Int)) Int
+  (lowering_match_binding_nodes 0 count nodes locals payload 0))
+
+; A row is (pair binder-atom projection). Successive payload tails share their
+; immutable second-projection nodes while retaining the exact emitted spelling.
+(def lowering_match_binding_nodes
+  ((index Int) (count Int) (nodes Int) (locals Int) (tail Int) (reversed Int)) Int
+  (if (eq index count)
+    (pair locals reversed)
+    (let binder Int (gamma_binding (first nodes))
+      (let projection Int
+        (if (eq (+ index 1) count) tail (gamma_first tail))
+        (lowering_match_binding_nodes (+ index 1) count (second nodes)
+          (lowering_bind locals binder)
+          (if (eq (+ index 1) count) tail (gamma_second tail))
+          (pair (pair binder projection) reversed))))))
+
+(def lowering_match_wrap_bindings
+  ((remaining Int) (reversed Int) (body Int)) Int
+  (if (eq remaining 0)
+    body
+    (let binding Int (first reversed)
+      (lowering_match_wrap_bindings (- remaining 1) (second reversed)
+        (gamma_let (first binding) (second binding) body)))))

@@ -4,12 +4,6 @@
     (let ignored Int (write (source_read index))
       (emit_span (+ index 1) end))))
 
-(def emit_closes ((remaining Int)) Int
-  (if (eq remaining 0)
-    0
-    (let ignored Int (write ')')
-      (emit_closes (- remaining 1)))))
-
 ; The readable emitted runtime is pinned verbatim in the staged compiler gate.
 ; Packed eight-byte writes keep this transformer small without making the
 ; generated helper closure an implicit host input.
@@ -48,18 +42,3 @@
     (write (+ 48 value))
     (let ignored Int (emit_decimal (/ value 10))
       (write (+ 48 (% value 10))))))
-
-(def emit_match_name ((match_start Int)) Int
-  (let ignored0 Int (write '$')
-    (let ignored1 Int (write 'm')
-      (emit_decimal match_start))))
-
-(def emit_match_payload_name ((match_start Int)) Int
-  (let ignored0 Int (write '$')
-    (let ignored1 Int (write 'p')
-      (emit_decimal match_start))))
-
-(def emit_match_value_name ((match_start Int)) Int
-  (let ignored0 Int (write '$')
-    (let ignored1 Int (write 'v')
-      (emit_decimal match_start))))

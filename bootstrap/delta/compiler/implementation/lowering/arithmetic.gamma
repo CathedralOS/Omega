@@ -1,0 +1,40 @@
+; Checked arithmetic retains the emitted l/r/z custody and guard shape. The
+; operands are already lowered values; this layer neither walks source children
+; nor publishes bytes. Shared generated atoms have the same source coordinate.
+(def lowering_arithmetic ((node Int) (left_gamma Int) (right_gamma Int)) Int
+  (let coordinate Int (syntax_start node)
+    (let left Int (gamma_generated 108 coordinate)
+      (let right Int (gamma_generated 114 coordinate)
+        (let result Int (gamma_generated 122 coordinate)
+          (let head Int (syntax_child node 0)
+            (let operation Int
+              (gamma_call (gamma_literal head) 2 (pair left (pair right 0)))
+              (let byte Int (source_read (syntax_start head))
+                (let guard Int
+                  (if (eq byte 42)
+                    (lowering_multiply_guard left right result)
+                    (lowering_add_sub_guard left right result (eq byte 45)))
+                  (gamma_let left left_gamma
+                    (gamma_let right right_gamma
+                      (gamma_let result operation guard))))))))))))
+
+(def lowering_add_sub_guard
+  ((left Int) (right Int) (result Int) (subtract Int)) Int
+  (let zero Int (gamma_integer 0)
+    (let trap Int (gamma_trap)
+      (let result_below_left Int
+        (gamma_if (gamma_lt result left) trap result)
+        (let left_below_result Int
+          (gamma_if (gamma_lt left result) trap result)
+          (gamma_if (gamma_lt zero right)
+            (if subtract left_below_result result_below_left)
+            (gamma_if (gamma_lt right zero)
+              (if subtract result_below_left left_below_result)
+              result)))))))
+
+(def lowering_multiply_guard ((left Int) (right Int) (result Int)) Int
+  (let zero Int (gamma_integer 0)
+    (let quotient Int
+      (gamma_call (gamma_word 47 1) 2 (pair result (pair left 0)))
+      (gamma_if (gamma_eq left zero) result
+        (gamma_if (gamma_eq quotient right) result (gamma_trap))))))

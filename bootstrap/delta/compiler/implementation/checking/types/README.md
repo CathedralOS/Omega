@@ -99,11 +99,12 @@ from expression typing. Their ordinary immutable pair allocations still belong
 to the selected Gamma evaluator's finite resources. This does not implement
 compiler-owned resource accounting or canonical internal-failure publication.
 
-The [retained-node emitter](../../emission/README.md) consumes the completed
-typing judgment under
+The [lowering phase](../../lowering/README.md) consumes the completed typing
+judgment and builds every expanded Gamma body before publication under
 [D114](../../../../../../wiki/architecture/bootstrap_chain/decisions.md#d114--delta-emission-consumes-the-completed-static-preflight).
-Its own explicit continuations remove recursive compiler-expression descent,
-but generated Gamma bodies still face the selected evaluator's independent
-255-list nesting bound. Exact receipts and the actual Epsilon customer remain
-validation gates; retained-node typing and emission do not close the entire
-Delta bootstrap edge or its resource/internal outcomes.
+Its own explicit continuations remove recursive compiler-expression descent.
+The separate serializer prints that plan, whose recorded expanded heights do
+not yet enforce the selected evaluator's independent 255-list body bound.
+Exact receipts and the actual Epsilon customer remain validation gates;
+retained-node typing, lowering, and serialization do not close the entire Delta
+bootstrap edge or its resource/internal outcomes.

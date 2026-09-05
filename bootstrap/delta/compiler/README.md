@@ -11,13 +11,17 @@ evaluator-tape identity under `GammaComposedV1`, not the entry file alone.
 
 Start at `delta_compiler.gamma`, then follow `implementation/pipeline.gamma`.
 The latter sequences source checking, catalogs, typing, profile validation,
-and emission. Concept-owned members are grouped below it:
+complete Gamma lowering, and emission. Concept-owned members are grouped below it:
 
 - `implementation/boundary/`: bounded request admission and DCOUT publication;
 - `implementation/checking/`: source tokens, retained syntax and grammar roles,
   exact-name catalogs, declarations, expression types, and application schema;
-- `implementation/emission/`: program structure, matches, value representation,
-  checked arithmetic, byte helpers/adapters, and textual output.
+- `implementation/representation/`: the expanded Gamma program, expressions,
+  binding identities, and generated expression heights;
+- `implementation/lowering/`: checked Delta declarations and expressions to
+  that Gamma plan, including calls, constructors, arithmetic, and matches;
+- `implementation/emission/`: generic Gamma serialization and the unchanged
+  fixed byte helpers/profile adapters.
 
 Declaration resolution starts at
 [`checking/declarations.gamma`](implementation/checking/declarations.gamma).
@@ -35,12 +39,14 @@ Body typing starts at
 expression dispatch, branches, bindings, calls, and matches. Continuation
 frames belong to the expression dispatcher and each concept's payload owner.
 
-Emission starts at
-[`emission/program.gamma`](implementation/emission/program.gamma), then follows
-[`emission/README.md`](implementation/emission/README.md) into retained
-declarations, the common expression machine, and concept-owned lowering.
+Lowering starts at
+[`lowering/program.gamma`](implementation/lowering/program.gamma) and completes
+every authored function body before publication. The resulting program is defined in
+[`representation/gamma.gamma`](implementation/representation/gamma.gamma).
+[`emission/program.gamma`](implementation/emission/program.gamma) serializes
+that expanded Gamma plan; it does not select Delta lowering rules.
 
-`implementation/implementation.gamma.sources` selects all 40 shared members
+`implementation/implementation.gamma.sources` selects all 45 shared members
 with exact lengths, digests, and ordered identities. The byte-only source
 materializer validates that closed inventory and prefixes the explicitly
 selected entry. For the canonical entry, its application marker is therefore
@@ -242,6 +248,8 @@ internal failure publication remain open. Stack-safe compiler traversal does
 not guarantee generated Gamma admission throughout the 1,024-level Delta
 profile: the selected Gamma evaluator separately caps each generated body at
 255 nested expression lists, and lowering can introduce additional wrappers.
+The plan records expanded expression-list height, including generated wrappers,
+but recording that height does not normalize or lift an over-height body.
 Underlying evaluator failures on those paths are not DCOUT. These
 frontend diagnostics do not establish final edge closure.
 Calls emitted in tail position remain in Gamma tail position through
@@ -259,7 +267,7 @@ The downgraded full compiler remains separate under
 ## Measurements
 
 ```text
-2,620-line / 110,660-byte canonical entry plus shared Gamma implementation
+2,606-line / 111,464-byte canonical entry plus shared Gamma implementation
 7-line / 195-byte nullary-ADT Delta fixture
   -> 3-line / 165-byte Gamma receipt
   -> selected Gamma evaluation produces byte 9

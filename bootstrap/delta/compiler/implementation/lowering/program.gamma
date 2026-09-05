@@ -1,0 +1,32 @@
+; Complete static custody enters this pure phase. Every definition is planned
+; before publication; emission later consumes this exact expanded Gamma program.
+(def lower_program ((program Int) (globals Int)) Int
+  (lowering_definitions (first program) (second program) globals 0 0))
+
+(def lowering_definitions
+  ((remaining Int) (forms Int) (globals Int) (count Int) (reversed Int)) Int
+  (if (eq remaining 0)
+    (compiler_complete
+      (gamma_program count (syntax_reverse_nodes count reversed 0)))
+    (let node Int (first forms)
+      (let head Int (syntax_child node 0)
+        (if (token_data (syntax_start head) (syntax_after head))
+          (lowering_definitions (- remaining 1) (second forms) globals count reversed)
+          (let definition Int (lowering_definition node globals)
+            (lowering_definitions (- remaining 1) (second forms) globals
+              (+ count 1) (pair definition reversed))))))))
+
+(def lowering_definition ((node Int) (globals Int)) Int
+  (let parameters Int (syntax_child node 2)
+    (let locals Int
+      (lowering_parameters (syntax_count parameters) (syntax_children parameters)
+        (pair 0 0))
+      (let body Int (lowering_visit (syntax_child node 4) locals 0 0 globals)
+        (gamma_definition (gamma_function (syntax_child node 1)) (first locals)
+          (syntax_reverse_nodes (first locals) (second locals) 0) body)))))
+
+(def lowering_parameters ((count Int) (parameters Int) (locals Int)) Int
+  (if (eq count 0)
+    locals
+    (lowering_parameters (- count 1) (second parameters)
+      (lowering_bind locals (gamma_binding (syntax_child (first parameters) 0))))))

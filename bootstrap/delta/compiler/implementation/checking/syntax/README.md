@@ -100,10 +100,12 @@ The retained program is consumed, not discarded after validation:
   tail transitions rather than recursive source walks. Constructor metadata
   retains ordered resolved field types, so calls and patterns do not rescan
   payload annotations.
-- Emission traverses retained declarations, expressions, and pattern children.
+- Lowering traverses retained declarations, expressions, and pattern children.
   Its shared visit/resume machine uses explicit continuation payloads instead
-  of recursive source-coordinate walks. Atom spans still supply exact authored
-  names, admitted numeric text, and hygienic generated-name coordinates.
+  of recursive source-coordinate walks. It completes an expanded Gamma plan
+  with binding identities and expression-list heights. Atom spans still supply
+  exact authored names and admitted numeric text; emission prints that plan
+  without selecting Delta lowering rules.
 
 The [emitter](../../emission/README.md) remains after the complete static
 preflight, as required by
@@ -111,8 +113,10 @@ preflight, as required by
 Other compiler-owned resource/internal failure propagation and successful
 generated-program admission throughout the Delta depth profile remain separate
 work. The selected Gamma evaluator caps generated bodies at 255 nested lists;
-lowering may add wrappers. Complete retained-node compiler traversal and the
-`parse_depth` refusal do not establish that later profile property.
+lowering may add wrappers. The plan records those expanded heights but does not
+yet normalize or lift over-height bodies. Complete retained-node compiler
+traversal and the `parse_depth` refusal do not establish that later profile
+property.
 
 The [boundary contract](../../boundary/README.md#body-traversal-and-coordinates)
 records body diagnostic order and coordinates. Declaration parameters check

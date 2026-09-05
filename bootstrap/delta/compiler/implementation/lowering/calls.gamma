@@ -1,0 +1,60 @@
+; Pending application state retains the source node, remaining children,
+; reversed lowered arguments, and original lexical scope for every sibling.
+(def lowering_arguments
+  ((node Int) (remaining Int) (nodes Int) (reversed Int) (locals Int)
+   (depth Int) (frames Int) (globals Int)) Int
+  (if (eq remaining 0)
+    (let arguments Int
+      (syntax_reverse_nodes (- (syntax_count node) 1) reversed 0)
+      (lowering_resume (lowering_application node arguments globals)
+        depth frames globals))
+    (lowering_visit (first nodes) locals (+ depth 1)
+      (lowering_frame 1
+        (pair node (pair (- remaining 1)
+          (pair (second nodes) (pair reversed locals)))) frames) globals)))
+
+(def lowering_argument_done
+  ((value Int) (payload Int) (depth Int) (frames Int) (globals Int)) Int
+  (let pending Int (second payload)
+    (let children Int (second pending)
+      (let built Int (second children)
+        (lowering_arguments (first payload) (first pending) (first children)
+          (pair value (first built)) (second built) depth frames globals)))))
+
+(def lowering_application ((node Int) (arguments Int) (globals Int)) Int
+  (let head Int (syntax_child node 0)
+    (let start Int (syntax_start head)
+      (let after Int (syntax_after head)
+        (if (is_upper (source_read start))
+          (lowering_constructor head (- (syntax_count node) 1) arguments globals)
+          (if (lowering_checked_arithmetic start after)
+            (lowering_arithmetic node (first arguments) (first (second arguments)))
+            (gamma_call (lowering_call_head head)
+              (- (syntax_count node) 1) arguments)))))))
+
+(def lowering_checked_arithmetic ((start Int) (end Int)) Int
+  (if (eq (- end start) 1)
+    (let byte Int (source_read start)
+      (if (eq byte 43) 1 (if (eq byte 45) 1 (if (eq byte 42) 1 0))))
+    0))
+
+(def lowering_call_head ((head Int)) Int
+  (let start Int (syntax_start head)
+    (let after Int (syntax_after head)
+      (let kind Int (bytes_builtin_kind start after)
+        (if kind
+          (lowering_bytes_head kind)
+          (if (if (token_if start after) 1
+                (if (token_eq start after) 1
+                  (if (token_lt start after) 1
+                    (operator_arity_plus_one start after))))
+            (gamma_literal head)
+            (gamma_function head)))))))
+
+(def lowering_bytes_head ((kind Int)) Int
+  (let prefix Int
+    (if (if (eq (compilation_profile) 1) (eq kind 4) 0) 6451236 6448164)
+    (let last Int
+      (if (eq kind 1) 101 (if (eq kind 2) 115
+        (if (eq kind 3) 108 (if (eq kind 4) 103 99))))
+      (gamma_word (+ prefix (* last 16777216)) 4))))

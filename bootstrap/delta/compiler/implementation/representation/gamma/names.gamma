@@ -1,0 +1,14 @@
+; Source binding atoms retain declaration nodes. Lowered references reuse that
+; atom even where identical spellings occur in disjoint lexical scopes.
+(def gamma_literal ((syntax Int)) Int (gamma_node 1 0 syntax))
+(def gamma_binding ((syntax Int)) Int (gamma_node 2 0 syntax))
+(def gamma_function ((syntax Int)) Int (gamma_node 3 0 syntax))
+
+; Generated binding identity is the explicit marker and source coordinate;
+; no comparison or condition observes the numeric provenance of a pair.
+(def gamma_generated ((marker Int) (coordinate Int)) Int
+  (gamma_node 4 0 (pair marker coordinate)))
+
+(def gamma_integer ((value Int)) Int (gamma_node 5 0 value))
+(def gamma_word ((packed Int) (length Int)) Int
+  (gamma_node 6 0 (pair packed length)))

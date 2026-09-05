@@ -1,0 +1,37 @@
+# Expanded Gamma program
+
+Start at [gamma.gamma](gamma.gamma). A program owns a counted, authored-order
+list of definitions. Each definition retains its function name, ordered
+parameter binding atoms, and fully expanded Gamma body. The existing fixed
+byte helpers and profile adapters remain separately selected publication text;
+they are not reconstructed as authored-function plans.
+
+[gamma/expressions.gamma](gamma/expressions.gamma) defines expression nodes and
+their constructors. [gamma/names.gamma](gamma/names.gamma) separates admitted
+source atoms, source binding identities, function names, generated names,
+integer constants, and fixed words.
+[gamma/primitives.gamma](gamma/primitives.gamma) builds ordinary Gamma primitive
+applications from those nodes; it does not write a textual template.
+
+An expression retains its kind, expanded expression-list height, and
+kind-specific payload. Atoms have height zero. A call adds one to the maximum
+height of its arguments; a let adds one to the maximum of its initializer and
+body. This counts generated Gamma lists, including lowering wrappers, not
+Delta expression levels or compiler continuation frames. Reused nodes remain
+immutable snapshots; height describes their expansion at each occurrence.
+
+Admitted source atom payloads retain exact source spans through retained-node
+accessors. A serializer may copy those bytes; it does not traverse Delta
+expressions, classify source constructs, or resolve names.
+
+Source parameters, lets, and pattern binders receive binding atoms. Every
+lowered reference reuses its established binding atom, so equal spellings in
+disjoint scopes do not erase declaration identity. Generated bindings retain an
+explicit marker and source coordinate, and their references reuse that atom.
+No comparison observes the numeric provenance of a Gamma pair reference.
+
+This representation is the boundary between source-dependent lowering and
+Gamma serialization. The complete plan exists before receipt publication.
+It does not itself normalize or lift expressions to satisfy the selected
+Gamma evaluator's 255-list body bound. Compiler-owned resource accounting and
+internal-failure publication also remain separate work.

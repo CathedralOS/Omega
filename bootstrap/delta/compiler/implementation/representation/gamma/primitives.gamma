@@ -1,0 +1,21 @@
+; Closed Gamma forms shared by concept-owned lowering templates.
+(def gamma_pair ((left Int) (right Int)) Int
+  (gamma_call (gamma_word 1919508848 4) 2 (pair left (pair right 0))))
+
+(def gamma_first ((value Int)) Int
+  (gamma_call (gamma_word 500153084262 5) 1 (pair value 0)))
+
+(def gamma_second ((value Int)) Int
+  (gamma_call (gamma_word 110425477965171 6) 1 (pair value 0)))
+
+(def gamma_if ((condition Int) (when_true Int) (when_false Int)) Int
+  (gamma_call (gamma_word 26217 2) 3 (pair condition (pair when_true (pair when_false 0)))))
+
+(def gamma_eq ((left Int) (right Int)) Int
+  (gamma_call (gamma_word 29029 2) 2 (pair left (pair right 0))))
+
+(def gamma_lt ((left Int) (right Int)) Int
+  (gamma_call (gamma_word 29804 2) 2 (pair left (pair right 0))))
+
+(def gamma_trap () Int
+  (gamma_call (gamma_word 47 1) 2 (pair (gamma_integer 1) (pair (gamma_integer 0) 0))))

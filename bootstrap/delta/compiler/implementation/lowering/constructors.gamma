@@ -1,0 +1,21 @@
+(def lowering_constructor
+  ((name Int) (count Int) (arguments Int) (globals Int)) Int
+  (let metadata Int
+    (require_constructor_metadata (syntax_start name) (syntax_after name) globals)
+    (let tag Int (gamma_integer (- (constructor_metadata_tag metadata) 1))
+      (if (type_metadata_has_payload (constructor_metadata_type metadata))
+        (gamma_pair tag
+          (if (eq count 0) (gamma_integer 0) (lowering_product count arguments)))
+        tag))))
+
+; The right-nested product is explicit Gamma structure, not an opaque emission
+; template. Its height includes every pair even for a shallow Delta constructor.
+(def lowering_product ((count Int) (arguments Int)) Int
+  (let reversed Int (syntax_reverse_nodes count arguments 0)
+    (lowering_product_fields (- count 1) (second reversed) (first reversed))))
+
+(def lowering_product_fields ((remaining Int) (fields Int) (value Int)) Int
+  (if (eq remaining 0)
+    value
+    (lowering_product_fields (- remaining 1) (second fields)
+      (gamma_pair (first fields) value))))

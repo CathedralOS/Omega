@@ -1,0 +1,19 @@
+; Private raw-source observation, not DCREQ or a generated application profile.
+; The selected unmarked Gamma evaluator appends main's final scalar byte 0.
+(def main () Int
+  (let prepared Int (prepare_admitted_source 0)
+    (if (eq (first prepared) 0)
+      (let program Int (second prepared)
+        (publish_plan_heights (first program) (second program)))
+      (fail))))
+
+(def publish_plan_heights ((remaining Int) (definitions Int)) Int
+  (if (eq remaining 0)
+    0
+    (let height Int (gamma_height (gamma_definition_body (first definitions)))
+      (let published Int (write_unsigned_little_endian height 4)
+        (publish_plan_heights (- remaining 1) (second definitions))))))
+
+(def source_length () Int (input))
+(def source_read ((index Int)) Int (read index))
+(def compilation_profile () Int 0)
