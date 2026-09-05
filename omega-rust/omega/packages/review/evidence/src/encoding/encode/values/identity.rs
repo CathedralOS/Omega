@@ -32,6 +32,7 @@ pub(crate) fn encode_nominal(
         };
         Ok(())
     })?;
+    encoder.observe_nominal_path(&identity.path)?;
     encoder.field("path", |encoder| encoder.string(&identity.path))
 }
 

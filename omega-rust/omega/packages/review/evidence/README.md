@@ -229,6 +229,17 @@ scratch; they are not an exact retained-heap measurement or an acceptance claim.
 charge from the same traversal, allowing aggregate writers to enforce the same
 ceiling without recovering or traversing each baseline a second time.
 
+`validate_package_membership()` visits every typed package identity through the
+complete policy traversal without allocating canonical output. The semantic
+identity owners also visit nested runtime types and compiler-owned framed
+signature, lifetime-domain, callable, and binder identities. Literal text and
+ordinary authored paths are not searched for package-like substrings. The
+containing source graph supplies the membership predicate; this does not require
+direct dependency edges, reconstruct foreign declarations, or grant authority.
+One lowerable node, depth, and requested-unescape-storage budget spans both
+identity grammars. Returned plain usage lets enclosing locks debit subsequent
+baselines instead of resetting their aggregate resources.
+
 The supported result lanes do not pretend to prove a bodyless accepted claim,
 grant dangerous authority, validate externally supplied executable code, or
 exercise or admit a terminal-authority permission. `ledger/results.rs` rejoins

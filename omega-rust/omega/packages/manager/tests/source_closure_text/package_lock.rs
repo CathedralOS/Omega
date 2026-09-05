@@ -7,6 +7,9 @@ use omega_package_manager::lock::{
 };
 use omega_package_manager::review::compile_resolved_package_reviews;
 
+#[path = "package_lock/owners.rs"]
+mod owners;
+
 #[test]
 fn complete_diamond_lock_recovers_without_any_old_source_or_compiler_state() {
     let (original, text, removed_fixture) = {

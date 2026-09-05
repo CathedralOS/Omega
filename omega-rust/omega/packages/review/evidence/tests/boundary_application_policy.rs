@@ -43,6 +43,14 @@ fn project(checked: &CheckedCompilation) -> PackagePolicyBoundaryApplications {
         package_identity(),
     )
     .expect("complete baseline retains actual D29 source meaning");
+    let membership = baseline
+        .validate_package_membership(
+            |_| true,
+            omega_package_evidence::encoding::PackagePolicyMembershipLimits::default(),
+        )
+        .expect(
+            "actual D29 callable/operator and service identities preserve package-owner grammar",
+        );
     let text = baseline.canonical_text().expect("named D29 baseline");
     let recovered = PackagePolicyBaseline::recover_text(
         &text,
@@ -51,6 +59,15 @@ fn project(checked: &CheckedCompilation) -> PackagePolicyBoundaryApplications {
     .expect("recover named symbolic and closed D29 applications");
     assert_eq!(recovered, baseline);
     assert_eq!(recovered.boundary_applications(), &applications);
+    assert_eq!(
+        recovered
+            .validate_package_membership(
+                |_| true,
+                omega_package_evidence::encoding::PackagePolicyMembershipLimits::default()
+            )
+            .unwrap(),
+        membership,
+    );
     applications
 }
 

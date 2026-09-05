@@ -78,7 +78,14 @@ impl PackageLock {
                 &source,
             )?;
             reader.expect("end_target")?;
-            targets.push(PackageLockTarget::from_parts(source, baselines, decisions)?);
+            let target = PackageLockTarget {
+                source,
+                baselines,
+                decisions,
+            };
+            target.validate()?;
+            budget.target_membership(&target)?;
+            targets.push(target);
         }
         reader.expect("end")?;
         reader.finish()?;

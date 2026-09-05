@@ -9,6 +9,7 @@ pub struct PackageLockRecoveryLimits {
     pub maximum_packages: usize,
     pub maximum_dependency_requests: usize,
     pub maximum_policy_elements: usize,
+    pub maximum_identity_nodes: usize,
     pub maximum_decisions: usize,
 }
 
@@ -21,6 +22,7 @@ impl Default for PackageLockRecoveryLimits {
             maximum_packages: 16 * 1024,
             maximum_dependency_requests: 256 * 1024,
             maximum_policy_elements: 1024 * 1024,
+            maximum_identity_nodes: 1024 * 1024,
             maximum_decisions: 65_536,
         }
     }
@@ -52,6 +54,7 @@ impl PackageLockRecoveryLimits {
             maximum_policy_elements: self
                 .maximum_policy_elements
                 .min(hard.maximum_policy_elements),
+            maximum_identity_nodes: self.maximum_identity_nodes.min(hard.maximum_identity_nodes),
             maximum_decisions: self.maximum_decisions.min(hard.maximum_decisions),
         }
     }

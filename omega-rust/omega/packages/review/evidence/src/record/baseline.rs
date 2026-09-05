@@ -1,5 +1,6 @@
 //! Inert package policy composition, independent of compiler replay evidence.
 
+mod boundary_owners;
 mod external;
 mod getters;
 mod validation;
