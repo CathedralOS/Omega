@@ -17,21 +17,26 @@ The gate requires the Omega product build to bind exactly one
 `alpha_bootstrap::ProgramEntry`, requires Omega D to retain its Alpha tape
 construction, and rejects any `EpsilonAlpha`/`epsilon_alpha_` backend residue in
 the Delta-written Epsilon implementation. Removing that duplicate backend
-and adding the first execution slice reduces the current Epsilon source from
-9,460 lines / 468,672 bytes to 8,658 lines / 430,747 bytes.
+and adding the first execution slice reduced the Epsilon source from 9,460
+lines / 468,672 bytes to 8,658 lines / 430,747 bytes. The subsequently expanded
+evaluator is now 9,536 lines / 475,537 bytes.
 
 The executable slice runs complete checking, locates the fixed `Main::main`,
 and executes an empty entry, scalar `let`, zero-initialized scalar receiver
-fields, scalar assignment/read, grouped/local scalar reads, `assert`, all scalar
-operators, unary negation, equality/order comparisons, and direct
+fields and fixed `i32` arrays, scalar and indexed assignment/read,
+grouped/local scalar reads, `assert`, all scalar operators, unary negation,
+equality/order comparisons, and direct
 `Console.write_byte` and `Console.exit_process` statements. It preserves output
 before exit, overflow, `ByteRange`, and `Assertion` traps; non-Boolean assertions
-trap separately. Every other entry statement remains explicitly `Unsupported`;
-that staging outcome is not an Epsilon observation and cannot survive in the
-final evaluator. The exact evaluator plus eight-line driver compiles to a
-543,978-byte Gamma receipt. Sixteen retained controls cover success, local and
-receiver-field values, repeated mutation, output, comparisons,
-bitwise/shift/division behavior, short-circuiting, and trap prefixes.
+trap separately. Indexed access evaluates the receiver field before its index,
+uses zero-initialized per-index homes, and traps as `Bounds` before a read or
+right-side evaluation. Every other entry statement remains explicitly
+`Unsupported`; that staging outcome is not an Epsilon observation and cannot
+survive in the final evaluator. The exact evaluator plus eight-line driver
+compiles to a 561,448-byte Gamma receipt. Nineteen retained controls cover
+success, local, receiver-field, and fixed-array values, repeated mutation,
+output, comparisons, bitwise/shift/division behavior, short-circuiting, bounds
+ordering, and trap prefixes.
 
 This is executable boundary evidence, not a completed interpreter edge.
 Acceptance still requires execution of all Epsilon statements, expressions,
