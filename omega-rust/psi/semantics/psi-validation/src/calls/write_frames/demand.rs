@@ -54,6 +54,15 @@ pub struct CallFrameResolver<'program> {
 }
 
 impl<'program> CallFrameResolver<'program> {
+    /// Reference-free erased value shape; unlike runtime layout, inline proof
+    /// recursion does not make a value capable of aliasing caller storage.
+    pub fn proof_value_is_caller_isolated(
+        &self,
+        reference: psi_typed_trees::types::TypeReferenceHandle,
+    ) -> bool {
+        super::isolation::type_is_caller_isolated_proof_value(self.program, reference)
+    }
+
     /// Shared classification only; storage origins still require prefix evidence.
     pub fn local_requires_write_origin(
         &self,

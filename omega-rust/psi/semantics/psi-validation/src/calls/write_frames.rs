@@ -40,6 +40,7 @@ mod transparent_effects;
 mod type_capabilities;
 mod value_expressions;
 
+pub use alias_bindings::state_reference_parameter_binding_is_stable;
 use alias_bindings::{
     rebind_stable_local_mutable_alias_origin, stable_local_mutable_alias_rebinding_is_representable,
 };

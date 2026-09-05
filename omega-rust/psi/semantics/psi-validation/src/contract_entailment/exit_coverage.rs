@@ -96,6 +96,46 @@ fn complete_case_guards(program: &TypedTrees, guards: &[TransitionGuardNode]) ->
 }
 
 fn same_condition(program: &TypedTrees, left: ExpressionHandle, right: ExpressionHandle) -> bool {
+    match (
+        program.expression_table.expression(left),
+        program.expression_table.expression(right),
+    ) {
+        (ExpressionNode::Binary(left), ExpressionNode::Binary(right)) => {
+            return left.operator == right.operator
+                && same_condition(program, left.left, right.left)
+                && same_condition(program, left.right, right.right);
+        }
+        (ExpressionNode::Call(left), ExpressionNode::Call(right)) => {
+            let arguments = program.expression_table.expression_handles(left.arguments);
+            let other_arguments = program.expression_table.expression_handles(right.arguments);
+            let proof_only = psi_typed_trees::proof_only::classify(program);
+            return left.target_symbol.is_valid()
+                && left.target_symbol == right.target_symbol
+                && !left.receiver.is_valid()
+                && !right.receiver.is_valid()
+                && left.machine_arguments == right.machine_arguments
+                && left.static_requirement_dispatch == right.static_requirement_dispatch
+                && left.quotient_operation.is_none()
+                && right.quotient_operation.is_none()
+                && left.private_layout_operation.is_none()
+                && right.private_layout_operation.is_none()
+                && left.evidence_arguments.is_empty()
+                && right.evidence_arguments.is_empty()
+                && arguments.len() == other_arguments.len()
+                && arguments
+                    .iter()
+                    .zip(other_arguments)
+                    .all(|(left, right)| same_condition(program, *left, *right))
+                && program.machines().iter().any(|machine| {
+                    proof_only.is_proof_machine(program, machine)
+                        && program
+                            .machine_states(machine)
+                            .iter()
+                            .any(|state| state.symbol == left.target_symbol)
+                });
+        }
+        _ => {}
+    }
     fn scalar(program: &TypedTrees, expression: ExpressionHandle) -> bool {
         match program.expression_table.expression(expression) {
             ExpressionNode::Boolean(_) | ExpressionNode::Integer(_) => true,
@@ -107,7 +147,7 @@ fn same_condition(program: &TypedTrees, left: ExpressionHandle, right: Expressio
         }
     }
     // The general equality helper does not compare a call's static machine
-    // arguments. Exclude calls instead of using it as generic call identity.
+    // arguments. Calls above have their own exact denotational identity.
     // Integer equality here retains the full literal, not a lossy i64 view.
     scalar(program, left)
         && scalar(program, right)

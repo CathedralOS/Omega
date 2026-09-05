@@ -97,3 +97,146 @@ fn a_proved_guarded_arm_does_not_prove_an_implicit_fallthrough() {
     program.machine_states_mut(&machine)[0].statement_nodes = statements;
     assert!(proven_machine_contract_expressions(&program, program.machines()[0].symbol).is_empty());
 }
+
+#[test]
+fn exhaustive_computed_proof_subject_requires_exact_call_identity() {
+    let mut program = parse(
+        r#"
+        data Nat { case Zero; case Succ(prev: Nat); }
+        machine identity(value: Nat) -> Nat { transition { _ -> value } }
+        machine other(value: Nat) -> Nat { transition { _ -> value } }
+        machine theorem(value: Nat) ensures value == value {
+            transition identity(value) {
+                Nat::Zero -> base()
+                Nat::Succ { prev } -> step(prev)
+            }
+            state base() {}
+            state step(prev: Nat) {}
+        }
+    "#,
+    );
+    let machine = program
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "theorem")
+        .expect("theorem")
+        .clone();
+    assert!(entailment_covers_all_exits(&program, &machine));
+    let calls: Vec<_> = program
+        .statement_table
+        .statements(program.machine_states(&machine)[0].statement_nodes)
+        .iter()
+        .filter_map(|statement| {
+            let StatementNode::Transition(transition) = statement else {
+                return None;
+            };
+            let TransitionGuardNode::When(guard) = transition.guard else {
+                return None;
+            };
+            let ExpressionNode::Binary(comparison) = program.expression_table.expression(guard)
+            else {
+                return None;
+            };
+            Some(comparison.left)
+        })
+        .collect();
+    assert_eq!(calls.len(), 2);
+    let other = program
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "other")
+        .expect("other");
+    let other_symbol = program.machine_states(other)[0].symbol;
+    let original = program.expression_table.expression(calls[1]).clone();
+    let ExpressionNode::Call(call) = program.expression_table.expression_mut(calls[1]) else {
+        panic!("computed condition");
+    };
+    call.target_symbol = other_symbol;
+    assert!(
+        !entailment_covers_all_exits(&program, &machine),
+        "different calls do not cover one subject"
+    );
+    *program.expression_table.expression_mut(calls[1]) = original;
+    let ExpressionNode::Call(call) = program.expression_table.expression_mut(calls[1]) else {
+        unreachable!();
+    };
+    call.machine_arguments = vec![psi_typed_trees::expression::StaticMachineArgument {
+        path: Box::new([]),
+        application: None,
+        const_literal: None,
+        evidence_projection: None,
+        symbol: other_symbol,
+    }]
+    .into_boxed_slice();
+    assert!(
+        !entailment_covers_all_exits(&program, &machine),
+        "static argument drift changes the computed subject"
+    );
+}
+
+#[test]
+fn inherited_law_matches_retain_exact_authored_proof_roots() {
+    let program = parse(
+        r#"
+        trait Reflexive { machine law(value: u64) ensures value == value; }
+        machine theorem(value: u64) satisfies Reflexive::law ensures value == value {}
+    "#,
+    );
+    let machine = &program.machines()[0];
+    let proven = proven_machine_contract_expressions(&program, machine.symbol);
+    let matches = crate::matched_machine_law_guarantees(&program, machine.symbol);
+    assert_eq!(matches.len(), 1);
+    assert_eq!(matches[0].machine, machine.symbol);
+    assert_ne!(matches[0].expression, matches[0].source_expressions[0]);
+    assert_eq!(matches[0].source_expressions, proven);
+}
+
+#[test]
+fn inherited_law_matching_does_not_prove_a_false_authored_claim() {
+    let program = parse(
+        r#"
+        trait EqualityClaim { machine law(left: u64, right: u64) ensures left == right; }
+        machine theorem(left: u64, right: u64) satisfies EqualityClaim::law ensures left == right {}
+    "#,
+    );
+    let machine = &program.machines()[0];
+    assert_eq!(
+        crate::matched_machine_law_guarantees(&program, machine.symbol).len(),
+        1
+    );
+    assert!(
+        proven_machine_contract_expressions(&program, machine.symbol).is_empty(),
+        "conformance matching is correspondence, not a proof of the claim"
+    );
+}
+
+#[test]
+fn inherited_law_matching_rejects_exact_requirement_drift() {
+    let mut program = parse(
+        r#"
+        trait Reflexive {
+            machine law(value: u64) ensures value == value;
+            machine other(value: u64) ensures value == value;
+        }
+        machine theorem(value: u64) satisfies Reflexive::law ensures value == value {}
+    "#,
+    );
+    let machine = program.machines()[0].clone();
+    let other = program
+        .trait_machine_signatures(&program.traits()[0])
+        .iter()
+        .find(|requirement| requirement.name.as_str() == "other")
+        .expect("other requirement")
+        .symbol;
+    let conformance = program.machine_trait_conformances(&machine)[0].clone();
+    let handle = program
+        .machine_trait_conformances
+        .iter()
+        .find_map(|(handle, candidate)| (candidate == &conformance).then_some(handle))
+        .expect("conformance handle");
+    program
+        .machine_trait_conformances
+        .get_mut(handle)
+        .requirement_symbol = other;
+    assert!(crate::matched_machine_law_guarantees(&program, machine.symbol).is_empty());
+}
