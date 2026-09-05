@@ -2,7 +2,7 @@
 // constrained types, contracts, and executable membership without minting an
 // independent fact.
 
-data Socket {
+pub data Socket {
     connected: bool;
     authenticated: bool;
 }
