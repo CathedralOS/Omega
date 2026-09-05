@@ -1,6 +1,6 @@
 # Delta abstraction-boundary experiment
 
-This experiment asks whether the 10,092-line Delta-authored Epsilon evaluator is
+This experiment asks whether the 10,321-line Delta-authored Epsilon evaluator is
 large because Delta is missing reusable mechanisms, or because Epsilon owns a
 large amount of irreducible language and diagnostic policy.
 
@@ -12,12 +12,12 @@ lines for the corresponding Delta language/compiler implementation.
 | Candidate | Exact current family | Free-feature ceiling | Result |
 | --- | --- | ---: | --- |
 | Generic option/result | 8 optional declarations plus 25 parse outcomes | 99 lines | Reject for now |
-| Generic immutable list | 26 ordinary lists, 22 template reverses, 3 template counts | 253 exact lines | Reject standalone elaboration |
+| Generic immutable list | 26 ordinary lists, 22 template reverses, 3 template counts | 251 exact lines | Reject standalone elaboration |
 | Generic catalog/map | 8 catalog result types plus 11 lookup traversals | 245 lines | Reject generic map |
 | Source span wrapper | 29 start/end helpers | 164 lines | Reject wrapper alone |
 | Candidate minimum fold | 3 candidate types plus 6 merge helpers | 77 lines | Reject generic fold |
 
-Even the impossible combined ceiling is only 852 lines, 8.4% of the Epsilon
+Even the impossible combined ceiling is only 861 lines, 8.3% of the Epsilon
 evaluator. The five proposals therefore cannot explain most of the source-size
 explosion.
 
@@ -37,10 +37,17 @@ under current monomorphic Delta. This does not earn that language expansion.
 ## Generic lists
 
 This was the strongest candidate. Twenty-six declarations have the ordinary
-`Empty | More(item, tail)` shape; the excluded trie has a three-field node. Of
-the 23 reverse functions, 22 are the exact list template and one reverses a
-four-list control ledger. Three count functions are exact templates. The real
-replaceable family is therefore 51 forms, 253 lines, and 11,749 bytes.
+`Empty | More(item, tail)` shape. The three excluded runtime lists retain
+projection/value children, identifier/value roots, and parameter/value arguments;
+each nonempty node has three fields rather than two.
+
+The source has 27 reverse functions. The analyzer selects the 23 named
+`epsilon_reverse_*`: 22 are the exact list template and one reverses a four-list
+control ledger. Four runtime-prefixed reverses for children, roots, paths, and
+argument values remain outside this measured helper family. Three count
+functions are exact templates. The retained replaceable family is therefore
+51 forms, 251 lines, and 11,676 bytes; it is not a count of every reversal in
+the evaluator.
 
 `list_elaborator.gamma` implements a complete two-pass source transformation
 for this derived form:
@@ -59,11 +66,11 @@ executes generated reverse/count functions with result 2.
 The measured authored cost loses:
 
 ```text
-explicit Epsilon family          253 lines / 11,749 bytes
+explicit Epsilon family          251 lines / 11,676 bytes
 Gamma list elaborator            292 lines / 13,200 bytes
-derived Epsilon specifications    26 lines / 3,736 bytes
-derived route total              318 lines / 16,936 bytes
-net                               +65 lines / +5,187 bytes
+derived Epsilon specifications    26 lines / 3,689 bytes
+derived route total              318 lines / 16,889 bytes
+net                               +67 lines / +5,213 bytes
 ```
 
 The standalone pass also introduces another transformation relation. The
@@ -71,7 +78,7 @@ trie-backed global census is fast; remaining whole-source rescans own the
 continued cost. Development timings are diagnostic, not semantics.
 
 A fused implementation could reuse Delta's scanner, but it must cost at most
-227 Gamma lines merely to tie raw line count, before charging proof complexity
+225 Gamma lines merely to tie raw line count, before charging proof complexity
 or the greater audit weight of lower-rung code. Direct virtual-list support must
 also modify type, constructor, arity, match, and helper-function resolution. The
 standalone implementation is therefore a favorable lower bound, not an unfairly

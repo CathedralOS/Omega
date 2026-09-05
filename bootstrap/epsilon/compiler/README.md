@@ -13,12 +13,14 @@ execution entrance, not yet the final evaluator `main` or a closed compiler edge
 | Lexical validation | [`lexical/validation.delta`](lexical/validation.delta) validates source bytes and lexical forms; [`tokens.delta`](lexical/tokens.delta) provides syntax-token lookahead. |
 | Parsing | [`parsing/machine_declarations.delta`](parsing/machine_declarations.delta) assembles the program from declarations. Sibling files own expressions, transitions, statements, blocks, and data declarations. |
 | Execution | [`execution/invocation.delta`](execution/invocation.delta) selects the entry and resumes states. [`control/blocks.delta`](execution/control/blocks.delta) coordinates statements and terminal control. |
-| Calls | [`execution/calls.delta`](execution/calls.delta) dispatches checked callable identities; [`arguments.delta`](execution/arguments.delta) evaluates arguments before installing callee homes. Ordinary invocations return values and effects without exiting the process. |
+| Calls | [`execution/calls.delta`](execution/calls.delta) dispatches checked callable identities. [`calls/receivers.delta`](execution/calls/receivers.delta) selects the receiver place; [`arguments.delta`](execution/arguments.delta) captures value arguments; [`calls/parameters.delta`](execution/calls/parameters.delta) installs and releases callee homes. |
 | Expressions | [`execution/expressions.delta`](execution/expressions.delta) dispatches expression forms and carries effects into scalar operations, calls, and storage access. |
-| Runtime operations | [`execution/statements.delta`](execution/statements.delta) applies statements; [`console.delta`](execution/console.delta) handles supported Console calls. `scalars/`, `storage/`, and `control/` own their respective operations. |
+| Projections | [`execution/projections/fields.delta`](execution/projections/fields.delta) selects checked record fields and array lengths; [`indexes.delta`](execution/projections/indexes.delta) evaluates array indexes and checks bounds before access. |
+| Storage | [`execution/storage/homes.delta`](execution/storage/homes.delta) owns runtime roots, reads, writes, and reclamation. [`places.delta`](execution/storage/places.delta) walks projection paths; sibling files own immutable values, sparse children, and local bindings. |
+| Runtime operations | [`execution/statements.delta`](execution/statements.delta) applies statements; [`console.delta`](execution/console.delta) handles supported Console calls. `scalars/` and `control/` own scalar operations and block/state control. |
 | Shared representations | [`representations/`](representations/) groups syntax, parsing outcomes, checked facts, diagnostics, and execution values by concept. |
 
-The 59 authoring members have at most 450 lines each; the root entrance has 22.
+The 65 authoring members have at most 450 lines each; the root entrance has 22.
 Files end at complete top-level Delta forms. They are not independent Delta
 modules: they share one translation unit and the language gains no imports.
 
@@ -36,8 +38,8 @@ source inventory, then concatenates bytes without separators. It does not parse
 or lower Delta. Bootstrap callers use `OMEGA_PATH_EPSILON_COMPILER_SOURCES`
 from the shared role registry rather than reading the entrance as the full source.
 
-The packed evaluator is 10,092 lines / 507,516 bytes, SHA-256
-`13897864aedd63d815df5aad1c68a23d5e585df2645dcbd907641b0adad5846a`.
+The packed evaluator is 10,321 lines / 517,029 bytes, SHA-256
+`56e954e09326f53c9ee22fabd2f79823cbd01db0072c6d39a12bf4f51a49e07e`.
 When editing a member, update its manifest length and digest; change membership
 explicitly when adding or removing source. Update exact test identities only
 after reviewing the semantic change and its generated receipt.
@@ -55,8 +57,10 @@ sh tests/delta/staged-compiler/run.sh
 ```
 
 [Implementation notes](implementation_notes.md) describe the supported checking
-and execution slices and their conformance controls. Scalar unqualified calls
-and direct-self receiver calls execute; arbitrary receiver places, aggregate
-execution, views, full Console behavior, and final composition with D remain
-open. [LANGUAGE.md](../LANGUAGE.md) governs semantics;
+and execution slices and their conformance controls. The staging executor carries
+record and fixed-array value copies, nested receiver places, and separate
+invocation-local homes. Sparse typed zero homes avoid eager array allocation;
+they do not establish the final application's physical storage profile. Sum and
+view execution, full Console behavior, and final composition with D remain open.
+[LANGUAGE.md](../LANGUAGE.md) governs semantics;
 [TASKS_BOOTSTRAP.md](../../../TASKS_BOOTSTRAP.md) owns remaining work.

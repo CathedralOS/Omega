@@ -32,40 +32,66 @@ heap. The ambiguous arm-level `return expression?` uses the same scalar
 lookahead to recognize a complete following `pattern ->` prefix. Parser success
 wrappers contain only their native AST value and no duplicated cursor or span.
 It deliberately has no final evaluator `main` or composed executable identity.
-The staging execution path starts from a completely checked `Main::main`.
-Scalar locals, machine parameters, and state parameters retain exact checked declaration identity;
-assignment evaluates against the old values and replaces only the established
-home. Grouped/local reads and `assert` use the same scalar evaluator as
+The staging execution path starts from `Main::main` accepted by the current
+checking pipeline; the remaining conformance obligations below still apply.
+Local, machine-parameter, and state-parameter bindings retain exact checked
+declaration identity while their runtime roots distinguish separate invocations.
+Values are immutable scalar, record, or fixed-array snapshots; places retain a
+root identifier, an ordered field/index path, and the leaf's storage type.
+Field paths use the checked owner and member identities, not copied type spans
+or source spellings. Same-type sibling fields and different array elements
+therefore remain distinct instances.
+
+Record and array snapshots share immutable sparse children. An unwritten child
+uses its declared zero home without allocating the full array or record tree.
+Assignment replaces the selected subtree, including all its descendants;
+binding or returning a value does not alias its source root. Root identifiers
+are monotonic. Releasing an invocation or state block removes its roots without
+rewinding the identifier counter or changing surviving caller-owned roots.
+This is a staging storage representation, not a complete application storage
+realization or a discharge of the physical resource profile.
+
+Grouped/local reads and `assert` use the same scalar evaluator as
 `Console.write_byte` and `Console.exit_process` arguments. Argument arithmetic
 or bounds traps precede publication, byte-range checks, and process exit. Output
 prefixes survive exact exit, arithmetic, shift-count, `ByteRange`, and
 `Assertion` trap outcomes. Every scalar operator, including short-circuit
-Boolean logic, bitwise operations, shifts, division, and remainder, executes;
-scalar `i32` and `u8` receiver fields and fixed arrays default to zero and retain
-exact assignment updates by owner/member/index custody. Byte reads zero-extend
-to `i32`; byte stores trap as `ByteRange` outside `0..255` without committing an
-update. Indexed stores check bounds before evaluating their right side, then
-check its byte range before updating storage.
+Boolean logic, bitwise operations, shifts, division, and remainder, executes.
+Byte reads zero-extend to `i32`; byte stores trap as `ByteRange` outside `0..255`
+without committing an update. Assignment selects its complete place once before
+evaluating the right side. Indexed stores check bounds before that right side,
+then write through the selected path into the post-RHS store. Indexed reads of
+places use the post-index store; projections of ordinary values retain their
+captured snapshots.
+
 One checked invocation context drives the same statement/block evaluator for
 entry and states. Block falloff retains locals, storage, and output before
 terminal execution. Scalar transitions consume the checked subject and pattern
 ledgers; only the selected continuation executes, with unmatched scalar subjects
 trapping as `NonExhaustiveTransition`. State arguments evaluate left-to-right
-against the old bindings and install their scalar parameter homes together.
-Transfers discard old block locals, retain current machine parameter values and
-receiver storage, and resume the
-target state through a tail call. Explicit resultless return, state falloff,
-and the supported Console write/exit continuations complete the Main invocation
-without executing unused states. Ordinary scalar machine calls use checked
-callable identities, evaluate arguments left-to-right, and establish independent
-callee parameter/local homes. Unqualified machines and direct-self receiver
-methods support recursion, scalar returns, resultless falloff/return, and
-explicit exit/trap propagation. Expression outcomes carry committed storage and
+against the old bindings and capture all values before releasing the old block
+roots and installing new parameter homes. Transfers preserve machine-parameter
+roots and receiver identity and resume the target state through a tail call.
+Explicit resultless return, state falloff, and supported Console write/exit
+continuations complete the current invocation without executing unused states.
+
+Ordinary machine calls use checked callable identities. A receiver call selects
+its complete place before evaluating ordinary arguments left-to-right. Each
+argument captures its value before the next argument's effects; callee
+parameters and locals receive independent roots. Nested receiver calls share
+the selected live place, including fields and indexed records, rather than
+copying a receiver out and writing it back on return. Unqualified and receiver
+machines support recursion, scalar/record/array value returns, resultless
+falloff/return, and explicit exit/trap propagation. Ordinary completion releases
+callee roots and returns a value without a place; committed effects on caller
+storage survive. Expression outcomes carry committed storage and
 output through arithmetic, arguments, indexes, right sides, returns, and
 transition subjects. Only the outer entry adapter turns ordinary completion
 into process exit; recursive `self.main()` retains the existing receiver.
-Arbitrary receiver places, sum transitions, aggregate parameters, nested storage,
-views, and remaining Console operations are still unsupported. Every
+Sum construction and transitions, views, and remaining Console operations are
+still unsupported. Typed aggregate defaults do not supply missing sum tags or
+view backing. These generic storage and call operations do not establish that
+the complete Omega D source executes. Every
 D17 grammar form now parses, including boundary/data/machine declarations,
 qualified-only receiver forms, states, and exact nonempty whole-program
 exhaustion. D51's receiver-only qualified-machine syntax, ordinary named
@@ -86,9 +112,9 @@ the remaining body/control judgments stay open.
 D38's source-backed `.as_slice` receiver/result facts and separate extra-call
 rejection for the resulting array view are implemented; their lowering and
 executable controls remain.
-Execution, `main`, and exact composition with Omega D remain implementation
-gaps. D56's redundant type-candidate `kind` is removed and its
-entry-diagnostic subjudgment is implemented. D31's profile-
+Complete execution, the final evaluator `main`, and exact composition with
+Omega D remain implementation gaps. D56's redundant type-candidate `kind` is
+removed and its entry-diagnostic subjudgment is implemented. D31's profile-
 independent structural type-formation judgment is now implemented; its
 physical storage realization remains later than complete checking, with D34
 now fixing its over-`Int` demand representation. The existing source is
@@ -106,6 +132,8 @@ payload census folds retain the earliest candidate in a tail accumulator, so
 wide records do not consume one Gamma call context per field. The declaration
 fold likewise finishes each declaration's owner, machine, boundary, and contents
 checks before advancing; pending minima do not accumulate across declarations.
+The local census likewise carries its earliest candidate and active names in a
+tail scan, so body width does not retain one recursive frame per local.
 D51's syntax-
 selected case and receiver-method namespaces delete the former D36 case/
 qualified-machine comparison. D56 narrowly transfers duplicate custody for
@@ -133,7 +161,9 @@ exactly its reason and packed coordinate; same-anchor reason equality derives
 from the total reason mapping rather than a parallel integer discriminator.
 The member-type candidate fold reverses the member spine and merges each
 candidate on the left of the accumulated result. This preserves the original
-right-associated conflict behavior with bounded call depth. The winning
+right-associated conflict behavior with bounded call depth. Declaration and
+statement type-formation folds use the same ordering, so an earlier declaration
+does not retain a pending merge while a later machine body is checked. The winning
 candidate is promoted after successful census. D56's final type-
 formation entry subjudgment runs before that promotion: no authored
 `Main::main` owner/name candidate yields only `MissingEntry` at source extent;

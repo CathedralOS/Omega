@@ -1,0 +1,52 @@
+boundary trait Console {
+  machine exit_process(return_code: i32) -> never;
+  machine write_byte(value: i32);
+  machine read_byte() -> i32;
+  machine write_line(text: &[u8]);
+}
+
+data Main {
+  console: Console;
+  first: AlphaTapeBuffer;
+  second: AlphaTapeBuffer;
+}
+
+machine Main::main(&mut self) {
+  self.first.initialize();
+  self.second.initialize();
+  assert self.first.payload_length() == 0;
+  assert self.second.payload_length() == 0;
+  assert self.first.bytes[0] == 0;
+  assert self.second.bytes[0] == 0;
+  self.first.write_reserved_word(1145258561);
+  self.second.write_reserved_word(1212630597);
+  assert self.first.payload_length() == 4;
+  assert self.second.payload_length() == 4;
+  self.first.write_reserved_word(-1);
+  assert self.first.payload_length() == 8;
+  assert self.second.payload_length() == 4;
+  assert self.first.bytes[0] == 65;
+  assert self.first.bytes[1] == 66;
+  assert self.first.bytes[2] == 67;
+  assert self.first.bytes[3] == 68;
+  assert self.first.bytes[4] == 255;
+  assert self.first.bytes[5] == 255;
+  assert self.first.bytes[6] == 255;
+  assert self.first.bytes[7] == 255;
+  assert self.second.bytes[0] == 69;
+  assert self.second.bytes[1] == 70;
+  assert self.second.bytes[2] == 71;
+  assert self.second.bytes[3] == 72;
+  self.console.write_byte(self.first.bytes[0]);
+  self.console.write_byte(self.first.bytes[1]);
+  self.console.write_byte(self.first.bytes[2]);
+  self.console.write_byte(self.first.bytes[3]);
+  self.console.write_byte(self.second.bytes[0]);
+  self.console.write_byte(self.second.bytes[1]);
+  self.console.write_byte(self.second.bytes[2]);
+  self.console.write_byte(self.second.bytes[3]);
+  self.first.initialize();
+  assert self.first.payload_length() == 0;
+  assert self.second.payload_length() == 4;
+  assert self.second.bytes[0] == 69;
+}

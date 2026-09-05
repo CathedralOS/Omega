@@ -1,0 +1,73 @@
+
+; A projection of a live place reads the current store. A projection of an
+; ordinary value reads its captured snapshot and cannot become assignable.
+(def epsilon_evaluator_project_value ((value EpsilonRuntimeValue)
+  (place EpsilonRuntimeOptionalPlace) (projection EpsilonRuntimeProjection)
+  (typeValue EpsilonType) (store EpsilonRuntimeStore)
+  (output Bytes)) EpsilonEvaluatorOutcome
+  (match place
+    (NoEpsilonRuntimePlace
+      (match (epsilon_runtime_project value projection)
+        (NoEpsilonRuntimeValue (EpsilonEvaluatorInternal 0))
+        ((SomeEpsilonRuntimeValue projected)
+          (EpsilonEvaluatorValue projected NoEpsilonRuntimePlace store output))))
+    ((SomeEpsilonRuntimePlace basePlace)
+      (let projectedPlace EpsilonRuntimePlace
+        (epsilon_runtime_project_place basePlace projection typeValue)
+        (match (epsilon_runtime_read projectedPlace store)
+          (NoEpsilonRuntimeValue (EpsilonEvaluatorInternal 0))
+          ((SomeEpsilonRuntimeValue projected)
+            (EpsilonEvaluatorValue projected
+              (SomeEpsilonRuntimePlace projectedPlace) store output)))))))
+
+(def epsilon_evaluator_array_length ((value EpsilonRuntimeValue)
+  (store EpsilonRuntimeStore) (output Bytes)) EpsilonEvaluatorOutcome
+  (match value
+    ((EpsilonRuntimeInteger scalar) (EpsilonEvaluatorInternal 0))
+    ((EpsilonRuntimeAggregate typeValue children)
+      (match typeValue
+        ((EpsilonArrayType start end element lengthValue)
+          (epsilon_evaluator_integer
+            (epsilon_integer_literal_value lengthValue) store output))
+        ((EpsilonI32Type start end) (EpsilonEvaluatorInternal start))
+        ((EpsilonU8Type start end) (EpsilonEvaluatorInternal start))
+        ((EpsilonNeverType start end) (EpsilonEvaluatorInternal start))
+        ((EpsilonNamedType start end name) (EpsilonEvaluatorInternal start))
+        ((EpsilonViewType start end element) EpsilonEvaluatorUnsupported)))))
+
+(def epsilon_evaluator_field_value ((context EpsilonEvaluatorInvocation)
+  (expressionValue EpsilonExpression) (member EpsilonName)
+  (value EpsilonRuntimeValue) (place EpsilonRuntimeOptionalPlace)
+  (store EpsilonRuntimeStore) (output Bytes)) EpsilonEvaluatorOutcome
+  (match context
+    ((EpsilonEvaluatorInvocationContext source machineValue references
+      fieldReferences callables control receiver blockFloor)
+      (match (epsilon_find_resolved_field_reference expressionValue fieldReferences)
+        (NoEpsilonResolvedFieldReference
+          (if (epsilon_name_is_len source member)
+            (epsilon_evaluator_array_length value store output)
+            EpsilonEvaluatorUnsupported))
+        ((OneEpsilonResolvedFieldReference owner fieldValue)
+          (match fieldValue
+            ((EpsilonFieldMember start end name typeValue)
+              (epsilon_evaluator_project_value value place
+                (EpsilonRuntimeField owner fieldValue) typeValue store output))
+            ((EpsilonCaseMember start end name payload)
+              (EpsilonEvaluatorInternal start))))))))
+
+(def epsilon_evaluate_field ((context EpsilonEvaluatorInvocation)
+  (expressionValue EpsilonExpression) (base EpsilonExpression) (member EpsilonName)
+  (bindings EpsilonEvaluatorBindings) (store EpsilonRuntimeStore)
+  (output Bytes)) EpsilonEvaluatorOutcome
+  (let outcome EpsilonEvaluatorOutcome
+    (epsilon_evaluate_expression context base bindings store output)
+    (match outcome
+      ((EpsilonEvaluatorValue value place nextStore nextOutput)
+        (epsilon_evaluator_field_value context expressionValue member value place
+          nextStore nextOutput))
+      ((EpsilonEvaluatorResultless nextStore nextOutput)
+        (EpsilonEvaluatorInternal (epsilon_expression_start base)))
+      ((EpsilonEvaluatorExit code nextOutput) outcome)
+      ((EpsilonEvaluatorTrap kind nextOutput) outcome)
+      ((EpsilonEvaluatorInternal offset) outcome)
+      (EpsilonEvaluatorUnsupported outcome))))

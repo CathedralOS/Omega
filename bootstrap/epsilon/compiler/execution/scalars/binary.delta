@@ -1,4 +1,17 @@
 
+(def epsilon_evaluator_integer ((value Int) (store EpsilonRuntimeStore)
+  (output Bytes)) EpsilonEvaluatorOutcome
+  (EpsilonEvaluatorValue (EpsilonRuntimeInteger value) NoEpsilonRuntimePlace
+    store output))
+
+(def epsilon_evaluator_complete_scalar ((outcome EpsilonEvaluatorScalarOutcome)
+  (store EpsilonRuntimeStore) (output Bytes)) EpsilonEvaluatorOutcome
+  (match outcome
+    ((EpsilonEvaluatorScalarValue value)
+      (epsilon_evaluator_integer value store output))
+    ((EpsilonEvaluatorScalarTrapped kind) (EpsilonEvaluatorTrap kind output))
+    (EpsilonEvaluatorScalarUnsupported EpsilonEvaluatorUnsupported)))
+
 (def epsilon_evaluator_logical_kind ((operator EpsilonBinaryOperator)) Int
   (match operator
     (EpsilonLogicalOr 1)
@@ -20,64 +33,84 @@
     (EpsilonDivide 0)
     (EpsilonRemainder 0)))
 
-; Pure scalar operations lift into the committed effects of their operands.
-(def epsilon_evaluator_complete_scalar ((outcome EpsilonEvaluatorScalarOutcome)
-  (fields EpsilonEvaluatorFieldValueList) (output Bytes)) EpsilonEvaluatorOutcome
-  (match outcome
-    ((EpsilonEvaluatorScalarValue value) (EpsilonEvaluatorValue value fields output))
-    ((EpsilonEvaluatorScalarTrapped kind) (EpsilonEvaluatorTrap kind output))
-    (EpsilonEvaluatorScalarUnsupported EpsilonEvaluatorUnsupported)))
+(def epsilon_evaluate_negation ((context EpsilonEvaluatorInvocation)
+  (expressionValue EpsilonExpression) (bindings EpsilonEvaluatorBindings)
+  (store EpsilonRuntimeStore) (output Bytes)) EpsilonEvaluatorOutcome
+  (let outcome EpsilonEvaluatorOutcome
+    (epsilon_evaluate_expression context expressionValue bindings store output)
+    (match outcome
+      ((EpsilonEvaluatorValue value place nextStore nextOutput)
+        (match value
+          ((EpsilonRuntimeInteger scalar)
+            (epsilon_evaluator_complete_scalar
+              (epsilon_evaluator_i32_outcome (- 0 scalar)) nextStore nextOutput))
+          ((EpsilonRuntimeAggregate typeValue children)
+            (EpsilonEvaluatorInternal (epsilon_expression_start expressionValue)))))
+      ((EpsilonEvaluatorResultless nextStore nextOutput)
+        (EpsilonEvaluatorInternal (epsilon_expression_start expressionValue)))
+      ((EpsilonEvaluatorExit code nextOutput) outcome)
+      ((EpsilonEvaluatorTrap kind nextOutput) outcome)
+      ((EpsilonEvaluatorInternal offset) outcome)
+      (EpsilonEvaluatorUnsupported outcome))))
 
 (def epsilon_evaluate_binary_right ((context EpsilonEvaluatorInvocation)
   (operator EpsilonBinaryOperator) (leftValue Int)
-  (expressionValue EpsilonExpression) (locals EpsilonEvaluatorLocalValueList)
-  (fields EpsilonEvaluatorFieldValueList) (output Bytes)) EpsilonEvaluatorOutcome
+  (expressionValue EpsilonExpression) (bindings EpsilonEvaluatorBindings)
+  (store EpsilonRuntimeStore) (output Bytes)) EpsilonEvaluatorOutcome
   (let outcome EpsilonEvaluatorOutcome
-    (epsilon_evaluate_expression context expressionValue locals fields output)
+    (epsilon_evaluate_expression context expressionValue bindings store output)
     (match outcome
-      ((EpsilonEvaluatorValue rightValue nextFields nextOutput)
-        (if (epsilon_evaluator_logical_kind operator)
-          (if (if (eq rightValue 0) 1 (eq rightValue 1))
-            (EpsilonEvaluatorValue rightValue nextFields nextOutput)
-            (EpsilonEvaluatorTrap 7 nextOutput))
-          (epsilon_evaluator_complete_scalar
-            (epsilon_evaluate_core_binary_values operator leftValue rightValue)
-            nextFields nextOutput)))
-        ((EpsilonEvaluatorResultless nextFields nextOutput)
-          (EpsilonEvaluatorInternal (epsilon_expression_start expressionValue)))
-        ((EpsilonEvaluatorExit code nextOutput) outcome)
-        ((EpsilonEvaluatorTrap kind nextOutput) outcome)
-        ((EpsilonEvaluatorInternal offset) outcome)
-        (EpsilonEvaluatorUnsupported outcome))))
+      ((EpsilonEvaluatorValue value place nextStore nextOutput)
+        (match value
+          ((EpsilonRuntimeInteger rightValue)
+            (if (epsilon_evaluator_logical_kind operator)
+              (if (if (eq rightValue 0) 1 (eq rightValue 1))
+                (epsilon_evaluator_integer rightValue nextStore nextOutput)
+                (EpsilonEvaluatorTrap 7 nextOutput))
+              (epsilon_evaluator_complete_scalar
+                (epsilon_evaluate_core_binary_values operator leftValue rightValue)
+                nextStore nextOutput)))
+          ((EpsilonRuntimeAggregate typeValue children)
+            (EpsilonEvaluatorInternal (epsilon_expression_start expressionValue)))))
+      ((EpsilonEvaluatorResultless nextStore nextOutput)
+        (EpsilonEvaluatorInternal (epsilon_expression_start expressionValue)))
+      ((EpsilonEvaluatorExit code nextOutput) outcome)
+      ((EpsilonEvaluatorTrap kind nextOutput) outcome)
+      ((EpsilonEvaluatorInternal offset) outcome)
+      (EpsilonEvaluatorUnsupported outcome))))
 
 (def epsilon_evaluate_binary_left ((context EpsilonEvaluatorInvocation)
-  (operator EpsilonBinaryOperator) (leftValue Int)
-  (right EpsilonExpression) (locals EpsilonEvaluatorLocalValueList)
-  (fields EpsilonEvaluatorFieldValueList) (output Bytes)) EpsilonEvaluatorOutcome
+  (operator EpsilonBinaryOperator) (leftValue Int) (right EpsilonExpression)
+  (bindings EpsilonEvaluatorBindings) (store EpsilonRuntimeStore)
+  (output Bytes)) EpsilonEvaluatorOutcome
   (let logicalKind Int (epsilon_evaluator_logical_kind operator)
     (if logicalKind
       (if (if (eq leftValue 0) 1 (eq leftValue 1))
         (if (if (eq logicalKind 1) (eq leftValue 1) (eq leftValue 0))
-          (EpsilonEvaluatorValue leftValue fields output)
+          (epsilon_evaluator_integer leftValue store output)
           (epsilon_evaluate_binary_right context operator leftValue right
-            locals fields output))
+            bindings store output))
         (EpsilonEvaluatorTrap 7 output))
       (epsilon_evaluate_binary_right context operator leftValue right
-        locals fields output))))
+        bindings store output))))
 
 (def epsilon_evaluate_binary ((context EpsilonEvaluatorInvocation)
   (operator EpsilonBinaryOperator) (expressionValue EpsilonExpression)
-  (right EpsilonExpression) (locals EpsilonEvaluatorLocalValueList)
-  (fields EpsilonEvaluatorFieldValueList) (output Bytes)) EpsilonEvaluatorOutcome
+  (right EpsilonExpression) (bindings EpsilonEvaluatorBindings)
+  (store EpsilonRuntimeStore) (output Bytes)) EpsilonEvaluatorOutcome
   (let outcome EpsilonEvaluatorOutcome
-    (epsilon_evaluate_expression context expressionValue locals fields output)
+    (epsilon_evaluate_expression context expressionValue bindings store output)
     (match outcome
-      ((EpsilonEvaluatorValue leftValue nextFields nextOutput)
-        (epsilon_evaluate_binary_left context operator leftValue right locals
-          nextFields nextOutput))
-        ((EpsilonEvaluatorResultless nextFields nextOutput)
-          (EpsilonEvaluatorInternal (epsilon_expression_start expressionValue)))
-        ((EpsilonEvaluatorExit code nextOutput) outcome)
-        ((EpsilonEvaluatorTrap kind nextOutput) outcome)
-        ((EpsilonEvaluatorInternal offset) outcome)
-        (EpsilonEvaluatorUnsupported outcome))))
+      ((EpsilonEvaluatorValue value place nextStore nextOutput)
+        (match value
+          ((EpsilonRuntimeInteger leftValue)
+            (epsilon_evaluate_binary_left context operator leftValue right
+              bindings nextStore nextOutput))
+          ((EpsilonRuntimeAggregate typeValue children)
+            (EpsilonEvaluatorInternal (epsilon_expression_start expressionValue)))))
+      ((EpsilonEvaluatorResultless nextStore nextOutput)
+        (EpsilonEvaluatorInternal (epsilon_expression_start expressionValue)))
+      ((EpsilonEvaluatorExit code nextOutput) outcome)
+      ((EpsilonEvaluatorTrap kind nextOutput) outcome)
+      ((EpsilonEvaluatorInternal offset) outcome)
+      (EpsilonEvaluatorUnsupported outcome))))

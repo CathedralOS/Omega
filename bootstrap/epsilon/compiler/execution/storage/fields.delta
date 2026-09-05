@@ -1,93 +1,107 @@
 
-(def epsilon_evaluator_expression_is_receiver ((expressionValue EpsilonExpression)
-  (references EpsilonResolvedLocalReferenceList)) Int
-  (match (epsilon_find_resolved_local_reference expressionValue references)
-    (NoEpsilonResolvedLocalReference 0)
-    ((OneEpsilonResolvedLocalReference bindingValue)
-      (match bindingValue
-        ((EpsilonReceiverLocal name typeValue) 1)
-        ((EpsilonMachineParameterLocal parameterValue) 0)
-        ((EpsilonStateParameterLocal parameterValue) 0)
-        ((EpsilonLetLocal name typeValue statementValue) 0)
-        ((EpsilonTransitionBinderLocal patternValue name) 0)))))
+(def epsilon_evaluator_field_identity_equal ((leftOwner EpsilonDeclaration)
+  (leftMember EpsilonDataMember) (rightOwner EpsilonDeclaration)
+  (rightMember EpsilonDataMember)) Int
+  (if (epsilon_data_declarations_same_identity leftOwner rightOwner)
+    (if (eq (epsilon_data_member_start leftMember)
+            (epsilon_data_member_start rightMember))
+      (eq (epsilon_data_member_end leftMember)
+        (epsilon_data_member_end rightMember))
+      0)
+    0))
 
-(def epsilon_evaluator_scalar_storage_kind ((typeValue EpsilonType)) Int
-  (match typeValue
-    ((EpsilonI32Type start end) 1)
-    ((EpsilonU8Type start end) 2)
-    ((EpsilonNeverType start end) 0)
-    ((EpsilonNamedType start end name) 0)
-    ((EpsilonArrayType start end element lengthValue) 0)
-    ((EpsilonViewType start end element) 0)))
+(def epsilon_runtime_projections_equal ((left EpsilonRuntimeProjection)
+  (right EpsilonRuntimeProjection)) Int
+  (match left
+    ((EpsilonRuntimeField owner memberValue)
+      (match right
+        ((EpsilonRuntimeField otherOwner otherMember)
+          (epsilon_evaluator_field_identity_equal owner memberValue
+            otherOwner otherMember))
+        ((EpsilonRuntimeIndex index) 0)))
+    ((EpsilonRuntimeIndex index)
+      (match right
+        ((EpsilonRuntimeField owner memberValue) 0)
+        ((EpsilonRuntimeIndex otherIndex) (eq index otherIndex))))))
 
-(def epsilon_evaluator_check_scalar_store ((typeValue EpsilonType) (value Int))
-  EpsilonEvaluatorScalarOutcome
-  (let kind Int (epsilon_evaluator_scalar_storage_kind typeValue)
-    (if (eq kind 1)
-      (EpsilonEvaluatorScalarValue value)
-      (if (eq kind 2)
-        (if (if (lt value 0) 1 (lt 255 value))
-          (EpsilonEvaluatorScalarTrapped 5)
-          (EpsilonEvaluatorScalarValue value))
-        EpsilonEvaluatorScalarUnsupported))))
+; The checked field ledger supplies owner/member custody. No source spelling
+; lookup occurs here, and sum cases are not record-field projections.
+(def epsilon_runtime_field_default ((memberValue EpsilonDataMember))
+  EpsilonRuntimeValueLookup
+  (match memberValue
+    ((EpsilonFieldMember start end name typeValue)
+      (SomeEpsilonRuntimeValue (epsilon_runtime_zero_value typeValue)))
+    ((EpsilonCaseMember start end name payload) NoEpsilonRuntimeValue)))
 
-(def epsilon_evaluate_resolved_field_scalar ((expressionValue EpsilonExpression)
-  (base EpsilonExpression) (references EpsilonResolvedLocalReferenceList)
-  (fieldReferences EpsilonResolvedFieldReferenceList)
-  (fields EpsilonEvaluatorFieldValueList)) EpsilonEvaluatorScalarOutcome
-  (if (epsilon_evaluator_expression_is_receiver base references)
-    (match (epsilon_find_resolved_field_reference expressionValue fieldReferences)
-      (NoEpsilonResolvedFieldReference EpsilonEvaluatorScalarUnsupported)
-      ((OneEpsilonResolvedFieldReference owner memberValue)
-        (match memberValue
-          ((EpsilonFieldMember start end name typeValue)
-            (if (epsilon_evaluator_scalar_storage_kind typeValue)
-              (EpsilonEvaluatorScalarValue
-                (epsilon_evaluate_field_home owner memberValue fields))
-              EpsilonEvaluatorScalarUnsupported))
-          ((EpsilonCaseMember start end name payload)
-            EpsilonEvaluatorScalarUnsupported))))
-    EpsilonEvaluatorScalarUnsupported))
+(def epsilon_runtime_projection_default ((typeValue EpsilonType)
+  (projection EpsilonRuntimeProjection)) EpsilonRuntimeValueLookup
+  (match projection
+    ((EpsilonRuntimeField owner memberValue)
+      (match typeValue
+        ((EpsilonNamedType start end name)
+          (epsilon_runtime_field_default memberValue))
+        ((EpsilonI32Type start end) NoEpsilonRuntimeValue)
+        ((EpsilonU8Type start end) NoEpsilonRuntimeValue)
+        ((EpsilonNeverType start end) NoEpsilonRuntimeValue)
+        ((EpsilonArrayType start end element lengthValue) NoEpsilonRuntimeValue)
+        ((EpsilonViewType start end element) NoEpsilonRuntimeValue)))
+    ((EpsilonRuntimeIndex index)
+      (epsilon_runtime_index_default typeValue index))))
 
-(def epsilon_evaluator_assign_field ((placeValue EpsilonExpression)
-  (value Int) (references EpsilonResolvedLocalReferenceList)
-  (fieldReferences EpsilonResolvedFieldReferenceList)
-  (fields EpsilonEvaluatorFieldValueList)) EpsilonEvaluatorAssignmentOutcome
-  (match placeValue
-    ((EpsilonFieldExpression start end base member)
-      (if (epsilon_evaluator_expression_is_receiver base references)
-        (match (epsilon_find_resolved_field_reference placeValue fieldReferences)
-          (NoEpsilonResolvedFieldReference EpsilonEvaluatorAssignmentUnsupported)
-          ((OneEpsilonResolvedFieldReference owner memberValue)
-            (match memberValue
-              ((EpsilonFieldMember fieldStart fieldEnd fieldName typeValue)
-                (match (epsilon_evaluator_check_scalar_store typeValue value)
-                  (EpsilonEvaluatorScalarUnsupported
-                    EpsilonEvaluatorAssignmentUnsupported)
-                  ((EpsilonEvaluatorScalarTrapped kind)
-                    (EpsilonEvaluatorAssignmentTrapped kind))
-                  ((EpsilonEvaluatorScalarValue storedValue)
-                    (EpsilonEvaluatorAssignmentUpdated
-                      (epsilon_evaluator_set_field_home owner memberValue
-                        storedValue fields)))))
-              ((EpsilonCaseMember caseStart caseEnd caseName payload)
-                EpsilonEvaluatorAssignmentUnsupported))))
-        EpsilonEvaluatorAssignmentUnsupported))
-    ((EpsilonIntegerExpression start end literal) EpsilonEvaluatorAssignmentUnsupported)
-    ((EpsilonCharacterExpression start end literal) EpsilonEvaluatorAssignmentUnsupported)
-    ((EpsilonStringExpression start end literal) EpsilonEvaluatorAssignmentUnsupported)
-    ((EpsilonTrueExpression start end) EpsilonEvaluatorAssignmentUnsupported)
-    ((EpsilonFalseExpression start end) EpsilonEvaluatorAssignmentUnsupported)
-    ((EpsilonNameExpression start end name) EpsilonEvaluatorAssignmentUnsupported)
-    ((EpsilonQualifiedExpression start end owner name arguments)
-      EpsilonEvaluatorAssignmentUnsupported)
-    ((EpsilonGroupedExpression start end inner) EpsilonEvaluatorAssignmentUnsupported)
-    ((EpsilonCallExpression start end callBase arguments)
-      EpsilonEvaluatorAssignmentUnsupported)
-    ((EpsilonIndexExpression start end indexBase indexValue)
-      EpsilonEvaluatorAssignmentUnsupported)
-    ((EpsilonSliceExpression start end sliceBase low high)
-      EpsilonEvaluatorAssignmentUnsupported)
-    ((EpsilonNegateExpression start end operand) EpsilonEvaluatorAssignmentUnsupported)
-    ((EpsilonBinaryExpression start end operator operatorStart operatorEnd
-      left right) EpsilonEvaluatorAssignmentUnsupported)))
+(def epsilon_runtime_find_child ((projection EpsilonRuntimeProjection)
+  (children EpsilonRuntimeChildren)) EpsilonRuntimeValueLookup
+  (match children
+    (NoEpsilonRuntimeChildren NoEpsilonRuntimeValue)
+    ((MoreEpsilonRuntimeChildren current value rest)
+      (if (epsilon_runtime_projections_equal projection current)
+        (SomeEpsilonRuntimeValue value)
+        (epsilon_runtime_find_child projection rest)))))
+
+(def epsilon_runtime_project ((value EpsilonRuntimeValue)
+  (projection EpsilonRuntimeProjection)) EpsilonRuntimeValueLookup
+  (match value
+    ((EpsilonRuntimeInteger integer) NoEpsilonRuntimeValue)
+    ((EpsilonRuntimeAggregate typeValue children)
+      (match (epsilon_runtime_projection_default typeValue projection)
+        (NoEpsilonRuntimeValue NoEpsilonRuntimeValue)
+        ((SomeEpsilonRuntimeValue defaultValue)
+          (match (epsilon_runtime_find_child projection children)
+            (NoEpsilonRuntimeValue (SomeEpsilonRuntimeValue defaultValue))
+            ((SomeEpsilonRuntimeValue storedValue)
+              (SomeEpsilonRuntimeValue storedValue))))))))
+
+(def epsilon_runtime_reverse_children ((input EpsilonRuntimeChildren)
+  (output EpsilonRuntimeChildren)) EpsilonRuntimeChildren
+  (match input
+    (NoEpsilonRuntimeChildren output)
+    ((MoreEpsilonRuntimeChildren projection value rest)
+      (epsilon_runtime_reverse_children rest
+        (MoreEpsilonRuntimeChildren projection value output)))))
+
+(def epsilon_runtime_replace_child ((projection EpsilonRuntimeProjection)
+  (value EpsilonRuntimeValue) (children EpsilonRuntimeChildren)
+  (prefix EpsilonRuntimeChildren)) EpsilonRuntimeChildren
+  (match children
+    (NoEpsilonRuntimeChildren
+      (epsilon_runtime_reverse_children prefix
+        (MoreEpsilonRuntimeChildren projection value NoEpsilonRuntimeChildren)))
+    ((MoreEpsilonRuntimeChildren current previous rest)
+      (if (epsilon_runtime_projections_equal projection current)
+        (epsilon_runtime_reverse_children prefix
+          (MoreEpsilonRuntimeChildren current value rest))
+        (epsilon_runtime_replace_child projection value rest
+          (MoreEpsilonRuntimeChildren current previous prefix))))))
+
+(def epsilon_runtime_with_child ((parent EpsilonRuntimeValue)
+  (projection EpsilonRuntimeProjection) (value EpsilonRuntimeValue))
+  EpsilonRuntimeValueLookup
+  (match parent
+    ((EpsilonRuntimeInteger integer) NoEpsilonRuntimeValue)
+    ((EpsilonRuntimeAggregate typeValue children)
+      (match (epsilon_runtime_projection_default typeValue projection)
+        (NoEpsilonRuntimeValue NoEpsilonRuntimeValue)
+        ((SomeEpsilonRuntimeValue defaultValue)
+          (SomeEpsilonRuntimeValue
+            (EpsilonRuntimeAggregate typeValue
+              (epsilon_runtime_replace_child projection value children
+                NoEpsilonRuntimeChildren))))))))

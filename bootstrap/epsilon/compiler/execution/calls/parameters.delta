@@ -1,0 +1,49 @@
+
+; Callee roots are reclaimed on ordinary completion. The returned immutable
+; value is independent of those roots; effects on caller-owned roots survive.
+(def epsilon_evaluator_finish_call ((floor Int) (outcome EpsilonEvaluatorOutcome))
+  EpsilonEvaluatorOutcome
+  (match outcome
+    ((EpsilonEvaluatorValue value place store output)
+      (EpsilonEvaluatorValue value NoEpsilonRuntimePlace
+        (epsilon_runtime_release_since floor store) output))
+    ((EpsilonEvaluatorResultless store output)
+      (EpsilonEvaluatorResultless (epsilon_runtime_release_since floor store) output))
+    ((EpsilonEvaluatorExit code output) outcome)
+    ((EpsilonEvaluatorTrap kind output) outcome)
+    ((EpsilonEvaluatorInternal offset) outcome)
+    (EpsilonEvaluatorUnsupported outcome)))
+
+(def epsilon_evaluator_enter_call ((context EpsilonEvaluatorInvocation)
+  (targetMachine EpsilonDeclaration) (receiver EpsilonRuntimeOptionalPlace)
+  (arguments EpsilonEvaluatorArgumentValues) (store EpsilonRuntimeStore)
+  (output Bytes)) EpsilonEvaluatorOutcome
+  (match (epsilon_evaluator_bind_arguments arguments NoEpsilonEvaluatorBindings store)
+    ((EpsilonEvaluatorParametersBound bindings nextStore)
+      (match context
+        ((EpsilonEvaluatorInvocationContext source machineValue references
+          fieldReferences callables control currentReceiver blockFloor)
+          (epsilon_evaluate_invocation
+            (EpsilonEvaluatorInvocationContext source targetMachine references
+              fieldReferences callables control receiver
+              (epsilon_runtime_next_identifier nextStore))
+            bindings nextStore output))))))
+
+(def epsilon_evaluate_machine_call ((context EpsilonEvaluatorInvocation)
+  (targetMachine EpsilonDeclaration) (receiver EpsilonRuntimeOptionalPlace)
+  (arguments EpsilonExpressionList) (bindings EpsilonEvaluatorBindings)
+  (store EpsilonRuntimeStore) (output Bytes)) EpsilonEvaluatorOutcome
+  (match targetMachine
+    ((EpsilonMachineDeclaration start end name inputs returnType bodyValue)
+      (match (epsilon_evaluate_arguments context
+        (epsilon_machine_input_parameters inputs) arguments bindings store output
+        NoEpsilonEvaluatorArgumentValues)
+        ((EpsilonEvaluatorArgumentsStopped outcome) outcome)
+        ((EpsilonEvaluatorArgumentsEvaluated values nextStore nextOutput)
+          (epsilon_evaluator_finish_call (epsilon_runtime_next_identifier store)
+            (epsilon_evaluator_enter_call context targetMachine receiver values
+              nextStore nextOutput)))))
+    ((EpsilonBoundaryDeclaration start end name machines)
+      (EpsilonEvaluatorInternal start))
+    ((EpsilonDataDeclaration start end name members)
+      (EpsilonEvaluatorInternal start))))

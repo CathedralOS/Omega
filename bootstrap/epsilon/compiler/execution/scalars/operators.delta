@@ -1,38 +1,4 @@
 
-(def epsilon_evaluate_scalar ((expressionValue EpsilonExpression)
-  (references EpsilonResolvedLocalReferenceList)
-  (locals EpsilonEvaluatorLocalValueList)) EpsilonEvaluatorScalar
-  (match expressionValue
-    ((EpsilonIntegerExpression start end literal)
-      (OneEpsilonEvaluatorScalar (epsilon_integer_literal_value literal)))
-    ((EpsilonCharacterExpression start end literal)
-      (match literal
-        ((EpsilonCharacterSpan literalStart literalEnd value)
-          (OneEpsilonEvaluatorScalar value))))
-    ((EpsilonTrueExpression start end) (OneEpsilonEvaluatorScalar 1))
-    ((EpsilonFalseExpression start end) (OneEpsilonEvaluatorScalar 0))
-    ((EpsilonGroupedExpression start end inner)
-      (epsilon_evaluate_scalar inner references locals))
-    ((EpsilonStringExpression start end literal) NoEpsilonEvaluatorScalar)
-    ((EpsilonNameExpression start end name)
-      (epsilon_evaluate_resolved_local_scalar expressionValue references locals))
-    ((EpsilonQualifiedExpression start end owner name arguments)
-      NoEpsilonEvaluatorScalar)
-    ((EpsilonFieldExpression start end base field) NoEpsilonEvaluatorScalar)
-    ((EpsilonCallExpression start end base arguments) NoEpsilonEvaluatorScalar)
-    ((EpsilonIndexExpression start end base indexValue) NoEpsilonEvaluatorScalar)
-    ((EpsilonSliceExpression start end base low high) NoEpsilonEvaluatorScalar)
-    ((EpsilonNegateExpression start end operand) NoEpsilonEvaluatorScalar)
-    ((EpsilonBinaryExpression start end operator operatorStart operatorEnd
-      left right) NoEpsilonEvaluatorScalar)))
-
-(def epsilon_evaluator_scalar_outcome_from_optional
-  ((value EpsilonEvaluatorScalar)) EpsilonEvaluatorScalarOutcome
-  (match value
-    (NoEpsilonEvaluatorScalar EpsilonEvaluatorScalarUnsupported)
-    ((OneEpsilonEvaluatorScalar scalarValue)
-      (EpsilonEvaluatorScalarValue scalarValue))))
-
 (def epsilon_evaluator_i32_outcome ((value Int)) EpsilonEvaluatorScalarOutcome
   (if (lt value -2147483648)
     (EpsilonEvaluatorScalarTrapped 1)

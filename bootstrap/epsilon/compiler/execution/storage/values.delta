@@ -1,0 +1,68 @@
+
+; The caller admits stored types. A named or array home needs no recursive
+; allocation: its absent children are projected as their own typed zero homes.
+(def epsilon_runtime_zero_value ((typeValue EpsilonType)) EpsilonRuntimeValue
+  (match typeValue
+    ((EpsilonI32Type start end) (EpsilonRuntimeInteger 0))
+    ((EpsilonU8Type start end) (EpsilonRuntimeInteger 0))
+    ((EpsilonNamedType start end name)
+      (EpsilonRuntimeAggregate typeValue NoEpsilonRuntimeChildren))
+    ((EpsilonArrayType start end element lengthValue)
+      (EpsilonRuntimeAggregate typeValue NoEpsilonRuntimeChildren))
+    ((EpsilonNeverType start end)
+      (EpsilonRuntimeAggregate typeValue NoEpsilonRuntimeChildren))
+    ((EpsilonViewType start end element)
+      (EpsilonRuntimeAggregate typeValue NoEpsilonRuntimeChildren))))
+
+; Zero means admitted storage, five is the normative ByteRange trap, and -1
+; means an impossible runtime category after the checked assignment relation.
+(def epsilon_runtime_integer_store_status ((typeValue EpsilonType) (value Int))
+  Int
+  (match typeValue
+    ((EpsilonI32Type start end)
+      (if (lt value (- 0 2147483648))
+        (- 0 1)
+        (if (lt 2147483647 value) (- 0 1) 0)))
+    ((EpsilonU8Type start end)
+      (if (lt value 0) 5 (if (lt 255 value) 5 0)))
+    ((EpsilonNeverType start end) (- 0 1))
+    ((EpsilonNamedType start end name) (- 0 1))
+    ((EpsilonArrayType start end element lengthValue) (- 0 1))
+    ((EpsilonViewType start end element) (- 0 1))))
+
+(def epsilon_runtime_aggregate_store_status ((typeValue EpsilonType)
+  (storedType EpsilonType)) Int
+  (match typeValue
+    ((EpsilonNamedType start end name)
+      (match storedType
+        ((EpsilonNamedType storedStart storedEnd storedName) 0)
+        ((EpsilonI32Type storedStart storedEnd) (- 0 1))
+        ((EpsilonU8Type storedStart storedEnd) (- 0 1))
+        ((EpsilonNeverType storedStart storedEnd) (- 0 1))
+        ((EpsilonArrayType storedStart storedEnd storedElement storedLength)
+          (- 0 1))
+        ((EpsilonViewType storedStart storedEnd storedElement) (- 0 1))))
+    ((EpsilonArrayType start end element lengthValue)
+      (match storedType
+        ((EpsilonArrayType storedStart storedEnd storedElement storedLength)
+          (if (eq (epsilon_integer_literal_value lengthValue)
+                  (epsilon_integer_literal_value storedLength))
+            0
+            (- 0 1)))
+        ((EpsilonI32Type storedStart storedEnd) (- 0 1))
+        ((EpsilonU8Type storedStart storedEnd) (- 0 1))
+        ((EpsilonNeverType storedStart storedEnd) (- 0 1))
+        ((EpsilonNamedType storedStart storedEnd storedName) (- 0 1))
+        ((EpsilonViewType storedStart storedEnd storedElement) (- 0 1))))
+    ((EpsilonI32Type start end) (- 0 1))
+    ((EpsilonU8Type start end) (- 0 1))
+    ((EpsilonNeverType start end) (- 0 1))
+    ((EpsilonViewType start end element) (- 0 1))))
+
+(def epsilon_runtime_store_status ((typeValue EpsilonType)
+  (value EpsilonRuntimeValue)) Int
+  (match value
+    ((EpsilonRuntimeInteger integer)
+      (epsilon_runtime_integer_store_status typeValue integer))
+    ((EpsilonRuntimeAggregate storedType children)
+      (epsilon_runtime_aggregate_store_status typeValue storedType))))

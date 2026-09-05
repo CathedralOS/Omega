@@ -1,95 +1,103 @@
 
-(def epsilon_evaluator_field_identity_equal ((leftOwner EpsilonDeclaration)
-  (leftMember EpsilonDataMember) (rightOwner EpsilonDeclaration)
-  (rightMember EpsilonDataMember)) Int
-  (if (epsilon_data_declarations_same_identity leftOwner rightOwner)
-    (if (eq (epsilon_data_member_start leftMember)
-            (epsilon_data_member_start rightMember))
-      (eq (epsilon_data_member_end leftMember)
-        (epsilon_data_member_end rightMember))
-      0)
-    0))
+; Root identifiers distinguish recursive invocations and same-type instances.
+; Roots remain newest-first; writes preserve order and release never reuses IDs.
+(def epsilon_runtime_next_identifier ((store EpsilonRuntimeStore)) Int
+  (match store
+    ((EpsilonRuntimeStoreState nextIdentifier roots) nextIdentifier)))
 
-(def epsilon_evaluate_field_home ((owner EpsilonDeclaration)
-  (memberValue EpsilonDataMember) (fields EpsilonEvaluatorFieldValueList)) Int
-  (match fields
-    (NoEpsilonEvaluatorFieldValues 0)
-    ((MoreEpsilonEvaluatorFieldValues item rest)
-      (match item
-        ((EpsilonEvaluatorScalarFieldValue storedOwner storedMember value)
-          (if (epsilon_evaluator_field_identity_equal owner memberValue
-            storedOwner storedMember)
-            value
-            (epsilon_evaluate_field_home owner memberValue rest)))
-        ((EpsilonEvaluatorArrayElementValue storedOwner storedMember index value)
-          (epsilon_evaluate_field_home owner memberValue rest))))))
+(def epsilon_runtime_allocate ((value EpsilonRuntimeValue)
+  (store EpsilonRuntimeStore)) EpsilonRuntimeAllocation
+  (match store
+    ((EpsilonRuntimeStoreState nextIdentifier roots)
+      (EpsilonRuntimeAllocated nextIdentifier
+        (EpsilonRuntimeStoreState (+ nextIdentifier 1)
+          (MoreEpsilonRuntimeRoots nextIdentifier value roots))))))
 
-(def epsilon_evaluator_set_field_home ((owner EpsilonDeclaration)
-  (memberValue EpsilonDataMember) (value Int)
-  (fields EpsilonEvaluatorFieldValueList)) EpsilonEvaluatorFieldValueList
-  (match fields
-    (NoEpsilonEvaluatorFieldValues
-      (MoreEpsilonEvaluatorFieldValues
-        (EpsilonEvaluatorScalarFieldValue owner memberValue value)
-        NoEpsilonEvaluatorFieldValues))
-    ((MoreEpsilonEvaluatorFieldValues item rest)
-      (match item
-        ((EpsilonEvaluatorScalarFieldValue storedOwner storedMember storedValue)
-          (if (epsilon_evaluator_field_identity_equal owner memberValue
-            storedOwner storedMember)
-            (MoreEpsilonEvaluatorFieldValues
-              (EpsilonEvaluatorScalarFieldValue owner memberValue value) rest)
-            (MoreEpsilonEvaluatorFieldValues item
-              (epsilon_evaluator_set_field_home owner memberValue value
-                rest))))
-        ((EpsilonEvaluatorArrayElementValue storedOwner storedMember index
-          storedValue)
-          (MoreEpsilonEvaluatorFieldValues item
-            (epsilon_evaluator_set_field_home owner memberValue value rest)))))))
+(def epsilon_runtime_release_roots ((floor Int) (roots EpsilonRuntimeRoots))
+  EpsilonRuntimeRoots
+  (match roots
+    (NoEpsilonRuntimeRoots NoEpsilonRuntimeRoots)
+    ((MoreEpsilonRuntimeRoots identifier value rest)
+      (if (lt identifier floor)
+        roots
+        (epsilon_runtime_release_roots floor rest)))))
 
-(def epsilon_evaluate_array_home ((owner EpsilonDeclaration)
-  (memberValue EpsilonDataMember) (index Int)
-  (fields EpsilonEvaluatorFieldValueList)) Int
-  (match fields
-    (NoEpsilonEvaluatorFieldValues 0)
-    ((MoreEpsilonEvaluatorFieldValues item rest)
-      (match item
-        ((EpsilonEvaluatorScalarFieldValue storedOwner storedMember value)
-          (epsilon_evaluate_array_home owner memberValue index rest))
-        ((EpsilonEvaluatorArrayElementValue storedOwner storedMember storedIndex
-          value)
-          (if (epsilon_evaluator_field_identity_equal owner memberValue
-            storedOwner storedMember)
-            (if (eq index storedIndex)
-              value
-              (epsilon_evaluate_array_home owner memberValue index rest))
-            (epsilon_evaluate_array_home owner memberValue index rest)))))))
+(def epsilon_runtime_release_since ((floor Int) (store EpsilonRuntimeStore))
+  EpsilonRuntimeStore
+  (match store
+    ((EpsilonRuntimeStoreState nextIdentifier roots)
+      (EpsilonRuntimeStoreState nextIdentifier
+        (epsilon_runtime_release_roots floor roots)))))
 
-(def epsilon_evaluator_set_array_home ((owner EpsilonDeclaration)
-  (memberValue EpsilonDataMember) (index Int) (value Int)
-  (fields EpsilonEvaluatorFieldValueList)) EpsilonEvaluatorFieldValueList
-  (match fields
-    (NoEpsilonEvaluatorFieldValues
-      (MoreEpsilonEvaluatorFieldValues
-        (EpsilonEvaluatorArrayElementValue owner memberValue index value)
-        NoEpsilonEvaluatorFieldValues))
-    ((MoreEpsilonEvaluatorFieldValues item rest)
-      (match item
-        ((EpsilonEvaluatorScalarFieldValue storedOwner storedMember storedValue)
-          (MoreEpsilonEvaluatorFieldValues item
-            (epsilon_evaluator_set_array_home owner memberValue index value
-              rest)))
-        ((EpsilonEvaluatorArrayElementValue storedOwner storedMember storedIndex
-          storedValue)
-          (if (epsilon_evaluator_field_identity_equal owner memberValue
-            storedOwner storedMember)
-            (if (eq index storedIndex)
-              (MoreEpsilonEvaluatorFieldValues
-                (EpsilonEvaluatorArrayElementValue owner memberValue index value)
-                rest)
-              (MoreEpsilonEvaluatorFieldValues item
-                (epsilon_evaluator_set_array_home owner memberValue index value
-                  rest)))
-            (MoreEpsilonEvaluatorFieldValues item
-              (epsilon_evaluator_set_array_home owner memberValue index value
-                rest))))))))
+(def epsilon_runtime_find_root ((identifier Int) (roots EpsilonRuntimeRoots))
+  EpsilonRuntimeValueLookup
+  (match roots
+    (NoEpsilonRuntimeRoots NoEpsilonRuntimeValue)
+    ((MoreEpsilonRuntimeRoots current value rest)
+      (if (eq identifier current)
+        (SomeEpsilonRuntimeValue value)
+        (epsilon_runtime_find_root identifier rest)))))
+
+(def epsilon_runtime_reverse_roots ((input EpsilonRuntimeRoots)
+  (output EpsilonRuntimeRoots)) EpsilonRuntimeRoots
+  (match input
+    (NoEpsilonRuntimeRoots output)
+    ((MoreEpsilonRuntimeRoots identifier value rest)
+      (epsilon_runtime_reverse_roots rest
+        (MoreEpsilonRuntimeRoots identifier value output)))))
+
+; The public write first proves this root exists. Rebuild only its prefix.
+(def epsilon_runtime_replace_root ((identifier Int) (value EpsilonRuntimeValue)
+  (roots EpsilonRuntimeRoots) (prefix EpsilonRuntimeRoots)) EpsilonRuntimeRoots
+  (match roots
+    (NoEpsilonRuntimeRoots
+      (epsilon_runtime_reverse_roots prefix NoEpsilonRuntimeRoots))
+    ((MoreEpsilonRuntimeRoots current previous rest)
+      (if (eq identifier current)
+        (epsilon_runtime_reverse_roots prefix
+          (MoreEpsilonRuntimeRoots current value rest))
+        (epsilon_runtime_replace_root identifier value rest
+          (MoreEpsilonRuntimeRoots current previous prefix))))))
+
+(def epsilon_runtime_read ((place EpsilonRuntimePlace)
+  (store EpsilonRuntimeStore)) EpsilonRuntimeValueLookup
+  (match place
+    ((EpsilonRuntimePlaceAt identifier path leafType)
+      (match store
+        ((EpsilonRuntimeStoreState nextIdentifier roots)
+          (match (epsilon_runtime_find_root identifier roots)
+            (NoEpsilonRuntimeValue NoEpsilonRuntimeValue)
+            ((SomeEpsilonRuntimeValue value)
+              (epsilon_runtime_read_path value path))))))))
+
+(def epsilon_runtime_write_root ((identifier Int) (path EpsilonRuntimePath)
+  (value EpsilonRuntimeValue) (store EpsilonRuntimeStore))
+  EpsilonRuntimeStoreOutcome
+  (match store
+    ((EpsilonRuntimeStoreState nextIdentifier roots)
+      (match (epsilon_runtime_find_root identifier roots)
+        (NoEpsilonRuntimeValue EpsilonRuntimeStoreInternal)
+        ((SomeEpsilonRuntimeValue previous)
+          (match (epsilon_runtime_replace_path previous path value
+            NoEpsilonRuntimeChildren)
+            (NoEpsilonRuntimeValue EpsilonRuntimeStoreInternal)
+            ((SomeEpsilonRuntimeValue updated)
+              (EpsilonRuntimeStoreUpdated
+                (EpsilonRuntimeStoreState nextIdentifier
+                  (epsilon_runtime_replace_root identifier updated roots
+                    NoEpsilonRuntimeRoots))))))))))
+
+(def epsilon_runtime_write ((place EpsilonRuntimePlace)
+  (value EpsilonRuntimeValue) (store EpsilonRuntimeStore))
+  EpsilonRuntimeStoreOutcome
+  (match (epsilon_runtime_read place store)
+    (NoEpsilonRuntimeValue EpsilonRuntimeStoreInternal)
+    ((SomeEpsilonRuntimeValue previous)
+      (match place
+        ((EpsilonRuntimePlaceAt identifier path leafType)
+          (let status Int (epsilon_runtime_store_status leafType value)
+            (if (eq status 0)
+              (epsilon_runtime_write_root identifier path value store)
+              (if (eq status 5)
+                (EpsilonRuntimeStoreTrapped 5)
+                EpsilonRuntimeStoreInternal))))))))
