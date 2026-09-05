@@ -9,6 +9,7 @@ name = "omega_isa_x86_64"
 path = "src/lib.rs"
 
 [dependencies]
+omega-machine-code = { path = "../../../representations/omega-machine-code" }
 omega-calling-conventions = { path = "../../../representations/omega-calling-conventions" }
 omega-register-model = { path = "../../../representations/omega-register-model" }
 omega-target = { path = "../../../representations/omega-target" }

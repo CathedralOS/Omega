@@ -1,9 +1,9 @@
-use omega_isa_x86_64::{
-    X86_64StructuralUnitInternalControlFixupKind, X86_64StructuralUnitInternalControlFixupState,
-};
 use omega_machine_code::{
     FunctionFragmentInternalMachineFixup, FunctionFragmentInternalMachineFixupKind,
     FunctionFragmentInternalMachineFixupState, StructuralUnitCallFragmentSpan,
+};
+use omega_machine_code::{
+    X86_64StructuralUnitInternalControlFixupKind, X86_64StructuralUnitInternalControlFixupState,
 };
 use omega_selected_instructions::SelectedStructuralUnitCallInstruction;
 

@@ -1,4 +1,4 @@
-use omega_isa_x86_64::{
+use omega_machine_code::{
     X86_64SelectedStructuralUnitCallFootprint, X86_64StructuralUnitInternalControlFixup,
 };
 use omega_machine_optimizer::{Aarch64CbnzFusionIdentity, Aarch64MovnMaterializationIdentity};

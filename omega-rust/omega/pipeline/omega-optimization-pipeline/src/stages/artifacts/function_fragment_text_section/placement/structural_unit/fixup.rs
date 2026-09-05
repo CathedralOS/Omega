@@ -1,10 +1,10 @@
-use omega_isa_x86_64::{
-    X86_64StructuralUnitInternalControlFixup, X86_64StructuralUnitInternalControlFixupKind,
-    X86_64StructuralUnitInternalControlFixupState,
-};
 use omega_machine_code::{
     FunctionFragmentInternalMachineFixupKind, FunctionFragmentInternalMachineFixupState,
     StructuralUnitCallFragmentSpan,
+};
+use omega_machine_code::{
+    X86_64StructuralUnitInternalControlFixup, X86_64StructuralUnitInternalControlFixupKind,
+    X86_64StructuralUnitInternalControlFixupState,
 };
 
 use super::super::super::RelocationFreeTextSectionPlacementError;

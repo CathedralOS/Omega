@@ -1,5 +1,5 @@
 use omega_calling_conventions::MachineRegister;
-use omega_isa_x86_64::{
+use omega_machine_code::{
     X86_64SelectedStructuralUnitCallFootprint, X86_64StructuralUnitInternalControlFixup,
     X86_64StructuralUnitInternalControlFixupKind, X86_64StructuralUnitInternalControlFixupState,
 };

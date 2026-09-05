@@ -1,5 +1,5 @@
 use omega_calling_conventions::MachineRegister;
-use omega_isa_x86_64::{
+use omega_machine_code::{
     X86_64SelectedStructuralUnitCallFootprint, X86_64StructuralUnitInternalControlFixup,
 };
 use omega_physical_instructions::PostAllocationMachineIdentity;
@@ -173,10 +173,10 @@ fn encode_structural_footprint(
 
 fn encode_structural_fixup(hasher: &mut Sha256, fixup: X86_64StructuralUnitInternalControlFixup) {
     hasher.update([match fixup.kind {
-        omega_isa_x86_64::X86_64StructuralUnitInternalControlFixupKind::Relative32FromNextInstructionToInternalMachineV1 => 0,
+        omega_machine_code::X86_64StructuralUnitInternalControlFixupKind::Relative32FromNextInstructionToInternalMachineV1 => 0,
     }]);
     hasher.update([match fixup.state {
-        omega_isa_x86_64::X86_64StructuralUnitInternalControlFixupState::UnresolvedZeroFieldV1 => 0,
+        omega_machine_code::X86_64StructuralUnitInternalControlFixupState::UnresolvedZeroFieldV1 => 0,
     }]);
     hasher.update(fixup.callee.get().to_le_bytes());
     hasher.update(fixup.opcode_byte_offset.to_le_bytes());

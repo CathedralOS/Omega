@@ -3,8 +3,10 @@ use std::collections::{BTreeMap, BTreeSet};
 use omega_isa_x86_64::{
     X86_64_STRUCTURAL_UNIT_CALL_NEXT_INSTRUCTION_OFFSET, X86_64_STRUCTURAL_UNIT_CALL_OPCODE_OFFSET,
     X86_64_STRUCTURAL_UNIT_CALL_REL32_FIELD_OFFSET, X86_64_STRUCTURAL_UNIT_CALL_REL32_FIELD_WIDTH,
-    X86_64_STRUCTURAL_UNIT_CALL_TEMPLATE_BYTE_COUNT, X86_64StructuralUnitInternalControlFixupKind,
-    X86_64StructuralUnitInternalControlFixupState,
+    X86_64_STRUCTURAL_UNIT_CALL_TEMPLATE_BYTE_COUNT,
+};
+use omega_machine_code::{
+    X86_64StructuralUnitInternalControlFixupKind, X86_64StructuralUnitInternalControlFixupState,
 };
 use omega_register_model::{RegisterUnitId, RegisterViewId};
 use omega_selected_instructions::{SelectedInstructionId, SelectedInstructionKind};
