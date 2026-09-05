@@ -36,3 +36,16 @@ Conventions:
 - Name cases by the behavior under test, not by the fix that motivated them.
 - If a case graduates into a clearer feature family, move the directory and
   update the suite path rather than duplicating it.
+
+The `canary_suite::roster` tests validate registered source paths and file-based
+failure expectations independently of host support and compile filters. A
+dedicated integration test can expose its execution table through the compiler
+tests' `fixture_rosters/` directory; both its test loop and the inventory consume
+that same table. Inventory membership does not schedule another compilation or
+change a checked-only case into a native case. Inline diagnostic owners need not
+add an unused `expected.txt` merely to appear in the inventory.
+
+Reverse closure remains `CANARY-ROSTER-DERIVATION` in `TASKS.md`: not all
+dedicated test owners are represented yet, so the inventory does not yet reject
+every unregistered directory. New registrations must name an actual executing
+owner rather than an inventory-only exemption list.

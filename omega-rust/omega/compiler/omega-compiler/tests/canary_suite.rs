@@ -204,6 +204,8 @@ mod domains_control_and_structures;
 mod exact_native_coverage;
 #[path = "canary_suite/float_plans_and_policies.rs"]
 mod float_plans_and_policies;
+#[path = "canary_suite/roster.rs"]
+mod roster;
 use float_plans_and_policies::retained_float_differential_result_identity;
 #[path = "canary_suite/arithmetic_and_data.rs"]
 mod arithmetic_and_data;

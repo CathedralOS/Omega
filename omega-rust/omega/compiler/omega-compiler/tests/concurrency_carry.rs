@@ -8,13 +8,12 @@
 use omega_compiler::compile_to_checked;
 use std::path::{Path, PathBuf};
 
+#[path = "fixture_rosters/concurrency_carry.rs"]
+mod fixture_roster;
+
 #[test]
 fn suspension_carry_canaries_pin_statement_bound_liveness() {
-    for name in [
-        "concurrency/suspend_after_last_use_compile",
-        "concurrency/suspend_after_earlier_operand_compile",
-        "concurrency/suspend_after_self_field_last_use_compile",
-    ] {
+    for &name in fixture_roster::PASS_CANARIES {
         let pass = pass_canary(name);
         compile_to_checked(&pass.join("main.omg"), None).unwrap_or_else(|diagnostics| {
             panic!(
@@ -29,24 +28,7 @@ fn suspension_carry_canaries_pin_statement_bound_liveness() {
         });
     }
 
-    for (name, expected) in [
-        (
-            "concurrency/suspend_live_value_rejected",
-            "may suspend while `message` remains live",
-        ),
-        (
-            "concurrency/suspend_self_field_reachable_state_rejected",
-            "may suspend while `self.message` remains live",
-        ),
-        (
-            "concurrency/suspend_call_argument_rejected",
-            "may suspend while `message` remains live",
-        ),
-        (
-            "concurrency/suspend_later_operand_rejected",
-            "nested inside a partially evaluated expression",
-        ),
-    ] {
+    for &(name, expected) in fixture_roster::FAIL_CANARIES {
         let fail = fail_canary(name);
         let diagnostics = compile_to_checked(&fail.join("main.omg"), None)
             .expect_err("a restrictive live value must reject possible suspension");
