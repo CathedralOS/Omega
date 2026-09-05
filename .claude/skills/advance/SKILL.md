@@ -210,16 +210,15 @@ commit and push there. Worktrees are isolation, not a branching strategy: the
 work still arrives on `main` in this iteration. A loop that leaves work on side
 branches never lands anything.
 
-Integrate each agent commit from the main checkout:
-
-```bash
-git fetch && git cherry-pick <sha>
-```
-
-Cherry-pick agents in sequence, re-run the gate list once on the integrated
-result, then `git pull --rebase && git push`. If the rebase refuses because
-another session has the tree dirty, stop and report it; do not autostash their
-work, and do not rewrite an unpushed commit that is not yours.
+Follow the landing reservation procedure linked by `AGENTS.md`. Prepare the
+worker commits in your own integration worktree, then claim before incorporating
+current main and running final gates. Rebase onto the returned base, integrate
+ready commits in sequence, and run the full gate list on that candidate. Publish
+the exact verified SHA through `tools/landing.ps1`; do not pull/rebase again
+between validation and publication or push directly to main. A busy reservation
+means continue local development, not repeatedly run the full integration gates.
+Release after a failed gate before continuing implementation. Do not autostash
+another session's work or rewrite an unpushed commit that is not yours.
 
 Commit on coherent milestones — a working improvement, not a finished epic.
 Small checkpoint commits are correct; a single giant commit at the end is not.
