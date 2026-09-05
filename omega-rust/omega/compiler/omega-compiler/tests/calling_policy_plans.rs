@@ -305,14 +305,287 @@ machine Main::main(&mut self) { }
 fn target_selected_callback_policy_consumes_two_closed_layout_demands() {
     let source = callback_fixture_source("callback_materialization_closure.omg");
     assert_eq!(
-        source,
+        source.trim_start_matches('\n'),
         CALLBACK_MATERIALIZATION_POLICY.trim_start_matches('\n'),
-        "the source canary and its readable test fixture must remain identical"
+        "the source canary and its readable test fixture must agree apart from leading blank lines"
     );
     let (main_path, package_inputs) =
         write_callback_package("materialization-closure", CALLBACK_MATERIALIZATION_POLICY);
-    compile_to_checked_with_packages(&main_path, Some("windows_x86_64"), package_inputs)
-        .expect("target-selected registrar should consume both exact closed layout demands");
+    let checked =
+        compile_to_checked_with_packages(&main_path, Some("windows_x86_64"), package_inputs)
+            .expect("target-selected registrar should consume both exact closed layout demands");
+    let registrar = checked
+        .typed
+        .traits()
+        .iter()
+        .find(|definition| definition.name.as_str() == "WindowRegistrar")
+        .expect("exact registrar declaration");
+    let register = checked
+        .typed
+        .trait_machine_signatures(registrar)
+        .iter()
+        .find(|signature| signature.name.as_str() == "register")
+        .expect("exact registrar requirement");
+    let realization = checked
+        .boundary_calling_plan_realizations()
+        .iter()
+        .find(|realization| realization.requirement_machine == register.symbol)
+        .expect("retained registrar calling-plan realization");
+    let catalog = realization
+        .materialized_signature()
+        .callback_layout_catalog();
+    assert_eq!(catalog.len(), 2);
+    assert!(
+        catalog
+            .windows(2)
+            .all(|pair| pair[0].destination() < pair[1].destination())
+    );
+    let recorded = checked
+        .typed
+        .plan_laid_layouts
+        .iter()
+        .find(|layout| layout.data_name == "Spread<ForeignRecord>")
+        .expect("exact named plan-laid registrar parameter");
+    let closed = omega_layout::build_layout_plan(
+        &checked,
+        omega_target::NativeTarget::windows_x64(),
+        checked.opaque_representation_selections(),
+    )
+    .expect("independent target-closed layout catalog");
+    let root = closed
+        .plan_laid_layout_identities
+        .iter()
+        .find(|layout| layout.data_symbol == recorded.data_symbol)
+        .expect("target-closed named root layout");
+    assert_eq!(root.physical.size, 24);
+    assert_eq!(root.physical.alignment, 8);
+    let mut destinations = realization.callback_demands.iter().collect::<Vec<_>>();
+    destinations.sort_by(|left, right| left.destination.cmp(&right.destination));
+    assert_eq!(destinations.len(), catalog.len());
+    for (entry, demanded) in catalog.iter().zip(destinations) {
+        assert_eq!(entry.formal_ordinal(), 0);
+        assert_eq!(entry.native_ordinal(), 0);
+        assert_eq!(entry.root_layout(), root);
+        assert!(entry.inline_field().is_none());
+        assert_eq!(entry.destination(), &demanded.destination);
+        let terminal = entry.terminal_slot();
+        let typed_demand = recorded
+            .private_callback_demands
+            .iter()
+            .find(|demand| demand.slot_identity == terminal.slot_identity.as_ref())
+            .expect("each catalog entry rejoins one exact typed slot");
+        assert_eq!(terminal.slot_application, typed_demand.slot_application);
+        assert_eq!(
+            terminal.callback_requirement_identity.as_ref(),
+            typed_demand.callback_requirement_identity
+        );
+        assert_eq!(
+            terminal.layout_subject_identity.as_ref(),
+            typed_demand.layout_subject_identity
+        );
+        assert_eq!(terminal.data_symbol, recorded.data_symbol);
+        assert_eq!(
+            terminal.offset,
+            usize::try_from(typed_demand.offset).unwrap()
+        );
+        assert_eq!(terminal.byte_size, 8);
+        assert_eq!(terminal.alignment, 8);
+        assert_eq!(entry.composed_offset(), terminal.offset);
+        assert_eq!(terminal.requirement, demanded.requirement);
+        let omega_calling_conventions::NativePlace::Field {
+            parameter,
+            layout,
+            field_path,
+        } = entry.destination()
+        else {
+            panic!("plan-laid callback destination must name its root and slot")
+        };
+        assert_eq!(*layout, terminal.layout);
+        assert_eq!(root.data_symbol, terminal.data_symbol);
+        assert_eq!(
+            root.layout_subject_identity,
+            terminal.layout_subject_identity
+        );
+        assert_eq!(field_path, &[terminal.slot]);
+        assert_eq!(terminal.native_demand(*parameter), *demanded);
+        assert_eq!(
+            realization
+                .boundary_entry_plan
+                .call
+                .callback_materializations
+                .iter()
+                .filter(|materialization| &materialization.destination == entry.destination())
+                .count(),
+            1,
+        );
+    }
+    let mut offsets = catalog
+        .iter()
+        .map(|entry| entry.composed_offset())
+        .collect::<Vec<_>>();
+    offsets.sort_unstable();
+    assert_eq!(offsets, [8, 16]);
+    assert_ne!(
+        catalog[0].terminal_slot().slot_application,
+        catalog[1].terminal_slot().slot_application
+    );
+    let (_, report, commitment) = realization
+        .replayed_validated_application()
+        .expect("catalog preserves validated calling application");
+    assert_eq!(report, realization.report_fingerprint);
+    assert_eq!(commitment, realization.commitment);
+}
+
+#[test]
+fn target_selected_callback_policy_retains_inline_child_layout_catalog() {
+    let source = CALLBACK_MATERIALIZATION_POLICY
+        .replace(
+            "specification: &Spread<ForeignRecord>",
+            "specification: &Envelope<Registration>",
+        )
+        .replace(
+            "data Main { }",
+            r#"
+data Envelope { entries: [FieldEntry; 64]; }
+
+machine Envelope::plan(&mut self, schema: Schema) -> Plan {
+    self.entries[0] = FieldEntry {
+        key: schema.fields[0].key,
+        placement: FieldPlan::At { offset: 8 },
+    };
+    Plan {
+        entries: self.entries,
+        entry_count: 1,
+        size_fixed: 32,
+        size_is_dynamic: false,
+        align: 8,
+    }
+}
+
+data Registration { callbacks: Spread<ForeignRecord>; }
+data Main { }
+"#,
+        );
+    let (main_path, package_inputs) = write_callback_package("inline-callback-catalog", &source);
+    let checked =
+        compile_to_checked_with_packages(&main_path, Some("windows_x86_64"), package_inputs)
+            .expect("registrar should consume both slots through its named inline child");
+    let registrar = checked
+        .typed
+        .traits()
+        .iter()
+        .find(|definition| definition.name.as_str() == "WindowRegistrar")
+        .unwrap();
+    let register = checked
+        .typed
+        .trait_machine_signatures(registrar)
+        .iter()
+        .find(|signature| signature.name.as_str() == "register")
+        .unwrap();
+    let realization = checked
+        .boundary_calling_plan_realizations()
+        .iter()
+        .find(|realization| realization.requirement_machine == register.symbol)
+        .expect("retained nested registrar calling-plan realization");
+    let catalog = realization
+        .materialized_signature()
+        .callback_layout_catalog();
+    let closed = omega_layout::build_layout_plan(
+        &checked,
+        omega_target::NativeTarget::windows_x64(),
+        checked.opaque_representation_selections(),
+    )
+    .expect("independently closed root-field-child-slot paths");
+    let recorded_root = checked
+        .typed
+        .plan_laid_layouts
+        .iter()
+        .find(|layout| layout.data_name == "Envelope<Registration>")
+        .unwrap();
+    let recorded_child = checked
+        .typed
+        .plan_laid_layouts
+        .iter()
+        .find(|layout| layout.data_name == "Spread<ForeignRecord>")
+        .unwrap();
+    assert_eq!(catalog.len(), 2);
+    assert_eq!(realization.callback_demands.len(), 2);
+    assert_eq!(closed.two_hop_private_callback_paths.len(), 2);
+    assert!(catalog[0].destination() < catalog[1].destination());
+    for entry in catalog {
+        let terminal = entry.terminal_slot();
+        let field = entry
+            .inline_field()
+            .expect("one retained named inline field");
+        let path = closed
+            .two_hop_private_callback_paths
+            .iter()
+            .find(|path| path.terminal_demand.slot_application == terminal.slot_application)
+            .expect("exact independently closed slot application");
+        let typed_demand = recorded_child
+            .private_callback_demands
+            .iter()
+            .find(|demand| demand.slot_identity == terminal.slot_identity.as_ref())
+            .unwrap();
+        assert_eq!(terminal.slot_application, typed_demand.slot_application);
+        assert_eq!(entry.formal_ordinal(), 0);
+        assert_eq!(entry.native_ordinal(), 0);
+        assert_eq!(entry.root_layout(), &path.root_layout);
+        assert_eq!(entry.root_layout().data_symbol, recorded_root.data_symbol);
+        assert_eq!(entry.root_layout().physical.size, 32);
+        assert_eq!(entry.root_layout().physical.alignment, 8);
+        assert_eq!(field.symbol(), path.field_symbol);
+        assert_eq!(field.identity(), path.field_identity.as_ref());
+        assert_eq!(field.offset(), 8);
+        assert_eq!(field.extent(), 24);
+        assert_eq!(field.alignment(), 8);
+        assert_eq!(field.child_layout(), &path.child_layout);
+        assert_eq!(field.child_layout().data_symbol, recorded_child.data_symbol);
+        assert_eq!(field.child_layout().physical.size, 24);
+        assert_eq!(field.child_layout().physical.alignment, 8);
+        assert_eq!(terminal, &path.terminal_demand);
+        assert_eq!(entry.composed_offset(), field.offset() + terminal.offset);
+        assert_eq!(entry.composed_offset(), path.composed_offset);
+        let omega_calling_conventions::NativePlace::Field {
+            parameter,
+            layout,
+            field_path,
+        } = entry.destination()
+        else {
+            panic!("inline child callback must retain its named field path")
+        };
+        assert_eq!(*layout, path.root_layout.layout);
+        assert_eq!(field_path, &[path.field_slot, terminal.slot]);
+        let demand = path.native_demand(*parameter);
+        assert_eq!(entry.destination(), &demand.destination);
+        assert_eq!(
+            realization
+                .callback_demands
+                .iter()
+                .filter(|row| **row == demand)
+                .count(),
+            1,
+        );
+        assert_eq!(
+            realization
+                .boundary_entry_plan
+                .call
+                .callback_materializations
+                .iter()
+                .filter(|row| &row.destination == entry.destination())
+                .count(),
+            1,
+        );
+    }
+    let mut offsets = catalog
+        .iter()
+        .map(|entry| entry.composed_offset())
+        .collect::<Vec<_>>();
+    offsets.sort_unstable();
+    assert_eq!(offsets, [16, 24]);
+    let (_, report, commitment) = realization.replayed_validated_application().unwrap();
+    assert_eq!(report, realization.report_fingerprint);
+    assert_eq!(commitment, realization.commitment);
 }
 
 #[test]
@@ -334,6 +607,19 @@ fn direct_callback_parameter_is_interleaved_without_a_source_runtime_argument() 
         .iter()
         .find(|signature| signature.name.as_str() == "install")
         .expect("HookRegistrar::install requirement");
+    let realization = checked
+        .boundary_calling_plan_realizations()
+        .iter()
+        .find(|realization| realization.requirement_machine == install.symbol)
+        .expect("direct callback registrar realization");
+    assert!(
+        realization
+            .materialized_signature()
+            .callback_layout_catalog()
+            .is_empty(),
+        "a native-only callback parameter cannot invent a plan-laid root or slot",
+    );
+    assert_eq!(realization.callback_demands.len(), 1);
     assert_eq!(
         checked.typed.state_signature_parameters(install).len(),
         2,
@@ -556,7 +842,7 @@ fn opaque_movement_retains_native_ordinal_after_direct_callback_insertion() {
         .iter()
         .find(|realization| {
             realization
-                .materialized_signature
+                .materialized_signature()
                 .opaque_representation_uses()
                 .iter()
                 .any(|representation| representation.opaque() == opaque.symbol)
@@ -566,7 +852,7 @@ fn opaque_movement_retains_native_ordinal_after_direct_callback_insertion() {
         })
         .expect("one closed registrar signature with its compiler-inserted callback");
     let representation = realization
-        .materialized_signature
+        .materialized_signature()
         .opaque_representation_uses()
         .iter()
         .find(|representation| representation.opaque() == opaque.symbol)
@@ -575,7 +861,7 @@ fn opaque_movement_retains_native_ordinal_after_direct_callback_insertion() {
         .replayed_validated_application()
         .expect("callback-interleaved opaque plan should replay exactly");
     let movement = realization
-        .materialized_signature
+        .materialized_signature()
         .opaque_representation_movement(representation, &validated)
         .expect("opaque occurrence must rejoin after direct callback insertion");
     assert!(matches!(
@@ -1254,7 +1540,7 @@ fn source_interrupt_policy_publishes_and_selects_the_complete_entry_plan() {
         .iter()
         .filter(|realization| {
             realization
-                .materialized_signature
+                .materialized_signature()
                 .opaque_representation_uses()
                 .iter()
                 .any(|use_| use_.opaque() == selection.opaque())
@@ -1266,7 +1552,7 @@ fn source_interrupt_policy_publishes_and_selects_the_complete_entry_plan() {
     );
     assert!(demanded_realizations.iter().all(|realization| {
         realization
-            .materialized_signature
+            .materialized_signature()
             .opaque_representation_uses()
             .iter()
             .filter(|use_| use_.opaque() == selection.opaque())
@@ -1274,7 +1560,7 @@ fn source_interrupt_policy_publishes_and_selects_the_complete_entry_plan() {
                 use_.conformance() == selection.application().declaration
                     && use_.carrier() == selection.carrier()
                     && usize::from(use_.shape_root())
-                        < realization.materialized_signature.shapes().len()
+                        < realization.materialized_signature().shapes().len()
                     && use_.application_report_fingerprint()
                         == selection.application().report_fingerprint
                     && use_.conformance_application_commitment()
@@ -1300,13 +1586,13 @@ fn source_interrupt_policy_publishes_and_selects_the_complete_entry_plan() {
             .replayed_validated_application()
             .expect("opaque boundary use must replay its exact validated plan");
         for representation in realization
-            .materialized_signature
+            .materialized_signature()
             .opaque_representation_uses()
             .iter()
             .filter(|use_| use_.opaque() == selection.opaque())
         {
             let movement = realization
-                .materialized_signature
+                .materialized_signature()
                 .opaque_representation_movement(representation, &validated)
                 .expect("opaque shape node must rejoin one exact ABI placement");
             assert!(matches!(
@@ -1686,13 +1972,13 @@ fn opaque_result_rejoins_its_exact_result_placement() {
             .replayed_validated_application()
             .expect("opaque result plan should replay exactly");
         for representation in realization
-            .materialized_signature
+            .materialized_signature()
             .opaque_representation_uses()
             .iter()
             .filter(|representation| representation.opaque() == selection.opaque())
         {
             let movement = realization
-                .materialized_signature
+                .materialized_signature()
                 .opaque_representation_movement(representation, &validated)
                 .expect("opaque result must rejoin one exact result placement");
             if movement.role() != BoundaryOpaqueRepresentationMovementRole::Result {
@@ -1701,7 +1987,7 @@ fn opaque_result_rejoins_its_exact_result_placement() {
             result_movements += 1;
             assert!(movement.path().is_empty());
             assert_eq!(
-                realization.materialized_signature.result(),
+                realization.materialized_signature().result(),
                 Some(representation.shape_root())
             );
             assert_eq!(movement.placement().shape.byte_size, 40);
@@ -1741,13 +2027,13 @@ fn nested_opaque_path_ignores_an_identically_shaped_ordinary_field() {
             .replayed_validated_application()
             .expect("nested opaque plan should replay exactly");
         for representation in realization
-            .materialized_signature
+            .materialized_signature()
             .opaque_representation_uses()
             .iter()
             .filter(|representation| representation.opaque() == selection.opaque())
         {
             let movement = realization
-                .materialized_signature
+                .materialized_signature()
                 .opaque_representation_movement(representation, &validated)
                 .expect("nested opaque must rejoin one exact parameter placement");
             if movement.path()
@@ -1766,10 +2052,10 @@ fn nested_opaque_path_ignores_an_identically_shaped_ordinary_field() {
             assert_eq!(movement.placement().shape.byte_size, 80);
             assert_eq!(movement.placement().shape.alignment, 8);
 
-            let [parameter_root] = realization.materialized_signature.parameters() else {
+            let [parameter_root] = realization.materialized_signature().parameters() else {
                 panic!("nested boundary should retain one semantic parameter")
             };
-            let root = realization.materialized_signature.shapes()[usize::from(*parameter_root)];
+            let root = realization.materialized_signature().shapes()[usize::from(*parameter_root)];
             let BoundaryValueClass::Record {
                 first_field,
                 field_count: 2,
@@ -1777,19 +2063,20 @@ fn nested_opaque_path_ignores_an_identically_shaped_ordinary_field() {
             else {
                 panic!("nested boundary parameter should remain a two-field record")
             };
-            let fields = &realization.materialized_signature.fields()
+            let fields = &realization.materialized_signature().fields()
                 [usize::from(first_field)..usize::from(first_field) + 2];
             let ordinary_root = fields[0].shape();
             let opaque_root = fields[1].shape();
             assert_eq!(opaque_root, representation.shape_root());
             assert_ne!(ordinary_root, representation.shape_root());
-            let ordinary = realization.materialized_signature.shapes()[usize::from(ordinary_root)];
-            let opaque = realization.materialized_signature.shapes()[usize::from(opaque_root)];
+            let ordinary =
+                realization.materialized_signature().shapes()[usize::from(ordinary_root)];
+            let opaque = realization.materialized_signature().shapes()[usize::from(opaque_root)];
             assert_eq!(ordinary.byte_size(), opaque.byte_size());
             assert_eq!(ordinary.alignment(), opaque.alignment());
             assert_eq!(
                 realization
-                    .materialized_signature
+                    .materialized_signature()
                     .opaque_representation_uses()
                     .iter()
                     .filter(|candidate| candidate.opaque() == selection.opaque())
@@ -1826,7 +2113,7 @@ fn repeated_opaque_values_rejoin_distinct_equal_layout_occurrences() {
         .iter()
         .find(|realization| {
             realization
-                .materialized_signature
+                .materialized_signature()
                 .opaque_representation_uses()
                 .iter()
                 .filter(|representation| representation.opaque() == selection.opaque())
@@ -1838,7 +2125,7 @@ fn repeated_opaque_values_rejoin_distinct_equal_layout_occurrences() {
         .replayed_validated_application()
         .expect("repeated opaque plan should replay exactly");
     let uses = realization
-        .materialized_signature
+        .materialized_signature()
         .opaque_representation_uses()
         .iter()
         .filter(|representation| representation.opaque() == selection.opaque())
@@ -1847,9 +2134,10 @@ fn repeated_opaque_values_rejoin_distinct_equal_layout_occurrences() {
         panic!("two exact repeated opaque markers")
     };
     assert_ne!(first.shape_root(), second.shape_root());
-    let first_shape = realization.materialized_signature.shapes()[usize::from(first.shape_root())];
+    let first_shape =
+        realization.materialized_signature().shapes()[usize::from(first.shape_root())];
     let second_shape =
-        realization.materialized_signature.shapes()[usize::from(second.shape_root())];
+        realization.materialized_signature().shapes()[usize::from(second.shape_root())];
     assert_eq!(first_shape.byte_size(), second_shape.byte_size());
     assert_eq!(first_shape.alignment(), second_shape.alignment());
 
@@ -1857,7 +2145,7 @@ fn repeated_opaque_values_rejoin_distinct_equal_layout_occurrences() {
         .iter()
         .map(|representation| {
             realization
-                .materialized_signature
+                .materialized_signature()
                 .opaque_representation_movement(representation, &validated)
                 .expect("each repeated marker must rejoin its own occurrence")
         })
@@ -1911,7 +2199,7 @@ fn distinct_opaque_values_with_equal_layout_retain_distinct_nominal_markers() {
         .find(|realization| {
             opaque_symbols.iter().all(|opaque| {
                 realization
-                    .materialized_signature
+                    .materialized_signature()
                     .opaque_representation_uses()
                     .iter()
                     .any(|representation| representation.opaque() == *opaque)
@@ -1923,7 +2211,7 @@ fn distinct_opaque_values_with_equal_layout_retain_distinct_nominal_markers() {
         .expect("equal-layout opaque plan should replay exactly");
     let uses = opaque_symbols.map(|opaque| {
         realization
-            .materialized_signature
+            .materialized_signature()
             .opaque_representation_uses()
             .iter()
             .find(|representation| representation.opaque() == opaque)
@@ -1933,13 +2221,13 @@ fn distinct_opaque_values_with_equal_layout_retain_distinct_nominal_markers() {
     assert_ne!(uses[0].carrier(), uses[1].carrier());
     assert_ne!(uses[0].shape_root(), uses[1].shape_root());
     let shapes = uses.map(|representation| {
-        realization.materialized_signature.shapes()[usize::from(representation.shape_root())]
+        realization.materialized_signature().shapes()[usize::from(representation.shape_root())]
     });
     assert_eq!(shapes[0].byte_size(), shapes[1].byte_size());
     assert_eq!(shapes[0].alignment(), shapes[1].alignment());
     let movements = uses.map(|representation| {
         realization
-            .materialized_signature
+            .materialized_signature()
             .opaque_representation_movement(representation, &validated)
             .expect("equal layout must not substitute one nominal marker for another")
     });
@@ -2064,7 +2352,7 @@ fn reference_only_opaque_boundary_retains_unused_selection_without_demanding_one
             .boundary_calling_plan_realizations()
             .iter()
             .all(|realization| realization
-                .materialized_signature
+                .materialized_signature()
                 .opaque_representation_uses()
                 .is_empty())
     );

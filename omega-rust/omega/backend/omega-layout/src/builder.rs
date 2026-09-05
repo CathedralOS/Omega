@@ -1746,6 +1746,7 @@ fn close_private_callback_demands(
         occupied_private.push((offset, end, demand.slot_identity.as_str()));
         closed.push(TargetClosedPrivateCallbackDemand {
             data_symbol: plan.data_symbol,
+            slot_application: demand.slot_application.clone(),
             slot_identity: demand.slot_identity.clone().into(),
             layout_subject_identity: demand.layout_subject_identity.clone().into(),
             callback_requirement_identity: demand.callback_requirement_identity.clone().into(),
@@ -1984,6 +1985,20 @@ mod tests {
                 align: 8,
             },
             private_callback_demands: vec![psi_layout_plans::PrivateCallbackLayoutDemandReport {
+                slot_application: psi_typed_trees::typed_trees::ClosedConformanceApplication {
+                    declaration: psi_symbols::SymbolHandle::from_arena_index(7),
+                    lifetime_arguments: Vec::new(),
+                    type_arguments: Vec::new(),
+                    const_arguments: Vec::new(),
+                    machine_arguments: Vec::new(),
+                    subject_identity: Some("package::Spread".to_owned()),
+                    trait_definition: psi_symbols::SymbolHandle::from_arena_index(8),
+                    trait_lifetime_arguments: Vec::new(),
+                    trait_arguments: vec!["package::WindowProcedure::call#exact".to_owned()],
+                    rows: Vec::new(),
+                    report_fingerprint: 0x91,
+                    commitment: psi_typed_trees::typed_trees::ClosedConformanceApplicationCommitment::from_digest([0x92; 32]),
+                },
                 slot_identity: "package::WndClassWindowProcedureSlot#exact".to_owned(),
                 layout_subject_identity: "package::Spread".to_owned(),
                 callback_requirement_identity: "package::WindowProcedure::call#exact".to_owned(),
@@ -2051,6 +2066,10 @@ mod tests {
             (8, 8, 8)
         );
         assert_eq!(
+            closed.slot_application,
+            valid.private_callback_demands[0].slot_application
+        );
+        assert_eq!(
             closed.requirement,
             omega_calling_conventions::callback_requirement_id(
                 "package::WindowProcedure::call#exact"
@@ -2066,6 +2085,36 @@ mod tests {
         .expect("another valid offset should close");
         assert_ne!(closed.layout, moved[0].layout);
         assert_ne!(closed.slot, moved[0].slot);
+        assert_eq!(closed.slot_application, moved[0].slot_application);
+
+        // Geometry/report coordinates do not replace exact retained selection.
+        // This fixture changes only custody to pin the compatibility report's
+        // deliberately unchanged inputs, not to claim application validation.
+        let mut changed_application = valid.clone();
+        changed_application.private_callback_demands[0]
+            .slot_application
+            .declaration = psi_symbols::SymbolHandle::from_arena_index(9);
+        changed_application.private_callback_demands[0]
+            .slot_application
+            .commitment =
+            psi_typed_trees::typed_trees::ClosedConformanceApplicationCommitment::from_digest(
+                [0x93; 32],
+            );
+        let changed = close_private_callback_demands(
+            &changed_application,
+            &fields,
+            target,
+            "package::Spread",
+        )
+        .expect("retaining application custody does not re-evaluate its declaration");
+        assert_eq!(closed.layout, changed[0].layout);
+        assert_eq!(closed.slot, changed[0].slot);
+        assert_eq!(closed.requirement, changed[0].requirement);
+        assert_ne!(closed.slot_application, changed[0].slot_application);
+        assert_eq!(
+            changed[0].slot_application,
+            changed_application.private_callback_demands[0].slot_application
+        );
 
         let unaligned = close_private_callback_demands(
             &private_callback_layout(9, 24),

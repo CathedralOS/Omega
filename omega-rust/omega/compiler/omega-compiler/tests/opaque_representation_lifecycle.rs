@@ -92,7 +92,7 @@ data Carrier { leaf: Leaf; bytes: [u8; 4]; }
             .boundary_calling_plan_realizations()
             .iter()
             .all(|realization| realization
-                .materialized_signature
+                .materialized_signature()
                 .opaque_representation_uses()
                 .is_empty()),
         "unused selection must not fabricate consumer demand"
@@ -160,7 +160,7 @@ data CopyCarrier [copy] { payloads: [CopyPayload; 2]; }
             .boundary_calling_plan_realizations()
             .iter()
             .all(|realization| realization
-                .materialized_signature
+                .materialized_signature()
                 .opaque_representation_uses()
                 .is_empty()),
         "an unused copy receipt must not fabricate consumer demand"

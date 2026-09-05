@@ -608,12 +608,15 @@ pub type ConventionalDepthTwentyThreeRecordSumPathsLayoutReport =
     ConventionalRecordSumPathsLayoutReport<ConventionalDepthTwentyTwoRecordSumPathsLayoutReport>;
 
 /// One normalized semantic-field-free callback destination in a native
-/// layout. Declaration identities are exact canonical strings rather than
-/// authored ordinals or arena handles. The authoritative layout policy owns
+/// layout. Canonical strings remain report coordinates; the retained slot
+/// application carries the producer's exact named selection. The payload is
+/// generic so this foundation does not depend on a later representation.
+/// The authoritative layout policy owns
 /// `offset`, but callback-address size/alignment close later with the selected
 /// target calling plan and are deliberately absent here.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct PrivateCallbackLayoutDemandReport {
+pub struct PrivateCallbackLayoutDemandReport<SlotApplication> {
+    pub slot_application: SlotApplication,
     pub slot_identity: String,
     pub layout_subject_identity: String,
     pub callback_requirement_identity: String,
@@ -622,9 +625,9 @@ pub struct PrivateCallbackLayoutDemandReport {
 
 /// One validated native layout and its compiler-private demand catalog.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct NativeLayoutPlanReport {
+pub struct NativeLayoutPlanReport<SlotApplication> {
     pub layout: LayoutPlanReport,
-    pub private_callback_demands: Vec<PrivateCallbackLayoutDemandReport>,
+    pub private_callback_demands: Vec<PrivateCallbackLayoutDemandReport<SlotApplication>>,
 }
 
 /// Deterministic compact report coordinate for one validated layout plan.
@@ -835,8 +838,12 @@ fn hash_optional_member_identity(hash: &mut u64, identity: Option<u64>, name: &s
 
 /// Compact report coordinate for a native layout including its private demands. The
 /// base layout remains independently reusable by semantic projection; private
-/// placement participates only in native-layout identity.
-pub fn normalized_native_layout_plan_report_fingerprint(layout: &NativeLayoutPlanReport) -> u64 {
+/// placement participates only in native-layout identity. Retained application
+/// custody is deliberately excluded from this existing compatibility report;
+/// consumers must join that exact payload independently of the compact value.
+pub fn normalized_native_layout_plan_report_fingerprint<SlotApplication>(
+    layout: &NativeLayoutPlanReport<SlotApplication>,
+) -> u64 {
     let mut demands = layout.private_callback_demands.iter().collect::<Vec<_>>();
     demands.sort_unstable_by(|left, right| {
         left.slot_identity

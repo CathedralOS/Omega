@@ -4,7 +4,10 @@
 //! module is the compiler-owned decoder that keeps that open policy surface
 //! behind the closed normalized-plan validator.
 
+mod callback_layout_catalog;
 mod opaque_representations;
+
+pub use callback_layout_catalog::{BoundaryCallbackInlineField, BoundaryCallbackLayoutEntry};
 
 pub use opaque_representations::{
     BoundaryOpaqueRepresentationMovement, BoundaryOpaqueRepresentationMovementRole,
@@ -83,12 +86,20 @@ pub struct MaterializedBoundarySignature {
     parameters: Vec<u16>,
     callback_binders: Vec<BoundaryCallbackBinder>,
     callback_demands: Vec<NativeCallbackDemand>,
+    callback_layout_catalog: Vec<BoundaryCallbackLayoutEntry>,
     native_parameters: Vec<BoundaryNativeParameter>,
     direct_callback_parameters: Vec<BoundaryDirectCallbackParameter>,
     result: Option<u16>,
 }
 
 impl MaterializedBoundarySignature {
+    /// Named layout-owned destinations in native-demand order. Direct callback
+    /// parameters have no layout field and therefore contribute no entry here.
+    /// Typed slot applications survive without retaining a complete LayoutPlan.
+    pub fn callback_layout_catalog(&self) -> &[BoundaryCallbackLayoutEntry] {
+        &self.callback_layout_catalog
+    }
+
     pub fn owner_requirement_identity(&self) -> &str {
         &self.owner_requirement_identity
     }
@@ -598,6 +609,7 @@ fn call_signature_from_top_level_requirement(
         parameters,
         callback_binders: Vec::new(),
         callback_demands: Vec::new(),
+        callback_layout_catalog: Vec::new(),
         native_parameters,
         direct_callback_parameters: Vec::new(),
         result,
@@ -721,12 +733,18 @@ pub struct BoundaryCallingPlanRealization {
     pub callback_demands: Vec<NativeCallbackDemand>,
     pub callback_context_closed: bool,
     pub native_parameters: Vec<BoundaryNativeParameter>,
-    pub materialized_signature: MaterializedBoundarySignature,
+    pub(crate) materialized_signature: MaterializedBoundarySignature,
     pub policy_machine: String,
     pub relationship_span: psi_source::SourceSpan,
 }
 
 impl BoundaryCallingPlanRealization {
+    /// The named layout catalog and ABI signature are published together.
+    /// Callers may inspect them but cannot substitute an unhashed catalog.
+    pub const fn materialized_signature(&self) -> &MaterializedBoundarySignature {
+        &self.materialized_signature
+    }
+
     pub const fn exact_boundary_entry_plan(&self) -> &BoundaryEntryPlan {
         &self.exact_boundary_entry_plan
     }
@@ -784,6 +802,10 @@ impl BoundaryCallingPlanRealization {
         ),
         omega_calling_conventions::PlanDiagnostic,
     > {
+        if self.callback_context_closed {
+            callback_layout_catalog::validate(&self.materialized_signature, &self.callback_demands)
+                .map_err(omega_calling_conventions::PlanDiagnostic)?;
+        }
         if self
             .materialized_signature
             .opaque_representations
@@ -1497,10 +1519,16 @@ pub fn close_outbound_callback_materializations(
 
     for realization in realizations {
         let mut signature = realization.materialized_signature.clone();
-        let mut demands =
-            close_direct_callback_parameters(&mut signature, native_target).map_err(|reason| {
+        let direct_demands = close_direct_callback_parameters(&mut signature, native_target)
+            .map_err(|reason| {
                 vec![Diagnostic::error(reason).with_source_span(realization.relationship_span)]
             })?;
+        // Keep each named catalog entry paired with its exact native demand
+        // through sorting. Equal compact IDs must never select a different row.
+        let mut demands = direct_demands
+            .into_iter()
+            .map(|demand| (demand, None))
+            .collect::<Vec<_>>();
         let binder_requirement_catalog =
             exact_callback_requirement_catalog(&checked.typed, &realization.callback_binders)
                 .map_err(|reason| {
@@ -1532,7 +1560,14 @@ pub fn close_outbound_callback_materializations(
                     demand.requirement,
                     demand.callback_requirement_identity.to_string(),
                 ));
-                demands.push(demand.native_demand(parameter.identity));
+                let entry = BoundaryCallbackLayoutEntry::direct(parameter, &layout_plan, demand)
+                    .map_err(|reason| {
+                        vec![
+                            Diagnostic::error(reason)
+                                .with_source_span(realization.relationship_span),
+                        ]
+                    })?;
+                demands.push((demand.native_demand(parameter.identity), Some(entry)));
             }
             for path in layout_plan
                 .two_hop_private_callback_paths
@@ -1560,7 +1595,14 @@ pub fn close_outbound_callback_materializations(
                         .callback_requirement_identity
                         .to_string(),
                 ));
-                demands.push(path.native_demand(parameter.identity));
+                let entry =
+                    BoundaryCallbackLayoutEntry::two_hop(parameter, path).map_err(|reason| {
+                        vec![
+                            Diagnostic::error(reason)
+                                .with_source_span(realization.relationship_span),
+                        ]
+                    })?;
+                demands.push((path.native_demand(parameter.identity), Some(entry)));
             }
         }
         if demands.is_empty() && realization.callback_binders.is_empty() {
@@ -1573,10 +1615,10 @@ pub fn close_outbound_callback_materializations(
             ))
             .with_source_span(realization.relationship_span)]);
         }
-        demands.sort_unstable_by(|left, right| left.destination.cmp(&right.destination));
+        demands.sort_unstable_by(|left, right| left.0.destination.cmp(&right.0.destination));
         if demands
             .windows(2)
-            .any(|pair| pair[0].destination == pair[1].destination)
+            .any(|pair| pair[0].0.destination == pair[1].0.destination)
         {
             return Err(vec![
                 Diagnostic::error(
@@ -1588,7 +1630,9 @@ pub fn close_outbound_callback_materializations(
 
         let old_report_fingerprint = realization.report_fingerprint;
         let old_commitment = realization.commitment;
+        let (demands, entries): (Vec<_>, Vec<_>) = demands.into_iter().unzip();
         signature.callback_demands = demands.clone();
+        signature.callback_layout_catalog = entries.into_iter().flatten().collect();
         let validated = evaluate_materialized_calling_policy_plan(
             &checked.typed,
             &admission,
@@ -2166,6 +2210,7 @@ fn call_signature_from_typed(
         parameters,
         callback_binders,
         callback_demands: Vec::new(),
+        callback_layout_catalog: Vec::new(),
         native_parameters,
         direct_callback_parameters,
         result,
@@ -2939,6 +2984,7 @@ pub fn materialized_boundary_signature_from_abi(
         parameters,
         callback_binders: Vec::new(),
         callback_demands: Vec::new(),
+        callback_layout_catalog: Vec::new(),
         native_parameters,
         direct_callback_parameters: Vec::new(),
         result,
@@ -4662,6 +4708,7 @@ mod tests {
             parameters: Vec::new(),
             callback_binders: vec![binder],
             callback_demands: vec![demand.clone()],
+            callback_layout_catalog: Vec::new(),
             native_parameters: Vec::new(),
             direct_callback_parameters: Vec::new(),
             result: None,
@@ -5030,12 +5077,27 @@ mod tests {
         let satisfaction_requirement = nominal_use.satisfaction_requirement;
         let realization = &mut realizations[1];
         let binder = StaticMachineBinderId::new(101).unwrap();
-        let requirement = CallbackRequirementId::new(103).unwrap();
-        let destination = NativePlace::Field {
-            parameter: NativeParameterId::new(107).unwrap(),
-            layout: LayoutPlanId::new(109).unwrap(),
-            field_path: vec![LayoutSlotId::new(113).unwrap()],
+        realization.materialized_signature = callback_layout_catalog::signature_fixture();
+        let demand = realization.materialized_signature.callback_demands[0].clone();
+        let requirement = demand.requirement;
+        let destination = demand.destination.clone();
+        let target = realization.materialized_signature.native_target;
+        let signature = CallSignature {
+            parameters: vec![ValueShape::integer(
+                u16::try_from(target.pointer_size).unwrap(),
+                u16::try_from(target.pointer_alignment).unwrap(),
+            )],
+            result: None,
         };
+        realization.boundary_entry_plan = evaluate_ordinary_boundary_entry_plan(
+            CallingPolicy::native_for_target(target),
+            &signature,
+        )
+        .unwrap()
+        .plan()
+        .clone();
+        realization.native_parameters =
+            realization.materialized_signature.native_parameters.clone();
         realization.callback_binders = vec![BoundaryCallbackBinder {
             binder,
             requirement,
@@ -5044,10 +5106,7 @@ mod tests {
             requirement_trait: satisfaction_trait,
             requirement_machine: satisfaction_requirement,
         }];
-        realization.callback_demands = vec![NativeCallbackDemand {
-            destination: destination.clone(),
-            requirement,
-        }];
+        realization.callback_demands = vec![demand];
         realization.callback_context_closed = true;
         realization
             .boundary_entry_plan
@@ -5056,7 +5115,6 @@ mod tests {
             binder,
             destination: destination.clone(),
         }];
-        let signature = CallSignature::default();
         let context = CallbackMaterializationContext {
             binders: vec![CallbackBinderRequirement {
                 binder,
@@ -5185,7 +5243,7 @@ mod tests {
         assert!(
             diagnostics[0]
                 .message
-                .contains("does not name a declared private native-place demand"),
+                .contains("callback layout catalog lost its exact ordered demand context"),
             "unexpected diagnostic: {:?}",
             diagnostics[0]
         );
@@ -5389,6 +5447,7 @@ mod tests {
             parameters: vec![1],
             callback_binders: Vec::new(),
             callback_demands: Vec::new(),
+            callback_layout_catalog: Vec::new(),
             native_parameters: Vec::new(),
             direct_callback_parameters: Vec::new(),
             result: None,
@@ -5434,6 +5493,7 @@ mod tests {
             parameters: vec![0, 1, 0],
             callback_binders: Vec::new(),
             callback_demands: Vec::new(),
+            callback_layout_catalog: Vec::new(),
             native_parameters: Vec::new(),
             direct_callback_parameters: Vec::new(),
             result: Some(1),

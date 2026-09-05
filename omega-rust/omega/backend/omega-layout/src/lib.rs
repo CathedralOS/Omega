@@ -322,6 +322,9 @@ pub struct MachineLayout {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TargetClosedPrivateCallbackDemand {
     pub data_symbol: SymbolHandle,
+    /// Exact named conformance application retained by Psi normalization.
+    /// Compact slot/layout identifiers do not replace this selection custody.
+    pub slot_application: psi_typed_trees::typed_trees::ClosedConformanceApplication,
     pub slot_identity: Arc<str>,
     pub layout_subject_identity: Arc<str>,
     pub callback_requirement_identity: Arc<str>,

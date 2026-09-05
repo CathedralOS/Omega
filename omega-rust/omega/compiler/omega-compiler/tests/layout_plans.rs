@@ -7,9 +7,12 @@
 //! compile error, never unsafety -- which is also why the policy's scratch
 //! arithmetic may honestly declare Wrapping: plan validation owns soundness.
 
+use omega_build_declarations::{BuildDeclaration, extract_build_declaration};
 use omega_compiler::{compile_to_checked, compile_to_checked_with_packages};
 use omega_layout::{DataShape, build_layout_plan};
-use omega_package_compilation::{PackageCompilationInputs, PackageSourceBinding};
+use omega_package_compilation::{
+    PackageCompilationInputs, PackageDependencyBinding, PackageSourceBinding,
+};
 use omega_target::NativeTarget;
 use psi_build_time_evaluation::{
     BuildTimeValue, compute_layout_plan, evaluate_and_materialize_typed_owned_layout_into,
@@ -48,6 +51,44 @@ fn package_inputs_for_source(source: &Path, digest_byte: u8) -> PackageCompilati
         Vec::new(),
     )
     .expect("test package inputs should validate")
+}
+
+/// The three hosted layout canaries declare this ordinary std dependency.
+/// Supply the explicit graph just as the repository canary harness does; the
+/// checked/layout-only tests do not issue provider acceptance or native code.
+fn package_inputs_with_standard_library(source: &Path) -> PackageCompilationInputs {
+    let root = source.parent().expect("canary project root");
+    let declaration = extract_build_declaration(root).expect("authored canary declaration");
+    let role = declaration.kind();
+    let name = match declaration {
+        BuildDeclaration::Application(application) => application.name,
+        BuildDeclaration::Package(package) => package.name,
+        BuildDeclaration::Workspace(_) => panic!("a layout canary is not a workspace root"),
+    };
+    let repository = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .ancestors()
+        .nth(4)
+        .expect("repository root");
+    let package = PackageKeyIdentity::from_digest([1; 32]).expect("canary identity");
+    let standard_library = PackageKeyIdentity::from_digest([2; 32]).expect("std identity");
+    PackageCompilationInputs::new(
+        package,
+        role,
+        vec![
+            PackageSourceBinding::new(package, name.into_string(), root.to_owned()),
+            PackageSourceBinding::new(
+                standard_library,
+                "omega-language-std",
+                repository.join("source/library/std"),
+            ),
+        ],
+        vec![PackageDependencyBinding::new(
+            package,
+            "omega_language_std",
+            standard_library,
+        )],
+    )
+    .expect("ordinary std dependency graph")
 }
 
 /// The vocabulary (mirrors source/library/core/layout.omg) + the CLayout
@@ -192,7 +233,12 @@ fn plan_laid_value_types_are_placed_by_their_plan() {
         .nth(4)
         .expect("compiler crate should live under omega-rust/omega/compiler/omega-compiler")
         .join("tests/omega/pass/layouts/runtime_plan_laid_value_field_exit/main.omg");
-    let mut checked = compile_to_checked(&canary, None).expect("plan-laid canary should compile");
+    let mut checked = compile_to_checked_with_packages(
+        &canary,
+        None,
+        package_inputs_with_standard_library(&canary),
+    )
+    .expect("plan-laid canary should compile");
 
     // The pipeline recorded the validated plan on the typed trees.
     assert_eq!(checked.typed.plan_laid_layouts.len(), 1);
@@ -444,6 +490,7 @@ fn plan_laid_private_callback_slot_retains_exact_target_neutral_demand() {
         panic!("the exact target-closed private callback demand should be published");
     };
     assert_eq!(closed_demand.data_symbol, recorded.data_symbol);
+    assert_eq!(closed_demand.slot_application, demand.slot_application);
     assert_eq!(closed_demand.offset, 8);
     assert_eq!(closed_demand.byte_size, 8);
     assert_eq!(closed_demand.alignment, 8);
@@ -543,11 +590,42 @@ fn target_closure_proves_one_inline_named_field_then_one_private_callback_slot()
         panic!("one exact root-field-child-slot path should close")
     };
     assert_eq!(path.root_layout.data_symbol, main_symbol);
+    assert_eq!(
+        path.root_layout.data_identity.as_ref(),
+        checked
+            .typed
+            .normalized_hermetic_symbol_identity(main_symbol)
+            .unwrap(),
+    );
     assert_eq!(path.field_symbol, main_field);
+    assert_eq!(
+        path.field_identity.as_ref(),
+        checked
+            .typed
+            .normalized_hermetic_symbol_identity(main_field)
+            .unwrap(),
+    );
     assert_eq!(path.child_layout.data_symbol, child.data_symbol);
     assert_eq!(path.field_relative_offset, 0);
     assert_eq!(path.field_extent, 16);
+    assert_eq!(path.field_alignment, 8);
+    assert_eq!(path.child_layout.physical.size, 16);
+    assert_eq!(path.child_layout.physical.alignment, 8);
+    assert_eq!(
+        path.terminal_demand.slot_application,
+        child.private_callback_demands[0].slot_application
+    );
+    assert_eq!(
+        path.terminal_demand.slot_identity.as_ref(),
+        child.private_callback_demands[0].slot_identity
+    );
+    assert_eq!(
+        path.terminal_demand.callback_requirement_identity.as_ref(),
+        child.private_callback_demands[0].callback_requirement_identity
+    );
     assert_eq!(path.terminal_demand.offset, 8);
+    assert_eq!(path.terminal_demand.byte_size, 8);
+    assert_eq!(path.terminal_demand.alignment, 8);
     assert_eq!(path.composed_offset, 8);
     assert_ne!(path.root_layout.layout, path.child_layout.layout);
     let demand = path.native_demand(omega_calling_conventions::NativeParameterId::new(1).unwrap());
@@ -740,7 +818,12 @@ fn plan_laid_compact_bits_retain_validated_fragment_geometry() {
         .nth(4)
         .expect("compiler crate should live under omega-rust/omega/compiler/omega-compiler")
         .join("tests/omega/pass/layouts/runtime_plan_laid_compact_bits_exit/main.omg");
-    let checked = compile_to_checked(&canary, None).expect("compact-bit canary should compile");
+    let checked = compile_to_checked_with_packages(
+        &canary,
+        None,
+        package_inputs_with_standard_library(&canary),
+    )
+    .expect("compact-bit canary should compile");
 
     assert_eq!(checked.typed.plan_laid_layouts.len(), 1);
     let recorded = &checked.typed.plan_laid_layouts[0];
@@ -2675,8 +2758,12 @@ fn integer_at_retains_total_write_evidence_for_a_bounded_carrier() {
         .nth(4)
         .expect("compiler crate should live below the repository root")
         .join("tests/omega/pass/layouts/runtime_plan_laid_integer_at_total_write_exit/main.omg");
-    let mut checked =
-        compile_to_checked(&canary, None).expect("total-write canary should typecheck");
+    let mut checked = compile_to_checked_with_packages(
+        &canary,
+        None,
+        package_inputs_with_standard_library(&canary),
+    )
+    .expect("total-write canary should typecheck");
     let recorded_index = checked
         .typed
         .plan_laid_layouts

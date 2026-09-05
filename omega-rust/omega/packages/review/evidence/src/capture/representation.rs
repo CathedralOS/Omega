@@ -151,7 +151,7 @@ pub(crate) fn project_representation_tcb(
 
     for realization in compilation.boundary_calling_plan_realizations() {
         let uses = realization
-            .materialized_signature
+            .materialized_signature()
             .opaque_representation_uses();
         if uses.is_empty() {
             continue;
@@ -176,7 +176,7 @@ pub(crate) fn project_representation_tcb(
             )
             .with_source_span(realization.relationship_span)]);
         }
-        if realization.materialized_signature.native_target()
+        if realization.materialized_signature().native_target()
             != compilation.selected_native_target().ok_or_else(|| {
                 vec![Diagnostic::error(
                     "representation demand has no selected native target",
@@ -198,7 +198,7 @@ pub(crate) fn project_representation_tcb(
             .map(|argument| review_type_identity_with_binders(compilation, *argument, &[]))
             .collect::<Result<Vec<_>, _>>()?;
         let requirement = nominal_identity(compilation, realization.requirement_machine)?;
-        let shape_graph = project_boundary_shape_graph(&realization.materialized_signature);
+        let shape_graph = project_boundary_shape_graph(realization.materialized_signature());
         let calling_policy = project_calling_policy(validated.plan().call.policy);
 
         let mut opaque_symbols = uses
@@ -253,7 +253,7 @@ pub(crate) fn project_representation_tcb(
                 .into_iter()
                 .map(|representation| {
                     let movement = realization
-                        .materialized_signature
+                        .materialized_signature()
                         .opaque_representation_movement(representation, &validated)
                         .map_err(|reason| {
                             vec![Diagnostic::error(format!(
@@ -354,7 +354,7 @@ pub(crate) fn project_representation_tcb(
                         boundary_arguments: boundary_arguments.clone(),
                         requirement: requirement.clone(),
                         requirement_identity: realization
-                            .materialized_signature
+                            .materialized_signature()
                             .owner_requirement_identity()
                             .to_owned(),
                         target,

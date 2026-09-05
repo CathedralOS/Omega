@@ -321,7 +321,7 @@ fn callback_closed_external_binding_rows(
             .iter()
             .filter(|realization| {
                 realization
-                    .materialized_signature
+                    .materialized_signature()
                     .owner_requirement_identity()
                     == requirement
                     && realization.callback_context_closed
