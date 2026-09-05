@@ -161,8 +161,9 @@ omega <install|update> --discard-review
 These commands exist, including named Git workspace selection, selective pins,
 per-target review, and recoverable publication. See the
 [command README](../../omega-rust/omega/packages/manager/src/operations/package_commands/README.md)
-for options and limitations. Source-code diff integration and graph/authority
-inspection remain on the task board; optional offline/model wiring is separate.
+for options and limitations. Source-code diffs are separate command output;
+cache-only recovery of changed local baselines and graph/authority inspection
+remain on the task board. Optional offline/model wiring is separate.
 Local canaries do not substitute for actual remote acceptance tests.
 
 ## Test packages

@@ -37,7 +37,8 @@ per-target review files, `--resume`, and recoverable publication. Start at the
 [command operation](manager/src/operations/package_commands/README.md) for usage
 and its source map. The [task board](../../../TASKS_PACKAGE_MANAGER.md) contains
 only remaining work, with offline and model wiring separate from required
-integration. Install can select a
+integration. Source-code diffs are separate from editable capability decisions;
+changed local baselines still lack cache-only recovery. Install can select a
 Git workspace member with `--package <declared-name>`; its declared name still
 supplies the default import alias.
 
@@ -52,6 +53,9 @@ to the application's own source. Changed dependency declarations or local
 dependency contents require `omega update`. Compiler admission policy lives in
 `omega.admissions`, separately from package pins; `--accept-admissions` cannot
 replace the package lock.
+
+`omega --check` uses scoped package checking, including dependency-generated
+sources, and reports the retained checked root without another build execution.
 
 Native compilation uses a separate manager admission and compiler handoff
 path. Its proof, reachability, ABI, and artifact checks are not an additional

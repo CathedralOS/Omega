@@ -2,8 +2,12 @@
 
 #[path = "package_commands/fixture.rs"]
 mod fixture;
+#[path = "package_commands/generated.rs"]
+mod generated;
 #[path = "package_commands/remote.rs"]
 mod remote;
+#[path = "package_commands/workspace.rs"]
+mod workspace;
 
 use fixture::{Fixture, assert_status};
 

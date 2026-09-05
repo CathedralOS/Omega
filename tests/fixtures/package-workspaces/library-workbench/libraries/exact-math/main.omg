@@ -1,0 +1,5 @@
+use integer_constants::main;
+
+pub machine workspace_value() -> u64 {
+    default_value()
+}

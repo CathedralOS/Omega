@@ -14,7 +14,7 @@ mbx test -p package-manager --test remote_fixtures -- --ignored --test-threads=1
 | Package | Repository | Exact commit |
 | --- | --- | --- |
 | `arithmetic-kernels` | `https://github.com/CathedralOS/arithmetic-kernels` | `b65cc9b062f69ef02a586c82cd260d51bf28945c` |
-| `generated-table` | `https://github.com/CathedralOS/generated-table` | `2d92ebb735a6e4f9072db21e5677b0d6bf80bd4e` |
+| `generated-table` | `https://github.com/CathedralOS/generated-table` | `cc5fc1addda6aa565f254ad2e002d9e0be189fd4` |
 | `file-journal` | `https://github.com/CathedralOS/file-journal` | `deea7b84b13cf6e1b67868f314d0e5dbdb9ff20e` |
 | `process-exit` | `https://github.com/CathedralOS/process-exit` | `066585cfd952b6251780bdfdbdf17ca0e970b07e` |
 | `network-overreach` | `https://github.com/CathedralOS/network-overreach` | `d0fe2b00c2485700ace9242114bfa8c8e4a6c526` |
@@ -40,5 +40,26 @@ mbx test -p omega --test package_commands remote::pinned_https -- --ignored --te
 
 These tests install the baseline, update to the candidate, repeat that exact
 update, and compile an import through the default alias. The remaining remote
-mirrors still need their own syntax/content refresh; refreshing arithmetic does
+mirrors still need their own syntax/content refresh; refreshing two fixtures does
 not establish that the full remote-fixture matrix passes.
+
+## Named workspace
+
+`library-workbench` is a workspace catalog rather than an importable root
+package. Its selected `exact-math` member depends on `integer-constants` in
+the same repository. The update changes the latter's implementation; both
+reachable members must move together while unrelated repositories stay pinned.
+
+| Repository | Selected package | Baseline commit | Candidate commit |
+| --- | --- | --- | --- |
+| `https://github.com/CathedralOS/library-workbench` | `exact-math` | `f487125e6fc58d01a2b584424ac5194cdff4f810` | `664d771bbb851201807532e9ed8c444639f65c8f` |
+
+The [local workspace mirror](../package-workspaces/library-workbench/README.md)
+matches the candidate. Actual command canaries:
+
+```text
+mbx test -p omega --test package_commands workspace::pinned_ssh -- --ignored --test-threads=1
+mbx test -p omega --test package_commands generated::pinned_ssh -- --ignored --test-threads=1
+```
+
+Each also has an independent `pinned_https` variant requiring HTTPS credentials.

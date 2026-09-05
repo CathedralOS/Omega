@@ -1,0 +1,4 @@
+machine build(builder: &mut Build) {
+    builder.package("exact-math");
+    builder.depend(Source::Path { location: "../integer-constants" });
+}

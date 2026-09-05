@@ -3959,9 +3959,14 @@ Missing lock state gives a fresh complete-graph review through unselected
 `omega update`; selected updates need the accepted graph to identify their
 selection. Unsupported formats reject with recovery guidance before any
 selector refresh. Retained baselines support policy comparison without an old
-checkout. Commands currently do not load old source or render a code diff;
-they say so and recommend standalone candidate audit or obtaining that diff
-separately. No advisory service is needed to resolve compiler findings.
+checkout. Commands write a separate `build/package-manager/source-diff.txt`.
+They recover exact old Git commits without refreshing selectors, reuse matching
+source, and capture an unchanged live root when it matches the accepted pin.
+Changed local baselines do not yet have cache-only recovery. Missing old source
+or bounded-rendering failure is reported explicitly without suppressing policy
+comparison. New packages have candidate source, not a fabricated previous version.
+Source text never enters editable capability decisions, and resume regenerates
+the source document. No advisory service is needed to resolve compiler findings.
 
 Ordinary `prepare_local_project_for_target` selects the accepted target before
 acquisition and preserves dependency pins. The mutable local application root
@@ -3971,6 +3976,13 @@ local dependency content require an update. This is distinct from strict
 whole-closure lock recovery. Local root identity remains tied to the canonical
 path, so moving a checkout requires fresh reconciliation rather than silently
 rewriting its accepted identity.
+
+`omega --check` uses scoped candidate checking for a prepared project, including
+dependency-generated source and final semantic-binding discovery. It retains
+the selected root's checked result, disposes staging, and reports ordinary trust
+settlement without rerunning its build or entering native admission. Package
+and application roots may be checked; native production keeps its separate
+application-root requirement. The requested source entry remains explicit.
 
 `publish_reviewed_package_change` joins the staged build edit with all reviewed
 target sections and their exact decisions. It checks original file bytes,
