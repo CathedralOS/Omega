@@ -23,6 +23,8 @@ use std::path::{Path, PathBuf};
 
 #[path = "package_policy_changes/authority.rs"]
 mod authority;
+#[path = "package_policy_changes/decisions.rs"]
+mod decisions;
 #[path = "package_policy_changes/fixtures.rs"]
 mod fixtures;
 #[path = "package_policy_changes/graph.rs"]

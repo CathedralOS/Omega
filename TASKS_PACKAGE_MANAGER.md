@@ -80,6 +80,11 @@ adding machinery; do not invent proof-of-review or host-security requirements.
   rows, including removals; package-name/source replacement is explicit.
   Initial dangerous authority and accepted assumptions require review.
   Ordinary initial API rows have no previous compatibility contract.
+  Integrate complete-policy row/root-role decisions and their persisted review
+  input. Add exact dependency-selection/source-replacement findings even when
+  no independent policy row changed; do not infer replacement from equal names
+  or treat every revision/alias change as a replacement. Retain removed-package
+  decisions without indexing them into the candidate-only lock graph.
   Recheck candidate identity and project-file versions before committing.
   Acceptance: unresolved/stale decisions and concurrent edits leave the
   previously accepted project state intact; interruption cannot leave

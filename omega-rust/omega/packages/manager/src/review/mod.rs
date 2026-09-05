@@ -47,11 +47,13 @@ pub use compare::{
     compare_review_only_capabilities, compare_review_only_initial_capabilities,
 };
 pub use decision::{
-    ReviewOnlyRootPolicyDecision, ReviewOnlyRootPolicyDirectory, ReviewOnlyRootPolicyDisposition,
-    ReviewOnlyRootPolicyFileError, ReviewOnlyRootPolicyName, ReviewOnlyRootPolicyNameError,
-    ReviewOnlyRootPolicyRecordError, ReviewOnlyRootPolicyRecordLimits,
-    ReviewOnlyRootPolicyResolution, ReviewOnlyRootPolicyResolutionCommitment,
-    ReviewOnlyRootPolicyResolutionError, recover_review_only_root_policy_resolution,
+    PackagePolicyDecision, PackagePolicyDecisionError, PackagePolicyDecisionSubject,
+    PackagePolicyResolution, ReviewOnlyRootPolicyDecision, ReviewOnlyRootPolicyDirectory,
+    ReviewOnlyRootPolicyDisposition, ReviewOnlyRootPolicyFileError, ReviewOnlyRootPolicyName,
+    ReviewOnlyRootPolicyNameError, ReviewOnlyRootPolicyRecordError,
+    ReviewOnlyRootPolicyRecordLimits, ReviewOnlyRootPolicyResolution,
+    ReviewOnlyRootPolicyResolutionCommitment, ReviewOnlyRootPolicyResolutionError,
+    recover_review_only_root_policy_resolution, resolve_package_policy_decisions,
     resolve_review_only_root_policy_decisions,
 };
 pub use reconstruction::{
