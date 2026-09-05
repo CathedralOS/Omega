@@ -1,1 +1,0 @@
-cannot prove return value `exit_count + 1` satisfies bounded return type

@@ -8,8 +8,8 @@
 use omega::language::std::console;
 data Desc { a: u32; b: u32; }
 data Main { console: Console; buf: [u8; 16]; }
-machine Main::main(&mut self) {
-    transition { _ -> read(0) }
+machine Main::main(&mut self, offset: u32) {
+    transition { _ -> read(offset) }
     state read(&mut self, off: u32) {
         let d: &Desc = &self.buf[off] as &Desc;
         transition { _ -> yes() }

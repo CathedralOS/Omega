@@ -1,0 +1,29 @@
+data Main {
+}
+
+machine Main::main(
+    &mut self,
+    level: u32 [1..=10],
+    xp: u32 [0..=1000]
+) -> u32 [0..=1000] {
+    transition xp >= cost(level) {
+        true -> spend(level, xp)
+        false -> (xp)
+    }
+
+    state spend(
+        &mut self,
+        level: u32 [1..=10],
+        xp: u32 [0..=1000]
+    ) -> u32 [0..=1000]
+    requires xp >= cost(level)
+    {
+        xp - cost(level)
+    }
+}
+
+machine cost(
+    level: u32 [1..=10]
+) -> u32 [15..=60] {
+    10 + level * 5
+}

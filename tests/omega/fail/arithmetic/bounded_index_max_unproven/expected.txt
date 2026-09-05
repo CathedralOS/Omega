@@ -1,1 +1,1 @@
-cannot prove return value `max(room_count, index + 1)` satisfies bounded return type
+terminal expression returns a value not provably within its declared range

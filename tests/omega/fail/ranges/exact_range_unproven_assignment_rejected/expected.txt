@@ -1,1 +1,1 @@
-stores a value not provably within its declared range
+cannot prove assignment value `self.source` satisfies bounded target `self.index`
