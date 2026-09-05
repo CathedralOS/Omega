@@ -1,4 +1,5 @@
 //! Optimizer module role: stage group.
+mod text_placement_checks;
 use std::collections::BTreeSet;
 
 use omega_abstract_operations::{AbstractOperation, ValueBinding};

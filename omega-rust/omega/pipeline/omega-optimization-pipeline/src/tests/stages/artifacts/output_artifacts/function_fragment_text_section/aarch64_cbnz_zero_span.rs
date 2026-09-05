@@ -30,6 +30,7 @@ fn relocation_free_cbnz_text_section_preserves_zero_span_and_alignment() {
     )
     .unwrap();
     let mut placed = stage_optimized_relocation_free_text_section(emitted).unwrap();
+    crate::tests::text_placement_checks::direct(&placed);
     let section = placed.text_section();
     assert_eq!(section.section_alignment, 4);
     assert_eq!(section.byte_count % 4, 0);

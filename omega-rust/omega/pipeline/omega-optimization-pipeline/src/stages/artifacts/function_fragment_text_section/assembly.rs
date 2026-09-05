@@ -103,7 +103,7 @@ fn manifest(
     Ok(ValidatedFunctionFragmentTextSectionManifest { record })
 }
 
-fn statistics(
+pub(super) fn statistics(
     section: &RelocationFreeTextSectionPlacement,
     fragments: &FunctionFragmentEmissionPlan,
 ) -> Result<FunctionFragmentTextSectionStatistics, RelocationFreeTextSectionPlacementError> {

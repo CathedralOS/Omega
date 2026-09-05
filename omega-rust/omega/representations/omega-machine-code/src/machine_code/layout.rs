@@ -11,6 +11,7 @@ pub mod identity;
 pub mod policy;
 pub mod program;
 pub mod structural;
+pub mod text_section;
 
 pub use control_flow::*;
 pub use evidence::*;
@@ -19,6 +20,7 @@ pub use identity::{ResolvedSelectedFormLayoutIdentity, resolved_machine_layout_i
 pub use policy::*;
 pub use program::ResolvedMachineProgram;
 pub use structural::*;
+pub use text_section::*;
 
 use omega_physical_instructions::PostAllocationMachineOptimizationCustody;
 use omega_target::NativeTarget;

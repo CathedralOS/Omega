@@ -1065,6 +1065,7 @@ version = "0.1.0"
 dependencies = [
  "omega-core",
  "omega-function-identity",
+ "omega-machine-code",
  "omega-optimization-core",
  "omega-selected-instructions",
  "omega-target",

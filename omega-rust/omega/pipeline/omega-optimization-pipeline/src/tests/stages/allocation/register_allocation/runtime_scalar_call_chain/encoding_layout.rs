@@ -483,6 +483,7 @@ fn target_owned_unresolved_call_templates_survive_layout_on_both_isas() {
         assert_eq!(applied.receipt().framed_function_count(), 1);
         let frame_application = applied.receipt().identity();
         let mut text = stage_optimized_fixed_frame_text_section(applied).unwrap();
+        crate::tests::text_placement_checks::fixed(&text);
         validate_optimized_fixed_frame_text_section(&text).unwrap();
         assert_eq!(
             text.manifest().record().source_custody,

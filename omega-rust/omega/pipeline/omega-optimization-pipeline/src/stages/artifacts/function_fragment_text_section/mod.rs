@@ -2,7 +2,7 @@
 //!
 //! This entrance owns the stage/validation join. Data and custody live in
 //! `model` and `carriers`; canonical serialization lives in
-//! `manifest_codec`; `placement` resolves fragment spans and internal calls;
+//! `manifest_codec`; `placement` admits inputs for the machine-emission backend;
 //! and `assembly` seals the resulting manifest and statistics.
 
 mod assembly;
@@ -37,7 +37,7 @@ pub fn stage_optimized_relocation_free_text_section(
     let custody = receipt(&manifest, &text_section);
     let staged = StagedOptimizedRelocationFreeTextSection {
         source,
-        text_section: Box::new(text_section),
+        text_section: std::sync::Arc::new(text_section),
         manifest,
         custody,
     };
@@ -57,7 +57,7 @@ pub fn stage_optimized_fixed_frame_text_section(
     let custody = fixed_frame_receipt(&source, &manifest, &text_section);
     let staged = StagedOptimizedFixedFrameTextSection {
         source,
-        text_section: Box::new(text_section),
+        text_section: std::sync::Arc::new(text_section),
         manifest,
         custody,
     };

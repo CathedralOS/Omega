@@ -4,8 +4,9 @@
 //! The first lane is mutable and arena-backed: `ObjectPlan` and
 //! `RelocationPlan`, which the image builders consume and which serializes as
 //! the OMGOBJ container. The second is immutable and SHA-256-identified:
-//! `RelocationFreeTextSectionPlacement` and `RelocationFreeObjectPlan`,
-//! serializing as OMGTRO, which is what the optimization pipeline consumes.
+//! `RelocationFreeObjectPlan`, serializing as OMGTRO, which is what the
+//! optimization pipeline consumes. Its input `RelocationFreeTextSectionPlacement`
+//! is machine-code representation data, re-exported here for existing consumers.
 //! They are not two views of one thing and must not be merged.
 //!
 //! Both headers are 44 bytes, which is a coincidence and not a shared design:
@@ -30,10 +31,10 @@
 //!
 //! Tag tables are 1-based so that a zero byte is never a valid discriminant -
 //! architecture, object format, symbol kind, section kind, relocation kind,
-//! relocation origin. `MachineAlternativeFamily` in
-//! `relocation_free_text_section.rs` is the one exception, running
+//! relocation origin. The separate machine-code text-section identity's
+//! `MachineAlternativeFamily` table is zero-based, running
 //! `CompareI64Zero = 0` through `CallI64 = 13`. A zero byte is a legal family
-//! tag there and an invalid tag in every other table in the crate.
+//! tag there and an invalid tag in these object-format tables.
 //!
 //! `validate_relocation_free_object` admits four of the six architecture and
 //! object-format combinations - Aarch64 with Elf or MachO, X86_64 with Elf or
@@ -42,8 +43,9 @@
 //! `NonCanonicalTarget`.
 
 //! The architecture and object-format tag mappings are written out three times:
-//! as `u32` in `container/ids.rs`, and as `u8` in `encode_target` in each of the
-//! two relocation-free files. A shared `to_tag()` on the enums is the obvious
+//! as `u32` in `container/ids.rs`, as `u8` in the relocation-free object codec,
+//! and in the machine-code representation's text-section identity. A shared
+//! `to_tag()` on the enums is the obvious
 //! cleanup and would be wrong. These are three independently versioned wire
 //! formats - OMGOBJ v6, OMGTRO v1, and the v3 text-section hash schema - so one
 //! shared table means a change made for one format silently changes the other

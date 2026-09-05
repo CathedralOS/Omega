@@ -31,6 +31,7 @@ fn relocation_free_rel8_text_section_replays_bytes_manifest_and_custody() {
     let source_fragments = emitted.fragments().identity;
     let source_bytes = emitted.fragments().functions[0].bytes.clone();
     let mut placed = stage_optimized_relocation_free_text_section(emitted).unwrap();
+    crate::tests::text_placement_checks::direct(&placed);
 
     assert_eq!(
         validate_optimized_relocation_free_text_section(&placed).unwrap(),
@@ -139,4 +140,9 @@ fn relocation_free_rel8_text_section_replays_bytes_manifest_and_custody() {
         validate_optimized_relocation_free_text_section(&placed),
         Err(RelocationFreeTextSectionPlacementError::ReceiptMismatch)
     );
+    let current = placed.shared_text_section();
+    let identity = current.identity;
+    drop(placed);
+    assert_eq!(current.recomputed_identity(), identity);
+    assert_eq!(current.bytes, source_bytes);
 }

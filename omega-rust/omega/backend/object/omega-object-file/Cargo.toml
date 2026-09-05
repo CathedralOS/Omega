@@ -9,6 +9,7 @@ name = "omega_object_file"
 path = "src/lib.rs"
 
 [dependencies]
+omega-machine-code = { path = "../../../representations/omega-machine-code" }
 omega-core = { path = "../../../representations/omega-core" }
 omega-function-identity = { path = "../../../representations/omega-function-identity" }
 omega-optimization-core = { path = "../../../representations/omega-optimization-core" }

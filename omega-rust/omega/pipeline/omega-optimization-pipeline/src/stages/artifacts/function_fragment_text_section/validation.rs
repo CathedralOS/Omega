@@ -1,14 +1,17 @@
 //! Independent replay for direct and fixed-frame text-section artifacts.
 
+mod manifest_fields;
+
 use crate::{
     validate_function_fragment_frame_application, validate_optimized_function_fragment_emission,
 };
 
 use super::{
+    FunctionFragmentTextSectionSourceCustody as Custody, FunctionFragmentTextSectionStage as Stage,
     RelocationFreeTextSectionPlacementError, StagedFixedFrameTextSectionCustodyReceipt,
     StagedOptimizedFixedFrameTextSection, StagedOptimizedRelocationFreeTextSection,
     StagedRelocationFreeTextSectionCustodyReceipt,
-    assembly::{compute, compute_fixed_frame, fixed_frame_receipt, receipt},
+    assembly::{fixed_frame_receipt, receipt},
 };
 
 pub fn validate_optimized_fixed_frame_text_section(
@@ -16,17 +19,22 @@ pub fn validate_optimized_fixed_frame_text_section(
 ) -> Result<StagedFixedFrameTextSectionCustodyReceipt, RelocationFreeTextSectionPlacementError> {
     validate_function_fragment_frame_application(&staged.source)
         .map_err(RelocationFreeTextSectionPlacementError::FrameSource)?;
-    let (expected_section, expected_manifest) = compute_fixed_frame(&staged.source)?;
-    if staged.text_section.recomputed_identity() != staged.text_section.identity
-        || staged.text_section.as_ref() != &expected_section
-    {
-        return Err(RelocationFreeTextSectionPlacementError::ArtifactMismatch);
-    }
-    if staged.manifest != expected_manifest {
-        return Err(RelocationFreeTextSectionPlacementError::ManifestMismatch);
-    }
+    omega_machine_emission::validate_fragment_text_section(
+        omega_machine_emission::TextPlacementInput::InternalCalls(staged.source.fragments()),
+        &staged.text_section,
+    )?;
+    manifest_fields::check(
+        staged.source.source().manifest().record(),
+        Stage::ValidatedFixedFrameInternalCallTextSectionPlacementV1,
+        Custody::FixedFrameApplicationV1 {
+            application: staged.source.receipt().identity(),
+        },
+        &staged.text_section,
+        staged.source.fragments(),
+        staged.manifest.record(),
+    )?;
     let expected_receipt =
-        fixed_frame_receipt(&staged.source, &expected_manifest, &expected_section);
+        fixed_frame_receipt(&staged.source, &staged.manifest, &staged.text_section);
     if staged.custody != expected_receipt {
         return Err(RelocationFreeTextSectionPlacementError::ReceiptMismatch);
     }
@@ -39,16 +47,19 @@ pub fn validate_optimized_relocation_free_text_section(
 {
     validate_optimized_function_fragment_emission(&staged.source)
         .map_err(RelocationFreeTextSectionPlacementError::Source)?;
-    let (expected_section, expected_manifest) = compute(&staged.source)?;
-    if staged.text_section.recomputed_identity() != staged.text_section.identity
-        || staged.text_section.as_ref() != &expected_section
-    {
-        return Err(RelocationFreeTextSectionPlacementError::ArtifactMismatch);
-    }
-    if staged.manifest != expected_manifest {
-        return Err(RelocationFreeTextSectionPlacementError::ManifestMismatch);
-    }
-    let expected_receipt = receipt(&expected_manifest, &expected_section);
+    omega_machine_emission::validate_fragment_text_section(
+        super::placement::input(&staged.source)?,
+        &staged.text_section,
+    )?;
+    manifest_fields::check(
+        staged.source.manifest().record(),
+        Stage::ValidatedRelocationFreeTextSectionPlacementV1,
+        Custody::DirectFragmentEmissionV1,
+        &staged.text_section,
+        staged.source.fragments(),
+        staged.manifest.record(),
+    )?;
+    let expected_receipt = receipt(&staged.manifest, &staged.text_section);
     if staged.custody != expected_receipt {
         return Err(RelocationFreeTextSectionPlacementError::ReceiptMismatch);
     }

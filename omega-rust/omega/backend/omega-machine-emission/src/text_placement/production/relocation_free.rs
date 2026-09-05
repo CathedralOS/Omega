@@ -1,23 +1,23 @@
 pub(super) mod alignment;
 pub(super) mod block_spans;
-mod relocation_custody;
+use super::super::source::relocation as relocation_custody;
 
 use std::collections::BTreeSet;
 
 use omega_machine_code::FunctionFragmentEmissionPlan;
-use omega_object_file::{
+use omega_machine_code::{
     PlacedFunctionFragment, RelocationFreeTextSectionPlacement, TextSectionPlacementPolicy,
     TextSectionRelocationRequirements,
 };
 use omega_optimization_core::TerminalRelocationFreeTextSectionIdentity;
 use omega_target::Architecture;
 
-use super::super::RelocationFreeTextSectionPlacementError;
+use super::super::TextPlacementError;
 use super::conversion::usize_to_u64;
 
-pub(super) fn place(
+pub(in crate::text_placement) fn place(
     fragments: &FunctionFragmentEmissionPlan,
-) -> Result<RelocationFreeTextSectionPlacement, RelocationFreeTextSectionPlacementError> {
+) -> Result<RelocationFreeTextSectionPlacement, TextPlacementError> {
     let section_alignment = match fragments.target.architecture {
         Architecture::Aarch64 => 4,
         Architecture::X86_64 => 1,
@@ -29,17 +29,13 @@ pub(super) fn place(
 
     for (source_function_index, function) in fragments.functions.iter().enumerate() {
         if !seen_machines.insert(function.machine) {
-            return Err(RelocationFreeTextSectionPlacementError::DuplicateFunction(
-                function.machine,
-            ));
+            return Err(TextPlacementError::DuplicateFunction(function.machine));
         }
         let section_offset = usize_to_u64(bytes.len())?;
         if function.machine == fragments.entry
             && semantic_entry_offset.replace(section_offset).is_some()
         {
-            return Err(
-                RelocationFreeTextSectionPlacementError::DuplicateSemanticEntry(fragments.entry),
-            );
+            return Err(TextPlacementError::DuplicateSemanticEntry(fragments.entry));
         }
         alignment::validate(
             fragments.target.architecture,
@@ -51,7 +47,7 @@ pub(super) fn place(
         let function_start = bytes.len();
         bytes.extend_from_slice(&function.bytes);
         if usize_to_u64(bytes.len().saturating_sub(function_start))? != function.byte_count {
-            return Err(RelocationFreeTextSectionPlacementError::SourceShapeMismatch);
+            return Err(TextPlacementError::SourceShapeMismatch);
         }
         functions.push(PlacedFunctionFragment {
             source_function_index: usize_to_u64(source_function_index)?,
@@ -62,8 +58,8 @@ pub(super) fn place(
         });
     }
 
-    let semantic_entry_offset = semantic_entry_offset
-        .ok_or(RelocationFreeTextSectionPlacementError::MissingSemanticEntry(fragments.entry))?;
+    let semantic_entry_offset =
+        semantic_entry_offset.ok_or(TextPlacementError::MissingSemanticEntry(fragments.entry))?;
     let byte_count = usize_to_u64(bytes.len())?;
     let mut text_section = RelocationFreeTextSectionPlacement {
         identity: TerminalRelocationFreeTextSectionIdentity::from_canonical_bytes(b"pending"),

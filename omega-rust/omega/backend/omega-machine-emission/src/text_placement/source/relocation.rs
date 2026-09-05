@@ -3,11 +3,11 @@ use omega_machine_code::{
 };
 use omega_selected_instructions::{MachineAlternativeFamily, MachineEncodedControlEffect};
 
-use super::super::super::RelocationFreeTextSectionPlacementError;
+use super::super::TextPlacementError;
 
-pub(super) fn prove_none(
+pub(in crate::text_placement) fn prove_none(
     function: &FunctionFragment,
-) -> Result<(), RelocationFreeTextSectionPlacementError> {
+) -> Result<(), TextPlacementError> {
     for block in &function.blocks {
         for row in &block.instructions {
             match row.alternative.family {
@@ -15,9 +15,7 @@ pub(super) fn prove_none(
                 | MachineAlternativeFamily::ConditionalBranchU64LessThan
                 | MachineAlternativeFamily::ConditionalBranchI64LessThan => {
                     let Some(branch) = row.branch.as_deref() else {
-                        return Err(
-                            RelocationFreeTextSectionPlacementError::UnsupportedRelocationShape,
-                        );
+                        return Err(TextPlacementError::UnsupportedRelocationShape);
                     };
                     let FunctionFragmentControlProvenance::ConditionalBranch {
                         predicate,
@@ -25,9 +23,7 @@ pub(super) fn prove_none(
                         when_fallthrough,
                     } = &row.control
                     else {
-                        return Err(
-                            RelocationFreeTextSectionPlacementError::UnsupportedRelocationShape,
-                        );
+                        return Err(TextPlacementError::UnsupportedRelocationShape);
                     };
                     let expected_predicate = match row.alternative.family {
                         MachineAlternativeFamily::ConditionalBranchNonZero => {
@@ -55,9 +51,7 @@ pub(super) fn prove_none(
                         || target_block_offset(function, branch.when_fallthrough_block)
                             != Some(branch.when_fallthrough_offset)
                     {
-                        return Err(
-                            RelocationFreeTextSectionPlacementError::UnsupportedRelocationShape,
-                        );
+                        return Err(TextPlacementError::UnsupportedRelocationShape);
                     }
                 }
                 MachineAlternativeFamily::ReturnI64 | MachineAlternativeFamily::ReturnUnit => {
@@ -67,15 +61,11 @@ pub(super) fn prove_none(
                             FunctionFragmentControlProvenance::Return { .. }
                         )
                     {
-                        return Err(
-                            RelocationFreeTextSectionPlacementError::UnsupportedRelocationShape,
-                        );
+                        return Err(TextPlacementError::UnsupportedRelocationShape);
                     }
                 }
                 MachineAlternativeFamily::CallI64 => {
-                    return Err(
-                        RelocationFreeTextSectionPlacementError::UnsupportedRelocationShape,
-                    );
+                    return Err(TextPlacementError::UnsupportedRelocationShape);
                 }
                 MachineAlternativeFamily::CompareI64Zero
                 | MachineAlternativeFamily::CompareI64
@@ -88,9 +78,7 @@ pub(super) fn prove_none(
                     if row.branch.is_some()
                         || row.control != FunctionFragmentControlProvenance::None
                     {
-                        return Err(
-                            RelocationFreeTextSectionPlacementError::UnsupportedRelocationShape,
-                        );
+                        return Err(TextPlacementError::UnsupportedRelocationShape);
                     }
                 }
             }
