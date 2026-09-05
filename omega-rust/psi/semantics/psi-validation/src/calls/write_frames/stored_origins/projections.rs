@@ -1,4 +1,4 @@
-//! Project established local value evidence without replaying an initializer.
+//! Project local or incoming parameter evidence without replaying an initializer.
 //! FactPlan supplies selectors; exact declarations and selector-owned types
 //! establish whether those selectors can transport the retained leaves.
 
@@ -40,38 +40,64 @@ pub(super) fn moved_reference_leaves(
         return None;
     }
     let declaration = program.symbols.get(root);
-    if declaration.kind != SymbolKind::Local || declaration.parent != state.symbol {
+    if declaration.parent != state.symbol {
         return None;
     }
-    let source = program
-        .statement_table
-        .statements(state.statement_nodes)
-        .iter()
-        .take_while(|statement| {
-            !matches!(statement, StatementNode::LocalData(local)
-            if std::ptr::eq(local, destination))
+    let parameter = (declaration.kind == SymbolKind::Parameter)
+        .then(|| {
+            program
+                .state_parameters(state)
+                .iter()
+                .find(|parameter| parameter.symbol == root && !parameter.is_self)
         })
-        .find_map(|statement| match statement {
-            StatementNode::LocalData(local) if local.symbol == root => Some(local),
-            _ => None,
-        })?;
+        .flatten();
+    let (source_name, source_reference) = if let Some(parameter) = parameter {
+        if super::super::type_reference_is_reference(program, parameter.type_reference) {
+            return None;
+        }
+        (parameter.name.as_str(), parameter.type_reference)
+    } else {
+        if declaration.kind != SymbolKind::Local {
+            return None;
+        }
+        let source = program
+            .statement_table
+            .statements(state.statement_nodes)
+            .iter()
+            .take_while(|statement| {
+                !matches!(statement, StatementNode::LocalData(local)
+                if std::ptr::eq(local, destination))
+            })
+            .find_map(|statement| match statement {
+                StatementNode::LocalData(local) if local.symbol == root => Some(local),
+                _ => None,
+            })?;
+        (source.name.as_str(), source.type_reference)
+    };
     let names = program
         .expression_table
         .name_path_members(root_name.members);
-    if names.first()?.as_str() != source.name.as_str()
-        || program.symbols.name(root) != source.name.as_str()
+    if names.first()?.as_str() != source_name
+        || program.symbols.name(root) != source_name
         || (names.len() == 1 && root_name.symbol != root)
     {
         return None;
     }
     let segments = facts.place_segments.span_or_empty(place.segments);
-    let actual = projected_type(program, source.type_reference, segments)?;
+    let actual = projected_type(program, source_reference, segments)?;
     if !crate::type_references::type_references_match(program, actual, expected) {
         return None;
     }
-    let established = stored.iter().find(|local| local.local_symbol == root);
+    let parameter_origins = if let Some(parameter) = parameter {
+        Some(super::parameters::parameter_origins(program, parameter)?)
+    } else {
+        None
+    };
+    let established = parameter_origins
+        .as_ref()
+        .or_else(|| stored.iter().find(|local| local.local_symbol == root));
     if established.is_none()
-        && !super::super::type_is_caller_isolated_local(program, source.type_reference)
+        && !super::super::type_is_caller_isolated_local(program, source_reference)
     {
         return None;
     }
@@ -133,6 +159,12 @@ fn prefix_matches(selected: &[PlaceSegment], candidate: &[PlaceSegment]) -> bool
                     (selected, candidate),
                     (PlaceSegment::Index { .. }, PlaceSegment::FixedIndex { .. })
                 )
+                // Type-derived parameter leaves use an unknown element, not
+                // a fabricated executable index. Exact/dynamic projections
+                // both overlap it; projected_type separately checks bounds.
+                || matches!((selected, candidate),
+                    (PlaceSegment::FixedIndex { .. } | PlaceSegment::Index { .. },
+                     PlaceSegment::Index { expression }) if !expression.is_valid())
         })
 }
 
