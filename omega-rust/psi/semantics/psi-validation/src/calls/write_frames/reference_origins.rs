@@ -5,8 +5,8 @@ use super::isolation::{data_definition_has_only_owned_storage, type_is_caller_is
 use super::{
     FramePathPrecision, FramePlaceOrigin, frame_place_path, transparent_call_result_origin,
 };
+use crate::calls::write_frames::FrameInference;
 use crate::symbols::TopLevelSymbols;
-use psi_symbols::SymbolHandle;
 use psi_typed_trees::TypedTrees;
 use psi_typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use psi_typed_trees::machine::Machine;
@@ -19,13 +19,13 @@ pub(super) fn receiver_frame_origin(
     current_machine: &Machine,
     receiver: ExpressionHandle,
     symbols: &TopLevelSymbols<'_>,
-    active_states: &mut Vec<SymbolHandle>,
+    inference: &mut FrameInference,
 ) -> Option<(Vec<String>, Option<FramePlaceOrigin>)> {
     if !receiver.is_valid() {
         return Some((Vec::new(), None));
     }
     let origin = frame_place_path(program, receiver).or_else(|| {
-        owned_receiver_origin(program, current_machine, receiver, symbols, active_states)
+        owned_receiver_origin(program, current_machine, receiver, symbols, inference)
     })?;
     let members = origin.path.split('.').map(str::to_owned).collect();
     Some((members, Some(origin)))
@@ -39,7 +39,7 @@ pub(super) fn exclusive_reference_origin(
     current_machine: &Machine,
     argument: ExpressionHandle,
     symbols: &TopLevelSymbols<'_>,
-    active_states: &mut Vec<SymbolHandle>,
+    inference: &mut FrameInference,
 ) -> Option<FramePlaceOrigin> {
     match program.expression_table.expression(argument) {
         ExpressionNode::Borrow(place) if place.access.is_exclusive() => {
@@ -62,8 +62,8 @@ pub(super) fn exclusive_reference_origin(
             program,
             call,
             symbols,
-            active_states,
-            |callee_machine, parameter, actual, active_states| {
+            inference,
+            |callee_machine, parameter, actual, inference| {
                 let referee = exclusive_reference_referee(program, parameter.type_reference)?;
                 let owned = if parameter.is_self {
                     // The typed receiver uses nominal `Self`, whose concrete
@@ -94,13 +94,13 @@ pub(super) fn exclusive_reference_origin(
                                 current_machine,
                                 actual,
                                 symbols,
-                                active_states,
+                                inference,
                             );
                         }
                         _ => {}
                     }
                 }
-                exclusive_reference_origin(program, current_machine, actual, symbols, active_states)
+                exclusive_reference_origin(program, current_machine, actual, symbols, inference)
             },
         ),
         _ => None,
@@ -215,7 +215,7 @@ pub(super) fn owned_receiver_origin(
     current_machine: &Machine,
     expression: ExpressionHandle,
     symbols: &TopLevelSymbols<'_>,
-    active_states: &mut Vec<SymbolHandle>,
+    inference: &mut FrameInference,
 ) -> Option<FramePlaceOrigin> {
     let parent = match program.expression_table.expression(expression) {
         ExpressionNode::Name(_) => {
@@ -235,12 +235,12 @@ pub(super) fn owned_receiver_origin(
                 current_machine,
                 expression,
                 symbols,
-                active_states,
+                inference,
             );
         }
         _ => return None,
     };
-    let origin = owned_receiver_origin(program, current_machine, parent, symbols, active_states)?;
+    let origin = owned_receiver_origin(program, current_machine, parent, symbols, inference)?;
     let (state, _, _) = caller_statement_at_site(
         program,
         current_machine,

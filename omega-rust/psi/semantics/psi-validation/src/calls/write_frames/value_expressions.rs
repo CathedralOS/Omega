@@ -14,6 +14,7 @@ use super::{
     TypedTrees, expression_is_effectful_for_transparent_result, free_machine_entry_state,
     machine_state_by_symbol, parameter_relative_expression_preserves_transparent_result,
 };
+use crate::calls::write_frames::FrameInference;
 
 #[derive(Clone, Copy)]
 pub(super) enum CallResultRequirement {
@@ -76,7 +77,7 @@ pub(super) fn value_expression_preserves_transparent_result(
     expression: ExpressionHandle,
     expected_type: Option<TypeReferenceHandle>,
     symbols: &TopLevelSymbols<'_>,
-    active_states: &mut Vec<SymbolHandle>,
+    inference: &mut FrameInference,
     parameters: &[StateParameter],
     aliases: &[(String, SymbolHandle, ParameterRelativeFrameOrigin)],
 ) -> bool {
@@ -109,7 +110,7 @@ pub(super) fn value_expression_preserves_transparent_result(
                         ValuePosition::CallArgument(TypeReferenceHandle::invalid()),
                         &machine_symbols,
                         symbols,
-                        active_states,
+                        inference,
                         parameters,
                         aliases,
                     )

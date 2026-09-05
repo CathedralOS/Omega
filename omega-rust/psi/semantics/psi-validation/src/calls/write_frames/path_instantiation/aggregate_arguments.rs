@@ -3,6 +3,7 @@
 //! storage is private, while coarse collection demand visits every element.
 
 use super::{FramePathPrecision, FramePlaceOrigin, append_place_suffix, split_place_root};
+use crate::calls::write_frames::FrameInference;
 use crate::calls::write_frames::isolation::{
     concrete_nominal_type, struct_literal_matches_expected_type,
 };
@@ -14,7 +15,6 @@ use crate::calls::write_frames::stored_origins::{
 };
 use crate::symbols::TopLevelSymbols;
 use psi_facts::PlaceSegment;
-use psi_symbols::SymbolHandle;
 use psi_typed_trees::TypedTrees;
 use psi_typed_trees::data::DataMember;
 use psi_typed_trees::expression::{ExpressionHandle, ExpressionNode};
@@ -28,7 +28,7 @@ pub(super) fn written_paths(
     expected_type: TypeReferenceHandle,
     suffix: &str,
     symbols: &TopLevelSymbols<'_>,
-    active_states: &mut Vec<SymbolHandle>,
+    inference: &mut FrameInference,
 ) -> Option<Vec<String>> {
     let leaves = reference_leaves(
         program,
@@ -37,7 +37,7 @@ pub(super) fn written_paths(
         expected_type,
         suffix,
         symbols,
-        active_states,
+        inference,
     )?;
     let mut written = Vec::new();
     for leaf in leaves.references {
@@ -70,7 +70,7 @@ pub(in crate::calls::write_frames) fn reference_leaves(
     expected_type: TypeReferenceHandle,
     suffix: &str,
     symbols: &TopLevelSymbols<'_>,
-    active_states: &mut Vec<SymbolHandle>,
+    inference: &mut FrameInference,
 ) -> Option<AggregateOrigins> {
     reference_leaves_with_origins(
         program,
@@ -79,9 +79,9 @@ pub(in crate::calls::write_frames) fn reference_leaves(
         expected_type,
         suffix,
         symbols,
-        active_states,
-        &|expression, reference| {
-            symbolic_reference_leaves(program, caller_machine, expression, reference)
+        inference,
+        &|expression, reference, inference| {
+            symbolic_reference_leaves(program, caller_machine, expression, reference, inference)
         },
     )
 }
@@ -95,8 +95,12 @@ pub(in crate::calls::write_frames) fn reference_leaves_with_origins(
     expected_type: TypeReferenceHandle,
     suffix: &str,
     symbols: &TopLevelSymbols<'_>,
-    active_states: &mut Vec<SymbolHandle>,
-    resolve_origins: &impl Fn(ExpressionHandle, TypeReferenceHandle) -> Option<AggregateOrigins>,
+    inference: &mut FrameInference,
+    resolve_origins: &impl Fn(
+        ExpressionHandle,
+        TypeReferenceHandle,
+        &FrameInference,
+    ) -> Option<AggregateOrigins>,
 ) -> Option<AggregateOrigins> {
     let mut pending = vec![(
         argument,
@@ -135,10 +139,10 @@ pub(in crate::calls::write_frames) fn reference_leaves_with_origins(
                     call,
                     reference,
                     symbols,
-                    active_states,
+                    inference,
                 )?
             } else {
-                resolve_origins(expression, reference)?
+                resolve_origins(expression, reference, inference)?
             };
             if !demand_is_declared(program, reference, suffix) {
                 return None;
@@ -193,7 +197,7 @@ pub(in crate::calls::write_frames) fn reference_leaves_with_origins(
                     caller_machine,
                     expression,
                     symbols,
-                    active_states,
+                    inference,
                 )?;
                 let path = match origin.precision {
                     FramePathPrecision::Exact => append_place_suffix(&origin.path, suffix),

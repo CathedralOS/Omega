@@ -893,8 +893,8 @@ Current ownership is:
   formal or a structurally selected reference inside an owned formal.
   Callee-private leaves cannot disappear as an empty caller footprint.
   Actual arguments and attached receivers instantiate those formal origins
-  with exact field suffixes or
-  absorbing collection precision. Empty selected cases retain their evidence.
+  with exact field suffixes or absorbing collection precision. Empty selected
+  cases retain their evidence.
   The body-recursion guard ends before caller-argument substitution, so finite
   repeated calls are not confused with recursive result bodies. A consumer
   frame likewise guards only its body, not caller actuals; a result
@@ -915,9 +915,25 @@ Current ownership is:
   substituting caller sources. Stable aliases into frozen local carriers retain
   that structural source through copies and rebinding; they do not choose one
   candidate from a runtime-index union. Ordinary transfer and cycle equations
-  use the same alias admission. Immediate-literal payload projections that need
-  contextual active-case evidence remain unfinished. Passing an aggregate by
-  value does not erase its references.
+  use the same alias admission.
+  Immediate call literals resolve payload moves using the same frozen local
+  cases as intermediate declarations. Inference carries this evidence in a
+  body-scoped context, separate from active recursion guards. Public call
+  queries recover the caller prefix once before raw inference and reuse those
+  aliases and stored leaves for final storage closure. Raw inference does not
+  recursively reconstruct its own caller prefix. Nested helper bodies restore
+  the outer case context even when their analysis fails; cycle equations retain
+  their own local evidence during edge instantiation.
+  Case evidence is retained for owned-only and shared-only payloads too: zero
+  exclusive leaves cannot bypass a required case selection. Missing payloads
+  and runtime selections spanning incompatible cases remain opaque. Frozen
+  case-bearing storage cannot be replaced or exposed for replacement; ordinary
+  writes beneath a selected payload do not replace its containing case.
+  The shared statement exposure check runs before frame fallbacks, including
+  implicit exclusive receivers and receivers nested inside value expressions.
+  A declared input sum still denotes every possible case. Forwarding a selected
+  caller case through a helper's input/result relation needs separate case
+  substitution. Passing an aggregate by value does not erase its references.
   Exclusive references to reference-bearing carriers remain opaque; primitive
   slices retain their collection reach.
   A rejected trait-receiver call stays opaque through every fallback consumer,

@@ -10,6 +10,7 @@ use super::{
     expression_reborrows_transparent_alias_binding, known_boundary_call_written_paths_for_parts,
     known_call_written_paths_for_parts, parameter_relative_place_origin, receiver_member_chain,
 };
+use crate::calls::write_frames::FrameInference;
 
 enum ExpressionAdmission {
     Reject,
@@ -33,7 +34,7 @@ pub(super) fn receiver_expression_preserves_origin(
     receiver: ExpressionHandle,
     machine_symbols: &MachineSymbols<'_>,
     symbols: &TopLevelSymbols<'_>,
-    active_states: &mut Vec<SymbolHandle>,
+    inference: &mut FrameInference,
 ) -> bool {
     complete_expression_tree(
         program,
@@ -41,7 +42,7 @@ pub(super) fn receiver_expression_preserves_origin(
         PendingNode::Receiver(receiver),
         machine_symbols,
         symbols,
-        active_states,
+        inference,
         |expression, _, _| {
             if super::local_aliases::expression_reborrows_reference_binding(
                 program,
@@ -70,7 +71,7 @@ pub(super) fn stable_alias_index_expression_preserves_origin(
     expression: ExpressionHandle,
     machine_symbols: &MachineSymbols<'_>,
     symbols: &TopLevelSymbols<'_>,
-    active_states: &mut Vec<SymbolHandle>,
+    inference: &mut FrameInference,
     parameters: &[StateParameter],
     aliases: &[(String, FramePlaceOrigin)],
 ) -> bool {
@@ -80,7 +81,7 @@ pub(super) fn stable_alias_index_expression_preserves_origin(
         PendingNode::Expression(expression, ValuePosition::IndexOperand),
         machine_symbols,
         symbols,
-        active_states,
+        inference,
         |expression, _, _| {
             if expression_reborrows_stable_alias_binding(program, expression, parameters, aliases) {
                 ExpressionAdmission::Reject
@@ -101,7 +102,7 @@ pub(super) fn parameter_relative_expression_preserves_transparent_result(
     position: ValuePosition,
     machine_symbols: &MachineSymbols<'_>,
     symbols: &TopLevelSymbols<'_>,
-    active_states: &mut Vec<SymbolHandle>,
+    inference: &mut FrameInference,
     parameters: &[StateParameter],
     aliases: &[(String, SymbolHandle, ParameterRelativeFrameOrigin)],
 ) -> bool {
@@ -111,8 +112,8 @@ pub(super) fn parameter_relative_expression_preserves_transparent_result(
         PendingNode::Expression(expression, position),
         machine_symbols,
         symbols,
-        active_states,
-        |expression, position, active_states| {
+        inference,
+        |expression, position, inference| {
             if expression_reborrows_transparent_alias_binding(
                 program, expression, parameters, aliases,
             ) {
@@ -132,7 +133,7 @@ pub(super) fn parameter_relative_expression_preserves_transparent_result(
                     parameters,
                     aliases,
                     symbols,
-                    active_states,
+                    inference,
                 )
                 .is_some()
                 {
@@ -167,11 +168,11 @@ fn complete_expression_tree(
     root: PendingNode,
     machine_symbols: &MachineSymbols<'_>,
     symbols: &TopLevelSymbols<'_>,
-    active_states: &mut Vec<SymbolHandle>,
+    inference: &mut FrameInference,
     admit_expression: impl Fn(
         ExpressionHandle,
         ValuePosition,
-        &mut Vec<SymbolHandle>,
+        &mut FrameInference,
     ) -> ExpressionAdmission,
 ) -> bool {
     let mut pending = vec![root];
@@ -180,7 +181,7 @@ fn complete_expression_tree(
         let expression =
             match node {
                 PendingNode::Receiver(expression) => {
-                    match admit_expression(expression, ValuePosition::IndexOperand, active_states) {
+                    match admit_expression(expression, ValuePosition::IndexOperand, inference) {
                         ExpressionAdmission::Reject => return false,
                         ExpressionAdmission::Leaf => continue,
                         ExpressionAdmission::Traverse => {}
@@ -211,7 +212,7 @@ fn complete_expression_tree(
                     }
                 }
                 PendingNode::Expression(expression, position) => {
-                    match admit_expression(expression, position, active_states) {
+                    match admit_expression(expression, position, inference) {
                         ExpressionAdmission::Reject => return false,
                         ExpressionAdmission::Leaf => continue,
                         ExpressionAdmission::Traverse => {
@@ -254,7 +255,7 @@ fn complete_expression_tree(
             current_machine,
             call.receiver,
             symbols,
-            active_states,
+            inference,
         ) else {
             return false;
         };
@@ -294,7 +295,7 @@ fn complete_expression_tree(
             current_machine,
             machine_symbols,
             symbols,
-            active_states,
+            inference,
         )
         .or_else(|| {
             if call.receiver.is_valid() && receiver_member_chain(program, call.receiver).is_none() {
@@ -308,7 +309,7 @@ fn complete_expression_tree(
                 &receiver_members,
                 call.target.as_str(),
                 arguments,
-                active_states,
+                inference,
             )
         })
         .is_none()

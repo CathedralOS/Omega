@@ -6,9 +6,10 @@ use super::path_instantiation::aggregate_arguments::{
 };
 use super::stored_origins::{canonical_reference_origins, reference_leaves_before_statement};
 use super::{
-    Machine, StatementNode, SymbolHandle, TableCallExpression, TopLevelSymbols,
-    TypeReferenceHandle, TypedTrees, machine_state_by_symbol, walk_state_write_prefix,
+    Machine, StatementNode, TableCallExpression, TopLevelSymbols, TypeReferenceHandle, TypedTrees,
+    machine_state_by_symbol, walk_state_write_prefix,
 };
+use crate::calls::write_frames::FrameInference;
 use psi_typed_trees::statement::{TransitionExit, TransitionGuardNode, TransitionTargetNode};
 
 mod input_sources;
@@ -19,13 +20,13 @@ pub(super) fn call_result_origins(
     call: &TableCallExpression,
     expected: TypeReferenceHandle,
     symbols: &TopLevelSymbols<'_>,
-    active_states: &mut Vec<SymbolHandle>,
+    inference: &mut FrameInference,
 ) -> Option<AggregateOrigins> {
     // A stale or missing selected target cannot be repaired by its spelling.
     let (machine, state) = machine_state_by_symbol(program, call.target_symbol)?;
     let parameters = program.state_parameters(state);
     let arguments = program.expression_table.expression_handles(call.arguments);
-    if active_states.contains(&state.symbol)
+    if inference.active_states.contains(&state.symbol)
         || machine.supply_mode != psi_language_semantics::MachineSupplyMode::CheckedBody
         || !machine.body_is_present
         || !program.machine_type_parameters(machine).is_empty()
@@ -119,8 +120,8 @@ pub(super) fn call_result_origins(
             super::reference_origins::declared_origin_root(program, machine, source)?;
         }
     }
-    active_states.push(state.symbol);
-    let result = (|| {
+    inference.active_states.push(state.symbol);
+    let result = inference.with_local_scope(|inference| {
         // Include the terminal expression's producer writes and rebinding
         // fences. It cannot change the frozen local origins, so the resulting
         // context is also the context in which its leaves are constructed.
@@ -129,10 +130,13 @@ pub(super) fn call_result_origins(
             machine,
             state,
             symbols,
-            active_states,
+            inference,
             &mut Vec::new(),
             None,
         )?;
+        for local in &context.stored {
+            inference.record_local(local);
+        }
         let returned = reference_leaves_with_origins(
             program,
             machine,
@@ -140,8 +144,8 @@ pub(super) fn call_result_origins(
             state.return_type,
             "",
             symbols,
-            active_states,
-            &|expression, reference| {
+            inference,
+            &|expression, reference, _| {
                 reference_leaves_before_statement(
                     program,
                     state,
@@ -149,6 +153,7 @@ pub(super) fn call_result_origins(
                     expression,
                     reference,
                     Some(&context.stored),
+                    None,
                 )
             },
         )?;
@@ -171,8 +176,8 @@ pub(super) fn call_result_origins(
             }
         }
         Some(relative)
-    })();
-    active_states.pop();
+    });
+    inference.active_states.pop();
     // Body recursion and finite repeated calls in caller syntax are distinct.
     // Finish the guarded body proof before substituting caller expressions;
     // any enclosing body guards remain active during that substitution.
@@ -203,7 +208,7 @@ pub(super) fn call_result_origins(
             actual,
             &leaf.origin,
             symbols,
-            active_states,
+            inference,
         )? {
             returned.references.push(ReferenceLeaf {
                 local_suffix: leaf.local_suffix.clone(),

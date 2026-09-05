@@ -9,13 +9,16 @@ use super::caller_aliases::{
     AssignmentWriteTarget, LocalWriteOrigin, assignment_write_target,
     local_write_origins_before_statement,
 };
-use super::caller_aliases::{CallerWriteSite, close_caller_aliases};
-use super::{
-    coarse_place_path, known_boundary_call_written_paths,
-    known_boundary_call_written_paths_for_parts, known_call_written_paths_for_parts,
-    known_call_written_paths_with_summaries, normalize_state_relative_path, receiver_member_chain,
-    summarize_state_written_paths, summarize_state_written_paths_with_permuted_cycles,
+use super::caller_aliases::{
+    CallerWriteSite, close_caller_aliases, expression_has_calls, with_caller_origins,
 };
+use super::{
+    coarse_place_path, known_boundary_call_written_paths_for_parts,
+    known_call_written_paths_for_parts, known_call_written_paths_with_summaries,
+    normalize_state_relative_path, receiver_member_chain, summarize_state_written_paths,
+    summarize_state_written_paths_with_permuted_cycles,
+};
+use crate::calls::write_frames::FrameInference;
 use crate::symbols::{MachineSymbols, TopLevelSymbols};
 use psi_facts::NormalizedWriteFrame;
 use psi_symbols::SymbolHandle;
@@ -144,44 +147,56 @@ impl<'program> CallFrameResolver<'program> {
         let machine_symbols =
             MachineSymbols::build(self.program, current_machine, &mut diagnostics);
         let frame = if diagnostics.is_empty() {
-            let known = self.with_complete_state_summaries(|complete_state_summaries| {
-                known_call_written_paths_with_summaries(
-                    self.program,
-                    call,
-                    current_machine,
-                    &machine_symbols,
-                    &self.symbols,
-                    complete_state_summaries,
-                )
-            });
-            known
-                .or_else(|| {
-                    known_boundary_call_written_paths(
-                        self.program,
-                        current_machine,
-                        &machine_symbols,
-                        &self.symbols,
-                        call,
-                    )
-                })
-                .or_else(|| {
-                    conservative_call_written_paths(
-                        self.program,
-                        call,
-                        &machine_symbols,
-                        &self.symbols,
-                    )
-                })
-                .and_then(|written| {
-                    close_caller_aliases(
-                        self.program,
-                        current_machine,
-                        &self.symbols,
-                        CallerWriteSite::Call(call),
-                        written,
-                    )
-                })
-                .map_or_else(NormalizedWriteFrame::opaque, NormalizedWriteFrame::complete)
+            with_caller_origins(
+                self.program,
+                current_machine,
+                &self.symbols,
+                CallerWriteSite::Call(call),
+                |inference| {
+                    let known = self.with_complete_state_summaries(|complete_state_summaries| {
+                        known_call_written_paths_with_summaries(
+                            self.program,
+                            call,
+                            current_machine,
+                            &machine_symbols,
+                            &self.symbols,
+                            complete_state_summaries,
+                            inference,
+                        )
+                    });
+                    known
+                        .or_else(|| {
+                            let receiver = self
+                                .program
+                                .statement_table
+                                .name_path_members(call.receiver)
+                                .iter()
+                                .map(|member| member.as_str().to_owned())
+                                .collect::<Vec<_>>();
+                            known_boundary_call_written_paths_for_parts(
+                                self.program,
+                                current_machine,
+                                &machine_symbols,
+                                &self.symbols,
+                                &receiver,
+                                call.target.as_str(),
+                                self.program
+                                    .statement_table
+                                    .expression_handles(call.arguments),
+                                inference,
+                            )
+                        })
+                        .or_else(|| {
+                            conservative_call_written_paths(
+                                self.program,
+                                call,
+                                &machine_symbols,
+                                &self.symbols,
+                            )
+                        })
+                },
+            )
+            .map_or_else(NormalizedWriteFrame::opaque, NormalizedWriteFrame::complete)
         } else {
             NormalizedWriteFrame::opaque()
         };
@@ -214,30 +229,29 @@ impl<'program> CallFrameResolver<'program> {
         if !diagnostics.is_empty() {
             return NormalizedWriteFrame::opaque();
         }
-        let mut written = Vec::new();
-        let mut active_states = Vec::new();
-        let complete = collect_expression_call_written_paths(
-            self.program,
-            expression,
-            current_machine,
-            &machine_symbols,
-            &self.symbols,
-            &mut active_states,
-            &mut written,
-        )
-        .is_some();
-        if complete {
-            close_caller_aliases(
-                self.program,
-                current_machine,
-                &self.symbols,
-                CallerWriteSite::Expression(expression),
-                written,
-            )
-            .map_or_else(NormalizedWriteFrame::opaque, NormalizedWriteFrame::complete)
-        } else {
-            NormalizedWriteFrame::opaque()
+        if !expression_has_calls(self.program, expression) {
+            return NormalizedWriteFrame::complete(Vec::new());
         }
+        with_caller_origins(
+            self.program,
+            current_machine,
+            &self.symbols,
+            CallerWriteSite::Expression(expression),
+            |inference| {
+                let mut written = Vec::new();
+                collect_expression_call_written_paths(
+                    self.program,
+                    expression,
+                    current_machine,
+                    &machine_symbols,
+                    &self.symbols,
+                    inference,
+                    &mut written,
+                )?;
+                Some(written)
+            },
+        )
+        .map_or_else(NormalizedWriteFrame::opaque, NormalizedWriteFrame::complete)
     }
 
     /// Aggregate only the value-position calls embedded in a statement. The
@@ -282,29 +296,33 @@ impl<'program> CallFrameResolver<'program> {
         machine_symbols: &MachineSymbols<'program>,
         statement: &StatementNode,
     ) -> NormalizedWriteFrame {
-        let mut written = Vec::new();
-        let mut active_states = Vec::new();
-        for expression in statement_value_expression_roots(self.program, statement) {
-            if collect_expression_call_written_paths(
-                self.program,
-                expression,
-                current_machine,
-                machine_symbols,
-                &self.symbols,
-                &mut active_states,
-                &mut written,
-            )
-            .is_none()
-            {
-                return NormalizedWriteFrame::opaque();
-            }
+        let expressions = statement_value_expression_roots(self.program, statement);
+        if !expressions
+            .iter()
+            .any(|expression| expression_has_calls(self.program, *expression))
+        {
+            return NormalizedWriteFrame::complete(Vec::new());
         }
-        close_caller_aliases(
+        with_caller_origins(
             self.program,
             current_machine,
             &self.symbols,
             CallerWriteSite::Statement(statement),
-            written,
+            |inference| {
+                let mut written = Vec::new();
+                for expression in expressions {
+                    collect_expression_call_written_paths(
+                        self.program,
+                        expression,
+                        current_machine,
+                        machine_symbols,
+                        &self.symbols,
+                        inference,
+                        &mut written,
+                    )?;
+                }
+                Some(written)
+            },
         )
         .map_or_else(NormalizedWriteFrame::opaque, NormalizedWriteFrame::complete)
     }
@@ -360,13 +378,13 @@ impl<'program> CallFrameResolver<'program> {
         state: &'program State,
         complete_state_summaries: &mut Vec<(SymbolHandle, Vec<String>)>,
     ) -> NormalizedWriteFrame {
-        let mut active_states = vec![state.symbol];
+        let mut inference = FrameInference::for_state(state.symbol);
         let relative_paths = summarize_state_written_paths(
             self.program,
             machine,
             state,
             &self.symbols,
-            &mut active_states,
+            &mut inference,
             complete_state_summaries,
         )
         .or_else(|| {
@@ -375,7 +393,7 @@ impl<'program> CallFrameResolver<'program> {
                 machine,
                 state,
                 &self.symbols,
-                &active_states,
+                &inference,
             )
         });
         let Some(relative_paths) = relative_paths else {
@@ -467,7 +485,7 @@ pub(super) fn collect_expression_call_written_paths(
     current_machine: &Machine,
     machine_symbols: &MachineSymbols<'_>,
     symbols: &TopLevelSymbols<'_>,
-    active_states: &mut Vec<SymbolHandle>,
+    inference: &mut FrameInference,
     written: &mut Vec<String>,
 ) -> Option<()> {
     if !expression.is_valid() {
@@ -480,7 +498,7 @@ pub(super) fn collect_expression_call_written_paths(
             current_machine,
             machine_symbols,
             symbols,
-            active_states,
+            inference,
             written,
         )
     };
@@ -524,7 +542,7 @@ pub(super) fn collect_expression_call_written_paths(
                 current_machine,
                 call.receiver,
                 symbols,
-                active_states,
+                inference,
             )?;
             if !exact_receiver
                 && !super::call_trees::receiver_expression_preserves_origin(
@@ -533,7 +551,7 @@ pub(super) fn collect_expression_call_written_paths(
                     call.receiver,
                     machine_symbols,
                     symbols,
-                    active_states,
+                    inference,
                 )
             {
                 return None;
@@ -549,7 +567,7 @@ pub(super) fn collect_expression_call_written_paths(
                 current_machine,
                 machine_symbols,
                 symbols,
-                active_states,
+                inference,
             )
             .or_else(|| {
                 if !exact_receiver {
@@ -563,7 +581,7 @@ pub(super) fn collect_expression_call_written_paths(
                     &receiver_members,
                     call.target.as_str(),
                     arguments,
-                    active_states,
+                    inference,
                 )
             })
             // Even when the callee body is opaque (transitioning, cyclic,

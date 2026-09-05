@@ -10,8 +10,8 @@ use super::place_paths::{
     FramePathPrecision, FramePlaceOrigin, append_place_suffix, split_place_root,
 };
 use super::transparent_place_expression_origin;
+use crate::calls::write_frames::FrameInference;
 use crate::symbols::TopLevelSymbols;
-use psi_symbols::SymbolHandle;
 use psi_typed_trees::TypedTrees;
 use psi_typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use psi_typed_trees::machine::Machine;
@@ -29,7 +29,7 @@ pub(super) fn instantiate_written_path(
     arguments: &[ExpressionHandle],
     locals: &[String],
     symbols: &TopLevelSymbols<'_>,
-    active_states: &mut Vec<SymbolHandle>,
+    inference: &mut FrameInference,
 ) -> Option<Vec<String>> {
     let receiver_origin = receiver_base.map(|path| FramePlaceOrigin {
         path: path.to_owned(),
@@ -45,7 +45,7 @@ pub(super) fn instantiate_written_path(
         arguments,
         locals,
         symbols,
-        active_states,
+        inference,
         None,
     )
 }
@@ -60,7 +60,7 @@ pub(super) fn instantiate_written_path_with_origins(
     arguments: &[ExpressionHandle],
     locals: &[String],
     symbols: &TopLevelSymbols<'_>,
-    active_states: &mut Vec<SymbolHandle>,
+    inference: &mut FrameInference,
     argument_origins: Option<&[Option<FramePlaceOrigin>]>,
 ) -> Option<Vec<String>> {
     let (root, suffix) = split_place_root(relative);
@@ -94,14 +94,14 @@ pub(super) fn instantiate_written_path_with_origins(
                 parameter.type_reference,
                 suffix,
                 symbols,
-                active_states,
+                inference,
             );
         }
         let base = argument_origins
             .and_then(|origins| origins.get(argument_index))
             .and_then(Clone::clone)
             .or_else(|| {
-                transparent_place_expression_origin(program, argument, symbols, active_states)
+                transparent_place_expression_origin(program, argument, symbols, inference)
             })?;
         return Some(vec![match base.precision {
             FramePathPrecision::Exact => append_place_suffix(&base.path, suffix),

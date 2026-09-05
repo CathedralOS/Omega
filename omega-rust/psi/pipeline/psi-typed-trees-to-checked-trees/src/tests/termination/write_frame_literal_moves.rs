@@ -145,9 +145,9 @@ fn immediate_literal_moves_preserve_complete_caller_reference_frames() {
             None,
         ),
         (
-            "selected_payload_without_prefix_evidence",
+            "selected_payload_with_prefix_evidence",
             "let local: Choice = Choice::Selected { view: View { body: &mut self.value } }; write_outer(Outer { inner: local.view });",
-            None,
+            Some(vec!["self.value"]),
         ),
         (
             "unknown_parameter_payload",
