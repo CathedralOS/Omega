@@ -4,6 +4,8 @@ use psi_diagnostics::Diagnostic;
 use super::prover::semantic_contexts_prove_contract_fact;
 use crate::labels::{machine_name, semantic_fact_requirement_label};
 
+mod scalars;
+
 fn direct_result_float_meaning_reflexivity_proves_exit(
     facts: &CheckFacts,
     machine_symbol: psi_symbols::SymbolHandle,
@@ -25,6 +27,7 @@ pub(super) fn check_exit_ensures(
     exit_flow: &psi_checked_trees::FlowExitFact,
     entailment: &super::entailment::MachineEntailmentOutcome,
     content_plans: &[psi_validation::ContentConservationSourcePlan],
+    call_frames: Option<&psi_validation::CallFrameResolver<'_>>,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     let entry_contexts: Vec<_> = facts
@@ -122,6 +125,14 @@ pub(super) fn check_exit_ensures(
                 || evidence_assignment
                 || (missing_origins.is_empty()
                     && (proved
+                        || scalars::proves(
+                            program,
+                            facts,
+                            exit_flow,
+                            &entry_contexts,
+                            fact,
+                            call_frames,
+                        )
                         || super::content_preservation::proves_exit(
                             program,
                             facts,

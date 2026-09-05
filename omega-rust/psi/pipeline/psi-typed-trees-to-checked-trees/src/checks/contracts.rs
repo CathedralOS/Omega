@@ -16,6 +16,7 @@ mod writes;
 pub(crate) mod labels;
 mod places;
 mod prover;
+mod return_values;
 
 use calls::check_call_requires;
 pub(crate) use evaluator::call_site_boolean_contract_expression_value;
@@ -35,6 +36,7 @@ pub(super) fn check_flow_call_contracts(
     let mut diagnostics = Vec::new();
     let content_plans = psi_validation::build_content_conservation_plans(program);
     let nominal_requirements = nominal_inputs::DeclaredFieldRequirements::new(&facts.semantic);
+    let call_frames = psi_validation::CallFrameResolver::new(program);
 
     assembly::check_assembly_fact_contracts(program, facts, &mut diagnostics);
 
@@ -102,6 +104,7 @@ pub(super) fn check_flow_call_contracts(
                 exit_flow,
                 entailment.for_machine(facts, state_flow.machine_symbol),
                 &content_plans,
+                call_frames.as_ref(),
                 &mut diagnostics,
             );
         }

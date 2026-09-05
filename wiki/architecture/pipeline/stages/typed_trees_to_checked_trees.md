@@ -96,6 +96,16 @@ return guarantees. Actual invocations retain both contract sides. A `self`
 back-edge to entry must re-establish its machine preconditions; a named-state
 back-edge owes that state's own arrival requirements.
 
+Scalar exit proof binds the synthetic `result` to the exact final expression
+or selected returning arm. Authored output parameters instead follow retained
+per-contract reference origins into that state. Domain and scalar proof share
+the live assignment-value lookup and Boolean/comparison evaluator; integer
+literal comparisons retain full precision. Neither consumer replays local
+initializers. Scalar exits also check selected operator identity and require a
+complete empty write frame before evaluating a return expression from exit
+storage facts. Arithmetic and effectful return values need their own evaluated
+snapshots, not mathematical reinterpretation or post-effect operand reads.
+
 Reference origins across named states are a finite, entry-reachable dataflow
 calculation. Renaming and identity-preserving loops retain the entry subject;
 conflicting, unknown, or rebound references do not. This transports the subject
