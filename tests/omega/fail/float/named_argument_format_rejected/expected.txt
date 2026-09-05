@@ -1,0 +1,1 @@
+argument `value` for state `entry` delivers a `f64` value to a `f32` parameter

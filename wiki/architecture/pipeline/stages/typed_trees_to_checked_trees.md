@@ -218,6 +218,13 @@ Must own:
   receivers from the argument pairing. Direct terminal expressions and
   transition-value returns likewise use the declared result format. Explicit
   casts remain conversion boundaries.
+- Landed float values retain their format at scalar destinations, including
+  parameters, storage, and returns. Named values, field/index projections,
+  resolved call results, and explicit cast outputs cannot implicitly change
+  between `f32` and `f64`. Binary expressions require the selected operator's
+  result type, not an inference from operand formats; their remaining
+  destination check belongs to checked operator selection. Integer narrowing
+  and direct literal suffix checks retain their separate obligations.
 - Borrow facts, accesses, loans, activations, weakenings, and overlap failures.
 - The two-ledger borrow join: resource facts retain owner lineage, polarity,
   temporal containment, and restoration, while proposition-derived rows prove
