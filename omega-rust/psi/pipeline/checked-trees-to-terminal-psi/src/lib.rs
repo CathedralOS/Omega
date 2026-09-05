@@ -95,9 +95,11 @@ use terminal_psi::{
     Terminator, ValueDeclaration, VocabularyMarker,
     program_local_root_introduction_compatibility_report_identity,
 };
+#[cfg(test)]
+use terminal_verifier::reconstruct_operation_obligations;
 use terminal_verifier::{
     EvidenceProducerProvenance, EvidenceProducerRealization, EvidenceProducerRowSource,
-    ObligationEvidence, ProofBundle, reconstruct_operation_obligations,
+    ObligationEvidence, ProofBundle,
 };
 
 mod attached_unit;
@@ -797,6 +799,7 @@ struct PreparedScalarMachine {
     states: Vec<LoweredScalarBranchState>,
     result_type: ScalarType,
     contract_value: Option<KnownDirectScalar>,
+    result_predicate: Option<CheckedBooleanExpression>,
     crash_routes: Vec<checked_trees::CrashRouteBucket>,
     identity_reshuffles: LoweredContentIdentityReshuffles,
     partition_compositions: LoweredContentPartitionCompositions,

@@ -32,6 +32,7 @@ use typed_trees::types::{
 use crate::places::declared_place_type_raw;
 
 mod abstract_shift_count;
+mod call_result_bounds;
 mod dependent_products;
 mod dependent_relations;
 mod exact_division_definedness;

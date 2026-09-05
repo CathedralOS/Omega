@@ -2,11 +2,14 @@
 
 use super::*;
 
+mod result_contract;
+
 #[allow(clippy::too_many_arguments)]
 pub(super) fn build_scalar_graph_module(
     states: &[LoweredScalarBranchState],
     result_type: ScalarType,
     contract_value: Option<KnownDirectScalar>,
+    result_predicate: Option<CheckedBooleanExpression>,
     crash_routes: Vec<checked_trees::CrashRouteBucket>,
     identity_reshuffles: LoweredContentIdentityReshuffles,
     partition_compositions: LoweredContentPartitionCompositions,
@@ -981,7 +984,7 @@ pub(super) fn build_scalar_graph_module(
         })
         .collect::<Result<Vec<_>, LoweringError>>()?;
     resolved_partition_compositions.sort();
-    let (requires, ensures, evidence) = match (result_type, contract_value) {
+    let (requires, mut ensures, mut evidence) = match (result_type, contract_value) {
         (ScalarType::Boolean, Some(KnownDirectScalar::Boolean(value))) => {
             let literal = ScalarTerm::boolean(value);
             let goal = Proposition::Equal(literal.clone(), literal);
@@ -1026,6 +1029,15 @@ pub(super) fn build_scalar_graph_module(
         (_, None) => (Vec::new(), Vec::new(), Vec::new()),
         _ => unreachable!("validated scalar contract matches the machine result type"),
     };
+    if let Some(predicate) = result_predicate {
+        let [clause] = ensures.as_mut_slice() else {
+            return unsupported("result predicate has no corresponding scalar contract clause");
+        };
+        clause.proposition = result_contract::proposition(&predicate, result)?;
+        // Reflexivity of the old literal tautology cannot prove this result
+        // relation. Finalization derives its certificate from emitted exits.
+        evidence.clear();
+    }
     let mut structural_places = identity_reshuffles
         .structural_places
         .into_iter()

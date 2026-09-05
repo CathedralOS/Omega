@@ -17,6 +17,7 @@ fn scalar_machine_builder_uses_a_disjoint_module_identity_namespace() {
         }],
         ScalarType::Boolean,
         None,
+        None,
         Vec::new(),
         LoweredContentIdentityReshuffles {
             structural_places: Vec::new(),
@@ -83,6 +84,7 @@ fn primitive_scalar_source_jump_emits_empty_affine_cleanup() {
         ],
         ScalarType::Boolean,
         None,
+        None,
         Vec::new(),
         LoweredContentIdentityReshuffles {
             structural_places: Vec::new(),
@@ -147,6 +149,7 @@ fn primitive_scalar_source_conditional_emits_empty_affine_cleanup() {
     let lowered = build_scalar_graph_module(
         &states,
         ScalarType::Boolean,
+        None,
         None,
         Vec::new(),
         LoweredContentIdentityReshuffles {

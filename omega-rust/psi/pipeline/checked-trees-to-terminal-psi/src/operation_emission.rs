@@ -25,9 +25,9 @@ pub(super) fn finalize_operation_proofs(
         .transpose()
         .map_err(LoweringError::InvalidTerminalModule)?;
     let obligations = if let Some(validated) = interpretation_validated {
-        terminal_verifier::reconstruct_interpretable_operation_obligations(validated)
+        terminal_verifier::reconstruct_interpretable_terminal_obligations(validated)
     } else {
-        reconstruct_operation_obligations(&lowered.semantic_module)
+        terminal_verifier::reconstruct_terminal_obligations(&lowered.semantic_module)
     }
     .map_err(LoweringError::InvalidTerminalModule)?;
     let existing = lowered
@@ -37,34 +37,30 @@ pub(super) fn finalize_operation_proofs(
         .map(|evidence| evidence.obligation)
         .collect::<BTreeSet<_>>();
     // Some closure builders have already supplied source-derived evidence for
-    // contextual call/cleanup obligations. Reconstruct every site, but
+    // contextual call/cleanup obligations and closed contracts. Reconstruct every site, but
     // synthesize only obligations that remain undispatched; the final verifier
     // still checks the retained evidence against the exact goal.
     let pending = obligations
-        .into_iter()
+        .obligations()
+        .iter()
         .filter(|site| !existing.contains(&site.obligation.id))
+        .cloned()
         .collect::<Vec<_>>();
     let owners = lowered
         .semantic_module
         .machines
         .iter()
-        .flat_map(|machine| {
-            machine.blocks.iter().flat_map(move |block| {
-                block.operations.iter().filter_map(move |operation| {
-                    proof_bearing_operation_obligation(&operation.kind)
-                        .map(|obligation| (obligation, machine))
-                })
-            })
-        })
+        .map(|machine| (machine.id, machine))
         .collect::<BTreeMap<_, _>>();
-    let produce = |site: &terminal_verifier::ReconstructedOperationObligation| {
-        let owner = owners.get(&site.obligation.id).copied();
-        let assumptions = owner
-            .map(|machine| machine.contract.requires.as_slice())
-            .unwrap_or_default();
+    let produce = |site: &terminal_verifier::ReconstructedTerminalObligation| {
+        let owner = owners.get(&site.owner.machine()).copied();
+        let assumptions = site.requirements.as_slice();
         let proof = if let Some(machine) = owner
-            && site.canonical_certificate
-        {
+            && (site.canonical_certificate
+                || matches!(
+                    site.owner,
+                    terminal_verifier::ReconstructedTerminalObligationOwner::ContractEnsures { .. }
+                )) {
             let context = if let Some(validated) = interpretation_validated {
                 validated.value_context(machine)
             } else {
@@ -154,25 +150,6 @@ pub(super) fn finalize_operation_proofs(
         .evidence
         .sort_by_key(|evidence| evidence.obligation);
     Ok(())
-}
-
-fn proof_bearing_operation_obligation(kind: &OperationKind) -> Option<ObligationId> {
-    let obligation = match kind {
-        OperationKind::IntegerExactCast { obligation, .. }
-        | OperationKind::ExactIntegerAdd { obligation, .. }
-        | OperationKind::ExactIntegerSubtract { obligation, .. }
-        | OperationKind::ExactIntegerMultiply { obligation, .. }
-        | OperationKind::ExactIntegerShiftRight { obligation, .. }
-        | OperationKind::ExactIntegerShiftLeft { obligation, .. }
-        | OperationKind::ExactIntegerDivide { obligation, .. }
-        | OperationKind::ExactIntegerRemainder { obligation, .. }
-        | OperationKind::WrappingIntegerDivide { obligation, .. }
-        | OperationKind::WrappingIntegerRemainder { obligation, .. }
-        | OperationKind::SaturatingIntegerDivide { obligation, .. }
-        | OperationKind::SaturatingIntegerRemainder { obligation, .. } => *obligation,
-        _ => return None,
-    };
-    Some(obligation)
 }
 
 fn proof_from_available_facts(

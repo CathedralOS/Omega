@@ -74,11 +74,14 @@ fn resolved_free_integer_call(
     }
     let primitive = program.primitive_type_reference(state.return_type)?;
     let carrier_range = primitive_range(primitive)?;
+    let declared = range_constraint_interval(program, state.return_type)
+        .map(|declared| declared.intersect(carrier_range))
+        .unwrap_or(carrier_range);
     Some(Analysis {
         domain: Some(program.arithmetic_domain_for_type_reference(state.return_type)),
-        interval: range_constraint_interval(program, state.return_type)
-            .map(|declared| declared.intersect(carrier_range))
-            .unwrap_or(carrier_range),
+        interval: super::call_result_bounds::normal_return_interval(
+            program, machine, state, declared,
+        ),
         primitive: Some(primitive),
     })
 }

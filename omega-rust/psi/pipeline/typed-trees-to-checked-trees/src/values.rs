@@ -19,8 +19,8 @@ mod transition;
 
 pub(crate) use scalar::{
     build_checked_scalar_computation_plans, build_checked_scalar_expression_plans,
-    lower_machine_parameter_boolean_expression, lower_state_scalar_expression,
-    lower_unit_scalar_argument, scalar_expression_type,
+    lower_integer_result_predicate, lower_machine_parameter_boolean_expression,
+    lower_state_scalar_expression, lower_unit_scalar_argument, scalar_expression_type,
 };
 
 pub(crate) fn build_value_facts(

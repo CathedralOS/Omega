@@ -31,7 +31,8 @@ pub(super) fn prove(
         return Some(proof);
     }
 
-    cast_selection::prove(context, goal, assumptions, semantic_axioms)
+    order::prove_aliased_integer_bound(goal, assumptions, semantic_axioms)
+        .or_else(|| cast_selection::prove(context, goal, assumptions, semantic_axioms))
         .or_else(|| {
             affine_selection::prove_with_definitions(
                 context,
@@ -70,7 +71,8 @@ pub(super) fn prove_candidate_endpoint(
         return Some(proof);
     }
 
-    cast_selection::prove(context, goal, assumptions, semantic_axioms)
+    order::prove_aliased_integer_bound(goal, assumptions, semantic_axioms)
+        .or_else(|| cast_selection::prove(context, goal, assumptions, semantic_axioms))
         .or_else(|| {
             affine_selection::prove_without_cast(
                 context,

@@ -474,7 +474,9 @@ Owners include
   evaluation points and activate staged loans at their evaluation points.
   Complete typed computation plans for remaining numeric policies and selected
   operator calls, return/initializer/guard roots, and borrowed/projected operands.
-  Carry callee result bounds into nested exact-cast obligations. Retire the
+  Complete parameter-relative and nonliteral callee-result contract transport
+  into nested exact-cast obligations, preserving evaluated argument snapshots.
+  Retire the
   remaining flat guarded-argument call hoisting once these paths use the same
   evaluation graph. Owning area: argument normalization and checked scalar
   computation lowering. Acceptance: selected arguments

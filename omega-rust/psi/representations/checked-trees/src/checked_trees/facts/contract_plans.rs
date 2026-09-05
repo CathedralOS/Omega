@@ -1686,6 +1686,9 @@ pub struct MachineContractIdentity {
 pub enum ClosedScalarContractValue {
     Boolean(bool),
     Integer(IntegerLiteral),
+    /// A normal-return predicate. Parameter position zero denotes only this
+    /// machine's result, not an authored argument or source-local value.
+    ResultPredicate(crate::CheckedBooleanExpression),
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]

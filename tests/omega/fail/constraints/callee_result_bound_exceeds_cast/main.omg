@@ -1,0 +1,5 @@
+machine bounded() -> u16
+ensures result < 512u16
+{ 511u16 }
+
+machine value() -> u8 { bounded() as u8 }
