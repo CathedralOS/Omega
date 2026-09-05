@@ -62,6 +62,12 @@ entrance. It uses one preliminary compiler review only to discover supported
 package-owned semantic surfaces, then recompiles with exact consumer-scoped
 bindings. Only that final review may proceed to conflicts and admission; the
 discovery pass is neither policy nor evidence that an audit occurred.
+Each returned package review also exposes borrowed access to its complete typed
+`PackagePolicyBaseline`, projected from that same final checked source and
+target. The closure retains at most 64 MiB in aggregate canonical policy
+encoding size; this is not an exact heap-size limit. Legacy comparison rows,
+commitments, and obligation checks remain separate and unchanged. This retained
+finding is not accepted-lock storage or an additional authorization stage.
 For a requirement-only service candidate, the preliminary review exposes the
 exact checked `ServiceSchema` beside the proposed binding. This is
 non-authoritative review material: a consumer may use complete requirement
@@ -89,7 +95,7 @@ package entries and binds the exact root, role, graph, and target. Recovery
 needs only the retained source subject, not the old checkout or a recreated
 compiler conflict. It preserves both acceptance and rejection without making
 either a fresh authorization. Fresh capture still requires the complete exact
-current resolution. The corresponding normalized policy baseline and atomic
+current resolution. Composition with normalized policy baselines and atomic
 install/update publication remain unfinished; this section alone is not a lock.
 
 Return to the [package subsystem map](../README.md), or consult:
