@@ -687,7 +687,10 @@ fn expression_is_fact_observation_free(program: &TypedTrees, expression: Express
     }
 }
 
-fn expression_contains_call_projection(program: &TypedTrees, expression: ExpressionHandle) -> bool {
+pub(crate) fn expression_contains_call_projection(
+    program: &TypedTrees,
+    expression: ExpressionHandle,
+) -> bool {
     match program.expression_table.expression(expression) {
         ExpressionNode::Member(member) => expression_contains_call(program, member.receiver),
         ExpressionNode::Atomic(atomic) => {

@@ -31,6 +31,7 @@ pub(super) fn inductive_transition_entailment(
     account_stand_downs: bool,
     ensures_coordinates: &[(ExpressionHandle, usize, usize)],
     stand_downs: &mut Vec<crate::ContractEntailmentStandDown>,
+    proven: &mut Vec<ExpressionHandle>,
 ) {
     // Single-state machines only: the state graph IS the recursion structure,
     // and a tail self-call is a transition back to the root state.
@@ -210,6 +211,8 @@ pub(super) fn inductive_transition_entailment(
                 ensures_coordinates,
                 stand_downs,
             );
+        } else if unknown_arm.is_none() {
+            proven.push(*fact);
         }
         // An unknown that is not fully visible means some fact lies outside
         // the engine's language: stand down rather than reject what we

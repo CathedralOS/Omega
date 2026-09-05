@@ -70,11 +70,17 @@ use psi_typed_trees::statement::{StatementNode, TransitionGuardNode, TransitionT
 use psi_typed_trees::trait_definition::TraitDefinition;
 
 mod arithmetic_judgment;
+mod exit_coverage;
 mod inductive_judgment;
 mod law_conformance;
 mod quotient_congruence;
 mod structural_judgment;
 mod structural_terms;
+
+#[cfg(test)]
+mod outcome_tests;
+
+pub(crate) use exit_coverage::entailment_covers_all_exits;
 
 pub use arithmetic_judgment::integer_embedding_sources_equal;
 use arithmetic_judgment::{Engine, Judgment, Polynomial};
@@ -161,7 +167,7 @@ pub(crate) fn strict_arithmetic_expression_implication(
 /// propositions remain the public fact identity; transparency is only the
 /// proof-side expansion. The first rung accepts equality formulas directly
 /// and never treats a primitive or witness-bearing proposition as transparent.
-pub(crate) fn transparent_proposition_application_entailed(
+pub fn transparent_proposition_application_entailed(
     program: &TypedTrees,
     machine: &Machine,
     state: &psi_typed_trees::state::State,
@@ -353,6 +359,22 @@ pub(crate) fn validate_machine_contract_entailment_with_stand_downs(
     machine: &Machine,
     diagnostics: &mut Vec<Diagnostic>,
     stand_downs: &mut Vec<crate::ContractEntailmentStandDown>,
+) {
+    validate_machine_contract_entailment_with_outcomes(
+        program,
+        machine,
+        diagnostics,
+        stand_downs,
+        &mut Vec::new(),
+    );
+}
+
+pub(crate) fn validate_machine_contract_entailment_with_outcomes(
+    program: &TypedTrees,
+    machine: &Machine,
+    diagnostics: &mut Vec<Diagnostic>,
+    stand_downs: &mut Vec<crate::ContractEntailmentStandDown>,
+    proven: &mut Vec<ExpressionHandle>,
 ) {
     // A top-level requirement publishes the contract that its selected
     // satisfier must refine. The declaration has no implementation body whose
@@ -718,11 +740,21 @@ pub(crate) fn validate_machine_contract_entailment_with_stand_downs(
                 );
             }
             let Some(held) = mention else {
+                // Pure, total fact-call projections are validated separately.
+                // Their denotational field terms belong to the structural
+                // judge, not to the polynomial engine. Reuse only its actual
+                // positive judgment; an unread projection still stands down.
+                if crate::fact_call_projections::expression_contains_call_projection(program, *fact)
+                    && matches!(judge_structural(*fact), StructuralJudgment::Proven)
+                {
+                    proven.push(*fact);
+                }
                 // Not structural: stays with the polynomial engine below.
                 return true;
             };
             any_structural = true;
             if structural.hypotheses_contradictory {
+                proven.push(*fact);
                 return false;
             }
             // CH10 ACCEPTED tier (GR6d): a bodyless boundary machine's
@@ -747,7 +779,7 @@ pub(crate) fn validate_machine_contract_entailment_with_stand_downs(
                 return false;
             }
             match judge_structural(*fact) {
-                StructuralJudgment::Proven => {}
+                StructuralJudgment::Proven => proven.push(*fact),
                 StructuralJudgment::Refuted => {
                     diagnostics.push(Diagnostic::error(format!(
                         "machine `{}` ensures contract proof fact `{}` is disproved \
@@ -833,6 +865,7 @@ pub(crate) fn validate_machine_contract_entailment_with_stand_downs(
             account_stand_downs,
             &ensures_coordinates,
             stand_downs,
+            proven,
         );
         return;
     }
@@ -842,6 +875,7 @@ pub(crate) fn validate_machine_contract_entailment_with_stand_downs(
     if engine.requires_unsatisfiable {
         // Contradictory hypotheses entail everything: the proof-theoretic
         // `absurd` case. Accept.
+        proven.extend_from_slice(&ensures);
         return;
     }
 
@@ -856,7 +890,7 @@ pub(crate) fn validate_machine_contract_entailment_with_stand_downs(
             );
         }
         match engine.judge(*fact) {
-            Judgment::Proven => {}
+            Judgment::Proven => proven.push(*fact),
             Judgment::Refuted => {
                 diagnostics.push(Diagnostic::error(format!(
                     "machine `{}` ensures contract proof fact `{}` is disproved: the requires contract entails its negation",
