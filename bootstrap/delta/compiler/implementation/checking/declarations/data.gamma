@@ -55,27 +55,34 @@
                       (syntax_after name))
                 (if (eq (constructor_metadata_arity metadata)
                         (- (syntax_count constructor) 1))
-                  (let checked Int
-                    (resolve_constructor_fields
-                      (- (syntax_count constructor) 1)
-                      (syntax_drop_children (syntax_children constructor) 1)
-                      (global_types globals) (empty_parameter_types))
-                    (if (eq (first checked) 0)
-                      (let field_types Int
-                        (reverse_parameter_types (second checked)
-                          (constructor_metadata_arity metadata)
-                          (empty_parameter_types))
-                        (let resolved Int
-                          (pair type_metadata
-                            (pair tag
-                              (pair (constructor_metadata_arity metadata)
-                                (pair (syntax_after name) field_types))))
-                          (resolve_collected_constructors
-                            (- remaining 1) (second constructors)
-                            type_metadata globals (+ tag 1)
-                            (name_trie_insert resolved_constructor_rows
-                              (syntax_after name) (syntax_start name) resolved))))
-                      checked))
+                  (if (eq (constructor_metadata_arity metadata) 0)
+                    ; The checked raw row already has the final empty type spine.
+                    (resolve_collected_constructors
+                      (- remaining 1) (second constructors)
+                      type_metadata globals (+ tag 1) resolved_constructor_rows)
+                    (let checked Int
+                      (resolve_constructor_fields
+                        (- (syntax_count constructor) 1)
+                        (syntax_drop_children (syntax_children constructor) 1)
+                        (global_types globals) (empty_parameter_types))
+                      (if (eq (first checked) 0)
+                        (let field_types Int
+                          (reverse_parameter_types (second checked)
+                            (constructor_metadata_arity metadata)
+                            (empty_parameter_types))
+                          (let resolved Int
+                            (pair type_metadata
+                              (pair tag
+                                (pair (constructor_metadata_arity metadata)
+                                  (pair (syntax_after name) field_types))))
+                            (resolve_collected_constructors
+                              (- remaining 1) (second constructors)
+                              type_metadata globals (+ tag 1)
+                              (identity_cursor_replace
+                                (identity_cursor_seek resolved_constructor_rows
+                                  (syntax_start name) (syntax_after name))
+                                (syntax_after name) resolved))))
+                        checked)))
                   (fail))
                 (fail))
               (fail))

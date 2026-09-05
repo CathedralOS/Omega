@@ -31,7 +31,7 @@ ordinary visit/resume transitions do not allocate phase outcomes.
 | [branches.gamma](branches.gamma) | `if` condition and true branch retain the node and outer locals; the false branch retains its node and the expected branch type |
 | [bindings.gamma](bindings.gamma) | A let initializer retains its node, annotation type, body node, and extended locals; pattern binding retains separate outer and extended environment roots |
 | [calls.gamma](calls.gamma) | Each argument retains the application, actual node spine/count, expected type spine/count, result type, and outer locals |
-| [matches.gamma](matches.gamma) | A subject retains the match and outer locals; each arm body retains the remaining arms, subject owner, outer locals, coverage trie/count, preceding arm type, and constructor count |
+| [matches.gamma](matches.gamma) | A subject retains the match and outer locals; arm bodies retain current arms and match-local coverage cursor/count beside a shared fixed context |
 | [identities.gamma](identities.gamma) | Builtin type identities and source-node rejection anchoring |
 
 [`../environments.gamma`](../environments.gamma) owns each local environment's
@@ -46,9 +46,15 @@ outer environment, while its body sees the extended root. Parent continuations
 already retain their own environments, so names and counts restore together
 without a let-body restoration frame. Pending body bindings do not consume
 rows in the separate environment used to check that let's initializer.
-Every match retains its own coverage trie; nested matches cannot overwrite an
-outer match's coverage. Each arm begins with the saved outer locals, allowing
+Every match retains its own exact-name coverage cursor; nested matches cannot
+overwrite an outer match's coverage. Each arm begins with the saved outer locals, allowing
 disjoint arms to reuse binder spellings.
+
+[`matches/`](matches/README.md) separates arm flow from shared context and
+continuation layout. A match's source, owner, outer locals, total arms, and
+established result facts are not copied into every continuation. Binder-free
+arms need no temporary binding-outcome wrapper. Distinct coverage count and
+constructor count retain the same final exhaustiveness judgment.
 
 Function signatures and resolved constructor metadata supply ordered type
 spines. Calls and pattern binding consume those retained types without

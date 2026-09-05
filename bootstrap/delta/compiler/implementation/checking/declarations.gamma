@@ -1,9 +1,12 @@
 ; Resolve retained declarations in authored order after the complete census.
+; Typed builders retain the census tries and replace only changed payloads.
 ; Only complete typed globals advance to body checking and profile validation.
 (def resolve_collected_declarations
-  ((program Int) (collected_globals Int) (resolved_function_rows Int)) Int
+  ((program Int) (collected_globals Int)) Int
   (resolve_declaration_nodes (first program) (second program)
-    collected_globals resolved_function_rows (empty_name_trie)))
+    collected_globals
+    (identity_cursor 0 0 (global_functions collected_globals) 0)
+    (identity_cursor 0 0 (global_constructors collected_globals) 0)))
 
 (def resolve_declaration_nodes
   ((remaining Int) (forms Int) (collected_globals Int)
@@ -11,7 +14,8 @@
   (if (eq remaining 0)
     (compiler_complete
       (pair (global_types collected_globals)
-        (pair resolved_constructor_rows resolved_function_rows)))
+        (pair (identity_cursor_finish resolved_constructor_rows)
+          (identity_cursor_finish resolved_function_rows))))
     (let form Int (first forms)
       (let head Int (syntax_child form 0)
         (if (token_data (syntax_start head) (syntax_after head))
@@ -27,8 +31,10 @@
                 (if (eq (first resolved) 0)
                   (resolve_declaration_nodes (- remaining 1) (second forms)
                     collected_globals
-                    (name_trie_insert resolved_function_rows
-                      (syntax_after name) (syntax_start name) (second resolved))
+                    (identity_cursor_replace
+                      (identity_cursor_seek resolved_function_rows
+                        (syntax_start name) (syntax_after name))
+                      (syntax_after name) (second resolved))
                     resolved_constructor_rows)
                   resolved)))
             (fail)))))))

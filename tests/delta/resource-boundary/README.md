@@ -1,7 +1,7 @@
 # Delta resource-boundary gate
 
 Run `sh tests/delta/resource-boundary/run.sh` from the repository root. The gate
-materializes and pins the complete canonical compiler, then compiles 23 full
+materializes and pins the complete canonical compiler, then compiles 27 full
 authored Delta sources through `DCREQ` profile 1 and the selected Gamma evaluator.
 The host neither parses declarations nor injects counters or compiler rows.
 
@@ -106,14 +106,45 @@ a 65,535-parameter function. All sources remain below 4 MiB, use at most two
 constructor payload fields, and have fixed byte lengths, SHA256 identities,
 literal coordinate anchors, and full 40-byte outcome frames.
 
+## Match-coverage fixture inventory
+
+[`match_coverage.py`](match_coverage.py) defines four full authored controls
+using all 65,536 globally admitted constructors of one nominal type. Constructor
+names remain the six-byte `C00000` through `C65535`; every constructor is nullary.
+
+| Authored source | Bytes | Expected exact DCOUT |
+| --- | ---: | --- |
+| 65,536 distinct arms in declaration order | 1,310,762 | Reject 20 at 589,838 |
+| Same complete arms, then another `C00000` arm | 1,310,773 | Reject 17 at 1,310,761 |
+| Full inner match inside the sole arm of an incomplete outer match | 1,310,786 | Reject 18 at 589,850 |
+| 65,536 distinct arms in reverse declaration order | 1,310,762 | Reject 20 at 589,838 |
+
+The two exhaustive cases must finish body checking before the deliberately
+nonconforming `main : () -> Int` reaches entry-schema rejection. The extra arm
+must retain the duplicate-case diagnosis at its later constructor name. The
+nested case keeps one outer arm active while checking all 65,536 inner arms;
+the inner coverage set neither completes the outer set nor incurs an invented
+aggregate 65,537-row refusal. After the inner body succeeds, the outer match
+must reject its own missing coverage at its expression start. Source lengths,
+SHA256 identities, literal coordinate anchors, and all 40 output bytes are
+fixed independently of compiler output.
+
+D110 defines an immutable exact-name coverage set local to each match and
+permits arbitrary authored arm order. The separate global constructor limit
+admits at most 65,536 constructors. Consequently, a fresh 65,537th same-owner
+coverage member cannot arise: an extra pattern instead encounters constructor
+identity, owner, arity, or duplicate-case checking. These controls establish
+capacity reach, diagnostic precedence, and per-match isolation, not an invented
+code-6 refusal or complete D30 resource closure.
+
 Each evaluation uses the existing full-customer diagnostic allowance of 300
 seconds. The gate prints elapsed time for each exact observation and reports a
 raw evaluator failure or timeout without relabeling it as compiler
 `Incomplete`. A selected evaluator heap or stack failure does not pass, and the
 boundary is not reduced to accommodate it.
 
-These controls test only the type-, function-, constructor-, and
-active-environment-row boundaries.
+These controls test the type-, function-, constructor-, and
+active-environment-row boundaries plus full per-match coverage behavior.
 They do not establish all D30 capacities, acceptance or emission of every
 in-bound program, or closure of the Delta edge. Other frontend and request
 behavior remains in the

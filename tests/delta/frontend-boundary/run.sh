@@ -31,12 +31,13 @@ from name_fixtures import fixtures as name_fixtures
 from name_roles import fixtures as name_roles
 from census_cursors import fixtures as census_cursors
 from parameter_cursors import fixtures as parameter_cursors
+from catalog_replacements import fixtures as catalog_replacements
 
 directory = Path(os.environ["FRONTEND_BOUNDARY_TMP"])
 compiler = (directory / "compiler.gamma").read_bytes()
 identity = (len(compiler.splitlines()), len(compiler), hashlib.sha256(compiler).hexdigest())
 if identity != (
-    3064, 135346, "081cc5ed3f22da5d7c49beca6573c802d31c894cd93f57dfe7bd9f986b6049d4"
+    3158, 139282, "356a61888caafa77717c720f470148cc2c7278407655cc1fba102d124ba6e6a7"
 ):
     raise SystemExit(f"Delta compiler identity changed: {identity}")
 
@@ -468,6 +469,8 @@ cursor_rejections, cursor_accepted = census_cursors(rejection)
 cases.extend(cursor_rejections)
 parameter_rejections, parameter_accepted = parameter_cursors(rejection)
 cases.extend(parameter_rejections)
+replacement_rejections, replacement_accepted = catalog_replacements(rejection)
+cases.extend(replacement_rejections)
 
 for name, source, expected in cases:
     actual = evaluate(compiler, request(source))
@@ -568,6 +571,7 @@ accepted += name_accepted
 accepted += role_accepted
 accepted += cursor_accepted
 accepted += parameter_accepted
+accepted += replacement_accepted
 payload = b"\x00A\x80\xff"
 for name, source in accepted:
     status, receipt = evaluate(compiler, request(source))

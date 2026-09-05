@@ -2,9 +2,26 @@
   (let shape Int (grammar_exact_count node 2)
     (if (eq shape -1)
       (let children Int (syntax_children node)
-        (grammar_pattern (first children) (+ count 1)
-          (grammar_pending 1 (+ depth 1) 1 (second children) work)))
+        (let pattern Int (first children)
+          (let pattern_count Int (syntax_count pattern)
+            (if (eq pattern_count -1)
+              (grammar_arm_after_name pattern (first (second children))
+                depth count work)
+              (if (eq pattern_count 1)
+                (grammar_arm_after_name (syntax_child pattern 0)
+                  (first (second children)) depth count work)
+                (grammar_pattern pattern (+ count 1)
+                  (grammar_pending 1 (+ depth 1) 1 (second children) work)))))))
       (compiler_source_rejection 4 shape))))
+
+; A binder-free pattern has one complete atom-role judgment, so its body can
+; follow directly. The ordinary expression dispatcher still enforces depth.
+(def grammar_arm_after_name
+  ((name Int) (body Int) (depth Int) (count Int) (work Int)) Int
+  (let error Int (grammar_atom_role_error 3 name)
+    (if (eq error -1)
+      (grammar_check_role 1 body (+ depth 1) count work)
+      (compiler_source_rejection 4 error))))
 
 ; Nullary spelling and parenthesized payload spelling retain their authored
 ; shape. Constructor identity, binder conflicts, and payload arity are later.
