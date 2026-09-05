@@ -27,20 +27,45 @@ fn backend_crates_do_not_depend_on_frontend_crates() {
 }
 
 #[test]
-fn backend_crates_do_not_depend_on_lowering_crates() {
+fn backend_crates_use_only_reviewed_physical_pipeline_dependencies() {
     let repo_root = repo_root();
     let backend_root = repo_root.join("omega-rust/omega/backend");
+    // Canonical layering.rs makes backend and pipeline peer physical roles.
+    // Exit admission moved into machine-emission (763249fa26); these exact
+    // physical inputs do not authorize a dependency on source lowering.
+    let mut expected = BTreeSet::from([
+        "omega-frame-layout-to-frame-protocol",
+        "omega-post-allocation-machine-to-frame-layout",
+        "omega-post-allocation-machine-to-optimized-machine",
+        "omega-post-allocation-machine-to-selected-form-encoding",
+        "omega-register-homes-to-post-allocation-machine",
+        "omega-selected-form-encoding-to-resolved-layout",
+        "omega-machine-optimizer",
+        "omega-regalloc",
+    ]);
 
     for cargo_toml in cargo_tomls_under(&backend_root) {
         let contents = fs::read_to_string(&cargo_toml)
             .unwrap_or_else(|error| panic!("failed to read {}: {error}", cargo_toml.display()));
 
-        assert!(
-            !has_dependency_under(&contents, "../../pipeline/"),
-            "{} must not depend on pipeline crates; orchestration should pass lowered IR forward",
-            cargo_toml.display()
-        );
+        for line in production_dependency_lines(&contents) {
+            if !line.contains("/pipeline/") {
+                continue;
+            }
+            let dependency = line.split_once('=').expect("pipeline dependency").0.trim();
+            assert!(
+                cargo_toml == backend_root.join("omega-machine-emission/Cargo.toml")
+                    && line.contains(&format!("\"../../pipeline/{dependency}\""))
+                    && expected.remove(dependency),
+                "{} adds an unreviewed physical-pipeline dependency `{dependency}`",
+                cargo_toml.display(),
+            );
+        }
     }
+    assert!(
+        expected.is_empty(),
+        "reviewed emission inputs changed: {expected:?}"
+    );
 }
 
 #[test]
@@ -113,6 +138,11 @@ fn only_exact_target_closing_pipeline_crates_depend_on_final_machinery() {
             "backend/object/omega-object-file",
         ),
         (
+            "omega-optimization-pipeline",
+            "omega-machine-emission",
+            "backend/omega-machine-emission",
+        ),
+        (
             "omega-terminal-psi-to-native-artifact",
             "omega-image-emission",
             "backend/images/omega-image-emission",
@@ -133,6 +163,27 @@ fn only_exact_target_closing_pipeline_crates_depend_on_final_machinery() {
             "backend/object/omega-object-file",
         ),
     ]);
+    // Extracted physical stages consume the same two ISA owners as their
+    // former coordinator. Keep this closed roster, not a layer-wide escape.
+    for owner in [
+        "omega-frame-layout-to-frame-protocol",
+        "omega-post-allocation-machine-to-selected-form-encoding",
+        "omega-selected-form-encoding-to-resolved-layout",
+        "omega-selected-instructions-to-machine-effects",
+        "omega-selected-instructions-to-register-homes",
+        "omega-target-to-register-environment",
+    ] {
+        expected.insert((
+            owner,
+            "omega-isa-aarch64",
+            "backend/instruction_set_architectures/omega-isa-aarch64",
+        ));
+        expected.insert((
+            owner,
+            "omega-isa-x86_64",
+            "backend/instruction_set_architectures/omega-isa-x86_64",
+        ));
+    }
 
     for cargo_toml in cargo_tomls_under(&lowering_root) {
         let contents = fs::read_to_string(&cargo_toml)
@@ -266,7 +317,7 @@ fn compiler_driver_delegates_terminal_product_semantics_to_one_owner() {
 
     let mut ordered_owner = owner.as_str();
     for stage in [
-        "produce_terminal_artifact_with_callback_custody(",
+        "produce_terminal_artifact_with_callback_custody_and_optimizations(",
         "verify_terminal_artifact(",
         "project_terminal_native_realization_proposal(",
         "RetainedTerminalArtifact::new_with_native_realization_proposal(",
@@ -789,12 +840,6 @@ fn has_dependency(contents: &str, crate_name: &str) -> bool {
     production_dependency_lines(contents)
         .iter()
         .any(|line| line.starts_with(&dependency_prefix))
-}
-
-fn has_dependency_under(contents: &str, path_fragment: &str) -> bool {
-    production_dependency_lines(contents)
-        .iter()
-        .any(|line| line.contains(path_fragment))
 }
 
 fn without_ascii_whitespace(contents: &str) -> String {
