@@ -16,7 +16,7 @@ data Clamper {
 }
 
 // Wrapping DECLARED: the accumulator sums an unbounded number of clamped steps.
-machine Clamper::clamp_sum(&mut self, s: &[i32 in Wrapping], acc: i32 in Wrapping) -> i32 in Wrapping {
+machine Clamper::clamp_sum(&self, s: &[i32 in Wrapping], acc: i32 in Wrapping) -> i32 in Wrapping {
     transition s.len > 0 {
         true -> clamp_sum(s[1..], acc + max(0, min(s[0], 60)))
         false -> (acc)

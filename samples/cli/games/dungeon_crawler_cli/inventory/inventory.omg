@@ -110,11 +110,10 @@ machine InventorySystem::append_item(
     inventory: &mut Inventory,
     kind: ItemKind
 ) {
-    let items: &mut [InventoryItem] = inventory.items.as_mut_slice();
     let index: u64 in Wrapping = inventory.item_count;
 
     transition index < 32 {
-        true -> append_item_at(inventory, items, kind, index)
+        true -> append_item_at(inventory, kind, index)
         false -> {}
     }
 
@@ -122,11 +121,10 @@ machine InventorySystem::append_item(
     state append_item_at(
         &mut self,
         inventory: &mut Inventory,
-        items: &mut [InventoryItem],
         kind: ItemKind,
         index: u64 in Wrapping
     ) {
-        items[index] = InventoryItem { kind: kind, count: 1 };
+        inventory.items[index] = InventoryItem { kind: kind, count: 1 };
         inventory.item_count = inventory.item_count + 1;
     }
 }

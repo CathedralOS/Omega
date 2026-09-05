@@ -25,3 +25,89 @@ data Level {
     start_cell: CellId;
     deepest_depth: u32 in Wrapping;
 }
+
+// Appending an exit is the room's own business. Keeping it here rather than on
+// MazeBuilder is what lets a caller hold `&mut Room` and still append: a
+// builder-owned appender would need the builder receiver at the same time.
+machine Room::append_exit(
+    &mut self,
+    command: [u8; 8] in Utf8,
+    direction: Direction,
+    destination: CellId
+) {
+    transition self.exit_count {
+        0 -> append_exit_slot_0(command, direction, destination)
+        1 -> append_exit_slot_1(command, direction, destination)
+        2 -> append_exit_slot_2(command, direction, destination)
+        3 -> append_exit_slot_3(command, direction, destination)
+        _ -> {}
+    }
+
+    state append_exit_slot_0(
+        &mut self,
+        command: [u8; 8] in Utf8,
+        direction: Direction,
+        destination: CellId
+    ) {
+        self.exits[0] = Exit { command: command, direction: direction, destination: destination };
+        self.exit_count = 1;
+    }
+
+    state append_exit_slot_1(
+        &mut self,
+        command: [u8; 8] in Utf8,
+        direction: Direction,
+        destination: CellId
+    ) {
+        self.exits[1] = Exit { command: command, direction: direction, destination: destination };
+        self.exit_count = 2;
+    }
+
+    state append_exit_slot_2(
+        &mut self,
+        command: [u8; 8] in Utf8,
+        direction: Direction,
+        destination: CellId
+    ) {
+        self.exits[2] = Exit { command: command, direction: direction, destination: destination };
+        self.exit_count = 3;
+    }
+
+    state append_exit_slot_3(
+        &mut self,
+        command: [u8; 8] in Utf8,
+        direction: Direction,
+        destination: CellId
+    ) {
+        self.exits[3] = Exit { command: command, direction: direction, destination: destination };
+        self.exit_count = 4;
+    }
+}
+
+// The level owns its rooms, so it hands out the borrow. A builder-owned
+// lookup would tie every `&mut Room` to the builder receiver and block the
+// builder calls the caller still needs while that room is live.
+machine Level::room_mut(&mut self, cell: CellId) -> &mut Room {
+    let slots: &mut [Room] = self.rooms.as_mut_slice();
+
+    transition cell {
+        CellId::R00 -> &mut slots[0]
+        CellId::R01 -> &mut slots[1]
+        CellId::R02 -> &mut slots[2]
+        CellId::R03 -> &mut slots[3]
+        CellId::R04 -> &mut slots[4]
+        CellId::R05 -> &mut slots[5]
+        CellId::R06 -> &mut slots[6]
+        CellId::R07 -> &mut slots[7]
+        CellId::R08 -> &mut slots[8]
+        CellId::R09 -> &mut slots[9]
+        CellId::R10 -> &mut slots[10]
+        CellId::R11 -> &mut slots[11]
+        CellId::R12 -> &mut slots[12]
+        CellId::R13 -> &mut slots[13]
+        CellId::R14 -> &mut slots[14]
+        CellId::R15 -> &mut slots[15]
+        _ -> &mut slots[0]
+    }
+}
+
