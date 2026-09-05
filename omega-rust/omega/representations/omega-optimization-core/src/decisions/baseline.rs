@@ -1,4 +1,4 @@
-use omega_optimization_core::{
+use crate::{
     OptimizationCandidateIdentity, OptimizationDecisionIdentity, OptimizationDecisionLogIdentity,
     OptimizationReasonCode, OptimizationUnitIdentity,
 };
@@ -127,7 +127,7 @@ impl BaselineDecisionLog {
             return Err(BaselineDecisionLogDecodeError::UnsupportedVersion(version));
         }
         let count = u32::from_le_bytes(cursor.array()?);
-        let mut policy = BaselinePolicy::default();
+        let mut records = Vec::new();
         for _ in 0..count {
             let encoded_identity = OptimizationDecisionIdentity::from_bytes(cursor.array()?);
             let input = OptimizationUnitIdentity::from_bytes(cursor.array()?);
@@ -156,7 +156,7 @@ impl BaselineDecisionLog {
             if identity != encoded_identity {
                 return Err(BaselineDecisionLogDecodeError::DecisionIdentityMismatch);
             }
-            policy.records.push(BaselineDecisionRecord {
+            records.push(BaselineDecisionRecord {
                 identity,
                 input,
                 considered,
@@ -166,7 +166,7 @@ impl BaselineDecisionLog {
         if cursor.offset != encoded.len() {
             return Err(BaselineDecisionLogDecodeError::TrailingBytes);
         }
-        Ok(policy.finish())
+        Ok(finish_log(records))
     }
 }
 
@@ -200,31 +200,16 @@ impl<'a> Cursor<'a> {
     }
 }
 
+/// Record-only builder. It never chooses a candidate or applies a rewrite.
 #[derive(Debug, Default)]
-pub struct BaselinePolicy {
+pub struct BaselineDecisionLogBuilder {
     records: Vec<BaselineDecisionRecord>,
 }
 
-impl BaselinePolicy {
-    pub fn choose(
-        &mut self,
-        input: OptimizationUnitIdentity,
-        candidates: impl IntoIterator<Item = ValidatedCandidateSummary>,
-    ) -> BaselineDecisionOutcome {
-        let considered = canonicalize_candidates(candidates);
-        let outcome = considered
-            .first()
-            .filter(|candidate| candidate.predicted_cost_delta < 0)
-            .map_or(
-                BaselineDecisionOutcome::Skip(OptimizationReasonCode::NotProfitable),
-                |candidate| BaselineDecisionOutcome::Choose(candidate.candidate),
-            );
-        self.record_canonical(input, considered, outcome);
-        outcome
-    }
-
-    /// Retain a policy outcome supplied at the external replay boundary after
-    /// the ordinary candidate validators have accepted the complete roster.
+impl BaselineDecisionLogBuilder {
+    /// Retain a supplied outcome after the ordinary candidate validators have
+    /// accepted the complete roster. This checks membership, not profitability;
+    /// it neither runs a policy nor establishes candidate validity.
     /// This uses the baseline log's existing canonical representation so the
     /// actual selected action remains the identity-bundle authority.
     pub fn record_validated_outcome(
@@ -344,41 +329,11 @@ mod tests {
     }
 
     #[test]
-    fn order_independent_choice_uses_cost_then_stable_identity() {
-        let input = OptimizationUnitIdentity::from_canonical_bytes(b"input");
-        let rows = [
-            candidate(b"b", -1),
-            candidate(b"a", -2),
-            candidate(b"c", -2),
-        ];
-        let mut first = BaselinePolicy::default();
-        let chosen = first.choose(input, rows);
-        let mut second = BaselinePolicy::default();
-        let replay = second.choose(input, rows.into_iter().rev());
-        assert_eq!(chosen, replay);
-        assert_eq!(first.finish(), second.finish());
-    }
-
-    #[test]
-    fn non_improving_candidates_are_replayably_skipped() {
-        let input = OptimizationUnitIdentity::from_canonical_bytes(b"input");
-        let mut policy = BaselinePolicy::default();
-        assert_eq!(
-            policy.choose(input, [candidate(b"same", 0), candidate(b"worse", 1)]),
-            BaselineDecisionOutcome::Skip(OptimizationReasonCode::NotProfitable)
-        );
-        let log = policy.finish();
-        assert_eq!(log.records.len(), 1);
-        assert_ne!(log.identity.bytes(), [0; 32]);
-        assert_eq!(BaselineDecisionLog::decode(&log.encode()), Ok(log));
-    }
-
-    #[test]
     fn recorded_validated_outcome_can_choose_a_non_baseline_member() {
         let input = OptimizationUnitIdentity::from_canonical_bytes(b"input");
         let baseline_choice = candidate(b"baseline", -2);
         let replay_choice = candidate(b"replay", -1);
-        let mut policy = BaselinePolicy::default();
+        let mut policy = BaselineDecisionLogBuilder::default();
         assert_eq!(
             policy.record_validated_outcome(
                 input,
@@ -397,7 +352,7 @@ mod tests {
 
     #[test]
     fn recorded_validated_outcome_rejects_foreign_choice() {
-        let mut policy = BaselinePolicy::default();
+        let mut policy = BaselineDecisionLogBuilder::default();
         let foreign = OptimizationCandidateIdentity::from_canonical_bytes(b"foreign");
         assert_eq!(
             policy.record_validated_outcome(
@@ -412,8 +367,14 @@ mod tests {
     #[test]
     fn codec_rejects_tamper_and_trailing_bytes() {
         let input = OptimizationUnitIdentity::from_canonical_bytes(b"input");
-        let mut policy = BaselinePolicy::default();
-        policy.choose(input, [candidate(b"better", -1)]);
+        let mut policy = BaselineDecisionLogBuilder::default();
+        policy
+            .record_validated_outcome(
+                input,
+                [candidate(b"better", -1)],
+                BaselineDecisionOutcome::Choose(candidate(b"better", -1).candidate),
+            )
+            .unwrap();
         let log = policy.finish();
         let mut tampered = log.encode();
         tampered[20] ^= 1;
@@ -432,12 +393,24 @@ mod tests {
     #[test]
     fn concatenation_replays_pass_order_across_empty_logs() {
         let input = OptimizationUnitIdentity::from_canonical_bytes(b"input");
-        let mut first = BaselinePolicy::default();
-        first.choose(input, [candidate(b"first", -2)]);
+        let mut first = BaselineDecisionLogBuilder::default();
+        first
+            .record_validated_outcome(
+                input,
+                [candidate(b"first", -2)],
+                BaselineDecisionOutcome::Choose(candidate(b"first", -2).candidate),
+            )
+            .unwrap();
         let first = first.finish();
-        let empty = BaselinePolicy::default().finish();
-        let mut second = BaselinePolicy::default();
-        second.choose(input, [candidate(b"second", -1)]);
+        let empty = BaselineDecisionLogBuilder::default().finish();
+        let mut second = BaselineDecisionLogBuilder::default();
+        second
+            .record_validated_outcome(
+                input,
+                [candidate(b"second", -1)],
+                BaselineDecisionOutcome::Choose(candidate(b"second", -1).candidate),
+            )
+            .unwrap();
         let second = second.finish();
 
         let combined = BaselineDecisionLog::concatenate([&first, &empty, &second]).unwrap();

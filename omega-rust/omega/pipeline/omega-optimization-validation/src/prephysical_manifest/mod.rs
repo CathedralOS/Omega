@@ -14,13 +14,13 @@ mod validation;
 pub use model::*;
 pub use validation::validate_pre_physical_optimization_manifest;
 
+use omega_optimization_core::BaselineDecisionLog;
 use omega_optimization_core::{
     OptimizationCandidateVerdict, OptimizationExecutionPhase, OptimizationFactReference,
     OptimizationIdentityBundle, OptimizationPassManifestRecord, OptimizationSelections,
     OptimizationUnitIdentity, OptimizationWorkBudget, OptimizationWorkUsage,
     OptimizedAbstractPlanProjectionIdentity, PrePhysicalOptimizationManifestIdentity,
 };
-use omega_optimization_policy::BaselineDecisionLog;
 use omega_optimization_unit::{
     ProvenanceDisposition, ProvenanceRewrite, PsiOptimizationUnit, PsiProvenance,
     PsiRealizationSite, PsiTransformationLedger,

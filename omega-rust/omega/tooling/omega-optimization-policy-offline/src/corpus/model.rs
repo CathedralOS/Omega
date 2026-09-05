@@ -1,9 +1,9 @@
 use omega_optimization_core::{
-    OptimizationDecisionLogIdentity, OptimizationDecisionSchemaIdentity, OptimizationUnitIdentity,
-};
-use omega_optimization_policy::{
     ExternalDecisionAction, ExternalDecisionContext, ExternalDecisionPoint,
     ExternalDecisionSchemaError,
+};
+use omega_optimization_core::{
+    OptimizationDecisionLogIdentity, OptimizationDecisionSchemaIdentity, OptimizationUnitIdentity,
 };
 
 use super::identity::{DecisionSurfaceIdentity, OfflinePolicyCorpusIdentity};

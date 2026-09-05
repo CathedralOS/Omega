@@ -1,4 +1,4 @@
-use omega_optimization_policy::{
+use omega_optimization_core::{
     ExternalCandidateFeatures, ExternalDecisionContext, ExternalDecisionPoint,
 };
 use sha2::{Digest, Sha256};

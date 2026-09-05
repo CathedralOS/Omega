@@ -11,7 +11,7 @@ mod recording;
 mod replay;
 
 use omega_optimization_core::OptimizationRuleContract;
-use omega_optimization_policy::{ExternalCandidateFeatures, ExternalDecisionSchemaError};
+use omega_optimization_core::{ExternalCandidateFeatures, ExternalDecisionSchemaError};
 use omega_optimization_unit::PsiRewriteCandidate;
 
 pub(super) use context::expected_context;

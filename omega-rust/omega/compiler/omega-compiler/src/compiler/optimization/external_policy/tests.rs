@@ -6,7 +6,7 @@ use omega_optimization_core::{
     OptimizationRuleSetIdentity, OptimizationSelectionIdentity, OptimizationUnitIdentity,
     TargetCostModelIdentity,
 };
-use omega_optimization_policy::{
+use omega_optimization_core::{
     ExternalCandidateFeatures, ExternalDecisionAction, ExternalDecisionContext,
     ExternalDecisionLog, ExternalDecisionPoint, ValidatedCandidateSummary,
 };

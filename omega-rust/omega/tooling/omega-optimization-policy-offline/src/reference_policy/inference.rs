@@ -1,5 +1,5 @@
 use omega_optimization_core::OptimizationReasonCode;
-use omega_optimization_policy::{ExternalDecisionAction, ExternalDecisionPoint};
+use omega_optimization_core::{ExternalDecisionAction, ExternalDecisionPoint};
 
 pub(super) fn predict(
     point: &ExternalDecisionPoint,

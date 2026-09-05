@@ -1,4 +1,4 @@
-use omega_optimization_policy::ExternalDecisionAction;
+use omega_optimization_core::ExternalDecisionAction;
 use sha2::{Digest, Sha256};
 
 use crate::{OfflinePolicySplit, ValidatedOfflinePolicyCorpus};

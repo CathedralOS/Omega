@@ -1,4 +1,4 @@
-use omega_optimization_core::{
+use crate::{
     AnalysisSet, OptimizationCandidateIdentity, OptimizationDecisionIdentity,
     OptimizationDecisionLogIdentity, OptimizationDecisionSchemaIdentity,
     OptimizationDecisionTargetIdentity, OptimizationFactReference, OptimizationReasonCode,

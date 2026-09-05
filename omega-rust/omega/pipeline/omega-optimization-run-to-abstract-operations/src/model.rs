@@ -4,10 +4,10 @@ use omega_abstract_operations::AbstractOperationPlan;
 use omega_abstract_operations_optimizer::{
     OptimizationRun, OptimizationRunUsage, PsiOptimizationCommit, PsiValidatedCandidateDeclaration,
 };
+use omega_optimization_core::{BaselineDecisionLog, ExternalDecisionLog};
 use omega_optimization_core::{
     OptimizationIdentityBundle, OptimizationPassManifestRecord, OptimizationSelections,
 };
-use omega_optimization_policy::{BaselineDecisionLog, ExternalDecisionLog};
 use omega_optimization_unit::{PsiOptimizationUnit, PsiTransformationLedger};
 use omega_optimization_validation::{
     ValidatedOptimizedAbstractPlanProjection, ValidatedPrePhysicalOptimizationManifest,

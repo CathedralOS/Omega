@@ -1,6 +1,6 @@
 use std::collections::BTreeSet;
 
-use omega_optimization_policy::{ExternalDecisionLog, external_psi_decision_schema_v2_identity};
+use omega_optimization_core::{ExternalDecisionLog, external_psi_decision_schema_v2_identity};
 
 use super::identity::corpus_identity;
 use super::model::{CapturedLog, CorpusCandidate, OfflinePolicyCorpusError};

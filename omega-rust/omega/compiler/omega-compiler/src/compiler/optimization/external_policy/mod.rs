@@ -25,7 +25,7 @@ pub(crate) use model::{
 };
 
 use omega_bounded_process::{BoundedCaptureBudget, BoundedProcessInput, run_bounded_process};
-use omega_optimization_policy::ExternalDecisionLog;
+use omega_optimization_core::ExternalDecisionLog;
 
 /// Execute one canonical policy exchange through a platform-verified sandbox.
 ///

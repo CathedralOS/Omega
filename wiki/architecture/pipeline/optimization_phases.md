@@ -136,6 +136,11 @@ in `omega-native-artifact`. These owners retain replay inputs explicitly without
 reopening source/frontend state. Build evaluation consumes report-request data
 from `omega-optimization-core`, not an executable optimization coordinator.
 
+The pass manager owns baseline candidate selection. Baseline decision logs and
+the external decision schema live in `omega-optimization-core/src/decisions`;
+their record-only builder and codecs never choose a rewrite. Offline policy
+tools consume this data directly, without depending on the executing optimizer.
+
 `build.omg` remains the source of exact opt-in selections. Its one ergonomic
 selection surface is projected into phase-specific closed sets:
 

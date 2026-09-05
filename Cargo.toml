@@ -92,7 +92,6 @@ members = [
     "omega-rust/omega/pipeline/omega-callee-saved-requirements-to-save-storage",
     "omega-rust/omega/pipeline/omega-spill-access-constraints-to-frame-requirements",
     "omega-rust/omega/pipeline/omega-optimization-validation",
-    "omega-rust/omega/pipeline/omega-optimization-policy",
     "omega-rust/omega/pipeline/omega-abstract-operations-optimizer",
     "omega-rust/omega/pipeline/omega-optimization-run-to-abstract-operations",
     "omega-rust/omega/pipeline/omega-target-operations-to-assigned-target-operations",

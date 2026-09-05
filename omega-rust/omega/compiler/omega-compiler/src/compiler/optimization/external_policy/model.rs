@@ -1,5 +1,5 @@
 use omega_bounded_process::BoundedProcessRunError;
-use omega_optimization_policy::{ExternalDecisionLog, ExternalDecisionSchemaError};
+use omega_optimization_core::{ExternalDecisionLog, ExternalDecisionSchemaError};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum ExternalPolicyFallback {

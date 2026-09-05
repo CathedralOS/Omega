@@ -1,4 +1,4 @@
-use omega_optimization_policy::ExternalDecisionAction;
+use omega_optimization_core::ExternalDecisionAction;
 
 use super::fixture::{canonical_tie_candidate, corpus, i128_aggregate_corpus};
 use crate::{OfflinePolicySplit, evaluate_cost_threshold_v1, train_cost_threshold_v1};

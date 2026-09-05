@@ -39,7 +39,6 @@ const GOVERNED_ROOTS: &[&str] = &[
     "omega-rust/omega/pipeline/omega-selected-instructions-to-register-homes",
     "omega-rust/omega/pipeline/omega-frame-layout-to-frame-protocol",
     "omega-rust/omega/representations/omega-physical-instructions/src/physical_instructions/costs",
-    "omega-rust/omega/pipeline/omega-optimization-policy",
     "omega-rust/omega/pipeline/omega-optimization-run-to-abstract-operations",
     "omega-rust/omega/pipeline/omega-optimization-validation",
     "omega-rust/omega/pipeline/omega-psi-to-abstract-operations",

@@ -1,4 +1,4 @@
-use omega_optimization_policy::ExternalDecisionLog;
+use omega_optimization_core::ExternalDecisionLog;
 
 use super::{
     ExternalPolicyExecutionError, ExternalPolicyExecutionFailure, ExternalPolicyExecutionOutcome,

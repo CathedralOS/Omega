@@ -13,9 +13,7 @@ mod tests;
 
 use std::collections::BTreeSet;
 
-use omega_optimization_core::{
-    OptimizationDecisionIdentity, OptimizationRuleIdentity, OptimizationUnitIdentity,
-};
+use crate::{OptimizationDecisionIdentity, OptimizationRuleIdentity, OptimizationUnitIdentity};
 
 pub use identity::{
     external_psi_decision_schema_v2_identity, psi_target_neutral_decision_target_v2_identity,

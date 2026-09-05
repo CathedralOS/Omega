@@ -12,7 +12,7 @@ use omega_optimization_core::{
     OptimizationRuleIdentity, OptimizationRuleSetIdentity, OptimizationSelections,
     OptimizationUnitIdentity, OptimizationWorkBudget,
 };
-use omega_optimization_policy::{
+use omega_optimization_core::{
     BaselineDecisionOutcome, ExternalCandidateFeatures, ExternalDecisionAction,
     ExternalDecisionContext, ExternalDecisionLog, ExternalDecisionPoint,
     ExternalDecisionSchemaError, ValidatedCandidateSummary,

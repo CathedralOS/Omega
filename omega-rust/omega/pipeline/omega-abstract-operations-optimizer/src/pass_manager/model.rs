@@ -1,12 +1,12 @@
 use omega_optimization_core::{
+    BaselineDecisionLog, BaselineDecisionLogDecodeError, BaselineDecisionRecordError,
+    ExternalDecisionLog, ExternalDecisionSchemaError,
+};
+use omega_optimization_core::{
     InvalidOptimizationManifestRecord, OptimizationCandidateIdentity, OptimizationIdentityBundle,
     OptimizationPassIdentity, OptimizationPassManifestRecord, OptimizationRuleIdentity,
     OptimizationSelections, OptimizationUnitIdentity, OptimizationValidatorIdentity,
     OptimizationWorkBudget,
-};
-use omega_optimization_policy::{
-    BaselineDecisionLog, BaselineDecisionLogDecodeError, BaselineDecisionRecordError,
-    ExternalDecisionLog, ExternalDecisionSchemaError,
 };
 use omega_optimization_unit::{
     InvalidPsiTransformationLedger, ProvenanceRewrite, PsiOptimizationUnit, PsiRewriteCandidate,
