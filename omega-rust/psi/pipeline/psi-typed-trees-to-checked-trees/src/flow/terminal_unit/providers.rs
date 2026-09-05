@@ -47,7 +47,9 @@ pub(super) fn checked_provider_attachment_requirements(
         })
         .collect::<Vec<_>>();
     if field.identity.starts_with('#')
-        || !structural_parameters.is_empty()
+        || structural_parameters
+            .iter()
+            .any(|parameter| !parameter.is_self)
         || call_operations.is_empty()
     {
         return None;

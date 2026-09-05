@@ -950,6 +950,52 @@ pub(super) fn build_checked_machine(
     selected_operator_applications: &[crate::SelectedOperatorApplication],
     selected_ieee_float_fma_applications: &[crate::SelectedIeeeFloatFmaUnitApplication],
 ) -> Option<CheckedUnitEffectMachinePlan> {
+    build_checked_machine_with(
+        program,
+        facts,
+        shapes,
+        machine,
+        selected_operator_applications,
+        selected_ieee_float_fma_applications,
+        false,
+    )
+    .or_else(|| {
+        // ponytail: a borrowed `self` becomes structural parameter 0 only when
+        // the ambient attachment cannot plan the body, so every machine that
+        // planned before keeps its exact shape. Retain it unconditionally once
+        // `validate_provider_attachment_specialization` (omega) admits a self
+        // beside provider roots and the entry bridge passes the loan.
+        let [state] = program.machine_states(machine) else {
+            return None;
+        };
+        program
+            .state_parameters(state)
+            .iter()
+            .any(|parameter| parameter.is_self && is_reference(program, parameter.type_reference))
+            .then(|| {
+                build_checked_machine_with(
+                    program,
+                    facts,
+                    shapes,
+                    machine,
+                    selected_operator_applications,
+                    selected_ieee_float_fma_applications,
+                    true,
+                )
+            })
+            .flatten()
+    })
+}
+
+fn build_checked_machine_with(
+    program: &TypedTrees,
+    facts: &CheckFacts,
+    shapes: &mut ShapeCollector<'_>,
+    machine: &psi_typed_trees::machine::Machine,
+    selected_operator_applications: &[crate::SelectedOperatorApplication],
+    selected_ieee_float_fma_applications: &[crate::SelectedIeeeFloatFmaUnitApplication],
+    retain_reference_self: bool,
+) -> Option<CheckedUnitEffectMachinePlan> {
     let [state] = program.machine_states(machine) else {
         return None;
     };
@@ -1013,16 +1059,34 @@ pub(super) fn build_checked_machine(
                 return None;
             }
         } else if carries_fused_service_parameter {
-            let (attachment, structural, scalar) =
-                fused_service_scalar_signature(program, shapes, machine, state, &binders)?;
+            let (attachment, structural, scalar) = fused_service_scalar_signature(
+                program,
+                shapes,
+                machine,
+                state,
+                &binders,
+                retain_reference_self,
+            )?;
             (Some(attachment), structural, scalar)
         } else if carries_scalar_parameter {
-            let (attachment, structural, scalar) =
-                structural_scalar_signature(program, shapes, machine, state, &binders, false)?;
+            let (attachment, structural, scalar) = structural_scalar_signature(
+                program,
+                shapes,
+                machine,
+                state,
+                &binders,
+                retain_reference_self,
+            )?;
             (Some(attachment), structural, scalar)
         } else {
-            let (attachment, structural) =
-                structural_signature(program, shapes, machine, state, &binders)?;
+            let (attachment, structural) = structural_signature(
+                program,
+                shapes,
+                machine,
+                state,
+                &binders,
+                retain_reference_self,
+            )?;
             (Some(attachment), structural, Vec::new())
         };
     if !checked_state_contracts_supported(program, machine, state, &structural_parameters) {

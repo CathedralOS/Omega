@@ -258,7 +258,7 @@ fn build_payloadless_case_return_machine(
 
     let binders = machine_binders(program, machine);
     let (attachment_type_identity, structural_parameters) =
-        structural_signature(program, shapes, machine, state, &binders)?;
+        structural_signature(program, shapes, machine, state, &binders, false)?;
     if !structural_parameters.is_empty() {
         return None;
     }
@@ -569,7 +569,7 @@ fn build_payloadless_guarded_call_return_machine(
 
     let binders = machine_binders(program, machine);
     let (attachment_type_identity, structural_parameters) =
-        structural_signature(program, shapes, machine, state, &binders)?;
+        structural_signature(program, shapes, machine, state, &binders, false)?;
     if !structural_parameters.is_empty()
         || attachment_type_identity != target_plan.attachment_type_identity
     {
@@ -931,7 +931,7 @@ fn build_structural_call_return_machine(
     }
     let binders = machine_binders(program, machine);
     let (attachment_type_identity, structural_parameters) =
-        structural_signature(program, shapes, machine, state, &binders)?;
+        structural_signature(program, shapes, machine, state, &binders, false)?;
     let [input] = structural_parameters.as_slice() else {
         return None;
     };
@@ -1196,7 +1196,7 @@ pub(super) fn build_structural_return_machine(
     }
     let binders = machine_binders(program, machine);
     let (attachment_type_identity, structural_parameters) =
-        structural_signature(program, shapes, machine, state, &binders)?;
+        structural_signature(program, shapes, machine, state, &binders, false)?;
     let trivial_affine_locals = local_statements
         .iter()
         .enumerate()
@@ -1860,7 +1860,7 @@ pub(super) fn build_boundary_scalar_return_machine(
     let result_type = program.primitive_type_reference(state.return_type)?;
     let binders = machine_binders(program, machine);
     let (attachment_type_identity, structural_parameters) =
-        structural_signature(program, shapes, machine, state, &binders)?;
+        structural_signature(program, shapes, machine, state, &binders, false)?;
     if !checked_state_contracts_supported(program, machine, state, &structural_parameters)
         || machine_has_content_evidence(facts, machine.symbol, state.symbol)
     {
