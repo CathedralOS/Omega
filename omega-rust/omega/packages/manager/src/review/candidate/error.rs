@@ -257,12 +257,18 @@ impl fmt::Display for CompileResolvedPackageReviewsError {
                 "candidate review could not construct exact semantic role {role:?} for consumer `{}`",
                 consumer.name().as_str()
             ),
-            Self::CompilationInputs { package, errors } => write!(
-                formatter,
-                "compiler input validation failed for package `{}` with {} error(s)",
-                package.name().as_str(),
-                errors.len()
-            ),
+            Self::CompilationInputs { package, errors } => {
+                write!(
+                    formatter,
+                    "compiler input validation failed for package `{}` with {} error(s)",
+                    package.name().as_str(),
+                    errors.len()
+                )?;
+                for error in errors {
+                    write!(formatter, "; {error}")?;
+                }
+                Ok(())
+            }
             Self::Compilation {
                 package,
                 diagnostics,
@@ -331,3 +337,31 @@ impl fmt::Display for CompileResolvedPackageReviewsError {
 }
 
 impl std::error::Error for CompileResolvedPackageReviewsError {}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::declarations::PackageName;
+    use package_source::SourceLineage;
+
+    #[test]
+    fn compiler_input_error_reports_the_cause_not_only_its_count() {
+        let package = PackageKey::new(
+            PackageName::parse("consumer").unwrap(),
+            SourceLineage::git("https://example.org/team/consumer.git").unwrap(),
+        );
+        let cause = PackageCompilationInputError::InvalidSourceRoot {
+            identity: package.identity(),
+            path: PathBuf::from("source-root"),
+            reason: "the expected source root was replaced".into(),
+        };
+        let detail = cause.to_string();
+        let error = CompileResolvedPackageReviewsError::CompilationInputs {
+            package,
+            errors: vec![cause],
+        };
+        let text = error.to_string();
+        assert!(text.contains("package `consumer` with 1 error(s)"));
+        assert!(text.contains(&detail));
+    }
+}

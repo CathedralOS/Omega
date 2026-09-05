@@ -114,6 +114,12 @@ unrelated repository payloads are not copied into the member snapshot. The
 manager still owns interpreting declarations and matching the lock's package
 identity and complete source graph.
 
+Workspace-member snapshots are scoped by repository acquisition before their
+tree ID. Identical member bytes in unrelated repositories therefore retain
+disjoint physical compiler roots. This storage namespace does not enter package
+identity or content identity; it prevents content deduplication from merging
+source routing for distinct package keys.
+
 Dependency direction is deliberate: the `local` and `git` adapters may use
 `identity`, `tree`, `snapshot`, `custody`, and `storage`; those shared owners
 must not depend back on either adapter. The local and Git adapters must not

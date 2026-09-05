@@ -384,9 +384,17 @@ where
         selected_member_path,
         materialized_tree.clone(),
     );
+    // Equal Git trees can belong to distinct package lineages. The compiler
+    // requires disjoint physical source roots for those distinct identities;
+    // content-only member storage would merge their routing custody.
+    let repository_namespace = repository
+        .entry_name
+        .to_str()
+        .expect("compiler-generated Git cache names are ASCII");
+    let scoped_member_lane = member_lane.retain_child(repository_namespace)?;
     let (snapshot_root, local) = publish_git_member_snapshot(
         executor,
-        member_lane,
+        &scoped_member_lane,
         &materialized_tree,
         member.into_entries(),
         limits,

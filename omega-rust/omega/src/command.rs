@@ -302,7 +302,7 @@ struct CliArguments {
 }
 
 fn usage() -> &'static str {
-    "usage: omega [--check] [--accept-admissions] [--output-only] [--package-root-policy <file>] [--build-dir <dir>] [--target <name>] [--disable-optimization <ExactName>]... <root.omg>\n       omega run [--both] [--keep] [--target <name>] <root.omg>\n       omega inspect-terminal --machine <qualified> [--target <name>] <root.omg>\n       omega audit source --kind <local|git> <locator> [--rev <rev>]\n       omega install <source> [--rev <revision>] [--as <alias>] [--target <name>]... [--project <dir>]\n       omega update [package-or-alias...] [--to <revision>] [--target <name>]... [--project <dir>]\n       omega install|update --resume [--project <dir>]\n       omega install|update --discard-review [--project <dir>]\n       omega refresh-samples [samples-dir]"
+    "usage: omega [--check] [--accept-admissions] [--output-only] [--package-root-policy <file>] [--build-dir <dir>] [--target <name>] [--disable-optimization <ExactName>]... <root.omg>\n       omega run [--both] [--keep] [--target <name>] <root.omg>\n       omega inspect-terminal --machine <qualified> [--target <name>] <root.omg>\n       omega audit source --kind <local|git> <locator> [--rev <rev>]\n       omega install <source> [--rev <revision>] [--package <declared-name>] [--as <alias>] [--target <name>]... [--project <dir>]\n       omega update [package-or-alias...] [--to <revision>] [--target <name>]... [--project <dir>]\n       omega install|update --resume [--project <dir>]\n       omega install|update --discard-review [--project <dir>]\n       omega refresh-samples [samples-dir]"
 }
 
 fn parse_arguments() -> Result<CliArguments, String> {

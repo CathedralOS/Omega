@@ -14,6 +14,8 @@ pub enum PackageCommand {
         source: String,
         revision: Option<String>,
         alias: Option<String>,
+        /// Declared Git workspace package name; absence selects the root.
+        package: Option<String>,
     },
     Update {
         packages: Vec<String>,

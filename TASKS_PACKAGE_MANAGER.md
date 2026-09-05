@@ -64,13 +64,6 @@ adding machinery; do not invent proof-of-review or host-security requirements.
 
 ## 3. Commands and integration tests
 
-- [ ] **NAMED-WORKSPACE-INSTALL.** Expose the existing named Git workspace
-  selection in `omega install` and its manager operation. Retain declared-name
-  discovery and optional local alias overrides; do not ask callers for member
-  filesystem paths. Acceptance: a named remote member installs and imports,
-  undeclared/duplicate names reject, and updating one member reports all
-  affected reachable members without refreshing unrelated repositories.
-
 - [ ] **OFFLINE-COMMAND-SELECTION.** Expose existing offline exact-pin recovery
   through command options for locked compilation and package operations where
   applicable. Acceptance: cached accepted/proposed pins work without network;
@@ -88,8 +81,8 @@ adding machinery; do not invent proof-of-review or host-security requirements.
   real command and network adapters using pure, dangerous, capability-changing,
   same-name/different-source, transitive-authority, and generated-source
   fixtures. Refresh the remote fixture sources and exact pins that still use
-  retired target declarations; then prove remote install, selected update, and
-  import through the default alias. Run HTTPS coverage where the private
+  retired target declarations; then prove remote root/named-member install,
+  selected update, and import through the default alias. Run HTTPS coverage where the private
   fixtures' credentials are configured, independently of SSH coverage.
   Cover missing baselines/old source, invalid proofs, spoofed
   boundaries, concurrent edits, and interruption recovery.

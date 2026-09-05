@@ -4046,13 +4046,22 @@ unit, while unaffected repositories remain pinned.
 
 ### Install/update command lifecycle
 
-`omega install <source> [--rev <revision>] [--as <alias>]` installs a Git root
-package or a local package. The fetched declaration supplies the package name;
+`omega install <source> [--rev <revision>] [--package <declared-name>] [--as <alias>]`
+installs a Git root, named Git workspace member, or local package. The fetched
+declaration supplies the package name;
 the consumer supplies an alias only when overriding the default.
 `omega update [package-or-alias...] [--to <revision>]` updates all requests or
 the selected repository lineages. `--to` requires one selection with a
-root-authored Git request. Named repository-member selection is available in
-`build.omg`, but an install CLI flag remains to be added.
+root-authored Git request. `--package` maps to the existing named selection in
+`build.omg`; it accepts a declared package name, not a member path. The resolver
+checks workspace membership and rejects absent or duplicate names. Omission
+selects the root; local sources use their package directory directly. Selection
+persists through the proposed declaration and graph during review/resume.
+
+Member snapshot storage is scoped by repository acquisition before tree ID.
+Byte-identical members in unrelated repositories must have distinct physical
+compiler roots, while source lineage and declared name continue to determine
+package identity. Cache paths do not become nominal identity.
 
 Both commands accept `--project <dir>` and repeated `--target <name>`. Target
 selection retains all existing lock targets and adds requested ones; first

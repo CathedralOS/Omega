@@ -2439,8 +2439,9 @@ selections, retain per-target findings and exact candidate pins across
 `--resume`, and preserve accepted project files until blocking decisions accept.
 Ordinary compilation uses locked dependency pins while allowing edits to the
 local application's own source. Compiler admission policy uses
-`omega.admissions`, not the package lock. Named workspace selection at the CLI,
-explicit both-alias-and-source replacement intent, and source-code diff/audit
+`omega.admissions`, not the package lock. Named workspace install uses
+`--package <declared-name>` and existing checked member discovery. Explicit
+both-alias-and-source replacement intent and source-code diff/audit
 integration remain work on the task board.
 Reviewed pair publication and interruption recovery use a bounded commit-intent
 journal and OS mutex, without additional evidence-promotion prerequisites.
