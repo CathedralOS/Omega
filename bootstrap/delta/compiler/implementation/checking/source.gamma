@@ -271,12 +271,6 @@
 (def require_value_name ((start Int) (end Int)) Int
   (if (value_name_valid start end) 0 (fail)))
 
-(def validate_local_declaration
-  ((name Int) (name_end Int) (type_name Int) (type_end Int)
-   (type_rows Int)) Int
-  (let checked_name Int (require_value_name name name_end)
-    (if (field_type_valid type_name type_end type_rows) 0 (fail))))
-
 (def skip_expression ((index Int)) Int
   (let start Int (skip index)
     (if (eq (source_read start) 40)
@@ -301,12 +295,3 @@
     (if (token_bytes start end)
       1
       (upper_name_valid start end))))
-
-(def field_type_valid ((start Int) (end Int) (type_rows Int)) Int
-  (if (token_int start end)
-    1
-    (if (token_bytes start end)
-      1
-      (if (upper_name_valid start end)
-        (first (name_trie_find_option type_rows end start))
-        0))))

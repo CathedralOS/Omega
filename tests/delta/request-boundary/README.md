@@ -43,10 +43,10 @@ comparators, not a runtime metadata input.
 Source-envelope failures now use Reject code 3 in Delta-source coordinate
 space 1, and an otherwise valid wrong entry signature uses Reject code 20 at
 the `main` declaration name. Empty source and an unmatched opening delimiter
-use syntax code 4 at source EOF, respectively zero and one. The gate checks 55
-exact DCOUT frames and keeps one unfinished body-name failure at evaluator status 249 with empty
-stdout. It does not translate those failures into guessed reasons or generated
-ConformanceBytesV1 application observations. The adjacent
+use syntax code 4 at source EOF, respectively zero and one. An unknown body
+local uses code 14 at the exact name token. The gate checks 56 exact DCOUT
+frames; it does not translate evaluator failures into guessed reasons or
+generated ConformanceBytesV1 application observations. The adjacent
 [frontend-boundary gate](../frontend-boundary/README.md) covers global duplicate
 collection and frontend-before-schema ordering. Neither gate closes the Delta
 compiler edge, its resource conformance, or later failure publication.

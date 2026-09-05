@@ -31,7 +31,7 @@ directory = Path(os.environ["FRONTEND_BOUNDARY_TMP"])
 compiler = (directory / "compiler.gamma").read_bytes()
 identity = (len(compiler.splitlines()), len(compiler), hashlib.sha256(compiler).hexdigest())
 if identity != (
-    2727, 113178, "ee6818499f770fd2ad2b06286a6f9509e4f0b1cd9f7acca4a15122d2cb473042"
+    2771, 117889, "747e0bb0e70eb25b0b7625f1cb55fb9b04a29cac15bca27eb11e971f6ea2bae6"
 ):
     raise SystemExit(f"Delta compiler identity changed: {identity}")
 
@@ -268,27 +268,191 @@ declarations = (
 for name, code, prefix, offending, suffix in declarations:
     cases.append((name, prefix + offending + suffix, rejection(code, len(prefix))))
 
-# These unfinished frontend paths must remain evaluator-owned failures, not
-# guessed DCOUT frames or schema diagnostics derived before frontend success.
-for name, source in (
-    ("unknown let annotation remains body-owned",
-     b"(def helper () Int (let value Unknown 0 0))\n"),
-    ("let conflict remains body-owned",
-     b"(def helper ((value Int)) Int (let value Int 0 value))\n"),
-    ("unknown body name without main", b"(def helper () Int missing)\n"),
-    ("wrong present entry with body error", b"(def main () Int missing)\n"),
-    ("wrong present entry with body type error", b"(def main () Int (bytes_empty))\n"),
-    ("ordinary body error before valid entry", b"(def helper () Int missing)\n" + identity_source),
-    ("known function argument count",
-     b"(def helper ((value Int)) Int value)\n(def main () Int (helper))\n"),
-    ("known constructor argument count",
-     b"(data Item (Item Int))\n(def main () Item (Item))\n"),
-    ("known pattern payload count",
-     b"(data Item (Item Int))\n(def main () Int (match (Item 0) ((Item) 0)))\n"),
-    ("arithmetic argument count", b"(def main () Int (+ 1))\n"),
-    ("bytes builtin argument count", b"(def main () Bytes (bytes_single))\n"),
-):
-    cases.append((name, source, (249, b"")))
+# Body typing owns exact judgments after declaration resolution. These are
+# authored prefix/suffix pairs, not coordinates recovered by a host parser.
+semantic = (
+    ("unknown let annotation", 11,
+     b"(def helper () Int (let value ", b"Unknown 0 0))\n"),
+    ("active let conflict", 9,
+     b"(def helper ((value Int)) Int (let ", b"value Int 0 value))\n"),
+    ("unknown body name without main", 14,
+     b"(def helper () Int ", b"missing)\n"),
+    ("wrong present entry with body error", 14,
+     b"(def main () Int ", b"missing)\n"),
+    ("wrong present entry with body type error", 15,
+     b"(def main () Int ", b"(bytes_empty))\n"),
+    ("ordinary body error before valid entry", 14,
+     b"(def helper () Int ", b"missing)\n(def main ((source Bytes)) Bytes source)\n"),
+    ("known function argument count", 16,
+     b"(def helper ((value Int)) Int value)\n(def main () Int ", b"(helper))\n"),
+    ("known constructor argument count", 16,
+     b"(data Item (Item Int))\n(def main () Item ", b"(Item))\n"),
+    ("known pattern payload count", 16,
+     b"(data Item (Item Int))\n(def main () Int (match (Item 0) (", b"(Item) 0)))\n"),
+    ("arithmetic argument count", 16,
+     b"(def main () Int ", b"(+ 1))\n"),
+    ("bytes builtin argument count", 16,
+     b"(def main () Bytes ", b"(bytes_single))\n"),
+    ("unknown function name", 13,
+     b"(def probe () Int (", b"missing 0))\n"),
+    ("unknown function precedes argument", 13,
+     b"(def probe () Int (", b"missing other))\n"),
+    ("unknown constructor atom", 12,
+     b"(def probe () Int ", b"Missing)\n"),
+    ("unknown constructor application", 12,
+     b"(def probe () Int (", b"Missing other))\n"),
+    ("unknown pattern constructor", 12,
+     b"(data Choice (First))\n(def probe () Int (match First (", b"Missing missing)))\n"),
+    ("function name is not a value", 14,
+     b"(def helper () Int 0)\n(def probe () Int ", b"helper)\n"),
+    ("unknown local spelling prefix", 14,
+     b"(def probe ((value_long Int)) Int ", b"value)\n"),
+    ("unknown local spelling suffix", 14,
+     b"(def probe ((value Int)) Int ", b"value_long)\n"),
+    ("let initializer uses outer environment", 14,
+     b"(def probe () Int (let value Int ", b"value value))\n"),
+    ("let annotation precedes conflict", 11,
+     b"(def probe ((value Int)) Int (let value ", b"Unknown missing value))\n"),
+    ("let conflict precedes initializer", 9,
+     b"(def probe ((value Int)) Int (let ", b"value Int missing value))\n"),
+    ("nested active let conflict", 9,
+     b"(def probe () Int (let value Int 0 (let ", b"value Int 1 value)))\n"),
+    ("let initializer type mismatch", 15,
+     b"(def probe () Int (let value Int ", b"(bytes_empty) value))\n"),
+    ("let local does not escape expression", 14,
+     b"(def probe () Int (+ (let value Int 0 value) ", b"value))\n"),
+    ("if condition type mismatch", 15,
+     b"(def probe () Int (if ", b"(bytes_empty) 0 1))\n"),
+    ("if condition precedes branch", 15,
+     b"(def probe () Int (if ", b"(bytes_empty) missing other))\n"),
+    ("if branch type mismatch", 15,
+     b"(def probe () Int (if 1 0 ", b"(bytes_empty)))\n"),
+    ("if true branch error precedes false branch", 14,
+     b"(def probe () Int (if 0 ", b"missing (bytes_empty)))\n"),
+    ("if unselected branch still checked", 14,
+     b"(def probe () Int (if 1 0 ", b"missing))\n"),
+    ("operator first argument type mismatch", 15,
+     b"(def probe () Int (+ ", b"(bytes_empty) 0))\n"),
+    ("operator second argument type mismatch", 15,
+     b"(def probe () Int (+ 0 ", b"(bytes_empty)))\n"),
+    ("operator expected argument before missing argument", 14,
+     b"(def probe () Int (+ ", b"missing))\n"),
+    ("operator extra argument not typed", 16,
+     b"(def probe () Int ", b"(+ 0 1 missing))\n"),
+    ("function first argument before later type", 15,
+     b"(def helper ((first Int) (second Int)) Int first)\n(def probe () Int (helper ", b"(bytes_empty) missing))\n"),
+    ("function expected argument before missing argument", 14,
+     b"(def helper ((first Int) (second Int)) Int first)\n(def probe () Int (helper ", b"missing))\n"),
+    ("function extra argument not typed", 16,
+     b"(def helper ((value Int)) Int value)\n(def probe () Int ", b"(helper 0 missing))\n"),
+    ("zero arity function extra argument not typed", 16,
+     b"(def helper () Int 0)\n(def probe () Int ", b"(helper missing))\n"),
+    ("constructor expected argument before missing argument", 14,
+     b"(data Pair (Pair Int Int))\n(def probe () Pair (Pair ", b"missing))\n"),
+    ("constructor argument type mismatch", 15,
+     b"(data Pair (Pair Int Bytes))\n(def probe () Pair (Pair 0 ", b"1))\n"),
+    ("constructor extra argument not typed", 16,
+     b"(data Item (Item Int))\n(def probe () Item ", b"(Item 0 missing))\n"),
+    ("nonnullary constructor atom arity", 16,
+     b"(data Item (Item Int))\n(def probe () Item ", b"Item)\n"),
+    ("nominal types remain distinct", 15,
+     b"(data First (First Int))\n(data Second (Second Int))\n(def helper ((value First)) Int 0)\n(def probe () Int (helper ", b"(Second 0)))\n"),
+    ("bytes single argument mismatch", 15,
+     b"(def probe () Int (bytes_single ", b"(bytes_empty)))\n"),
+    ("bytes length argument mismatch", 15,
+     b"(def probe () Int (bytes_length ", b"0))\n"),
+    ("bytes get first type before second name", 15,
+     b"(def probe () Int (bytes_get ", b"0 missing))\n"),
+    ("bytes get second argument mismatch", 15,
+     b"(def probe () Int (bytes_get (bytes_empty) ", b"(bytes_empty)))\n"),
+    ("bytes concat second argument mismatch", 15,
+     b"(def probe () Int (bytes_concat (bytes_empty) ", b"0))\n"),
+    ("bytes empty extra argument not typed", 16,
+     b"(def probe () Int ", b"(bytes_empty missing))\n"),
+    ("declared function body result mismatch", 15,
+     b"(def probe () Int ", b"(bytes_empty))\n"),
+    ("first body error before later body error", 14,
+     b"(def first () Int ", b"missing)\n(def second () Int other)\n"),
+    ("match scrutinee mismatch", 15,
+     b"(data Item (Item))\n(def probe () Int (match ", b"0 (Item 0)))\n"),
+    ("match scrutinee error before pattern lookup", 14,
+     b"(data Item (Item))\n(def probe () Int (match ", b"missing (Unknown 0)))\n"),
+    ("pattern owner mismatch", 15,
+     b"(data First (First))\n(data Second (Second))\n(def probe () Int (match First (", b"Second 0)))\n"),
+    ("pattern owner precedes payload arity", 15,
+     b"(data First (First))\n(data Second (Second Int))\n(def probe () Int (match First ((", b"Second) missing)))\n"),
+    ("pattern arity precedes binders and body", 16,
+     b"(data Item (Item Int))\n(def probe () Int (match (Item 0) (", b"(Item first second) missing)))\n"),
+    ("duplicate pattern binder", 10,
+     b"(data Pair (Pair Int Int))\n(def probe () Int (match (Pair 0 1) ((Pair value ", b"value) value)))\n"),
+    ("pattern binder conflicts with outer parameter", 9,
+     b"(data Item (Item Int))\n(def probe ((value Int)) Int (match (Item 0) ((Item ", b"value) value)))\n"),
+    ("pattern binder conflicts with outer let", 9,
+     b"(data Item (Item Int))\n(def probe () Int (let value Int 0 (match (Item 0) ((Item ", b"value) value))))\n"),
+    ("pattern binder conflict precedes body", 9,
+     b"(data Item (Item Int))\n(def probe ((value Int)) Int (match (Item 0) ((Item ", b"value) missing)))\n"),
+    ("pattern local does not escape match", 14,
+     b"(data Item (Item Int))\n(def probe () Int (+ (match (Item 0) ((Item value) value)) ", b"value))\n"),
+    ("duplicate match case", 17,
+     b"(data Choice (First) (Second))\n(def probe () Int (match First (First 0) (", b"First 1) (Second 2)))\n"),
+    ("duplicate case precedes body", 17,
+     b"(data Choice (First) (Second))\n(def probe () Int (match First (First 0) (", b"First missing)))\n"),
+    ("pattern arity precedes duplicate case", 16,
+     b"(data Item (Item Int))\n(def probe () Int (match (Item 0) ((Item first) first) (", b"(Item) missing)))\n"),
+    ("match arm result mismatch", 15,
+     b"(data Choice (First) (Second))\n(def probe () Int (match First (First 0) (Second ", b"(bytes_empty))))\n"),
+    ("match body error precedes missing coverage", 14,
+     b"(data Choice (First) (Second))\n(def probe () Int (match First (First ", b"missing)))\n"),
+    ("nonexhaustive match", 18,
+     b"(data Choice (First) (Second))\n(def probe () Int ", b"(match First (First 0)))\n"),
+    ("nested missing coverage is independent", 18,
+     b"(data Choice (First) (Second))\n(def probe () Int (match First (First ", b"(match Second (Second 0))) (Second 1)))\n"),
+    ("unselected match arm still checked", 14,
+     b"(data Choice (First) (Second))\n(def probe () Int (match First (First 0) (Second ", b"missing)))\n"),
+    ("mixed constructor first field type", 15,
+     b"(data Leaf (Leaf Int))\n(data Packet (Packet Int Bytes Leaf))\n(def probe () Packet (Packet ", b"(bytes_empty) (bytes_empty) (Leaf 0)))\n"),
+    ("mixed constructor middle field type", 15,
+     b"(data Leaf (Leaf Int))\n(data Packet (Packet Int Bytes Leaf))\n(def probe () Packet (Packet 0 ", b"1 (Leaf 0)))\n"),
+    ("mixed constructor last field type", 15,
+     b"(data Leaf (Leaf Int))\n(data Packet (Packet Int Bytes Leaf))\n(def probe () Packet (Packet 0 (bytes_empty) ", b"1))\n"),
+    ("mixed pattern first binder type", 15,
+     b"(data Leaf (Leaf Int))\n(data Packet (Packet Int Bytes Leaf))\n(def probe ((packet Packet)) Int (match packet ((Packet first middle last) (bytes_length ", b"first))))\n"),
+    ("mixed pattern middle binder type", 15,
+     b"(data Leaf (Leaf Int))\n(data Packet (Packet Int Bytes Leaf))\n(def probe ((packet Packet)) Int (match packet ((Packet first middle last) (+ ", b"middle 0))))\n"),
+    ("mixed pattern last binder type", 15,
+     b"(data Leaf (Leaf Int))\n(data Packet (Packet Int Bytes Leaf))\n(def probe ((packet Packet)) Int (match packet ((Packet first middle last) (bytes_length ", b"last))))\n"),
+)
+for name, code, prefix, suffix in semantic:
+    cases.append((name, prefix + suffix, rejection(code, len(prefix))))
+
+# Both structural and semantic traversal visit all nested nodes before the
+# innermost unknown name rejects. Successful emission at this depth is not
+# claimed: this fixture finishes in the checker, before Gamma emission.
+deep_semantic_prefix = (
+    b"(def helper ((value Int)) Int value)\n(def probe () Int "
+    + b"(helper " * 1000
+)
+cases.append(("deep semantic traversal",
+              deep_semantic_prefix + b"missing" + b")" * 1001,
+              rejection(14, len(deep_semantic_prefix))))
+
+deep_valid_source = (
+    b"(def helper () Int " + b"(if 1 " * 1000 + b"0"
+    + b" 0)" * 1000 + b")"
+)
+cases.append(("deep valid frontend before missing entry", deep_valid_source,
+              rejection(19, 0, space=0)))
+
+# Mixed fixed payload shapes test the final field after every earlier field
+# has resolved, without changing the language's arbitrary constructor arity.
+wide_field_types = b" ".join([b"Int", b"Bytes"] * 32)
+wide_field_arguments = b" ".join([b"0", b"(bytes_empty)"] * 31 + [b"0"])
+wide_field_prefix = (
+    b"(data Wide (Empty) (Wide " + wide_field_types + b"))\n"
+    b"(def probe () Wide (Wide " + wide_field_arguments + b" "
+)
+cases.append(("wide mixed constructor last field mismatch",
+              wide_field_prefix + b"0))\n", rejection(15, len(wide_field_prefix))))
 
 for name, source, expected in cases:
     actual = evaluate(compiler, request(source))
@@ -355,6 +519,36 @@ wide_arguments = b" ".join([b"source"] * 200)
 accepted += (("two-hundred parameter and argument identity",
               b"(def wide (" + wide_parameters + b") Bytes value199)\n"
               b"(def main ((source Bytes)) Bytes (wide " + wide_arguments + b"))\n"),)
+
+# Scope restoration and field-type order remain observable on successful code.
+accepted += (
+    ("outer let binder remains absent throughout initializer",
+     b"(def main ((source Bytes)) Bytes "
+     b"(let value Bytes (let value Bytes source value) value))\n"),
+    ("disjoint let siblings restore outer scope",
+     b"(def main ((source Bytes)) Bytes\n  (bytes_concat (let value Bytes source value)\n    (let value Bytes (bytes_empty) value)))\n"),
+    ("disjoint if branches reuse local spelling",
+     b"(def main ((source Bytes)) Bytes\n  (if 1 (let value Bytes source value)\n    (let value Bytes (bytes_empty) value)))\n"),
+    ("disjoint match arms reuse payload spelling",
+     b"(data Choice (First Bytes) (Second Bytes))\n(def unwrap ((choice Choice)) Bytes\n  (match choice ((First value) value) ((Second value) value)))\n(def main ((source Bytes)) Bytes (unwrap (First source)))\n"),
+    ("nested matches retain independent coverage",
+     b"(data Choice (First) (Second))\n(def main ((source Bytes)) Bytes\n  (match First\n    (First (match Second (First (bytes_empty)) (Second source)))\n    (Second (bytes_empty))))\n"),
+    ("pattern locals restore across sibling matches",
+     b"(data Item (Item Bytes))\n(def main ((source Bytes)) Bytes\n  (bytes_concat\n    (match (Item source) ((Item value) value))\n    (match (Item (bytes_empty)) ((Item value) value))))\n"),
+    ("mixed nominal constructor field order and separate owners",
+     b"(data Leaf (Leaf Int))\n(data Packet (Empty) (Packet Int Bytes Leaf) (Other Leaf Bytes Int))\n(def extract ((packet Packet)) Bytes\n  (match packet\n    (Empty (bytes_empty))\n    ((Packet number bytes leaf)\n      (match leaf ((Leaf count) (if (eq (+ number count) 12) bytes (bytes_empty)))))\n    ((Other leaf bytes number)\n      (match leaf ((Leaf count) (if (eq (+ number count) 12) bytes (bytes_empty)))))))\n(def main ((source Bytes)) Bytes\n  (bytes_concat (extract (Packet 5 source (Leaf 7)))\n    (bytes_concat (extract (Other (Leaf 7) (bytes_empty) 5)) (extract Empty))))\n"),
+)
+wide_field_binders = b" ".join(
+    f"value{index}".encode("ascii") for index in range(64)
+)
+wide_value_arguments = b" ".join([b"0", b"source"] * 32)
+accepted += (("mixed wide payload and nullary case",
+              b"(data Wide (Empty) (Wide " + wide_field_types + b"))\n"
+              b"(def unwrap ((value Wide)) Bytes (match value (Empty (bytes_empty)) "
+              b"((Wide " + wide_field_binders + b") value63)))\n"
+              b"(def main ((source Bytes)) Bytes "
+              b"(bytes_concat (unwrap (Wide " + wide_value_arguments + b")) "
+              b"(unwrap Empty)))\n"),)
 payload = b"\x00A\x80\xff"
 for name, source in accepted:
     status, receipt = evaluate(compiler, request(source))

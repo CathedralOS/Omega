@@ -29,7 +29,13 @@ Its subordinate `checking/declarations/` members separate
 [`types.gamma`](implementation/checking/declarations/types.gamma)
 (retained type-node resolution).
 
-`implementation/implementation.gamma.sources` selects all 26 shared members
+Body typing starts at
+[`checking/types.gamma`](implementation/checking/types.gamma), then follows
+[`checking/types/`](implementation/checking/types/README.md) for identities,
+expression dispatch, branches, bindings, calls, and matches. Continuation
+frames belong to the expression dispatcher and each concept's payload owner.
+
+`implementation/implementation.gamma.sources` selects all 32 shared members
 with exact lengths, digests, and ordered identities. The byte-only source
 materializer validates that closed inventory and prefixes the explicitly
 selected entry. For the canonical entry, its application marker is therefore
@@ -115,9 +121,9 @@ bare `-` is a valid operator token but remains invalid as an expression atom.
 Declaration resolution also rejects repeated parameter
 names within a function before body checking begins.
 
-A type-checking pass begins each function from the typed parameter environment
-retained by the global catalog, then extends the immutable exact-name trie for
-`let` bodies and individual match arms. It rejects unknown value atoms,
+A retained-node type-checking pass begins each function from the typed parameter
+environment retained by the global catalog, then extends the immutable
+exact-name trie for `let` bodies and individual match arms. It rejects unknown value atoms,
 self-reference from a `let` initializer, and any parameter, `let`, or pattern
 binder that duplicates an active local. Immutable roots give lexical pop
 without mutation: sibling expressions, branches, and disjoint match arms may
@@ -126,6 +132,20 @@ The pass checks every currently emitted scalar, `Bytes`, and nominal constructor
 pattern binder, call argument, `let` initializer, operator, conditional, match
 arm, and declared result. Function and local names remain
 grammar-distinguished namespaces.
+
+Body checking consumes retained expression and pattern children rather than
+reparsing their source structure. Explicit visit/resume continuations retain
+pending children and environments without one Gamma call frame per source
+nesting level. Ordered resolved constructor field types feed calls and pattern
+binders without rescanning annotations. Each completed expression judgment
+carries its type or the unchanged canonical failure; program checking succeeds
+only after all bodies. No failed child produces a guessed type. The retained
+source spans remain the coordinates for names, binders,
+argument/type disagreement, and match coverage diagnostics.
+The [boundary documentation](implementation/boundary/README.md#body-traversal-and-coordinates)
+specifies the traversal order: head before expected arguments, body-let
+annotation before conflict and outer initializer, and each complete match arm
+before final coverage. These checks do not select a globally smallest offset.
 
 The complete type-check pass finishes before the first output byte. Emission
 therefore consumes that established preflight instead of revalidating data
@@ -185,15 +205,16 @@ malformed framing, unknown profiles, and source-length refusal; see
 [`implementation/boundary/README.md`](implementation/boundary/README.md).
 Owned source failures now include forbidden source byte (code 3), invalid token
 spelling and structural grammar (code 4), out-of-range integer literal (5),
-duplicate type/constructor/function identity (6/7/8), parameter-name conflict
-(the declaration subset of 9), unknown field/signature type (the declaration
-subset of 11), missing `main` (19), and application schema mismatch (20).
+duplicate type/constructor/function identity (6/7/8), local and pattern conflicts
+(9/10), unknown types and names (11–14), type and arity disagreement (15/16),
+duplicate and nonexhaustive match cases (17/18), missing `main` (19), and
+application schema mismatch (20).
 Missing `main` has no source coordinate; a schema mismatch
-anchors at the entry name. Body-local conflicts and annotation types, value-name
-resolution, semantic arity, and other body-checking failures
-still exit through evaluator-owned Gamma status 249 without publication, not
-DCOUT. Completing those paths, later resource accounting, internal failures,
-and final edge closure remains open.
+anchors at the entry name. Compiler-owned resource accounting and internal
+failure publication remain open. Expression emission still follows checked
+source coordinates, and its nesting behavior is not established by the retained
+frontend. Underlying evaluator failures on those paths are not DCOUT. These
+frontend diagnostics do not establish final edge closure.
 Calls emitted in tail position remain in Gamma tail position through
 `if`, `let`, and lowered `match`; the selected evaluator executes a 100,000-node
 construction and traversal in bounded call context. Static acceptance of the
@@ -209,7 +230,7 @@ The downgraded full compiler remains separate under
 ## Measurements
 
 ```text
-2,727-line / 113,178-byte canonical entry plus shared Gamma implementation
+2,771-line / 117,889-byte canonical entry plus shared Gamma implementation
 7-line / 195-byte nullary-ADT Delta fixture
   -> 3-line / 165-byte Gamma receipt
   -> selected Gamma evaluation produces byte 9

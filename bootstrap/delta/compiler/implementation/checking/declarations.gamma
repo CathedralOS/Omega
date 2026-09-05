@@ -3,22 +3,23 @@
 (def resolve_collected_declarations
   ((program Int) (collected_globals Int) (resolved_function_rows Int)) Int
   (resolve_declaration_nodes (first program) (second program)
-    collected_globals resolved_function_rows))
+    collected_globals resolved_function_rows (empty_name_trie)))
 
 (def resolve_declaration_nodes
   ((remaining Int) (forms Int) (collected_globals Int)
-   (resolved_function_rows Int)) Int
+   (resolved_function_rows Int) (resolved_constructor_rows Int)) Int
   (if (eq remaining 0)
     (compiler_complete
       (pair (global_types collected_globals)
-        (pair (global_constructors collected_globals) resolved_function_rows)))
+        (pair resolved_constructor_rows resolved_function_rows)))
     (let form Int (first forms)
       (let head Int (syntax_child form 0)
         (if (token_data (syntax_start head) (syntax_after head))
-          (let checked Int (resolve_collected_data form collected_globals)
+          (let checked Int
+            (resolve_collected_data form collected_globals resolved_constructor_rows)
             (if (eq (first checked) 0)
               (resolve_declaration_nodes (- remaining 1) (second forms)
-                collected_globals resolved_function_rows)
+                collected_globals resolved_function_rows (second checked))
               checked))
           (if (token_def (syntax_start head) (syntax_after head))
             (let name Int (syntax_child form 1)
@@ -27,6 +28,7 @@
                   (resolve_declaration_nodes (- remaining 1) (second forms)
                     collected_globals
                     (name_trie_insert resolved_function_rows
-                      (syntax_after name) (syntax_start name) (second resolved)))
+                      (syntax_after name) (syntax_start name) (second resolved))
+                    resolved_constructor_rows)
                   resolved)))
             (fail)))))))

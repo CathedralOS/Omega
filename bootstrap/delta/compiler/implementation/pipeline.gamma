@@ -27,10 +27,12 @@
     (if (eq (first resolution) 0)
       (let checked Int (second resolution)
         (let bodies Int (check_program_types program checked)
-          (let schema Int (validate_application_profile profile checked)
-            (if (eq (first schema) 0)
-              (compiler_complete (emit_checked_program profile program checked))
-              schema))))
+          (if (eq (first bodies) 0)
+            (let schema Int (validate_application_profile profile checked)
+              (if (eq (first schema) 0)
+                (compiler_complete (emit_checked_program profile program checked))
+                schema))
+            bodies)))
       resolution)))
 
 (def emit_checked_program ((profile Int) (program Int) (checked Int)) Int
