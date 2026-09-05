@@ -1,1 +1,1 @@
-retired bounded proof surface; replace this canary with a requires/ensures-based proof failure before reactivating it
+cannot prove requires contract for call wounded from Main::main: value > 0

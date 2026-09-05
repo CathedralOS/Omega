@@ -1,3 +1,6 @@
+// A projected field argument carries no fact satisfying the callee's explicit
+// precondition. The retired bounded annotation is not needed to express it.
+
 data Main {
     health: i32;
 }
@@ -6,5 +9,8 @@ machine Main::main(&mut self) {
     self.wounded(self.health);
 }
 
-machine Main::wounded(&mut self, value: i32) {
+machine Main::wounded(&mut self, value: i32)
+requires
+    value > 0
+{
 }
