@@ -3,11 +3,12 @@ use std::collections::BTreeMap;
 use omega_regalloc::ValidatedSelectedAnalysis;
 use omega_register_model::ValidatedPhysicalRegisterModel;
 
-use crate::{
-    StagedOptimizedPostAllocationMachineOptimization, StagedOptimizedPostAllocationMachinePlan,
+use omega_post_allocation_machine_to_optimized_machine::StagedOptimizedPostAllocationMachineOptimization;
+use omega_post_allocation_machine_to_selected_form_encoding::{
     StagedOptimizedSelectedFormEncoding, stage_optimized_layout_independent_selected_form_encoding,
     validate_optimized_layout_independent_selected_form_encoding_with_post_allocation_machine_optimization,
 };
+use omega_register_homes_to_post_allocation_machine::StagedOptimizedPostAllocationMachinePlan;
 
 use super::error::OptimizedResolvedSelectedFormLayoutError;
 use super::model::{SelectedFunctionLayoutPolicy, StagedOptimizedResolvedSelectedFormLayout};

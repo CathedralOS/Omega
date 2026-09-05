@@ -13,7 +13,7 @@ const ALLOCATION_RECOVERY_CATALOG: &str =
     "omega-rust/omega/pipeline/omega-regalloc/src/rules/allocation_recovery/catalog.rs";
 const POST_ALLOCATION_CATALOG: &str =
     "omega-rust/omega/pipeline/omega-machine-optimizer/src/rules/catalog.rs";
-const FUNCTION_RELATIVE_LAYOUT_CATALOG: &str = "omega-rust/omega/pipeline/omega-optimization-pipeline/src/stages/layout/x86_branch_relaxation/catalog.rs";
+const FUNCTION_RELATIVE_LAYOUT_CATALOG: &str = "omega-rust/omega/pipeline/omega-selected-form-encoding-to-resolved-layout/src/x86_branch_relaxation/catalog.rs";
 const INVENTORY_START: &str = "<!-- exact-rule-inventory:start -->";
 const INVENTORY_END: &str = "<!-- exact-rule-inventory:end -->";
 

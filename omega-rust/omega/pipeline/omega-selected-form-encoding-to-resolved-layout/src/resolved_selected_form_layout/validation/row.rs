@@ -11,85 +11,100 @@ use omega_selected_instructions::{
 use omega_target::Architecture;
 use psi_core::MachineId;
 
-use crate::{
-    DeferredControlEncodingReason, SelectedFormEncodingRow, SelectedFormEncodingState,
-    SelectedFormInternalMachineFixup, SelectedFormInternalMachineFixupKind,
-    SelectedFormInternalMachineFixupState, SelectedFormMachineDisposition,
+use omega_post_allocation_machine_to_optimized_machine::{
     StagedOptimizedAarch64CbnzFusion, StagedOptimizedAarch64SameViewCopyElision,
 };
+use omega_post_allocation_machine_to_selected_form_encoding::{
+    DeferredControlEncodingReason, SelectedFormEncodingRow, SelectedFormEncodingState,
+    SelectedFormMachineDisposition,
+};
 
-use super::super::{OptimizedResolvedSelectedFormLayoutError, ResolvedConditionalBranchEvidence};
+use super::super::{OptimizedResolvedSelectedFormLayoutError, ResolvedSelectedFormRow};
 use super::branch;
 
 #[allow(clippy::too_many_arguments)]
-pub(super) fn resolve(
+pub(super) fn validate(
     architecture: Architecture,
     function: MachineId,
     block: &SelectedBlock,
     instruction: &SelectedInstruction,
-    instruction_offset: u64,
-    block_offsets: &BTreeMap<SelectedBlockId, u64>,
     machine: &PostAllocationMachineInstruction,
     pre: &SelectedFormEncodingRow,
     physical: &ValidatedPhysicalRegisterModel,
     fusion: Option<&StagedOptimizedAarch64CbnzFusion>,
     copy_elision: Option<&StagedOptimizedAarch64SameViewCopyElision>,
-) -> Result<
-    (
-        Vec<u8>,
-        Option<Box<ResolvedConditionalBranchEvidence>>,
-        Option<SelectedFormInternalMachineFixup>,
-    ),
-    OptimizedResolvedSelectedFormLayoutError,
-> {
+    expected_offset: u64,
+    block_offsets: &BTreeMap<SelectedBlockId, u64>,
+    candidate: &ResolvedSelectedFormRow,
+) -> Result<(), OptimizedResolvedSelectedFormLayoutError> {
+    if candidate.instruction != instruction.id
+        || candidate.alternative != pre.alternative
+        || candidate.alternative != machine.alternative.key
+        || candidate.offset != expected_offset
+    {
+        return Err(OptimizedResolvedSelectedFormLayoutError::ArtifactMismatch);
+    }
     match (&pre.machine_disposition, &pre.state) {
         (
             SelectedFormMachineDisposition::RetainedV1,
             SelectedFormEncodingState::Encoded { bytes, .. },
-        ) => Ok((bytes.clone(), None, None)),
+        ) => {
+            if candidate.bytes != *bytes
+                || candidate.branch.is_some()
+                || candidate.internal_machine_fixup.is_some()
+            {
+                return Err(OptimizedResolvedSelectedFormLayoutError::ArtifactMismatch);
+            }
+            Ok(())
+        }
         (
             SelectedFormMachineDisposition::RetainedV1,
             SelectedFormEncodingState::UnresolvedInternalMachineCall { bytes, fixup, .. },
-        ) => Ok((
-            bytes.clone(),
-            None,
-            Some(validate_internal_fixup(
-                architecture,
-                instruction,
-                instruction_offset,
-                bytes,
-                *fixup,
-            )?),
-        )),
+        ) => {
+            if !matches!(instruction.kind, SelectedInstructionKind::CallI64 { callee } if callee == fixup.callee)
+                || candidate.bytes != *bytes
+                || candidate.branch.is_some()
+                || candidate.internal_machine_fixup != Some(*fixup)
+            {
+                return Err(OptimizedResolvedSelectedFormLayoutError::ArtifactMismatch);
+            }
+            Ok(())
+        }
         (
             SelectedFormMachineDisposition::RetainedV1,
             SelectedFormEncodingState::DeferredControl {
                 reason: DeferredControlEncodingReason::RequiresResolvedBranchLayout,
             },
-        ) => branch::resolve(
+        ) => branch::validate(
             architecture,
             block,
             instruction,
-            instruction_offset,
+            expected_offset,
             block_offsets,
             machine,
             physical,
             None,
-        )
-        .map(|(bytes, branch)| (bytes, branch, None)),
+            candidate,
+        ),
         (
             SelectedFormMachineDisposition::Aarch64ElidedCompareI64ZeroV1 { consumer },
             SelectedFormEncodingState::Encoded { .. },
         ) => {
             let action = fusion_action(fusion, function, block.id, instruction.id, *consumer)?;
             if architecture != Architecture::Aarch64
-                || !matches!(instruction.kind, SelectedInstructionKind::CompareI64Zero)
+                || !matches!(
+                    instruction.kind,
+                    omega_selected_instructions::SelectedInstructionKind::CompareI64Zero
+                )
                 || action.compare != instruction.id
                 || action.branch != *consumer
+                || !candidate.bytes.is_empty()
+                || candidate.branch.is_some()
+                || candidate.internal_machine_fixup.is_some()
             {
-                return unexpected(instruction.id);
+                return Err(OptimizedResolvedSelectedFormLayoutError::ArtifactMismatch);
             }
-            Ok((Vec::new(), None, None))
+            Ok(())
         }
         (
             SelectedFormMachineDisposition::Aarch64FusedBranchNonZeroToCbnzV1 {
@@ -102,19 +117,19 @@ pub(super) fn resolve(
         ) => {
             let action = fusion_action(fusion, function, block.id, *compare, instruction.id)?;
             if architecture != Architecture::Aarch64 || &action.source_read != source_read {
-                return unexpected(instruction.id);
+                return Err(OptimizedResolvedSelectedFormLayoutError::ArtifactMismatch);
             }
-            branch::resolve(
+            branch::validate(
                 architecture,
                 block,
                 instruction,
-                instruction_offset,
+                expected_offset,
                 block_offsets,
                 machine,
                 physical,
                 Some((source_read, action)),
+                candidate,
             )
-            .map(|(bytes, branch)| (bytes, branch, None))
         }
         (
             SelectedFormMachineDisposition::Aarch64ElidedSameViewCopyI64V1 { consumer },
@@ -122,75 +137,22 @@ pub(super) fn resolve(
         ) => {
             let action = copy_action(copy_elision, function, block.id, instruction.id, *consumer)?;
             if architecture != Architecture::Aarch64
-                || !matches!(instruction.kind, SelectedInstructionKind::CopyI64)
+                || !matches!(
+                    instruction.kind,
+                    omega_selected_instructions::SelectedInstructionKind::CopyI64
+                )
                 || action.copy != instruction.id
                 || action.consumer != *consumer
+                || !candidate.bytes.is_empty()
+                || candidate.branch.is_some()
+                || candidate.internal_machine_fixup.is_some()
             {
-                return unexpected(instruction.id);
+                return Err(OptimizedResolvedSelectedFormLayoutError::ArtifactMismatch);
             }
-            Ok((Vec::new(), None, None))
+            Ok(())
         }
-        _ => unexpected(instruction.id),
+        _ => Err(OptimizedResolvedSelectedFormLayoutError::ArtifactMismatch),
     }
-}
-
-fn validate_internal_fixup(
-    architecture: Architecture,
-    instruction: &SelectedInstruction,
-    instruction_offset: u64,
-    bytes: &[u8],
-    fixup: SelectedFormInternalMachineFixup,
-) -> Result<SelectedFormInternalMachineFixup, OptimizedResolvedSelectedFormLayoutError> {
-    let SelectedInstructionKind::CallI64 { callee } = instruction.kind else {
-        return unexpected(instruction.id);
-    };
-    match (architecture, fixup.kind) {
-        (
-            Architecture::X86_64,
-            SelectedFormInternalMachineFixupKind::X86Relative32FromNextInstructionToInternalMachineV1,
-        ) => {}
-        (
-            Architecture::Aarch64,
-            SelectedFormInternalMachineFixupKind::Aarch64BranchLinkImmediate26FromInstructionToInternalMachineV1,
-        ) => {}
-        _ => return unexpected(instruction.id),
-    }
-    if fixup.state != SelectedFormInternalMachineFixupState::UnresolvedZeroFieldV1
-        || fixup.callee != callee
-        || fixup.addend != 0
-    {
-        return unexpected(instruction.id);
-    }
-    let patch_start = usize::from(fixup.patch_row_offset);
-    let patch_end = patch_start
-        .checked_add(usize::from(fixup.patch_byte_width))
-        .ok_or(OptimizedResolvedSelectedFormLayoutError::OffsetOverflow)?;
-    let canonical_placeholder = match fixup.kind {
-        SelectedFormInternalMachineFixupKind::X86Relative32FromNextInstructionToInternalMachineV1 => {
-            bytes.get(patch_start..patch_end) == Some(&[0, 0, 0, 0])
-        }
-        SelectedFormInternalMachineFixupKind::Aarch64BranchLinkImmediate26FromInstructionToInternalMachineV1 => {
-            bytes.get(patch_start..patch_end) == Some(&0x9400_0000_u32.to_le_bytes())
-        }
-    };
-    if !canonical_placeholder {
-        return unexpected(instruction.id);
-    }
-    let row_len = u64::try_from(bytes.len())
-        .map_err(|_| OptimizedResolvedSelectedFormLayoutError::OffsetOverflow)?;
-    let row_end = instruction_offset
-        .checked_add(row_len)
-        .ok_or(OptimizedResolvedSelectedFormLayoutError::OffsetOverflow)?;
-    if instruction_offset
-        .checked_add(u64::from(fixup.opcode_row_offset))
-        .is_none_or(|offset| offset >= row_end)
-        || instruction_offset
-            .checked_add(u64::from(fixup.reference_row_offset))
-            .is_none_or(|offset| offset > row_end)
-    {
-        return unexpected(instruction.id);
-    }
-    Ok(fixup)
 }
 
 fn copy_action(
@@ -209,7 +171,7 @@ fn copy_action(
                     && action.consumer == returned
             })
         })
-        .ok_or(OptimizedResolvedSelectedFormLayoutError::UnexpectedEncodingState(copy))
+        .ok_or(OptimizedResolvedSelectedFormLayoutError::ArtifactMismatch)
 }
 
 fn fusion_action(
@@ -228,11 +190,5 @@ fn fusion_action(
                     && action.branch == branch
             })
         })
-        .ok_or(OptimizedResolvedSelectedFormLayoutError::UnexpectedEncodingState(branch))
-}
-
-fn unexpected<T>(
-    instruction: SelectedInstructionId,
-) -> Result<T, OptimizedResolvedSelectedFormLayoutError> {
-    Err(OptimizedResolvedSelectedFormLayoutError::UnexpectedEncodingState(instruction))
+        .ok_or(OptimizedResolvedSelectedFormLayoutError::ArtifactMismatch)
 }

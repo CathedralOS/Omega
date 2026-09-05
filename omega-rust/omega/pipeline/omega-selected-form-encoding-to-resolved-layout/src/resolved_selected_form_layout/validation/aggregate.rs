@@ -1,10 +1,9 @@
 use omega_machine_code::resolved_machine_layout_identity as layout_identity;
 use omega_regalloc::ValidatedSelectedAnalysis;
 
-use crate::{
-    PostAllocationMachineOptimizationCustody, StagedOptimizedPostAllocationMachinePlan,
-    StagedOptimizedSelectedFormEncoding,
-};
+use omega_physical_instructions::PostAllocationMachineOptimizationCustody;
+use omega_post_allocation_machine_to_selected_form_encoding::StagedOptimizedSelectedFormEncoding;
+use omega_register_homes_to_post_allocation_machine::StagedOptimizedPostAllocationMachinePlan;
 
 use super::super::{
     OptimizedResolvedSelectedFormLayoutError, SelectedFunctionLayoutPolicy,

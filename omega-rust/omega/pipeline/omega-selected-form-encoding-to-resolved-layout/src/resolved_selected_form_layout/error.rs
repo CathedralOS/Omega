@@ -3,7 +3,7 @@ use omega_isa_x86_64::X86_64SelectedFormEncodingError;
 use omega_selected_instructions::SelectedInstructionId;
 use psi_core::MachineId;
 
-use crate::OptimizedSelectedFormEncodingError;
+use omega_post_allocation_machine_to_selected_form_encoding::OptimizedSelectedFormEncodingError;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum OptimizedResolvedSelectedFormLayoutError {

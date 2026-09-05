@@ -1100,6 +1100,7 @@ dependencies = [
  "omega-register-homes-to-callee-saved-requirements",
  "omega-register-homes-to-post-allocation-machine",
  "omega-register-model",
+ "omega-selected-form-encoding-to-resolved-layout",
  "omega-selected-instructions",
  "omega-selected-instructions-to-machine-effects",
  "omega-selected-instructions-to-register-homes",
@@ -1589,6 +1590,28 @@ dependencies = [
  "psi-typed-trees",
  "psi-typed-trees-to-checked-trees",
  "psi-validation",
+]
+
+[[package]]
+name = "omega-selected-form-encoding-to-resolved-layout"
+version = "0.1.0"
+dependencies = [
+ "omega-calling-conventions",
+ "omega-isa-aarch64",
+ "omega-isa-x86_64",
+ "omega-machine-code",
+ "omega-machine-optimizer",
+ "omega-optimization-core",
+ "omega-physical-instructions",
+ "omega-post-allocation-machine-to-optimized-machine",
+ "omega-post-allocation-machine-to-selected-form-encoding",
+ "omega-regalloc",
+ "omega-register-homes-to-post-allocation-machine",
+ "omega-register-model",
+ "omega-selected-instructions",
+ "omega-target",
+ "psi-core",
+ "sha2",
 ]
 
 [[package]]

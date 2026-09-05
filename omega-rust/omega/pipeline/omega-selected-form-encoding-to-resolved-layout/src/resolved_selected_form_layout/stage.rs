@@ -1,11 +1,12 @@
 use omega_regalloc::ValidatedSelectedAnalysis;
 use omega_register_model::ValidatedPhysicalRegisterModel;
 
-use crate::{
+use omega_post_allocation_machine_to_optimized_machine::{
     StagedOptimizedAarch64CbnzFusion, StagedOptimizedAarch64MovnMaterialization,
-    StagedOptimizedPostAllocationMachineOptimization, StagedOptimizedPostAllocationMachinePlan,
-    StagedOptimizedSelectedFormEncoding,
+    StagedOptimizedPostAllocationMachineOptimization,
 };
+use omega_post_allocation_machine_to_selected_form_encoding::StagedOptimizedSelectedFormEncoding;
+use omega_register_homes_to_post_allocation_machine::StagedOptimizedPostAllocationMachinePlan;
 
 use super::error::OptimizedResolvedSelectedFormLayoutError;
 use super::model::StagedOptimizedResolvedSelectedFormLayout;

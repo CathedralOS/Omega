@@ -1,9 +1,9 @@
 use omega_regalloc::ValidatedSelectedAnalysis;
 
-use crate::{
-    SelectedFormEncodingState, StagedOptimizedPostAllocationMachinePlan,
-    StagedOptimizedSelectedFormEncoding,
+use omega_post_allocation_machine_to_selected_form_encoding::{
+    SelectedFormEncodingState, StagedOptimizedSelectedFormEncoding,
 };
+use omega_register_homes_to_post_allocation_machine::StagedOptimizedPostAllocationMachinePlan;
 
 use super::super::{
     OptimizedResolvedSelectedFormLayoutError, StagedOptimizedResolvedSelectedFormLayout,

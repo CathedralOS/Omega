@@ -6,7 +6,7 @@ use omega_selected_instructions::{
 };
 use omega_target::Architecture;
 
-use crate::{
+use omega_post_allocation_machine_to_selected_form_encoding::{
     DeferredControlEncodingReason, SelectedFormEncodingRow, SelectedFormEncodingState,
     SelectedFormMachineDisposition,
 };
