@@ -1,5 +1,8 @@
 use super::*;
 
+#[path = "../fixture_rosters/task_runtime.rs"]
+pub(super) mod fixture_roster;
+
 fn render(diagnostics: &[Diagnostic]) -> String {
     diagnostics
         .iter()
@@ -10,7 +13,7 @@ fn render(diagnostics: &[Diagnostic]) -> String {
 
 #[test]
 fn lifecycle_operations_conserve_the_linear_claim() {
-    let pass = pass_canary("core/task_lifecycle_operations");
+    let pass = pass_canary(fixture_roster::CORE_TASK_LIFECYCLE_OPERATIONS);
     let checked = compile_to_checked(&pass.join("main.omg"), None).unwrap_or_else(|diagnostics| {
         panic!(
             "task lifecycle operations should conserve the claim:\n{}",
@@ -46,7 +49,7 @@ fn lifecycle_operations_conserve_the_linear_claim() {
         assert!(machine_snapshot.contracts.is_empty(), "{name}");
     }
 
-    let fail = fail_canary("core/task_core_scope_loss");
+    let fail = fail_canary(fixture_roster::CORE_TASK_CORE_SCOPE_LOSS);
     let diagnostics = compile_canary_without_output(&fail)
         .expect_err("request_cancel must not settle the task claim");
     let rendered = render(&diagnostics);
@@ -60,10 +63,9 @@ fn lifecycle_operations_conserve_the_linear_claim() {
 
 #[test]
 fn parked_continuation_is_not_source_addressable_through_task_claims() {
-    for operation in ["projection", "recast", "address", "mutation"] {
-        let name = format!("core/task_parked_continuation_{operation}_rejected");
+    for &(operation, name) in fixture_roster::PARKED_CONTINUATION_FAIL_CANARIES {
         let diagnostics =
-            check_canary(&fail_canary(&name)).expect_err("parked continuation access must reject");
+            check_canary(&fail_canary(name)).expect_err("parked continuation access must reject");
         let rendered = render(&diagnostics);
         assert!(
             rendered.contains("has no field `continuation`"),

@@ -1,5 +1,8 @@
 use super::*;
 
+#[path = "../fixture_rosters/entry_and_abi.rs"]
+pub(super) mod fixture_roster;
+
 fn write_cross_target_application_build(source_dir: &Path) {
     fs::write(
         source_dir.join("build.omg"),
@@ -31,7 +34,7 @@ fn assert_native_exit_code(
 
 #[test]
 fn explicit_program_entry_binding_owns_capability_manifest_identity() {
-    let canary = pass_canary("build/explicit_program_entry_binding");
+    let canary = pass_canary(fixture_roster::BUILD_EXPLICIT_PROGRAM_ENTRY_BINDING);
     let build_dir = std::env::temp_dir().join(format!(
         "omega-explicit-entry-manifest-{}",
         std::process::id()
@@ -58,7 +61,7 @@ fn explicit_program_entry_binding_owns_capability_manifest_identity() {
 
 #[test]
 fn checked_compilation_retains_the_exact_selected_program_entry() {
-    let canary = pass_canary("build/explicit_program_entry_binding");
+    let canary = pass_canary(fixture_roster::BUILD_EXPLICIT_PROGRAM_ENTRY_BINDING);
     let checked = compile_to_checked(&canary.join("main.omg"), Some("windows_x86_64"))
         .expect("explicit entry canary should reach checked semantics");
 
@@ -83,7 +86,7 @@ fn checked_compilation_retains_the_exact_selected_program_entry() {
 
 #[test]
 fn checked_uefi_compilation_retains_source_and_two_surface_entry_custody() {
-    let canary = pass_canary("build/uefi_program_entry_storage_roots");
+    let canary = pass_canary(fixture_roster::BUILD_UEFI_PROGRAM_ENTRY_STORAGE_ROOTS);
     let checked = compile_to_checked(&canary.join("main.omg"), Some("uefi_x86_64"))
         .expect("UEFI entry canary should retain its complete typed settlement");
     let selected = checked
@@ -153,7 +156,7 @@ fn checked_uefi_compilation_retains_source_and_two_surface_entry_custody() {
 
 #[test]
 fn checked_compilation_does_not_infer_an_entry_for_legacy_semantic_corpus() {
-    let canary = pass_canary("arithmetic/runtime_chained_field_mutation_exit");
+    let canary = pass_canary(fixture_roster::ARITHMETIC_RUNTIME_CHAINED_FIELD_MUTATION_EXIT);
     let checked = compile_to_checked(&canary.join("main.omg"), None)
         .expect("direct Main entry canary should reach checked semantics");
 
@@ -165,7 +168,7 @@ fn checked_compilation_does_not_infer_an_entry_for_legacy_semantic_corpus() {
 
 #[test]
 fn production_compile_rejects_an_unrooted_legacy_entry() {
-    let canary = pass_canary("arithmetic/runtime_chained_field_mutation_exit");
+    let canary = pass_canary(fixture_roster::ARITHMETIC_RUNTIME_CHAINED_FIELD_MUTATION_EXIT);
     let scratch = unique_no_output_build_dir();
     let source_dir = scratch.join("source");
     let build_dir = scratch.join("output");
@@ -191,7 +194,7 @@ fn production_compile_rejects_an_unrooted_legacy_entry() {
 
 #[test]
 fn production_check_accepts_entry_agnostic_semantic_corpus() {
-    let canary = pass_canary("arithmetic/runtime_chained_field_mutation_exit");
+    let canary = pass_canary(fixture_roster::ARITHMETIC_RUNTIME_CHAINED_FIELD_MUTATION_EXIT);
     let scratch = unique_no_output_build_dir();
     let source_dir = scratch.join("source");
     let build_dir = scratch.join("output");
@@ -214,49 +217,7 @@ fn production_check_accepts_entry_agnostic_semantic_corpus() {
 
 #[test]
 fn migrated_main_entries_are_selected_only_through_their_target_root_bindings() {
-    for (canary_name, target) in [
-        (
-            "capabilities/win64_scalar_float_import_compile",
-            "windows_x86_64",
-        ),
-        (
-            "capabilities/win64_large_aggregate_import_compile",
-            "windows_x86_64",
-        ),
-        (
-            "capabilities/win64_direct_aggregate_import_compile",
-            "windows_x86_64",
-        ),
-        (
-            "capabilities/win64_direct_aggregate_result_import_compile",
-            "windows_x86_64",
-        ),
-        (
-            "capabilities/win64_large_aggregate_result_import_compile",
-            "windows_x86_64",
-        ),
-        (
-            "capabilities/sysv_small_aggregate_import_compile",
-            "linux_x86_64",
-        ),
-        (
-            "build/static_machine_parameter_config_compile",
-            "windows_x86_64",
-        ),
-        ("inline_asm/asm_port_out_final_validation", "linux_x86_64"),
-        (
-            "inline_asm/asm_runtime_port_msr_final_validation",
-            "linux_x86_64",
-        ),
-        (
-            "text/runtime_x86_general_double_indexed_string_concat_compile",
-            "linux_x86_64",
-        ),
-        (
-            "slices/runtime_aarch64_cross_region_frame_indexed_rmw_compile",
-            "linux_arm64",
-        ),
-    ] {
+    for &(canary_name, target) in fixture_roster::MIGRATED_ENTRY_PASS_CANARIES {
         let canary = pass_canary(canary_name);
         let checked = compile_to_checked(&canary.join("main.omg"), Some(target))
             .unwrap_or_else(|diagnostics| {
@@ -275,7 +236,7 @@ fn migrated_main_entries_are_selected_only_through_their_target_root_bindings() 
 
 #[test]
 fn catalog_checked_assembly_is_validated_against_final_image_bytes() {
-    let canary = pass_canary("inline_asm/asm_fences_compile");
+    let canary = pass_canary(fixture_roster::INLINE_ASM_ASM_FENCES_COMPILE);
     let build_dir =
         std::env::temp_dir().join(format!("omega-final-asm-evidence-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
@@ -307,7 +268,7 @@ fn catalog_checked_assembly_is_validated_against_final_image_bytes() {
 
 #[test]
 fn immediate_port_io_is_bound_in_final_image_validation() {
-    let canary = pass_canary("inline_asm/asm_port_out_final_validation");
+    let canary = pass_canary(fixture_roster::INLINE_ASM_ASM_PORT_OUT_FINAL_VALIDATION);
     let build_dir =
         std::env::temp_dir().join(format!("omega-final-port-evidence-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
@@ -336,12 +297,7 @@ fn immediate_port_io_is_bound_in_final_image_validation() {
 
 #[test]
 fn structured_machine_control_envelopes_are_bound_in_final_image_validation() {
-    for (canary_name, expected_count) in [
-        ("inline_asm/asm_msr_compile", 2),
-        ("inline_asm/asm_control_registers_compile", 7),
-        ("inline_asm/asm_flags_compile", 3),
-        ("inline_asm/asm_runtime_port_msr_final_validation", 4),
-    ] {
+    for &(canary_name, expected_count) in fixture_roster::MACHINE_CONTROL_PASS_CANARIES {
         let canary = pass_canary(canary_name);
         let build_dir = std::env::temp_dir().join(format!(
             "omega-final-machine-control-evidence-{}-{}",
@@ -373,7 +329,7 @@ fn structured_machine_control_envelopes_are_bound_in_final_image_validation() {
 
 #[test]
 fn aarch64_hfa_entry_argument_spreads_vector_registers() {
-    let canary = pass_canary("targets/aarch64_hfa_entry_argument");
+    let canary = pass_canary(fixture_roster::TARGETS_AARCH64_HFA_ENTRY_ARGUMENT);
     let build_dir =
         std::env::temp_dir().join(format!("omega-aarch64-hfa-entry-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
@@ -400,7 +356,7 @@ fn aarch64_hfa_entry_argument_spreads_vector_registers() {
 
 #[test]
 fn aarch64_small_aggregate_entry_spreads_consecutive_x_registers() {
-    let canary = pass_canary("targets/aarch64_small_aggregate_entry");
+    let canary = pass_canary(fixture_roster::TARGETS_AARCH64_SMALL_AGGREGATE_ENTRY);
     let build_dir = std::env::temp_dir().join(format!(
         "omega-aarch64-small-aggregate-entry-{}",
         std::process::id()
@@ -432,7 +388,7 @@ fn aarch64_small_aggregate_entry_spreads_consecutive_x_registers() {
 
 #[test]
 fn aarch64_small_aggregate_entry_falls_wholly_to_the_stack() {
-    let canary = pass_canary("targets/aarch64_small_aggregate_stack_entry");
+    let canary = pass_canary(fixture_roster::TARGETS_AARCH64_SMALL_AGGREGATE_STACK_ENTRY);
     let build_dir = std::env::temp_dir().join(format!(
         "omega-aarch64-small-aggregate-stack-entry-{}",
         std::process::id()
@@ -463,7 +419,7 @@ fn aarch64_small_aggregate_entry_falls_wholly_to_the_stack() {
 
 #[test]
 fn aarch64_large_aggregate_entry_copies_from_the_indirect_pointer() {
-    let canary = pass_canary("targets/aarch64_large_aggregate_entry");
+    let canary = pass_canary(fixture_roster::TARGETS_AARCH64_LARGE_AGGREGATE_ENTRY);
     let build_dir = std::env::temp_dir().join(format!(
         "omega-aarch64-large-aggregate-entry-{}",
         std::process::id()
@@ -506,7 +462,7 @@ fn aarch64_large_aggregate_entry_copies_from_the_indirect_pointer() {
 
 #[test]
 fn aarch64_large_aggregate_entry_loads_a_stack_passed_pointer() {
-    let canary = pass_canary("targets/aarch64_large_aggregate_stack_entry");
+    let canary = pass_canary(fixture_roster::TARGETS_AARCH64_LARGE_AGGREGATE_STACK_ENTRY);
     let build_dir = std::env::temp_dir().join(format!(
         "omega-aarch64-large-aggregate-stack-entry-{}",
         std::process::id()
@@ -556,7 +512,7 @@ fn aarch64_large_aggregate_entry_loads_a_stack_passed_pointer() {
 
 #[test]
 fn aarch64_wide_aggregate_entry_uses_general_indirect_classification() {
-    let canary = pass_canary("targets/aarch64_wide_aggregate_entry");
+    let canary = pass_canary(fixture_roster::TARGETS_AARCH64_WIDE_AGGREGATE_ENTRY);
     let build_dir = std::env::temp_dir().join(format!(
         "omega-aarch64-wide-aggregate-entry-{}",
         std::process::id()
@@ -605,7 +561,7 @@ fn aarch64_wide_aggregate_entry_uses_general_indirect_classification() {
 
 #[test]
 fn aarch64_small_result_entry_loads_x0_and_x1() {
-    let canary = pass_canary("targets/aarch64_small_result_entry");
+    let canary = pass_canary(fixture_roster::TARGETS_AARCH64_SMALL_RESULT_ENTRY);
     let build_dir = std::env::temp_dir().join(format!(
         "omega-aarch64-small-result-entry-{}",
         std::process::id()
@@ -635,7 +591,7 @@ fn aarch64_small_result_entry_loads_x0_and_x1() {
 
 #[test]
 fn aggregate_literal_entry_result_uses_native_fragments() {
-    let canary = pass_canary("targets/aggregate_literal_result_entry");
+    let canary = pass_canary(fixture_roster::TARGETS_AGGREGATE_LITERAL_RESULT_ENTRY);
     for target in ["linux_x86_64", "linux_arm64", "uefi_x86_64"] {
         let scratch = std::env::temp_dir().join(format!(
             "omega-{target}-aggregate-literal-result-{}",
@@ -701,7 +657,7 @@ fn aggregate_literal_entry_result_uses_native_fragments() {
 
 #[test]
 fn indexed_scalar_entry_result_uses_native_registers() {
-    let canary = pass_canary("targets/indexed_scalar_result_entry");
+    let canary = pass_canary(fixture_roster::TARGETS_INDEXED_SCALAR_RESULT_ENTRY);
     for target in ["linux_x86_64", "linux_arm64"] {
         let scratch = std::env::temp_dir().join(format!(
             "omega-{target}-indexed-scalar-result-{}",
@@ -742,7 +698,7 @@ fn indexed_scalar_entry_result_uses_native_registers() {
 
 #[test]
 fn aarch64_hfa_result_entry_loads_d0_d1_and_d2() {
-    let canary = pass_canary("targets/aarch64_hfa_result_entry");
+    let canary = pass_canary(fixture_roster::TARGETS_AARCH64_HFA_RESULT_ENTRY);
     let build_dir = std::env::temp_dir().join(format!(
         "omega-aarch64-hfa-result-entry-{}",
         std::process::id()
@@ -782,7 +738,7 @@ fn aarch64_hfa_result_entry_loads_d0_d1_and_d2() {
 
 #[test]
 fn aarch64_large_result_entry_saves_x8_and_copies_through_it() {
-    let canary = pass_canary("targets/aarch64_large_result_entry");
+    let canary = pass_canary(fixture_roster::TARGETS_AARCH64_LARGE_RESULT_ENTRY);
     let build_dir = std::env::temp_dir().join(format!(
         "omega-aarch64-large-result-entry-{}",
         std::process::id()
@@ -842,7 +798,7 @@ fn aarch64_large_result_entry_saves_x8_and_copies_through_it() {
 
 #[test]
 fn sysv_small_aggregate_entry_spreads_consecutive_gprs() {
-    let canary = pass_canary("targets/sysv_small_aggregate_entry");
+    let canary = pass_canary(fixture_roster::TARGETS_SYSV_SMALL_AGGREGATE_ENTRY);
     let build_dir = std::env::temp_dir().join(format!(
         "omega-sysv-small-aggregate-entry-{}",
         std::process::id()
@@ -869,7 +825,7 @@ fn sysv_small_aggregate_entry_spreads_consecutive_gprs() {
 
 #[test]
 fn sysv_erased_small_aggregate_entry_spreads_only_relevant_fields() {
-    let canary = pass_canary("targets/sysv_erased_small_aggregate_entry");
+    let canary = pass_canary(fixture_roster::TARGETS_SYSV_ERASED_SMALL_AGGREGATE_ENTRY);
     let build_dir = std::env::temp_dir().join(format!(
         "omega-sysv-erased-small-aggregate-entry-{}",
         std::process::id()
@@ -896,7 +852,7 @@ fn sysv_erased_small_aggregate_entry_spreads_only_relevant_fields() {
 
 #[test]
 fn sysv_hfa_entry_argument_packs_eightbytes_into_xmm_registers() {
-    let canary = pass_canary("targets/sysv_hfa_entry_argument");
+    let canary = pass_canary(fixture_roster::TARGETS_SYSV_HFA_ENTRY_ARGUMENT);
     let build_dir =
         std::env::temp_dir().join(format!("omega-sysv-hfa-entry-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
@@ -922,7 +878,7 @@ fn sysv_hfa_entry_argument_packs_eightbytes_into_xmm_registers() {
 
 #[test]
 fn sysv_mixed_aggregate_entry_uses_independent_register_banks() {
-    let canary = pass_canary("targets/sysv_mixed_aggregate_entry");
+    let canary = pass_canary(fixture_roster::TARGETS_SYSV_MIXED_AGGREGATE_ENTRY);
     let build_dir = std::env::temp_dir().join(format!(
         "omega-sysv-mixed-aggregate-entry-{}",
         std::process::id()
@@ -951,7 +907,7 @@ fn sysv_mixed_aggregate_entry_uses_independent_register_banks() {
 
 #[test]
 fn sysv_mixed_aggregate_entry_rolls_wholly_to_stack() {
-    let canary = pass_canary("targets/sysv_mixed_aggregate_stack_entry");
+    let canary = pass_canary(fixture_roster::TARGETS_SYSV_MIXED_AGGREGATE_STACK_ENTRY);
     let build_dir = std::env::temp_dir().join(format!(
         "omega-sysv-mixed-aggregate-stack-entry-{}",
         std::process::id()
@@ -986,7 +942,7 @@ fn sysv_mixed_aggregate_entry_rolls_wholly_to_stack() {
 
 #[test]
 fn sysv_small_aggregate_entry_rolls_wholly_to_stack() {
-    let canary = pass_canary("targets/sysv_small_aggregate_stack_entry");
+    let canary = pass_canary(fixture_roster::TARGETS_SYSV_SMALL_AGGREGATE_STACK_ENTRY);
     let build_dir = std::env::temp_dir().join(format!(
         "omega-sysv-small-aggregate-stack-entry-{}",
         std::process::id()
@@ -1019,7 +975,7 @@ fn sysv_small_aggregate_entry_rolls_wholly_to_stack() {
 
 #[test]
 fn sysv_large_aggregate_entry_copies_the_memory_class_stack_value() {
-    let canary = pass_canary("targets/sysv_large_aggregate_entry");
+    let canary = pass_canary(fixture_roster::TARGETS_SYSV_LARGE_AGGREGATE_ENTRY);
     let build_dir = std::env::temp_dir().join(format!(
         "omega-sysv-large-aggregate-entry-{}",
         std::process::id()
@@ -1047,7 +1003,7 @@ fn sysv_large_aggregate_entry_copies_the_memory_class_stack_value() {
 
 #[test]
 fn sysv_wide_aggregate_entry_uses_general_memory_classification() {
-    let canary = pass_canary("targets/sysv_wide_aggregate_entry");
+    let canary = pass_canary(fixture_roster::TARGETS_SYSV_WIDE_AGGREGATE_ENTRY);
     let build_dir = std::env::temp_dir().join(format!(
         "omega-sysv-wide-aggregate-entry-{}",
         std::process::id()
@@ -1075,7 +1031,7 @@ fn sysv_wide_aggregate_entry_uses_general_memory_classification() {
 
 #[test]
 fn sysv_large_result_entry_saves_and_uses_the_hidden_pointer() {
-    let canary = pass_canary("targets/sysv_large_result_entry");
+    let canary = pass_canary(fixture_roster::TARGETS_SYSV_LARGE_RESULT_ENTRY);
     let build_dir = std::env::temp_dir().join(format!(
         "omega-sysv-large-result-entry-{}",
         std::process::id()
@@ -1120,7 +1076,7 @@ fn sysv_large_result_entry_saves_and_uses_the_hidden_pointer() {
 
 #[test]
 fn sysv_large_hfa_result_entry_remains_memory_class() {
-    let canary = pass_canary("targets/sysv_large_hfa_result_entry");
+    let canary = pass_canary(fixture_roster::TARGETS_SYSV_LARGE_HFA_RESULT_ENTRY);
     let build_dir = std::env::temp_dir().join(format!(
         "omega-sysv-large-hfa-result-entry-{}",
         std::process::id()
@@ -1153,7 +1109,7 @@ fn sysv_large_hfa_result_entry_remains_memory_class() {
 
 #[test]
 fn sysv_small_result_entry_loads_rax_and_rdx() {
-    let canary = pass_canary("targets/sysv_small_result_entry");
+    let canary = pass_canary(fixture_roster::TARGETS_SYSV_SMALL_RESULT_ENTRY);
     let build_dir = std::env::temp_dir().join(format!(
         "omega-sysv-small-result-entry-{}",
         std::process::id()
@@ -1180,7 +1136,7 @@ fn sysv_small_result_entry_loads_rax_and_rdx() {
 
 #[test]
 fn sysv_hfa_result_entry_loads_xmm0_and_xmm1() {
-    let canary = pass_canary("targets/sysv_hfa_result_entry");
+    let canary = pass_canary(fixture_roster::TARGETS_SYSV_HFA_RESULT_ENTRY);
     let build_dir = std::env::temp_dir().join(format!(
         "omega-sysv-hfa-result-entry-{}",
         std::process::id()
@@ -1208,7 +1164,7 @@ fn sysv_hfa_result_entry_loads_xmm0_and_xmm1() {
 
 #[test]
 fn sysv_mixed_result_entry_loads_rax_and_xmm0() {
-    let canary = pass_canary("targets/sysv_mixed_result_entry");
+    let canary = pass_canary(fixture_roster::TARGETS_SYSV_MIXED_RESULT_ENTRY);
     let build_dir = std::env::temp_dir().join(format!(
         "omega-sysv-mixed-result-entry-{}",
         std::process::id()
@@ -1235,7 +1191,7 @@ fn sysv_mixed_result_entry_loads_rax_and_xmm0() {
 
 #[test]
 fn sysv_wrapped_float_entry_uses_xmm0_in_both_directions() {
-    let canary = pass_canary("targets/sysv_wrapped_float_entry");
+    let canary = pass_canary(fixture_roster::TARGETS_SYSV_WRAPPED_FLOAT_ENTRY);
     let build_dir = std::env::temp_dir().join(format!(
         "omega-sysv-wrapped-float-entry-{}",
         std::process::id()
@@ -1707,7 +1663,7 @@ fn efi_freestanding_skeleton_emits_importless_subsystem_10_pe() {
     // the emitted HEADER FACTS so a regression that re-populates host bindings
     // for the EFI target (or loses the empty-import path) fails here, without
     // needing QEMU in CI.
-    let canary = pass_canary("targets/efi_freestanding_skeleton");
+    let canary = pass_canary(fixture_roster::TARGETS_EFI_FREESTANDING_SKELETON);
     let build_dir = std::env::temp_dir().join(format!("omega-efi-skeleton-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
 
@@ -1757,7 +1713,7 @@ fn efi_entry_arguments_prologue_unmarshals_rcx_rdx() {
     // very start of .text so CI needs no QEMU: for each of the two declared
     // parameters, `mov r15, imm64` (49 BF <8-byte frame base, relocated>) then
     // `mov [r15+disp32], rcx/rdx` (49 89 8F / 49 89 97 + disp32 0 / 8).
-    let canary = pass_canary("targets/efi_entry_arguments");
+    let canary = pass_canary(fixture_roster::TARGETS_EFI_ENTRY_ARGUMENTS);
     let build_dir = std::env::temp_dir().join(format!("omega-efi-args-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
 
@@ -1823,7 +1779,7 @@ fn efi_entry_arguments_prologue_unmarshals_rcx_rdx() {
 
 #[test]
 fn efi_float_entry_argument_unmarshals_xmm0() {
-    let canary = pass_canary("targets/efi_float_entry_argument");
+    let canary = pass_canary(fixture_roster::TARGETS_EFI_FLOAT_ENTRY_ARGUMENT);
     let build_dir =
         std::env::temp_dir().join(format!("omega-efi-float-arg-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
@@ -1869,7 +1825,7 @@ fn efi_float_entry_argument_unmarshals_xmm0() {
 
 #[test]
 fn efi_float_entry_result_round_trips_through_xmm0() {
-    let canary = pass_canary("targets/efi_float_result_entry");
+    let canary = pass_canary(fixture_roster::TARGETS_EFI_FLOAT_RESULT_ENTRY);
     let build_dir =
         std::env::temp_dir().join(format!("omega-efi-float-result-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
@@ -1901,7 +1857,7 @@ fn efi_float_entry_result_round_trips_through_xmm0() {
 
 #[test]
 fn float_literal_entry_result_uses_native_vector_registers() {
-    let canary = pass_canary("targets/efi_float_literal_result_entry");
+    let canary = pass_canary(fixture_roster::TARGETS_EFI_FLOAT_LITERAL_RESULT_ENTRY);
     for target in ["uefi_x86_64", "linux_arm64"] {
         let scratch = std::env::temp_dir().join(format!(
             "omega-{target}-float-literal-result-{}",
@@ -1955,7 +1911,7 @@ fn float_literal_entry_result_uses_native_vector_registers() {
 
 #[test]
 fn scalar_float_entry_result_uses_native_vector_registers_on_linux() {
-    let canary = pass_canary("targets/efi_float_result_entry");
+    let canary = pass_canary(fixture_roster::TARGETS_EFI_FLOAT_RESULT_ENTRY);
     for target in ["linux_x86_64", "linux_arm64"] {
         let scratch = std::env::temp_dir().join(format!(
             "omega-{target}-float-entry-result-{}",
@@ -2007,7 +1963,7 @@ fn scalar_float_entry_result_uses_native_vector_registers_on_linux() {
 
 #[test]
 fn constant_u64_entry_result_uses_the_declared_native_width() {
-    let canary = pass_canary("targets/efi_u64_constant_result_entry");
+    let canary = pass_canary(fixture_roster::TARGETS_EFI_U64_CONSTANT_RESULT_ENTRY);
     let build_dir =
         std::env::temp_dir().join(format!("omega-efi-u64-result-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
@@ -2057,7 +2013,7 @@ fn constant_u64_entry_result_uses_the_declared_native_width() {
 
 #[test]
 fn efi_small_aggregate_entry_uses_rcx_and_rax() {
-    let canary = pass_canary("targets/efi_small_aggregate_entry");
+    let canary = pass_canary(fixture_roster::TARGETS_EFI_SMALL_AGGREGATE_ENTRY);
     let build_dir =
         std::env::temp_dir().join(format!("omega-efi-small-record-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
@@ -2088,7 +2044,7 @@ fn efi_small_aggregate_entry_uses_rcx_and_rax() {
 
 #[test]
 fn efi_large_result_entry_saves_rcx_shifts_argument_and_returns_pointer() {
-    let canary = pass_canary("targets/efi_large_result_entry");
+    let canary = pass_canary(fixture_roster::TARGETS_EFI_LARGE_RESULT_ENTRY);
     let build_dir =
         std::env::temp_dir().join(format!("omega-efi-large-result-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
@@ -2121,7 +2077,7 @@ fn efi_large_result_entry_saves_rcx_shifts_argument_and_returns_pointer() {
 
 #[test]
 fn efi_large_aggregate_entry_copies_from_rdx_pointer() {
-    let canary = pass_canary("targets/efi_large_aggregate_entry");
+    let canary = pass_canary(fixture_roster::TARGETS_EFI_LARGE_AGGREGATE_ENTRY);
     let build_dir =
         std::env::temp_dir().join(format!("omega-efi-large-arg-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
@@ -2158,7 +2114,7 @@ fn efi_large_aggregate_entry_copies_from_rdx_pointer() {
 
 #[test]
 fn efi_large_aggregate_stack_entry_loads_pointer_after_shadow_space() {
-    let canary = pass_canary("targets/efi_large_aggregate_stack_entry");
+    let canary = pass_canary(fixture_roster::TARGETS_EFI_LARGE_AGGREGATE_STACK_ENTRY);
     let build_dir =
         std::env::temp_dir().join(format!("omega-efi-large-stack-arg-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
@@ -2183,7 +2139,7 @@ fn efi_large_aggregate_stack_entry_loads_pointer_after_shadow_space() {
 
 #[test]
 fn efi_fifth_entry_argument_unmarshals_from_the_ms_x64_stack_area() {
-    let canary = pass_canary("targets/efi_stack_entry_argument");
+    let canary = pass_canary(fixture_roster::TARGETS_EFI_STACK_ENTRY_ARGUMENT);
     let build_dir =
         std::env::temp_dir().join(format!("omega-efi-stack-arg-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
@@ -2252,7 +2208,7 @@ fn entry_run_args_bytes_canary_runs() {
     // argument notion yet, so this is not a differential canary). The
     // efi_application twin of this program was boot-verified under QEMU/OVMF
     // ("Warning Stale Data" = the same 5).
-    let canary = pass_canary("targets/entry_run_args_bytes");
+    let canary = pass_canary(fixture_roster::TARGETS_ENTRY_RUN_ARGS_BYTES);
     let build_dir = std::env::temp_dir().join(format!("omega-run-args-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
     let compilation = compile_with_auxiliary_artifacts(CanaryCompileSpec {
@@ -2286,7 +2242,7 @@ fn runtime_utf16_literal_exit_canary_runs() {
     // literal of its UTF-16 code units: 'H'=72 at [0], newline=10 at [17], NUL at
     // [18] (exit 70). Native must match the interpreter (both see plain
     // integers -- the sugar is gone before resolution).
-    let canary = pass_canary("text/runtime_utf16_literal_exit");
+    let canary = pass_canary(fixture_roster::TEXT_RUNTIME_UTF16_LITERAL_EXIT);
     let build_dir = std::env::temp_dir().join(format!("omega-utf16-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
     let compilation = compile_rooted_canary_for_native_host(&canary, build_dir.clone())
@@ -2306,7 +2262,7 @@ fn runtime_case_array_element_write_exit_canary_runs() {
     // read-back -- the case-vocabulary Plan's foundation shape. At{8,4}+At{16,8}
     // matched back = 12 + 24 = exit 36; native must match the interpreter (the
     // interpreter is the L0 build-time engine).
-    let canary = pass_canary("collections/runtime_case_array_element_write_exit");
+    let canary = pass_canary(fixture_roster::COLLECTIONS_RUNTIME_CASE_ARRAY_ELEMENT_WRITE_EXIT);
     let build_dir = std::env::temp_dir().join(format!("omega-case-array-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
     let compilation = compile_rooted_canary_for_native_host(&canary, build_dir.clone())
@@ -2327,7 +2283,7 @@ fn runtime_wire_policy_authored_plan_exit_canary_runs() {
     // the codec's tag bytes come from it, and the hand-computed roundtrip
     // bytes still hold exactly (exit 70). The fail twin proves divergence is
     // a compile error.
-    let canary = pass_canary("wire/runtime_wire_policy_authored_plan_exit");
+    let canary = pass_canary(fixture_roster::WIRE_RUNTIME_WIRE_POLICY_AUTHORED_PLAN_EXIT);
     let build_dir = std::env::temp_dir().join(format!("omega-wire-policy-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
     let compilation = compile_rooted_canary_for_native_host(&canary, build_dir.clone())
@@ -2346,7 +2302,7 @@ fn runtime_wire_policy_authored_nested_exit_canary_runs() {
     // RUNG 2c: nested CHILD tags come from the child schema's own authored
     // plan -- the byte-pinned nested roundtrip holds exactly with the inline
     // `CompactBinary::plan` policy evaluated for both parent and child.
-    let canary = pass_canary("wire/runtime_wire_policy_authored_nested_exit");
+    let canary = pass_canary(fixture_roster::WIRE_RUNTIME_WIRE_POLICY_AUTHORED_NESTED_EXIT);
     let build_dir =
         std::env::temp_dir().join(format!("omega-wire-policy-nested-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
@@ -2396,7 +2352,7 @@ fn efi_struct_handoff_prologue_spreads_registers() {
     // argument registers spread across its 8-byte chunks. Pins the prologue:
     // store #0 = mov r15,imm64 + mov [r15+0],rcx (49 89 8F disp 0); store #1 =
     // mov r15,imm64 + mov [r15+8],rdx (49 89 97 disp 8).
-    let canary = pass_canary("targets/efi_struct_handoff");
+    let canary = pass_canary(fixture_roster::TARGETS_EFI_STRUCT_HANDOFF);
     let build_dir =
         std::env::temp_dir().join(format!("omega-struct-handoff-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
@@ -2454,7 +2410,7 @@ fn efi_vtable_call_emits_indirect_dispatch() {
     // call rax` -- read OutputString from the con_out protocol struct and
     // dispatch. Pins those bytes in .text (the whole selection->encode chain;
     // the live boot awaits the reference-param projection routing fix).
-    let canary = pass_canary("targets/efi_vtable_call");
+    let canary = pass_canary(fixture_roster::TARGETS_EFI_VTABLE_CALL);
     let build_dir = std::env::temp_dir().join(format!("omega-vtable-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
     compile_with_auxiliary_artifacts(CanaryCompileSpec {
@@ -2491,7 +2447,7 @@ fn efi_ref_param_direct_faces_deref_not_flat() {
     // Task #37: the DIRECT guard-subject and machine-target reads through an
     // entry ref-param must DEREFERENCE the pointer slot (pointee copies in the
     // report), never fold flat (`frame_storage@72` = slot 8 + con_out 64).
-    let canary = pass_canary("targets/efi_ref_param_direct_faces");
+    let canary = pass_canary(fixture_roster::TARGETS_EFI_REF_PARAM_DIRECT_FACES);
     let build_dir = std::env::temp_dir().join(format!("omega-refparam-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
     compile_with_auxiliary_artifacts(CanaryCompileSpec {
@@ -2528,7 +2484,7 @@ fn efi_ref_param_call_arg_derefs_and_dispatches() {
     // (pointee frame@8 +64), never fold flat (frame_storage@72 fed firmware
     // poison into the vtable dispatch), and the `mov rax,[rcx+8]; call rax`
     // dispatch bytes must survive the hoist.
-    let canary = pass_canary("targets/efi_ref_param_call_arg");
+    let canary = pass_canary(fixture_roster::TARGETS_EFI_REF_PARAM_CALL_ARG);
     let build_dir = std::env::temp_dir().join(format!("omega-refarg-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
     compile_with_auxiliary_artifacts(CanaryCompileSpec {

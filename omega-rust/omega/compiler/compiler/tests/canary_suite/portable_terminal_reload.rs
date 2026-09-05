@@ -1,5 +1,8 @@
 use super::*;
 
+#[path = "../fixture_rosters/portable_terminal_reload.rs"]
+pub(super) mod fixture_roster;
+
 const STAGE_ENV: &str = "OMEGA_PORTABLE_TERMINAL_RELOAD_STAGE";
 const PATH_ENV: &str = "OMEGA_PORTABLE_TERMINAL_RELOAD_PATH";
 const PRODUCE: &str = "produce";
@@ -53,7 +56,7 @@ fn run_stage(stage: &str, artifact_path: &Path) {
 
 fn produce_portable_terminal_product() {
     let artifact_path = artifact_path();
-    let fixture = pass_canary("terminal_psi/selected_empty_component");
+    let fixture = pass_canary(fixture_roster::SELECTED_EMPTY_COMPONENT);
     let report = compiler::compile(
         CompileRequest::new(CompilerOptions {
             root_path: fixture.join("main.omg"),
