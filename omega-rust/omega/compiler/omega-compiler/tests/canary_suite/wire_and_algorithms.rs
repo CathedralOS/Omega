@@ -1,5 +1,8 @@
 use super::*;
 
+#[path = "../fixture_rosters/wire_and_algorithms.rs"]
+pub(super) mod fixture_roster;
+
 #[test]
 fn runtime_method_view_write_after_last_use_exit_canary_runs() {
     // Lifetimes stage 1, NLL complement of
@@ -7,7 +10,7 @@ fn runtime_method_view_write_after_last_use_exit_canary_runs() {
     // receiver-wide loan of a method-returned view ends at the view's LAST
     // USE, so a later write to another field of the same receiver compiles
     // and both writes land (7 + 63 = 70).
-    let canary = pass_canary("borrow/runtime_method_view_write_after_last_use_exit");
+    let canary = pass_canary(fixture_roster::RUNTIME_METHOD_VIEW_WRITE_AFTER_LAST_USE_EXIT);
     let scratch = std::env::temp_dir().join(format!(
         "omega-method-view-after-last-use-{}",
         std::process::id()
@@ -40,7 +43,7 @@ fn runtime_view_of_view_chain_exit_canary_runs() {
     // Lifetimes stage 1: CHAINED view-of-view through two free machines
     // (pick -> &mut Cell, narrow -> &mut i32). The elision linkage composes
     // and the two-hop write lands in the root machine-owned storage.
-    let canary = pass_canary("borrow/runtime_view_of_view_chain_exit");
+    let canary = pass_canary(fixture_roster::RUNTIME_VIEW_OF_VIEW_CHAIN_EXIT);
     let scratch =
         std::env::temp_dir().join(format!("omega-view-of-view-chain-{}", std::process::id()));
 
@@ -68,7 +71,7 @@ fn runtime_view_of_view_chain_exit_canary_runs() {
 
 #[test]
 fn unchanged_slice_length_ranking_rejects_in_checked_semantics() {
-    let canary = fail_canary("slices/termination_slice_length_order_unimplemented");
+    let canary = fail_canary(fixture_roster::TERMINATION_SLICE_LENGTH_ORDER_UNIMPLEMENTED);
     let diagnostics = check_canary(&canary)
         .expect_err("an unchanged Slice::Length ranking must reject before lowering");
     let combined = diagnostics
@@ -92,7 +95,7 @@ fn runtime_shrinking_slice_recursion_exit_canary_runs() {
     // resolved `items[0].value` as a plain place over the descriptor slot,
     // handing `take` the data pointer's low bytes instead of the element.
     // 10+20+15+25 threaded one step behind sums to 70 in machine state.
-    let canary = pass_canary("termination/runtime_shrinking_slice_recursion_exit");
+    let canary = pass_canary(fixture_roster::RUNTIME_SHRINKING_SLICE_RECURSION_EXIT);
     let scratch = std::env::temp_dir().join(format!(
         "omega-shrinking-slice-recursion-{}",
         std::process::id()
@@ -128,7 +131,7 @@ fn runtime_wire_encode_primitive_exit_canary_runs() {
     // a value varint (LEB128; signed values zigzag; bool 0/1). The canary
     // checks the eight expected bytes (hand-computed in its header comment)
     // and the written count in-language; exits 70 when byte-exact.
-    let canary = pass_canary("wire/runtime_wire_encode_primitive_exit");
+    let canary = pass_canary(fixture_roster::RUNTIME_WIRE_ENCODE_PRIMITIVE_EXIT);
     let scratch = std::env::temp_dir().join(format!("omega-wire-encode-{}", std::process::id()));
 
     let _ = fs::remove_dir_all(&scratch);
@@ -160,7 +163,7 @@ fn runtime_wire_encode_era_discriminator_exit_canary_runs() {
     // first byte of every encoded message. The canary asserts the era byte,
     // the recycled field's tag/value bytes, and the written count; exits 70
     // when byte-exact.
-    let canary = pass_canary("wire/runtime_wire_encode_era_discriminator_exit");
+    let canary = pass_canary(fixture_roster::RUNTIME_WIRE_ENCODE_ERA_DISCRIMINATOR_EXIT);
     let scratch = std::env::temp_dir().join(format!("omega-wire-era-{}", std::process::id()));
 
     let _ = fs::remove_dir_all(&scratch);
@@ -187,7 +190,7 @@ fn runtime_wire_encode_era_discriminator_exit_canary_runs() {
 
 #[test]
 fn numbered_case_identities_compile() {
-    let canary = pass_canary("wire/numbered_case_identities");
+    let canary = pass_canary(fixture_roster::NUMBERED_CASE_IDENTITIES);
     let build_dir =
         std::env::temp_dir().join(format!("omega-numbered-cases-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
@@ -222,7 +225,7 @@ fn runtime_wire_roundtrip_primitive_exit_canary_runs() {
     // &mut ok)` reads the same 8 bytes back: ok = true, read = 8, and every
     // decoded field equals the original (zigzag round-trips -2). Exits 70 on
     // a full match.
-    let canary = pass_canary("wire/runtime_wire_roundtrip_primitive_exit");
+    let canary = pass_canary(fixture_roster::RUNTIME_WIRE_ROUNDTRIP_PRIMITIVE_EXIT);
     let scratch = std::env::temp_dir().join(format!("omega-wire-roundtrip-{}", std::process::id()));
 
     let _ = fs::remove_dir_all(&scratch);
@@ -251,7 +254,7 @@ fn runtime_wire_roundtrip_primitive_exit_canary_runs() {
 fn runtime_wire_decode_ranged_field_exit_canary_runs() {
     // Hostile 200 must clear the verdict and leave the prior ranged value
     // untouched; a subsequent 50 must establish and store successfully.
-    let canary = pass_canary("wire/runtime_wire_decode_ranged_field_exit");
+    let canary = pass_canary(fixture_roster::RUNTIME_WIRE_DECODE_RANGED_FIELD_EXIT);
     let scratch =
         std::env::temp_dir().join(format!("omega-wire-ranged-decode-{}", std::process::id()));
 
@@ -281,7 +284,7 @@ fn runtime_wire_decode_ranged_field_exit_canary_runs() {
 fn runtime_wire_decode_ranged_repeated_exit_canary_runs() {
     // A hostile repeated element must clear the verdict without overwriting
     // its prior ranged slot; valid elements in the same payload still decode.
-    let canary = pass_canary("wire/runtime_wire_decode_ranged_repeated_exit");
+    let canary = pass_canary(fixture_roster::RUNTIME_WIRE_DECODE_RANGED_REPEATED_EXIT);
     let scratch = std::env::temp_dir().join(format!(
         "omega-wire-ranged-repeated-decode-{}",
         std::process::id()
@@ -313,7 +316,7 @@ fn runtime_wire_decode_ranged_repeated_exit_canary_runs() {
 fn runtime_wire_decode_rejects_noncanonical_bool_exit_canary_runs() {
     // Plain and repeated bool decodes must accept only canonical 0/1
     // representations, preserving prior values when a hostile 2 arrives.
-    let canary = pass_canary("wire/runtime_wire_decode_rejects_noncanonical_bool_exit");
+    let canary = pass_canary(fixture_roster::RUNTIME_WIRE_DECODE_REJECTS_NONCANONICAL_BOOL_EXIT);
     let scratch = std::env::temp_dir().join(format!(
         "omega-wire-noncanonical-bool-decode-{}",
         std::process::id()
@@ -345,7 +348,7 @@ fn runtime_wire_decode_rejects_noncanonical_bool_exit_canary_runs() {
 fn runtime_wire_decode_rejects_noncanonical_varint_exit_canary_runs() {
     // LEB128 values must use the fewest groups and may not carry bits beyond
     // u64, while the canonical ten-group u64 maximum remains valid.
-    let canary = pass_canary("wire/runtime_wire_decode_rejects_noncanonical_varint_exit");
+    let canary = pass_canary(fixture_roster::RUNTIME_WIRE_DECODE_REJECTS_NONCANONICAL_VARINT_EXIT);
     let scratch = std::env::temp_dir().join(format!(
         "omega-wire-noncanonical-varint-decode-{}",
         std::process::id()
@@ -377,7 +380,8 @@ fn runtime_wire_decode_rejects_noncanonical_varint_exit_canary_runs() {
 fn runtime_wire_decode_rejects_scalar_width_overflow_exit_canary_runs() {
     // Wider hostile varints must not become valid i32/u32 values merely
     // because the final destination store truncates their high bits.
-    let canary = pass_canary("wire/runtime_wire_decode_rejects_scalar_width_overflow_exit");
+    let canary =
+        pass_canary(fixture_roster::RUNTIME_WIRE_DECODE_REJECTS_SCALAR_WIDTH_OVERFLOW_EXIT);
     let scratch = std::env::temp_dir().join(format!(
         "omega-wire-scalar-width-overflow-{}",
         std::process::id()
@@ -414,7 +418,7 @@ fn runtime_wire_roundtrip_nested_exit_canary_runs() {
     // then decode back into a fresh value: ok = true, read = 10, and every
     // field including the nested ones equals the original. Exits 70 on a
     // full match.
-    let canary = pass_canary("wire/runtime_wire_roundtrip_nested_exit");
+    let canary = pass_canary(fixture_roster::RUNTIME_WIRE_ROUNDTRIP_NESTED_EXIT);
     let scratch = std::env::temp_dir().join(format!("omega-wire-nested-{}", std::process::id()));
 
     let _ = fs::remove_dir_all(&scratch);
@@ -446,7 +450,7 @@ fn runtime_wire_decode_rejects_bad_nested_length_exit_canary_runs() {
     // the decode -- the nested CLOSE check clears the sticky ok because the
     // cursor lands one byte before the declared end bound (walk in the
     // canary header). Exits 70 on the failure path.
-    let canary = pass_canary("wire/runtime_wire_decode_rejects_bad_nested_length_exit");
+    let canary = pass_canary(fixture_roster::RUNTIME_WIRE_DECODE_REJECTS_BAD_NESTED_LENGTH_EXIT);
     let scratch =
         std::env::temp_dir().join(format!("omega-wire-nested-length-{}", std::process::id()));
 
@@ -481,7 +485,7 @@ fn runtime_wire_roundtrip_repeated_exit_canary_runs() {
     // the live element varints, no per-element tags), then decode back into
     // a fresh value: ok = true, read = 10, both live elements and intrinsic
     // length round-trip. Exits 70 on a full match.
-    let canary = pass_canary("wire/runtime_wire_roundtrip_repeated_exit");
+    let canary = pass_canary(fixture_roster::RUNTIME_WIRE_ROUNDTRIP_REPEATED_EXIT);
     let scratch = std::env::temp_dir().join(format!("omega-wire-repeated-{}", std::process::id()));
 
     let _ = fs::remove_dir_all(&scratch);
@@ -516,7 +520,7 @@ fn runtime_wire_decode_rejects_repeated_overflow_exit_canary_runs() {
     // claiming more than the buffer holds must fail at the OPEN check
     // without reading out of bounds. Exits 70 when both decodes report
     // failure (walk in the canary header).
-    let canary = pass_canary("wire/runtime_wire_decode_rejects_repeated_overflow_exit");
+    let canary = pass_canary(fixture_roster::RUNTIME_WIRE_DECODE_REJECTS_REPEATED_OVERFLOW_EXIT);
     let scratch = std::env::temp_dir().join(format!(
         "omega-wire-repeated-overflow-{}",
         std::process::id()
@@ -550,7 +554,7 @@ fn runtime_wire_decode_rejects_wrong_era_exit_canary_runs() {
     // current era is 0) must fail to decode -- the era discriminator is the
     // first expected byte and the failure flag is sticky. The canary exits 70
     // on the failure path (`ok` = false).
-    let canary = pass_canary("wire/runtime_wire_decode_rejects_wrong_era_exit");
+    let canary = pass_canary(fixture_roster::RUNTIME_WIRE_DECODE_REJECTS_WRONG_ERA_EXIT);
     let scratch = std::env::temp_dir().join(format!("omega-wire-wrong-era-{}", std::process::id()));
 
     let _ = fs::remove_dir_all(&scratch);
@@ -582,7 +586,7 @@ fn runtime_wire_encode_string_exit_canary_runs() {
     // must encode LAST. The canary checks the seven expected bytes for
     // { count: 7, label: "hi" } (hand-computed in its header comment) and the
     // written count in-language; exits 70 when byte-exact.
-    let canary = pass_canary("wire/runtime_wire_encode_string_exit");
+    let canary = pass_canary(fixture_roster::RUNTIME_WIRE_ENCODE_STRING_EXIT);
     let scratch = std::env::temp_dir().join(format!("omega-wire-string-{}", std::process::id()));
 
     let _ = fs::remove_dir_all(&scratch);
@@ -615,7 +619,7 @@ fn runtime_wire_encode_byte_slice_exit_canary_runs() {
     // bytes (length varint + the bytes) through the same text-bytes append a
     // String uses. The canary checks the five expected bytes + the written count
     // in-language; exits 70 when byte-exact.
-    let canary = pass_canary("wire/runtime_wire_encode_byte_slice_exit");
+    let canary = pass_canary(fixture_roster::RUNTIME_WIRE_ENCODE_BYTE_SLICE_EXIT);
     let scratch =
         std::env::temp_dir().join(format!("omega-wire-byte-slice-{}", std::process::id()));
 
@@ -643,7 +647,7 @@ fn runtime_wire_encode_byte_slice_exit_canary_runs() {
 
 #[test]
 fn runtime_wire_encode_borrowed_scalar_slice_exit_canary_runs() {
-    let canary = pass_canary("wire/runtime_wire_encode_borrowed_scalar_slice_exit");
+    let canary = pass_canary(fixture_roster::RUNTIME_WIRE_ENCODE_BORROWED_SCALAR_SLICE_EXIT);
     let scratch = std::env::temp_dir().join(format!(
         "omega-wire-borrowed-scalar-slice-{}",
         std::process::id()
@@ -689,7 +693,7 @@ fn runtime_wire_decode_byte_slice_exit_canary_runs() {
     // buffer in place (the `ReadWireByteSlice` op). The canary round-trips and
     // RE-ENCODES the decoded value to prove the view is content-correct (ptr +
     // len point at the right buffer bytes); exits 70 when byte-exact.
-    let canary = pass_canary("wire/runtime_wire_decode_byte_slice_exit");
+    let canary = pass_canary(fixture_roster::RUNTIME_WIRE_DECODE_BYTE_SLICE_EXIT);
     let scratch = std::env::temp_dir().join(format!(
         "omega-wire-decode-byte-slice-{}",
         std::process::id()
@@ -724,7 +728,7 @@ fn runtime_wire_decoded_byte_slice_index_exit_canary_runs() {
     // through the descriptor's data pointer. It used to fall through every
     // argument strategy and was never written (parameter kept uninitialized
     // bytes); now resolved as a value operand. Exits 70 when decoded.bytes[0]==72.
-    let canary = pass_canary("wire/runtime_wire_decoded_byte_slice_index_exit");
+    let canary = pass_canary(fixture_roster::RUNTIME_WIRE_DECODED_BYTE_SLICE_INDEX_EXIT);
     let scratch = std::env::temp_dir().join(format!(
         "omega-wire-decoded-byte-slice-index-{}",
         std::process::id()
@@ -760,7 +764,7 @@ fn runtime_wire_decoded_byte_slice_len_exit_canary_runs() {
     // so `let n = decoded.bytes.len` emitted no write and `n` held garbage. The
     // length is genuinely runtime (decoded from a varint), so a correct read
     // proves the len slot is targeted; exits 70 when n == 2.
-    let canary = pass_canary("wire/runtime_wire_decoded_byte_slice_len_exit");
+    let canary = pass_canary(fixture_roster::RUNTIME_WIRE_DECODED_BYTE_SLICE_LEN_EXIT);
     let scratch = std::env::temp_dir().join(format!(
         "omega-wire-decoded-byte-slice-len-{}",
         std::process::id()
@@ -795,7 +799,7 @@ fn runtime_call_result_binary_operand_exit_canary_runs() {
     // result. The dispatch-body mutation path had a statement-level "copy call result
     // to target" shortcut that fired even when the call was a sub-expression, dropping
     // the `+1`/`max`. It now fires only for a bare, non-builtin call value.
-    let canary = pass_canary("expressions/runtime_call_result_binary_operand_exit");
+    let canary = pass_canary(fixture_roster::RUNTIME_CALL_RESULT_BINARY_OPERAND_EXIT);
     let scratch = std::env::temp_dir().join(format!(
         "omega-call-result-binary-operand-{}",
         std::process::id()
@@ -830,7 +834,7 @@ fn runtime_cast_operand_exit_canary_runs() {
     // A numeric `as` cast used as a binary operand (`self.a + (self.b as f64)`) must
     // convert the source in place via a Convert value operand, not be dropped. Covers
     // int->float, float->int, and integer widening; exits 70 only when all convert.
-    let canary = pass_canary("expressions/runtime_cast_operand_exit");
+    let canary = pass_canary(fixture_roster::RUNTIME_CAST_OPERAND_EXIT);
     let scratch = std::env::temp_dir().join(format!("omega-cast-operand-{}", std::process::id()));
 
     let _ = fs::remove_dir_all(&scratch);
@@ -858,7 +862,7 @@ fn runtime_f32_arithmetic_exit_canary_runs() {
     // single-precision SSE forms (movd + ucomiss/addss/...) keyed on byte_size 4,
     // with is_float recognizing F32 -- previously f32 was compared/operated as an
     // integer or as double precision. Exits 70 only when every f32 op is correct.
-    let canary = pass_canary("expressions/runtime_f32_arithmetic_exit");
+    let canary = pass_canary(fixture_roster::RUNTIME_F32_ARITHMETIC_EXIT);
     let scratch = std::env::temp_dir().join(format!("omega-f32-arith-{}", std::process::id()));
 
     let _ = fs::remove_dir_all(&scratch);
@@ -889,7 +893,7 @@ fn runtime_f32_local_arithmetic_exit_canary_runs() {
     // Also covers a cast of a folded f32 arithmetic expression into a local int
     // (`let n: i32 = c as i32`). Exits 70 only when add/sub/mul/div, an f32 `<`
     // compare, and the f32->i32 cast all evaluate correctly.
-    let canary = pass_canary("expressions/runtime_f32_local_arithmetic_exit");
+    let canary = pass_canary(fixture_roster::RUNTIME_F32_LOCAL_ARITHMETIC_EXIT);
     let build_dir =
         std::env::temp_dir().join(format!("omega-f32-local-arith-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
@@ -919,7 +923,7 @@ fn runtime_multi_arm_value_transition_exit_canary_runs() {
     // land on the matched arm's own body copy (before its forward skip), so a failed
     // first-arm guard skipped the middle arm. Exits 70 only when all three arms
     // (first/middle/default) select correctly.
-    let canary = pass_canary("calls/runtime_multi_arm_value_transition_exit");
+    let canary = pass_canary(fixture_roster::RUNTIME_MULTI_ARM_VALUE_TRANSITION_EXIT);
     let scratch =
         std::env::temp_dir().join(format!("omega-multi-arm-value-{}", std::process::id()));
 
@@ -954,7 +958,7 @@ fn runtime_value_transition_unsigned_guard_exit_canary_runs() {
     // its top bit set (4000000000 > INT_MAX), `x <= 2` is FALSE unsigned (correct)
     // but TRUE signed (wrong). A signed mis-compare selects the first arm and exits
     // 71; a correct unsigned compare selects the default arm and exits 70.
-    let canary = pass_canary("calls/runtime_value_transition_unsigned_guard_exit");
+    let canary = pass_canary(fixture_roster::RUNTIME_VALUE_TRANSITION_UNSIGNED_GUARD_EXIT);
     let scratch = std::env::temp_dir().join(format!(
         "omega-value-transition-unsigned-{}",
         std::process::id()
@@ -991,7 +995,7 @@ fn runtime_const_array_length_exit_canary_runs() {
     // substituted Literal(16) reached the range checker, and the values only
     // read back if layout sized the field as 16 elements -- identically to a
     // written `[i64; 16]`. Exits 70 only when both ends hold their values.
-    let canary = pass_canary("comptime/runtime_const_array_length_exit");
+    let canary = pass_canary(fixture_roster::RUNTIME_CONST_ARRAY_LENGTH_EXIT);
     let scratch =
         std::env::temp_dir().join(format!("omega-const-array-length-{}", std::process::id()));
 
@@ -1028,7 +1032,7 @@ fn runtime_fixed_vec_round_trip_exit_canary_runs() {
     // ladder checks the actual data flow (pushed value lands, pop returns it
     // and shrinks, a second clear/push cycle overwrites slot 0, final length
     // is 1) and exits 70 only when all hold.
-    let canary = pass_canary("collections/runtime_fixed_vec_round_trip_exit");
+    let canary = pass_canary(fixture_roster::RUNTIME_FIXED_VEC_ROUND_TRIP_EXIT);
     let scratch =
         std::env::temp_dir().join(format!("omega-fixed-vec-round-trip-{}", std::process::id()));
 
@@ -1059,7 +1063,7 @@ fn runtime_float_negative_ops_exit_canary_runs() {
     // Float operations with negatives -- comparisons (the ucomisd unsigned-flags case),
     // a negative float->int cast (truncation toward zero), and a negative multiply.
     // Exits 70.
-    let canary = pass_canary("arithmetic/runtime_float_negative_ops_exit");
+    let canary = pass_canary(fixture_roster::RUNTIME_FLOAT_NEGATIVE_OPS_EXIT);
     let scratch =
         std::env::temp_dir().join(format!("omega-float-negative-ops-{}", std::process::id()));
 
@@ -1083,7 +1087,7 @@ fn runtime_float_negative_ops_exit_canary_runs() {
 fn runtime_float32_array_conversion_exit_canary_runs() {
     // f32 ARRAY (the separate f32 codegen path: mulss/addss/ucomiss) plus an int<->f64 round-trip
     // cast. f32 sum 1.5+2.5+2.25 = 6.25, then 7 as f64 * 2.0 truncated to i32 = 14. Exits 70.
-    let canary = pass_canary("arithmetic/runtime_float32_array_conversion_exit");
+    let canary = pass_canary(fixture_roster::RUNTIME_FLOAT32_ARRAY_CONVERSION_EXIT);
     let scratch = std::env::temp_dir().join(format!("omega-float32-array-{}", std::process::id()));
 
     let _ = fs::remove_dir_all(&scratch);
@@ -1108,7 +1112,7 @@ fn runtime_value_call_let_combine_exit_canary_runs() {
     // one state whose results are bound to locals and combined in one expression is materialized
     // eagerly and correct (dbl(3)=6, dbl(4)=8 -> 6*100+8 == 608 -> exit 70). Guards against
     // re-broadening the shared-value-call-slot fence into a false positive on this valid pattern.
-    let canary = pass_canary("calls/runtime_value_call_let_combine_exit");
+    let canary = pass_canary(fixture_roster::RUNTIME_VALUE_CALL_LET_COMBINE_EXIT);
     let scratch = std::env::temp_dir().join(format!("omega-vc-letcombine-{}", std::process::id()));
 
     let _ = fs::remove_dir_all(&scratch);
@@ -1136,7 +1140,7 @@ fn runtime_float_nan_comparison_exit_canary_runs() {
     // NaN comparison honors IEEE in native codegen: `!=` is true, the other five operators
     // are false. Guards on `ucomis*` must test the parity flag (a `jp` branch) or 4 of 6 take
     // the wrong arm. The canary checks all six against a NaN operand and exits 70 iff correct.
-    let canary = pass_canary("arithmetic/runtime_float_nan_comparison_exit");
+    let canary = pass_canary(fixture_roster::RUNTIME_FLOAT_NAN_COMPARISON_EXIT);
     let scratch = std::env::temp_dir().join(format!("omega-float-nan-{}", std::process::id()));
 
     let _ = fs::remove_dir_all(&scratch);
@@ -1160,7 +1164,7 @@ fn runtime_saturating_domain_exit_canary_runs() {
     // Saturating arithmetic clamps at the type bounds (the core arithmetic-safety domain): u8
     // add/sub/mul over- and under-flow -> 255/0/255, i8 signed positive overflow -> 127, i8 signed
     // negative underflow -> -128 (checked as +128 == 0). All self-checked -> exit 70.
-    let canary = pass_canary("arithmetic/runtime_saturating_domain_exit");
+    let canary = pass_canary(fixture_roster::RUNTIME_SATURATING_DOMAIN_EXIT);
     let scratch = std::env::temp_dir().join(format!("omega-saturating-{}", std::process::id()));
 
     let _ = fs::remove_dir_all(&scratch);
@@ -1186,7 +1190,7 @@ fn runtime_saturating_domain_exit_canary_runs() {
 fn runtime_i64_signed_arithmetic_exit_canary_runs() {
     // i64 signed arithmetic beyond i32: multiply past 2^32, signed div/mod with a negative dividend
     // (sign follows dividend), and a 64-bit shift (1<<40). All chained -> exit 70.
-    let canary = pass_canary("arithmetic/runtime_i64_signed_arithmetic_exit");
+    let canary = pass_canary(fixture_roster::RUNTIME_I64_SIGNED_ARITHMETIC_EXIT);
     let scratch = std::env::temp_dir().join(format!("omega-i64-signed-{}", std::process::id()));
 
     let _ = fs::remove_dir_all(&scratch);
@@ -1213,7 +1217,7 @@ fn runtime_cast_sign_zero_extension_exit_canary_runs() {
     // Width conversions pick the right extension (movsx vs movzx): -1 as i8 as i32 == -1
     // (sign-extend), -1 as u8 as i32 == 255 (zero-extend), 200 as i8 as i32 == -56 (truncate +
     // sign-extend). All chained -> exit 70.
-    let canary = pass_canary("arithmetic/runtime_cast_sign_zero_extension_exit");
+    let canary = pass_canary(fixture_roster::RUNTIME_CAST_SIGN_ZERO_EXTENSION_EXIT);
     let scratch = std::env::temp_dir().join(format!("omega-cast-sign-zero-{}", std::process::id()));
 
     let _ = fs::remove_dir_all(&scratch);
@@ -1239,7 +1243,7 @@ fn runtime_cast_sign_zero_extension_exit_canary_runs() {
 fn runtime_bitwise_high_ops_exit_canary_runs() {
     // Bitwise ops on u32 above i32::MAX: a=0xF0F0F0F0, b=0x0F0F0F0F. XOR/AND/OR, a shift+mask
     // nibble extract, and NOT-via-XOR all chained -> exit 70.
-    let canary = pass_canary("arithmetic/runtime_bitwise_high_ops_exit");
+    let canary = pass_canary(fixture_roster::RUNTIME_BITWISE_HIGH_OPS_EXIT);
     let scratch = std::env::temp_dir().join(format!("omega-bitwise-high-{}", std::process::id()));
 
     let _ = fs::remove_dir_all(&scratch);
@@ -1265,7 +1269,7 @@ fn runtime_bitwise_high_ops_exit_canary_runs() {
 fn runtime_unsigned_high_comparison_exit_canary_runs() {
     // Unsigned comparison above i32::MAX (a = u32::MAX, b = 1): a signed setcc would invert every
     // ordered result. All six operators chained give the unsigned answer -> exit 70.
-    let canary = pass_canary("arithmetic/runtime_unsigned_high_comparison_exit");
+    let canary = pass_canary(fixture_roster::RUNTIME_UNSIGNED_HIGH_COMPARISON_EXIT);
     let scratch =
         std::env::temp_dir().join(format!("omega-unsigned-high-cmp-{}", std::process::id()));
 
@@ -1293,7 +1297,7 @@ fn runtime_signed_modulo_shift_edges_exit_canary_runs() {
     // Sign-sensitive integer codegen: truncated signed modulo with negatives (-7%3==-1, 7%-3==1),
     // arithmetic vs logical right shift (-16>>2==-4 SAR, 16u32>>2==4 SHR), and a runtime shift
     // amount (1<<5==32). Exits 70.
-    let canary = pass_canary("arithmetic/runtime_signed_modulo_shift_edges_exit");
+    let canary = pass_canary(fixture_roster::RUNTIME_SIGNED_MODULO_SHIFT_EDGES_EXIT);
     let scratch =
         std::env::temp_dir().join(format!("omega-signed-mod-shift-{}", std::process::id()));
 
@@ -1321,7 +1325,7 @@ fn runtime_newton_sqrt_exit_canary_runs() {
     // Newton's method for a square root (an iterative numerical algorithm): x <- (x + S/x)/2
     // over f64, six iterations from 1.0 on S=2.0 -> sqrt(2) ~= 1.41421; checks
     // 1.414 < x < 1.415 -> exit 70.
-    let canary = pass_canary("arithmetic/runtime_newton_sqrt_exit");
+    let canary = pass_canary(fixture_roster::RUNTIME_NEWTON_SQRT_EXIT);
     let scratch = std::env::temp_dir().join(format!("omega-newton-sqrt-{}", std::process::id()));
 
     let _ = fs::remove_dir_all(&scratch);
@@ -1345,7 +1349,7 @@ fn runtime_monte_carlo_pi_exit_canary_runs() {
     // Monte Carlo pi estimation driven by the xorshift32 PRNG: 64 random points, count
     // those inside the quarter circle (px*px+py*py < 100*100). Deterministic from seed 1:
     // 53 inside, scaled estimate 400*53/64 = 331 (pi ~= 3.31) -> exit 70.
-    let canary = pass_canary("arithmetic/runtime_monte_carlo_pi_exit");
+    let canary = pass_canary(fixture_roster::RUNTIME_MONTE_CARLO_PI_EXIT);
     let scratch = std::env::temp_dir().join(format!("omega-monte-carlo-pi-{}", std::process::id()));
 
     let _ = fs::remove_dir_all(&scratch);
@@ -1368,7 +1372,7 @@ fn runtime_monte_carlo_pi_exit_canary_runs() {
 fn runtime_gcd_euclid_exit_canary_runs() {
     // The iterative Euclidean GCD: `(a,b) = (b, a%b)` until b==0. gcd(1071,462)=21.
     // A two-variable loop with a runtime modulo; self-checks the result -> exit 70.
-    let canary = pass_canary("arithmetic/runtime_gcd_euclid_exit");
+    let canary = pass_canary(fixture_roster::RUNTIME_GCD_EUCLID_EXIT);
     let scratch = std::env::temp_dir().join(format!("omega-gcd-euclid-{}", std::process::id()));
 
     let _ = fs::remove_dir_all(&scratch);
@@ -1394,7 +1398,7 @@ fn runtime_gcd_euclid_exit_canary_runs() {
 fn runtime_rpn_evaluator_exit_canary_runs() {
     // A reverse-Polish stack evaluator (a stack VM): push numbers, pop-pop-op-push for
     // operators, over a token array. Evaluates `3 4 + 5 *` to 35 -> exit 70.
-    let canary = pass_canary("collections/runtime_rpn_evaluator_exit");
+    let canary = pass_canary(fixture_roster::RUNTIME_RPN_EVALUATOR_EXIT);
     let scratch = std::env::temp_dir().join(format!("omega-rpn-eval-{}", std::process::id()));
 
     let _ = fs::remove_dir_all(&scratch);
@@ -1421,7 +1425,7 @@ fn runtime_activity_selection_greedy_exit_canary_runs() {
     // Greedy activity selection: given activities sorted by finish, take each that starts
     // no earlier than the last chosen finish. Six activities yield 3 non-overlapping ->
     // exit 70.
-    let canary = pass_canary("collections/runtime_activity_selection_greedy_exit");
+    let canary = pass_canary(fixture_roster::RUNTIME_ACTIVITY_SELECTION_GREEDY_EXIT);
     let scratch =
         std::env::temp_dir().join(format!("omega-activity-greedy-{}", std::process::id()));
 
@@ -1449,7 +1453,7 @@ fn runtime_maze_pathfind_exit_canary_runs() {
     // Shortest-path BFS on a 5x5 grid maze (implicit grid neighbours + walls, distinct from
     // the adjacency-matrix BFS). The shortest distance from cell 0 to cell 24 through the
     // snaking corridor is 16 -> exit 70.
-    let canary = pass_canary("collections/runtime_maze_pathfind_exit");
+    let canary = pass_canary(fixture_roster::RUNTIME_MAZE_PATHFIND_EXIT);
     let scratch = std::env::temp_dir().join(format!("omega-maze-pathfind-{}", std::process::id()));
 
     let _ = fs::remove_dir_all(&scratch);
@@ -1482,7 +1486,7 @@ fn runtime_nqueens_backtracking_exit_canary_runs() {
     // N-queens count by backtracking (try/prune/undo): cols[r] is the column tried for row
     // r and doubles as the state stack; conflicts are column or diagonal. N=4 has exactly 2
     // solutions -> exit 70 (a discriminating count).
-    let canary = pass_canary("collections/runtime_nqueens_backtracking_exit");
+    let canary = pass_canary(fixture_roster::RUNTIME_NQUEENS_BACKTRACKING_EXIT);
     let scratch = std::env::temp_dir().join(format!("omega-nqueens-{}", std::process::id()));
 
     let _ = fs::remove_dir_all(&scratch);
@@ -1506,7 +1510,7 @@ fn runtime_coin_change_dp_exit_canary_runs() {
     // Coin-change minimisation by dynamic programming: dp[a] = fewest coins for amount a,
     // relaxing dp[a] toward 1 + dp[a-c] over a computed subproblem index. Coins {1,3,4},
     // amount 6 -> 2 coins (3+3) -> exit 70.
-    let canary = pass_canary("collections/runtime_coin_change_dp_exit");
+    let canary = pass_canary(fixture_roster::RUNTIME_COIN_CHANGE_DP_EXIT);
     let scratch = std::env::temp_dir().join(format!("omega-coin-change-dp-{}", std::process::id()));
 
     let _ = fs::remove_dir_all(&scratch);
@@ -1533,7 +1537,7 @@ fn runtime_bfs_traversal_exit_canary_runs() {
     // Breadth-first search over a 4-node graph (adjacency matrix + FIFO queue + visited
     // set): from node 0 the frontier expands level by level, visit order 0,1,2,3, all four
     // reached -> exit 70.
-    let canary = pass_canary("collections/runtime_bfs_traversal_exit");
+    let canary = pass_canary(fixture_roster::RUNTIME_BFS_TRAVERSAL_EXIT);
     let scratch = std::env::temp_dir().join(format!("omega-bfs-traversal-{}", std::process::id()));
 
     let _ = fs::remove_dir_all(&scratch);
@@ -1560,7 +1564,7 @@ fn runtime_hash_table_exit_canary_runs() {
     // An open-addressing hash table with linear probing (the associative map): parallel
     // keys/vals/used arrays, hash k%8, probe forward with wrap past occupied slots, look
     // back up. Keys 6,14,7,15 collide and force a wrap; their values sum to 246 -> exit 70.
-    let canary = pass_canary("collections/runtime_hash_table_exit");
+    let canary = pass_canary(fixture_roster::RUNTIME_HASH_TABLE_EXIT);
     let scratch = std::env::temp_dir().join(format!("omega-hash-table-{}", std::process::id()));
 
     let _ = fs::remove_dir_all(&scratch);
@@ -1587,7 +1591,7 @@ fn runtime_matrix_multiply_exit_canary_runs() {
     // 2x2 matrix multiply (row-major flat storage, triple i/j/k loop, inner-product
     // accumulation with computed flat indices). [[1,2],[3,4]] * [[5,6],[7,8]] =
     // [[19,22],[43,50]] -> exit 70.
-    let canary = pass_canary("collections/runtime_matrix_multiply_exit");
+    let canary = pass_canary(fixture_roster::RUNTIME_MATRIX_MULTIPLY_EXIT);
     let scratch = std::env::temp_dir().join(format!("omega-matrix-mul-{}", std::process::id()));
 
     let _ = fs::remove_dir_all(&scratch);
@@ -1615,7 +1619,7 @@ fn runtime_ring_buffer_queue_exit_canary_runs() {
     // capacity (explicit wrap) and a count guard. Interleaved enqueue/dequeue forces both
     // pointers to wrap; each dequeue is checked against a running counter so FIFO order is
     // pinned. All of 1..6 dequeued in order -> exit 70.
-    let canary = pass_canary("collections/runtime_ring_buffer_queue_exit");
+    let canary = pass_canary(fixture_roster::RUNTIME_RING_BUFFER_QUEUE_EXIT);
     let scratch = std::env::temp_dir().join(format!("omega-ring-buffer-{}", std::process::id()));
 
     let _ = fs::remove_dir_all(&scratch);
@@ -1641,7 +1645,7 @@ fn runtime_ring_buffer_queue_exit_canary_runs() {
 fn runtime_bubble_sort_exit_canary_runs() {
     // Bubble sort with nested loops, the adjacent index `j+1` via a field, a field-bound
     // compare, and a value-swap. Sorts [5,2,8,1,9,3] and self-checks four cells -> 70.
-    let canary = pass_canary("collections/runtime_bubble_sort_exit");
+    let canary = pass_canary(fixture_roster::RUNTIME_BUBBLE_SORT_EXIT);
     let scratch = std::env::temp_dir().join(format!("omega-bubble-sort-{}", std::process::id()));
 
     let _ = fs::remove_dir_all(&scratch);
@@ -1668,7 +1672,7 @@ fn runtime_2d_transpose_exit_canary_runs() {
     // A 2D matrix transpose over a flat array via the linear-counter sidestep: the
     // (row,col) and transposed output index are computed into fields, then used as plain
     // indices. Self-checks four transposed cells -> exit 70. Proves 2D/matrix data.
-    let canary = pass_canary("collections/runtime_2d_transpose_exit");
+    let canary = pass_canary(fixture_roster::RUNTIME_2D_TRANSPOSE_EXIT);
     let scratch = std::env::temp_dir().join(format!("omega-2d-transpose-{}", std::process::id()));
 
     let _ = fs::remove_dir_all(&scratch);
@@ -1696,7 +1700,7 @@ fn runtime_indexed_through_guard_chain_exit_canary_runs() {
     // _->t}`) that neither name nor rewrite x. Before convergent arms were treated as
     // a single unconditional predecessor, each guard split dropped the bound. Compiling
     // + reading arr[3]=70 -> exit 70 confirms the bound survives the chain.
-    let canary = pass_canary("collections/runtime_indexed_through_guard_chain_exit");
+    let canary = pass_canary(fixture_roster::RUNTIME_INDEXED_THROUGH_GUARD_CHAIN_EXIT);
     let scratch = std::env::temp_dir().join(format!("omega-guard-chain-{}", std::process::id()));
 
     let _ = fs::remove_dir_all(&scratch);
@@ -1723,7 +1727,7 @@ fn runtime_binary_search_exit_canary_runs() {
     // Binary search for 50 in a sorted 7-element array narrows in BOTH directions
     // (lo=mid+1 then hi=mid-1) and must find it at exactly index 4. Locks the computed
     // midpoint, the indexed read into a field, and both pointer updates. Exits 70.
-    let canary = pass_canary("collections/runtime_binary_search_exit");
+    let canary = pass_canary(fixture_roster::RUNTIME_BINARY_SEARCH_EXIT);
     let scratch = std::env::temp_dir().join(format!("omega-binary-search-{}", std::process::id()));
 
     let _ = fs::remove_dir_all(&scratch);
@@ -1751,7 +1755,7 @@ fn runtime_two_pointer_palindrome_exit_canary_runs() {
     // because j > i >= 0 -- proven by chaining the loop ordering `i < j` with `i`'s
     // non-negativity (non_negative_is_proven_via_ordering). Compiling + exiting 70
     // confirms the decreasing-counter lower bound is derived and the walk is correct.
-    let canary = pass_canary("collections/runtime_two_pointer_palindrome_exit");
+    let canary = pass_canary(fixture_roster::RUNTIME_TWO_POINTER_PALINDROME_EXIT);
     let scratch = std::env::temp_dir().join(format!(
         "omega-two-pointer-palindrome-{}",
         std::process::id()
@@ -1779,7 +1783,7 @@ fn runtime_two_pointer_palindrome_exit_canary_runs() {
 fn runtime_nested_struct_array_field_exit_canary_runs() {
     // Nested data: a struct field that is an array of structs (`self.g.pts[k].x`), const-indexed,
     // sub-fields read as binary operands. Sum = 20+30+18+2 = 70.
-    let canary = pass_canary("collections/runtime_nested_struct_array_field_exit");
+    let canary = pass_canary(fixture_roster::RUNTIME_NESTED_STRUCT_ARRAY_FIELD_EXIT);
     let scratch =
         std::env::temp_dir().join(format!("omega-nested-struct-array-{}", std::process::id()));
     let _ = fs::remove_dir_all(&scratch);
@@ -1805,7 +1809,7 @@ fn runtime_nested_struct_array_field_exit_canary_runs() {
 fn runtime_enum_grid_scan_exit_canary_runs() {
     // Scan an array of enums (tile grid) by runtime index via the bind-to-local workaround: read
     // grid[i] into self.c, then match. grid=[Wall,Door,Floor,Door,Wall] -> 2 Doors -> exit 70.
-    let canary = pass_canary("collections/runtime_enum_grid_scan_exit");
+    let canary = pass_canary(fixture_roster::RUNTIME_ENUM_GRID_SCAN_EXIT);
     let scratch = std::env::temp_dir().join(format!("omega-enum-grid-scan-{}", std::process::id()));
     let _ = fs::remove_dir_all(&scratch);
     let compilation = compile_rooted_canary_for_native_host(&canary, scratch.clone())
@@ -1830,7 +1834,7 @@ fn runtime_enum_grid_scan_exit_canary_runs() {
 fn runtime_two_indexed_reads_binary_exit_canary_runs() {
     // Two runtime-indexed reads at DISTINCT indices as operands of one binary: s = nums[i] + nums[j].
     // nums=[30,99,40], i=0, j=2 -> 30+40 = 70 (the 99 decoy catches a dropped index).
-    let canary = pass_canary("collections/runtime_two_indexed_reads_binary_exit");
+    let canary = pass_canary(fixture_roster::RUNTIME_TWO_INDEXED_READS_BINARY_EXIT);
     let scratch =
         std::env::temp_dir().join(format!("omega-two-indexed-reads-{}", std::process::id()));
     let _ = fs::remove_dir_all(&scratch);
@@ -1857,7 +1861,7 @@ fn runtime_struct_field_temp_arith_exit_canary_runs() {
     // The sound workaround for arithmetic on a runtime-indexed array-of-structs field: read the
     // field into a scalar `self.t` first, then compute. arr[1]={30,40}; t1+t2 = 70. (A direct
     // `arr[i].x + 5` is refused -- no machine-indexed struct-field value operand yet.)
-    let canary = pass_canary("collections/runtime_struct_field_temp_arith_exit");
+    let canary = pass_canary(fixture_roster::RUNTIME_STRUCT_FIELD_TEMP_ARITH_EXIT);
     let scratch =
         std::env::temp_dir().join(format!("omega-struct-field-temp-{}", std::process::id()));
     let _ = fs::remove_dir_all(&scratch);
@@ -1883,7 +1887,7 @@ fn runtime_struct_field_temp_arith_exit_canary_runs() {
 fn runtime_indexed_struct_write_loop_exit_canary_runs() {
     // A whole-struct write to a runtime-indexed array-of-structs element in a loop (entity-array
     // population): `self.arr[self.i] = Pt{..}`. Fill 3 elements, sum 10+15+10 = 35 -> exit 70.
-    let canary = pass_canary("collections/runtime_indexed_struct_write_loop_exit");
+    let canary = pass_canary(fixture_roster::RUNTIME_INDEXED_STRUCT_WRITE_LOOP_EXIT);
     let scratch =
         std::env::temp_dir().join(format!("omega-indexed-struct-write-{}", std::process::id()));
     let _ = fs::remove_dir_all(&scratch);
@@ -1910,7 +1914,7 @@ fn std_option_runtime_match_exit_canary_runs() {
     // The std `Optional<T>` works at runtime for presence/absence and payload
     // extraction. `b` is never written, so its all-zero home representation
     // must dispatch as None.
-    let canary = pass_canary("collections/std_option_runtime_match_exit");
+    let canary = pass_canary(fixture_roster::STD_OPTION_RUNTIME_MATCH_EXIT);
     let scratch = std::env::temp_dir().join(format!("omega-std-option-{}", std::process::id()));
     let _ = fs::remove_dir_all(&scratch);
     let compilation = compile_rooted_canary_for_native_host(&canary, scratch.clone())
@@ -1936,7 +1940,7 @@ fn runtime_indexed_read_then_guard_exit_canary_runs() {
     // The sound pattern for guarding a runtime-indexed array element: read it into a place first,
     // then compare that place (a direct `transition nums[i] > 5` silently takes the first arm).
     // nums[2]=9 -> v=9 -> 9>5 true -> exit 70; a dropped index would read nums[0]=1 -> 71.
-    let canary = pass_canary("collections/runtime_indexed_read_then_guard_exit");
+    let canary = pass_canary(fixture_roster::RUNTIME_INDEXED_READ_THEN_GUARD_EXIT);
     let scratch =
         std::env::temp_dir().join(format!("omega-indexed-read-guard-{}", std::process::id()));
     let _ = fs::remove_dir_all(&scratch);
@@ -1963,7 +1967,7 @@ fn runtime_row_const_column_write_exit_canary_runs() {
     // The working side of the 2D-write boundary: a runtime ROW index with a CONST column
     // (`grid[r][0]`, `grid[r][1]`) lowers correctly. Fill both columns of both rows by runtime row,
     // sum 10+15+20+25 = 70. (The runtime-COLUMN case is rejected; see the fail canary.)
-    let canary = pass_canary("collections/runtime_row_const_column_write_exit");
+    let canary = pass_canary(fixture_roster::RUNTIME_ROW_CONST_COLUMN_WRITE_EXIT);
     let scratch = std::env::temp_dir().join(format!("omega-row-const-col-{}", std::process::id()));
     let _ = fs::remove_dir_all(&scratch);
     let compilation = compile_rooted_canary_for_native_host(&canary, scratch.clone())
@@ -1988,7 +1992,7 @@ fn runtime_row_const_column_write_exit_canary_runs() {
 fn runtime_nested_array_const_index_exit_canary_runs() {
     // A 2D array [[i32;2];2]: const-indexed reads and writes work. Fill all four cells, sum =
     // 1+2+3+4 = 10 -> exit 70. (Runtime-column 2D indexing is a separate known gap.)
-    let canary = pass_canary("collections/runtime_nested_array_const_index_exit");
+    let canary = pass_canary(fixture_roster::RUNTIME_NESTED_ARRAY_CONST_INDEX_EXIT);
     let scratch =
         std::env::temp_dir().join(format!("omega-nested-array-const-{}", std::process::id()));
     let _ = fs::remove_dir_all(&scratch);
@@ -2014,7 +2018,7 @@ fn runtime_nested_array_const_index_exit_canary_runs() {
 fn runtime_whole_array_value_copy_exit_canary_runs() {
     // Whole-array value copy: `self.b = self.a` copies contents, so mutating self.b[0] leaves
     // self.a untouched. Discriminates both ways: a keeps (5,6,7), b becomes (99,6,7) -> exit 70.
-    let canary = pass_canary("collections/runtime_whole_array_value_copy_exit");
+    let canary = pass_canary(fixture_roster::RUNTIME_WHOLE_ARRAY_VALUE_COPY_EXIT);
     let scratch =
         std::env::temp_dir().join(format!("omega-whole-array-copy-{}", std::process::id()));
     let _ = fs::remove_dir_all(&scratch);
@@ -2042,7 +2046,7 @@ fn runtime_whole_struct_value_copy_exit_canary_runs() {
     // self.p2.x after the copy leaves self.p1 untouched (value, not alias). The
     // record complement of runtime_whole_array_value_copy_exit: p1 stays {30, 40}
     // even after p2.x = 99 -> exit 70.
-    let canary = pass_canary("collections/runtime_whole_struct_value_copy_exit");
+    let canary = pass_canary(fixture_roster::RUNTIME_WHOLE_STRUCT_VALUE_COPY_EXIT);
     let scratch =
         std::env::temp_dir().join(format!("omega-whole-struct-copy-{}", std::process::id()));
     let _ = fs::remove_dir_all(&scratch);
@@ -2071,7 +2075,7 @@ fn runtime_rule90_automaton_exit_canary_runs() {
     // shift `(90 >> window) & 1`, plain-index array reads/writes, and a field-temp
     // double buffer. The live-cell counts of the first four generations (1,2,2,4) sum
     // to 9, so it exits 70 only when the computation is exactly right.
-    let canary = pass_canary("collections/runtime_rule90_automaton_exit");
+    let canary = pass_canary(fixture_roster::RUNTIME_RULE90_AUTOMATON_EXIT);
     let scratch =
         std::env::temp_dir().join(format!("omega-rule90-automaton-{}", std::process::id()));
     let _ = fs::remove_dir_all(&scratch);
@@ -2097,7 +2101,7 @@ fn runtime_fixed_array_field_guard_exit_canary_runs() {
     // without folding its out-of-band constant index, so `cells[1].value` read
     // element 0. The canary writes two distinct elements and guards each; a dropped
     // index exits 71 instead of 70.
-    let canary = pass_canary("expressions/runtime_fixed_array_field_guard_exit");
+    let canary = pass_canary(fixture_roster::RUNTIME_FIXED_ARRAY_FIELD_GUARD_EXIT);
     let scratch = std::env::temp_dir().join(format!(
         "omega-fixed-array-field-guard-{}",
         std::process::id()
@@ -2131,7 +2135,7 @@ fn runtime_fixed_array_field_value_exit_canary_runs() {
     // index, so every `arr[const].field` value read aliased element 0. The canary
     // writes three distinct elements, reads the middle-high one into a field, and
     // guards it; a dropped index exits 71 instead of 70.
-    let canary = pass_canary("expressions/runtime_fixed_array_field_value_exit");
+    let canary = pass_canary(fixture_roster::RUNTIME_FIXED_ARRAY_FIELD_VALUE_EXIT);
     let scratch = std::env::temp_dir().join(format!(
         "omega-fixed-array-field-value-{}",
         std::process::id()
@@ -2163,7 +2167,7 @@ fn fixed_array_element_guard_canary_runs() {
     // cells `[f64; 4]`) must resolve one 8-byte element, not the whole 32-byte array
     // (which the encoder rejected). Promoted from pending once the guard-operand
     // layout applied the constant index; exits 0 when the guard reads cells[2].
-    let canary = pass_canary("control_flow/fixed_array_element_guard");
+    let canary = pass_canary(fixture_roster::FIXED_ARRAY_ELEMENT_GUARD);
     let scratch = std::env::temp_dir().join(format!(
         "omega-fixed-array-elem-guard-{}",
         std::process::id()
