@@ -20,6 +20,9 @@ use std::sync::atomic::{AtomicU64, Ordering};
 
 static NEXT_TEMP: AtomicU64 = AtomicU64::new(0);
 
+#[path = "package_compilation_inputs/generic_visibility.rs"]
+mod generic_visibility;
+
 struct TempTree(PathBuf);
 
 impl TempTree {

@@ -140,8 +140,8 @@ the [Rust Compiler Completion Contract](wiki/releases/rust_compiler_completion_c
   cause is the same `psi-checked-trees-to-terminal` fence `SAMPLE-CORPUS` names
   above, `attached Unit closure is missing a checked transitive machine plan`,
   which owns the clear majority of all failing diagnostics; the rest fall behind
-  `NOMINAL-FIELD-FLOW`, `LIBRARY-BOUNDARY-SIGNATURE-VISIBILITY`, missing
-  exact selected program entries, and index/subslice bound proofs. Owning areas
+  `NOMINAL-FIELD-FLOW`, missing exact selected program entries, and
+  index/subslice bound proofs. Owning areas
   are those entries, not this one. Blocker: clearing the fence advances each
   affected canary to its next failure rather than passing it outright, so the
   distribution must be re-ranked after it closes rather than assumed. Rank with
@@ -149,26 +149,6 @@ the [Rust Compiler Completion Contract](wiki/releases/rust_compiler_completion_c
   `AGENTS.md`; a full run costs several minutes and cannot separate a session's
   own breakage from the standing state. Acceptance: every remaining red canary
   is attributed to a named entry on a board, and this entry is replaced by those.
-
-- **LIBRARY-BOUNDARY-SIGNATURE-VISIBILITY.** A `boundary machine` publishes
-  an interface without being spelled `pub` (language guide chapter 15), so
-  every declaration its signature, contract, or `reaches`/`invokes` clause
-  selects must be `pub`, and a `pub data` closes over its field types. The
-  pass corpus and `samples/uefi/uefi_hello` follow that rule;
-  `source/library/core/real.omg` does not: its `boundary data Real;` and the
-  `Real::add`/`Real::multiply` boundary operations are selected by its own
-  accepted commutativity laws and by every importer's boundary signatures, so
-  `proofs/real_boundary_package_compile` rejects at validation with
-  `public interface selects private data` and `... private machine`. Owning
-  area: `source/library/core/real.omg` and any later library package that
-  declares a boundary signature over non-`pub` declarations. Blocker: the
-  2026-08-28 exposure change migrated no library source; `pub boundary data`
-  is already accepted syntax (`core/interrupt.omg`). Acceptance:
-  `mbx run -p omega -- --check tests/omega/pass/proofs/real_boundary_package_compile/main.omg`
-  emits no `public interface selects private` diagnostic, and no pass canary
-  or maintained sample emits one while
-  `tests/omega/fail/modules/boundary_signature_selects_private_data` still
-  rejects.
 
 - **CANARY-ROSTER-DERIVATION.** The pass and fail rosters in
   `omega-rust/omega/compiler/omega-compiler/tests/canary_suite.rs` are

@@ -681,6 +681,7 @@ mod tests {
         let state_handle = syntax_trees.items.append_state_handle(state);
         syntax_trees.push_root_item(Item::Machine(Machine {
             name: Identifier::generated("main"),
+            generic_data_template: Default::default(),
             attached_data: None,
             is_public: false,
             is_top_level_boundary_requirement: false,
@@ -745,6 +746,7 @@ mod tests {
 
         syntax_trees.push_root_item(Item::Machine(Machine {
             name: Identifier::generated("distinct_indices"),
+            generic_data_template: Default::default(),
             attached_data: None,
             is_public: false,
             is_top_level_boundary_requirement: false,

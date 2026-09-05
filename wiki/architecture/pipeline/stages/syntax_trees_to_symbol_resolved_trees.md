@@ -40,6 +40,13 @@ Must own:
 
 - Closing nameable generic data applications and applying exact contextual
   construction identities before name resolution.
+- Retaining each rewritten generic application's original base and argument
+  tokens beside its exact replacement occurrence. Syntax copies remap those
+  handle-backed origins; resolution attaches symbols to both forms. Retained
+  origins are not new normalization roots or new authored declarations.
+- Attached methods cloned for closed data instances retain their exact authored
+  template token. Resolution binds that declaration and the closed owner to
+  symbols; a missing or ambiguous template cannot acquire derivation custody.
 - Constructing symbol identity for definitions.
 - Stamping references with symbol handles when lookup is source/scope based.
 - Statement calls retain the exact lexical receiver root independently of the

@@ -9,6 +9,13 @@ pub struct TypeReferenceTable {
     type_references: Arena<TypeReferenceNode>,
     type_reference_handles: Arena<TypeReferenceHandle>,
     constraints: Arena<TypeConstraintNode>,
+    generic_application_origins: Arena<GenericApplicationOrigin>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+struct GenericApplicationOrigin {
+    instance: TypeReferenceHandle,
+    application: TypeReferenceHandle,
 }
 
 impl TypeReferenceTable {
@@ -17,11 +24,35 @@ impl TypeReferenceTable {
             type_references: Arena::new(),
             type_reference_handles: Arena::new(),
             constraints: Arena::new(),
+            generic_application_origins: Arena::new(),
         }
     }
 
     pub fn insert(&mut self, type_reference: TypeReferenceNode) -> TypeReferenceHandle {
         self.type_references.insert(type_reference)
+    }
+
+    /// The authored application replaced at this exact occurrence. Its child
+    /// handles retain their own origins when nested applications are rewritten.
+    pub fn generic_application_origin(&self, instance: TypeReferenceHandle) -> TypeReferenceHandle {
+        self.generic_application_origins
+            .iter()
+            .find_map(|(_, origin)| (origin.instance == instance).then_some(origin.application))
+            .unwrap_or_default()
+    }
+
+    pub fn retain_generic_application_origin(
+        &mut self,
+        instance: TypeReferenceHandle,
+        application: TypeReferenceHandle,
+    ) {
+        assert!(instance.is_valid() && application.is_valid() && instance != application);
+        assert!(!self.generic_application_origin(instance).is_valid());
+        self.generic_application_origins
+            .insert(GenericApplicationOrigin {
+                instance,
+                application,
+            });
     }
 
     /// Arena index of the next node inserted into the table. Handles created
@@ -85,6 +116,12 @@ impl TypeReferenceTable {
     pub fn generic_nodes(&self) -> Vec<TypeReferenceHandle> {
         self.type_references
             .iter()
+            .filter(|(handle, _)| {
+                !self
+                    .generic_application_origins
+                    .iter()
+                    .any(|(_, origin)| origin.application == *handle)
+            })
             .filter_map(|(handle, node)| {
                 matches!(node, TypeReferenceNode::Generic { .. }).then_some(handle)
             })

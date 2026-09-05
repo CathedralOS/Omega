@@ -140,6 +140,10 @@ pub(crate) fn lower_machine_into(
     lowerer.symbol_resolved_trees.machines.push(Machine {
         symbol: SymbolHandle::invalid(),
         name: machine_name,
+        generic_data_origin: psi_symbol_resolved_trees::machine::GenericDataMachineOrigin {
+            template_source: crate::name::lower_name(&machine.generic_data_template),
+            ..Default::default()
+        },
         attached_data,
         attached_data_symbol: SymbolHandle::invalid(),
         is_public: machine.is_public,

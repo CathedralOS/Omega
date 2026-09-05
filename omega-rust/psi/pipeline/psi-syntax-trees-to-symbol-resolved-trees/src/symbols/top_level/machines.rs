@@ -451,6 +451,41 @@ pub(super) fn assign_machine_symbols(
         }
     });
 
+    let origins = machines
+        .iter()
+        .map(|machine| {
+            let origin = &machine.generic_data_origin;
+            if !origin.template_source.is_source_backed() {
+                return None;
+            }
+            let mut candidates = machines.iter().filter(|template| {
+                !template
+                    .generic_data_origin
+                    .template_source
+                    .is_source_backed()
+                    && template.name.source_span() == origin.template_source.source_span()
+            });
+            match (candidates.next(), candidates.next()) {
+                (Some(template), None) => Some((template.symbol, machine.attached_data_symbol)),
+                _ => {
+                    diagnostics.push(
+                        Diagnostic::error(
+                            "generic-data method has no unique authored template declaration",
+                        )
+                        .with_source_span(origin.template_source.source_span()),
+                    );
+                    None
+                }
+            }
+        })
+        .collect::<Vec<_>>();
+    let mut origins = origins.into_iter();
+    machines.for_each_mut(|machine| {
+        if let Some((template, owner)) = origins.next().flatten() {
+            machine.generic_data_origin.template = template;
+            machine.generic_data_origin.closed_owner = owner;
+        }
+    });
     diagnostics
 }
 

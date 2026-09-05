@@ -27,9 +27,16 @@ pub(super) fn lower_type_reference_into_trees_with_exposure(
     source_trees: &resolved::SymbolResolvedTrees,
     typed_trees: &mut typed::TypedTrees,
     type_reference: &resolved::types::TypeReference,
-    exposure: psi_language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure,
+    exposure: impl Into<
+        Option<psi_language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure>,
+    >,
 ) -> Result<typed::types::TypeReferenceHandle, Diagnostic> {
-    lower_type_reference_handle_with_context(source_trees, typed_trees, type_reference, exposure)
+    lower_type_reference_handle_with_context(
+        source_trees,
+        typed_trees,
+        type_reference,
+        exposure.into(),
+    )
 }
 
 pub(crate) fn lower_type_reference_handle_from_table(
@@ -40,7 +47,7 @@ pub(crate) fn lower_type_reference_handle_from_table(
         lowerer.source_trees,
         &mut lowerer.typed_trees,
         type_reference,
-        psi_language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure::PrivateImplementation,
+        Some(psi_language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure::PrivateImplementation),
     )
 }
 
@@ -49,13 +56,44 @@ pub(super) fn retain_type_reference_selection(
     typed_trees: &mut typed::TypedTrees,
     name: &resolved::name::DiagnosticName,
     symbol: psi_symbols::SymbolHandle,
-    exposure: psi_language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure,
+    exposure: impl Into<
+        Option<psi_language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure>,
+    >,
     kind: psi_language_semantics::declaration_selection::AuthoredDeclarationSelectionKind,
 ) -> Result<(), Diagnostic> {
+    let Some(exposure) = exposure.into() else {
+        return Ok(());
+    };
     if !name.is_source_backed()
         || !symbol.is_valid()
         || resolved::types::PrimitiveType::from_name(name.as_str()).is_some()
     {
+        return Ok(());
+    }
+    if let Some(application) = source_trees
+        .tables
+        .types
+        .generic_application_origins
+        .iter()
+        .find_map(|(_, origin)| {
+            let (instance_symbol, instance_name) =
+                match source_trees.child_type_reference(origin.instance) {
+                    resolved::types::TypeReference::Named { symbol, name } => (*symbol, name),
+                    resolved::types::TypeReference::Generic(value) => {
+                        (value.base_symbol, &value.base_name)
+                    }
+                    _ => return None,
+                };
+            (instance_symbol == symbol && instance_name.source_span() == name.source_span())
+                .then_some(source_trees.child_type_reference(origin.application))
+        })
+    {
+        lower_type_reference_handle_with_context(
+            source_trees,
+            typed_trees,
+            application,
+            Some(exposure),
+        )?;
         return Ok(());
     }
     if matches!(
@@ -90,7 +128,9 @@ pub(crate) fn retain_static_path_selection(
     typed_trees: &mut typed::TypedTrees,
     path: &[resolved::name::DiagnosticName],
     symbol: psi_symbols::SymbolHandle,
-    exposure: psi_language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure,
+    exposure: impl Into<
+        Option<psi_language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure>,
+    >,
     context: &str,
 ) -> Result<(), Diagnostic> {
     retain_path_selection(
@@ -107,10 +147,15 @@ pub(crate) fn retain_path_selection(
     typed_trees: &mut typed::TypedTrees,
     path: &[resolved::name::DiagnosticName],
     symbol: psi_symbols::SymbolHandle,
-    exposure: psi_language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure,
+    exposure: impl Into<
+        Option<psi_language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure>,
+    >,
     kind: psi_language_semantics::declaration_selection::AuthoredDeclarationSelectionKind,
     context: &str,
 ) -> Result<(), Diagnostic> {
+    let Some(exposure) = exposure.into() else {
+        return Ok(());
+    };
     if !symbol.is_valid() {
         return Ok(());
     }

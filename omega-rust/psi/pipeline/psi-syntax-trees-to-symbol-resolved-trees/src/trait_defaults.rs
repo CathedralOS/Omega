@@ -867,6 +867,7 @@ fn machine_from_signature(
         target: None,
         boundary: false,
         is_top_level_boundary_requirement: false,
+        generic_data_template: Default::default(),
         lifetime_parameters: signature.lifetime_parameters.clone(),
         type_parameters: HandleSpan::empty(),
         satisfies,

@@ -575,6 +575,7 @@ fn desugar_generic_data_instances(syntax: &mut SyntaxTrees) -> Result<(), Vec<Di
                     machine.name.source_span(),
                 );
                 clone.attached_data = Some(Identifier::generated(instance.synthetic_name.as_str()));
+                clone.generic_data_template = machine.name.clone();
                 clone.type_parameters = HandleSpan::default();
                 for (handle, name) in syntax
                     .tables
@@ -621,11 +622,27 @@ fn desugar_generic_data_instances(syntax: &mut SyntaxTrees) -> Result<(), Vec<Di
 
         // Rewrite this round's spellings to the synthesized instances' plain names.
         for rewrite in rewrites {
+            // Keep occurrence custody separately from the instance's shared
+            // derivation. Public/private exposure belongs to this use site.
+            let original = syntax
+                .tables
+                .type_references
+                .type_reference(rewrite.type_reference)
+                .clone();
+            let TypeReferenceNode::Generic { base_name, .. } = &original else {
+                continue;
+            };
+            let instance_name = Identifier::new(rewrite.synthetic_name, base_name.source_span());
+            let application = syntax.tables.type_references.insert(original);
+            syntax
+                .tables
+                .type_references
+                .retain_generic_application_origin(rewrite.type_reference, application);
             let rewritten = if rewrite.lifetime_arguments.is_empty() {
-                TypeReferenceNode::Named(Identifier::generated(rewrite.synthetic_name))
+                TypeReferenceNode::Named(instance_name)
             } else {
                 TypeReferenceNode::Generic {
-                    base_name: Identifier::generated(rewrite.synthetic_name),
+                    base_name: instance_name,
                     lifetime_arguments: rewrite.lifetime_arguments,
                     arguments: HandleSpan::empty(),
                 }

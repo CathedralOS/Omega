@@ -462,6 +462,7 @@ impl SyntaxTrees {
     fn copy_machine(&mut self, other: &SyntaxTrees, machine: &Machine) -> Machine {
         Machine {
             name: machine.name.clone(),
+            generic_data_template: machine.generic_data_template.clone(),
             attached_data: machine.attached_data.clone(),
             is_public: machine.is_public,
             target: machine.target.clone(),
@@ -1039,7 +1040,7 @@ impl SyntaxTrees {
             return TypeReferenceHandle::invalid();
         }
 
-        match other.type_references.type_reference(handle) {
+        let copied = match other.type_references.type_reference(handle) {
             TypeReferenceNode::Reference {
                 referee,
                 access,
@@ -1100,7 +1101,14 @@ impl SyntaxTrees {
             TypeReferenceNode::Named(name) => self.type_references.insert_named(name.clone()),
             TypeReferenceNode::SelfType => self.type_references.insert_self_type(),
             TypeReferenceNode::Unit => self.type_references.insert_unit(),
+        };
+        let origin = other.type_references.generic_application_origin(handle);
+        if origin.is_valid() {
+            let application = self.copy_type_reference_handle(other, origin);
+            self.type_references
+                .retain_generic_application_origin(copied, application);
         }
+        copied
     }
 
     fn copy_type_reference_handle_span(
