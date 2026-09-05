@@ -108,8 +108,21 @@ grammar defect is not replaced by a depth failure at a later node.
 
 This expression-level accounting is distinct from parenthesis nesting in the
 generic parser and from the selected Gamma evaluator's physical heap or stack.
-It does not establish full syntax-arena accounting or successful emission for
-every input within the selected depth limit.
+It does not establish successful emission for every input within the selected
+depth limit.
+
+The [syntax storage owner](../checking/syntax/README.md#syntax-storage) separately
+accounts for D30's 114,294,752 syntax-arena bytes. Parser nodes, construction
+spines, parser frames, the program root, and grammar pending batches consume
+their actual 40-byte Gamma pairs cumulatively. Before an allocation group
+exceeds the limit, it returns tag 2, code 7, source space 1, and the exact
+requested cumulative extent. Parser groups anchor at their atom or list start,
+or source extent for the final program spine; grammar groups anchor at the
+current construct or sequence child. Request, byte, and lexical admission
+remain earlier phases. During parsing or grammar, an earlier reached failure
+still wins; an unexamined later defect cannot replace a syntax-storage refusal.
+This ledger excludes phase carriers and subsequent compiler-owned objects.
+It is not an inference from a raw Gamma heap or stack status.
 
 Function/constructor applications, constructor patterns, and recognized
 arithmetic/Bytes call-like heads retain their argument lists for semantic arity
@@ -285,7 +298,7 @@ historical table is recoverable at
 detached table participates in execution. D125 removes profile 2, not the
 request-failure identities.
 
-Canonical frontend rejection and the owned source-byte, global-row,
+Canonical frontend rejection and the owned source-byte, syntax-arena, global-row,
 active-environment, and parse-depth refusals
 are not full DCOUT or Delta-edge closure. Other resource/internal outcomes do
 not yet carry compiler-owned evidence. Lowering constructs a complete expanded

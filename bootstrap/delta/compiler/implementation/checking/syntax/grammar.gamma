@@ -1,25 +1,25 @@
 ; Balanced retained syntax precedes grammar; census follows only complete success.
 ; Each declaration finishes before the next, preserving authored diagnostic order.
-(def validate_program_syntax ((program Int)) Int
-  (grammar_program program (first program) (second program) 0))
+(def validate_program_syntax ((program Int) (used Int)) Int
+  (grammar_program program (first program) (second program) 0 used))
 
 ; Successful roles tail-dispatch pending work without allocating result wrappers.
 ; 1 expression, 2 value name, 3 nominal name, 4 type, 5 parameter list,
 ; 6 parameter, 7 constructor declaration, 8 match arm, 9 pattern.
 (def grammar_check_role
-  ((role Int) (node Int) (depth Int) (count Int) (work Int)) Int
+  ((role Int) (node Int) (depth Int) (count Int) (work Int) (used Int)) Int
   (if (eq role 1)
     (if (lt 1024 depth)
       (compiler_failure 2 1 8 (syntax_start node) 1024 depth)
-      (grammar_expression node depth count work))
+      (grammar_expression node depth count work used))
     (if (lt role 5)
-      (grammar_atom_role role node count work)
+      (grammar_atom_role role node count work used)
       (if (eq role 5)
-        (grammar_parameters node count work)
+        (grammar_parameters node count work used)
         (if (eq role 6)
-          (grammar_parameter node count work)
+          (grammar_parameter node count work used)
           (if (eq role 7)
-            (grammar_constructor node count work)
+            (grammar_constructor node count work used)
             (if (eq role 8)
-              (grammar_arm node depth count work)
-              (grammar_pattern node count work))))))))
+              (grammar_arm node depth count work used)
+              (grammar_pattern node count work used))))))))

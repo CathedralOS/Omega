@@ -1,4 +1,4 @@
-(def grammar_arm ((node Int) (depth Int) (count Int) (work Int)) Int
+(def grammar_arm ((node Int) (depth Int) (count Int) (work Int) (used Int)) Int
   (let shape Int (grammar_exact_count node 2)
     (if (eq shape -1)
       (let children Int (syntax_children node)
@@ -6,34 +6,41 @@
           (let pattern_count Int (syntax_count pattern)
             (if (eq pattern_count -1)
               (grammar_arm_after_name pattern (first (second children))
-                depth count work)
+                depth count work used)
               (if (eq pattern_count 1)
                 (grammar_arm_after_name (syntax_child pattern 0)
-                  (first (second children)) depth count work)
-                (grammar_pattern pattern (+ count 1)
-                  (grammar_pending 1 (+ depth 1) 1 (second children) work)))))))
+                  (first (second children)) depth count work used)
+                (let requested Int (syntax_storage_requested used 4)
+                  (if (syntax_storage_fits requested)
+                    (grammar_pattern pattern (+ count 1)
+                      (grammar_pending 1 (+ depth 1) 1 (second children) work)
+                      requested)
+                    (syntax_storage_refusal (syntax_start node) requested))))))))
       (compiler_source_rejection 4 shape))))
 
 ; A binder-free pattern has one complete atom-role judgment, so its body can
 ; follow directly. The ordinary expression dispatcher still enforces depth.
 (def grammar_arm_after_name
-  ((name Int) (body Int) (depth Int) (count Int) (work Int)) Int
+  ((name Int) (body Int) (depth Int) (count Int) (work Int) (used Int)) Int
   (let error Int (grammar_atom_role_error 3 name)
     (if (eq error -1)
-      (grammar_check_role 1 body (+ depth 1) count work)
+      (grammar_check_role 1 body (+ depth 1) count work used)
       (compiler_source_rejection 4 error))))
 
 ; Nullary spelling and parenthesized payload spelling retain their authored
 ; shape. Constructor identity, binder conflicts, and payload arity are later.
-(def grammar_pattern ((node Int) (count Int) (work Int)) Int
+(def grammar_pattern ((node Int) (count Int) (work Int) (used Int)) Int
   (if (eq (syntax_count node) -1)
-    (grammar_atom_role 3 node count work)
+    (grammar_atom_role 3 node count work used)
     (let shape Int (grammar_minimum_count node 1)
       (if (eq shape -1)
         (let children Int (syntax_children node)
           (if (eq (syntax_count node) 1)
-            (grammar_atom_role 3 (first children) count work)
-            (grammar_atom_role 3 (first children) (+ count 1)
-              (grammar_pending 2 0 (- (syntax_count node) 1)
-                (second children) work))))
+            (grammar_atom_role 3 (first children) count work used)
+            (let requested Int (syntax_storage_requested used 4)
+              (if (syntax_storage_fits requested)
+                (grammar_atom_role 3 (first children) (+ count 1)
+                  (grammar_pending 2 0 (- (syntax_count node) 1)
+                    (second children) work) requested)
+                (syntax_storage_refusal (syntax_start node) requested)))))
         (compiler_source_rejection 4 shape)))))

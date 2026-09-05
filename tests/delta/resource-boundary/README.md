@@ -1,7 +1,7 @@
 # Delta resource-boundary gate
 
 Run `sh tests/delta/resource-boundary/run.sh` from the repository root. The gate
-materializes and pins the complete canonical compiler, then compiles 27 full
+materializes and pins the complete canonical compiler, then compiles 37 full
 authored Delta sources through `DCREQ` profile 1 and the selected Gamma evaluator.
 The host neither parses declarations nor injects counters or compiler rows.
 
@@ -137,6 +137,52 @@ identity, owner, arity, or duplicate-case checking. These controls establish
 capacity reach, diagnostic precedence, and per-match isolation, not an invented
 code-6 refusal or complete D30 resource closure.
 
+## Syntax-storage fixture inventory
+
+[`syntax_storage.py`](syntax_storage.py) defines ten authored controls for
+D30's 114,294,752-byte cumulative syntax provision. The selected Gamma pair
+occupies 40 bytes, so 2,857,368 complete pairs consume 114,294,720 bytes; the
+remaining 32 bytes cannot hold another pair. No test injects a usage counter.
+
+| Authored source construction | Bytes | Expected exact DCOUT |
+| --- | ---: | --- |
+| 357,169 empty lists, then `a a a` | 714,343 | Reject 4 at 1 after maximal aligned parser admission |
+| Same source plus one empty list | 714,345 | Incomplete 7 at EOF 714,345, requested 114,295,040 |
+| 952,457 opening parentheses | 952,457 | Incomplete 7 at 952,456, requested 114,294,840 |
+| 714,342 copies of `a `, then `a` | 1,428,685 | Incomplete 7 at 1,428,684, requested 114,294,880 |
+| One list containing 571,473 copies of `a ` | 1,142,948 | Incomplete 7 at opening 0, requested 114,294,880 |
+| 59,528 copies of `(def f () Int 0)` | 952,448 | Reject 8 at 21 after grammar completes |
+| 59,529 copies of the same definition | 952,464 | Incomplete 7 at 952,416, requested 114,294,760 |
+| EOF-overflow source plus forbidden zero byte | 714,346 | Reject 3 at 714,345 before syntax parsing |
+| EOF-overflow source plus unmatched closing parenthesis | 714,346 | Reject 4 at 714,345 before EOF provision |
+| Empty list followed by 59,529 definitions | 952,466 | Reject 4 at 1 before later grammar provision |
+
+Every Incomplete row has source coordinate space 1 and limit 114,294,752.
+Expected requested amounts include the entire refused allocation group, not
+just its first pair. Parser opening groups contain three frame pairs; atoms
+contain three node pairs plus one reversed-spine pair; closing groups contain
+the complete ordered child spine plus four node/parent-spine pairs. EOF
+provisions the complete top-level ordered spine and one program-root pair.
+Close failures retain the list's opening coordinate; EOF failures use source
+extent. The unclosed-opening control proves an earlier provision can fail
+before a later missing-close judgment.
+
+For the balanced constructions, parser allocation is exactly `8L + 5A + 1`
+pairs for `L` lists and `A` atoms. Each repeated definition has two lists and
+four atoms: 36 parser pairs, then a 12-pair grammar frame group. At 59,528
+definitions the combined provision is 114,293,800 bytes. With one more
+definition, grammar starts after 2,143,045 parser pairs and refuses its
+59,527th frame group at byte 952,416. These controls check cumulative accounting
+across declarations and parser-to-grammar transfer. Phase outcome and custody wrappers
+are not syntax allocations. The host only constructs these fixed source
+families, checks lengths/digests, and compares full observations; it does not
+parse them or compute the compiler's usage state.
+
+The previous 27 fixtures remain unchanged. Their authored shapes stay below
+this syntax provision: the largest full-match variant uses 102,240,760 bytes,
+and adjacent full-type controls use 91,752,200 bytes. No prior boundary is
+reduced or relabeled to make room for these controls.
+
 Each evaluation uses the existing full-customer diagnostic allowance of 300
 seconds. The gate prints elapsed time for each exact observation and reports a
 raw evaluator failure or timeout without relabeling it as compiler
@@ -144,7 +190,8 @@ raw evaluator failure or timeout without relabeling it as compiler
 boundary is not reduced to accommodate it.
 
 These controls test the type-, function-, constructor-, and
-active-environment-row boundaries plus full per-match coverage behavior.
+active-environment-row boundaries, cumulative syntax storage, and full
+per-match coverage behavior.
 They do not establish all D30 capacities, acceptance or emission of every
 in-bound program, or closure of the Delta edge. Other frontend and request
 behavior remains in the

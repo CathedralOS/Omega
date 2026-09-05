@@ -1,18 +1,18 @@
 (def grammar_expression
-  ((node Int) (depth Int) (count Int) (work Int)) Int
+  ((node Int) (depth Int) (count Int) (work Int) (used Int)) Int
   (if (eq (syntax_count node) -1)
-    (grammar_expression_atom node count work)
+    (grammar_expression_atom node count work used)
     (let shape Int (grammar_minimum_count node 1)
       (if (eq shape -1)
         (let head Int (first (syntax_children node))
           (if (eq (syntax_count head) -1)
-            (grammar_expression_head node head depth count work)
+            (grammar_expression_head node head depth count work used)
             (grammar_reject head)))
         (compiler_source_rejection 4 shape)))))
 
 ; Lexical admission owns integer spelling and range. One-byte arithmetic
 ; punctuation remains valid only as a list head, never as an expression atom.
-(def grammar_expression_atom ((node Int) (count Int) (work Int)) Int
+(def grammar_expression_atom ((node Int) (count Int) (work Int) (used Int)) Int
   (let start Int (syntax_start node)
     (let after Int (syntax_after node)
       (let byte Int (source_read start)
@@ -24,24 +24,24 @@
               (if (upper_name_valid start after)
                 1
                 (value_name_valid start after))))
-          (if valid (grammar_run count work) (grammar_reject node)))))))
+          (if valid (grammar_run count work used) (grammar_reject node)))))))
 
 (def grammar_expression_head
-  ((node Int) (head Int) (depth Int) (count Int) (work Int)) Int
+  ((node Int) (head Int) (depth Int) (count Int) (work Int) (used Int)) Int
   (let start Int (syntax_start head)
     (let after Int (syntax_after head)
       (if (token_if start after)
-        (grammar_if node depth count work)
+        (grammar_if node depth count work used)
         (if (token_let start after)
-          (grammar_let node depth count work)
+          (grammar_let node depth count work used)
           (if (token_match start after)
-            (grammar_match node depth count work)
-            (grammar_application node head depth count work)))))))
+            (grammar_match node depth count work used)
+            (grammar_application node head depth count work used)))))))
 
 ; Call-like heads retain all argument nodes. Their semantic arity is not
 ; converted into syntax rejection by this structural grammar phase.
 (def grammar_application
-  ((node Int) (head Int) (depth Int) (count Int) (work Int)) Int
+  ((node Int) (head Int) (depth Int) (count Int) (work Int) (used Int)) Int
   (let start Int (syntax_start head)
     (let after Int (syntax_after head)
       (let valid Int
@@ -56,28 +56,36 @@
                 (if (token_eq start after) 1 (token_lt start after))))))
         (if valid
           (grammar_sequence 1 (- (syntax_count node) 1)
-            (second (syntax_children node)) (+ depth 1) count work)
+            (second (syntax_children node)) (+ depth 1) count work used)
           (grammar_reject head))))))
 
-(def grammar_if ((node Int) (depth Int) (count Int) (work Int)) Int
+(def grammar_if ((node Int) (depth Int) (count Int) (work Int) (used Int)) Int
   (let shape Int (grammar_exact_count node 4)
     (if (eq shape -1)
-      (grammar_sequence 1 3 (second (syntax_children node)) (+ depth 1) count work)
+      (grammar_sequence 1 3 (second (syntax_children node)) (+ depth 1) count work used)
       (compiler_source_rejection 4 shape))))
 
-(def grammar_let ((node Int) (depth Int) (count Int) (work Int)) Int
+(def grammar_let ((node Int) (depth Int) (count Int) (work Int) (used Int)) Int
   (let shape Int (grammar_exact_count node 5)
     (if (eq shape -1)
-      (let tail Int (second (syntax_children node))
-        (grammar_atom_role 2 (first tail) (+ count 2)
-          (grammar_pending 4 0 1 (second tail)
-            (grammar_pending 1 (+ depth 1) 2 (second (second tail)) work))))
+      (let requested Int (syntax_storage_requested used 8)
+        (if (syntax_storage_fits requested)
+          (let tail Int (second (syntax_children node))
+            (grammar_atom_role 2 (first tail) (+ count 2)
+              (grammar_pending 4 0 1 (second tail)
+                (grammar_pending 1 (+ depth 1) 2 (second (second tail)) work))
+              requested))
+          (syntax_storage_refusal (syntax_start node) requested)))
       (compiler_source_rejection 4 shape))))
 
-(def grammar_match ((node Int) (depth Int) (count Int) (work Int)) Int
+(def grammar_match ((node Int) (depth Int) (count Int) (work Int) (used Int)) Int
   (let shape Int (grammar_minimum_count node 3)
     (if (eq shape -1)
-      (let tail Int (second (syntax_children node))
-        (grammar_check_role 1 (first tail) (+ depth 1) (+ count 1)
-          (grammar_pending 8 depth (- (syntax_count node) 2) (second tail) work)))
+      (let requested Int (syntax_storage_requested used 4)
+        (if (syntax_storage_fits requested)
+          (let tail Int (second (syntax_children node))
+            (grammar_check_role 1 (first tail) (+ depth 1) (+ count 1)
+              (grammar_pending 8 depth (- (syntax_count node) 2) (second tail) work)
+              requested))
+          (syntax_storage_refusal (syntax_start node) requested)))
       (compiler_source_rejection 4 shape))))

@@ -1,30 +1,35 @@
 ; Count and pending spine travel as separate machine arguments.
 ; A pending batch is (pair role (pair depth (pair remaining (pair nodes rest)))).
 ; Nodes reuse the parser-owned ordered spine; no copied reverse child list.
+; Callers provision each complete frame group before any of these pairs exist.
 (def grammar_pending
   ((role Int) (depth Int) (remaining Int) (nodes Int) (rest Int)) Int
   (pair role (pair depth (pair remaining (pair nodes rest)))))
 
-(def grammar_run ((count Int) (work Int)) Int
+(def grammar_run ((count Int) (work Int) (used Int)) Int
   (if (eq count 0)
-    (compiler_complete 0)
+    (compiler_complete used)
     (let context Int (second work)
       (let batch Int (second context)
         (let children Int (second batch)
           (grammar_sequence (first work) (first batch) (first children)
-            (first context) (- count 1) (second children)))))))
+            (first context) (- count 1) (second children) used))))))
 
 ; Only an actually pending sibling sequence gets a frame. The current child
 ; enters its role directly, and popping a batch allocates no replacement work.
 (def grammar_sequence
   ((role Int) (remaining Int) (nodes Int) (depth Int)
-   (count Int) (work Int)) Int
+   (count Int) (work Int) (used Int)) Int
   (if (eq remaining 0)
-    (grammar_run count work)
+    (grammar_run count work used)
     (if (eq remaining 1)
-      (grammar_check_role role (first nodes) depth count work)
-      (grammar_check_role role (first nodes) depth (+ count 1)
-        (grammar_pending role depth (- remaining 1) (second nodes) work)))))
+      (grammar_check_role role (first nodes) depth count work used)
+      (let requested Int (syntax_storage_requested used 4)
+        (if (syntax_storage_fits requested)
+          (grammar_check_role role (first nodes) depth (+ count 1)
+            (grammar_pending role depth (- remaining 1) (second nodes) work)
+            requested)
+          (syntax_storage_refusal (syntax_start (first nodes)) requested))))))
 
 (def grammar_reject ((node Int)) Int
   (compiler_source_rejection 4 (syntax_start node)))
@@ -66,8 +71,8 @@
     (syntax_start node)))
 
 (def grammar_atom_role
-  ((role Int) (node Int) (count Int) (work Int)) Int
+  ((role Int) (node Int) (count Int) (work Int) (used Int)) Int
   (let error Int (grammar_atom_role_error role node)
     (if (eq error -1)
-      (grammar_run count work)
+      (grammar_run count work used)
       (compiler_source_rejection 4 error))))

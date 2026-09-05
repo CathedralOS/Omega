@@ -1,0 +1,16 @@
+; D30 syntax storage counts this producer's cumulative syntax allocations.
+; The selected Gamma profile uses 40 bytes per immutable pair. Parser nodes,
+; spines, frames, program roots, and grammar work share this byte provision.
+; Phase outcome/custody carriers and later compiler phases are not syntax.
+(def syntax_storage_limit () Int 114294752)
+
+; Used is admitted; pairs comes from a fixed shape or a source-bounded count.
+; A complete allocation group is provisioned before any of its pairs exist.
+(def syntax_storage_requested ((used Int) (pairs Int)) Int
+  (+ used (* pairs 40)))
+
+(def syntax_storage_fits ((requested Int)) Int
+  (if (lt (syntax_storage_limit) requested) 0 1))
+
+(def syntax_storage_refusal ((coordinate Int) (requested Int)) Int
+  (compiler_failure 2 1 7 coordinate (syntax_storage_limit) requested))

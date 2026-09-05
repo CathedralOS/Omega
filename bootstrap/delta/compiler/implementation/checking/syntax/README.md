@@ -27,6 +27,52 @@ and previous stack. Closing a list restores its children to source order once
 and appends the completed node to its parent. Nested Delta forms therefore do
 not consume one Gamma return context per source nesting level during parsing.
 
+## Syntax storage
+
+[storage.gamma](storage.gamma) owns D30's 114,294,752-byte syntax provision.
+This producer charges its actual syntax objects at the selected Gamma
+evaluator's 40 bytes per immutable pair. It does not charge a historical
+32-byte typed-syntax row for a differently represented S-expression node.
+
+Usage is cumulative: discarded reversed spines and popped parser or grammar
+frames are not reclaimed by this evaluator. A scalar travels with parser and
+grammar work; restoring a parent scope does not restore an older byte count.
+The parser returns a private `(program, used)` carrier, and grammar consumes
+it before returning the unchanged ordinary program to census. Phase outcomes
+and this custody carrier are not syntax objects. Declaration catalogs,
+environments, lowering plans, normalization, and emitted text are separately
+owned and do not enter this syntax ledger.
+
+Each allocation group is preflighted before any member is allocated:
+
+| Parser operation | Pairs | Refusal coordinate |
+| --- | ---: | --- |
+| Open a list | 3 parser-frame pairs | Opening delimiter |
+| Retain an atom | 3 node pairs + 1 reversed-spine cell | Atom start |
+| Close a list | Child count ordered-spine cells + 3 node pairs + 1 parent-spine cell | Saved opening delimiter |
+| Finish the program | Top-level count ordered-spine cells + 1 program root | Source extent |
+
+Grammar charges four pairs for each pending batch. A function's initial three
+batches are one 12-pair group, and a let's two batches are one eight-pair
+group. Other sites allocate one batch. Shape checks precede those allocation
+sites; later role judgments do not run after a refusal. A group anchors at the
+construct whose work it schedules; a sibling-sequence batch anchors at the
+current child. Successful declaration outcomes carry the updated scalar usage
+into the next declaration, so completed work does not reset the ledger.
+
+An over-limit request produces halt/tag 2, resource code 7, source coordinate
+space 1, the coordinate above, limit 114,294,752, and the exact cumulative
+bytes requested for the complete group. At 40-byte granularity, literal
+equality with the limit is impossible; its last 32 bytes cannot hold a pair.
+Requested bytes are not rounded down or replaced with `limit + 1`.
+All counts derive from admitted source extents or fixed object shapes, and
+their products and sums fit Gamma's signed scalar range.
+
+The shared `syntax_reverse_nodes` helper also serves lowering and normalization.
+Only its parser calls are charged here; the helper itself does not impose
+syntax accounting on unrelated phases. This ledger is not a query of Gamma's
+shared heap and cannot relabel physical evaluator exhaustion as DCOUT.
+
 ## Grammar and diagnostics
 
 The pipeline completes source-envelope and lexical admission before parsing.
@@ -153,4 +199,5 @@ reclaim abandoned construction spines. The selected 1,024-level compiler
 profile is not a Delta language nesting limit or a new Gamma primitive.
 Selected evaluator exhaustion remains an evaluator-owned failure; expression
 depth accounting does not translate it into guessed compiler resource codes or
-establish full Delta resource conformance.
+establish full Delta resource conformance. Syntax-byte provision has its own
+source-owned accounting above; it does not account for every compiler phase.

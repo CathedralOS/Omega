@@ -18,8 +18,8 @@
           tokens))
       envelope)))
 
-(def prepare_parsed_source ((profile Int) (program Int)) Int
-  (let grammar Int (validate_program_syntax program)
+(def prepare_parsed_source ((profile Int) (parsed Int)) Int
+  (let grammar Int (validate_program_syntax (first parsed) (second parsed))
     (if (eq (first grammar) 0)
       (let collected Int (collect_global_identities (second grammar))
         (if (eq (first collected) 0)

@@ -335,6 +335,17 @@ arm bodies are at their enclosing match's level plus one. Declaration, parameter
 and pattern structure adds no expression levels. Before judging a level-1,025
 expression, it returns `Incomplete` code 8 at that node's source start, with
 limit 1,024 and requested 1,025. Complete balanced parsing precedes this check.
+The syntax producer separately provisions D30's 114,294,752 syntax-arena bytes.
+Its source-owned ledger counts parser nodes, both construction spines, parser
+frames, the program root, and grammar work at the selected evaluator's actual
+40 bytes per immutable pair. Usage is cumulative across completed lists and
+declarations; phase-outcome carriers and later compiler phases are excluded.
+Each allocation group is checked before allocation. Refusal returns
+`Incomplete` code 7 at the owning source construct (or EOF for the final program
+spine), the selected limit, and the exact requested cumulative bytes. Allocation
+granularity can leave unusable tail bytes without changing the limit. Earlier
+request, byte, and lexical failures retain precedence, and a reached syntax
+refusal stops before any later parse or grammar judgment.
 Stack-safe compiler traversal does not guarantee generated Gamma admission
 throughout that depth. The selected evaluator separately bounds each generated
 body at 255 nested expression lists; normalization handles that nesting bound,

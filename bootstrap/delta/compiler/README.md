@@ -26,6 +26,13 @@ members are grouped below it:
 - `implementation/emission/`: generic Gamma serialization and the unchanged
   fixed byte helpers/profile adapters.
 
+[`checking/syntax/storage.gamma`](implementation/checking/syntax/storage.gamma)
+owns the cumulative syntax-byte provision shared by parsing and grammar.
+Each syntax allocation group is admitted before construction, at the selected
+Gamma pair size, while phase carriers and later compiler objects stay outside
+that ledger. The [syntax guide](implementation/checking/syntax/README.md#syntax-storage)
+defines exact groups, coordinates, and refusal fields.
+
 Declaration resolution starts at
 [`checking/declarations.gamma`](implementation/checking/declarations.gamma).
 Its subordinate `checking/declarations/` members separate
@@ -66,7 +73,7 @@ over-height fragments while retaining evaluation order and binding identity.
 [`emission/program.gamma`](implementation/emission/program.gamma) serializes
 the resulting Gamma plan; it does not select Delta lowering rules.
 
-`implementation/implementation.gamma.sources` selects all 61 shared members
+`implementation/implementation.gamma.sources` selects all 62 shared members
 with exact lengths, digests, and ordered identities. The byte-only source
 materializer validates that closed inventory and prefixes the explicitly
 selected entry. For the canonical entry, its application marker is therefore
@@ -348,7 +355,7 @@ The downgraded full compiler remains separate under
 ## Measurements
 
 ```text
-3,158-line / 139,282-byte canonical entry plus shared Gamma implementation
+3,229-line / 143,690-byte canonical entry plus shared Gamma implementation
 7-line / 195-byte nullary-ADT Delta fixture
   -> 3-line / 165-byte Gamma receipt
   -> selected Gamma evaluation produces byte 9
