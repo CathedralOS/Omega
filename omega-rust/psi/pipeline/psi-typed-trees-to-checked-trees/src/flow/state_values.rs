@@ -1,17 +1,18 @@
 //! Explicit state inputs derived from live edge contexts, not declarations.
 
 use super::*;
+use psi_facts::ScalarValue;
 use psi_typed_trees::statement::{TransitionExit, TransitionTargetNode};
 
 #[cfg(test)]
 mod tests;
 
-/// A missing row is unreachable. A present invalid value is unknown and must
+/// A missing row is unreachable. A present unknown value must
 /// participate in the incoming meet; it is never an omitted predecessor.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(super) struct StateValues {
     state: SymbolHandle,
-    values: Vec<(SymbolHandle, ExpressionHandle)>,
+    values: Vec<(SymbolHandle, ScalarValue)>,
 }
 
 fn reachable(
@@ -30,29 +31,7 @@ fn reachable(
             .any(|input| input.state == state)
 }
 
-fn same_value(
-    program: &psi_typed_trees::TypedTrees,
-    left: ExpressionHandle,
-    right: ExpressionHandle,
-) -> bool {
-    if !program.expression_table.expression_is_valid(left)
-        || !program.expression_table.expression_is_valid(right)
-    {
-        return false;
-    }
-    match (
-        program.expression_table.expression(left),
-        program.expression_table.expression(right),
-    ) {
-        (ExpressionNode::Integer(left), ExpressionNode::Integer(right)) => left
-            .value_bignum()
-            .is_some_and(|value| Some(value) == right.value_bignum()),
-        (ExpressionNode::Boolean(left), ExpressionNode::Boolean(right)) => left == right,
-        _ => false,
-    }
-}
-
-fn join(program: &psi_typed_trees::TypedTrees, ctx: &mut FlowBuildContext, incoming: StateValues) {
+fn join(ctx: &mut FlowBuildContext, incoming: StateValues) {
     let state = incoming.state;
     let mut changed = false;
     if let Some(previous) = ctx
@@ -65,11 +44,11 @@ fn join(program: &psi_typed_trees::TypedTrees, ctx: &mut FlowBuildContext, incom
                 .values
                 .iter()
                 .find(|row| row.0 == *parameter)
-                .map(|row| row.1)
+                .map(|row| row.1.clone())
                 .unwrap_or_default();
-            if !same_value(program, *value, next) {
-                changed |= value.is_valid();
-                *value = ExpressionHandle::invalid();
+            if *value != next {
+                changed |= *value != ScalarValue::Unknown;
+                *value = ScalarValue::Unknown;
             }
         }
     } else {
@@ -95,19 +74,25 @@ pub(super) fn unknown_inputs(program: &psi_typed_trees::TypedTrees) -> Vec<State
                         .state_parameters(state)
                         .iter()
                         .filter(|parameter| !parameter.is_self)
-                        .map(|parameter| (parameter.symbol, ExpressionHandle::invalid()))
+                        .map(|parameter| (parameter.symbol, ScalarValue::Unknown))
                         .collect(),
                 })
         })
         .collect()
 }
 
-fn literal(program: &psi_typed_trees::TypedTrees, expression: ExpressionHandle) -> bool {
-    program.expression_table.expression_is_valid(expression)
-        && matches!(
-            program.expression_table.expression(expression),
-            ExpressionNode::Integer(_) | ExpressionNode::Boolean(_)
-        )
+fn literal(
+    program: &psi_typed_trees::TypedTrees,
+    expression: ExpressionHandle,
+) -> Option<ScalarValue> {
+    if !program.expression_table.expression_is_valid(expression) {
+        return None;
+    }
+    match program.expression_table.expression(expression) {
+        ExpressionNode::Integer(value) => value.value_bignum().map(ScalarValue::Integer),
+        ExpressionNode::Boolean(value) => Some(ScalarValue::Boolean(*value)),
+        _ => None,
+    }
 }
 
 fn value_at_place(
@@ -116,28 +101,23 @@ fn value_at_place(
     ctx: &FlowBuildContext,
     contexts: HandleSpan<FlowSemanticContextRef>,
     place: psi_facts::PlaceHandle,
-) -> ExpressionHandle {
-    let mut value = ExpressionHandle::invalid();
-    for reference in ctx.contexts.semantic_context_refs.span_or_empty(contexts) {
-        for fact in semantic
-            .context_view(semantic.contexts.get(reference.context))
-            .facts()
-        {
-            let (FactPlace::Place(candidate), FactPayload::AssignedValue { value: incoming }) =
-                (fact.place, fact.payload)
-            else {
-                continue;
-            };
-            if !semantic.places_equal(place, candidate) || !literal(program, incoming) {
-                continue;
-            }
-            if value.is_valid() && !same_value(program, value, incoming) {
-                return ExpressionHandle::invalid();
-            }
-            value = incoming;
-        }
-    }
-    value
+) -> ScalarValue {
+    let Some(place) =
+        canonical_place_from_semantic_place(program, semantic, semantic.places.get(place))
+    else {
+        return ScalarValue::Unknown;
+    };
+    crate::values::scalar_value_at_place(
+        program,
+        semantic,
+        ctx.contexts
+            .semantic_context_refs
+            .span_or_empty(contexts)
+            .iter()
+            .map(|reference| semantic.contexts.get(reference.context)),
+        &place,
+    )
+    .unwrap_or_default()
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -201,9 +181,9 @@ pub(super) fn record_transition(
                     || primitive == psi_typed_trees::types::PrimitiveType::Bool
             });
         let value = if !scalar {
-            ExpressionHandle::invalid()
-        } else if argument.is_some_and(|argument| literal(program, argument)) {
-            argument.expect("literal argument")
+            ScalarValue::Unknown
+        } else if let Some(value) = argument.and_then(|argument| literal(program, argument)) {
+            value
         } else {
             let source = if arguments.is_none() {
                 Some(semantic.append_symbol_place(parameter.symbol))
@@ -256,7 +236,6 @@ pub(super) fn record_transition(
         values.push((parameter.symbol, value));
     }
     join(
-        program,
         ctx,
         StateValues {
             state: destination.symbol,
@@ -307,7 +286,6 @@ pub(super) fn record_invocation(
         return;
     }
     join(
-        program,
         ctx,
         StateValues {
             state: destination.symbol,
@@ -315,14 +293,14 @@ pub(super) fn record_invocation(
                 .state_parameters(destination)
                 .iter()
                 .filter(|parameter| !parameter.is_self)
-                .map(|parameter| (parameter.symbol, ExpressionHandle::invalid()))
+                .map(|parameter| (parameter.symbol, ScalarValue::Unknown))
                 .collect(),
         },
     );
 }
 
 pub(super) fn append_entry_context(
-    program: &psi_typed_trees::TypedTrees,
+    _program: &psi_typed_trees::TypedTrees,
     semantic: &mut FactPlan,
     ctx: &mut FlowBuildContext,
     machine: &psi_typed_trees::machine::Machine,
@@ -340,17 +318,18 @@ pub(super) fn append_entry_context(
         state_symbol: state.symbol,
     };
     for (parameter, value) in &input.values {
-        if !literal(program, *value) {
+        if *value == ScalarValue::Unknown {
             continue;
         }
         let mut refs = HandleSpan::empty();
         let place = semantic.append_symbol_place(*parameter);
+        let value = semantic.scalar_values.append(value.clone());
         let fact = semantic.append_fact(Fact {
             place: FactPlace::Place(place),
             point,
             origin: FactOrigin::StatementTransfer,
             evidence: QualificationEvidence::default(),
-            payload: FactPayload::AssignedValue { value: *value },
+            payload: FactPayload::AssignedScalarValue { value },
         });
         semantic.append_ref(&mut refs, fact);
         semantic.append_context(point, refs);

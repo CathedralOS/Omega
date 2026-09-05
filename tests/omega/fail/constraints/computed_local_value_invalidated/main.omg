@@ -1,0 +1,9 @@
+machine replace(value: &mut u8) { value = 8; }
+
+machine produce() -> u8
+ensures result == 7
+{
+    let saved: u8 = 3 + 4;
+    replace(&mut saved);
+    saved
+}

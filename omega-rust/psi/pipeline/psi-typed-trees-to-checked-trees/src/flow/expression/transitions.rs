@@ -1,6 +1,6 @@
 use super::*;
 
-impl Execution<'_, '_> {
+impl Execution<'_, '_, '_> {
     /// Evaluate one selected arm's operands with the ordinary expression
     /// schedule, then capture state inputs before the jump consumes its frame.
     pub(in crate::flow) fn transition_target(

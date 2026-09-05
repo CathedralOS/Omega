@@ -4,9 +4,8 @@ use psi_facts::{FactPayload, FactPlace};
 mod assigned_values;
 pub(super) use assigned_values::{prove_domain_at_place, scalar_value_at_place};
 mod scalars;
+pub(super) use crate::values::evaluate_checked_scalar;
 pub(super) use scalars::{ScalarValue, evaluate as evaluate_scalar};
-mod checked_scalars;
-pub(super) use checked_scalars::evaluate as evaluate_checked_scalar;
 mod booleans;
 #[cfg(test)]
 mod tests;
@@ -193,6 +192,7 @@ pub(super) fn semantic_contexts_prove_contract_fact(
         // These are evidence or deferred obligations, not propositions this
         // dispatcher can establish. An unfamiliar payload is never success.
         FactPayload::AssignedValue { .. }
+        | FactPayload::AssignedScalarValue { .. }
         | FactPayload::StorageDependency { .. }
         | FactPayload::BytePredicate { .. }
         | FactPayload::BooleanValue { .. }

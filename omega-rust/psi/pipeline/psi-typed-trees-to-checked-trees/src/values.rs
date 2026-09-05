@@ -7,7 +7,11 @@ use psi_symbols::SymbolHandle;
 use psi_typed_trees::TypedTrees;
 use psi_typed_trees::expression::ExpressionHandle;
 
+mod evaluation;
 mod expression;
+mod snapshots;
+pub(crate) use evaluation::evaluate as evaluate_checked_scalar;
+pub(crate) use snapshots::{literal_at_place, scalar_value_at_place};
 mod scalar;
 mod statement;
 mod transition;

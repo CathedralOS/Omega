@@ -467,10 +467,11 @@ Owners include
   occurrence disappears, duplicates, or is cleaned after transfer.
 
 - **STATE-LOCAL-VALUE-FRONTIER.** Complete live contract/value-fact transport
-  across explicit state arguments, including computed values and dynamic
-  projections. Retain selected arithmetic values across local assignments and
-  materialize effectful returns and earlier call arguments at their exact
-  evaluation points and activate staged loans at their evaluation points.
+  across explicit state arguments, including directly computed arguments and
+  dynamic projections. Capture selected arithmetic in mutable initializers and
+  assignment expressions; materialize effectful returns and earlier call
+  arguments at their exact evaluation points and activate staged loans at their
+  evaluation points.
   Complete anonymous integer landing for guarded returns, mutable locals,
   argument/store destinations, and the remaining numeric operator/policy
   surface, so proof and execution consume the same values without rereading

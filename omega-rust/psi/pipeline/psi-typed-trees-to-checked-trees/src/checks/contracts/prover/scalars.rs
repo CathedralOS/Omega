@@ -2,17 +2,14 @@
 //! supplied by the caller; this module does not replay initializers or choose
 //! an arithmetic domain for runtime operations.
 
+#[cfg(test)]
 use psi_numerics::bignum::BigInt;
 use psi_typed_trees::TypedTrees;
 use psi_typed_trees::expression::{
     BinaryOperator, ExpressionHandle, ExpressionNode, UnaryOperator,
 };
 
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub(in crate::checks::contracts) enum ScalarValue {
-    Integer(BigInt),
-    Boolean(bool),
-}
+pub(in crate::checks::contracts) use psi_facts::ScalarValue;
 
 pub(super) fn literal(program: &TypedTrees, expression: ExpressionHandle) -> Option<ScalarValue> {
     if !program.expression_table.expression_is_valid(expression) {

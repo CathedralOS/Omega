@@ -1,6 +1,7 @@
 use super::*;
 
-pub(super) struct FlowBuildContext {
+pub(super) struct FlowBuildContext<'plans> {
+    pub(super) scalar_expressions: &'plans psi_checked_trees::CheckedScalarExpressionPlans,
     pub(super) state_value_inputs: Vec<super::state_values::StateValues>,
     pub(super) built_state_value_inputs: Vec<SymbolHandle>,
     pub(super) state_value_inputs_changed_after_build: bool,
@@ -13,9 +14,15 @@ pub(super) struct FlowBuildContext {
     pub(super) control: FlowControlFacts,
 }
 
-impl FlowBuildContext {
-    pub(super) fn new(borrow: &BorrowFacts, proof: &ProofFacts, semantic: &FactPlan) -> Self {
+impl<'plans> FlowBuildContext<'plans> {
+    pub(super) fn new(
+        borrow: &BorrowFacts,
+        proof: &ProofFacts,
+        semantic: &FactPlan,
+        scalar_expressions: &'plans psi_checked_trees::CheckedScalarExpressionPlans,
+    ) -> Self {
         Self {
+            scalar_expressions,
             state_value_inputs: Vec::new(),
             built_state_value_inputs: Vec::new(),
             state_value_inputs_changed_after_build: false,

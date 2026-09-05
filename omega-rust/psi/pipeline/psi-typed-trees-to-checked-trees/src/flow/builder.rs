@@ -18,9 +18,11 @@ pub(crate) fn build_flow_facts(
         domains,
         operational,
         &service_reaches,
+        &Default::default(),
     )
 }
 
+#[allow(clippy::too_many_arguments)]
 pub(crate) fn build_flow_facts_with_service_reaches(
     program: &psi_typed_trees::TypedTrees,
     borrow: &BorrowFacts,
@@ -29,6 +31,7 @@ pub(crate) fn build_flow_facts_with_service_reaches(
     domains: &DomainFacts,
     operational: &psi_effects::OperationalPlan,
     service_reaches: &psi_effects::ServiceReachInferencePlan,
+    scalar_expressions: &psi_checked_trees::CheckedScalarExpressionPlans,
 ) -> FlowFacts {
     // Reuse the ordinary effect/statement transfer once per input revision.
     // Each pass starts from declaration/proof facts, never a prior pass's
@@ -53,7 +56,7 @@ pub(crate) fn build_flow_facts_with_service_reaches(
         if pass != 0 {
             *semantic = baseline.clone();
         }
-        let mut ctx = FlowBuildContext::new(borrow, proof, semantic);
+        let mut ctx = FlowBuildContext::new(borrow, proof, semantic, scalar_expressions);
         ctx.state_value_inputs = inputs;
         for machine in program.machines() {
             for state in program.machine_states(machine) {
@@ -73,7 +76,7 @@ pub(crate) fn build_flow_facts_with_service_reaches(
     }
     // No provisional input fact survives a nonconvergent graph.
     *semantic = baseline;
-    let mut ctx = FlowBuildContext::new(borrow, proof, semantic);
+    let mut ctx = FlowBuildContext::new(borrow, proof, semantic, scalar_expressions);
     // Unknown is absorbing: immediate joins during fallback cannot establish
     // a new provisional constant in a state built later in this pass.
     ctx.state_value_inputs = super::state_values::unknown_inputs(program);
