@@ -53,6 +53,12 @@ for exact snapshot work, and `storage::RetainedStorageLane` for lane custody.
 These are deliberate public seams; cache machinery, native process assembly,
 object verification, and publication internals remain private.
 
+Whole-root and named-member acquisition both accept an operation-local
+`GitAcquisitionPin` through their `from_pin_in_lane(s)` entrances. Reuse checks
+the exact original request, retained cache, commit and root tree without
+refetching; an absent or invalid pinned cache fails. These privately issued
+pins prevent drift within one traversal, not persisted lock recovery.
+
 Dependency direction is deliberate: the `local` and `git` adapters may use
 `identity`, `tree`, `snapshot`, `custody`, and `storage`; those shared owners
 must not depend back on either adapter. The local and Git adapters must not

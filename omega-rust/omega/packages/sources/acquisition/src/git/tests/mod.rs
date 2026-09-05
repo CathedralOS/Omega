@@ -24,6 +24,7 @@ use std::sync::Arc;
 
 mod request;
 mod reuse;
+mod root_pin;
 mod snapshot;
 mod validation;
 mod workspace;
