@@ -61,16 +61,20 @@ pub(super) fn assert_canonical_framing(text: &str) {
 }
 
 fn minimum_owned(text: &str) -> usize {
+    minimum_allowance(|limits| PackageLock::recover_text(text, limits).is_ok())
+}
+
+fn minimum_allowance(succeeds: impl Fn(PackageLockRecoveryLimits) -> bool) -> usize {
     let mut low = 0;
     let mut high = PackageLockRecoveryLimits::default().maximum_owned_bytes;
-    assert!(PackageLock::recover_text(text, PackageLockRecoveryLimits::default()).is_ok());
+    assert!(succeeds(PackageLockRecoveryLimits::default()));
     while low < high {
         let middle = low + (high - low) / 2;
         let limits = PackageLockRecoveryLimits {
             maximum_owned_bytes: middle,
             ..PackageLockRecoveryLimits::default()
         };
-        if PackageLock::recover_text(text, limits).is_ok() {
+        if succeeds(limits) {
             high = middle;
         } else {
             low = middle + 1;
@@ -87,10 +91,21 @@ pub(super) fn assert_aggregate_owned_boundary(lock: &PackageLock, text: &str) {
         ..PackageLockRecoveryLimits::default()
     };
     assert_eq!(PackageLock::recover_text(text, limits).unwrap(), *lock);
-    assert_eq!(lock.canonical_text_with_limits(limits).unwrap(), text);
+    // Historical writing charges output and validation temporaries in addition
+    // to child recovery, so establish its independent exact boundary.
+    let writer_exact = minimum_allowance(|limits| lock.canonical_text_with_limits(limits).is_ok());
+    assert!(writer_exact >= exact);
+    assert_eq!(
+        lock.canonical_text_with_limits(PackageLockRecoveryLimits {
+            maximum_owned_bytes: writer_exact,
+            ..limits
+        })
+        .unwrap(),
+        text
+    );
     assert!(
         lock.canonical_text_with_limits(PackageLockRecoveryLimits {
-            maximum_owned_bytes: exact - 1,
+            maximum_owned_bytes: writer_exact - 1,
             ..limits
         })
         .is_err()
