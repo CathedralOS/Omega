@@ -66,6 +66,21 @@ provider facts and provenance, callback placements, component progress, task
 activations, accepted-template classifications, and entailment stand-downs.
 The compiler coordinator does not courier or mutate any of those results.
 
+The selected-dispatch owners also return `SelectedDispatchSourceEdits`, retained
+privately by `CheckedCompilation`, not in package policy or review identities.
+Each owner seals its actual replaced expression and statement calls together
+with exact reachable operand, binding, and type custody before publishing the
+staged checked program. Source-semantic queries validate those batches in
+reverse settlement order and restore only the replaced nodes in one shared
+scratch typed tree. They borrow the current tree when no edits exist. This is
+the pre-selected-dispatch view, not pristine source or a pre-specialization
+snapshot: unrelated source edits and appended generated declarations remain.
+In particular, package mutation review rederives the complete source write
+frame through that view and still requires exact equality with the checked
+frame. Dropping a selected service receiver from executable dispatch does not
+erase its source write effect, and restoration does not conceal a changed
+untouched source write.
+
 ## Semantic Ownership
 
 This stage is the first durable semantic fact owner. It should be the place

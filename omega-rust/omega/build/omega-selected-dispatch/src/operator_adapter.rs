@@ -72,7 +72,9 @@ pub fn settle_selected_operator_adapter_dispatch(
         unit::validate_selected_unit_application(&staged, rewrite)
             .map_err(|diagnostic| vec![diagnostic])?;
     }
-    apply_selected_operator_adapter_rewrites(&mut staged, &rewrites);
+    let mut source_edits = super::source_edits::SourceEditBuilder::ignored();
+    apply_selected_operator_adapter_rewrites(&mut staged, &rewrites, &mut source_edits);
+    source_edits.finish(&staged.typed)?;
     *Arc::make_mut(checked) = staged;
     Ok(())
 }
@@ -422,8 +424,10 @@ fn stage_operator_adapter_rewrite(
 pub(super) fn apply_selected_operator_adapter_rewrites(
     checked: &mut CheckedTrees,
     rewrites: &[OperatorAdapterRewrite],
+    source_edits: &mut super::source_edits::SourceEditBuilder,
 ) {
     for rewrite in rewrites {
+        source_edits.expression(&checked.typed, rewrite.expression);
         let replacement = match &rewrite.source {
             OperatorAdapterSource::NamedCall => {
                 let ExpressionNode::Call(mut call) = checked

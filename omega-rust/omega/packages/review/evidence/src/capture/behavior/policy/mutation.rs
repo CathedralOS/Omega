@@ -6,8 +6,10 @@ use psi_checked_trees::RealizedMachineContractEnvelope;
 use psi_diagnostics::Diagnostic;
 use psi_typed_trees::{machine::Machine, state::State};
 
-pub(crate) fn mutation(
+pub(crate) fn mutation<'program>(
     compilation: &CheckedCompilation,
+    source: &'program psi_typed_trees::TypedTrees,
+    resolver: &psi_validation::CallFrameResolver<'program>,
     machine: &Machine,
     entry: &State,
     envelope: &RealizedMachineContractEnvelope,
@@ -31,13 +33,29 @@ pub(crate) fn mutation(
         machine.name.as_str(),
         "entry write frame",
     )?;
-    let resolver = psi_validation::CallFrameResolver::new(&compilation.typed)
-        .ok_or_else(|| rejected("entry write frame has no exact call resolver"))?;
-    let derived = resolver.inferred_state_write_frame(machine, entry);
+    let source_machine = exactly_one(
+        source
+            .machines()
+            .iter()
+            .filter(|candidate| candidate.symbol == machine.symbol),
+        machine.name.as_str(),
+        "pre-settlement machine",
+    )?;
+    let source_entry = source
+        .machine_states(source_machine)
+        .first()
+        .ok_or_else(|| rejected("pre-settlement callable has no entry"))?;
+    if source_machine != machine || source_entry != entry {
+        return Err(rejected("pre-settlement callable declaration changed"));
+    }
+    let derived = resolver.inferred_state_write_frame(source_machine, source_entry);
     if derived != retained.frame {
-        return Err(rejected(
-            "entry write frame differs from its current transitive typed derivation",
-        ));
+        return Err(rejected(&format!(
+            "entry write frame for `{}` differs from its current transitive typed derivation: retained {:?}, derived {:?}",
+            machine.name.as_str(),
+            retained.frame,
+            derived,
+        )));
     }
     Ok(PackagePolicyMutation {
         completeness: match derived.completeness() {

@@ -1047,6 +1047,8 @@ impl ExpressionTable {
         self.expressions.get(handle)
     }
 
+    /// Whether an exact generational handle still names a live expression.
+    /// Custody checks must distinguish a real zero literal from dummy storage.
     pub fn expression_is_valid(&self, handle: ExpressionHandle) -> bool {
         self.expressions.is_valid(handle)
     }

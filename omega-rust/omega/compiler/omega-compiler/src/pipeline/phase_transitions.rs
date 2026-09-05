@@ -29,6 +29,7 @@ pub(super) struct CheckedProgramSurface {
 /// provenance alongside every checked-phase sidecar.
 pub(super) struct SelectedExecutionSettlementSurface {
     pub(super) program: Arc<CheckedProgram>,
+    pub(super) dispatch_source_edits: omega_selected_dispatch::SelectedDispatchSourceEdits,
     pub(super) selected_provider_plan_facts: omega_effects::SelectedProviderPlanFacts,
     pub(super) selected_provider_grants:
         Vec<omega_trust_model::ResolvedAuthoredSelectedProviderGrant>,
@@ -295,10 +296,11 @@ pub(super) fn settle_selected_execution(
             settlement.exact_component_progress_root,
             None,
         )?;
-    omega_selected_dispatch::settle_selected_execution_dispatch(
-        &mut checked.program,
-        &checked.selected_provider_plan_facts,
-    )?;
+    let mut dispatch_source_edits =
+        omega_selected_dispatch::settle_selected_execution_dispatch_with_source_edits(
+            &mut checked.program,
+            &checked.selected_provider_plan_facts,
+        )?;
     let resolved_console_binding =
         omega_selected_dispatch::retain_selected_compiler_intrinsic_review_identities(
             &checked.program,
@@ -332,10 +334,12 @@ pub(super) fn settle_selected_execution(
             ))]);
         }
     };
-    omega_selected_dispatch::settle_selected_boundary_adapter_dispatch(
-        &mut checked.program,
-        &checked.selected_provider_plan_facts,
-    )?;
+    dispatch_source_edits.append(
+        omega_selected_dispatch::settle_selected_boundary_adapter_dispatch_with_source_edits(
+            &mut checked.program,
+            &checked.selected_provider_plan_facts,
+        )?,
+    );
     let task_activations = crate::pipeline::task_plans::elaborate_task_activation_plans(
         &checked.program,
         &checked.selected_provider_plan_facts,
@@ -345,6 +349,7 @@ pub(super) fn settle_selected_execution(
 
     Ok(SelectedExecutionSettlementSurface {
         program: checked.program,
+        dispatch_source_edits,
         selected_provider_plan_facts: checked.selected_provider_plan_facts,
         selected_provider_grants: checked.selected_provider_grants,
         callback_placements: checked.callback_placements,

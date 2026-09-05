@@ -139,8 +139,10 @@ pub(super) fn plan_selected_float_intrinsic_rewrites(
 pub(super) fn apply_selected_float_intrinsic_rewrites(
     checked: &mut CheckedTrees,
     rewrites: Vec<StagedNamedFloatRewrite>,
+    source_edits: &mut super::source_edits::SourceEditBuilder,
 ) {
     for rewrite in rewrites {
+        source_edits.expression(&checked.typed, rewrite.expression);
         let ExpressionNode::Call(call) = checked
             .typed
             .expression_table
@@ -1688,6 +1690,7 @@ mod tests {
                 realization: NamedFloatRealization::Negate(FloatFormat::F32),
                 execution: StagedNamedFloatExecution::Negate(FloatFormat::F32),
             }],
+            &mut crate::source_edits::SourceEditBuilder::default(),
         );
 
         assert!(!Arc::ptr_eq(&settled, &original));

@@ -18,6 +18,7 @@ use std::sync::Arc;
 #[derive(Debug, Clone)]
 pub struct CheckedCompilation {
     program: CheckedTrees,
+    dispatch_source_edits: omega_selected_dispatch::SelectedDispatchSourceEdits,
     source_file_count: usize,
     subsystem: u16,
     package_subject: Option<omega_package_compilation::PackageCompilationSubject>,
@@ -66,6 +67,7 @@ pub struct CheckedCompilation {
 impl PartialEq for CheckedCompilation {
     fn eq(&self, other: &Self) -> bool {
         self.program == other.program
+            && self.dispatch_source_edits == other.dispatch_source_edits
             && self.source_file_count == other.source_file_count
             && self.subsystem == other.subsystem
             && self.package_subject == other.package_subject
@@ -104,6 +106,14 @@ impl PartialEq for CheckedCompilation {
 impl Eq for CheckedCompilation {}
 
 impl CheckedCompilation {
+    /// Restore only exact selected-dispatch edits after checking their settled
+    /// operand/type graphs. This is not a pre-specialization or source-text view.
+    pub fn pre_selected_dispatch_source_trees(
+        &self,
+    ) -> Result<std::borrow::Cow<'_, psi_typed_trees::TypedTrees>, Vec<Diagnostic>> {
+        self.dispatch_source_edits.source_trees(&self.program.typed)
+    }
+
     /// Exact physical/generated source count consumed by this checked run.
     pub const fn source_file_count(&self) -> usize {
         self.source_file_count
@@ -1444,6 +1454,7 @@ fn compile_assembled_checked_child(
     }
     Ok(CheckedCompilation {
         program,
+        dispatch_source_edits: selected_execution_settlement.dispatch_source_edits,
         source_file_count,
         subsystem,
         package_subject,

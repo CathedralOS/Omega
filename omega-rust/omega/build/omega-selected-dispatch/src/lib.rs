@@ -11,8 +11,10 @@ mod float_intrinsic;
 mod intrinsic_review;
 mod operator_adapter;
 mod service_custody;
+mod source_edits;
 
 pub use adapter::settle_selected_boundary_adapter_dispatch;
+pub use adapter::settle_selected_boundary_adapter_dispatch_with_source_edits;
 pub use compiler_intrinsic::{
     derive_selected_compiler_intrinsic_execution_identity_for_row,
     derive_selected_compiler_intrinsic_execution_identity_for_row_with_binding,
@@ -37,14 +39,43 @@ pub use operator_adapter::{
 pub use service_custody::{
     derive_fused_program_entry_establishments, validate_fused_service_terminal_custody,
 };
+pub use source_edits::SelectedDispatchSourceEdits;
 
 /// Settle checked-body adapters and compiler-intrinsic float execution in one
 /// atomic Unit-plan rebuild. Separate rebuilds would make the later family
 /// erase applications retained by the earlier one.
+/// This transformation-only entrance does not retain source-query custody.
+/// Compiler publication uses the corresponding `with_source_edits` entrance.
 pub fn settle_selected_execution_dispatch(
     checked: &mut std::sync::Arc<psi_checked_trees::CheckedTrees>,
     selected_provider_plans: &omega_effects::SelectedProviderPlanFacts,
 ) -> Result<(), Vec<psi_diagnostics::Diagnostic>> {
+    settle_execution(
+        checked,
+        selected_provider_plans,
+        source_edits::SourceEditBuilder::ignored(),
+    )
+    .map(|_| ())
+}
+
+/// Atomically settle execution and seal the replaced source graph for later
+/// source-semantic queries. Failure publishes neither rewrites nor a journal.
+pub fn settle_selected_execution_dispatch_with_source_edits(
+    checked: &mut std::sync::Arc<psi_checked_trees::CheckedTrees>,
+    selected_provider_plans: &omega_effects::SelectedProviderPlanFacts,
+) -> Result<SelectedDispatchSourceEdits, Vec<psi_diagnostics::Diagnostic>> {
+    settle_execution(
+        checked,
+        selected_provider_plans,
+        source_edits::SourceEditBuilder::default(),
+    )
+}
+
+fn settle_execution(
+    checked: &mut std::sync::Arc<psi_checked_trees::CheckedTrees>,
+    selected_provider_plans: &omega_effects::SelectedProviderPlanFacts,
+    mut source_edits: source_edits::SourceEditBuilder,
+) -> Result<SelectedDispatchSourceEdits, Vec<psi_diagnostics::Diagnostic>> {
     let operator_rewrites = operator_adapter::plan_selected_operator_adapter_rewrites(
         checked,
         selected_provider_plans,
@@ -52,7 +83,7 @@ pub fn settle_selected_execution_dispatch(
     let float_rewrites =
         float_intrinsic::plan_selected_float_intrinsic_rewrites(checked, selected_provider_plans)?;
     if operator_rewrites.is_empty() && float_rewrites.is_empty() {
-        return Ok(());
+        return Ok(SelectedDispatchSourceEdits::default());
     }
 
     let operator_applications =
@@ -76,8 +107,17 @@ pub fn settle_selected_execution_dispatch(
         )
         .map_err(|diagnostic| vec![diagnostic])?;
     }
-    operator_adapter::apply_selected_operator_adapter_rewrites(&mut staged, &operator_rewrites);
-    float_intrinsic::apply_selected_float_intrinsic_rewrites(&mut staged, float_rewrites);
+    operator_adapter::apply_selected_operator_adapter_rewrites(
+        &mut staged,
+        &operator_rewrites,
+        &mut source_edits,
+    );
+    float_intrinsic::apply_selected_float_intrinsic_rewrites(
+        &mut staged,
+        float_rewrites,
+        &mut source_edits,
+    );
+    let source_edits = source_edits.finish(&staged.typed)?;
     *std::sync::Arc::make_mut(checked) = staged;
-    Ok(())
+    Ok(source_edits)
 }
