@@ -20,6 +20,29 @@ use super::super::usage::Budget;
 use super::super::validation::{canonical_root_request, validate_subject_with_budget};
 
 impl CanonicalSourceClosureSubject {
+    /// Recheck caller limits over retained typed fields without recovering or
+    /// cloning a second subject. This is a size/shape check, not acquisition.
+    pub(crate) fn validate_recovery_limits(
+        &self,
+        limits: CanonicalSourceClosureSubjectLimits,
+    ) -> Result<(), CanonicalSourceClosureSubjectError> {
+        let limits = limits.compiler_bounded();
+        if self.canonical_bytes.len() > limits.maximum_record_bytes {
+            return Err(CanonicalSourceClosureSubjectError::new(
+                "source-closure subject exceeds its record-byte limit",
+            ));
+        }
+        validate_subject_with_budget(
+            &self.root,
+            &self.packages,
+            &self.package_navigations,
+            &self.package_dependency_projections,
+            &self.dependency_requests,
+            limits,
+            &mut Budget::new(usize::MAX),
+        )
+    }
+
     pub fn from_resolved(
         target_closure: &ExactTargetPackageSourceClosure<'_>,
         limits: CanonicalSourceClosureSubjectLimits,
