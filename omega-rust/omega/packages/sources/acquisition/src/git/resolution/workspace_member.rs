@@ -19,8 +19,15 @@ use crate::storage::{RetainedStorageLane, SourceResolverStorage};
 use std::collections::BTreeSet;
 use std::path::PathBuf;
 
-use super::acquisition::resolve_git_source_from_retained_cache_with;
+use super::acquisition::resolve_git_source_from_retained_cache_with_selection;
 use super::materialization::GitMaterializedSource;
+use super::selection::GitRevisionSelection;
+
+mod recorded;
+pub use recorded::{
+    resolve_git_workspace_member_at_revision_in_lanes,
+    resolve_git_workspace_member_at_revision_in_lanes_with_primary_git,
+};
 
 pub fn resolve_git_workspace_member_with_storage<Planner>(
     request: &GitSourceRequest,
@@ -145,13 +152,13 @@ where
 {
     let package_controlled_roots =
         resolver_package_controlled_roots(&[git_lane.path(), member_lane.path()])?;
-    resolve_git_workspace_member_from_pin_with_selected_roots(
+    resolve_git_workspace_member_with_selected_roots(
         git_lane
             .primary_git()
             .map_err(GitWorkspaceProjectionError::Source)?,
         &package_controlled_roots,
         request,
-        pin,
+        GitRevisionSelection::Ordinary(pin),
         git_lane,
         member_lane,
         limits,
@@ -178,11 +185,11 @@ where
 {
     let package_controlled_roots =
         resolver_package_controlled_roots(&[git_lane.path(), member_lane.path()])?;
-    resolve_git_workspace_member_from_pin_with_selected_roots(
+    resolve_git_workspace_member_with_selected_roots(
         primary_git,
         &package_controlled_roots,
         request,
-        pin,
+        GitRevisionSelection::Ordinary(pin),
         git_lane,
         member_lane,
         limits,
@@ -192,11 +199,11 @@ where
 }
 
 #[allow(clippy::too_many_arguments)]
-fn resolve_git_workspace_member_from_pin_with_selected_roots<Planner>(
+fn resolve_git_workspace_member_with_selected_roots<Planner>(
     primary_git: &PrimaryGitSelection,
     package_controlled_roots: &[PathBuf],
     request: &GitSourceRequest,
-    pin: Option<&GitAcquisitionPin>,
+    selection: GitRevisionSelection<'_>,
     git_lane: &RetainedStorageLane,
     member_lane: &RetainedStorageLane,
     limits: LocalSourceLimits,
@@ -211,14 +218,14 @@ where
 {
     git_lane.verify_path_identity()?;
     member_lane.verify_path_identity()?;
-    let (source, evidence) = resolve_git_source_from_retained_cache_with(
+    let result = resolve_git_source_from_retained_cache_with_selection(
         primary_git,
         package_controlled_roots,
         request,
         git_lane.path(),
         git_lane.directory(),
         limits,
-        pin,
+        selection,
         |executor, repository, tree, limits| {
             project_git_workspace_member(
                 executor,
@@ -230,10 +237,12 @@ where
                 planner,
             )
         },
-    )?;
-    git_lane.verify_path_identity()?;
-    member_lane.verify_path_identity()?;
-    Ok(GitWorkspaceProjectionResult::new(source, evidence))
+    );
+    let git_custody = git_lane.verify_path_identity();
+    let member_custody = member_lane.verify_path_identity();
+    git_custody?;
+    member_custody?;
+    result.map(|(source, evidence)| GitWorkspaceProjectionResult::new(source, evidence))
 }
 
 fn project_git_workspace_member<Planner>(

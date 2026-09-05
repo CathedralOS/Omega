@@ -40,6 +40,8 @@ pub use exact_revision::{
 };
 
 pub use workspace_member::{
+    resolve_git_workspace_member_at_revision_in_lanes,
+    resolve_git_workspace_member_at_revision_in_lanes_with_primary_git,
     resolve_git_workspace_member_from_pin_in_lanes,
     resolve_git_workspace_member_from_pin_in_lanes_with_primary_git,
     resolve_git_workspace_member_in_lanes, resolve_git_workspace_member_in_lanes_with_primary_git,
