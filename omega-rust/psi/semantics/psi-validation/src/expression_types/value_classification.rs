@@ -12,7 +12,9 @@ use psi_typed_trees::types::{PrimitiveType, TypeReferenceHandle, TypeReferenceNo
 /// single `Numeric` class so that numeric coercions (`f64 = 5`, `i8 = 300`,
 /// `i32 = self.i8_field`) are NOT flagged here -- those are the province of the
 /// narrowing/domain checks, which carry their own precise diagnostics. This
-/// gate fires ONLY on cross-class conflicts.
+/// classification describes only cross-class conflicts. The shared store
+/// reporter additionally checks exact named-operator results and landed float
+/// formats before consulting these classes.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum ValueClass {
     Boolean,
@@ -141,8 +143,9 @@ pub(crate) fn cross_class_conflict(
     (value_class != target_class).then_some((value_class, target_class))
 }
 
-/// If `value`'s scalar class conflicts with the `target` primitive's, push the
-/// cross-class store diagnostic and return `true`; else return `false`.
+/// Report a scalar destination conflict and return `true`, or return `false`
+/// when the known representation and class agree. Exact named-operator result
+/// types and landed float formats are checked before broad scalar classes.
 /// `slot_context` names the store site (e.g. ``"argument `x` for state `s`"``,
 /// ``"construction of `Point` field `x`"``, `"array literal element"`) and
 /// `slot_noun` its kind (`"place"` / `"parameter"` / `"field"` / `"element"`).
@@ -171,6 +174,19 @@ pub(crate) fn report_cross_class_store(
             call.target,
             target.name(),
         )));
+        return true;
+    }
+
+    if super::float_destinations::report_mismatch(
+        program,
+        machine,
+        state,
+        value,
+        target,
+        slot_context,
+        slot_noun,
+        diagnostics,
+    ) {
         return true;
     }
 

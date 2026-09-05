@@ -9,6 +9,7 @@ use std::fmt;
 
 mod cast_validation;
 mod float_cast_proofs;
+mod float_destinations;
 mod operator_validation;
 mod shape_validation;
 mod value_classification;

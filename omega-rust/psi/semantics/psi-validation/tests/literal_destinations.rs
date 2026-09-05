@@ -125,6 +125,102 @@ fn explicit_casts_remain_conversion_boundaries() {
     validate_program(&program).expect("an explicit exact cast chooses the destination format");
 }
 
+fn rejects_float_format(source: &str) {
+    let diagnostics = validate_program(&typed(source))
+        .expect_err("a landed float cannot implicitly change its format");
+    assert!(
+        diagnostics.iter().any(|diagnostic| {
+            diagnostic.message.contains("f32")
+                && diagnostic.message.contains("f64")
+                && diagnostic
+                    .message
+                    .contains("a landed float retains its format")
+        }),
+        "missing float format rejection: {diagnostics:#?}\n{source}"
+    );
+}
+
+#[test]
+fn named_float_arguments_cannot_implicitly_change_format() {
+    for (source, destination) in [("f64", "f32"), ("f32", "f64")] {
+        rejects_float_format(&format!(
+            "machine take(value: {destination}) {{}} machine run(value: {source}) {{ take(value); }}"
+        ));
+        rejects_float_format(&format!(
+            "machine take(value: {destination}) -> {destination} {{ value }} machine run(value: {source}) -> {destination} {{ take(value) }}"
+        ));
+        rejects_float_format(&format!(
+            "machine run(value: {source}) {{ transition {{ _ -> next(value) }} state next(value: {destination}) {{}} }}"
+        ));
+    }
+}
+
+#[test]
+fn float_places_retain_their_format_when_passed_as_arguments() {
+    for source in [
+        "data Main { value: f64; } machine take(value: f32) {} machine Main::run(&self) { take(self.value); }",
+        "machine take(value: f32) {} machine run(values: [f64; 2]) { take(values[0]); }",
+        "machine take(value: f32) {} machine run() { let value: f64 = 1.0; take(value); }",
+    ] {
+        rejects_float_format(source);
+    }
+}
+
+#[test]
+fn same_format_values_and_explicit_widening_remain_accepted() {
+    for source in [
+        "machine take(value: f32) {} machine run(value: f32) { take(value); }",
+        "machine take(value: f64) {} machine run(value: f32) { take(value as f64); }",
+        "machine take(value: f32) {} machine run() { take(1.0f32 + 2.0f32); }",
+        "machine take(value: f64) -> f64 { value } machine run(value: f64) -> f64 { take(value) }",
+        "data Main { value: f32; } machine take(value: f32) {} machine Main::run(&self) { take(self.value); }",
+    ] {
+        let result = validate_program(&typed(source));
+        assert!(result.is_ok(), "{result:#?}\n{source}");
+    }
+}
+
+#[test]
+fn float_storage_and_returns_cannot_erase_the_source_format() {
+    for source in [
+        "machine run(value: f64) { let narrow: f32 = value; }",
+        "data Main { value: f32; } machine Main::run(&mut self, value: f64) { self.value = value; }",
+        "data Item { value: f32; } machine run(value: f64) { let item: Item = Item { value: value }; }",
+        "machine run(value: f64) -> f32 { value }",
+        "machine run(value: f64) -> f32 { transition { _ -> (value) } }",
+        "machine run(value: f64) { let values: [f32; 1] = [value]; }",
+        "machine wide() -> f64 { 1.0f64 } machine take(value: f32) {} machine run() { take(wide()); }",
+    ] {
+        rejects_float_format(source);
+    }
+}
+
+#[test]
+fn float_comparisons_do_not_inherit_the_operand_format() {
+    for source in [
+        "machine take(value: bool) {} machine run(value: f64) { take(value == value); }",
+        "machine run(value: f64) -> bool { value == value }",
+        "machine take(value: f64) {} machine run(value: f64) { take(value + 1.0); }",
+    ] {
+        let result = validate_program(&typed(source));
+        assert!(result.is_ok(), "{result:#?}\n{source}");
+    }
+}
+
+#[test]
+fn authored_operator_results_define_the_delivered_format() {
+    let source = "operator + Projection::combine(left: f64, right: f64) -> f32; machine take(value: f32) {} machine run(left: f64, right: f64) { take(left + right); }";
+    let result = validate_program(&typed(source));
+    assert!(result.is_ok(), "{result:#?}\n{source}");
+}
+
+#[test]
+fn explicit_cast_outputs_retain_their_selected_format() {
+    rejects_float_format(
+        "machine take(value: f32) {} machine run(value: f32) { take(value as f64); }",
+    );
+}
+
 #[test]
 fn anonymous_direct_returns_round_once_at_the_declared_format() {
     let program = typed("machine value() -> f32 { 16777217.0 }");
