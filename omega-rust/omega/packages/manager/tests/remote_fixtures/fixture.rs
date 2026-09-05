@@ -25,7 +25,10 @@ impl Fixture {
         if !remote_build.exists() {
             return local_root;
         }
-        assert!(matches!(package, "file-journal" | "process-exit"));
+        assert!(matches!(
+            package,
+            "file-journal" | "process-exit" | "remote-journal" | "graph-workbench"
+        ));
         let local = resolve_local_source(&local_root, LocalSourceLimits::default()).unwrap();
         assert_eq!(
             local.file_count, 3,

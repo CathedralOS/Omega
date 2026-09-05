@@ -34,10 +34,6 @@ host credentials, and organizational review policy have separate owners.
 - [ ] **PACKAGE-MANAGER-RELEASE-AUDIT.** Extend real-command/network coverage to
   capability changes/removals, same-name/different-source replacement,
   transitive helper authority, and dangerous generated authority.
-  Refresh the remaining remote mirrors/pins: `network-overreach`,
-  `remote-journal`, `axiom-ledger`, `opaque-carrier`, `provider-switchboard`,
-  `capability-vault`, and `graph-workbench`. Remove retired target syntax and
-  sibling paths that cannot resolve in standalone Git trees.
   Test HTTPS and SSH independently where credentials permit.
   Cover missing baselines/old source, invalid proofs, spoofed boundaries,
   concurrent edits, and interruption recovery. Run relevant package, resolver,

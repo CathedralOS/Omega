@@ -14,6 +14,8 @@ mod inspection;
 mod remote;
 #[path = "package_commands/remote_authority.rs"]
 mod remote_authority;
+#[path = "package_commands/remote_review.rs"]
+mod remote_review;
 #[path = "package_commands/workspace.rs"]
 mod workspace;
 
