@@ -245,8 +245,8 @@ mod tests {
     fn plan() -> FixedViewCopyPlan {
         FixedViewCopyPlan {
             source_selected: SelectedInstructionPlanIdentity::from_canonical_bytes(b"s"),
-            source_ranges: LiveRangeIdentity([2; 32]),
-            source_legality: AllocationLegalityIdentity([3; 32]),
+            source_ranges: LiveRangeIdentity::from_bytes([2; 32]),
+            source_legality: AllocationLegalityIdentity::from_bytes([3; 32]),
             register_environment: TargetRegisterEnvironmentIdentity::from_bytes([4; 32]),
             allocator_availability: crate::AllocatorAvailabilityIdentity::from_bytes([5; 32]),
             source_evidence: FixedViewCopySourceEvidence::FixedPrecoloredSegmentHomesV1 {
@@ -330,8 +330,8 @@ mod tests {
                 plan.source_selected =
                     SelectedInstructionPlanIdentity::from_canonical_bytes(b"changed")
             },
-            |plan| plan.source_ranges = LiveRangeIdentity([13; 32]),
-            |plan| plan.source_legality = AllocationLegalityIdentity([14; 32]),
+            |plan| plan.source_ranges = LiveRangeIdentity::from_bytes([13; 32]),
+            |plan| plan.source_legality = AllocationLegalityIdentity::from_bytes([14; 32]),
             |plan| {
                 plan.register_environment = TargetRegisterEnvironmentIdentity::from_bytes([15; 32])
             },

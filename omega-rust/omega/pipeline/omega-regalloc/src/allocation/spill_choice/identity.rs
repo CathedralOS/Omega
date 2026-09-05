@@ -80,8 +80,8 @@ mod tests {
     #[test]
     fn identity_binds_roots_policy_work_and_functions() {
         let plan = SpillChoicePlan {
-            legality: AllocationLegalityIdentity([1; 32]),
-            ranges: LiveRangeIdentity([2; 32]),
+            legality: AllocationLegalityIdentity::from_bytes([1; 32]),
+            ranges: LiveRangeIdentity::from_bytes([2; 32]),
             register_environment: TargetRegisterEnvironmentIdentity::from_bytes([3; 32]),
             allocator_availability: crate::AllocatorAvailabilityIdentity::from_bytes([5; 32]),
             policy: SpillChoicePolicy::SingleBlockFarthestEndThenHighestVregV1,
@@ -100,7 +100,7 @@ mod tests {
         changed.usage.validation_steps += 1;
         assert_ne!(baseline, spill_choice_identity(&changed));
         changed = plan.clone();
-        changed.ranges = LiveRangeIdentity([4; 32]);
+        changed.ranges = LiveRangeIdentity::from_bytes([4; 32]);
         assert_ne!(baseline, spill_choice_identity(&changed));
         changed = plan.clone();
         changed.allocator_availability = crate::AllocatorAvailabilityIdentity::from_bytes([6; 32]);
@@ -119,8 +119,8 @@ mod tests {
         };
 
         let plan = SpillChoicePlan {
-            legality: AllocationLegalityIdentity([1; 32]),
-            ranges: LiveRangeIdentity([2; 32]),
+            legality: AllocationLegalityIdentity::from_bytes([1; 32]),
+            ranges: LiveRangeIdentity::from_bytes([2; 32]),
             register_environment: TargetRegisterEnvironmentIdentity::from_bytes([3; 32]),
             allocator_availability: crate::AllocatorAvailabilityIdentity::from_bytes([5; 32]),
             policy: SpillChoicePolicy::SingleBlockFarthestEndThenHighestVregV1,

@@ -9,6 +9,21 @@ claim that the target architecture has landed. The audit examined `2e8c31bd52`;
 the subsequent update to `d7eb11c68f` changed boundary checking/lowering, not the
 ownership findings below. Recheck the named code before implementation.
 
+## Resume contract
+
+Suggested goal: complete sections A-D and their acceptance checks, preserving
+standalone Terminal publication, separately authorized native lowering, and
+existing evidence-corruption rejection. A renamed folder, common borrowed
+view, or identity-only optimization seam does not by itself complete a section.
+
+Start by inspecting the worktree and changes since this audit. Reconcile local
+implementation work before continuing; the named boundaries below, rather
+than a past checkpoint's test results, determine what remains.
+
+Use the execution board as the index and this document as the rationale and
+acceptance reference. Keep implementation checkpoints separate from unresolved
+design choices.
+
 ## Objective and boundary rules
 
 Make the public pipeline a sequence of meaningful X-to-Y transformations.
@@ -44,6 +59,13 @@ In `omega-rust/omega/pipeline/`:
 The shared emission computation is real progress: it selects algorithms by
 program shape rather than optimization history. The remaining adapters are
 migration machinery, not the finished representation boundary.
+
+`omega-register-homes/src/register_homes.rs` now owns the raw physical-home
+assignment and its version-6 codec under representations. Its prerequisite
+identities are data, not validation authority. `omega-regalloc` still owns the
+independent validator and its private admitted wrapper; its analysis schemas
+also remain to be separated from computation. This removes one wrong-owner
+dependency but does not yet supply a complete allocated-program root.
 
 Next: define representation-owned current allocated and physical program roots,
 then have producers construct them directly. Retain transformation evidence

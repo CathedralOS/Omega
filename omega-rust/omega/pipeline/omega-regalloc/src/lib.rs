@@ -3,9 +3,10 @@
 //! Optimizer module role: crate map. Register-allocation and exact machine-lowering surfaces.
 //!
 //! The declarative physical-register and instruction-constraint model is owned
-//! by `omega-register-model` and remains re-exported for compatibility. The
-//! entrance is organized by read-only analyses, allocation decisions, and
-//! explicit independently validated rules.
+//! by `omega-register-model`. Physical-home data and its canonical codec belong
+//! to `omega-register-homes`; both remain re-exported here. This owner computes
+//! and independently validates allocations, but decoding home data grants no
+//! admission. The entrance separates analyses, allocation decisions, and rules.
 
 mod allocation;
 mod analyses;

@@ -8,18 +8,7 @@ use crate::analyses::allocator_availability::identity::encode_terminal_allocator
 const ALLOCATOR_AVAILABILITY_MAGIC: &[u8; 8] = b"OMGAVA\0\0";
 const ALLOCATOR_AVAILABILITY_VERSION: u32 = 1;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub struct AllocatorAvailabilityIdentity(pub(crate) [u8; 32]);
-
-impl AllocatorAvailabilityIdentity {
-    pub const fn from_bytes(bytes: [u8; 32]) -> Self {
-        Self(bytes)
-    }
-
-    pub const fn bytes(self) -> [u8; 32] {
-        self.0
-    }
-}
+pub use omega_register_homes::AllocatorAvailabilityIdentity;
 
 /// Exact named policy controlling only unconstrained allocator candidates.
 /// Fixed ABI and instruction-operand requirements remain authoritative even

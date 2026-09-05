@@ -46,7 +46,7 @@ pub fn allocation_legality_identity(plan: &AllocationLegalityPlan) -> Allocation
             }
         }
     }
-    AllocationLegalityIdentity(Sha256::digest(bytes).into())
+    AllocationLegalityIdentity::from_bytes(Sha256::digest(bytes).into())
 }
 
 fn encode_fixed_site(bytes: &mut Vec<u8>, site: VirtualFixedConstraintSite) {
@@ -101,7 +101,7 @@ mod tests {
 
     fn plan() -> AllocationLegalityPlan {
         AllocationLegalityPlan {
-            ranges: LiveRangeIdentity([1; 32]),
+            ranges: LiveRangeIdentity::from_bytes([1; 32]),
             register_environment: TargetRegisterEnvironmentIdentity::from_bytes([2; 32]),
             allocator_availability: AllocatorAvailabilityIdentity::from_bytes([5; 32]),
             functions: vec![FunctionAllocationLegality {
@@ -147,7 +147,7 @@ mod tests {
         let baseline = allocation_legality_identity(&plan());
         assert_eq!(baseline, allocation_legality_identity(&plan()));
         let mutations: Vec<Mutation> = vec![
-            |plan| plan.ranges = LiveRangeIdentity([3; 32]),
+            |plan| plan.ranges = LiveRangeIdentity::from_bytes([3; 32]),
             |plan| {
                 plan.register_environment = TargetRegisterEnvironmentIdentity::from_bytes([4; 32])
             },

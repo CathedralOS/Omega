@@ -65,6 +65,7 @@ members = [
     "omega-rust/omega/representations/omega-abstract-operations",
     "omega-rust/omega/representations/omega-optimization-unit",
     "omega-rust/omega/representations/omega-register-model",
+    "omega-rust/omega/representations/omega-register-homes",
     "omega-rust/omega/representations/omega-installation-evidence",
     "omega-rust/omega/representations/omega-target-operations",
     "omega-rust/omega/representations/omega-legalized-operations",

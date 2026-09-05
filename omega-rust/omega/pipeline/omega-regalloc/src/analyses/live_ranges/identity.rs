@@ -126,7 +126,7 @@ pub fn live_range_identity(plan: &LiveRangePlan) -> LiveRangeIdentity {
             }
         }
     }
-    LiveRangeIdentity(Sha256::digest(bytes).into())
+    LiveRangeIdentity::from_bytes(Sha256::digest(bytes).into())
 }
 
 fn encode_fragments(bytes: &mut Vec<u8>, fragments: &[crate::LiveRangeFragment]) {
