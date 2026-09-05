@@ -20,6 +20,8 @@ use std::sync::atomic::{AtomicU64, Ordering};
 
 static NEXT_TEMP: AtomicU64 = AtomicU64::new(0);
 
+#[path = "fixture_rosters/package_compilation_inputs.rs"]
+mod fixtures;
 #[path = "package_compilation_inputs/generic_visibility.rs"]
 mod generic_visibility;
 
@@ -4218,7 +4220,8 @@ fn native_package_product_retains_one_canonical_production_manifest() {
         .ancestors()
         .nth(4)
         .expect("repository root")
-        .join("tests/omega/pass/optimizer/no_selection_empty_entry");
+        .join("tests/omega/pass")
+        .join(fixtures::NO_SELECTION_EMPTY_ENTRY);
     let package = identity(44);
     let output = TempTree::new();
     let inputs = PackageCompilationInputs::new_package(
@@ -4281,7 +4284,8 @@ fn failing_sibling_does_not_change_successful_package_artifact_identity() {
         .ancestors()
         .nth(4)
         .expect("repository root")
-        .join("tests/omega/pass/optimizer/no_selection_empty_entry");
+        .join("tests/omega/pass")
+        .join(fixtures::NO_SELECTION_EMPTY_ENTRY);
     let package = identity(74);
     let output = TempTree::new();
     let inputs = PackageCompilationInputs::new_package(
@@ -5399,8 +5403,12 @@ machine Main::main(&mut self) {
 "#,
     );
     let host_services_root = repository.join("tests/fixtures/packages/host-services");
-    let empty_root = repository.join("tests/omega/pass/optimizer/no_selection_empty_entry");
-    let port_root = repository.join("tests/omega/pass/inline_asm/asm_port_out_final_validation");
+    let empty_root = repository
+        .join("tests/omega/pass")
+        .join(fixtures::NO_SELECTION_EMPTY_ENTRY);
+    let port_root = repository
+        .join("tests/omega/pass")
+        .join(fixtures::ASM_PORT_OUT_FINAL_VALIDATION);
 
     let compile_package = |root: &Path, marker: u8, label: &str| {
         let package = identity(marker);

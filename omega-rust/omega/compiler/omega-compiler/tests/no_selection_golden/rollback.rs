@@ -12,7 +12,9 @@ use super::support::{
 static ROLLBACK_SEQUENCE: AtomicU64 = AtomicU64::new(0);
 
 fn selected_canary() -> std::path::PathBuf {
-    repo_root().join("tests/omega/pass/optimizer/rollback_to_no_selection_empty_entry")
+    repo_root()
+        .join("tests/omega/pass")
+        .join(super::fixture_roster::ROLLBACK_TO_NO_SELECTION_EMPTY_ENTRY)
 }
 
 fn build_dir(label: &str) -> std::path::PathBuf {

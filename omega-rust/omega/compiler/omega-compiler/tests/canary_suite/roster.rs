@@ -1,6 +1,9 @@
 //! Fixture inventory is independent of host eligibility and compile filters.
+use super::value_and_type_checks::fixture_roster as value_and_type_checks;
 use super::*;
 
+#[path = "../fixture_rosters/build_target_activation.rs"]
+mod build_target_activation;
 #[path = "../fixture_rosters/call_acknowledgements.rs"]
 mod call_acknowledgements;
 #[path = "../fixture_rosters/concurrency_carry.rs"]
@@ -9,6 +12,10 @@ mod concurrency_carry;
 mod layout_plans;
 #[path = "../fixture_rosters/native_filesystem_canaries.rs"]
 mod native_filesystem_canaries;
+#[path = "../fixture_rosters/no_selection_golden.rs"]
+mod no_selection_golden;
+#[path = "../fixture_rosters/package_compilation_inputs.rs"]
+mod package_compilation_inputs;
 #[path = "../fixture_rosters/plan_laid_repeated_runtime.rs"]
 mod plan_laid_repeated_runtime;
 #[path = "../fixture_rosters/recast_views.rs"]
@@ -27,6 +34,10 @@ fn pass_roster() -> Vec<&'static str> {
         .chain(layout_plans::PASS_CANARIES)
         .chain(plan_laid_repeated_runtime::PASS_CANARIES)
         .chain(subslice_runtime_end_bounds::PASS_CANARIES)
+        .chain(build_target_activation::PASS_CANARIES)
+        .chain(no_selection_golden::PASS_CANARIES)
+        .chain(package_compilation_inputs::PASS_CANARIES)
+        .chain(value_and_type_checks::PASS_CANARIES)
         .copied()
         .chain(
             native_filesystem_canaries::PASS_CANARIES
@@ -47,6 +58,7 @@ fn file_expectation_fail_roster() -> Vec<&'static str> {
     CHECKED_ONLY_FAIL_CANARIES
         .iter()
         .chain(ACTIVE_FAIL_CANARIES)
+        .chain(no_selection_golden::FILE_EXPECTATION_FAIL_CANARIES)
         .copied()
         .collect()
 }
@@ -57,6 +69,7 @@ fn fail_roster() -> Vec<&'static str> {
         .chain(concurrency_carry::FAIL_CANARIES.iter().map(|entry| entry.0))
         .chain(recast_views::FAIL_CANARIES.iter().copied())
         .chain(layout_plans::FAIL_CANARIES.iter().copied())
+        .chain(value_and_type_checks::FAIL_CANARIES.iter().copied())
         .collect()
 }
 
