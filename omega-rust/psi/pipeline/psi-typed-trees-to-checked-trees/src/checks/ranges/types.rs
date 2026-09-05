@@ -224,7 +224,7 @@ fn enforced_range_of_type_reference(
     }
 }
 
-fn expression_type_reference(
+pub(in crate::checks::ranges) fn expression_type_reference(
     program: &psi_typed_trees::TypedTrees,
     machine: &Machine,
     state: &State,
@@ -233,6 +233,22 @@ fn expression_type_reference(
     match program.expression_table.expression(expression) {
         ExpressionNode::Borrow(inner) => {
             expression_type_reference(program, machine, state, inner.target)
+        }
+        ExpressionNode::Indexed(indexed)
+            if !matches!(
+                program.expression_table.expression(indexed.index),
+                ExpressionNode::Range(_)
+            ) =>
+        {
+            let collection =
+                expression_type_reference(program, machine, state, indexed.collection)?;
+            crate::flow::project_type_reference_from_segments(
+                program,
+                collection,
+                &[psi_facts::PlaceSegment::Index {
+                    expression: indexed.index,
+                }],
+            )
         }
         ExpressionNode::Name(path) => {
             type_reference_for_symbol(program, machine, state, path.symbol).or_else(|| {
