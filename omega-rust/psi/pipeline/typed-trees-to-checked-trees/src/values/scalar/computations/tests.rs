@@ -14,7 +14,11 @@ fn checked(argument: &str, combined: bool) -> checked_trees::CheckedTrees {
         }}
     "#
     );
-    let tokens = source_files_to_tokens::Lexer::new(&source)
+    checked_source(&source, combined)
+}
+
+fn checked_source(source: &str, combined: bool) -> checked_trees::CheckedTrees {
+    let tokens = source_files_to_tokens::Lexer::new(source)
         .tokenize()
         .unwrap();
     let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens).unwrap();
@@ -160,5 +164,219 @@ fn scalar_computations_apply_boolean_templates_to_computed_operands() {
             plans.nodes.get(root.root).kind,
             CheckedScalarComputationKind::Apply { .. }
         ));
+    }
+}
+
+#[test]
+fn scalar_computations_keep_return_arm_roles_and_call_custody() {
+    let source = r#"
+        machine inner(input: bool) -> bool { input }
+        machine outer(input: bool) -> bool { input }
+        machine value(flag: bool, other: bool) -> bool {
+            transition flag {
+                true -> (other && outer(inner(flag)))
+                false -> (flag || outer(inner(other)))
+            }
+        }
+    "#;
+    for combined in [false, true] {
+        let checked = checked_source(source, combined);
+        let machine = checked
+            .machines()
+            .iter()
+            .find(|machine| machine.name.as_str() == "value")
+            .unwrap();
+        assert_eq!(checked.machine_states(machine).len(), 1);
+        let state = &checked.machine_states(machine)[0];
+        let plans = &checked.facts.values.scalar_computations;
+        let roots = plans
+            .roots
+            .iter()
+            .map(|(_, root)| root)
+            .filter(|root| root.state == state.symbol)
+            .collect::<Vec<_>>();
+        assert_eq!(roots.len(), 2, "combined={combined}");
+        assert_eq!(roots[0].role, CheckedScalarExpressionRole::Return);
+        assert_eq!(roots[0].statement_ordinal, 0);
+        assert_eq!(roots[1].statement_ordinal, u32::from(!combined));
+        assert_eq!(
+            roots[1].role,
+            if combined {
+                CheckedScalarExpressionRole::ContinuationReturn
+            } else {
+                CheckedScalarExpressionRole::Return
+            }
+        );
+        for (index, root) in roots.iter().enumerate() {
+            let CheckedScalarComputationKind::Select {
+                when_true,
+                when_false,
+                ..
+            } = plans.nodes.get(root.root).kind
+            else {
+                panic!("returned RHS remains conditional");
+            };
+            let selected = if index == 0 { when_true } else { when_false };
+            let CheckedScalarComputationKind::Call {
+                source_call,
+                call_ordinal,
+                arguments,
+                ..
+            } = plans.nodes.get(selected).kind
+            else {
+                panic!("selected outer return invocation");
+            };
+            let fact = checked.facts.flow.control.calls.get(source_call);
+            assert_eq!(fact.statement_index, root.statement_ordinal as usize);
+            assert_eq!(fact.call_ordinal, call_ordinal as usize);
+            let CheckedScalarComputationKind::Call {
+                call_ordinal: inner_ordinal,
+                ..
+            } = plans
+                .nodes
+                .get(plans.operands.span_or_empty(arguments)[0])
+                .kind
+            else {
+                panic!("inner argument invocation");
+            };
+            assert!(call_ordinal < inner_ordinal);
+        }
+    }
+}
+
+#[test]
+fn scalar_computations_keep_trailing_return_local_namespace() {
+    let checked = checked_source(
+        r#"
+        machine inner(input: bool) -> bool { input }
+        machine value(flag: bool, other: bool) -> bool {
+            let saved: bool = other;
+            flag && inner(saved)
+        }
+        "#,
+        false,
+    );
+    let plans = &checked.facts.values.scalar_computations;
+    let roots = plans.roots.iter().map(|(_, root)| root).collect::<Vec<_>>();
+    assert_eq!(roots.len(), 1);
+    let root = roots[0];
+    assert_eq!(root.statement_ordinal, 1);
+    assert_eq!(root.role, CheckedScalarExpressionRole::Return);
+    let CheckedScalarComputationKind::Select { when_true, .. } = plans.nodes.get(root.root).kind
+    else {
+        panic!("conditional return");
+    };
+    let CheckedScalarComputationKind::Call { arguments, .. } = plans.nodes.get(when_true).kind
+    else {
+        panic!("selected call");
+    };
+    assert_eq!(
+        plans
+            .nodes
+            .get(plans.operands.span_or_empty(arguments)[0])
+            .kind,
+        CheckedScalarComputationKind::Value(CheckedScalarExpression::Boolean(Box::new(
+            CheckedBooleanExpression::Local { position: 2 },
+        )))
+    );
+}
+
+#[test]
+fn scalar_computations_do_not_duplicate_pure_returns() {
+    let checked = checked_source("machine value(flag: bool) -> bool { !flag }", false);
+    assert_eq!(
+        checked
+            .facts
+            .values
+            .scalar_computations
+            .roots
+            .iter()
+            .count(),
+        0
+    );
+    let state = checked.machine_states(&checked.machines()[0])[0].symbol;
+    assert!(
+        checked
+            .facts
+            .values
+            .scalar_expressions
+            .expression_at(state, 0, CheckedScalarExpressionRole::Return)
+            .is_some()
+    );
+}
+
+#[test]
+fn scalar_computations_do_not_require_skipped_return_call_occurrences() {
+    for expression in ["false && inner(flag)", "true || inner(flag)"] {
+        let checked = checked_source(
+            &format!(
+                "machine inner(input: bool) -> bool {{ input }}
+                 machine value(flag: bool) -> bool {{ {expression} }}"
+            ),
+            false,
+        );
+        let plans = &checked.facts.values.scalar_computations;
+        let roots = plans.roots.iter().map(|(_, root)| root).collect::<Vec<_>>();
+        assert_eq!(roots.len(), 1);
+        assert_eq!(roots[0].role, CheckedScalarExpressionRole::Return);
+        assert!(matches!(
+            plans.nodes.get(roots[0].root).kind,
+            CheckedScalarComputationKind::Value(_)
+        ));
+    }
+}
+
+#[test]
+fn scalar_computations_refuse_missing_or_duplicate_return_call_custody() {
+    let checked = checked_source(
+        "machine inner(input: bool) -> bool { input }
+         machine value(flag: bool) -> bool { flag && inner(flag) }",
+        false,
+    );
+    let root = checked
+        .facts
+        .values
+        .scalar_computations
+        .roots
+        .iter()
+        .next()
+        .expect("computed return")
+        .1;
+    let flow_state = checked
+        .facts
+        .flow
+        .control
+        .states
+        .iter()
+        .find_map(|(handle, state)| (state.state_symbol == root.state).then_some(handle))
+        .unwrap();
+    for duplicate in [false, true] {
+        let mut flow = checked.facts.flow.clone();
+        let state = flow.control.states.get(flow_state);
+        let [call] = flow.control.calls.span_or_empty(state.calls) else {
+            panic!("one authored return call");
+        };
+        let calls = if duplicate {
+            let call = call.clone();
+            flow.control.calls.insert_many([call.clone(), call])
+        } else {
+            arena::HandleSpan::default()
+        };
+        flow.control.states.get_mut(flow_state).calls = calls;
+        let plans = build_checked_scalar_computation_plans(
+            &checked.typed,
+            &checked.facts.operators,
+            &flow,
+            &checked.facts.proof,
+            &checked.facts.values.scalar_expressions,
+            &[],
+        );
+        assert!(
+            plans
+                .roots
+                .iter()
+                .all(|(_, candidate)| candidate.state != root.state),
+            "duplicate={duplicate}"
+        );
     }
 }

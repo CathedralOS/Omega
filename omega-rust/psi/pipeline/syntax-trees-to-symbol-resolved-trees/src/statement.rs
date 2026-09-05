@@ -96,13 +96,14 @@ fn lower_statement_node(
             // the same way as in value positions: the temp indexes as a
             // slotted plain place.
             hoist_target_computed_indices(lowerer, target, &mut hoisted);
-            let value = hoist_operand_indexed_reads(lowerer, value, &mut hoisted, false);
+            let value =
+                hoist_operand_indexed_reads(lowerer, value, &mut hoisted, OperandHoisting::Value);
             // A BARE ref-param member as the whole RHS (`self.c = table.con_out`)
             // is not an operand, so the rewrite above leaves it -- and the flat
             // machine-write path would read frame garbage. Hoist the root into a
             // `let`, which lowers through the pointee-deref path.
             let value = if is_reference_struct_parameter_member(lowerer, value) {
-                hoist_child(lowerer, value, &mut hoisted, false)
+                hoist_child(lowerer, value, &mut hoisted, OperandHoisting::Value)
             } else {
                 value
             };
@@ -220,11 +221,16 @@ fn lower_statement_node(
             // -- otherwise `self.buf[j]` reaches selection as a raw machine
             // runtime-indexed read with no value-operand lowering and falls to
             // the place resolver, which drops the index and reads the wrong base
-            // (native only; the interpreter masks it). Root left whole (`false`),
+            // (native only; the interpreter masks it). Root left whole,
             // matching the transition-value target.
             let mut hoisted = Vec::new();
             let expression = lower_statement_expression(lowerer, syntax_trees, *expression)?;
-            let expression = hoist_operand_indexed_reads(lowerer, expression, &mut hoisted, false);
+            let expression = hoist_operand_indexed_reads(
+                lowerer,
+                expression,
+                &mut hoisted,
+                OperandHoisting::Return,
+            );
             // A free or direct-self value-machine call as the trailing return
             // (`state go(..) -> f64 { ..; self.sin(x) }`) hoists into the
             // let-bound spelling, exactly as the transition-value face.
@@ -256,7 +262,12 @@ fn lower_statement_node(
             };
             let mut hoisted = Vec::new();
             let initial_value = if initial_value.is_valid() {
-                hoist_operand_indexed_reads(lowerer, initial_value, &mut hoisted, false)
+                hoist_operand_indexed_reads(
+                    lowerer,
+                    initial_value,
+                    &mut hoisted,
+                    OperandHoisting::Value,
+                )
             } else {
                 initial_value
             };
@@ -386,9 +397,14 @@ fn lower_statement_node(
                         // (`transition min(self.a, self.b) == 3`) into a temp, so the
                         // guard compares a materialized local -- the sound idiom the
                         // "bind it to a local first" diagnostic asks for, made
-                        // automatic. Scoped to guards (the `true` flag): assignment
+                        // automatic. Scoped to guards: assignment
                         // and let values above already lower builtin calls directly.
-                        hoist_operand_indexed_reads(lowerer, expression, &mut hoisted, true);
+                        hoist_operand_indexed_reads(
+                            lowerer,
+                            expression,
+                            &mut hoisted,
+                            OperandHoisting::Guard,
+                        );
                     }
                 } else {
                     // A `Membership` root is an enum-variant match arm (`grid[i] { Wall -> .. }`);
@@ -472,23 +488,31 @@ fn bare_syntax_name(
     Some(name)
 }
 
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum OperandHoisting {
+    Value,
+    Guard,
+    /// Checked return computations retain call results at their evaluation points.
+    Return,
+}
+
 /// Hoists every runtime-indexed read in OPERAND position out of `value`.
 ///
-/// `value` is the ROOT of an assignment value or local initializer. A root-level
-/// `Indexed` is left in place (the existing whole-value copy path handles it).
-/// For every OTHER node, each child that is an `Indexed` (transitively) is
-/// hoisted into a fresh `let __hoist_N = <indexed>;` appended to `hoisted`, and
-/// the child is replaced by a `Name` referencing that temp. Returns the
-/// (possibly identical) root handle to use in the rewritten statement.
+/// `value` is the ROOT of an assignment value, local initializer, or return.
+/// A root-level `Indexed` is left in place (the existing whole-value copy path
+/// handles it). For every OTHER node, each child that is an `Indexed`
+/// (transitively) is hoisted into a fresh `let __hoist_N = <indexed>;` appended
+/// to `hoisted`, and the child is replaced by a name referencing that temp.
+/// Returns the root handle to use in the rewritten statement.
 fn hoist_operand_indexed_reads(
     lowerer: &mut Lowerer,
     value: ExpressionHandle,
     hoisted: &mut Vec<Statement>,
-    hoist_builtin_calls: bool,
+    mode: OperandHoisting,
 ) -> ExpressionHandle {
     // The root itself stays as-is, but rewrite its children so any nested
     // operand-position indexed read is hoisted.
-    rewrite_children(lowerer, value, hoisted, hoist_builtin_calls);
+    rewrite_children(lowerer, value, hoisted, mode);
     value
 }
 
@@ -498,7 +522,7 @@ fn rewrite_children(
     lowerer: &mut Lowerer,
     expression: ExpressionHandle,
     hoisted: &mut Vec<Statement>,
-    hoist_builtin_calls: bool,
+    mode: OperandHoisting,
 ) {
     let node = lowerer
         .symbol_resolved_trees
@@ -509,14 +533,14 @@ fn rewrite_children(
         .clone();
     match node {
         ExpressionNode::Binary(binary) => {
-            let left = hoist_child(lowerer, binary.left, hoisted, hoist_builtin_calls);
+            let left = hoist_child(lowerer, binary.left, hoisted, mode);
             // A selective RHS is not part of the enclosing statement's eager
             // evaluation. Its calls and reads must remain behind selection;
             // checked computation planning materializes supported operands there.
             let right = if matches!(binary.operator, BinaryOperator::And | BinaryOperator::Or) {
                 binary.right
             } else {
-                hoist_child(lowerer, binary.right, hoisted, hoist_builtin_calls)
+                hoist_child(lowerer, binary.right, hoisted, mode)
             };
             set_expression(
                 lowerer,
@@ -529,7 +553,7 @@ fn rewrite_children(
             );
         }
         ExpressionNode::Unary(unary) => {
-            let operand = hoist_child(lowerer, unary.operand, hoisted, hoist_builtin_calls);
+            let operand = hoist_child(lowerer, unary.operand, hoisted, mode);
             set_expression(
                 lowerer,
                 expression,
@@ -557,7 +581,10 @@ fn rewrite_children(
                     ExpressionNode::Indexed(_)
                 ) {
                 cast.value
-            } else if !cast.form.is_recast() && is_hoistable_value_cast_call(lowerer, cast.value) {
+            } else if mode != OperandHoisting::Return
+                && !cast.form.is_recast()
+                && is_hoistable_value_cast_call(lowerer, cast.value)
+            {
                 // A value-machine call directly beneath a value cast
                 // (including erased domain qualification) must first
                 // materialize through the ordinary let-bound call-result
@@ -571,10 +598,12 @@ fn rewrite_children(
                 //        (__hoist as T in Policy)
                 //
                 // The callee's declared return types the synthetic local in
-                // `infer_hoist_temp_type`.
+                // `infer_hoist_temp_type`. Return computations instead retain
+                // the original call beneath the cast: moving it here could
+                // run it before an earlier sibling call.
                 hoist_into_temp(lowerer, cast.value, hoisted)
             } else {
-                hoist_child(lowerer, cast.value, hoisted, hoist_builtin_calls)
+                hoist_child(lowerer, cast.value, hoisted, mode)
             };
             set_expression(
                 lowerer,
@@ -592,7 +621,7 @@ fn rewrite_children(
             );
         }
         ExpressionNode::Membership(membership) => {
-            let value = hoist_child(lowerer, membership.value, hoisted, hoist_builtin_calls);
+            let value = hoist_child(lowerer, membership.value, hoisted, mode);
             set_expression(
                 lowerer,
                 expression,
@@ -613,12 +642,12 @@ fn rewrite_children(
         ExpressionNode::Borrow(_) => {}
         ExpressionNode::Range(range) => {
             let start = if range.start.is_valid() {
-                hoist_child(lowerer, range.start, hoisted, hoist_builtin_calls)
+                hoist_child(lowerer, range.start, hoisted, mode)
             } else {
                 range.start
             };
             let end = if range.end.is_valid() {
-                hoist_child(lowerer, range.end, hoisted, hoist_builtin_calls)
+                hoist_child(lowerer, range.end, hoisted, mode)
             } else {
                 range.end
             };
@@ -638,7 +667,7 @@ fn rewrite_children(
             // value root. Leave it whole (the root whole-value copy path), but
             // still rewrite its index sub-expression so a runtime-indexed read
             // INSIDE the index (`arr[other[i]]`) is hoisted.
-            let index = hoist_index(lowerer, indexed.index, hoisted, hoist_builtin_calls);
+            let index = hoist_index(lowerer, indexed.index, hoisted, mode);
             set_expression(
                 lowerer,
                 expression,
@@ -702,12 +731,12 @@ fn hoist_index(
     lowerer: &mut Lowerer,
     index: ExpressionHandle,
     hoisted: &mut Vec<Statement>,
-    hoist_builtin_calls: bool,
+    mode: OperandHoisting,
 ) -> ExpressionHandle {
     if index_is_hoistable_computed(lowerer, index) {
         return hoist_into_temp(lowerer, index, hoisted);
     }
-    hoist_child(lowerer, index, hoisted, hoist_builtin_calls)
+    hoist_child(lowerer, index, hoisted, mode)
 }
 
 /// A `Binary` index up to TWO levels deep (`k + 1`, `2 * k`, and the
@@ -835,7 +864,7 @@ fn hoist_child(
     lowerer: &mut Lowerer,
     child: ExpressionHandle,
     hoisted: &mut Vec<Statement>,
-    hoist_builtin_calls: bool,
+    mode: OperandHoisting,
 ) -> ExpressionHandle {
     // A member read through a shared reference-to-struct PARAM
     // (`table.con_out`) must dereference the pointer slot; left in operand or
@@ -851,7 +880,7 @@ fn hoist_child(
     if is_runtime_indexed_read(lowerer, child) {
         // Rewrite the indexed read's OWN index first (nested `arr[other[i]]`),
         // then hoist the whole indexed read into a fresh temp.
-        rewrite_children(lowerer, child, hoisted, hoist_builtin_calls);
+        rewrite_children(lowerer, child, hoisted, mode);
         return hoist_into_temp(lowerer, child, hoisted);
     }
 
@@ -861,13 +890,13 @@ fn hoist_child(
     // the WHOLE member chain -- the temp's materialization resolves the
     // element field through the machine-indexed copy (field_byte_offset), the
     // same path a transition argument uses. VALUE positions ONLY
-    // (`hoist_builtin_calls` marks the guard path): a guard's comparison
+    // (`Guard` marks the guard path): a guard's comparison
     // subject is hoisted ONCE and SHARED across arms by
     // `hoist_comparison_match_subject`, and a per-arm hoist here would split
     // the subject into distinct temps, un-pairing the `true`/`false` arms
     // (exhaustiveness then reports a fall-through on working guards).
-    if !hoist_builtin_calls && is_member_of_runtime_indexed_read(lowerer, child) {
-        rewrite_children(lowerer, child, hoisted, hoist_builtin_calls);
+    if mode != OperandHoisting::Guard && is_member_of_runtime_indexed_read(lowerer, child) {
+        rewrite_children(lowerer, child, hoisted, mode);
         return hoist_into_temp(lowerer, child, hoisted);
     }
 
@@ -879,13 +908,13 @@ fn hoist_child(
     // types the temp from that field (`infer_hoist_temp_type`); a non-place first
     // argument (a nested call, a literal) is left for the "bind to a local first"
     // diagnostic, unchanged.
-    if hoist_builtin_calls && is_hoistable_builtin_guard_call(lowerer, child) {
+    if mode == OperandHoisting::Guard && is_hoistable_builtin_guard_call(lowerer, child) {
         return hoist_into_temp(lowerer, child, hoisted);
     }
 
     // Not a runtime-indexed read: descend so deeper operand-position runtime
     // indexed reads (`(a + arr[i]) * b`) are still hoisted.
-    rewrite_children(lowerer, child, hoisted, hoist_builtin_calls);
+    rewrite_children(lowerer, child, hoisted, mode);
     child
 }
 
@@ -1729,7 +1758,7 @@ fn hoist_membership_match_subject(
                 .expression(membership.value)
                 .clone()
             {
-                let index = hoist_index(lowerer, indexed.index, hoisted, false);
+                let index = hoist_index(lowerer, indexed.index, hoisted, OperandHoisting::Value);
                 set_expression(
                     lowerer,
                     membership.value,
@@ -1889,7 +1918,7 @@ fn hoist_comparison_match_subject(
     let name = match lowerer.match_subject_temp(subject_key) {
         Some(existing) => DiagnosticName::generated(existing),
         None => {
-            hoist_operand_indexed_reads(lowerer, outer.left, hoisted, false);
+            hoist_operand_indexed_reads(lowerer, outer.left, hoisted, OperandHoisting::Value);
             let fresh = lowerer.next_hoist_name();
             lowerer.record_match_subject_temp(subject_key, fresh.clone());
             let name = DiagnosticName::generated(fresh);
@@ -2077,7 +2106,8 @@ fn lower_transition_target_node(
                     .bodies
                     .expressions
                     .expression_handles(arguments)[offset as usize];
-                let rewritten = hoist_operand_indexed_reads(lowerer, argument, hoisted, false);
+                let rewritten =
+                    hoist_operand_indexed_reads(lowerer, argument, hoisted, OperandHoisting::Value);
                 if rewritten != argument {
                     lowerer
                         .symbol_resolved_trees
@@ -2108,7 +2138,7 @@ fn lower_transition_target_node(
             let expression = lower_statement_expression(lowerer, syntax_trees, *expression)?;
             // Same hoist for an unconditional VALUE result (`-> (arr[i] + 5)`).
             let expression = if unconditional {
-                hoist_operand_indexed_reads(lowerer, expression, hoisted, false)
+                hoist_operand_indexed_reads(lowerer, expression, hoisted, OperandHoisting::Return)
             } else {
                 expression
             };

@@ -2961,7 +2961,7 @@ selected continuation. Local places, borrows, recasts, and nested calls are not
 converted to value captures by this normalization. No additional Terminal
 call or return representation is introduced.
 
-Call-bearing scalar state arguments instead retain arena-backed checked
+Call-bearing scalar state arguments and return expressions retain arena-backed checked
 computation plans, separate from the pure scalar expressions consumed by proof.
 Their value leaves use the source state's checked scalar namespace; call nodes
 retain exact flow-call handles and authored occurrence ordinals; conditional
@@ -2969,14 +2969,20 @@ nodes select one result; pure application templates consume only their computed
 operands. Builtin Boolean composition, fixed-integer arithmetic/comparisons,
 and nested free scalar calls lower to private typed blocks. Each completed
 argument is carried before the next one starts, and only the selected `&&`/`||`
-RHS executes. No source state, source
-local, or new Terminal operation is manufactured. Invalid handles, cycles,
-duplicate roots/call occurrences, and mismatched carriers or invocation
-coordinates reject before publication.
+RHS executes. Trailing returns, unconditional value transitions, and both guarded
+return arms use the same evaluation path, then deliver the completed result to
+a private return block. No source state, source local, or new Terminal operation
+is manufactured. Each root node retains the exact authored outer expression
+handle, checked against its statement and destination role before expansion.
+Invalid handles, cycles, duplicate roots/call occurrences, swapped arm roots,
+and mismatched carriers or invocation coordinates reject before publication.
 
 Resolver operand preprocessing cannot move indexed reads or cast-wrapped calls
 out of guarded transition targets or selective Boolean right operands. These
 operands remain behind their original selection boundary for checked lowering.
+Ordinary returns also retain cast-wrapped free calls in operand order: a later
+cast cannot hoist its call ahead of an earlier operand. Initializer and assignment
+normalization retain their existing behavior while those destinations remain open.
 
 Computed call arguments bind the pinned callee's parameter-relative crash
 routes to the actual argument values, using the same route substitution as
@@ -3016,7 +3022,7 @@ or transitivity, including case analysis over disjoined guarantees. Named-state
 forwarding retains exact immutable entry origins and rejects ambiguous joins,
 including backedges to the entry state spelled through its state or machine name.
 
-Remaining numeric policies and selected operator calls, other expression
+Remaining numeric policies and selected operator calls, initializer and guard
 destinations, borrowed/projected operands, and named runtime proof outputs still
 need execution-plan extensions. Nonliteral contract arithmetic and result bounds
 that need caller-specific snapshots beyond immutable scalar formal comparisons
