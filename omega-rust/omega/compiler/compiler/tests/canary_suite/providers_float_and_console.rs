@@ -1,5 +1,8 @@
 use super::*;
 
+#[path = "../fixture_rosters/providers_float_and_console.rs"]
+pub(super) mod fixture_roster;
+
 fn checked_adapter_identity(checked: &checked_trees::CheckedTrees, machine_name: &str) -> String {
     let machine = checked
         .machines()
@@ -261,7 +264,7 @@ fn runtime_adapter_dispatch_exit_canary_runs() {
     // PRV4 adapter dispatch: the boundary-trait call rewrites to the unique
     // satisfying adapter in both engines; the interpreter leg rides the
     // differential row.
-    let canary = pass_canary("providers/runtime_adapter_dispatch_exit");
+    let canary = pass_canary(fixture_roster::RUNTIME_ADAPTER_DISPATCH_EXIT);
     let main_path = canary.join("main.omg");
     let checked = compile_to_checked(&main_path, None)
         .expect("adapter-dispatch canary should compile to checked trees");
@@ -294,7 +297,7 @@ fn runtime_adapter_dispatch_exit_canary_runs() {
 
 #[test]
 fn checked_boundary_operator_dispatch_exit_canary_runs() {
-    let canary = pass_canary("providers/checked_boundary_operator_dispatch_exit");
+    let canary = pass_canary(fixture_roster::CHECKED_BOUNDARY_OPERATOR_DISPATCH_EXIT);
     let main_path = canary.join("main.omg");
     let checked = compile_to_checked(&main_path, None)
         .expect("checked boundary-operator canary should compile to checked trees");
@@ -311,7 +314,7 @@ fn checked_boundary_operator_dispatch_exit_canary_runs() {
 
 #[test]
 fn checked_fixed_operator_dispatch_exit_canary_runs() {
-    let canary = pass_canary("providers/checked_fixed_operator_dispatch_exit");
+    let canary = pass_canary(fixture_roster::CHECKED_FIXED_OPERATOR_DISPATCH_EXIT);
     let main_path = canary.join("main.omg");
     let checked = compile_to_checked(&main_path, None)
         .expect("checked fixed-token operator canary should compile to checked trees");
@@ -326,7 +329,7 @@ fn checked_fixed_operator_dispatch_exit_canary_runs() {
 
 #[test]
 fn checked_boundary_operator_physical_custody_canary_compiles() {
-    let canary = pass_canary("providers/checked_boundary_operator_physical_custody");
+    let canary = pass_canary(fixture_roster::CHECKED_BOUNDARY_OPERATOR_PHYSICAL_CUSTODY);
     assert_selected_operator_native_physical_call(
         &canary,
         "checked boundary-operator physical-custody canary",
@@ -334,7 +337,7 @@ fn checked_boundary_operator_physical_custody_canary_compiles() {
         0,
     );
 
-    let dynamic_exit = pass_canary("providers/checked_boundary_operator_dispatch_exit");
+    let dynamic_exit = pass_canary(fixture_roster::CHECKED_BOUNDARY_OPERATOR_DISPATCH_EXIT);
     let diagnostics =
         compile_rooted_backend_canary_without_output_for_target(&dynamic_exit, "linux_x86_64")
             .expect_err("the immediate-only exit settlement must still reject a call-result input");
@@ -347,7 +350,7 @@ fn checked_boundary_operator_physical_custody_canary_compiles() {
 
 #[test]
 fn checked_fixed_operator_physical_custody_canary_compiles() {
-    let canary = pass_canary("providers/checked_fixed_operator_physical_custody");
+    let canary = pass_canary(fixture_roster::CHECKED_FIXED_OPERATOR_PHYSICAL_CUSTODY);
     let checked = compile_to_checked(&canary.join("main.omg"), None)
         .expect("fixed-token physical-custody canary should check");
     let selected_subtracts = checked
@@ -366,7 +369,7 @@ fn checked_fixed_operator_physical_custody_canary_compiles() {
         0,
     );
 
-    let dynamic_exit = pass_canary("providers/checked_fixed_operator_dispatch_exit");
+    let dynamic_exit = pass_canary(fixture_roster::CHECKED_FIXED_OPERATOR_DISPATCH_EXIT);
     let diagnostics =
         compile_rooted_backend_canary_without_output_for_target(&dynamic_exit, "linux_x86_64")
             .expect_err("the immediate-only exit settlement must reject a fixed-token call result");
@@ -379,7 +382,7 @@ fn checked_fixed_operator_physical_custody_canary_compiles() {
 
 #[test]
 fn specialized_boundary_operator_physical_custody_canary_compiles() {
-    let canary = pass_canary("providers/specialized_boundary_operator_physical_custody");
+    let canary = pass_canary(fixture_roster::SPECIALIZED_BOUNDARY_OPERATOR_PHYSICAL_CUSTODY);
     assert_selected_operator_native_physical_call(
         &canary,
         "specialized boundary-operator physical-custody canary",
@@ -390,7 +393,7 @@ fn specialized_boundary_operator_physical_custody_canary_compiles() {
 
 #[test]
 fn specialized_fixed_operator_physical_custody_canary_compiles() {
-    let canary = pass_canary("providers/specialized_fixed_operator_physical_custody");
+    let canary = pass_canary(fixture_roster::SPECIALIZED_FIXED_OPERATOR_PHYSICAL_CUSTODY);
     let checked = compile_to_checked(&canary.join("main.omg"), None)
         .expect("specialized fixed-token physical-custody canary should check");
     let selected_remainders = checked
@@ -446,7 +449,8 @@ fn specialized_fixed_operator_physical_custody_canary_compiles() {
 
 #[test]
 fn specialized_structural_fixed_operator_terminal_custody_canary_compiles() {
-    let canary = pass_canary("providers/specialized_structural_fixed_operator_terminal_custody");
+    let canary =
+        pass_canary(fixture_roster::SPECIALIZED_STRUCTURAL_FIXED_OPERATOR_TERMINAL_CUSTODY);
     let checked = compile_to_checked(&canary.join("main.omg"), Some("linux_x86_64"))
         .expect("structural fixed-token custody canary should check");
     let produced =
@@ -554,7 +558,7 @@ fn specialized_structural_fixed_operator_terminal_custody_canary_compiles() {
 
 #[test]
 fn nested_checked_boundary_operator_physical_custody_canary_compiles() {
-    let canary = pass_canary("providers/nested_checked_boundary_operator_physical_custody");
+    let canary = pass_canary(fixture_roster::NESTED_CHECKED_BOUNDARY_OPERATOR_PHYSICAL_CUSTODY);
     assert_selected_operator_native_physical_call(
         &canary,
         "nested checked boundary-operator physical-custody canary",
@@ -603,7 +607,7 @@ fn nested_checked_boundary_operator_physical_custody_canary_compiles() {
 fn runtime_result_domain_requirement_overload_exit_canary_runs() {
     // Result-domain identity survives requirement collection, provider-plan
     // selection, checked adapter dispatch, and both executable engines.
-    let canary = pass_canary("providers/runtime_result_domain_requirement_overload_exit");
+    let canary = pass_canary(fixture_roster::RUNTIME_RESULT_DOMAIN_REQUIREMENT_OVERLOAD_EXIT);
     let main_path = canary.join("main.omg");
     let checked = compile_to_checked(&main_path, None)
         .expect("result-overloaded provider requirements should compile to checked trees");
@@ -640,7 +644,7 @@ fn runtime_selected_provider_adapter_exit_canary_runs() {
     // PRV4b/4c composition: a retained whole-provider selection is
     // authoritative for adapter dispatch. Selecting SecondProvider must ignore
     // FirstProvider in both engines.
-    let canary = pass_canary("providers/provider_type_slot_selected");
+    let canary = pass_canary(fixture_roster::PROVIDER_TYPE_SLOT_SELECTED);
     let main_path = canary.join("main.omg");
     let checked = compile_to_checked(&main_path, None)
         .expect("selected-provider adapter canary should compile to checked trees");
@@ -765,7 +769,7 @@ fn unit_effect_plan_named_mut<'a>(
 
 #[test]
 fn fused_service_erasure_rejoins_typed_source_and_selected_plan() {
-    let canary = pass_canary("providers/service_fused_erasure_compile");
+    let canary = pass_canary(fixture_roster::SERVICE_FUSED_ERASURE_COMPILE);
     let baseline = compile_to_checked(&canary.join("main.omg"), None)
         .expect("fused Service fixture should reach checked trees");
     let provenance = baseline.selected_provider_provenance().to_vec();
@@ -1165,7 +1169,7 @@ fn fused_service_erasure_rejoins_typed_source_and_selected_plan() {
 
 #[test]
 fn selected_program_entry_retains_one_exact_fused_service_establishment() {
-    let canary = pass_canary("providers/service_fused_root_establishment");
+    let canary = pass_canary(fixture_roster::SERVICE_FUSED_ROOT_ESTABLISHMENT);
     let baseline = compile_to_checked(&canary.join("main.omg"), Some("linux_x86_64"))
         .expect("selected Fused Service root should reach checked trees");
     let selected = baseline
@@ -1241,7 +1245,7 @@ fn selected_program_entry_retains_one_exact_fused_service_establishment() {
 
 #[test]
 fn fused_service_parameter_moves_through_one_exact_internal_hop() {
-    let canary = pass_canary("providers/service_fused_erasure_compile");
+    let canary = pass_canary(fixture_roster::SERVICE_FUSED_ERASURE_COMPILE);
     let baseline = compile_to_checked(&canary.join("main.omg"), None)
         .expect("one-hop fused Service fixture should reach checked trees");
     let provenance = baseline.selected_provider_provenance().to_vec();
@@ -1427,7 +1431,7 @@ fn fused_service_parameter_moves_through_one_exact_internal_hop() {
 
 #[test]
 fn provider_type_target_default_canary_selects_target_default() {
-    let canary = pass_canary("providers/provider_type_target_default");
+    let canary = pass_canary(fixture_roster::PROVIDER_TYPE_TARGET_DEFAULT);
     let checked = compile_to_checked(&canary.join("main.omg"), None)
         .expect("target provider default should resolve the Pick slot");
     assert_eq!(
@@ -1446,7 +1450,7 @@ fn provider_type_target_default_canary_selects_target_default() {
 
 #[test]
 fn component_owner_provider_override_canary_selects_complete_pick_plan() {
-    let canary = pass_canary("providers/component_owner_provider_override_compile");
+    let canary = pass_canary(fixture_roster::COMPONENT_OWNER_PROVIDER_OVERRIDE_COMPILE);
     let checked = compile_to_checked(&canary.join("main.omg"), None)
         .expect("component-owned build override should resolve the Pick slot");
     assert_eq!(
@@ -1474,7 +1478,7 @@ fn component_owner_provider_override_canary_selects_complete_pick_plan() {
 
 #[test]
 fn test_owner_provider_override_canary_selects_complete_pick_plan() {
-    let canary = pass_canary("providers/test_owner_provider_override_compile");
+    let canary = pass_canary(fixture_roster::TEST_OWNER_PROVIDER_OVERRIDE_COMPILE);
     let checked = compile_to_checked(&canary.join("main.omg"), None)
         .expect("test-owned build override should resolve the Pick slot");
     assert_eq!(
@@ -1502,7 +1506,7 @@ fn test_owner_provider_override_canary_selects_complete_pick_plan() {
 
 #[test]
 fn provider_type_target_default_override_canary_selects_build_override() {
-    let canary = pass_canary("providers/provider_type_target_default_override");
+    let canary = pass_canary(fixture_roster::PROVIDER_TYPE_TARGET_DEFAULT_OVERRIDE);
     let checked = compile_to_checked(&canary.join("main.omg"), None)
         .expect("build provider override should resolve the Pick slot");
     assert_eq!(
@@ -1521,7 +1525,7 @@ fn provider_type_target_default_override_canary_selects_build_override() {
 
 #[test]
 fn adapter_satisfies_canary_selects_exact_checked_adapter_plan() {
-    let canary = pass_canary("providers/adapter_satisfies_compile");
+    let canary = pass_canary(fixture_roster::ADAPTER_SATISFIES_COMPILE);
     let checked = compile_to_checked(&canary.join("main.omg"), None)
         .expect("checked adapter provider should resolve the Echo slot");
     assert_eq!(
@@ -1548,7 +1552,7 @@ fn adapter_satisfies_canary_selects_exact_checked_adapter_plan() {
 
 #[test]
 fn external_leaf_via_canary_selects_exact_free_import_plan() {
-    let canary = pass_canary("providers/external_leaf_via_compile");
+    let canary = pass_canary(fixture_roster::EXTERNAL_LEAF_VIA_COMPILE);
     let checked = compile_to_checked(&canary.join("main.omg"), None)
         .expect("free external leaf should resolve the Shutdown slot");
     assert_eq!(
@@ -1575,7 +1579,7 @@ fn external_leaf_via_canary_selects_exact_free_import_plan() {
 
 #[test]
 fn external_leaf_dllimport_canary_selects_exact_free_import_plan() {
-    let canary = pass_canary("providers/external_leaf_dllimport_compile");
+    let canary = pass_canary(fixture_roster::EXTERNAL_LEAF_DLLIMPORT_COMPILE);
     let checked = compile_to_checked(&canary.join("main.omg"), None)
         .expect("free DllImport leaf should resolve the Leaf slot");
     assert_eq!(
@@ -1606,7 +1610,7 @@ fn runtime_adapter_forwarding_exit_canary_runs() {
     // 0, and std Console::write reaches the write_byte leaf through that same
     // capability. Field-backed bounded carriers and literal-backed text both
     // cross the honest borrowed byte-view path.
-    let canary = pass_canary("providers/runtime_adapter_forwarding_exit");
+    let canary = pass_canary(fixture_roster::RUNTIME_ADAPTER_FORWARDING_EXIT);
     let main_path = canary.join("main.omg");
     let checked = compile_to_checked(&main_path, None)
         .expect("forwarding-adapter canary should compile to checked trees");
@@ -1712,7 +1716,7 @@ fn runtime_adapter_forwarding_exit_canary_runs() {
 fn linux_console_compiler_intrinsic_review_identities_are_exact() {
     use provider_planning::plans::CompilerIntrinsicExecutionIdentity;
 
-    let canary = pass_canary("providers/runtime_adapter_forwarding_exit");
+    let canary = pass_canary(fixture_roster::RUNTIME_ADAPTER_FORWARDING_EXIT);
     let main_path = canary.join("main.omg");
     let checked = compile_to_checked(&main_path, Some("linux_x86_64"))
         .expect("Linux Console provider should compile to checked trees");
@@ -1866,7 +1870,7 @@ fn linux_console_exit_catalog_settlement_emits_elf() {
         }
     }
 
-    let canary = pass_canary("providers/adapter_satisfies_compile");
+    let canary = pass_canary(fixture_roster::ADAPTER_SATISFIES_COMPILE);
     for target in ["linux_x86_64", "linux_arm64"] {
         let checked = compile_to_checked(&canary.join("main.omg"), Some(target))
             .expect("Console permission preflight should reach checked custody");
@@ -2118,7 +2122,7 @@ fn linux_console_exit_catalog_settlement_emits_elf() {
         assert!(native::NativeArtifact::from_replayed_parts(padded).is_err());
     }
 
-    let port_canary = pass_canary("inline_asm/asm_port_out_final_validation");
+    let port_canary = pass_canary(fixture_roster::ASM_PORT_OUT_FINAL_VALIDATION);
     let port_diagnostics =
         compile_rooted_backend_canary_without_output_for_target(&port_canary, "linux_x86_64")
             .expect_err("checked physical operations await their explicit D45 terminal role");
@@ -2132,7 +2136,7 @@ fn linux_console_exit_catalog_settlement_emits_elf() {
 
 #[test]
 fn terminal_product_reloads_native_realization_without_checked_compilation() {
-    let canary = pass_canary("providers/adapter_satisfies_compile");
+    let canary = pass_canary(fixture_roster::ADAPTER_SATISFIES_COMPILE);
     let package_inputs =
         reviewed_repository_fixture_package_inputs(&canary.join("main.omg"), Some("linux_x86_64"))
             .expect("derive reviewed repository fixture package inputs")
@@ -2277,7 +2281,7 @@ fn terminal_product_reloads_native_realization_without_checked_compilation() {
 
 #[test]
 fn runtime_boundary_capability_state_forwarding_exit_canary_runs() {
-    let canary = pass_canary("providers/runtime_boundary_capability_state_forwarding_exit");
+    let canary = pass_canary(fixture_roster::RUNTIME_BOUNDARY_CAPABILITY_STATE_FORWARDING_EXIT);
     let main_path = canary.join("main.omg");
     let checked = compile_to_checked(&main_path, None)
         .expect("boundary capability should forward through a state parameter");
@@ -2316,7 +2320,7 @@ fn runtime_console_byte_literal_exit_canary_runs() {
     // fold to the Integer kind before any plan sees the call; the stager and
     // the selection arm matched only Expression-wrapped nodes). "7\n" then
     // exit 70, both engines.
-    let canary = pass_canary("host/runtime_console_byte_literal_exit");
+    let canary = pass_canary(fixture_roster::RUNTIME_CONSOLE_BYTE_LITERAL_EXIT);
     let main_path = canary.join("main.omg");
     let checked = compile_to_checked(&main_path, None)
         .expect("byte-literal canary should compile to checked trees");
@@ -2345,7 +2349,7 @@ fn runtime_console_byte_literal_exit_canary_runs() {
 
 #[test]
 fn runtime_console_byte_literal_linux_catalog_replays_both_targets() {
-    let canary = pass_canary("host/runtime_console_byte_literal_exit");
+    let canary = pass_canary(fixture_roster::RUNTIME_CONSOLE_BYTE_LITERAL_EXIT);
     for target in ["linux_x86_64", "linux_arm64"] {
         compile_rooted_backend_canary_without_output_for_target_with_fixture_permissions(
             &canary, target,
@@ -2358,7 +2362,7 @@ fn runtime_console_byte_literal_linux_catalog_replays_both_targets() {
 
 #[test]
 fn runtime_console_byte_read_return_catalog_replays_both_linux_targets() {
-    let canary = pass_canary("host/runtime_console_byte_read_return");
+    let canary = pass_canary(fixture_roster::RUNTIME_CONSOLE_BYTE_READ_RETURN);
     for target in ["linux_x86_64", "linux_arm64"] {
         let compilation =
             compile_rooted_backend_canary_without_output_for_target_with_fixture_permissions(
@@ -2384,7 +2388,7 @@ fn runtime_console_byte_read_return_catalog_replays_both_linux_targets() {
 fn runtime_console_byte_inspection_replays_validated_cross_target_artifacts() {
     // The structural result home, case tag, and selected payload must replay
     // through both maintained Linux native paths.
-    let canary = pass_canary("host/runtime_console_byte_inspection_exit");
+    let canary = pass_canary(fixture_roster::RUNTIME_CONSOLE_BYTE_INSPECTION_EXIT);
     for target in ["linux_x86_64", "linux_arm64"] {
         let compilation =
             compile_rooted_backend_canary_without_output_for_target_with_fixture_permissions(
@@ -2408,7 +2412,7 @@ fn runtime_console_byte_replay_cross_target_canary_compiles() {
     // The final-byte certificate must replay both byte composites under each
     // settled target adapter: Linux syscall, Darwin direct import, and the
     // complete Win64 GetStdHandle + file-I/O import pair.
-    let canary = pass_canary("host/runtime_console_byte_echo_exit");
+    let canary = pass_canary(fixture_roster::RUNTIME_CONSOLE_BYTE_ECHO_EXIT);
     for target in [
         "linux_x86_64",
         "linux_arm64",
@@ -2431,11 +2435,7 @@ fn runtime_console_byte_replay_cross_target_canary_compiles() {
 fn runtime_console_line_replay_cross_target_canary_compiles() {
     // Exercise every retained line-read storage shape under the Linux syscall,
     // Darwin direct-import, and Win64 two-import adapters.
-    for canary_name in [
-        "text/runtime_stdin_line_buffering_exit",
-        "host/runtime_console_line_fixed_array_exit",
-        "host/runtime_console_line_descriptor_exit",
-    ] {
+    for &canary_name in fixture_roster::CONSOLE_LINE_REPLAY_CANARIES {
         let canary = pass_canary(canary_name);
         for target in [
             "linux_x86_64",
@@ -2449,7 +2449,7 @@ fn runtime_console_line_replay_cross_target_canary_compiles() {
                 std::process::id()
             ));
             let _ = fs::remove_dir_all(&scratch);
-            if canary_name == "host/runtime_console_line_fixed_array_exit" {
+            if canary_name == fixture_roster::RUNTIME_CONSOLE_LINE_FIXED_ARRAY_EXIT {
                 compile_rooted_canary_for_target(&canary, scratch.join("out"), target)
                     .unwrap_or_else(|error| {
                         panic!(
@@ -2488,7 +2488,7 @@ fn runtime_import_call_argument_exit_canary_runs() {
     // DllImport leaf reaches libSystem with its argument intact. NATIVE
     // assert only -- the interpreter does not serve custom-capability
     // imports (its own rung).
-    let canary = pass_canary("providers/runtime_import_call_argument_exit");
+    let canary = pass_canary(fixture_roster::RUNTIME_IMPORT_CALL_ARGUMENT_EXIT);
     let main_path = canary.join("main.omg");
     let checked = compile_to_checked(&main_path, None)
         .expect("free DllImport leaf should resolve the Leaf slot");
@@ -2539,7 +2539,7 @@ fn mutual_cycle_tail_admitted_canary_runs() {
     // tail arm target lowers as a SetDispatchState jump in the one dispatch
     // loop. n = 100000 keeps the interpreter oracle inside its 10M-step
     // budget; the native probe ran 40M alternations on constant stack.
-    let canary = pass_canary("calls/mutual_cycle_tail_admitted_exit");
+    let canary = pass_canary(fixture_roster::MUTUAL_CYCLE_TAIL_ADMITTED_EXIT);
     let main_path = canary.join("main.omg");
 
     let checked = compile_to_checked(&main_path, None)
@@ -2581,7 +2581,7 @@ fn const_fold_unsigned_landed_ops_canary_runs() {
     // sum is guard-checked in the SAME state (the transition-arg delivery face
     // is a separate open bug, pinned pending). exit 71 = a fold regressed to
     // the bare-i64 window.
-    let canary = pass_canary("arithmetic/const_fold_unsigned_landed_ops_exit");
+    let canary = pass_canary(fixture_roster::CONST_FOLD_UNSIGNED_LANDED_OPS_EXIT);
     let main_path = canary.join("main.omg");
 
     let checked = compile_to_checked(&main_path, None)
@@ -2625,7 +2625,7 @@ fn const_fold_unsigned_shift_right_arg_canary_runs() {
     // runtime binary, and the write's signedness falls back to the WRITE
     // TARGET's primitive (the callee param's u32) so `>>` emits logical shr.
     // exit 71 = the target-primitive fallback (or the landed fold) regressed.
-    let canary = pass_canary("arithmetic/const_fold_unsigned_shift_right_arg_exit");
+    let canary = pass_canary(fixture_roster::CONST_FOLD_UNSIGNED_SHIFT_RIGHT_ARG_EXIT);
     let main_path = canary.join("main.omg");
 
     let checked = compile_to_checked(&main_path, None)
@@ -2668,7 +2668,7 @@ fn const_fold_unsigned_divide_arg_canary_runs() {
     // the other two sign-sensitive ops of the same class; both values ride
     // chained transition args, so both typeless writes must take the
     // target-primitive signedness fallback. exit 71 = a signed idiv slipped in.
-    let canary = pass_canary("arithmetic/const_fold_unsigned_divide_arg_exit");
+    let canary = pass_canary(fixture_roster::CONST_FOLD_UNSIGNED_DIVIDE_ARG_EXIT);
     let main_path = canary.join("main.omg");
 
     let checked = compile_to_checked(&main_path, None)
@@ -2712,7 +2712,7 @@ fn unsigned_min_max_wrapping_local_canary_runs() {
     // operand probe finds no type and the non-table mutation write's operator
     // adjustment falls back to the WRITE TARGET's u64 -> MaxUnsigned picks
     // u64::MAX. exit 78 = a signed Max compared -1 < 5 again.
-    let canary = pass_canary("arithmetic/unsigned_min_max_wrapping_local_exit");
+    let canary = pass_canary(fixture_roster::UNSIGNED_MIN_MAX_WRAPPING_LOCAL_EXIT);
     let main_path = canary.join("main.omg");
 
     let checked = compile_to_checked(&main_path, None)
@@ -2756,7 +2756,7 @@ fn unsigned_min_max_operand_position_canary_runs() {
     // stamp + the operand-derived anonymous-destination fold carry big's
     // u64/Wrapping landing to the probe. exit 78 = a signed Max compared
     // -1 < 5 again.
-    let canary = pass_canary("arithmetic/unsigned_min_max_operand_position_exit");
+    let canary = pass_canary(fixture_roster::UNSIGNED_MIN_MAX_OPERAND_POSITION_EXIT);
     let main_path = canary.join("main.omg");
 
     let checked = compile_to_checked(&main_path, None)
@@ -2798,7 +2798,7 @@ fn suffix_boundary_magnitudes_canary_runs() {
     // i64::MIN all fit their suffixes (the parse-time negation fold makes
     // `-128i8` one literal valued -128) and must stay legal while 200i8 and
     // -1u8 are loud errors (the fail twins).
-    let canary = pass_canary("arithmetic/suffix_boundary_magnitudes_exit");
+    let canary = pass_canary(fixture_roster::SUFFIX_BOUNDARY_MAGNITUDES_EXIT);
     let main_path = canary.join("main.omg");
 
     let checked = compile_to_checked(&main_path, None)
@@ -2838,7 +2838,7 @@ fn suffix_boundary_magnitudes_canary_runs() {
 fn float_value_call_return_canary_runs() {
     // The frame-slot value writer's FLOAT arm: a float value-call return
     // delivers instead of leaving the call-result slot ZII.
-    let canary = pass_canary("calls/float_value_call_return_exit");
+    let canary = pass_canary(fixture_roster::FLOAT_VALUE_CALL_RETURN_EXIT);
     let main_path = canary.join("main.omg");
 
     let checked = compile_to_checked(&main_path, None)
@@ -2876,7 +2876,7 @@ stderr:
 fn expansion_float_local_guard_canary_runs() {
     // The float-literal guard arm in the EXPANSION path: an inlined callee's
     // float-local guard (`d == 0.0`) lowers instead of refusing.
-    let canary = pass_canary("float/expansion_float_local_guard_exit");
+    let canary = pass_canary(fixture_roster::EXPANSION_FLOAT_LOCAL_GUARD_EXIT);
     let main_path = canary.join("main.omg");
 
     let checked = compile_to_checked(&main_path, None)
@@ -2916,7 +2916,7 @@ fn float_value_call_runtime_arg_canary_runs() {
     // The arm-guard failure distance: an inlined callee's failed guard
     // (`d == 0.0` with d = inf - inf = NaN) lands on its SIBLING no-arm,
     // not the caller's failure trailer -- is_zeroish(inf) returns false.
-    let canary = pass_canary("calls/float_value_call_runtime_arg_exit");
+    let canary = pass_canary(fixture_roster::FLOAT_VALUE_CALL_RUNTIME_ARG_EXIT);
     let main_path = canary.join("main.omg");
 
     let checked = compile_to_checked(&main_path, None)
@@ -2957,7 +2957,7 @@ fn f32_chain_per_op_rounding_canary_runs() {
     // binary operand plans the 4-byte op from the literal's LANDED format
     // instead of defaulting float literals to F64 (which computed `addsd`
     // over f32 bit patterns and diverged from the interpreter).
-    let canary = pass_canary("float/f32_chain_per_op_rounding_exit");
+    let canary = pass_canary(fixture_roster::F32_CHAIN_PER_OP_ROUNDING_EXIT);
     let main_path = canary.join("main.omg");
 
     let checked = compile_to_checked(&main_path, None)
@@ -2996,7 +2996,7 @@ fn runtime_std_is_finite_canary_runs() {
     // std is_finite three-leg: finite -> true, runtime inf -> false,
     // runtime NaN -> false; the false legs ride the inlined arm-guard
     // failure branch (the no() arm).
-    let canary = pass_canary("float/runtime_std_is_finite_exit");
+    let canary = pass_canary(fixture_roster::RUNTIME_STD_IS_FINITE_EXIT);
     let main_path = canary.join("main.omg");
 
     let checked = compile_to_checked(&main_path, None)
@@ -3036,7 +3036,7 @@ fn bool_value_call_return_canary_runs() {
     // Bool-returning value calls deliver in all three faces (attached
     // let-bound, free let-bound, direct-in-guard) -- the 07-08-era
     // mis-delivery no longer reproduces; this pins the closed class.
-    let canary = pass_canary("calls/bool_value_call_return_exit");
+    let canary = pass_canary(fixture_roster::BOOL_VALUE_CALL_RETURN_EXIT);
     let main_path = canary.join("main.omg");
 
     let checked = compile_to_checked(&main_path, None)
@@ -3078,7 +3078,7 @@ fn struct_literal_transition_arg_canary_runs() {
     // The record arm of struct-literal ARG materialization (was missing:
     // a plain record arg planned nothing and the callee param stayed ZII).
     // Both field shapes: constant (int fast path) + runtime (general writer).
-    let canary = pass_canary("calls/struct_literal_transition_arg_exit");
+    let canary = pass_canary(fixture_roster::STRUCT_LITERAL_TRANSITION_ARG_EXIT);
     let main_path = canary.join("main.omg");
 
     let checked = compile_to_checked(&main_path, None)
@@ -3121,7 +3121,7 @@ fn runtime_indexed_element_copy_write_canary_runs() {
     // (`exits[index] = e`, runtime index + runtime struct source) -- the
     // write face x86_64 refused with the zero-width blocker until the
     // materializer's shared-base indexed-target shape provided it.
-    let canary = pass_canary("slices/runtime_indexed_element_copy_write_exit");
+    let canary = pass_canary(fixture_roster::RUNTIME_INDEXED_ELEMENT_COPY_WRITE_EXIT);
     let main_path = canary.join("main.omg");
 
     let checked = compile_to_checked(&main_path, None)
@@ -3163,7 +3163,7 @@ fn suffix_landed_operand_position_canary_runs() {
     // CR4a: a width-suffixed literal is BORN LANDED, so `z - 1u64` folds at
     // the suffix's u64 landing and the operand-position max compares
     // UNSIGNED. exit 78 = the suffix was stripped and a signed max picked 5.
-    let canary = pass_canary("arithmetic/suffix_landed_operand_position_exit");
+    let canary = pass_canary(fixture_roster::SUFFIX_LANDED_OPERAND_POSITION_EXIT);
     let main_path = canary.join("main.omg");
 
     let checked = compile_to_checked(&main_path, None)
@@ -3204,7 +3204,7 @@ fn suffix_f32_single_rounding_canary_runs() {
     // F2a: the double-rounding witness -- an f32-suffixed literal parses
     // ONCE, correctly, to f32 (8388609.0); the old f64 route rounds twice
     // (8388610.0). Both engines key the landed read identically.
-    let canary = pass_canary("float/suffix_f32_single_rounding_exit");
+    let canary = pass_canary(fixture_roster::SUFFIX_F32_SINGLE_ROUNDING_EXIT);
     let main_path = canary.join("main.omg");
 
     let checked = compile_to_checked(&main_path, None)
@@ -3244,7 +3244,7 @@ fn unsuffixed_f32_destination_single_rounding_canary_runs() {
     // (land_float_literal_destinations, pre-fork on the typed tree), so all
     // three stamped faces (let local, field assignment, struct-literal
     // field) parse ONCE to f32 in both engines.
-    let canary = pass_canary("float/unsuffixed_f32_destination_single_rounding_exit");
+    let canary = pass_canary(fixture_roster::UNSUFFIXED_F32_DESTINATION_SINGLE_ROUNDING_EXIT);
     let main_path = canary.join("main.omg");
 
     let checked = compile_to_checked(&main_path, None)
@@ -3283,7 +3283,7 @@ fn unsuffixed_f32_destination_single_rounding_canary_runs() {
 fn unsuffixed_f32_argument_single_rounding_canary_runs() {
     // F2c: typed call/transition parameter and return destinations stamp the
     // same f32 format before the native/interpreter fork.
-    let canary = pass_canary("float/unsuffixed_f32_argument_single_rounding_exit");
+    let canary = pass_canary(fixture_roster::UNSUFFIXED_F32_ARGUMENT_SINGLE_ROUNDING_EXIT);
     let main_path = canary.join("main.omg");
 
     let checked = compile_to_checked(&main_path, None)
@@ -3319,7 +3319,7 @@ fn f32_per_operation_rounding_canary_runs() {
     // interpreter runtime evaluator all round after each binary32 operation.
     // At 2^24, two sequential +1 legs plateau; an f64-window fold followed by
     // one narrowing reaches 2^24+2.
-    let canary = pass_canary("float/f32_per_operation_rounding_exit");
+    let canary = pass_canary(fixture_roster::F32_PER_OPERATION_ROUNDING_EXIT);
     let main_path = canary.join("main.omg");
 
     let checked = compile_to_checked(&main_path, None)
@@ -3353,7 +3353,7 @@ fn anonymous_exact_rat_const_canary_runs() {
     // F2e: anonymous decimal trees evaluate as exact rationals, then round
     // once at a destination or guard-context format. Specials are produced
     // before landing and rendered at the same format on both engines.
-    let canary = pass_canary("float/anonymous_exact_rat_const_exit");
+    let canary = pass_canary(fixture_roster::ANONYMOUS_EXACT_RAT_CONST_EXIT);
     let main_path = canary.join("main.omg");
 
     let checked = compile_to_checked(&main_path, None)
@@ -3387,7 +3387,7 @@ fn anonymous_exact_rat_const_canary_runs() {
 fn finite_core_domain_range_discharge_canary_runs() {
     // F3a: the built-in value domain crosses the full type pipeline, and a
     // declared float range proves Finite when passed into a constrained state.
-    let canary = pass_canary("float/finite_core_domain_range_discharge");
+    let canary = pass_canary(fixture_roster::FINITE_CORE_DOMAIN_RANGE_DISCHARGE);
     let main_path = canary.join("main.omg");
 
     let checked = compile_to_checked(&main_path, None)
@@ -3422,7 +3422,7 @@ fn struct_literal_field_coercion_canary_runs() {
     // width/domain (interpreter eval_struct_literal): `Point { x: a+b }` with
     // `a+b`=300 into a u8 field reads 44. The field is read DIRECTLY (`p.x`), so
     // the coercion must happen at construction. exit 71 = field carried raw 300.
-    let canary = pass_canary("arithmetic/struct_literal_field_coercion");
+    let canary = pass_canary(fixture_roster::STRUCT_LITERAL_FIELD_COERCION);
     let main_path = canary.join("main.omg");
 
     let checked = compile_to_checked(&main_path, None)
@@ -3461,7 +3461,7 @@ fn array_element_write_width_domain_canary_runs() {
     // ARRAY's arithmetic DOMAIN (interpreter assignment_target_coercion): a u8
     // element given `a+b`=300 truncates to 44; a `[u8;N] in Saturating` element
     // clamps to 255. exit 72 = wrap element wrong; 73 = saturating did not clamp.
-    let canary = pass_canary("arithmetic/array_element_write_width_domain");
+    let canary = pass_canary(fixture_roster::ARRAY_ELEMENT_WRITE_WIDTH_DOMAIN);
     let main_path = canary.join("main.omg");
 
     let checked = compile_to_checked(&main_path, None)
@@ -3500,7 +3500,7 @@ fn int_transition_arg_width_wrap_canary_runs() {
     // (interpreter bind_frame apply_arithmetic_domain), matching native's
     // truncating store at the call boundary: `a+b`=300 into a u8 param reads 44.
     // exit 71 = the interpreter carried the un-wrapped 300 into the u8 param.
-    let canary = pass_canary("arithmetic/int_transition_arg_width_wrap");
+    let canary = pass_canary(fixture_roster::INT_TRANSITION_ARG_WIDTH_WRAP);
     let main_path = canary.join("main.omg");
 
     let checked = compile_to_checked(&main_path, None)
@@ -3539,7 +3539,7 @@ fn f32_transition_arg_rounding_canary_runs() {
     // binding (interpreter bind_frame), not just at stores: accumulating via
     // inline `+ 1.0` args past 2^24 plateaus at 16777216, matching native.
     // exit 71 = the interpreter carried f64 through params to 16777218.
-    let canary = pass_canary("arithmetic/f32_transition_arg_rounding");
+    let canary = pass_canary(fixture_roster::F32_TRANSITION_ARG_ROUNDING);
     let main_path = canary.join("main.omg");
 
     let checked = compile_to_checked(&main_path, None)
@@ -3575,7 +3575,7 @@ fn f32_field_store_rounding_canary_runs() {
     // rounding, matching native SSE): stepping past 2^24 by `+ 1.0` plateaus at
     // 16777216. Regression lock for the interpreter Value::Float store-rounding
     // fix; exit 71 = the interpreter kept f64 and over-accumulated to 16777218.
-    let canary = pass_canary("arithmetic/f32_field_store_rounding");
+    let canary = pass_canary(fixture_roster::F32_FIELD_STORE_ROUNDING);
     let main_path = canary.join("main.omg");
 
     let checked = compile_to_checked(&main_path, None)
@@ -3613,7 +3613,7 @@ fn const_fold_cast_signedness_canary_runs() {
     // arithmetic miscompile class: a cast node carries its target type, so
     // folding never drops width/signedness. Guards against a future arithmetic-
     // folder fix breaking cast folding. exit 71 = a fold dropped width/sign.
-    let canary = pass_canary("arithmetic/const_fold_cast_signedness");
+    let canary = pass_canary(fixture_roster::CONST_FOLD_CAST_SIGNEDNESS);
     let main_path = canary.join("main.omg");
 
     let checked = compile_to_checked(&main_path, None)
