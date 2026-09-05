@@ -9,7 +9,9 @@ use psi_facts::{FactContextHandle, FactPayload, FactPlace, FactPlan, PlaceHandle
 use psi_symbols::SymbolHandle;
 use psi_typed_trees::TypedTrees;
 use psi_typed_trees::domain::ProofFact;
-use psi_typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};
+use psi_typed_trees::expression::{ExpressionHandle, ExpressionNode};
+
+use super::scalars::{self, ScalarValue};
 
 pub(super) fn prove_domain(
     program: &TypedTrees,
@@ -69,6 +71,23 @@ pub(in crate::checks::contracts) fn prove_domain_at_place(
         contexts,
     }
     .domain(subject, domain, &mut Vec::new())
+}
+
+/// Resolve only a literal root or an exact assignment snapshot in the supplied
+/// live contexts. An initializer or a nonliteral AssignedValue is not evidence.
+pub(in crate::checks::contracts) fn scalar_value_at_place(
+    program: &TypedTrees,
+    semantic: &FactPlan,
+    contexts: &[FactContextHandle],
+    subject: &CanonicalPlace,
+) -> Option<ScalarValue> {
+    let value = AssignedValues {
+        program,
+        semantic,
+        contexts,
+    }
+    .literal(subject)?;
+    scalars::literal(program, value)
 }
 
 struct AssignedValues<'a> {
@@ -177,64 +196,132 @@ impl AssignedValues<'_> {
         proved
     }
 
-    fn integer(
-        &self,
-        subject: &CanonicalPlace,
-        type_symbol: Option<SymbolHandle>,
-        expression: ExpressionHandle,
-    ) -> Option<i64> {
-        self.program
-            .expression_table
-            .constant_integer_value(expression)
-            .or_else(|| {
-                let selected = self.relative_subject(subject, expression, type_symbol)?;
-                self.program
-                    .expression_table
-                    .constant_integer_value(self.literal(&selected)?)
-            })
-    }
-
     fn boolean(
         &self,
         subject: &CanonicalPlace,
         type_symbol: Option<SymbolHandle>,
         expression: ExpressionHandle,
     ) -> Option<bool> {
-        match self.program.expression_table.expression(expression) {
-            ExpressionNode::Boolean(value) => Some(*value),
-            ExpressionNode::Binary(binary) => {
-                if matches!(binary.operator, BinaryOperator::And | BinaryOperator::Or) {
-                    let left = self.boolean(subject, type_symbol, binary.left)?;
-                    let right = self.boolean(subject, type_symbol, binary.right)?;
-                    return Some(if binary.operator == BinaryOperator::And {
-                        left && right
-                    } else {
-                        left || right
-                    });
-                }
-                let left = self.integer(subject, type_symbol, binary.left)?;
-                let right = self.integer(subject, type_symbol, binary.right)?;
-                match binary.operator {
-                    BinaryOperator::Equal => Some(left == right),
-                    BinaryOperator::NotEqual => Some(left != right),
-                    BinaryOperator::Less => Some(left < right),
-                    BinaryOperator::LessOrEqual => Some(left <= right),
-                    BinaryOperator::Greater => Some(left > right),
-                    BinaryOperator::GreaterOrEqual => Some(left >= right),
-                    _ => None,
-                }
-            }
-            _ => {
-                let selected = self.relative_subject(subject, expression, type_symbol)?;
-                match self
-                    .program
+        let value = scalars::evaluate_with_comparisons(
+            self.program,
+            expression,
+            &mut |expression| {
+                // Preserve this domain prover's existing pure constant vocabulary.
+                // The shared evaluator itself never picks an arithmetic domain.
+                self.program
                     .expression_table
-                    .expression(self.literal(&selected)?)
-                {
-                    ExpressionNode::Boolean(value) => Some(*value),
-                    _ => None,
-                }
-            }
+                    .constant_integer_value(expression)
+                    .map(|value| {
+                        ScalarValue::Integer(psi_numerics::bignum::BigInt::from_i64(value))
+                    })
+                    .or_else(|| {
+                        let selected = self.relative_subject(subject, expression, type_symbol)?;
+                        let value = self.literal(&selected)?;
+                        scalars::literal(self.program, value).or_else(|| {
+                            self.program
+                                .expression_table
+                                .constant_integer_value(value)
+                                .map(|value| {
+                                    ScalarValue::Integer(psi_numerics::bignum::BigInt::from_i64(
+                                        value,
+                                    ))
+                                })
+                        })
+                    })
+            },
+            &|left, right| {
+                matches!(
+                    (left, right),
+                    (ScalarValue::Integer(_), ScalarValue::Integer(_))
+                )
+            },
+        )?;
+        match value {
+            ScalarValue::Boolean(value) => Some(value),
+            ScalarValue::Integer(_) => None,
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use psi_facts::{Fact, PlaceRoot, ProgramPoint};
+    use psi_typed_trees::expression::TableBinaryExpression;
+
+    #[test]
+    fn scalar_lookup_requires_live_exact_literal_evidence_not_initializers() {
+        let tokens = psi_source_files_to_tokens::Lexer::new(
+            "machine main() { let stored: u64 = 7; let other: u64 = 7; }",
+        )
+        .tokenize()
+        .expect("tokenize");
+        let syntax = psi_tokens_to_syntax_trees::parse_syntax_trees(&tokens).expect("parse");
+        let resolved = psi_syntax_trees_to_symbol_resolved_trees::lower_syntax_trees(&syntax)
+            .expect("resolve");
+        let mut program =
+            psi_symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
+                .expect("type");
+        let state = &program.machine_states(&program.machines()[0])[0];
+        let locals: Vec<_> = program
+            .statement_table
+            .statements(state.statement_nodes)
+            .iter()
+            .filter_map(|statement| match statement {
+                psi_typed_trees::statement::StatementNode::LocalData(local) => {
+                    Some((local.symbol, local.initial_value))
+                }
+                _ => None,
+            })
+            .collect();
+        let subject = CanonicalPlace {
+            root: PlaceRoot::Symbol(locals[0].0),
+            segments: Vec::new(),
+        };
+        let other = CanonicalPlace {
+            root: PlaceRoot::Symbol(locals[1].0),
+            segments: Vec::new(),
+        };
+        let literal = locals[0].1;
+        let mut semantic = FactPlan::default();
+        let place = semantic.append_symbol_place(locals[0].0);
+        let append = |semantic: &mut FactPlan, value| {
+            let fact = semantic.append_fact(Fact {
+                place: FactPlace::Place(place),
+                payload: FactPayload::AssignedValue { value },
+                ..Fact::default()
+            });
+            let mut references = psi_arena::HandleSpan::empty();
+            semantic.append_ref(&mut references, fact);
+            semantic.append_context(ProgramPoint::Global, references)
+        };
+        let live = append(&mut semantic, literal);
+        assert_eq!(
+            scalar_value_at_place(&program, &semantic, &[], &subject),
+            None
+        );
+        assert_eq!(
+            scalar_value_at_place(&program, &semantic, &[live], &subject),
+            Some(ScalarValue::Integer(
+                psi_numerics::bignum::BigInt::from_i64(7)
+            ))
+        );
+        assert_eq!(
+            scalar_value_at_place(&program, &semantic, &[live], &other),
+            None
+        );
+        let arithmetic =
+            program
+                .expression_table
+                .insert(ExpressionNode::Binary(TableBinaryExpression {
+                    left: literal,
+                    operator: psi_typed_trees::expression::BinaryOperator::Add,
+                    right: literal,
+                }));
+        let nonliteral = append(&mut semantic, arithmetic);
+        assert_eq!(
+            scalar_value_at_place(&program, &semantic, &[nonliteral], &subject),
+            None
+        );
     }
 }

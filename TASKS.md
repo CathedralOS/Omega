@@ -398,9 +398,9 @@ Owners include
   Migrate affected source and canaries to explicit transition arguments, then
   remove the capture paths. Complete live contract/value-fact transport across
   explicit state arguments; declaration initializer values must not be reseeded
-  as named-state invariants. Exit-local scalar proof must bind `result` to the
-  actual return occurrence and consume live writes through exact renamed output
-  origins; a named-state return of `7` must prove `ensures result == 7`.
+  as named-state invariants. Materialize selected-arithmetic and effectful
+  return values at their exact evaluation points so exit proof can consume
+  their numeric laws without rereading changed operands.
   Acceptance: implicit cross-state use
   rejects, while explicit renamed transfers retain exact contracts, field
   selection, ownership and cleanup without requiring a runtime copy. Wrong

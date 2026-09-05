@@ -1,0 +1,205 @@
+//! Scalar postconditions consume exact return and live place values. Entry
+//! parameter names are substituted only through the retained exit origin map.
+
+use psi_checked_trees::{CheckFacts, FlowExitFact};
+use psi_facts::{FactContextHandle, FactPayload, PlaceRoot, PlaceSegment};
+use psi_typed_trees::{TypedTrees, expression::ExpressionHandle, machine::Machine};
+
+use super::super::{
+    prover::{ScalarValue, evaluate_scalar, scalar_value_at_place},
+    return_values::{exit_return_expression, is_result_reference},
+};
+use crate::flow::canonical_place_from_expression_in_state;
+
+pub(super) fn proves<'program>(
+    program: &'program TypedTrees,
+    facts: &CheckFacts,
+    exit: &FlowExitFact,
+    contexts: &[FactContextHandle],
+    requirement: &psi_facts::Fact,
+    call_frames: Option<&psi_validation::CallFrameResolver<'program>>,
+) -> bool {
+    let FactPayload::ContractBooleanExpression {
+        fact: contract,
+        expression,
+        ..
+    } = requirement.payload
+    else {
+        return false;
+    };
+    let Some(machine) = program
+        .machines()
+        .iter()
+        .find(|machine| machine.symbol == exit.machine_symbol)
+    else {
+        return false;
+    };
+    let evaluator = ExitScalars {
+        program,
+        facts,
+        machine,
+        exit,
+        contexts,
+        contract,
+        call_frames,
+    };
+    if !has_builtin_operators(program, &facts.operators, expression) {
+        return false;
+    }
+    evaluate_scalar(program, expression, &mut |leaf| {
+        evaluator.contract_value(leaf)
+    }) == Some(ScalarValue::Boolean(true))
+}
+
+struct ExitScalars<'program, 'facts> {
+    program: &'program TypedTrees,
+    facts: &'facts CheckFacts,
+    machine: &'program Machine,
+    exit: &'facts FlowExitFact,
+    contexts: &'facts [FactContextHandle],
+    contract: psi_arena::Handle<psi_typed_trees::domain::ProofFact>,
+    call_frames: Option<&'facts psi_validation::CallFrameResolver<'program>>,
+}
+
+impl ExitScalars<'_, '_> {
+    fn contract_value(&self, expression: ExpressionHandle) -> Option<ScalarValue> {
+        if is_result_reference(self.program, self.machine, expression) {
+            return self.return_value();
+        }
+        let entry = self.program.machine_states(self.machine).first()?;
+        let mut place =
+            canonical_place_from_expression_in_state(self.program, entry.symbol, 0, expression)?;
+        let PlaceRoot::Symbol(root) = place.root else {
+            return None;
+        };
+        if self
+            .program
+            .state_parameters(entry)
+            .iter()
+            .any(|parameter| parameter.symbol == root)
+        {
+            let origin = self
+                .facts
+                .flow
+                .control
+                .exit_parameter_origins
+                .span_or_empty(self.exit.parameter_origins)
+                .iter()
+                .find(|origin| {
+                    origin.contract == self.contract && origin.entry_parameter == root
+                })?;
+            if !origin.state_parameter.is_valid() {
+                return None;
+            }
+            place.root = PlaceRoot::Symbol(origin.state_parameter);
+        }
+        // Dynamic selectors need their own evaluated occurrence, not a replay
+        // of an entry expression under a new state or storage revision.
+        if !stable_segments(&place.segments) {
+            return None;
+        }
+        scalar_value_at_place(self.program, &self.facts.semantic, self.contexts, &place)
+    }
+
+    fn return_value(&self) -> Option<ScalarValue> {
+        let expression = exit_return_expression(self.program, self.exit);
+        if !expression.is_valid()
+            || !has_builtin_operators(self.program, &self.facts.operators, expression)
+            || !self.call_frames.is_some_and(|frames| {
+                frames
+                    .expression_write_frame(self.machine, expression)
+                    .into_complete_paths()
+                    .is_some_and(|paths| paths.is_empty())
+            })
+        {
+            // Exit contexts describe storage after return-expression effects.
+            // Even a short-circuit expression cannot reread its left operand
+            // here if evaluating the right operand may have changed it.
+            return None;
+        }
+        evaluate_scalar(self.program, expression, &mut |leaf| {
+            let place = canonical_place_from_expression_in_state(
+                self.program,
+                self.exit.state_symbol,
+                self.exit.statement_index,
+                leaf,
+            )?;
+            if !stable_segments(&place.segments) {
+                return None;
+            }
+            scalar_value_at_place(self.program, &self.facts.semantic, self.contexts, &place)
+        })
+    }
+}
+
+fn has_builtin_operators(
+    program: &TypedTrees,
+    operators: &psi_checked_trees::CheckedOperatorFacts,
+    expression: ExpressionHandle,
+) -> bool {
+    use psi_typed_trees::expression::ExpressionNode;
+    if operators.uses.iter().any(|(_, operator_use)| {
+        operator_use.expression == expression
+            && operator_use.status
+                != psi_checked_trees::CheckedOperatorResolutionStatus::BuiltinFallback
+    }) {
+        return false;
+    }
+    match program.expression_table.expression(expression) {
+        ExpressionNode::Binary(binary) => {
+            has_builtin_operators(program, operators, binary.left)
+                && has_builtin_operators(program, operators, binary.right)
+        }
+        ExpressionNode::Unary(unary) => has_builtin_operators(program, operators, unary.operand),
+        ExpressionNode::Borrow(borrow) => has_builtin_operators(program, operators, borrow.target),
+        _ => true,
+    }
+}
+
+fn stable_segments(segments: &[PlaceSegment]) -> bool {
+    segments.iter().all(|segment| match segment {
+        PlaceSegment::Field { symbol } => symbol.is_valid(),
+        PlaceSegment::Case { variant } => variant.is_valid(),
+        PlaceSegment::FixedIndex { .. } => true,
+        _ => false,
+    })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use psi_checked_trees::{
+        CheckedOperatorFacts, CheckedOperatorResolutionStatus, CheckedOperatorUseFact,
+    };
+    use psi_typed_trees::expression::{BinaryOperator, ExpressionNode, TableBinaryExpression};
+
+    #[test]
+    fn scalar_exit_evaluation_never_reinterprets_a_selected_operator() {
+        let mut program = TypedTrees::default();
+        let operand = program
+            .expression_table
+            .insert(ExpressionNode::Boolean(true));
+        let expression =
+            program
+                .expression_table
+                .insert(ExpressionNode::Binary(TableBinaryExpression {
+                    operator: BinaryOperator::Equal,
+                    left: operand,
+                    right: operand,
+                }));
+        let mut operators = CheckedOperatorFacts::default();
+        assert!(has_builtin_operators(&program, &operators, expression));
+        operators.uses.append(CheckedOperatorUseFact {
+            expression,
+            status: CheckedOperatorResolutionStatus::BuiltinFallback,
+            ..Default::default()
+        });
+        assert!(has_builtin_operators(&program, &operators, expression));
+        operators.uses.append(CheckedOperatorUseFact {
+            expression,
+            status: CheckedOperatorResolutionStatus::Resolved,
+            ..Default::default()
+        });
+        assert!(!has_builtin_operators(&program, &operators, expression));
+    }
+}
