@@ -6,7 +6,7 @@
 // target's `in Wrapping` alone does not re-domain the count) -- the Wrapping
 // count is masked and the folding no-crash pin survives. Exits a FIXED 0 so it
 // is robust regardless of the shift's runtime value.
-use omega::language::std::console;
+use omega_language_std::console;
 data Main { console: Console; n: i32 in Wrapping; }
 machine Main::main(&mut self) {
     self.n = (1 as i32 in Wrapping) << 100; // must not crash the compiler

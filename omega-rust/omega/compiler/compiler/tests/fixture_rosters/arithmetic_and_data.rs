@@ -110,6 +110,9 @@ pub const ARITHMETIC_DOMAIN_TRAPPING_CONST_FOLD_OVERFLOW: &str =
     "expressions/arithmetic_domain_trapping_const_fold_overflow";
 pub const CONSTANT_TRAPPING_SHIFT_VALUE_OVERFLOW_TRAPS: &str =
     "arithmetic/constant_trapping_shift_value_overflow_traps";
+pub const SHIFT_AMOUNT_OVER_WIDTH_COMPILES: &str = "arithmetic/shift_amount_over_width_compiles";
+pub const RUNTIME_TRAPPING_SHIFT_COUNT_TRAPS: &str =
+    "arithmetic/runtime_trapping_shift_count_traps";
 pub const DEAD_TRAPPING_LET_TRAPS: &str = "expressions/dead_trapping_let_traps";
 pub const F32_FIELD_BINARY_TO_LOCAL_CAST: &str = "expressions/f32_field_binary_to_local_cast";
 pub const F32_TO_F64_LOCAL_CAST: &str = "expressions/f32_to_f64_local_cast";
@@ -234,6 +237,8 @@ pub const PASS_CANARIES: &[&str] = &[
     ARITHMETIC_DOMAIN_RETURN_RANGE_PROVEN_EXACT_EXIT,
     ARITHMETIC_DOMAIN_TRAPPING_CONST_FOLD_OVERFLOW,
     CONSTANT_TRAPPING_SHIFT_VALUE_OVERFLOW_TRAPS,
+    SHIFT_AMOUNT_OVER_WIDTH_COMPILES,
+    RUNTIME_TRAPPING_SHIFT_COUNT_TRAPS,
     DEAD_TRAPPING_LET_TRAPS,
     F32_FIELD_BINARY_TO_LOCAL_CAST,
     F32_TO_F64_LOCAL_CAST,

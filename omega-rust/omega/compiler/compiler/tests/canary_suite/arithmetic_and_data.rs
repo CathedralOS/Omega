@@ -1938,6 +1938,43 @@ fn constant_trapping_shift_value_overflow_aborts() {
 }
 
 #[test]
+fn wrapping_overwidth_shift_reaches_native_artifact_without_panicking() {
+    // The regression was a constant-folder panic, so checked trees alone do
+    // not exercise it. Keep the fixture's explicitly Wrapping left operand.
+    let canary = pass_canary(fixture_roster::SHIFT_AMOUNT_OVER_WIDTH_COMPILES);
+    let scratch = unique_no_output_build_dir();
+    let compilation = compile_rooted_canary_for_native_host(&canary, scratch.clone())
+        .expect("overwidth Wrapping shift should compile without a folder panic");
+    compilation
+        .retained_native_artifact()
+        .expect("overwidth Wrapping shift should retain its native artifact")
+        .validate()
+        .expect("overwidth Wrapping shift artifact should replay");
+    let _ = fs::remove_dir_all(&scratch);
+}
+
+#[test]
+fn runtime_trapping_shift_count_canary_aborts() {
+    // A zero left operand does not make an invalid Trapping count safe.
+    let canary = pass_canary(fixture_roster::RUNTIME_TRAPPING_SHIFT_COUNT_TRAPS);
+    let scratch = unique_no_output_build_dir();
+    let compilation = compile_rooted_canary_for_native_host(&canary, scratch.clone())
+        .expect("out-of-range Trapping shift canary should compile");
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("Trapping shift-count canary should retain its executable receipt");
+    let output = Command::new(executable)
+        .output()
+        .expect("out-of-range Trapping shift canary should spawn");
+    let code = output.status.code();
+    assert!(
+        code.is_none() || code.is_some_and(|code| code < 0),
+        "Trapping shift count must abort, got {code:?}"
+    );
+    let _ = fs::remove_dir_all(&scratch);
+}
+
+#[test]
 fn dead_trapping_let_traps_aborts() {
     // Abort-as-effect first sentence (owner, 2026-07-18): a trap is an
     // EFFECT, so a DEAD trapping computation is not dead -- the storage layer
