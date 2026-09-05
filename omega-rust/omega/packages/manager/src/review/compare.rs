@@ -11,6 +11,7 @@ mod commitments;
 mod error;
 mod format;
 mod limits;
+mod locked_policy;
 mod model;
 mod render_error;
 mod resources;
@@ -21,6 +22,7 @@ pub(crate) use capabilities::compare_review_only_capability_records;
 pub use capabilities::{
     compare_review_only_capabilities, compare_review_only_initial_capabilities,
 };
+pub use locked_policy::{LockedPolicyComparisonError, compare_locked_package_policies};
 pub use model::{
     ReviewOnlyCandidateClosureCommitment, ReviewOnlyCapabilityConflict,
     ReviewOnlyCapabilityConflictBaseline, ReviewOnlyCapabilityConflictChange,

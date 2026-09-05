@@ -59,8 +59,9 @@ adding machinery; do not invent proof-of-review or host-security requirements.
 
 ## 3. Record pins and accepted policy
 
-- [ ] **LOCK-BASELINE-RECOVERY.** Integrate lock loading with resolution and
-  checking. Locked use preserves exact pins and never silently updates a
+- [ ] **LOCK-BASELINE-RECOVERY.** Connect locked recovery and fresh checking
+  to command-level lock loading and explicit missing-baseline/unavailable-source
+  outcomes. Locked use preserves exact pins and never silently updates a
   selector. Verify acquired content against the recorded resolution.
   A missing acceptance baseline triggers fresh review of the complete graph.
   Unavailable old source preserves a readable accepted baseline and produces

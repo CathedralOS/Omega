@@ -142,8 +142,21 @@ source currently fails even if its snapshot remains cached.
 Recovery borrows the accepted lock, so unavailable source or content drift does
 not destroy the readable policy baseline. Its result is a source closure usable
 by ordinary compiler inputs, not a fresh analysis or renewed acceptance of old
-decisions. Fresh checking, stale-analysis handling, standalone candidate audit,
-and transactional publication remain separate integration work.
+decisions. Missing-baseline handling, standalone candidate audit, and
+transactional publication remain separate integration work.
+
+`operations::check_locked_sources` follows exact recovery with fresh checking of
+the complete graph through the ordinary candidate-review entrance. It preserves
+required semantic-binding discovery/final checking and generated-source handoffs;
+it does not reuse old compiler analysis or add another replay/promotion step.
+The result keeps the borrowed accepted target beside the fresh source closure
+and compiler review set. Full normalized policy comparison joins exact package
+keys, immutable resolutions, and target, then reports changed package keys in
+canonical source order. Same-spelled names do not merge packages. An unchanged
+policy is equality with recorded project policy, not renewed certification or
+permission to publish. This coarse change report is not the detailed row-level
+conflict/decision transaction, and missing old source never triggers selector
+refresh or an implicitly chosen candidate.
 
 Return to the [package subsystem map](../README.md), or consult:
 

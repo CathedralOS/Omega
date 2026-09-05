@@ -34,13 +34,15 @@ pub use candidate::{
     compile_resolved_package_reviews_with_semantic_bindings,
 };
 pub use compare::{
-    ReviewOnlyCandidateClosureCommitment, ReviewOnlyCapabilityConflict,
-    ReviewOnlyCapabilityConflictBaseline, ReviewOnlyCapabilityConflictChange,
-    ReviewOnlyCapabilityConflictError, ReviewOnlyCapabilityConflictFingerprint,
-    ReviewOnlyCapabilityConflictLimits, ReviewOnlyCapabilityConflictRenderError,
-    ReviewOnlyCapabilityConflictSet, ReviewOnlyPackageCapabilityConflicts,
-    ReviewOnlyRootRoleChange, ReviewOnlyRootRoleComparisonError, ReviewOnlyRootRoleContract,
-    ReviewSetRole, compare_review_only_capabilities, compare_review_only_initial_capabilities,
+    LockedPolicyComparisonError, ReviewOnlyCandidateClosureCommitment,
+    ReviewOnlyCapabilityConflict, ReviewOnlyCapabilityConflictBaseline,
+    ReviewOnlyCapabilityConflictChange, ReviewOnlyCapabilityConflictError,
+    ReviewOnlyCapabilityConflictFingerprint, ReviewOnlyCapabilityConflictLimits,
+    ReviewOnlyCapabilityConflictRenderError, ReviewOnlyCapabilityConflictSet,
+    ReviewOnlyPackageCapabilityConflicts, ReviewOnlyRootRoleChange,
+    ReviewOnlyRootRoleComparisonError, ReviewOnlyRootRoleContract, ReviewSetRole,
+    compare_locked_package_policies, compare_review_only_capabilities,
+    compare_review_only_initial_capabilities,
 };
 pub use decision::{
     ReviewOnlyRootPolicyDecision, ReviewOnlyRootPolicyDirectory, ReviewOnlyRootPolicyDisposition,
