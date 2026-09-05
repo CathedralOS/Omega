@@ -3,10 +3,11 @@
 (def collect_global_identities ((program Int)) Int
   (collect_global_nodes (first program) (second program)
     (pair (empty_name_trie)
-      (pair (empty_name_trie) (empty_name_trie))) 0))
+      (pair (empty_name_trie) (empty_name_trie))) 0 0))
 
 (def collect_global_nodes
-  ((remaining Int) (forms Int) (globals Int) (function_count Int)) Int
+  ((remaining Int) (forms Int) (globals Int) (function_count Int)
+   (constructor_count Int)) Int
   (if (eq remaining 0)
     (compiler_complete globals)
     (let form Int (first forms)
@@ -14,12 +15,14 @@
         (let is_data Int (token_data (syntax_start head) (syntax_after head))
           (let collected Int
             (if is_data
-              (collect_data_identity form globals)
+              (collect_data_identity form globals constructor_count)
               (collect_function_identity form globals function_count))
             (if (eq (first collected) 0)
               (collect_global_nodes
                 (- remaining 1) (second forms) (second collected)
-                (if is_data function_count (+ function_count 1)))
+                (if is_data function_count (+ function_count 1))
+                (if is_data (+ constructor_count (- (syntax_count form) 2))
+                  constructor_count))
               collected)))))))
 
 (def count_constructor_payloads
@@ -30,7 +33,7 @@
       (- remaining 1) (second constructors)
       (+ total (- (syntax_count (first constructors)) 1)))))
 
-(def collect_data_identity ((form Int) (globals Int)) Int
+(def collect_data_identity ((form Int) (globals Int) (constructor_count Int)) Int
   (let name Int (syntax_child form 1)
     (let start Int (syntax_start name)
       (let after Int (syntax_after name)
@@ -44,7 +47,7 @@
                     (pair count (count_constructor_payloads count constructors 0)))
                   (let collected Int
                     (collect_constructor_identities count constructors metadata
-                      (global_constructors globals) 1)
+                      (global_constructors globals) 1 constructor_count)
                     (if (eq (first collected) 0)
                       (compiler_complete
                         (pair
@@ -52,9 +55,11 @@
                           (pair (second collected) (global_functions globals))))
                       collected)))))))))))
 
+; D30 counts fresh authored constructors globally, not per data declaration.
+; Duplicate lookup precedes provision; a refused row allocates no metadata.
 (def collect_constructor_identities
   ((remaining Int) (constructors Int) (type_metadata Int)
-   (constructor_rows Int) (tag Int)) Int
+   (constructor_rows Int) (tag Int) (constructor_count Int)) Int
   (if (eq remaining 0)
     (compiler_complete constructor_rows)
     (let constructor Int (first constructors)
@@ -64,14 +69,17 @@
             (let prior Int (name_trie_find_option constructor_rows after start)
               (if (first prior)
                 (compiler_source_rejection 7 start)
-                (let metadata Int
-                  (pair type_metadata
-                    (pair tag
-                      (pair (- (syntax_count constructor) 1) (pair after 0))))
-                  (collect_constructor_identities
-                    (- remaining 1) (second constructors) type_metadata
-                    (name_trie_insert constructor_rows after start metadata)
-                    (+ tag 1)))))))))))
+                (if (lt constructor_count 65536)
+                  (let metadata Int
+                    (pair type_metadata
+                      (pair tag
+                        (pair (- (syntax_count constructor) 1) (pair after 0))))
+                    (collect_constructor_identities
+                      (- remaining 1) (second constructors) type_metadata
+                      (name_trie_insert constructor_rows after start metadata)
+                      (+ tag 1) (+ constructor_count 1)))
+                  (compiler_failure 2 1 3 start 65536
+                    (+ constructor_count 1)))))))))))
 
 ; The raw row retains its exact function node instead of a rescanned body end.
 ; Typed metadata is constructed only after the whole global census succeeds.

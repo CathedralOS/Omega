@@ -120,6 +120,13 @@ duplicate lookup precedes each fresh row, and a fresh 32,769th declaration
 returns `Incomplete` resource code 4 at its name, before row insertion or any
 declaration-type resolution. This count excludes metadata copies and generated
 helpers; it is not Gamma's separate 4,096-function generated-program limit.
+The census also counts fresh authored constructors across all data declarations.
+D30 admits 65,536 rows; a fresh 65,537th name returns `Incomplete` resource
+code 3 at that name, with limit/requested 65,536/65,537. Duplicate lookup
+precedes provision, and a refused constructor allocates no row metadata.
+Payload fields and the later declaration-resolution metadata rebuild do not
+advance this count. Constructor tags still restart within each data owner;
+the global resource count does not change their representation.
 Declaration resolution visits declarations, constructors, and
 fields in authored order. Each function parameter's conflict check precedes its
 own type annotation, parameters precede the result type, and the whole
@@ -252,9 +259,9 @@ duplicate type/constructor/function identity (6/7/8), local and pattern conflict
 duplicate and nonexhaustive match cases (17/18), missing `main` (19), and
 application schema mismatch (20).
 Missing `main` has no source coordinate; a schema mismatch
-anchors at the entry name. Source-byte, authored `function_rows`, and expression
-`parse_depth` refusals
-have owned resource frames; other compiler-owned resource accounting and
+anchors at the entry name. Source-byte, authored `function_rows` and
+`constructor_rows`, and expression `parse_depth` refusals have owned resource
+frames; other compiler-owned resource accounting and
 internal failure publication remain open. Lowering records expanded expression
 heights, including generated wrappers. Normalization uses the selected Gamma
 evaluator's 255-list body budget, reusing fitting subtrees and extracting whole
@@ -283,7 +290,7 @@ The downgraded full compiler remains separate under
 ## Measurements
 
 ```text
-2,916-line / 126,225-byte canonical entry plus shared Gamma implementation
+2,924-line / 126,793-byte canonical entry plus shared Gamma implementation
 7-line / 195-byte nullary-ADT Delta fixture
   -> 3-line / 165-byte Gamma receipt
   -> selected Gamma evaluation produces byte 9

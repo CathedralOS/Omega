@@ -117,7 +117,7 @@ wrong-signature rejection. Empty source is invalid Delta syntax, not an
 otherwise valid program missing an entry. Profile 2 and schema code 21 remain
 retired.
 
-## Authored function-row provision
+## Authored global-row provision
 
 The global census accounts for D30's `function_rows` resource. Its logical
 counter starts at zero and advances once for each fresh authored function
@@ -125,9 +125,15 @@ declaration. Types and constructors do not advance it. Typed metadata rebuilt
 after census, emitted runtime functions, and normalization helpers are not
 additional authored function rows.
 
+The constructor counter also starts at zero and advances once for each fresh
+authored constructor, across all data declarations. Its tags remain local to
+each data owner, but its resource count is global. Payload fields and the
+resolved metadata rebuild consume no additional authored constructor rows.
+
 | Tag | Resource code | Coordinate space | Coordinate | Limit/requested |
 | --- | --- | --- | --- | --- |
 | 2 Incomplete | 4 `function_rows` | 1 Delta source | fresh function-name token start | 32,768 / 32,769 |
+| 2 Incomplete | 3 `constructor_rows` | 1 Delta source | fresh constructor-name token start | 65,536 / 65,537 |
 
 The 32,768th fresh row is admitted. At each function name, exact duplicate
 lookup precedes provision: an already-present name rejects with tag 1/code 8,
@@ -135,6 +141,13 @@ even when all 32,768 rows are occupied. A fresh 32,769th name instead returns
 the resource frame before constructing or inserting its row. Collection then
 stops; it does not search later declarations for a preferred failure. Tag 2
 resource code 4 is distinct from tag 1 invalid-syntax code 4.
+
+The 65,536th fresh constructor is admitted. An already-present constructor
+name rejects with tag 1/code 7 even at that full capacity; a fresh 65,537th name
+instead produces the resource frame before constructing or inserting its row
+metadata. A duplicate data name rejects with tag 1/code 6 before any constructor
+in that declaration is provisioned. No counter resets at a data boundary, and
+an earlier unknown payload annotation cannot preempt the census outcome.
 
 Complete byte, lexical, balanced-parser, and grammar/depth checks precede this
 provision. Declaration-type resolution and every body check follow the complete
