@@ -7,7 +7,20 @@ use omega_selected_instructions::{
 };
 use omega_target::{Architecture, NativeTarget, ObjectFormat};
 
-use crate::{PostAllocationMachineIdentity, PostAllocationMachinePlan};
+use crate::PostAllocationMachinePlan;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct PostAllocationMachineIdentity([u8; 32]);
+
+impl PostAllocationMachineIdentity {
+    pub const fn from_bytes(bytes: [u8; 32]) -> Self {
+        Self(bytes)
+    }
+
+    pub const fn bytes(self) -> [u8; 32] {
+        self.0
+    }
+}
 
 pub fn post_allocation_machine_identity(
     plan: &PostAllocationMachinePlan,

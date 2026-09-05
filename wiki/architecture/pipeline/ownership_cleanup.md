@@ -9,6 +9,29 @@ claim that the target architecture has landed. The audit examined `2e8c31bd52`;
 the subsequent update to `d7eb11c68f` changed boundary checking/lowering, not the
 ownership findings below. Recheck the named code before implementation.
 
+## Discussion summary
+
+The X-to-Y design is achievable. The remaining problem is not the spelling of
+stage names: some outputs still carry earlier stage objects, some coordinators
+still own algorithms, and empty optimization selections still take different
+routes. Finish those ownership changes before treating folder cleanup as done.
+
+The allocation boundary now owns its current program independently of replay
+history. The physical emission boundary still needs that separation. Psi's
+checked and Terminal roots have been organized, but the other representation
+entrances and actual nonempty pre-Terminal optimization remain separate work.
+
+Keep these distinctions throughout the cleanup:
+
+- A representation is the current program, not a record of how it was built.
+- A transform changes that program; optimization is an explicit X-to-X phase.
+- Evidence can retain earlier inputs without making ordinary consumers walk
+  those inputs to find the current program.
+- Shared mechanisms belong with their actual data, semantic, or target owner;
+  repetition alone does not justify a new common package.
+- Concept-owned subfolders should explain each representation. Do not force
+  every representation into an identical places/drops/moves/edges template.
+
 ## Resume contract
 
 Suggested goal: complete sections A-D and their acceptance checks, preserving
@@ -23,6 +46,13 @@ than a past checkpoint's test results, determine what remains.
 Use the execution board as the index and this document as the rationale and
 acceptance reference. Keep implementation checkpoints separate from unresolved
 design choices.
+
+This document is a work reference, not an instruction to start an autonomous
+goal. A later goal can name sections A-D directly. The remaining implementation
+choices are the physical program's exact data boundary, which phase-private
+calculations should be consolidated, and which existing target-neutral passes
+can be moved before Terminal with their independent checks intact. Decide those
+from their consumers and invariants rather than preselecting crate names.
 
 ## Objective and boundary rules
 
@@ -70,12 +100,24 @@ wrappers; its analysis schemas remain to be separated from computation. The
 allocation admission capsule still retains an upstream target/proof input for
 downstream proof joins. That is not a replacement for converging target outputs.
 
-Next: replace the physical result's remaining ancestry adapter with a current
-physical-program root and remove old producer-stage packaging where only replay
-inputs are required. Retain transformation evidence
+`omega-physical-instructions/src/physical_instructions.rs` owns the physical
+instruction program, with subordinate control-flow, instruction, operand,
+identity, and codec areas. Its version-5 frame and version-6 content identity
+are unchanged. Construction and independent admission remain outside the
+representation; selected-form encoding imports the raw data from this owner.
+
+Next: replace the physical result's remaining ancestry adapter with independently
+owned current machine and layout data, and remove old producer-stage packaging
+where only replay inputs are required. Retain transformation evidence
 separately with exact bindings. Replay may require prior inputs, but execution
 must not recover its current program by traversing those inputs. Do not discard
 proof inputs merely to make the ownership graph look smaller.
+
+In particular, the resolved-layout carrier still embeds x86 encoding/footprint
+types and optimizer-specific evidence. Separate those from reusable layout data
+before moving that carrier down a layer; moving it wholesale would introduce
+backend dependencies into representations. The physical instruction root alone
+does not close this emission-boundary work.
 
 Acceptance: downstream allocation, layout, and emission APIs consume current
 representations and explicit policy/evidence. No production consumer selects
@@ -188,6 +230,24 @@ keep rule-specific proof obligations and domain-separated identities explicit.
    producer joins (D). This organization work can proceed alongside A-C.
 5. Complete applicable nonempty pre-Terminal optimization execution (D), with
    the remaining work kept visible until its behavioral controls pass.
+
+## Completion checklist
+
+- [ ] A: physical consumers read independently owned current program data;
+  replay retains and checks its inputs separately.
+- [ ] B: empty and nonempty selections use the same public phase graph and
+  output representations, preserving actual authority distinctions.
+- [ ] C: coordinators only sequence phases; schemas, algorithms, validation,
+  and target details have their appropriate owners.
+- [ ] D: each Psi representation has a clear root and coherent subordinate
+  owners; reusable pre-Terminal data is separate from producer-only joins.
+- [ ] D: applicable selected target-neutral optimizations actually execute
+  before Terminal publication and pass independent validation.
+- [ ] End-to-end controls cover standalone Psi, separately authorized resumed
+  lowering, empty/nonempty selection, and stale/substituted evidence rejection.
+
+These are acceptance checks, not a requirement to introduce six new packages
+or six new representations. The more detailed acceptance text in A-D governs.
 
 For each checkpoint, run focused behavior and corruption controls plus the
 applicable repository gates. Architectural controls should detect durable

@@ -86,7 +86,7 @@ impl FunctionFragmentEmissionManifest {
         let post_allocation_manifest =
             PostAllocationOptimizationManifestIdentity::from_bytes(cursor.array()?);
         let post_allocation_machine =
-            omega_machine_optimizer::PostAllocationMachineIdentity::from_bytes(cursor.array()?);
+            omega_physical_instructions::PostAllocationMachineIdentity::from_bytes(cursor.array()?);
         let final_pre_layout = SelectedFormEncodingIdentity::from_bytes(cursor.array()?);
         let final_resolved_layout =
             crate::ResolvedSelectedFormLayoutIdentity::from_bytes(cursor.array()?);

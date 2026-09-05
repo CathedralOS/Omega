@@ -1,8 +1,6 @@
 use omega_isa_x86_64::x86_64_physical_register_model;
-use omega_machine_optimizer::{
-    PhysicalOperandFootprint, PostAllocationMachineInstruction, X86XorZeroInstructionDisposition,
-    X86XorZeroPhysicalWrite,
-};
+use omega_machine_optimizer::{X86XorZeroInstructionDisposition, X86XorZeroPhysicalWrite};
+use omega_physical_instructions::{PhysicalOperandFootprint, PostAllocationMachineInstruction};
 use omega_register_model::{
     RegisterConstraintFamily, RegisterConstraintKey, RegisterOperandAccess,
     ValidatedPhysicalRegisterModel, validate_physical_register_model,

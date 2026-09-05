@@ -9,6 +9,7 @@ name = "omega_machine_optimizer"
 path = "src/lib.rs"
 
 [dependencies]
+omega-physical-instructions = { path = "../../representations/omega-physical-instructions" }
 omega-optimization-core = { path = "../../representations/omega-optimization-core" }
 omega-optimization-unit = { path = "../../representations/omega-optimization-unit" }
 omega-regalloc = { path = "../omega-regalloc" }

@@ -5,10 +5,10 @@ use omega_selected_instructions::selected_instructions::effects::program::encodi
 use super::PostAllocationMachineDecodeError;
 
 pub(super) fn map_field_error(
-    error: crate::PreAllocationMachineEffectDecodeError,
+    error: omega_selected_instructions::PreAllocationMachineEffectDecodeError,
 ) -> PostAllocationMachineDecodeError {
     match error {
-        crate::PreAllocationMachineEffectDecodeError::Truncated => {
+        omega_selected_instructions::PreAllocationMachineEffectDecodeError::Truncated => {
             PostAllocationMachineDecodeError::Truncated
         }
         _ => PostAllocationMachineDecodeError::InvalidField,

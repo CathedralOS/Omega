@@ -1,8 +1,8 @@
-//! V3 round-trip, closed-tag, framing, identity, and receipt tests.
+//! Round-trip, closed-tag, framing, and content-identity tests.
 
 use omega_optimization_core::PostAllocationOptimizationManifestIdentity;
 use omega_optimization_unit::{EffectLink, OwnershipEvent};
-use omega_regalloc::{AllocationLegalityIdentity, LiveRangeIdentity, RegisterHomeIdentity};
+use omega_register_homes::{AllocationLegalityIdentity, LiveRangeIdentity, RegisterHomeIdentity};
 use omega_register_model::{
     PhysicalRegisterModelIdentity, RegisterClassId, RegisterConstraintCatalogIdentity,
     RegisterConstraintFamily, RegisterConstraintKey, RegisterOperandAccess, RegisterUnitId,
@@ -18,6 +18,9 @@ use omega_selected_instructions::{
     StructuralUnitCallBarrier, StructuralUnitCallEffect, StructuralUnitCallEffectDeclaration,
     StructuralUnitCallFrameEffect, StructuralUnitCallMemoryEffect, VirtualRegisterId,
 };
+use omega_selected_instructions::{
+    PreAllocationMachineEffectIdentity, StructuralUnitCallMachineEffects,
+};
 use omega_target::NativeTarget;
 use omega_target_operations::MachineRegister;
 use psi_core::{ClaimId, MachineId, OperationId};
@@ -26,7 +29,6 @@ use crate::{
     MachineAlternativeChoiceRule, PhysicalOperandFootprint, PostAllocationMachineBlock,
     PostAllocationMachineFunction, PostAllocationMachineIdentity, PostAllocationMachineInstruction,
     PostAllocationMachinePlan, PostAllocationStructuralUnitFunction,
-    PreAllocationMachineEffectIdentity, StructuralUnitCallMachineEffects,
     post_allocation_machine_identity,
 };
 
@@ -216,6 +218,22 @@ fn post_allocation_codec_is_deterministic_and_round_trips_every_field() {
     let first = plan.encode();
     let second = plan.encode();
 
+    use sha2::{Digest, Sha256};
+    // Captured from the original optimizer-owned version-5 encoder.
+    assert_eq!(first.len(), 1158);
+    assert_eq!(
+        format!("{:x}", Sha256::digest(&first)),
+        "27ad65f5b9d1a58bc3972c51d65e25bd01ef242b3262de4ee430d7c603cb254d"
+    );
+    assert_eq!(
+        plan.identity.bytes(),
+        [
+            0x08, 0x78, 0xaa, 0x6a, 0xc9, 0xe3, 0x40, 0x08, 0x6d, 0x78, 0x32, 0xb1, 0x15, 0xdc,
+            0x22, 0x27, 0xd9, 0x6e, 0x40, 0x56, 0x0c, 0xfc, 0xaa, 0xcc, 0xf1, 0xcf, 0x40, 0x11,
+            0x69, 0x69, 0x05, 0x26,
+        ]
+    );
+
     assert_eq!(first, second);
     assert_eq!(PostAllocationMachinePlan::decode(&first), Ok(plan));
 }
@@ -355,12 +373,28 @@ fn post_allocation_codec_authenticates_structural_call_content() {
 }
 
 #[test]
-fn post_allocation_receipt_counts_atomic_structural_call_and_return() {
-    let receipt = crate::post_allocation_receipt(&plan()).unwrap();
+fn every_truncated_physical_frame_rejects() {
+    let encoded = plan().encode();
+    for end in 0..encoded.len() {
+        assert!(
+            PostAllocationMachinePlan::decode(&encoded[..end]).is_err(),
+            "truncated frame at byte {end} was accepted"
+        );
+    }
+}
 
-    assert_eq!(receipt.function_count(), 2);
-    assert_eq!(receipt.block_count(), 2);
-    assert_eq!(receipt.instruction_count(), 3);
-    assert_eq!(receipt.operand_count(), 1);
-    assert_eq!(receipt.unit_action_count(), 10);
+#[test]
+fn reauthenticated_physical_data_is_still_only_a_proposal() {
+    let mut substituted = plan();
+    substituted.functions[0].blocks[0].instructions[0]
+        .alternative
+        .key
+        .variant = u32::MAX;
+    substituted.identity = post_allocation_machine_identity(&substituted);
+    // Decoding is deliberately independent of a selected program and target
+    // catalog. The consuming validator must reconstruct the chosen alternative.
+    assert_eq!(
+        PostAllocationMachinePlan::decode(&substituted.encode()),
+        Ok(substituted)
+    );
 }

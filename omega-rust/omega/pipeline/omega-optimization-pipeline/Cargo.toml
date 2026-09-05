@@ -9,6 +9,7 @@ name = "omega_optimization_pipeline"
 path = "src/lib.rs"
 
 [dependencies]
+omega-physical-instructions = { path = "../../representations/omega-physical-instructions" }
 omega-calling-conventions = { path = "../../representations/omega-calling-conventions" }
 omega-optimization-run-to-abstract-operations = { path = "../omega-optimization-run-to-abstract-operations" }
 omega-machine-optimizer = { path = "../omega-machine-optimizer" }

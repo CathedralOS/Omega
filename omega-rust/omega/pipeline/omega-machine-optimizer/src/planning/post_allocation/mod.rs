@@ -1,14 +1,11 @@
 //! Optimizer module role: executable entrance. Deterministic post-allocation machine-plan construction and replay.
 
-mod codec;
 mod compute;
-mod identity;
 mod model;
 mod validate;
 
-pub use codec::PostAllocationMachineDecodeError;
-pub use identity::post_allocation_machine_identity;
 pub use model::*;
+pub use omega_physical_instructions::*;
 pub use validate::validate_post_allocation_machine_plan;
 
 /// Join one validated selected CFG, its pre-allocation machine effects, and

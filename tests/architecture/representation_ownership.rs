@@ -82,6 +82,18 @@ fn selected_program_has_one_representation_entrance() {
 fn program_representations_have_named_roots_and_concept_owners() {
     for (package, module, program, areas) in [
         (
+            "omega-physical-instructions",
+            "physical_instructions",
+            "PostAllocationMachinePlan",
+            &[
+                "control_flow",
+                "instructions",
+                "operands",
+                "identity",
+                "codec",
+            ][..],
+        ),
+        (
             "omega-register-homes",
             "register_homes",
             "AllocatedProgram",
@@ -183,6 +195,40 @@ fn register_home_data_is_independent_of_allocation_authority() {
     assert!(!representation.contains("ValidatedRegisterHomes"));
     assert!(allocator.contains("pub struct ValidatedRegisterHomes {"));
     let manifest = std::fs::read_to_string(owner.join("Cargo.toml")).unwrap();
+    assert!(!manifest.contains("omega-regalloc"));
+    assert!(!manifest.contains("/pipeline/"));
+}
+
+#[test]
+fn physical_instruction_data_is_independent_of_optimizer_authority() {
+    let owner = repository().join("omega-rust/omega/representations/omega-physical-instructions");
+    let representation = rust_source(&owner.join("src"));
+    let optimizer =
+        rust_source(&repository().join("omega-rust/omega/pipeline/omega-machine-optimizer/src"));
+    for declaration in [
+        "pub struct PostAllocationMachinePlan {",
+        "pub struct PostAllocationMachineFunction {",
+        "pub struct PostAllocationMachineBlock {",
+        "pub struct PostAllocationMachineInstruction {",
+        "pub struct PostAllocationStructuralUnitFunction {",
+        "pub struct PhysicalOperandFootprint {",
+        "pub struct PostAllocationMachineIdentity(",
+        "pub enum MachineAlternativeChoiceRule {",
+    ] {
+        assert_eq!(
+            representation.matches(declaration).count(),
+            1,
+            "{declaration}"
+        );
+        assert!(
+            !optimizer.contains(declaration),
+            "optimizer owns {declaration}"
+        );
+    }
+    assert!(!representation.contains("pub struct ValidatedPostAllocationMachinePlan"));
+    assert!(optimizer.contains("pub struct ValidatedPostAllocationMachinePlan {"));
+    let manifest = std::fs::read_to_string(owner.join("Cargo.toml")).unwrap();
+    assert!(!manifest.contains("omega-machine-optimizer"));
     assert!(!manifest.contains("omega-regalloc"));
     assert!(!manifest.contains("/pipeline/"));
 }

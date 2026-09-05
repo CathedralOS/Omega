@@ -1,7 +1,7 @@
-//! Optimizer module role: stage group. V3 machine-plan content vocabulary.
+//! Machine-plan content vocabulary shared by the supported wire versions.
 //!
 //! Ordered plan decoding and its physical instruction/operand vocabulary are
-//! the exact descendants of the sole current wire version.
+//! retained explicitly for decoding, without stage or validation authority.
 
 mod decoding;
 mod instruction;

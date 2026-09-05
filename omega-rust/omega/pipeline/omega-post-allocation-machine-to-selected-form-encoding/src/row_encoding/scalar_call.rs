@@ -6,7 +6,7 @@ use omega_isa_x86_64::{
     X86_64ScalarCallFixupKind, X86_64ScalarCallFixupState,
     encode_x86_64_selected_scalar_call_template,
 };
-use omega_machine_optimizer::PostAllocationMachineInstruction;
+use omega_physical_instructions::PostAllocationMachineInstruction;
 use omega_register_model::ValidatedPhysicalRegisterModel;
 use omega_selected_instructions::{SelectedInstructionId, SelectedInstructionKind};
 use omega_target::{Architecture, NativeTarget};
