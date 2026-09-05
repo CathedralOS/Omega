@@ -1,11 +1,13 @@
 //! Fixture inventory is independent of host eligibility and compile filters.
 use super::abi_runtime_values_and_strings::fixture_roster as abi_runtime_values_and_strings;
+use super::atomics_and_target_canaries::fixture_roster as atomics_and_target_canaries;
 use super::content_text_and_carriers::fixture_roster as content_text_and_carriers;
 use super::domains_control_and_structures::fixture_roster as domains_control_and_structures;
 use super::float_plans_and_policies::fixture_roster as float_plans_and_policies;
 use super::generics_and_dependent_facts::fixture_roster as generics_and_dependent_facts;
 use super::providers_float_and_console::fixture_roster as providers_float_and_console;
 use super::ranges_storage_and_entries::fixture_roster as ranges_storage_and_entries;
+use super::surface_and_targets::fixture_roster as surface_and_targets;
 use super::time_hosts_and_indexed_storage::fixture_roster as time_hosts_and_indexed_storage;
 use super::value_and_type_checks::fixture_roster as value_and_type_checks;
 use super::value_calls_and_dispatch::fixture_roster as value_calls_and_dispatch;
@@ -20,8 +22,16 @@ mod call_acknowledgements;
 mod concurrency_carry;
 #[path = "../fixture_rosters/layout_plans.rs"]
 mod layout_plans;
+#[path = "../../../../../../tests/native-differential/fixture_rosters/content_custody.rs"]
+mod native_content_custody;
 #[path = "../fixture_rosters/native_filesystem_canaries.rs"]
 mod native_filesystem_canaries;
+#[path = "../../../../../../tests/native-differential/fixture_rosters/recast_views.rs"]
+mod native_recast_views;
+#[path = "../../../../../../tests/native-differential/fixture_rosters/structural_return.rs"]
+mod native_structural_return;
+#[path = "../../../../../../tests/native-differential/fixture_rosters/terminal_sources.rs"]
+mod native_terminal_sources;
 #[path = "../fixture_rosters/no_selection_golden.rs"]
 mod no_selection_golden;
 #[path = "../fixture_rosters/package_compilation_inputs.rs"]
@@ -37,6 +47,13 @@ fn pass_roster() -> Vec<&'static str> {
     CHECKED_ONLY_PASS_CANARIES
         .iter()
         .chain(ACTIVE_PASS_CANARIES)
+        .chain(atomics_and_target_canaries::PASS_CANARIES)
+        .chain(surface_and_targets::PASS_CANARIES)
+        .chain(surface_and_targets::RECENT_ENCODER_PASS_CANARIES)
+        .chain(native_content_custody::PASS_CANARIES)
+        .chain(native_recast_views::PASS_CANARIES)
+        .chain(native_structural_return::PASS_CANARIES)
+        .chain(native_terminal_sources::PASS_CANARIES)
         .chain(WINDOWS_HOST_PASS_CANARIES)
         .chain(concurrency_carry::PASS_CANARIES)
         .chain(recast_views::PASS_CANARIES)
@@ -121,6 +138,7 @@ fn file_expectation_fail_roster() -> Vec<&'static str> {
     CHECKED_ONLY_FAIL_CANARIES
         .iter()
         .chain(ACTIVE_FAIL_CANARIES)
+        .chain(surface_and_targets::FILE_EXPECTATION_FAIL_CANARIES)
         .chain(no_selection_golden::FILE_EXPECTATION_FAIL_CANARIES)
         .chain(generics_and_dependent_facts::FILE_EXPECTATION_FAIL_CANARIES)
         .chain(generics_and_dependent_facts::CLOSED_INDEXED_FAIL_CANARIES)
@@ -131,6 +149,7 @@ fn file_expectation_fail_roster() -> Vec<&'static str> {
 fn fail_roster() -> Vec<&'static str> {
     file_expectation_fail_roster()
         .into_iter()
+        .chain(atomics_and_target_canaries::FAIL_CANARIES.iter().copied())
         .chain(concurrency_carry::FAIL_CANARIES.iter().map(|entry| entry.0))
         .chain(recast_views::FAIL_CANARIES.iter().copied())
         .chain(layout_plans::FAIL_CANARIES.iter().copied())

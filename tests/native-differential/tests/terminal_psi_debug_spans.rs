@@ -1,3 +1,6 @@
+#[path = "../fixture_rosters/integer_control.rs"]
+mod fixture_roster;
+
 use checked_trees_to_terminal_psi::lower_machine;
 use compiler::compile_to_checked;
 use semantic_vocabulary::{ContractId, EdgeId, ObligationId, OperationId};
@@ -9,7 +12,9 @@ fn source_canary() -> PathBuf {
         .ancestors()
         .nth(2)
         .expect("native differential tests live under tests/native-differential")
-        .join("tests/omega/pass/terminal_psi/integer_control_contract/main.omg")
+        .join("tests/omega/pass")
+        .join(fixture_roster::INTEGER_CONTROL_CONTRACT)
+        .join("main.omg")
 }
 
 fn operation_site(sites: &[DebugSite], operation: OperationId) -> &DebugSite {

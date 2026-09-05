@@ -1,5 +1,8 @@
 use super::*;
 
+#[path = "../fixture_rosters/atomics_and_target_canaries.rs"]
+pub(super) mod fixture_roster;
+
 fn assert_native_exit_code(
     report: &CompileReport,
     expected: i32,
@@ -30,7 +33,7 @@ fn assert_native_exit_code(
 /// target-specific global-order store realization rather than only parser legality.
 #[test]
 fn runtime_atomic_load_store_exit_canary_runs() {
-    let canary = pass_canary("atomics/runtime_atomic_load_store_exit");
+    let canary = pass_canary(fixture_roster::RUNTIME_ATOMIC_LOAD_STORE_EXIT);
     let build_dir =
         std::env::temp_dir().join(format!("omega-atomic-load-store-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
@@ -52,7 +55,7 @@ fn runtime_atomic_load_store_exit_canary_runs() {
 /// observed prior. Two successive calls check both returned and stored values.
 #[test]
 fn runtime_atomic_fetch_add_exit_canary_runs() {
-    let canary = pass_canary("atomics/runtime_atomic_fetch_add_exit");
+    let canary = pass_canary(fixture_roster::RUNTIME_ATOMIC_FETCH_ADD_EXIT);
     let build_dir =
         std::env::temp_dir().join(format!("omega-atomic-fetch-add-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
@@ -71,7 +74,7 @@ fn runtime_atomic_fetch_add_exit_canary_runs() {
 
 #[test]
 fn runtime_atomic_fetch_sub_exit_canary_runs() {
-    let canary = pass_canary("atomics/runtime_atomic_fetch_sub_exit");
+    let canary = pass_canary(fixture_roster::RUNTIME_ATOMIC_FETCH_SUB_EXIT);
     let build_dir =
         std::env::temp_dir().join(format!("omega-atomic-fetch-sub-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
@@ -105,7 +108,7 @@ fn runtime_atomic_fetch_sub_exit_canary_runs() {
 
 #[test]
 fn runtime_atomic_fetch_xor_exit_canary_runs() {
-    let canary = pass_canary("atomics/runtime_atomic_fetch_xor_exit");
+    let canary = pass_canary(fixture_roster::RUNTIME_ATOMIC_FETCH_XOR_EXIT);
     let build_dir =
         std::env::temp_dir().join(format!("omega-atomic-fetch-xor-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
@@ -135,7 +138,7 @@ fn runtime_atomic_fetch_xor_exit_canary_runs() {
 
 #[test]
 fn runtime_atomic_fetch_or_exit_canary_runs() {
-    let canary = pass_canary("atomics/runtime_atomic_fetch_or_exit");
+    let canary = pass_canary(fixture_roster::RUNTIME_ATOMIC_FETCH_OR_EXIT);
     let build_dir =
         std::env::temp_dir().join(format!("omega-atomic-fetch-or-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
@@ -165,7 +168,7 @@ fn runtime_atomic_fetch_or_exit_canary_runs() {
 
 #[test]
 fn runtime_atomic_fetch_and_exit_canary_runs() {
-    let canary = pass_canary("atomics/runtime_atomic_fetch_and_exit");
+    let canary = pass_canary(fixture_roster::RUNTIME_ATOMIC_FETCH_AND_EXIT);
     let build_dir =
         std::env::temp_dir().join(format!("omega-atomic-fetch-and-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
@@ -203,7 +206,7 @@ fn runtime_atomic_fetch_and_exit_canary_runs() {
 
 #[test]
 fn runtime_atomic_swap_exit_canary_runs() {
-    let canary = pass_canary("atomics/runtime_atomic_swap_exit");
+    let canary = pass_canary(fixture_roster::RUNTIME_ATOMIC_SWAP_EXIT);
     let build_dir = std::env::temp_dir().join(format!("omega-atomic-swap-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
 
@@ -244,7 +247,7 @@ fn runtime_atomic_swap_exit_canary_runs() {
 /// Failure path: CAS(10, 42) when counter==99 → prior==99, counter stays 99.
 #[test]
 fn runtime_atomic_compare_exchange_exit_canary_runs() {
-    let canary = pass_canary("atomics/runtime_atomic_compare_exchange_exit");
+    let canary = pass_canary(fixture_roster::RUNTIME_ATOMIC_COMPARE_EXCHANGE_EXIT);
     let build_dir =
         std::env::temp_dir().join(format!("omega-atomic-cmpxchg-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
@@ -279,7 +282,7 @@ fn runtime_atomic_compare_exchange_exit_canary_runs() {
 // payload delivery, tag-1 write, write_byte pass-through).
 #[test]
 fn runtime_console_byte_echo_exit_canary_runs() {
-    let canary = pass_canary("host/runtime_console_byte_echo_exit");
+    let canary = pass_canary(fixture_roster::RUNTIME_CONSOLE_BYTE_ECHO_EXIT);
     let build_dir =
         std::env::temp_dir().join(format!("omega-console-byte-echo-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
@@ -343,7 +346,7 @@ fn runtime_console_byte_echo_exit_canary_runs() {
 // cfg(windows) slot twin.
 #[test]
 fn efi_vtable_field_call_emits_indirect_dispatch() {
-    let canary = pass_canary("targets/efi_vtable_field_call");
+    let canary = pass_canary(fixture_roster::EFI_VTABLE_FIELD_CALL);
     let build_dir = std::env::temp_dir().join(format!("omega-vtable-field-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
     compile(CanaryCompileSpec {
@@ -369,7 +372,7 @@ fn efi_vtable_field_call_emits_indirect_dispatch() {
 // depending on the still-missing ELF dynamic-import image support.
 #[test]
 fn sysv_vtable_field_call_emits_indirect_dispatch() {
-    let canary = pass_canary("targets/sysv_vtable_field_call");
+    let canary = pass_canary(fixture_roster::SYSV_VTABLE_FIELD_CALL);
     let build_dir =
         std::env::temp_dir().join(format!("omega-sysv-vtable-field-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
@@ -456,7 +459,7 @@ fn sysv_vtable_field_call_emits_indirect_dispatch() {
 // host.
 #[test]
 fn efi_two_table_function_leaves_cross_compile() {
-    let canary = pass_canary("targets/efi_two_table_function_leaves");
+    let canary = pass_canary(fixture_roster::EFI_TWO_TABLE_FUNCTION_LEAVES);
     let build_dir =
         std::env::temp_dir().join(format!("omega-two-table-leaves-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
@@ -486,7 +489,7 @@ fn efi_two_table_function_leaves_cross_compile() {
 
 #[test]
 fn efi_out_param_call_marshals_addresses_and_stack_args() {
-    let canary = pass_canary("targets/efi_out_param_call");
+    let canary = pass_canary(fixture_roster::EFI_OUT_PARAM_CALL);
     let build_dir = std::env::temp_dir().join(format!("omega-out-param-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
     compile_with_auxiliary_artifacts(CanaryCompileSpec {
@@ -533,7 +536,7 @@ fn efi_out_param_call_marshals_addresses_and_stack_args() {
 // count>0 write).
 #[test]
 fn cross_console_byte_targets_emit_x86_64_flavors() {
-    let canary = pass_canary("host/cross_console_byte_targets");
+    let canary = pass_canary(fixture_roster::CROSS_CONSOLE_BYTE_TARGETS);
     let main_path = canary.join("main.omg");
 
     // This canary declares a nonempty ProgramEntry matrix for all four targets.
@@ -632,7 +635,7 @@ fn cross_console_byte_targets_emit_x86_64_flavors() {
 // frontend, an unused `let` refuses here too (no slot to serve).
 #[test]
 fn console_byte_field_target_rejected_canary_is_rejected() {
-    let canary = fail_canary("host/console_byte_field_target_rejected");
+    let canary = fail_canary(fixture_roster::CONSOLE_BYTE_FIELD_TARGET_REJECTED);
     let scratch = unique_no_output_build_dir();
     let diagnostics =
         match compile_single_file_hosted_main(&canary, &scratch, native_hosted_target()) {
@@ -661,7 +664,7 @@ fn console_byte_field_target_rejected_canary_is_rejected() {
 // every indexed access (the bubble_sort idiom over a sum element type).
 #[test]
 fn runtime_dutch_flag_partition_exit_canary_runs() {
-    let canary = pass_canary("collections/runtime_dutch_flag_partition_exit");
+    let canary = pass_canary(fixture_roster::RUNTIME_DUTCH_FLAG_PARTITION_EXIT);
     let build_dir =
         std::env::temp_dir().join(format!("omega-dutch-flag-partition-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
@@ -697,7 +700,7 @@ fn immutable_arg_for_mut_param_rejected_canary_is_rejected() {
     // (`&self.c` -- the shared `&` vanishes at parse time) for a `&mut T`
     // parameter is a compile error; the legitimate bare-name FORWARD of a
     // `&mut` binding stays legal (checked semantically, not syntactically).
-    let canary = fail_canary("calls/immutable_arg_for_mut_param_rejected");
+    let canary = fail_canary(fixture_roster::IMMUTABLE_ARG_FOR_MUT_PARAM_REJECTED);
     let diagnostics = match compile_canary_without_output(&canary) {
         Ok(report) => panic!(
             "expected the immutable lend for a `&mut` parameter to reject, but it compiled: {}",
@@ -718,7 +721,7 @@ fn immutable_arg_for_mut_param_rejected_canary_is_rejected() {
 
 #[test]
 fn float_wrapping_domain_rejected_canary_is_rejected() {
-    let canary = fail_canary("arithmetic/float_wrapping_domain_rejected");
+    let canary = fail_canary(fixture_roster::FLOAT_WRAPPING_DOMAIN_REJECTED);
     let diagnostics = match compile_canary_without_output(&canary) {
         Ok(report) => panic!(
             "expected `f32 in Wrapping` to reject, but it compiled: {}",

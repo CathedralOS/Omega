@@ -1,5 +1,8 @@
 //! Focused source-to-native canary for the first whole-root structural return.
 
+#[path = "../fixture_rosters/structural_return.rs"]
+mod fixture_roster;
+
 use abstract_operations::{AbstractFunctionResult, AbstractOperation};
 use abstract_operations_to_target_operations::lower_to_target_operations;
 use assigned_target_operations::AssignedOperation;
@@ -131,7 +134,9 @@ fn source_canary() -> PathBuf {
         .ancestors()
         .nth(2)
         .expect("native differential tests live under tests/native-differential")
-        .join("tests/omega/pass/terminal_psi/structural_content_passthrough/main.omg")
+        .join("tests/omega/pass")
+        .join(fixture_roster::STRUCTURAL_CONTENT_PASSTHROUGH)
+        .join("main.omg")
 }
 
 fn checked_source() -> checked_trees::CheckedTrees {

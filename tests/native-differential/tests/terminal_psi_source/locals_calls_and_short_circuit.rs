@@ -240,7 +240,7 @@ fn checked_source_direct_call_emits_its_reachable_terminal_closure() {
 #[test]
 fn checked_trait_operator_structural_call_reaches_native_artifact_custody() {
     let checked = compile_to_checked(
-        &terminal_source_canary("structural_scalar_trait_operator"),
+        &terminal_source_canary(fixture_roster::STRUCTURAL_SCALAR_TRAIT_OPERATOR),
         None,
     )
     .expect("the fixed trait-operator source canary should compile");
@@ -501,7 +501,7 @@ fn checked_source_guarded_short_circuit_call_argument_uses_the_staged_value() {
 
 #[test]
 fn aggregate_member_crash_contract_fails_closed_at_terminal_production() {
-    let canary = terminal_source_canary("member_crash_contract_boundary");
+    let canary = terminal_source_canary(fixture_roster::MEMBER_CRASH_CONTRACT_BOUNDARY);
     let checked = compile_to_checked(&canary, None).unwrap_or_else(|diagnostics| {
         panic!(
             "aggregate/member crash-contract boundary should reach checked semantics:\n{}",

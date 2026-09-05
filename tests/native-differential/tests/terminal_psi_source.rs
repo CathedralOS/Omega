@@ -2,6 +2,9 @@
 //! trees are dropped before canonical decoding, verification, interpretation,
 //! and Omega lowering.
 
+#[path = "../fixture_rosters/terminal_sources.rs"]
+mod fixture_roster;
+
 use abstract_operations::{
     AbstractBlockEntry, AbstractFunction, AbstractOperation, AbstractOperationPlan,
     AbstractParameter, ValueBinding,
@@ -140,13 +143,13 @@ fn terminal_source_canary(name: &str) -> PathBuf {
         .ancestors()
         .nth(2)
         .expect("native differential tests live under tests/native-differential")
-        .join("tests/omega/pass/terminal_psi")
+        .join("tests/omega/pass")
         .join(name)
         .join("main.omg")
 }
 
 fn source_canary() -> PathBuf {
-    terminal_source_canary("integer_control_contract")
+    terminal_source_canary(fixture_roster::INTEGER_CONTROL_CONTRACT)
 }
 
 fn progress_source_canary() -> PathBuf {
@@ -154,19 +157,21 @@ fn progress_source_canary() -> PathBuf {
         .ancestors()
         .nth(2)
         .expect("native differential tests live under tests/native-differential")
-        .join("tests/omega/pass/progress/provider_receiver_progress_installation/main.omg")
+        .join("tests/omega/pass")
+        .join(fixture_roster::PROVIDER_RECEIVER_PROGRESS_INSTALLATION)
+        .join("main.omg")
 }
 
 fn progress_free_selected_source_canary() -> PathBuf {
-    terminal_source_canary("selected_empty_component")
+    terminal_source_canary(fixture_roster::SELECTED_EMPTY_COMPONENT)
 }
 
 fn selected_optimizer_source_canary() -> PathBuf {
-    terminal_source_canary("selected_optimizer_component")
+    terminal_source_canary(fixture_roster::SELECTED_OPTIMIZER_COMPONENT)
 }
 
 fn selected_lowering_optimizer_source_canary() -> PathBuf {
-    terminal_source_canary("selected_lowering_optimizer_component")
+    terminal_source_canary(fixture_roster::SELECTED_LOWERING_OPTIMIZER_COMPONENT)
 }
 
 fn stage_terminal_component(
@@ -268,7 +273,7 @@ fn write_finalized_terminal_component_output(
 }
 
 fn unsupported_optimizer_source_canary() -> PathBuf {
-    terminal_source_canary("unsupported_optimizer_component")
+    terminal_source_canary(fixture_roster::UNSUPPORTED_OPTIMIZER_COMPONENT)
 }
 
 fn artifact_sections(verified: &VerifiedTerminalModule<'_>) -> (Vec<u8>, Vec<u8>) {
