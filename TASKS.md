@@ -471,9 +471,13 @@ Owners include
   projections. Retain selected arithmetic values across local assignments and
   materialize effectful returns and earlier call arguments at their exact
   evaluation points and activate staged loans at their evaluation points.
-  Complete anonymous integer landing for guarded returns, local/argument/store
-  destinations, and the full numeric operator/policy surface, so proof and
-  execution consume the same values without rereading changed operands.
+  Complete anonymous integer landing for guarded returns, mutable locals,
+  argument/store destinations, and the remaining numeric operator/policy
+  surface, so proof and execution consume the same values without rereading
+  changed operands.
+  Non-divisible anonymous integer division and signed remainder await the
+  [anonymous division ruling](OWNER_QUESTIONS.md#anonymous-integer-division-and-remainder);
+  this does not block the other destinations or already-defined operators.
   Acceptance: implicit cross-state use rejects, while explicit renamed
   transfers retain exact contracts, field selection, ownership and cleanup
   without requiring a runtime copy. Wrong results, mismatched output origins,

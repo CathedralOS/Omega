@@ -96,7 +96,8 @@
 //! pair validator above takes its `bundle: None` early return on every real
 //! compilation and returns `true` without comparing anything. The contract it
 //! validates is still specified in the present tense in
-//! `wiki/design_briefs/calling_plans.md`. Q6 in `OWNER_QUESTIONS.md` asks
+//! `wiki/design_briefs/calling_plans.md`. The macOS GUI publication destination
+//! question in `OWNER_QUESTIONS.md` asks
 //! whether the compiler publishes bundles or the brief is amended; do not
 //! resolve it by deleting the slot.
 

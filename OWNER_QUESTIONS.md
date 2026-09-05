@@ -146,7 +146,7 @@ custody, or engineering work on syscall/import mechanism identities and target
 classification. Raw descriptors continue to establish operation classes only,
 never object confinement.
 
-## Q6 — macOS GUI publication destination
+## Q5 — macOS GUI publication destination
 
 The Mach-O GUI publication contract in
 [`calling_plans.md`](wiki/design_briefs/calling_plans.md) states in the present
@@ -201,7 +201,7 @@ exercises, or any non-Darwin target.
 
 <a id="epsilon-constructor-payload-establishment-order"></a>
 
-## Q7 — Epsilon constructor payload establishment order
+## Q6 — Epsilon constructor payload establishment order
 
 Epsilon already admits stored `u8` fields in sum payloads and ordinary effectful
 constructor arguments. A compiler-host use case is a tagged decoded-byte token
@@ -234,3 +234,33 @@ that unsettled path. Nullary cases, in-range payloads, final-argument byte-range
 failures, sum copies/defaults, and case transitions can proceed under either
 rule. The final evaluator edge stays open until the rule and its competing-effect
 controls are settled.
+
+<a id="anonymous-integer-division-and-remainder"></a>
+
+## Q7 — Anonymous integer division and remainder
+
+Systems code uses compile-time arithmetic to size buffers and partition capacity.
+For an odd capacity, `let half: u32 = 4097 / 2;` needs one language-defined
+result before landing. The compiler must know whether to truncate, retain a
+fraction, or reject rather than infer a rule from the destination's width.
+
+Chapter 5 defines fixed-width `/` as truncation toward zero and `%` as the
+corresponding dividend-sign remainder. Its separate two-phase constant rule
+defines anonymous arithmetic as exact unbounded integer arithmetic, with `Rat`
+for decimals, but does not specify a non-integral anonymous quotient or the
+sign convention for anonymous remainder.
+
+Should `3 / 2` truncate to the unbounded integer `1`, produce exact rational
+`3/2` which cannot land in an integer destination, or reject until an operand
+is explicitly landed? For `(0 - 3) % 2`, should the anonymous result be `-1`,
+`1`, or require an explicit landing before remainder is defined?
+
+These are existing arithmetic spellings, not a proposed new surface. Current
+context-free integer evaluators use truncating `BigInt::div_rem`; that
+implementation is not a ruling. The shared anonymous landing evaluator admits
+only exactly divisible `/` and does not choose signed remainder semantics.
+
+Only expansion of those ambiguous anonymous operations is owner-blocked.
+Fixed-width division/remainder, exactly divisible anonymous division, and
+anonymous addition, subtraction, multiplication, and their destination coverage
+remain implementable under the existing rules.
