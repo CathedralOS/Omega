@@ -27,9 +27,10 @@ pub(super) fn load(
         }
         let Some(name) = path
             .strip_prefix("../fixture_rosters/")
+            .or_else(|| path.strip_prefix("fixture_rosters/"))
             .and_then(|name| name.strip_suffix(".rs"))
         else {
-            return Err("fixture roster must name one sibling fixture_rosters leaf".into());
+            return Err("fixture roster must name one adjacent fixture_rosters leaf".into());
         };
         if !identifier(name) || leaf.replace(path.to_owned()).is_some() {
             return Err("fixture roster declaration is invalid or ambiguous".into());

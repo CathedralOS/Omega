@@ -6,9 +6,11 @@ use super::atomics_and_target_canaries::fixture_roster as atomics_and_target_can
 use super::content_text_and_carriers::fixture_roster as content_text_and_carriers;
 use super::domains_control_and_structures::fixture_roster as domains_control_and_structures;
 use super::entry_and_abi::fixture_roster as entry_and_abi;
+use super::fixture_roster as root_fixture_roster;
 use super::float_plans_and_policies::fixture_roster as float_plans_and_policies;
 use super::generics_and_dependent_facts::fixture_roster as generics_and_dependent_facts;
 use super::host_text_filesystem_and_abi::fixture_roster as host_text_filesystem_and_abi;
+use super::inline_asm::fixture_roster as inline_asm;
 use super::layouts_and_pending::fixture_roster as layouts_and_pending;
 use super::portable_terminal_reload::fixture_roster as portable_terminal_reload;
 use super::proof_and_float_suites::fixture_roster as proof_and_float_suites;
@@ -59,6 +61,8 @@ fn pass_roster() -> Vec<&'static str> {
     let mut fixtures = [
         CHECKED_ONLY_PASS_CANARIES,
         ACTIVE_PASS_CANARIES,
+        root_fixture_roster::PASS_CANARIES,
+        inline_asm::PASS_CANARIES,
         entry_and_abi::PASS_CANARIES,
         recursion_slices_and_conversions::PASS_CANARIES,
         task_runtime::PASS_CANARIES,
@@ -218,6 +222,14 @@ fn file_expectation_fail_roster() -> Vec<&'static str> {
 fn fail_roster() -> Vec<&'static str> {
     file_expectation_fail_roster()
         .into_iter()
+        .chain(inline_asm::FAIL_CANARIES.iter().copied())
+        .chain(inline_asm::FLAGS_FAIL_CANARIES.iter().map(|entry| entry.0))
+        .chain(inline_asm::MSR_FAIL_CANARIES.iter().map(|entry| entry.0))
+        .chain(
+            inline_asm::CONTROL_REGISTER_FAIL_CANARIES
+                .iter()
+                .map(|entry| entry.0),
+        )
         .chain(task_runtime::FAIL_CANARIES.iter().copied())
         .chain(
             task_runtime::PARKED_CONTINUATION_FAIL_CANARIES
