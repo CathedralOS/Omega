@@ -45,9 +45,12 @@ fn staged_text_section() -> StagedOptimizedRelocationFreeTextSection {
 fn every_representable_text_manifest_field_rejects_after_reauthentication() {
     let mut staged = staged_text_section();
     let baseline = staged.manifest().record().clone();
-    // Stage, vocabulary, placement, relocation, and unavailable-data values are
-    // singleton in memory; the wire matrix below rejects every alternate tag.
-    let mutations: [(&str, ManifestMutation); 37] = [
+    // Vocabulary, placement, relocation, and unavailable-data values are
+    // singleton in memory; the wire matrix below rejects alternate tags.
+    let mutations: [(&str, ManifestMutation); 38] = [
+        ("stage", |record| {
+            record.stage = FunctionFragmentTextSectionStage::ValidatedFixedFrameInternalCallTextSectionPlacementV1
+        }),
         ("source_custody", |record| {
             record.source_custody =
                 FunctionFragmentTextSectionSourceCustody::FixedFrameApplicationV1 {
@@ -189,6 +192,13 @@ fn every_representable_text_manifest_field_rejects_after_reauthentication() {
         let record = staged.manifest_mut().record_mut();
         mutate(record);
         record.identity = record.recomputed_identity();
+        if field != "stage" && field != "source_custody" {
+            assert_eq!(
+                FunctionFragmentTextSectionManifest::decode(&record.encode()),
+                Ok(record.clone()),
+                "canonical {field} claim decodes as data, not as admission"
+            );
+        }
         assert_eq!(
             validate_optimized_relocation_free_text_section(&staged),
             Err(RelocationFreeTextSectionPlacementError::ManifestMismatch),

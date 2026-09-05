@@ -2,7 +2,9 @@
 //! The record is independent of its producer and grants no publication authority.
 
 mod identity;
+mod publication;
 pub use identity::relocation_free_text_section_identity;
+pub use publication::*;
 
 use omega_optimization_core::{
     FunctionFragmentEmissionIdentity, TerminalRelocationFreeTextSectionIdentity,

@@ -16,7 +16,7 @@ use psi_core::{MachineId, OperationId};
 
 use super::super::TextPlacementError;
 use super::{
-    conversion::usize_to_u64,
+    super::conversion::usize_to_u64,
     relocation_free::{alignment, block_spans},
 };
 

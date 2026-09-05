@@ -2,9 +2,12 @@
 //!
 //! Source and frame admission belong to the caller. These entrances transform
 //! raw data and check its exact placement; neither grants publication authority.
+mod conversion;
 mod error;
 mod production;
 mod source;
+mod statistics;
+pub use statistics::text_section_statistics;
 mod validation;
 
 pub use error::TextPlacementError;

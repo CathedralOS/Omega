@@ -18,7 +18,7 @@ use omega_machine_code::{
 use omega_post_allocation_machine_to_selected_form_encoding::SelectedStructuralUnitCallEncodingRow;
 
 use super::super::super::TextPlacementError;
-use super::super::conversion::u64_to_usize;
+use super::super::super::conversion::u64_to_usize;
 
 #[allow(clippy::too_many_arguments)]
 pub(super) fn resolve(

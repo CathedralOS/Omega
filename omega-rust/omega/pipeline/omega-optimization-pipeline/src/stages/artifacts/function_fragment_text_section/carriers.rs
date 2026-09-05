@@ -10,21 +10,26 @@ use crate::{
     StagedOptimizedFunctionFragmentEmission,
 };
 
-use super::model::FunctionFragmentTextSectionManifest;
+use omega_machine_code::FunctionFragmentTextSectionManifest;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ValidatedFunctionFragmentTextSectionManifest {
-    pub(super) record: FunctionFragmentTextSectionManifest,
+    pub(super) record: Arc<FunctionFragmentTextSectionManifest>,
 }
 
 impl ValidatedFunctionFragmentTextSectionManifest {
-    pub const fn record(&self) -> &FunctionFragmentTextSectionManifest {
+    pub fn record(&self) -> &FunctionFragmentTextSectionManifest {
         &self.record
+    }
+
+    /// Retain the exact current claim without its admission capsule.
+    pub fn shared_record(&self) -> Arc<FunctionFragmentTextSectionManifest> {
+        Arc::clone(&self.record)
     }
 
     #[cfg(test)]
     pub(crate) fn record_mut(&mut self) -> &mut FunctionFragmentTextSectionManifest {
-        &mut self.record
+        Arc::make_mut(&mut self.record)
     }
 }
 

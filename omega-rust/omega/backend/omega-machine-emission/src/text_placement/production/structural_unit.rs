@@ -13,7 +13,7 @@ use omega_target::Architecture;
 use super::super::StructuralFragmentPlacementInputs;
 
 use super::super::TextPlacementError;
-use super::conversion::{u64_to_usize, usize_to_u64};
+use super::super::conversion::{u64_to_usize, usize_to_u64};
 
 pub(in crate::text_placement) fn place(
     fragments: &omega_machine_code::FunctionFragmentEmissionPlan,

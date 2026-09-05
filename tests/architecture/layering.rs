@@ -5133,10 +5133,7 @@ fn selected_lowering_fragment_admission_is_rule_independent() {
     for (manifest, version) in [
         (publication.with_extension("").join("codec.rs"), 10),
         (
-            stage
-                .parent()
-                .expect("artifact stage parent")
-                .join("function_fragment_text_section/manifest_codec.rs"),
+            root.join("omega-rust/omega/representations/omega-machine-code/src/machine_code/layout/text_section/publication/codec.rs"),
             11,
         ),
     ] {

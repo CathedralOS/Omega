@@ -13,7 +13,7 @@ use omega_optimization_core::TerminalRelocationFreeTextSectionIdentity;
 use omega_target::Architecture;
 
 use super::super::TextPlacementError;
-use super::conversion::usize_to_u64;
+use super::super::conversion::usize_to_u64;
 
 pub(in crate::text_placement) fn place(
     fragments: &FunctionFragmentEmissionPlan,

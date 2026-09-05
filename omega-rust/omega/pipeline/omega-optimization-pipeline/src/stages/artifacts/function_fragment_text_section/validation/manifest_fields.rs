@@ -2,7 +2,7 @@
 use super::super::{
     FunctionFragmentTextSectionManifest, FunctionFragmentTextSectionSourceCustody,
     FunctionFragmentTextSectionStage, FunctionFragmentTextSectionUnavailableData,
-    RelocationFreeTextSectionPlacementError, assembly::statistics,
+    RelocationFreeTextSectionPlacementError,
 };
 use omega_machine_code::{
     FunctionFragmentEmissionManifest, FunctionFragmentEmissionPlan,
@@ -39,7 +39,8 @@ pub(super) fn check(
         || candidate.fragments != fragments.identity
         || candidate.placement_policy != section.policy
         || candidate.text_section != section.identity
-        || candidate.statistics != statistics(section, fragments)?
+        || candidate.statistics
+            != omega_machine_emission::text_section_statistics(section, fragments)?
         || candidate.symbols != FunctionFragmentTextSectionUnavailableData::Unavailable
         || candidate.object_container != FunctionFragmentTextSectionUnavailableData::Unavailable
         || candidate.external_entry_bridge

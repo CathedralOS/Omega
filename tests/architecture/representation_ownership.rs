@@ -80,6 +80,40 @@ fn text_placement_data_and_independent_checking_have_separate_owners() {
 }
 
 #[test]
+fn text_publication_records_and_codec_belong_to_the_representation() {
+    let root = repository();
+    let representation = root.join("omega-rust/omega/representations/omega-machine-code/src/machine_code/layout/text_section/publication.rs");
+    let data = std::fs::read_to_string(&representation).unwrap();
+    for declaration in [
+        "pub struct FunctionFragmentTextSectionManifest",
+        "pub struct FunctionFragmentTextSectionStatistics",
+        "pub enum FunctionFragmentTextSectionSourceCustody",
+    ] {
+        assert!(data.contains(declaration));
+    }
+    let codec = rust_source(&representation.with_extension(""));
+    assert!(codec.contains("const MANIFEST_VERSION: u32 = 11;"));
+    for forbidden in [
+        "omega_optimization_pipeline::",
+        "omega_machine_emission::",
+        "omega_machine_optimizer::",
+        "omega_object_file::",
+    ] {
+        assert!(
+            !data.contains(forbidden) && !codec.contains(forbidden),
+            "representation imports producer: {forbidden}"
+        );
+    }
+    let coordinator = root.join("omega-rust/omega/pipeline/omega-optimization-pipeline/src/stages/artifacts/function_fragment_text_section");
+    let source = rust_source(&coordinator);
+    assert!(!source.contains("pub struct FunctionFragmentTextSectionManifest {"));
+    assert!(!source.contains("fn encode_manifest_content"));
+    assert!(!source.contains("fn statistics("));
+    assert!(source.contains("Arc<FunctionFragmentTextSectionManifest>"));
+    assert!(source.contains("text_section_statistics(section, fragments)"));
+}
+
+#[test]
 fn selected_program_has_one_representation_entrance() {
     let directory =
         repository().join("omega-rust/omega/representations/omega-selected-instructions/src");

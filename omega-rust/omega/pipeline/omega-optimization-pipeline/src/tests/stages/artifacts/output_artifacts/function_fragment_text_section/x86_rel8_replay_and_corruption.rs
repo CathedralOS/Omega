@@ -141,8 +141,14 @@ fn relocation_free_rel8_text_section_replays_bytes_manifest_and_custody() {
         Err(RelocationFreeTextSectionPlacementError::ReceiptMismatch)
     );
     let current = placed.shared_text_section();
+    let manifest = placed.manifest().shared_record();
+    assert!(std::ptr::eq(manifest.as_ref(), placed.manifest().record()));
     let identity = current.identity;
     drop(placed);
     assert_eq!(current.recomputed_identity(), identity);
     assert_eq!(current.bytes, source_bytes);
+    assert_eq!(
+        FunctionFragmentTextSectionManifest::decode(&manifest.encode()),
+        Ok((*manifest).clone())
+    );
 }
