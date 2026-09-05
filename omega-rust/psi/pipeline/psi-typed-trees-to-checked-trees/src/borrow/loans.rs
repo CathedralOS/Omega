@@ -14,10 +14,12 @@ use owner_paths::{
 
 mod aggregate;
 mod owner_paths;
+mod returned_carriers;
 mod types;
 
 use types::{is_reference_type, reference_borrow_access_kind};
 
+#[derive(Clone)]
 pub(super) struct StatementBorrowLoan {
     pub(super) owner_symbol: SymbolHandle,
     pub(super) owner_name: Identifier,
@@ -635,6 +637,7 @@ fn helper_call_aggregate_borrow_loans(
         return Vec::new();
     };
     let arguments = program.expression_table.expression_handles(call.arguments);
+    let mut carried_arguments = Vec::new();
 
     fields
         .into_iter()
@@ -642,6 +645,20 @@ fn helper_call_aggregate_borrow_loans(
             let Some(argument) = arguments.get(field.non_self_index).copied() else {
                 return Vec::new();
             };
+            if !is_reference_type(program, field.source_type) {
+                return returned_carriers::argument_loans(
+                    program,
+                    state_symbol,
+                    statement_index,
+                    machine_symbol,
+                    local_data,
+                    argument,
+                    &field,
+                    owner_path_prefix,
+                    loan_trackers,
+                    &mut carried_arguments,
+                );
+            }
             let Some(place) = argument_borrow_loan_place(
                 program,
                 state_symbol,

@@ -80,6 +80,12 @@ fn check_bodyless_signature(
 
 fn ambiguity_message(subject: &str, ambiguity: &ViewReturnAmbiguity) -> String {
     match ambiguity {
+        ViewReturnAmbiguity::IncompleteStructure { subject: source } => format!(
+            "machine `{subject}` returns a view whose {source} has an incomplete structural lifetime frontier"
+        ),
+        ViewReturnAmbiguity::IncompatibleSourceAccess { input } => format!(
+            "machine `{subject}` returns a view whose access cannot be supplied by matching input `{input}`"
+        ),
         ViewReturnAmbiguity::ElidedMultipleInputs { candidates } => format!(
             "machine `{subject}` returns a view but takes {} candidate ref inputs ({}); \
              cannot infer which input the returned view borrows — annotate the return type \

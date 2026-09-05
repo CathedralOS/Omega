@@ -336,13 +336,10 @@ Owners include
 
 - **R5.** Finish exact inferred may-write summaries and relational candidates
   for unresolved receivers, boundary-result origins, contextual active-case
-  projections in immediate call literals, aggregate result routes and
-  owned-carrier result sources, computed reference arguments outside proven
-  helper-result relations, and other unsupported expression shapes.
+  projections in immediate call literals, graph-level aggregate result routes,
+  type-generic carrier substitution, computed reference arguments outside
+  proven helper-result relations, and other unsupported expression shapes.
   Prefer shared fixpoint and alias reasoning over syntax-shape exceptions.
-  Owned-carrier result sources need structural reference-boundary evidence
-  through alias freezing and returned-leaf loan transfer; coarse collection
-  footprints cannot distinguish private owned fields from reference siblings.
   Acceptance: all supported finite source shapes converge without widening
   permissions, and unsupported recursion fails explicitly.
 

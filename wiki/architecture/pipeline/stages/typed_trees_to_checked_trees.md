@@ -888,10 +888,12 @@ Current ownership is:
   and alternate or named result routes still need graph-level relations.
   The transfer validates the entire body, including terminal operand effects
   and reference-slot replacement fences, before freezing result leaves against
-  local aliases and stored carriers. Each exclusive leaf must originate in an
-  exclusive-reference formal with owned referent storage; callee-private leaves
-  cannot disappear as an empty caller footprint. Actual arguments and attached
-  receivers instantiate those formal origins with exact field suffixes or
+  local aliases and stored carriers. Each exclusive leaf must cross an
+  exclusive-reference boundary with owned referent storage, either a reference
+  formal or a structurally selected reference inside an owned formal.
+  Callee-private leaves cannot disappear as an empty caller footprint.
+  Actual arguments and attached receivers instantiate those formal origins
+  with exact field suffixes or
   absorbing collection precision. Empty selected cases retain their evidence.
   The body-recursion guard ends before caller-argument substitution, so finite
   repeated calls are not confused with recursive result bodies. A consumer
@@ -903,13 +905,21 @@ Current ownership is:
   lifetime checking retains their region arguments, and actual type-generic
   carriers still require substitution before this analysis can inspect them.
   This result evidence is storage information, not loan or lifetime authority.
-  Owned-carrier formal sources still need structural reference-boundary evidence
-  and returned-leaf loan transfer: a coarse array path cannot distinguish a
-  private owned element field from a sibling reference field. Immediate-literal
-  payload projections that need contextual active-case evidence likewise remain
-  unfinished. Passing an aggregate by value does not erase its references.
-  The same restriction applies to exclusive references to
-  reference-bearing carriers; primitive slices retain their collection reach.
+  Reference origins retain an exact source symbol and structural selectors
+  separately from their may-write footprint. Indexing may coarsen that footprint
+  without erasing the later field or case selecting the source reference.
+  Result substitution must cross that declared reference boundary; ancestor
+  overlap with a referenced sibling is not evidence of a reference value.
+  Fixed-index source selection retains its ordinal, while a runtime index unions
+  matching leaves. Callee-local runtime index identities are erased when
+  substituting caller sources. Stable aliases into frozen local carriers retain
+  that structural source through copies and rebinding; they do not choose one
+  candidate from a runtime-index union. Ordinary transfer and cycle equations
+  use the same alias admission. Immediate-literal payload projections that need
+  contextual active-case evidence remain unfinished. Passing an aggregate by
+  value does not erase its references.
+  Exclusive references to reference-bearing carriers remain opaque; primitive
+  slices retain their collection reach.
   A rejected trait-receiver call stays opaque through every fallback consumer,
   including direct-call queries and state-summary equations. It cannot regain
   a receiver-only complete frame from signature-free syntax.

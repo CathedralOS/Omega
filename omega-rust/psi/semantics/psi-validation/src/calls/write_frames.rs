@@ -71,8 +71,8 @@ use parameter_aliases::{
 };
 use path_instantiation::{instantiate_written_path, instantiate_written_path_with_origins};
 use place_paths::{
-    FramePathPrecision, FramePlaceOrigin, append_place_suffix, coarse_place_path, frame_place_path,
-    split_place_root,
+    FramePathPrecision, FramePlaceOrigin, FrameSourcePlace, append_place_suffix, coarse_place_path,
+    frame_place_path, split_place_root,
 };
 use reference_origins::receiver_frame_origin;
 use state_paths::{
@@ -281,6 +281,7 @@ fn summarize_resolved_call(
             .map(|path| FramePlaceOrigin {
                 path,
                 precision: FramePathPrecision::Exact,
+                source: Default::default(),
             })
     });
     let parameters = program.state_parameters(callee_state);
@@ -421,6 +422,7 @@ fn walk_state_write_prefix(
                     &isolated_local_roots,
                     &local_alias_origins,
                     symbols,
+                    &stored,
                 )
             }
             _ => None,
@@ -447,6 +449,7 @@ fn walk_state_write_prefix(
                                 aliases,
                                 symbols,
                                 true,
+                                &stored,
                             )
                         },
                     )
@@ -537,6 +540,7 @@ fn walk_state_write_prefix(
                                 aliases,
                                 symbols,
                                 true,
+                                &stored,
                             )
                         },
                     )?
@@ -601,6 +605,7 @@ fn walk_state_write_prefix(
                             &local_alias_origins,
                             symbols,
                             true,
+                            &stored,
                         )
                     })
                     .collect::<Vec<_>>();
@@ -742,6 +747,7 @@ fn stable_local_mutable_alias_origin(
     isolated_local_roots: &[String],
     aliases: &[(String, FramePlaceOrigin)],
     symbols: &TopLevelSymbols<'_>,
+    stored: &[StoredLocalOrigins],
 ) -> Option<FramePlaceOrigin> {
     let TypeReferenceNode::Reference { access, .. } = program
         .type_reference_table
@@ -763,6 +769,7 @@ fn stable_local_mutable_alias_origin(
         aliases,
         symbols,
         true,
+        stored,
     )
 }
 
@@ -778,6 +785,7 @@ fn stable_alias_initializer_origin(
     aliases: &[(String, FramePlaceOrigin)],
     symbols: &TopLevelSymbols<'_>,
     allow_isolated_local: bool,
+    stored: &[StoredLocalOrigins],
 ) -> Option<FramePlaceOrigin> {
     match program.expression_table.expression(expression) {
         ExpressionNode::Borrow(inner) => stable_alias_initializer_origin(
@@ -791,6 +799,7 @@ fn stable_alias_initializer_origin(
             aliases,
             symbols,
             allow_isolated_local,
+            stored,
         ),
         ExpressionNode::Call(call) => {
             if call_is_transparent_mutable_slice_view(program, call) {
@@ -805,6 +814,7 @@ fn stable_alias_initializer_origin(
                     aliases,
                     symbols,
                     allow_isolated_local,
+                    stored,
                 );
             }
             transparent_call_result_origin(
@@ -824,6 +834,7 @@ fn stable_alias_initializer_origin(
                         aliases,
                         symbols,
                         allow_isolated_local,
+                        stored,
                     )
                 },
             )
@@ -854,7 +865,12 @@ fn stable_alias_initializer_origin(
                 aliases,
                 symbols,
                 allow_isolated_local,
+                stored,
             )?;
+            collection.source =
+                collection
+                    .source
+                    .projected(program, expression, indexed.collection);
             collection.precision = FramePathPrecision::CollectionCoarse;
             Some(collection)
         }
@@ -870,14 +886,37 @@ fn stable_alias_initializer_origin(
                 aliases,
                 symbols,
                 allow_isolated_local,
+                stored,
             )?;
+            let source = receiver
+                .source
+                .projected(program, expression, member.receiver);
             Some(match receiver.precision {
                 FramePathPrecision::Exact => FramePlaceOrigin {
                     path: format!("{}.{}", receiver.path, member.member.as_str()),
                     precision: FramePathPrecision::Exact,
+                    source,
                 },
-                FramePathPrecision::CollectionCoarse => receiver,
+                FramePathPrecision::CollectionCoarse => FramePlaceOrigin { source, ..receiver },
             })
+        }
+        ExpressionNode::Cast(cast)
+            if cast.form.is_recast()
+                && !expression_is_effectful_for_transparent_result(program, cast.value) =>
+        {
+            stable_alias_initializer_origin(
+                program,
+                current_machine,
+                machine_symbols,
+                active_states,
+                cast.value,
+                parameters,
+                isolated_local_roots,
+                aliases,
+                symbols,
+                allow_isolated_local,
+                stored,
+            )
         }
         _ => stable_alias_expression_origin(
             program,
@@ -887,7 +926,17 @@ fn stable_alias_initializer_origin(
             aliases,
             symbols,
             allow_isolated_local,
-        ),
+        )
+        .or_else(|| {
+            let origin = frame_place_path(program, expression)?;
+            // Stored carrier slots cannot be replaced while this transfer is
+            // complete. Keep their symbolic source: a dynamic projection may
+            // reach several leaves, so freezing must not select just one.
+            stored
+                .iter()
+                .any(|local| local.local_symbol == origin.source.root)
+                .then_some(origin)
+        }),
     }
 }
 
@@ -968,6 +1017,10 @@ fn stable_alias_expression_origin(
                 symbols,
                 allow_isolated_local,
             )?;
+            collection.source =
+                collection
+                    .source
+                    .projected(program, expression, indexed.collection);
             collection.precision = FramePathPrecision::CollectionCoarse;
             Some(collection)
         }
@@ -981,12 +1034,16 @@ fn stable_alias_expression_origin(
                 symbols,
                 allow_isolated_local,
             )?;
+            let source = receiver
+                .source
+                .projected(program, expression, member.receiver);
             Some(match receiver.precision {
                 FramePathPrecision::Exact => FramePlaceOrigin {
                     path: format!("{}.{}", receiver.path, member.member.as_str()),
                     precision: FramePathPrecision::Exact,
+                    source,
                 },
-                FramePathPrecision::CollectionCoarse => receiver,
+                FramePathPrecision::CollectionCoarse => FramePlaceOrigin { source, ..receiver },
             })
         }
         _ => stable_alias_place_origin(
@@ -1031,6 +1088,7 @@ fn stable_assignment_target_path(
             aliases,
             symbols,
             true,
+            &[],
         )?
         .path,
     )
@@ -1105,12 +1163,19 @@ fn transparent_call_result_origin(
     };
     let argument_origin =
         resolve_actual_origin(callee_machine, result_parameter, actual, active_states)?;
+    let source = argument_origin
+        .source
+        .append_relative(&result_origin.place.source);
     Some(match argument_origin.precision {
         FramePathPrecision::Exact => FramePlaceOrigin {
             path: append_place_suffix(&argument_origin.path, result_suffix),
             precision: result_origin.place.precision,
+            source,
         },
-        FramePathPrecision::CollectionCoarse => argument_origin,
+        FramePathPrecision::CollectionCoarse => FramePlaceOrigin {
+            source,
+            ..argument_origin
+        },
     })
 }
 
@@ -1140,6 +1205,9 @@ fn transparent_place_expression_origin(
                 symbols,
                 active_states,
             )?;
+            origin.source = origin
+                .source
+                .projected(program, expression, indexed.collection);
             origin.precision = FramePathPrecision::CollectionCoarse;
             Some(origin)
         }
@@ -1150,12 +1218,16 @@ fn transparent_place_expression_origin(
                 symbols,
                 active_states,
             )?;
+            let source = origin
+                .source
+                .projected(program, expression, member.receiver);
             Some(match origin.precision {
                 FramePathPrecision::Exact => FramePlaceOrigin {
                     path: format!("{}.{}", origin.path, member.member.as_str()),
                     precision: FramePathPrecision::Exact,
+                    source,
                 },
-                FramePathPrecision::CollectionCoarse => origin,
+                FramePathPrecision::CollectionCoarse => FramePlaceOrigin { source, ..origin },
             })
         }
         ExpressionNode::Call(call) => {
@@ -1299,6 +1371,7 @@ fn transparent_callee_result_origin(
                             &stable_aliases,
                             symbols,
                             true,
+                            &[],
                         )?;
                         let (root, _) = split_place_root(&place.path);
                         isolated_local_roots
@@ -1563,6 +1636,11 @@ fn parameter_relative_place_origin(
                 symbols,
                 active_states,
             )?;
+            origin.place.source =
+                origin
+                    .place
+                    .source
+                    .projected(program, expression, indexed.collection);
             origin.place.precision = FramePathPrecision::CollectionCoarse;
             Some(origin)
         }
@@ -1579,6 +1657,11 @@ fn parameter_relative_place_origin(
             if origin.place.precision == FramePathPrecision::Exact {
                 origin.place.path = format!("{}.{}", origin.place.path, member.member.as_str());
             }
+            origin.place.source =
+                origin
+                    .place
+                    .source
+                    .projected(program, expression, member.receiver);
             Some(origin)
         }
         ExpressionNode::Name(_) => {
@@ -1607,13 +1690,18 @@ fn parameter_relative_place_origin(
                     root_symbol.is_none_or(|root| !root.is_valid()) && name == root;
                 (exact_symbol || unresolved_name).then_some(origin)
             })?;
+            let source = parent.place.source.append_segments(&place.source.segments);
             Some(ParameterRelativeFrameOrigin {
                 place: match parent.place.precision {
                     FramePathPrecision::Exact => FramePlaceOrigin {
                         path: append_place_suffix(&parent.place.path, suffix),
                         precision: place.precision,
+                        source,
                     },
-                    FramePathPrecision::CollectionCoarse => parent.place.clone(),
+                    FramePathPrecision::CollectionCoarse => FramePlaceOrigin {
+                        source,
+                        ..parent.place.clone()
+                    },
                 },
                 parameter_symbol: parent.parameter_symbol,
             })
@@ -1713,15 +1801,26 @@ fn parameter_relative_call_result_origin(
         active_states,
     )?;
     let (_, suffix) = split_place_root(&callee_origin.place.path);
+    let source = actual_origin
+        .place
+        .source
+        .append_relative(&callee_origin.place.source);
     Some(match actual_origin.place.precision {
         FramePathPrecision::Exact => ParameterRelativeFrameOrigin {
             place: FramePlaceOrigin {
                 path: append_place_suffix(&actual_origin.place.path, suffix),
                 precision: callee_origin.place.precision,
+                source,
             },
             parameter_symbol: actual_origin.parameter_symbol,
         },
-        FramePathPrecision::CollectionCoarse => actual_origin,
+        FramePathPrecision::CollectionCoarse => ParameterRelativeFrameOrigin {
+            place: FramePlaceOrigin {
+                source,
+                ..actual_origin.place
+            },
+            parameter_symbol: actual_origin.parameter_symbol,
+        },
     })
 }
 
@@ -1900,6 +1999,7 @@ fn build_permuted_cycle_frame_equation<'program>(
                     &isolated_local_roots,
                     &local_alias_origins,
                     symbols,
+                    &stored,
                 )
             }
             _ => None,
@@ -1926,6 +2026,7 @@ fn build_permuted_cycle_frame_equation<'program>(
                                 aliases,
                                 symbols,
                                 true,
+                                &stored,
                             )
                         },
                     )
@@ -1994,6 +2095,7 @@ fn build_permuted_cycle_frame_equation<'program>(
                                 aliases,
                                 symbols,
                                 true,
+                                &stored,
                             )
                         },
                     )?
@@ -2037,6 +2139,7 @@ fn build_permuted_cycle_frame_equation<'program>(
                             &local_alias_origins,
                             symbols,
                             true,
+                            &stored,
                         )
                     })
                     .collect::<Vec<_>>();

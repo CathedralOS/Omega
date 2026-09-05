@@ -1,13 +1,17 @@
 //! Frame-place path algebra for complete-or-opaque write summaries.
 //!
-//! Indexed projections deliberately coarsen to their collection. That loss of
-//! element identity is absorbing, so later member composition cannot invent a
-//! narrower caller-visible path. This leaf owns only path recovery and
+//! Indexed write footprints deliberately coarsen to their collection. That
+//! loss is absorbing in the string path; structural source selectors remain
+//! separate and retain later fields. This leaf owns only path recovery and
 //! composition; it performs no call resolution or frame traversal.
 
 use crate::arithmetic_domains;
 use psi_typed_trees::TypedTrees;
 use psi_typed_trees::expression::{ExpressionHandle, ExpressionNode};
+
+mod source_places;
+
+pub(super) use source_places::FrameSourcePlace;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(super) enum FramePathPrecision {
@@ -19,6 +23,7 @@ pub(super) enum FramePathPrecision {
 pub(super) struct FramePlaceOrigin {
     pub(super) path: String,
     pub(super) precision: FramePathPrecision,
+    pub(super) source: FrameSourcePlace,
 }
 
 pub(super) fn split_place_root(path: &str) -> (&str, &str) {
@@ -37,7 +42,7 @@ pub(super) fn coarse_place_path(
     program: &TypedTrees,
     expression: ExpressionHandle,
 ) -> Option<String> {
-    Some(frame_place_path(program, expression)?.path)
+    raw_frame_place_path(program, expression).map(|(path, _)| path)
 }
 
 /// Recover a frame path together with whether indexing discarded element
@@ -48,27 +53,38 @@ pub(super) fn frame_place_path(
     program: &TypedTrees,
     expression: ExpressionHandle,
 ) -> Option<FramePlaceOrigin> {
+    let (path, precision) = raw_frame_place_path(program, expression)?;
+    Some(FramePlaceOrigin {
+        path,
+        precision,
+        source: FrameSourcePlace::from_expression(program, expression),
+    })
+}
+
+/// String-only callers do not need a structural plan. Recover the coarse
+/// footprint first and normalize source selectors once, only when requested.
+fn raw_frame_place_path(
+    program: &TypedTrees,
+    expression: ExpressionHandle,
+) -> Option<(String, FramePathPrecision)> {
     match program.expression_table.expression(expression) {
-        ExpressionNode::Borrow(inner) => frame_place_path(program, inner.target),
+        ExpressionNode::Borrow(inner) => raw_frame_place_path(program, inner.target),
         ExpressionNode::Indexed(indexed) => {
-            let mut collection = frame_place_path(program, indexed.collection)?;
-            collection.precision = FramePathPrecision::CollectionCoarse;
-            Some(collection)
+            let (collection, _) = raw_frame_place_path(program, indexed.collection)?;
+            Some((collection, FramePathPrecision::CollectionCoarse))
         }
         ExpressionNode::Member(member) => {
-            let receiver = frame_place_path(program, member.receiver)?;
-            Some(match receiver.precision {
-                FramePathPrecision::Exact => FramePlaceOrigin {
-                    path: format!("{}.{}", receiver.path, member.member.as_str()),
-                    precision: FramePathPrecision::Exact,
-                },
-                FramePathPrecision::CollectionCoarse => receiver,
-            })
+            let (mut receiver, precision) = raw_frame_place_path(program, member.receiver)?;
+            if precision == FramePathPrecision::Exact {
+                receiver.push('.');
+                receiver.push_str(member.member.as_str());
+            }
+            Some((receiver, precision))
         }
-        _ => Some(FramePlaceOrigin {
-            path: arithmetic_domains::place_path(program, expression)?,
-            precision: FramePathPrecision::Exact,
-        }),
+        _ => Some((
+            arithmetic_domains::place_path(program, expression)?,
+            FramePathPrecision::Exact,
+        )),
     }
 }
 

@@ -205,6 +205,7 @@ pub(in crate::calls::write_frames) fn reference_leaves_with_origins(
                     origin: FramePlaceOrigin {
                         path,
                         precision: origin.precision,
+                        source: origin.source,
                     },
                 });
             }
