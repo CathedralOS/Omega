@@ -14,6 +14,35 @@ fn repository() -> PathBuf {
         .to_owned()
 }
 
+#[test]
+fn frame_calculations_have_phase_owners_and_replay_does_not_run_producers() {
+    let root = repository();
+    for owner in [
+        "omega-rust/omega/pipeline/omega-selected-instructions-to-register-homes/src/preservation",
+        "omega-rust/omega/pipeline/omega-post-allocation-machine-to-frame-layout/src/save_storage",
+        "omega-rust/omega/pipeline/omega-post-allocation-machine-to-frame-layout/src/spill_requirements",
+        "omega-rust/omega/pipeline/omega-post-allocation-machine-to-frame-layout/src",
+        "omega-rust/omega/backend/omega-machine-emission/src/frame_protocol",
+    ] {
+        let owner = root.join(owner);
+        let validator = std::fs::read_to_string(owner.join("validation.rs")).unwrap();
+        let replay = if owner.join("replay.rs").exists() {
+            std::fs::read_to_string(owner.join("replay.rs")).unwrap()
+        } else {
+            rust_source(&owner.join("replay"))
+        };
+        for source in [&validator, &replay] {
+            for forbidden in ["compute::", "super::compute", "function_layout("] {
+                assert!(
+                    !source.contains(forbidden),
+                    "{}: replay imports {forbidden}",
+                    owner.display()
+                );
+            }
+        }
+    }
+}
+
 fn rust_source(directory: &Path) -> String {
     let mut paths = std::fs::read_dir(directory)
         .unwrap()
@@ -976,11 +1005,11 @@ fn allocation_has_one_phase_owner_and_machine_consumers_ignore_history() {
     assert!(!current.contains("History"));
     assert!(retained.contains("self.current.validate_against(&current)?"));
     for consumer in [
-        "omega-register-homes-to-post-allocation-machine",
-        "omega-post-allocation-machine-to-optimized-machine",
-        "omega-register-homes-to-callee-saved-requirements",
+        "omega-register-homes-to-post-allocation-machine/src",
+        "omega-post-allocation-machine-to-optimized-machine/src",
+        "omega-selected-instructions-to-register-homes/src/preservation",
     ] {
-        let source = rust_source(&pipeline.join(consumer).join("src"));
+        let source = rust_source(&pipeline.join(consumer));
         assert!(
             source.contains("AllocationSource"),
             "{consumer} has no common allocation input"

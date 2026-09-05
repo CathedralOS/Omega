@@ -13,13 +13,13 @@ pub enum FunctionRelativeOptimizationRealizationError {
     ),
     ExitContract(WholeFunctionExitContractError),
     CalleeSavedRequirements(
-        omega_register_homes_to_callee_saved_requirements::AllocatedCalleeSavedRequirementError,
+        omega_selected_instructions_to_register_homes::AllocatedCalleeSavedRequirementError,
     ),
     CalleeSaveStorage(
-        omega_callee_saved_requirements_to_save_storage::NonAuthoritativeCalleeSaveStorageError,
+        omega_post_allocation_machine_to_frame_layout::NonAuthoritativeCalleeSaveStorageError,
     ),
     FrameLayout(omega_post_allocation_machine_to_frame_layout::TargetFrameLayoutError),
-    FrameProtocol(omega_frame_layout_to_frame_protocol::TargetFrameProtocolEncodingError),
+    FrameProtocol(crate::TargetFrameProtocolEncodingError),
     MissingFunctionRelativeLayoutOptimization,
     OptimizationCustodyUnavailable,
     StatisticsOverflow,

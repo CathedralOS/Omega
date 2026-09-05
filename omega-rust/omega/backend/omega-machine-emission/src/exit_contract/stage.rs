@@ -1,7 +1,7 @@
 use omega_register_model::ValidatedPhysicalRegisterModel;
 use omega_selected_instructions_to_register_homes::ValidatedSelectedAnalysis;
 
-use omega_frame_layout_to_frame_protocol::ValidatedTargetFrameProtocolEncoding;
+use crate::ValidatedTargetFrameProtocolEncoding;
 use omega_post_allocation_machine_to_frame_layout::ValidatedTargetFrameLayout;
 use omega_post_allocation_machine_to_optimized_machine::StagedOptimizedAarch64CbnzFusion;
 use omega_post_allocation_machine_to_selected_form_encoding::StagedOptimizedSelectedFormEncoding;

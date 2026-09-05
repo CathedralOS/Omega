@@ -4,7 +4,7 @@ use crate::{
 };
 
 use super::{
-    TargetFrameLayoutError, TargetFrameLayoutPlan, ValidatedTargetFrameLayout, compute, seal,
+    TargetFrameLayoutError, TargetFrameLayoutPlan, ValidatedTargetFrameLayout, replay, seal,
 };
 
 pub fn validate_target_frame_layout(
@@ -24,16 +24,7 @@ pub fn validate_target_frame_layout(
     {
         return Err(TargetFrameLayoutError::RootMismatch);
     }
-    let replayed = compute::derive(
-        machine,
-        requirements,
-        storage,
-        environment,
-        candidate.policy,
-    )?;
-    if candidate != replayed {
-        return Err(TargetFrameLayoutError::NonCanonicalLayout);
-    }
+    replay::validate_layout(machine, requirements, storage, environment, &candidate)?;
     let receipt = seal(&candidate);
     Ok(ValidatedTargetFrameLayout {
         plan: candidate,

@@ -3907,7 +3907,7 @@ fn abstract_spill_access_constraints_are_independent_and_non_executable() {
 fn spill_frame_requirements_are_independent_and_non_authoritative() {
     let root = workspace_root();
     let stage = root.join(
-        "omega-rust/omega/pipeline/omega-spill-access-constraints-to-frame-requirements/src/frame_requirements",
+        "omega-rust/omega/pipeline/omega-post-allocation-machine-to-frame-layout/src/spill_requirements",
     );
     let entrance = std::fs::read_to_string(stage.join("mod.rs"))
         .expect("read spill-frame requirement entrance");
@@ -3963,7 +3963,7 @@ fn spill_frame_requirements_are_independent_and_non_authoritative() {
 fn allocated_callee_saved_requirements_are_independent_exact_and_non_authoritative() {
     let root = workspace_root();
     let stage = root.join(
-        "omega-rust/omega/pipeline/omega-register-homes-to-callee-saved-requirements/src/callee_saved_requirements",
+        "omega-rust/omega/pipeline/omega-selected-instructions-to-register-homes/src/preservation",
     );
     let entrance = std::fs::read_to_string(stage.join("mod.rs"))
         .expect("read allocated callee-saved requirement entrance");

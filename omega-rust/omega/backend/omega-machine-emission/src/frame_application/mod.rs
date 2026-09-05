@@ -10,8 +10,8 @@ mod reflow;
 mod validation;
 mod validation_branch;
 
+use crate::TargetFrameProtocolEncodingPlan;
 pub use error::FrameApplicationError;
-use omega_frame_layout_to_frame_protocol::TargetFrameProtocolEncodingPlan;
 use omega_machine_code::{
     FunctionAppliedFrameEpilogue, FunctionAppliedFrameProtocol, FunctionFragmentEmissionPlan,
     FunctionFragmentFrameApplication, FunctionFragmentFrameApplicationIdentity,

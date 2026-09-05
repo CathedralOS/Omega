@@ -11,7 +11,7 @@ pub(super) struct CurrentFunctionFragmentInput {
     pub(super) homes: omega_selected_instructions_to_register_homes::ValidatedRegisterHomes,
     pub(super) environment: omega_target_to_register_environment::ValidatedTargetRegisterEnvironment,
     pub(super) encoding: omega_post_allocation_machine_to_selected_form_encoding::StagedOptimizedSelectedFormEncoding,
-    pub(super) frame_protocol: Option<omega_frame_layout_to_frame_protocol::ValidatedTargetFrameProtocolEncoding>,
+    pub(super) frame_protocol: Option<crate::ValidatedTargetFrameProtocolEncoding>,
     pub(super) frame_layout: Option<omega_post_allocation_machine_to_frame_layout::ValidatedTargetFrameLayout>,
     pub(super) exit: crate::ValidatedWholeFunctionExitContract,
     pub(super) manifest: crate::ValidatedFunctionRelativeOptimizationRealizationManifest,

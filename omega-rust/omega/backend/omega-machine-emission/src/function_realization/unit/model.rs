@@ -1,29 +1,29 @@
 use omega_optimization_core::FunctionRelativeOptimizationRealizationManifestIdentity;
 use omega_selected_instructions_to_register_homes::{AllocationReplayError, RetainedAllocation};
 
+use crate::ValidatedTargetFrameProtocolEncoding;
 use crate::{
     FunctionRelativeOptimizationRealizationError,
     ValidatedFunctionRelativeOptimizationRealizationManifest, ValidatedWholeFunctionExitContract,
 };
-use omega_callee_saved_requirements_to_save_storage::{
-    NonAuthoritativeCalleeSaveStorageIdentity, ValidatedNonAuthoritativeCalleeSaveStorage,
-};
-use omega_frame_layout_to_frame_protocol::ValidatedTargetFrameProtocolEncoding;
 use omega_machine_code::{
     TargetFrameLayoutIdentity, TargetFrameProtocolEncodingIdentity,
     WholeFunctionExitContractIdentity,
 };
 use omega_post_allocation_machine_to_frame_layout::ValidatedTargetFrameLayout;
-use omega_post_allocation_machine_to_selected_form_encoding::StagedOptimizedSelectedFormEncoding;
-use omega_register_homes_to_callee_saved_requirements::{
-    AllocatedCalleeSavedRequirementIdentity, ValidatedAllocatedCalleeSavedRequirements,
+use omega_post_allocation_machine_to_frame_layout::{
+    NonAuthoritativeCalleeSaveStorageIdentity, ValidatedNonAuthoritativeCalleeSaveStorage,
 };
+use omega_post_allocation_machine_to_selected_form_encoding::StagedOptimizedSelectedFormEncoding;
 use omega_register_homes_to_post_allocation_machine::{
     OptimizedPostAllocationMachinePipelineError,
     StagedOptimizedPostAllocationMachineCustodyReceipt, StagedOptimizedPostAllocationMachinePlan,
 };
 use omega_selected_form_encoding_to_resolved_layout::StagedOptimizedResolvedSelectedFormLayout;
 use omega_selected_instructions_to_register_homes::StagedOptimizedRegisterHomeCustodyReceipt;
+use omega_selected_instructions_to_register_homes::{
+    AllocatedCalleeSavedRequirementIdentity, ValidatedAllocatedCalleeSavedRequirements,
+};
 
 /// Exact baseline realization for the currently admitted receiver-free Unit
 /// semantic entry. This carrier proves function-relative bytes and exit
@@ -189,13 +189,13 @@ pub enum OptimizedUnitFunctionRelativeRealizationError {
         omega_selected_form_encoding_to_resolved_layout::OptimizedResolvedSelectedFormLayoutError,
     ),
     CalleeSavedRequirements(
-        omega_register_homes_to_callee_saved_requirements::AllocatedCalleeSavedRequirementError,
+        omega_selected_instructions_to_register_homes::AllocatedCalleeSavedRequirementError,
     ),
     CalleeSaveStorage(
-        omega_callee_saved_requirements_to_save_storage::NonAuthoritativeCalleeSaveStorageError,
+        omega_post_allocation_machine_to_frame_layout::NonAuthoritativeCalleeSaveStorageError,
     ),
     FrameLayout(omega_post_allocation_machine_to_frame_layout::TargetFrameLayoutError),
-    FrameProtocol(omega_frame_layout_to_frame_protocol::TargetFrameProtocolEncodingError),
+    FrameProtocol(crate::TargetFrameProtocolEncodingError),
     Exit(crate::WholeFunctionExitContractError),
     UnsupportedSelectionPhase,
     UnsupportedUnitShape,

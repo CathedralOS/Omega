@@ -11,6 +11,7 @@
 mod analyses;
 mod assignment;
 mod output;
+mod preservation;
 mod rewrites;
 
 pub use analyses::*;
@@ -20,4 +21,5 @@ pub use output::{
     AllocationEvidence, AllocationOutput, AllocationReplayError, AllocationSource,
     RetainedAllocation,
 };
+pub use preservation::*;
 pub use rewrites::*;

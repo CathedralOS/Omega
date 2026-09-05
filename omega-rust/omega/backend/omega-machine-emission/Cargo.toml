@@ -9,13 +9,11 @@ name = "omega_machine_emission"
 path = "src/lib.rs"
 
 [dependencies]
+sha2 = "0.10.9"
 omega-abstract-operations-to-target-operations = { path = "../../pipeline/omega-abstract-operations-to-target-operations" }
 omega-psi-to-abstract-operations = { path = "../../pipeline/omega-psi-to-abstract-operations" }
-omega-callee-saved-requirements-to-save-storage = { path = "../../pipeline/omega-callee-saved-requirements-to-save-storage" }
 omega-optimization-validation = { path = "../../pipeline/omega-optimization-validation" }
-omega-register-homes-to-callee-saved-requirements = { path = "../../pipeline/omega-register-homes-to-callee-saved-requirements" }
 omega-target-to-register-environment = { path = "../../pipeline/omega-target-to-register-environment" }
-omega-frame-layout-to-frame-protocol = { path = "../../pipeline/omega-frame-layout-to-frame-protocol" }
 omega-post-allocation-machine-to-frame-layout = { path = "../../pipeline/omega-post-allocation-machine-to-frame-layout" }
 omega-post-allocation-machine-to-optimized-machine = { path = "../../pipeline/omega-post-allocation-machine-to-optimized-machine" }
 omega-post-allocation-machine-to-selected-form-encoding = { path = "../../pipeline/omega-post-allocation-machine-to-selected-form-encoding" }

@@ -443,19 +443,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "omega-callee-saved-requirements-to-save-storage"
-version = "0.1.0"
-dependencies = [
- "omega-optimization-core",
- "omega-register-homes-to-callee-saved-requirements",
- "omega-register-model",
- "omega-target",
- "omega-target-to-register-environment",
- "psi-core",
- "sha2",
-]
-
-[[package]]
 name = "omega-calling-conventions"
 version = "0.1.0"
 dependencies = [
@@ -681,21 +668,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "omega-frame-layout-to-frame-protocol"
-version = "0.1.0"
-dependencies = [
- "omega-isa-aarch64",
- "omega-isa-x86_64",
- "omega-machine-code",
- "omega-post-allocation-machine-to-frame-layout",
- "omega-register-model",
- "omega-target",
- "omega-target-to-register-environment",
- "psi-core",
- "sha2",
-]
-
-[[package]]
 name = "omega-function-identity"
 version = "0.1.0"
 dependencies = [
@@ -906,9 +878,7 @@ dependencies = [
  "omega-abstract-operations",
  "omega-abstract-operations-to-target-operations",
  "omega-assigned-target-operations",
- "omega-callee-saved-requirements-to-save-storage",
  "omega-calling-conventions",
- "omega-frame-layout-to-frame-protocol",
  "omega-installation-evidence",
  "omega-isa-aarch64",
  "omega-isa-x86_64",
@@ -920,7 +890,6 @@ dependencies = [
  "omega-post-allocation-machine-to-optimized-machine",
  "omega-post-allocation-machine-to-selected-form-encoding",
  "omega-psi-to-abstract-operations",
- "omega-register-homes-to-callee-saved-requirements",
  "omega-register-homes-to-post-allocation-machine",
  "omega-register-model",
  "omega-selected-form-encoding-to-resolved-layout",
@@ -944,6 +913,7 @@ dependencies = [
  "psi-terminal-fuel",
  "psi-tokens-to-syntax-trees",
  "psi-typed-trees-to-checked-trees",
+ "sha2",
 ]
 
 [[package]]
@@ -983,7 +953,6 @@ dependencies = [
  "omega-abstract-operations-to-target-operations",
  "omega-artifacts",
  "omega-assigned-target-operations",
- "omega-callee-saved-requirements-to-save-storage",
  "omega-calling-conventions",
  "omega-compiler",
  "omega-component-candidate",
@@ -992,7 +961,6 @@ dependencies = [
  "omega-effects",
  "omega-executable-installation",
  "omega-external-roots",
- "omega-frame-layout-to-frame-protocol",
  "omega-image-emission",
  "omega-installation-evidence",
  "omega-isa-aarch64",
@@ -1013,14 +981,12 @@ dependencies = [
  "omega-program-entry-plan",
  "omega-provider-planning",
  "omega-psi-to-abstract-operations",
- "omega-register-homes-to-callee-saved-requirements",
  "omega-register-homes-to-post-allocation-machine",
  "omega-register-model",
  "omega-selected-form-encoding-to-resolved-layout",
  "omega-selected-instructions",
  "omega-selected-instructions-to-machine-effects",
  "omega-selected-instructions-to-register-homes",
- "omega-spill-access-constraints-to-frame-requirements",
  "omega-target",
  "omega-target-operations",
  "omega-target-operations-to-assigned-target-operations",
@@ -1280,13 +1246,13 @@ dependencies = [
 name = "omega-post-allocation-machine-to-frame-layout"
 version = "0.1.0"
 dependencies = [
- "omega-callee-saved-requirements-to-save-storage",
  "omega-machine-code",
+ "omega-optimization-core",
  "omega-physical-instructions",
- "omega-register-homes-to-callee-saved-requirements",
  "omega-register-homes-to-post-allocation-machine",
  "omega-register-model",
  "omega-selected-instructions",
+ "omega-selected-instructions-to-register-homes",
  "omega-target",
  "omega-target-to-register-environment",
  "psi-core",
@@ -1424,20 +1390,6 @@ version = "0.1.0"
 dependencies = [
  "omega-register-model",
  "omega-selected-instructions",
- "psi-core",
- "sha2",
-]
-
-[[package]]
-name = "omega-register-homes-to-callee-saved-requirements"
-version = "0.1.0"
-dependencies = [
- "omega-optimization-core",
- "omega-register-model",
- "omega-selected-instructions",
- "omega-selected-instructions-to-register-homes",
- "omega-target",
- "omega-target-to-register-environment",
  "psi-core",
  "sha2",
 ]
@@ -1602,19 +1554,6 @@ dependencies = [
  "psi-core",
  "psi-terminal",
  "psi-terminal-codec",
- "sha2",
-]
-
-[[package]]
-name = "omega-spill-access-constraints-to-frame-requirements"
-version = "0.1.0"
-dependencies = [
- "omega-optimization-core",
- "omega-register-model",
- "omega-selected-instructions-to-register-homes",
- "omega-target",
- "omega-target-to-register-environment",
- "psi-core",
  "sha2",
 ]
 

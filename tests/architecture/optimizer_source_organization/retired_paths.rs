@@ -24,6 +24,10 @@ pub(crate) fn check(audit: &mut Audit) {
     }
 
     for obsolete in [
+        "omega-rust/omega/pipeline/omega-register-homes-to-callee-saved-requirements/Cargo.toml",
+        "omega-rust/omega/pipeline/omega-callee-saved-requirements-to-save-storage/Cargo.toml",
+        "omega-rust/omega/pipeline/omega-spill-access-constraints-to-frame-requirements/Cargo.toml",
+        "omega-rust/omega/pipeline/omega-frame-layout-to-frame-protocol/Cargo.toml",
         "omega-rust/omega/pipeline/omega-optimization-policy/Cargo.toml",
         "omega-rust/omega/pipeline/omega-optimization-policy/src/lib.rs",
         "omega-rust/omega/pipeline/omega-optimization-pipeline/Cargo.toml",

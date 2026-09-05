@@ -59,16 +59,12 @@ omega-object-file = { path = "../../omega-rust/omega/backend/object/omega-object
 omega-legalized-operations = { path = "../../omega-rust/omega/representations/omega-legalized-operations" }
 omega-physical-instructions = { path = "../../omega-rust/omega/representations/omega-physical-instructions" }
 omega-target-to-register-environment = { path = "../../omega-rust/omega/pipeline/omega-target-to-register-environment" }
-omega-spill-access-constraints-to-frame-requirements = { path = "../../omega-rust/omega/pipeline/omega-spill-access-constraints-to-frame-requirements" }
 omega-selected-form-encoding-to-resolved-layout = { path = "../../omega-rust/omega/pipeline/omega-selected-form-encoding-to-resolved-layout" }
 omega-selected-instructions-to-machine-effects = { path = "../../omega-rust/omega/pipeline/omega-selected-instructions-to-machine-effects" }
 omega-register-homes-to-post-allocation-machine = { path = "../../omega-rust/omega/pipeline/omega-register-homes-to-post-allocation-machine" }
-omega-register-homes-to-callee-saved-requirements = { path = "../../omega-rust/omega/pipeline/omega-register-homes-to-callee-saved-requirements" }
 omega-post-allocation-machine-to-selected-form-encoding = { path = "../../omega-rust/omega/pipeline/omega-post-allocation-machine-to-selected-form-encoding" }
 omega-post-allocation-machine-to-optimized-machine = { path = "../../omega-rust/omega/pipeline/omega-post-allocation-machine-to-optimized-machine" }
 omega-post-allocation-machine-to-frame-layout = { path = "../../omega-rust/omega/pipeline/omega-post-allocation-machine-to-frame-layout" }
-omega-frame-layout-to-frame-protocol = { path = "../../omega-rust/omega/pipeline/omega-frame-layout-to-frame-protocol" }
-omega-callee-saved-requirements-to-save-storage = { path = "../../omega-rust/omega/pipeline/omega-callee-saved-requirements-to-save-storage" }
 omega-compiler = { path = "../../omega-rust/omega/compiler/omega-compiler" }
 omega-component-deployment = { path = "../../omega-rust/omega/build/omega-component-deployment" }
 omega-effects = { path = "../../omega-rust/omega/representations/omega-effects" }

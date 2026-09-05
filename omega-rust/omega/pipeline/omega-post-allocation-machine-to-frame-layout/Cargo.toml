@@ -9,9 +9,9 @@ name = "omega_post_allocation_machine_to_frame_layout"
 path = "src/lib.rs"
 
 [dependencies]
+omega-selected-instructions-to-register-homes = { path = "../omega-selected-instructions-to-register-homes" }
+omega-optimization-core = { path = "../../representations/omega-optimization-core" }
 omega-machine-code = { path = "../../representations/omega-machine-code" }
-omega-callee-saved-requirements-to-save-storage = { path = "../omega-callee-saved-requirements-to-save-storage" }
-omega-register-homes-to-callee-saved-requirements = { path = "../omega-register-homes-to-callee-saved-requirements" }
 omega-register-homes-to-post-allocation-machine = { path = "../omega-register-homes-to-post-allocation-machine" }
 omega-register-model = { path = "../../representations/omega-register-model" }
 omega-selected-instructions = { path = "../../representations/omega-selected-instructions" }

@@ -6,7 +6,7 @@ use omega_optimization_core::FunctionFragmentEmissionManifestIdentity;
 use omega_register_model::ValidatedPhysicalRegisterModel;
 use omega_target::Architecture;
 
-use omega_frame_layout_to_frame_protocol::TargetFrameProtocolEncodingPlan;
+use crate::TargetFrameProtocolEncodingPlan;
 
 use super::{
     FrameApplicationError, FunctionAppliedFrameEpilogue, FunctionAppliedFrameProtocol,
@@ -81,8 +81,7 @@ pub(super) fn apply(
         identity: FunctionFragmentFrameApplicationIdentity::from_bytes([0; 32]),
         source_fragment_manifest: source_manifest,
         source_fragments: source.identity,
-        frame_protocol:
-            omega_frame_layout_to_frame_protocol::target_frame_protocol_encoding_identity(protocol),
+        frame_protocol: crate::target_frame_protocol_encoding_identity(protocol),
         functions: applications,
         fragments,
     };
@@ -337,7 +336,7 @@ mod tests {
     use psi_core::{EdgeId, FuelScheduleIdentity, MachineId};
     use psi_terminal::{SemanticFingerprint, TerminalPsiIdentity, VocabularyMarker};
 
-    use omega_frame_layout_to_frame_protocol::{
+    use crate::{
         FrameProtocolByteSpan, FunctionTargetFrameProtocolEncoding,
         TargetFrameProtocolEncodingPolicy,
     };
