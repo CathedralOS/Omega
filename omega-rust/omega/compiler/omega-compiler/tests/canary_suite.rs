@@ -701,6 +701,7 @@ const CHECKED_ONLY_FAIL_CANARIES: &[&str] = &[
     "data/proof_only_runtime_property_rejected",
     "data/proof_only_state_param_rejected",
     "wire/proof_only_wire_field_rejected",
+    "float/suffix_call_argument_disagrees_rejected",
     "traits/conformance_item_missing_member",
     "traits/conformance_item_unknown_trait",
     "constraints/mutable_scalar_value_invalidated",
