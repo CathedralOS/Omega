@@ -182,8 +182,8 @@ pub(crate) use place::{
     canonical_place_joined_segments_may_overlap, canonical_place_overlaps_joined_segments,
     canonical_place_overlaps_segments, canonical_place_segments_equal,
     canonical_place_segments_may_overlap, effective_member_symbol, expression_type_symbol,
-    index_place_segment, push_field_place_segments, resolve_member_symbol_from_type_symbol,
-    symbol_type_symbol,
+    index_place_segment, literal_argument_access_places, push_field_place_segments,
+    resolve_member_symbol_from_type_symbol, symbol_type_symbol,
 };
 use reach::attach_reach_summaries;
 use state::build_state_flow_fact;

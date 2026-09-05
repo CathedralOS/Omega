@@ -3,7 +3,7 @@
 //! The literal walker is shared with call instantiation. State transfer stores
 //! canonical origins now, not expressions to replay after an alias is rebound.
 
-use super::path_instantiation::aggregate_arguments::reference_leaves_with_stored_origins;
+use super::path_instantiation::aggregate_arguments::reference_leaves_with_origins;
 use super::place_paths::{
     FramePathPrecision, FramePlaceOrigin, append_place_suffix, split_place_root,
 };
@@ -11,8 +11,11 @@ use super::{Machine, SymbolHandle, TopLevelSymbols, TypedTrees};
 use psi_facts::PlaceSegment;
 use psi_typed_trees::statement::TableLocalData;
 
-mod parameters;
 mod projections;
+mod type_origins;
+
+pub(super) use projections::symbolic_reference_leaves;
+pub(super) use type_origins::demand_is_declared;
 
 #[derive(Debug, Clone)]
 pub(super) struct StoredLocalOrigins {
@@ -60,7 +63,7 @@ pub(super) fn declaration_origins(
     {
         return None;
     }
-    let leaves = reference_leaves_with_stored_origins(
+    let leaves = reference_leaves_with_origins(
         program,
         machine,
         local.initial_value,

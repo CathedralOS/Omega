@@ -7,6 +7,9 @@ use crate::calls::write_frames::isolation::struct_literal_matches_expected_type;
 use crate::calls::write_frames::reference_origins::{
     exclusive_reference_origin, referent_has_only_owned_storage,
 };
+use crate::calls::write_frames::stored_origins::{
+    demand_is_declared, place_suffix, symbolic_reference_leaves,
+};
 use crate::symbols::TopLevelSymbols;
 use psi_facts::PlaceSegment;
 use psi_symbols::SymbolHandle;
@@ -67,7 +70,7 @@ pub(in crate::calls::write_frames) fn reference_leaves(
     symbols: &TopLevelSymbols<'_>,
     active_states: &mut Vec<SymbolHandle>,
 ) -> Option<AggregateOrigins> {
-    reference_leaves_with_stored_origins(
+    reference_leaves_with_origins(
         program,
         caller_machine,
         argument,
@@ -75,13 +78,15 @@ pub(in crate::calls::write_frames) fn reference_leaves(
         suffix,
         symbols,
         active_states,
-        &|_, _| None,
+        &|expression, reference| {
+            symbolic_reference_leaves(program, caller_machine, expression, reference)
+        },
     )
 }
 
-/// State transfer supplies prior value evidence; the shared walker only
-/// attaches those leaves beneath the current literal's structural prefix.
-pub(in crate::calls::write_frames) fn reference_leaves_with_stored_origins(
+/// The caller supplies frozen or symbolic leaf evidence; the shared walker
+/// filters demand and attaches it beneath the current literal's prefix.
+pub(in crate::calls::write_frames) fn reference_leaves_with_origins(
     program: &TypedTrees,
     caller_machine: &Machine,
     argument: ExpressionHandle,
@@ -89,7 +94,7 @@ pub(in crate::calls::write_frames) fn reference_leaves_with_stored_origins(
     suffix: &str,
     symbols: &TopLevelSymbols<'_>,
     active_states: &mut Vec<SymbolHandle>,
-    stored_origins: &impl Fn(ExpressionHandle, TypeReferenceHandle) -> Option<AggregateOrigins>,
+    resolve_origins: &impl Fn(ExpressionHandle, TypeReferenceHandle) -> Option<AggregateOrigins>,
 ) -> Option<AggregateOrigins> {
     let mut pending = vec![(
         argument,
@@ -115,19 +120,25 @@ pub(in crate::calls::write_frames) fn reference_leaves_with_stored_origins(
                 TypeReferenceNode::Named { .. } | TypeReferenceNode::FixedArray { .. }
             )
         {
-            // Public argument queries cannot replay a caller prefix inside raw
-            // frame inference. Their default resolver refuses this boundary;
-            // declaration transfer supplies the already-established evidence.
-            if !suffix.is_empty() {
+            // Declaration transfer supplies frozen evidence; raw calls retain
+            // symbolic source leaves for their existing caller-prefix closure.
+            let moved = resolve_origins(expression, reference)?;
+            if !demand_is_declared(program, reference, suffix) {
                 return None;
             }
-            let moved = stored_origins(expression, reference)?;
             for case in moved.cases {
                 let mut selection = local_segments.clone();
                 selection.extend(case);
                 leaves.cases.push(selection);
             }
             for mut leaf in moved.references {
+                if let Some(remainder) = place_suffix(&leaf.local_suffix, suffix) {
+                    if leaf.origin.precision == FramePathPrecision::Exact {
+                        leaf.origin.path = append_place_suffix(&leaf.origin.path, remainder);
+                    }
+                } else if place_suffix(suffix, &leaf.local_suffix).is_none() {
+                    continue;
+                }
                 let mut segments = local_segments.clone();
                 segments.extend(leaf.local_segments);
                 leaf.local_segments = segments;

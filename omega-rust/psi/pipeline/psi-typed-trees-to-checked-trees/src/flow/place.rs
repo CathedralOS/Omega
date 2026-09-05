@@ -1,6 +1,7 @@
 mod canonicalization;
 mod comparison;
 mod contextual;
+mod literal_projection;
 mod resolution;
 
 use super::*;
@@ -15,6 +16,7 @@ pub(crate) use comparison::{
     canonical_place_segments_may_overlap,
 };
 pub(crate) use contextual::contextual_canonical_place_from_expression;
+pub(crate) use literal_projection::literal_argument_access_places;
 pub(crate) use resolution::{
     effective_member_symbol, expression_type_symbol, resolve_member_symbol_from_type_symbol,
     symbol_type_symbol,
