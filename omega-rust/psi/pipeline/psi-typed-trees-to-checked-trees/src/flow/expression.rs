@@ -26,7 +26,7 @@ enum InvocationSite {
     Transition(TransitionTargetHandle),
 }
 
-pub(super) struct Execution<'a, 'b> {
+pub(super) struct Execution<'a, 'b, 'plans> {
     program: &'a psi_typed_trees::TypedTrees,
     borrow: &'a BorrowFacts,
     proof: &'a ProofFacts,
@@ -35,7 +35,7 @@ pub(super) struct Execution<'a, 'b> {
     state: &'a psi_typed_trees::state::State,
     statement_index: usize,
     pub(super) semantic: &'b mut FactPlan,
-    pub(super) context: &'b mut FlowBuildContext,
+    pub(super) context: &'b mut FlowBuildContext<'plans>,
     state_calls: &'b mut HandleSpan<FlowCallFact>,
     invocations: Vec<Invocation<'a>>,
     operand_writes: Vec<Option<Vec<CanonicalPlace>>>,
@@ -95,7 +95,7 @@ pub(super) fn append_statement_calls(
     }
 }
 
-impl<'a, 'b> Execution<'a, 'b> {
+impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
     #[allow(clippy::too_many_arguments)]
     pub(super) fn new(
         program: &'a psi_typed_trees::TypedTrees,
@@ -106,7 +106,7 @@ impl<'a, 'b> Execution<'a, 'b> {
         state: &'a psi_typed_trees::state::State,
         statement_index: usize,
         semantic: &'b mut FactPlan,
-        context: &'b mut FlowBuildContext,
+        context: &'b mut FlowBuildContext<'plans>,
         state_calls: &'b mut HandleSpan<FlowCallFact>,
         calls: &'a [BorrowCallFact],
         contexts: &mut HandleSpan<FlowSemanticContextRef>,
@@ -369,45 +369,26 @@ impl<'a, 'b> Execution<'a, 'b> {
         expression: ExpressionHandle,
         contexts: HandleSpan<FlowSemanticContextRef>,
     ) -> Option<bool> {
-        let place = crate::semantic_places::canonical_place_to_fact_place_in_state(
+        let place = canonical_place_from_expression_in_state(
             self.program,
-            self.semantic,
             self.state.symbol,
             self.statement_index,
             expression,
         )?;
-        let mut value = None;
-        for reference in self
-            .context
-            .contexts
-            .semantic_context_refs
-            .span_or_empty(contexts)
-        {
-            for fact in self
-                .semantic
-                .context_view(self.semantic.contexts.get(reference.context))
-                .facts()
-            {
-                let (FactPlace::Place(candidate), FactPayload::AssignedValue { value: expression }) =
-                    (fact.place, fact.payload)
-                else {
-                    continue;
-                };
-                if !self.semantic.places_equal(place, candidate) {
-                    continue;
-                }
-                let ExpressionNode::Boolean(incoming) =
-                    self.program.expression_table.expression(expression)
-                else {
-                    continue;
-                };
-                if value.is_some_and(|value| value != *incoming) {
-                    return None;
-                }
-                value = Some(*incoming);
-            }
+        match crate::values::scalar_value_at_place(
+            self.program,
+            self.semantic,
+            self.context
+                .contexts
+                .semantic_context_refs
+                .span_or_empty(contexts)
+                .iter()
+                .map(|reference| self.semantic.contexts.get(reference.context)),
+            &place,
+        )? {
+            psi_facts::ScalarValue::Boolean(value) => Some(value),
+            _ => None,
         }
-        value
     }
 
     fn changed_operand_sources(

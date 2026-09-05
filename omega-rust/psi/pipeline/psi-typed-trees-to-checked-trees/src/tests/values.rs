@@ -67,6 +67,7 @@ fn scalar_return_custody_retains_filtered_parameters_and_dense_prior_locals() {
             .source_bindings
             .iter()
             .map(|(_, binding)| binding)
+            .filter(|binding| binding.role == CheckedScalarExpressionRole::Return)
             .collect();
         let [binding] = bindings.as_slice() else {
             panic!("one selected return must have one source binding row: {bindings:?}")
@@ -90,13 +91,34 @@ fn scalar_return_custody_retains_filtered_parameters_and_dense_prior_locals() {
             plans.expression_at(binding.state, binding.statement_ordinal, binding.role),
             Some(&expected)
         );
-        assert!(
-            plans
-                .source_bindings
-                .iter()
-                .all(|(_, row)| row.role == CheckedScalarExpressionRole::Return),
-            "initializer source expressions must not become return custody"
-        );
+        let initializers: Vec<_> = plans
+            .source_bindings
+            .iter()
+            .map(|(_, row)| row)
+            .filter(|row| {
+                matches!(
+                    row.role,
+                    CheckedScalarExpressionRole::LocalInitializer { .. }
+                )
+            })
+            .collect();
+        assert_eq!(initializers.len(), 3);
+        for (position, row) in initializers.iter().enumerate() {
+            assert_eq!(row.state, state.symbol);
+            assert_eq!(row.statement_ordinal as usize, position + 2);
+            assert_eq!(row.expression, locals[position + 2].initial_value);
+            assert_eq!(
+                row.role,
+                CheckedScalarExpressionRole::LocalInitializer {
+                    binding_ordinal: position as u32,
+                }
+            );
+            assert_eq!(
+                plans.binding_symbols.span_or_empty(row.symbols),
+                &plans.binding_symbols.span_or_empty(binding.symbols)[..position + 2],
+                "each initializer sees only parameters and earlier immutable scalar locals"
+            );
+        }
     }
 }
 
@@ -134,7 +156,14 @@ fn scalar_return_custody_keeps_same_spelling_state_bindings_and_source_occurrenc
         .unwrap();
     let states = checked.machine_states(machine);
     let plans = &checked.facts.values.scalar_expressions;
-    assert_eq!(plans.source_bindings.len(), 2);
+    assert_eq!(
+        plans
+            .source_bindings
+            .iter()
+            .filter(|(_, binding)| binding.role == CheckedScalarExpressionRole::Return)
+            .count(),
+        2
+    );
     assert!(
         !plans
             .source_bindings
@@ -164,7 +193,9 @@ fn scalar_return_custody_keeps_same_spelling_state_bindings_and_source_occurrenc
             .source_bindings
             .iter()
             .map(|(_, binding)| binding)
-            .filter(|binding| binding.state == state.symbol)
+            .filter(|binding| {
+                binding.state == state.symbol && binding.role == CheckedScalarExpressionRole::Return
+            })
             .collect();
         let [binding] = rows.as_slice() else {
             panic!("one exact row per return state")

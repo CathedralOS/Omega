@@ -1,0 +1,24 @@
+machine replace(value: &mut u8) { value = 8; }
+
+machine saved_result() -> u8
+ensures result == 7
+{
+    let operand: u8 = 3;
+    let saved: u8 = ((operand as u8 in Wrapping) + 4) as u8;
+    replace(&mut operand);
+    let mut copied: u8 = 0;
+    copied = saved;
+    copied
+}
+
+machine state_result() -> u8
+ensures result == 255
+{
+    let value: u8 = (255 + 1) - 1;
+    transition { _ -> relay(value) }
+    state relay(renamed: u8) -> u8 {
+        let copied: u8 = renamed;
+        transition { _ -> finish(copied) }
+    }
+    state finish(current: u8) -> u8 { current }
+}

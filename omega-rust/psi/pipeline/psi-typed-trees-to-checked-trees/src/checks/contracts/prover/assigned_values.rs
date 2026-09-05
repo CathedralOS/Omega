@@ -9,9 +9,11 @@ use psi_facts::{FactContextHandle, FactPayload, FactPlace, FactPlan, PlaceHandle
 use psi_symbols::SymbolHandle;
 use psi_typed_trees::TypedTrees;
 use psi_typed_trees::domain::ProofFact;
-use psi_typed_trees::expression::{ExpressionHandle, ExpressionNode};
+use psi_typed_trees::expression::ExpressionHandle;
 
 use super::scalars::{self, ScalarValue};
+use crate::values::literal_at_place;
+pub(in crate::checks::contracts) use crate::values::scalar_value_at_place;
 
 pub(super) fn prove_domain(
     program: &TypedTrees,
@@ -73,18 +75,6 @@ pub(in crate::checks::contracts) fn prove_domain_at_place(
     .domain(subject, domain, &mut Vec::new())
 }
 
-/// Resolve only a literal root or an exact assignment snapshot in the supplied
-/// live contexts. An initializer or a nonliteral AssignedValue is not evidence.
-pub(in crate::checks::contracts) fn scalar_value_at_place<'a>(
-    program: &TypedTrees,
-    semantic: &FactPlan,
-    contexts: impl IntoIterator<Item = &'a psi_facts::FactContext>,
-    subject: &CanonicalPlace,
-) -> Option<ScalarValue> {
-    let value = literal_at_place(program, semantic, contexts, subject)?;
-    scalars::literal(program, value)
-}
-
 struct AssignedValues<'a> {
     program: &'a TypedTrees,
     semantic: &'a FactPlan,
@@ -102,39 +92,6 @@ impl AssignedValues<'_> {
             subject,
         )
     }
-}
-
-fn literal_at_place<'a>(
-    program: &TypedTrees,
-    semantic: &FactPlan,
-    contexts: impl IntoIterator<Item = &'a psi_facts::FactContext>,
-    subject: &CanonicalPlace,
-) -> Option<ExpressionHandle> {
-    if let psi_facts::PlaceRoot::Expression(expression) = subject.root
-        && subject.segments.is_empty()
-        && matches!(
-            program.expression_table.expression(expression),
-            ExpressionNode::Integer(_) | ExpressionNode::Boolean(_) | ExpressionNode::String(_)
-        )
-    {
-        return Some(expression);
-    }
-    contexts.into_iter().find_map(|context| {
-        semantic.context_view(context).facts().find_map(|fact| {
-            let FactPayload::AssignedValue { value } = fact.payload else {
-                return None;
-            };
-            let FactPlace::Place(place) = fact.place else {
-                return None;
-            };
-            let candidate =
-                canonical_place_from_semantic_place(program, semantic, semantic.places.get(place))?;
-            (normalized_event_place_root(program, candidate.root)
-                == normalized_event_place_root(program, subject.root)
-                && candidate.segments == subject.segments)
-                .then_some(value)
-        })
-    })
 }
 
 impl AssignedValues<'_> {
@@ -262,17 +219,14 @@ impl AssignedValues<'_> {
                     })
                     .or_else(|| {
                         let selected = self.relative_subject(subject, expression, type_symbol)?;
-                        let value = self.literal(&selected)?;
-                        scalars::literal(self.program, value).or_else(|| {
-                            self.program
-                                .expression_table
-                                .constant_integer_value(value)
-                                .map(|value| {
-                                    ScalarValue::Integer(psi_numerics::bignum::BigInt::from_i64(
-                                        value,
-                                    ))
-                                })
-                        })
+                        scalar_value_at_place(
+                            self.program,
+                            self.semantic,
+                            self.contexts
+                                .iter()
+                                .map(|context| self.semantic.contexts.get(*context)),
+                            &selected,
+                        )
                     })
             },
             &|left, right| {
@@ -284,7 +238,7 @@ impl AssignedValues<'_> {
         )?;
         match value {
             ScalarValue::Boolean(value) => Some(value),
-            ScalarValue::Integer(_) => None,
+            ScalarValue::Integer(_) | ScalarValue::Unknown => None,
         }
     }
 }
@@ -293,7 +247,7 @@ impl AssignedValues<'_> {
 mod tests {
     use super::*;
     use psi_facts::{Fact, PlaceRoot, ProgramPoint};
-    use psi_typed_trees::expression::TableBinaryExpression;
+    use psi_typed_trees::expression::{ExpressionNode, TableBinaryExpression};
 
     #[test]
     fn scalar_lookup_requires_live_exact_literal_evidence_not_initializers() {
@@ -331,17 +285,17 @@ mod tests {
         let literal = locals[0].1;
         let mut semantic = FactPlan::default();
         let place = semantic.append_symbol_place(locals[0].0);
-        let append = |semantic: &mut FactPlan, value| {
+        let append = |semantic: &mut FactPlan, payload| {
             let fact = semantic.append_fact(Fact {
                 place: FactPlace::Place(place),
-                payload: FactPayload::AssignedValue { value },
+                payload,
                 ..Fact::default()
             });
             let mut references = psi_arena::HandleSpan::empty();
             semantic.append_ref(&mut references, fact);
             semantic.append_context(ProgramPoint::Global, references)
         };
-        let live = append(&mut semantic, literal);
+        let live = append(&mut semantic, FactPayload::AssignedValue { value: literal });
         assert_eq!(
             scalar_value_at_place(&program, &semantic, [], &subject),
             None
@@ -364,7 +318,10 @@ mod tests {
                     operator: psi_typed_trees::expression::BinaryOperator::Add,
                     right: literal,
                 }));
-        let nonliteral = append(&mut semantic, arithmetic);
+        let nonliteral = append(
+            &mut semantic,
+            FactPayload::AssignedValue { value: arithmetic },
+        );
         assert_eq!(
             scalar_value_at_place(
                 &program,
@@ -374,5 +331,91 @@ mod tests {
             ),
             None
         );
+        for value in [
+            ExpressionHandle::invalid(),
+            ExpressionHandle::from_parts(literal.arena_index(), literal.generation() + 1),
+        ] {
+            let invalid = append(&mut semantic, FactPayload::AssignedValue { value });
+            assert_eq!(
+                scalar_value_at_place(
+                    &program,
+                    &semantic,
+                    [semantic.contexts.get(invalid)],
+                    &subject
+                ),
+                None
+            );
+            assert_eq!(
+                literal_at_place(
+                    &program,
+                    &semantic,
+                    [semantic.contexts.get(invalid)],
+                    &subject
+                ),
+                None
+            );
+        }
+        let seven = semantic.scalar_values.append(ScalarValue::Integer(
+            psi_numerics::bignum::BigInt::from_i64(7),
+        ));
+        let snapshot = append(
+            &mut semantic,
+            FactPayload::AssignedScalarValue { value: seven },
+        );
+        assert_eq!(
+            scalar_value_at_place(
+                &program,
+                &semantic,
+                [semantic.contexts.get(live), semantic.contexts.get(snapshot)],
+                &subject
+            ),
+            Some(semantic.scalar_values.get(seven).clone())
+        );
+        let eight = semantic.scalar_values.append(ScalarValue::Integer(
+            psi_numerics::bignum::BigInt::from_i64(8),
+        ));
+        let conflict = append(
+            &mut semantic,
+            FactPayload::AssignedScalarValue { value: eight },
+        );
+        assert_eq!(
+            scalar_value_at_place(
+                &program,
+                &semantic,
+                [
+                    semantic.contexts.get(snapshot),
+                    semantic.contexts.get(conflict)
+                ],
+                &subject
+            ),
+            None
+        );
+        for value in [
+            psi_arena::Handle::invalid(),
+            psi_arena::Handle::from_parts(seven.arena_index(), seven.generation() + 1),
+        ] {
+            let invalid = append(&mut semantic, FactPayload::AssignedScalarValue { value });
+            assert_eq!(
+                scalar_value_at_place(
+                    &program,
+                    &semantic,
+                    [semantic.contexts.get(invalid)],
+                    &subject
+                ),
+                None
+            );
+            assert_eq!(
+                scalar_value_at_place(
+                    &program,
+                    &semantic,
+                    [
+                        semantic.contexts.get(snapshot),
+                        semantic.contexts.get(invalid)
+                    ],
+                    &subject
+                ),
+                None
+            );
+        }
     }
 }

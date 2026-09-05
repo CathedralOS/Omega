@@ -4,6 +4,7 @@ use psi_facts::{PlaceHandle, QualificationCorrespondence, QualificationPayloadId
 mod byte_sequences;
 mod constructed;
 mod projected;
+mod scalar_values;
 
 pub(super) fn propagate_statement_transfers(
     program: &psi_typed_trees::TypedTrees,
@@ -90,7 +91,7 @@ pub(super) fn propagate_statement_transfers(
             .filter_map(|reference| {
                 let fact = *semantic.facts.get(reference.fact);
                 match fact.payload {
-                    FactPayload::AssignedValue { value } => {
+                    FactPayload::AssignedValue { .. } | FactPayload::AssignedScalarValue { .. } => {
                         if !stable_value_target {
                             return None;
                         }
@@ -101,7 +102,7 @@ pub(super) fn propagate_statement_transfers(
                             .filter(|source_place| {
                                 semantic.places_match(program, fact_place, *source_place)
                             })
-                            .map(|_| (FactPayload::AssignedValue { value }, fact.evidence, None))
+                            .map(|_| (fact.payload, fact.evidence, None))
                     }
                     FactPayload::DomainMembership {
                         domain,
@@ -323,6 +324,32 @@ pub(super) fn propagate_statement_transfers(
             payload: FactPayload::AssignedValue {
                 value: source_expression,
             },
+        });
+        semantic.append_ref(&mut refs, fact);
+    }
+
+    if stable_value_target
+        && let Some(value) = scalar_values::capture_local(
+            program,
+            semantic,
+            ctx,
+            state_symbol,
+            statement_index,
+            statement,
+            *active_contexts,
+        )
+    {
+        let value = semantic.scalar_values.append(value);
+        let fact = semantic.append_fact(Fact {
+            place: FactPlace::Place(target_place),
+            point: ProgramPoint::Statement {
+                machine_symbol,
+                state_symbol,
+                statement_index,
+            },
+            origin: FactOrigin::StatementTransfer,
+            evidence: QualificationEvidence::default(),
+            payload: FactPayload::AssignedScalarValue { value },
         });
         semantic.append_ref(&mut refs, fact);
     }

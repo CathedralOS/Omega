@@ -114,7 +114,9 @@ pub(super) fn append_constructed_field_values(
         };
         for fact in &active_facts {
             let payload = match fact.payload {
-                FactPayload::AssignedValue { .. } => fact.payload,
+                FactPayload::AssignedValue { .. } | FactPayload::AssignedScalarValue { .. } => {
+                    fact.payload
+                }
                 FactPayload::DomainMembership {
                     domain,
                     domain_symbol,

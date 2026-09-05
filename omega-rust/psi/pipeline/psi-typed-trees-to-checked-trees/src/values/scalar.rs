@@ -137,6 +137,20 @@ pub(crate) fn build_checked_scalar_expression_plans(
                                 })
                                 .flatten()
                             }) {
+                                source_bindings.append(CheckedScalarExpressionBindings {
+                                    state: state.symbol,
+                                    statement_ordinal,
+                                    role: CheckedScalarExpressionRole::LocalInitializer {
+                                        binding_ordinal,
+                                    },
+                                    expression: local.initial_value,
+                                    symbols: binding_symbols.insert_many(
+                                        scalar_parameters
+                                            .iter()
+                                            .map(|parameter| parameter.symbol)
+                                            .chain(locals.iter().map(|local| local.symbol)),
+                                    ),
+                                });
                                 expressions.push(CheckedLocatedScalarExpression {
                                     state: state.symbol,
                                     statement_ordinal,

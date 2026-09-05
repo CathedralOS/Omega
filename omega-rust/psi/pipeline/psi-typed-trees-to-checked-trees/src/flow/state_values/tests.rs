@@ -15,10 +15,9 @@ fn absent_and_stale_expression_handles_are_not_literal_evidence() {
     );
     let missing = psi_typed_trees::expression::ExpressionHandle::from_arena_index(u32::MAX);
     for unknown in [Default::default(), stale, missing] {
-        assert!(!super::literal(&program, unknown));
-        assert!(!super::same_value(&program, zero, unknown));
+        assert!(super::literal(&program, unknown).is_none());
     }
-    assert!(super::literal(&program, zero));
+    assert!(super::literal(&program, zero).is_some());
 }
 
 #[test]
@@ -61,17 +60,18 @@ fn cross_owner_named_dispatch_is_an_unknown_incoming_edge() {
         .find(|machine| machine.name.as_str() == "caller")
         .unwrap();
     let entry = &program.machine_states(caller)[0];
+    let scalar_expressions = Default::default();
     let mut context = super::FlowBuildContext::new(
         &Default::default(),
         &Default::default(),
         &Default::default(),
+        &scalar_expressions,
     );
     super::join(
-        &program,
         &mut context,
         super::StateValues {
             state: finish.symbol,
-            values: vec![(parameter, literal)],
+            values: vec![(parameter, super::literal(&program, literal).unwrap())],
         },
     );
     // A retained cross-owner selected call target must participate even when
@@ -86,7 +86,10 @@ fn cross_owner_named_dispatch_is_an_unknown_incoming_edge() {
     ));
     super::record_invocation(&program, &mut context, caller, entry, &call);
     assert_eq!(context.state_value_inputs.len(), 1);
-    assert!(!context.state_value_inputs[0].values[0].1.is_valid());
+    assert_eq!(
+        context.state_value_inputs[0].values[0].1,
+        psi_facts::ScalarValue::Unknown
+    );
 }
 
 fn check(source: &str, accepted: bool) {

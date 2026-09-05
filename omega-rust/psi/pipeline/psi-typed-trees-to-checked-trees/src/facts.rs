@@ -79,21 +79,8 @@ pub(crate) fn build_check_facts(
     let domains = build_domain_facts(program, &semantic);
     let dynamic_conformances = build_dynamic_conformance_facts(program)?;
     let service_reach_inference = psi_effects::infer_service_reaches(program, &operational);
-    let mut flow = build_flow_facts_with_service_reaches(
-        program,
-        &borrow,
-        &proof,
-        &mut semantic,
-        &domains,
-        &operational,
-        &service_reach_inference,
-    );
-    crate::review_sources::bind_checked_body_call_source_spans(program, &mut flow)?;
-    let index_compatibility = index_compatibility::build_index_compatibility_facts(
-        program, &operators, &semantic, &flow,
-    )?;
-    // Domain-owned meanings are selected only from declarations, mints, and
-    // signature `requires`; the selector accepts no flow/fact environment.
+    // Meaning selection depends only on declarations and signatures. Complete
+    // selected scalar plans before flow captures their evaluated local values.
     select_pending_domain_operator_meanings(program, &mut operators);
     bind_boundary_operator_application_demands(
         program,
@@ -105,6 +92,20 @@ pub(crate) fn build_check_facts(
         &operators,
         &validation_facts.exact_integer_casts,
     );
+    let mut flow = build_flow_facts_with_service_reaches(
+        program,
+        &borrow,
+        &proof,
+        &mut semantic,
+        &domains,
+        &operational,
+        &service_reach_inference,
+        &values.scalar_expressions,
+    );
+    crate::review_sources::bind_checked_body_call_source_spans(program, &mut flow)?;
+    let index_compatibility = index_compatibility::build_index_compatibility_facts(
+        program, &operators, &semantic, &flow,
+    )?;
     flow.terminal_scalar_graphs = crate::flow::build_checked_scalar_graph_plans(program);
     flow.terminal_machines = crate::flow::build_checked_terminal_machine_selections(program);
     flow.terminal_debug = crate::flow::build_checked_terminal_debug_plans(program);

@@ -9,9 +9,9 @@ use psi_core::{IntegerSign, IntegerType, IntegerValue};
 use psi_numerics::{bignum::BigInt, literals::LandedIntegerType};
 use psi_typed_trees::types::PrimitiveType;
 
-use super::ScalarValue;
+use psi_facts::ScalarValue;
 
-pub(in crate::checks::contracts) fn evaluate(
+pub(crate) fn evaluate(
     expression: &CheckedScalarExpression,
     resolve_binding: &mut impl FnMut(usize) -> Option<ScalarValue>,
 ) -> Option<ScalarValue> {
@@ -233,7 +233,7 @@ fn binding_boolean(
 ) -> Option<bool> {
     match resolve_binding(position)? {
         ScalarValue::Boolean(value) => Some(value),
-        ScalarValue::Integer(_) => None,
+        ScalarValue::Integer(_) | ScalarValue::Unknown => None,
     }
 }
 

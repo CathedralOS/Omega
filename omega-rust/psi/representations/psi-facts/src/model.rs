@@ -301,6 +301,11 @@ pub enum ProofObligationKind {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum FactPayload {
+    /// A completed scalar value captured at this fact's program point. The
+    /// value contains no source expression or storage to evaluate again.
+    AssignedScalarValue {
+        value: Handle<ScalarValue>,
+    },
     /// Exact immutable value installed at `Fact.place` by a checked statement.
     /// The statement coordinate lives on the enclosing fact. Only literals
     /// are retained; this is not a deferred read of the source expression.
@@ -435,6 +440,7 @@ impl QualificationPayloadIdentity {
             }
             FactPayload::CarryOrigin { .. } => Some(Self::CarryOrigin),
             FactPayload::AssignedValue { .. }
+            | FactPayload::AssignedScalarValue { .. }
             | FactPayload::StorageDependency { .. }
             | FactPayload::BytePredicate { .. }
             | FactPayload::BooleanValue { .. }
@@ -447,6 +453,16 @@ impl QualificationPayloadIdentity {
             | FactPayload::ContractPropositionApplication { .. } => None,
         }
     }
+}
+
+/// Target-neutral mathematical value of an already-rendered scalar. Unknown
+/// is the zero arena entry and never supplies a proof premise.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub enum ScalarValue {
+    #[default]
+    Unknown,
+    Integer(psi_numerics::bignum::BigInt),
+    Boolean(bool),
 }
 
 /// Checked-only proof ledger row for one qualification-preserving statement
