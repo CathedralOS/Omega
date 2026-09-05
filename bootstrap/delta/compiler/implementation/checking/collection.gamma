@@ -72,11 +72,12 @@
         (let prior Int (name_trie_find_option function_rows name_end name)
           (if (first prior)
             (compiler_source_rejection 8 name)
-            (collect_global_identities
-              (skip_expression form) 1 (+ function_count 1)
-              type_rows constructor_rows
-              (name_trie_insert function_rows name_end name
-                (pair (+ form 1) name_end)))))
+            (let after_form Int (skip_expression form)
+              (collect_global_identities
+                after_form 1 (+ function_count 1)
+                type_rows constructor_rows
+                (name_trie_insert function_rows name_end name
+                  (pair (+ form 1) (pair name_end after_form)))))))
         (fail)))))
 
 ; Visit declarations in authored order across all three distinct namespaces.

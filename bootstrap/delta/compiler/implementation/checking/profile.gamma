@@ -1,20 +1,8 @@
 ; Entry existence is an option, not a declaration-collection requirement.
 ; Only an accepted ordinary frontend reaches this profile-specific phase.
-(def find_main_metadata ((index Int) (globals Int)) Int
-  (let form Int (skip index)
-    (if (eq form (source_length))
-      (pair 0 0)
-      (let head Int (form_head form)
-        (let head_end Int (token_end head)
-          (if (token_data head head_end)
-            (find_main_metadata (skip_expression form) globals)
-            (if (token_def head head_end)
-              (let name Int (skip head_end)
-                (let name_end Int (token_end name)
-                  (if (token_main name name_end)
-                    (pair 1 (require_function_metadata name name_end globals))
-                    (find_main_metadata (skip_expression form) globals))))
-              (fail))))))))
+(def find_main_metadata ((globals Int)) Int
+  ; Little-endian bytes m a i n.
+  (name_trie_find_packed_option (global_functions globals) 4 1852399981))
 
 (def reject_entry_schema ((metadata Int)) Int
   (let declaration Int (- (function_metadata_owner metadata) 1)
@@ -31,7 +19,7 @@
     (reject_entry_schema metadata)))
 
 (def validate_application_profile ((profile Int) (globals Int)) Int
-  (let entry Int (find_main_metadata 0 globals)
+  (let entry Int (find_main_metadata globals)
     (if (eq (first entry) 0)
       (compiler_failure 1 0 19 0 0 0)
       (if (eq profile 0)

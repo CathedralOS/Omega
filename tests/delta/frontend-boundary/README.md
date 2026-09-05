@@ -7,7 +7,7 @@ Python frames requests, invokes those source-owned stages, and compares exact
 observations. It neither parses Delta nor selects diagnostic reasons or source
 coordinates.
 
-The 35 exact 40-byte DCOUT controls cover the implemented frontend phases:
+The 37 exact 40-byte DCOUT controls cover the implemented frontend phases:
 
 - Source-byte rejection uses code 3 and Delta-source coordinate space 1. Invalid
   bytes, including bytes inside comments and a Unicode BOM, precede syntax and
@@ -18,7 +18,8 @@ The 35 exact 40-byte DCOUT controls cover the implemented frontend phases:
   and signature types and body defects do not preempt this earlier phase.
   Duplicate `main` is code 8, not a selected-profile schema failure.
 - After frontend acceptance, missing `main` is code 19 in coordinate space 0
-  at coordinate zero. A present but incompatible `main` is code 20 in
+  at coordinate zero; `mai` and `main_suffix` do not supply that exact entry.
+  A present but incompatible `main` is code 20 in
   Delta-source space at its declaration name, including after earlier
   declarations and comments between `def` and `main`.
 
@@ -28,9 +29,10 @@ does not become code 19, and an invalid body under an incompatible present
 `main` does not become code 20. These unfinished paths are not canonical DCOUT
 rejections or generated Delta application observations.
 
-Five accepted programs exercise identity compilation, cross-namespace spelling
-reuse, forward and mutual data visibility, forward and mutual function
-visibility, and the admitted ASCII whitespace/comment boundaries. Each compiles
+Six accepted programs exercise identity compilation, exact entry selection
+after `main_suffix`, cross-namespace spelling reuse, forward and mutual data
+visibility, forward and mutual function visibility, and the admitted ASCII
+whitespace/comment boundaries. Each compiles
 twice to identical bytes; its generated application preserves an exact binary
 input including NUL and high bytes.
 

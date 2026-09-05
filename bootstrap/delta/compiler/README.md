@@ -64,7 +64,10 @@ and source coordinates before resolving any declaration type. Duplicate
 identities therefore precede declaration-type and body failures. Resolution
 then checks fields and signatures against the complete catalogs, followed by
 body checking. Entry existence and application schema are checked only after
-the complete ordinary frontend succeeds.
+the complete ordinary frontend succeeds. The entry lookup follows the four
+exact `main` bytes in the resolved function trie, including its terminal
+presence; a prefix or longer spelling is not an entry. It does not rescan the
+source to rediscover that identity.
 It requires all nonempty `data` declarations before one or more functions,
 exactly one `main`, and unique type, constructor, and function declarations in
 their separate namespaces. Exact source-byte names are retained in persistent
@@ -112,7 +115,10 @@ exhaustive arm as the fallback, preserving the existing ordered receipts.
 
 The global function trie carries each exact declaration's owner, arity, ordered
 resolved parameter types, result type, typed parameter environment, and body
-coordinate. Application heads resolve through that checked table, including
+coordinate. Its preceding raw census rows also retain the already-scanned
+declaration end. Resolution checks the retained owner and name span, resolves
+the signature, and advances at that cached end without rescanning the body.
+Application heads resolve through the checked table, including
 forward and mutual calls, without reparsing the callee signature. Type and
 constructor references likewise resolve through metadata catalogs rather than
 rescanning the whole source. Every user call, operator, and `if` has an exact
@@ -167,7 +173,7 @@ The downgraded full compiler remains separate under
 ## Measurements
 
 ```text
-2,319-line / 95,924-byte canonical entry plus shared Gamma implementation
+2,326-line / 96,148-byte canonical entry plus shared Gamma implementation
 7-line / 195-byte nullary-ADT Delta fixture
   -> 3-line / 165-byte Gamma receipt
   -> selected Gamma evaluation produces byte 9
@@ -203,4 +209,5 @@ The downgraded full compiler remains separate under
 3,001-function / 66,266-byte scale fixture
   -> 78,271-byte Gamma receipt
   -> selected Gamma evaluation produces byte 199
+  -> measured transformation 25.9 seconds on the development host
 ```
