@@ -165,6 +165,22 @@ the [Rust Compiler Completion Contract](wiki/releases/rust_compiler_completion_c
   so a fixture with no executing owner and an entry with no fixture are both
   loud, independently of host eligibility and compile filters.
 
+- **FLOAT-OPERATOR-RESULT-DESTINATIONS.** Check scalar destination compatibility
+  for binary float expressions from the exact selected operator result in
+  `psi-typed-trees-to-checked-trees/src/operators.rs` and its selection owner.
+  `machine take(value: f32) {}` currently accepts
+  `take(1.0f64 + 2.0f64)` without a conversion. The early `psi-validation`
+  destination guard cannot infer a binary result from its operands: authored
+  heterogeneous operators may return another format, and domain participation
+  requires the checked selection context.
+
+  Acceptance: checked arguments, storage, and returns reject an incompatible
+  selected `f32`/`f64` result in both directions while accepting explicit
+  conversions, anonymous destination landing, and authored heterogeneous
+  operators whose result matches. Exercise active and inactive domain
+  candidates through the existing selection owner, not a candidate-presence
+  exemption or a second operator resolver.
+
 `omega-rust/` remains the production implementation until that contract
 closes. It may remain afterward as a differential implementation while it finds
 real bugs, but Rust agreement is not bootstrap authority and Rust-specific
