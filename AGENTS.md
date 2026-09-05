@@ -86,17 +86,21 @@ mbx run -p omega -- --check samples/cli/basics/cli_mvp/main.omg
 Full surface (`omega-rust/omega/src/command.rs`):
 
 ```text
-omega [--check] [--accept-admissions] [--output-only] [--package-root-policy <file>]
+omega [--check] [--offline] [--accept-admissions] [--output-only] [--package-root-policy <file>]
       [--build-dir <dir>] [--target <name>] [--disable-optimization <ExactName>]... <root.omg>
 omega run [--both] [--keep] [--target <name>] <root.omg>
 omega inspect-terminal --machine <qualified> [--target <name>] <root.omg>
 omega audit source --kind <local|git> <locator> [--rev <rev>]
-omega audit packages [--project <dir>] [--target <name>]... [--details]
-omega install <source> [--rev <revision>] [--package <declared-name>] [--as <alias>] [--target <name>]... [--project <dir>]
-omega update [package-or-alias...] [--to <revision>] [--target <name>]... [--project <dir>]
-omega <install|update> <--resume|--discard-review> [--project <dir>]
+omega audit packages [--project <dir>] [--target <name>]... [--details] [--offline]
+omega install <source> [--rev <revision>] [--package <declared-name>] [--as <alias>] [--target <name>]... [--project <dir>] [--offline]
+omega update [package-or-alias...] [--to <revision>] [--target <name>]... [--project <dir>] [--offline]
+omega <install|update> <--resume|--discard-review> [--project <dir>] [--offline]
 omega refresh-samples [samples-dir]
 ```
+
+`--offline` restricts package acquisition to local sources and cached recorded
+Git pins. It does not refresh selectors or sandbox later program execution.
+`run` and `inspect-terminal` do not support this flag.
 
 Compiling writes numbered phase artifacts (`00_timings.txt` through
 `14_finalization.txt`) into an ignored `build/` beside the entrypoint, or

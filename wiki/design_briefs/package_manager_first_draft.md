@@ -171,7 +171,12 @@ for options and limitations. Source-code diffs are separate command output;
 old local snapshots can be recovered from the existing cache.
 [Package inspection](../../omega-rust/omega/packages/manager/src/operations/inspect_packages/README.md)
 shows fresh graph/authority findings beside accepted policy without accepting
-changes. Optional offline/model wiring is separate.
+changes. `--offline` restricts package acquisition in compilation, inspection,
+and install/update to local sources and cached recorded Git pins. It also
+applies to resume and historical source diagnostics. New or refreshed Git
+requests reject rather than silently reusing a cached branch selection. Missing
+content cannot publish a candidate; normal checking and publication recovery
+remain enabled. Model wiring stays optional.
 Local canaries do not substitute for actual remote acceptance tests.
 
 ## Test packages

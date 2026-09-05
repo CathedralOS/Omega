@@ -48,8 +48,8 @@ pub use package_commands::{
     execute_package_command_with_storage,
 };
 pub use prepare_project::{
-    PrepareLocalProjectError, PreparedLocalProject, prepare_local_project,
-    prepare_local_project_for_target,
+    LocalProjectPreparationOptions, PrepareLocalProjectError, PreparedLocalProject,
+    prepare_local_project, prepare_local_project_for_target, prepare_local_project_with_options,
 };
 pub use publication::{
     PackageFileTransaction, PackagePublicationError, PackagePublicationLimits,

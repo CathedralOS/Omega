@@ -1,6 +1,6 @@
 # Package inspection
 
-`omega audit packages [--project <dir>] [--target <name>]... [--details]`
+`omega audit packages [--project <dir>] [--target <name>]... [--details] [--offline]`
 shows the project graph, exact source pins, and compiler-derived API/authority
 findings beside accepted lock policy. It does not accept changes, certify an
 audit, or publish native artifacts.
@@ -21,6 +21,11 @@ fetch an absent exact accepted commit, never refresh its branch or tag. The
 project root remains editable as in ordinary compilation. Without a lock,
 inspection resolves the authored graph and checks it as unaccepted source;
 it does not create a lock.
+
+`--offline` uses cached exact accepted Git pins and permits local source work.
+Missing cached content reports unavailable fresh analysis without network
+access or lock changes. Without a lock, any Git request requires an online
+resolution first; a cached branch name is not an accepted exact pin.
 
 Omitting `--target` inspects every accepted target, or the host target when
 there is no lock. An explicitly requested target missing from an existing lock

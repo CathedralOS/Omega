@@ -34,7 +34,13 @@ pub fn execute_package_command(
             .project_root()
             .to_path_buf()])
         .map_err(failure)?;
-    candidate::execute(command, options.targets, &mut transaction, &storage)
+    candidate::execute(
+        command,
+        options.targets,
+        options.offline,
+        &mut transaction,
+        &storage,
+    )
 }
 
 /// The same workflow with caller-selected resolver storage, useful to embedded
@@ -51,5 +57,11 @@ pub fn execute_package_command_with_storage(
     if matches!(command, PackageCommand::DiscardReview) {
         return state::discard(&transaction);
     }
-    candidate::execute(command, options.targets, &mut transaction, storage)
+    candidate::execute(
+        command,
+        options.targets,
+        options.offline,
+        &mut transaction,
+        storage,
+    )
 }

@@ -1,6 +1,8 @@
 use super::fixture::*;
 use package_manager::operations::{PackageCommand, PackageCommandStatus};
 
+include!("offline.rs");
+
 #[test]
 fn update_renders_exact_old_git_root_after_selector_moves() {
     run(

@@ -16,8 +16,8 @@ use crate::operations::{
 };
 use crate::resolution::graph::{
     CanonicalSourceClosureSubject, CanonicalSourceClosureSubjectLimits, GitDependencyPins,
-    PackageSourceClosureLimits, resolve_staged_external_local_project_closure_with_git_pins,
-    resolve_staged_external_local_project_closure_with_storage,
+    GitResolutionOptions, PackageSourceClosureLimits,
+    resolve_staged_external_local_project_closure_with_options,
 };
 use package_source::git::resolution::GitExactRevisionAcquisition;
 use package_source::{ExternalSourceContext, LocalSourceLimits, SourceResolverStorage};
@@ -27,6 +27,7 @@ use target::TargetProfile;
 pub(super) fn execute(
     command: PackageCommand,
     requested_targets: Vec<TargetProfile>,
+    offline: bool,
     transaction: &mut PackageFileTransaction,
     storage: &SourceResolverStorage,
 ) -> Result<PackageCommandOutcome, PackageCommandError> {
@@ -110,27 +111,24 @@ pub(super) fn execute(
         .or_else(|| accepted.as_ref().map(|lock| lock.targets()[0].source()));
     let context =
         ExternalSourceContext::derive(super::super::prepare_project::LOCAL_PROJECT_CONTEXT);
-    let closure = if let (Some(subject), Some(updates)) = (preserved_subject, updates.as_deref()) {
-        let pins =
-            GitDependencyPins::new(subject, updates, GitExactRevisionAcquisition::AllowFetch)
-                .map_err(failure)?;
-        resolve_staged_external_local_project_closure_with_git_pins(
-            &stage,
-            context,
-            storage,
-            LocalSourceLimits::default(),
-            PackageSourceClosureLimits::default(),
-            pins,
-        )
+    let acquisition = if offline {
+        GitExactRevisionAcquisition::Offline
     } else {
-        resolve_staged_external_local_project_closure_with_storage(
-            &stage,
-            context,
-            storage,
-            LocalSourceLimits::default(),
-            PackageSourceClosureLimits::default(),
-        )
-    }
+        GitExactRevisionAcquisition::AllowFetch
+    };
+    let pins = preserved_subject
+        .zip(updates.as_deref())
+        .map(|(subject, updates)| GitDependencyPins::new(subject, updates, acquisition))
+        .transpose()
+        .map_err(failure)?;
+    let closure = resolve_staged_external_local_project_closure_with_options(
+        &stage,
+        context,
+        storage,
+        LocalSourceLimits::default(),
+        PackageSourceClosureLimits::default(),
+        GitResolutionOptions { pins, offline },
+    )
     .map_err(failure)?;
     let source = CanonicalSourceClosureSubject::from_resolved(
         &closure.for_exact_target(targets[0]),
@@ -186,6 +184,7 @@ pub(super) fn execute(
         accepted.as_ref(),
         &closure,
         storage,
+        acquisition,
     )?);
     if let Some(text) = proposal_text {
         // Publish the proposal only after every target's findings are present.

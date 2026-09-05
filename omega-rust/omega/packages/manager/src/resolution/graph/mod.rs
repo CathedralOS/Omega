@@ -28,13 +28,15 @@ pub use reconcile::{
 #[cfg(test)]
 pub(crate) use resolve::resolve_external_local_package_closure;
 pub use resolve::{
-    GitDependencyPins, GitDependencyPinsError, ResolveDependencySourceError,
+    GitDependencyPins, GitDependencyPinsError, GitResolutionOptions, ResolveDependencySourceError,
     ResolveExternalLocalPackageClosureError, ResolveGitPackageClosureError,
     ResolveWorkspacePackageClosureError, resolve_external_local_package_closure_with_storage,
+    resolve_external_local_project_closure_with_options,
     resolve_external_local_project_closure_with_storage, resolve_git_package_closure_with_storage,
     resolve_git_project_closure_with_storage, resolve_selected_git_package_closure_with_storage,
     resolve_selected_git_project_closure_with_storage,
     resolve_staged_external_local_project_closure_with_git_pins,
+    resolve_staged_external_local_project_closure_with_options,
     resolve_staged_external_local_project_closure_with_storage,
     resolve_workspace_package_closure_in_context_with_storage,
     resolve_workspace_package_closure_with_storage,

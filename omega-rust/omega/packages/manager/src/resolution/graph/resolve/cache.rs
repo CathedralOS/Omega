@@ -1,4 +1,6 @@
-use super::git_pins::{GitDependencyPins, pin_error};
+#[cfg(test)]
+use super::git_pins::GitDependencyPins;
+use super::git_pins::{GitResolutionOptions, pin_error};
 use crate::resolution::source::{
     GitPackageSourceRequest, ResolvePackageSourceError, ResolvedPackageSource,
     resolve_external_local_package_source_in_lane, resolve_external_local_project_source_in_lane,
@@ -9,6 +11,7 @@ use crate::resolution::source::{
     resolve_workspace_member_package_source_in_lane,
     resolve_workspace_member_project_source_in_lane,
 };
+use package_source::git::resolution::GitExactRevisionAcquisition;
 use package_source::storage::RetainedStorageLane;
 use package_source::{ExternalSourceContext, SourceLineage, SourceRelativePath};
 use package_source::{
@@ -24,7 +27,7 @@ pub(super) enum SourceCacheLane<'a> {
 
 #[derive(Default)]
 pub(super) struct GitAcquisitionCache<'a> {
-    preserved: Option<GitDependencyPins<'a>>,
+    options: GitResolutionOptions<'a>,
     pins: Vec<(GitSourceRequest, GitAcquisitionPin)>,
     selected: Vec<(
         GitPackageSourceRequest,
@@ -33,11 +36,19 @@ pub(super) struct GitAcquisitionCache<'a> {
 }
 
 impl<'a> GitAcquisitionCache<'a> {
-    pub(super) fn preserving(pins: GitDependencyPins<'a>) -> Self {
+    pub(super) fn with_options(options: GitResolutionOptions<'a>) -> Self {
         Self {
-            preserved: Some(pins),
+            options,
             ..Self::default()
         }
+    }
+
+    #[cfg(test)]
+    pub(super) fn preserving(pins: GitDependencyPins<'a>) -> Self {
+        Self::with_options(GitResolutionOptions {
+            pins: Some(pins),
+            ..GitResolutionOptions::default()
+        })
     }
 
     pub(super) fn resolve_selected(
@@ -86,7 +97,8 @@ impl<'a> GitAcquisitionCache<'a> {
         let SourceCacheLane::Retained(git_lane) = git_cache;
         let SourceCacheLane::Retained(member_lane) = member_cache;
         let recorded = self
-            .preserved
+            .options
+            .pins
             .as_ref()
             .map(|policy| policy.resolution(request.acquisition()))
             .transpose()?
@@ -99,11 +111,15 @@ impl<'a> GitAcquisitionCache<'a> {
                     "recorded resolution is not Git",
                 ));
             };
-            let acquisition = self
-                .preserved
-                .as_ref()
-                .expect("recorded pin has a policy")
-                .acquisition();
+            let acquisition = if self.options.offline {
+                GitExactRevisionAcquisition::Offline
+            } else {
+                self.options
+                    .pins
+                    .as_ref()
+                    .expect("recorded pin has a policy")
+                    .acquisition()
+            };
             let resolved = if application_root_allowed {
                 resolve_selected_git_project_source_at_revision_in_lanes(
                     request,
@@ -132,6 +148,11 @@ impl<'a> GitAcquisitionCache<'a> {
                 ));
             }
             Ok(resolved)
+        } else if self.options.offline {
+            return Err(pin_error(
+                request.acquisition(),
+                "offline resolution forbids new or refreshed Git selection; an unchanged recorded pin is required",
+            ));
         } else if application_root_allowed {
             resolve_selected_git_project_source_from_pin_in_lanes(
                 request,

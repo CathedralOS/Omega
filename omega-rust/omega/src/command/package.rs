@@ -52,10 +52,10 @@ fn exit_status(status: PackageCommandStatus) -> i32 {
 fn usage(kind: &PackageCommandKind) -> &'static str {
     match kind {
         PackageCommandKind::Install => {
-            "usage: omega install <source> [--rev <revision>] [--package <declared-name>] [--as <alias>] [--target <name>]... [--project <dir>]\n       omega install --resume [--project <dir>]\n       omega install --discard-review [--project <dir>]\n       omega install --help\n--package selects a Git workspace member by its declared name.\n--discard-review abandons pending review; it does not discard publication recovery."
+            "usage: omega install <source> [--rev <revision>] [--package <declared-name>] [--as <alias>] [--target <name>]... [--project <dir>] [--offline]\n       omega install --resume [--project <dir>] [--offline]\n       omega install --discard-review [--project <dir>] [--offline]\n       omega install --help\n--offline disables package source network acquisition for this invocation.\n--package selects a Git workspace member by its declared name.\n--discard-review abandons pending review; it does not discard publication recovery."
         }
         PackageCommandKind::Update => {
-            "usage: omega update [package-or-alias...] [--to <revision>] [--target <name>]... [--project <dir>]\n       omega update --resume [--project <dir>]\n       omega update --discard-review [--project <dir>]\n       omega update --help\n--discard-review abandons pending review; it does not discard publication recovery."
+            "usage: omega update [package-or-alias...] [--to <revision>] [--target <name>]... [--project <dir>] [--offline]\n       omega update --resume [--project <dir>] [--offline]\n       omega update --discard-review [--project <dir>] [--offline]\n       omega update --help\n--offline disables package source network acquisition for this invocation.\n--discard-review abandons pending review; it does not discard publication recovery."
         }
     }
 }
@@ -73,12 +73,14 @@ fn parse_arguments(
     let mut resume = false;
     let mut discard_review = false;
     let mut help = false;
+    let mut offline = false;
     while let Some(argument) = arguments.next() {
         let argument = argument
             .into_string()
             .map_err(|_| "package arguments must be UTF-8 (except --project paths)".to_owned())?;
         match argument.as_str() {
             "--help" => set_flag(&mut help, &argument)?,
+            "--offline" => set_flag(&mut offline, &argument)?,
             "--resume" => set_flag(&mut resume, &argument)?,
             "--discard-review" => set_flag(&mut discard_review, &argument)?,
             "--project" => {
@@ -153,7 +155,7 @@ fn parse_arguments(
             || package.is_some()
             || !targets.is_empty())
     {
-        return Err("--resume and --discard-review allow only --project".to_owned());
+        return Err("--resume and --discard-review allow only --project and --offline".to_owned());
     }
     if help {
         return Ok(None);
@@ -183,6 +185,7 @@ fn parse_arguments(
         PackageCommandOptions {
             project_root: project_root.unwrap_or_else(|| PathBuf::from(".")),
             targets,
+            offline,
         },
     )))
 }

@@ -1,4 +1,5 @@
 use super::*;
+use crate::resolution::graph::resolve_external_local_project_closure_with_storage;
 
 pub(super) struct Project(pub(super) PathBuf);
 

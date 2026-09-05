@@ -12,6 +12,8 @@ mod fixture_roster;
 mod generated;
 #[path = "package_commands/inspection.rs"]
 mod inspection;
+#[path = "package_commands/offline.rs"]
+mod offline;
 #[path = "package_commands/remote.rs"]
 mod remote;
 #[path = "package_commands/remote_authority.rs"]

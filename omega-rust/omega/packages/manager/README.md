@@ -49,6 +49,12 @@ transitive requests, stay pinned. New or changed requests resolve normally.
 Missing preserved pins use either offline failure or explicit exact-commit fetch,
 never selector refresh. This policy changes resolution only, not accepted policy.
 
+`GitResolutionOptions::offline` separately forbids all fresh Git selection,
+including new transitive requests, and overrides preserved-pin fetch permission.
+CLI `--offline` uses that restriction for install/update and reuses proposed pins
+on resume. Missing old-source bytes only limit code diffs, not lock policy
+comparison; historical recovery also honors the network restriction.
+
 `operations::review_package_change` checks an already-resolved candidate for an
 exact target, rejects outstanding ordinary contract obligations in any package,
 and compares its full policy against an optional accepted lock section. Missing
@@ -79,6 +85,11 @@ dependency projection, identity, and role must still match; local dependencies
 must retain their accepted content. Declaration or dependency changes require
 an explicit update. This mutable-root preparation is distinct from strict
 whole-closure recovery. Local root identity remains tied to its canonical path.
+
+`prepare_local_project_with_options` additionally accepts invocation-local
+`offline` selection. Cached accepted Git pins and unlocked local-only graphs
+remain usable. Missing recorded Git content fails without transport, while
+the local root remains editable. Neither option changes the lock format.
 
 `check_prepared_local_project` checks either project role through the same
 scoped candidate pipeline. It honors the requested source entry, includes

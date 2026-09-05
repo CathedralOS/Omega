@@ -20,6 +20,7 @@ pub(super) fn recover(
     expected: &ResolvedSourceIdentity,
     candidate: &ResolvedPackageSourceClosure,
     storage: &SourceResolverStorage,
+    acquisition: GitExactRevisionAcquisition,
 ) -> Result<PackageSourceCustody, &'static str> {
     let current = candidate
         .custody(expected.key())
@@ -62,9 +63,9 @@ pub(super) fn recover(
                         }
                     })
                     .ok_or("no recorded Git acquisition request is available")?;
-                let acquisition = GitSourceRequest::new(repository.clone(), Some(revision.clone()))
+                let request = GitSourceRequest::new(repository.clone(), Some(revision.clone()))
                     .map_err(|_| "recorded Git request is unavailable")?;
-                if acquisition.lineage() != expected.key().source_lineage() {
+                if request.lineage() != expected.key().source_lineage() {
                     return Err("recorded Git request lineage differs");
                 }
                 let selection = match subject.package_navigation(expected.key()) {
@@ -78,10 +79,10 @@ pub(super) fn recover(
                     .verify_path_identity()
                     .map_err(|_| "resolver storage is unavailable")?;
                 let resolved = resolve_selected_git_package_source_at_revision_in_lanes(
-                    &GitPackageSourceRequest::new(acquisition, selection),
+                    &GitPackageSourceRequest::new(request, selection),
                     commit,
                     tree,
-                    GitExactRevisionAcquisition::AllowFetch,
+                    acquisition,
                     storage.git_sources(),
                     storage.workspace_members(),
                     LocalSourceLimits::default(),

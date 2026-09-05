@@ -14,11 +14,6 @@ host credentials, and organizational review policy have separate owners.
 
 These do not block the supported online install/update workflow.
 
-- [ ] **OFFLINE-COMMAND-SELECTION.** Expose existing offline exact-pin recovery
-  through locked compilation and applicable package command options.
-  Acceptance: cached accepted/proposed pins work without network; missing
-  content fails clearly without selector refresh or accepted-file mutation.
-
 - [ ] **OPTIONAL-AUDIT-ADVICE.** If connecting the existing `review/advisory/`
   adapter, keep provider configuration with CLI/tooling. It may recommend a
   closer audit, never suppress compiler findings or accept decisions.

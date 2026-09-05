@@ -1,6 +1,7 @@
 use super::*;
 
 mod named;
+mod offline;
 
 fn parse(kind: PackageCommandKind, arguments: &[&str]) -> (PackageCommand, PackageCommandOptions) {
     parse_arguments(kind, arguments.iter().map(OsString::from))
@@ -39,6 +40,7 @@ fn install_preserves_source_and_leaves_defaults_to_manager() {
         assert!(package.is_none());
         assert_eq!(options.project_root, PathBuf::from("."));
         assert!(options.targets.is_empty());
+        assert!(!options.offline);
     }
 }
 
@@ -90,6 +92,7 @@ fn update_without_selections_delegates_all_packages() {
     assert!(revision.is_none());
     assert!(options.targets.is_empty());
     assert_eq!(options.project_root, PathBuf::from("."));
+    assert!(!options.offline);
 }
 
 #[test]
@@ -127,6 +130,7 @@ fn resume_retains_command_kind_and_project() {
         assert_eq!(matches!(kind, PackageCommandKind::Install), install);
         assert_eq!(options.project_root, PathBuf::from("project"));
         assert!(options.targets.is_empty());
+        assert!(!options.offline);
     }
 }
 
@@ -137,6 +141,7 @@ fn discard_review_is_explicit_and_has_no_selection() {
         assert!(matches!(command, PackageCommand::DiscardReview));
         assert_eq!(options.project_root, PathBuf::from("project"));
         assert!(options.targets.is_empty());
+        assert!(!options.offline);
     }
 }
 

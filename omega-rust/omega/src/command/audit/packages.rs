@@ -3,7 +3,7 @@ use std::ffi::OsString;
 use std::path::PathBuf;
 use target::TargetProfile;
 
-pub(super) const USAGE: &str = "usage: omega audit packages [--project <dir>] [--target <name>]... [--details]\nChecks current project source with accepted dependency pins; no lock means fresh unaccepted inspection.\n--details includes full normalized policy after the readable summary.\nExit 0: checked; 1: unavailable; 2: invalid arguments; 3: policy requires review.\nInspection never accepts changes or resumes a pending publication.";
+pub(super) const USAGE: &str = "usage: omega audit packages [--project <dir>] [--target <name>]... [--details] [--offline]\nChecks current project source with accepted dependency pins; no lock means fresh unaccepted inspection.\n--offline disables package source network acquisition for this invocation.\n--details includes full normalized policy after the readable summary.\nExit 0: checked; 1: unavailable; 2: invalid arguments; 3: policy requires review.\nInspection never accepts changes or resumes a pending publication.";
 
 pub(super) fn run(arguments: impl Iterator<Item = OsString>) {
     let options = match parse(arguments) {
@@ -41,10 +41,12 @@ fn parse(
     let mut targets = Vec::new();
     let mut help = false;
     let mut details = false;
+    let mut offline = false;
     while let Some(argument) = arguments.next() {
         match argument.to_str() {
             Some("--help") if !help => help = true,
             Some("--details") if !details => details = true,
+            Some("--offline") if !offline => offline = true,
             Some("--project") if project_root.is_none() => {
                 project_root = Some(PathBuf::from(value(&mut arguments, "--project")?));
             }
@@ -70,6 +72,7 @@ fn parse(
         project_root: project_root.unwrap_or_else(|| PathBuf::from(".")),
         targets,
         details,
+        offline,
     }))
 }
 
@@ -94,10 +97,12 @@ mod tests {
         assert_eq!(options.project_root, PathBuf::from("."));
         assert!(options.targets.is_empty());
         assert!(!options.details);
+        assert!(!options.offline);
         assert!(parse(arguments(&["--details"])).unwrap().unwrap().details);
         let options = parse(arguments(&[
             "--project",
             "space in path",
+            "--offline",
             "--target",
             "linux_x86_64",
             "--target",
@@ -107,6 +112,7 @@ mod tests {
         .unwrap();
         assert_eq!(options.project_root, PathBuf::from("space in path"));
         assert_eq!(options.targets.len(), 2);
+        assert!(options.offline);
         assert!(parse(arguments(&["--help"])).unwrap().is_none());
     }
 
@@ -121,6 +127,9 @@ mod tests {
             vec!["--target", "not-a-target"],
             vec!["--help", "--help"],
             vec!["--details", "--details"],
+            vec!["--offline", "--offline"],
+            vec!["--project", "--offline"],
+            vec!["--target", "--offline"],
             vec!["--project", ".", "--project", "."],
             vec!["--target", "linux_x86_64", "--target", "linux_x86_64"],
         ] {

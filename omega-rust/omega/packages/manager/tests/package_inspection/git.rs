@@ -73,13 +73,32 @@ fn inspection_keeps_named_and_relative_members_at_one_accepted_repository_pin() 
 }
 
 fn inspect(fixture: &Fixture) -> package_manager::operations::PackageInspectionOutcome {
-    inspect_packages_with_storage(
+    inspect_with_offline(fixture, false)
+}
+
+fn inspect_with_offline(
+    fixture: &Fixture,
+    offline: bool,
+) -> package_manager::operations::PackageInspectionOutcome {
+    let calls = fixture.transport_calls();
+    let result = inspect_packages_with_storage(
         PackageInspectionOptions {
             project_root: fixture.path("root"),
             targets: Vec::new(),
             details: false,
+            offline,
         },
         &SourceResolverStorage::for_hardened_base(fixture.path("cache")).unwrap(),
     )
-    .unwrap()
+    .unwrap();
+    if offline {
+        assert_eq!(
+            fixture.transport_calls(),
+            calls,
+            "offline inspection used transport"
+        );
+    }
+    result
 }
+
+include!("offline.rs");

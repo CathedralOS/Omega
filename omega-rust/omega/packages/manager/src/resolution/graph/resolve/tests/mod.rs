@@ -23,6 +23,12 @@ mod git_cache;
 mod git_pins;
 mod git_requests;
 mod limits;
+#[cfg(unix)]
+mod offline;
+#[cfg(not(unix))]
+#[test]
+#[ignore = "offline Git transport counting requires the Unix test-only SSH transport"]
+fn offline_git_transport_fixture_requires_unix_shell() {}
 mod selective_updates;
 mod staged_external_local;
 mod target_profiles;

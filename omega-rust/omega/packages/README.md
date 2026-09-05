@@ -35,9 +35,8 @@ Follow the supported source-change flow through:
 `omega install` and `omega update` use that flow, including selective updates,
 per-target review files, `--resume`, and recoverable publication. Start at the
 [command operation](manager/src/operations/package_commands/README.md) for usage
-and its source map. The [task board](../../../TASKS_PACKAGE_MANAGER.md) contains
-only remaining work, with offline and model wiring separate from required
-integration. Source-code diffs are separate from editable capability decisions;
+and its source map. The [task board](../../../../TASKS_PACKAGE_MANAGER.md) contains
+only remaining work. Source-code diffs are separate from editable capability decisions;
 verified old local snapshots can be recovered from the existing cache. Install
 can select a Git workspace member with `--package <declared-name>`; its declared name still
 supplies the default import alias.
@@ -52,6 +51,11 @@ decisions beside exact source graphs. Old source is not required to read or
 compare those baselines. Locked recovery acquires the recorded commit rather
 than refreshing selectors; fresh checking reports changes in compiler findings
 without claiming to certify prior acceptance.
+
+`--offline` uses local sources and cached accepted/proposed Git pins without
+network acquisition, including historical source diagnostics. Requests needing
+a fresh Git selection reject. Compilation and inspection still check source;
+resume still requires decisions and rejects stale candidates.
 
 Ordinary project preparation uses accepted dependency pins while allowing edits
 to the application's own source. Changed dependency declarations or local
@@ -69,6 +73,6 @@ rejects during candidate checking.
 
 Design and acquisition references:
 
-- [Build And Package Model](../../../wiki/design_briefs/build_and_package_model.md)
-- [Package Manager: Scope and Workflow](../../../wiki/design_briefs/package_manager_first_draft.md)
+- [Build And Package Model](../../../../wiki/design_briefs/build_and_package_model.md)
+- [Package Manager: Scope and Workflow](../../../../wiki/design_briefs/package_manager_first_draft.md)
 - [Source Resolver Security](sources/acquisition/SOURCE_RESOLVER_SECURITY.md)

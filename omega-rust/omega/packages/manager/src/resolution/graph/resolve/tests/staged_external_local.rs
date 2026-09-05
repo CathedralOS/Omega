@@ -69,6 +69,97 @@ impl Drop for Fixture {
 }
 
 #[test]
+fn live_and_staged_options_validate_pin_root_and_context_before_acquisition() {
+    let fixture = Fixture::new("offline-options-root-request");
+    write_application(&fixture.path("root"), "consumer", None);
+    write_package(&fixture.path("dependency"), "dependency", None);
+    let storage = SourceResolverStorage::for_hardened_base(fixture.path("cache")).unwrap();
+    let proposed = "machine build(builder: &mut Build) { builder.application(\"consumer\"); builder.depend(Source::Path { location: \"../dependency\" }); }\n";
+    let stage = fixture.stage(&storage, proposed);
+    let context = ExternalSourceContext::derive(b"offline-options-root-request");
+    let original = resolve_external_local_project_closure_with_options(
+        stage.requested_root(),
+        context.clone(),
+        &storage,
+        LocalSourceLimits::default(),
+        PackageSourceClosureLimits::default(),
+        GitResolutionOptions {
+            offline: true,
+            pins: None,
+        },
+    )
+    .unwrap();
+    let subject = CanonicalSourceClosureSubject::from_resolved(
+        &original.for_exact_target(target::TargetProfile::WindowsX64),
+        CanonicalSourceClosureSubjectLimits::default(),
+    )
+    .unwrap();
+    let pins =
+        GitDependencyPins::new(&subject, &[], GitExactRevisionAcquisition::AllowFetch).unwrap();
+    for offline in [false, true] {
+        let options = GitResolutionOptions {
+            pins: Some(pins),
+            offline,
+        };
+        let candidate = resolve_staged_external_local_project_closure_with_options(
+            &stage,
+            context.clone(),
+            &storage,
+            LocalSourceLimits::default(),
+            PackageSourceClosureLimits::default(),
+            options,
+        )
+        .unwrap();
+        assert_eq!(candidate.custodies().len(), 2);
+        resolve_external_local_project_closure_with_options(
+            stage.requested_root(),
+            context.clone(),
+            &storage,
+            LocalSourceLimits::default(),
+            PackageSourceClosureLimits::default(),
+            options,
+        )
+        .unwrap();
+        // Equivalent canonical paths still have different authored root requests.
+        for (root, consuming_context) in [
+            (fixture.path("root"), context.clone()),
+            (
+                stage.requested_root().to_path_buf(),
+                ExternalSourceContext::derive(b"foreign"),
+            ),
+        ] {
+            let error = resolve_external_local_project_closure_with_options(
+                root,
+                consuming_context,
+                &storage,
+                LocalSourceLimits::default(),
+                PackageSourceClosureLimits::default(),
+                options,
+            )
+            .unwrap_err();
+            assert!(matches!(
+                error,
+                ResolveExternalLocalPackageClosureError::RootRequestMismatch
+            ));
+        }
+        let error = resolve_staged_external_local_project_closure_with_options(
+            &stage,
+            ExternalSourceContext::derive(b"foreign"),
+            &storage,
+            LocalSourceLimits::default(),
+            PackageSourceClosureLimits::default(),
+            options,
+        )
+        .unwrap_err();
+        assert!(matches!(
+            error,
+            ResolveExternalLocalPackageClosureError::RootRequestMismatch
+        ));
+    }
+    stage.verify_live_source_unchanged().unwrap();
+}
+
+#[test]
 fn staged_project_adds_relative_and_nested_path_dependencies_from_live_directories() {
     let fixture = Fixture::new("staged-closure-paths");
     write_application(&fixture.path("root"), "staged-app", None);

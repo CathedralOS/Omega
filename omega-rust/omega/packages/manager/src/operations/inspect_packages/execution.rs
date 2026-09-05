@@ -3,8 +3,9 @@ use crate::lock::{PackageLock, PackageLockRecoveryLimits, PackageLockTarget};
 use crate::operations::PackageFileTransaction;
 use crate::operations::prepare_project::LOCAL_PROJECT_CONTEXT;
 use crate::resolution::graph::{
-    CanonicalSourceClosureSubject, CanonicalSourceClosureSubjectLimits, PackageRootSourceRequest,
-    PackageSourceClosureLimits, resolve_external_local_project_closure_with_storage,
+    CanonicalSourceClosureSubject, CanonicalSourceClosureSubjectLimits, GitResolutionOptions,
+    PackageRootSourceRequest, PackageSourceClosureLimits,
+    resolve_external_local_project_closure_with_options,
     resolve_locked_local_project_closure_with_storage,
 };
 use crate::review::{
@@ -23,6 +24,7 @@ pub(super) fn inspect<Storage: Borrow<SourceResolverStorage>>(
     transaction: &PackageFileTransaction,
     requested_targets: Vec<TargetProfile>,
     details: bool,
+    offline: bool,
     open_storage: impl FnOnce(&Path) -> Result<Storage, PackageInspectionError>,
 ) -> Result<PackageInspectionOutcome, PackageInspectionError> {
     // read_pair refuses pending commit intent. Inspection never completes a
@@ -51,6 +53,7 @@ pub(super) fn inspect<Storage: Borrow<SourceResolverStorage>>(
                 target,
                 baseline,
                 storage.borrow(),
+                offline,
             ),
             Err(error) => Err(failure(error)),
         };
@@ -123,6 +126,7 @@ fn check(
     target: TargetProfile,
     accepted: Option<&PackageLockTarget>,
     storage: &SourceResolverStorage,
+    offline: bool,
 ) -> Result<
     (
         CanonicalSourceClosureSubject,
@@ -139,7 +143,11 @@ fn check(
                 requested_root: project_root.to_path_buf(),
                 source_context: context,
             },
-            GitExactRevisionAcquisition::AllowFetch,
+            if offline {
+                GitExactRevisionAcquisition::Offline
+            } else {
+                GitExactRevisionAcquisition::AllowFetch
+            },
             storage,
             LocalSourceLimits::default(),
             PackageSourceClosureLimits::default(),
@@ -147,12 +155,16 @@ fn check(
         )
         .map_err(failure)?
     } else {
-        resolve_external_local_project_closure_with_storage(
+        resolve_external_local_project_closure_with_options(
             project_root,
             context,
             storage,
             LocalSourceLimits::default(),
             PackageSourceClosureLimits::default(),
+            GitResolutionOptions {
+                pins: None,
+                offline,
+            },
         )
         .map_err(failure)?
     };
