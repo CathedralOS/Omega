@@ -1,6 +1,7 @@
 use super::*;
 use crate::encoding::PackagePolicyRecoveryLimits;
 use crate::encoding::encode::encoder::Encoder;
+use crate::encoding::encode::text_test_support;
 use crate::encoding::encode::{encode_contract_expression, encode_contract_static_argument};
 use crate::record::{
     PackageReviewNominalIdentity, PackageReviewNominalOwner, PackageReviewOperatorCoordinate,
@@ -124,6 +125,7 @@ fn call(target: PackageReviewContractCallTarget) -> PackageReviewContractExpress
 #[test]
 fn every_static_argument_roundtrips_without_losing_nested_identity() {
     for value in static_arguments() {
+        text_test_support::meaning(|encoder| encode_contract_static_argument(encoder, &value));
         let bytes = encoded_static(&value);
         let recovered = recovered_static(&bytes).unwrap();
         assert_eq!(recovered, value);
@@ -266,6 +268,7 @@ fn every_expression_variant_roundtrips_exactly() {
         });
     }
     for value in values {
+        text_test_support::meaning(|encoder| encode_contract_expression(encoder, &value));
         let bytes = encoded_expression(&value);
         let recovered = recovered_expression(&bytes).unwrap();
         assert_eq!(recovered, value);
@@ -300,11 +303,52 @@ fn all_call_target_variants_preserve_evidence_and_static_arguments() {
     }
     for target in targets {
         let value = call(target);
+        text_test_support::meaning(|encoder| encode_contract_expression(encoder, &value));
         assert_eq!(
             recovered_expression(&encoded_expression(&value)).unwrap(),
             value
         );
     }
+}
+
+#[test]
+fn recursive_expression_and_static_argument_text_preserve_nested_meaning() {
+    let mut argument = PackageReviewContractStaticArgument::ConformanceApplication {
+        declaration: identity("Selected"),
+        arguments: static_arguments(),
+        subject: Box::new(PackageReviewContractStaticArgument::Type(value_type())),
+        trait_identity: identity("Interface"),
+        trait_arguments: vec![value_type()],
+    };
+    for _ in 0..32 {
+        argument = PackageReviewContractStaticArgument::GenericType {
+            base: value_type(),
+            lifetime_arguments: vec![0, 2],
+            arguments: vec![argument],
+        };
+    }
+    text_test_support::meaning(|encoder| encode_contract_static_argument(encoder, &argument));
+    assert_eq!(
+        recovered_static(&encoded_static(&argument)).unwrap(),
+        argument
+    );
+
+    let mut expression = call(PackageReviewContractCallTarget::Nominal(identity(
+        "Check::enter",
+    )));
+    for _ in 0..32 {
+        expression = PackageReviewContractExpression::Binary {
+            meaning: meaning(),
+            operator: PackageReviewContractBinaryOperator::And,
+            left: Box::new(expression),
+            right: Box::new(PackageReviewContractExpression::Boolean(true)),
+        };
+    }
+    text_test_support::meaning(|encoder| encode_contract_expression(encoder, &expression));
+    assert_eq!(
+        recovered_expression(&encoded_expression(&expression)).unwrap(),
+        expression
+    );
 }
 
 #[test]

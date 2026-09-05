@@ -12,7 +12,11 @@ mod model;
 mod policy;
 mod source;
 
-pub use policy::{PackagePolicyRecoveryError, PackagePolicyRecoveryLimits};
+#[cfg(test)]
+pub(in crate::encoding) use policy::decode_policy_text_scalars;
+pub use policy::{
+    PackagePolicyRecoveryError, PackagePolicyRecoveryLimits, PackagePolicyTextRecoveryLimits,
+};
 
 use omega_target::TargetProfile;
 use psi_core::PackageKeyIdentity;

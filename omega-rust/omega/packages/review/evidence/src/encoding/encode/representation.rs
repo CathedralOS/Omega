@@ -33,18 +33,40 @@ pub(super) fn policy(
     encoder: &mut Encoder,
     policy: &PackagePolicyRepresentation,
 ) -> Result<(), PackageReviewEncodingError> {
-    encoder.package_identity(policy.package);
-    encode_representation_target(encoder, policy.target);
-    encoder.sequence(&policy.declarations, encode_nominal)?;
-    encoder.sequence(&policy.producer_availability, |encoder, availability| {
-        encode_nominal(encoder, &availability.opaque)?;
-        encode_conformance_shape(encoder, &availability.conformance)?;
-        encode_nominal(encoder, &availability.carrier)
+    encoder.field("package", |encoder| {
+        encoder.package_identity(policy.package);
+        Ok(())
     })?;
-    encoder.sequence(&policy.selected_availability, selection)?;
-    encoder.sequence(&policy.demands, |encoder, demand| {
-        encode_nominal(encoder, &demand.opaque)?;
-        calling::encode_application(encoder, &demand.calling)
+    encoder.field("target", |encoder| {
+        encode_representation_target(encoder, policy.target);
+        Ok(())
+    })?;
+    encoder.field("declarations", |encoder| {
+        encoder.sequence(&policy.declarations, encode_nominal)
+    })?;
+    encoder.field("producer_availability", |encoder| {
+        encoder.sequence(&policy.producer_availability, |encoder, availability| {
+            encoder.field("opaque", |encoder| {
+                encode_nominal(encoder, &availability.opaque)
+            })?;
+            encoder.field("conformance", |encoder| {
+                encode_conformance_shape(encoder, &availability.conformance)
+            })?;
+            encoder.field("carrier", |encoder| {
+                encode_nominal(encoder, &availability.carrier)
+            })
+        })
+    })?;
+    encoder.field("selected_availability", |encoder| {
+        encoder.sequence(&policy.selected_availability, selection)
+    })?;
+    encoder.field("demands", |encoder| {
+        encoder.sequence(&policy.demands, |encoder, demand| {
+            encoder.field("opaque", |encoder| encode_nominal(encoder, &demand.opaque))?;
+            encoder.field("calling", |encoder| {
+                calling::encode_application(encoder, &demand.calling)
+            })
+        })
     })
 }
 
@@ -52,33 +74,63 @@ fn selection(
     encoder: &mut Encoder,
     selection: &PackagePolicyRepresentationSelection,
 ) -> Result<(), PackageReviewEncodingError> {
-    encode_nominal(encoder, &selection.opaque)?;
-    encode_nominal(encoder, &selection.carrier)?;
-    match selection.selection_owner {
-        PackageReviewNominalOwner::Package(package) => {
-            encoder.byte(0);
-            encoder.package_identity(package);
-        }
-        PackageReviewNominalOwner::ToolchainSource(source) => {
-            encoder.byte(1);
-            encoder.fixed_bytes(&source.digest());
-        }
-        PackageReviewNominalOwner::Unresolved => {
-            return Err(PackageReviewEncodingError::new(
-                "representation policy has unresolved selection ownership",
-            ));
-        }
-    }
-    conformance_policy::encode_application(encoder, &selection.application)?;
-    encoder.byte(match selection.origin {
-        PackageReviewOpaqueRepresentationApplicationOrigin::NamedConformance => 0,
-    });
-    encoder.byte(match selection.lifecycle {
-        PackageReviewOpaqueRepresentationLifecycleDisposition::Inert => 0,
-    });
-    encoder.byte(match selection.copy_disposition {
-        PackageReviewOpaqueRepresentationCopyDisposition::PlacementOnly => 0,
-        PackageReviewOpaqueRepresentationCopyDisposition::CheckedSemanticCopy => 1,
-    });
+    encoder.field("opaque", |encoder| {
+        encode_nominal(encoder, &selection.opaque)
+    })?;
+    encoder.field("carrier", |encoder| {
+        encode_nominal(encoder, &selection.carrier)
+    })?;
+    encoder.field("selection_owner", |encoder| {
+        match selection.selection_owner {
+            PackageReviewNominalOwner::Package(package) => {
+                encoder.tag("package", 0);
+                encoder.field("package", |encoder| {
+                    encoder.package_identity(package);
+                    Ok(())
+                })?;
+            }
+            PackageReviewNominalOwner::ToolchainSource(source) => {
+                encoder.tag("toolchain_source", 1);
+                encoder.field("digest", |encoder| {
+                    encoder.fixed_bytes(&source.digest());
+                    Ok(())
+                })?;
+            }
+            PackageReviewNominalOwner::Unresolved => {
+                return Err(PackageReviewEncodingError::new(
+                    "representation policy has unresolved selection ownership",
+                ));
+            }
+        };
+        Ok(())
+    })?;
+    encoder.field("application", |encoder| {
+        conformance_policy::encode_application(encoder, &selection.application)
+    })?;
+    encoder.field("origin", |encoder| {
+        match selection.origin {
+            PackageReviewOpaqueRepresentationApplicationOrigin::NamedConformance => {
+                encoder.tag("named_conformance", 0)
+            }
+        };
+        Ok(())
+    })?;
+    encoder.field("lifecycle", |encoder| {
+        match selection.lifecycle {
+            PackageReviewOpaqueRepresentationLifecycleDisposition::Inert => encoder.tag("inert", 0),
+        };
+        Ok(())
+    })?;
+    encoder.field("copy_disposition", |encoder| {
+        match selection.copy_disposition {
+            PackageReviewOpaqueRepresentationCopyDisposition::PlacementOnly => {
+                encoder.tag("placement_only", 0)
+            }
+            PackageReviewOpaqueRepresentationCopyDisposition::CheckedSemanticCopy => {
+                encoder.tag("checked_semantic_copy", 1)
+            }
+        };
+        Ok(())
+    })?;
     Ok(())
 }

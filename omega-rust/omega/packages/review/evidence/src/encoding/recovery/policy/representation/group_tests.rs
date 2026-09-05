@@ -66,6 +66,9 @@ fn a_calling_application_requires_all_opaque_demands_and_one_shared_meaning() {
     let policy = two_opaque_demands();
     let bytes = policy.canonical_bytes().unwrap();
     assert_eq!(recover(&bytes).unwrap(), policy);
+    crate::encoding::encode::text_test_support::component(
+        crate::encoding::encode::text_test_support::Component::Representation(&policy),
+    );
     let mut missing = policy.clone();
     missing.demands.pop();
     assert!(missing.canonical_bytes().is_err());
@@ -94,6 +97,9 @@ fn the_same_opaque_can_be_used_by_distinct_complete_calling_applications() {
         .sort_by(PackagePolicyRepresentationDemand::compare_application);
     let bytes = policy.canonical_bytes().unwrap();
     assert_eq!(recover(&bytes).unwrap(), policy);
+    crate::encoding::encode::text_test_support::component(
+        crate::encoding::encode::text_test_support::Component::Representation(&policy),
+    );
     policy.demands.remove(1);
     assert!(policy.canonical_bytes().is_err());
 }

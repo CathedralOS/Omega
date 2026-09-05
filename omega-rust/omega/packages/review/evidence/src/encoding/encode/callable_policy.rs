@@ -1,7 +1,9 @@
 //! Complete callable policy, with no private derivation coordinates.
 
 mod behavior;
+mod row;
 pub(super) use behavior::{crash_route, termination};
+pub(in crate::encoding) use row::encode_callable;
 
 use super::{
     declarations::{encode_conformance_bound, encode_type_identity},
@@ -38,108 +40,49 @@ pub(super) fn policy(
     encoder: &mut Encoder,
     policy: &PackagePolicyCallables,
 ) -> Result<(), PackageReviewEncodingError> {
-    encoder.package_identity(policy.package);
-    encoder.string(policy.target.identity().as_str())?;
-    encoder.sequence(&policy.callables, encode_callable)
-}
-
-pub(in crate::encoding) fn encode_callable(
-    encoder: &mut Encoder,
-    callable: &PackagePolicyCallable,
-) -> Result<(), PackageReviewEncodingError> {
-    encoder.byte(match callable.role {
-        PackagePolicyCallableRole::Boundary => 0,
-        PackagePolicyCallableRole::Public => 1,
-        PackagePolicyCallableRole::Build => 2,
-        PackagePolicyCallableRole::PrivateAssumption => 3,
-        PackagePolicyCallableRole::PrivateExternal => 4,
-    });
-    encode_nominal(encoder, &callable.identity)?;
-    encode_supply(encoder, callable.supply)?;
-    encoder.usize(callable.lifetime_parameter_count)?;
-    encoder.sequence(&callable.type_parameters, encode_type_parameter)?;
-    encoder.sequence(&callable.conformance_bounds, encode_conformance_bound)?;
-    encoder.sequence(&callable.parameters, |encoder, parameter| {
-        encoder.string(&parameter.name)?;
-        encode_type_identity(encoder, &parameter.type_identity)?;
-        encoder.boolean(parameter.is_const);
-        encoder.boolean(parameter.is_mutable);
-        encoder.boolean(parameter.is_self);
+    encoder.field("package", |encoder| {
+        encoder.package_identity(policy.package);
         Ok(())
     })?;
-    encoder.option(callable.return_type.as_ref(), encode_type_identity)?;
-    encoder.sequence(&callable.conformances, encode_callable_conformance)?;
-    encoder.sequence(&callable.operator_realizations, |encoder, realization| {
-        encode_operator_coordinate(encoder, &realization.coordinate)?;
-        encoder.option(realization.alias.as_deref(), |encoder, alias| {
-            encoder.string(alias)
-        })
+    encoder.field("target", |encoder| {
+        encoder.string(policy.target.identity().as_str())
     })?;
-    encoder.sequence(&callable.contracts, encode_callable_contract)?;
-    encoder.option(
-        callable.declared_service_reach.as_deref(),
-        |encoder, row| encoder.sequence(row, encode_nominal),
-    )?;
-    match &callable.checked_service_reach {
-        PackageReviewCheckedServiceReach::NoCheckedBody => encoder.byte(0),
-        PackageReviewCheckedServiceReach::CheckedBody { realized, concrete } => {
-            encoder.byte(1);
-            encoder.sequence(realized, encode_nominal)?;
-            encoder.sequence(concrete, encode_nominal)?;
-        }
-    }
-    encoder.sequence(
-        &callable.unresolved_installation_reaches,
-        encode_installation_reach,
-    )?;
-    encoder.option(
-        callable.declared_synchronous_invocations.as_deref(),
-        |encoder, row| encoder.sequence(row, encode_synchronous_invocation),
-    )?;
-    encoder.sequence(
-        &callable.realized_synchronous_invocations,
-        encode_synchronous_invocation,
-    )?;
-    encoder.sequence(&callable.capability_flows, behavior::capability)?;
-    encoder.sequence(&callable.reachable_capability_flows, behavior::capability)?;
-    encoder.option(callable.declared_may_suspend.as_ref(), |encoder, value| {
-        encoder.boolean(*value);
-        Ok(())
-    })?;
-    encoder.option(callable.declared_may_block.as_ref(), |encoder, value| {
-        encoder.boolean(*value);
-        Ok(())
-    })?;
-    encoder.option(
-        callable.declared_termination.as_ref(),
-        behavior::termination,
-    )?;
-    encoder.boolean(callable.checked_may_suspend);
-    encoder.boolean(callable.checked_may_block);
-    behavior::termination(encoder, &callable.checked_termination)?;
-    behavior::crash(encoder, &callable.checked_crash)?;
-    behavior::mutation(encoder, &callable.mutation)
+    encoder.field("callables", |encoder| {
+        encoder.sequence(&policy.callables, encode_callable)
+    })
 }
 
 pub(super) fn encode_callable_conformance(
     encoder: &mut Encoder,
     conformance: &PackagePolicyCallableConformance,
 ) -> Result<(), PackageReviewEncodingError> {
-    encode_nominal(encoder, &conformance.trait_identity)?;
-    encode_nominal(encoder, &conformance.requirement_identity)?;
-    encoder.sequence(
-        &conformance.requirement_lifetime_partition,
-        |encoder, ordinal| {
+    encoder.field("trait", |encoder| {
+        encode_nominal(encoder, &conformance.trait_identity)
+    })?;
+    encoder.field("requirement", |encoder| {
+        encode_nominal(encoder, &conformance.requirement_identity)
+    })?;
+    encoder.field("requirement_lifetime_partition", |encoder| {
+        encoder.sequence(
+            &conformance.requirement_lifetime_partition,
+            |encoder, ordinal| {
+                encoder.u32(*ordinal);
+                Ok(())
+            },
+        )
+    })?;
+    encoder.field("trait_lifetime_arguments", |encoder| {
+        encoder.sequence(&conformance.trait_lifetime_arguments, |encoder, ordinal| {
             encoder.u32(*ordinal);
             Ok(())
-        },
-    )?;
-    encoder.sequence(&conformance.trait_lifetime_arguments, |encoder, ordinal| {
-        encoder.u32(*ordinal);
-        Ok(())
+        })
     })?;
-    encoder.sequence(&conformance.arguments, encode_type_identity)?;
-    encoder.option(conformance.alias.as_deref(), |encoder, alias| {
-        encoder.string(alias)
+    encoder.field("arguments", |encoder| {
+        encoder.sequence(&conformance.arguments, encode_type_identity)
+    })?;
+    encoder.field("alias", |encoder| {
+        encoder.option(conformance.alias.as_deref(), |encoder, alias| {
+            encoder.string(alias)
+        })
     })
 }

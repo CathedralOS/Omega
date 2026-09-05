@@ -6,6 +6,8 @@ mod dependencies;
 mod external_tests;
 #[cfg(test)]
 mod tests;
+#[cfg(test)]
+mod text_tests;
 
 use super::{
     Error, PackagePolicyRecoveryLimits, callable_policy, external, identity::package, public_api,

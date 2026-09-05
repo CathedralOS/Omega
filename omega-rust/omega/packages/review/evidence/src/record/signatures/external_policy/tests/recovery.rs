@@ -18,6 +18,7 @@ fn recover(bytes: &[u8]) -> PackagePolicyExternalExecutableSupply {
 }
 
 fn assert_round_trip(policy: &PackagePolicyExternalExecutableSupply) {
+    crate::encoding::assert_external_policy_text(policy);
     let encoded = policy
         .canonical_bytes()
         .expect("encode external-supply policy");

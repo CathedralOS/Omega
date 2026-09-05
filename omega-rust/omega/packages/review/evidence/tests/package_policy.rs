@@ -10,7 +10,9 @@ mod public_families;
 mod source;
 mod support;
 
-use omega_package_evidence::encoding::PackagePolicyRecoveryLimits;
+use omega_package_evidence::encoding::{
+    PackagePolicyRecoveryLimits, PackagePolicyTextRecoveryLimits,
+};
 use omega_package_evidence::record::*;
 use omega_package_evidence::{
     project_checked_callable_policy, project_checked_package_policy,
@@ -33,6 +35,15 @@ fn project(fixture: &Fixture) -> PackagePolicyBaseline {
             .expect("recover complete baseline without compiler state or source reads");
     assert_eq!(recovered, policy);
     assert_eq!(recovered.canonical_bytes().unwrap(), bytes);
+    let text = policy
+        .canonical_text()
+        .expect("complete named baseline text");
+    let text_policy =
+        PackagePolicyBaseline::recover_text(&text, PackagePolicyTextRecoveryLimits::default())
+            .expect("recover named baseline without source");
+    assert_eq!(text_policy, policy);
+    assert_eq!(text_policy.canonical_bytes().unwrap(), bytes);
+    assert_eq!(text_policy.canonical_text().unwrap(), text);
     policy
 }
 

@@ -8,35 +8,51 @@ pub(crate) fn encode_nominal(
     encoder: &mut Encoder,
     identity: &PackageReviewNominalIdentity,
 ) -> Result<(), PackageReviewEncodingError> {
-    match identity.owner {
-        PackageReviewNominalOwner::Package(package) => {
-            encoder.byte(0);
-            encoder.package_identity(package);
-        }
-        PackageReviewNominalOwner::ToolchainSource(source) => {
-            encoder.byte(1);
-            encoder.fixed_bytes(&source.digest());
-        }
-        PackageReviewNominalOwner::Unresolved => {
-            return Err(PackageReviewEncodingError::new(
-                "package review cannot encode unresolved nominal ownership",
-            ));
-        }
-    }
-    encoder.string(&identity.path)
+    encoder.field("owner", |encoder| {
+        match identity.owner {
+            PackageReviewNominalOwner::Package(package) => {
+                encoder.tag("package", 0);
+                encoder.field("package", |encoder| {
+                    encoder.package_identity(package);
+                    Ok(())
+                })?;
+            }
+            PackageReviewNominalOwner::ToolchainSource(source) => {
+                encoder.tag("toolchain_source", 1);
+                encoder.field("source_digest", |encoder| {
+                    encoder.fixed_bytes(&source.digest());
+                    Ok(())
+                })?;
+            }
+            PackageReviewNominalOwner::Unresolved => {
+                return Err(PackageReviewEncodingError::new(
+                    "package review cannot encode unresolved nominal ownership",
+                ));
+            }
+        };
+        Ok(())
+    })?;
+    encoder.field("path", |encoder| encoder.string(&identity.path))
 }
 
 pub(crate) fn encode_supply(
     encoder: &mut Encoder,
     supply: PackageReviewCallableSupply,
 ) -> Result<(), PackageReviewEncodingError> {
-    encoder.byte(match supply {
-        PackageReviewCallableSupply::CheckedBody => 0,
-        PackageReviewCallableSupply::Requirement => 1,
-        PackageReviewCallableSupply::Boundary => 2,
-        PackageReviewCallableSupply::AdmissionClaim => 3,
-        PackageReviewCallableSupply::ExternalRealization => 4,
-        PackageReviewCallableSupply::TopLevelRequirement => 5,
-    });
+    encoder.field("supply", |encoder| {
+        match supply {
+            PackageReviewCallableSupply::CheckedBody => encoder.tag("checked_body", 0),
+            PackageReviewCallableSupply::Requirement => encoder.tag("requirement", 1),
+            PackageReviewCallableSupply::Boundary => encoder.tag("boundary", 2),
+            PackageReviewCallableSupply::AdmissionClaim => encoder.tag("admission_claim", 3),
+            PackageReviewCallableSupply::ExternalRealization => {
+                encoder.tag("external_realization", 4)
+            }
+            PackageReviewCallableSupply::TopLevelRequirement => {
+                encoder.tag("top_level_requirement", 5)
+            }
+        };
+        Ok(())
+    })?;
     Ok(())
 }

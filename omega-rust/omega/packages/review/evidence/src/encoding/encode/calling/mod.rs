@@ -14,10 +14,13 @@ fn type_identity(
     encoder: &mut Encoder,
     identity: &PackageReviewTypeIdentity,
 ) -> Result<(), PackageReviewEncodingError> {
-    encoder.string(identity.canonical())
+    encoder.field("canonical", |encoder| encoder.string(identity.canonical()))
 }
 
 fn ordinal(encoder: &mut Encoder, ordinal: &u32) -> Result<(), PackageReviewEncodingError> {
-    encoder.u32(*ordinal);
+    encoder.field("ordinal", |encoder| {
+        encoder.u32(*ordinal);
+        Ok(())
+    })?;
     Ok(())
 }

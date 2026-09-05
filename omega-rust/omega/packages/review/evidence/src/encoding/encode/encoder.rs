@@ -1,8 +1,13 @@
 use super::PackageReviewEncodingError;
 use psi_core::PackageKeyIdentity;
 
-pub(crate) struct Encoder {
+mod scalars;
+pub(in crate::encoding) mod text;
+
+pub(crate) struct Encoder<'text> {
     output: Vec<u8>,
+    text: Option<text::Writer<'text>>,
+    encoded_bytes: usize,
     maximum_bytes: usize,
     exceeded: bool,
     policy_elements: Option<usize>,
@@ -10,10 +15,12 @@ pub(crate) struct Encoder {
     maximum_policy_depth: usize,
 }
 
-impl Encoder {
+impl<'text> Encoder<'text> {
     pub(crate) fn bounded(maximum_bytes: usize) -> Self {
         Self {
             output: Vec::new(),
+            text: None,
+            encoded_bytes: 0,
             maximum_bytes,
             exceeded: false,
             policy_elements: None,
@@ -64,6 +71,11 @@ impl Encoder {
     }
 
     pub(crate) fn finish(self) -> Result<Vec<u8>, PackageReviewEncodingError> {
+        if self.text.is_some() {
+            return Err(PackageReviewEncodingError::new(
+                "text encoder requires text completion",
+            ));
+        }
         if self.exceeded {
             Err(PackageReviewEncodingError::new(
                 "package review exceeds its canonical encoding byte ceiling",
@@ -77,70 +89,23 @@ impl Encoder {
         if self.exceeded {
             return;
         }
-        let Some(required) = self.output.len().checked_add(bytes.len()) else {
+        let Some(required) = self.encoded_bytes.checked_add(bytes.len()) else {
             self.exceeded = true;
             return;
         };
-        if required > self.maximum_bytes || self.output.try_reserve(bytes.len()).is_err() {
+        if required > self.maximum_bytes {
+            self.exceeded = true;
+            return;
+        }
+        self.encoded_bytes = required;
+        if self.text.is_some() {
+            return;
+        }
+        if self.output.try_reserve(bytes.len()).is_err() {
             self.exceeded = true;
             return;
         }
         self.output.extend_from_slice(bytes);
-    }
-
-    pub(crate) fn fixed_bytes(&mut self, value: &[u8]) {
-        self.append(value);
-    }
-
-    pub(crate) fn byte(&mut self, value: u8) {
-        self.append(&[value]);
-    }
-
-    pub(crate) fn boolean(&mut self, value: bool) {
-        self.byte(u8::from(value));
-    }
-
-    pub(crate) fn u16(&mut self, value: u16) {
-        self.append(&value.to_le_bytes());
-    }
-
-    pub(crate) fn u32(&mut self, value: u32) {
-        self.append(&value.to_le_bytes());
-    }
-
-    pub(crate) fn u64(&mut self, value: u64) {
-        self.append(&value.to_le_bytes());
-    }
-
-    pub(crate) fn i64(&mut self, value: i64) {
-        self.append(&value.to_le_bytes());
-    }
-
-    pub(crate) fn i128(&mut self, value: i128) {
-        self.append(&value.to_le_bytes());
-    }
-
-    pub(crate) fn u128(&mut self, value: u128) {
-        self.append(&value.to_le_bytes());
-    }
-
-    pub(crate) fn usize(&mut self, value: usize) -> Result<(), PackageReviewEncodingError> {
-        self.u64(u64::try_from(value).map_err(|_| {
-            PackageReviewEncodingError::new(
-                "package review value exceeds the portable encoding range",
-            )
-        })?);
-        Ok(())
-    }
-
-    pub(crate) fn bytes(&mut self, value: &[u8]) -> Result<(), PackageReviewEncodingError> {
-        self.usize(value.len())?;
-        self.append(value);
-        self.check()
-    }
-
-    pub(crate) fn string(&mut self, value: &str) -> Result<(), PackageReviewEncodingError> {
-        self.bytes(value.as_bytes())
     }
 
     pub(crate) fn sequence<T>(
@@ -149,11 +114,27 @@ impl Encoder {
         encode_value: impl Fn(&mut Self, &T) -> Result<(), PackageReviewEncodingError>,
     ) -> Result<(), PackageReviewEncodingError> {
         self.policy_elements(values.len())?;
-        self.usize(values.len())?;
-        for value in values {
-            encode_value(self, value)?;
+        let count = u64::try_from(values.len()).map_err(|_| {
+            PackageReviewEncodingError::new("package policy sequence count overflows")
+        })?;
+        self.append(&count.to_le_bytes());
+        if let Some(text) = &mut self.text {
+            text.sequence(count);
         }
-        Ok(())
+        for value in values {
+            if let Some(text) = &mut self.text {
+                text.item();
+            }
+            let result = encode_value(self, value);
+            if let Some(text) = &mut self.text {
+                text.end();
+            }
+            result?;
+        }
+        if let Some(text) = &mut self.text {
+            text.end();
+        }
+        self.check()
     }
 
     pub(crate) fn option<T: ?Sized>(
@@ -161,31 +142,38 @@ impl Encoder {
         value: Option<&T>,
         encode_value: impl Fn(&mut Self, &T) -> Result<(), PackageReviewEncodingError>,
     ) -> Result<(), PackageReviewEncodingError> {
+        self.append(&[u8::from(value.is_some())]);
+        if let Some(text) = &mut self.text {
+            text.option(value.is_some());
+        }
         match value {
-            None => self.byte(0),
+            None => {}
             Some(value) => {
-                self.byte(1);
-                encode_value(self, value)?;
+                let result = encode_value(self, value);
+                if let Some(text) = &mut self.text {
+                    text.end();
+                }
+                result?;
             }
         }
-        Ok(())
+        self.check()
     }
 
     pub(crate) fn package_identity(&mut self, identity: PackageKeyIdentity) {
-        self.append(&identity.digest());
+        self.fixed_bytes(&identity.digest());
     }
 
     pub(crate) fn optional_package_identity(&mut self, identity: Option<PackageKeyIdentity>) {
-        match identity {
-            None => self.byte(0),
-            Some(identity) => {
-                self.byte(1);
-                self.package_identity(identity);
-            }
-        }
+        let _ = self.option(identity.as_ref(), |encoder, identity| {
+            encoder.package_identity(*identity);
+            Ok(())
+        });
     }
 
     pub(crate) fn check(&self) -> Result<(), PackageReviewEncodingError> {
+        if let Some(text) = &self.text {
+            text.check()?;
+        }
         if self.exceeded {
             Err(PackageReviewEncodingError::new(
                 "package review exceeds its canonical encoding byte ceiling",

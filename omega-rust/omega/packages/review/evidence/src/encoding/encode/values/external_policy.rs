@@ -1,5 +1,6 @@
 //! Canonical receipt-free external-supply policy, independent of review rows.
 
+mod locator;
 mod signatures;
 use super::identity::encode_nominal;
 use crate::encoding::encode::encoder::Encoder;
@@ -11,6 +12,7 @@ use crate::record::{
     PackagePolicyEvaluatedBindingProducer, PackagePolicyExternalBinding,
     PackagePolicyExternalExecutableSupply, PackageReviewForeignLocator,
 };
+pub(crate) use locator::encode_locator;
 
 const MAXIMUM_BYTES: usize = 4 * 1024 * 1024;
 
@@ -40,54 +42,71 @@ pub(in crate::encoding::encode) fn policy(
     supply
         .validate_canonical_structure()
         .map_err(PackageReviewEncodingError::new)?;
-    encode_nominal(encoder, &supply.callable)?;
-    signatures::signature(encoder, &supply.signature)?;
-    signatures::requirement(encoder, &supply.requirement)?;
-    match &supply.binding {
-        PackagePolicyExternalBinding::Import { library, symbol } => {
-            encoder.byte(0);
-            encoder.string(library)?;
-            encoder.string(symbol)?;
+    encoder.field("callable", |encoder| {
+        encode_nominal(encoder, &supply.callable)
+    })?;
+    encoder.field("signature", |encoder| {
+        signatures::signature(encoder, &supply.signature)
+    })?;
+    encoder.field("requirement", |encoder| {
+        signatures::requirement(encoder, &supply.requirement)
+    })?;
+    encoder.field("binding", |encoder| {
+        match &supply.binding {
+            PackagePolicyExternalBinding::Import { library, symbol } => {
+                encoder.tag("import", 0);
+                encoder.field("library", |encoder| encoder.string(library))?;
+                encoder.field("symbol", |encoder| encoder.string(symbol))?;
+            }
+            PackagePolicyExternalBinding::Syscall { number } => {
+                encoder.tag("syscall", 1);
+                encoder.field("number", |encoder| {
+                    encoder.i64(*number);
+                    Ok(())
+                })?;
+            }
+            PackagePolicyExternalBinding::CompilerIntrinsic => encoder.tag("compiler_intrinsic", 2),
+            PackagePolicyExternalBinding::VtableSlot { index } => {
+                encoder.tag("vtable_slot", 3);
+                encoder.field("index", |encoder| {
+                    encoder.i64(*index);
+                    Ok(())
+                })?;
+            }
+            PackagePolicyExternalBinding::VtableField { field } => {
+                encoder.tag("vtable_field", 4);
+                encoder.field("field", |encoder| encoder.string(field))?;
+            }
+            PackagePolicyExternalBinding::TableFunction { field } => {
+                encoder.tag("table_function", 5);
+                encoder.field("field", |encoder| encoder.string(field))?;
+            }
+            PackagePolicyExternalBinding::NormalizedImport {
+                target,
+                locator,
+                producer,
+            } => {
+                encoder.tag("normalized_import", 6);
+                encoder.field("target", |encoder| encode_target(encoder, target))?;
+                encoder.field("locator", |encoder| encode_locator(encoder, locator))?;
+                encoder.field("producer", |encoder| encode_producer(encoder, producer))?;
+            }
+            PackagePolicyExternalBinding::NormalizedSyscall {
+                target,
+                number,
+                producer,
+            } => {
+                encoder.tag("normalized_syscall", 7);
+                encoder.field("target", |encoder| encode_target(encoder, target))?;
+                encoder.field("number", |encoder| {
+                    encoder.i64(*number);
+                    Ok(())
+                })?;
+                encoder.field("producer", |encoder| encode_producer(encoder, producer))?;
+            }
         }
-        PackagePolicyExternalBinding::Syscall { number } => {
-            encoder.byte(1);
-            encoder.i64(*number);
-        }
-        PackagePolicyExternalBinding::CompilerIntrinsic => encoder.byte(2),
-        PackagePolicyExternalBinding::VtableSlot { index } => {
-            encoder.byte(3);
-            encoder.i64(*index);
-        }
-        PackagePolicyExternalBinding::VtableField { field } => {
-            encoder.byte(4);
-            encoder.string(field)?;
-        }
-        PackagePolicyExternalBinding::TableFunction { field } => {
-            encoder.byte(5);
-            encoder.string(field)?;
-        }
-        PackagePolicyExternalBinding::NormalizedImport {
-            target,
-            locator,
-            producer,
-        } => {
-            encoder.byte(6);
-            encode_target(encoder, target)?;
-            encode_locator(encoder, locator)?;
-            encode_producer(encoder, producer)?;
-        }
-        PackagePolicyExternalBinding::NormalizedSyscall {
-            target,
-            number,
-            producer,
-        } => {
-            encoder.byte(7);
-            encode_target(encoder, target)?;
-            encoder.i64(*number);
-            encode_producer(encoder, producer)?;
-        }
-    }
-    Ok(())
+        Ok(())
+    })
 }
 
 fn encode_target(encoder: &mut Encoder, target: &str) -> Result<(), PackageReviewEncodingError> {
@@ -106,44 +125,14 @@ pub(crate) fn encode_producer(
     encoder: &mut Encoder,
     producer: &PackagePolicyEvaluatedBindingProducer,
 ) -> Result<(), PackageReviewEncodingError> {
-    encode_nominal(encoder, &producer.declaration)?;
-    encoder.optional_package_identity(producer.package);
-    encoder.string(&producer.callable_identity)
-}
-
-pub(crate) fn encode_locator(
-    encoder: &mut Encoder,
-    locator: &PackageReviewForeignLocator,
-) -> Result<(), PackageReviewEncodingError> {
-    match locator {
-        PackageReviewForeignLocator::PeByName { library, export } => {
-            encoder.byte(0);
-            encoder.bytes(library)?;
-            encoder.bytes(export)?;
-        }
-        PackageReviewForeignLocator::PeByOrdinal { library, ordinal } => {
-            encoder.byte(1);
-            encoder.bytes(library)?;
-            encoder.u16(*ordinal);
-        }
-        PackageReviewForeignLocator::ElfVersioned {
-            object,
-            symbol,
-            version,
-        } => {
-            encoder.byte(2);
-            encoder.bytes(object)?;
-            encoder.bytes(symbol)?;
-            encoder.bytes(version)?;
-        }
-        PackageReviewForeignLocator::MachODylibSymbol {
-            install_name,
-            symbol,
-        } => {
-            encoder.byte(3);
-            encoder.bytes(install_name)?;
-            encoder.bytes(symbol)?;
-        }
-    }
-    Ok(())
+    encoder.field("declaration", |encoder| {
+        encode_nominal(encoder, &producer.declaration)
+    })?;
+    encoder.field("package", |encoder| {
+        encoder.optional_package_identity(producer.package);
+        Ok(())
+    })?;
+    encoder.field("callable_identity", |encoder| {
+        encoder.string(&producer.callable_identity)
+    })
 }

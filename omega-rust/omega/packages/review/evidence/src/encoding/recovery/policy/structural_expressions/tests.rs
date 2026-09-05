@@ -60,6 +60,9 @@ fn recover_scalar(bytes: &[u8]) -> Result<Scalar, Error> {
     Ok(value)
 }
 fn boolean_roundtrip(value: Boolean) {
+    crate::encoding::encode::text_test_support::meaning(|encoder| {
+        encode_boolean_expression(encoder, &value)
+    });
     let bytes = boolean_bytes(&value);
     assert_eq!(
         recover_boolean(&bytes, PackagePolicyRecoveryLimits::default()).unwrap(),
@@ -79,6 +82,9 @@ fn boolean_roundtrip(value: Boolean) {
     );
 }
 fn scalar_roundtrip(value: Scalar) {
+    crate::encoding::encode::text_test_support::meaning(|encoder| {
+        encode_scalar_expression(encoder, &value)
+    });
     let bytes = scalar_bytes(&value);
     assert_eq!(recover_scalar(&bytes).unwrap(), value);
     for end in 0..bytes.len() {

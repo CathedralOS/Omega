@@ -1,5 +1,6 @@
 use super::super::PackagePolicyRecoveryLimits;
 use super::*;
+use crate::encoding::encode::text_test_support::{self, Component};
 use crate::encoding::encode::{
     encode_policy_machine_contract, encode_public_api, encoder::Encoder,
 };
@@ -227,6 +228,65 @@ fn decode(
     let api = public_api(&mut reader)?;
     reader.finish()?;
     Ok(api)
+}
+
+#[test]
+fn complete_public_api_text_retains_all_declaration_families() {
+    let mut api = fixture();
+    text_test_support::component(Component::PublicApi(&api));
+    api.traits[0]
+        .conformance_bounds
+        .push(PackageReviewConformanceBound {
+            binder_ordinal: Some(0),
+            subject_parameter: 0,
+            selected_conformance: Some(identity("Selected")),
+            selected_lifetime_arguments: vec![0],
+            selected_arguments: vec![PackageReviewContractStaticArgument::GenericTypeBinder(0)],
+            selected_subject: Some(PackageReviewContractStaticArgument::GenericTypeBinder(0)),
+            trait_identity: identity("Interface"),
+            trait_lifetime_arguments: vec![0],
+            arguments: vec![value_type()],
+        });
+    for carry in [
+        psi_language_semantics::CarryPolicy {
+            suspension: psi_language_semantics::CarrySuspension::Forbidden,
+            cpu: psi_language_semantics::CarryCpu::Origin,
+            host_thread: psi_language_semantics::CarryHostThread::Origin,
+            address: psi_language_semantics::CarryAddress::Stable,
+        },
+        psi_language_semantics::CarryPolicy {
+            suspension: psi_language_semantics::CarrySuspension::Allowed,
+            cpu: psi_language_semantics::CarryCpu::Any,
+            host_thread: psi_language_semantics::CarryHostThread::Any,
+            address: psi_language_semantics::CarryAddress::Movable,
+        },
+    ] {
+        api.data[0].properties.carry = Some(carry);
+        text_test_support::component(Component::PublicApi(&api));
+    }
+}
+
+#[test]
+fn nested_static_contract_text_retains_promises_at_supported_depth() {
+    let mut contract = PackagePolicyMachineParameterContract::Structural(signature());
+    for _ in 0..24 {
+        contract = PackagePolicyMachineParameterContract::Structural(
+            PackagePolicyMachineParameterSignature {
+                type_parameters: vec![PackagePolicyTypeParameter {
+                    kind: PackagePolicyTypeParameterKind::Machine(contract),
+                    bounds: properties(),
+                }],
+                ..signature()
+            },
+        );
+    }
+    text_test_support::meaning(|encoder| encode_policy_machine_contract(encoder, &contract));
+    let mut encoder = Encoder::policy_bounded(1_000_000);
+    encode_policy_machine_contract(&mut encoder, &contract).unwrap();
+    let bytes = encoder.finish().unwrap();
+    let mut reader = Reader::new(&bytes, PackagePolicyRecoveryLimits::default()).unwrap();
+    assert_eq!(signatures::machine_contract(&mut reader).unwrap(), contract);
+    reader.finish().unwrap();
 }
 
 #[test]

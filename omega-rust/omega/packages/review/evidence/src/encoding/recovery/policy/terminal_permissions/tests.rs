@@ -50,6 +50,9 @@ fn complete_schema_and_nested_calling_survive_without_nested_envelopes() {
     let policy = fixture();
     let bytes = policy.canonical_bytes().unwrap();
     assert_eq!(recover(&bytes).unwrap(), policy);
+    crate::encoding::encode::text_test_support::component(
+        crate::encoding::encode::text_test_support::Component::TerminalPermissions(&policy),
+    );
     assert!(
         !bytes
             .windows(crate::encoding::CALLING_POLICY_MAGIC.len())
@@ -90,6 +93,9 @@ fn unpermitted_schema_and_declaration_order_changes_remain_observable() {
         let bytes = changed.canonical_bytes().unwrap();
         assert_ne!(bytes, baseline);
         assert_eq!(recover(&bytes).unwrap(), changed);
+        crate::encoding::encode::text_test_support::component(
+            crate::encoding::encode::text_test_support::Component::TerminalPermissions(&changed),
+        );
     }
 }
 
@@ -109,6 +115,9 @@ fn every_terminal_class_and_explicit_empty_differ_from_absence() {
             classes
         );
         assert_eq!(recovered, policy);
+        crate::encoding::encode::text_test_support::component(
+            crate::encoding::encode::text_test_support::Component::TerminalPermissions(&policy),
+        );
     }
     let mut explicit = original.clone();
     explicit.services[0].permissions[0].permitted = TerminalAuthorityDisposition::from_classes([]);
