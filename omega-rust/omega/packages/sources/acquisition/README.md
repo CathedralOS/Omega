@@ -59,6 +59,23 @@ the exact original request, retained cache, commit and root tree without
 refetching; an absent or invalid pinned cache fails. These privately issued
 pins prevent drift within one traversal, not persisted lock recovery.
 
+`git::resolution::resolve_git_source_at_revision_in_lane` instead accepts
+inert recorded `GitCommitId` and `GitTreeId` values for whole-root acquisition.
+Its explicit `Offline` mode performs no transport or revision discovery;
+`AllowFetch` reuses cached exact objects first and permits one exact-commit
+fetch only after a successful, bounded object-absence probe. Neither mode
+selects a mutable ref or `FETCH_HEAD`. Cache metadata and returned custody
+retain the original authored request, while the expected IDs determine the
+selected content. Cold creation uses their object format without `ls-remote`.
+
+Absence of the recorded commit or root tree is distinct from malformed output,
+failed commands, or invalid custody. An offline absence preserves a healthy
+cache. Present objects still pass normal commit, tree, materialization, and
+snapshot authentication before issuance; recorded IDs cannot mint custody.
+Incomplete or corrupted descendant objects fail without automatic repair.
+This whole-root entrance does not select workspace members or reconstruct a
+manager lock's package graph.
+
 Dependency direction is deliberate: the `local` and `git` adapters may use
 `identity`, `tree`, `snapshot`, `custody`, and `storage`; those shared owners
 must not depend back on either adapter. The local and Git adapters must not
