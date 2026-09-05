@@ -17,6 +17,9 @@ use typed_trees::{
     types::{PrimitiveType, TypeReferenceHandle, TypeReferenceNode},
 };
 
+mod computations;
+pub(crate) use computations::build_checked_scalar_computation_plans;
+
 #[derive(Debug, Clone)]
 struct ScalarLocal {
     is_mutable: bool,

@@ -39,6 +39,7 @@ pub(super) fn lower_destination(
     scalar_bindings: &storage::ScalarBindings,
     result_type: ScalarType,
     return_sink: Option<usize>,
+    computations: &mut computations::Expansion<'_>,
 ) -> Result<(usize, Vec<LoweredDirectExpression>), LoweringError> {
     match destination {
         CheckedScalarBranchDestination::Jump(successor) => lower_scalar_graph_successor(
@@ -48,6 +49,7 @@ pub(super) fn lower_destination(
             source_value_types,
             successor,
             scalar_bindings,
+            computations,
         ),
         CheckedScalarBranchDestination::Return {
             statement_ordinal,

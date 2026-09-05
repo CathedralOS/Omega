@@ -3,6 +3,9 @@ use symbols::SymbolHandle;
 use typed_trees::expression::ExpressionHandle;
 use typed_trees::types::TypeReferenceHandle;
 
+mod computations;
+pub use computations::*;
+
 pub type CheckedValueHandle = Handle<CheckedValueFact>;
 
 /// A checker-established inclusive integer interval for one value at its exact
@@ -89,6 +92,7 @@ pub struct CheckedValueFact {
 pub struct CheckedValueFacts {
     pub values: Arena<CheckedValueFact>,
     pub scalar_expressions: CheckedScalarExpressionPlans,
+    pub scalar_computations: CheckedScalarComputationPlans,
 }
 
 impl CheckedValueFacts {
@@ -96,6 +100,7 @@ impl CheckedValueFacts {
         Self {
             values,
             scalar_expressions: CheckedScalarExpressionPlans::default(),
+            scalar_computations: CheckedScalarComputationPlans::default(),
         }
     }
 

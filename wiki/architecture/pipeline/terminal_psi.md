@@ -2946,12 +2946,29 @@ selected continuation. Local places, borrows, recasts, and nested calls are not
 converted to value captures by this normalization. No additional Terminal
 call or return representation is introduced.
 
-The older guarded named-argument normalization can emit only a flat prefix of
-calls. It therefore leaves targets containing calls on a short-circuit RHS
-unmodified, and the unsupported computation rejects before Terminal
-publication. Executable support for these cases requires a typed evaluation
-graph with conditional RHS blocks and captured earlier arguments; it is tracked
-in `STATE-LOCAL-VALUE-FRONTIER`, not treated as completed short-circuit support.
+Call-bearing scalar state arguments instead retain arena-backed checked
+computation plans, separate from the pure scalar expressions consumed by proof.
+Their value leaves use the source state's checked scalar namespace; call nodes
+retain exact flow-call handles and authored occurrence ordinals; conditional
+nodes select one result; pure application templates consume only their computed
+operands. Builtin Boolean composition and nested free scalar calls lower to
+private typed blocks. Each completed argument is carried before the next one
+starts, and only the selected `&&`/`||` RHS executes. No source state, source
+local, or new Terminal operation is manufactured. Invalid handles, cycles,
+duplicate roots/call occurrences, and mismatched carriers or invocation
+coordinates reject before publication.
+
+Computed call arguments bind the pinned callee's parameter-relative crash
+routes to the actual argument values, using the same route substitution as
+ordinary staged calls. The checker row still supplies exact target-contract
+identity; Terminal verification independently reconstructs route coverage.
+Declared crash ceilings may remain even when every crashing branch is skipped.
+
+Effectful arithmetic/casts, other expression destinations, borrowed/projected
+operands, and named runtime proof outputs still need execution-plan extensions.
+The older flat guarded-argument normalization remains on uncovered paths and
+must be retired as those paths move to checked computation planning; this work
+remains in `STATE-LOCAL-VALUE-FRONTIER`.
 
 Structural-operand Unit composition is a distinct checked operation, not a
 widened scalar `Call`. One free or hosted Unit body may bind a primitive result

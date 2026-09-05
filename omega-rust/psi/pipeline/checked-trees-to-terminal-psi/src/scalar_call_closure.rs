@@ -35,18 +35,30 @@ pub(super) fn checked_scalar_call_closure(
             .ok_or(LoweringError::Unsupported(
                 "direct scalar call target has no checked scalar graph",
             ))?;
-        for (target, authorized_static_scalar) in graph.states.iter().flat_map(|state| {
-            state.bindings.iter().filter_map(|binding| {
-                let CheckedScalarBindingValue::DirectCall { target_machine, .. } = &binding.value
-                else {
-                    return None;
-                };
-                Some((
-                    *target_machine,
-                    bounded_static_scalar_dispatch_edge(checked, machine, state.state, binding),
-                ))
+        let computation_targets =
+            scalar_graph_lowering::checked_scalar_computation_call_targets(checked, machine)?;
+        for (target, authorized_static_scalar) in graph
+            .states
+            .iter()
+            .flat_map(|state| {
+                state.bindings.iter().filter_map(|binding| {
+                    let CheckedScalarBindingValue::DirectCall { target_machine, .. } =
+                        &binding.value
+                    else {
+                        return None;
+                    };
+                    Some((
+                        *target_machine,
+                        bounded_static_scalar_dispatch_edge(checked, machine, state.state, binding),
+                    ))
+                })
             })
-        }) {
+            .chain(
+                computation_targets
+                    .into_iter()
+                    .map(|target| (target, false)),
+            )
+        {
             let target_selection = checked
                 .facts
                 .flow

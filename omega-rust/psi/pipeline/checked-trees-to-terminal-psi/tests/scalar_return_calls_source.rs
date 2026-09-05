@@ -431,58 +431,313 @@ fn combined_guarded_calls_do_not_execute_unselected_trap_or_abort() {
 }
 
 #[test]
-fn guarded_state_argument_short_circuit_rejects_unconditional_call_hoisting() {
+fn nested_scalar_argument_calls_preserve_snapshots_and_boolean_composition() {
+    let source = r#"
+        machine identity(input: bool) -> bool
+        requires true == true
+        ensures true == true
+        { input }
+        machine negate(input: bool) -> bool
+        requires true == true
+        ensures true == true
+        { !input }
+        machine compare(first: bool, second: bool) -> bool
+        requires true == true
+        ensures true == true
+        { first == second }
+        machine value(selected: bool, flag: bool) -> bool
+        requires true == true
+        ensures true == true
+        {
+            let mut current: bool = flag;
+            let saved: bool = current;
+            current = !flag;
+            transition selected {
+                true -> finish(saved, flag && compare(identity(current), negate(saved)))
+                false -> finish(saved, flag || !(identity(current) != negate(saved)))
+            }
+            state finish(first: bool, second: bool) -> bool { first != second }
+        }
+    "#;
+    for combined in [false, true] {
+        let artifact = encoded_arms(source, combined);
+        for selected in [false, true] {
+            for flag in [false, true] {
+                assert_eq!(
+                    execute(
+                        &artifact,
+                        &[
+                            TerminalScalarValue::Boolean(selected),
+                            TerminalScalarValue::Boolean(flag)
+                        ]
+                    )
+                    .unwrap(),
+                    TerminalExecutionResult::Scalar(TerminalScalarValue::Boolean(
+                        !selected && !flag
+                    )),
+                    "selected={selected}, flag={flag}, combined={combined}",
+                );
+            }
+        }
+    }
+}
+
+#[test]
+fn outer_arm_selection_keeps_redundant_inner_calls_unexecuted() {
     let source = r#"
         machine effect() -> bool
         crashes Abort
         { crash Abort; }
-
         machine value(flag: bool) -> bool
         requires false == false
         ensures false == false
         crashes Abort
         {
             transition flag {
+                true -> finish(flag || effect())
+                false -> finish(flag && effect())
+            }
+            state finish(input: bool) -> bool { input }
+        }
+    "#;
+    for combined in [false, true] {
+        let artifact = encoded_arms(source, combined);
+        for flag in [false, true] {
+            let input = TerminalScalarValue::Boolean(flag);
+            assert_eq!(
+                execute(&artifact, &[input]).unwrap(),
+                TerminalExecutionResult::Scalar(input)
+            );
+        }
+    }
+}
+
+#[test]
+fn computed_call_results_bind_guarded_callee_crash_routes() {
+    let source = r#"
+        machine identity(input: bool) -> bool
+        requires false == false
+        ensures false == false
+        { input }
+        machine maybe_crash(input: bool) -> bool
+        requires false == false
+        ensures false == false
+        crashes Abort
+            input
+        {
+            transition input { true -> fail() false -> false }
+            state fail() -> bool { crash Abort; }
+        }
+        machine value(selected: bool, flag: bool) -> bool
+        requires false == false
+        ensures false == false
+        crashes Abort
+        {
+            transition selected {
+                true -> finish(flag || maybe_crash(identity(!flag)))
+                false -> finish(false)
+            }
+            state finish(input: bool) -> bool { input }
+        }
+    "#;
+    for combined in [false, true] {
+        let artifact = encoded_arms(source, combined);
+        for selected in [false, true] {
+            for flag in [false, true] {
+                let result = execute(
+                    &artifact,
+                    &[
+                        TerminalScalarValue::Boolean(selected),
+                        TerminalScalarValue::Boolean(flag),
+                    ],
+                );
+                if selected && !flag {
+                    let TerminalArtifactInterpretError::Execution(TerminalInterpretError::Crash(
+                        crash,
+                    )) = result.unwrap_err()
+                    else {
+                        panic!("selected computed true argument must abort");
+                    };
+                    assert_eq!(crash.cause, terminal_psi::CrashCause::Abort);
+                } else {
+                    assert_eq!(
+                        result.unwrap(),
+                        TerminalExecutionResult::Scalar(TerminalScalarValue::Boolean(
+                            selected && flag
+                        ))
+                    );
+                }
+            }
+        }
+    }
+}
+
+#[test]
+fn scalar_computation_custody_mutations_reject_before_publication() {
+    use checked_trees::CheckedScalarComputationKind;
+    let source = r#"
+        machine identity(input: bool) -> bool
+        requires true == true
+        ensures true == true
+        { input }
+        machine value(selected: bool, flag: bool) -> bool
+        requires true == true
+        ensures true == true
+        {
+            transition selected {
+                true -> finish(flag && identity(flag))
+                false -> finish(false)
+            }
+            state finish(input: bool) -> bool { input }
+        }
+    "#;
+    for combined in [false, true] {
+        let checked = checked_arms(source, combined);
+        checked_trees_to_terminal_psi::lower_machine(&checked, "value").unwrap();
+        let plans = &checked.facts.values.scalar_computations;
+        let (root_handle, root) = plans.roots.iter().next().expect("computation root");
+        let root = root.clone();
+        let (call_handle, _) = plans
+            .nodes
+            .iter()
+            .find(|(_, node)| matches!(node.kind, CheckedScalarComputationKind::Call { .. }))
+            .expect("nested call");
+        for mutation in 0..10 {
+            let mut mutated = checked.clone();
+            let plans = &mut mutated.facts.values.scalar_computations;
+            match mutation {
+                0 => {
+                    plans.roots.append(root.clone());
+                }
+                1 => {
+                    plans.roots.get_mut(root_handle).root = arena::Handle::invalid();
+                }
+                2 => {
+                    plans.nodes.get_mut(root.root).primitive_type =
+                        typed_trees::types::PrimitiveType::I32;
+                }
+                3..=5 => {
+                    let CheckedScalarComputationKind::Call {
+                        source_call,
+                        call_ordinal,
+                        arguments,
+                        ..
+                    } = &mut plans.nodes.get_mut(call_handle).kind
+                    else {
+                        unreachable!()
+                    };
+                    match mutation {
+                        3 => *source_call = arena::Handle::invalid(),
+                        4 => *call_ordinal += 1,
+                        5 => *arguments = arena::HandleSpan::empty(),
+                        _ => unreachable!(),
+                    }
+                }
+                6 => {
+                    let CheckedScalarComputationKind::Select { condition, .. } =
+                        &mut plans.nodes.get_mut(root.root).kind
+                    else {
+                        panic!("conditional root")
+                    };
+                    *condition = root.root;
+                }
+                7 => {
+                    let CheckedScalarComputationKind::Call { target_state, .. } =
+                        &mut plans.nodes.get_mut(call_handle).kind
+                    else {
+                        unreachable!()
+                    };
+                    *target_state = symbols::SymbolHandle::invalid();
+                }
+                8 => {
+                    let CheckedScalarComputationKind::Select {
+                        when_true,
+                        when_false,
+                        ..
+                    } = &mut plans.nodes.get_mut(root.root).kind
+                    else {
+                        unreachable!()
+                    };
+                    *when_false = *when_true;
+                }
+                9 => {
+                    plans.nodes.get_mut(call_handle).primitive_type =
+                        typed_trees::types::PrimitiveType::I32;
+                }
+                _ => unreachable!(),
+            }
+            assert!(
+                checked_trees_to_terminal_psi::lower_machine(&mutated, "value").is_err(),
+                "mutation={mutation}, combined={combined}"
+            );
+        }
+    }
+}
+
+#[test]
+fn guarded_state_argument_short_circuit_executes_only_selected_calls() {
+    let source = r#"
+        machine effect() -> bool
+        crashes Abort
+        { crash Abort; }
+
+        machine value(selected: bool, flag: bool) -> bool
+        requires false == false
+        ensures false == false
+        crashes Abort
+        {
+            transition selected {
                 true -> finish(false && effect())
                 false -> finish(false)
             }
             state finish(result: bool) -> bool { result }
         }
     "#;
-    // The flat call-prefix normalization previously published this program
-    // and executed effect() for flag=true. Until a typed evaluation graph
-    // preserves the RHS guard, no executable artifact may be published.
-    for operand in [
-        "false && effect()",
-        "true || effect()",
-        "flag && effect()",
-        "flag || effect()",
+    // The typed computation graph must retain both the outer arm selection
+    // and the independent short-circuit selection inside its argument.
+    for (operand, when_false, when_true) in [
+        ("false && effect()", Some(false), Some(false)),
+        ("true || effect()", Some(true), Some(true)),
+        ("flag && effect()", Some(false), None),
+        ("flag || effect()", None, Some(true)),
     ] {
         let source = source.replace("false && effect()", operand);
         for combined in [false, true] {
-            let checked = checked_arms(&source, combined);
-            let value = checked
-                .typed
-                .machines()
-                .iter()
-                .find(|machine| machine.name.as_str() == "value")
-                .unwrap();
-            assert_eq!(
-                checked.typed.machine_states(value).len(),
-                2,
-                "no unconditional call-prefix state was manufactured"
-            );
-            let error = checked_trees_to_terminal_psi::lower_machine(&checked, "value")
-                .expect_err("conditional calls need an arm-local evaluation graph");
-            assert!(
-                matches!(
-                    error,
-                    checked_trees_to_terminal_psi::LoweringError::Unsupported(
-                        "scalar computation lost its checked expression"
-                    )
-                ),
-                "{error:#?}"
-            );
+            let artifact = encoded_arms(&source, combined);
+            for selected in [false, true] {
+                for flag in [false, true] {
+                    let expected = if !selected {
+                        Some(false)
+                    } else if flag {
+                        when_true
+                    } else {
+                        when_false
+                    };
+                    let result = execute(
+                        &artifact,
+                        &[
+                            TerminalScalarValue::Boolean(selected),
+                            TerminalScalarValue::Boolean(flag),
+                        ],
+                    );
+                    if let Some(expected) = expected {
+                        assert_eq!(
+                            result.unwrap(),
+                            TerminalExecutionResult::Scalar(TerminalScalarValue::Boolean(expected)),
+                            "{operand}, selected={selected}, flag={flag}, combined={combined}"
+                        );
+                    } else {
+                        let TerminalArtifactInterpretError::Execution(
+                            TerminalInterpretError::Crash(crash),
+                        ) = result.unwrap_err()
+                        else {
+                            panic!("selected RHS must abort");
+                        };
+                        assert_eq!(crash.cause, terminal_psi::CrashCause::Abort);
+                        assert!(crash.frontier_lower_bound.is_empty());
+                    }
+                }
+            }
         }
     }
 }
