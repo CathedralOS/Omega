@@ -106,13 +106,15 @@ fn review_retains_contract_entailment_stand_downs_as_open_later_discharge_obliga
         return;
     };
     let package = TempPackage::new();
+    // Normal Unit return preserves its exact entry assumption, while min
+    // remains outside the independent polynomial entailment tier.
     package.write(
         "main.omg",
         r#"machine unchecked_claim(a: u64, b: u64)
 requires
     min(a, b) >= 1
 ensures
-    a >= 1
+    min(a, b) >= 1
 {
 }
 "#,
@@ -129,6 +131,7 @@ ensures
         package_inputs(&package.0),
     )
     .expect("ordinary checking should retain the out-of-language stand-down");
+    assert_eq!(checked.facts.proof.contract_exits.len(), 1);
     let [stand_down] = checked.contract_entailment_stand_downs() else {
         panic!("one exact contract-entailment stand-down")
     };
@@ -477,10 +480,12 @@ fn equal_contract_entailment_goals_retain_distinct_positions_and_complete_hypoth
     };
     let project = |minimum: u64| {
         let package = TempPackage::new();
+        // Keep both goals and the full min hypothesis while proving the one
+        // normal return by its guard. The loop branch has no normal return.
         package.write(
             "main.omg",
             &format!(
-                r#"machine unchecked_claim(a: u64, b: u64)
+                r#"machine unchecked_claim(a: u64, b: u64) -> u64
 requires
     min(a, b) >= {minimum}
 ensures
@@ -488,6 +493,10 @@ ensures
 ensures
     a >= 1
 {{
+    transition a >= 1 {{
+        true -> a
+        false -> unchecked_claim(a, b)
+    }}
 }}
 "#,
             ),
@@ -503,6 +512,7 @@ ensures
             package_inputs(&package.0),
         )
         .expect("duplicate open-goal fixture should check");
+        assert_eq!(checked.facts.proof.contract_exits.len(), 1);
         project_checked_package_review(&checked)
             .expect("duplicate equal goals retain exact coordinates")
     };
