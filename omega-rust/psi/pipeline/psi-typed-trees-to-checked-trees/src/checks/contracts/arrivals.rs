@@ -29,6 +29,10 @@ pub(super) fn check_self_transition_arrival_requires(
     else {
         return;
     };
+    let is_entry = program
+        .machine_states(machine)
+        .first()
+        .is_some_and(|entry| entry.symbol == state.symbol);
     let mut requirements = facts
         .semantic
         .contexts_at_point(ProgramPoint::State {
@@ -43,6 +47,10 @@ pub(super) fn check_self_transition_arrival_requires(
                     machine_symbol,
                     state_symbol,
                 } if machine_symbol == machine.symbol && state_symbol == state.symbol
+            ) || matches!(
+                fact.origin,
+                FactOrigin::MachineContract { machine_symbol }
+                    if is_entry && machine_symbol == machine.symbol
             ) || matches!(fact.origin, FactOrigin::StateParameterDomain { .. })
         })
         .cloned()

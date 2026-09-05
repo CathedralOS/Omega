@@ -15,7 +15,7 @@ pub(super) fn append_contract_semantic_facts(
     let mut semantic_handles = Vec::with_capacity(proof.contract_facts.len());
 
     for (contract_handle, contract) in proof.contract_facts.iter() {
-        let point = contract_fact_point(contract);
+        let point = contract_fact_point(program, contract);
         let place = contract_fact_place(program, facts, contract);
         let payload = semantic_contract_payload(program, contract);
         let declaration_fact = Fact {

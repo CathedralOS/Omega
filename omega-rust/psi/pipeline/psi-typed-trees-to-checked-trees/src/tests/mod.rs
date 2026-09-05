@@ -48,6 +48,7 @@ mod operators;
 mod proof_embedding_totality;
 mod proof_embeddings;
 mod range_call_invalidation;
+mod range_entry_contracts;
 mod range_state_argument_meet;
 mod range_state_call_invalidation;
 mod relevance;

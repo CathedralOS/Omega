@@ -298,11 +298,20 @@ fn transparent_relation_call_arguments_retain_contract_revision_dependencies() {
     let context = checked
         .facts
         .semantic
-        .contexts_at_point(psi_facts::ProgramPoint::Machine {
+        .contexts_at_point(psi_facts::ProgramPoint::State {
             machine_symbol: theorem.symbol,
+            state_symbol: state.symbol,
         })
-        .next()
-        .expect("machine requires context");
+        .find(|context| {
+            context.facts().any(|fact| {
+                matches!(
+                    fact.origin,
+                    psi_facts::FactOrigin::MachineContract { machine_symbol }
+                        if machine_symbol == theorem.symbol
+                )
+            })
+        })
+        .expect("machine requires context at entry");
     let fields = context
         .facts()
         .filter_map(|fact| {

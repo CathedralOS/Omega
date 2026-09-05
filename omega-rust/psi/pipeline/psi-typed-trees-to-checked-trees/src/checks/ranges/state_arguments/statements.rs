@@ -34,14 +34,13 @@ pub(super) fn collect_state_argument_facts_from_statement(
                 assignment.value,
                 collected,
             );
-            // A rebind stales any proven upper bound for the target (mirror
-            // of the main walk's Assignment arm).
-            facts.forget_index_upper_bound(
+            // RHS effects and values are evaluated before replacing the target.
+            let next_length = expression_indexable_length(program, facts, assignment.value);
+            let next_integer = expression_integer_value(program, facts, assignment.value);
+            facts.invalidate_assignment_bounds(
                 &program.expression_table.display_name(assignment.target),
             );
             if let Some((symbol, name)) = expression_name(program, assignment.target) {
-                let next_length = expression_indexable_length(program, facts, assignment.value);
-                let next_integer = expression_integer_value(program, facts, assignment.value);
                 facts.assign_local(symbol, name, next_length, next_integer);
                 seed_boolean_guard_local(context, facts, symbol, name, assignment.value);
             }

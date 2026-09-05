@@ -48,6 +48,10 @@ pub(crate) fn build_contract_call_facts(
                     target_state_symbol,
                     contract_machine_symbol: contract_target.0,
                     contract_state_symbol: contract_target.1,
+                    is_state_transfer: matches!(
+                        call_site,
+                        Some(crate::CallSite::TransitionNamed { .. })
+                    ),
                 },
             );
         }
@@ -66,6 +70,7 @@ struct ContractCallSite {
     target_state_symbol: SymbolHandle,
     contract_machine_symbol: SymbolHandle,
     contract_state_symbol: SymbolHandle,
+    is_state_transfer: bool,
 }
 
 fn append_contract_call(
@@ -81,14 +86,22 @@ fn append_contract_call(
         site.contract_machine_symbol,
         Some(site.contract_state_symbol),
         ContractProofFactKind::Requires,
+        !site.is_state_transfer,
     );
-    let ensures = append_contract_fact_refs(
-        contract_facts,
-        fact_refs,
-        site.contract_machine_symbol,
-        Some(site.contract_state_symbol),
-        ContractProofFactKind::Ensures,
-    );
+    // A jump does not return to its source or establish the machine's
+    // postconditions. Those remain obligations at the eventual normal exit.
+    let ensures = if site.is_state_transfer {
+        HandleSpan::empty()
+    } else {
+        append_contract_fact_refs(
+            contract_facts,
+            fact_refs,
+            site.contract_machine_symbol,
+            Some(site.contract_state_symbol),
+            ContractProofFactKind::Ensures,
+            true,
+        )
+    };
 
     if requires.is_empty() && ensures.is_empty() && !has_authored_evidence_arguments {
         return;
@@ -126,6 +139,7 @@ pub(crate) fn build_contract_exit_facts(
                 machine.symbol,
                 Some(state.symbol),
                 ContractProofFactKind::Ensures,
+                true,
             );
 
             if ensures.is_empty() {
@@ -196,6 +210,7 @@ fn append_contract_fact_refs(
     machine_symbol: SymbolHandle,
     state_symbol: Option<SymbolHandle>,
     kind: ContractProofFactKind,
+    include_machine_contracts: bool,
 ) -> HandleSpan<ContractProofFactRef> {
     let mut span = HandleSpan::empty();
 
@@ -203,7 +218,7 @@ fn append_contract_fact_refs(
         let owner_matches = match fact.owner {
             ContractProofFactOwner::Machine {
                 machine_symbol: owner_symbol,
-            } => owner_symbol == machine_symbol,
+            } => include_machine_contracts && owner_symbol == machine_symbol,
             ContractProofFactOwner::MachineState {
                 machine_symbol: owner_machine_symbol,
                 state_symbol: owner_state_symbol,

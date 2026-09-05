@@ -396,11 +396,16 @@ Owners include
   become ambient values in sibling states; existing capture acceptance and
   captured-entry authored-selection fallbacks contradict the settled rule.
   Migrate affected source and canaries to explicit transition arguments, then
-  remove the capture paths. Machine-entry `requires` clauses must also retain
-  their entry subjects instead of becoming foreign-name obligations on internal
-  state calls after parameter renaming. Acceptance: implicit cross-state use
+  remove the capture paths. Complete live contract/value-fact transport across
+  explicit state arguments; declaration initializer values must not be reseeded
+  as named-state invariants. Exit-local scalar proof must bind `result` to the
+  actual return occurrence and consume live writes through exact renamed output
+  origins; a named-state return of `7` must prove `ensures result == 7`.
+  Acceptance: implicit cross-state use
   rejects, while explicit renamed transfers retain exact contracts, field
-  selection, ownership and cleanup without requiring a runtime copy.
+  selection, ownership and cleanup without requiring a runtime copy. Wrong
+  results, mismatched output origins, and invalidated writes reject scalar
+  postconditions at every normal exit.
 
 - **CLEANUP-HOOK-SELECTION-AND-ERASED-OWNERSHIP.** Finish ordinary generic
   `drop<T>` and runtime cleanup invocation after exact owner-attached hook
