@@ -10,6 +10,11 @@ use crate::record::{
 mod encode;
 mod recovery;
 
+pub use recovery::{PackagePolicyRecoveryError, PackagePolicyRecoveryLimits};
+
+pub const PACKAGE_EXTERNAL_SUPPLY_POLICY_VERSION: u16 = 1;
+pub(crate) const EXTERNAL_SUPPLY_POLICY_MAGIC: &[u8] = b"OMEGA-EXTERNAL-SUPPLY-POLICY\0";
+
 pub use encode::{
     PACKAGE_REVIEW_ENCODING_VERSION, PACKAGE_REVIEW_ROW_ENCODING_VERSION,
     PackageReviewEncodingError,

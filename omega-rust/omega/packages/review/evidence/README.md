@@ -77,10 +77,14 @@ equality.
 External executable supplies expose a separate `policy_projection()` retaining
 the complete callable signature, requirement, binding, target, and producer
 identity while omitting evaluator accounting and reconstruction receipts. Its
-bounded `OMEGA-EXTERNAL-SUPPLY-POLICY` component encoding is version 1. The
-existing full-review encoding and validators are unchanged. This component
-still needs typed recovery and integration into the complete normalized policy
-baseline; it is not an accepted-lock record or an acceptance decision.
+bounded `OMEGA-EXTERNAL-SUPPLY-POLICY` component encoding is version 1.
+`recover_canonical()` restores typed signatures, contracts, expressions, and
+bindings without an old checkout or compiler execution. Recovery rejects
+unknown vocabulary, truncated or trailing fields, and noncanonical encodings;
+caller ceilings can lower the hard byte, aggregate-element, owned-storage, and
+nesting limits. The existing full-review encoding and validators are unchanged.
+Integration into the complete normalized policy baseline remains separate;
+this component is not an accepted-lock record or an acceptance decision.
 
 The supported result lanes do not pretend to prove a bodyless accepted claim,
 grant dangerous authority, validate externally supplied executable code, or

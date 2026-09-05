@@ -20,8 +20,17 @@ the exact four foreign-locator forms, target, and producer identities. It omits
 evaluation accounting, evaluator/materializer schema markers, closure/evaluation/
 materialization digests, and reconstruction receipts. Its signature and
 requirement encoders share the full-review vocabulary; changes to those nested
-encodings must also version the policy component. Typed recovery and complete
-accepted-baseline integration remain separate work. This component does not
+encodings must also version the policy component. Typed recovery restores the
+complete nested signature, machine-contract, proposition, and expression
+vocabulary, checking exact re-encoding without reconstructing compiler evidence.
+Normalized bindings retain exact versioned target-profile identities from
+checked evaluation, not deployment names or CLI aliases. The writer and reader
+limit aggregate list elements plus recursive entries to 65,536 and nesting to
+128. Recovery additionally limits individual fields to 4 MiB and requested
+vector/string/box storage, including canonical comparison scratch, to 64 MiB;
+callers may lower but cannot raise these
+ceilings. Allocator overhead is outside that storage accounting. Complete
+accepted-baseline integration remains separate work. This component does not
 change the full-review schema or any compiler validator.
 
 The ordinary obligation-semantics schema is version 7. Its result

@@ -69,7 +69,7 @@ pub(crate) fn encode_machine_parameter_contract(
     encoder: &mut Encoder,
     contract: &PackageReviewMachineParameterContract,
 ) -> Result<(), PackageReviewEncodingError> {
-    match contract {
+    encoder.nested(|encoder| match contract {
         PackageReviewMachineParameterContract::Structural(signature) => {
             encoder.byte(0);
             encode_machine_parameter_signature(encoder, signature)
@@ -86,7 +86,7 @@ pub(crate) fn encode_machine_parameter_contract(
             encoder.byte(2);
             Ok(())
         }
-    }
+    })
 }
 
 pub(crate) fn encode_machine_parameter_signature(

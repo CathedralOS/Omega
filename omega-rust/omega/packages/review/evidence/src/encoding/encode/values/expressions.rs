@@ -18,6 +18,13 @@ pub(crate) fn encode_contract_expression(
     encoder: &mut Encoder,
     expression: &PackageReviewContractExpression,
 ) -> Result<(), PackageReviewEncodingError> {
+    encoder.nested(|encoder| encode_contract_expression_body(encoder, expression))
+}
+
+fn encode_contract_expression_body(
+    encoder: &mut Encoder,
+    expression: &PackageReviewContractExpression,
+) -> Result<(), PackageReviewEncodingError> {
     match expression {
         PackageReviewContractExpression::Boolean(value) => {
             encoder.byte(0);
@@ -271,6 +278,13 @@ pub(crate) fn encode_contract_operator_meaning(
 }
 
 pub(crate) fn encode_contract_static_argument(
+    encoder: &mut Encoder,
+    argument: &PackageReviewContractStaticArgument,
+) -> Result<(), PackageReviewEncodingError> {
+    encoder.nested(|encoder| encode_contract_static_argument_body(encoder, argument))
+}
+
+fn encode_contract_static_argument_body(
     encoder: &mut Encoder,
     argument: &PackageReviewContractStaticArgument,
 ) -> Result<(), PackageReviewEncodingError> {

@@ -1,5 +1,30 @@
 use crate::support::*;
 
+fn assert_external_policy_round_trip(
+    supply: &omega_package_evidence::record::PackageReviewExternalExecutableSupply,
+) {
+    let policy = supply.policy_projection();
+    assert_eq!(policy.callable(), supply.callable());
+    assert_eq!(policy.signature(), supply.signature());
+    assert_eq!(policy.requirement(), supply.requirement());
+    let bytes = policy
+        .canonical_bytes()
+        .expect("encode checked evaluated binding policy");
+    let recovered =
+        omega_package_evidence::record::PackagePolicyExternalExecutableSupply::recover_canonical(
+            &bytes,
+            omega_package_evidence::encoding::PackagePolicyRecoveryLimits::default(),
+        )
+        .expect("recover checked binding policy without source or native replay");
+    assert_eq!(recovered, policy);
+    assert_eq!(
+        recovered
+            .canonical_bytes()
+            .expect("re-encode checked binding policy"),
+        bytes
+    );
+}
+
 const SOURCE: &str = r#"use omega::language::core::external_binding;
 
 pub boundary trait ExternalSurface {
@@ -129,6 +154,8 @@ fn review_projects_all_package_owned_evaluated_via_leaves_with_exact_receipts() 
         }
     );
     assert_eq!(ordinal_import.producer().path(), "ordinal_binding");
+    assert_external_policy_round_trip(named);
+    assert_external_policy_round_trip(ordinal);
 
     let rows = review
         .canonical_rows()
@@ -237,6 +264,7 @@ pub machine exit_leaf(code: i32)
         syscall.receipt_binding_identity_digest(),
         syscall.binding_identity_digest()
     );
+    assert_external_policy_round_trip(supply);
 
     let rows = review.canonical_rows().expect("ordinary syscall rows");
     let row = rows

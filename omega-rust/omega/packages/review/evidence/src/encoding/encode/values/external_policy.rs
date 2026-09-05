@@ -2,15 +2,16 @@
 
 use super::callables::encode_external_executable_supply_coordinate;
 use super::identity::encode_nominal;
-use crate::encoding::PackageReviewEncodingError;
 use crate::encoding::encode::encoder::Encoder;
+use crate::encoding::{
+    EXTERNAL_SUPPLY_POLICY_MAGIC, PACKAGE_EXTERNAL_SUPPLY_POLICY_VERSION,
+    PackageReviewEncodingError,
+};
 use crate::record::{
     PackagePolicyEvaluatedBindingProducer, PackagePolicyExternalBinding,
     PackagePolicyExternalExecutableSupply, PackageReviewForeignLocator,
 };
 
-const MAGIC: &[u8] = b"OMEGA-EXTERNAL-SUPPLY-POLICY\0";
-const VERSION: u16 = 1;
 const MAXIMUM_BYTES: usize = 4 * 1024 * 1024;
 
 impl PackagePolicyExternalExecutableSupply {
@@ -25,9 +26,9 @@ fn encode(
     supply: &PackagePolicyExternalExecutableSupply,
     maximum_bytes: usize,
 ) -> Result<Vec<u8>, PackageReviewEncodingError> {
-    let mut encoder = Encoder::bounded(maximum_bytes);
-    encoder.fixed_bytes(MAGIC);
-    encoder.u16(VERSION);
+    let mut encoder = Encoder::policy_bounded(maximum_bytes);
+    encoder.fixed_bytes(EXTERNAL_SUPPLY_POLICY_MAGIC);
+    encoder.u16(PACKAGE_EXTERNAL_SUPPLY_POLICY_VERSION);
     encode_external_executable_supply_coordinate(
         &mut encoder,
         &supply.callable,
@@ -63,7 +64,7 @@ fn encode(
             producer,
         } => {
             encoder.byte(6);
-            encoder.string(target)?;
+            encode_target(&mut encoder, target)?;
             encode_locator(&mut encoder, locator)?;
             encode_producer(&mut encoder, producer)?;
         }
@@ -73,12 +74,24 @@ fn encode(
             producer,
         } => {
             encoder.byte(7);
-            encoder.string(target)?;
+            encode_target(&mut encoder, target)?;
             encoder.i64(*number);
             encode_producer(&mut encoder, producer)?;
         }
     }
     encoder.finish()
+}
+
+fn encode_target(encoder: &mut Encoder, target: &str) -> Result<(), PackageReviewEncodingError> {
+    if !omega_target::TargetProfile::ALL
+        .iter()
+        .any(|profile| profile.identity().as_str() == target)
+    {
+        return Err(PackageReviewEncodingError::new(
+            "external-supply policy requires an exact versioned target identity",
+        ));
+    }
+    encoder.string(target)
 }
 
 fn encode_producer(
