@@ -1,0 +1,17 @@
+data Inner { value: u64; }
+machine Inner::inspect(&self) {}
+
+data Outer { inner: Inner; }
+
+// A value path's head names this state's own binding. The receiver symbol
+// resolves to the path's last member, whose declaration parent is `Outer`,
+// so recovering the head from that symbol's declaration chain never reaches
+// the parameter. Both the entry parameter and a forwarded state parameter
+// must carry a nested receiver.
+machine inspect(outer: &Outer) {
+    outer.inner.inspect();
+    transition { _ -> finish(outer) }
+    state finish(forwarded: &Outer) {
+        forwarded.inner.inspect();
+    }
+}

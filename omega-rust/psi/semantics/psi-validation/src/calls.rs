@@ -72,13 +72,29 @@ pub(crate) fn validate_call_node(
             arguments.len(),
         )
     {
-        let mut root = call.receiver_symbol;
-        while root.is_valid()
-            && program.symbols.name(root) != first.as_str()
-            && !(first.as_str() == "self" && root == current_machine.symbol)
-        {
-            root = program.symbols.get(root).parent;
-        }
+        let root = current_state
+            .and_then(|state| {
+                crate::locals::state_binding_symbol(
+                    program,
+                    current_machine,
+                    state,
+                    writable_roots.statements,
+                    first.as_str(),
+                )
+            })
+            .unwrap_or_else(|| {
+                // A head that names no state binding is a declaration -- a type,
+                // machine, module, or operator namespace. Recover its symbol from
+                // the resolved receiver, whose declaration chain reaches it.
+                let mut root = call.receiver_symbol;
+                while root.is_valid()
+                    && program.symbols.name(root) != first.as_str()
+                    && !(first.as_str() == "self" && root == current_machine.symbol)
+                {
+                    root = program.symbols.get(root).parent;
+                }
+                root
+            });
         if !current_state.is_some_and(|state| {
             crate::locals::state_value_root_is_known(
                 program,
