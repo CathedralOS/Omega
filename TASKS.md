@@ -150,16 +150,20 @@ the [Rust Compiler Completion Contract](wiki/releases/rust_compiler_completion_c
   own breakage from the standing state. Acceptance: every remaining red canary
   is attributed to a named entry on a board, and this entry is replaced by those.
 
-- **CANARY-ROSTER-DERIVATION.** The pass and fail rosters in
-  `omega-rust/omega/compiler/omega-compiler/tests/canary_suite.rs` are
-  hand-written `&[&str]` arrays with no walk of `tests/omega/`, so a committed
-  fixture no roster names is silently never compiled, and a roster entry whose
-  fixture never reached git is silently satisfied — `tests/omega/.gitignore`
-  records the second biting twice, and the first has now happened once. Owning
-  area is that file. Acceptance: the suite compares each roster against a
-  `read_dir` of `tests/omega/{pass,fail}` in both directions and fails on either
-  difference, so a fixture with no entry and an entry with no fixture are both
-  loud.
+- **CANARY-ROSTER-DERIVATION.** Complete reverse corpus reconciliation in
+  `omega-rust/omega/compiler/omega-compiler/tests/canary_suite/roster.rs`:
+  nonempty `unregistered` differences must fail once every dedicated owner is
+  represented. Move remaining dedicated execution tables into shared
+  `tests/fixture_rosters/` leaves consumed by both their executing tests and
+  the inventory. Preserve each owner's checked/native stage, target, and
+  inline/file diagnostic contract; target-routing annotations alone are not
+  execution coverage. Reconcile incomplete and retired fixtures at their
+  owners, not by registering every directory in the checked-only arrays.
+
+  Acceptance: the suite compares executing rosters against a `read_dir` of
+  `tests/omega/{pass,fail}` in both directions and fails on either difference,
+  so a fixture with no executing owner and an entry with no fixture are both
+  loud, independently of host eligibility and compile filters.
 
 `omega-rust/` remains the production implementation until that contract
 closes. It may remain afterward as a differential implementation while it finds
