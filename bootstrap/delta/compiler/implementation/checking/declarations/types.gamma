@@ -1,0 +1,21 @@
+; One exact lookup serves declaration diagnostics and scalar body checking.
+; A missing grammatical nominal name returns None; a malformed type-token role
+; remains an invariant assertion, never an authored unknown-type judgment.
+(def lookup_type_option ((start Int) (end Int) (type_rows Int)) Int
+  (if (token_int start end)
+    (pair 1 (int_type))
+    (if (token_bytes start end)
+      (pair 1 (bytes_type))
+      (if (upper_name_valid start end)
+        (let found Int (name_trie_find_option type_rows end start)
+          (if (first found)
+            (pair 1 (type_metadata_owner (second found)))
+            (pair 0 0)))
+        (fail)))))
+
+(def resolve_declaration_type ((type Int) (type_rows Int)) Int
+  (let found Int
+    (lookup_type_option (syntax_start type) (syntax_after type) type_rows)
+    (if (first found)
+      (compiler_complete (second found))
+      (compiler_source_rejection 11 (syntax_start type)))))

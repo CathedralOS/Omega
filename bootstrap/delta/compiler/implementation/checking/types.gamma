@@ -8,16 +8,8 @@
   -2)
 
 (def resolve_type ((start Int) (end Int) (type_rows Int)) Int
-  (if (token_int start end)
-    (int_type)
-    (if (token_bytes start end)
-      (bytes_type)
-      (if (upper_name_valid start end)
-        (let found Int (name_trie_find_option type_rows end start)
-          (if (first found)
-            (type_metadata_owner (second found))
-            (fail)))
-        (fail)))))
+  (let found Int (lookup_type_option start end type_rows)
+    (if (first found) (second found) (fail))))
 
 (def typed_after ((typed Int)) Int
   (first typed))

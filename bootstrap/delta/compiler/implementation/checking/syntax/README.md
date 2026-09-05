@@ -73,7 +73,12 @@ The retained program is consumed, not discarded after validation:
   retain their function node.
 - Declaration resolution consumes retained parameter, result-type, and
   constructor-field nodes against the completed global census. Its typed
-  metadata keeps the downstream format.
+  metadata keeps the downstream format. Unknown declaration types produce
+  code 11 at that node's start; repeated parameters produce code 9 at the later
+  name. Declarations, constructors, and fields are visited in authored order.
+  Each parameter's conflict check precedes its own annotation, all parameters
+  precede the result, and all declarations precede body checking. Complete or
+  failure outcomes propagate through these retained-node traversals.
 - Body checking and emission traverse retained top-level forms. They skip
   data declarations without rescanning their bodies and verify that each
   source-based function traversal ends at its retained `after` coordinate.
@@ -82,7 +87,8 @@ Expression typing and expression emission still read checked source
 coordinates; they have not yet migrated to retained child nodes. Emission
 remains after the complete static preflight, as required by
 [D114](../../../../../../wiki/architecture/bootstrap_chain/decisions.md#d114--delta-emission-consumes-the-completed-static-preflight).
-Unknown names/types, local conflicts, semantic arity/type/match diagnostics, and
+Body-local annotation types and conflicts, unknown value names, semantic
+arity/type/match diagnostics, and
 later compiler resource/internal failure propagation remain separate work.
 
 The explicit parser stack and grammar worklist use ordinary Gamma pairs.

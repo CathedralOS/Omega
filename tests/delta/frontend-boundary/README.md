@@ -7,7 +7,7 @@ Python frames requests, invokes those source-owned stages, and compares exact
 observations. It neither parses Delta nor selects diagnostic reasons or source
 coordinates.
 
-The 103 exact 40-byte DCOUT controls cover the implemented frontend phases:
+The 125 exact 40-byte DCOUT controls cover the implemented frontend phases:
 
 - Source-byte rejection uses code 3 and Delta-source coordinate space 1. Invalid
   bytes, including bytes inside comments and a Unicode BOM, precede syntax and
@@ -34,6 +34,13 @@ The 103 exact 40-byte DCOUT controls cover the implemented frontend phases:
   with codes 6, 7, and 8 at their exact declaration names. Unknown constructor
   and signature types and body defects do not preempt this earlier phase.
   Duplicate `main` is code 8, not a selected-profile schema failure.
+- Declaration resolution reports repeated parameter names with code 9 at the
+  later name and unknown field/signature types with code 11 at the type name.
+  The whole global census precedes this phase. Declarations, constructors, and
+  fields are visited in authored order; each parameter's conflict precedes its
+  own annotation, parameters precede results, and all declarations precede all
+  bodies. An unknown earlier annotation can therefore precede a later parameter
+  conflict, while a later declaration defect precedes an earlier body defect.
 - After frontend acceptance, missing `main` is code 19 in coordinate space 0
   at coordinate zero; `mai` and `main_suffix` do not supply that exact entry.
   A present but incompatible `main` is code 20 in
@@ -47,9 +54,11 @@ does not become code 19, and an invalid body under an incompatible present
 rejections or generated Delta application observations. Wrong argument counts
 for known functions, constructors, constructor patterns, arithmetic, and byte
 builtins remain semantic arity failures, not syntax code 4. Structural grammar
-checks those argument nodes without deciding their semantic arity.
+checks those argument nodes without deciding their semantic arity. Body-local
+conflicts and unknown `let` annotation types remain evaluator-owned, so the
+declaration-only code 9/11 coverage does not claim those categories are closed.
 
-Fifteen accepted programs exercise identity compilation, exact entry selection
+Eighteen accepted programs exercise identity compilation, exact entry selection
 after `main_suffix`, cross-namespace spelling reuse, forward and mutual data
 visibility, forward and mutual function visibility, and the admitted ASCII
 whitespace/comment boundaries. They include both exact signed integer limits,

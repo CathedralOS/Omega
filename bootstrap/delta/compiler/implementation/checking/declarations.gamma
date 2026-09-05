@@ -1,5 +1,5 @@
-; Declaration resolution consumes retained syntax and the complete raw census.
-; Its typed global/function/constructor metadata remains the downstream format.
+; Resolve retained declarations in authored order after the complete census.
+; Only complete typed globals advance to body checking and profile validation.
 (def resolve_collected_declarations
   ((program Int) (collected_globals Int) (resolved_function_rows Int)) Int
   (resolve_declaration_nodes (first program) (second program)
@@ -16,133 +16,17 @@
       (let head Int (syntax_child form 0)
         (if (token_data (syntax_start head) (syntax_after head))
           (let checked Int (resolve_collected_data form collected_globals)
-            (resolve_declaration_nodes (- remaining 1) (second forms)
-              collected_globals resolved_function_rows))
+            (if (eq (first checked) 0)
+              (resolve_declaration_nodes (- remaining 1) (second forms)
+                collected_globals resolved_function_rows)
+              checked))
           (if (token_def (syntax_start head) (syntax_after head))
             (let name Int (syntax_child form 1)
-              (let metadata Int (resolve_collected_function form collected_globals)
-                (resolve_declaration_nodes (- remaining 1) (second forms)
-                  collected_globals
-                  (name_trie_insert resolved_function_rows
-                    (syntax_after name) (syntax_start name) metadata))))
+              (let resolved Int (resolve_collected_function form collected_globals)
+                (if (eq (first resolved) 0)
+                  (resolve_declaration_nodes (- remaining 1) (second forms)
+                    collected_globals
+                    (name_trie_insert resolved_function_rows
+                      (syntax_after name) (syntax_start name) (second resolved)))
+                  resolved)))
             (fail)))))))
-
-(def require_constructor_metadata
-  ((name Int) (name_end Int) (globals Int)) Int
-  (let found Int
-    (name_trie_find_option (global_constructors globals) name_end name)
-    (if (first found) (second found) (fail))))
-
-(def catalog_function_parameters
-  ((remaining Int) (parameters Int) (locals Int) (type_rows Int)
-   (reversed_types Int)) Int
-  (if (eq remaining 0)
-    (pair reversed_types locals)
-    (let parameter Int (first parameters)
-      (let name Int (syntax_child parameter 0)
-        (let type Int (syntax_child parameter 1)
-          (let declared_type Int
-            (resolve_type (syntax_start type) (syntax_after type) type_rows)
-            (catalog_function_parameters
-              (- remaining 1) (second parameters)
-              (name_trie_insert locals (syntax_after name) (syntax_start name)
-                declared_type)
-              type_rows (parameter_types_prepend declared_type reversed_types))))))))
-
-(def catalog_function_signature ((form Int) (type_rows Int)) Int
-  (let parameters Int (syntax_child form 2)
-    (let count Int (syntax_count parameters)
-      (let parameter_metadata Int
-        (catalog_function_parameters count (syntax_children parameters)
-          (empty_name_trie) type_rows (empty_parameter_types))
-        (let result Int (syntax_child form 3)
-          (let result_type Int
-            (resolve_type (syntax_start result) (syntax_after result) type_rows)
-            (pair (+ (syntax_start form) 1)
-              (pair count
-                (pair result_type
-                  (pair
-                    (reverse_parameter_types (first parameter_metadata) count
-                      (empty_parameter_types))
-                    (pair (second parameter_metadata)
-                      (syntax_start (syntax_child form 4)))))))))))))
-
-(def resolve_collected_data ((form Int) (globals Int)) Int
-  (let name Int (syntax_child form 1)
-    (let found Int
-      (name_trie_find_option (global_types globals)
-        (syntax_after name) (syntax_start name))
-      (if (first found)
-        (let metadata Int (second found)
-          (if (eq (type_metadata_owner metadata) (+ (syntax_start form) 1))
-            (if (eq (type_metadata_constructor_count metadata)
-                    (- (syntax_count form) 2))
-              (resolve_collected_constructors
-                (- (syntax_count form) 2)
-                (syntax_drop_children (syntax_children form) 2)
-                metadata globals 1)
-              (fail))
-            (fail)))
-        (fail)))))
-
-(def resolve_constructor_fields
-  ((remaining Int) (fields Int) (type_rows Int)) Int
-  (if (eq remaining 0)
-    0
-    (let type Int (first fields)
-      (let resolved Int
-        (resolve_type (syntax_start type) (syntax_after type) type_rows)
-        (resolve_constructor_fields
-          (- remaining 1) (second fields) type_rows)))))
-
-; Owner, tag, payload count, and constructor-name boundary retain exact custody.
-; Payload type resolution happens here, never during global identity collection.
-(def resolve_collected_constructors
-  ((remaining Int) (constructors Int) (type_metadata Int)
-   (globals Int) (tag Int)) Int
-  (if (eq remaining 0)
-    0
-    (let constructor Int (first constructors)
-      (let name Int (syntax_child constructor 0)
-        (let metadata Int
-          (require_constructor_metadata
-            (syntax_start name) (syntax_after name) globals)
-          (if (eq (constructor_metadata_owner metadata)
-                  (type_metadata_owner type_metadata))
-            (if (eq (constructor_metadata_tag metadata) tag)
-              (if (eq (constructor_metadata_declaration_end metadata)
-                      (syntax_after name))
-                (if (eq (constructor_metadata_arity metadata)
-                        (- (syntax_count constructor) 1))
-                  (let checked Int
-                    (resolve_constructor_fields
-                      (- (syntax_count constructor) 1)
-                      (syntax_drop_children (syntax_children constructor) 1)
-                      (global_types globals))
-                    (resolve_collected_constructors
-                      (- remaining 1) (second constructors)
-                      type_metadata globals (+ tag 1)))
-                  (fail))
-                (fail))
-              (fail))
-            (fail)))))))
-
-; Raw rows are (pair declaration-owner (pair name-end function-node)).
-; Compare source coordinates, never pair references, before consuming that node.
-(def resolve_collected_function ((form Int) (globals Int)) Int
-  (let name Int (syntax_child form 1)
-    (let found Int
-      (find_function_metadata (syntax_start name) (syntax_after name) globals)
-      (if (first found)
-        (let raw Int (second found)
-          (let retained Int (second (second raw))
-            (if (eq (first raw) (+ (syntax_start form) 1))
-              (if (eq (first (second raw)) (syntax_after name))
-                (if (eq (syntax_start retained) (syntax_start form))
-                  (if (eq (syntax_after retained) (syntax_after form))
-                    (catalog_function_signature retained (global_types globals))
-                    (fail))
-                  (fail))
-                (fail))
-              (fail))))
-        (fail)))))

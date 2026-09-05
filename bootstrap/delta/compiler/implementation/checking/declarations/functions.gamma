@@ -1,0 +1,68 @@
+; Parameters resolve left to right. Each binder must be fresh before its own
+; annotation resolves; a failed earlier parameter prevents later judgments.
+(def catalog_function_parameters
+  ((remaining Int) (parameters Int) (locals Int) (type_rows Int)
+   (reversed_types Int)) Int
+  (if (eq remaining 0)
+    (compiler_complete (pair reversed_types locals))
+    (let parameter Int (first parameters)
+      (let name Int (syntax_child parameter 0)
+        (let prior Int
+          (name_trie_find_option locals (syntax_after name) (syntax_start name))
+          (if (first prior)
+            (compiler_source_rejection 9 (syntax_start name))
+            (let resolved Int
+              (resolve_declaration_type (syntax_child parameter 1) type_rows)
+              (if (eq (first resolved) 0)
+                (catalog_function_parameters
+                  (- remaining 1) (second parameters)
+                  (name_trie_insert locals (syntax_after name) (syntax_start name)
+                    (second resolved))
+                  type_rows
+                  (parameter_types_prepend (second resolved) reversed_types))
+                resolved))))))))
+
+; Result annotations follow every parameter. Only successful resolution builds
+; the unchanged owner/arity/result/ordered-types/locals/body-start metadata.
+(def catalog_function_signature ((form Int) (type_rows Int)) Int
+  (let parameters Int (syntax_child form 2)
+    (let count Int (syntax_count parameters)
+      (let parameter_result Int
+        (catalog_function_parameters count (syntax_children parameters)
+          (empty_name_trie) type_rows (empty_parameter_types))
+        (if (eq (first parameter_result) 0)
+          (let result Int
+            (resolve_declaration_type (syntax_child form 3) type_rows)
+            (if (eq (first result) 0)
+              (let parameter_metadata Int (second parameter_result)
+                (compiler_complete
+                  (pair (+ (syntax_start form) 1)
+                    (pair count
+                      (pair (second result)
+                        (pair
+                          (reverse_parameter_types (first parameter_metadata) count
+                            (empty_parameter_types))
+                          (pair (second parameter_metadata)
+                            (syntax_start (syntax_child form 4)))))))))
+              result))
+          parameter_result)))))
+
+; Raw rows are (pair declaration-owner (pair name-end function-node)).
+; Compare source coordinates, never pair references, before consuming that node.
+(def resolve_collected_function ((form Int) (globals Int)) Int
+  (let name Int (syntax_child form 1)
+    (let found Int
+      (find_function_metadata (syntax_start name) (syntax_after name) globals)
+      (if (first found)
+        (let raw Int (second found)
+          (let retained Int (second (second raw))
+            (if (eq (first raw) (+ (syntax_start form) 1))
+              (if (eq (first (second raw)) (syntax_after name))
+                (if (eq (syntax_start retained) (syntax_start form))
+                  (if (eq (syntax_after retained) (syntax_after form))
+                    (catalog_function_signature retained (global_types globals))
+                    (fail))
+                  (fail))
+                (fail))
+              (fail))))
+        (fail)))))
