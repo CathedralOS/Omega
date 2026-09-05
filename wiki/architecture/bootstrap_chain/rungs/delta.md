@@ -11,8 +11,8 @@ The normative contract is
 [`bootstrap/delta/LANGUAGE.md`](../../../../bootstrap/delta/LANGUAGE.md). The canonical
 compiler must be written in Gamma and emit canonical Gamma source. The selected
 Beta-authored Gamma evaluator executes that compiler over Delta source and can
-execute the resulting canonical Gamma receipt. The selected 2,727-line source
-is one canonical request entry plus 26 manifested shared implementation members.
+execute the resulting canonical Gamma receipt. The selected 2,771-line source
+is one canonical request entry plus 32 manifested shared implementation members.
 It enforces Delta's textual-ASCII byte envelope, identifier and
 reserved-name grammar, signed-literal range, and exact global function
 signatures. A complete lexical pass follows source-envelope validation and
@@ -49,16 +49,15 @@ frames for malformed framing, unknown profiles, and source-length refusal;
 source-byte rejection (3), invalid token spelling and structural grammar (4),
 out-of-range integer literal (5), duplicate type/constructor/function
 identity (6/7/8),
-parameter conflicts (declaration-only code 9), unknown field/signature types
-(declaration-only code 11),
+local and pattern conflicts (9/10), unknown types and names (11–14), type and
+arity disagreement (15/16), duplicate and nonexhaustive matches (17/18),
 missing `main` (19), and entry-schema mismatch (20) also have owned DCOUT
 publication. Entry schema runs only after the complete frontend succeeds.
 Raw-source diagnostics have a separate source-owned entry sharing the same
 implementation. Declaration traversal follows authored order; each parameter
 conflict precedes its own annotation, parameters precede the result type, and
-the whole declaration phase precedes all bodies. Body-local conflicts and
-annotation types, value-name resolution, semantic arity, and other
-body failures remain
-evaluator-owned Gamma status 249 without publication, not DCOUT. Those
-remaining frontend paths, later resource/internal outcomes, deterministic
-failure selection, and final edge closure remain open.
+the whole declaration phase precedes all bodies. Body typing consumes retained
+expression and pattern nodes and propagates canonical failures. Emission still
+traverses checked expression source coordinates. Compiler-owned resource/internal
+outcomes, emission-depth behavior, and final edge closure remain open;
+underlying evaluator failures do not stand in for those compiler outcomes.

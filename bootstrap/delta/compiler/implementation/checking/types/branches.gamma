@@ -1,0 +1,26 @@
+; Condition and true-branch frames retain (pair if-node outer-locals).
+(def typing_if
+  ((node Int) (locals Int) (depth Int) (frames Int) (globals Int)) Int
+  (typing_visit (syntax_child node 1) locals (+ depth 1)
+    (typing_frame 1 (pair node locals) frames) globals))
+
+(def typing_resume_condition
+  ((type Int) (payload Int) (depth Int) (frames Int) (globals Int)) Int
+  (let node Int (first payload)
+    (if (eq type (int_type))
+      (typing_visit (syntax_child node 2) (second payload) (+ depth 1)
+        (typing_frame 2 payload frames) globals)
+      (typing_reject 15 (syntax_child node 1)))))
+
+; The false-branch frame retains (pair false-node true-type).
+(def typing_resume_true
+  ((type Int) (payload Int) (depth Int) (frames Int) (globals Int)) Int
+  (let when_false Int (syntax_child (first payload) 3)
+    (typing_visit when_false (second payload) (+ depth 1)
+      (typing_frame 3 (pair when_false type) frames) globals)))
+
+(def typing_resume_false
+  ((type Int) (payload Int) (depth Int) (frames Int) (globals Int)) Int
+  (if (eq type (second payload))
+    (typing_resume type depth frames globals)
+    (typing_reject 15 (first payload))))

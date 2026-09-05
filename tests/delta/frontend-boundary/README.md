@@ -7,7 +7,7 @@ Python frames requests, invokes those source-owned stages, and compares exact
 observations. It neither parses Delta nor selects diagnostic reasons or source
 coordinates.
 
-The 125 exact 40-byte DCOUT controls cover the implemented frontend phases:
+The 203 exact 40-byte DCOUT controls cover the frontend phases:
 
 - Source-byte rejection uses code 3 and Delta-source coordinate space 1. Invalid
   bytes, including bytes inside comments and a Unicode BOM, precede syntax and
@@ -47,25 +47,46 @@ The 125 exact 40-byte DCOUT controls cover the implemented frontend phases:
   Delta-source space at its declaration name, including after earlier
   declarations and comments between `def` and `main`.
 
-Eleven semantic type, name, and arity controls retain status 249 with empty stdout from
-the implementing evaluator. In particular, an invalid frontend without `main`
-does not become code 19, and an invalid body under an incompatible present
-`main` does not become code 20. These unfinished paths are not canonical DCOUT
-rejections or generated Delta application observations. Wrong argument counts
-for known functions, constructors, constructor patterns, arithmetic, and byte
-builtins remain semantic arity failures, not syntax code 4. Structural grammar
-checks those argument nodes without deciding their semantic arity. Body-local
-conflicts and unknown `let` annotation types remain evaluator-owned, so the
-declaration-only code 9/11 coverage does not claim those categories are closed.
+Body judgments use codes 9 through 18: active local conflict, repeated pattern
+binder, unknown type/constructor/function/local, type mismatch, arity mismatch,
+duplicate match case, and nonexhaustive match. Names anchor at their exact
+tokens; conflicts at the later binder; type mismatches at the offending
+argument, initializer, condition, false branch, body result, or scrutinee.
+Wrong pattern ownership anchors at its constructor name. Arity uses the
+application, bare-constructor, or pattern start; duplicate cases use the later
+constructor name; missing coverage uses the match start.
 
-Eighteen accepted programs exercise identity compilation, exact entry selection
+Competing-error controls pin the semantic sequence. Calls resolve their head,
+then each expected argument and its type in order, before discovering a missing
+or extra argument. A `let` resolves its annotation, checks its binder against
+the outer environment, and checks its initializer in that unchanged environment.
+A match checks its subject, then each arm's constructor identity, owner, arity,
+case uniqueness, binders, body, and result agreement before complete coverage.
+An invalid frontend cannot become missing-entry or entry-schema rejection.
+These authored semantic failures now compare exact DCOUT frames, not generic
+evaluator status 249. Resource/internal failures remain separate obligations.
+
+Two additional 1,000-level semantic controls exercise retained continuation
+worklists: nested calls reject the exact innermost unknown local, and nested
+valid `if` expressions complete checking before missing-entry code 19. Neither
+requires deeply nested Gamma emission; successful emission at that depth is
+not claimed.
+
+Twenty-six accepted programs exercise identity compilation, exact entry selection
 after `main_suffix`, cross-namespace spelling reuse, forward and mutual data
 visibility, forward and mutual function visibility, and the admitted ASCII
 whitespace/comment boundaries. They include both exact signed integer limits,
 negative zero, leading zeros, binary `+` and `-`, and malformed numeric text
 ignored inside comments ending at LF, CR, CRLF, or EOF. A generated ordinary
 function with 200 parameters and a matching 200-argument call preserves its
-last argument. Each compiles
+last argument. An outer let binder stays absent throughout its initializer, so
+an inner initializer-local binder may reuse its spelling. Scope controls restore
+environments between sibling expressions,
+branches, and match arms, and nested matches retain independent coverage.
+Mixed `Int`/`Bytes`/nominal payloads project each field and distinguish constructor
+layouts; a 64-field alternating payload and its nullary sibling preserve their
+exact types. Negative controls reject wrong first, middle, and last payload
+arguments and wrongly used pattern binders. Each compiles
 twice to identical bytes; its generated application preserves an exact binary
 input including NUL and high bytes.
 
@@ -74,8 +95,8 @@ explicit fixture-construction prefixes, never source searches. Whole-frame
 comparison checks the reason, halt/tag agreement, coordinate space, reserved
 zeros, little-endian coordinate, and zeroed unused resource fields. Compiler
 source identity is pinned before any observation. The gate implements the
-bounded checks above, not complete Delta frontend diagnostics, resource
-conformance, or closure of the Delta bootstrap edge.
+bounded checks above, not resource conformance, arbitrary emission-depth
+closure, or closure of the Delta bootstrap edge.
 
 The phase order is fixed by [D20](../../../wiki/architecture/bootstrap_chain/decisions.md#d20--delta-names-resolve-through-four-namespaces-without-active-shadowing)
 and [D33](../../../wiki/architecture/bootstrap_chain/decisions.md#d33--dcout-admission-and-schema-diagnosis-are-bounded-and-total).

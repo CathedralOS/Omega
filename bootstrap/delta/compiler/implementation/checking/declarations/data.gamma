@@ -6,7 +6,8 @@
     (name_trie_find_option (global_constructors globals) name_end name)
     (if (first found) (second found) (fail))))
 
-(def resolve_collected_data ((form Int) (globals Int)) Int
+(def resolve_collected_data
+  ((form Int) (globals Int) (resolved_constructor_rows Int)) Int
   (let name Int (syntax_child form 1)
     (let found Int
       (name_trie_find_option (global_types globals)
@@ -19,28 +20,29 @@
               (resolve_collected_constructors
                 (- (syntax_count form) 2)
                 (syntax_drop_children (syntax_children form) 2)
-                metadata globals 1)
+                metadata globals 1 resolved_constructor_rows)
               (fail))
             (fail)))
         (fail)))))
 
 (def resolve_constructor_fields
-  ((remaining Int) (fields Int) (type_rows Int)) Int
+  ((remaining Int) (fields Int) (type_rows Int) (reversed_types Int)) Int
   (if (eq remaining 0)
-    (compiler_complete 0)
+    (compiler_complete reversed_types)
     (let resolved Int (resolve_declaration_type (first fields) type_rows)
       (if (eq (first resolved) 0)
         (resolve_constructor_fields
-          (- remaining 1) (second fields) type_rows)
+          (- remaining 1) (second fields) type_rows
+          (parameter_types_prepend (second resolved) reversed_types))
         resolved))))
 
 ; Owner, tag, payload count, and name boundary are retained custody assertions.
 ; Constructors and their payload annotations resolve in declaration order.
 (def resolve_collected_constructors
   ((remaining Int) (constructors Int) (type_metadata Int)
-   (globals Int) (tag Int)) Int
+   (globals Int) (tag Int) (resolved_constructor_rows Int)) Int
   (if (eq remaining 0)
-    (compiler_complete 0)
+    (compiler_complete resolved_constructor_rows)
     (let constructor Int (first constructors)
       (let name Int (syntax_child constructor 0)
         (let metadata Int
@@ -57,11 +59,22 @@
                     (resolve_constructor_fields
                       (- (syntax_count constructor) 1)
                       (syntax_drop_children (syntax_children constructor) 1)
-                      (global_types globals))
+                      (global_types globals) (empty_parameter_types))
                     (if (eq (first checked) 0)
-                      (resolve_collected_constructors
-                        (- remaining 1) (second constructors)
-                        type_metadata globals (+ tag 1))
+                      (let field_types Int
+                        (reverse_parameter_types (second checked)
+                          (constructor_metadata_arity metadata)
+                          (empty_parameter_types))
+                        (let resolved Int
+                          (pair type_metadata
+                            (pair tag
+                              (pair (constructor_metadata_arity metadata)
+                                (pair (syntax_after name) field_types))))
+                          (resolve_collected_constructors
+                            (- remaining 1) (second constructors)
+                            type_metadata globals (+ tag 1)
+                            (name_trie_insert resolved_constructor_rows
+                              (syntax_after name) (syntax_start name) resolved))))
                       checked))
                   (fail))
                 (fail))

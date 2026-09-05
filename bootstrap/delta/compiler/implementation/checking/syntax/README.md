@@ -79,17 +79,31 @@ The retained program is consumed, not discarded after validation:
   Each parameter's conflict check precedes its own annotation, all parameters
   precede the result, and all declarations precede body checking. Complete or
   failure outcomes propagate through these retained-node traversals.
-- Body checking and emission traverse retained top-level forms. They skip
-  data declarations without rescanning their bodies and verify that each
-  source-based function traversal ends at its retained `after` coordinate.
+- Body checking consumes retained expression and pattern children, with exact
+  names and type coordinates carried through its complete/failure outcomes.
+  It starts from each function's resolved parameter environment and preserves
+  immutable local environments across disjoint scopes. Explicit continuations
+  retain pending child results and environments; visits and resumptions are
+  tail transitions rather than recursive source walks. Constructor metadata
+  retains ordered resolved field types, so calls and patterns do not rescan
+  payload annotations.
+- Emission traverses retained top-level forms. It skips data declarations
+  without rescanning their bodies and verifies that each source-based function
+  traversal ends at its retained `after` coordinate.
 
-Expression typing and expression emission still read checked source
-coordinates; they have not yet migrated to retained child nodes. Emission
+Expression emission still reads checked source coordinates; it has not yet
+migrated to retained child nodes. Emission
 remains after the complete static preflight, as required by
 [D114](../../../../../../wiki/architecture/bootstrap_chain/decisions.md#d114--delta-emission-consumes-the-completed-static-preflight).
-Body-local annotation types and conflicts, unknown value names, semantic
-arity/type/match diagnostics, and
-later compiler resource/internal failure propagation remain separate work.
+Compiler-owned resource/internal failure propagation and expression-emission
+depth remain separate work. Complete retained-node frontend traversal does not
+establish those later properties.
+
+The [boundary contract](../../boundary/README.md#body-traversal-and-coordinates)
+records body diagnostic order and coordinates. Declaration parameters check
+conflicts before their annotations; body `let` checks its annotation first and
+checks the initializer in the outer environment. Calls consume expected
+arguments in order, and matches defer final coverage until every arm succeeds.
 
 The explicit parser stack and grammar worklist use ordinary Gamma pairs.
 Gamma's immutable arena accounts for cumulative allocations and does not

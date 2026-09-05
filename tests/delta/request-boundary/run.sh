@@ -33,7 +33,7 @@ identity = (
     len(compiler.splitlines()), len(compiler), hashlib.sha256(compiler).hexdigest()
 )
 if identity != (
-    2727, 113178, "ee6818499f770fd2ad2b06286a6f9509e4f0b1cd9f7acca4a15122d2cb473042"
+    2771, 117889, "747e0bb0e70eb25b0b7625f1cb55fb9b04a29cac15bca27eb11e971f6ea2bae6"
 ):
     raise SystemExit(f"Delta compiler identity changed: {identity}")
 
@@ -149,12 +149,10 @@ cases.append(("empty source", framed(b""), failure(1, 4, 0, space=1)))
 cases.append(("unmatched opening delimiter", framed(b"("),
               failure(1, 4, 1, space=1)))
 
-# Unfinished type/body paths remain evaluator-owned failures rather
-# than being relabeled as canonical compiler rejections.
-for name, source in (
-    ("unknown local", b"(def main ((source Bytes)) Bytes missing)\n"),
-):
-    cases.append((name, framed(source), (249, b"")))
+# Body-name resolution owns its exact source-coordinate rejection.
+unknown_local_prefix = b"(def main ((source Bytes)) Bytes "
+cases.append(("unknown local", framed(unknown_local_prefix + b"missing)\n"),
+              failure(1, 14, len(unknown_local_prefix), space=1)))
 
 for name, request, expected in cases:
     actual = evaluate(compiler, request)

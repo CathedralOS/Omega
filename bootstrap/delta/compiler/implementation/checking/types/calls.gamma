@@ -1,0 +1,90 @@
+; Head resolution precedes every argument. Constructor and function signatures
+; already retain ordered type spines; builtins use the same argument loop.
+(def typing_application
+  ((node Int) (head Int) (locals Int) (depth Int) (frames Int) (globals Int)) Int
+  (let start Int (syntax_start head)
+    (let after Int (syntax_after head)
+      (if (is_upper (source_read start))
+        (let found Int
+          (name_trie_find_option (global_constructors globals) after start)
+          (if (first found)
+            (let metadata Int (second found)
+              (typing_arguments node (- (syntax_count node) 1)
+                (syntax_drop_children (syntax_children node) 1)
+                (constructor_metadata_arity metadata)
+                (constructor_metadata_field_types metadata)
+                (constructor_metadata_owner metadata) locals depth frames globals))
+            (typing_reject 12 head)))
+        (let kind Int (bytes_builtin_kind start after)
+          (if (if kind 1
+                (if (operator_arity_plus_one start after) 1
+                  (if (token_eq start after) 1 (token_lt start after))))
+            (let signature Int (typing_builtin_signature kind)
+              (typing_arguments node (- (syntax_count node) 1)
+                (syntax_drop_children (syntax_children node) 1)
+                (first signature) (second (second signature))
+                (first (second signature)) locals depth frames globals))
+            (let found Int (find_function_metadata start after globals)
+              (if (first found)
+                (let metadata Int (second found)
+                  (typing_arguments node (- (syntax_count node) 1)
+                    (syntax_drop_children (syntax_children node) 1)
+                    (function_metadata_arity metadata)
+                    (function_metadata_parameter_types metadata)
+                    (function_metadata_result_type metadata)
+                    locals depth frames globals))
+                (typing_reject 13 head)))))))))
+
+; Signature is (pair arity (pair result ordered-parameter-types)). Kind zero
+; covers arithmetic/eq/lt, whose operands and result are all Int.
+(def typing_builtin_signature ((kind Int)) Int
+  (if (eq kind 0)
+    (pair 2 (pair (int_type) (pair (int_type) (pair (int_type) 0))))
+    (if (eq kind 1)
+      (pair 0 (pair (bytes_type) 0))
+      (if (eq kind 2)
+        (pair 1 (pair (bytes_type) (pair (int_type) 0)))
+        (if (eq kind 3)
+          (pair 1 (pair (int_type) (pair (bytes_type) 0)))
+          (if (eq kind 4)
+            (pair 2 (pair (int_type) (pair (bytes_type) (pair (int_type) 0))))
+            (if (eq kind 5)
+              (pair 2 (pair (bytes_type)
+                (pair (bytes_type) (pair (bytes_type) 0))))
+              (fail))))))))
+
+; Check applicable arguments left to right, before a later missing/extra count
+; disagreement. No upfront arity preflight changes that diagnostic ordering.
+; Frame payload retains node, actual-count, actual-nodes, expected-count,
+; expected-types, result-type, and outer locals in that right-nested order.
+(def typing_arguments
+  ((node Int) (actual_count Int) (arguments Int) (expected_count Int)
+   (expected_types Int) (result_type Int) (locals Int)
+   (depth Int) (frames Int) (globals Int)) Int
+  (if (eq expected_count 0)
+    (if (eq actual_count 0)
+      (typing_resume result_type depth frames globals)
+      (typing_reject 16 node))
+    (if (eq actual_count 0)
+      (typing_reject 16 node)
+      (typing_visit (first arguments) locals (+ depth 1)
+        (typing_frame 5
+          (pair node (pair actual_count (pair arguments
+            (pair expected_count (pair expected_types (pair result_type locals))))))
+          frames)
+        globals))))
+
+(def typing_resume_argument
+  ((type Int) (payload Int) (depth Int) (frames Int) (globals Int)) Int
+  (let actual Int (second payload)
+    (let arguments_and_expected Int (second actual)
+      (let expected Int (second arguments_and_expected)
+        (let types_and_result Int (second expected)
+          (let expected_types Int (first types_and_result)
+            (let result_and_locals Int (second types_and_result)
+              (if (eq type (first expected_types))
+                (typing_arguments (first payload) (- (first actual) 1)
+                  (second (first arguments_and_expected)) (- (first expected) 1)
+                  (second expected_types) (first result_and_locals)
+                  (second result_and_locals) depth frames globals)
+                (typing_reject 15 (first (first arguments_and_expected)))))))))))

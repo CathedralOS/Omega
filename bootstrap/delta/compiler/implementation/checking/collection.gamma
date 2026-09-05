@@ -65,7 +65,8 @@
                 (compiler_source_rejection 7 start)
                 (let metadata Int
                   (pair type_metadata
-                    (pair tag (pair (- (syntax_count constructor) 1) after)))
+                    (pair tag
+                      (pair (- (syntax_count constructor) 1) (pair after 0))))
                   (collect_constructor_identities
                     (- remaining 1) (second constructors) type_metadata
                     (name_trie_insert constructor_rows after start metadata)

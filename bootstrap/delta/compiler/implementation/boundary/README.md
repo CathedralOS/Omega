@@ -31,8 +31,8 @@ limit, and requested fields at bytes 16, 24, and 32. Tag equals process status.
 This is a projection of embedded compiler constants, not a runtime host table.
 
 The source envelope, lexical tokens, structural syntax, complete global identity
-census, declaration resolution, and post-frontend entry schema additionally own
-these Reject results (tag 1, zero limit/requested):
+census, declaration and body typing, and post-frontend entry schema additionally
+own these Reject results (tag 1, zero limit/requested):
 
 | Code | Meaning | Coordinate space | Coordinate |
 | --- | --- | --- | --- |
@@ -42,8 +42,16 @@ these Reject results (tag 1, zero limit/requested):
 | 6 | duplicate_type | 1 Delta source | later type name |
 | 7 | duplicate_constructor | 1 Delta source | later constructor name |
 | 8 | duplicate_function | 1 Delta source | later function name |
-| 9 | active_local_conflict (parameters only) | 1 Delta source | later parameter name |
-| 11 | unknown_type (declarations only) | 1 Delta source | constructor field, parameter, or result type name |
+| 9 | active_local_conflict | 1 Delta source | later parameter, `let`, or outer-conflicting pattern binder |
+| 10 | duplicate_pattern | 1 Delta source | later binder repeated within one pattern |
+| 11 | unknown_type | 1 Delta source | unresolved type-name token |
+| 12 | unknown_constructor | 1 Delta source | unresolved constructor token |
+| 13 | unknown_function | 1 Delta source | unresolved function-head token |
+| 14 | unknown_local | 1 Delta source | unresolved local-value atom |
+| 15 | type_mismatch | 1 Delta source | offending expression start, or wrong-owner pattern constructor token |
+| 16 | arity_mismatch | 1 Delta source | application start, constructor atom, or pattern start |
+| 17 | duplicate_match_case | 1 Delta source | later arm's constructor token |
+| 18 | nonexhaustive_match | 1 Delta source | match-expression start |
 | 19 | missing_entry | 0 none | zero |
 | 20 | entry_schema_mismatch | 1 Delta source | present `main` declaration name |
 
@@ -91,6 +99,42 @@ wrong-signature rejection. Empty source is invalid Delta syntax, not an
 otherwise valid program missing an entry. Profile 2 and schema code 21 remain
 retired.
 
+## Body traversal and coordinates
+
+Body typing visits retained nodes with explicit continuations and immutable
+local environments. It checks functions in authored order after all declaration
+signatures succeed. A failed child returns its unchanged failure; later checks
+do not replace it with a parent or schema judgment.
+
+An application resolves its head before checking arguments. It checks each
+available expected argument and its type in order, reports a missing argument
+when reached, and reports extra arguments only after all expected arguments
+pass. It does not check an extra argument's body before reporting arity. All
+arity failures anchor at the application start; a constructor used as an atom
+anchors at that atom. Argument type mismatches anchor at the argument node.
+
+An `if` checks its condition, true branch, and false branch in order. A
+noninteger condition anchors at the condition; branch-type disagreement anchors
+at the false branch. A function result disagreement anchors at its body.
+A body `let` resolves its annotation before checking an active-name conflict,
+then checks the initializer in the outer environment and only its body in the
+extended environment. This differs from declaration parameters, whose conflict
+check precedes their own annotation. Initializer disagreement anchors at the
+initializer, not its binder or annotation.
+
+A match checks its subject, then each arm in authored order. A nonnominal
+subject is a type mismatch at the subject. Each arm resolves its constructor,
+checks owner, payload arity, duplicate-case status, binders, body, and agreement
+with preceding arm types, in that order. A wrong owner anchors at the constructor
+token; payload arity anchors at the pattern start. A binder conflicting with
+the saved outer environment is code 9; a name repeated within this pattern is
+code 10. Both anchor at the later binder. An arm-result disagreement anchors at
+that arm's body. Only after all arms pass does final constructor coverage
+produce code 18 at the match start. These traversal rules, not a global sort of
+candidate offsets, select the published failure.
+
+## Remaining boundary work
+
 The common layout and IDs follow the D13/D30/D33 contract. Their retained
 historical table is recoverable at
 `78d8f51053^:source/delta/compiler/dcout-v1.tsv`; the shared field layout is at
@@ -98,10 +142,10 @@ historical table is recoverable at
 detached table participates in execution. D125 removes profile 2, not the
 request-failure identities.
 
-This is partial frontend-boundary coverage, not full DCOUT closure. Remaining
-body-local conflicts, body annotation types, value-name, type, arity, and match
-failures still reach the shared evaluator trap, and later resource/internal outcomes do not yet carry
-compiler-owned evidence. Those empty-output evaluator
+Canonical frontend rejection is not full DCOUT or Delta-edge closure. Later
+resource/internal outcomes do not yet carry compiler-owned evidence, and
+expression emission still traverses checked source coordinates with unfinished
+depth/resource guarantees. Those empty-output evaluator
 statuses must not be decoded as DCOUT or synthesized into frames by a runner.
 The generated ConformanceBytesV1 program's statuses are separately owned by
 its adapter. Successful compiler output remains the exact unwrapped Gamma

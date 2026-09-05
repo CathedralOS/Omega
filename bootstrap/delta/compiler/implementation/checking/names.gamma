@@ -92,7 +92,10 @@
 
 ; Type metadata is (pair owner (pair constructor-count has-payload)).
 ; Constructor metadata is
-; (pair type-metadata (pair tag-plus-one (pair arity declaration-end))).
+; (pair type-metadata
+;   (pair tag-plus-one (pair arity (pair declaration-end field-types)))).
+; Raw census rows have field-types 0. Resolved rows carry an ordered type spine
+; governed by arity, so applications and patterns never rescan annotations.
 (def type_metadata_owner ((metadata Int)) Int
   (first metadata))
 
@@ -115,7 +118,10 @@
   (first (second (second metadata))))
 
 (def constructor_metadata_declaration_end ((metadata Int)) Int
-  (second (second (second metadata))))
+  (first (second (second (second metadata)))))
+
+(def constructor_metadata_field_types ((metadata Int)) Int
+  (second (second (second (second metadata)))))
 
 (def global_types ((globals Int)) Int
   (first globals))

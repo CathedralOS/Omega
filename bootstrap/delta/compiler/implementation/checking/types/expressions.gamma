@@ -1,0 +1,51 @@
+; A continuation is (pair kind (pair payload previous)); depth governs access.
+; Concept owners define their payloads. All visit/resume transitions are tail
+; calls; no recursive source walk or per-step outcome allocation is involved.
+(def typing_frame ((kind Int) (payload Int) (previous Int)) Int
+  (pair kind (pair payload previous)))
+
+(def typing_visit
+  ((node Int) (locals Int) (depth Int) (frames Int) (globals Int)) Int
+  (if (eq (syntax_count node) -1)
+    (typing_atom node locals depth frames globals)
+    (let head Int (syntax_child node 0)
+      (let start Int (syntax_start head)
+        (let after Int (syntax_after head)
+          (if (token_if start after)
+            (typing_if node locals depth frames globals)
+            (if (token_let start after)
+              (typing_let node locals depth frames globals)
+              (if (token_match start after)
+                (typing_match node locals depth frames globals)
+                (typing_application node head locals depth frames globals)))))))))
+
+; 1 if condition, 2 true branch, 3 false branch, 4 let initializer,
+; 5 call argument, 6 match subject, 7 match arm body.
+(def typing_resume
+  ((type Int) (depth Int) (frames Int) (globals Int)) Int
+  (if (eq depth 0)
+    (compiler_complete type)
+    (let kind Int (first frames)
+      (let retained Int (second frames)
+        (let payload Int (first retained)
+          (let previous Int (second retained)
+            (let next_depth Int (- depth 1)
+              (if (eq kind 1)
+                (typing_resume_condition type payload next_depth previous globals)
+                (if (eq kind 2)
+                  (typing_resume_true type payload next_depth previous globals)
+                  (if (eq kind 3)
+                    (typing_resume_false type payload next_depth previous globals)
+                    (if (eq kind 4)
+                      (typing_resume_initializer
+                        type payload next_depth previous globals)
+                      (if (eq kind 5)
+                        (typing_resume_argument
+                          type payload next_depth previous globals)
+                        (if (eq kind 6)
+                          (typing_resume_subject
+                            type payload next_depth previous globals)
+                          (if (eq kind 7)
+                            (typing_resume_arm
+                              type payload next_depth previous globals)
+                            (fail)))))))))))))))

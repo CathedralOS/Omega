@@ -1,0 +1,8 @@
+; Builtins have exact negative identities; nominal types retain positive
+; declaration owners. Zero is only the unset match-arm result sentinel.
+(def int_type () Int -1)
+
+(def bytes_type () Int -2)
+
+(def typing_reject ((code Int) (node Int)) Int
+  (compiler_source_rejection code (syntax_start node)))

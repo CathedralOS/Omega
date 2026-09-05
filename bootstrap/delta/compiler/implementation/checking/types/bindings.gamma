@@ -1,0 +1,76 @@
+(def typing_atom
+  ((node Int) (locals Int) (depth Int) (frames Int) (globals Int)) Int
+  (let start Int (syntax_start node)
+    (let after Int (syntax_after node)
+      (let byte Int (source_read start)
+        (if (is_upper byte)
+          (let found Int
+            (name_trie_find_option (global_constructors globals) after start)
+            (if (first found)
+              (let metadata Int (second found)
+                (if (eq (constructor_metadata_arity metadata) 0)
+                  (typing_resume (constructor_metadata_owner metadata)
+                    depth frames globals)
+                  (typing_reject 16 node)))
+              (typing_reject 12 node)))
+          (if (if (is_digit byte) 1 (eq byte 45))
+            (typing_resume (int_type) depth frames globals)
+            (let found Int (name_trie_find_option locals after start)
+              (if (first found)
+                (typing_resume (second found) depth frames globals)
+                (typing_reject 14 node)))))))))
+
+; Preserve body-let order: annotation, active conflict, outer initializer.
+; Frame payload is (pair initializer (pair declared-type (pair body locals))).
+(def typing_let
+  ((node Int) (locals Int) (depth Int) (frames Int) (globals Int)) Int
+  (let annotation Int (syntax_child node 2)
+    (let resolved Int
+      (lookup_type_option (syntax_start annotation) (syntax_after annotation)
+        (global_types globals))
+      (if (first resolved)
+        (let name Int (syntax_child node 1)
+          (let prior Int
+            (name_trie_find_option locals (syntax_after name) (syntax_start name))
+            (if (first prior)
+              (typing_reject 9 name)
+              (let extended Int
+                (name_trie_insert locals (syntax_after name) (syntax_start name)
+                  (second resolved))
+                (let initializer Int (syntax_child node 3)
+                  (typing_visit initializer locals (+ depth 1)
+                    (typing_frame 4
+                      (pair initializer
+                        (pair (second resolved)
+                          (pair (syntax_child node 4) extended)))
+                      frames)
+                    globals))))))
+        (typing_reject 11 annotation)))))
+
+(def typing_resume_initializer
+  ((type Int) (payload Int) (depth Int) (frames Int) (globals Int)) Int
+  (let details Int (second payload)
+    (if (eq type (first details))
+      (let body_and_locals Int (second details)
+        (typing_visit (first body_and_locals) (second body_and_locals)
+          depth frames globals))
+      (typing_reject 15 (first payload)))))
+
+; Saved outer bindings distinguish active-scope conflicts from a repeated name
+; introduced by this pattern. The complete typed payload spine is source-owned.
+(def typing_pattern_bindings
+  ((count Int) (binders Int) (types Int) (outer Int) (locals Int)) Int
+  (if (eq count 0)
+    (compiler_complete locals)
+    (let binder Int (first binders)
+      (let start Int (syntax_start binder)
+        (let after Int (syntax_after binder)
+          (let active Int (name_trie_find_option outer after start)
+            (if (first active)
+              (typing_reject 9 binder)
+              (let repeated Int (name_trie_find_option locals after start)
+                (if (first repeated)
+                  (typing_reject 10 binder)
+                  (typing_pattern_bindings
+                    (- count 1) (second binders) (second types) outer
+                    (name_trie_insert locals after start (first types))))))))))))
