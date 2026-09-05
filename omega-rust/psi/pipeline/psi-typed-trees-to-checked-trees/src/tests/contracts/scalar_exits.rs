@@ -1,6 +1,7 @@
 use super::*;
 
 mod local_snapshots;
+mod storage_snapshots;
 
 fn check(source: &str, accepted: bool) {
     match lower_typed_trees(parse_typed_trees(source)) {

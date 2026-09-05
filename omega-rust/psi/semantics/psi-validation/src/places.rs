@@ -181,6 +181,18 @@ pub(crate) fn declared_place_type(
     unwrapped_type_reference(program, raw)
 }
 
+pub(crate) fn assignment_value_type(
+    program: &TypedTrees,
+    destination: TypeReferenceHandle,
+) -> TypeReferenceHandle {
+    // Assignment through a reference writes its referent, not the reference
+    // carrier. Preserve the referent's constraints and arithmetic policy.
+    match program.type_reference_table.type_reference(destination) {
+        TypeReferenceNode::Reference { referee, .. } => *referee,
+        _ => destination,
+    }
+}
+
 /// Like [`declared_place_type`] but returns the place's type reference WITHOUT
 /// unwrapping the `Constrained`/`Reference` shells -- callers that need the
 /// arithmetic domain (decision 17) read it from this raw handle.

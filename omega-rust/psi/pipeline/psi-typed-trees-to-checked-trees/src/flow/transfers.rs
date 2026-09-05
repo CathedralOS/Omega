@@ -329,14 +329,14 @@ pub(super) fn propagate_statement_transfers(
     }
 
     if stable_value_target
-        && let Some(value) = scalar_values::capture_local(
+        && let Some(value) = scalar_values::capture_statement(
             program,
             semantic,
             ctx,
             state_symbol,
             statement_index,
             statement,
-            *active_contexts,
+            assignment_source_contexts,
         )
     {
         let value = semantic.scalar_values.append(value);

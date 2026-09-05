@@ -63,9 +63,7 @@ pub(crate) fn build_checked_scalar_expression_plans(
                     continue;
                 };
                 match statement {
-                    StatementNode::LocalData(local)
-                        if !local.is_mutable && local.initial_value.is_valid() =>
-                    {
+                    StatementNode::LocalData(local) if local.initial_value.is_valid() => {
                         let Some(primitive_type) =
                             program.primitive_type_reference(local.type_reference)
                         else {
@@ -73,8 +71,14 @@ pub(crate) fn build_checked_scalar_expression_plans(
                         };
                         let binding_ordinal = u32::try_from(locals.len()).ok();
                         if let Some(binding_ordinal) = binding_ordinal {
-                            if let ExpressionNode::Call(call) =
-                                program.expression_table.expression(local.initial_value)
+                            let role = if local.is_mutable {
+                                CheckedScalarExpressionRole::StorageInitializer
+                            } else {
+                                CheckedScalarExpressionRole::LocalInitializer { binding_ordinal }
+                            };
+                            if !local.is_mutable
+                                && let ExpressionNode::Call(call) =
+                                    program.expression_table.expression(local.initial_value)
                                 && let Some(arguments) = lower_boundary_call_arguments(
                                     program,
                                     operators,
@@ -94,18 +98,20 @@ pub(crate) fn build_checked_scalar_expression_plans(
                             {
                                 expressions.extend(arguments);
                             }
-                            if let Some(arguments) = lower_direct_call_binding_arguments(
-                                program,
-                                operators,
-                                state.symbol,
-                                statement_ordinal,
-                                binding_ordinal,
-                                local.initial_value,
-                                &scalar_parameters,
-                                &parameter_types,
-                                &locals,
-                                exact_integer_casts,
-                            ) {
+                            if !local.is_mutable
+                                && let Some(arguments) = lower_direct_call_binding_arguments(
+                                    program,
+                                    operators,
+                                    state.symbol,
+                                    statement_ordinal,
+                                    binding_ordinal,
+                                    local.initial_value,
+                                    &scalar_parameters,
+                                    &parameter_types,
+                                    &locals,
+                                    exact_integer_casts,
+                                )
+                            {
                                 expressions.extend(arguments);
                             } else if let Some(initializer) = lower_return_expression(
                                 program,
@@ -140,9 +146,7 @@ pub(crate) fn build_checked_scalar_expression_plans(
                                 source_bindings.append(CheckedScalarExpressionBindings {
                                     state: state.symbol,
                                     statement_ordinal,
-                                    role: CheckedScalarExpressionRole::LocalInitializer {
-                                        binding_ordinal,
-                                    },
+                                    role,
                                     expression: local.initial_value,
                                     symbols: binding_symbols.insert_many(
                                         scalar_parameters
@@ -154,20 +158,20 @@ pub(crate) fn build_checked_scalar_expression_plans(
                                 expressions.push(CheckedLocatedScalarExpression {
                                     state: state.symbol,
                                     statement_ordinal,
-                                    role: CheckedScalarExpressionRole::LocalInitializer {
-                                        binding_ordinal,
-                                    },
+                                    role,
                                     expression: initializer,
                                 });
                             }
                         }
-                        locals.push(ScalarLocal {
-                            symbol: local.symbol,
-                            name: local.name.as_str().to_owned(),
-                            primitive_type,
-                            arithmetic_domain: program
-                                .arithmetic_domain_for_type_reference(local.type_reference),
-                        });
+                        if !local.is_mutable {
+                            locals.push(ScalarLocal {
+                                symbol: local.symbol,
+                                name: local.name.as_str().to_owned(),
+                                primitive_type,
+                                arithmetic_domain: program
+                                    .arithmetic_domain_for_type_reference(local.type_reference),
+                            });
+                        }
                     }
                     StatementNode::Expression(expression) => {
                         if let ExpressionNode::Call(call) =
@@ -224,23 +228,8 @@ pub(crate) fn build_checked_scalar_expression_plans(
                         }
                     }
                     StatementNode::Assignment(assignment) => {
-                        // Assignment values already have general checked-value
-                        // custody. Retain the exact scalar spelling separately
-                        // so structural effect planning never has to revisit a
-                        // typed expression handle. This first consumer needs
-                        // only direct primitive literals, an exact scalar
-                        // parameter, or an earlier immutable primitive local;
-                        // wider assignment expressions remain outside its
-                        // admitted vocabulary.
-                        if !matches!(
-                            program.expression_table.expression(assignment.value),
-                            ExpressionNode::Integer(_)
-                                | ExpressionNode::Float(_)
-                                | ExpressionNode::Boolean(_)
-                                | ExpressionNode::Name(_)
-                        ) {
-                            continue;
-                        }
+                        // Retain selected RHS meaning at the statement. A later
+                        // executable consumer still owns its admitted store shape.
                         let Some(target_type_reference) =
                             crate::flow::expression_type_reference_in_state(
                                 program,
@@ -268,26 +257,18 @@ pub(crate) fn build_checked_scalar_expression_plans(
                         ) else {
                             continue;
                         };
-                        let direct_source =
-                            matches!(expression, CheckedScalarExpression::IntegerLiteral { .. })
-                                || matches!(
-                                    expression,
-                                    CheckedScalarExpression::IeeeFloatLiteral { .. }
-                                )
-                                || matches!(
-                                    &expression,
-                                    CheckedScalarExpression::Boolean(boolean)
-                                        if matches!(
-                                            boolean.as_ref(),
-                                            CheckedBooleanExpression::Constant(_)
-                                                | CheckedBooleanExpression::Parameter { .. }
-                                        )
-                                )
-                                || matches!(expression, CheckedScalarExpression::Parameter { .. })
-                                || matches!(expression, CheckedScalarExpression::Local { .. });
-                        if !direct_source {
-                            continue;
-                        }
+                        source_bindings.append(CheckedScalarExpressionBindings {
+                            state: state.symbol,
+                            statement_ordinal,
+                            role: CheckedScalarExpressionRole::AssignmentValue,
+                            expression: assignment.value,
+                            symbols: binding_symbols.insert_many(
+                                scalar_parameters
+                                    .iter()
+                                    .map(|parameter| parameter.symbol)
+                                    .chain(locals.iter().map(|local| local.symbol)),
+                            ),
+                        });
                         expressions.push(CheckedLocatedScalarExpression {
                             state: state.symbol,
                             statement_ordinal,
