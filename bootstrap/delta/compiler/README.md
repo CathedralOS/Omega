@@ -115,7 +115,12 @@ constructor, and function identity, constructor counts, representation shape,
 and source coordinates before resolving any declaration type. Duplicate
 identities therefore precede declaration-type and body failures. Resolution
 then checks fields and signatures against the complete catalogs, followed by
-body checking. Declaration resolution visits declarations, constructors, and
+body checking. Census also provisions D30's 32,768 authored `function_rows`:
+duplicate lookup precedes each fresh row, and a fresh 32,769th declaration
+returns `Incomplete` resource code 4 at its name, before row insertion or any
+declaration-type resolution. This count excludes metadata copies and generated
+helpers; it is not Gamma's separate 4,096-function generated-program limit.
+Declaration resolution visits declarations, constructors, and
 fields in authored order. Each function parameter's conflict check precedes its
 own type annotation, parameters precede the result type, and the whole
 declaration phase precedes all bodies. Failures retain their exact source node
@@ -247,7 +252,8 @@ duplicate type/constructor/function identity (6/7/8), local and pattern conflict
 duplicate and nonexhaustive match cases (17/18), missing `main` (19), and
 application schema mismatch (20).
 Missing `main` has no source coordinate; a schema mismatch
-anchors at the entry name. Source-byte and expression `parse_depth` refusals
+anchors at the entry name. Source-byte, authored `function_rows`, and expression
+`parse_depth` refusals
 have owned resource frames; other compiler-owned resource accounting and
 internal failure publication remain open. Lowering records expanded expression
 heights, including generated wrappers. Normalization uses the selected Gamma
@@ -268,6 +274,7 @@ scalar/nominal slice is not full-language admission.
 Run `sh tests/delta/staged-compiler/run.sh` for lowering and generated execution,
 `sh tests/delta/normalization/run.sh` for body-height and capture behavior,
 `sh tests/delta/request-boundary/run.sh` for exact request outcomes,
+`sh tests/delta/resource-boundary/run.sh` for authored row-provision boundaries,
 `sh tests/delta/frontend-boundary/run.sh` for exact frontend outcomes, and
 `sh tests/gamma/composed-artifact.sh` for composed identity and publication.
 The downgraded full compiler remains separate under
@@ -276,7 +283,7 @@ The downgraded full compiler remains separate under
 ## Measurements
 
 ```text
-2,910-line / 125,850-byte canonical entry plus shared Gamma implementation
+2,916-line / 126,225-byte canonical entry plus shared Gamma implementation
 7-line / 195-byte nullary-ADT Delta fixture
   -> 3-line / 165-byte Gamma receipt
   -> selected Gamma evaluation produces byte 9

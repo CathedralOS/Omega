@@ -282,7 +282,14 @@ entry-schema diagnostics also publish canonical DCOUT. Declaration and body
 checking publish codes 9 through 18 for local/pattern conflicts, unknown names
 and types, type and arity disagreement, duplicate match cases, and incomplete
 match coverage. The complete global
-census precedes this phase. Declarations, constructors, and fields are visited
+census precedes this phase. It accounts for D30's 32,768 authored function
+rows, checking an exact duplicate before provisioning each fresh row. A fresh
+32,769th function returns `Incomplete` resource code 4 at its name-token start,
+limit 32,768 and requested 32,769, before insertion or declaration-type
+resolution. Complete grammar/depth checking precedes this count. Generated
+helpers and typed metadata copies do not add authored rows; Gamma's separate
+4,096-function executable-program bound remains a later obligation.
+Declarations, constructors, and fields are visited
 in authored order; each parameter's conflict check precedes its own annotation,
 parameters precede the result type, and all declarations precede all bodies.
 Retained balanced syntax and grammar judgments feed the global census,

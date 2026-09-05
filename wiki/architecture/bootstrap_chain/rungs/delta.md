@@ -11,7 +11,7 @@ The normative contract is
 [`bootstrap/delta/LANGUAGE.md`](../../../../bootstrap/delta/LANGUAGE.md). The canonical
 compiler must be written in Gamma and emit canonical Gamma source. The selected
 Beta-authored Gamma evaluator executes that compiler over Delta source and can
-execute the resulting canonical Gamma receipt. The selected 2,910-line source
+execute the resulting canonical Gamma receipt. The selected 2,916-line source
 is one canonical request entry plus 55 manifested shared implementation members.
 It enforces Delta's textual-ASCII byte envelope, identifier and
 reserved-name grammar, signed-literal range, and exact global function
@@ -60,7 +60,13 @@ arity disagreement (15/16), duplicate and nonexhaustive matches (17/18),
 missing `main` (19), and entry-schema mismatch (20) also have owned DCOUT
 publication. Entry schema runs only after the complete frontend succeeds.
 Raw-source diagnostics have a separate source-owned entry sharing the same
-implementation. Declaration traversal follows authored order; each parameter
+implementation. Census also owns D30's 32,768 authored function-row provision:
+duplicates reject before provision, and a fresh 32,769th name produces
+`Incomplete` resource code 4 at its name-token start, limit/requested
+32,768/32,769. Complete grammar/depth checks run earlier; declaration types run
+later. This logical count excludes generated helpers and does not establish
+admission under Gamma's separate 4,096-function bound.
+Declaration traversal follows authored order; each parameter
 conflict precedes its own annotation, parameters precede the result type, and
 the whole declaration phase precedes all bodies. Grammar also owns D30's
 1,024-level expression `parse_depth` profile: the first level-1,025 expression

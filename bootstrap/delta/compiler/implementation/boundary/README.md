@@ -117,6 +117,38 @@ wrong-signature rejection. Empty source is invalid Delta syntax, not an
 otherwise valid program missing an entry. Profile 2 and schema code 21 remain
 retired.
 
+## Authored function-row provision
+
+The global census accounts for D30's `function_rows` resource. Its logical
+counter starts at zero and advances once for each fresh authored function
+declaration. Types and constructors do not advance it. Typed metadata rebuilt
+after census, emitted runtime functions, and normalization helpers are not
+additional authored function rows.
+
+| Tag | Resource code | Coordinate space | Coordinate | Limit/requested |
+| --- | --- | --- | --- | --- |
+| 2 Incomplete | 4 `function_rows` | 1 Delta source | fresh function-name token start | 32,768 / 32,769 |
+
+The 32,768th fresh row is admitted. At each function name, exact duplicate
+lookup precedes provision: an already-present name rejects with tag 1/code 8,
+even when all 32,768 rows are occupied. A fresh 32,769th name instead returns
+the resource frame before constructing or inserting its row. Collection then
+stops; it does not search later declarations for a preferred failure. Tag 2
+resource code 4 is distinct from tag 1 invalid-syntax code 4.
+
+Complete byte, lexical, balanced-parser, and grammar/depth checks precede this
+provision. Declaration-type resolution and every body check follow the complete
+census, so an earlier unknown annotation does not preempt the row refusal.
+The logical counter does not measure trie nodes, immutable pairs, or bytes,
+and it does not change the existing global catalog representation.
+
+This is not Gamma's separate 4,096-function limit on an executable generated
+program. Authored functions, fixed runtime helpers, adapters, and extracted
+normalization helpers all consume that later evaluator limit. Census admission
+at 32,768 therefore does not claim successful generated-program admission.
+Other compiler-owned resource/internal outcomes remain open; a physical
+evaluator failure is not a substitute for this exact compiler-owned refusal.
+
 ## Body traversal and coordinates
 
 Body typing visits retained nodes with explicit continuations and immutable
@@ -160,7 +192,8 @@ historical table is recoverable at
 detached table participates in execution. D125 removes profile 2, not the
 request-failure identities.
 
-Canonical frontend rejection and the owned source-byte/parse-depth refusals
+Canonical frontend rejection and the owned source-byte, function-row, and
+parse-depth refusals
 are not full DCOUT or Delta-edge closure. Other resource/internal outcomes do
 not yet carry compiler-owned evidence. Lowering constructs a complete expanded
 Gamma plan before publication, and records the height of every generated

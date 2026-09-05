@@ -4,8 +4,8 @@
 (def gamma_binding ((syntax Int)) Int (gamma_node 2 0 syntax))
 (def gamma_function ((syntax Int)) Int (gamma_node 3 0 syntax))
 
-; Generated binding identity is the explicit marker and source coordinate;
-; no comparison or condition observes the numeric provenance of a pair.
+; Generated identity pairs a marker with a source coordinate in lowering or
+; an allocated identity in normalization; pair provenance is never observed.
 (def gamma_generated ((marker Int) (coordinate Int)) Int
   (gamma_node 4 0 (pair marker coordinate)))
 

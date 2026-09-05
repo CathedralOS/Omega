@@ -126,6 +126,11 @@ conflicts before their annotations; body `let` checks its annotation first and
 checks the initializer in the outer environment. Calls consume expected
 arguments in order, and matches defer final coverage until every arm succeeds.
 
+The complete grammar worklist also precedes census `function_rows` provision.
+That later logical count admits 32,768 fresh authored functions, with duplicate
+lookup before each provision; it does not count syntax nodes or generated
+Gamma helpers. Its refusal is not a syntax error or a syntax-arena measurement.
+
 The explicit parser stack and grammar worklist use ordinary Gamma pairs.
 Gamma's immutable arena accounts for cumulative allocations and does not
 reclaim abandoned construction spines. The selected 1,024-level compiler
