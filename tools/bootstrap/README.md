@@ -42,6 +42,7 @@ remain under their language owner.
 | `gamma/evaluator_env.sh` | Selected Beta-authored functional Gamma evaluator materialization. | Delete only when every caller has an equally direct canonical invocation. |
 | `gamma/artifact_env.sh` | Downgraded concatenative Gamma compiler materialization for retained comparison gates. | Delete with the nested concatenative bootstrap evidence. |
 | `delta/` | Downgraded concatenative-Gamma-written Delta compiler composition for retained comparison gates. | Delete with the nested Delta bootstrap compiler. |
+| `epsilon/materialize_source_closure.py` | Byte-exact assembly of explicitly manifested Epsilon source members for D. | Delete only when the selected lower compiler accepts the same canonical member closure directly. |
 
 The retired `verify-lattice.sh`, `test-paths.sh`, historical bootstrap-role facade,
 future-artifact locators, root compiler cache, and receipt profiles had no

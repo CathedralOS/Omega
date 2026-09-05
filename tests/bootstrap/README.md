@@ -6,3 +6,4 @@ one accepted language or compiler live under `tests/<language>/` instead.
 | Retained file | Role | Deletion condition |
 | --- | --- | --- |
 | `alpha-beta-edge.sh` | Checks the selected Alpha seed, Alpha conformance, exact trusted Beta compiler reconstruction, and finite root audit. | Delete only when a stronger Alpha-to-Beta edge gate subsumes all observations. |
+| `epsilon-source-closure.sh` | Checks ordered multi-member Epsilon source materialization, exact current-D reproduction, and malformed manifest rejection. | Delete only when the selected Epsilon compiler consumes and verifies the same member manifest directly. |
