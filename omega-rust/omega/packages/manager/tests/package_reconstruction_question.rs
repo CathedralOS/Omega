@@ -890,13 +890,15 @@ machine build(builder: &mut Build) {
 "#,
     )
     .expect("write contract dependency build");
+    // The ordinary exit preserves its exact entry assumption. The separate
+    // polynomial entailment tier still cannot represent min and must stand down.
     std::fs::write(
         dependency.join("main.omg"),
         r#"pub machine unchecked_claim(a: u64, b: u64)
 requires
     min(a, b) >= 1
 ensures
-    a >= 1
+    min(a, b) >= 1
 {
 }
 "#,
