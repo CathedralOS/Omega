@@ -284,6 +284,25 @@ pub(super) fn propagate_statement_transfers(
             },
             &mut refs,
         );
+        if let StatementNode::Assignment(assignment) = statement {
+            byte_sequences::append_element_replacement_predicates(
+                program,
+                semantic,
+                ctx,
+                assignment_source_contexts,
+                machine_symbol,
+                state_symbol,
+                statement_index,
+                assignment.target,
+                source_expression,
+                ProgramPoint::Statement {
+                    machine_symbol,
+                    state_symbol,
+                    statement_index,
+                },
+                &mut refs,
+            );
+        }
     }
 
     if stable_value_target

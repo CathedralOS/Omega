@@ -191,6 +191,7 @@ pub(super) fn semantic_contexts_prove_contract_fact(
         // These are evidence or deferred obligations, not propositions this
         // dispatcher can establish. An unfamiliar payload is never success.
         FactPayload::AssignedValue { .. }
+        | FactPayload::BytePredicate { .. }
         | FactPayload::BooleanValue { .. }
         | FactPayload::TypeConstraint { .. }
         | FactPayload::ProofObligation { .. }

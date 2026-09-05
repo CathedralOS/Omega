@@ -81,6 +81,17 @@ impl ByteSequencePredicate {
         }
     }
 
+    /// Whether every sequence satisfying `self` also satisfies `other`. Only
+    /// `ascii_only` strengthens another recognized predicate: every byte below
+    /// 128 is a complete one-byte UTF-8 scalar, so an ASCII-only sequence is
+    /// well-formed UTF-8. It does NOT imply `no_nul` -- `0x00` is ASCII -- and
+    /// it does not imply `non_empty`, which the empty sequence satisfies
+    /// vacuously as ASCII but not as nonempty. `valid_utf8` implies nothing
+    /// else: a multi-byte scalar is neither nul-free by construction nor ASCII.
+    pub fn implies(self, other: Self) -> bool {
+        self == other || (self == Self::AsciiOnly && other == Self::ValidUtf8)
+    }
+
     /// The predicate's bit in a decode-boundary MASK (the instruction kinds
     /// carry `u8` masks; ZII: an empty mask means a plain byte copy).
     pub fn mask_bit(self) -> u8 {

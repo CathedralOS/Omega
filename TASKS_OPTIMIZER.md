@@ -145,6 +145,18 @@ needed for independent replay through publication.
   validation from the landed attached-Unit fork/join slice through general
   scalar and structural calls on each ABI.
 
+- **REGALLOC-STAGE-CRATES.** Six stage docs under
+  `wiki/architecture/pipeline/stages/` have no matching `X-to-Y` crate:
+  `selected_instructions_to_liveness`, `liveness_to_live_ranges`,
+  `live_ranges_to_allocation_legality`, `allocation_legality_to_register_homes`,
+  `allocation_legality_to_fixed_view_copies`, and
+  `fixed_view_copies_to_reanalyzed_legality`. All six live inside
+  `omega-regalloc`, so the repository layout no longer describes the pipeline
+  the docs describe and the architecture test enforces no direction between
+  them. Split them out once each boundary stops moving. Acceptance: every stage
+  doc names an existing crate, and `omega-architecture-test` covers the
+  dependency direction between the split crates.
+
 ## Machine optimization
 
 - **DECLARATIVE-PEEPHOLES.** Generalize the landed bounded instruction-pair
