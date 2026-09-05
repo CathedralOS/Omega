@@ -168,6 +168,7 @@ impl StatementTable {
                             )
                         });
                     StatementNode::Call(TableCall {
+                        receiver_root_symbol: call.receiver_root_symbol,
                         receiver_symbol: call.receiver_symbol,
                         target_symbol: call.target_symbol,
                         receiver,
@@ -333,6 +334,7 @@ impl StatementTable {
                         unreachable!();
                     };
                     current.receiver_symbol = remapped(current.receiver_symbol, symbols);
+                    current.receiver_root_symbol = remapped(current.receiver_root_symbol, symbols);
                     current.target_symbol = remapped(current.target_symbol, symbols);
                     for argument in &mut current.machine_arguments {
                         argument.symbol = remapped(argument.symbol, symbols);
@@ -503,6 +505,9 @@ pub struct TableAssignment {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TableCall {
+    /// Exact current-state storage or namespace root; `receiver_symbol` is
+    /// the final projected member and need not descend from this declaration.
+    pub receiver_root_symbol: SymbolHandle,
     pub receiver_symbol: SymbolHandle,
     pub target_symbol: SymbolHandle,
     pub receiver: HandleSpan<Identifier>,
@@ -527,6 +532,7 @@ pub struct TableCall {
 impl Default for TableCall {
     fn default() -> Self {
         Self {
+            receiver_root_symbol: SymbolHandle::invalid(),
             receiver_symbol: SymbolHandle::invalid(),
             target_symbol: SymbolHandle::invalid(),
             receiver: HandleSpan::empty(),
@@ -769,6 +775,14 @@ mod tests {
             }));
         source_statements
             .push_statement(&mut source_span, StatementNode::Expression(local_reference));
+        source_statements.push_statement(
+            &mut source_span,
+            StatementNode::Call(super::TableCall {
+                receiver_root_symbol: local_symbol,
+                receiver_symbol: target_symbol,
+                ..Default::default()
+            }),
+        );
 
         let mut copied_statements = StatementTable::new();
         let mut copied_expressions = ExpressionTable::new();
@@ -799,6 +813,11 @@ mod tests {
         );
 
         let copied = copied_statements.statements(copied_span);
+        let StatementNode::Call(call) = &copied[3] else {
+            panic!("fourth copied statement should retain its receiver identities");
+        };
+        assert_eq!(call.receiver_root_symbol, remapped_local);
+        assert_eq!(call.receiver_symbol, remapped_target);
         let StatementNode::LocalData(local) = &copied[0] else {
             panic!("first copied statement should be local data");
         };

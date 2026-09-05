@@ -143,6 +143,8 @@ pub struct Call {
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct CallStorage {
+    /// Exact storage/namespace root, distinct from the final receiver member.
+    pub receiver_root_symbol: SymbolHandle,
     pub receiver: HandleSpan<DiagnosticName>,
     pub receiver_starts_at_self: bool,
     pub machine_arguments: Box<[crate::expression::StaticMachineArgument]>,
@@ -485,6 +487,7 @@ impl StatementTable {
                     source_statement_path_members.span_or_empty(call.receiver),
                 );
                 self.insert(StatementNode::Call(TableCall {
+                    receiver_root_symbol: call.receiver_root_symbol,
                     receiver_symbol: call.receiver_symbol,
                     target_symbol: call.target_symbol,
                     receiver,
@@ -739,6 +742,7 @@ pub struct TableAssignment {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TableCall {
+    pub receiver_root_symbol: SymbolHandle,
     pub receiver_symbol: SymbolHandle,
     pub target_symbol: SymbolHandle,
     pub receiver: HandleSpan<DiagnosticName>,
@@ -758,6 +762,7 @@ pub struct TableCall {
 impl Default for TableCall {
     fn default() -> Self {
         Self {
+            receiver_root_symbol: SymbolHandle::invalid(),
             receiver_symbol: SymbolHandle::invalid(),
             target_symbol: SymbolHandle::invalid(),
             receiver: HandleSpan::empty(),

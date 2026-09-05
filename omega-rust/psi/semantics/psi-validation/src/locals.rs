@@ -78,44 +78,6 @@ pub(crate) fn expression_call_has_operator_namespace(
     )
 }
 
-/// The binding this state declares under `name`, if it declares one.
-///
-/// A value path's head names state storage directly. Its resolved receiver
-/// symbol is the path's last member, whose declaration parent is the owning
-/// data type rather than the head binding, so the head is recovered by the
-/// state's own parameters and prior locals instead of by that symbol's
-/// declaration chain.
-pub(crate) fn state_binding_symbol(
-    program: &psi_typed_trees::TypedTrees,
-    machine: &psi_typed_trees::machine::Machine,
-    state: &psi_typed_trees::state::State,
-    prior_statements: &[StatementNode],
-    name: &str,
-) -> Option<psi_symbols::SymbolHandle> {
-    if name == "self" {
-        return program
-            .state_parameters(state)
-            .iter()
-            .any(|parameter| parameter.is_self)
-            .then_some(machine.symbol);
-    }
-    program
-        .state_parameters(state)
-        .iter()
-        .find(|parameter| parameter.name.as_str() == name)
-        .map(|parameter| parameter.symbol)
-        .or_else(|| {
-            prior_statements
-                .iter()
-                .find_map(|statement| match statement {
-                    StatementNode::LocalData(local) if local.name.as_str() == name => {
-                        Some(local.symbol)
-                    }
-                    _ => None,
-                })
-        })
-}
-
 /// An executable binding belongs to this state and is identified by its
 /// retained declaration, not another state's spelling. `self` may use the
 /// machine symbol retained by typed expression lowering.
