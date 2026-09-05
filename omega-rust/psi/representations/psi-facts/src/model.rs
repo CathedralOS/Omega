@@ -319,6 +319,12 @@ pub enum FactPayload {
         predicate: psi_language_semantics::byte_predicates::ByteSequencePredicate,
     },
     BooleanExpression(ExpressionHandle),
+    /// Storage lifetime metadata for another fact in the same context. This
+    /// row asserts no proposition about its place; a write there retires the
+    /// dependent context through the ordinary mutation filter.
+    StorageDependency {
+        dependent: FactHandle,
+    },
     /// A branch-local truth value, invalidated when any expression input changes.
     BooleanValue {
         expression: ExpressionHandle,
@@ -429,6 +435,7 @@ impl QualificationPayloadIdentity {
             }
             FactPayload::CarryOrigin { .. } => Some(Self::CarryOrigin),
             FactPayload::AssignedValue { .. }
+            | FactPayload::StorageDependency { .. }
             | FactPayload::BytePredicate { .. }
             | FactPayload::BooleanValue { .. }
             | FactPayload::BooleanExpression(_)

@@ -28,6 +28,13 @@ pub(crate) fn filter_contexts_after_place_mutations(
         for fact_ref in semantic.refs.span_or_empty(context.facts) {
             let fact = semantic.facts.get(fact_ref.fact);
             let FactPlace::Place(place) = fact.place else {
+                // An instantiated Boolean promise with an unresolved operand
+                // dependency cannot survive a storage revision. Its producer
+                // retains Unknown explicitly rather than inventing a place.
+                if matches!(fact.payload, FactPayload::StorageDependency { .. }) {
+                    invalidated_any = true;
+                    removed_any = true;
+                }
                 continue;
             };
             let Some((mutated_place, dependency_segments)) = matching_mutation_for_fact_place(

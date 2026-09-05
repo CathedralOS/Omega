@@ -11,7 +11,7 @@ use crate::struct_literals::data_declares_field;
 use crate::symbols::{MachineSymbols, TopLevelSymbols};
 use psi_diagnostics::Diagnostic;
 use psi_typed_trees::TypedTrees;
-use psi_typed_trees::expression::{ExpressionHandle, ExpressionNode};
+use psi_typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};
 use psi_typed_trees::machine::Machine;
 use psi_typed_trees::state::State;
 use psi_typed_trees::statement::{StatementNode, TransitionGuardNode, TransitionTargetNode};
@@ -46,6 +46,7 @@ pub(crate) fn validate_value_position_calls(
     boundary_operator_applications: &mut Vec<crate::ValidatedBoundaryOperatorApplication>,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
+    let executes = true;
     match statement {
         StatementNode::AssemblyFact(_) => {}
         StatementNode::Assignment(assignment) => {
@@ -58,6 +59,7 @@ pub(crate) fn validate_value_position_calls(
                 writable_roots,
                 value_env,
                 assignment.value,
+                executes,
                 boundary_operator_applications,
                 diagnostics,
             );
@@ -70,6 +72,7 @@ pub(crate) fn validate_value_position_calls(
                 writable_roots,
                 value_env,
                 assignment.target,
+                executes,
                 boundary_operator_applications,
                 diagnostics,
             );
@@ -86,6 +89,7 @@ pub(crate) fn validate_value_position_calls(
                     writable_roots,
                     value_env,
                     *argument,
+                    executes,
                     boundary_operator_applications,
                     diagnostics,
                 );
@@ -101,6 +105,7 @@ pub(crate) fn validate_value_position_calls(
                 writable_roots,
                 value_env,
                 *expression,
+                executes,
                 boundary_operator_applications,
                 diagnostics,
             );
@@ -125,6 +130,7 @@ pub(crate) fn validate_value_position_calls(
                 writable_roots,
                 value_env,
                 local_data.initial_value,
+                executes,
                 boundary_operator_applications,
                 diagnostics,
             );
@@ -140,6 +146,7 @@ pub(crate) fn validate_value_position_calls(
                     writable_roots,
                     value_env,
                     guard,
+                    executes,
                     boundary_operator_applications,
                     diagnostics,
                 );
@@ -161,6 +168,7 @@ pub(crate) fn validate_value_position_calls(
                                 writable_roots,
                                 value_env,
                                 *argument,
+                                executes,
                                 boundary_operator_applications,
                                 diagnostics,
                             );
@@ -176,6 +184,7 @@ pub(crate) fn validate_value_position_calls(
                             writable_roots,
                             value_env,
                             *expression,
+                            executes,
                             boundary_operator_applications,
                             diagnostics,
                         );
@@ -381,6 +390,7 @@ fn scan_expression_calls(
     writable_roots: &WritableRoots<'_, '_>,
     value_env: &ValueEnv,
     expression: ExpressionHandle,
+    executes: bool,
     boundary_operator_applications: &mut Vec<crate::ValidatedBoundaryOperatorApplication>,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
@@ -536,6 +546,7 @@ fn scan_expression_calls(
             writable_roots,
             value_env,
             atomic.value,
+            executes,
             boundary_operator_applications,
             diagnostics,
         ),
@@ -562,6 +573,7 @@ fn scan_expression_calls(
                 value_env,
                 expression,
                 &call,
+                executes,
                 boundary_operator_applications,
                 diagnostics,
             );
@@ -578,6 +590,7 @@ fn scan_expression_calls(
                     writable_roots,
                     value_env,
                     call.receiver,
+                    executes,
                     boundary_operator_applications,
                     diagnostics,
                 );
@@ -592,6 +605,7 @@ fn scan_expression_calls(
                     writable_roots,
                     value_env,
                     *argument,
+                    executes,
                     boundary_operator_applications,
                     diagnostics,
                 );
@@ -618,6 +632,7 @@ fn scan_expression_calls(
                 writable_roots,
                 value_env,
                 binary.left,
+                executes,
                 boundary_operator_applications,
                 diagnostics,
             );
@@ -630,6 +645,15 @@ fn scan_expression_calls(
                 writable_roots,
                 value_env,
                 binary.right,
+                executes
+                    && !matches!(
+                        (
+                            binary.operator,
+                            program.expression_table.expression(binary.left)
+                        ),
+                        (BinaryOperator::And, ExpressionNode::Boolean(false))
+                            | (BinaryOperator::Or, ExpressionNode::Boolean(true))
+                    ),
                 boundary_operator_applications,
                 diagnostics,
             );
@@ -662,6 +686,7 @@ fn scan_expression_calls(
                 writable_roots,
                 value_env,
                 cast.value,
+                executes,
                 boundary_operator_applications,
                 diagnostics,
             );
@@ -680,6 +705,7 @@ fn scan_expression_calls(
                 writable_roots,
                 value_env,
                 indexed.collection,
+                executes,
                 boundary_operator_applications,
                 diagnostics,
             );
@@ -692,6 +718,7 @@ fn scan_expression_calls(
                 writable_roots,
                 value_env,
                 indexed.index,
+                executes,
                 boundary_operator_applications,
                 diagnostics,
             );
@@ -706,6 +733,7 @@ fn scan_expression_calls(
                 writable_roots,
                 value_env,
                 member.receiver,
+                executes,
                 boundary_operator_applications,
                 diagnostics,
             );
@@ -720,6 +748,7 @@ fn scan_expression_calls(
                 writable_roots,
                 value_env,
                 inner.target,
+                executes,
                 boundary_operator_applications,
                 diagnostics,
             );
@@ -754,6 +783,7 @@ fn scan_expression_calls(
                 writable_roots,
                 value_env,
                 unary.operand,
+                executes,
                 boundary_operator_applications,
                 diagnostics,
             );
@@ -770,6 +800,7 @@ fn scan_expression_calls(
                     writable_roots,
                     value_env,
                     *element,
+                    executes,
                     boundary_operator_applications,
                     diagnostics,
                 );
@@ -787,6 +818,7 @@ fn scan_expression_calls(
                     writable_roots,
                     value_env,
                     field.value,
+                    executes,
                     boundary_operator_applications,
                     diagnostics,
                 );
@@ -802,6 +834,7 @@ fn scan_expression_calls(
                 writable_roots,
                 value_env,
                 range.start,
+                executes,
                 boundary_operator_applications,
                 diagnostics,
             );
@@ -814,6 +847,7 @@ fn scan_expression_calls(
                 writable_roots,
                 value_env,
                 range.end,
+                executes,
                 boundary_operator_applications,
                 diagnostics,
             );

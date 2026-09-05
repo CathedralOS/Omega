@@ -1009,6 +1009,7 @@ fn validate_value_call_argument_classes(
     arguments: &[ExpressionHandle],
     callee_machine: &Machine,
     callee_state: &State,
+    executes: bool,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     validate_value_call_argument_classes_with_receiver(
@@ -1020,6 +1021,7 @@ fn validate_value_call_argument_classes(
         arguments,
         callee_machine,
         callee_state,
+        executes,
         diagnostics,
     );
 }
@@ -1034,6 +1036,7 @@ fn validate_value_call_argument_classes_with_receiver(
     arguments: &[ExpressionHandle],
     callee_machine: &Machine,
     callee_state: &State,
+    executes: bool,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     // (The void-callee-in-value-position check lives in report_void_value_callee:
@@ -1055,16 +1058,19 @@ fn validate_value_call_argument_classes_with_receiver(
         return;
     }
 
-    crate::contract_entailment::reject_refuted_value_call_requires(
-        program,
-        current_machine,
-        current_state,
-        callee_machine,
-        callee_state,
-        arguments,
-        diagnostics,
-    );
-
+    // Short-circuit operands remain statically checked, but an invocation
+    // that cannot execute has no runtime precondition obligation.
+    if executes {
+        crate::contract_entailment::reject_refuted_value_call_requires(
+            program,
+            current_machine,
+            current_state,
+            callee_machine,
+            callee_state,
+            arguments,
+            diagnostics,
+        );
+    }
     let argument_types = arguments
         .iter()
         .map(|argument| {

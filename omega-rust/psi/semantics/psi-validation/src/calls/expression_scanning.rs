@@ -110,6 +110,7 @@ fn validate_expression_call_bounds(
     value_env: &ValueEnv,
     expression: ExpressionHandle,
     call: &TableCallExpression,
+    executes: bool,
     boundary_operator_applications: &mut Vec<crate::ValidatedBoundaryOperatorApplication>,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
@@ -367,6 +368,7 @@ fn validate_expression_call_bounds(
                 arguments,
                 callee_machine,
                 callee_state,
+                executes,
                 diagnostics,
             );
             return;
@@ -401,6 +403,7 @@ fn validate_expression_call_bounds(
                 arguments,
                 current_machine,
                 callee_state,
+                executes,
                 diagnostics,
             );
             return;
@@ -457,6 +460,7 @@ fn validate_expression_call_bounds(
                 arguments,
                 callee_machine,
                 callee_state,
+                executes,
                 diagnostics,
             );
             return;
@@ -501,6 +505,7 @@ fn validate_expression_call_bounds(
                 arguments,
                 callee_machine,
                 callee_state,
+                executes,
                 diagnostics,
             );
             return;
@@ -680,6 +685,7 @@ fn validate_expression_call_bounds(
                 arguments,
                 callee_machine,
                 callee_state,
+                executes,
                 diagnostics,
             );
             return;
@@ -736,6 +742,7 @@ fn validate_expression_call_bounds(
             arguments,
             callee_machine,
             callee_state,
+            executes,
             diagnostics,
         );
         let _ = writable_roots;

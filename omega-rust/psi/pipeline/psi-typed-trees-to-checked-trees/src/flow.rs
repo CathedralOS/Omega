@@ -15,6 +15,7 @@ mod constraints;
 mod context;
 mod domain;
 mod exits;
+mod expression;
 mod mutation;
 mod operator_calls;
 mod ownership;

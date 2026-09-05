@@ -117,13 +117,15 @@ pub(super) fn append_state_statement_flow_facts(
             fallthrough_contexts = *active_contexts;
             fallthrough_constraints = *active_constraints;
         }
-        while let Some(borrow_call) = borrow_calls.get(call_index) {
-            if borrow_call.statement_index != statement_index {
-                break;
+        if !matches!(statement, StatementNode::Transition(_)) {
+            let start = call_index;
+            while borrow_calls
+                .get(call_index)
+                .is_some_and(|call| call.statement_index == statement_index)
+            {
+                call_index += 1;
             }
-            call_index += 1;
-
-            let call_flow = build_call_flow_fact(
+            super::expression::append_statement_calls(
                 program,
                 borrow,
                 proof,
@@ -132,13 +134,13 @@ pub(super) fn append_state_statement_flow_facts(
                 ctx,
                 machine,
                 state,
+                statement_index,
+                statement,
+                &borrow_calls[start..call_index],
+                &mut state_calls,
                 active_contexts,
                 active_constraints,
-                borrow_call,
             );
-            ctx.control
-                .calls
-                .append_to_span(&mut state_calls, call_flow);
         }
 
         // Assignment evaluates its RHS under the entry loans above, then

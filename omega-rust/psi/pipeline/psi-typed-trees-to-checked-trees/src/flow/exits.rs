@@ -1,6 +1,7 @@
 use super::*;
 
 mod guards;
+pub(super) use guards::append_predicate_context;
 
 pub(super) fn append_state_exit_facts(
     program: &psi_typed_trees::TypedTrees,
