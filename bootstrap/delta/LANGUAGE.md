@@ -289,6 +289,13 @@ limit 32,768 and requested 32,769, before insertion or declaration-type
 resolution. Complete grammar/depth checking precedes this count. Generated
 helpers and typed metadata copies do not add authored rows; Gamma's separate
 4,096-function executable-program bound remains a later obligation.
+The same census accounts for 65,536 authored constructor rows globally across
+data declarations. Each fresh constructor advances that count once; payload
+fields and resolved metadata copies do not consume additional constructor rows.
+Duplicate constructor lookup precedes provision. A fresh 65,537th constructor
+returns `Incomplete` resource code 3 at its name-token start, with limit 65,536
+and requested 65,537, before its metadata or trie row is allocated. Duplicate
+types reject before any constructor in that declaration is provisioned.
 Declarations, constructors, and fields are visited
 in authored order; each parameter's conflict check precedes its own annotation,
 parameters precede the result type, and all declarations precede all bodies.

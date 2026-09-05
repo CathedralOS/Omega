@@ -29,7 +29,8 @@ import struct
 import subprocess
 import time
 from pathlib import Path
-from fixtures import fixtures
+from constructor_rows import fixtures as constructor_rows
+from function_rows import fixtures as function_rows
 
 directory = Path(os.environ["RESOURCE_BOUNDARY_TMP"])
 compiler = (directory / "compiler.gamma").read_bytes()
@@ -42,7 +43,9 @@ expected_identity = (int(rows[0]["lines"]), int(rows[0]["bytes"]), rows[0]["sha2
 if identity != expected_identity:
     raise SystemExit(f"Delta resource boundary compiler identity changed: {identity}")
 
-cases = fixtures()
+function_cases = function_rows()
+constructor_cases = constructor_rows()
+cases = function_cases + constructor_cases
 for name, source, size, digest, expected in cases:
     if len(source) != size or hashlib.sha256(source).hexdigest() != digest:
         raise SystemExit(f"Delta resource boundary {name}: fixture identity changed")
@@ -71,5 +74,8 @@ for name, source, size, digest, expected in cases:
             f"{len(output)} stdout bytes, prefix {output[:80].hex()}, stderr={error!r}"
         )
     print(f"Delta resource boundary: {name}: exact DCOUT in {elapsed:.3f}s", flush=True)
-print(f"Delta resource boundary: {len(cases)} exact function-row observations passed")
+print(
+    f"Delta resource boundary: {len(cases)} exact observations passed "
+    f"({len(function_cases)} function-row, {len(constructor_cases)} constructor-row)"
+)
 PY
