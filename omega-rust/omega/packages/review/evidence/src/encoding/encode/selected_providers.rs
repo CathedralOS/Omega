@@ -4,6 +4,7 @@ mod authority;
 mod bindings;
 mod service;
 mod signature;
+pub(super) use service::method as encode_service_method;
 
 use super::{
     encoder::Encoder,

@@ -18,6 +18,7 @@ pub(super) fn project(
     arguments: &[TypeReferenceHandle],
     substitutions: &[(SymbolHandle, TypeReferenceHandle)],
     lifetimes: &[Identifier],
+    root_binders: &[(SymbolHandle, String)],
 ) -> Result<Vec<PackageReviewTypeIdentity>, Vec<Diagnostic>> {
     let parameters = compilation.trait_type_parameters(owner);
     if parameters.len() != arguments.len() {
@@ -25,11 +26,14 @@ pub(super) fn project(
             "calling trait application has an incomplete static telescope",
         ));
     }
-    let binders = substitutions
-        .iter()
-        .enumerate()
-        .map(|(ordinal, (symbol, _))| (*symbol, format!("inherited-parameter:{ordinal}")))
-        .collect::<Vec<_>>();
+    let mut binders = root_binders.to_vec();
+    binders.extend(
+        substitutions
+            .iter()
+            .enumerate()
+            .map(|(ordinal, (symbol, _))| (*symbol, format!("inherited-parameter:{ordinal}")))
+            .collect::<Vec<_>>(),
+    );
     parameters
         .iter()
         .zip(arguments)

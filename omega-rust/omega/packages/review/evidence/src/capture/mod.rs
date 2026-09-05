@@ -25,3 +25,4 @@ pub use quotients::project_non_executable_quotient_package_review;
 pub use representation::project_checked_representation_policy;
 pub use semantics::conformances::project_checked_conformance_policy;
 pub(crate) use semantics::declarations::nominal_identity;
+pub use terminal_authority_permissions::project_checked_terminal_permission_policy;

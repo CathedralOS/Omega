@@ -1,9 +1,11 @@
 //! Exact source-side application of one published calling requirement.
 
 mod arguments;
+mod declaration;
 mod inheritance;
 mod parameters;
 mod types;
+pub(crate) use declaration::{declaration_parameters, project_declaration};
 pub(crate) use parameters::instantiate as instantiate_static_parameters;
 
 use super::rejected;
@@ -72,6 +74,22 @@ pub(crate) fn project_application(
     boundary_arguments: &[psi_typed_trees::types::TypeReferenceHandle],
     requirement_machine: psi_symbols::SymbolHandle,
 ) -> Result<CallingSignatureProjection, Vec<Diagnostic>> {
+    project_with_binders(
+        compilation,
+        boundary_trait,
+        boundary_arguments,
+        requirement_machine,
+        &[],
+    )
+}
+
+fn project_with_binders(
+    compilation: &CheckedCompilation,
+    boundary_trait: psi_symbols::SymbolHandle,
+    boundary_arguments: &[psi_typed_trees::types::TypeReferenceHandle],
+    requirement_machine: psi_symbols::SymbolHandle,
+    root_binders: &[(psi_symbols::SymbolHandle, String)],
+) -> Result<CallingSignatureProjection, Vec<Diagnostic>> {
     let roots = compilation
         .traits()
         .iter()
@@ -114,6 +132,7 @@ pub(crate) fn project_application(
         requirement_machine,
         &mut Vec::new(),
         &mut inherited,
+        root_binders,
     )?;
     if inherited.is_empty() {
         return Err(rejected(
@@ -134,6 +153,7 @@ pub(crate) fn project_application(
                     &application.arguments,
                     &application.inherited_substitutions,
                     &root.lifetime_parameters,
+                    root_binders,
                 )?,
             ))
         })
@@ -174,6 +194,11 @@ pub(crate) fn project_application(
             .trait_type_parameters(&application.owner)
             .iter()
             .zip(&application.arguments)
+            .filter(|(parameter, _)| {
+                !root_binders
+                    .iter()
+                    .any(|(symbol, _)| *symbol == parameter.symbol)
+            })
             .map(|(parameter, actual)| (parameter.symbol, *actual))
             .collect::<Vec<_>>(),
     );
@@ -213,11 +238,14 @@ pub(crate) fn project_application(
         &mut contract_scopes,
         0,
     )?;
-    let inherited_binders = substitutions
-        .iter()
-        .enumerate()
-        .map(|(ordinal, (symbol, _))| (*symbol, format!("inherited-parameter:{ordinal}")))
-        .collect::<Vec<_>>();
+    let mut inherited_binders = root_binders.to_vec();
+    inherited_binders.extend(
+        substitutions
+            .iter()
+            .enumerate()
+            .map(|(ordinal, (symbol, _))| (*symbol, format!("inherited-parameter:{ordinal}")))
+            .collect::<Vec<_>>(),
+    );
     let (binders, static_parameters) = project_calling_type_parameters(
         &projected,
         compilation,
@@ -287,6 +315,7 @@ pub(crate) fn project_application(
             &root_arguments,
             &[],
             &root.lifetime_parameters,
+            root_binders,
         )?,
         boundary_lifetime_parameter_count: count(root.lifetime_parameters.len())?,
         requirement,

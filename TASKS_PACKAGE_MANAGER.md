@@ -69,10 +69,10 @@ adding machinery; do not invent proof-of-review or host-security requirements.
   Acceptance: complete supported graphs round-trip; malformed or inconsistent
   graphs reject; the baseline is available without the old checkout. The lock
   needs neither proof certificates nor build/native replay transcripts.
-  Integrate typed selected-provider, representation, and external-supply policy
-  recovery without embedding evaluator/native receipts or the existing
-  replay-bearing review capsule. Normalize terminal permissions and callable
-  authority without schema receipts or private proof-derivation coordinates.
+  Integrate typed selected-provider, terminal-permission, representation, and
+  external-supply policy recovery without embedding evaluator/native receipts
+  or the existing replay-bearing review capsule. Normalize callable authority
+  without private proof-derivation coordinates.
   Join these components and source-scoped historical decisions into the
   complete lock; decisions cannot replace the normalized baseline or authorize
   a later changed candidate.

@@ -11,6 +11,7 @@ mod contracts;
 mod data;
 mod domains;
 mod identity;
+pub(crate) use identity::write_framed_identity;
 pub(crate) mod package;
 mod quotients;
 mod representation;
@@ -91,13 +92,14 @@ pub use package::{
     PackagePolicyProviderFamilyCoordinate, PackagePolicyProviderPlan, PackagePolicyProviderRow,
     PackagePolicySelectedProviders, PackagePolicyServiceAuthority, PackagePolicyServiceMethod,
     PackagePolicyServiceProgressPremise, PackagePolicyServiceProgressRoute,
-    PackagePolicyServiceSignature, PackageReviewBoundaryApplication,
-    PackageReviewBoundaryApplicationArgument, PackageReviewBoundaryApplicationRealization,
-    PackageReviewBoundaryApplicationRealizationRole, PackageReviewCheckedServiceReach,
-    PackageReviewCompilerIntrinsicExecution, PackageReviewProviderFamilyCoverage,
-    PackageReviewProviderGrantSelectorKind, PackageReviewProviderSelectionAuthority,
-    PackageReviewSelectedInstallationReach, PackageReviewSelectedProviderGrant,
-    PackageReviewSymbolicBoundaryApplicationArgument,
+    PackagePolicyServiceSignature, PackagePolicyTerminalPermission,
+    PackagePolicyTerminalPermissions, PackagePolicyTerminalService,
+    PackageReviewBoundaryApplication, PackageReviewBoundaryApplicationArgument,
+    PackageReviewBoundaryApplicationRealization, PackageReviewBoundaryApplicationRealizationRole,
+    PackageReviewCheckedServiceReach, PackageReviewCompilerIntrinsicExecution,
+    PackageReviewProviderFamilyCoverage, PackageReviewProviderGrantSelectorKind,
+    PackageReviewProviderSelectionAuthority, PackageReviewSelectedInstallationReach,
+    PackageReviewSelectedProviderGrant, PackageReviewSymbolicBoundaryApplicationArgument,
 };
 pub use quotients::NonExecutableQuotientPackageReview;
 pub use representation::{

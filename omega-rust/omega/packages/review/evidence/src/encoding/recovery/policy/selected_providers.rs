@@ -10,10 +10,13 @@ mod bindings;
 mod budgets;
 #[cfg(test)]
 mod fixtures;
+#[cfg(test)]
+pub(super) use fixtures::method as service_method_fixture;
 mod service;
 #[cfg(test)]
 mod service_tests;
 mod signature;
+pub(super) use service::method as service_method;
 #[cfg(test)]
 mod tests;
 

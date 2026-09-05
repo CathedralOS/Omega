@@ -19,6 +19,7 @@ mod reader;
 mod representation;
 mod selected_providers;
 mod signatures;
+mod terminal_permissions;
 
 use PackagePolicyRecoveryError as Error;
 pub use model::{PackagePolicyRecoveryError, PackagePolicyRecoveryLimits};

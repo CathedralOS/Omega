@@ -124,6 +124,24 @@ remain distinct from actual D29 demands and realization evidence. Neither this
 component nor the existing review encoding is an accepted package baseline;
 baseline composition, lock recovery, and transactions remain separate work.
 
+`project_checked_terminal_permission_policy` retains supplied permissions
+independently of selected providers or demand. Each permitted service retains
+its complete declaration-ordered method schema, including unpermitted siblings,
+root static and lifetime telescopes, structured signatures, and checked calling
+context when present. Generic declarations retain symbolic parameter relations;
+they do not invent a closed provider or calling application. An explicit empty
+class set is distinct from no permission. The bounded
+`OMEGA-TERMINAL-PERMISSION-POLICY` version-1 component shares the service codec
+and one recovery budget with nested contracts and calling applications.
+
+Legacy review and policy capture share exact accepted-service and inherited
+requirement joins. Existing accepted schema digests remain compiler matching
+inputs, not baseline payload. In particular, UEFI's semantic-only accepted
+schema still omits its separately owned calling receipts. Retaining the checked
+calling context in the baseline neither changes that permission key nor grants
+target-entry ABI authority. No policy component replaces native permission
+containment or proves that a supplied permission was accepted or exercised.
+
 The supported result lanes do not pretend to prove a bodyless accepted claim,
 grant dangerous authority, validate externally supplied executable code, or
 exercise or admit a terminal-authority permission. `ledger/results.rs` rejoins

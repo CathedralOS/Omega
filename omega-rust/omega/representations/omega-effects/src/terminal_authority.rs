@@ -573,6 +573,18 @@ pub struct TerminalAuthorityDisposition {
 }
 
 impl TerminalAuthorityDisposition {
+    /// Recover an already canonical class vector without allocating or silently
+    /// normalizing malformed input. Failure returns the original storage.
+    pub fn try_from_canonical_classes(
+        classes: Vec<TerminalAuthorityClass>,
+    ) -> Result<Self, Vec<TerminalAuthorityClass>> {
+        if classes.windows(2).any(|pair| pair[0] >= pair[1]) {
+            Err(classes)
+        } else {
+            Ok(Self { classes })
+        }
+    }
+
     pub fn from_classes(classes: impl IntoIterator<Item = TerminalAuthorityClass>) -> Self {
         let classes = classes
             .into_iter()
@@ -934,6 +946,32 @@ fn encode_authority_classes(digest: &mut Sha256, disposition: &TerminalAuthority
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn canonical_disposition_recovery_retains_storage_and_rejects_normalization() {
+        use super::{TerminalAuthorityClass as Class, TerminalAuthorityDisposition};
+        let classes = Class::ALL.to_vec();
+        let pointer = classes.as_ptr();
+        let recovered = TerminalAuthorityDisposition::try_from_canonical_classes(classes).unwrap();
+        assert_eq!(recovered.classes(), Class::ALL);
+        assert_eq!(recovered.classes().as_ptr(), pointer);
+        assert!(
+            TerminalAuthorityDisposition::try_from_canonical_classes(Vec::new())
+                .unwrap()
+                .is_authority_class_empty()
+        );
+        for classes in [
+            vec![Class::ProcessOutput, Class::FilesystemContentRead],
+            vec![Class::ProcessOutput, Class::ProcessOutput],
+        ] {
+            let pointer = classes.as_ptr();
+            let expected = classes.clone();
+            let rejected =
+                TerminalAuthorityDisposition::try_from_canonical_classes(classes).unwrap_err();
+            assert_eq!(rejected, expected);
+            assert_eq!(rejected.as_ptr(), pointer);
+        }
+    }
+
     use super::*;
 
     #[test]

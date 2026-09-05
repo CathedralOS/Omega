@@ -62,11 +62,13 @@ decisions, locked resolution, and transaction publication remain separate work.
 
 An accepted policy baseline must not embed the existing review capsule. That
 capsule includes compiler proof and build-replay data. Selected provider plans,
-external supplies, calling applications, and representation declarations,
-availability, selections, and demands have receipt-free structural projections
-and bounded component encodings. Provider policy retains exact service
+terminal permissions, external supplies, calling applications, and representation
+declarations, availability, selections, and demands have receipt-free structural
+projections and bounded component encodings. Provider policy retains exact service
 signatures, complete calling applications, binding producers, grants, and
-family links; complete baseline recovery and comparison remain open.
+family links. Terminal permissions retain complete service schemas and generic
+telescopes independently of provider demand. Callable policy normalization,
+complete baseline recovery, and comparison remain open.
 Dropping audit-relevant families or retaining their reconstruction receipts
 would both be incorrect.
 

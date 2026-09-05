@@ -8,6 +8,58 @@ use crate::record::{
     PackageReviewTraitRequirementParameter,
 };
 
+pub(super) fn project_declaration(
+    compilation: &CheckedCompilation,
+    schema: SymbolHandle,
+    requirement: SymbolHandle,
+    identity: &PackageReviewNominalIdentity,
+    calling: Option<&crate::record::PackagePolicyCallingPlan>,
+) -> Result<PackagePolicyServiceSignature, Vec<Diagnostic>> {
+    let generic = compilation.traits().iter().any(|owner| {
+        owner.symbol == schema && !compilation.trait_type_parameters(owner).is_empty()
+    });
+    if !generic {
+        return project(
+            compilation,
+            ProviderSchemaDeclaration::BoundaryTrait(schema),
+            None,
+            requirement,
+            identity,
+            calling,
+        );
+    }
+    if calling.is_some() {
+        return Err(rejected(
+            "uninstantiated generic service carries a closed calling application",
+        ));
+    }
+    let projected = crate::capture::calling::application::signature::project_declaration(
+        compilation,
+        schema,
+        requirement,
+    )?;
+    from_application(projected, identity)
+}
+
+fn from_application(
+    projected: crate::capture::calling::application::signature::CallingSignatureProjection,
+    identity: &PackageReviewNominalIdentity,
+) -> Result<PackagePolicyServiceSignature, Vec<Diagnostic>> {
+    if projected.requirement != *identity {
+        return Err(rejected("service signature changes the exact requirement"));
+    }
+    Ok(PackagePolicyServiceSignature {
+        schema_arguments: projected.boundary_arguments,
+        schema_lifetime_parameter_count: projected.boundary_lifetime_parameter_count,
+        requirement_arguments: projected.requirement_arguments,
+        requirement_lifetime_arguments: projected.requirement_lifetime_arguments,
+        requirement_lifetime_parameter_count: projected.requirement_lifetime_parameter_count,
+        static_parameters: projected.static_parameters,
+        parameters: projected.semantic_parameters,
+        result: projected.semantic_result,
+    })
+}
+
 pub(super) fn project(
     compilation: &CheckedCompilation,
     schema: ProviderSchemaDeclaration,
@@ -48,19 +100,7 @@ pub(super) fn project(
             arguments,
             requirement,
         )?;
-        if projected.requirement != *identity {
-            return Err(rejected("service signature changes the exact requirement"));
-        }
-        return Ok(PackagePolicyServiceSignature {
-            schema_arguments: projected.boundary_arguments,
-            schema_lifetime_parameter_count: projected.boundary_lifetime_parameter_count,
-            requirement_arguments: projected.requirement_arguments,
-            requirement_lifetime_arguments: projected.requirement_lifetime_arguments,
-            requirement_lifetime_parameter_count: projected.requirement_lifetime_parameter_count,
-            static_parameters: projected.static_parameters,
-            parameters: projected.semantic_parameters,
-            result: projected.semantic_result,
-        });
+        return from_application(projected, identity);
     }
     let (lifetimes, parameters, values, result) = match schema {
         ProviderSchemaDeclaration::BoundaryOperator(symbol) => {

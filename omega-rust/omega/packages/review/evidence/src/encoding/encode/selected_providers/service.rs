@@ -7,7 +7,7 @@ use omega_effects::provider_plan::{
     ServiceEntryAuthorityFlow, ServiceProgressEstablishmentRouteKind, ServiceProgressSubject,
 };
 
-pub(super) fn method(
+pub(in crate::encoding::encode) fn method(
     encoder: &mut Encoder,
     method: &PackagePolicyServiceMethod,
 ) -> Result<(), PackageReviewEncodingError> {

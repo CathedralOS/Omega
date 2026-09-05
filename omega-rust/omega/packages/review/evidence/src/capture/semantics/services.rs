@@ -1,4 +1,4 @@
-//! Exact service declarations and selected calling applications.
+//! Complete service meaning shared by provider and permission policy.
 
 mod authority;
 mod calling;
@@ -14,12 +14,50 @@ use omega_provider_planning::plans::ProviderSchemaDeclaration;
 use psi_diagnostics::Diagnostic;
 use psi_symbols::SymbolHandle;
 
-pub(super) fn project(
+pub(crate) use crate::capture::calling::application::signature::declaration_parameters;
+
+pub(crate) fn project(
     compilation: &CheckedCompilation,
     schema: ProviderSchemaDeclaration,
     provider_type: Option<SymbolHandle>,
     requirement: SymbolHandle,
     method: &ServiceMethod,
+) -> Result<PackagePolicyServiceMethod, Vec<Diagnostic>> {
+    project_inner(
+        compilation,
+        schema,
+        provider_type,
+        requirement,
+        method,
+        false,
+    )
+}
+
+/// Review an accepted service declaration without inventing a provider or a
+/// closed generic calling application.
+pub(crate) fn project_declaration(
+    compilation: &CheckedCompilation,
+    schema: SymbolHandle,
+    requirement: SymbolHandle,
+    method: &ServiceMethod,
+) -> Result<PackagePolicyServiceMethod, Vec<Diagnostic>> {
+    project_inner(
+        compilation,
+        ProviderSchemaDeclaration::BoundaryTrait(schema),
+        None,
+        requirement,
+        method,
+        true,
+    )
+}
+
+fn project_inner(
+    compilation: &CheckedCompilation,
+    schema: ProviderSchemaDeclaration,
+    provider_type: Option<SymbolHandle>,
+    requirement: SymbolHandle,
+    method: &ServiceMethod,
+    declaration_mode: bool,
 ) -> Result<PackagePolicyServiceMethod, Vec<Diagnostic>> {
     let declaration = provider_requirement_schema(compilation, schema, requirement)?;
     let identity = provider_requirement_identity(compilation, declaration, requirement)?;
@@ -46,14 +84,45 @@ pub(super) fn project(
         "requirement owner",
     )?;
     let calling = calling::project(compilation, schema, provider_type, requirement, method)?;
-    let signature = signature::project(
-        compilation,
-        schema,
-        provider_type,
-        requirement,
-        &identity,
-        calling.as_ref(),
-    )?;
+    let signature = if declaration_mode {
+        signature::project_declaration(
+            compilation,
+            schema.symbol(),
+            requirement,
+            &identity,
+            calling.as_ref(),
+        )?
+    } else {
+        signature::project(
+            compilation,
+            schema,
+            provider_type,
+            requirement,
+            &identity,
+            calling.as_ref(),
+        )?
+    };
+    // Terminal permissions review declarations, not the provider schema's
+    // historical diagnostic spellings. Preserve the complete typed meaning in
+    // these redundant fields too, so root-binder alpha renaming cannot change
+    // the normalized declaration. The selected-provider path is unchanged.
+    let parameter_type_identities = if declaration_mode {
+        signature
+            .parameters
+            .iter()
+            .map(|parameter| parameter.type_identity.canonical().to_owned())
+            .collect()
+    } else {
+        method.parameter_type_identities.clone()
+    };
+    let result_type_identity = if declaration_mode {
+        signature
+            .result
+            .as_ref()
+            .map(|identity| identity.canonical().to_owned())
+    } else {
+        method.result_type_identity.clone()
+    };
     Ok(PackagePolicyServiceMethod {
         authority: authority::project(compilation, declaration, requirement)?,
         name: method.name.clone(),
@@ -61,10 +130,10 @@ pub(super) fn project(
         requirement: identity,
         signature,
         parameter_count: method.parameter_count,
-        parameter_type_identities: method.parameter_type_identities.clone(),
+        parameter_type_identities,
         entry_claims: method.entry_claims.clone(),
         has_result: method.has_result,
-        result_type_identity: method.result_type_identity.clone(),
+        result_type_identity,
         result_claims: method.result_claims.clone(),
         service_reach: method.service_reach.clone(),
         synchronous_invocations: method.synchronous_invocations.clone(),
@@ -78,6 +147,6 @@ pub(super) fn project(
 
 fn rejected(reason: &str) -> Vec<Diagnostic> {
     vec![Diagnostic::error(format!(
-        "selected provider policy rejects {reason}"
+        "service policy rejects {reason}"
     ))]
 }

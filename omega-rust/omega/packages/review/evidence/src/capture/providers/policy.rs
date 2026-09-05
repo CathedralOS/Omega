@@ -2,12 +2,12 @@
 
 mod bindings;
 mod families;
-mod methods;
 mod replay;
 mod rows;
 
 use crate::capture::providers::selection::validate_selected_provider_declaration_owner;
 use crate::capture::semantics::declarations::nominal_identity;
+use crate::capture::semantics::services;
 use crate::record::{
     PackagePolicyProviderPlan, PackagePolicySelectedProviders,
     PackageReviewProviderGrantSelectorKind,
@@ -109,7 +109,7 @@ fn project_plan(
                 "service method has no unique selected realization row",
             ));
         };
-        methods.push(methods::project(
+        methods.push(services::project(
             compilation,
             retained.provider.schema,
             retained.provider.provider_type,
