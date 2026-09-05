@@ -1,5 +1,6 @@
 //! Exact selected-lowering compositions admitted through fragment and artifact custody.
 
+use crate::FunctionFragmentReplayInputs;
 use crate::tests::*;
 
 #[test]
@@ -27,7 +28,7 @@ fn relocation_free_fragment_emission_accepts_both_selected_lowering_compositions
         .into_selected_lowering_for_test()
         .unwrap_or_else(|| panic!("combined x86 suite must retain selected-lowering custody"));
     let x86 = stage_optimized_function_fragment_emission(
-        StagedOptimizedFunctionFragmentEmissionSource::SelectedLowering(Box::new(realization)),
+        FunctionFragmentReplayInputs::SelectedLowering(Box::new(realization)).into(),
     )
     .unwrap();
     assert_eq!(
@@ -73,7 +74,7 @@ fn relocation_free_fragment_emission_accepts_both_selected_lowering_compositions
         .into_post_allocation_machine_for_test()
         .unwrap_or_else(|| panic!("combined AArch64 suite must retain both phase completions"));
     let arm = stage_optimized_function_fragment_emission(
-        StagedOptimizedFunctionFragmentEmissionSource::PostAllocationMachine(Box::new(realization)),
+        FunctionFragmentReplayInputs::PostAllocationMachine(Box::new(realization)).into(),
     )
     .unwrap();
     assert_eq!(

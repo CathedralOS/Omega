@@ -1,364 +1,164 @@
-use omega_regalloc::ValidatedSelectedAnalysis;
+use omega_machine_code::ResolvedMachineProgram;
 
-use crate::{
-    StagedAllocationRecoveryFunctionRelativeRealization,
-    StagedFixedFrameFunctionRelativeRealization,
-    StagedFunctionRelativeLayoutOptimizationRealization,
-    StagedOptimizedStructuralUnitFunctionRelativeRealization,
-    StagedOptimizedUnitFunctionRelativeRealization,
-    StagedPostAllocationMachineFunctionRelativeRealization,
-    StagedSelectedLoweringFunctionRelativeRealization,
-};
+use super::current::CurrentFunctionFragmentInput;
+use super::replay::FunctionFragmentReplayInputs;
+use super::{FunctionFragmentEmissionError, FunctionFragmentEmissionSourceKind};
 
+/// Current program and admission facts are independent of replay history.
+/// Only independent replay consumes the earlier producer-stage objects.
 #[derive(Debug)]
-/// Retained inputs for independently replaying the completed realization.
-/// These transitional roles preserve existing evidence identities, not separate
-/// fragment-emission algorithms; emission reads the common plan and layout.
-pub enum StagedOptimizedFunctionFragmentEmissionSource {
-    X86Rel8Direct(Box<StagedFunctionRelativeLayoutOptimizationRealization>),
-    SelectedLowering(Box<StagedSelectedLoweringFunctionRelativeRealization>),
-    PostAllocationMachine(Box<StagedPostAllocationMachineFunctionRelativeRealization>),
-    AllocationRecovery(Box<StagedAllocationRecoveryFunctionRelativeRealization>),
-    UnitBaseline(Box<StagedOptimizedUnitFunctionRelativeRealization>),
-    StructuralUnit(Box<StagedOptimizedStructuralUnitFunctionRelativeRealization>),
-    FixedFrame(Box<StagedFixedFrameFunctionRelativeRealization>),
+pub struct StagedOptimizedFunctionFragmentEmissionSource {
+    current: CurrentFunctionFragmentInput,
+    replay: FunctionFragmentReplayInputs,
+}
+
+impl From<FunctionFragmentReplayInputs> for StagedOptimizedFunctionFragmentEmissionSource {
+    fn from(replay: FunctionFragmentReplayInputs) -> Self {
+        Self {
+            current: CurrentFunctionFragmentInput::retain(&replay),
+            replay,
+        }
+    }
 }
 
 impl StagedOptimizedFunctionFragmentEmissionSource {
+    pub fn program(&self) -> &ResolvedMachineProgram {
+        &self.current.program
+    }
     pub fn machine(&self) -> &crate::StagedOptimizedPostAllocationMachinePlan {
-        match self {
-            Self::UnitBaseline(realization) => realization.machine(),
-            Self::StructuralUnit(realization) => realization.machine(),
-            Self::FixedFrame(realization) => realization.machine(),
-            Self::PostAllocationMachine(realization) => realization.machine(),
-            Self::AllocationRecovery(realization) => realization.machine(),
-            Self::X86Rel8Direct(realization) => realization.machine(),
-            Self::SelectedLowering(realization) => realization.machine(),
-        }
+        &self.current.machine
     }
-
     pub fn resolved_layout(&self) -> &crate::StagedOptimizedResolvedSelectedFormLayout {
-        match self {
-            Self::UnitBaseline(realization) => realization.layout(),
-            Self::StructuralUnit(realization) => realization.layout(),
-            Self::FixedFrame(realization) => realization.layout(),
-            Self::PostAllocationMachine(realization) => realization.layout(),
-            Self::AllocationRecovery(realization) => realization.layout(),
-            Self::X86Rel8Direct(realization) => realization.layout(),
-            Self::SelectedLowering(realization) => realization.layout(),
-        }
+        &self.current.layout
     }
-
-    pub fn post_allocation_machine_optimization(
-        &self,
-    ) -> Option<&crate::StagedOptimizedPostAllocationMachineOptimization> {
-        match self {
-            Self::PostAllocationMachine(realization) => Some(realization.optimization()),
-            _ => None,
-        }
-    }
-
-    pub const fn fixed_frame_realization(
-        &self,
-    ) -> Option<&StagedFixedFrameFunctionRelativeRealization> {
-        match self {
-            Self::FixedFrame(realization) => Some(realization),
-            _ => None,
-        }
-    }
-
     pub fn selected_plan(&self) -> &omega_selected_instructions::SelectedInstructionPlan {
-        match self {
-            Self::X86Rel8Direct(realization) => realization
-                .homes()
-                .legality_stage()
-                .live_range_stage()
-                .liveness_stage()
-                .selected_stage()
-                .selected()
-                .selected_plan(),
-            Self::SelectedLowering(realization) => selected_after_lowering(realization.homes()),
-            Self::PostAllocationMachine(realization) => {
-                realization.allocation().current().selected_plan()
-            }
-            Self::AllocationRecovery(realization) => {
-                realization.allocation().current().selected_plan()
-            }
-            Self::UnitBaseline(realization) => realization
-                .homes()
-                .legality_stage()
-                .live_range_stage()
-                .liveness_stage()
-                .selected_stage()
-                .selected()
-                .selected_plan(),
-            Self::StructuralUnit(realization) => realization
-                .homes()
-                .legality_stage()
-                .live_range_stage()
-                .liveness_stage()
-                .selected_stage()
-                .selected()
-                .selected_plan(),
-            Self::FixedFrame(realization) => realization
-                .homes()
-                .legality_stage()
-                .live_range_stage()
-                .liveness_stage()
-                .selected_stage()
-                .selected()
-                .selected_plan(),
-        }
+        &self.current.program.selected
     }
-
     pub fn register_homes(&self) -> &omega_regalloc::ValidatedRegisterHomes {
-        match self {
-            Self::X86Rel8Direct(realization) => realization.homes().homes(),
-            Self::SelectedLowering(realization) => realization.homes().homes(),
-            Self::PostAllocationMachine(realization) => realization.allocation().current().homes(),
-            Self::AllocationRecovery(realization) => realization.allocation().current().homes(),
-            Self::UnitBaseline(realization) => realization.homes().homes(),
-            Self::StructuralUnit(realization) => realization.homes().homes(),
-            Self::FixedFrame(realization) => realization.homes().homes(),
-        }
+        &self.current.homes
     }
-
     pub fn register_environment(&self) -> &crate::ValidatedTargetRegisterEnvironment {
-        match self {
-            Self::X86Rel8Direct(realization) => realization
-                .homes()
-                .legality_stage()
-                .live_range_stage()
-                .liveness_stage()
-                .selected_stage()
-                .register_environment(),
-            Self::SelectedLowering(realization) => realization
-                .homes()
-                .selected_lowering_run()
-                .source_legality_stage()
-                .live_range_stage()
-                .liveness_stage()
-                .selected_stage()
-                .register_environment(),
-            Self::PostAllocationMachine(realization) => {
-                realization.allocation().current().register_environment()
-            }
-            Self::AllocationRecovery(realization) => {
-                realization.allocation().current().register_environment()
-            }
-            Self::UnitBaseline(realization) => realization
-                .homes()
-                .legality_stage()
-                .live_range_stage()
-                .liveness_stage()
-                .selected_stage()
-                .register_environment(),
-            Self::StructuralUnit(realization) => realization
-                .homes()
-                .legality_stage()
-                .live_range_stage()
-                .liveness_stage()
-                .selected_stage()
-                .register_environment(),
-            Self::FixedFrame(realization) => realization
-                .homes()
-                .legality_stage()
-                .live_range_stage()
-                .liveness_stage()
-                .selected_stage()
-                .register_environment(),
-        }
+        &self.current.environment
     }
-
+    pub fn encoding(&self) -> &crate::StagedOptimizedSelectedFormEncoding {
+        &self.current.encoding
+    }
+    pub fn frame_protocol(&self) -> Option<&crate::ValidatedTargetFrameProtocolEncoding> {
+        self.current.frame_protocol.as_ref()
+    }
     pub const fn exit_contract(&self) -> &crate::ValidatedWholeFunctionExitContract {
-        match self {
-            Self::X86Rel8Direct(realization) => realization.exit_contract(),
-            Self::SelectedLowering(realization) => realization.exit_contract(),
-            Self::PostAllocationMachine(realization) => realization.exit_contract(),
-            Self::AllocationRecovery(realization) => realization.exit_contract(),
-            Self::UnitBaseline(realization) => realization.exit_contract(),
-            Self::StructuralUnit(realization) => realization.exit_contract(),
-            Self::FixedFrame(realization) => realization.exit_contract(),
-        }
+        &self.current.exit
+    }
+    pub const fn function_relative_manifest(
+        &self,
+    ) -> &crate::ValidatedFunctionRelativeOptimizationRealizationManifest {
+        &self.current.manifest
+    }
+    pub fn post_allocation_manifest(
+        &self,
+    ) -> &omega_regalloc::ValidatedPostAllocationOptimizationManifest {
+        &self.current.post_allocation_manifest
+    }
+    pub fn optimized_target(&self) -> &crate::ValidatedOptimizedTargetOperations {
+        &self.current.target_input
     }
     pub fn pre_physical_manifest(
         &self,
     ) -> &omega_optimization_validation::ValidatedPrePhysicalOptimizationManifest {
-        match self {
-            Self::X86Rel8Direct(realization) => realization
-                .homes()
-                .legality_stage()
-                .live_range_stage()
-                .liveness_stage()
-                .selected_stage()
-                .optimized_target()
-                .optimized()
-                .pre_physical_manifest(),
-            Self::SelectedLowering(realization) => realization
-                .homes()
-                .selected_lowering_run()
-                .source_legality_stage()
-                .live_range_stage()
-                .liveness_stage()
-                .selected_stage()
-                .optimized_target()
-                .optimized()
-                .pre_physical_manifest(),
-            Self::PostAllocationMachine(realization) => realization
-                .allocation()
-                .current()
-                .target_input()
-                .optimized()
-                .pre_physical_manifest(),
-            Self::AllocationRecovery(realization) => realization
-                .allocation()
-                .current()
-                .target_input()
-                .optimized()
-                .pre_physical_manifest(),
-            Self::UnitBaseline(realization) => realization
-                .homes()
-                .legality_stage()
-                .live_range_stage()
-                .liveness_stage()
-                .selected_stage()
-                .optimized_target()
-                .optimized()
-                .pre_physical_manifest(),
-            Self::StructuralUnit(realization) => realization
-                .homes()
-                .legality_stage()
-                .live_range_stage()
-                .liveness_stage()
-                .selected_stage()
-                .optimized_target()
-                .optimized()
-                .pre_physical_manifest(),
-            Self::FixedFrame(realization) => realization
-                .homes()
-                .legality_stage()
-                .live_range_stage()
-                .liveness_stage()
-                .selected_stage()
-                .optimized_target()
-                .optimized()
-                .pre_physical_manifest(),
-        }
+        self.optimized_target().optimized().pre_physical_manifest()
     }
-
-    pub const fn function_relative_manifest(
-        &self,
-    ) -> &crate::ValidatedFunctionRelativeOptimizationRealizationManifest {
-        match self {
-            Self::X86Rel8Direct(realization) => realization.manifest(),
-            Self::SelectedLowering(realization) => realization.manifest(),
-            Self::PostAllocationMachine(realization) => realization.manifest(),
-            Self::AllocationRecovery(realization) => realization.manifest(),
-            Self::UnitBaseline(realization) => realization.manifest(),
-            Self::StructuralUnit(realization) => realization.manifest(),
-            Self::FixedFrame(realization) => realization.manifest(),
-        }
-    }
-
-    pub fn post_allocation_manifest(
-        &self,
-    ) -> &omega_regalloc::ValidatedPostAllocationOptimizationManifest {
-        match self {
-            Self::X86Rel8Direct(realization) => realization.homes().post_allocation_manifest(),
-            Self::SelectedLowering(realization) => realization.homes().post_allocation_manifest(),
-            Self::PostAllocationMachine(realization) => realization
-                .allocation()
-                .current()
-                .post_allocation_manifest(),
-            Self::AllocationRecovery(realization) => realization
-                .allocation()
-                .current()
-                .post_allocation_manifest(),
-            Self::UnitBaseline(realization) => realization.homes().post_allocation_manifest(),
-            Self::StructuralUnit(realization) => realization.homes().post_allocation_manifest(),
-            Self::FixedFrame(realization) => realization.homes().post_allocation_manifest(),
-        }
-    }
-
-    /// Borrow the exact optimized-target carrier retained through every
-    /// admitted realization route.
-    pub fn optimized_target(&self) -> &crate::ValidatedOptimizedTargetOperations {
-        match self {
-            Self::X86Rel8Direct(realization) => realization
-                .homes()
-                .legality_stage()
-                .live_range_stage()
-                .liveness_stage()
-                .selected_stage()
-                .optimized_target(),
-            Self::SelectedLowering(realization) => realization
-                .homes()
-                .selected_lowering_run()
-                .source_legality_stage()
-                .live_range_stage()
-                .liveness_stage()
-                .selected_stage()
-                .optimized_target(),
-            Self::PostAllocationMachine(realization) => {
-                realization.allocation().current().target_input()
-            }
-            Self::AllocationRecovery(realization) => {
-                realization.allocation().current().target_input()
-            }
-            Self::UnitBaseline(realization) => realization
-                .homes()
-                .legality_stage()
-                .live_range_stage()
-                .liveness_stage()
-                .selected_stage()
-                .optimized_target(),
-            Self::StructuralUnit(realization) => realization
-                .homes()
-                .legality_stage()
-                .live_range_stage()
-                .liveness_stage()
-                .selected_stage()
-                .optimized_target(),
-            Self::FixedFrame(realization) => realization
-                .homes()
-                .legality_stage()
-                .live_range_stage()
-                .liveness_stage()
-                .selected_stage()
-                .optimized_target(),
-        }
-    }
-
-    /// Borrow the exact verifier-owned input retained through every admitted
-    /// realization route. This accessor does not detach semantic or proof
-    /// context from staged custody.
     pub fn verified_input(
         &self,
     ) -> &omega_psi_to_abstract_operations::VerifiedPsiOptimizationInput {
         self.optimized_target().optimized().verified_input()
     }
-
-    /// Borrow the opaque checked-provider installation, when one authorized
-    /// the installed calls retained by this realization.
     pub fn provider_installation(
         &self,
     ) -> Option<&omega_psi_to_abstract_operations::AdmittedProviderInstallation> {
         self.optimized_target().provider_installation()
     }
+    pub const fn source_kind(&self) -> FunctionFragmentEmissionSourceKind {
+        self.current.source_kind
+    }
+
+    /// Rule-specific historical evidence, not a current-program accessor.
+    pub fn post_allocation_machine_optimization(
+        &self,
+    ) -> Option<&crate::StagedOptimizedPostAllocationMachineOptimization> {
+        self.replay.post_allocation_machine_optimization()
+    }
+    pub(crate) fn replay(&self) -> &FunctionFragmentReplayInputs {
+        &self.replay
+    }
+    pub(super) fn validate_current(&self) -> Result<(), FunctionFragmentEmissionError> {
+        self.current.validate_against(&self.replay)
+    }
+    #[cfg(test)]
+    pub(crate) fn replay_mut(&mut self) -> &mut FunctionFragmentReplayInputs {
+        &mut self.replay
+    }
+    #[cfg(test)]
+    pub(crate) fn into_replay_for_test(self) -> FunctionFragmentReplayInputs {
+        self.replay
+    }
+    #[cfg(test)]
+    pub(crate) fn program_mut(&mut self) -> &mut ResolvedMachineProgram {
+        &mut self.current.program
+    }
 }
 
-fn selected_after_lowering(
-    homes: &crate::StagedOptimizedRegisterHomesAfterSelectedLowering,
-) -> &omega_selected_instructions::SelectedInstructionPlan {
-    let run = homes.selected_lowering_run();
-    match run.steps().last() {
-        Some(step) => step.fold().selected_plan(),
-        None => run
-            .source_legality_stage()
-            .live_range_stage()
-            .liveness_stage()
-            .selected_stage()
-            .selected()
-            .selected_plan(),
+impl From<crate::StagedFunctionRelativeLayoutOptimizationRealization>
+    for StagedOptimizedFunctionFragmentEmissionSource
+{
+    fn from(realization: crate::StagedFunctionRelativeLayoutOptimizationRealization) -> Self {
+        FunctionFragmentReplayInputs::X86Rel8Direct(Box::new(realization)).into()
+    }
+}
+
+impl From<crate::StagedSelectedLoweringFunctionRelativeRealization>
+    for StagedOptimizedFunctionFragmentEmissionSource
+{
+    fn from(realization: crate::StagedSelectedLoweringFunctionRelativeRealization) -> Self {
+        FunctionFragmentReplayInputs::SelectedLowering(Box::new(realization)).into()
+    }
+}
+
+impl From<crate::StagedPostAllocationMachineFunctionRelativeRealization>
+    for StagedOptimizedFunctionFragmentEmissionSource
+{
+    fn from(realization: crate::StagedPostAllocationMachineFunctionRelativeRealization) -> Self {
+        FunctionFragmentReplayInputs::PostAllocationMachine(Box::new(realization)).into()
+    }
+}
+
+impl From<crate::StagedAllocationRecoveryFunctionRelativeRealization>
+    for StagedOptimizedFunctionFragmentEmissionSource
+{
+    fn from(realization: crate::StagedAllocationRecoveryFunctionRelativeRealization) -> Self {
+        FunctionFragmentReplayInputs::AllocationRecovery(Box::new(realization)).into()
+    }
+}
+
+impl From<crate::StagedOptimizedUnitFunctionRelativeRealization>
+    for StagedOptimizedFunctionFragmentEmissionSource
+{
+    fn from(realization: crate::StagedOptimizedUnitFunctionRelativeRealization) -> Self {
+        FunctionFragmentReplayInputs::UnitBaseline(Box::new(realization)).into()
+    }
+}
+
+impl From<crate::StagedOptimizedStructuralUnitFunctionRelativeRealization>
+    for StagedOptimizedFunctionFragmentEmissionSource
+{
+    fn from(realization: crate::StagedOptimizedStructuralUnitFunctionRelativeRealization) -> Self {
+        FunctionFragmentReplayInputs::StructuralUnit(Box::new(realization)).into()
+    }
+}
+
+impl From<crate::StagedFixedFrameFunctionRelativeRealization>
+    for StagedOptimizedFunctionFragmentEmissionSource
+{
+    fn from(realization: crate::StagedFixedFrameFunctionRelativeRealization) -> Self {
+        FunctionFragmentReplayInputs::FixedFrame(Box::new(realization)).into()
     }
 }

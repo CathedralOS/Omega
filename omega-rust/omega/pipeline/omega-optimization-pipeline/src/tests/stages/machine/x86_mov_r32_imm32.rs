@@ -1,5 +1,6 @@
 //! Direct publication and composition canaries with named custody corruption.
 
+use crate::FunctionFragmentReplayInputs;
 use omega_isa_x86_64::encode_x86_64_mov_r32_imm32_i64_materialization;
 
 use crate::tests::*;
@@ -264,7 +265,7 @@ fn x86_mov_r32_imm32_reaches_realization_with_replayable_zero_extension_custody(
     );
 
     let mut emitted = stage_optimized_function_fragment_emission(
-        StagedOptimizedFunctionFragmentEmissionSource::PostAllocationMachine(Box::new(realization)),
+        FunctionFragmentReplayInputs::PostAllocationMachine(Box::new(realization)).into(),
     )
     .unwrap();
     assert_eq!(

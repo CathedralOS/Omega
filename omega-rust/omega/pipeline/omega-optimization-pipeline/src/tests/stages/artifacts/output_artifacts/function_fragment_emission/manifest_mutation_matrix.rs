@@ -1,5 +1,6 @@
 //! Reauthenticated function-fragment manifest and receipt mutation coverage.
 
+use crate::FunctionFragmentReplayInputs;
 use crate::tests::*;
 use omega_optimization_core::{
     FunctionFragmentEmissionIdentity, FunctionRelativeOptimizationRealizationManifestIdentity,
@@ -34,7 +35,7 @@ fn staged_fragment_emission() -> StagedOptimizedFunctionFragmentEmission {
             panic!("exact incoming-u12 selection must retain selected-lowering realization")
         });
     stage_optimized_function_fragment_emission(
-        StagedOptimizedFunctionFragmentEmissionSource::SelectedLowering(Box::new(realization)),
+        FunctionFragmentReplayInputs::SelectedLowering(Box::new(realization)).into(),
     )
     .unwrap()
 }

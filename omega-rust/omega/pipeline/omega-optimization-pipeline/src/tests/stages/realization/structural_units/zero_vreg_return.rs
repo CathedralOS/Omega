@@ -1,3 +1,4 @@
+use crate::FunctionFragmentReplayInputs;
 use crate::tests::*;
 
 #[test]
@@ -217,7 +218,7 @@ fn zero_vreg_unit_return_reaches_replayed_homes_and_machine_custody() {
         validate_optimized_unit_function_relative_realization(&realization).unwrap();
 
         let fragments = stage_optimized_function_fragment_emission(
-            StagedOptimizedFunctionFragmentEmissionSource::UnitBaseline(Box::new(realization)),
+            FunctionFragmentReplayInputs::UnitBaseline(Box::new(realization)).into(),
         )
         .unwrap();
         assert_eq!(

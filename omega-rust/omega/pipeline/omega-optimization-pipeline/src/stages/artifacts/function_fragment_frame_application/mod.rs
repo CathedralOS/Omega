@@ -27,14 +27,14 @@ pub fn stage_function_fragment_frame_application(
     validate_optimized_function_fragment_emission(&source)
         .map_err(FunctionFragmentFrameApplicationError::Source)?;
     let application = {
-        let realization = source
+        let protocol = source
             .source()
-            .fixed_frame_realization()
+            .frame_protocol()
             .ok_or(FunctionFragmentFrameApplicationError::SourceKindMismatch)?;
         compute::apply(
             source.fragments(),
             source.manifest().record().identity,
-            realization.protocol().plan(),
+            protocol.plan(),
             source.source().register_environment().physical(),
         )?
     };

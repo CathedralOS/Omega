@@ -5,6 +5,7 @@ use omega_selected_instructions::{
     PreAllocationMachineEffectPlan, SelectedInstructionId, SelectedInstructionPlanIdentity,
 };
 use psi_core::MachineId;
+use std::sync::Arc;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct PreAllocationMachineEffectReceipt {
@@ -55,24 +56,32 @@ impl PreAllocationMachineEffectReceipt {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ValidatedPreAllocationMachineEffects {
-    plan: PreAllocationMachineEffectPlan,
+    plan: Arc<PreAllocationMachineEffectPlan>,
     receipt: PreAllocationMachineEffectReceipt,
 }
 
 impl ValidatedPreAllocationMachineEffects {
-    pub const fn plan(&self) -> &PreAllocationMachineEffectPlan {
+    pub fn plan(&self) -> &PreAllocationMachineEffectPlan {
         &self.plan
+    }
+
+    /// Retain the original immutable facts, not an analyzer or admission token.
+    pub fn shared_plan(&self) -> Arc<PreAllocationMachineEffectPlan> {
+        Arc::clone(&self.plan)
     }
 
     pub const fn receipt(&self) -> PreAllocationMachineEffectReceipt {
         self.receipt
     }
 
-    pub(crate) const fn new(
+    pub(crate) fn new(
         plan: PreAllocationMachineEffectPlan,
         receipt: PreAllocationMachineEffectReceipt,
     ) -> Self {
-        Self { plan, receipt }
+        Self {
+            plan: Arc::new(plan),
+            receipt,
+        }
     }
 }
 

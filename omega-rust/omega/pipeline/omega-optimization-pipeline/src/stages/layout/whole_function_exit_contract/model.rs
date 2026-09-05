@@ -203,21 +203,21 @@ pub struct WholeFunctionExitContract {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ValidatedWholeFunctionExitContract {
-    pub(super) contract: WholeFunctionExitContract,
+    pub(super) contract: std::sync::Arc<WholeFunctionExitContract>,
 }
 
 impl ValidatedWholeFunctionExitContract {
-    pub const fn contract(&self) -> &WholeFunctionExitContract {
+    pub fn contract(&self) -> &WholeFunctionExitContract {
         &self.contract
     }
 
-    pub const fn identity(&self) -> WholeFunctionExitContractIdentity {
+    pub fn identity(&self) -> WholeFunctionExitContractIdentity {
         self.contract.identity
     }
 
     #[cfg(test)]
     pub(crate) fn contract_mut(&mut self) -> &mut WholeFunctionExitContract {
-        &mut self.contract
+        std::sync::Arc::make_mut(&mut self.contract)
     }
 
     /// Test-only rel8 custody mutation with a valid enclosing identity. This
@@ -227,19 +227,20 @@ impl ValidatedWholeFunctionExitContract {
         &mut self,
         boundary: Rel8ExitBoundaryForTest,
     ) {
+        let contract = std::sync::Arc::make_mut(&mut self.contract);
         match boundary {
             Rel8ExitBoundaryForTest::LayoutCustody => {
-                self.contract.layout_custody =
+                contract.layout_custody =
                     WholeFunctionExitLayoutCustody::X86RelaxConditionalBranchesToRel8V1 {
                         relaxation: X86BranchRelaxationIdentity::from_bytes([0xb1; 32]),
                     };
             }
             Rel8ExitBoundaryForTest::ResolvedLayout => {
-                self.contract.resolved_layout =
+                contract.resolved_layout =
                     ResolvedSelectedFormLayoutIdentity::from_bytes([0xb2; 32]);
             }
         }
-        self.contract.identity = super::identity::contract_identity(&self.contract);
+        contract.identity = super::identity::contract_identity(contract);
     }
 }
 

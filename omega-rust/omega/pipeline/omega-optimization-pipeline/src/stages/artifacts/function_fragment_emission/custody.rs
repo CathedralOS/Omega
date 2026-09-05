@@ -1,3 +1,4 @@
+use crate::FunctionFragmentReplayInputs;
 use crate::{
     validate_allocation_recovery_function_relative_realization,
     validate_fixed_frame_function_relative_realization,
@@ -20,64 +21,61 @@ use super::source::StagedOptimizedFunctionFragmentEmissionSource;
 pub(super) fn validate_source(
     source: &StagedOptimizedFunctionFragmentEmissionSource,
 ) -> Result<(), FunctionFragmentEmissionError> {
-    match source {
-        StagedOptimizedFunctionFragmentEmissionSource::X86Rel8Direct(realization) => {
+    match source.replay() {
+        FunctionFragmentReplayInputs::X86Rel8Direct(realization) => {
             validate_function_relative_layout_optimization_realization_custody(realization)
                 .map_err(FunctionFragmentEmissionError::Source)?;
             if realization.layout().target().architecture != Architecture::X86_64 {
                 return Err(FunctionFragmentEmissionError::SourceKindMismatch);
             }
         }
-        StagedOptimizedFunctionFragmentEmissionSource::SelectedLowering(realization) => {
+        FunctionFragmentReplayInputs::SelectedLowering(realization) => {
             validate_selected_lowering_function_relative_realization_custody(realization)
                 .map_err(FunctionFragmentEmissionError::Source)?;
         }
-        StagedOptimizedFunctionFragmentEmissionSource::PostAllocationMachine(realization) => {
+        FunctionFragmentReplayInputs::PostAllocationMachine(realization) => {
             validate_post_allocation_machine_function_relative_realization_custody(realization)
                 .map_err(FunctionFragmentEmissionError::Source)?;
         }
-        StagedOptimizedFunctionFragmentEmissionSource::AllocationRecovery(realization) => {
+        FunctionFragmentReplayInputs::AllocationRecovery(realization) => {
             validate_allocation_recovery_function_relative_realization(realization).map_err(
                 |error| FunctionFragmentEmissionError::AllocationRecoverySource(Box::new(error)),
             )?;
         }
-        StagedOptimizedFunctionFragmentEmissionSource::UnitBaseline(realization) => {
+        FunctionFragmentReplayInputs::UnitBaseline(realization) => {
             validate_optimized_unit_function_relative_realization(realization)
                 .map_err(FunctionFragmentEmissionError::UnitSource)?;
         }
-        StagedOptimizedFunctionFragmentEmissionSource::StructuralUnit(realization) => {
+        FunctionFragmentReplayInputs::StructuralUnit(realization) => {
             validate_optimized_structural_unit_function_relative_realization(realization)
                 .map_err(FunctionFragmentEmissionError::StructuralUnitSource)?;
         }
-        StagedOptimizedFunctionFragmentEmissionSource::FixedFrame(realization) => {
+        FunctionFragmentReplayInputs::FixedFrame(realization) => {
             validate_fixed_frame_function_relative_realization(realization)
                 .map_err(FunctionFragmentEmissionError::Source)?;
         }
     }
-    let expected_allocation_recovery = match source {
-        StagedOptimizedFunctionFragmentEmissionSource::AllocationRecovery(realization) => {
-            realization
-                .allocation()
-                .current()
-                .selections()
-                .for_phase(omega_optimization_core::OptimizationExecutionPhase::AllocationRecovery)
-                .identity()
-        }
-        StagedOptimizedFunctionFragmentEmissionSource::PostAllocationMachine(realization) => {
-            realization
-                .allocation()
-                .current()
-                .selections()
-                .for_phase(omega_optimization_core::OptimizationExecutionPhase::AllocationRecovery)
-                .identity()
-        }
+    source.validate_current()?;
+    let expected_allocation_recovery = match source.replay() {
+        FunctionFragmentReplayInputs::AllocationRecovery(realization) => realization
+            .allocation()
+            .current()
+            .selections()
+            .for_phase(omega_optimization_core::OptimizationExecutionPhase::AllocationRecovery)
+            .identity(),
+        FunctionFragmentReplayInputs::PostAllocationMachine(realization) => realization
+            .allocation()
+            .current()
+            .selections()
+            .for_phase(omega_optimization_core::OptimizationExecutionPhase::AllocationRecovery)
+            .identity(),
         _ => OptimizationSelections::default().identity(),
     };
     let source_manifest = source.function_relative_manifest().record();
     if source_manifest.allocation_recovery_selections != expected_allocation_recovery
         || matches!(
-            source,
-            StagedOptimizedFunctionFragmentEmissionSource::AllocationRecovery(_)
+            source.replay(),
+            FunctionFragmentReplayInputs::AllocationRecovery(_)
         ) && source_manifest.selections != expected_allocation_recovery
     {
         return Err(FunctionFragmentEmissionError::RootMismatch);

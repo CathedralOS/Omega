@@ -66,9 +66,7 @@ impl From<crate::StagedOptimizedUnitFunctionRelativeRealization>
 {
     fn from(realization: crate::StagedOptimizedUnitFunctionRelativeRealization) -> Self {
         Self {
-            source: StagedOptimizedFunctionFragmentEmissionSource::UnitBaseline(Box::new(
-                realization,
-            )),
+            source: realization.into(),
         }
     }
 }
@@ -78,9 +76,7 @@ impl From<crate::StagedOptimizedStructuralUnitFunctionRelativeRealization>
 {
     fn from(realization: crate::StagedOptimizedStructuralUnitFunctionRelativeRealization) -> Self {
         Self {
-            source: StagedOptimizedFunctionFragmentEmissionSource::StructuralUnit(Box::new(
-                realization,
-            )),
+            source: realization.into(),
         }
     }
 }
@@ -90,9 +86,7 @@ impl From<crate::StagedFixedFrameFunctionRelativeRealization>
 {
     fn from(realization: crate::StagedFixedFrameFunctionRelativeRealization) -> Self {
         Self {
-            source: StagedOptimizedFunctionFragmentEmissionSource::FixedFrame(Box::new(
-                realization,
-            )),
+            source: realization.into(),
         }
     }
 }
@@ -102,9 +96,7 @@ impl From<crate::StagedPostAllocationMachineFunctionRelativeRealization>
 {
     fn from(realization: crate::StagedPostAllocationMachineFunctionRelativeRealization) -> Self {
         Self {
-            source: StagedOptimizedFunctionFragmentEmissionSource::PostAllocationMachine(Box::new(
-                realization,
-            )),
+            source: realization.into(),
         }
     }
 }
@@ -114,9 +106,7 @@ impl From<crate::StagedAllocationRecoveryFunctionRelativeRealization>
 {
     fn from(realization: crate::StagedAllocationRecoveryFunctionRelativeRealization) -> Self {
         Self {
-            source: StagedOptimizedFunctionFragmentEmissionSource::AllocationRecovery(Box::new(
-                realization,
-            )),
+            source: realization.into(),
         }
     }
 }
@@ -126,9 +116,7 @@ impl From<crate::StagedFunctionRelativeLayoutOptimizationRealization>
 {
     fn from(realization: crate::StagedFunctionRelativeLayoutOptimizationRealization) -> Self {
         Self {
-            source: StagedOptimizedFunctionFragmentEmissionSource::X86Rel8Direct(Box::new(
-                realization,
-            )),
+            source: realization.into(),
         }
     }
 }
@@ -138,9 +126,7 @@ impl From<crate::StagedSelectedLoweringFunctionRelativeRealization>
 {
     fn from(realization: crate::StagedSelectedLoweringFunctionRelativeRealization) -> Self {
         Self {
-            source: StagedOptimizedFunctionFragmentEmissionSource::SelectedLowering(Box::new(
-                realization,
-            )),
+            source: realization.into(),
         }
     }
 }

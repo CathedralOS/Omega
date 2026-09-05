@@ -1,5 +1,6 @@
 //! AArch64 CBNZ zero-span preservation and alignment.
 
+use crate::FunctionFragmentReplayInputs;
 use crate::tests::*;
 
 #[test]
@@ -25,7 +26,7 @@ fn relocation_free_cbnz_text_section_preserves_zero_span_and_alignment() {
         .into_post_allocation_machine_for_test()
         .unwrap_or_else(|| panic!("CBNZ must complete its direct function-relative realization"));
     let emitted = stage_optimized_function_fragment_emission(
-        StagedOptimizedFunctionFragmentEmissionSource::PostAllocationMachine(Box::new(realization)),
+        FunctionFragmentReplayInputs::PostAllocationMachine(Box::new(realization)).into(),
     )
     .unwrap();
     let mut placed = stage_optimized_relocation_free_text_section(emitted).unwrap();

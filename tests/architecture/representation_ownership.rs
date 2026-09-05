@@ -678,6 +678,7 @@ fn completed_physical_results_and_emission_do_not_fork_by_history() {
     for file in ["mod.rs", "ordinary.rs", "structural_unit.rs"] {
         let source = std::fs::read_to_string(compute.join(file)).unwrap();
         assert!(!source.contains("StagedOptimizedFunctionFragmentEmissionSource::"));
+        assert!(!source.contains("FunctionFragmentReplayInputs::"));
         assert!(!source.contains("selected_stage()"));
         assert!(!source.contains("steps().last()"));
     }
@@ -694,5 +695,53 @@ fn completed_physical_results_and_emission_do_not_fork_by_history() {
         "selected_stage()",
     ] {
         assert!(!source.contains(ancestry));
+    }
+}
+
+#[test]
+fn fragment_consumers_read_current_data_and_only_replay_walks_history() {
+    let root = repository();
+    let data = rust_source(&root.join("omega-rust/omega/representations/omega-machine-code/src"));
+    let pipeline = root.join("omega-rust/omega/pipeline/omega-optimization-pipeline/src");
+    assert_eq!(
+        data.matches("pub struct ResolvedMachineProgram {").count(),
+        1
+    );
+    assert!(!rust_source(&pipeline).contains("pub struct ResolvedMachineProgram {"));
+    let emission = pipeline.join("stages/artifacts/function_fragment_emission");
+    let source = std::fs::read_to_string(emission.join("source.rs")).unwrap();
+    assert!(source.contains("pub struct StagedOptimizedFunctionFragmentEmissionSource"));
+    assert!(!source.contains("pub enum StagedOptimizedFunctionFragmentEmissionSource"));
+    for ancestry in [
+        "legality_stage()",
+        "selected_stage()",
+        "selected_lowering_run()",
+        "steps().last()",
+    ] {
+        assert!(
+            !source.contains(ancestry),
+            "current accessor walks {ancestry}"
+        );
+    }
+    let custody = std::fs::read_to_string(emission.join("custody.rs")).unwrap();
+    assert!(custody.contains("match source.replay()"));
+    assert!(custody.contains("source.validate_current()?"));
+    for consumer in [
+        "stages/artifacts/function_fragment_frame_application",
+        "stages/artifacts/function_fragment_text_section/placement",
+        "stages/artifacts/function_fragment_emission/compute",
+    ] {
+        let text = rust_source(&pipeline.join(consumer));
+        for history in [
+            "FunctionFragmentReplayInputs",
+            ".replay()",
+            ".fixed_frame_realization()",
+            ".selected_stage()",
+        ] {
+            assert!(
+                !text.contains(history),
+                "{consumer} reads history through {history}"
+            );
+        }
     }
 }

@@ -1,5 +1,6 @@
 //! Fixed-view-copy recovery through fragments, object artifact, and callable custody.
 
+use crate::FunctionFragmentReplayInputs;
 use crate::tests::*;
 
 #[test]
@@ -54,7 +55,7 @@ fn fixed_view_copy_recovery_reaches_fragments_object_and_callable_on_both_archit
             selections.identity()
         );
         let fragments = stage_optimized_function_fragment_emission(
-            StagedOptimizedFunctionFragmentEmissionSource::AllocationRecovery(realization),
+            FunctionFragmentReplayInputs::AllocationRecovery(realization).into(),
         )
         .unwrap();
         assert_eq!(

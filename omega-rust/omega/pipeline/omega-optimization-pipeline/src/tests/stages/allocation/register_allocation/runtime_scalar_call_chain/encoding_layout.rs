@@ -1,3 +1,4 @@
+use crate::FunctionFragmentReplayInputs;
 use crate::tests::*;
 use omega_regalloc::ValidatedSelectedAnalysis;
 use omega_target::Architecture;
@@ -437,7 +438,7 @@ fn target_owned_unresolved_call_templates_survive_layout_on_both_isas() {
             Ok(realization.manifest().record().clone())
         );
         let fragments = stage_optimized_function_fragment_emission(
-            StagedOptimizedFunctionFragmentEmissionSource::FixedFrame(Box::new(realization)),
+            FunctionFragmentReplayInputs::FixedFrame(Box::new(realization)).into(),
         )
         .unwrap();
         assert_eq!(

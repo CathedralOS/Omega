@@ -1,3 +1,4 @@
+use crate::FunctionFragmentReplayInputs;
 use crate::tests::*;
 
 pub(super) fn realize_and_publish_structural_call(homes: StagedOptimizedRegisterHomes) {
@@ -106,7 +107,7 @@ pub(super) fn realize_and_publish_structural_call(homes: StagedOptimizedRegister
     validate_optimized_structural_unit_function_relative_realization(&realization).unwrap();
 
     let mut fragments = stage_optimized_function_fragment_emission(
-        StagedOptimizedFunctionFragmentEmissionSource::StructuralUnit(Box::new(realization)),
+        FunctionFragmentReplayInputs::StructuralUnit(Box::new(realization)).into(),
     )
     .expect("structural Unit calls must retain typed unresolved fragment custody");
     assert!(fragments.fragments().functions.is_empty());

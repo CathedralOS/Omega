@@ -890,6 +890,7 @@ dependencies = [
  "omega-optimization-core",
  "omega-optimization-unit",
  "omega-physical-instructions",
+ "omega-register-homes",
  "omega-register-model",
  "omega-selected-instructions",
  "omega-target",

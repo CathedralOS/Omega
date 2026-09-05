@@ -1,3 +1,4 @@
+use crate::FunctionFragmentReplayInputs;
 use crate::tests::*;
 
 pub(super) fn staged_callable_object_artifact(
@@ -30,10 +31,10 @@ pub(super) fn staged_callable_object_artifact(
     let source = {
         let source = (physical).into_function_fragment_emission_source();
         assert!(matches!(
-            &source,
-            StagedOptimizedFunctionFragmentEmissionSource::X86Rel8Direct(_)
-                | StagedOptimizedFunctionFragmentEmissionSource::PostAllocationMachine(_)
-                | StagedOptimizedFunctionFragmentEmissionSource::SelectedLowering(_)
+            source.replay(),
+            FunctionFragmentReplayInputs::X86Rel8Direct(_)
+                | FunctionFragmentReplayInputs::PostAllocationMachine(_)
+                | FunctionFragmentReplayInputs::SelectedLowering(_)
         ));
         source
     };
@@ -68,7 +69,7 @@ fn staged_active_resident_callable_object_artifact(
             panic!("the root-build rematerialization selection must retain its owning realization")
         });
     let fragments = stage_optimized_function_fragment_emission(
-        StagedOptimizedFunctionFragmentEmissionSource::AllocationRecovery(realization),
+        FunctionFragmentReplayInputs::AllocationRecovery(realization).into(),
     )
     .unwrap();
     let text = stage_optimized_relocation_free_text_section(fragments).unwrap();
@@ -119,8 +120,8 @@ fn active_resident_root_build_reaches_object_artifact_and_ordinary_callable_on_b
             panic!("active-resident publication must retain direct text custody")
         };
         let fragment_stage = direct_text_stage.source();
-        let StagedOptimizedFunctionFragmentEmissionSource::AllocationRecovery(realization) =
-            fragment_stage.source()
+        let FunctionFragmentReplayInputs::AllocationRecovery(realization) =
+            fragment_stage.source().replay()
         else {
             panic!("object custody must retain the rematerialization realization")
         };

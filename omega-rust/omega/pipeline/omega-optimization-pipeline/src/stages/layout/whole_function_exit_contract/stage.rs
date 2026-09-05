@@ -39,7 +39,9 @@ pub fn stage_whole_function_exit_contract_with_frame<S: ValidatedSelectedAnalysi
         frame,
         protocol,
     )?;
-    let validated = ValidatedWholeFunctionExitContract { contract };
+    let validated = ValidatedWholeFunctionExitContract {
+        contract: std::sync::Arc::new(contract),
+    };
     validate_whole_function_exit_contract_with_frame(
         selected, machine, physical, encoding, layout, frame, protocol, &validated,
     )?;
@@ -69,7 +71,7 @@ pub fn validate_whole_function_exit_contract_with_frame<S: ValidatedSelectedAnal
         frame,
         protocol,
     )?;
-    if replayed != contract.contract {
+    if replayed != *contract.contract {
         return Err(WholeFunctionExitContractError::ArtifactMismatch);
     }
     Ok(())
@@ -93,7 +95,9 @@ pub fn stage_whole_function_exit_contract<S: ValidatedSelectedAnalysis>(
         layout,
         WholeFunctionExitLayoutCustody::BaselineNearLayoutV1,
     )?;
-    let validated = ValidatedWholeFunctionExitContract { contract };
+    let validated = ValidatedWholeFunctionExitContract {
+        contract: std::sync::Arc::new(contract),
+    };
     validate_whole_function_exit_contract(
         selected, machine, physical, encoding, layout, &validated,
     )?;
@@ -119,7 +123,7 @@ pub fn validate_whole_function_exit_contract<S: ValidatedSelectedAnalysis>(
         layout,
         WholeFunctionExitLayoutCustody::BaselineNearLayoutV1,
     )?;
-    if replayed != contract.contract {
+    if replayed != *contract.contract {
         return Err(WholeFunctionExitContractError::ArtifactMismatch);
     }
     Ok(())
@@ -149,7 +153,9 @@ pub fn stage_whole_function_exit_contract_after_x86_branch_relaxation<
         relaxation.layout(),
         layout_custody,
     )?;
-    let validated = ValidatedWholeFunctionExitContract { contract };
+    let validated = ValidatedWholeFunctionExitContract {
+        contract: std::sync::Arc::new(contract),
+    };
     validate_whole_function_exit_contract_after_x86_branch_relaxation(
         selected,
         machine,
@@ -195,7 +201,7 @@ pub fn validate_whole_function_exit_contract_after_x86_branch_relaxation<
         relaxation.layout(),
         layout_custody,
     )?;
-    if replayed != contract.contract {
+    if replayed != *contract.contract {
         return Err(WholeFunctionExitContractError::ArtifactMismatch);
     }
     Ok(())
@@ -226,7 +232,9 @@ pub fn stage_whole_function_exit_contract_after_aarch64_cbnz_fusion<
         layout,
         layout_custody,
     )?;
-    let validated = ValidatedWholeFunctionExitContract { contract };
+    let validated = ValidatedWholeFunctionExitContract {
+        contract: std::sync::Arc::new(contract),
+    };
     validate_whole_function_exit_contract_after_aarch64_cbnz_fusion(
         selected, machine, physical, encoding, fusion, layout, &validated,
     )?;
@@ -262,7 +270,7 @@ pub fn validate_whole_function_exit_contract_after_aarch64_cbnz_fusion<
         layout,
         layout_custody,
     )?;
-    if replayed != contract.contract {
+    if replayed != *contract.contract {
         return Err(WholeFunctionExitContractError::ArtifactMismatch);
     }
     Ok(())
