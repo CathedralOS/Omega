@@ -12,71 +12,67 @@ model calls. There are no PRs, remote worker branches, or work-ownership records
 
 ## Join when ready
 
-PowerShell 7.2+ and authenticated Git push access are required. Run from your own
-clean, checkpointed worktree. The command uses the remote's actual push URL for
-all observations and updates, and refuses multiple push destinations.
+The helper uses **Python 3 and Git**, without third-party packages or a particular
+shell. The same program runs on Windows, macOS, and Linux. Here `python` means
+your Python 3 executable; use `python3` if that is its name on your machine.
+No PowerShell installation is needed.
 
-```powershell
-pwsh -NoProfile -File tools/landing.ps1 status
+Run from your own clean, checkpointed worktree. The command uses the remote's
+actual push URL for all observations and updates, refusing multiple destinations.
+It prints JSON. Use `--repository <path>` for another worktree or `--remote <name>`
+instead of `origin`. Angle-bracketed values below are placeholders for full IDs,
+not shell syntax; replace them before running the commands.
 
-# Retain this ID in the task's handoff before enqueueing so a connection failure
-# cannot lose your identity. Never reuse it after cancellation or publication.
-$ticket = [guid]::NewGuid().ToString('N')
-$joined = pwsh -NoProfile -File tools/landing.ps1 enqueue `
-    -Ticket $ticket -Owner 'Jarod / pipeline'
-if ($LASTEXITCODE -ne 0) { $joined; throw 'Inspect status before retrying this ticket.' }
-$joined
+```text
+python tools/landing.py status
+python -c "import uuid; print(uuid.uuid4().hex)"
+python tools/landing.py enqueue --ticket <ticket> --owner "Jarod / pipeline"
 ```
 
-The result includes your ticket and position. Order means the order of successful
+Retain the generated ticket in your handoff before enqueueing, so a connection
+failure cannot lose it. Never reuse it after cancellation or publication. If
+`--ticket` is omitted, enqueue generates and returns one; save that result.
+The result includes your ticket and position. Order is the order of successful
 shared enqueues, not workstation timestamps. Simultaneous arrivals receive a
-single order; retries preserve existing entries. Retrying enqueue with the same
-live ticket and owner does not add a duplicate. If no ticket is supplied, the
-command generates one and returns it; save the result.
+single order; retries preserve existing entries. Retrying a live ticket with the
+same owner does not duplicate it.
 
 ## Wait for your turn, then integrate
 
-```powershell
-# Wait up to 30 minutes in a local PowerShell process, checking every 10 seconds.
-$reservationText = pwsh -NoProfile -File tools/landing.ps1 claim `
-    -Ticket $ticket -WaitSeconds 1800
-if ($LASTEXITCODE -eq 2) {
-    $reservationText
-    throw 'Still queued. Resume the wait later or cancel this ticket.'
-}
-if ($LASTEXITCODE -ne 0) { throw 'Inspect status; integration is not authorized.' }
-$reservation = $reservationText | ConvertFrom-Json
-
-# The command fetched this exact main commit for integration.
-git rebase $reservation.base
-if ($LASTEXITCODE -ne 0) { throw 'Resolve integration or release the reservation.' }
+```text
+python tools/landing.py claim --ticket <ticket> --wait-seconds 1800
+git rebase <returned-base>
 ```
 
-Omit `-WaitSeconds` for one immediate attempt. Exit 2 means an earlier ticket
-remains; it does not cancel yours. `-PollSeconds` controls the local wait interval
-(default 10). There is no AI polling loop or hosted scheduler. The next waiting
-process claims automatically when it reaches the head; only that claim, not
-queue position alone, authorizes final integration. A worktree without a running
-waiter can resume with the same ticket later. An absent head is never skipped.
+Successful claim exits 0 and returns `claim` and `base`; retain both. The command
+fetched that exact base for integration. Omit `--wait-seconds` for one immediate
+attempt. Exit 2 means an earlier ticket remains; it does not cancel yours. Resume
+the local wait later or cancel. Other errors exit 1. `--poll-seconds` controls the
+wait interval (default 10); waiting runs in the local Python process, not in an
+AI polling loop or hosted scheduler.
 
-You can continue independent work while queued, but cancel if the queued change
-needs more implementation. Do not concurrently edit or rebase a worktree whose
-waiter may acquire its reservation. Read incoming main separately while working.
+The next waiter claims when it reaches the head; queue position alone does not
+authorize integration. A worktree without a running waiter can resume with the
+same ticket later. An absent head is never skipped. Do not concurrently edit or
+rebase a worktree whose waiter may acquire its reservation. Read incoming main
+separately while working; cancel if the queued change needs more implementation.
 
 ## Check locally, then publish
 
 Capture the exact candidate before running the checks required by `AGENTS.md`
-and the task. Keep the actual exits; all required checks must succeed and the
-worktree must remain clean at that commit. The script verifies Git state, not
-test success. Compiler advancement still requires its full baseline.
+and the task. Keep the actual exits and keep the worktree clean at that commit.
+The command checks Git state, not test success. Compiler advancement still
+requires its full baseline.
 
-```powershell
-$verified = git rev-parse HEAD
-# Run the applicable gates here. Stop on failure, then release below.
+The owner permits documented, verified baseline failures for milestones. Record
+the failing commands, unchanged baseline and candidate revisions, and the
+comparison showing the failures predate the change. New or unexplained failures
+require releasing and investigating. Do not suppress tests, rewrite expectations,
+or call a red gate green.
 
-pwsh -NoProfile -File tools/landing.ps1 publish `
-    -Claim $reservation.claim -Base $reservation.base -Candidate $verified
-if ($LASTEXITCODE -ne 0) { throw 'Inspect status and remote main before retrying.' }
+```text
+git rev-parse HEAD
+python tools/landing.py publish --claim <claim> --base <base> --candidate <verified-sha>
 ```
 
 One atomic push fast-forwards main and removes only the active ticket. Remaining
@@ -86,42 +82,35 @@ The command rejects a dirty or different HEAD, the wrong reserved base, divergen
 history, and merge commits. A rejected main push leaves the queue unchanged.
 
 The coordination reference persists even when empty. Its empty-tree commits
-retain queue history outside main, making removed tickets permanently invalid.
-The conditional force option applies only to this reference; main is never
+retain history outside main, making removed tickets permanently invalid. The
+conditional force option applies only to this reference; main is never
 force-pushed. Recovery during publication invalidates the former owner's claim.
 
 Every publisher must use this command. Direct main pushes can still bypass this
-cooperative protocol. If main advances outside the reservation, publication
-stops; release and reconcile before performing final validation again.
+cooperative protocol. If main advances outside the reservation, publication stops;
+release and reconcile before performing final validation again.
 
 ## Leave the queue or recover abandoned work
 
-```powershell
-# Waiting, but no longer ready:
-pwsh -NoProfile -File tools/landing.ps1 cancel -Ticket $ticket
-
-# Active, but a gate failed or more implementation is needed:
-pwsh -NoProfile -File tools/landing.ps1 release -Claim $reservation.claim
+```text
+python tools/landing.py cancel --ticket <waiting-ticket>
+python tools/landing.py release --claim <active-claim>
 ```
 
-Both operations remove your ticket. Rejoining later requires a new ticket at the
-tail. No ticket or reservation expires automatically. After confirming with the
-owner that work was abandoned, inspect status and remove that exact identity:
+Both remove your ticket. Rejoining requires a new ticket at the tail. No ticket
+or reservation expires automatically. After confirming abandonment with the owner,
+inspect status and remove that exact identity:
 
-```powershell
-pwsh -NoProfile -File tools/landing.ps1 status
-# Abandoned waiting ticket:
-pwsh -NoProfile -File tools/landing.ps1 cancel `
-    -Ticket '<observed ticket>' -Reason 'Owner confirmed the session stopped'
-# Abandoned active reservation:
-pwsh -NoProfile -File tools/landing.ps1 recover `
-    -Claim '<observed claim>' -Reason 'Owner confirmed the session stopped'
+```text
+python tools/landing.py status
+python tools/landing.py cancel --ticket <observed-ticket> --reason "Owner confirmed the session stopped"
+python tools/landing.py recover --claim <observed-claim> --reason "Owner confirmed the session stopped"
 ```
 
-Cancel cannot remove an active reservation. Recovery requires a reason and
-cannot remove a newer owner. An offline machine or slow build alone does not
-establish abandonment. Owner labels identify peers; they are not authentication
-boundaries between repository writers.
+Cancel cannot remove an active reservation. Recovery requires a reason and cannot
+remove a newer owner. An offline machine or slow build alone does not establish
+abandonment. Owner labels identify peers; they are not authentication boundaries
+between repository writers.
 
 After a network error, inspect status and fetch remote main. If the verified
 candidate is already an ancestor of main, it landed. Do not publish again or
@@ -130,17 +119,20 @@ retry bounded metadata contention internally; persistent failures remain visible
 
 ## Upgrade and verification
 
-An active v1 reservation remains valid: finish it using the previous command,
-or explicitly release its full observed claim SHA. The new command reports
-`legacy_reserved` and refuses FIFO mutations until that owner is done. Once FIFO
-initializes, its persistent reference makes v1 acquisition fail closed. Both
-machines should fetch the updated main and use this guide.
+The `omega-landing-v2` format is unchanged by the Python port. Existing FIFO
+tickets remain valid. An active v1 reservation also remains valid: finish it with
+its original client or explicitly release its full observed claim SHA. This
+command reports `legacy_reserved` and refuses FIFO mutations until that owner is
+done. Once FIFO initializes, its persistent reference makes v1 acquisition fail
+closed. Fetch current main before using the command.
 
-```powershell
-pwsh -NoProfile -File tools/tests/landing.tests.ps1
+```text
+python tools/tests/test_landing.py -v
 ```
 
 Tests use temporary local repositories and independent processes. They cover
 FIFO, concurrent arrivals, local waiting, cancellation, recovery, publication
 races, server rejection, linear history, legacy upgrade, and distinct fetch/push
-destinations. They do not contact GitHub or compile Omega.
+destinations. They do not contact GitHub or compile Omega. Git invokes its normal
+hook shell for the adversarial-hook controls; the helper itself invokes Git
+directly, never through a shell.
