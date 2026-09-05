@@ -268,6 +268,21 @@ fn proof_output_runtime_call(
             .statement_table
             .push_name_path_member(&mut receiver, member);
     }
+    // Expression and statement calls own distinct argument-list arenas. Keep
+    // the expression identities, but allocate the list in its new owner.
+    let arguments = lowerer
+        .typed_trees
+        .tables
+        .statement_table
+        .insert_expression_handles(
+            lowerer
+                .typed_trees
+                .tables
+                .expression_table
+                .expression_handles(call.arguments)
+                .iter()
+                .copied(),
+        );
     Ok(typed::statement::TableCall {
         receiver_symbol,
         target_symbol: call.target_symbol,
@@ -275,7 +290,7 @@ fn proof_output_runtime_call(
         target: call.target,
         static_requirement_dispatch: None,
         machine_arguments: call.machine_arguments,
-        arguments: call.arguments,
+        arguments,
         evidence_arguments: call.evidence_arguments,
         operational_acknowledgement: call.operational_acknowledgement,
         discards_result: false,

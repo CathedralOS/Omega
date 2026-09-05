@@ -18,9 +18,9 @@ machine Main::main(&mut self) {
     let r: u8 in Saturating = (a + b) + 50;
     transition r == 255 {
         true  -> pass()
-        false -> chk49()
+        false -> chk49(r)
     }
-    state chk49(&mut self) {
+    state chk49(&mut self, r: u8 in Saturating) {
         transition r == 49 {
             true  -> outer_plain()
             false -> other()

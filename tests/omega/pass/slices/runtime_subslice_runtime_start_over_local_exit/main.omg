@@ -23,10 +23,10 @@ machine Main::main(&mut self) {
 
 machine Main::check(&mut self, sub: &[Entry], start: u64) {
     transition sub.len > 1 {
-        true -> narrow(start)
+        true -> narrow(start, sub)
         false -> bad()
     }
-    state narrow(&mut self, start: u64) {
+    state narrow(&mut self, start: u64, sub: &[Entry]) {
         let tail: &[Entry] = sub[1..];
         transition start < tail.len {
             true -> self.verify(tail[start..])

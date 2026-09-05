@@ -19,9 +19,9 @@ machine Main::main(&mut self) {
     let a: i32 in Saturating = (0 as i32 in Saturating) - 2147483648;
     transition a == (0 as i32 in Saturating) - 2147483647 - 1 {
         true  -> is_min()
-        false -> chk_max()
+        false -> chk_max(a)
     }
-    state chk_max(&mut self) {
+    state chk_max(&mut self, a: i32 in Saturating) {
         transition a == 2147483647 {
             true  -> is_max()
             false -> other()

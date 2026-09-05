@@ -16,6 +16,81 @@ use std::path::PathBuf;
 use std::sync::Arc;
 
 #[test]
+fn proof_output_runtime_calls_copy_arguments_into_the_statement_arena() {
+    use psi_typed_trees::{expression::ExpressionNode, statement::StatementNode};
+
+    let source = r#"
+        trait Evidence {}
+        proposition ready() evidence Evidence;
+        machine touch(first: u64, second: u64, third: u64) {}
+        machine effect(output: &mut u64, value: u64)
+        requires incoming: ready()
+        ensures outgoing: ready()
+        {
+            output = value;
+            outgoing = incoming;
+        }
+        machine caller(destination: &mut u64, selected: u64)
+        requires incoming: ready()
+        {
+            touch(99, 88, 77);
+            let (; outgoing: witness) = effect(destination, selected; incoming);
+        }
+    "#;
+    let tokens = Lexer::new(source)
+        .tokenize()
+        .expect("tokenize proof-output call");
+    let syntax = parse_syntax_trees(&tokens).expect("parse proof-output call");
+    let resolved = lower_syntax_trees(&syntax).expect("resolve proof-output call");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("type proof-output call");
+    let caller = typed
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "caller")
+        .expect("caller machine");
+    let state = &typed.machine_states(caller)[0];
+    let parameters = typed.state_parameters(state);
+    let [package] = typed.proof_output_calls.as_slice() else {
+        panic!("one proof-output call");
+    };
+    assert_eq!(package.state_symbol, state.symbol);
+    let runtime_index = package
+        .runtime_call_statement_index
+        .expect("effect executes");
+    assert_eq!(
+        runtime_index, 1,
+        "ordinary call precedes the proof-output call"
+    );
+    let StatementNode::Call(runtime) =
+        &typed.statement_table.statements(state.statement_nodes)[runtime_index]
+    else {
+        panic!("proof-output runtime statement");
+    };
+    let ExpressionNode::Call(expression) = typed.expression_table.expression(package.call) else {
+        panic!("retained proof-output expression");
+    };
+    // The preceding three-argument statement deliberately offsets this arena
+    // from expression-call argument storage. A raw span copy reads its literals.
+    assert_ne!(runtime.arguments, expression.arguments);
+    let runtime_arguments = typed.statement_table.expression_handles(runtime.arguments);
+    assert_eq!(
+        runtime_arguments,
+        typed
+            .expression_table
+            .expression_handles(expression.arguments)
+    );
+    assert_eq!(runtime_arguments.len(), parameters.len());
+    for (argument, parameter) in runtime_arguments.iter().zip(parameters) {
+        let ExpressionNode::Name(path) = typed.expression_table.expression(*argument) else {
+            panic!("exact caller parameter argument");
+        };
+        assert_eq!(path.head_symbol, parameter.symbol);
+        assert_eq!(path.symbol, parameter.symbol);
+        assert_eq!(typed.symbols.get(path.symbol).parent, state.symbol);
+    }
+}
+
+#[test]
 fn inherited_trait_default_realizations_settle_exact_requirement_symbols() {
     let source = r#"
         trait Resettable {

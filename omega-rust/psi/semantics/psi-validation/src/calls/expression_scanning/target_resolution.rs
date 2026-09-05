@@ -14,7 +14,7 @@ use psi_typed_trees::statement::StatementNode;
 use psi_typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 
 /// The declared TYPE NAME of a receiver that is a state param, state local,
-/// whole-machine param, or machine-owned field -- walked through reference/
+/// or machine-owned field -- walked through reference/
 /// constraint shells to the Named/Generic/DynamicTrait head. `None` for
 /// primitives, arrays, slices, and unknown names.
 fn receiver_declared_type_name<'program>(
@@ -56,17 +56,6 @@ pub(crate) fn declared_receiver_type_reference(
                 .iter()
                 .find(|owned| owned.name.as_str() == receiver)
                 .map(|owned| owned.type_reference)
-        })
-        .or_else(|| {
-            // State bindings are whole-machine scope: a param declared on any
-            // state of this machine is readable everywhere in it.
-            program.machine_states(machine).iter().find_map(|other| {
-                program
-                    .state_parameters(other)
-                    .iter()
-                    .find(|parameter| parameter.name.as_str() == receiver)
-                    .map(|parameter| parameter.type_reference)
-            })
         })
         .or_else(|| {
             let attached_data = machine.attached_data.as_ref()?;

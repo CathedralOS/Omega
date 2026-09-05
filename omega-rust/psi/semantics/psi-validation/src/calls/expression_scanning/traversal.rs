@@ -11,7 +11,6 @@ use crate::struct_literals::data_declares_field;
 use crate::symbols::{MachineSymbols, TopLevelSymbols};
 use psi_diagnostics::Diagnostic;
 use psi_typed_trees::TypedTrees;
-use psi_typed_trees::data::{DataMember, TypeParameterKind};
 use psi_typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use psi_typed_trees::machine::Machine;
 use psi_typed_trees::state::State;
@@ -62,7 +61,18 @@ pub(crate) fn validate_value_position_calls(
                 boundary_operator_applications,
                 diagnostics,
             );
-            // target is a place (Name/Member/Indexed), no calls to validate
+            scan_expression_calls(
+                program,
+                machine,
+                state,
+                machine_symbols,
+                symbols,
+                writable_roots,
+                value_env,
+                assignment.target,
+                boundary_operator_applications,
+                diagnostics,
+            );
         }
         StatementNode::Call(call) => {
             // Statement-position call arguments may themselves be value calls.
@@ -165,97 +175,6 @@ pub(crate) fn validate_value_position_calls(
             }
         }
     }
-}
-
-/// Is `name` a legal single-segment BARE name in the body of `machine`?
-///
-/// A bare `Name` resolves to a field (implicit `self`), a top-level symbol (type
-/// / machine / platform / trait), an enum case constant (`Red`), or a local/
-/// parameter. The binding scope for locals and parameters is the WHOLE machine,
-/// not one state: a sub-state legitimately reads a parameter or `let` declared on
-/// the machine's entry (or an ancestor) state (`state nonpos` reading the entry
-/// state's `n`). We therefore scan every state's parameters and `LocalData`.
-///
-/// The allow-list is deliberately GENEROUS -- scanning ALL states over-approximates
-/// the true lexical scope, so an out-of-scope-but-declared name is accepted (an
-/// UNDER-rejection, never a false rejection of a real name). The sole goal is to
-/// catch a name that exists NOWHERE (a typo reading as 0/garbage).
-fn is_known_bare_name(
-    program: &TypedTrees,
-    machine: &Machine,
-    machine_symbols: &MachineSymbols<'_>,
-    symbols: &TopLevelSymbols<'_>,
-    name: &str,
-) -> bool {
-    // Field of the receiver data (bare `fld` == `self.fld`), owned data, or a
-    // callable field.
-    if machine_symbols.has_member(name)
-        || machine_symbols.has_owned_data(name)
-        || machine_symbols.callable_field_type(name).is_some()
-    {
-        return true;
-    }
-    // Top-level symbol: a type, machine, or trait spelled bare.
-    if symbols.has_type(name)
-        || symbols.machine(name).is_some()
-        || symbols.trait_definition(name).is_some()
-    {
-        return true;
-    }
-    // A generic attached method may use its container's const parameter as a
-    // value in the authored template. Instance desugaring replaces this name
-    // with the concrete integer before the executable clone is validated.
-    if program
-        .machine_type_parameters(machine)
-        .iter()
-        .any(|parameter| {
-            parameter.name.as_str() == name
-                && matches!(&parameter.kind, TypeParameterKind::Const { .. })
-        })
-    {
-        return true;
-    }
-    if let Some(attached_data) = &machine.attached_data
-        && program.data_definitions().iter().any(|definition| {
-            definition.name == *attached_data
-                && program
-                    .data_type_parameters(definition)
-                    .iter()
-                    .any(|parameter| {
-                        parameter.name.as_str() == name
-                            && matches!(&parameter.kind, TypeParameterKind::Const { .. })
-                    })
-        })
-    {
-        return true;
-    }
-    // Enum case constant used bare (`let s: Signal = Red`).
-    for definition in program.data_definitions() {
-        for member in program.data_members(definition) {
-            if let DataMember::Variant(variant) = member
-                && variant.name.as_str() == name
-            {
-                return true;
-            }
-        }
-    }
-    // Parameter or local declared on ANY state of this machine (whole-machine
-    // scope -- see the doc comment).
-    for other in program.machine_states(machine) {
-        for parameter in program.state_parameters(other) {
-            if parameter.name.as_str() == name {
-                return true;
-            }
-        }
-        for statement in program.statement_table.statements(other.statement_nodes) {
-            if let StatementNode::LocalData(local) = statement
-                && local.name.as_str() == name
-            {
-                return true;
-            }
-        }
-    }
-    false
 }
 
 /// Reject READING an array element with a RUNTIME SCALAR index whose collection is
@@ -533,24 +452,45 @@ fn scan_expression_calls(
     // Unknown BARE NAME: a SINGLE-segment name (`undeclared_var`, not `self.x` or
     // `Type::Case`) that resolves to nothing is otherwise silently accepted and reads
     // as 0/garbage. Reject it when it is none of the legal bare-name forms. The scope
-    // is the whole MACHINE (a sub-state may read the entry state's params/locals), and
-    // `true`/`false` are single-segment `Name` nodes here, so they are skipped. The
-    // allow-list is deliberately GENEROUS -- an unrecognised valid form only
-    // UNDER-rejects (misses a typo), never falsely rejects a real name.
+    // is the current state; retained foreign binding identities cannot be
+    // replaced by a coincidentally matching spelling. Qualified paths check
+    // their root too, so member access cannot hide an implicit capture.
     if let ExpressionNode::Name(path) = program.expression_table.expression(expression)
-        && let [only] = program.expression_table.name_path_members(path.members)
+        && let Some(first) = program
+            .expression_table
+            .name_path_members(path.members)
+            .first()
     {
-        let name = only.as_str();
-        if name != "self"
-            && name != "true"
+        let name = first.as_str();
+        let root = if path.head_symbol.is_valid() {
+            path.head_symbol
+        } else {
+            path.symbol
+        };
+        let bare_identity_matches = program
+            .expression_table
+            .name_path_members(path.members)
+            .len()
+            != 1
+            || !path.head_symbol.is_valid()
+            || path.head_symbol == path.symbol;
+        if name != "true"
             && name != "false"
-            && !is_known_bare_name(program, machine, machine_symbols, symbols, name)
+            && (!bare_identity_matches
+                || !crate::locals::state_value_root_is_known(
+                    program,
+                    machine,
+                    state,
+                    writable_roots.statements,
+                    machine_symbols,
+                    symbols,
+                    root,
+                    name,
+                ))
         {
             diagnostics.push(Diagnostic::error(format!(
-                "machine `{}` state `{}` uses `{name}`, which is not a declared local, \
-                 parameter, field, or type (check the spelling)",
-                machine.name.as_str(),
-                state.name.as_str(),
+                "machine `{}` state `{}` uses `{name}`, which is not a declared local, parameter, field, or type in this state (check the spelling)",
+                machine.name.as_str(), state.name.as_str(),
             )));
         }
     }
@@ -616,7 +556,9 @@ fn scan_expression_calls(
                 diagnostics,
             );
             // Recurse into the receiver and arguments (nested calls).
-            if call.receiver.is_valid() {
+            if call.receiver.is_valid()
+                && !crate::locals::expression_call_has_operator_namespace(program, &call)
+            {
                 scan_expression_calls(
                     program,
                     machine,

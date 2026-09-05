@@ -32,12 +32,12 @@ machine Main::main(&mut self) {
     let a: i32 in Wrapping = self.add_ten(5);     // 15
     let b: i32 in Wrapping = self.double(a);      // 30
     let c: i32 in Wrapping = self.minus_five(b);  // 25
-    transition c == 25 { true -> good() _ -> wrong() }
+    transition c == 25 { true -> good() _ -> wrong(c) }
 
     state good(&mut self) {
         self.console.exit_process(70);
     }
-    state wrong(&mut self) {
+    state wrong(&mut self, c: i32 in Wrapping) {
         self.console.exit_process(c as i32); // surface the pipeline output on regression
     }
 }

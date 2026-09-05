@@ -616,13 +616,6 @@ fn validate_program_internal(
                 state.name.as_str(),
                 &mut diagnostics,
             );
-            let writable_roots = WritableRoots {
-                program,
-                machine_symbols: &machine_symbols,
-                statements: program.statement_table.statements(state.statement_nodes),
-                parameters: program.state_parameters(state),
-            };
-
             // S4: a per-state-body value environment tracks each place's proven
             // interval along the straight-line prefix, so the exact-overflow proof
             // can use actual values (`self.v = 10; self.v += 5`) instead of the
@@ -640,10 +633,18 @@ fn validate_program_internal(
                 // fences.
                 arithmetic_domains::incoming_guard_env(program, machine, state)
             };
-            for (statement_handle, statement) in program
+            for (statement_index, (statement_handle, statement)) in program
                 .statement_table
                 .iter_statements(state.statement_nodes)
+                .enumerate()
             {
+                let writable_roots = WritableRoots {
+                    program,
+                    machine_symbols: &machine_symbols,
+                    statements: &program.statement_table.statements(state.statement_nodes)
+                        [..statement_index],
+                    parameters: program.state_parameters(state),
+                };
                 // R5 value-call frame: conservatively apply the aggregate
                 // may-write set of every call nested in this statement before
                 // checking any of its value uses. This intentionally gives up
@@ -723,6 +724,7 @@ fn validate_program_internal(
                     program,
                     machine,
                     &state.name,
+                    Some(state),
                     &machine_symbols,
                     &symbols,
                     &writable_roots,
@@ -870,6 +872,7 @@ fn validate_state_statement_node(
     program: &TypedTrees,
     machine: &psi_typed_trees::machine::Machine,
     state_name: &str,
+    current_state: Option<&psi_typed_trees::state::State>,
     machine_symbols: &MachineSymbols<'_>,
     symbols: &TopLevelSymbols<'_>,
     writable_roots: &WritableRoots<'_, '_>,
@@ -881,12 +884,12 @@ fn validate_state_statement_node(
     boundary_operator_applications: &mut Vec<ValidatedBoundaryOperatorApplication>,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
-    if let Some(state) = machine_symbols.state(state_name) {
+    if let Some(state) = current_state {
         placed_views::validate_statement(program, machine, state, statement, diagnostics);
     }
     match statement {
         StatementNode::AssemblyFact(fact) => {
-            let state = machine_symbols.state(state_name);
+            let state = current_state;
             if !proof_facts::is_boolean_asm_fact_expression(
                 program,
                 machine,
@@ -905,7 +908,7 @@ fn validate_state_statement_node(
             }
         }
         StatementNode::Assignment(assignment) => {
-            let state = machine_symbols.state(state_name);
+            let state = current_state;
             if !state.is_some_and(|state| {
                 placed_views::assignment_is_placed_atomic_operation(
                     program, machine, state, assignment,
@@ -931,7 +934,7 @@ fn validate_state_statement_node(
                         places::declared_indexed_projection_type(
                             program,
                             machine,
-                            machine_symbols.state(state_name),
+                            current_state,
                             assignment.target,
                         )
                     });
@@ -944,7 +947,7 @@ fn validate_state_statement_node(
                         places::declared_indexed_projection_type_raw(
                             program,
                             machine,
-                            machine_symbols.state(state_name),
+                            current_state,
                             assignment.target,
                         )
                     });
@@ -953,7 +956,7 @@ fn validate_state_statement_node(
             // An array-literal RHS into a `[T; N]` target: check each element's
             // class + narrowing against T. The scalar guards below skip a non-
             // primitive (array) target, so this is the element-level complement.
-            if let Some(current_state) = machine_symbols.state(state_name)
+            if let Some(current_state) = current_state
                 && let Some(target_type) = assignment_target_type
             {
                 struct_literals::validate_array_literal_elements(
@@ -975,7 +978,7 @@ fn validate_state_statement_node(
                 expression_types::report_cross_class_store(
                     program,
                     Some(machine),
-                    machine_symbols.state(state_name),
+                    current_state,
                     assignment.value,
                     target_primitive,
                     &owner,
@@ -990,7 +993,7 @@ fn validate_state_statement_node(
                 expression_types::report_data_type_conflict(
                     program,
                     machine,
-                    machine_symbols.state(state_name),
+                    current_state,
                     assignment.value,
                     target_type,
                     &owner,
@@ -1003,7 +1006,7 @@ fn validate_state_statement_node(
                 expression_types::report_array_scalar_shape_mismatch(
                     program,
                     machine,
-                    machine_symbols.state(state_name),
+                    current_state,
                     assignment.value,
                     target_type,
                     &owner,
@@ -1016,7 +1019,7 @@ fn validate_state_statement_node(
                 expression_types::report_scalar_data_shape_mismatch(
                     program,
                     machine,
-                    machine_symbols.state(state_name),
+                    current_state,
                     assignment.value,
                     target_type,
                     &owner,
@@ -1028,7 +1031,7 @@ fn validate_state_statement_node(
                 domain_weakening::validate_implicit_domain_weakening(
                     program,
                     machine,
-                    machine_symbols.state(state_name),
+                    current_state,
                     assignment.value,
                     target_type,
                     &owner,
@@ -1056,7 +1059,7 @@ fn validate_state_statement_node(
             let (interval, source_primitive) = arithmetic_domains::validate_value_range(
                 program,
                 machine,
-                machine_symbols.state(state_name),
+                current_state,
                 assignment.value,
                 value_env,
                 assignment_target_primitive,
@@ -1098,17 +1101,14 @@ fn validate_state_statement_node(
                 value_env,
                 arithmetic_domains::place_path(program, assignment.target),
                 interval,
-                places::declared_place_type_raw(
-                    program,
-                    machine,
-                    machine_symbols.state(state_name),
-                    assignment.target,
-                )
-                .and_then(|handle| arithmetic_domains::enforced_declared_range(program, handle)),
+                places::declared_place_type_raw(program, machine, current_state, assignment.target)
+                    .and_then(|handle| {
+                        arithmetic_domains::enforced_declared_range(program, handle)
+                    }),
             );
         }
         StatementNode::Call(call) => {
-            if let Some(state) = machine_symbols.state(state_name) {
+            if let Some(state) = current_state {
                 crate::operators::validate_named_statement_operator_application(
                     program,
                     symbols,
@@ -1125,6 +1125,7 @@ fn validate_state_statement_node(
                 call,
                 machine,
                 state_name,
+                current_state,
                 machine_symbols,
                 symbols,
                 writable_roots,
@@ -1155,7 +1156,7 @@ fn validate_state_statement_node(
                 arithmetic_domains::seed_out_param_ensures(
                     program,
                     machine,
-                    machine_symbols.state(state_name),
+                    current_state,
                     call,
                     signature,
                     value_env,
@@ -1163,7 +1164,7 @@ fn validate_state_statement_node(
             }
         }
         StatementNode::Expression(expression) => {
-            let Some(state) = machine_symbols.state(state_name) else {
+            let Some(state) = current_state else {
                 return;
             };
 
@@ -1337,7 +1338,7 @@ fn validate_state_statement_node(
                 program.primitive_type_reference(local_data.type_reference);
             // An array-literal initializer (`let a: [T; N] = [300, ..]`) is checked
             // element-wise against T.
-            if let Some(current_state) = machine_symbols.state(state_name) {
+            if let Some(current_state) = current_state {
                 struct_literals::validate_array_literal_elements(
                     program,
                     machine,
@@ -1363,7 +1364,7 @@ fn validate_state_statement_node(
                 expression_types::report_cross_class_store(
                     program,
                     Some(machine),
-                    machine_symbols.state(state_name),
+                    current_state,
                     local_data.initial_value,
                     target_primitive,
                     &owner,
@@ -1377,7 +1378,7 @@ fn validate_state_statement_node(
                 expression_types::report_data_type_conflict(
                     program,
                     machine,
-                    machine_symbols.state(state_name),
+                    current_state,
                     local_data.initial_value,
                     local_data.type_reference,
                     &owner,
@@ -1390,7 +1391,7 @@ fn validate_state_statement_node(
                 expression_types::report_array_scalar_shape_mismatch(
                     program,
                     machine,
-                    machine_symbols.state(state_name),
+                    current_state,
                     local_data.initial_value,
                     local_data.type_reference,
                     &owner,
@@ -1400,7 +1401,7 @@ fn validate_state_statement_node(
                 expression_types::report_scalar_data_shape_mismatch(
                     program,
                     machine,
-                    machine_symbols.state(state_name),
+                    current_state,
                     local_data.initial_value,
                     local_data.type_reference,
                     &owner,
@@ -1410,7 +1411,7 @@ fn validate_state_statement_node(
                 domain_weakening::validate_implicit_domain_weakening(
                     program,
                     machine,
-                    machine_symbols.state(state_name),
+                    current_state,
                     local_data.initial_value,
                     local_data.type_reference,
                     &owner,
@@ -1435,7 +1436,7 @@ fn validate_state_statement_node(
             let (interval, source_primitive) = arithmetic_domains::validate_value_range(
                 program,
                 machine,
-                machine_symbols.state(state_name),
+                current_state,
                 local_data.initial_value,
                 value_env,
                 local_target_primitive,
@@ -1488,7 +1489,7 @@ fn validate_state_statement_node(
                 arithmetic_domains::collect_exact_integer_cast_facts(
                     program,
                     machine,
-                    machine_symbols.state(state_name),
+                    current_state,
                     local_data.initial_value,
                     value_env,
                     exact_integer_casts,
@@ -1515,7 +1516,7 @@ fn validate_state_statement_node(
                 arithmetic_domains::collect_exact_integer_cast_facts(
                     program,
                     machine,
-                    machine_symbols.state(state_name),
+                    current_state,
                     guard,
                     value_env,
                     exact_integer_casts,
@@ -1524,7 +1525,7 @@ fn validate_state_statement_node(
             validate_transition_target_node(
                 program,
                 machine,
-                machine_symbols.state(state_name),
+                current_state,
                 value_env,
                 transition.target,
                 machine_symbols,
@@ -1537,7 +1538,7 @@ fn validate_state_statement_node(
                 validate_transition_target_node(
                     program,
                     machine,
-                    machine_symbols.state(state_name),
+                    current_state,
                     value_env,
                     transition.continuation,
                     machine_symbols,
@@ -1557,7 +1558,7 @@ fn validate_state_statement_node(
             let narrowed = arithmetic_domains::guard_narrowed_env(
                 program,
                 machine,
-                machine_symbols.state(state_name),
+                current_state,
                 &transition.guard,
                 value_env,
             );
@@ -1572,7 +1573,7 @@ fn validate_state_statement_node(
                             arithmetic_domains::collect_exact_integer_cast_facts(
                                 program,
                                 machine,
-                                machine_symbols.state(state_name),
+                                current_state,
                                 *argument,
                                 &narrowed,
                                 exact_integer_casts,
@@ -1583,7 +1584,7 @@ fn validate_state_statement_node(
                         arithmetic_domains::collect_exact_integer_cast_facts(
                             program,
                             machine,
-                            machine_symbols.state(state_name),
+                            current_state,
                             *expression,
                             &narrowed,
                             exact_integer_casts,
@@ -1601,7 +1602,7 @@ fn validate_state_statement_node(
                 *value_env = arithmetic_domains::fall_through_narrowed_env(
                     program,
                     machine,
-                    machine_symbols.state(state_name),
+                    current_state,
                     &transition.guard,
                     value_env,
                 );
@@ -1612,7 +1613,7 @@ fn validate_state_statement_node(
             // within it (so call-site narrowing that trusts the range is sound); the
             // exact-overflow + narrowing obligations apply too. Gated inside
             // `validate_return_value_range`, so plain returns are unaffected.
-            if let Some(state) = machine_symbols.state(state_name)
+            if let Some(state) = current_state
                 && state.return_type.is_valid()
             {
                 for target in [transition.target, transition.continuation] {
@@ -1710,7 +1711,7 @@ fn validate_state_statement_node(
                         arithmetic_domains::validate_arithmetic_domains(
                             program,
                             machine,
-                            machine_symbols.state(state_name),
+                            current_state,
                             *argument,
                             &narrowed,
                             None,

@@ -1,0 +1,6 @@
+data Packet { value: u64; }
+machine Packet::inspect(&self) {}
+machine inspect(packet: &Packet) {
+    transition { _ -> finish() }
+    state finish() { packet.inspect(); }
+}

@@ -6,7 +6,6 @@ mod facts;
 mod guards;
 pub(in crate::checks) mod incoming_guards;
 mod indexes;
-mod initializers;
 mod loop_invariants;
 mod proofs;
 mod requirements;
@@ -19,7 +18,6 @@ pub(in crate::checks) use arrays::fixed_array_type_length;
 use dependent_params::seed_dependent_param_orderings;
 use facts::RangeFacts;
 use incoming_guards::{IncomingGuardIndex, seed_incoming_guard_facts};
-use initializers::seed_field_integer_facts;
 use loop_invariants::{collect_loop_invariant_facts, seed_loop_invariant_facts};
 use psi_diagnostics::Diagnostic;
 use requirements::seed_state_requires;
@@ -55,7 +53,6 @@ pub(crate) fn check_indexed_accesses(
                     None,
                 );
             }
-            seed_field_integer_facts(program, &mut facts, machine);
             seed_state_requires(program, &mut facts, machine, state);
             seed_state_argument_facts(&mut facts, state, &state_argument_facts);
             seed_dependent_param_orderings(program, &mut facts, machine, state);

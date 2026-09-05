@@ -64,7 +64,7 @@ machine Main::main(&mut self) {
     let total: i32 in Saturating = r1 + r2 - r3 + self.offset;
 
     transition total == 70 {
-        true -> check_r1()
+        true -> check_r1(r1, r2, r3)
         _ -> bad_total()
     }
 
@@ -75,9 +75,9 @@ machine Main::main(&mut self) {
         self.console.exit_process(71);
     }
 
-    state check_r1(&mut self) {
+    state check_r1(&mut self, r1: i32 in Saturating, r2: i32 in Saturating, r3: i32 in Saturating) {
         transition r1 == 30 {
-            true -> check_r2()
+            true -> check_r2(r2, r3)
             _ -> bad_r1()
         }
     }
@@ -89,9 +89,9 @@ machine Main::main(&mut self) {
         self.console.exit_process(72);
     }
 
-    state check_r2(&mut self) {
+    state check_r2(&mut self, r2: i32 in Saturating, r3: i32 in Saturating) {
         transition r2 == 22 {
-            true -> check_r3()
+            true -> check_r3(r3)
             _ -> bad_r2()
         }
     }
@@ -103,7 +103,7 @@ machine Main::main(&mut self) {
         self.console.exit_process(73);
     }
 
-    state check_r3(&mut self) {
+    state check_r3(&mut self, r3: i32 in Saturating) {
         transition r3 == 20 {
             true -> good()
             _ -> bad_r3()

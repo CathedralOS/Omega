@@ -391,18 +391,16 @@ Owners include
   exact residual custody; trap/abort edges clean nothing. Acceptance: no affine
   occurrence disappears, duplicates, or is cleaned after transfer.
 
-- **STATE-LOCAL-VALUE-FRONTIER.** Enforce chapter 4's explicit state parameters
-  in Psi name resolution and checking. Entry locals and parameters must not
-  become ambient values in sibling states; existing capture acceptance and
-  captured-entry authored-selection fallbacks contradict the settled rule.
-  Migrate affected source and canaries to explicit transition arguments, then
-  remove the capture paths. Complete live contract/value-fact transport across
-  explicit state arguments; declaration initializer values must not be reseeded
-  as named-state invariants. Materialize selected-arithmetic and effectful
+- **STATE-LOCAL-VALUE-FRONTIER.** Audit declaration-owned value expressions
+  (dependent type extents/constraints and assembly proof operands) for chapter
+  4's exact state-parameter ownership; reject foreign entry/sibling bindings
+  without confusing declaration namespaces with value reads. Complete live
+  contract/value-fact transport across explicit state arguments. Materialize
+  selected-arithmetic and effectful
   return values at their exact evaluation points so exit proof can consume
   their numeric laws without rereading changed operands.
-  Acceptance: implicit cross-state use
-  rejects, while explicit renamed transfers retain exact contracts, field
+  Acceptance: implicit cross-state use rejects, while explicit renamed
+  transfers retain exact contracts, field
   selection, ownership and cleanup without requiring a runtime copy. Wrong
   results, mismatched output origins, and invalidated writes reject scalar
   postconditions at every normal exit.

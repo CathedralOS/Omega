@@ -1,0 +1,5 @@
+machine inspect() -> u64 {
+    let saved: u64 = 7;
+    transition { _ -> finish() }
+    state finish() -> u64 { saved }
+}

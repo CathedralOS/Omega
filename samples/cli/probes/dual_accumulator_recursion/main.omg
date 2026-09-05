@@ -83,7 +83,7 @@ machine Main::main(&mut self) {
 
     // Verify sum = 15.
     transition sum_result == 15 {
-        true -> check_sum_sq()
+        true -> check_sum_sq(sum_sq_result, sum_result)
         _ -> bad_sum()
     }
 
@@ -94,10 +94,10 @@ machine Main::main(&mut self) {
         self.console.exit_process(71);
     }
 
-    state check_sum_sq(&mut self) {
+    state check_sum_sq(&mut self, sum_sq_result: i32 in Wrapping, sum_result: i32 in Wrapping) {
         // Verify sum_sq = 55.
         transition sum_sq_result == 55 {
-            true -> compute_final()
+            true -> compute_final(sum_result, sum_sq_result)
             _ -> bad_sum_sq()
         }
     }
@@ -109,10 +109,10 @@ machine Main::main(&mut self) {
         self.console.exit_process(72);
     }
 
-    state compute_final(&mut self) {
+    state compute_final(&mut self, sum_result: i32 in Wrapping, sum_sq_result: i32 in Wrapping) {
         // Re-check sum_result is still 15 in this state.
         transition sum_result == 15 {
-            true -> check_sq_in_final()
+            true -> check_sq_in_final(sum_sq_result, sum_result)
             _ -> bad_final_sum()
         }
     }
@@ -124,10 +124,10 @@ machine Main::main(&mut self) {
         self.console.exit_process(74);
     }
 
-    state check_sq_in_final(&mut self) {
+    state check_sq_in_final(&mut self, sum_sq_result: i32 in Wrapping, sum_result: i32 in Wrapping) {
         // Re-check sum_sq_result is still 55 in this state.
         transition sum_sq_result == 55 {
-            true -> do_total()
+            true -> do_total(sum_result, sum_sq_result)
             _ -> bad_final_sq()
         }
     }
@@ -139,7 +139,7 @@ machine Main::main(&mut self) {
         self.console.exit_process(75);
     }
 
-    state do_total(&mut self) {
+    state do_total(&mut self, sum_result: i32 in Wrapping, sum_sq_result: i32 in Wrapping) {
         // total = sum_result + sum_sq_result = 15 + 55 = 70.
         // MISCOMPILE: both values pass individual guards above yet their
         // binary sum yields the wrong result here.

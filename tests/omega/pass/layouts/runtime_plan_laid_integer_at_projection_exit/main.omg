@@ -91,23 +91,23 @@ machine Main::main(&mut self) {
     let indexed_signed: i64 = view.values[self.index].signed_value;
     let indexed_unsigned: u64 = view.values[self.index].unsigned_value;
     transition signed_value == -2 {
-        true -> check_unsigned()
+        true -> check_unsigned(unsigned_value, indexed_signed, indexed_unsigned)
         _ -> bad_signed()
     }
 
-    state check_unsigned(&mut self) {
+    state check_unsigned(&mut self, unsigned_value: u64, indexed_signed: i64, indexed_unsigned: u64) {
         transition unsigned_value == 33023 {
-            true -> check_indexed_signed()
+            true -> check_indexed_signed(indexed_signed, indexed_unsigned)
             _ -> bad_unsigned()
         }
     }
-    state check_indexed_signed(&mut self) {
+    state check_indexed_signed(&mut self, indexed_signed: i64, indexed_unsigned: u64) {
         transition indexed_signed == -128 {
-            true -> check_indexed_unsigned()
+            true -> check_indexed_unsigned(indexed_unsigned)
             _ -> bad_indexed_signed()
         }
     }
-    state check_indexed_unsigned(&mut self) {
+    state check_indexed_unsigned(&mut self, indexed_unsigned: u64) {
         transition indexed_unsigned == 13330 {
             true -> good()
             _ -> bad_indexed_unsigned()

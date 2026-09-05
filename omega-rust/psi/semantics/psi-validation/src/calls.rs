@@ -12,7 +12,7 @@ use psi_typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use psi_typed_trees::machine::Machine;
 use psi_typed_trees::signature::StateParameter;
 use psi_typed_trees::state::State;
-use psi_typed_trees::statement::{StatementNode, TableCall};
+use psi_typed_trees::statement::TableCall;
 use psi_typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 
 mod expression_scanning;
@@ -49,6 +49,7 @@ pub(crate) fn validate_call_node(
     call: &TableCall,
     current_machine: &psi_typed_trees::machine::Machine,
     state_name: &str,
+    current_state: Option<&psi_typed_trees::state::State>,
     machine_symbols: &MachineSymbols<'_>,
     symbols: &TopLevelSymbols<'_>,
     writable_roots: &WritableRoots<'_, '_>,
@@ -57,6 +58,46 @@ pub(crate) fn validate_call_node(
 ) {
     let receiver_members = program.statement_table.name_path_members(call.receiver);
     let arguments = program.statement_table.expression_handles(call.arguments);
+    let namespace: Vec<_> = receiver_members
+        .iter()
+        .map(|member| member.as_str())
+        .collect();
+    if let Some(first) = receiver_members.first()
+        && !crate::locals::is_named_operator_namespace(
+            program,
+            &[call.receiver_symbol],
+            &namespace,
+            call.target_symbol,
+            call.target.as_str(),
+            arguments.len(),
+        )
+    {
+        let mut root = call.receiver_symbol;
+        while root.is_valid()
+            && program.symbols.name(root) != first.as_str()
+            && !(first.as_str() == "self" && root == current_machine.symbol)
+        {
+            root = program.symbols.get(root).parent;
+        }
+        if !current_state.is_some_and(|state| {
+            crate::locals::state_value_root_is_known(
+                program,
+                current_machine,
+                state,
+                writable_roots.statements,
+                machine_symbols,
+                symbols,
+                root,
+                first.as_str(),
+            )
+        }) {
+            diagnostics.push(Diagnostic::error(format!(
+                "machine `{}` state `{state_name}` uses `{}`, which is not a declared receiver in this state",
+                current_machine.name.as_str(), first.as_str(),
+            )));
+            return;
+        }
+    }
 
     // `Schema::encode(...)` / `Schema::decode(...)`: the wire
     // module owns the synthesized encoder/decoder calls' diagnostics
@@ -65,7 +106,7 @@ pub(crate) fn validate_call_node(
         program,
         call,
         current_machine,
-        machine_symbols.state(state_name),
+        current_state,
         diagnostics,
     ) {
         return;
@@ -121,7 +162,7 @@ pub(crate) fn validate_call_node(
                 validate_asm_operand_constraint(
                     program,
                     current_machine,
-                    machine_symbols.state(state_name),
+                    current_state,
                     source_mnemonic,
                     *operand,
                     *constraint,
@@ -172,7 +213,7 @@ pub(crate) fn validate_call_node(
             validate_call_arguments_handles(
                 program,
                 current_machine,
-                machine_symbols.state(state_name),
+                current_state,
                 value_env,
                 arguments,
                 signature.name.as_str(),
@@ -200,7 +241,7 @@ pub(crate) fn validate_call_node(
             validate_call_arguments_handles(
                 program,
                 current_machine,
-                machine_symbols.state(state_name),
+                current_state,
                 value_env,
                 arguments,
                 state.name.as_str(),
@@ -217,7 +258,7 @@ pub(crate) fn validate_call_node(
                 state.name.as_str(),
                 arguments,
                 current_machine,
-                machine_symbols.state(state_name),
+                current_state,
                 diagnostics,
             );
             return;
@@ -234,7 +275,7 @@ pub(crate) fn validate_call_node(
             validate_call_arguments_handles(
                 program,
                 current_machine,
-                machine_symbols.state(state_name),
+                current_state,
                 value_env,
                 arguments,
                 state.name.as_str(),
@@ -251,7 +292,7 @@ pub(crate) fn validate_call_node(
                 state.name.as_str(),
                 arguments,
                 current_machine,
-                machine_symbols.state(state_name),
+                current_state,
                 diagnostics,
             );
             return;
@@ -292,7 +333,7 @@ pub(crate) fn validate_call_node(
         validate_call_arguments_handles(
             program,
             current_machine,
-            machine_symbols.state(state_name),
+            current_state,
             value_env,
             arguments,
             call.target.as_str(),
@@ -309,7 +350,7 @@ pub(crate) fn validate_call_node(
             call.target.as_str(),
             arguments,
             current_machine,
-            machine_symbols.state(state_name),
+            current_state,
             diagnostics,
         );
         return;
@@ -320,7 +361,7 @@ pub(crate) fn validate_call_node(
         .map(|member| member.as_str())
         .unwrap_or_default();
     let receiver_type = machine_symbols.callable_field_type(receiver);
-    let receiver_type_reference = machine_symbols.state(state_name).and_then(|state| {
+    let receiver_type_reference = current_state.and_then(|state| {
         declared_receiver_type_reference(program, current_machine, state, receiver)
     });
 
@@ -355,7 +396,7 @@ pub(crate) fn validate_call_node(
                 validate_generic_bound_argument_types(
                     program,
                     current_machine,
-                    machine_symbols.state(state_name),
+                    current_state,
                     type_reference,
                     arguments,
                     &requirement,
@@ -364,7 +405,7 @@ pub(crate) fn validate_call_node(
                 validate_call_arguments_handles(
                     program,
                     current_machine,
-                    machine_symbols.state(state_name),
+                    current_state,
                     value_env,
                     arguments,
                     signature.name.as_str(),
@@ -396,7 +437,7 @@ pub(crate) fn validate_call_node(
             validate_call_arguments_handles(
                 program,
                 current_machine,
-                machine_symbols.state(state_name),
+                current_state,
                 value_env,
                 arguments,
                 &state.name,
@@ -413,7 +454,7 @@ pub(crate) fn validate_call_node(
                 state.name.as_str(),
                 arguments,
                 current_machine,
-                machine_symbols.state(state_name),
+                current_state,
                 diagnostics,
             );
             return;
@@ -433,7 +474,7 @@ pub(crate) fn validate_call_node(
         validate_call_arguments_handles(
             program,
             current_machine,
-            machine_symbols.state(state_name),
+            current_state,
             value_env,
             arguments,
             &state.name,
@@ -450,7 +491,7 @@ pub(crate) fn validate_call_node(
             state.name.as_str(),
             arguments,
             current_machine,
-            machine_symbols.state(state_name),
+            current_state,
             diagnostics,
         );
         return;
@@ -480,7 +521,7 @@ pub(crate) fn validate_call_node(
         validate_call_arguments_handles(
             program,
             current_machine,
-            machine_symbols.state(state_name),
+            current_state,
             value_env,
             arguments,
             &signature.name,
@@ -539,53 +580,36 @@ fn declared_reference_access(
     }
 }
 
-/// A bare name can forward declared mutable reference access, independently
-/// of whether its binding is mutable. Bindings resolve at whole-machine
-/// scope because a sub-state can read entry-state parameters and locals.
+/// Forward only the actual current-state binding's declared access.
 fn argument_forwards_mutable_reference(
     program: &TypedTrees,
     current_machine: &Machine,
+    current_state: Option<&State>,
+    writable_roots: &WritableRoots<'_, '_>,
     argument: ExpressionHandle,
 ) -> bool {
+    let Some(state) = current_state else {
+        return false;
+    };
     let ExpressionNode::Name(path) = program.expression_table.expression(argument) else {
         return false;
     };
     let [name] = program.expression_table.name_path_members(path.members) else {
         return false;
     };
-    program.machine_states(current_machine).iter().any(|state| {
-        if program.state_parameters(state).iter().any(|parameter| {
-            parameter.name == *name
-                && declared_reference_access(program, parameter.type_reference)
-                    == Some(psi_language_semantics::ReferenceAccess::Mutable)
-        }) {
-            return true;
-        }
-        program
-            .statement_table
-            .statements(state.statement_nodes)
-            .iter()
-            .any(|statement| {
-                let StatementNode::LocalData(local_data) = statement else {
-                    return false;
-                };
-                if local_data.name != *name {
-                    return false;
-                }
-                declared_reference_access(program, local_data.type_reference)
-                    == Some(psi_language_semantics::ReferenceAccess::Mutable)
-                    || (!local_data.type_reference.is_valid()
-                        && local_data.initial_value.is_valid()
-                        && matches!(
-                            program
-                                .expression_table
-                                .expression(local_data.initial_value),
-                            ExpressionNode::Borrow(borrow)
-                                if borrow.access
-                                    == psi_language_semantics::ReferenceAccess::Mutable
-                        ))
-            })
-    })
+    if path.head_symbol != path.symbol {
+        return false;
+    }
+    crate::locals::state_binding_type(
+        program,
+        current_machine,
+        state,
+        writable_roots.statements,
+        path.symbol,
+        name.as_str(),
+    )
+    .and_then(|reference| declared_reference_access(program, reference))
+        == Some(psi_language_semantics::ReferenceAccess::Mutable)
 }
 
 pub(crate) fn resolved_call_result_type(
@@ -752,7 +776,13 @@ fn validate_call_arguments_handles_with_policy_retention(
             // parameter that may write through it -- the borrow-safety hole
             // this arm used to skip silently (the unenforced write segfaulted
             // natively).
-            if !argument_forwards_mutable_reference(program, current_machine, *argument) {
+            if !argument_forwards_mutable_reference(
+                program,
+                current_machine,
+                current_state,
+                writable_roots,
+                *argument,
+            ) {
                 diagnostics.push(Diagnostic::error(format!(
                     "argument `{}` for state `{}` is declared `&mut` (`{}`), but the \
                      caller lends only immutable access -- pass `&mut ...` or forward a \

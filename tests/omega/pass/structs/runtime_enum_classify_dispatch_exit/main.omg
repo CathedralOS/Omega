@@ -9,10 +9,10 @@ data Main { console: Console; }
 machine Main::classify(&self, n: i32) -> Sign {
     transition n > 0 {
         true -> pos()
-        _ -> nonpos()
+        _ -> nonpos(n)
     }
     state pos(&self) -> Sign { transition { _ -> Sign::Pos } }
-    state nonpos(&self) -> Sign {
+    state nonpos(&self, n: i32) -> Sign {
         transition n < 0 { true -> neg() _ -> zero() }
     }
     state neg(&self) -> Sign { transition { _ -> Sign::Neg } }

@@ -91,6 +91,31 @@ fn explicit_state_arguments_finalize_nested_record_member_selections() {
 }
 
 #[test]
+fn entry_record_types_do_not_finalize_implicit_state_captures() {
+    let source = r#"
+        data Packet { value: u32; }
+        machine main() -> u32 {
+            let packet: Packet = Packet { value: 300 };
+            transition { _ -> inspect() }
+            state inspect() -> u32 { packet.value }
+        }
+    "#;
+    let tokens = Lexer::new(source).tokenize().expect("tokenize");
+    let syntax = parse_syntax_trees(&tokens).expect("parse");
+    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    let mut typed = lower_symbol_resolved_trees(&resolved).expect("type");
+    let diagnostic = crate::authored_selections::finalize_checked_authored_selections(
+        &mut typed,
+        &psi_checked_trees::CheckFacts::default(),
+    )
+    .expect_err("entry-local types cannot resolve a sibling state's receiver");
+    assert!(
+        diagnostic.message.contains("remained unresolved"),
+        "{diagnostic:?}"
+    );
+}
+
+#[test]
 fn successful_checking_finalizes_authored_call_occurrences() {
     let source = r#"
         machine identity(value: u32) -> u32 { value }

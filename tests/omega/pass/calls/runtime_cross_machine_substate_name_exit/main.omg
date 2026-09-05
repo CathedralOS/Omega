@@ -66,12 +66,12 @@ machine Main::main(&mut self) {
 
     transition v == 60 && i == 4 {
         true -> good()
-        _ -> bad()
+        _ -> bad(v)
     }
     state good(&mut self) {
         self.console.exit_process(70);
     }
-    state bad(&mut self) {
+    state bad(&mut self, v: i32) {
         self.console.exit_process(v); // surface read_at's wrong value (the bug returned 4)
     }
 }

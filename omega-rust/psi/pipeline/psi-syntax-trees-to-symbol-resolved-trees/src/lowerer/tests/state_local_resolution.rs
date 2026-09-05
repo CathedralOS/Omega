@@ -1,6 +1,136 @@
 use super::{Lexer, lower_syntax_trees, parse_syntax_trees};
 
 #[test]
+fn contract_membership_values_use_exact_callable_parameters() {
+    use psi_symbol_resolved_trees::{domain::ProofFact, expression::ExpressionNode};
+
+    let source = r#"
+        domain u64::Small requires self < 10;
+        machine run(value: u64)
+        requires value in Small
+        ensures value in Small
+        {
+            transition { _ -> next(value) }
+            state next(value: u64) requires value in Small {}
+        }
+    "#;
+    let syntax = parse_syntax_trees(&Lexer::new(source).tokenize().expect("tokenize"))
+        .expect("parse membership contracts");
+    let program = lower_syntax_trees(&syntax).expect("resolve membership contracts");
+    let machine = &program.machines[0];
+    let states = program.machine_state_handles(machine.states);
+    let entry = program.machine_state(states[0]);
+    let target = program.machine_state(states[1]);
+    let entry_parameter = program.state_parameters(entry.parameters)[0].symbol;
+    let target_parameter = program.state_parameters(target.parameters)[0].symbol;
+    assert_ne!(entry_parameter, target_parameter);
+    for (contracts, expected) in [
+        (machine.contracts, entry_parameter),
+        (target.contracts, target_parameter),
+    ] {
+        for contract in program
+            .tables
+            .declarations
+            .signature_contracts
+            .span_or_empty(contracts)
+        {
+            let [ProofFact::Membership(membership)] = program.proof_facts(contract.facts) else {
+                panic!("one membership fact");
+            };
+            let ExpressionNode::Name(path) = program
+                .tables
+                .bodies
+                .expressions
+                .expression(membership.value)
+            else {
+                panic!("parameter membership value");
+            };
+            assert_eq!(path.symbol, expected);
+            assert_eq!(path.head_symbol, expected);
+            assert_eq!(
+                membership.domain_symbol,
+                program.domain_definitions[0].symbol
+            );
+        }
+    }
+}
+
+#[test]
+fn state_contract_value_arguments_share_the_explicit_frontier() {
+    use psi_symbol_resolved_trees::{domain::ProofFact, expression::ExpressionNode};
+
+    let source = r#"
+        data Packet { value: u64; }
+        proposition related(left: u64, right: u64) = left == right;
+        domain u64::Small requires self < 10;
+        machine run(hidden: Packet) {
+            transition { _ -> next(hidden, [1], 0, 0) }
+            state next(current: Packet, items: [u64; 1], index: u64, Small: u64)
+            requires
+                current.value in Small;
+                items[index] in Small;
+                related(current.value, items[index]);
+                hidden.value in Small;
+            {}
+        }
+    "#;
+    let syntax = parse_syntax_trees(&Lexer::new(source).tokenize().expect("tokenize"))
+        .expect("parse projected contract values");
+    let program = lower_syntax_trees(&syntax).expect("resolve projected contract values");
+    let machine = &program.machines[0];
+    let state = program.machine_state(program.machine_state_handles(machine.states)[1]);
+    let parameters = program.state_parameters(state.parameters);
+    let contracts = program
+        .tables
+        .declarations
+        .signature_contracts
+        .span_or_empty(state.contracts);
+    let facts = program.proof_facts(contracts[0].facts);
+    assert_eq!(facts.len(), 4);
+    for fact in facts {
+        let value = match fact {
+            ProofFact::Membership(membership) => {
+                assert_eq!(
+                    membership.domain_symbol,
+                    program.domain_definitions[0].symbol
+                );
+                assert_ne!(membership.domain_symbol, parameters[3].symbol);
+                membership.value
+            }
+            ProofFact::Expression(expression) => *expression,
+        };
+        let mut pending = vec![value];
+        while let Some(expression) = pending.pop() {
+            let table = &program.tables.bodies.expressions;
+            match table.expression(expression) {
+                ExpressionNode::Name(path) => {
+                    let names = table.name_path_members(path.members);
+                    let expected = parameters
+                        .iter()
+                        .find(|parameter| parameter.name.as_str() == names[0].as_str())
+                        .map_or(psi_symbols::SymbolHandle::invalid(), |parameter| {
+                            parameter.symbol
+                        });
+                    assert_eq!(path.head_symbol, expected, "{}", names[0].as_str());
+                    if names.len() == 1 {
+                        assert_eq!(path.symbol, expected, "{}", names[0].as_str());
+                    }
+                }
+                ExpressionNode::Member(member) => pending.push(member.receiver),
+                ExpressionNode::Indexed(indexed) => {
+                    pending.extend([indexed.collection, indexed.index]);
+                }
+                ExpressionNode::Call(call) => {
+                    assert_eq!(call.target_symbol, program.propositions[0].symbol);
+                    pending.extend(table.expression_handles(call.arguments));
+                }
+                other => panic!("unexpected contract value: {other:?}"),
+            }
+        }
+    }
+}
+
+#[test]
 fn computed_receiver_does_not_select_a_same_spelling_free_machine() {
     for receiver in ["produce()", "bucket().cell", "array()[0]"] {
         let source = format!(
@@ -247,71 +377,112 @@ fn local_call_targets_follow_prior_declarations_not_receiver_spelling() {
 }
 
 #[test]
-fn nested_states_bind_entry_block_locals_to_the_entry_symbol() {
-    let source = r#"
-        data Header { room_id: u32; }
-        data Packet { header: Header; }
-        data Main {}
+fn named_states_require_explicit_entry_value_transfers() {
+    for (entry_parameters, setup) in [
+        (
+            "",
+            "let packet: Packet = Packet { header: Header { room_id: 300 } };",
+        ),
+        (", packet: Packet", ""),
+    ] {
+        for forwarded in [false, true] {
+            let (arguments, parameters, read_name) = if forwarded {
+                ("packet", ", selected: Packet", "selected")
+            } else {
+                ("", "", "packet")
+            };
+            let source = format!(
+                r#"
+                data Header {{ room_id: u32; }}
+                data Packet {{ header: Header; }}
+                data Main {{}}
+                machine Main::main(&mut self{entry_parameters}) {{
+                    {setup}
+                    transition {{ _ -> check_packet({arguments}) }}
+                    state check_packet(&mut self{parameters}) {{
+                        transition {read_name}.header.room_id == 300 {{ true -> {{}} _ -> {{}} }}
+                    }}
+                }}
+            "#
+            );
+            let tokens = Lexer::new(&source)
+                .tokenize()
+                .expect("tokenize state value frontier");
+            let syntax = parse_syntax_trees(&tokens).expect("parse state value frontier");
+            let program = lower_syntax_trees(&syntax).expect("resolve state value frontier");
+            let machine = program
+                .machines
+                .iter()
+                .find(|machine| machine.name.as_str() == "Main::main")
+                .expect("machine");
+            let states = program.machine_state_handles(machine.states);
+            let entry = program.machine_state(states[0]);
+            let target = program.machine_state(states[1]);
+            let source_symbol = program
+                .state_parameters(entry.parameters)
+                .iter()
+                .find(|parameter| parameter.name.as_str() == "packet")
+                .map(|parameter| parameter.symbol)
+                .or_else(|| {
+                    program
+                        .tables
+                        .bodies
+                        .statements
+                        .statements(entry.statement_nodes)
+                        .iter()
+                        .find_map(|statement| match statement {
+                            psi_symbol_resolved_trees::statement::StatementNode::LocalData(
+                                local,
+                            ) if local.name.as_str() == "packet" => Some(local.symbol),
+                            _ => None,
+                        })
+                })
+                .expect("entry declares packet");
+            assert!(source_symbol.is_valid());
 
-        machine Main::main(&mut self) {
-            let packet: Packet = Packet { header: Header { room_id: 300 } };
-
-            transition { _ -> check_packet() }
-
-            state check_packet(&mut self) {
-                transition packet.header.room_id == 300 { true -> {} _ -> {} }
+            // The read uses a distinct name when forwarded so it cannot be
+            // mistaken for the entry's transition argument expression.
+            let read = program
+                .tables
+                .bodies
+                .expressions
+                .iter_expressions()
+                .find_map(|(_, node)| match node {
+                    psi_symbol_resolved_trees::expression::ExpressionNode::Name(path)
+                        if program
+                            .tables
+                            .bodies
+                            .expressions
+                            .name_path_members(path.members)
+                            .iter()
+                            .map(psi_symbol_resolved_trees::name::DiagnosticName::as_str)
+                            .eq([read_name]) =>
+                    {
+                        Some(path)
+                    }
+                    _ => None,
+                })
+                .expect("target reads the packet root");
+            if forwarded {
+                let parameter = program
+                    .state_parameters(target.parameters)
+                    .iter()
+                    .find(|parameter| parameter.name.as_str() == "selected")
+                    .expect("explicit target parameter");
+                assert!(parameter.symbol.is_valid());
+                assert_ne!(parameter.symbol, source_symbol);
+                assert_eq!(read.symbol, parameter.symbol);
+                assert_eq!(read.head_symbol, parameter.symbol);
+            } else {
+                assert!(
+                    !read.symbol.is_valid(),
+                    "a declared entry value is not an ambient state binding"
+                );
+                assert!(
+                    !read.head_symbol.is_valid(),
+                    "the root must not retain the entry's identity"
+                );
             }
         }
-    "#;
-    let tokens = Lexer::new(source)
-        .tokenize()
-        .expect("tokenize captured local");
-    let syntax = parse_syntax_trees(&tokens).expect("parse captured local");
-    let program = lower_syntax_trees(&syntax).expect("resolve captured local");
-    let machine = program
-        .machines
-        .iter()
-        .find(|machine| machine.name.as_str() == "Main::main")
-        .expect("Main::main machine");
-    let states = program.machine_state_handles(machine.states);
-    let entry = program.machine_state(states[0]);
-    let psi_symbol_resolved_trees::statement::StatementNode::LocalData(local) = &program
-        .tables
-        .bodies
-        .statements
-        .statements(entry.statement_nodes)[0]
-    else {
-        panic!("entry block binds `packet`")
-    };
-
-    // `packet` appears only in the nested state's guard, so the sole Name
-    // expression spelling it is the captured read under test.
-    let packet = program
-        .tables
-        .bodies
-        .expressions
-        .iter_expressions()
-        .find_map(|(_, node)| match node {
-            psi_symbol_resolved_trees::expression::ExpressionNode::Name(path)
-                if program
-                    .tables
-                    .bodies
-                    .expressions
-                    .name_path_members(path.members)
-                    .iter()
-                    .map(psi_symbol_resolved_trees::name::DiagnosticName::as_str)
-                    .eq(["packet"]) =>
-            {
-                Some(path)
-            }
-            _ => None,
-        })
-        .expect("nested state reads `packet`");
-
-    assert!(local.symbol.is_valid(), "entry binding owns a symbol");
-    assert_eq!(
-        packet.symbol, local.symbol,
-        "a nested state must bind the entry block's `let` to its own symbol"
-    );
-    assert_eq!(packet.head_symbol, local.symbol);
+    }
 }

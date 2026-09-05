@@ -244,8 +244,8 @@ machine MacosGui::blit(&mut self, device: u64, dest_width: u32, dest_height: u32
 // macOS the drawing target is the window's image view, reached from the window, so
 // `get_dc` just echoes the window handle back (the sample only checks `> 0`).
 machine MacosGui::get_dc(&mut self, window: u64) -> u64 {
-    transition { _ -> ret() }
-    state ret(&mut self) -> u64 { window }
+    transition { _ -> ret(window) }
+    state ret(&mut self, window: u64) -> u64 { window }
 }
 
 // `Gui::msg_peek` — non-blocking event dequeue. `[NSApp nextEventMatchingMask:0xffffffff
@@ -337,32 +337,32 @@ data MacosInput {
 // gates to "not down". PURE machine: every arm state completes with a terminal
 // value, so it is legal inside a value-called callee (the effect fence).
 machine MacosInput::map_keycode(&mut self, virtual_key: u32) -> u64 {
-    transition virtual_key == 8 { true -> k51() _ -> t13() }
-    state t13(&mut self) -> u64 { transition virtual_key == 13 { true -> k36() _ -> t27() } }
-    state t27(&mut self) -> u64 { transition virtual_key == 27 { true -> k53() _ -> t37() } }
-    state t37(&mut self) -> u64 { transition virtual_key == 37 { true -> k123() _ -> t38() } }
-    state t38(&mut self) -> u64 { transition virtual_key == 38 { true -> k126() _ -> t39() } }
-    state t39(&mut self) -> u64 { transition virtual_key == 39 { true -> k124() _ -> t40() } }
-    state t40(&mut self) -> u64 { transition virtual_key == 40 { true -> k125() _ -> t48() } }
-    state t48(&mut self) -> u64 { transition virtual_key == 48 { true -> k29() _ -> t49() } }
-    state t49(&mut self) -> u64 { transition virtual_key == 49 { true -> k18() _ -> t50() } }
-    state t50(&mut self) -> u64 { transition virtual_key == 50 { true -> k19() _ -> t51() } }
-    state t51(&mut self) -> u64 { transition virtual_key == 51 { true -> k20() _ -> t52() } }
-    state t52(&mut self) -> u64 { transition virtual_key == 52 { true -> k21() _ -> t53() } }
-    state t53(&mut self) -> u64 { transition virtual_key == 53 { true -> k23() _ -> t54() } }
-    state t54(&mut self) -> u64 { transition virtual_key == 54 { true -> k22() _ -> t55() } }
-    state t55(&mut self) -> u64 { transition virtual_key == 55 { true -> k26() _ -> t56() } }
-    state t56(&mut self) -> u64 { transition virtual_key == 56 { true -> k28() _ -> t57() } }
-    state t57(&mut self) -> u64 { transition virtual_key == 57 { true -> k25() _ -> t67() } }
-    state t67(&mut self) -> u64 { transition virtual_key == 67 { true -> k8() _ -> t77() } }
-    state t77(&mut self) -> u64 { transition virtual_key == 77 { true -> k46() _ -> t82() } }
-    state t82(&mut self) -> u64 { transition virtual_key == 82 { true -> k15() _ -> t83() } }
-    state t83(&mut self) -> u64 { transition virtual_key == 83 { true -> k1() _ -> t106() } }
-    state t106(&mut self) -> u64 { transition virtual_key == 106 { true -> k67() _ -> t107() } }
-    state t107(&mut self) -> u64 { transition virtual_key == 107 { true -> k69() _ -> t109() } }
-    state t109(&mut self) -> u64 { transition virtual_key == 109 { true -> k78() _ -> t111() } }
-    state t111(&mut self) -> u64 { transition virtual_key == 111 { true -> k75() _ -> t187() } }
-    state t187(&mut self) -> u64 { transition virtual_key == 187 { true -> k24() _ -> unmapped() } }
+    transition virtual_key == 8 { true -> k51() _ -> t13(virtual_key) }
+    state t13(&mut self, virtual_key: u32) -> u64 { transition virtual_key == 13 { true -> k36() _ -> t27(virtual_key) } }
+    state t27(&mut self, virtual_key: u32) -> u64 { transition virtual_key == 27 { true -> k53() _ -> t37(virtual_key) } }
+    state t37(&mut self, virtual_key: u32) -> u64 { transition virtual_key == 37 { true -> k123() _ -> t38(virtual_key) } }
+    state t38(&mut self, virtual_key: u32) -> u64 { transition virtual_key == 38 { true -> k126() _ -> t39(virtual_key) } }
+    state t39(&mut self, virtual_key: u32) -> u64 { transition virtual_key == 39 { true -> k124() _ -> t40(virtual_key) } }
+    state t40(&mut self, virtual_key: u32) -> u64 { transition virtual_key == 40 { true -> k125() _ -> t48(virtual_key) } }
+    state t48(&mut self, virtual_key: u32) -> u64 { transition virtual_key == 48 { true -> k29() _ -> t49(virtual_key) } }
+    state t49(&mut self, virtual_key: u32) -> u64 { transition virtual_key == 49 { true -> k18() _ -> t50(virtual_key) } }
+    state t50(&mut self, virtual_key: u32) -> u64 { transition virtual_key == 50 { true -> k19() _ -> t51(virtual_key) } }
+    state t51(&mut self, virtual_key: u32) -> u64 { transition virtual_key == 51 { true -> k20() _ -> t52(virtual_key) } }
+    state t52(&mut self, virtual_key: u32) -> u64 { transition virtual_key == 52 { true -> k21() _ -> t53(virtual_key) } }
+    state t53(&mut self, virtual_key: u32) -> u64 { transition virtual_key == 53 { true -> k23() _ -> t54(virtual_key) } }
+    state t54(&mut self, virtual_key: u32) -> u64 { transition virtual_key == 54 { true -> k22() _ -> t55(virtual_key) } }
+    state t55(&mut self, virtual_key: u32) -> u64 { transition virtual_key == 55 { true -> k26() _ -> t56(virtual_key) } }
+    state t56(&mut self, virtual_key: u32) -> u64 { transition virtual_key == 56 { true -> k28() _ -> t57(virtual_key) } }
+    state t57(&mut self, virtual_key: u32) -> u64 { transition virtual_key == 57 { true -> k25() _ -> t67(virtual_key) } }
+    state t67(&mut self, virtual_key: u32) -> u64 { transition virtual_key == 67 { true -> k8() _ -> t77(virtual_key) } }
+    state t77(&mut self, virtual_key: u32) -> u64 { transition virtual_key == 77 { true -> k46() _ -> t82(virtual_key) } }
+    state t82(&mut self, virtual_key: u32) -> u64 { transition virtual_key == 82 { true -> k15() _ -> t83(virtual_key) } }
+    state t83(&mut self, virtual_key: u32) -> u64 { transition virtual_key == 83 { true -> k1() _ -> t106(virtual_key) } }
+    state t106(&mut self, virtual_key: u32) -> u64 { transition virtual_key == 106 { true -> k67() _ -> t107(virtual_key) } }
+    state t107(&mut self, virtual_key: u32) -> u64 { transition virtual_key == 107 { true -> k69() _ -> t109(virtual_key) } }
+    state t109(&mut self, virtual_key: u32) -> u64 { transition virtual_key == 109 { true -> k78() _ -> t111(virtual_key) } }
+    state t111(&mut self, virtual_key: u32) -> u64 { transition virtual_key == 111 { true -> k75() _ -> t187(virtual_key) } }
+    state t187(&mut self, virtual_key: u32) -> u64 { transition virtual_key == 187 { true -> k24() _ -> unmapped() } }
     state k1(&mut self) -> u64 { 1 }
     state k8(&mut self) -> u64 { 8 }
     state k15(&mut self) -> u64 { 15 }

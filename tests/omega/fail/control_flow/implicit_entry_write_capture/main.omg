@@ -1,0 +1,4 @@
+machine inspect(mut value: u64) {
+    transition { _ -> finish() }
+    state finish() { value = 7; }
+}
