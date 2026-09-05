@@ -139,6 +139,7 @@ fn lower_statement_node(
                 target_symbol: SymbolHandle::invalid(),
                 target: crate::name::lower_name(&call.target),
                 storage: CallStorage {
+                    receiver_root_symbol: SymbolHandle::invalid(),
                     receiver,
                     receiver_starts_at_self: call.receiver_starts_at_self,
                     machine_arguments: call
