@@ -344,6 +344,7 @@ const CROSS_TARGET_FAIL_CANARIES: &[(&str, &str)] = &[
 const CHECKED_ONLY_PASS_CANARIES: &[&str] = &[
     "operators/slice_index_bounds_from_operator_contract",
     "slices/bounded_slice_index_max",
+    "slices/direct_fixed_index_write_compile",
     "constraints/mutable_scalar_value_reads",
     "constraints/state_argument_value_snapshots",
     "constraints/guarded_integer_return_landing",
@@ -834,6 +835,9 @@ const CHECKED_ONLY_FAIL_CANARIES: &[&str] = &[
     "proofs/proof_integer_embedding_boolean",
     "proofs/proof_bignum_constant_false",
     "arithmetic/u64_range_fact_cap_store_rejected",
+    "arithmetic/bounded_initializer_unproven",
+    "arithmetic/bounded_return_unproven",
+    "arithmetic/bounded_transition_unproven",
     "proofs/proof_integer_embedding_runtime",
     "core/content_conservation_unqualified_place",
     "core/content_conservation_entry_former_retired",

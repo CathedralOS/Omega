@@ -1,6 +1,6 @@
 data Main {
-    health: i32;
 }
 
 machine Main::main(&mut self) {
+    let health: i32 [1..=100] = 500;
 }
