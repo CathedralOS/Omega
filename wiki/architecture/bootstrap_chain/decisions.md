@@ -5153,3 +5153,19 @@ remainder, bitwise and shift composition, division by zero, signed division
 overflow, invalid shift count, and suppression of a trapping right operand.
 Mutable storage, arrays/views, machine calls, state transitions, and remaining
 Console operations are the next execution frontier.
+
+## D130 — Scalar receiver fields have exact runtime homes
+
+The evaluator represents an established scalar receiver field as an immutable
+runtime row keyed by the checker-retained data declaration and member syntax
+identities. Missing rows read as Epsilon's required zero-initialized storage.
+Assignment evaluates its right side completely before replacing or prepending
+one exact field row, so a trap cannot partially mutate the home. No field name
+is resolved again during execution.
+
+This slice admits only direct `self.field` places whose retained member is an
+`i32` field. Nested records, `u8`, arrays, indexes, and nonreceiver bases remain
+unsupported. The evaluator is 9,285 lines and 461,593 bytes and compiles with
+its driver to a 543,978-byte Gamma receipt. A D-shaped control checks default
+zero, arithmetic assignment, read through a local, repeated update, and final
+Console output. Mutable arrays and indexed places are the next storage frontier.
