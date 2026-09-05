@@ -615,7 +615,18 @@ machine pair<'left, 'right>(
 The mapping follows nested records, sum payloads, fixed arrays, and concrete
 generic arguments, preserving each carried field's projection and polarity.
 Here `result.left` retains only `left`, while `result.right` retains only
-`right`. The same mapping survives when that helper result, or a moved
+`right`. Inputs may themselves be owned borrow-carrying records, sum payloads,
+or fixed arrays. Their declared reference lifetimes select the source leaves;
+matching input and output field names are not required. Every leaf with the
+selected lifetime within that one input remains a possible source, and each
+must support the result's declared access.
+The same lifetime on two distinct input parameters remains ambiguous. Without
+annotations, one carried reference in one input supports single-source elision;
+several unnamed carried references do not. Returning an owned carrier preserves
+the captured source loans and their access restrictions, not a borrow of the
+caller's private carrier storage.
+
+The same mapping survives when that helper result, or a moved
 borrow-carrying local, initializes a field or fixed-array element of another
 aggregate: the checker prefixes the inner loan path with the enclosing
 field/index path without merging sibling sources or weakening shared versus

@@ -9,7 +9,7 @@ use psi_typed_trees::TypedTrees;
 use psi_typed_trees::data::DataMember;
 use psi_typed_trees::types::{FixedArrayLength, TypeReferenceHandle, TypeReferenceNode};
 
-pub(super) fn declared_origins(
+pub(in crate::calls::write_frames) fn declared_origins(
     program: &TypedTrees,
     symbol: SymbolHandle,
     name: &str,
@@ -63,8 +63,15 @@ pub(super) fn declared_origins(
                 origins.references.push(StoredWriteOrigin {
                     local_symbol: symbol,
                     local_path: path.clone(),
-                    local_segments: segments,
-                    origin: FramePlaceOrigin { path, precision },
+                    local_segments: segments.clone(),
+                    origin: FramePlaceOrigin {
+                        path,
+                        precision,
+                        source: super::super::FrameSourcePlace {
+                            root: symbol,
+                            segments,
+                        },
+                    },
                 });
             }
             TypeReferenceNode::FixedArray {

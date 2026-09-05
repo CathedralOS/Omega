@@ -12,10 +12,14 @@ use psi_facts::PlaceSegment;
 use psi_typed_trees::statement::TableLocalData;
 
 mod projections;
+mod reference_values;
 mod type_origins;
 
 pub(super) use projections::reference_leaves_before_statement;
 pub(super) use projections::symbolic_reference_leaves;
+pub(super) use reference_values::canonical_reference_origins;
+pub(super) use reference_values::source_reaches_leaf;
+pub(super) use type_origins::declared_origins;
 pub(super) use type_origins::demand_is_declared;
 
 #[derive(Debug, Clone)]
@@ -80,7 +84,7 @@ pub(super) fn declaration_origins(
     )?;
     let mut origins = Vec::new();
     for leaf in leaves.references {
-        for origin in canonical_origins(&leaf.origin, aliases, stored) {
+        for origin in canonical_reference_origins(program, &leaf.origin, aliases, stored) {
             origins.push(StoredWriteOrigin {
                 local_symbol: local.symbol,
                 local_path: append_place_suffix(local.name.as_str(), &leaf.local_suffix),
@@ -181,6 +185,7 @@ fn compose_origin(
     precision: FramePathPrecision,
 ) -> FramePlaceOrigin {
     FramePlaceOrigin {
+        source: Default::default(),
         path: match origin.precision {
             FramePathPrecision::Exact => append_place_suffix(&origin.path, suffix),
             FramePathPrecision::CollectionCoarse => origin.path.clone(),
@@ -210,6 +215,7 @@ pub(super) fn expand_write_path(
         &FramePlaceOrigin {
             path: path.to_owned(),
             precision: FramePathPrecision::Exact,
+            source: Default::default(),
         },
         aliases,
         stored,

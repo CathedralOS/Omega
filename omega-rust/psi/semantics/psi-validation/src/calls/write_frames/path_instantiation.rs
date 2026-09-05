@@ -34,6 +34,7 @@ pub(super) fn instantiate_written_path(
     let receiver_origin = receiver_base.map(|path| FramePlaceOrigin {
         path: path.to_owned(),
         precision: FramePathPrecision::Exact,
+        source: Default::default(),
     });
     instantiate_written_path_with_origins(
         program,

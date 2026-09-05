@@ -46,10 +46,18 @@ pub(super) fn exclusive_reference_origin(
             declared_origin_root(program, current_machine, place.target)?;
             frame_place_path(program, place.target)
         }
-        ExpressionNode::Name(_) => Some(FramePlaceOrigin {
-            path: exclusive_reference_binding_path(program, current_machine, argument)?,
-            precision: FramePathPrecision::Exact,
-        }),
+        ExpressionNode::Name(_) => {
+            exclusive_reference_binding_path(program, current_machine, argument)
+                .map(|path| FramePlaceOrigin {
+                    path,
+                    precision: FramePathPrecision::Exact,
+                    source: super::FrameSourcePlace::from_expression(program, argument),
+                })
+                .or_else(|| carried_reference_origin(program, current_machine, argument))
+        }
+        ExpressionNode::Member(_) | ExpressionNode::Indexed(_) => {
+            carried_reference_origin(program, current_machine, argument)
+        }
         ExpressionNode::Call(call) => transparent_call_result_origin(
             program,
             call,
@@ -97,6 +105,55 @@ pub(super) fn exclusive_reference_origin(
         ),
         _ => None,
     }
+}
+
+/// An owned carrier transports its declared reference leaf as a value. This
+/// symbolic source is frozen by state transfer; it is not a loaded carrier
+/// behind another reference, nor permission to replace the reference slot.
+fn carried_reference_origin(
+    program: &TypedTrees,
+    machine: &Machine,
+    expression: ExpressionHandle,
+) -> Option<FramePlaceOrigin> {
+    let mut root_expression = expression;
+    loop {
+        root_expression = match program.expression_table.expression(root_expression) {
+            ExpressionNode::Name(_) => break,
+            ExpressionNode::Member(member) => member.receiver,
+            ExpressionNode::Indexed(indexed) => indexed.collection,
+            _ => return None,
+        };
+    }
+    let root_type =
+        super::caller_aliases::caller_name_root_type(program, machine, root_expression)?;
+    if super::type_reference_is_reference(program, root_type) {
+        return None;
+    }
+    let (state, _, _) =
+        caller_statement_at_site(program, machine, CallerWriteSite::Expression(expression))?;
+    let reference =
+        crate::places::declared_place_type_raw(program, machine, Some(state), expression)?;
+    if !exclusive_reference_has_owned_storage(program, reference) {
+        return None;
+    }
+    let origin = frame_place_path(program, expression)?;
+    let declared = super::stored_origins::declared_origins(
+        program,
+        origin.source.root,
+        program.symbols.name(origin.source.root),
+        root_type,
+    )?;
+    declared
+        .references
+        .iter()
+        .any(|leaf| {
+            origin.source.segments.len() == leaf.local_segments.len()
+                && super::stored_origins::source_reaches_leaf(
+                    &origin.source.segments,
+                    &leaf.local_segments,
+                )
+        })
+        .then_some(origin)
 }
 
 /// Raw borrowed paths retain a real caller declaration before their string
@@ -196,16 +253,21 @@ pub(super) fn owned_receiver_origin(
     }
     match program.expression_table.expression(expression) {
         ExpressionNode::Indexed(_) => Some(FramePlaceOrigin {
+            source: origin.source.projected(program, expression, parent),
             path: origin.path,
             precision: FramePathPrecision::CollectionCoarse,
         }),
-        ExpressionNode::Member(member) => Some(match origin.precision {
-            FramePathPrecision::Exact => FramePlaceOrigin {
-                path: format!("{}.{}", origin.path, member.member.as_str()),
-                precision: FramePathPrecision::Exact,
-            },
-            FramePathPrecision::CollectionCoarse => origin,
-        }),
+        ExpressionNode::Member(member) => {
+            let source = origin.source.projected(program, expression, parent);
+            Some(match origin.precision {
+                FramePathPrecision::Exact => FramePlaceOrigin {
+                    path: format!("{}.{}", origin.path, member.member.as_str()),
+                    precision: FramePathPrecision::Exact,
+                    source,
+                },
+                FramePathPrecision::CollectionCoarse => FramePlaceOrigin { source, ..origin },
+            })
+        }
         _ => None,
     }
 }

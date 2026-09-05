@@ -76,13 +76,11 @@ fn aggregate_helper_results_transport_complete_reference_origins() {
             "",
             Some(vec!["self.value"]),
         ),
-        // Owned-carrier formals need structural reference-boundary witnesses;
-        // a symbolic member path alone cannot authorize result transport.
         (
             "owned_carrier_formal_result",
             "let first: View = make_view(&mut self.value); let local: View = forward_view(first); write_view(local);",
             "",
-            None,
+            Some(vec!["self.value"]),
         ),
         (
             "terminal_value_transition",

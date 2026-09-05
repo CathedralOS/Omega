@@ -20,6 +20,11 @@
 //! - otherwise (an ELIDED output) exactly one ref input is the source (elision
 //!   rule 1); zero ref inputs leaves the output unlinked (historical behavior);
 //!   two or more are ambiguous and must be disambiguated with a lifetime.
+//!
+//! For aggregate results, input references include structurally carried leaves.
+//! Explicit lifetimes select one input parameter and every leaf carrying that
+//! lifetime within it; each must supply the result's access. Elision requires
+//! one contained source, not one parameter containing several unnamed sources.
 
 use psi_symbols::SymbolHandle;
 use psi_typed_trees::TypedTrees;
@@ -52,6 +57,8 @@ pub(crate) enum ViewReturnSource {
 #[derive(Debug, Clone)]
 pub(crate) struct ViewReturnFieldSource {
     pub(crate) owner_path: Vec<BorrowOwnerSegment>,
+    pub(crate) source_path: Vec<BorrowOwnerSegment>,
+    pub(crate) source_type: TypeReferenceHandle,
     pub(crate) non_self_index: usize,
     pub(crate) kind: psi_checked_trees::BorrowAccessKind,
 }
@@ -59,6 +66,10 @@ pub(crate) struct ViewReturnFieldSource {
 /// Why a view-returning signature could not be resolved to a single input.
 #[derive(Debug, Clone)]
 pub(crate) enum ViewReturnAmbiguity {
+    /// A declaration cannot supply a complete structural lifetime frontier.
+    IncompleteStructure { subject: String },
+    /// Source access cannot supply the result's access without escalation.
+    IncompatibleSourceAccess { input: String },
     /// Elided output with two or more candidate ref inputs (their names).
     ElidedMultipleInputs { candidates: Vec<String> },
     /// An explicit output lifetime that matches no input.
@@ -115,44 +126,8 @@ pub(crate) fn resolve_signature_view_return_source(
         }
     }
 
-    if let Some(output_fields) = aggregate_return_lifetimes(program, return_type) {
-        let mut fields = Vec::with_capacity(output_fields.len());
-        for output in output_fields {
-            let matching: Vec<&(usize, &str, Option<&str>)> = ref_parameters
-                .iter()
-                .filter(|(_, _, lifetime)| *lifetime == Some(output.lifetime.as_str()))
-                .collect();
-            match matching.as_slice() {
-                [] => {
-                    return ViewReturnSource::Ambiguous(
-                        ViewReturnAmbiguity::LifetimeMatchesNoInput {
-                            lifetime: output.lifetime,
-                        },
-                    );
-                }
-                [single] => fields.push(ViewReturnFieldSource {
-                    owner_path: output.owner_path,
-                    non_self_index: single.0,
-                    kind: if output.is_mutable {
-                        psi_checked_trees::BorrowAccessKind::Mutable
-                    } else {
-                        psi_checked_trees::BorrowAccessKind::Read
-                    },
-                }),
-                _ => {
-                    return ViewReturnSource::Ambiguous(
-                        ViewReturnAmbiguity::LifetimeMatchesMultipleInputs {
-                            lifetime: output.lifetime,
-                            candidates: matching
-                                .iter()
-                                .map(|(_, name, _)| (*name).to_owned())
-                                .collect(),
-                        },
-                    );
-                }
-            }
-        }
-        return ViewReturnSource::Fields { fields };
+    if !is_reference_type(program, return_type) {
+        return aggregate_view_return_source(program, parameters, return_type);
     }
 
     match reference_lifetime(program, return_type) {
@@ -207,263 +182,157 @@ fn reference_lifetime(program: &TypedTrees, type_reference: TypeReferenceHandle)
     }
 }
 
-#[derive(Clone)]
-struct AggregateReturnLifetime {
-    owner_path: Vec<BorrowOwnerSegment>,
-    lifetime: String,
-    is_mutable: bool,
-}
+mod carried_lifetimes;
 
-/// Instantiate the lifetime carried by each returned aggregate field. This is
-/// the result-contract derivation for ordinary records: the data declaration
-/// says which field uses which lifetime parameter, and the result application
-/// supplies those parameters' machine-lifetime arguments.
-fn aggregate_return_lifetimes(
+use carried_lifetimes::carried_lifetimes;
+
+fn aggregate_view_return_source(
     program: &TypedTrees,
-    type_reference: TypeReferenceHandle,
-) -> Option<Vec<AggregateReturnLifetime>> {
-    let TypeReferenceNode::Generic {
-        base_symbol,
-        lifetime_arguments,
-        arguments,
-        ..
-    } = program.type_reference_table.type_reference(type_reference)
-    else {
-        return None;
+    parameters: &[StateParameter],
+    return_type: TypeReferenceHandle,
+) -> ViewReturnSource {
+    let Some(outputs) = carried_lifetimes(program, return_type) else {
+        if let Some(source) = whole_elided_result_source(program, parameters, return_type) {
+            return source;
+        }
+        return ViewReturnSource::Ambiguous(ViewReturnAmbiguity::IncompleteStructure {
+            subject: "result".to_owned(),
+        });
     };
-    if lifetime_arguments.is_empty() {
-        return None;
+    if outputs.is_empty() {
+        return ViewReturnSource::NotApplicable;
     }
-    let definition = data_definition(program, *base_symbol)?;
-    let lifetime_substitutions = definition
-        .lifetime_parameters
+    let mut inputs = Vec::new();
+    for (index, parameter) in parameters
         .iter()
-        .zip(lifetime_arguments)
-        .map(|(parameter, argument)| (parameter.as_str().to_owned(), argument.as_str().to_owned()))
-        .collect::<Vec<_>>();
-    let type_arguments = program
-        .type_reference_table
-        .type_reference_handles(*arguments);
-    let type_substitutions = program
-        .data_type_parameters(definition)
-        .iter()
-        .zip(type_arguments)
-        .map(|(parameter, argument)| (parameter.symbol, *argument))
-        .collect::<Vec<_>>();
-    let mut output = Vec::new();
-    collect_data_return_lifetimes(
-        program,
-        definition,
-        &lifetime_substitutions,
-        &type_substitutions,
-        &[],
-        &mut Vec::new(),
-        &mut output,
-    );
-    (!output.is_empty()).then_some(output)
-}
-
-fn collect_type_return_lifetimes(
-    program: &TypedTrees,
-    type_reference: TypeReferenceHandle,
-    lifetime_substitutions: &[(String, String)],
-    type_substitutions: &[(SymbolHandle, TypeReferenceHandle)],
-    owner_path: &[BorrowOwnerSegment],
-    visiting: &mut Vec<SymbolHandle>,
-    output: &mut Vec<AggregateReturnLifetime>,
-) {
-    match program.type_reference_table.type_reference(type_reference) {
-        TypeReferenceNode::Reference {
-            access,
-            lifetime: Some(lifetime),
-            ..
-        } => {
-            let lifetime = lifetime_substitutions
-                .iter()
-                .rev()
-                .find_map(|(parameter, argument)| {
-                    (parameter == lifetime.as_str()).then_some(argument.clone())
-                })
-                .unwrap_or_else(|| lifetime.as_str().to_owned());
-            output.push(AggregateReturnLifetime {
-                owner_path: owner_path.to_vec(),
-                lifetime,
-                is_mutable: access.is_exclusive(),
+        .filter(|parameter| !parameter.is_self)
+        .enumerate()
+    {
+        if !returns_borrow(program, parameter.type_reference) {
+            continue;
+        }
+        let Some(leaves) = carried_lifetimes(program, parameter.type_reference) else {
+            return ViewReturnSource::Ambiguous(ViewReturnAmbiguity::IncompleteStructure {
+                subject: format!("input `{}`", parameter.name),
+            });
+        };
+        for leaf in leaves {
+            inputs.push((index, parameter, leaf));
+        }
+    }
+    // Retain historical source-free output handling. A carrier input containing
+    // one reference is now the same single-source elision case as a bare ref.
+    if inputs.is_empty() && outputs.iter().all(|output| output.lifetime.is_none()) {
+        return ViewReturnSource::NotApplicable;
+    }
+    let mut fields = Vec::new();
+    for output in outputs {
+        let matching = inputs
+            .iter()
+            .filter(|(_, _, input)| {
+                output
+                    .lifetime
+                    .as_ref()
+                    .is_none_or(|lifetime| input.lifetime.as_ref() == Some(lifetime))
+            })
+            .collect::<Vec<_>>();
+        let Some(first) = matching.first() else {
+            return ViewReturnSource::Ambiguous(ViewReturnAmbiguity::LifetimeMatchesNoInput {
+                lifetime: output.lifetime.unwrap_or_else(|| "elided".to_owned()),
+            });
+        };
+        if output.lifetime.is_none() && matching.len() != 1 {
+            return ViewReturnSource::Ambiguous(ViewReturnAmbiguity::ElidedMultipleInputs {
+                candidates: matching
+                    .iter()
+                    .map(|(_, parameter, input)| {
+                        format!("{} carried source {:?}", parameter.name, input.owner_path)
+                    })
+                    .collect(),
             });
         }
-        TypeReferenceNode::Reference { lifetime: None, .. } => {}
-        TypeReferenceNode::Constrained { base_type, .. } => collect_type_return_lifetimes(
-            program,
-            *base_type,
-            lifetime_substitutions,
-            type_substitutions,
-            owner_path,
-            visiting,
-            output,
-        ),
-        TypeReferenceNode::FixedArray {
-            element_type,
-            length,
-        } => {
-            if let psi_typed_trees::types::FixedArrayLength::Literal(length) = length {
-                for index in 0..*length {
-                    let mut element_path = owner_path.to_vec();
-                    element_path.push(BorrowOwnerSegment::FixedIndex(index));
-                    collect_type_return_lifetimes(
-                        program,
-                        *element_type,
-                        lifetime_substitutions,
-                        type_substitutions,
-                        &element_path,
-                        visiting,
-                        output,
-                    );
+        if matching.iter().any(|(index, _, _)| *index != first.0) {
+            let mut candidates = Vec::new();
+            for (_, parameter, _) in &matching {
+                let name = parameter.name.as_str().to_owned();
+                if !candidates.contains(&name) {
+                    candidates.push(name);
                 }
-            } else {
-                collect_type_return_lifetimes(
-                    program,
-                    *element_type,
-                    lifetime_substitutions,
-                    type_substitutions,
-                    owner_path,
-                    visiting,
-                    output,
-                );
             }
-        }
-        TypeReferenceNode::Generic {
-            base_symbol,
-            lifetime_arguments,
-            arguments,
-            ..
-        } => {
-            let Some(definition) = data_definition(program, *base_symbol) else {
-                return;
-            };
-            let nested_lifetimes = definition
-                .lifetime_parameters
-                .iter()
-                .zip(lifetime_arguments)
-                .map(|(parameter, argument)| {
-                    let argument = lifetime_substitutions
-                        .iter()
-                        .rev()
-                        .find_map(|(outer, concrete)| {
-                            (outer == argument.as_str()).then_some(concrete.clone())
-                        })
-                        .unwrap_or_else(|| argument.as_str().to_owned());
-                    (parameter.as_str().to_owned(), argument)
-                })
-                .collect::<Vec<_>>();
-            let nested_arguments = program
-                .type_reference_table
-                .type_reference_handles(*arguments);
-            let mut nested_types = type_substitutions.to_vec();
-            nested_types.extend(
-                program
-                    .data_type_parameters(definition)
-                    .iter()
-                    .zip(nested_arguments)
-                    .map(|(parameter, argument)| (parameter.symbol, *argument)),
-            );
-            collect_data_return_lifetimes(
-                program,
-                definition,
-                &nested_lifetimes,
-                &nested_types,
-                owner_path,
-                visiting,
-                output,
+            return ViewReturnSource::Ambiguous(
+                ViewReturnAmbiguity::LifetimeMatchesMultipleInputs {
+                    lifetime: output.lifetime.unwrap_or_else(|| "elided".to_owned()),
+                    candidates,
+                },
             );
         }
-        TypeReferenceNode::Named { symbol, .. } => {
-            if let Some((_, concrete)) = type_substitutions
-                .iter()
-                .rev()
-                .find(|(parameter, _)| parameter == symbol)
-            {
-                collect_type_return_lifetimes(
-                    program,
-                    *concrete,
-                    lifetime_substitutions,
-                    type_substitutions,
-                    owner_path,
-                    visiting,
-                    output,
-                );
-            } else if let Some(definition) = data_definition(program, *symbol) {
-                collect_data_return_lifetimes(
-                    program,
-                    definition,
-                    lifetime_substitutions,
-                    type_substitutions,
-                    owner_path,
-                    visiting,
-                    output,
-                );
-            }
+        if matching.iter().any(|(_, _, input)| {
+            use psi_language_semantics::ReferenceAccess;
+            input.access != output.access && input.access != ReferenceAccess::Mutable
+        }) {
+            return ViewReturnSource::Ambiguous(ViewReturnAmbiguity::IncompatibleSourceAccess {
+                input: first.1.name.as_str().to_owned(),
+            });
         }
-        TypeReferenceNode::ConstExpression(_)
-        | TypeReferenceNode::Slice { .. }
-        | TypeReferenceNode::DynamicTrait { .. }
-        | TypeReferenceNode::Unit => {}
+        for (index, parameter, input) in matching {
+            fields.push(ViewReturnFieldSource {
+                owner_path: output.owner_path.clone(),
+                source_path: input.owner_path.clone(),
+                source_type: parameter.type_reference,
+                non_self_index: *index,
+                kind: match output.access {
+                    psi_language_semantics::ReferenceAccess::Mutable => {
+                        psi_checked_trees::BorrowAccessKind::Mutable
+                    }
+                    psi_language_semantics::ReferenceAccess::Shared => {
+                        psi_checked_trees::BorrowAccessKind::Read
+                    }
+                    psi_language_semantics::ReferenceAccess::WriteOnly => {
+                        psi_checked_trees::BorrowAccessKind::WriteOnly
+                    }
+                },
+            });
+        }
     }
+    ViewReturnSource::Fields { fields }
 }
 
-fn collect_data_return_lifetimes(
+fn whole_elided_result_source(
     program: &TypedTrees,
-    definition: &psi_typed_trees::data::DataDefinition,
-    lifetime_substitutions: &[(String, String)],
-    type_substitutions: &[(SymbolHandle, TypeReferenceHandle)],
-    owner_path: &[BorrowOwnerSegment],
-    visiting: &mut Vec<SymbolHandle>,
-    output: &mut Vec<AggregateReturnLifetime>,
-) {
-    if visiting.contains(&definition.symbol) {
-        return;
+    parameters: &[StateParameter],
+    return_type: TypeReferenceHandle,
+) -> Option<ViewReturnSource> {
+    let output_accesses = carried_lifetimes::whole_elided_result_accesses(program, return_type)?;
+    // The existing whole-aggregate fallback carries read/mutable polarity;
+    // it cannot represent a write-only recursive result without escalation.
+    if output_accesses.contains(&psi_language_semantics::ReferenceAccess::WriteOnly) {
+        return None;
     }
-    visiting.push(definition.symbol);
-    for member in program.data_members(definition) {
-        match member {
-            psi_typed_trees::data::DataMember::Field(field) => {
-                let mut field_path = owner_path.to_vec();
-                if let Some(variant) = psi_facts::payload_variant_for_field(program, field.symbol) {
-                    field_path.push(BorrowOwnerSegment::Case(variant));
-                }
-                field_path.push(BorrowOwnerSegment::Field(field.symbol));
-                collect_type_return_lifetimes(
-                    program,
-                    field.type_reference,
-                    lifetime_substitutions,
-                    type_substitutions,
-                    &field_path,
-                    visiting,
-                    output,
-                );
-            }
-            psi_typed_trees::data::DataMember::Variant(variant) => {
-                for field in program.data_payload_fields(variant) {
-                    let mut field_path = owner_path.to_vec();
-                    if let Some(variant) =
-                        psi_facts::payload_variant_for_field(program, field.symbol)
-                    {
-                        field_path.push(BorrowOwnerSegment::Case(variant));
-                    }
-                    field_path.push(BorrowOwnerSegment::Field(field.symbol));
-                    collect_type_return_lifetimes(
-                        program,
-                        field.type_reference,
-                        lifetime_substitutions,
-                        type_substitutions,
-                        &field_path,
-                        visiting,
-                        output,
-                    );
-                }
-            }
-        }
+    let mut candidates = parameters
+        .iter()
+        .filter(|parameter| !parameter.is_self)
+        .enumerate()
+        .filter(|(_, parameter)| returns_borrow(program, parameter.type_reference));
+    let (index, parameter) = candidates.next()?;
+    if candidates.next().is_some() || !is_reference_type(program, parameter.type_reference) {
+        return None;
     }
-    visiting.pop();
+    let inputs = carried_lifetimes(program, parameter.type_reference)?;
+    let [input] = inputs.as_slice() else {
+        return None;
+    };
+    if !output_accesses.iter().all(|access| {
+        *access == input.access || input.access == psi_language_semantics::ReferenceAccess::Mutable
+    }) {
+        return Some(ViewReturnSource::Ambiguous(
+            ViewReturnAmbiguity::IncompatibleSourceAccess {
+                input: parameter.name.as_str().to_owned(),
+            },
+        ));
+    }
+    Some(ViewReturnSource::Parameter {
+        non_self_index: index,
+    })
 }
 
 /// Whether a type reference is a view (a reference, possibly under a

@@ -173,10 +173,21 @@ pub(in crate::calls::write_frames) fn reference_leaves_before_statement(
                 _ => break,
             }
         }
+        let mut origin = prior.origin.clone();
+        if declared_origins.is_some() {
+            // A type-derived wildcard describes all possible elements, but a
+            // moved fixed projection selects one. Preserve that selector in
+            // source evidence without narrowing the coarse write footprint.
+            for (source, selected) in origin.source.segments.iter_mut().zip(segments) {
+                if matches!(*source, PlaceSegment::Index { expression } if !expression.is_valid()) {
+                    *source = *selected;
+                }
+            }
+        }
         leaves.references.push(ReferenceLeaf {
             local_suffix,
             local_segments,
-            origin: prior.origin.clone(),
+            origin,
         });
     }
     for case in established.into_iter().flat_map(|local| &local.cases) {

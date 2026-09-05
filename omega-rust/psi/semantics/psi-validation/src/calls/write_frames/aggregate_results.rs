@@ -4,17 +4,14 @@
 use super::path_instantiation::aggregate_arguments::{
     AggregateOrigins, ReferenceLeaf, reference_leaves_with_origins,
 };
-use super::reference_origins::{
-    exclusive_reference_origin, exclusive_reference_referee, owned_receiver_origin,
-    referent_has_only_owned_storage,
-};
-use super::stored_origins::{canonical_origins, reference_leaves_before_statement};
+use super::stored_origins::{canonical_reference_origins, reference_leaves_before_statement};
 use super::{
-    FramePathPrecision, FramePlaceOrigin, Machine, StateParameter, StatementNode, SymbolHandle,
-    TableCallExpression, TopLevelSymbols, TypeReferenceHandle, TypedTrees, append_place_suffix,
-    machine_state_by_symbol, split_place_root, walk_state_write_prefix,
+    Machine, StatementNode, SymbolHandle, TableCallExpression, TopLevelSymbols,
+    TypeReferenceHandle, TypedTrees, machine_state_by_symbol, walk_state_write_prefix,
 };
 use psi_typed_trees::statement::{TransitionExit, TransitionGuardNode, TransitionTargetNode};
+
+mod input_sources;
 
 pub(super) fn call_result_origins(
     program: &TypedTrees,
@@ -160,7 +157,12 @@ pub(super) fn call_result_origins(
             cases: returned.cases,
         };
         for leaf in returned.references {
-            for origin in canonical_origins(&leaf.origin, &context.aliases, &context.stored) {
+            for origin in canonical_reference_origins(
+                program,
+                &leaf.origin,
+                &context.aliases,
+                &context.stored,
+            ) {
                 relative.references.push(ReferenceLeaf {
                     local_suffix: leaf.local_suffix.clone(),
                     local_segments: leaf.local_segments.clone(),
@@ -174,12 +176,16 @@ pub(super) fn call_result_origins(
     // Body recursion and finite repeated calls in caller syntax are distinct.
     // Finish the guarded body proof before substituting caller expressions;
     // any enclosing body guards remain active during that substitution.
-    let mut returned = result?;
-    for leaf in &mut returned.references {
-        let (root, suffix) = split_place_root(&leaf.origin.path);
-        let parameter = parameters
-            .iter()
-            .find(|parameter| parameter.name.as_str() == root)?;
+    let relative = result?;
+    let mut returned = AggregateOrigins {
+        references: Vec::new(),
+        cases: relative.cases,
+    };
+    for leaf in relative.references {
+        let parameter = parameters.iter().find(|parameter| {
+            leaf.origin.source.root == parameter.symbol
+                || (parameter.is_self && leaf.origin.source.root == machine.symbol)
+        })?;
         let actual = if parameter.is_self {
             call.receiver
         } else {
@@ -189,57 +195,22 @@ pub(super) fn call_result_origins(
                 .position(|candidate| candidate.symbol == parameter.symbol)?;
             *arguments.get(index)?
         };
-        leaf.origin = instantiate_source(
+        for origin in input_sources::instantiate_source(
             program,
             caller_machine,
             machine,
             parameter,
             actual,
-            suffix,
-            leaf.origin.precision,
+            &leaf.origin,
             symbols,
             active_states,
-        )?;
+        )? {
+            returned.references.push(ReferenceLeaf {
+                local_suffix: leaf.local_suffix.clone(),
+                local_segments: leaf.local_segments.clone(),
+                origin,
+            });
+        }
     }
     Some(returned)
-}
-
-#[allow(clippy::too_many_arguments)]
-fn instantiate_source(
-    program: &TypedTrees,
-    caller_machine: &Machine,
-    callee_machine: &Machine,
-    parameter: &StateParameter,
-    actual: super::ExpressionHandle,
-    suffix: &str,
-    precision: FramePathPrecision,
-    symbols: &TopLevelSymbols<'_>,
-    active_states: &mut Vec<SymbolHandle>,
-) -> Option<FramePlaceOrigin> {
-    // A nonempty coarse footprint on an owned parameter does not prove that
-    // this result crossed one of its reference fields: an indexed owned field
-    // can share that footprint with an unrelated reference-bearing sibling.
-    // Owned-carrier inputs need structural source-boundary evidence and loan
-    // transfer before they can participate in this result relation.
-    let referee = exclusive_reference_referee(program, parameter.type_reference)?;
-    let mut origin = if parameter.is_self {
-        let definition = program
-            .data_definitions()
-            .iter()
-            .find(|definition| definition.symbol == callee_machine.attached_data_symbol)?;
-        if !super::isolation::data_definition_has_only_owned_storage(program, definition) {
-            return None;
-        }
-        owned_receiver_origin(program, caller_machine, actual, symbols, active_states)?
-    } else {
-        if !referent_has_only_owned_storage(program, referee) {
-            return None;
-        }
-        exclusive_reference_origin(program, caller_machine, actual, symbols, active_states)?
-    };
-    if origin.precision == FramePathPrecision::Exact {
-        origin.path = append_place_suffix(&origin.path, suffix);
-        origin.precision = precision;
-    }
-    Some(origin)
 }
