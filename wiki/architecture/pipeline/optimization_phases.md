@@ -283,9 +283,14 @@ already selected representation into unit, structural-unit, or fixed-frame
 identity execution before custody is consumed; it never means try a specialized
 route and silently fall back. Consequently every selected-pipeline result owns a
 non-optional function-relative manifest. The remaining transitional split is one
-layer out: `NativePhysicalStageResult` still carries assigned operations in its
-ordinary and ranked identity arms but a completed optimizer-owned physical result
-in its optimized arm. Every optimizer-owned arm then enters one function-fragment
+layer out: `NativePhysicalStageResult` still carries assigned operations for
+ranked programs and ordinary identity programs beyond the supported fragment
+publication shape. Return-only Unit programs without runtime parameters,
+callbacks or provider settlement use the shared fragment stages even with empty
+selections. This migration boundary is checked before execution; a failure never
+selects the old route. Identity fragment publication preserves the original
+physical-evidence scope only after checking the retained empty selection identity.
+Every optimizer-owned arm then enters one function-fragment
 emission stage; the first native projection admits an exact return-only Unit
 shape and does not inspect which physical optimization variant produced it. The
 public request surface uses the closed post-Terminal selection type, so this
@@ -332,8 +337,10 @@ remaining realization replay carriers are transitional, not new canonical IRs.
    representation and produces a validated unit, structural-unit, or fixed-frame
    realization; it does not try one route and fall back to another. Its public
    function-relative manifest is therefore non-optional for every route. The
-   outer Terminal-to-native physical result still mixes assigned ordinary/ranked
-   identity plans with the optimized result. Optimizer-owned routes already
+   outer Terminal-to-native physical result still mixes assigned ranked and
+   richer ordinary identity plans with the shared fragment result. Return-only
+   identity programs already reach that result without selecting an optimization.
+   Optimizer-owned routes already
    converge through function-fragment emission and the bounded native projection
    is shape-driven rather than variant-driven. Replace the remaining mixed-depth
    outer carrier with one common physical postcondition, then extend native

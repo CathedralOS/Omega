@@ -10,7 +10,9 @@ pub(crate) fn selected_physical_pipeline_failed(
     selections: &optimization_core::OptimizationSelections,
     error: impl std::fmt::Display,
 ) -> Vec<Diagnostic> {
-    debug_assert!(!selections.is_empty());
+    if selections.is_empty() {
+        return realization_error("identity physical pipeline", error);
+    }
     let names = selections
         .as_slice()
         .iter()

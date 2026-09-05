@@ -251,6 +251,50 @@ data Build {
 }
 
 #[test]
+fn return_only_identity_build_preserves_complete_native_evidence() {
+    let root = project(
+        "identity-native-evidence",
+        Some(
+            r#"machine build(builder: &mut Build) {
+    builder.application("identity-native-evidence");
+    builder.roots.bind(windows_x86_64::ProgramEntry, Main::main);
+}
+"#,
+        ),
+    );
+    std::fs::write(
+        root.join("main.omg"),
+        "data Main {} machine Main::main() {}\n",
+    )
+    .expect("write receiver-free Unit entry");
+    let report = compiler::compile(
+        CompileRequest::new(CompileOptions {
+            root_path: root.join("main.omg"),
+            build_dir: Some(root.join("build")),
+            target_name: Some("windows_x86_64".into()),
+        })
+        .with_requested_product(RequestedCompileProduct::NativeArtifact),
+    )
+    .expect("identity fragment publication preserves complete native evidence");
+    let artifact = report
+        .retained_native_artifact()
+        .expect("retained native artifact");
+    artifact
+        .validate()
+        .expect("identity artifact independently replays");
+    assert!(matches!(
+        artifact.physical_evidence_scope(),
+        native_realization::NativePhysicalEvidenceScope::UnoptimizedCompleteBoundaryEvidence
+    ));
+    let physical = artifact
+        .physical_evidence()
+        .expect("complete empty physical evidence");
+    assert!(physical.projection().operator_occurrences().is_empty());
+    assert!(physical.projection().boundary_occurrences().is_empty());
+    assert!(physical.children().is_empty());
+}
+
+#[test]
 fn return_only_selected_lowering_build_rejoins_native_artifact_production() {
     let root = project(
         "fail-closed",
@@ -420,7 +464,8 @@ fn x86_rel8_relaxation_selection_round_trips_but_remains_default_off() {
     assert!(
         diagnostics[0]
             .message
-            .contains("`X86RelaxConditionalBranchesToRel8V1`")
+            .contains("`X86RelaxConditionalBranchesToRel8V1`"),
+        "{diagnostics:?}"
     );
     assert!(diagnostics[0].message.contains("no output was installed"));
     assert!(!build_dir.join("omega-program").exists());
@@ -654,7 +699,8 @@ fn shared_entry_fixed_view_copy_selection_round_trips_but_remains_default_off() 
     assert!(
         diagnostics[0]
             .message
-            .contains("`SharedEntryFixedViewCopyAfterCompareBeforeBranchV1`")
+            .contains("`SharedEntryFixedViewCopyAfterCompareBeforeBranchV1`"),
+        "{diagnostics:?}"
     );
     assert!(diagnostics[0].message.contains("no output was installed"));
     assert!(!build_dir.join("omega-program").exists());

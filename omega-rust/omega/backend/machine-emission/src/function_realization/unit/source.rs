@@ -32,24 +32,33 @@ pub(super) fn validate_source(
 pub fn validate_unit_shape(
     selected: &SelectedInstructionPlan,
 ) -> Result<(), OptimizedUnitFunctionRelativeRealizationError> {
-    let [function] = selected.functions.as_slice() else {
-        return Err(OptimizedUnitFunctionRelativeRealizationError::UnsupportedUnitShape);
-    };
-    let [block] = function.blocks.as_slice() else {
-        return Err(OptimizedUnitFunctionRelativeRealizationError::UnsupportedUnitShape);
-    };
-    let SelectedTerminator::Return { instruction, .. } = &block.terminator else {
-        return Err(OptimizedUnitFunctionRelativeRealizationError::UnsupportedUnitShape);
-    };
-    if selected.entry != function.machine
-        || function.attachment.is_some()
-        || function.entry_block != block.id
-        || !function.virtual_registers.is_empty()
-        || !block.instructions.is_empty()
-        || instruction.kind != SelectedInstructionKind::ReturnUnit
-        || !instruction.operands.is_empty()
+    if selected.functions.is_empty()
+        || !selected.structural_unit_functions.is_empty()
+        || !selected.projected_structural_call_returns.is_empty()
+        || !selected
+            .functions
+            .iter()
+            .any(|function| function.machine == selected.entry)
     {
         return Err(OptimizedUnitFunctionRelativeRealizationError::UnsupportedUnitShape);
+    }
+    for function in &selected.functions {
+        let [block] = function.blocks.as_slice() else {
+            return Err(OptimizedUnitFunctionRelativeRealizationError::UnsupportedUnitShape);
+        };
+        let SelectedTerminator::Return { instruction, .. } = &block.terminator else {
+            return Err(OptimizedUnitFunctionRelativeRealizationError::UnsupportedUnitShape);
+        };
+        // Attachment is semantic identity, not a runtime receiver. Selection
+        // has already retained every ABI input as an operand/register fact.
+        if function.entry_block != block.id
+            || !function.virtual_registers.is_empty()
+            || !block.instructions.is_empty()
+            || instruction.kind != SelectedInstructionKind::ReturnUnit
+            || !instruction.operands.is_empty()
+        {
+            return Err(OptimizedUnitFunctionRelativeRealizationError::UnsupportedUnitShape);
+        }
     }
     Ok(())
 }

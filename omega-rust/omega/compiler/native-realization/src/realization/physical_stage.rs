@@ -6,6 +6,9 @@ use crate::realization::model::NativeRealizationCoreRequest;
 use crate::realization::target_stage::{NativeTargetStageEvidence, NativeTargetStageResult};
 use diagnostics::Diagnostic;
 
+#[cfg(test)]
+mod tests;
+
 #[derive(Debug)]
 pub(crate) struct OptimizedNativePhysicalStage {
     pub(crate) physical: crate::StagedOptimizedVerifiedPhysicalPipeline,
@@ -18,9 +21,9 @@ pub(crate) struct OptimizedNativePhysicalStage {
 
 /// One completed physical-routing stage result.
 ///
-/// Ordinary and ranked programs share assignment and emission. The selected
-/// physical implementation still produces a different result and must converge
-/// without removing native forms currently supported by baseline assignment.
+/// Return-only identity programs share the fragment result with selected
+/// execution. Richer ordinary and ranked programs still use baseline assignment
+/// until their ABI, call and control facts reach the same fragment postcondition.
 #[derive(Debug)]
 pub(crate) enum NativePhysicalStageResult {
     Assigned(assigned_target_operations::AssignedOperationPlanWithNativeCallbacks),
@@ -39,7 +42,14 @@ pub(crate) fn lower_realization_physical_stage(
         NativeTargetStageEvidence::Ordinary(optimized_target) => {
             // Transitional physical split only. Target production and its
             // retained translation evidence no longer depend on this selection.
-            if request.optimization_selections.is_empty() {
+            if request.optimization_selections.is_empty()
+                && !(return_only_fragment_program(optimized_target.optimized().plan())
+                    && optimized_target.provider_installation().is_none()
+                    && request.settlements.is_empty()
+                    && request.compiler_builtins.is_empty()
+                    && request.native_callbacks.is_empty()
+                    && request.callback_thunks.is_empty())
+            {
                 return assign_current_target(&target, request);
             }
             let optimized_plan = optimized_target.optimized().plan().clone();
@@ -67,6 +77,29 @@ pub(crate) fn lower_realization_physical_stage(
             )))
         }
     }
+}
+
+/// Shapes whose complete ABI and publication already use the fragment path.
+/// This migration boundary is chosen from the current program, never by
+/// trying the new implementation and falling back after an error.
+fn return_only_fragment_program(plan: &abstract_operations::AbstractOperationPlan) -> bool {
+    !plan.functions.is_empty()
+        && plan.functions.iter().all(|function| {
+            function.parameters.is_empty()
+                && function.structural_parameters.is_empty()
+                && matches!(
+                    function.result,
+                    abstract_operations::AbstractFunctionResult::Unit
+                )
+                && matches!(function.block_entries.as_slice(), [block]
+                    if block.block == function.entry && block.operation_offset == 0
+                        && block.parameters.is_empty())
+                && matches!(
+                    function.operations.as_slice(),
+                    [abstract_operations::AbstractOperation::ReturnUnit { cleanup_actions, .. }]
+                        if cleanup_actions.is_empty()
+                )
+        })
 }
 
 fn assign_current_target(
