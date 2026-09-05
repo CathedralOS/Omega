@@ -5,6 +5,9 @@
 
 use omega_optimization_core::{Optimization, OptimizationSelectionIdentity};
 
+mod identities;
+pub use identities::*;
+
 /// Rule-independent evidence retained by later physical stages.
 ///
 /// The typed optimization result remains the authority for replay. This compact

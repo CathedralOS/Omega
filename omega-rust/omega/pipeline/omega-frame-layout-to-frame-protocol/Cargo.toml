@@ -9,6 +9,7 @@ name = "omega_frame_layout_to_frame_protocol"
 path = "src/lib.rs"
 
 [dependencies]
+omega-machine-code = { path = "../../representations/omega-machine-code" }
 omega-isa-aarch64 = { path = "../../backend/instruction_set_architectures/omega-isa-aarch64" }
 omega-isa-x86_64 = { path = "../../backend/instruction_set_architectures/omega-isa-x86_64" }
 omega-post-allocation-machine-to-frame-layout = { path = "../omega-post-allocation-machine-to-frame-layout" }

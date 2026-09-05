@@ -690,6 +690,7 @@ version = "0.1.0"
 dependencies = [
  "omega-isa-aarch64",
  "omega-isa-x86_64",
+ "omega-machine-code",
  "omega-post-allocation-machine-to-frame-layout",
  "omega-register-model",
  "omega-target",
@@ -1332,6 +1333,7 @@ name = "omega-post-allocation-machine-to-frame-layout"
 version = "0.1.0"
 dependencies = [
  "omega-callee-saved-requirements-to-save-storage",
+ "omega-machine-code",
  "omega-machine-optimizer",
  "omega-register-homes-to-callee-saved-requirements",
  "omega-register-homes-to-post-allocation-machine",

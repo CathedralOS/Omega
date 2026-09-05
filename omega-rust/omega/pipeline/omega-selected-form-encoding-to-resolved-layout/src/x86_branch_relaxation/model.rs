@@ -14,18 +14,7 @@ pub enum X86BranchRelaxationPolicy {
     X86RelaxConditionalBranchesToRel8V1,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub struct X86BranchRelaxationIdentity(pub(super) [u8; 32]);
-
-impl X86BranchRelaxationIdentity {
-    pub const fn from_bytes(bytes: [u8; 32]) -> Self {
-        Self(bytes)
-    }
-
-    pub const fn bytes(self) -> [u8; 32] {
-        self.0
-    }
-}
+pub use omega_machine_code::X86BranchRelaxationIdentity;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct X86BranchRelaxationRevisionIdentity(pub(super) [u8; 32]);

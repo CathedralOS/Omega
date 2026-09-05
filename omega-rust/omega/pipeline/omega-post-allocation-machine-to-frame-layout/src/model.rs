@@ -11,18 +11,7 @@ use crate::{
     NonAuthoritativeCalleeSaveStorageIdentity,
 };
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub struct TargetFrameLayoutIdentity([u8; 32]);
-
-impl TargetFrameLayoutIdentity {
-    pub const fn from_bytes(bytes: [u8; 32]) -> Self {
-        Self(bytes)
-    }
-
-    pub const fn bytes(self) -> [u8; 32] {
-        self.0
-    }
-}
+pub use omega_machine_code::TargetFrameLayoutIdentity;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum TargetFrameLayoutPolicy {

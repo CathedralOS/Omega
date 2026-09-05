@@ -5,6 +5,7 @@
 //! layout, authorize transformations, or grant executable publication.
 
 pub mod control_flow;
+pub mod evidence;
 pub mod functions;
 pub mod identity;
 pub mod policy;
@@ -12,6 +13,7 @@ pub mod program;
 pub mod structural;
 
 pub use control_flow::*;
+pub use evidence::*;
 pub use functions::*;
 pub use identity::{ResolvedSelectedFormLayoutIdentity, resolved_machine_layout_identity};
 pub use policy::*;

@@ -92,7 +92,7 @@ pub(super) fn artifact_identity(
         hasher.update(&action.new_bytes);
     }
     encode_functions(&mut hasher, functions);
-    X86BranchRelaxationIdentity(hasher.finalize().into())
+    X86BranchRelaxationIdentity::from_bytes(hasher.finalize().into())
 }
 
 fn encode_roots(hasher: &mut Sha256, roots: RevisionRoots) {

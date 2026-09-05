@@ -125,6 +125,48 @@ fn branch_relaxation_realization_owns_current_data_independently_of_replay() {
 }
 
 #[test]
+fn exit_contract_data_outlives_its_producer_without_granting_admission() {
+    for (target, relaxation) in [
+        (NativeTarget::linux_x64(), false),
+        (NativeTarget::linux_x64(), true),
+        (NativeTarget::linux_arm64(), false),
+    ] {
+        let mut realization = stage_selected_lowering_function_relative_realization(allocation(
+            target, true, relaxation,
+        ))
+        .unwrap();
+        let original: std::sync::Arc<omega_machine_code::WholeFunctionExitContract> =
+            realization.exit_contract().shared_contract();
+        assert!(std::sync::Arc::ptr_eq(
+            &original,
+            &realization.exit_contract().shared_contract(),
+        ));
+        assert_eq!(original.identity, original.recomputed_identity());
+        let custody =
+            validate_selected_lowering_function_relative_realization_custody(&realization).unwrap();
+
+        let changed = realization.exit_contract_mut().contract_mut();
+        changed.stack_alignment += 1;
+        changed.identity = changed.recomputed_identity();
+        assert_ne!(original.identity, changed.identity);
+        assert_eq!(
+            validate_selected_lowering_function_relative_realization_custody(&realization),
+            Err(FunctionRelativeOptimizationRealizationError::ExitContract(
+                WholeFunctionExitContractError::ArtifactMismatch,
+            )),
+        );
+        *realization.exit_contract_mut().contract_mut() = (*original).clone();
+        assert_eq!(
+            validate_selected_lowering_function_relative_realization_custody(&realization).unwrap(),
+            custody,
+        );
+        drop(realization);
+        assert!(!original.functions.is_empty());
+        assert_eq!(original.identity, original.recomputed_identity());
+    }
+}
+
+#[test]
 fn realization_receipt_roles_cannot_be_substituted_at_the_common_allocation_entrance() {
     assert!(matches!(
         stage_selected_lowering_function_relative_realization(allocation(

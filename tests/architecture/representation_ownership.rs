@@ -356,6 +356,54 @@ fn resolved_layout_data_and_identity_do_not_require_a_producing_stage() {
 }
 
 #[test]
+fn exit_contract_records_and_identities_are_representation_owned() {
+    let root = repository();
+    let machine =
+        rust_source(&root.join("omega-rust/omega/representations/omega-machine-code/src"));
+    let physical =
+        rust_source(&root.join("omega-rust/omega/representations/omega-physical-instructions/src"));
+    let pipeline = rust_source(&root.join("omega-rust/omega/pipeline"));
+    for declaration in [
+        "pub struct WholeFunctionExitContract {",
+        "pub struct WholeFunctionExitEvidence {",
+        "pub struct WholeFunctionReturnEvidence {",
+        "pub struct WholeFunctionStructuralUnitCallEvidence {",
+        "pub struct WholeFunctionStructuralUnitExitEvidence {",
+        "pub struct WholeFunctionExitContractIdentity(",
+        "pub struct TargetFrameLayoutIdentity(",
+        "pub struct TargetFrameProtocolEncodingIdentity(",
+        "pub struct X86BranchRelaxationIdentity(",
+    ] {
+        assert_eq!(machine.matches(declaration).count(), 1, "{declaration}");
+        assert!(
+            !pipeline.contains(declaration),
+            "producer still owns {declaration}"
+        );
+    }
+    for declaration in [
+        "pub struct Aarch64CbnzFusionIdentity(",
+        "pub struct Aarch64MovnMaterializationIdentity(",
+    ] {
+        assert_eq!(physical.matches(declaration).count(), 1, "{declaration}");
+        assert!(
+            !pipeline.contains(declaration),
+            "producer still owns {declaration}"
+        );
+    }
+    let wrapper = "pub struct ValidatedWholeFunctionExitContract {";
+    assert!(pipeline.contains(wrapper));
+    assert!(!machine.contains(wrapper));
+    assert!(machine.contains("omega.terminal.whole-function-exit-contract.v9"));
+    assert!(!pipeline.contains("omega.terminal.whole-function-exit-contract.v9"));
+    assert!(!machine.contains("omega_machine_optimizer::"));
+    assert!(!machine.contains("omega_optimization_pipeline::"));
+    assert!(
+        pipeline
+            .contains("pub fn shared_contract(&self) -> std::sync::Arc<WholeFunctionExitContract>")
+    );
+}
+
+#[test]
 fn resolved_layout_transformation_is_owned_outside_the_coordinator() {
     let root = repository();
     let owner =
