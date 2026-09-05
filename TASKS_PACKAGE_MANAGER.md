@@ -31,11 +31,13 @@ host credentials, and organizational review policy have separate owners.
   the existing compiler facets; do not invent broader build services to finish
   this task. Detect relevant source/build drift before publication.
 
-- [ ] **PACKAGE-MANAGER-RELEASE-AUDIT.** Complete real-command/network coverage
-  for dangerous initial installs, capability changes/removals, retained
-  dangerous authority, same-name/different-source, transitive authority, and
-  generated authority. Refresh the remaining remote mirrors/pins with retired
-  target syntax or sibling paths that cannot resolve in standalone Git trees.
+- [ ] **PACKAGE-MANAGER-RELEASE-AUDIT.** Extend real-command/network coverage to
+  capability changes/removals, same-name/different-source replacement,
+  transitive helper authority, and dangerous generated authority.
+  Refresh the remaining remote mirrors/pins: `network-overreach`,
+  `remote-journal`, `axiom-ledger`, `opaque-carrier`, `provider-switchboard`,
+  `capability-vault`, and `graph-workbench`. Remove retired target syntax and
+  sibling paths that cannot resolve in standalone Git trees.
   Test HTTPS and SSH independently where credentials permit.
   Cover missing baselines/old source, invalid proofs, spoofed boundaries,
   concurrent edits, and interruption recovery. Run relevant package, resolver,

@@ -1,7 +1,8 @@
 # file-journal
 
-Capability-bearing fixture. Its public API reaches the exact toolchain-owned
-`FilesystemHost` boundary rather than a package-authored lookalike.
+Capability-bearing fixture. Its public API reaches the exact `FilesystemHost`
+boundary supplied by the ordinary `host-services` dependency. Compiler-derived
+semantic binding identifies that declaration, not its name or repository.
 
 Expected package evidence:
 

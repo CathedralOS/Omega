@@ -1,0 +1,7 @@
+// package-manager fixture: no build-host reach; runtime API can terminate the process.
+
+machine build(builder: &mut Build) {
+    builder.package("process-exit");
+    builder.depend(Source::Git { repository: "git@github.com:CathedralOS/host-services.git", revision: "25c18b37f4891aa31b83e1434562fb2ab0994450" });
+    builder.select_provider<Console, ConsoleNativeProvider>();
+}

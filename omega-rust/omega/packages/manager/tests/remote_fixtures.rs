@@ -13,6 +13,9 @@ use std::collections::BTreeSet;
 use std::path::PathBuf;
 use std::time::{SystemTime, UNIX_EPOCH};
 
+#[path = "remote_fixtures/fixture.rs"]
+mod fixture;
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 struct RemotePin {
     package: String,
@@ -87,7 +90,7 @@ fn temp_root(name: &str) -> PathBuf {
 #[test]
 fn remote_fixture_pins_are_exact_and_match_local_package_names() {
     let pins = remote_pins();
-    assert_eq!(pins.len(), 11);
+    assert_eq!(pins.len(), 12);
     let mut packages = BTreeSet::new();
     for pin in &pins {
         PackageName::parse(&pin.package).expect("remote fixture package names must be kebab-case");
@@ -113,11 +116,73 @@ fn remote_fixture_pins_are_exact_and_match_local_package_names() {
 #[ignore = "requires network access plus private CathedralOS GitHub repository access over SSH"]
 #[test]
 fn remote_fixture_pins_resolve_to_local_fixture_contents() {
-    let cache = temp_root("cache");
+    verify_remote_pins(remote_pins(), target::TargetProfile::WindowsX64);
+}
+
+#[test]
+fn remote_authority_builds_pin_the_recorded_host_services_without_sibling_paths() {
+    use package_manager::declarations::{DependencySourceRequest, PackageSelection};
+    let fixture = fixture::Fixture::new();
+    let pins = remote_pins();
+    let host = pins
+        .iter()
+        .find(|pin| pin.package == "host-services")
+        .unwrap();
+    for name in ["file-journal", "process-exit"] {
+        let expected = fixture.expected_package(name);
+        assert_eq!(
+            extract_package_declaration(&expected)
+                .unwrap()
+                .name
+                .as_str(),
+            name
+        );
+        let requests = extract_dependency_projection(&expected).unwrap();
+        let [
+            DependencySourceRequest::Git {
+                explicit_alias,
+                repository,
+                revision,
+                selection,
+            },
+        ] = requests.as_slice()
+        else {
+            panic!("remote fixture must have one direct pinned Git dependency");
+        };
+        assert!(explicit_alias.is_none());
+        assert_eq!(repository, &ssh_url(host));
+        assert_eq!(revision, &host.commit);
+        assert_eq!(selection, &PackageSelection::Root);
+        let local = extract_dependency_projection(local_package_root(name)).unwrap();
+        assert!(
+            matches!(local.as_slice(), [DependencySourceRequest::Path { location, .. }] if location == "../host-services")
+        );
+    }
+}
+
+#[ignore = "requires private CathedralOS GitHub repository access over SSH for the complete closure"]
+#[test]
+fn refreshed_authority_pins_resolve_and_review_over_ssh() {
+    let pins = remote_pins()
+        .into_iter()
+        .filter(|pin| {
+            matches!(
+                pin.package.as_str(),
+                "host-services" | "file-journal" | "process-exit"
+            )
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(pins.len(), 3);
+    verify_remote_pins(pins, target::TargetProfile::LinuxX64);
+}
+
+fn verify_remote_pins(pins: Vec<RemotePin>, target: target::TargetProfile) {
+    let fixture = fixture::Fixture::new();
+    let cache = fixture.path("cache");
     std::fs::create_dir_all(&cache).expect("cache root should be creatable");
     let storage = SourceResolverStorage::for_hardened_base(&cache)
         .expect("create remote fixture resolver storage");
-    for pin in remote_pins() {
+    for pin in pins {
         let request = GitSourceRequest::new(ssh_url(&pin), Some(pin.commit.clone()))
             .expect("remote fixture request must be valid");
         let expected_lineage = SourceLineage::git(&pin.https_url)
@@ -135,11 +200,9 @@ fn remote_fixture_pins_resolve_to_local_fixture_contents() {
                         ssh_url(&pin)
                     )
                 });
-        let local = resolve_local_source(
-            local_package_root(&pin.package),
-            LocalSourceLimits::default(),
-        )
-        .expect("local fixture should resolve");
+        let expected_root = fixture.expected_package(&pin.package);
+        let local = resolve_local_source(&expected_root, LocalSourceLimits::default())
+            .expect("local fixture should resolve");
 
         assert_eq!(
             resolved.commit(),
@@ -180,7 +243,7 @@ fn remote_fixture_pins_resolve_to_local_fixture_contents() {
         assert_eq!(declared.key().name().as_str(), pin.package);
         assert_eq!(
             declared.dependency_requests(),
-            extract_dependency_projection(local_package_root(&pin.package))
+            extract_dependency_projection(&expected_root)
                 .expect("local fixture dependency projection should close"),
             "{} dependency projection drift",
             pin.package
@@ -193,11 +256,9 @@ fn remote_fixture_pins_resolve_to_local_fixture_contents() {
             pin.package
         );
 
-        if !declared.dependency_requests().is_empty() {
-            assert_eq!(
-                pin.package, "graph-workbench",
-                "only the workspace-graph fixture may require sibling package custody"
-            );
+        if pin.package == "graph-workbench" && !declared.dependency_requests().is_empty() {
+            // This unrefreshed remote still has sibling paths; its closure is
+            // not claimed covered by this content comparison.
             continue;
         }
 
@@ -228,16 +289,14 @@ fn remote_fixture_pins_resolve_to_local_fixture_contents() {
         assert_eq!(custody.resolution(), declared.resolution());
 
         let compiler_build = cache.join("compiler-build");
-        let reviews = compile_resolved_package_reviews(
-            &closure.for_exact_target(target::TargetProfile::WindowsX64),
-            &compiler_build,
-        )
-        .unwrap_or_else(|error| {
-            panic!(
-                "remote fixture {} should compile through package-aware review: {error:#?}",
-                pin.package
-            )
-        });
+        let reviews =
+            compile_resolved_package_reviews(&closure.for_exact_target(target), &compiler_build)
+                .unwrap_or_else(|error| {
+                    panic!(
+                        "remote fixture {} should compile through package-aware review: {error:#?}",
+                        pin.package
+                    )
+                });
         let issued = reviews
             .review(&expected_key)
             .expect("compiler review must retain the exact normalized root package key");
@@ -255,5 +314,4 @@ fn remote_fixture_pins_resolve_to_local_fixture_contents() {
             pin.package
         );
     }
-    let _ = std::fs::remove_dir_all(cache);
 }
