@@ -9,7 +9,7 @@ pub(super) fn nominal_fixture(path: &str) -> PackageReviewNominalIdentity {
     }
 }
 
-pub(super) fn fixture() -> PackagePolicyCallables {
+pub(in crate::encoding::recovery::policy) fn fixture() -> PackagePolicyCallables {
     let identity = nominal_fixture("inspect");
     let PackageReviewNominalOwner::Package(package) = identity.owner else {
         unreachable!()
@@ -182,6 +182,9 @@ fn policy_rejects_detached_roles_owners_coordinates_and_noncanonical_sets() {
     cases.push(changed);
     let mut changed = original.clone();
     changed.callables[0].role = PackagePolicyCallableRole::PrivateAssumption;
+    cases.push(changed);
+    let mut changed = original.clone();
+    changed.callables[0].role = PackagePolicyCallableRole::PrivateExternal;
     cases.push(changed);
     let mut changed = original.clone();
     changed.callables[0].role = PackagePolicyCallableRole::Boundary;

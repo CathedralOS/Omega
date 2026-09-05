@@ -2989,8 +2989,10 @@ including UEFI's separation of semantic permission identity from target-owned
 calling authority. Full checked calling context is reviewable baseline meaning,
 not a new permission key or a replacement for receiving-policy containment.
 Callable policy retains complete static/lifetime signatures and exact overloaded
-identities for public, boundary, selected-build, and private admission-claim
-surfaces. Actual conformance lifetime arguments remain separate from their
+identities for public, boundary, selected-build, private admission-claim, and
+private external-callable surfaces. An unused external leaf retains its own
+outer contracts and operational promises separately from the requirement it
+implements. Actual conformance lifetime arguments remain separate from their
 equality partition. Published reach, invocation and operational promises remain
 distinct from retained checked summaries; public suspension and blocking
 summaries conservatively use their published ceilings. Typed crash guards retain foreign owners,
@@ -3004,8 +3006,24 @@ the latter retains private helper Uses/Stores without changing the compiler's
 caller-flow propagation rules or including unreachable helpers. Canonical
 recovery retains these meanings under the shared structural resource budget,
 not compiler proof or crash-derivation tables.
-Complete baseline composition remains separate.
-These components alone are not a package baseline or an acceptance decision.
+Package policy composition joins these components with all seven public
+declaration families, every package-owned external supply, dangerous-authority
+and slack rows, and source-semantic dependencies. Private implementation
+consumers are grouped under their package while retaining exact dependency
+identities, kinds and exposure. Public and nested static signatures preserve
+absence of a result separately from any declared data result, typed crash
+guards, and complete progress establishment routes.
+D29 symbolic demands retain exact producer callable coordinates and direct
+type-binder mappings. Closed applications retain their exact operator and
+application, canonical selected-plan index, and authored realization or closed
+intrinsic meaning, not generated specialization state or execution commitments.
+One bounded envelope owns the complete baseline's resource accounting and
+checks package/target and structural associations without an old checkout.
+This inert baseline does not include source graph pins or historical decisions;
+those belong to lock composition. It also excludes source-location sidecars and
+compiler stand-down/discharge certificates. Fresh admission must still perform
+the independent compiler obligation and discharge checks. Neither component
+recovery nor baseline recovery is an acceptance decision.
 
 The project normally commits the lock and trusts whoever lands its changes.
 Recovery validates format and graph consistency, checks acquired sources against

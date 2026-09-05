@@ -1,7 +1,7 @@
 //! Target-independent source signature of a selected service application.
 
 use crate::record::{
-    PackageReviewTraitRequirementParameter, PackageReviewTypeIdentity, PackageReviewTypeParameter,
+    PackagePolicyTypeParameter, PackageReviewTraitRequirementParameter, PackageReviewTypeIdentity,
 };
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -11,7 +11,7 @@ pub struct PackagePolicyServiceSignature {
     pub(crate) requirement_arguments: Vec<PackageReviewTypeIdentity>,
     pub(crate) requirement_lifetime_arguments: Vec<u32>,
     pub(crate) requirement_lifetime_parameter_count: u32,
-    pub(crate) static_parameters: Vec<PackageReviewTypeParameter>,
+    pub(crate) static_parameters: Vec<PackagePolicyTypeParameter>,
     pub(crate) parameters: Vec<PackageReviewTraitRequirementParameter>,
     pub(crate) result: Option<PackageReviewTypeIdentity>,
 }
@@ -32,7 +32,7 @@ impl PackagePolicyServiceSignature {
     pub fn requirement_lifetime_parameter_count(&self) -> u32 {
         self.requirement_lifetime_parameter_count
     }
-    pub fn static_parameters(&self) -> &[PackageReviewTypeParameter] {
+    pub fn static_parameters(&self) -> &[PackagePolicyTypeParameter] {
         &self.static_parameters
     }
     pub fn parameters(&self) -> &[PackageReviewTraitRequirementParameter] {
@@ -70,6 +70,21 @@ impl super::PackagePolicyServiceMethod {
                 "provider typed service signature has inconsistent parameters or lifetimes",
             );
         }
+        let scope = crate::record::package::callable_policy::validation::signature::Scope {
+            outer: None,
+            statics: &[],
+            policy_statics: &signature.static_parameters,
+            proposition_binders: &[],
+            static_offset: 0,
+            lifetimes: signature.schema_lifetime_parameter_count as usize
+                + signature.requirement_lifetime_parameter_count as usize,
+            parameters: signature.parameters.len(),
+            nonself_parameters: signature.parameters.len(),
+            has_self: false,
+            result: signature.result.is_some(),
+            domain_subject: false,
+        };
+        crate::record::public_policy::validation::signatures::parameters(&scope, 0)?;
         if let Some(calling) = &self.calling
             && (signature.schema_arguments != calling.boundary_arguments
                 || signature.schema_lifetime_parameter_count

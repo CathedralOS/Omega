@@ -38,19 +38,7 @@ impl PackagePolicyRepresentation {
         if reader.u16()? != PACKAGE_REPRESENTATION_POLICY_VERSION {
             return Err(Error::UnsupportedVersion);
         }
-        let policy = Self {
-            package: package(&mut reader)?,
-            target: calling_application::shapes::target(&mut reader)?,
-            declarations: reader.sequence(41, nominal)?,
-            producer_availability: reader.sequence(1, availability::availability)?,
-            selected_availability: reader.sequence(1, selection)?,
-            demands: reader.sequence(1, |reader| {
-                Ok(PackagePolicyRepresentationDemand {
-                    opaque: nominal(reader)?,
-                    calling: calling_application::application(reader)?,
-                })
-            })?,
-        };
+        let policy = policy(&mut reader)?;
         reader.finish()?;
         policy
             .validate_canonical_structure()
@@ -65,6 +53,22 @@ impl PackagePolicyRepresentation {
         }
         Ok(policy)
     }
+}
+
+pub(super) fn policy(reader: &mut Reader<'_>) -> Result<PackagePolicyRepresentation, Error> {
+    Ok(PackagePolicyRepresentation {
+        package: package(reader)?,
+        target: calling_application::shapes::target(reader)?,
+        declarations: reader.sequence(41, nominal)?,
+        producer_availability: reader.sequence(1, availability::availability)?,
+        selected_availability: reader.sequence(1, selection)?,
+        demands: reader.sequence(1, |reader| {
+            Ok(PackagePolicyRepresentationDemand {
+                opaque: nominal(reader)?,
+                calling: calling_application::application(reader)?,
+            })
+        })?,
+    })
 }
 
 fn selection(reader: &mut Reader<'_>) -> Result<PackagePolicyRepresentationSelection, Error> {

@@ -4,6 +4,20 @@ use super::PackagePolicyTerminalService;
 use std::fmt::Write;
 
 pub(super) fn validate(service: &PackagePolicyTerminalService) -> Result<(), &'static str> {
+    let scope = crate::record::package::callable_policy::validation::signature::Scope {
+        outer: None,
+        statics: &[],
+        policy_statics: &service.static_parameters,
+        proposition_binders: &[],
+        static_offset: 0,
+        lifetimes: service.lifetime_parameter_count as usize,
+        parameters: 0,
+        nonself_parameters: 0,
+        has_self: false,
+        result: false,
+        domain_subject: false,
+    };
+    crate::record::public_policy::validation::signatures::parameters(&scope, 0)?;
     for method in &service.methods {
         if method.signature.schema_lifetime_parameter_count != service.lifetime_parameter_count
             || method.signature.schema_arguments.len() != service.static_parameters.len()

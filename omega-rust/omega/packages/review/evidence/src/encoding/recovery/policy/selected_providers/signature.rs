@@ -1,5 +1,5 @@
 use super::{Error, Reader};
-use crate::encoding::recovery::policy::{identity::type_identity, signatures::type_parameter};
+use crate::encoding::recovery::policy::{identity::type_identity, public_api::type_parameter};
 use crate::record::{PackagePolicyServiceSignature, PackageReviewTraitRequirementParameter};
 
 pub(super) fn signature(reader: &mut Reader<'_>) -> Result<PackagePolicyServiceSignature, Error> {

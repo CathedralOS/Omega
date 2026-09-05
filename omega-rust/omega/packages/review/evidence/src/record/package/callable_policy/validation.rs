@@ -1,9 +1,9 @@
 //! Structural policy consistency, not compiler proof or acceptance authority.
 
 mod behavior;
-mod signature;
-mod signature_contracts;
-mod signature_expressions;
+pub(in crate::record) mod signature;
+pub(in crate::record) mod signature_contracts;
+pub(in crate::record) mod signature_expressions;
 mod signature_parameters;
 mod structural;
 
@@ -38,6 +38,11 @@ impl PackagePolicyCallables {
             {
                 return Err("private assumption role has another callable supply");
             }
+            if callable.role == PackagePolicyCallableRole::PrivateExternal
+                && callable.supply != PackageReviewCallableSupply::ExternalRealization
+            {
+                return Err("private external role has another callable supply");
+            }
             let boundary_supply = matches!(
                 callable.supply,
                 PackageReviewCallableSupply::Boundary
@@ -54,6 +59,7 @@ impl PackagePolicyCallables {
                 PackagePolicyCallableRole::Public
                     | PackagePolicyCallableRole::Boundary
                     | PackagePolicyCallableRole::PrivateAssumption
+                    | PackagePolicyCallableRole::PrivateExternal
             ) && (callable.declared_service_reach.is_none()
                 || callable.declared_synchronous_invocations.is_none()
                 || callable.declared_may_suspend.is_none()
@@ -63,7 +69,9 @@ impl PackagePolicyCallables {
             }
             if matches!(
                 callable.role,
-                PackagePolicyCallableRole::Boundary | PackagePolicyCallableRole::PrivateAssumption
+                PackagePolicyCallableRole::Boundary
+                    | PackagePolicyCallableRole::PrivateAssumption
+                    | PackagePolicyCallableRole::PrivateExternal
             ) && callable.declared_termination.is_none()
             {
                 return Err("bodyless or boundary callable lacks its termination interface");

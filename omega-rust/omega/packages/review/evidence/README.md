@@ -74,17 +74,20 @@ local reconstruction question: recovered producer rows remain inert until the
 selected local compiler reconstructs the complete row set and requires exact
 equality.
 
-External executable supplies expose a separate `policy_projection()` retaining
+`project_checked_external_supply_policy` captures an exact checked machine's
+external executable supplies, retaining
 the complete callable signature, requirement, binding, target, and producer
 identity while omitting evaluator accounting and reconstruction receipts. Its
-bounded `OMEGA-EXTERNAL-SUPPLY-POLICY` component encoding is version 1.
+bounded `OMEGA-EXTERNAL-SUPPLY-POLICY` component encoding is version 2.
+Capture needs the original checked signatures: the legacy review shape cannot
+recover an absent result, complete nested progress routes, or actual conformance
+lifetime arguments after those distinctions have been projected away.
 `recover_canonical()` restores typed signatures, contracts, expressions, and
 bindings without an old checkout or compiler execution. Recovery rejects
 unknown vocabulary, truncated or trailing fields, and noncanonical encodings;
 caller ceilings can lower the hard byte, aggregate-element, owned-storage, and
 nesting limits. The existing full-review encoding and validators are unchanged.
-Integration into the complete normalized policy baseline remains separate;
-this component is not an accepted-lock record or an acceptance decision.
+This component is not an accepted-lock record or an acceptance decision.
 
 `project_checked_representation_policy` captures complete representation policy
 for one package in the checked closure. It keeps opaque declarations, full
@@ -96,7 +99,7 @@ The authoritative build's empty lifetime telescope is distinct from a called
 requirement's telescope. Its name, spans, and compiler receipts do not enter
 policy identity.
 
-The `OMEGA-REPRESENTATION-POLICY` version-1 encoding embeds full calling and
+The `OMEGA-REPRESENTATION-POLICY` version-2 encoding embeds full calling and
 conformance meanings under one recovery budget. It checks exact ownership,
 producer/selection associations, and complete opaque-use coverage within each
 retained calling application. This is inert policy, not reconstructed native
@@ -116,13 +119,13 @@ binding meaning, not evaluation receipts. Table bindings retain exact attached
 data identities; installation rows retain both the published ceiling and the
 checked realization reach.
 
-The `OMEGA-SELECTED-PROVIDER-POLICY` version-1 component places grants inside
+The `OMEGA-SELECTED-PROVIDER-POLICY` version-2 component places grants inside
 their complete normalized plan and links atomic family coordinates by canonical
 plan index. Recovery checks complete family coverage and typed structural
 associations under one shared resource budget. Generic declaration families
 remain distinct from actual D29 demands and realization evidence. Neither this
-component nor the existing review encoding is an accepted package baseline;
-baseline composition, lock recovery, and transactions remain separate work.
+component nor the existing review encoding is an acceptance decision;
+lock recovery and transactions remain separate work.
 
 `project_checked_terminal_permission_policy` retains supplied permissions
 independently of selected providers or demand. Each permitted service retains
@@ -131,7 +134,7 @@ root static and lifetime telescopes, structured signatures, and checked calling
 context when present. Generic declarations retain symbolic parameter relations;
 they do not invent a closed provider or calling application. An explicit empty
 class set is distinct from no permission. The bounded
-`OMEGA-TERMINAL-PERMISSION-POLICY` version-1 component shares the service codec
+`OMEGA-TERMINAL-PERMISSION-POLICY` version-2 component shares the service codec
 and one recovery budget with nested contracts and calling applications.
 
 Legacy review and policy capture share exact accepted-service and inherited
@@ -143,8 +146,11 @@ target-entry ABI authority. No policy component replaces native permission
 containment or proves that a supplied permission was accepted or exercised.
 
 `project_checked_callable_policy` captures boundary, public, selected-build,
-and private admission-claim surfaces for one exact checked root and target.
-The `OMEGA-CALLABLE-POLICY` version-1 component retains full static and lifetime
+private admission-claim, and private external-callable surfaces for one exact
+checked root and target. Private external leaves retain their own outer
+contracts and operational promises even when unused; an equal supplied
+requirement and binding do not imply equal authored leaf policy.
+The `OMEGA-CALLABLE-POLICY` version-2 component retains full static and lifetime
 signatures, ordered contracts, exact overloaded callable identities, and actual
 conformance lifetime arguments as well as their equality partition. Published
 reach, direct-invocation, suspension, blocking, and termination promises remain
@@ -166,7 +172,34 @@ normalization. Recovery restores typed records with one shared budget for nested
 signatures and expressions, checks scope and structural associations, and
 requires exact canonical re-encoding. Neither operation recovers proof or crash
 derivation tables, grants authority, or certifies an assumption. The existing
-review encoding is unchanged; complete baseline composition remains separate.
+review encoding is unchanged.
+
+`project_checked_package_policy` composes `PackagePolicyBaseline` for one exact
+checked root package and target. Its version-1 `OMEGA-PACKAGE-POLICY` envelope
+contains all seven public declaration families, the normalized components above,
+every package-owned external supply (including unused private leaves), dangerous
+authority and ceiling slack, semantic dependencies, and D29 application links.
+Private semantic consumers are grouped under their package without dropping
+dependency kind or exposure; exact attached cleanup declarations remain visible.
+D29 symbolic demands retain the exact producer callable and type-binder mapping.
+Closed applications link to canonical selected-plan positions and retain their
+authored realization or closed intrinsic, without specialization state names or
+execution commitments.
+
+Public and nested policy signatures distinguish no result from a declared empty
+data result, retain typed crash guards and complete progress establishment routes,
+and preserve lexical static/lifetime scopes. The affected component schemas,
+including `OMEGA-CALLING-POLICY`, are version 2; old policy versions require fresh
+comparison rather than an inferred upgrade from lossy records.
+
+The whole baseline uses one byte, element, allocation, and nesting budget,
+without nested envelopes or budget resets. Recovery checks component
+package/target agreement, declaration scopes, canonical ordering and retained
+cross-component associations, then exact re-encoding. It needs no old checkout.
+This is not a lock or a policy decision: source graph/pin and historical-decision
+integration remain manager work. Source locations, proof certificates,
+stand-down/discharge records and replay receipts are excluded. Fresh compiler
+stand-down and discharge validation remains independently required at admission.
 
 The supported result lanes do not pretend to prove a bodyless accepted claim,
 grant dangerous authority, validate externally supplied executable code, or

@@ -1,14 +1,17 @@
 use super::{
     Error, PackagePolicyRecoveryLimits,
+    callable_policy::callable_conformance,
     identity::{nominal, operator_coordinate, package, type_identity},
+    public_api::type_parameter,
     reader::Reader,
-    signatures::external_signature,
+    signatures::conformance_bound,
 };
 use crate::encoding::{EXTERNAL_SUPPLY_POLICY_MAGIC, PACKAGE_EXTERNAL_SUPPLY_POLICY_VERSION};
 use crate::record::{
     PackagePolicyEvaluatedBindingProducer, PackagePolicyExternalBinding,
-    PackagePolicyExternalExecutableSupply, PackageReviewCallableConformance,
-    PackageReviewExternalRequirement, PackageReviewForeignLocator,
+    PackagePolicyExternalCallableSignature, PackagePolicyExternalExecutableSupply,
+    PackagePolicyExternalRequirement, PackageReviewExternalCallableParameter,
+    PackageReviewForeignLocator,
 };
 
 impl PackagePolicyExternalExecutableSupply {
@@ -24,12 +27,7 @@ impl PackagePolicyExternalExecutableSupply {
         if reader.u16()? != PACKAGE_EXTERNAL_SUPPLY_POLICY_VERSION {
             return Err(Error::UnsupportedVersion);
         }
-        let supply = Self {
-            callable: nominal(&mut reader)?,
-            signature: external_signature(&mut reader)?,
-            requirement: requirement(&mut reader)?,
-            binding: binding(&mut reader)?,
-        };
+        let supply = policy(&mut reader)?;
         reader.finish()?;
         reader.canonical_scratch(bytes.len())?;
         // The ordinary encoder also checks cross-field representation rules,
@@ -46,20 +44,44 @@ impl PackagePolicyExternalExecutableSupply {
     }
 }
 
-fn requirement(reader: &mut Reader<'_>) -> Result<PackageReviewExternalRequirement, Error> {
+pub(super) fn policy(
+    reader: &mut Reader<'_>,
+) -> Result<PackagePolicyExternalExecutableSupply, Error> {
+    Ok(PackagePolicyExternalExecutableSupply {
+        callable: nominal(reader)?,
+        signature: external_signature(reader)?,
+        requirement: requirement(reader)?,
+        binding: binding(reader)?,
+    })
+}
+
+fn external_signature(
+    reader: &mut Reader<'_>,
+) -> Result<PackagePolicyExternalCallableSignature, Error> {
+    Ok(PackagePolicyExternalCallableSignature {
+        lifetime_parameter_count: reader.usize()?,
+        static_parameters: reader.sequence(3, type_parameter)?,
+        conformance_bounds: reader.sequence(1, conformance_bound)?,
+        parameters: reader.sequence(11, |reader| {
+            Ok(PackageReviewExternalCallableParameter {
+                type_identity: type_identity(reader)?,
+                is_const: reader.boolean()?,
+                is_mutable: reader.boolean()?,
+                is_self: reader.boolean()?,
+            })
+        })?,
+        return_type: reader.option(type_identity)?,
+    })
+}
+
+fn requirement(reader: &mut Reader<'_>) -> Result<PackagePolicyExternalRequirement, Error> {
     Ok(match reader.byte()? {
-        0 => PackageReviewExternalRequirement::Trait(PackageReviewCallableConformance {
-            trait_identity: nominal(reader)?,
-            requirement_identity: nominal(reader)?,
-            requirement_lifetime_partition: reader.sequence(4, Reader::u32)?,
-            arguments: reader.sequence(8, type_identity)?,
-            alias: reader.option(Reader::string)?,
-        }),
-        1 => PackageReviewExternalRequirement::Operator {
+        0 => PackagePolicyExternalRequirement::Trait(callable_conformance(reader)?),
+        1 => PackagePolicyExternalRequirement::Operator {
             coordinate: operator_coordinate(reader)?,
             alias: reader.option(Reader::string)?,
         },
-        2 => PackageReviewExternalRequirement::TopLevelRequirement {
+        2 => PackagePolicyExternalRequirement::TopLevelRequirement {
             identity: nominal(reader)?,
             signature: external_signature(reader)?,
             alias: reader.option(Reader::string)?,

@@ -41,7 +41,7 @@ fn every_truncation_unknown_envelope_and_trailing_bytes_reject() {
     changed[0] ^= 1;
     assert_eq!(recover(&changed), Err(Error::UnsupportedVersion));
     let mut changed = bytes.clone();
-    changed[REPRESENTATION_POLICY_MAGIC.len()..][..2].copy_from_slice(&2u16.to_le_bytes());
+    changed[REPRESENTATION_POLICY_MAGIC.len()..][..2].copy_from_slice(&u16::MAX.to_le_bytes());
     assert_eq!(recover(&changed), Err(Error::UnsupportedVersion));
     let mut changed = bytes;
     changed.push(0);

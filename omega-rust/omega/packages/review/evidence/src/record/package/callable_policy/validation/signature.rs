@@ -6,39 +6,86 @@ use super::{
 };
 use crate::record::*;
 
-pub(super) type Result = std::result::Result<(), &'static str>;
+pub(in crate::record) type Result = std::result::Result<(), &'static str>;
 
 #[derive(Clone, Copy)]
-pub(super) struct Scope<'a> {
+pub(in crate::record) enum BinderKind<'a> {
+    Type,
+    Const,
+    Machine,
+    Proposition(&'a PackageReviewPropositionParameterSignature),
+}
+
+#[derive(Clone, Copy)]
+pub(in crate::record) struct Scope<'a> {
     pub outer: Option<&'a Scope<'a>>,
     pub statics: &'a [PackageReviewTypeParameter],
+    pub policy_statics: &'a [PackagePolicyTypeParameter],
+    pub proposition_binders: &'a [PackageReviewPropositionBinder],
     pub static_offset: usize,
     pub lifetimes: usize,
     pub parameters: usize,
     pub nonself_parameters: usize,
     pub has_self: bool,
     pub result: bool,
+    pub domain_subject: bool,
 }
 impl Scope<'_> {
-    pub fn static_kind(&self, ordinal: u32) -> Option<&PackageReviewTypeParameterKind> {
+    pub fn static_kind(&self, ordinal: u32) -> Option<BinderKind<'_>> {
         let ordinal = ordinal as usize;
         if ordinal < self.static_offset {
             self.outer?.static_kind(ordinal as u32)
         } else {
+            let local = ordinal - self.static_offset;
+            if !self.policy_statics.is_empty() {
+                return self
+                    .policy_statics
+                    .get(local)
+                    .map(|parameter| match &parameter.kind {
+                        PackagePolicyTypeParameterKind::Type => BinderKind::Type,
+                        PackagePolicyTypeParameterKind::Const(_) => BinderKind::Const,
+                        PackagePolicyTypeParameterKind::Machine(_) => BinderKind::Machine,
+                        PackagePolicyTypeParameterKind::Proposition(signature) => {
+                            BinderKind::Proposition(signature)
+                        }
+                    });
+            }
+            if !self.proposition_binders.is_empty() {
+                return self
+                    .proposition_binders
+                    .get(local)
+                    .map(|binder| match &binder.kind {
+                        PackageReviewPropositionBinderKind::Type => BinderKind::Type,
+                        PackageReviewPropositionBinderKind::Const(_) => BinderKind::Const,
+                        PackageReviewPropositionBinderKind::Machine => BinderKind::Machine,
+                    });
+            }
             self.statics
-                .get(ordinal - self.static_offset)
-                .map(|parameter| &parameter.kind)
+                .get(local)
+                .map(|parameter| match &parameter.kind {
+                    PackageReviewTypeParameterKind::Type => BinderKind::Type,
+                    PackageReviewTypeParameterKind::Const(_) => BinderKind::Const,
+                    PackageReviewTypeParameterKind::Machine(_) => BinderKind::Machine,
+                    PackageReviewTypeParameterKind::Proposition(signature) => {
+                        BinderKind::Proposition(signature)
+                    }
+                })
         }
     }
     pub fn static_count(&self) -> usize {
-        self.static_offset + self.statics.len()
+        self.static_offset
+            + self.statics.len()
+            + self.policy_statics.len()
+            + self.proposition_binders.len()
     }
 }
 
 fn scope(callable: &PackagePolicyCallable) -> Scope<'_> {
     Scope {
         outer: None,
-        statics: &callable.type_parameters,
+        statics: &[],
+        policy_statics: &callable.type_parameters,
+        proposition_binders: &[],
         static_offset: 0,
         lifetimes: callable.lifetime_parameter_count,
         parameters: callable.parameters.len(),
@@ -52,6 +99,7 @@ fn scope(callable: &PackagePolicyCallable) -> Scope<'_> {
             .iter()
             .any(|parameter| parameter.is_self),
         result: callable.return_type.is_some(),
+        domain_subject: false,
     }
 }
 
@@ -82,7 +130,7 @@ pub(super) fn validate(callable: &PackagePolicyCallable) -> Result {
         }
         if !matches!(
             scope.static_kind(bound.subject_parameter),
-            Some(PackageReviewTypeParameterKind::Type)
+            Some(BinderKind::Type)
         ) {
             return Err("conformance bound subject is not a declared type parameter");
         }
@@ -163,17 +211,17 @@ pub(super) fn expression(
     expressions::expression(value, &scope, 0)
 }
 
-pub(super) fn text(value: &str) -> Result {
+pub(in crate::record) fn text(value: &str) -> Result {
     if value.is_empty() {
         Err("empty signature identity or name")
     } else {
         Ok(())
     }
 }
-pub(super) fn value_type(value: &PackageReviewTypeIdentity) -> Result {
+pub(in crate::record) fn value_type(value: &PackageReviewTypeIdentity) -> Result {
     text(&value.canonical)
 }
-pub(super) fn nominal(value: &PackageReviewNominalIdentity) -> Result {
+pub(in crate::record) fn nominal(value: &PackageReviewNominalIdentity) -> Result {
     text(&value.path)?;
     if value.owner == PackageReviewNominalOwner::Unresolved {
         Err("signature nominal has no exact owner")
@@ -181,7 +229,7 @@ pub(super) fn nominal(value: &PackageReviewNominalIdentity) -> Result {
         Ok(())
     }
 }
-pub(super) fn owned_pair(
+pub(in crate::record) fn owned_pair(
     owner: &PackageReviewNominalIdentity,
     member: &PackageReviewNominalIdentity,
 ) -> Result {
@@ -193,19 +241,23 @@ pub(super) fn owned_pair(
         Ok(())
     }
 }
-pub(super) fn operator(value: &PackageReviewOperatorCoordinate) -> Result {
+pub(in crate::record) fn operator(value: &PackageReviewOperatorCoordinate) -> Result {
     nominal(&value.identity)?;
     // Empty result dispatch is exact meaning for operand-directed operators.
     text(&value.parameter_dispatch)
 }
-pub(super) fn depth(depth: usize) -> Result {
+pub(in crate::record) fn depth(depth: usize) -> Result {
+    // Zero-based depth of recursive wire owners: machine contracts,
+    // contract expressions, and static arguments. Nonrecursive signature,
+    // fact, proposition, and behavior wrappers do not consume another level.
+    // This agrees with Reader::nested and the policy writer at the frontier.
     if depth >= 128 {
         Err("signature structure exceeds bounded nesting")
     } else {
         Ok(())
     }
 }
-pub(super) fn lifetimes(ordinals: &[u32], scope: &Scope<'_>) -> Result {
+pub(in crate::record) fn lifetimes(ordinals: &[u32], scope: &Scope<'_>) -> Result {
     if ordinals
         .iter()
         .any(|ordinal| *ordinal as usize >= scope.lifetimes)

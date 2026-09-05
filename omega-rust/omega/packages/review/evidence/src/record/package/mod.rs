@@ -1,4 +1,9 @@
-mod callable_policy;
+mod boundary_policy;
+pub(in crate::record) mod callable_policy;
+pub use boundary_policy::{
+    PackagePolicyBoundaryApplicationDemand, PackagePolicyBoundaryApplicationRealization,
+    PackagePolicyBoundaryApplications, PackagePolicyBoundaryRealization,
+};
 mod callables;
 pub use callable_policy::{
     PackagePolicyCallable, PackagePolicyCallableConformance, PackagePolicyCallableRole,

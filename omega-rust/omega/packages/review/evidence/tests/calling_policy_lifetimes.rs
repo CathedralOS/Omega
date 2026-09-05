@@ -141,3 +141,34 @@ boundary trait HookProcedure: Calling<HookProcedurePolicy> {
     assert_eq!(shadowed.static_parameters(), renamed.static_parameters());
     assert_ne!(shadowed.static_parameters(), outer.static_parameters());
 }
+
+#[test]
+fn nested_static_result_absence_is_not_an_empty_nominal_result() {
+    let declaration = r#"
+data Unit {}
+boundary trait HookProcedure: Calling<HookProcedurePolicy> {
+    machine call<machine Work>(message: u64) -> u64
+    where machine Work(value: u64);
+    ;
+}
+"#;
+    let absent = policy(declaration);
+    let explicit = policy(&declaration.replace("Work(value: u64);", "Work(value: u64) -> Unit;"));
+    use omega_package_evidence::record::PackagePolicyTypeParameterKind;
+    let PackagePolicyTypeParameterKind::Machine(absent_contract) =
+        absent.static_parameters()[0].kind()
+    else {
+        panic!("static machine contract")
+    };
+    let PackagePolicyTypeParameterKind::Machine(explicit_contract) =
+        explicit.static_parameters()[0].kind()
+    else {
+        panic!("static machine contract")
+    };
+    let absent_signature = absent_contract.structural().unwrap();
+    let explicit_signature = explicit_contract.structural().unwrap();
+    assert!(absent_signature.return_type().is_none());
+    assert!(explicit_signature.return_type().is_some());
+    assert_eq!(absent.physical(), explicit.physical());
+    assert_ne!(absent.static_parameters(), explicit.static_parameters());
+}

@@ -1,11 +1,10 @@
 use super::*;
 use crate::encoding::{PackagePolicyRecoveryError, PackagePolicyRecoveryLimits};
 use crate::record::{
-    PackageReviewCallableContract, PackageReviewContractExpression, PackageReviewContractFact,
-    PackageReviewContractKind, PackageReviewContractStaticArgument,
-    PackageReviewContractUnaryOperator, PackageReviewMachineParameterSignature,
-    PackageReviewTermination, PackageReviewToolchainSourceIdentity, PackageReviewTypeParameter,
-    PackageReviewTypeParameterKind,
+    PackagePolicyMachineParameterSignature, PackagePolicyTermination, PackagePolicyTypeParameter,
+    PackagePolicyTypeParameterKind, PackageReviewCallableContract, PackageReviewContractExpression,
+    PackageReviewContractFact, PackageReviewContractKind, PackageReviewContractStaticArgument,
+    PackageReviewContractUnaryOperator, PackageReviewToolchainSourceIdentity,
 };
 
 const HEADER: &[u8] = b"OMEGA-EXTERNAL-SUPPLY-POLICY\0";
@@ -77,7 +76,7 @@ fn every_external_binding_and_foreign_locator_recovers_typed_policy() {
             .map(|locator| PackageReviewExternalBinding::NormalizedImport(import(locator))),
     );
     for binding in bindings {
-        assert_round_trip(&supply(binding).policy_projection());
+        assert_round_trip(&supply(binding).policy());
     }
     let mut normalized = import(locators().remove(0));
     normalized.producer_package = None;
@@ -85,8 +84,7 @@ fn every_external_binding_and_foreign_locator_recovers_typed_policy() {
         PackageReviewNominalOwner::ToolchainSource(PackageReviewToolchainSourceIdentity {
             digest: [0; 32],
         });
-    let mut policy =
-        supply(PackageReviewExternalBinding::NormalizedImport(normalized)).policy_projection();
+    let mut policy = supply(PackageReviewExternalBinding::NormalizedImport(normalized)).policy();
     policy.callable.owner =
         PackageReviewNominalOwner::ToolchainSource(PackageReviewToolchainSourceIdentity {
             digest: [0; 32],
@@ -96,17 +94,19 @@ fn every_external_binding_and_foreign_locator_recovers_typed_policy() {
 
 #[test]
 fn trait_and_operator_requirement_coordinates_survive_recovery() {
-    let mut policy = supply(PackageReviewExternalBinding::CompilerIntrinsic).policy_projection();
+    let mut policy = supply(PackageReviewExternalBinding::CompilerIntrinsic).policy();
+    policy.signature.lifetime_parameter_count = 2;
     policy.requirement =
-        PackageReviewExternalRequirement::Trait(PackageReviewCallableConformance {
+        PackagePolicyExternalRequirement::Trait(PackagePolicyCallableConformance {
             trait_identity: nominal("Service"),
             requirement_identity: nominal("Service::invoke"),
             requirement_lifetime_partition: vec![0, 1, 0],
+            trait_lifetime_arguments: vec![1, 0, 1],
             arguments: vec![value_type("i32"), value_type("u64")],
             alias: Some("provider".into()),
         });
     assert_round_trip(&policy);
-    policy.requirement = PackageReviewExternalRequirement::Operator {
+    policy.requirement = PackagePolicyExternalRequirement::Operator {
         coordinate: PackageReviewOperatorCoordinate {
             identity: nominal("Math::identity"),
             parameter_dispatch: "(i32)".into(),
@@ -126,7 +126,7 @@ fn normalized_bindings_round_trip_every_canonical_target_profile() {
             &supply(PackageReviewExternalBinding::NormalizedImport(
                 normalized_import,
             ))
-            .policy_projection(),
+            .policy(),
         );
         let mut normalized_syscall = syscall();
         normalized_syscall.target = profile.identity().as_str().to_owned();
@@ -134,7 +134,7 @@ fn normalized_bindings_round_trip_every_canonical_target_profile() {
             &supply(PackageReviewExternalBinding::NormalizedSyscall(
                 normalized_syscall,
             ))
-            .policy_projection(),
+            .policy(),
         );
     }
 }
@@ -145,8 +145,8 @@ fn noncanonical_targets_reject_in_both_policy_directions() {
         supply(PackageReviewExternalBinding::NormalizedImport(import(
             locators().remove(0),
         )))
-        .policy_projection(),
-        supply(PackageReviewExternalBinding::NormalizedSyscall(syscall())).policy_projection(),
+        .policy(),
+        supply(PackageReviewExternalBinding::NormalizedSyscall(syscall())).policy(),
     ];
     for policy in policies {
         let original_target = match policy.binding() {
@@ -204,21 +204,21 @@ fn noncanonical_targets_reject_in_both_policy_directions() {
     }
 }
 
-fn structural_contract(depth: usize) -> PackageReviewMachineParameterContract {
+fn structural_contract(depth: usize) -> PackagePolicyMachineParameterContract {
     if depth == 0 {
-        return PackageReviewMachineParameterContract::RequirementIdentity;
+        return PackagePolicyMachineParameterContract::RequirementIdentity;
     }
-    PackageReviewMachineParameterContract::Structural(PackageReviewMachineParameterSignature {
+    PackagePolicyMachineParameterContract::Structural(PackagePolicyMachineParameterSignature {
         lifetime_parameter_count: 1,
-        type_parameters: vec![PackageReviewTypeParameter {
-            kind: PackageReviewTypeParameterKind::Machine(structural_contract(depth - 1)),
+        type_parameters: vec![PackagePolicyTypeParameter {
+            kind: PackagePolicyTypeParameterKind::Machine(structural_contract(depth - 1)),
             bounds: PackageReviewDataProperties {
                 multiplicity: psi_language_semantics::Multiplicity::Affine,
                 carry: None,
             },
         }],
         parameters: Vec::new(),
-        return_type: value_type("unit"),
+        return_type: Some(value_type("unit")),
         contracts: vec![PackageReviewCallableContract {
             kind: PackageReviewContractKind::Requires,
             result_case: None,
@@ -234,7 +234,7 @@ fn structural_contract(depth: usize) -> PackageReviewMachineParameterContract {
         synchronous_invocations: Vec::new(),
         suspends: false,
         blocks: false,
-        termination: PackageReviewTermination::Terminates {
+        termination: PackagePolicyTermination::Terminates {
             premises: Vec::new(),
         },
     })
@@ -242,13 +242,10 @@ fn structural_contract(depth: usize) -> PackageReviewMachineParameterContract {
 
 #[test]
 fn recursive_machine_contracts_and_static_arguments_recover_structurally() {
-    let mut policy = supply(PackageReviewExternalBinding::CompilerIntrinsic).policy_projection();
-    policy
-        .signature
-        .static_parameters
-        .push(PackageReviewExternalStaticParameter::Machine {
-            contract: structural_contract(4),
-        });
+    let mut policy = supply(PackageReviewExternalBinding::CompilerIntrinsic).policy();
+    policy.signature.static_parameters.push(static_parameter(
+        PackagePolicyTypeParameterKind::Machine(structural_contract(4)),
+    ));
     policy.signature.conformance_bounds[0].selected_conformance = Some(nominal("Selected"));
     policy.signature.conformance_bounds[0].selected_subject =
         Some(PackageReviewContractStaticArgument::Type(value_type("i32")));
@@ -271,7 +268,7 @@ fn recursive_machine_contracts_and_static_arguments_recover_structurally() {
 
 #[test]
 fn header_versions_tags_boolean_utf8_and_zero_nominal_owners_reject() {
-    let policy = supply(PackageReviewExternalBinding::CompilerIntrinsic).policy_projection();
+    let policy = supply(PackageReviewExternalBinding::CompilerIntrinsic).policy();
     let encoded = policy.canonical_bytes().expect("encode fixture");
     let callable_start = HEADER.len() + 2;
     let signature_start = occurrence(&encoded, b"Provider::invoke") + b"Provider::invoke".len();
@@ -380,47 +377,49 @@ fn recovery_enforces_byte_field_aggregate_element_and_owned_storage_limits() {
 #[test]
 fn canonical_reencoding_uses_the_same_owned_storage_budget() {
     let policy = PackagePolicyExternalExecutableSupply {
-        callable: nominal(""),
-        signature: PackageReviewExternalCallableSignature {
+        callable: nominal("f"),
+        signature: PackagePolicyExternalCallableSignature {
             lifetime_parameter_count: 0,
             static_parameters: Vec::new(),
             conformance_bounds: Vec::new(),
             parameters: Vec::new(),
-            return_type: value_type(""),
+            return_type: None,
         },
-        requirement: PackageReviewExternalRequirement::Operator {
+        requirement: PackagePolicyExternalRequirement::Operator {
             coordinate: PackageReviewOperatorCoordinate {
-                identity: nominal(""),
-                parameter_dispatch: String::new(),
+                identity: nominal("g"),
+                parameter_dispatch: "()".into(),
                 result_dispatch: String::new(),
             },
             alias: None,
         },
         binding: PackagePolicyExternalBinding::CompilerIntrinsic,
     };
-    let encoded = policy.canonical_bytes().expect("zero-owned-field fixture");
+    let encoded = policy
+        .canonical_bytes()
+        .expect("minimal valid field fixture");
+    // The three nonempty strings request four bytes before canonical scratch.
+    let owned_bytes = encoded.len() + 4;
     let limits = |owned_bytes| {
         PackagePolicyRecoveryLimits::new(4 * 1024 * 1024, 4 * 1024 * 1024, 65_536, owned_bytes, 128)
     };
     assert_eq!(
-        PackagePolicyExternalExecutableSupply::recover_canonical(
-            &encoded,
-            limits(encoded.len() - 1)
-        ),
+        PackagePolicyExternalExecutableSupply::recover_canonical(&encoded, limits(owned_bytes - 1)),
         Err(PackagePolicyRecoveryError::AllocationLimitExceeded),
     );
     assert_eq!(
-        PackagePolicyExternalExecutableSupply::recover_canonical(&encoded, limits(encoded.len())),
+        PackagePolicyExternalExecutableSupply::recover_canonical(&encoded, limits(owned_bytes)),
         Ok(policy),
     );
 }
 
 #[test]
 fn recovery_and_writer_bound_recursive_machine_contract_depth() {
-    let mut policy = supply(PackageReviewExternalBinding::CompilerIntrinsic).policy_projection();
-    policy.signature.static_parameters = vec![PackageReviewExternalStaticParameter::Machine {
-        contract: structural_contract(8),
-    }];
+    let mut policy = supply(PackageReviewExternalBinding::CompilerIntrinsic).policy();
+    policy.signature.conformance_bounds.clear();
+    policy.signature.static_parameters = vec![static_parameter(
+        PackagePolicyTypeParameterKind::Machine(structural_contract(8)),
+    )];
     let encoded = policy
         .canonical_bytes()
         .expect("default depth accepts bounded fixture");
@@ -436,14 +435,14 @@ fn recovery_and_writer_bound_recursive_machine_contract_depth() {
         PackagePolicyExternalExecutableSupply::recover_canonical(&encoded, limits),
         Err(PackagePolicyRecoveryError::NestingLimitExceeded),
     );
-    policy.signature.static_parameters = vec![PackageReviewExternalStaticParameter::Machine {
-        contract: structural_contract(129),
-    }];
+    policy.signature.static_parameters = vec![static_parameter(
+        PackagePolicyTypeParameterKind::Machine(structural_contract(129)),
+    )];
     assert!(policy.canonical_bytes().is_err());
 }
 
 fn expression_policy(unary_count: usize) -> PackagePolicyExternalExecutableSupply {
-    let mut policy = supply(PackageReviewExternalBinding::CompilerIntrinsic).policy_projection();
+    let mut policy = supply(PackageReviewExternalBinding::CompilerIntrinsic).policy();
     let mut expression = PackageReviewContractExpression::Boolean(true);
     for _ in 0..unary_count {
         expression = PackageReviewContractExpression::Unary {
@@ -451,14 +450,16 @@ fn expression_policy(unary_count: usize) -> PackagePolicyExternalExecutableSuppl
             operand: Box::new(expression),
         };
     }
-    let PackageReviewMachineParameterContract::Structural(mut contract) = structural_contract(1)
+    let PackagePolicyMachineParameterContract::Structural(mut contract) = structural_contract(1)
     else {
         unreachable!()
     };
     contract.contracts[0].fact = PackageReviewContractFact::Expression(expression);
-    policy.signature.static_parameters = vec![PackageReviewExternalStaticParameter::Machine {
-        contract: PackageReviewMachineParameterContract::Structural(contract),
-    }];
+    policy.signature.conformance_bounds.clear();
+    policy.signature.static_parameters =
+        vec![static_parameter(PackagePolicyTypeParameterKind::Machine(
+            PackagePolicyMachineParameterContract::Structural(contract),
+        ))];
     policy
 }
 

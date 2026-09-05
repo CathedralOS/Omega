@@ -1,7 +1,7 @@
 use super::signature::*;
 use crate::record::*;
 
-pub(super) fn expression(
+pub(in crate::record) fn expression(
     value: &PackageReviewContractExpression,
     scope: &Scope<'_>,
     nesting: usize,
@@ -12,7 +12,9 @@ pub(super) fn expression(
         Expression::Boolean(_) | Expression::Float(_) | Expression::ByteSequence(_) => {}
         Expression::Integer(value) => text(value)?,
         Expression::DomainSubject => {
-            return Err("callable expression has no domain-subject binder");
+            if !scope.domain_subject {
+                return Err("expression has no domain or data subject binder");
+            }
         }
         Expression::Parameter(ordinal) => {
             if *ordinal as usize >= scope.parameters {
@@ -142,7 +144,7 @@ fn meaning_check(meaning: &PackageReviewContractOperatorMeaning) -> Result {
     Ok(())
 }
 
-pub(super) fn static_argument(
+pub(in crate::record) fn static_argument(
     value: &PackageReviewContractStaticArgument,
     scope: &Scope<'_>,
     nesting: usize,
@@ -152,26 +154,17 @@ pub(super) fn static_argument(
     match value {
         Argument::Type(value) => value_type(value)?,
         Argument::GenericTypeBinder(ordinal) => {
-            if !matches!(
-                scope.static_kind(*ordinal),
-                Some(PackageReviewTypeParameterKind::Type)
-            ) {
+            if !matches!(scope.static_kind(*ordinal), Some(BinderKind::Type)) {
                 return Err("type argument does not name a type binder");
             }
         }
         Argument::GenericConstBinder(ordinal) => {
-            if !matches!(
-                scope.static_kind(*ordinal),
-                Some(PackageReviewTypeParameterKind::Const(_))
-            ) {
+            if !matches!(scope.static_kind(*ordinal), Some(BinderKind::Const)) {
                 return Err("const argument does not name a const binder");
             }
         }
         Argument::GenericMachineBinder(ordinal) => {
-            if !matches!(
-                scope.static_kind(*ordinal),
-                Some(PackageReviewTypeParameterKind::Machine(_))
-            ) {
+            if !matches!(scope.static_kind(*ordinal), Some(BinderKind::Machine)) {
                 return Err("machine argument does not name a machine binder");
             }
         }

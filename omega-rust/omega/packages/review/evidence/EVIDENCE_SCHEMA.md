@@ -14,12 +14,15 @@ certificates below answer actual compiler proof questions. Compiler proof/reach
 checks and native artifact validation remain independent of installation.
 
 The separate external-supply policy component uses
-`OMEGA-EXTERNAL-SUPPLY-POLICY` version 1, bounded to 4 MiB. It preserves the
+`OMEGA-EXTERNAL-SUPPLY-POLICY` version 2, bounded to 4 MiB. It preserves the
 complete callable and requirement coordinates, all eight binding alternatives,
 the exact four foreign-locator forms, target, and producer identities. It omits
 evaluation accounting, evaluator/materializer schema markers, closure/evaluation/
 materialization digests, and reconstruction receipts. Its signature and
-requirement encoders share the full-review vocabulary; changes to those nested
+requirement encoders use normalized policy signatures rather than the lossy
+legacy review signature. Results are optional, static machine contracts retain
+typed crash guards and full progress routes, and trait requirements keep actual
+lifetime arguments as well as their equality partition. Changes to nested
 encodings must also version the policy component. Typed recovery restores the
 complete nested signature, machine-contract, proposition, and expression
 vocabulary, checking exact re-encoding without reconstructing compiler evidence.
@@ -32,6 +35,23 @@ callers may lower but cannot raise these
 ceilings. Allocator overhead is outside that storage accounting. Complete
 accepted-baseline integration remains separate work. This component does not
 change the full-review schema or any compiler validator.
+
+`OMEGA-PACKAGE-POLICY` version 1 composes the full inert package baseline under
+those same aggregate ceilings. Its field order is package, target, public API
+(traits, conformances, domains, propositions, consts, operators, data), callables,
+selected providers, terminal permissions, representation, external supplies,
+dangerous capabilities, slack, semantic dependencies, and D29 applications
+(symbolic demands, closed realizations). Child components share the enclosing
+writer/reader directly; they do not embed component envelopes or reset budgets.
+The callable, calling, selected-provider, terminal-permission, representation,
+and external-supply component schemas are version 2 for complete nested policy
+signatures. Conformance and physical-calling component schemas remain version 1.
+The full-review, row, and canonical-row recovery versions remain unchanged.
+Unknown policy versions reject; recovery does not invent missing meaning from
+old signatures. Source pins, graph edges and project decisions belong to the
+manager's lock envelope, not this policy record. Compiler proof/discharge and
+row-source custody are not policy identity or substitutes for fresh admission
+validation.
 
 The ordinary obligation-semantics schema is version 7. Its result
 vocabulary explicitly leaves bodyless accepted claims, dangerous authorities,

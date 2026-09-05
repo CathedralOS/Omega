@@ -351,21 +351,53 @@ pub machine GenericProvider::identity<Value>(value: Value) -> Value
     let [supply] = review.external_executable_supply() else {
         panic!("one bounded external executable-supply row")
     };
-    let policy = supply.policy_projection();
-    assert_eq!(policy.callable(), supply.callable());
-    assert_eq!(policy.signature(), supply.signature());
-    assert_eq!(policy.requirement(), supply.requirement());
+    let machine = checked
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "GenericProvider::identity")
+        .unwrap();
+    let policies =
+        omega_package_evidence::project_checked_external_supply_policy(&checked, machine.symbol)
+            .unwrap();
+    let [policy] = policies.as_slice() else {
+        panic!("one checked external policy")
+    };
+    assert_eq!(policy.callable().owner(), supply.callable().owner());
+    let surfaces = omega_package_evidence::project_checked_callable_policy(
+        &checked,
+        checked.selected_target_profile().unwrap(),
+        checked.package_identity().unwrap(),
+    )
+    .unwrap();
+    assert!(
+        surfaces
+            .callables()
+            .iter()
+            .any(|surface| surface.identity() == policy.callable())
+    );
+    assert_eq!(
+        policy.signature().parameters(),
+        supply.signature().parameters()
+    );
+    assert_eq!(
+        policy.signature().return_type(),
+        Some(supply.signature().return_type())
+    );
+    assert_eq!(
+        policy.signature().static_parameters().len(),
+        supply.signature().static_parameters().len()
+    );
     let policy_bytes = policy
         .canonical_bytes()
         .expect("checked external supply projects to policy without native emission");
-    assert!(policy_bytes.starts_with(b"OMEGA-EXTERNAL-SUPPLY-POLICY\0\x01\x00"));
+    assert!(policy_bytes.starts_with(b"OMEGA-EXTERNAL-SUPPLY-POLICY\0\x02\x00"));
     let recovered_policy =
         omega_package_evidence::record::PackagePolicyExternalExecutableSupply::recover_canonical(
             &policy_bytes,
             omega_package_evidence::encoding::PackagePolicyRecoveryLimits::default(),
         )
         .expect("recover checked external-supply policy without source or native replay");
-    assert_eq!(recovered_policy, policy);
+    assert_eq!(&recovered_policy, policy);
     assert_eq!(
         recovered_policy
             .canonical_bytes()
@@ -374,8 +406,8 @@ pub machine GenericProvider::identity<Value>(value: Value) -> Value
     );
     assert_eq!(
         policy_bytes,
-        supply
-            .policy_projection()
+        omega_package_evidence::project_checked_external_supply_policy(&checked, machine.symbol)
+            .unwrap()[0]
             .canonical_bytes()
             .expect("repeat checked external-supply policy projection"),
     );

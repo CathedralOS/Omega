@@ -34,7 +34,7 @@ pub(super) fn callable_contract(
     })
 }
 
-fn contract_fact(reader: &mut Reader<'_>) -> Result<PackageReviewContractFact, Error> {
+pub(super) fn contract_fact(reader: &mut Reader<'_>) -> Result<PackageReviewContractFact, Error> {
     Ok(match reader.byte()? {
         0 => PackageReviewContractFact::Expression(expression(reader)?),
         1 => PackageReviewContractFact::Membership {
@@ -99,7 +99,9 @@ fn binder_argument(
     Ok(PackageReviewPropositionBinderArgument { kind, value })
 }
 
-fn proposition_binder(reader: &mut Reader<'_>) -> Result<PackageReviewPropositionBinder, Error> {
+pub(super) fn proposition_binder(
+    reader: &mut Reader<'_>,
+) -> Result<PackageReviewPropositionBinder, Error> {
     let kind = match reader.byte()? {
         0 => PackageReviewPropositionBinderKind::Type,
         1 => PackageReviewPropositionBinderKind::Const(type_identity(reader)?),

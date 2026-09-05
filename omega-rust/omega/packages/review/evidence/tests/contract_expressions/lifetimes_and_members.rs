@@ -1,6 +1,206 @@
 use crate::support::*;
 
 #[test]
+fn attached_self_members_use_the_exact_entry_formal_not_the_machine_root() {
+    let Some(target) = host_target_name() else {
+        return;
+    };
+    let package = TempPackage::new();
+    package.write(
+        "main.omg",
+        r#"
+pub data Owner { value: u64; }
+pub data Other { value: u64; }
+pub machine Other::check(&self) {}
+pub domain u64::Small requires self <= 10;
+pub machine Owner::check(&self)
+requires self.value <= 10
+{}
+"#,
+    );
+    package.write(
+        "build.omg",
+        "machine build(builder: &mut Build) { builder.package(\"review-fixture\"); }\n",
+    );
+    let checked = compile_to_checked_with_packages(
+        &package.0.join("main.omg"),
+        Some(target),
+        package_inputs(&package.0),
+    )
+    .expect("attached self contract checks");
+    let machine = checked
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "Owner::check")
+        .unwrap();
+    let machine_symbol = machine.symbol;
+    let parameter = checked.state_parameters(&checked.machine_states(machine)[0])[0].symbol;
+    let review =
+        project_checked_package_review(&checked).expect("formal-root self member projects");
+    let callable = review
+        .callables()
+        .iter()
+        .find(|callable| callable.identity().path() == "Owner::check")
+        .unwrap();
+    let PackageReviewContractFact::Expression(PackageReviewContractExpression::Binary {
+        left, ..
+    }) = callable.contracts()[0].fact()
+    else {
+        panic!("member comparison")
+    };
+    let PackageReviewContractExpression::Member {
+        receiver, member, ..
+    } = left.as_ref()
+    else {
+        panic!("self member")
+    };
+    assert_eq!(
+        receiver.as_ref(),
+        &PackageReviewContractExpression::Parameter(0)
+    );
+    assert_eq!(member.path(), "Owner::value");
+    let mut wrong_owner = checked.clone();
+    let other = checked
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "Other::check")
+        .unwrap()
+        .symbol;
+    let expressions = checked
+        .expression_table
+        .iter_expressions()
+        .filter_map(|(handle, expression)| {
+            let psi_typed_trees::expression::ExpressionNode::Name(path) = expression else {
+                return None;
+            };
+            (path.head_symbol == machine_symbol
+                && checked
+                    .expression_table
+                    .name_path_members(path.members)
+                    .first()
+                    .is_some_and(|name| name.as_str() == "self"))
+            .then_some(handle)
+        })
+        .collect::<Vec<_>>();
+    assert!(
+        !expressions.is_empty(),
+        "checked source stamps the exact machine root for self"
+    );
+    for expression in expressions {
+        let psi_typed_trees::expression::ExpressionNode::Name(path) = wrong_owner
+            .typed
+            .expression_table
+            .expression_mut(expression)
+        else {
+            unreachable!()
+        };
+        path.head_symbol = other;
+        path.symbol = other;
+    }
+    assert!(
+        project_checked_package_review(&wrong_owner).is_err(),
+        "a same-named method on another attachment cannot lend its self root"
+    );
+    let mut changed = checked.clone();
+    let places = changed
+        .facts
+        .semantic
+        .places
+        .iter()
+        .filter_map(|(handle, place)| {
+            (place.root == psi_facts::PlaceRoot::Symbol(parameter)).then_some(handle)
+        })
+        .collect::<Vec<_>>();
+    assert!(!places.is_empty());
+    for handle in places {
+        changed.facts.semantic.places.get_mut(handle).root =
+            psi_facts::PlaceRoot::Symbol(machine_symbol);
+    }
+    let diagnostics = project_checked_package_review(&changed)
+        .expect_err("old machine-root places cannot substitute for the retained self formal");
+    assert!(format!("{diagnostics:?}").contains("exact checked place rows"));
+}
+
+#[test]
+fn machine_precondition_members_require_exact_entry_point_and_declaration_origin() {
+    use psi_facts::{FactOrigin, FactPayload, ProgramPoint};
+
+    let Some(target) = host_target_name() else {
+        return;
+    };
+    let package = TempPackage::new();
+    package.write(
+        "main.omg",
+        r#"
+pub data Pair [copy] { left: i32; right: i32; }
+pub machine compare(value: Pair)
+requires value.left == value.right
+{}
+"#,
+    );
+    package.write(
+        "build.omg",
+        "machine build(builder: &mut Build) { builder.package(\"review-fixture\"); }\n",
+    );
+    let checked = compile_to_checked_with_packages(
+        &package.0.join("main.omg"),
+        Some(target),
+        package_inputs(&package.0),
+    )
+    .expect("member precondition checks at its canonical entry");
+    let machine = checked
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "compare")
+        .unwrap();
+    let symbol = machine.symbol;
+    let entry = checked.machine_states(machine).first().unwrap().symbol;
+    project_checked_package_review(&checked).expect("entry-scoped member precondition projects");
+    for wrong_origin in [false, true] {
+        let mut changed = checked.clone();
+        let mut changed_rows = 0;
+        let handles = changed
+            .facts
+            .semantic
+            .facts
+            .iter()
+            .map(|(handle, _)| handle)
+            .collect::<Vec<_>>();
+        for handle in handles {
+            let fact = changed.facts.semantic.facts.get_mut(handle);
+            if fact.point
+                == (ProgramPoint::State {
+                    machine_symbol: symbol,
+                    state_symbol: entry,
+                })
+                && fact.origin
+                    == (FactOrigin::MachineContract {
+                        machine_symbol: symbol,
+                    })
+                && matches!(fact.payload, FactPayload::ContractBooleanExpression { .. })
+            {
+                if wrong_origin {
+                    fact.origin = FactOrigin::Unknown;
+                } else {
+                    fact.point = ProgramPoint::Machine {
+                        machine_symbol: symbol,
+                    };
+                }
+                changed_rows += 1;
+            }
+        }
+        assert!(
+            changed_rows > 0,
+            "mutate actual retained member dependency rows"
+        );
+        let diagnostics = project_checked_package_review(&changed).expect_err(
+            "stale declaration-wide or wrong-origin facts cannot replace entry evidence",
+        );
+        assert!(format!("{diagnostics:?}").contains("exact checked place rows"));
+    }
+}
+
+#[test]
 fn review_alpha_normalizes_lifetime_bearing_nested_type_arguments() {
     let Some(target) = host_target_name() else {
         return;

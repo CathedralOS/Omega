@@ -113,7 +113,7 @@ pub(super) fn project_top_level_requirement_external_supply(
     )
 }
 
-fn provider_conformance_bounds_refine(
+pub(super) fn provider_conformance_bounds_refine(
     requirement: &[PackageReviewConformanceBound],
     provider: &[PackageReviewConformanceBound],
 ) -> bool {

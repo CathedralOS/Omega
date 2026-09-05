@@ -1,11 +1,12 @@
 //! External executable policy identity without evaluation receipts.
 
+mod signatures;
+mod validation;
 use super::{
-    PackageReviewExternalBinding, PackageReviewExternalCallableSignature,
-    PackageReviewExternalExecutableSupply, PackageReviewExternalRequirement,
-    PackageReviewForeignLocator, PackageReviewNominalIdentity,
+    PackageReviewExternalBinding, PackageReviewForeignLocator, PackageReviewNominalIdentity,
 };
 use psi_core::PackageKeyIdentity;
+pub use signatures::{PackagePolicyExternalCallableSignature, PackagePolicyExternalRequirement};
 
 /// Exact producer identity retained independently of its evaluation history.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
@@ -108,8 +109,8 @@ impl From<&PackageReviewExternalBinding> for PackagePolicyExternalBinding {
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub struct PackagePolicyExternalExecutableSupply {
     pub(crate) callable: PackageReviewNominalIdentity,
-    pub(crate) signature: PackageReviewExternalCallableSignature,
-    pub(crate) requirement: PackageReviewExternalRequirement,
+    pub(crate) signature: PackagePolicyExternalCallableSignature,
+    pub(crate) requirement: PackagePolicyExternalRequirement,
     pub(crate) binding: PackagePolicyExternalBinding,
 }
 
@@ -118,30 +119,16 @@ impl PackagePolicyExternalExecutableSupply {
         &self.callable
     }
 
-    pub const fn signature(&self) -> &PackageReviewExternalCallableSignature {
+    pub const fn signature(&self) -> &PackagePolicyExternalCallableSignature {
         &self.signature
     }
 
-    pub const fn requirement(&self) -> &PackageReviewExternalRequirement {
+    pub const fn requirement(&self) -> &PackagePolicyExternalRequirement {
         &self.requirement
     }
 
     pub const fn binding(&self) -> &PackagePolicyExternalBinding {
         &self.binding
-    }
-}
-
-impl PackageReviewExternalExecutableSupply {
-    /// Retain the exact contract, requirement and selected binding while
-    /// discarding evaluator accounting and reconstruction receipts.
-    /// This projection records no decision and cannot license an invocation.
-    pub fn policy_projection(&self) -> PackagePolicyExternalExecutableSupply {
-        PackagePolicyExternalExecutableSupply {
-            callable: self.callable.clone(),
-            signature: self.signature.clone(),
-            requirement: self.requirement.clone(),
-            binding: PackagePolicyExternalBinding::from(&self.binding),
-        }
     }
 }
 

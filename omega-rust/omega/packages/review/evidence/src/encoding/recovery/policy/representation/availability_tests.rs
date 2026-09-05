@@ -1,7 +1,6 @@
-use super::{
-    Error, PackagePolicyRecoveryLimits, Reader, availability::conformance_shape, fixtures::nominal,
-};
+use super::{Error, PackagePolicyRecoveryLimits, Reader, fixtures::nominal};
 use crate::encoding::encode::{declarations::encode_conformance_shape, encoder::Encoder};
+use crate::encoding::recovery::policy::declarations::conformance_shape;
 use crate::record::*;
 
 fn value(canonical: &str) -> PackageReviewTypeIdentity {

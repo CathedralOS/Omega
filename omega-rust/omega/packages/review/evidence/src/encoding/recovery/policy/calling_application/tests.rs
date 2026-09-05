@@ -139,9 +139,9 @@ pub(in crate::encoding::recovery::policy) fn complete_fixture() -> PackagePolicy
             alignment: 8,
         },
     });
-    policy.static_parameters.push(PackageReviewTypeParameter {
-        kind: PackageReviewTypeParameterKind::Machine(
-            PackageReviewMachineParameterContract::Nominal {
+    policy.static_parameters.push(PackagePolicyTypeParameter {
+        kind: PackagePolicyTypeParameterKind::Machine(
+            PackagePolicyMachineParameterContract::Nominal {
                 trait_identity: nominal("Callback"),
                 requirement_identity: nominal("Callback::call"),
             },

@@ -2,8 +2,8 @@ use super::{
     PackagePolicyCallingPlan, PackagePolicyNativeParameterOrigin, strictly_sorted, validate_nominal,
 };
 use crate::record::{
-    PackagePolicyCallbackDestination as Destination, PackageReviewBoundaryShapeClass,
-    PackageReviewTypeParameterKind,
+    PackagePolicyCallbackDestination as Destination, PackagePolicyTypeParameterKind,
+    PackageReviewBoundaryShapeClass,
 };
 
 pub(super) fn validate(policy: &PackagePolicyCallingPlan) -> Result<(), &'static str> {
@@ -36,11 +36,11 @@ pub(super) fn validate(policy: &PackagePolicyCallingPlan) -> Result<(), &'static
                 .static_parameters
                 .get(ordinal)
                 .map(|parameter| &parameter.kind),
-            Some(PackageReviewTypeParameterKind::Machine(_))
+            Some(PackagePolicyTypeParameterKind::Machine(_))
         ) || policy.static_parameters[..ordinal]
             .iter()
             .filter(|parameter| {
-                matches!(parameter.kind, PackageReviewTypeParameterKind::Machine(_))
+                matches!(parameter.kind, PackagePolicyTypeParameterKind::Machine(_))
             })
             .count()
             != binder.static_machine_ordinal as usize

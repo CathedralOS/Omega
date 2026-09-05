@@ -12,6 +12,16 @@ use super::{PackagePolicyCallingPlan, PackagePolicyNativeParameterOrigin};
 impl PackagePolicyCallingPlan {
     pub(crate) fn validate_canonical_structure(&self) -> Result<(), &'static str> {
         target::validate(self.target)?;
+        let scope = crate::record::public_policy::validation::scope(
+            &self.static_parameters,
+            usize::try_from(self.boundary_lifetime_parameter_count)
+                .ok()
+                .and_then(|root| {
+                    root.checked_add(self.requirement_lifetime_parameter_count as usize)
+                })
+                .ok_or("calling lifetime telescope overflows")?,
+        );
+        crate::record::public_policy::validation::signatures::parameters(&scope, 0)?;
         validate_nominal(&self.boundary_trait)?;
         validate_nominal(&self.requirement)?;
         validate_nominal(&self.requirement_trait)?;

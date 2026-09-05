@@ -1,13 +1,55 @@
 use super::*;
 use crate::record::{
-    PackageReviewCallableConformance, PackageReviewConformanceBound, PackageReviewDataProperties,
-    PackageReviewEvaluatedBindingUsage, PackageReviewEvaluatedImport,
+    PackagePolicyCallableConformance, PackagePolicyMachineParameterContract,
+    PackagePolicyTypeParameter, PackagePolicyTypeParameterKind, PackageReviewConformanceBound,
+    PackageReviewDataProperties, PackageReviewEvaluatedBindingUsage, PackageReviewEvaluatedImport,
     PackageReviewEvaluatedSyscall, PackageReviewExternalCallableParameter,
-    PackageReviewExternalStaticParameter, PackageReviewMachineParameterContract,
     PackageReviewNominalOwner, PackageReviewOperatorCoordinate, PackageReviewTypeIdentity,
 };
 
 mod recovery;
+
+/// Receipt-bearing binding fixture paired with an already lossless signature;
+/// this is not conversion from the lossy legacy executable-supply record.
+#[derive(Clone)]
+struct SupplyFixture {
+    callable: PackageReviewNominalIdentity,
+    signature: PackagePolicyExternalCallableSignature,
+    requirement: PackagePolicyExternalRequirement,
+    binding: PackageReviewExternalBinding,
+}
+impl SupplyFixture {
+    fn policy(&self) -> PackagePolicyExternalExecutableSupply {
+        PackagePolicyExternalExecutableSupply {
+            callable: self.callable.clone(),
+            signature: self.signature.clone(),
+            requirement: self.requirement.clone(),
+            binding: PackagePolicyExternalBinding::from(&self.binding),
+        }
+    }
+    fn callable(&self) -> &PackageReviewNominalIdentity {
+        &self.callable
+    }
+    fn signature(&self) -> &PackagePolicyExternalCallableSignature {
+        &self.signature
+    }
+    fn requirement(&self) -> &PackagePolicyExternalRequirement {
+        &self.requirement
+    }
+    fn binding(&self) -> &PackageReviewExternalBinding {
+        &self.binding
+    }
+}
+
+fn static_parameter(kind: PackagePolicyTypeParameterKind) -> PackagePolicyTypeParameter {
+    PackagePolicyTypeParameter {
+        kind,
+        bounds: PackageReviewDataProperties {
+            multiplicity: psi_language_semantics::Multiplicity::Affine,
+            carry: None,
+        },
+    }
+}
 
 fn nominal(path: &str) -> PackageReviewNominalIdentity {
     PackageReviewNominalIdentity {
@@ -107,25 +149,18 @@ fn locators() -> Vec<PackageReviewForeignLocator> {
     ]
 }
 
-fn supply(binding: PackageReviewExternalBinding) -> PackageReviewExternalExecutableSupply {
-    let signature = PackageReviewExternalCallableSignature {
+fn supply(binding: PackageReviewExternalBinding) -> SupplyFixture {
+    let signature = PackagePolicyExternalCallableSignature {
         lifetime_parameter_count: 1,
         static_parameters: vec![
-            PackageReviewExternalStaticParameter::Type {
-                properties: PackageReviewDataProperties {
-                    multiplicity: psi_language_semantics::Multiplicity::Affine,
-                    carry: None,
-                },
-            },
-            PackageReviewExternalStaticParameter::Const {
-                type_identity: value_type("u64"),
-            },
-            PackageReviewExternalStaticParameter::Machine {
-                contract: PackageReviewMachineParameterContract::Nominal {
+            static_parameter(PackagePolicyTypeParameterKind::Type),
+            static_parameter(PackagePolicyTypeParameterKind::Const(value_type("u64"))),
+            static_parameter(PackagePolicyTypeParameterKind::Machine(
+                PackagePolicyMachineParameterContract::Nominal {
                     trait_identity: nominal("Callable"),
                     requirement_identity: nominal("Callable::call"),
                 },
-            },
+            )),
         ],
         conformance_bounds: vec![PackageReviewConformanceBound {
             binder_ordinal: None,
@@ -144,11 +179,11 @@ fn supply(binding: PackageReviewExternalBinding) -> PackageReviewExternalExecuta
             is_mutable: false,
             is_self: false,
         }],
-        return_type: value_type("unit"),
+        return_type: Some(value_type("unit")),
     };
-    PackageReviewExternalExecutableSupply {
+    SupplyFixture {
         callable: nominal("Provider::invoke"),
-        requirement: PackageReviewExternalRequirement::TopLevelRequirement {
+        requirement: PackagePolicyExternalRequirement::TopLevelRequirement {
             identity: nominal("invoke"),
             signature: signature.clone(),
             alias: Some("chosen".to_owned()),
@@ -158,18 +193,15 @@ fn supply(binding: PackageReviewExternalBinding) -> PackageReviewExternalExecuta
     }
 }
 
-fn bytes(supply: &PackageReviewExternalExecutableSupply) -> Vec<u8> {
+fn bytes(supply: &SupplyFixture) -> Vec<u8> {
     supply
-        .policy_projection()
+        .policy()
         .canonical_bytes()
         .expect("bounded external-supply policy")
 }
 
-fn assert_changed(
-    original: &PackageReviewExternalExecutableSupply,
-    changed: &PackageReviewExternalExecutableSupply,
-) {
-    assert_ne!(original.policy_projection(), changed.policy_projection());
+fn assert_changed(original: &SupplyFixture, changed: &SupplyFixture) {
+    assert_ne!(original.policy(), changed.policy());
     assert_ne!(bytes(original), bytes(changed));
 }
 
@@ -194,7 +226,7 @@ fn all_binding_variants_remain_distinct_policy_data() {
     ];
     let supplies = bindings.into_iter().map(supply).collect::<Vec<_>>();
     for (position, row) in supplies.iter().enumerate() {
-        let policy = row.policy_projection();
+        let policy = row.policy();
         assert_eq!(policy.callable(), row.callable());
         assert_eq!(policy.signature(), row.signature());
         assert_eq!(policy.requirement(), row.requirement());
@@ -202,7 +234,7 @@ fn all_binding_variants_remain_distinct_policy_data() {
             policy.binding(),
             &PackagePolicyExternalBinding::from(row.binding())
         );
-        assert!(bytes(row).starts_with(b"OMEGA-EXTERNAL-SUPPLY-POLICY\0\x01\x00"));
+        assert!(bytes(row).starts_with(b"OMEGA-EXTERNAL-SUPPLY-POLICY\0\x02\x00"));
         for other in &supplies[..position] {
             assert_changed(row, other);
         }
@@ -340,8 +372,8 @@ fn evaluator_receipts_do_not_change_import_or_syscall_policy() {
         let mut changed = original.clone();
         mutation(&mut changed);
         let candidate = supply(PackageReviewExternalBinding::NormalizedImport(changed));
-        assert_ne!(baseline, candidate);
-        assert_eq!(baseline.policy_projection(), candidate.policy_projection());
+        assert_ne!(baseline.binding, candidate.binding);
+        assert_eq!(baseline.policy(), candidate.policy());
         assert_eq!(bytes(&baseline), bytes(&candidate));
     }
 
@@ -373,8 +405,8 @@ fn evaluator_receipts_do_not_change_import_or_syscall_policy() {
         let mut changed = original.clone();
         mutation(&mut changed);
         let candidate = supply(PackageReviewExternalBinding::NormalizedSyscall(changed));
-        assert_ne!(baseline, candidate);
-        assert_eq!(baseline.policy_projection(), candidate.policy_projection());
+        assert_ne!(baseline.binding, candidate.binding);
+        assert_eq!(baseline.policy(), candidate.policy());
         assert_eq!(bytes(&baseline), bytes(&candidate));
     }
 }
@@ -390,8 +422,10 @@ fn normalized_binding_target_value_and_producer_fields_change_policy() {
                 .to_owned()
         },
         |row| row.producer.path.push_str("_other"),
-        |row| row.producer.owner = PackageReviewNominalOwner::Package(package(8)),
-        |row| row.producer_package = Some(package(8)),
+        |row| {
+            row.producer.owner = PackageReviewNominalOwner::Package(package(8));
+            row.producer_package = Some(package(8));
+        },
         |row| row.producer_package = None,
         |row| row.producer_callable_identity.push_str("_other"),
     ];
@@ -416,8 +450,10 @@ fn normalized_binding_target_value_and_producer_fields_change_policy() {
         },
         |row| row.number += 1,
         |row| row.producer.path.push_str("_other"),
-        |row| row.producer.owner = PackageReviewNominalOwner::Package(package(8)),
-        |row| row.producer_package = Some(package(8)),
+        |row| {
+            row.producer.owner = PackageReviewNominalOwner::Package(package(8));
+            row.producer_package = Some(package(8));
+        },
         |row| row.producer_package = None,
         |row| row.producer_callable_identity.push_str("_other"),
     ];
@@ -437,12 +473,12 @@ fn normalized_binding_target_value_and_producer_fields_change_policy() {
 #[test]
 fn complete_callable_and_requirement_coordinates_change_policy() {
     let original = supply(PackageReviewExternalBinding::CompilerIntrinsic);
-    let mutations: &[fn(&mut PackageReviewExternalExecutableSupply)] = &[
+    let mutations: &[fn(&mut SupplyFixture)] = &[
         |row| row.callable.path.push_str("_other"),
         |row| row.callable.owner = PackageReviewNominalOwner::Package(package(8)),
         |row| row.signature.lifetime_parameter_count += 1,
         |row| {
-            row.signature.static_parameters.remove(0);
+            row.signature.static_parameters.pop();
         },
         |row| {
             row.signature.conformance_bounds[0]
@@ -454,9 +490,10 @@ fn complete_callable_and_requirement_coordinates_change_policy() {
         |row| row.signature.parameters[0].is_const = true,
         |row| row.signature.parameters[0].is_mutable = true,
         |row| row.signature.parameters[0].is_self = true,
-        |row| row.signature.return_type = value_type("u32"),
+        |row| row.signature.return_type = Some(value_type("u32")),
+        |row| row.signature.return_type = None,
         |row| {
-            let PackageReviewExternalRequirement::TopLevelRequirement { identity, .. } =
+            let PackagePolicyExternalRequirement::TopLevelRequirement { identity, .. } =
                 &mut row.requirement
             else {
                 unreachable!()
@@ -464,15 +501,15 @@ fn complete_callable_and_requirement_coordinates_change_policy() {
             identity.path.push_str("_other");
         },
         |row| {
-            let PackageReviewExternalRequirement::TopLevelRequirement { signature, .. } =
+            let PackagePolicyExternalRequirement::TopLevelRequirement { signature, .. } =
                 &mut row.requirement
             else {
                 unreachable!()
             };
-            signature.return_type = value_type("u32");
+            signature.return_type = Some(value_type("u32"));
         },
         |row| {
-            let PackageReviewExternalRequirement::TopLevelRequirement { alias, .. } =
+            let PackagePolicyExternalRequirement::TopLevelRequirement { alias, .. } =
                 &mut row.requirement
             else {
                 unreachable!()
@@ -487,15 +524,16 @@ fn complete_callable_and_requirement_coordinates_change_policy() {
     }
     let mut trait_requirement = original.clone();
     trait_requirement.requirement =
-        PackageReviewExternalRequirement::Trait(PackageReviewCallableConformance {
+        PackagePolicyExternalRequirement::Trait(PackagePolicyCallableConformance {
             trait_identity: nominal("Service"),
             requirement_identity: nominal("invoke"),
             requirement_lifetime_partition: vec![0],
+            trait_lifetime_arguments: vec![0],
             arguments: vec![value_type("u32")],
             alias: Some("chosen".to_owned()),
         });
     let mut operator_requirement = original.clone();
-    operator_requirement.requirement = PackageReviewExternalRequirement::Operator {
+    operator_requirement.requirement = PackagePolicyExternalRequirement::Operator {
         coordinate: PackageReviewOperatorCoordinate {
             identity: nominal("invoke"),
             parameter_dispatch: "(i32)".to_owned(),
@@ -507,16 +545,19 @@ fn complete_callable_and_requirement_coordinates_change_policy() {
     assert_changed(&original, &operator_requirement);
     assert_changed(&trait_requirement, &operator_requirement);
 
-    let trait_mutations: &[fn(&mut PackageReviewCallableConformance)] = &[
+    let trait_mutations: &[fn(&mut PackagePolicyCallableConformance)] = &[
         |row| row.trait_identity.path.push_str("_other"),
         |row| row.requirement_identity.path.push_str("_other"),
-        |row| row.requirement_lifetime_partition.push(1),
+        |row| {
+            row.requirement_lifetime_partition.push(0);
+            row.trait_lifetime_arguments.push(0);
+        },
         |row| row.arguments[0] = value_type("i64"),
         |row| row.alias = None,
     ];
     for mutation in trait_mutations {
         let mut changed = trait_requirement.clone();
-        let PackageReviewExternalRequirement::Trait(conformance) = &mut changed.requirement else {
+        let PackagePolicyExternalRequirement::Trait(conformance) = &mut changed.requirement else {
             unreachable!()
         };
         mutation(conformance);
@@ -529,7 +570,7 @@ fn complete_callable_and_requirement_coordinates_change_policy() {
     ];
     for mutation in operator_mutations {
         let mut changed = operator_requirement.clone();
-        let PackageReviewExternalRequirement::Operator { coordinate, .. } =
+        let PackagePolicyExternalRequirement::Operator { coordinate, .. } =
             &mut changed.requirement
         else {
             unreachable!()
@@ -538,7 +579,7 @@ fn complete_callable_and_requirement_coordinates_change_policy() {
         assert_changed(&operator_requirement, &changed);
     }
     let mut changed = operator_requirement.clone();
-    let PackageReviewExternalRequirement::Operator { alias, .. } = &mut changed.requirement else {
+    let PackagePolicyExternalRequirement::Operator { alias, .. } = &mut changed.requirement else {
         unreachable!()
     };
     *alias = None;
@@ -592,5 +633,5 @@ fn legacy_binding_fields_and_encoding_bound_are_preserved() {
         library: "x".repeat(4 * 1024 * 1024),
         symbol: "entry".to_owned(),
     });
-    assert!(oversized.policy_projection().canonical_bytes().is_err());
+    assert!(oversized.policy().canonical_bytes().is_err());
 }

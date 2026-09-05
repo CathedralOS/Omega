@@ -3,7 +3,7 @@ use crate::capture::providers::installation::project_selected_installation_reach
 use crate::capture::providers::intrinsics::project_compiler_intrinsic_execution;
 use crate::capture::providers::selection::validate_selected_provider_declaration_owner;
 use crate::capture::semantics::declarations::{
-    nominal_identity, provider_requirement_identity, provider_requirement_schema,
+    nominal_identity, policy_provider_requirement_identity, provider_requirement_schema,
 };
 use crate::record::PackagePolicyProviderRow;
 use omega_compiler::CheckedCompilation;
@@ -29,8 +29,11 @@ pub(super) fn project(
                 retained.provider.schema,
                 requirement_symbol,
             )?;
-            let requirement =
-                provider_requirement_identity(compilation, declaring_schema, requirement_symbol)?;
+            let requirement = policy_provider_requirement_identity(
+                compilation,
+                declaring_schema,
+                requirement_symbol,
+            )?;
             let realization = nominal_identity(compilation, realization_symbol)?;
             validate_selected_provider_declaration_owner(
                 &realization,

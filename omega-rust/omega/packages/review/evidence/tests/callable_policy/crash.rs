@@ -138,7 +138,7 @@ where machine Work(flag: bool) crashes Trap permitted(flag);
     let first = project(&Fixture::foreign(root, helper, first_owner));
     let second = project(&Fixture::foreign(root, helper, second_owner));
     let signature = |policy: &PackagePolicyCallables| {
-        let PackageReviewTypeParameterKind::Machine(contract) =
+        let PackagePolicyTypeParameterKind::Machine(contract) =
             callable(policy, "accepts").type_parameters()[0].kind()
         else {
             panic!("one static machine parameter")
@@ -159,7 +159,7 @@ where machine Work(flag: bool) crashes Trap permitted(flag);
             panic!("one nested static crash route")
         };
         let [
-            PackageReviewCrashRouteGuard::Expression(PackageReviewContractExpression::Call {
+            PackagePolicyCrashGuard::Expression(PackageReviewContractExpression::Call {
                 target,
                 ..
             }),

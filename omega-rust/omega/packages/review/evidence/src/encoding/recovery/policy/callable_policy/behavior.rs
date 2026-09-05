@@ -24,22 +24,7 @@ pub(super) fn crash(reader: &mut Reader<'_>) -> Result<PackagePolicyCrash, Error
             1 => PackageReviewCrashInterface::PublishedCeiling,
             _ => return Err(Error::InvalidTag),
         },
-        published: reader.sequence(9, |reader| {
-            Ok(PackagePolicyCrashRoute {
-                cause: match reader.byte()? {
-                    0 => PackageReviewCrashCause::Trap,
-                    1 => PackageReviewCrashCause::Abort,
-                    _ => return Err(Error::InvalidTag),
-                },
-                alternative_guards: reader.sequence(1, |reader| {
-                    Ok(match reader.byte()? {
-                        0 => PackagePolicyCrashGuard::Truth,
-                        1 => PackagePolicyCrashGuard::Expression(expression(reader)?),
-                        _ => return Err(Error::InvalidTag),
-                    })
-                })?,
-            })
-        })?,
+        published: reader.sequence(9, crash_route)?,
         structural_runtime_requirements: reader
             .option(|reader| reader.sequence(1, boolean_expression))?,
         inferred: match reader.byte()? {
@@ -58,6 +43,25 @@ pub(super) fn crash(reader: &mut Reader<'_>) -> Result<PackagePolicyCrash, Error
     })
 }
 
+pub(in crate::encoding::recovery::policy) fn crash_route(
+    reader: &mut Reader<'_>,
+) -> Result<PackagePolicyCrashRoute, Error> {
+    Ok(PackagePolicyCrashRoute {
+        cause: match reader.byte()? {
+            0 => PackageReviewCrashCause::Trap,
+            1 => PackageReviewCrashCause::Abort,
+            _ => return Err(Error::InvalidTag),
+        },
+        alternative_guards: reader.sequence(1, |reader| {
+            Ok(match reader.byte()? {
+                0 => PackagePolicyCrashGuard::Truth,
+                1 => PackagePolicyCrashGuard::Expression(expression(reader)?),
+                _ => return Err(Error::InvalidTag),
+            })
+        })?,
+    })
+}
+
 pub(super) fn mutation(reader: &mut Reader<'_>) -> Result<PackagePolicyMutation, Error> {
     Ok(PackagePolicyMutation {
         completeness: match reader.byte()? {
@@ -69,7 +73,9 @@ pub(super) fn mutation(reader: &mut Reader<'_>) -> Result<PackagePolicyMutation,
     })
 }
 
-pub(super) fn termination(reader: &mut Reader<'_>) -> Result<PackagePolicyTermination, Error> {
+pub(in crate::encoding::recovery::policy) fn termination(
+    reader: &mut Reader<'_>,
+) -> Result<PackagePolicyTermination, Error> {
     Ok(match reader.byte()? {
         0 => PackagePolicyTermination::NoGuarantee,
         1 => PackagePolicyTermination::Terminates { premises: reader.sequence(1, |reader| Ok(PackagePolicyProgressPremise {

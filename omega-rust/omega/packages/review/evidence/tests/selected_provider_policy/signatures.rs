@@ -1,6 +1,52 @@
 use super::*;
 
 #[test]
+fn service_nested_machine_signature_retains_result_absence_without_calling() {
+    let source = r#"
+pub boundary trait Echo {
+    machine echo<machine Work>() -> u64
+    where machine Work();
+    ;
+}
+pub data EchoProvider {}
+pub EchoProviderEcho: EchoProvider satisfies Echo;
+pub machine EchoProvider::echo<machine Work>() -> u64
+where machine Work();
+satisfies Echo::echo { 0 }
+"#;
+    let absent = project(&Fixture::local(
+        source,
+        fixtures::BUILD,
+        TargetProfile::WindowsX64,
+    ));
+    let present = project(&Fixture::local(
+        &source.replace("Work();", "Work() -> u64;"),
+        fixtures::BUILD,
+        TargetProfile::WindowsX64,
+    ));
+    for (policy, has_result) in [(&absent, false), (&present, true)] {
+        let method = &policy
+            .plans()
+            .iter()
+            .find(|plan| plan.schema_declaration().path() == "Echo")
+            .unwrap()
+            .methods()[0];
+        assert!(method.calling().is_none());
+        let PackagePolicyTypeParameterKind::Machine(
+            PackagePolicyMachineParameterContract::Structural(signature),
+        ) = method.signature().static_parameters()[0].kind()
+        else {
+            panic!("one structural machine parameter")
+        };
+        assert_eq!(signature.return_type().is_some(), has_result);
+    }
+    assert_ne!(
+        absent.canonical_bytes().unwrap(),
+        present.canonical_bytes().unwrap()
+    );
+}
+
+#[test]
 fn source_qualified_service_types_do_not_require_a_calling_policy() {
     let carrier = "pub data Carrier { value: u64; }\n";
     let service = r#"pub boundary trait Echo {

@@ -89,7 +89,8 @@ pub(crate) fn project_contract_name_expression(
             },
         );
     }
-    let root_symbol = path.head_symbol;
+    let root_symbol = super::members::checked_self_parameter_symbol(compilation, context, path)
+        .unwrap_or(path.head_symbol);
     let root_name = members.first();
     let substitution_root = substitutions
         .iter()

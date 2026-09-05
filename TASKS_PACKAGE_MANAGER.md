@@ -69,12 +69,11 @@ adding machinery; do not invent proof-of-review or host-security requirements.
   Acceptance: complete supported graphs round-trip; malformed or inconsistent
   graphs reject; the baseline is available without the old checkout. The lock
   needs neither proof certificates nor build/native replay transcripts.
-  Integrate typed selected-provider, terminal-permission, representation,
-  external-supply, and callable policy recovery without embedding
-  evaluator/native receipts or the existing replay-bearing review capsule.
-  Join these components and source-scoped historical decisions into the
-  complete lock; decisions cannot replace the normalized baseline or authorize
-  a later changed candidate.
+  Integrate the compiler's complete typed `PackagePolicyBaseline` recovery
+  with source-scoped historical decisions and the immutable source graph,
+  without embedding evaluator/native receipts or the replay-bearing review
+  capsule. Decisions cannot replace the normalized baseline or authorize a
+  later changed candidate.
 
 - [ ] **LOCK-BASELINE-RECOVERY.** Integrate lock loading with resolution and
   checking. Locked use preserves exact pins and never silently updates a

@@ -1,10 +1,12 @@
 //! Complete callable policy, with no private derivation coordinates.
 
 mod behavior;
+pub(super) use behavior::{crash_route, termination};
 
 use super::{
-    declarations::{encode_conformance_bound, encode_type_identity, encode_type_parameter},
+    declarations::{encode_conformance_bound, encode_type_identity},
     encoder::Encoder,
+    public_api::type_parameter as encode_type_parameter,
     values::{
         contracts::encode_callable_contract,
         declarations::encode_operator_coordinate,
@@ -27,11 +29,18 @@ impl PackagePolicyCallables {
         let mut encoder = Encoder::policy_bounded(4 * 1024 * 1024);
         encoder.fixed_bytes(CALLABLE_POLICY_MAGIC);
         encoder.u16(PACKAGE_CALLABLE_POLICY_VERSION);
-        encoder.package_identity(self.package);
-        encoder.string(self.target.identity().as_str())?;
-        encoder.sequence(&self.callables, encode_callable)?;
+        policy(&mut encoder, self)?;
         encoder.finish()
     }
+}
+
+pub(super) fn policy(
+    encoder: &mut Encoder,
+    policy: &PackagePolicyCallables,
+) -> Result<(), PackageReviewEncodingError> {
+    encoder.package_identity(policy.package);
+    encoder.string(policy.target.identity().as_str())?;
+    encoder.sequence(&policy.callables, encode_callable)
 }
 
 pub(in crate::encoding) fn encode_callable(
@@ -43,6 +52,7 @@ pub(in crate::encoding) fn encode_callable(
         PackagePolicyCallableRole::Public => 1,
         PackagePolicyCallableRole::Build => 2,
         PackagePolicyCallableRole::PrivateAssumption => 3,
+        PackagePolicyCallableRole::PrivateExternal => 4,
     });
     encode_nominal(encoder, &callable.identity)?;
     encode_supply(encoder, callable.supply)?;
@@ -111,7 +121,7 @@ pub(in crate::encoding) fn encode_callable(
     behavior::mutation(encoder, &callable.mutation)
 }
 
-fn encode_callable_conformance(
+pub(super) fn encode_callable_conformance(
     encoder: &mut Encoder,
     conformance: &PackagePolicyCallableConformance,
 ) -> Result<(), PackageReviewEncodingError> {

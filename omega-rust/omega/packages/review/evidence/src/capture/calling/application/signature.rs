@@ -10,11 +10,11 @@ pub(crate) use parameters::instantiate as instantiate_static_parameters;
 
 use super::rejected;
 use crate::capture::semantics::declarations::{nominal_identity, trait_requirement_identity};
-use crate::capture::semantics::signatures::parameters::project_calling_type_parameters;
+use crate::capture::semantics::signatures::policy::project_type_parameters;
 use crate::capture::semantics::types::review_signature_type_identity_with_binders_and_substitutions_and_lifetimes;
 use crate::record::{
-    PackageReviewNominalIdentity, PackageReviewTraitRequirementParameter,
-    PackageReviewTypeIdentity, PackageReviewTypeParameter,
+    PackagePolicyTypeParameter, PackageReviewNominalIdentity,
+    PackageReviewTraitRequirementParameter, PackageReviewTypeIdentity,
 };
 use omega_compiler::CheckedCompilation;
 use omega_provider_planning::calling_policy_plans::BoundaryCallingPlanRealization;
@@ -30,7 +30,7 @@ pub(crate) struct CallingSignatureProjection {
     pub requirement_arguments: Vec<PackageReviewTypeIdentity>,
     pub requirement_lifetime_arguments: Vec<u32>,
     pub requirement_lifetime_parameter_count: u32,
-    pub static_parameters: Vec<PackageReviewTypeParameter>,
+    pub static_parameters: Vec<PackagePolicyTypeParameter>,
     pub semantic_parameters: Vec<PackageReviewTraitRequirementParameter>,
     pub semantic_result: Option<PackageReviewTypeIdentity>,
     pub lifetime_binders: Vec<Identifier>,
@@ -246,15 +246,19 @@ fn project_with_binders(
             .map(|(ordinal, (symbol, _))| (*symbol, format!("inherited-parameter:{ordinal}")))
             .collect::<Vec<_>>(),
     );
-    let (binders, static_parameters) = project_calling_type_parameters(
+    let (binders, static_parameters) = project_type_parameters(
         &projected,
         compilation,
         &parameters,
+        compilation.state_signature_type_parameters(signature),
         &requirement.path,
-        &lifetime_binders,
         &inherited_binders,
+        0,
+        &lifetime_binders,
         &substitutions,
         &contract_scopes,
+        false,
+        psi_language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure::PublicInterface,
     )?;
     let source_parameters = compilation
         .state_signature_parameters(signature)
