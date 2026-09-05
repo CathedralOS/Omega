@@ -1,4 +1,6 @@
 //! Fixture inventory is independent of host eligibility and compile filters.
+use super::generics_and_dependent_facts::fixture_roster as generics_and_dependent_facts;
+use super::time_hosts_and_indexed_storage::fixture_roster as time_hosts_and_indexed_storage;
 use super::value_and_type_checks::fixture_roster as value_and_type_checks;
 use super::*;
 
@@ -38,7 +40,16 @@ fn pass_roster() -> Vec<&'static str> {
         .chain(no_selection_golden::PASS_CANARIES)
         .chain(package_compilation_inputs::PASS_CANARIES)
         .chain(value_and_type_checks::PASS_CANARIES)
+        .chain(generics_and_dependent_facts::PASS_CANARIES)
+        .chain(generics_and_dependent_facts::STRUCTURED_CONST_PASS_CANARIES)
+        .chain(time_hosts_and_indexed_storage::PASS_CANARIES)
         .copied()
+        .chain(
+            time_hosts_and_indexed_storage::STORAGE_RESULT_IMPORT_CANARIES
+                .iter()
+                .chain(time_hosts_and_indexed_storage::AUTHORED_SCALAR_IMPORT_CANARIES)
+                .map(|entry| entry.1),
+        )
         .chain(
             native_filesystem_canaries::PASS_CANARIES
                 .iter()
@@ -59,6 +70,8 @@ fn file_expectation_fail_roster() -> Vec<&'static str> {
         .iter()
         .chain(ACTIVE_FAIL_CANARIES)
         .chain(no_selection_golden::FILE_EXPECTATION_FAIL_CANARIES)
+        .chain(generics_and_dependent_facts::FILE_EXPECTATION_FAIL_CANARIES)
+        .chain(generics_and_dependent_facts::CLOSED_INDEXED_FAIL_CANARIES)
         .copied()
         .collect()
 }
@@ -70,6 +83,16 @@ fn fail_roster() -> Vec<&'static str> {
         .chain(recast_views::FAIL_CANARIES.iter().copied())
         .chain(layout_plans::FAIL_CANARIES.iter().copied())
         .chain(value_and_type_checks::FAIL_CANARIES.iter().copied())
+        .chain(
+            generics_and_dependent_facts::STRUCTURED_CONST_FAIL_CANARIES
+                .iter()
+                .map(|entry| entry.0),
+        )
+        .chain(
+            time_hosts_and_indexed_storage::FAIL_CANARIES
+                .iter()
+                .copied(),
+        )
         .collect()
 }
 
