@@ -15,6 +15,11 @@ exact end. Profile 1 alone is admitted. In particular, a declared oversized
 body yields source incompleteness without reading that body, and profile 2
 remains retired. A truncated fixed header reports its first missing byte even
 when an earlier available header byte is incorrect.
+After admission establishes an exact body extent, the canonical source view
+uses the sealed input length minus the 16-byte header. This equals the admitted
+declared length without decoding that header for every scanner bound check.
+Request admission itself still reads and provisions the declared length before
+checking body extent; no source helper runs on a refused request.
 
 The implemented request-admission outcomes are:
 
@@ -63,6 +68,19 @@ syntax, not an out-of-range integer. The first failing token wins before any
 global collection, but a forbidden source byte anywhere wins in the earlier
 envelope phase. Reserved-word positions and balanced forms still belong to the
 structural frontend; a bare minus is a valid operator token, not an integer atom.
+An identifier-start byte selects one scan for both the end and tail spelling.
+That scan leaves delimiter bytes unconsumed and anchors a malformed tail at
+the original token start. Decimal tokens retain complete-spelling-before-range
+validation, and the complete envelope still precedes either lexical path.
+Successful token checks advance the scanner using scalar ends or rejection
+codes. They do not allocate a discarded success pair for every token; the
+complete lexical phase still returns the same owned outcome.
+Name-role checks consume lexical identifier admission without repeating the
+tail scan. They distinguish uppercase nominal names from lower/underscore
+value names and reject only exact reserved spellings in that category.
+`Int` and `Bytes` remain valid type annotations but not nominal declarations;
+their longer identifier extensions are not reserved. No name-role check runs
+before the complete lexical pass or changes its failure precedence.
 
 Balanced parsing precedes grammar-role checking: an unmatched closing delimiter
 or missing close is reported before a role defect in an otherwise completed
@@ -130,10 +148,18 @@ authored constructor, across all data declarations. Its tags remain local to
 each data owner, but its resource count is global. Payload fields and the
 resolved metadata rebuild consume no additional authored constructor rows.
 
+The type counter starts at two for `Int` and `Bytes`, then advances once per
+fresh nominal declaration. The selected 65,536 total therefore includes
+65,534 nominal declarations. Builtins use separate scalar identities, not
+nominal trie entries; the logical profile total does not change with that
+representation. Type annotation occurrences and resolved metadata copies do
+not add rows.
+
 | Tag | Resource code | Coordinate space | Coordinate | Limit/requested |
 | --- | --- | --- | --- | --- |
-| 2 Incomplete | 4 `function_rows` | 1 Delta source | fresh function-name token start | 32,768 / 32,769 |
+| 2 Incomplete | 2 `type_rows` | 1 Delta source | fresh type-name token start | 65,536 / 65,537 |
 | 2 Incomplete | 3 `constructor_rows` | 1 Delta source | fresh constructor-name token start | 65,536 / 65,537 |
+| 2 Incomplete | 4 `function_rows` | 1 Delta source | fresh function-name token start | 32,768 / 32,769 |
 
 The 32,768th fresh row is admitted. At each function name, exact duplicate
 lookup precedes provision: an already-present name rejects with tag 1/code 8,
@@ -149,11 +175,26 @@ metadata. A duplicate data name rejects with tag 1/code 6 before any constructor
 in that declaration is provisioned. No counter resets at a data boundary, and
 an earlier unknown payload annotation cannot preempt the census outcome.
 
+At total type capacity, an already-present nominal name still rejects with
+tag 1/code 6. A fresh name instead returns the type-resource frame before
+payload-summary traversal, type metadata, or any constructor lookup or
+provision. Thus a fresh over-capacity type containing a duplicate constructor
+produces the type refusal, not tag 1/code 7. Successful data collection advances
+the type count once, independently of the number of constructors or fields.
+
 Complete byte, lexical, balanced-parser, and grammar/depth checks precede this
 provision. Declaration-type resolution and every body check follow the complete
 census, so an earlier unknown annotation does not preempt the row refusal.
 The logical counter does not measure trie nodes, immutable pairs, or bytes,
 and it does not change the existing global catalog representation.
+
+Census construction keeps independent immutable cursors for those three
+namespaces. Seeking an exact name may finish departed prefixes of already
+admitted rows; it creates no new declaration. Only an absent, admitted row is
+committed at the focus. Shared prefixes remain deferred until the cursor moves
+away or the complete census finishes its ordinary catalog roots. This reduces
+discarded path copies while preserving authored order, exact duplicates, and
+every row-provision boundary above.
 
 This is not Gamma's separate 4,096-function limit on an executable generated
 program. Authored functions, fixed runtime helpers, adapters, and extracted

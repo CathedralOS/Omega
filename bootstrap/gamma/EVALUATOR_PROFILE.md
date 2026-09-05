@@ -58,7 +58,7 @@ The current evaluator uses these Alpha memory regions:
 
 ```text
 0x00100000..0x01100000   request bytes
-0x01200000..0x01300000   function rows
+0x01200000..0x01300000   function rows and lookup index
 0x01300000..0x01500000   lexical environment rows
 0x01500000..0x01d00000   temporary value stack
 0x01e00000..0x01f00000   function activation rows
@@ -103,6 +103,17 @@ bytes after the maximum whole-node count. Output preflights each buffered byte.
 A scalar transformer may emit at most 16,777,211 bytes with `write` before its
 final byte. An application result may publish all 16,777,212 buffered bytes.
 
+The 4,096 five-word function rows occupy `0x01200000..0x01228000` in
+authored declaration order. A separate sorted index of 4,096 eight-byte row
+pointers occupies `0x01228000..0x01230000`, inside the same function partition.
+Lookup compares name length and then exact name bytes by binary search; it
+does not change declaration order, the retained `main` row, or first-declaration
+application-marker ownership. Census checks duplicates before the existing
+function-count preflight. After admitting and completing a row, insertion
+shifts only initialized index entries and stores its pointer at an index no
+greater than 4,095. Lookup reads only the initialized prefix. There is no new
+capacity, source representation, or AST.
+
 The 256-context cap is stronger than the physical function-frame arena: `main`
 owns one frame and each live non-tail context can own one more, so at most 257
 frames are reachable. Proper-tail calls release their temporary context and
@@ -118,9 +129,10 @@ it does not enter called bodies. During evaluation, ordinary call depth is
 bounded by the 256 live contexts, while tail `if`, tail `let`, and tail calls
 loop or reuse the current activation.
 
-The evaluator's Alpha call graph has no other recursive cycle. A conservative
-bound of 16 live Alpha return addresses per expression level per active Gamma
-frame, plus 512 fixed helper slots, is
+Function-index search, comparison, and insertion use bounded loops, not
+recursive calls. The evaluator's Alpha call graph has no other recursive cycle.
+A conservative bound of 16 live Alpha return addresses per expression level
+per active Gamma frame, plus 512 fixed helper slots, is
 `16 * 256 * 257 + 512 = 1,053,184` return addresses, or 8,425,472 bytes. The
 output buffer stops at `0x0efffffc`, leaving 16,777,220 bytes below Alpha's
 initial `0x10000000` stack pointer. The hidden stack therefore remains more than
@@ -135,13 +147,13 @@ out-of-range memory behavior or exposes an Alpha arithmetic trap as a Gamma
 outcome. Gamma has no time or fuel bound; a nonterminating program diverges.
 
 The selected implementation is
-[`evaluator/gamma_evaluator.beta`](evaluator/gamma_evaluator.beta), a 1,509-line
-addressed Beta program assembling to a 7,835-byte Alpha tape. Its current
-SHA-256 identities are:
+[`evaluator/gamma_evaluator.beta`](evaluator/gamma_evaluator.beta), a 1,632-line,
+46,479-byte addressed Beta program assembling to an 8,355-byte Alpha tape. Its
+current SHA-256 identities are:
 
 ```text
-Beta source  95e8771385a3f8779abcc8aed116327e5de1b350e3aeb93398db913dc3459a33
-Alpha tape   708b6725d3e5a1eff7837336afcc18c45c6f04d5e102148fd710f63fe9b44950
+Beta source  eabf2de565a9165cf3e8cfeb1917a1de76c9847641807199648bd2e1ee9a6427
+Alpha tape   c2ad4740ef13c676455439cc4666a5515c3b61f91d31736a0c8f60fd40b6d98e
 ```
 
 Proper-tail execution, static validation of unreachable bodies, exact resource

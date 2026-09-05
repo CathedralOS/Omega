@@ -42,10 +42,19 @@ child's start. A program without a required function reports source end.
 Within a declaration, enclosing shape checks precede its queued children;
 queued roles run in source order before the next declaration.
 
-The grammar entrance coordinates a counted worklist instead of recursively
-checking nested expressions. Work is `(pair count entries)` and each entry is
-`(pair role (pair node depth))`. Ordinary queue helpers default to depth zero;
-depth-aware helpers preserve expression levels and inherited match-arm levels.
+The grammar entrance coordinates a counted pending-work spine instead of
+recursively checking nested expressions. Count and spine travel as separate
+machine arguments. A pending batch is
+`(pair role (pair depth (pair remaining (pair nodes rest))))`; `nodes` reuses
+the parser's ordered child spine. The current role runs directly, and only
+pending siblings or later roles allocate frames. Successful roles tail-dispatch
+the next work without allocating `Complete(work)` results, replacement work
+wrappers, or reversed child lists. Shape probes use a private scalar result:
+`-1` means success, otherwise the value is the exact rejection coordinate.
+Only the completed declaration returns an outcome to the program coordinator;
+the public grammar entrance still returns the original program or its failure.
+Nonexpression roles use depth zero; expression batches preserve expression
+levels and inherited match-arm levels.
 A function body starts at level 1; expression children
 advance by one, including atoms. Match arm bodies use their enclosing match's
 level plus one, without counting arm or pattern wrappers. Declarations,
@@ -54,8 +63,9 @@ parameters, and patterns do not themselves consume expression levels.
 Before an expression's grammar judgment, level 1,025 produces D30
 `Incomplete(parse_depth)`: halt/tag 2, resource code 8, Delta-source space 1,
 the expression's start, limit 1,024, and requested 1,025. Balanced parsing still
-completes first; the retained node and queue entry have already been allocated
-when the level is checked. Earlier queued grammar failures therefore keep their order,
+completes first, so the retained node already exists when the level is checked.
+Pending frames may also already exist; the limit does not preflight their allocation.
+Earlier pending grammar failures therefore keep their order,
 and the limit check precedes the over-limit node's own grammar failure.
 The subordinate files own these roles:
 

@@ -1,0 +1,49 @@
+; Reuse only the prefix shared with the preceding focus, comparing exact source
+; bytes. The new name may end before that focus; neither endpoint is read.
+(def identity_cursor_common_prefix
+  ((previous Int) (start Int) (end Int) (depth Int) (index Int)) Int
+  (if (eq index depth)
+    index
+    (if (eq (+ start index) end)
+      index
+      (if (eq (source_read (+ previous index)) (source_read (+ start index)))
+        (identity_cursor_common_prefix previous start end depth (+ index 1))
+        index))))
+
+(def identity_cursor_seek ((cursor Int) (start Int) (end Int)) Int
+  (let common Int
+    (identity_cursor_common_prefix (identity_cursor_source cursor) start end
+      (identity_cursor_depth cursor) 0)
+    (identity_cursor_ascend (identity_cursor_focus cursor)
+      (identity_cursor_depth cursor) (identity_cursor_ancestors cursor)
+      (identity_cursor_source cursor) common start end)))
+
+; Rebuild only parents left behind by this seek, retaining each edge's original
+; sibling position. No new declaration or terminal is inserted during seeking.
+(def identity_cursor_ascend
+  ((focus Int) (depth Int) (ancestors Int) (previous Int)
+   (common Int) (start Int) (end Int)) Int
+  (if (eq depth common)
+    (identity_cursor_descend focus depth ancestors start end)
+    (let node Int (first ancestors)
+      (let children Int
+        (name_children_replace (second node)
+          (source_read (+ previous (- depth 1))) focus)
+        (identity_cursor_ascend (pair 1 (pair (first node) children))
+          (- depth 1) (second ancestors) previous common start end)))))
+
+; Existing edges extend the counted zipper. An absent edge leaves its parent
+; focused so a successful provision can prepend exactly one fresh child.
+(def identity_cursor_descend
+  ((focus Int) (depth Int) (ancestors Int) (start Int) (end Int)) Int
+  (if (eq (first focus) 0)
+    (identity_cursor depth start focus ancestors)
+    (let index Int (+ start depth)
+      (if (eq index end)
+        (identity_cursor depth start focus ancestors)
+        (let node Int (second focus)
+          (let child Int (name_child (second node) (source_read index))
+            (if (first child)
+              (identity_cursor_descend child (+ depth 1)
+                (pair node ancestors) start end)
+              (identity_cursor depth start focus ancestors))))))))

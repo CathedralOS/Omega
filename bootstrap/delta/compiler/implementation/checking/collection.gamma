@@ -1,28 +1,33 @@
 ; Grammar has accepted the complete counted syntax program. This phase owns
-; global identity only; it resolves no declaration type or expression.
+; global identity only; it resolves no declaration type or expression. Its
+; three private cursors become ordinary global tries only after completion.
 (def collect_global_identities ((program Int)) Int
   (collect_global_nodes (first program) (second program)
-    (pair (empty_name_trie)
-      (pair (empty_name_trie) (empty_name_trie))) 0 0))
+    (pair (empty_identity_cursor)
+      (pair (empty_identity_cursor) (empty_identity_cursor))) 0 0 2))
 
 (def collect_global_nodes
   ((remaining Int) (forms Int) (globals Int) (function_count Int)
-   (constructor_count Int)) Int
+   (constructor_count Int) (type_count Int)) Int
   (if (eq remaining 0)
-    (compiler_complete globals)
+    (compiler_complete
+      (pair (identity_cursor_finish (global_types globals))
+        (pair (identity_cursor_finish (global_constructors globals))
+          (identity_cursor_finish (global_functions globals)))))
     (let form Int (first forms)
       (let head Int (syntax_child form 0)
         (let is_data Int (token_data (syntax_start head) (syntax_after head))
           (let collected Int
             (if is_data
-              (collect_data_identity form globals constructor_count)
+              (collect_data_identity form globals constructor_count type_count)
               (collect_function_identity form globals function_count))
             (if (eq (first collected) 0)
               (collect_global_nodes
                 (- remaining 1) (second forms) (second collected)
                 (if is_data function_count (+ function_count 1))
                 (if is_data (+ constructor_count (- (syntax_count form) 2))
-                  constructor_count))
+                  constructor_count)
+                (if is_data (+ type_count 1) type_count))
               collected)))))))
 
 (def count_constructor_payloads
@@ -33,27 +38,32 @@
       (- remaining 1) (second constructors)
       (+ total (- (syntax_count (first constructors)) 1)))))
 
-(def collect_data_identity ((form Int) (globals Int) (constructor_count Int)) Int
+; Total type rows include Int and Bytes, whose identities are not trie rows.
+; A fresh nominal provisions its row before metadata or constructor collection.
+(def collect_data_identity
+  ((form Int) (globals Int) (constructor_count Int) (type_count Int)) Int
   (let name Int (syntax_child form 1)
     (let start Int (syntax_start name)
       (let after Int (syntax_after name)
-        (let prior Int (name_trie_find_option (global_types globals) after start)
-          (if (first prior)
+        (let cursor Int (identity_cursor_seek (global_types globals) start after)
+          (if (identity_cursor_present cursor after)
             (compiler_source_rejection 6 start)
-            (let count Int (- (syntax_count form) 2)
-              (let constructors Int (syntax_drop_children (syntax_children form) 2)
-                (let metadata Int
-                  (pair (+ (syntax_start form) 1)
-                    (pair count (count_constructor_payloads count constructors 0)))
-                  (let collected Int
-                    (collect_constructor_identities count constructors metadata
-                      (global_constructors globals) 1 constructor_count)
-                    (if (eq (first collected) 0)
-                      (compiler_complete
-                        (pair
-                          (name_trie_insert (global_types globals) after start metadata)
-                          (pair (second collected) (global_functions globals))))
-                      collected)))))))))))
+            (if (lt type_count 65536)
+              (let count Int (- (syntax_count form) 2)
+                (let constructors Int (syntax_drop_children (syntax_children form) 2)
+                  (let metadata Int
+                    (pair (+ (syntax_start form) 1)
+                      (pair count (count_constructor_payloads count constructors 0)))
+                    (let collected Int
+                      (collect_constructor_identities count constructors metadata
+                        (global_constructors globals) 1 constructor_count)
+                      (if (eq (first collected) 0)
+                        (compiler_complete
+                          (pair
+                            (identity_cursor_commit cursor after metadata)
+                            (pair (second collected) (global_functions globals))))
+                        collected)))))
+              (compiler_failure 2 1 2 start 65536 (+ type_count 1)))))))))
 
 ; D30 counts fresh authored constructors globally, not per data declaration.
 ; Duplicate lookup precedes provision; a refused row allocates no metadata.
@@ -66,8 +76,8 @@
       (let name Int (syntax_child constructor 0)
         (let start Int (syntax_start name)
           (let after Int (syntax_after name)
-            (let prior Int (name_trie_find_option constructor_rows after start)
-              (if (first prior)
+            (let cursor Int (identity_cursor_seek constructor_rows start after)
+              (if (identity_cursor_present cursor after)
                 (compiler_source_rejection 7 start)
                 (if (lt constructor_count 65536)
                   (let metadata Int
@@ -76,7 +86,7 @@
                         (pair (- (syntax_count constructor) 1) (pair after 0))))
                     (collect_constructor_identities
                       (- remaining 1) (second constructors) type_metadata
-                      (name_trie_insert constructor_rows after start metadata)
+                      (identity_cursor_commit cursor after metadata)
                       (+ tag 1) (+ constructor_count 1)))
                   (compiler_failure 2 1 3 start 65536
                     (+ constructor_count 1)))))))))))
@@ -90,14 +100,14 @@
   (let name Int (syntax_child form 1)
     (let start Int (syntax_start name)
       (let after Int (syntax_after name)
-        (let prior Int
-          (name_trie_find_option (global_functions globals) after start)
-          (if (first prior)
+        (let cursor Int
+          (identity_cursor_seek (global_functions globals) start after)
+          (if (identity_cursor_present cursor after)
             (compiler_source_rejection 8 start)
             (if (lt function_count 32768)
               (compiler_complete
                 (pair (global_types globals)
                   (pair (global_constructors globals)
-                    (name_trie_insert (global_functions globals) after start
+                    (identity_cursor_commit cursor after
                       (pair (+ (syntax_start form) 1) (pair after form))))))
               (compiler_failure 2 1 4 start 32768 (+ function_count 1)))))))))

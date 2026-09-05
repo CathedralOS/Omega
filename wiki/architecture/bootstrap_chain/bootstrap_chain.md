@@ -59,7 +59,7 @@ their tapes through the immediately preceding trusted language.
 
 Alpha conformance, the finite Beta root audit, and trusted Beta compiler
 reconstruction are executable. The
-selected 1,509-line Beta-written Gamma evaluator and its 7,835-byte tape run
+selected 1,632-line Beta-written Gamma evaluator and its 8,355-byte tape run
 the typed scalar/effect and self-augmentation gates. Proper tail execution,
 static validation, provenance-tagged immutable pairs, and bounded output are
 implemented with exact profile outcomes. The selected Gamma-authored Delta compiler has a

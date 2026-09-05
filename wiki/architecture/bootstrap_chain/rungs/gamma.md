@@ -14,10 +14,14 @@ functions, polymorphism, modules, and ambient host access.
 Its exact contract is
 [`bootstrap/gamma/LANGUAGE.md`](../../../../bootstrap/gamma/LANGUAGE.md). Its customers
 are the staged Delta compiler and explicitly justified small bootstrap tools.
-The selected 1,509-line Beta evaluator assembles to a 7,835-byte tape and runs
+The selected 1,632-line Beta evaluator assembles to an 8,355-byte tape and runs
 the scalar/effect plus self-augmentation gates. It executes the unchanged
 85-line source augmenter, produces its exact source receipt, and evaluates the
 expanded program to byte 42.
+
+Exact function lookup uses a sorted pointer index inside the existing private
+function partition. Authored row order, application-marker ownership, and the
+4,096-function limit are unchanged; the evaluator still retains no AST.
 
 Proper tail execution, static validation of unreachable bodies, private
 pair-reference provenance, and profile-owned arithmetic traps are complete.

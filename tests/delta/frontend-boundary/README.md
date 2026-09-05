@@ -7,7 +7,7 @@ Python frames requests, invokes those source-owned stages, and compares exact
 observations. It neither parses Delta nor selects diagnostic reasons or source
 coordinates.
 
-The 235 exact 40-byte DCOUT controls cover the frontend phases:
+The exact 40-byte DCOUT controls cover the frontend phases:
 
 - Source-byte rejection uses code 3 and Delta-source coordinate space 1. Invalid
   bytes, including bytes inside comments and a Unicode BOM, precede syntax and
@@ -30,6 +30,15 @@ The 235 exact 40-byte DCOUT controls cover the frontend phases:
   containing closing parenthesis. A 1,000-level nested-call fixture reaches the
   exact inner bare-minus atom through both iterative traversals. A later role
   defect precedes earlier duplicate collection or unknown declaration types.
+  [`name_roles.py`](name_roles.py) checks malformed identifier tails before
+  role checking, exact `Int`/`Bytes` exclusions in nominal declarations, and
+  reserved value names. Existing exact `if` controls are reused. Accepted
+  controls distinguish `IntX`, `Bytes_`, `if_`, and `bytes_get_extra` from their
+  reserved prefixes and exercise underscore function, parameter, and local names.
+  Identifier scanning also stops at EOF, adjacent parentheses, and an immediate
+  semicolon introducing LF/CR/CRLF comments. A later forbidden byte still
+  outranks an earlier malformed identifier; the existing oversized numeric
+  suffix control continues to require spelling code 4 rather than range code 5.
 - Global collection rejects later duplicate types, constructors, and functions
   with codes 6, 7, and 8 at their exact declaration names. Unknown constructor
   and signature types and body defects do not preempt this earlier phase.
@@ -85,7 +94,7 @@ balanced parsing precede depth accounting; earlier grammar defects retain
 priority, while depth refusal precedes grammar judgment at the refused node
 and the later global census and semantic phases.
 
-Thirty-six accepted programs exercise identity compilation, exact entry selection
+Accepted programs exercise identity compilation, exact entry selection
 after `main_suffix`, cross-namespace spelling reuse, forward and mutual data
 visibility, forward and mutual function visibility, and the admitted ASCII
 whitespace/comment boundaries. They include both exact signed integer limits,
@@ -111,6 +120,13 @@ match arms reuse long spellings. Exact long-name duplicates retain codes 6,
 7, 8, 9, and 10 at the later name; unknown shorter prefixes, longer extensions,
 and escaped locals retain exact unknown-name diagnostics. These are authored
 byte constructions, not a host implementation of the exact-name trie.
+
+[`census_cursors.py`](census_cursors.py) adds six exact rejection controls and
+three accepted programs that leave and revisit catalog prefixes in authored
+order. They distinguish a prefix from a complete name, retain independent type
+and constructor owners, preserve every function payload, and revisit 1,024-byte
+prefixes after unrelated insertions. Each accepted program is compiled twice
+and must preserve the same binary application input as the other controls.
 
 The expected coordinates are literal authored fixture facts or lengths of
 explicit fixture-construction prefixes, never source searches. Whole-frame

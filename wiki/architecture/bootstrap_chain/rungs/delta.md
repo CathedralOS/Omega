@@ -11,8 +11,8 @@ The normative contract is
 [`bootstrap/delta/LANGUAGE.md`](../../../../bootstrap/delta/LANGUAGE.md). The canonical
 compiler must be written in Gamma and emit canonical Gamma source. The selected
 Beta-authored Gamma evaluator executes that compiler over Delta source and can
-execute the resulting canonical Gamma receipt. The selected 2,924-line source
-is one canonical request entry plus 55 manifested shared implementation members.
+execute the resulting canonical Gamma receipt. The selected 3,023-line source
+is one canonical request entry plus 58 manifested shared implementation members.
 It enforces Delta's textual-ASCII byte envelope, identifier and
 reserved-name grammar, signed-literal range, and exact global function
 signatures. A complete lexical pass follows source-envelope validation and
@@ -28,8 +28,11 @@ likewise retains ordered resolved signatures and typed parameter environments
 once for all calls. Sparse bytewise tries store only present child edges.
 Insertion tail-builds missing suffixes and rebuilds traversed existing edges
 from a counted immutable ancestor spine, preserving exact terminal options and
-prior roots without identifier-length-dependent Gamma call depth. The extra
-ancestor pairs still consume Gamma's finite arena. Its
+prior roots without identifier-length-dependent Gamma call depth. Census-only
+cursors preserve the current prefix between insertions and finish ordinary
+roots after complete collection; names remain in authored order and duplicate
+lookup still precedes row provision. The extra ancestor pairs still consume
+Gamma's finite arena. Its
 immutable exact-name environments reject unknown locals and
 duplicate active parameter, `let`, or pattern binders while preserving reuse
 across disjoint scopes. The same pass checks the scalar/nominal expression,

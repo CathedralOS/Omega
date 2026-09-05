@@ -19,12 +19,13 @@ emits no Gamma or Alpha code.
 ## Measurements
 
 ```text
-1,509-line / 42,776-byte canonical addressed Beta with named control targets
-7,835-byte evaluator tape
+1,632-line / 46,479-byte canonical addressed Beta with named control targets
+8,355-byte evaluator tape
 ```
 
-The gate compiles that canonical Beta directly and pins the Beta and tape
-hashes. The adjacent 81-line label resolver remains only for nonauthoritative
+The selected Beta compiler assembles that canonical Beta directly; this gate
+pins the Beta and tape hashes and executes the retained tape. The adjacent
+81-line label resolver remains only for nonauthoritative
 experiments elsewhere under `tests/`; it does not reconstruct or participate in
 the selected evaluator.
 
@@ -56,6 +57,13 @@ declaration order reaches all 4,096 rows, then distinguishes a duplicate name
 from a fresh 4,097th function before provision. The fixtures construct source
 bytes and expected observations; they do not model evaluator lookup.
 
+The evaluator keeps physical function rows in authored order and searches a
+sorted pointer index by exact name. The index occupies
+`0x01228000..0x01230000` inside the existing function partition, under the
+unchanged 4,096-row preflight. The 16 controls pin lookup, row payloads, and
+failure ownership independently of this implementation. The complete gate
+runs 71 evaluator invocations, including the augmentation and capacity pairs.
+
 ## Limitations
 
 The remaining admission work is outside evaluator semantics:
@@ -66,7 +74,7 @@ The remaining admission work is outside evaluator semantics:
 - The Beta root and the eventual Gamma derivation checker retain their own
   independent admission obligations.
 
-The measured margin remains: the direct candidate is 1,509 Beta lines versus
+The measured margin remains: the direct evaluator is 1,632 Beta lines versus
 2,337 lines across the former concatenative route. More importantly, its state
 is held in documented registers and explicit memory regions rather than hidden
 behind a generic stack-machine expansion.
@@ -75,7 +83,7 @@ behind a generic stack-machine expansion.
 
 The former concatenative Gamma is not earned as a permanent bootstrap rung.
 Direct Beta already executes the high-level Gamma-authored augmentation workflow
-at less than half the authored line surface and about one fifth the Alpha tape
-size of the compiled seed alone. Proper-tail execution, whole-program static
+with 1,632 authored Beta lines rather than 2,337 across the former route.
+Proper-tail execution, whole-program static
 validation, private pair provenance, and exact resource outcomes preserve that
 local auditability without another semantic layer.

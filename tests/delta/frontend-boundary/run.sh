@@ -28,12 +28,14 @@ import subprocess
 from pathlib import Path
 from depth_fixtures import fixtures as depth_fixtures
 from name_fixtures import fixtures as name_fixtures
+from name_roles import fixtures as name_roles
+from census_cursors import fixtures as census_cursors
 
 directory = Path(os.environ["FRONTEND_BOUNDARY_TMP"])
 compiler = (directory / "compiler.gamma").read_bytes()
 identity = (len(compiler.splitlines()), len(compiler), hashlib.sha256(compiler).hexdigest())
 if identity != (
-    2924, 126793, "d1feea27c62ed1b6a7a5b152eea1555814d32f20ed8ffb744f43ddc57d2867e0"
+    3023, 133298, "aa1891eb35e102f770039b98979fc046b6b9c35956c5268b127845c8006c958c"
 ):
     raise SystemExit(f"Delta compiler identity changed: {identity}")
 
@@ -459,6 +461,10 @@ cases.append(("wide mixed constructor last field mismatch",
 cases.extend(depth_fixtures(rejection))
 name_rejections, name_accepted = name_fixtures(rejection)
 cases.extend(name_rejections)
+role_rejections, role_accepted = name_roles(rejection)
+cases.extend(role_rejections)
+cursor_rejections, cursor_accepted = census_cursors(rejection)
+cases.extend(cursor_rejections)
 
 for name, source, expected in cases:
     actual = evaluate(compiler, request(source))
@@ -556,6 +562,8 @@ accepted += (("mixed wide payload and nullary case",
               b"(bytes_concat (unwrap (Wide " + wide_value_arguments + b")) "
               b"(unwrap Empty)))\n"),)
 accepted += name_accepted
+accepted += role_accepted
+accepted += cursor_accepted
 payload = b"\x00A\x80\xff"
 for name, source in accepted:
     status, receipt = evaluate(compiler, request(source))

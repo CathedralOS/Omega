@@ -42,6 +42,13 @@ Body typing starts at
 expression dispatch, branches, bindings, calls, and matches. Continuation
 frames belong to the expression dispatcher and each concept's payload owner.
 
+Global collection starts at
+[`checking/collection.gamma`](implementation/checking/collection.gamma).
+[`checking/collection/`](implementation/checking/collection/README.md) separates
+the private identity cursor, exact prefix navigation, and admitted insertion.
+Only census construction uses these cursors; downstream phases receive the
+ordinary completed catalogs.
+
 Lowering starts at
 [`lowering/program.gamma`](implementation/lowering/program.gamma) and completes
 every authored function body before publication. The resulting program is defined in
@@ -51,7 +58,7 @@ over-height fragments while retaining evaluation order and binding identity.
 [`emission/program.gamma`](implementation/emission/program.gamma) serializes
 the resulting Gamma plan; it does not select Delta lowering rules.
 
-`implementation/implementation.gamma.sources` selects all 55 shared members
+`implementation/implementation.gamma.sources` selects all 58 shared members
 with exact lengths, digests, and ordered identities. The byte-only source
 materializer validates that closed inventory and prefixes the explicitly
 selected entry. For the canonical entry, its application marker is therefore
@@ -94,6 +101,16 @@ complete lexical pass then admits identifiers, parentheses, arithmetic operator
 tokens, and signed decimal literals. It checks an entire numeric spelling
 before its range, so an overflowing prefix with a nondigit suffix is invalid
 syntax, not an out-of-range literal. Comments retain CR, LF, and EOF boundaries.
+Identifier admission finds the token end and validates its tail in one scan,
+leaving whitespace, parentheses, and semicolons for the next scanner step.
+Malformed tails still reject at the token start after full envelope admission;
+nonidentifier spelling and integer-range checking retain their existing order.
+Later name-role checks consume that lexical admission: they check initial
+category and exact reserved spelling without scanning identifier tails again.
+Only `Int` and `Bytes` can be reserved uppercase names; type positions admit
+both builtins while nominal declaration positions exclude them. Prefixes such
+as `IntX` remain ordinary identifiers. Nominal existence is still resolved only
+after the complete global census.
 After lexical admission, a total parser retains exact atom/list spans and ordered
 children. An explicit frame stack handles nesting without recursive return
 contexts. The complete balanced tree precedes grammar-role checking, so a later
@@ -102,6 +119,9 @@ closing parentheses anchor at exact EOF; unmatched closing parentheses anchor
 at their own byte. A separate iterative worklist checks declaration, binder,
 type-name, expression, and pattern roles. Offending children anchor at their
 start, and missing children at the containing closing parenthesis.
+Pending grammar batches share parser-owned ordered child spines. Successful
+roles tail-dispatch directly, without reversed child copies or per-role success
+wrappers; only the complete declaration returns an outcome to the coordinator.
 Grammar work entries also retain expression level. Function bodies start at 1;
 expression children, including atoms and match arm bodies, advance by one.
 Declarations, parameters, and patterns do not add levels. Before a level-1,025
@@ -127,6 +147,14 @@ precedes provision, and a refused constructor allocates no row metadata.
 Payload fields and the later declaration-resolution metadata rebuild do not
 advance this count. Constructor tags still restart within each data owner;
 the global resource count does not change their representation.
+Type-row accounting starts at two for the builtin `Int` and `Bytes` identities
+and advances once per fresh nominal declaration. The 65,536 total admits
+65,534 nominal declarations, independent of the builtin identities' physical
+representation outside the nominal trie. A duplicate type retains code 6;
+a fresh over-capacity type returns `Incomplete` resource code 2 at its name,
+with limit/requested 65,536/65,537, before its payload-summary traversal,
+metadata allocation, or constructor collection. Type annotation occurrences
+and resolved metadata copies do not consume new rows.
 Declaration resolution visits declarations, constructors, and
 fields in authored order. Each function parameter's conflict check precedes its
 own type annotation, parameters precede the result type, and the whole
@@ -149,6 +177,16 @@ counted ancestor spine, then rebuilt from the inserted terminal outward.
 Exact terminal options distinguish a complete key from its prefixes; unchanged
 children and prior roots remain persistent. Identifier length no longer adds
 one Gamma return context per byte during insertion.
+
+During the census, separate immutable cursors retain each namespace's current
+prefix focus and ancestors across insertions. Exact seek rebuilds departed
+prefixes, but a nearby name can reuse its shared prefix without rebuilding the
+whole root. Duplicate lookup still precedes row provision, and insertion
+occurs only after admission. Successful census completion finishes all three
+ordinary roots. Names remain in authored order; there is no sorting pass,
+lookahead past a refusal, mutation, or alternate downstream representation.
+Empty child lists and absent trie options reuse their identical immutable
+absence carrier rather than allocating a replacement on each miss.
 
 The ancestor spine costs one additional immutable pair per traversed existing
 edge. It shares prior nodes rather than copying names or introducing a dense
@@ -259,9 +297,9 @@ duplicate type/constructor/function identity (6/7/8), local and pattern conflict
 duplicate and nonexhaustive match cases (17/18), missing `main` (19), and
 application schema mismatch (20).
 Missing `main` has no source coordinate; a schema mismatch
-anchors at the entry name. Source-byte, authored `function_rows` and
-`constructor_rows`, and expression `parse_depth` refusals have owned resource
-frames; other compiler-owned resource accounting and
+anchors at the entry name. Source-byte, total `type_rows`, authored
+`function_rows` and `constructor_rows`, and expression `parse_depth` refusals
+have owned resource frames; other compiler-owned resource accounting and
 internal failure publication remain open. Lowering records expanded expression
 heights, including generated wrappers. Normalization uses the selected Gamma
 evaluator's 255-list body budget, reusing fitting subtrees and extracting whole
@@ -290,7 +328,7 @@ The downgraded full compiler remains separate under
 ## Measurements
 
 ```text
-2,924-line / 126,793-byte canonical entry plus shared Gamma implementation
+3,023-line / 133,298-byte canonical entry plus shared Gamma implementation
 7-line / 195-byte nullary-ADT Delta fixture
   -> 3-line / 165-byte Gamma receipt
   -> selected Gamma evaluation produces byte 9
