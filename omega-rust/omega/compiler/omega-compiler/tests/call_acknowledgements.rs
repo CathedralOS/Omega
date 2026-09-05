@@ -3,6 +3,9 @@ use psi_language_semantics::CallOperationalAcknowledgementOrigin;
 use std::fs;
 use std::path::PathBuf;
 
+#[path = "fixture_rosters/call_acknowledgements.rs"]
+mod fixtures;
+
 fn write_program(name: &str, source: &str) -> PathBuf {
     let directory = std::env::temp_dir().join(format!(
         "omega-call-acknowledgements-{name}-{}",
@@ -225,7 +228,9 @@ fn reversed_combined_order_rejects_during_parsing() {
 #[test]
 fn task_start_acknowledges_only_the_start_operation_not_the_target_machine() {
     let canary = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-        .join("../../../../tests/omega/pass/tasks/task_runtime_machine_selection_compile/main.omg");
+        .join("../../../../tests/omega/pass")
+        .join(fixtures::TASK_RUNTIME_MACHINE_SELECTION_COMPILE)
+        .join("main.omg");
     let checked = compile_to_checked(&canary, None)
         .expect("task-start canary should compile with unmarked immediate start calls");
     let start_symbols = checked
