@@ -12,9 +12,9 @@ use std::path::{Path, PathBuf};
 /// An immutable source snapshot after its package-owned declaration has been
 /// extracted and joined to canonical source lineage.
 ///
-/// This is source custody, not package admission. Toolchain identity and
-/// compiler-issued package evidence are intentionally absent; only those later
-/// stages can construct the future sealed `PackageInstance`.
+/// This is source custody, not package acceptance. Compiler checking and
+/// project policy remain separate; source resolution requires no sealed or
+/// certified package instance.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ResolvedPackageSource<S> {
     key: PackageKey,

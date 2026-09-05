@@ -225,6 +225,14 @@ and snapshot before returning. Ordinary concurrent drift rejects. The snapshot
 does not claim protection from a process that already possesses the same user
 authority after resolution completes.
 
+Mutable local capture omits Git metadata, the root build-output directory, and
+root `omega.lock` including ASCII case variants. The lock must not hash itself
+through the root source selection. Nested lock-named files remain source, and
+links into excluded control state reject. These omissions do not apply to
+exact materialized/Git tree verification. Lock loading is a separate manager
+operation; excluding the file from source identity does not ignore its accepted
+policy or make that policy a proof of an audit.
+
 ## Resource handling
 
 The resolver enforces compiler-owned ceilings on source entries, source bytes,

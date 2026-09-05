@@ -8,6 +8,8 @@ use omega_package_manager::review::{
     PackagePolicyReviewError, recover_package_policy_review, render_package_policy_review,
 };
 
+#[path = "operation/lock_file.rs"]
+mod lock_file;
 #[path = "operation/semantic.rs"]
 mod semantic;
 

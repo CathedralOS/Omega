@@ -47,6 +47,7 @@ fn local_directory_collection_is_bounded_without_counting_reserved_exclusions() 
     let root = temp_root("bounded-directory-listing");
     std::fs::create_dir_all(root.join(".git")).expect("create excluded metadata");
     std::fs::create_dir_all(root.join("build")).expect("create excluded build output");
+    std::fs::write(root.join("omega.lock"), "project state").expect("write excluded lock");
     std::fs::write(root.join("first.omg"), "").expect("write first source");
     std::fs::write(root.join("second.omg"), "").expect("write second source");
     let limits = LocalSourceLimits {
@@ -55,7 +56,7 @@ fn local_directory_collection_is_bounded_without_counting_reserved_exclusions() 
     };
 
     let accepted = resolve_local_source(&root, limits)
-        .expect("the two reserved exclusions must not consume source identity entries");
+        .expect("reserved exclusions must not consume source identity entries");
     assert_eq!(accepted.file_count, 2);
 
     std::fs::write(root.join("third.omg"), "").expect("write excess source");
