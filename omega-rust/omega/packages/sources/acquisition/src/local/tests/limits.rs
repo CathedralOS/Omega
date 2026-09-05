@@ -48,6 +48,8 @@ fn local_directory_collection_is_bounded_without_counting_reserved_exclusions() 
     std::fs::create_dir_all(root.join(".git")).expect("create excluded metadata");
     std::fs::create_dir_all(root.join("build")).expect("create excluded build output");
     std::fs::write(root.join("omega.lock"), "project state").expect("write excluded lock");
+    std::fs::write(root.join("omega.admissions"), "compiler policy")
+        .expect("write excluded compiler admissions");
     std::fs::write(root.join("first.omg"), "").expect("write first source");
     std::fs::write(root.join("second.omg"), "").expect("write second source");
     let limits = LocalSourceLimits {

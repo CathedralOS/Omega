@@ -1,11 +1,12 @@
 //! Pure joins performed before any dependent acquisition.
 
-use super::ResolveLockedPackageClosureError as Error;
+use super::{ResolveLockedPackageClosureError as Error, RootPolicy};
 use crate::declarations::dependencies::read::DependencySourceRequest;
 use crate::resolution::graph::{
     CanonicalDependencySourceRequest as RecordedRequest, CanonicalDependencySourceSelection,
     CanonicalRootSourceRequest, CanonicalSourceClosureSubject, CanonicalSourceClosureSubjectLimits,
-    PackageRootSourceRequest, PackageSourceClosureLimits, ResolvedSourceIdentity,
+    PackageRootSourceRequest, PackageSourceClosureLimits, ResolvedPackageSourceClosure,
+    ResolvedSourceIdentity,
 };
 use crate::resolution::source::PackageSourceCustody;
 
@@ -78,7 +79,33 @@ pub(super) fn custody(
     expected: &ResolvedSourceIdentity,
     actual: &PackageSourceCustody,
 ) -> Result<(), Error> {
-    if actual.key() != expected.key() || actual.resolution() != expected.resolution() {
+    checked_custody(subject, expected, actual, false)
+}
+
+pub(super) fn requester_custody(
+    subject: &CanonicalSourceClosureSubject,
+    expected: &ResolvedSourceIdentity,
+    actual: &PackageSourceCustody,
+    policy: RootPolicy,
+) -> Result<(), Error> {
+    checked_custody(
+        subject,
+        expected,
+        actual,
+        matches!(policy, RootPolicy::MutableLocal)
+            && expected.key() == subject.root().selected().key(),
+    )
+}
+
+fn checked_custody(
+    subject: &CanonicalSourceClosureSubject,
+    expected: &ResolvedSourceIdentity,
+    actual: &PackageSourceCustody,
+    mutable_root: bool,
+) -> Result<(), Error> {
+    if actual.key() != expected.key()
+        || (!mutable_root && actual.resolution() != expected.resolution())
+    {
         return Err(Error::mismatch(
             expected.key(),
             "fresh source key or immutable content differs",
@@ -106,12 +133,18 @@ pub(super) fn edge<'a>(
     requester: &PackageSourceCustody,
     ordinal: usize,
     request: &DependencySourceRequest,
+    policy: RootPolicy,
 ) -> Result<&'a CanonicalDependencySourceSelection, Error> {
     let package_index = subject
         .packages()
         .binary_search_by(|source| source.key().cmp(requester.key()))
         .map_err(|_| Error::mismatch(requester.key(), "requester is absent from locked graph"))?;
-    custody(subject, &subject.packages()[package_index], requester)?;
+    requester_custody(
+        subject,
+        &subject.packages()[package_index],
+        requester,
+        policy,
+    )?;
     let index = subject
         .dependency_requests()
         .binary_search_by(|edge| {
@@ -133,6 +166,50 @@ pub(super) fn edge<'a>(
         ));
     }
     Ok(edge)
+}
+
+pub(super) fn local_root_context_matches(
+    recorded: &CanonicalRootSourceRequest,
+    actual: &PackageRootSourceRequest,
+) -> bool {
+    matches!((recorded, actual), (
+        CanonicalRootSourceRequest::ExternalLocal { source_context, .. },
+        PackageRootSourceRequest::ExternalLocal { source_context: actual, .. },
+    ) if source_context == actual)
+}
+
+/// Compare typed graph fields; never rewrite or re-encode a recovered record
+/// to manufacture a subject matching the edited root.
+pub(super) fn mutable_local_graph_matches(
+    recorded: &CanonicalSourceClosureSubject,
+    closure: &ResolvedPackageSourceClosure,
+    limits: CanonicalSourceClosureSubjectLimits,
+) -> Result<bool, Error> {
+    let fresh = CanonicalSourceClosureSubject::from_resolved(
+        &closure.for_exact_target(recorded.target_profile()),
+        limits,
+    )?;
+    let root_key = recorded.root().selected().key();
+    Ok(local_root_context_matches(
+        recorded.root().request(),
+        closure.source_requests().root().request(),
+    ) && recorded.target_profile() == fresh.target_profile()
+        && recorded.root_role() == fresh.root_role()
+        && root_key == fresh.root().selected().key()
+        && recorded.packages().len() == fresh.packages().len()
+        && recorded
+            .packages()
+            .iter()
+            .zip(fresh.packages())
+            .all(|(before, after)| {
+                before.key() == after.key()
+                    && (before.key() == root_key || before.resolution() == after.resolution())
+                    && recorded.package_navigation(before.key())
+                        == fresh.package_navigation(after.key())
+                    && recorded.package_dependency_projection(before.key())
+                        == fresh.package_dependency_projection(after.key())
+            })
+        && recorded.dependency_requests() == fresh.dependency_requests())
 }
 
 fn request_matches(recorded: &RecordedRequest, actual: &DependencySourceRequest) -> bool {

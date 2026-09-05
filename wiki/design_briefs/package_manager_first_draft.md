@@ -2412,7 +2412,7 @@ manufacture a portable “proof of audit.”
 The `package-manager` release surface now contains reviewed corrected-model
 building blocks for immutable source custody, typed identity and closure,
 compiler handoff/review, exact row conflicts, and review-only triage. The ratified
-acceptance model above still needs command integration. The legacy manifest,
+acceptance model above is connected to install/update and review resume. The legacy manifest,
 name-keyed lock,
 whole-section receipt, caller-constructed instance, and install/update
 scaffolding and standalone dependency scanner were deleted rather than retained
@@ -2434,8 +2434,14 @@ The source-lock codec, exact locked recovery, complete-policy comparison and
 decisions, proposed lock sections, and non-mutating dependency-edit staging are
 available building blocks. Selective resolution preserves unchanged Git pins
 while refreshing explicitly selected repository lineages; workspace members
-move together within the selected graph. Command-owned review-file loading/resume,
-package/alias selection, and command orchestration remain integration work.
+move together within the selected graph. Commands resolve package/alias
+selections, retain per-target findings and exact candidate pins across
+`--resume`, and preserve accepted project files until blocking decisions accept.
+Ordinary compilation uses locked dependency pins while allowing edits to the
+local application's own source. Compiler admission policy uses
+`omega.admissions`, not the package lock. Named workspace selection at the CLI,
+explicit both-alias-and-source replacement intent, and source-code diff/audit
+integration remain work on the task board.
 Reviewed pair publication and interruption recovery use a bounded commit-intent
 journal and OS mutex, without additional evidence-promotion prerequisites.
 These source operations do not require certification prerequisites. Unsupported

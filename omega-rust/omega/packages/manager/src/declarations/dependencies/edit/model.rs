@@ -1,4 +1,5 @@
-use crate::declarations::dependencies::read::DependencyProjectionError;
+use crate::declarations::dependencies::edit::rendering::source_digest;
+use crate::declarations::dependencies::read::{DependencyProjectionError, extract_from_source};
 use std::fmt;
 use std::path::{Path, PathBuf};
 
@@ -23,6 +24,22 @@ pub struct BuildFileReplacement {
 }
 
 impl BuildFileReplacement {
+    /// Construct a replacement from command-owned source, including unchanged
+    /// source or a saved proposal resumed by the command.
+    ///
+    /// Both sources must have valid ordinary dependency projections. The expected
+    /// digest covers the exact `before` bytes. This does not read or write the
+    /// path, verify its current contents, or certify the proposed change.
+    pub fn from_sources(
+        build_path: PathBuf,
+        before: &str,
+        proposed: String,
+    ) -> Result<Self, BuildDependencyEditError> {
+        extract_from_source(before).map_err(BuildDependencyEditError::InvalidBuild)?;
+        extract_from_source(&proposed).map_err(BuildDependencyEditError::InvalidBuild)?;
+        Ok(Self::new(build_path, source_digest(before), proposed))
+    }
+
     pub(super) fn new(
         build_path: PathBuf,
         expected_sha256: [u8; 32],

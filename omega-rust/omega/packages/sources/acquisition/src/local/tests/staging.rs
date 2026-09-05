@@ -36,7 +36,12 @@ fn staged_replacement_preserves_live_source_and_reuses_snapshot_after_edit() {
         std::fs::create_dir_all(root.join("nested/empty")).expect("create empty directory");
         std::fs::write(root.join("nested/omega.lock"), b"nested source")
             .expect("write captured nested lock");
-        for excluded in [".git/index", "build/output", "omega.lock"] {
+        for excluded in [
+            ".git/index",
+            "build/output",
+            "omega.lock",
+            "omega.admissions",
+        ] {
             let path = root.join(excluded);
             std::fs::create_dir_all(path.parent().unwrap()).expect("create excluded parent");
             std::fs::write(path, b"excluded").expect("write excluded content");
@@ -74,7 +79,7 @@ fn staged_replacement_preserves_live_source_and_reuses_snapshot_after_edit() {
             b"nested source"
         );
         assert!(staged.snapshot_root().join("nested/empty").is_dir());
-        for excluded in [".git", "build", "omega.lock"] {
+        for excluded in [".git", "build", "omega.lock", "omega.admissions"] {
             assert!(!staged.snapshot_root().join(excluded).exists());
         }
         assert_eq!(staged.normalized().file_count, original.file_count);
@@ -182,7 +187,12 @@ fn assert_invalid_replacement(root: &Path, lane: &RetainedStorageLane, relative_
 fn staged_replacement_rejects_missing_directory_and_excluded_paths() {
     with_staging_source("staging-invalid-target", |root, lane| {
         std::fs::create_dir(root.join("directory")).expect("create directory target");
-        let excluded = [".git/index", "build/output", "omega.lock"];
+        let excluded = [
+            ".git/index",
+            "build/output",
+            "omega.lock",
+            "omega.admissions",
+        ];
         for relative_path in excluded {
             let path = root.join(relative_path);
             std::fs::create_dir_all(path.parent().unwrap()).unwrap();
@@ -195,6 +205,7 @@ fn staged_replacement_rejects_missing_directory_and_excluded_paths() {
             ".git/index",
             "build/output",
             "omega.lock",
+            "omega.admissions",
         ] {
             assert_invalid_replacement(root, lane, relative_path);
         }
@@ -278,7 +289,7 @@ fn staged_replacement_verification_detects_unrelated_source_drift() {
 }
 
 #[test]
-fn no_op_staging_reuses_original_snapshot_and_ignores_root_lock_changes() {
+fn no_op_staging_reuses_original_snapshot_and_ignores_root_control_changes() {
     with_staging_source("staging-no-op-lock", |root, lane| {
         let limits = LocalSourceLimits::default();
         let original = resolve_local_source_snapshot_in_lane(root, lane, limits).unwrap();
@@ -293,18 +304,20 @@ fn no_op_staging_reuses_original_snapshot_and_ignores_root_lock_changes() {
         staged
             .verify_live_source_unchanged()
             .expect("no-op is not drift");
-        for contents in [b"first lock".as_slice(), b"changed lock"] {
-            std::fs::write(root.join("omega.lock"), contents).unwrap();
+        for name in ["omega.lock", "omega.admissions"] {
+            for contents in [b"first policy".as_slice(), b"changed policy"] {
+                std::fs::write(root.join(name), contents).unwrap();
+                staged
+                    .verify_live_source_unchanged()
+                    .expect("root control policy is not source drift");
+                let reused = stage_main(root, lane, b"before");
+                assert_eq!(reused.snapshot_root(), staged.snapshot_root());
+                assert!(!reused.snapshot_root().join(name).exists());
+            }
+            std::fs::remove_file(root.join(name)).unwrap();
             staged
                 .verify_live_source_unchanged()
-                .expect("root lock is not source drift");
-            let reused = stage_main(root, lane, b"before");
-            assert_eq!(reused.snapshot_root(), staged.snapshot_root());
-            assert!(!reused.snapshot_root().join("omega.lock").exists());
+                .expect("root control policy removal is not drift");
         }
-        std::fs::remove_file(root.join("omega.lock")).unwrap();
-        staged
-            .verify_live_source_unchanged()
-            .expect("root lock removal is not drift");
     });
 }

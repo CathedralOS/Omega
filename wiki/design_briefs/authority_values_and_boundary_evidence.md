@@ -1037,9 +1037,12 @@ build-machine occurrence retained separately as exact `build.omg` source
 custody. Neither the selector string nor the compact plan report fingerprint
 can stand in for the selected plan.
 The persisted trust-admission digest domain-separates those subject kinds and
-also binds the human policy commitment. The narrow standalone `omega.lock`
-receipt section stores the full digest, while legacy compact-only rows fail
+also binds the human policy commitment. The separate `omega.admissions`
+compiler policy stores the full digest, while legacy compact-only rows fail
 closed and require explicit re-acceptance.
+The package manager owns `omega.lock`; compiler admission acceptance never
+replaces package pins. Former strong compiler-policy rows stored under that
+name require an explicit move to `omega.admissions` before package operations.
 
 Private and compilation-local carriers follow the same split. An access field
 key retains a domain-separated commitment to the exact canonical layout that

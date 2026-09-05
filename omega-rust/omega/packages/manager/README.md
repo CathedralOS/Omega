@@ -63,8 +63,17 @@ intent and publishes the pair under a project mutex. Interruption recovery
 completes forward only from recorded old/new contents; unrelated edits stop it.
 Ordinary project preparation coordinates with existing pending state before
 snapshotting. See [publication](src/operations/publication/README.md) for the
-file protocol and platform limits. Command-owned review-file loading/resume
-and command-level package/alias selection remain integration work.
+file protocol and platform limits. The [command operation](src/operations/package_commands/README.md)
+owns package/alias selection, persisted per-target findings, exact candidate
+resume, and reviewed publication for `omega install` and `omega update`.
+
+`prepare_local_project_for_target` selects an accepted lock target before source
+acquisition. It preserves dependency pins, fetching only recorded commits when
+needed, while allowing ordinary edits to the local application's source. Its
+dependency projection, identity, and role must still match; local dependencies
+must retain their accepted content. Declaration or dependency changes require
+an explicit update. This mutable-root preparation is distinct from strict
+whole-closure recovery. Local root identity remains tied to its canonical path.
 
 Candidate checking executes the existing scoped build evaluator, so it is not
 side-effect-free: package-input reads, disposable-output writes, and compiler
@@ -128,11 +137,9 @@ application root that produced them. Admission consumes that root directly
 into unpublished Terminal/native production after fresh evidence comparison;
 it does not rerun `build.omg` or recover generated source from staging.
 
-Install and update belong in `operations/`. Their remaining work is the basic
-resolve/fetch/review workflow and transactional lock/cache updates, with
-accepted baselines and decisions recorded directly. Extending the promotion
-layer or certifying lock acceptance is not a prerequisite. The source and
-review crates remain subordinate to those operations.
+Install and update belong in `operations/`, with accepted baselines and decisions
+recorded directly. Their command flow does not extend the promotion layer or
+certify lock acceptance. The source and review crates remain subordinate.
 
 `lock/decisions` records historical choices against the complete canonical
 source subject. `HistoricalPackagePolicyDecisions::capture_policy` consumes the
@@ -169,8 +176,8 @@ selected dependency requests, policy sequence elements, semantic identity
 traversal nodes, and decisions. Child
 usage is deducted from the same aggregate limits rather than reset per target.
 Allocator overhead and already borrowed input are not part of owned-storage
-accounting. Reviewed publication owns recoverable pair writes;
-install/update command integration remains open.
+accounting. Reviewed publication owns recoverable pair writes; install/update
+commands retain all accepted targets when publishing.
 Serialization uses the same recovery accounting one child at a time, discarding
 that scratch before the next child. It therefore refuses an output that exceeds
 the chosen recovery ceilings even when its text fits. This is a resource check,
@@ -191,8 +198,9 @@ source currently fails even if its snapshot remains cached.
 Recovery borrows the accepted lock, so unavailable source or content drift does
 not destroy the readable policy baseline. Its result is a source closure usable
 by ordinary compiler inputs, not a fresh analysis or renewed acceptance of old
-decisions. Missing-baseline handling, standalone candidate audit, and
-command-owned publication/resume remain separate integration work.
+decisions. Commands treat a missing baseline as fresh graph review. Old source
+is not needed to compare retained policy; source-code diff acquisition and
+optional audit-service integration remain separate work.
 
 `operations::check_locked_sources` follows exact recovery with fresh checking of
 the complete graph through the ordinary candidate-review entrance. It preserves
@@ -269,8 +277,8 @@ certificate, reviewer receipt, or authentication of the project author.
 
 `all_required_changes_accepted` describes only the represented choices, not
 permission to publish. Reviewed publication joins these choices to candidate
-and project-file checks. Explicit command replacement intent and review-file
-loading/resume remain integration work.
+and project-file checks. Review-file loading/resume is command-owned. Explicit
+replacement intent when both alias and source change remains integration work.
 
 Return to the [package subsystem map](../README.md), or consult:
 

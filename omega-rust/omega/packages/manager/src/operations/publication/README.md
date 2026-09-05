@@ -23,7 +23,9 @@ Open `PackageFileTransaction` before reading an install/update baseline, recover
 pending intent, and retain the guard while using the pair. `transaction.lock`
 holds an OS mutex; its continued existence does not mean a process is running.
 Contention returns `Busy`. Ordinary project preparation participates when state
-already exists; source-only reads do not create it in a read-only checkout.
+already exists or an accepted package lock is present. A fresh locked checkout
+creates coordination state before acquiring dependencies; unlocked source-only
+reads do not create it.
 
 The bounded `pending` journal records exact old/new bytes for the two fixed
 files, including an explicitly absent old lock. Once recorded, it is commit
@@ -42,5 +44,6 @@ without a non-atomic copy fallback.
 Two renames are not simultaneous for readers that ignore the mutex. This is
 process coordination and interruption recovery, not protection from a hostile
 process acting as the same user. Do not delete pending journals as build-cache
-cleanup. Review-file persistence/resume and selective update pin selection
-remain command integration work.
+cleanup. [Package commands](../package_commands/README.md) own review-file
+persistence/resume and selective update pin selection. Their `proposal` restart
+record is separate from this publication journal.

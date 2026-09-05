@@ -32,16 +32,24 @@ Follow the supported source-change flow through:
 6. `manager/src/operations/publication/`: recheck the reviewed candidate and
    project files, then publish a recoverable `build.omg`/`omega.lock` pair.
 
-Install/update command wiring, package/alias selection, and review-file resume
-remain unfinished. The [task board](../../../TASKS_PACKAGE_MANAGER.md) names the
-remaining acceptance conditions; the [manager README](manager/README.md) maps
-the available operations.
+`omega install` and `omega update` use that flow, including selective updates,
+per-target review files, `--resume`, and recoverable publication. Start at the
+[command operation](manager/src/operations/package_commands/README.md) for usage
+and its source map. The [task board](../../../TASKS_PACKAGE_MANAGER.md) contains
+only remaining work, including named workspace selection at the CLI and source
+audit integration.
 
 The lock codec stores readable, receipt-free policy baselines and historical
 decisions beside exact source graphs. Old source is not required to read or
 compare those baselines. Locked recovery acquires the recorded commit rather
 than refreshing selectors; fresh checking reports changes in compiler findings
 without claiming to certify prior acceptance.
+
+Ordinary project preparation uses accepted dependency pins while allowing edits
+to the application's own source. Changed dependency declarations or local
+dependency contents require `omega update`. Compiler admission policy lives in
+`omega.admissions`, separately from package pins; `--accept-admissions` cannot
+replace the package lock.
 
 Native compilation uses a separate manager admission and compiler handoff
 path. Its proof, reachability, ABI, and artifact checks are not an additional

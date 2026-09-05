@@ -6,6 +6,8 @@ use package_manager::review::{
     PackagePolicyReviewError, recover_package_policy_review, render_package_policy_review,
 };
 
+#[path = "operation/commands.rs"]
+mod commands;
 #[path = "operation/lock_file.rs"]
 mod lock_file;
 #[path = "operation/publication.rs"]

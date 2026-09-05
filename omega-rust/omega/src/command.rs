@@ -1,6 +1,7 @@
 mod audit;
 mod inspect_terminal;
 mod output;
+mod package;
 mod probe;
 mod samples;
 
@@ -42,6 +43,21 @@ fn dispatch() {
     // the root Cargo workspace.
     let mut raw_arguments = std::env::args_os().skip(1);
     let first_argument = raw_arguments.next();
+    if first_argument
+        .as_deref()
+        .is_some_and(|first| first == "install" || first == "update")
+    {
+        let kind = if first_argument
+            .as_deref()
+            .is_some_and(|first| first == "install")
+        {
+            package_manager::operations::PackageCommandKind::Install
+        } else {
+            package_manager::operations::PackageCommandKind::Update
+        };
+        package::run(kind, raw_arguments);
+        return;
+    }
     if first_argument
         .as_deref()
         .is_some_and(|first| first == "refresh-samples")
@@ -96,14 +112,22 @@ fn dispatch() {
     } else {
         ArtifactEmissionPolicy::Full
     };
-    let prepared_project =
-        match package_manager::operations::prepare_local_project(&options.root_path) {
-            Ok(prepared) => prepared,
-            Err(error) => {
-                eprintln!("{error}");
+    let target_profile =
+        target::TargetProfile::from_omega_target_name(options.target_name.as_deref())
+            .unwrap_or_else(|diagnostic| {
+                eprintln!("{diagnostic}");
                 std::process::exit(1);
-            }
-        };
+            });
+    let prepared_project = match package_manager::operations::prepare_local_project_for_target(
+        &options.root_path,
+        target_profile,
+    ) {
+        Ok(prepared) => prepared,
+        Err(error) => {
+            eprintln!("{error}");
+            std::process::exit(1);
+        }
+    };
     let requested_product = if arguments.check_only {
         RequestedCompileProduct::Check
     } else {
@@ -120,12 +144,6 @@ fn dispatch() {
     };
     let report = match prepared_project {
         Some(prepared) if !arguments.check_only => {
-            let target_profile =
-                target::TargetProfile::from_omega_target_name(options.target_name.as_deref())
-                    .unwrap_or_else(|diagnostic| {
-                        eprintln!("{diagnostic}");
-                        std::process::exit(1);
-                    });
             let policy = arguments
                 .package_root_policy
                 .as_deref()
@@ -284,7 +302,7 @@ struct CliArguments {
 }
 
 fn usage() -> &'static str {
-    "usage: omega [--check] [--accept-admissions] [--output-only] [--package-root-policy <file>] [--build-dir <dir>] [--target <name>] [--disable-optimization <ExactName>]... <root.omg>\n       omega run [--both] [--keep] [--target <name>] <root.omg>\n       omega inspect-terminal --machine <qualified> [--target <name>] <root.omg>\n       omega audit source --kind <local|git> <locator> [--rev <rev>]\n       omega refresh-samples [samples-dir]"
+    "usage: omega [--check] [--accept-admissions] [--output-only] [--package-root-policy <file>] [--build-dir <dir>] [--target <name>] [--disable-optimization <ExactName>]... <root.omg>\n       omega run [--both] [--keep] [--target <name>] <root.omg>\n       omega inspect-terminal --machine <qualified> [--target <name>] <root.omg>\n       omega audit source --kind <local|git> <locator> [--rev <rev>]\n       omega install <source> [--rev <revision>] [--as <alias>] [--target <name>]... [--project <dir>]\n       omega update [package-or-alias...] [--to <revision>] [--target <name>]... [--project <dir>]\n       omega install|update --resume [--project <dir>]\n       omega install|update --discard-review [--project <dir>]\n       omega refresh-samples [samples-dir]"
 }
 
 fn parse_arguments() -> Result<CliArguments, String> {

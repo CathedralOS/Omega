@@ -9,7 +9,10 @@ pub use model::{
     BuildDependencyEditError, BuildDependencyEditPlan, BuildDependencyManualPatch,
     BuildDependencyManualReason, BuildFileReplacement,
 };
-pub use planning::{plan_dependency_addition, plan_dependency_replacement};
+pub use planning::{
+    plan_dependency_addition, plan_dependency_addition_from_source, plan_dependency_replacement,
+    plan_dependency_replacement_from_source,
+};
 pub use rendering::canonical_dependency_statement;
 
 const BUILD_FILE_NAME: &str = "build.omg";

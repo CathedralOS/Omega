@@ -3073,10 +3073,11 @@ a certificate proving that the lock deserves trust. A mismatch between current
 analysis and the recorded baseline is reported; it never disappears because
 the lock says the package is accepted.
 
-The root `omega.lock` of a mutable local package is project control state, not
-source input. Local capture excludes it, including ASCII case variants, so
-publishing the lock does not change the source identity recorded inside it.
-Symlinks into that excluded root control file reject. Nested lock-named files
+The root `omega.lock` and `omega.admissions` of a mutable local package are
+project control state, not source input. Local capture excludes them, including
+ASCII case variants, so publishing policy does not change the source identity
+recorded inside the lock. Symlinks into those excluded root control files reject.
+Nested policy-named files
 remain ordinary source; exact materialized repository trees retain their full
 content, including lock files. The manager still loads the accepted lock
 separately and compares its policy with fresh compiler findings. This source
@@ -4003,8 +4004,8 @@ detect stale or accidentally edited review input; they do not authenticate the
 author or prove anybody performed an audit. A retained rejection prevents the
 represented choices from accepting the candidate. Even complete acceptance is
 not permission to publish without the transaction's source/project-file checks.
-Command-owned review-file persistence and command integration remain
-downstream work. The older review-only decision codec and file layer below are
+Install/update commands persist and recover these per-target review files.
+The older review-only decision codec and file layer below are
 implementation facilities, not additional install/update acceptance gates.
 
 `operations::review_package_change` joins candidate compilation and comparison
@@ -4039,7 +4040,57 @@ staging nor review writes accepted project files. The caller retains the plan
 and stage to detect intervening edits. Manual declaration patches still need
 author placement. The pin-aware staged resolver preserves unaffected Git
 requests against the accepted graph and requires the same original root request.
-Command-level update selection and review-file resume remain integration work.
+The command maps root aliases or unambiguous package names to exact selected
+keys. Selecting a Git workspace member refreshes its repository lineage as a
+unit, while unaffected repositories remain pinned.
+
+### Install/update command lifecycle
+
+`omega install <source> [--rev <revision>] [--as <alias>]` installs a Git root
+package or a local package. The fetched declaration supplies the package name;
+the consumer supplies an alias only when overriding the default.
+`omega update [package-or-alias...] [--to <revision>]` updates all requests or
+the selected repository lineages. `--to` requires one selection with a
+root-authored Git request. Named repository-member selection is available in
+`build.omg`, but an install CLI flag remains to be added.
+
+Both commands accept `--project <dir>` and repeated `--target <name>`. Target
+selection retains all existing lock targets and adds requested ones; first
+acceptance defaults to the host if none is named. An existing valid `build.omg`
+is required. Unsupported automatic declaration edits request a manual patch.
+
+Before reading accepted files, the command opens the project transaction and
+recovers any recorded publication intent. It stages proposed build bytes,
+resolves the candidate, and checks every retained target. Blocking findings
+return status 3 with accepted files unchanged and write
+`build/package-manager/review-<target>.txt`. A separate `proposal` file retains
+the candidate graph, targets, proposed declaration, and original project-file
+and source identities. This is restart state, not project acceptance.
+
+The matching command's `--resume` uses the saved candidate pins, fetches exact
+missing commits if necessary, recompiles, and recovers only edits to decision
+tokens. Changed project sources, accepted files, dependency content, or findings
+require a fresh proposal. Rejection leaves the candidate unpublished.
+`--discard-review` removes only the proposal; diagnostic review files remain.
+It does not discard publication recovery or undo already accepted changes.
+Nonblocking candidates publish directly while still reporting audit advice.
+
+Missing lock state gives a fresh complete-graph review through unselected
+`omega update`; selected updates need the accepted graph to identify their
+selection. Unsupported formats reject with recovery guidance before any
+selector refresh. Retained baselines support policy comparison without an old
+checkout. Commands currently do not load old source or render a code diff;
+they say so and recommend standalone candidate audit or obtaining that diff
+separately. No advisory service is needed to resolve compiler findings.
+
+Ordinary `prepare_local_project_for_target` selects the accepted target before
+acquisition and preserves dependency pins. The mutable local application root
+may change source while retaining its identity, role, and dependency projection;
+dependencies must still match recorded content. Changed dependency requests or
+local dependency content require an update. This is distinct from strict
+whole-closure lock recovery. Local root identity remains tied to the canonical
+path, so moving a checkout requires fresh reconciliation rather than silently
+rewriting its accepted identity.
 
 `publish_reviewed_package_change` joins the staged build edit with all reviewed
 target sections and their exact decisions. It checks original file bytes,
@@ -4224,17 +4275,23 @@ others or unrelated package members. A command may explicitly build or check
 several roots, but workspace membership alone never makes a member part of an
 artifact.
 
-Compilation itself does not discover or mutate that lock. A compile request
+The compiler itself does not discover or mutate that lock; its command
+coordinator uses it for package resolution. A compile request
 supplies one complete in-memory admission set; the compiler independently
 reconstructs the exact required obligations and returns the consumed,
 unresolved, and unused rows with its product. The command coordinator reads the
-workspace policy for an ordinary fail-closed check. Only the explicit
+separate `omega.admissions` compiler policy for an ordinary fail-closed check. Only the explicit
 `--accept-admissions` operation replaces the admitted set with the exact
-compiler-reconstructed set. A missing lock therefore never turns ordinary
+compiler-reconstructed set. Missing compiler admission policy never turns ordinary
 compilation into implicit approval, and trust-report files remain diagnostics
 rather than policy authority. Filesystem-free obligation/report construction
 lives in `trust-model`; `trust-ledger` is limited to coordinator-
-facing `omega.lock` custody.
+facing `omega.admissions` custody. It cannot overwrite package pins through
+`--accept-admissions`. Existing compiler policy containing the former strong
+digest/commitment rows under `omega.lock` must be explicitly moved to
+`omega.admissions` before package operations. A package-format lock must not be
+renamed or interpreted as compiler admission policy. This separates two file
+owners; it adds no install/update audit or certification requirement.
 
 Package root policy uses a separate explicit command input. For native
 `build.omg` projects, `--package-root-policy <file>` identifies one canonical
@@ -4380,8 +4437,10 @@ narrow exception.
 The scoped filesystem executor and real/virtual filesystem modes are the live
 foundation. The Rust package crate now has reviewed production building blocks
 for immutable source custody, typed identity/closure, compiler handoff/review,
-row conflicts, candidate-bound root-policy decisions, restart-stable review
-baselines, and triage, but it is not yet an accepted admission implementation.
+row conflicts, restart-stable review baselines, and triage. Install/update
+commands now join those facilities to per-change decisions and recoverable
+build/lock publication. Native candidate-bound root policy remains a separate
+compiler operation, not a prerequisite for source installation.
 The name-keyed lock, caller-constructed manifest JSON, mandatory caller-supplied
 name/alias, fingerprint-only baseline, and free-form receipt prototypes are
 deleted rather than retained as a parallel test model.
