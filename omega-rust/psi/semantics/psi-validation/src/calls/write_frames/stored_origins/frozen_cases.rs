@@ -77,7 +77,10 @@ fn statement_receiver_replaces_case(
         .filter(|local| {
             let declaration = program.symbols.get(local.local_symbol);
             declaration.parent == state.symbol
-                && declaration.kind == psi_symbols::SymbolKind::Local
+                && matches!(
+                    declaration.kind,
+                    psi_symbols::SymbolKind::Local | psi_symbols::SymbolKind::Parameter
+                )
                 && program.symbols.name(local.local_symbol) == root_name.as_str()
         })
         .any(|local| {

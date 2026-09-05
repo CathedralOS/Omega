@@ -19,6 +19,7 @@ pub(in crate::calls::write_frames) fn declared_origins(
         local_symbol: symbol,
         references: Vec::new(),
         cases: Vec::new(),
+        moves: Vec::new(),
     };
     let mut pending = vec![(reference, Vec::new(), Vec::new())];
     while let Some((reference, segments, mut visiting)) = pending.pop() {
@@ -136,6 +137,18 @@ pub(in crate::calls::write_frames) fn declared_origins(
             }
             _ => return None,
         }
+    }
+    if !origins.cases.is_empty() {
+        origins.moves.push(
+            super::super::path_instantiation::aggregate_arguments::AggregateMove {
+                local_segments: Vec::new(),
+                source: super::super::FrameSourcePlace {
+                    root: origins.local_symbol,
+                    segments: Vec::new(),
+                },
+                type_reference: reference,
+            },
+        );
     }
     Some(origins)
 }

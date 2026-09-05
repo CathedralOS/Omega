@@ -12,6 +12,7 @@ use super::{
 use crate::calls::write_frames::FrameInference;
 use psi_typed_trees::statement::{TransitionExit, TransitionGuardNode, TransitionTargetNode};
 
+mod input_moves;
 mod input_sources;
 
 pub(super) fn call_result_origins(
@@ -67,6 +68,7 @@ pub(super) fn call_result_origins(
     {
         return None;
     }
+    input_moves::validate_frozen_inputs(program, machine, state)?;
     // The shared transfer freezes local aliases and carrier leaves. Incoming
     // reference bindings also anchor this exported relation and cannot be
     // exposed for replacement anywhere in the helper, including a terminal
@@ -160,6 +162,7 @@ pub(super) fn call_result_origins(
         let mut relative = AggregateOrigins {
             references: Vec::new(),
             cases: returned.cases,
+            moves: returned.moves,
         };
         for leaf in returned.references {
             for origin in canonical_reference_origins(
@@ -181,11 +184,17 @@ pub(super) fn call_result_origins(
     // Body recursion and finite repeated calls in caller syntax are distinct.
     // Finish the guarded body proof before substituting caller expressions;
     // any enclosing body guards remain active during that substitution.
-    let relative = result?;
-    let mut returned = AggregateOrigins {
-        references: Vec::new(),
-        cases: relative.cases,
-    };
+    let mut relative = result?;
+    let mut returned = input_moves::instantiate_moves(
+        program,
+        caller_machine,
+        state,
+        call,
+        &mut relative,
+        symbols,
+        inference,
+    )?;
+    returned.cases.extend(relative.cases);
     for leaf in relative.references {
         let parameter = parameters.iter().find(|parameter| {
             leaf.origin.source.root == parameter.symbol

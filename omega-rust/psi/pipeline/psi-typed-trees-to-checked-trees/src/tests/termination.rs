@@ -13,6 +13,7 @@ mod write_frame_assignment_values;
 mod write_frame_boundary_arguments;
 mod write_frame_call_arguments;
 mod write_frame_carrier_results;
+mod write_frame_case_results;
 mod write_frame_computed_indexes;
 mod write_frame_computed_receivers;
 mod write_frame_contextual_cases;

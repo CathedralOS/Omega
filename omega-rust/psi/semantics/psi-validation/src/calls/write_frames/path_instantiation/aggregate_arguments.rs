@@ -61,6 +61,16 @@ pub(in crate::calls::write_frames) struct AggregateOrigins {
     pub references: Vec<ReferenceLeaf>,
     /// Each path ends in the selected Case, including empty payload cases.
     pub cases: Vec<Vec<PlaceSegment>>,
+    pub moves: Vec<AggregateMove>,
+}
+
+/// A moved value subtree retains its input identity as a whole. Substitution
+/// transports its cases and reference leaves together, including empty cases.
+#[derive(Debug, Clone)]
+pub(in crate::calls::write_frames) struct AggregateMove {
+    pub local_segments: Vec<PlaceSegment>,
+    pub source: super::super::FrameSourcePlace,
+    pub type_reference: TypeReferenceHandle,
 }
 
 pub(in crate::calls::write_frames) fn reference_leaves(
@@ -151,6 +161,12 @@ pub(in crate::calls::write_frames) fn reference_leaves_with_origins(
                 let mut selection = local_segments.clone();
                 selection.extend(case);
                 leaves.cases.push(selection);
+            }
+            for mut moved in moved.moves {
+                let mut segments = local_segments.clone();
+                segments.extend(moved.local_segments);
+                moved.local_segments = segments;
+                leaves.moves.push(moved);
             }
             for mut leaf in moved.references {
                 if let Some(remainder) = place_suffix(&leaf.local_suffix, suffix) {

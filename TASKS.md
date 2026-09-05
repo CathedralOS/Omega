@@ -335,9 +335,9 @@ Owners include
   transitional broad `Filesystem` review summary.
 
 - **R5.** Finish exact inferred may-write summaries and relational candidates
-  for unresolved receivers, boundary-result origins, active-case forwarding
-  through helper input/result relations, mutable case-state transfer,
-  graph-level aggregate result routes, type-generic carrier substitution,
+  for unresolved receivers, boundary-result origins, conditional helper-body
+  case refinement, mutable case-state transfer, graph-level aggregate result
+  routes, type-generic carrier substitution,
   computed reference arguments outside proven helper-result relations, and
   other unsupported expression shapes.
   Prefer shared fixpoint and alias reasoning over syntax-shape exceptions.
