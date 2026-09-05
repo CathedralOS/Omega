@@ -3,6 +3,7 @@
 mod callable_entry;
 mod callable_entry_mutation_matrix;
 mod current_allocation;
+mod exit_replay;
 mod fixed_frame_callable_entry;
 mod function_relative;
 mod function_relative_manifest_mutation_matrix;

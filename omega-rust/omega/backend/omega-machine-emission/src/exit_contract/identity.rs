@@ -24,7 +24,7 @@ mod tests {
     use omega_target::NativeTarget;
     use psi_core::{EdgeId, MachineId};
 
-    use crate::{
+    use omega_machine_code::{
         ResolvedSelectedFormLayoutIdentity, SelectedFormEncodingIdentity,
         X86BranchRelaxationIdentity,
     };
@@ -117,8 +117,8 @@ mod tests {
         );
         let mut framed = baseline.clone();
         framed.frame = WholeFunctionFrameDisposition::CanonicalFixedFrameV1 {
-            layout: crate::TargetFrameLayoutIdentity::from_bytes([10; 32]),
-            protocol: crate::TargetFrameProtocolEncodingIdentity::from_bytes([11; 32]),
+            layout: omega_machine_code::TargetFrameLayoutIdentity::from_bytes([10; 32]),
+            protocol: omega_machine_code::TargetFrameProtocolEncodingIdentity::from_bytes([11; 32]),
         };
         framed.policy = WholeFunctionExitPolicy::SystemVAMD64CanonicalFixedFrameV1;
         framed.identity = contract_identity(&framed);

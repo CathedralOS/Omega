@@ -1,11 +1,14 @@
 use omega_regalloc::ValidatedSelectedAnalysis;
 use omega_register_model::ValidatedPhysicalRegisterModel;
 
-use crate::{
-    StagedOptimizedAarch64CbnzFusion, StagedOptimizedPostAllocationMachinePlan,
-    StagedOptimizedResolvedSelectedFormLayout, StagedOptimizedSelectedFormEncoding,
-    StagedOptimizedX86BranchRelaxation, ValidatedTargetFrameLayout,
-    ValidatedTargetFrameProtocolEncoding, validate_optimized_resolved_selected_form_layout,
+use omega_frame_layout_to_frame_protocol::ValidatedTargetFrameProtocolEncoding;
+use omega_post_allocation_machine_to_frame_layout::ValidatedTargetFrameLayout;
+use omega_post_allocation_machine_to_optimized_machine::StagedOptimizedAarch64CbnzFusion;
+use omega_post_allocation_machine_to_selected_form_encoding::StagedOptimizedSelectedFormEncoding;
+use omega_register_homes_to_post_allocation_machine::StagedOptimizedPostAllocationMachinePlan;
+use omega_selected_form_encoding_to_resolved_layout::{
+    StagedOptimizedResolvedSelectedFormLayout, StagedOptimizedX86BranchRelaxation,
+    validate_optimized_resolved_selected_form_layout,
     validate_optimized_resolved_selected_form_layout_after_aarch64_cbnz_fusion,
     validate_optimized_x86_branch_relaxation,
 };
@@ -61,20 +64,16 @@ pub fn validate_whole_function_exit_contract_with_frame<S: ValidatedSelectedAnal
 ) -> Result<(), WholeFunctionExitContractError> {
     validate_optimized_resolved_selected_form_layout(selected, machine, physical, encoding, layout)
         .map_err(WholeFunctionExitContractError::Layout)?;
-    let replayed = compute_with_frame(
+    super::validation::validate(
         selected,
         machine,
         physical,
         encoding,
         layout,
         WholeFunctionExitLayoutCustody::BaselineNearLayoutV1,
-        frame,
-        protocol,
-    )?;
-    if replayed != *contract.contract {
-        return Err(WholeFunctionExitContractError::ArtifactMismatch);
-    }
-    Ok(())
+        Some((frame, protocol)),
+        contract.contract(),
+    )
 }
 
 /// Establish the baseline whole-function exit contract over an independently
@@ -115,18 +114,16 @@ pub fn validate_whole_function_exit_contract<S: ValidatedSelectedAnalysis>(
 ) -> Result<(), WholeFunctionExitContractError> {
     validate_optimized_resolved_selected_form_layout(selected, machine, physical, encoding, layout)
         .map_err(WholeFunctionExitContractError::Layout)?;
-    let replayed = compute(
+    super::validation::validate(
         selected,
         machine,
         physical,
         encoding,
         layout,
         WholeFunctionExitLayoutCustody::BaselineNearLayoutV1,
-    )?;
-    if replayed != *contract.contract {
-        return Err(WholeFunctionExitContractError::ArtifactMismatch);
-    }
-    Ok(())
+        None,
+        contract.contract(),
+    )
 }
 
 /// Stage an exit contract over an independently validated x86 branch-relaxed
@@ -193,18 +190,16 @@ pub fn validate_whole_function_exit_contract_after_x86_branch_relaxation<
     let layout_custody = WholeFunctionExitLayoutCustody::X86RelaxConditionalBranchesToRel8V1 {
         relaxation: relaxation.identity(),
     };
-    let replayed = compute(
+    super::validation::validate(
         selected,
         machine,
         physical,
         encoding,
         relaxation.layout(),
         layout_custody,
-    )?;
-    if replayed != *contract.contract {
-        return Err(WholeFunctionExitContractError::ArtifactMismatch);
-    }
-    Ok(())
+        None,
+        contract.contract(),
+    )
 }
 
 /// Stage an exit contract over the independently replayed final CBNZ layout.
@@ -262,16 +257,14 @@ pub fn validate_whole_function_exit_contract_after_aarch64_cbnz_fusion<
         WholeFunctionExitLayoutCustody::Aarch64FuseCompareI64ZeroBranchNonZeroToCbnzV1 {
             fusion: fusion.fusion().receipt().identity(),
         };
-    let replayed = compute(
+    super::validation::validate(
         selected,
         machine,
         physical,
         encoding,
         layout,
         layout_custody,
-    )?;
-    if replayed != *contract.contract {
-        return Err(WholeFunctionExitContractError::ArtifactMismatch);
-    }
-    Ok(())
+        None,
+        contract.contract(),
+    )
 }

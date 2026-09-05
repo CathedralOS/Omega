@@ -1,11 +1,11 @@
-use crate::{
-    StagedOptimizedPostAllocationMachineOptimization, StagedOptimizedPostAllocationMachinePlan,
-    StagedOptimizedResolvedSelectedFormLayout, StagedOptimizedSelectedFormEncoding,
-};
+use omega_post_allocation_machine_to_optimized_machine::StagedOptimizedPostAllocationMachineOptimization;
+use omega_post_allocation_machine_to_selected_form_encoding::StagedOptimizedSelectedFormEncoding;
+use omega_register_homes_to_post_allocation_machine::StagedOptimizedPostAllocationMachinePlan;
+use omega_selected_form_encoding_to_resolved_layout::StagedOptimizedResolvedSelectedFormLayout;
 
 use super::super::{error::WholeFunctionExitContractError, model::WholeFunctionExitLayoutCustody};
 
-pub(in crate::stages::layout::whole_function_exit_contract) fn post_allocation_layout_custody(
+pub(in crate::exit_contract) fn post_allocation_layout_custody(
     machine: &StagedOptimizedPostAllocationMachinePlan,
     encoding: &StagedOptimizedSelectedFormEncoding,
     layout: &StagedOptimizedResolvedSelectedFormLayout,
@@ -39,7 +39,7 @@ fn generic_layout_custody(
     }
 }
 
-pub(in crate::stages::layout::whole_function_exit_contract) fn validate_layout_custody(
+pub(in crate::exit_contract) fn validate_layout_custody(
     machine: &StagedOptimizedPostAllocationMachinePlan,
     encoding: &StagedOptimizedSelectedFormEncoding,
     layout: &StagedOptimizedResolvedSelectedFormLayout,

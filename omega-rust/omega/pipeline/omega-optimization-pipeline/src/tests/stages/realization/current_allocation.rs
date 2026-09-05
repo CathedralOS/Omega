@@ -1,7 +1,11 @@
 use crate::tests::*;
 use omega_selected_instructions_to_register_homes::RetainedAllocation;
 
-fn allocation(target: NativeTarget, lowering: bool, relaxation: bool) -> RetainedAllocation {
+pub(super) fn allocation(
+    target: NativeTarget,
+    lowering: bool,
+    relaxation: bool,
+) -> RetainedAllocation {
     let mut selections = vec![Optimization::CopyPropagation];
     if lowering {
         selections.push(Optimization::SelectedIncomingU12ExactAddImmediate);

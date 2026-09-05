@@ -254,7 +254,7 @@ fn zero_vreg_unit_return_reaches_replayed_homes_and_machine_custody() {
         };
         assert!(matches!(
             returned.value,
-            whole_function_exit_contract::WholeFunctionReturnValueEvidence::UnitV1
+            WholeFunctionReturnValueEvidence::UnitV1
         ));
         let receipt = validate_optimized_unit_function_relative_realization(&realization).unwrap();
         assert_eq!(receipt, *realization.custody());
@@ -266,7 +266,7 @@ fn zero_vreg_unit_return_reaches_replayed_homes_and_machine_custody() {
         );
 
         realization.exit_contract_mut().contract_mut().functions[0].returns[0].value =
-            whole_function_exit_contract::WholeFunctionReturnValueEvidence::ScalarI64V1 {
+            WholeFunctionReturnValueEvidence::ScalarI64V1 {
                 virtual_register: VirtualRegisterId(0),
                 view: RegisterViewId(0),
                 units: Vec::new(),

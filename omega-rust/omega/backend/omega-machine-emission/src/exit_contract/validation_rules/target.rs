@@ -6,12 +6,12 @@ use omega_target::{Architecture, NativeTarget, ObjectFormat};
 use super::super::{error::WholeFunctionExitContractError, model::WholeFunctionExitPolicy};
 
 #[derive(Clone, Copy)]
-pub(in crate::stages::layout::whole_function_exit_contract) enum EntryAssumptionKind {
+pub(in crate::exit_contract) enum EntryAssumptionKind {
     ActivationStack,
     LinkRegister,
 }
 
-pub(in crate::stages::layout::whole_function_exit_contract) fn target_contract_inputs(
+pub(in crate::exit_contract) fn target_contract_inputs(
     physical: &ValidatedPhysicalRegisterModel,
     target: NativeTarget,
 ) -> Result<
@@ -61,7 +61,7 @@ pub(in crate::stages::layout::whole_function_exit_contract) fn target_contract_i
     }
 }
 
-pub(in crate::stages::layout::whole_function_exit_contract) fn view<'model>(
+pub(in crate::exit_contract) fn view<'model>(
     physical: &'model ValidatedPhysicalRegisterModel,
     name: &'static str,
 ) -> Result<&'model omega_register_model::RegisterView, WholeFunctionExitContractError> {

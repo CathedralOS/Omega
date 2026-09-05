@@ -13,7 +13,8 @@ use omega_selected_instructions::{SelectedInstructionId, SelectedInstructionKind
 use omega_target::NativeTarget;
 use psi_core::MachineId;
 
-use crate::{StagedOptimizedResolvedSelectedFormLayout, StagedOptimizedSelectedFormEncoding};
+use omega_post_allocation_machine_to_selected_form_encoding::StagedOptimizedSelectedFormEncoding;
+use omega_selected_form_encoding_to_resolved_layout::StagedOptimizedResolvedSelectedFormLayout;
 
 use super::{
     super::{
@@ -24,7 +25,7 @@ use super::{
 };
 
 #[allow(clippy::too_many_arguments)]
-pub(in crate::stages::layout::whole_function_exit_contract) fn validate_structural_unit_functions(
+pub(in crate::exit_contract) fn validate_structural_unit_functions(
     selected: &omega_selected_instructions::SelectedInstructionPlan,
     machine: &omega_machine_optimizer::PostAllocationMachinePlan,
     encoding: &StagedOptimizedSelectedFormEncoding,
@@ -308,11 +309,11 @@ pub(in crate::stages::layout::whole_function_exit_contract) fn validate_structur
     Ok(evidence)
 }
 
-fn validate_structural_call_layout(
+pub(in crate::exit_contract) fn validate_structural_call_layout(
     instruction: SelectedInstructionId,
     callee: MachineId,
     machine: &omega_machine_optimizer::StructuralUnitCallMachineEffects,
-    layout: &crate::ResolvedStructuralUnitCallLayout,
+    layout: &omega_machine_code::ResolvedStructuralUnitCallLayout,
     callee_saved: &BTreeSet<RegisterUnitId>,
 ) -> Result<(), WholeFunctionExitContractError> {
     let footprint = &layout.footprint;

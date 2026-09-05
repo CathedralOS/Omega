@@ -94,8 +94,12 @@ pub(crate) const ENTRANCES: &[RequiredCoordinationEntrance] = &[
         coordination_marker: "stage_optimized_resolved_selected_form_layout_with_post_allocation_machine_optimization",
     },
     RequiredCoordinationEntrance {
-        path: "omega-rust/omega/pipeline/omega-optimization-pipeline/src/stages/layout/whole_function_exit_contract/mod.rs",
+        path: "omega-rust/omega/backend/omega-machine-emission/src/exit_contract/mod.rs",
         coordination_marker: "stage_whole_function_exit_contract_with_post_allocation_machine_optimization",
+    },
+    RequiredCoordinationEntrance {
+        path: "omega-rust/omega/backend/omega-machine-emission/src/exit_contract/validation/mod.rs",
+        coordination_marker: "pub(super) fn validate",
     },
     RequiredCoordinationEntrance {
         path: "omega-rust/omega/pipeline/omega-optimization-pipeline/src/stages/artifacts/function_fragment_emission/mod.rs",

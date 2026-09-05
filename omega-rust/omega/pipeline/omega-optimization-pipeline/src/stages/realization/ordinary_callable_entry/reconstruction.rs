@@ -179,7 +179,7 @@ pub(super) fn reconstruct(
             .iter()
             .find(|returned| returned.psi_return_edge == edge)
             .ok_or(OptimizedOrdinaryCallableEntryError::MissingReturn(edge))?;
-        let crate::stages::layout::whole_function_exit_contract::WholeFunctionReturnValueEvidence::ScalarI64V1 {
+        let omega_machine_code::WholeFunctionReturnValueEvidence::ScalarI64V1 {
             virtual_register,
             view,
             units,

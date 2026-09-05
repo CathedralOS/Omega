@@ -1,7 +1,7 @@
 //! Admitted exit contract. Raw records and identity belong to machine-code data.
 
-#[cfg(test)]
-use crate::{ResolvedSelectedFormLayoutIdentity, X86BranchRelaxationIdentity};
+#[cfg(any(test, feature = "test-support"))]
+use omega_machine_code::{ResolvedSelectedFormLayoutIdentity, X86BranchRelaxationIdentity};
 pub use omega_machine_code::{
     WholeFunctionEntryAssumption, WholeFunctionExitContract, WholeFunctionExitContractIdentity,
     WholeFunctionExitEvidence, WholeFunctionExitLayoutCustody, WholeFunctionExitPolicy,
@@ -29,15 +29,15 @@ impl ValidatedWholeFunctionExitContract {
         self.contract.identity
     }
 
-    #[cfg(test)]
-    pub(crate) fn contract_mut(&mut self) -> &mut WholeFunctionExitContract {
+    #[cfg(any(test, feature = "test-support"))]
+    pub fn contract_mut(&mut self) -> &mut WholeFunctionExitContract {
         std::sync::Arc::make_mut(&mut self.contract)
     }
 
     /// Test-only rel8 custody mutation with a valid enclosing identity. This
     /// grants no production construction, validation, or publication authority.
-    #[cfg(test)]
-    pub(crate) fn corrupt_rel8_boundary_and_reauthenticate_for_test(
+    #[cfg(any(test, feature = "test-support"))]
+    pub fn corrupt_rel8_boundary_and_reauthenticate_for_test(
         &mut self,
         boundary: Rel8ExitBoundaryForTest,
     ) {
@@ -58,9 +58,9 @@ impl ValidatedWholeFunctionExitContract {
     }
 }
 
-#[cfg(test)]
+#[cfg(any(test, feature = "test-support"))]
 #[derive(Debug, Clone, Copy)]
-pub(crate) enum Rel8ExitBoundaryForTest {
+pub enum Rel8ExitBoundaryForTest {
     ResolvedLayout,
     LayoutCustody,
 }

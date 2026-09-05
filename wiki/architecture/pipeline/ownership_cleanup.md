@@ -10,6 +10,27 @@ claim that the target architecture has landed. The original audit examined
 and machine-code ownership changes. Recheck the named code and incoming changes
 before implementation; these changes do not establish completion of sections A-D.
 
+## Reading and execution index
+
+For the short architectural answer, read **Discussion summary** and **Objective
+and boundary rules**. For implementation, use the four independently checkable
+work areas below:
+
+- **A — Current data:** consumers read the current representation directly;
+  historical inputs exist separately for replay.
+- **B — One stage graph:** empty and selected optimization use the same
+  downstream compiler, without dropping supported program forms.
+- **C — Correct owners:** coordinators sequence; transforms compute;
+  representations hold data; backends handle target mechanics. Use **Sharing
+  rules** to decide where repeated work belongs.
+- **D — Psi:** clean every representation's entrance and implement real opt-in
+  optimization before Terminal publication. These are separate deliverables.
+
+The **Completion checklist** is the future goal's finish condition. The code
+observations describe the inspected working tree, not necessarily a committed
+or fully verified milestone. On resumption, distinguish local changes from
+published commits before using those observations as established behavior.
+
 ## Discussion summary
 
 The X-to-Y design is achievable. The remaining problem is not the spelling of
@@ -209,8 +230,9 @@ Replay first validates its historical inputs, then compares complete current
 artifacts and admission facts, not only rehashable IDs. Raw artifacts remain
 usable as data after the producer is dropped, without granting publication
 authority. Layout construction and explicit relaxation now have a transform
-owner outside the coordinator; exit checking and emission still need their
-proper owners. Separating data from replay does not complete C.
+owner outside the coordinator; exit admission lives in the machine-emission
+backend. Fragment and artifact emission still need their proper owners.
+Separating data from replay does not complete C.
 
 Acceptance: downstream allocation, layout, and emission APIs consume current
 representations and explicit policy/evidence. No production consumer selects
@@ -265,7 +287,7 @@ publication and resumed lowering by a separate authority remain supported.
 
 ### C. The coordinator and stage granularity still have misplaced owners
 
-`omega-optimization-pipeline` contains exit checking, realization, artifact production,
+`omega-optimization-pipeline` contains realization and artifact production,
 and broad stage re-exports in addition to coordination. It is not yet a thin
 sequence of phase calls. `omega-regalloc`, `omega-machine-optimizer`,
 `omega-optimization-policy`, and `omega-optimization-validation` mix or expose
@@ -280,7 +302,7 @@ program representations. Baseline layout and relaxation share a private layout
 construction boundary; they do not share their production and replay drivers.
 The coordinator imports these entrances. Raw layout data and its content
 identity remain in `omega-machine-code`, and ISA encoding remains in the target
-backends. This extraction does not settle exit checking or emission ownership.
+backends. This extraction does not settle fragment or artifact emission ownership.
 
 Whole-function exit records and their unchanged version-9 content identity now
 belong to `omega-machine-code` under `functions/exit_contract`. The validated
@@ -290,11 +312,15 @@ types have representation owners; the named physical-rewrite identities used by
 exit custody live in `omega-physical-instructions`. Producer crates re-export
 these data identities without changing their bytes or meaning.
 
-Exit-contract construction and admission still live in the coordinator, and
-exit validation currently re-enters its construction routine. Separating the
-raw records is a prerequisite to moving those algorithms; it does not establish
-independent exit reconstruction or complete C. Preserve the exact frame,
-layout, return, and callee-save checks when giving them their owning phase.
+Exit-contract construction and admission live in `omega-machine-emission`.
+Direct replay checks the retained contract's root/ABI facts, exact ordinary and
+structural rosters, return values and mechanisms, call fixups, and preservation
+effects. It does not invoke the contract, return-record, or structural-record
+producers. Target catalogs and effect predicates remain shared semantic
+primitives; source-to-record assembly and record admission remain separate.
+All five admission entrances preserve their explicit baseline, frame, relaxation,
+or machine-rewrite inputs. This does not complete the remaining fragment and
+artifact emission migration or the outer ordinary/optimized convergence.
 
 The machine-code representation supplies `machine_code.rs` as its
 program root, with functions, calls, storage, control flow, ownership, boundary,
