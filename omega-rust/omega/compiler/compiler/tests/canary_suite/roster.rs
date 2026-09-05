@@ -5,16 +5,21 @@ use super::artifact_footprints::fixture_roster as artifact_footprints;
 use super::atomics_and_target_canaries::fixture_roster as atomics_and_target_canaries;
 use super::content_text_and_carriers::fixture_roster as content_text_and_carriers;
 use super::domains_control_and_structures::fixture_roster as domains_control_and_structures;
+use super::entry_and_abi::fixture_roster as entry_and_abi;
 use super::float_plans_and_policies::fixture_roster as float_plans_and_policies;
 use super::generics_and_dependent_facts::fixture_roster as generics_and_dependent_facts;
 use super::host_text_filesystem_and_abi::fixture_roster as host_text_filesystem_and_abi;
 use super::layouts_and_pending::fixture_roster as layouts_and_pending;
+use super::portable_terminal_reload::fixture_roster as portable_terminal_reload;
 use super::proof_and_float_suites::fixture_roster as proof_and_float_suites;
 use super::providers_float_and_console::fixture_roster as providers_float_and_console;
 use super::ranges_storage_and_entries::fixture_roster as ranges_storage_and_entries;
+use super::recursion_slices_and_conversions::fixture_roster as recursion_slices_and_conversions;
+use super::relational_invariants::fixture_roster as relational_invariants;
 use super::reports_and_capabilities::fixture_roster as reports_and_capabilities;
 use super::structural_selected_operator::fixture_roster as structural_selected_operator;
 use super::surface_and_targets::fixture_roster as surface_and_targets;
+use super::task_runtime::fixture_roster as task_runtime;
 use super::time_hosts_and_indexed_storage::fixture_roster as time_hosts_and_indexed_storage;
 use super::value_and_type_checks::fixture_roster as value_and_type_checks;
 use super::value_calls_and_dispatch::fixture_roster as value_calls_and_dispatch;
@@ -51,121 +56,146 @@ mod recast_views;
 mod subslice_runtime_end_bounds;
 
 fn pass_roster() -> Vec<&'static str> {
-    CHECKED_ONLY_PASS_CANARIES
-        .iter()
-        .chain(ACTIVE_PASS_CANARIES)
-        .chain(arithmetic_and_data::PASS_CANARIES)
-        .chain(proof_and_float_suites::PASS_CANARIES)
-        .chain(proof_and_float_suites::RANGE_GATED_ESTABLISHMENT_PASS_CANARIES)
-        .chain(proof_and_float_suites::DEFAULT_DOMAIN_MEMBERSHIP_PASS_CANARIES)
-        .chain(proof_and_float_suites::DEFAULT_DOMAIN_MEASURE_PASS_CANARIES)
-        .chain(proof_and_float_suites::DEFAULT_DOMAIN_CORRELATION_PASS_CANARIES)
-        .chain(proof_and_float_suites::COMMUTATIVE_SEMIRING_PASS_CANARIES)
-        .chain(proof_and_float_suites::COMMUTATIVE_SEMIRING_CHECKED_PASS_CANARIES)
-        .chain(proof_and_float_suites::FLOAT_TO_INT_TRAPPING_PASS_CANARIES)
-        .chain(proof_and_float_suites::FLOAT_TRAPPING_ARITHMETIC_PASS_CANARIES)
-        .chain(atomics_and_target_canaries::PASS_CANARIES)
-        .chain(surface_and_targets::PASS_CANARIES)
-        .chain(surface_and_targets::RECENT_ENCODER_PASS_CANARIES)
-        .chain(native_content_custody::PASS_CANARIES)
-        .chain(native_recast_views::PASS_CANARIES)
-        .chain(native_structural_return::PASS_CANARIES)
-        .chain(native_terminal_sources::PASS_CANARIES)
-        .chain(layouts_and_pending::PASS_CANARIES)
-        .chain(artifact_footprints::PASS_CANARIES)
-        .chain(structural_selected_operator::PASS_CANARIES)
-        .chain(reports_and_capabilities::PASS_CANARIES)
-        .chain(reports_and_capabilities::CHECKED_CAPABILITY_PASS_CANARIES)
-        .chain(reports_and_capabilities::SIGNED_RAT_PASS_CANARIES)
-        .chain(host_text_filesystem_and_abi::PASS_CANARIES)
-        .chain(host_text_filesystem_and_abi::CROSS_WINDOWS_PASS_CANARIES)
-        .chain(WINDOWS_HOST_PASS_CANARIES)
-        .chain(concurrency_carry::PASS_CANARIES)
-        .chain(recast_views::PASS_CANARIES)
-        .chain(call_acknowledgements::PASS_CANARIES)
-        .chain(layout_plans::PASS_CANARIES)
-        .chain(plan_laid_repeated_runtime::PASS_CANARIES)
-        .chain(subslice_runtime_end_bounds::PASS_CANARIES)
-        .chain(build_target_activation::PASS_CANARIES)
-        .chain(no_selection_golden::PASS_CANARIES)
-        .chain(package_compilation_inputs::PASS_CANARIES)
-        .chain(value_and_type_checks::PASS_CANARIES)
-        .chain(content_text_and_carriers::PASS_CANARIES)
-        .chain(domains_control_and_structures::PASS_CANARIES)
-        .chain(domains_control_and_structures::BOUNDARY_DOMAIN_ESTABLISHMENT_PASS_CANARIES)
-        .chain(domains_control_and_structures::RECURSIVE_WALK_PASS_CANARIES)
-        .chain(float_plans_and_policies::PASS_CANARIES)
-        .chain(float_plans_and_policies::FLOAT_TO_INTEGER_TRAP_PASS_CANARIES)
-        .chain(abi_runtime_values_and_strings::PASS_CANARIES)
-        .chain(abi_runtime_values_and_strings::BOUNDED_CARRIER_PASS_CANARIES)
-        .chain(providers_float_and_console::PASS_CANARIES)
-        .chain(providers_float_and_console::CONSOLE_LINE_REPLAY_CANARIES)
-        .chain(ranges_storage_and_entries::PASS_CANARIES)
-        .chain(value_calls_and_dispatch::PASS_CANARIES)
-        .chain(wire_and_algorithms::PASS_CANARIES)
-        .chain(generics_and_dependent_facts::PASS_CANARIES)
-        .chain(generics_and_dependent_facts::STRUCTURED_CONST_PASS_CANARIES)
-        .chain(time_hosts_and_indexed_storage::PASS_CANARIES)
-        .copied()
-        .chain(
-            reports_and_capabilities::CAPABILITY_VERB_PASS_CANARIES
-                .iter()
-                .map(|entry| entry.0),
-        )
-        .chain(
-            reports_and_capabilities::CAPABILITY_FLOW_PASS_CANARIES
-                .iter()
-                .map(|entry| entry.0),
-        )
-        .chain(
-            float_plans_and_policies::POLICY_ADAPTER_PASS_CANARIES
-                .iter()
-                .map(|entry| entry.0),
-        )
-        .chain(
-            float_plans_and_policies::POLICY_DIFFERENTIAL_PASS_CANARIES
-                .iter()
-                .map(|entry| entry.0),
-        )
-        .chain(
-            domains_control_and_structures::ROOTED_RESIDUAL_SCALAR_ENTRY_PASS_CANARIES
-                .iter()
-                .map(|entry| entry.0),
-        )
-        .chain(
-            abi_runtime_values_and_strings::PRNG_REPOSITORY_PASS_CANARIES
-                .iter()
-                .chain(abi_runtime_values_and_strings::FILESYSTEM_REPOSITORY_PASS_CANARIES)
-                .chain(abi_runtime_values_and_strings::REPOSITORY_PASS_CANARIES)
-                .map(|relative| {
-                    relative
-                        .strip_prefix("tests/omega/pass/")
-                        .expect("repository-relative pass fixture prefix")
-                }),
-        )
-        .chain(
-            ranges_storage_and_entries::ENTRY_SCALAR_OPERATION_RESULTS
-                .iter()
-                .map(|fixture| fixture.path),
-        )
-        .chain(
-            time_hosts_and_indexed_storage::STORAGE_RESULT_IMPORT_CANARIES
-                .iter()
-                .chain(time_hosts_and_indexed_storage::AUTHORED_SCALAR_IMPORT_CANARIES)
-                .map(|entry| entry.1),
-        )
-        .chain(
-            native_filesystem_canaries::PASS_CANARIES
-                .iter()
-                .map(|fixture| fixture.path),
-        )
-        .chain(CROSS_TARGET_PASS_CANARIES.iter().map(|entry| entry.0))
-        .chain(
-            ROOTED_TARGET_BACKEND_PASS_CANARIES
-                .iter()
-                .map(|entry| entry.0),
-        )
-        .collect()
+    let mut fixtures = [
+        CHECKED_ONLY_PASS_CANARIES,
+        ACTIVE_PASS_CANARIES,
+        entry_and_abi::PASS_CANARIES,
+        recursion_slices_and_conversions::PASS_CANARIES,
+        task_runtime::PASS_CANARIES,
+        relational_invariants::PASS_CANARIES,
+        relational_invariants::STABLE_LIMIT_PASS_CANARIES,
+        portable_terminal_reload::PASS_CANARIES,
+        arithmetic_and_data::PASS_CANARIES,
+        proof_and_float_suites::PASS_CANARIES,
+        proof_and_float_suites::RANGE_GATED_ESTABLISHMENT_PASS_CANARIES,
+        proof_and_float_suites::DEFAULT_DOMAIN_MEMBERSHIP_PASS_CANARIES,
+        proof_and_float_suites::DEFAULT_DOMAIN_MEASURE_PASS_CANARIES,
+        proof_and_float_suites::DEFAULT_DOMAIN_CORRELATION_PASS_CANARIES,
+        proof_and_float_suites::COMMUTATIVE_SEMIRING_PASS_CANARIES,
+        proof_and_float_suites::COMMUTATIVE_SEMIRING_CHECKED_PASS_CANARIES,
+        proof_and_float_suites::FLOAT_TO_INT_TRAPPING_PASS_CANARIES,
+        proof_and_float_suites::FLOAT_TRAPPING_ARITHMETIC_PASS_CANARIES,
+        atomics_and_target_canaries::PASS_CANARIES,
+        surface_and_targets::PASS_CANARIES,
+        surface_and_targets::RECENT_ENCODER_PASS_CANARIES,
+        native_content_custody::PASS_CANARIES,
+        native_recast_views::PASS_CANARIES,
+        native_structural_return::PASS_CANARIES,
+        native_terminal_sources::PASS_CANARIES,
+        layouts_and_pending::PASS_CANARIES,
+        artifact_footprints::PASS_CANARIES,
+        structural_selected_operator::PASS_CANARIES,
+        reports_and_capabilities::PASS_CANARIES,
+        reports_and_capabilities::CHECKED_CAPABILITY_PASS_CANARIES,
+        reports_and_capabilities::SIGNED_RAT_PASS_CANARIES,
+        host_text_filesystem_and_abi::PASS_CANARIES,
+        host_text_filesystem_and_abi::CROSS_WINDOWS_PASS_CANARIES,
+        WINDOWS_HOST_PASS_CANARIES,
+        concurrency_carry::PASS_CANARIES,
+        recast_views::PASS_CANARIES,
+        call_acknowledgements::PASS_CANARIES,
+        layout_plans::PASS_CANARIES,
+        plan_laid_repeated_runtime::PASS_CANARIES,
+        subslice_runtime_end_bounds::PASS_CANARIES,
+        build_target_activation::PASS_CANARIES,
+        no_selection_golden::PASS_CANARIES,
+        package_compilation_inputs::PASS_CANARIES,
+        value_and_type_checks::PASS_CANARIES,
+        content_text_and_carriers::PASS_CANARIES,
+        domains_control_and_structures::PASS_CANARIES,
+        domains_control_and_structures::BOUNDARY_DOMAIN_ESTABLISHMENT_PASS_CANARIES,
+        domains_control_and_structures::RECURSIVE_WALK_PASS_CANARIES,
+        float_plans_and_policies::PASS_CANARIES,
+        float_plans_and_policies::FLOAT_TO_INTEGER_TRAP_PASS_CANARIES,
+        abi_runtime_values_and_strings::PASS_CANARIES,
+        abi_runtime_values_and_strings::BOUNDED_CARRIER_PASS_CANARIES,
+        providers_float_and_console::PASS_CANARIES,
+        providers_float_and_console::CONSOLE_LINE_REPLAY_CANARIES,
+        ranges_storage_and_entries::PASS_CANARIES,
+        value_calls_and_dispatch::PASS_CANARIES,
+        wire_and_algorithms::PASS_CANARIES,
+        generics_and_dependent_facts::PASS_CANARIES,
+        generics_and_dependent_facts::STRUCTURED_CONST_PASS_CANARIES,
+        time_hosts_and_indexed_storage::PASS_CANARIES,
+    ]
+    .into_iter()
+    .flatten()
+    .copied()
+    .collect::<Vec<_>>();
+    fixtures.extend(
+        entry_and_abi::MIGRATED_ENTRY_PASS_CANARIES
+            .iter()
+            .map(|entry| entry.0),
+    );
+    fixtures.extend(
+        entry_and_abi::MACHINE_CONTROL_PASS_CANARIES
+            .iter()
+            .map(|entry| entry.0),
+    );
+    fixtures.extend(
+        recursion_slices_and_conversions::CROSS_SIGNED_TRAP_PASS_CANARIES
+            .iter()
+            .map(|entry| entry.0),
+    );
+    fixtures.extend(
+        reports_and_capabilities::CAPABILITY_VERB_PASS_CANARIES
+            .iter()
+            .map(|entry| entry.0),
+    );
+    fixtures.extend(
+        reports_and_capabilities::CAPABILITY_FLOW_PASS_CANARIES
+            .iter()
+            .map(|entry| entry.0),
+    );
+    fixtures.extend(
+        float_plans_and_policies::POLICY_ADAPTER_PASS_CANARIES
+            .iter()
+            .map(|entry| entry.0),
+    );
+    fixtures.extend(
+        float_plans_and_policies::POLICY_DIFFERENTIAL_PASS_CANARIES
+            .iter()
+            .map(|entry| entry.0),
+    );
+    fixtures.extend(
+        domains_control_and_structures::ROOTED_RESIDUAL_SCALAR_ENTRY_PASS_CANARIES
+            .iter()
+            .map(|entry| entry.0),
+    );
+    fixtures.extend(
+        abi_runtime_values_and_strings::PRNG_REPOSITORY_PASS_CANARIES
+            .iter()
+            .chain(abi_runtime_values_and_strings::FILESYSTEM_REPOSITORY_PASS_CANARIES)
+            .chain(abi_runtime_values_and_strings::REPOSITORY_PASS_CANARIES)
+            .map(|relative| {
+                relative
+                    .strip_prefix("tests/omega/pass/")
+                    .expect("repository-relative pass fixture prefix")
+            }),
+    );
+    fixtures.extend(
+        ranges_storage_and_entries::ENTRY_SCALAR_OPERATION_RESULTS
+            .iter()
+            .map(|fixture| fixture.path),
+    );
+    fixtures.extend(
+        time_hosts_and_indexed_storage::STORAGE_RESULT_IMPORT_CANARIES
+            .iter()
+            .chain(time_hosts_and_indexed_storage::AUTHORED_SCALAR_IMPORT_CANARIES)
+            .map(|entry| entry.1),
+    );
+    fixtures.extend(
+        native_filesystem_canaries::PASS_CANARIES
+            .iter()
+            .map(|fixture| fixture.path),
+    );
+    fixtures.extend(CROSS_TARGET_PASS_CANARIES.iter().map(|entry| entry.0));
+    fixtures.extend(
+        ROOTED_TARGET_BACKEND_PASS_CANARIES
+            .iter()
+            .map(|entry| entry.0),
+    );
+    fixtures
 }
 
 fn file_expectation_fail_roster() -> Vec<&'static str> {
@@ -188,6 +218,22 @@ fn file_expectation_fail_roster() -> Vec<&'static str> {
 fn fail_roster() -> Vec<&'static str> {
     file_expectation_fail_roster()
         .into_iter()
+        .chain(task_runtime::FAIL_CANARIES.iter().copied())
+        .chain(
+            task_runtime::PARKED_CONTINUATION_FAIL_CANARIES
+                .iter()
+                .map(|entry| entry.1),
+        )
+        .chain(
+            relational_invariants::HEAD_FACT_FAIL_CANARIES
+                .iter()
+                .map(|entry| entry.0),
+        )
+        .chain(
+            relational_invariants::STABLE_LIMIT_FAIL_CANARIES
+                .iter()
+                .copied(),
+        )
         .chain(proof_and_float_suites::FAIL_CANARIES.iter().copied())
         .chain(
             proof_and_float_suites::DEFAULT_DOMAIN_STALE_FACT_FAIL_CANARIES
