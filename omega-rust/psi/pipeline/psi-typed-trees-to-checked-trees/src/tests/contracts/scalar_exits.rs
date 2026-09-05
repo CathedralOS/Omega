@@ -16,6 +16,144 @@ fn check(source: &str, accepted: bool) {
 }
 
 #[test]
+fn arithmetic_return_guarantees_use_selected_width_and_policy() {
+    for (returned, expected) in [
+        ("3u8 + 4u8", "7"),
+        ("((255u8 as u8 in Wrapping) + 2) as u8", "1"),
+        ("((255u8 as u8 in Saturating) + 2) as u8", "255"),
+        ("(((0u8 as u8 in Wrapping) - 2) >> 1) as u8", "127"),
+        ("(~0u8) as u8", "255"),
+    ] {
+        for accepted in [true, false] {
+            let comparison = if accepted { "==" } else { "!=" };
+            check(
+                &format!(
+                    r#"
+                machine produce() -> u8
+                ensures result {comparison} {expected}
+                {{ {returned} }}
+            "#
+                ),
+                accepted,
+            );
+        }
+    }
+}
+
+#[test]
+fn arithmetic_return_reads_only_live_binding_values() {
+    for (replacement, accepted) in [("", true), ("replace(&mut value);", false)] {
+        check(
+            &format!(
+                r#"
+            machine replace(value: &mut u8) {{ value = 8; }}
+            machine produce() -> u8
+            ensures result == 7
+            {{
+                let value: u8 = 3;
+                {replacement}
+                ((value as u8 in Wrapping) + 4) as u8
+            }}
+        "#
+            ),
+            accepted,
+        );
+    }
+}
+
+#[test]
+fn signed_return_guarantees_use_selected_division_overflow_policy() {
+    for (policy, operator, expected) in [
+        ("Wrapping", "/", "-128"),
+        ("Saturating", "/", "127"),
+        ("Wrapping", "%", "0"),
+        ("Saturating", "%", "0"),
+    ] {
+        for accepted in [true, false] {
+            let comparison = if accepted { "==" } else { "!=" };
+            check(
+                &format!(
+                    r#"
+                machine produce() -> i8
+                ensures result {comparison} {expected}
+                {{ (((-127i8 - 1i8) as i8 in {policy}) {operator} -1i8) as i8 }}
+            "#
+                ),
+                accepted,
+            );
+        }
+    }
+}
+
+#[test]
+fn arithmetic_return_after_state_transfer_keeps_the_current_binding() {
+    for (value, accepted) in [(3, true), (4, false)] {
+        check(
+            &format!(
+                r#"
+            machine produce(unused: bool) -> u8
+            ensures result == 7
+            {{
+                transition {{ _ -> finish({value}) }}
+                state finish(current: u8) -> u8 {{
+                    ((current as u8 in Wrapping) + 4) as u8
+                }}
+            }}
+        "#
+            ),
+            accepted,
+        );
+    }
+}
+
+#[test]
+fn scalar_values_follow_explicit_multi_hop_state_arguments() {
+    for (forwarded, accepted) in [("value", true), ("other", false)] {
+        check(
+            &format!(
+                r#"
+            machine produce() -> u8
+            ensures result == 7
+            {{
+                let first: u8 = 3;
+                let second: u8 = 4;
+                transition {{ _ -> relay(first, second) }}
+                state relay(value: u8, other: u8) -> u8 {{
+                    transition {{ _ -> finish({forwarded}) }}
+                }}
+                state finish(current: u8) -> u8 {{
+                    ((current as u8 in Wrapping) + 4) as u8
+                }}
+            }}
+        "#
+            ),
+            accepted,
+        );
+    }
+}
+
+#[test]
+fn scalar_state_arrival_values_require_agreement_from_every_predecessor() {
+    for (alternative, accepted) in [("3", true), ("4", false), ("unknown", false)] {
+        check(
+            &format!(
+                r#"
+            machine produce(flag: bool, unknown: u8) -> u8
+            ensures result == 7
+            {{
+                transition flag {{ true -> finish(3) false -> finish({alternative}) }}
+                state finish(current: u8) -> u8 {{
+                    ((current as u8 in Wrapping) + 4) as u8
+                }}
+            }}
+        "#
+            ),
+            accepted,
+        );
+    }
+}
+
+#[test]
 fn resolved_result_parameter_is_not_the_synthetic_return_value() {
     for (stored, returned, accepted) in [(8, 7, false), (7, 8, true)] {
         check(

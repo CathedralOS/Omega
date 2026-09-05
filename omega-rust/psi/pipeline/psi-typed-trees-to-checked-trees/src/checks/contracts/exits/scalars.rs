@@ -1,15 +1,15 @@
 //! Scalar postconditions consume exact return and live place values. Entry
 //! parameter names are substituted only through the retained exit origin map.
 
-use psi_checked_trees::{CheckFacts, FlowExitFact};
+use psi_checked_trees::{CheckFacts, CheckedScalarExpressionRole, FlowExitFact};
 use psi_facts::{FactContextHandle, FactPayload, PlaceRoot, PlaceSegment};
 use psi_typed_trees::{TypedTrees, expression::ExpressionHandle, machine::Machine};
 
 use super::super::{
-    prover::{ScalarValue, evaluate_scalar, scalar_value_at_place},
+    prover::{ScalarValue, evaluate_checked_scalar, evaluate_scalar, scalar_value_at_place},
     return_values::{exit_return_expression, is_result_reference},
 };
-use crate::flow::canonical_place_from_expression_in_state;
+use crate::flow::{canonical_place_from_expression_in_state, canonical_place_from_symbol};
 
 pub(super) fn proves<'program>(
     program: &'program TypedTrees,
@@ -103,7 +103,10 @@ impl ExitScalars<'_, '_> {
 
     fn return_value(&self) -> Option<ScalarValue> {
         let expression = exit_return_expression(self.program, self.exit);
-        if !expression.is_valid()
+        if !self
+            .program
+            .expression_table
+            .expression_is_valid(expression)
             || !has_builtin_operators(self.program, &self.facts.operators, expression)
             || !self.call_frames.is_some_and(|frames| {
                 frames
@@ -117,16 +120,47 @@ impl ExitScalars<'_, '_> {
             // here if evaluating the right operand may have changed it.
             return None;
         }
-        evaluate_scalar(self.program, expression, &mut |leaf| {
-            let place = canonical_place_from_expression_in_state(
-                self.program,
-                self.exit.state_symbol,
-                self.exit.statement_index,
-                leaf,
-            )?;
-            if !stable_segments(&place.segments) {
-                return None;
-            }
+        self.selected_return_value(expression).or_else(|| {
+            evaluate_scalar(self.program, expression, &mut |leaf| {
+                let place = canonical_place_from_expression_in_state(
+                    self.program,
+                    self.exit.state_symbol,
+                    self.exit.statement_index,
+                    leaf,
+                )?;
+                if !stable_segments(&place.segments) {
+                    return None;
+                }
+                scalar_value_at_place(self.program, &self.facts.semantic, self.contexts, &place)
+            })
+        })
+    }
+
+    fn selected_return_value(&self, expression: ExpressionHandle) -> Option<ScalarValue> {
+        let plans = &self.facts.values.scalar_expressions;
+        let statement_ordinal = u32::try_from(self.exit.statement_index).ok()?;
+        let mut bindings = plans.source_bindings.iter().filter(|(_, binding)| {
+            binding.state == self.exit.state_symbol
+                && binding.statement_ordinal == statement_ordinal
+                && binding.role == CheckedScalarExpressionRole::Return
+                && binding.expression == expression
+        });
+        let (_, binding) = bindings.next()?;
+        if bindings.next().is_some() {
+            return None;
+        }
+        let mut selected = plans.expressions.iter().filter(|plan| {
+            plan.state == binding.state
+                && plan.statement_ordinal == binding.statement_ordinal
+                && plan.role == binding.role
+        });
+        let plan = selected.next()?;
+        if selected.next().is_some() {
+            return None;
+        }
+        let symbols = plans.binding_symbols.span_or_empty(binding.symbols);
+        evaluate_checked_scalar(&plan.expression, &mut |position| {
+            let place = canonical_place_from_symbol(*symbols.get(position)?)?;
             scalar_value_at_place(self.program, &self.facts.semantic, self.contexts, &place)
         })
     }

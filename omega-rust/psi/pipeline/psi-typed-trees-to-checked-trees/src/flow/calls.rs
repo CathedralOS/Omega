@@ -14,6 +14,7 @@ pub(super) fn build_call_flow_fact(
     active_constraints: &mut psi_arena::HandleSpan<FlowConstraintRef>,
     borrow_call: &BorrowCallFact,
 ) -> FlowCallFact {
+    super::state_values::record_invocation(program, ctx, machine, state, borrow_call);
     let contract_call = proof_contract_call(
         proof,
         machine.symbol,

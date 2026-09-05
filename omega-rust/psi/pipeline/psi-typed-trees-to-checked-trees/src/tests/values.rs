@@ -2,6 +2,198 @@ use super::*;
 use psi_checked_trees::{CheckedScalarBindingValue, CheckedValueStatementRole};
 
 #[test]
+fn scalar_return_custody_retains_filtered_parameters_and_dense_prior_locals() {
+    use psi_checked_trees::{
+        CheckedBooleanExpression, CheckedScalarExpression, CheckedScalarExpressionRole,
+    };
+    use psi_typed_trees::types::PrimitiveType;
+
+    for (result_type, returned, expected) in [
+        (
+            "u8",
+            "count",
+            CheckedScalarExpression::Parameter {
+                position: 0,
+                primitive_type: PrimitiveType::U8,
+            },
+        ),
+        (
+            "bool",
+            "flag",
+            CheckedScalarExpression::Boolean(Box::new(CheckedBooleanExpression::Parameter {
+                position: 1,
+            })),
+        ),
+        (
+            "bool",
+            "chosen",
+            CheckedScalarExpression::Boolean(Box::new(CheckedBooleanExpression::Local {
+                position: 2,
+            })),
+        ),
+        (
+            "u8",
+            "second",
+            CheckedScalarExpression::Local {
+                position: 4,
+                primitive_type: PrimitiveType::U8,
+            },
+        ),
+    ] {
+        let source = format!(
+            "data Packet [copy] {{ value: u64; }} machine mixed(packet: Packet, count: u8, bytes: [u8; 2], flag: bool) -> {result_type} {{ let owned: Packet = packet; let mut scratch: u8 = 9; let chosen: bool = flag; let first: u8 = count; let second: u8 = first; {returned} }}"
+        );
+        let checked = lower_typed_trees(typed_trees(&source)).expect("mixed return source checks");
+        let machine = checked
+            .machines()
+            .iter()
+            .find(|machine| machine.name.as_str() == "mixed")
+            .unwrap();
+        let state = &checked.machine_states(machine)[0];
+        let parameters = checked.state_parameters(state);
+        let statements = checked.statement_table.statements(state.statement_nodes);
+        let locals: Vec<_> = statements
+            .iter()
+            .filter_map(|statement| match statement {
+                StatementNode::LocalData(local) => Some(local),
+                _ => None,
+            })
+            .collect();
+        let StatementNode::Expression(source_expression) = statements.last().unwrap() else {
+            panic!("fixture must retain an ordinary terminal expression")
+        };
+        let plans = &checked.facts.values.scalar_expressions;
+        let bindings: Vec<_> = plans
+            .source_bindings
+            .iter()
+            .map(|(_, binding)| binding)
+            .collect();
+        let [binding] = bindings.as_slice() else {
+            panic!("one selected return must have one source binding row: {bindings:?}")
+        };
+        assert_eq!(binding.state, state.symbol);
+        assert_eq!(binding.statement_ordinal, 5);
+        assert_eq!(binding.role, CheckedScalarExpressionRole::Return);
+        assert_eq!(binding.expression, *source_expression);
+        assert_eq!(
+            plans.binding_symbols.span_or_empty(binding.symbols),
+            &[
+                parameters[1].symbol,
+                parameters[3].symbol,
+                locals[2].symbol,
+                locals[3].symbol,
+                locals[4].symbol,
+            ],
+            "structural parameters/locals and mutable scalar locals cannot shift the selected dense namespace"
+        );
+        assert_eq!(
+            plans.expression_at(binding.state, binding.statement_ordinal, binding.role),
+            Some(&expected)
+        );
+        assert!(
+            plans
+                .source_bindings
+                .iter()
+                .all(|(_, row)| row.role == CheckedScalarExpressionRole::Return),
+            "initializer source expressions must not become return custody"
+        );
+    }
+}
+
+#[test]
+fn scalar_return_custody_keeps_same_spelling_state_bindings_and_source_occurrences_distinct() {
+    use psi_checked_trees::{CheckedScalarExpression, CheckedScalarExpressionRole};
+    use psi_typed_trees::{statement::TransitionTargetNode, types::PrimitiveType};
+
+    let checked = lower_typed_trees(typed_trees(
+        r#"
+        data Packet [copy] { value: u64; }
+        machine choose(packet: Packet, input: u8, flag: bool) -> u8 {
+            transition flag {
+                true -> left(packet, input)
+                false -> right(packet, input)
+            }
+            state left(packet: Packet, current: u8) -> u8 {
+                let owned: Packet = packet;
+                let saved: u8 = current;
+                transition { _ -> saved }
+            }
+            state right(packet: Packet, current: u8) -> u8 {
+                let owned: Packet = packet;
+                let saved: u8 = current;
+                transition { _ -> saved }
+            }
+        }
+    "#,
+    ))
+    .expect("explicit state argument source checks");
+    let machine = checked
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "choose")
+        .unwrap();
+    let states = checked.machine_states(machine);
+    let plans = &checked.facts.values.scalar_expressions;
+    assert_eq!(plans.source_bindings.len(), 2);
+    assert!(
+        !plans
+            .source_bindings
+            .iter()
+            .any(|(_, binding)| binding.state == states[0].symbol),
+        "named transitions are not value-return source bindings"
+    );
+    let mut prior = None;
+    for name in ["left", "right"] {
+        let state = states
+            .iter()
+            .find(|state| state.name.as_str() == name)
+            .unwrap();
+        let statements = checked.statement_table.statements(state.statement_nodes);
+        let StatementNode::LocalData(local) = &statements[1] else {
+            panic!("scalar local")
+        };
+        let StatementNode::Transition(transition) = &statements[2] else {
+            panic!("explicit value transition")
+        };
+        let TransitionTargetNode::Value(expression) =
+            checked.statement_table.transition_target(transition.target)
+        else {
+            panic!("value target")
+        };
+        let rows: Vec<_> = plans
+            .source_bindings
+            .iter()
+            .map(|(_, binding)| binding)
+            .filter(|binding| binding.state == state.symbol)
+            .collect();
+        let [binding] = rows.as_slice() else {
+            panic!("one exact row per return state")
+        };
+        let symbols = plans.binding_symbols.span_or_empty(binding.symbols);
+        assert_eq!(binding.expression, *expression);
+        assert_eq!(binding.statement_ordinal, 2);
+        assert_eq!(binding.role, CheckedScalarExpressionRole::Return);
+        assert_eq!(
+            symbols,
+            &[checked.state_parameters(state)[1].symbol, local.symbol]
+        );
+        assert_eq!(
+            plans.expression_at(state.symbol, 2, CheckedScalarExpressionRole::Return),
+            Some(&CheckedScalarExpression::Local {
+                position: 1,
+                primitive_type: PrimitiveType::U8
+            })
+        );
+        if let Some((previous_state, previous_expression, previous_local)) = prior {
+            assert_ne!(binding.state, previous_state);
+            assert_ne!(binding.expression, previous_expression);
+            assert_ne!(symbols[1], previous_local);
+        }
+        prior = Some((binding.state, binding.expression, symbols[1]));
+    }
+}
+
+#[test]
 fn transition_scalar_facts_skip_implicit_self_but_retain_target_position() {
     let source = r#"
         data Main {}

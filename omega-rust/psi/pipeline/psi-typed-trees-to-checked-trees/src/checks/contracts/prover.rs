@@ -5,6 +5,8 @@ mod assigned_values;
 pub(super) use assigned_values::{prove_domain_at_place, scalar_value_at_place};
 mod scalars;
 pub(super) use scalars::{ScalarValue, evaluate as evaluate_scalar};
+mod checked_scalars;
+pub(super) use checked_scalars::evaluate as evaluate_checked_scalar;
 mod booleans;
 #[cfg(test)]
 mod tests;

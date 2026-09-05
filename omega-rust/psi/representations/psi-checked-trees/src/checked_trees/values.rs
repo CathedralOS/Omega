@@ -1,4 +1,4 @@
-use psi_arena::{Arena, Handle};
+use psi_arena::{Arena, Handle, HandleSpan};
 use psi_symbols::SymbolHandle;
 use psi_typed_trees::expression::ExpressionHandle;
 use psi_typed_trees::types::TypeReferenceHandle;
@@ -112,6 +112,33 @@ impl CheckedValueFacts {
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct CheckedScalarExpressionPlans {
     pub expressions: Vec<CheckedLocatedScalarExpression>,
+    /// Source custody for plans consumed by proof. Plans without a retained
+    /// binding row cannot recover values by reconstructing a positional scope.
+    pub source_bindings: Arena<CheckedScalarExpressionBindings>,
+    pub binding_symbols: Arena<SymbolHandle>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CheckedScalarExpressionBindings {
+    pub state: SymbolHandle,
+    pub statement_ordinal: u32,
+    pub role: CheckedScalarExpressionRole,
+    pub expression: ExpressionHandle,
+    /// The producer's dense scalar namespace: parameters followed by locals.
+    /// This records declarations only, never initializer expressions to replay.
+    pub symbols: HandleSpan<SymbolHandle>,
+}
+
+impl Default for CheckedScalarExpressionBindings {
+    fn default() -> Self {
+        Self {
+            state: SymbolHandle::invalid(),
+            statement_ordinal: 0,
+            role: CheckedScalarExpressionRole::Return,
+            expression: ExpressionHandle::invalid(),
+            symbols: HandleSpan::empty(),
+        }
+    }
 }
 
 impl CheckedScalarExpressionPlans {

@@ -185,7 +185,69 @@ pub(super) fn append_transition_flow_facts(
             &mut branch_contexts,
             &mut branch_constraints,
         );
-        for call in &regions[region] {
+        let is_named_transfer = |call: &&BorrowCallFact| {
+            matches!(
+                find_call_site(
+                    program,
+                    machine.symbol,
+                    state.symbol,
+                    call.statement_index,
+                    call.call_ordinal
+                ),
+                Some(CallSite::TransitionNamed { .. })
+            )
+        };
+        let mut operand_writes = Some(Vec::new());
+        for call in regions[region]
+            .iter()
+            .filter(|call| !is_named_transfer(call))
+        {
+            if let Some(writes) = &mut operand_writes {
+                if let Some(current) = super::call_phases::call_storage_writes(
+                    program, borrow, ctx, machine, state, call,
+                ) {
+                    for place in current {
+                        if !writes.contains(&place) {
+                            writes.push(place);
+                        }
+                    }
+                } else {
+                    operand_writes = None;
+                }
+            }
+            let flow = build_call_flow_fact(
+                program,
+                borrow,
+                proof,
+                semantic,
+                domains,
+                ctx,
+                machine,
+                state,
+                &mut branch_contexts,
+                &mut branch_constraints,
+                call,
+            );
+            ctx.control.calls.append_to_span(state_calls, flow);
+        }
+        super::state_values::record_transition(
+            program,
+            semantic,
+            ctx,
+            machine,
+            state,
+            statement_index,
+            transition,
+            target,
+            branch_contexts,
+            operand_writes.as_deref(),
+        );
+        // The jump consumes evaluated arguments. Its own callee frame cannot
+        // erase the input snapshot before that explicit transfer is recorded.
+        for call in regions[region]
+            .iter()
+            .filter(|call| is_named_transfer(call))
+        {
             let flow = build_call_flow_fact(
                 program,
                 borrow,

@@ -6,19 +6,15 @@ pub(in crate::flow) struct CallInvalidationResult {
     pub(in crate::flow) invalidations: HandleSpan<FlowInvalidationFact>,
 }
 
-pub(in crate::flow) fn apply_call_invalidations(
+pub(in crate::flow) fn call_storage_writes(
     program: &psi_typed_trees::TypedTrees,
     borrow: &BorrowFacts,
-    semantic: &FactPlan,
-    domains: &DomainFacts,
     ctx: &mut FlowBuildContext,
     machine: &psi_typed_trees::machine::Machine,
     state: &psi_typed_trees::state::State,
-    active_contexts: HandleSpan<FlowSemanticContextRef>,
-    active_constraints: HandleSpan<FlowConstraintRef>,
     borrow_call: &BorrowCallFact,
-) -> CallInvalidationResult {
-    let mutated_places = call_mutated_places(
+) -> Option<Vec<CanonicalPlace>> {
+    call_mutated_places(
         program,
         machine.symbol,
         state.symbol,
@@ -34,7 +30,22 @@ pub(in crate::flow) fn apply_call_invalidations(
             borrow_call.statement_index,
             places,
         )
-    });
+    })
+}
+
+pub(in crate::flow) fn apply_call_invalidations(
+    program: &psi_typed_trees::TypedTrees,
+    borrow: &BorrowFacts,
+    semantic: &FactPlan,
+    domains: &DomainFacts,
+    ctx: &mut FlowBuildContext,
+    machine: &psi_typed_trees::machine::Machine,
+    state: &psi_typed_trees::state::State,
+    active_contexts: HandleSpan<FlowSemanticContextRef>,
+    active_constraints: HandleSpan<FlowConstraintRef>,
+    borrow_call: &BorrowCallFact,
+) -> CallInvalidationResult {
+    let mutated_places = call_storage_writes(program, borrow, ctx, machine, state, borrow_call);
     let invalidations_start = ctx.invalidations.events.len();
     let post_contexts = match mutated_places {
         None => HandleSpan::empty(),

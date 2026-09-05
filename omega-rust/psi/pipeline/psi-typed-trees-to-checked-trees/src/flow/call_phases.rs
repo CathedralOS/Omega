@@ -2,7 +2,7 @@ use super::*;
 
 mod invalidation;
 
-pub(super) use invalidation::apply_call_invalidations;
+pub(super) use invalidation::{apply_call_invalidations, call_storage_writes};
 
 pub(super) struct CallFlowContexts {
     pub(super) contexts: HandleSpan<FlowSemanticContextRef>,

@@ -1,0 +1,15 @@
+machine exact_sum() -> u8
+ensures result == 7
+{ 3u8 + 4u8 }
+
+machine wrapped_sum() -> u8
+ensures result == 1
+{ ((255u8 as u8 in Wrapping) + 2) as u8 }
+
+machine saturated_sum() -> u8
+ensures result == 255
+{ ((255u8 as u8 in Saturating) + 2) as u8 }
+
+machine wrapped_operand() -> u8
+ensures result == 127
+{ (((0u8 as u8 in Wrapping) - 2) >> 1) as u8 }
