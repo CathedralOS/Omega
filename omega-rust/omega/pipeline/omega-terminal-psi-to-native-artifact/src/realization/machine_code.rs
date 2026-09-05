@@ -38,7 +38,7 @@ pub(crate) fn emit_realization_machine_code(
     )?;
     let physical_stage = lower_realization_physical_stage(target_stage, request)?;
     match physical_stage {
-        NativePhysicalStageResult::IdentityOrdinary(assigned) => {
+        NativePhysicalStageResult::Assigned(assigned) => {
             let private_functions =
                 emit_callback_thunks(request.callback_thunks, request.target, request.profile)?;
             let plan = omega_machine_emission::emit_machine_code_with_native_callbacks(&assigned)
@@ -47,17 +47,6 @@ pub(crate) fn emit_realization_machine_code(
                 machine_code: MachineCodePlanWithPrivateFunctions {
                     plan,
                     private_functions,
-                },
-                physical_evidence_scope: initial_physical_evidence_scope,
-            })
-        }
-        NativePhysicalStageResult::IdentityRanked(assigned) => {
-            let plan = omega_machine_emission::emit_machine_code(&assigned)
-                .map_err(|error| realization_error("ranked machine-code emission", error))?;
-            Ok(EmittedRealizationMachineCode {
-                machine_code: MachineCodePlanWithPrivateFunctions {
-                    plan,
-                    private_functions: Vec::new(),
                 },
                 physical_evidence_scope: initial_physical_evidence_scope,
             })

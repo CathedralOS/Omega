@@ -1,7 +1,8 @@
 use omega_optimization_run_to_abstract_operations::ValidatedOptimizedAbstractPlan;
 use omega_psi_to_abstract_operations::AdmittedProviderInstallation;
 use omega_target::NativeTarget;
-use omega_target_operations::TargetOperationPlan;
+use omega_target_operations::{TargetOperationPlan, TargetOperationPlanWithNativeCallbacks};
+use std::sync::Arc;
 
 use crate::{
     AbstractToTargetTranslationValidationReceipt, AdmittedBoundarySettlement,
@@ -13,13 +14,13 @@ use crate::{
     validate_abstract_to_target_translation_with_ieee_float_fma_settlements,
 };
 
-/// Target lowering paired with the complete optimized abstract custody that
-/// authorized it. This realization carrier joins two existing pipeline
-/// stages; no consuming accessor can detach either side of that join.
+/// Target lowering with independently retained abstract and translation evidence.
+/// The current program is shared immutable representation data. Borrowing or
+/// retaining it does not grant the admission held by this private constructor.
 #[derive(Debug)]
 pub struct ValidatedOptimizedTargetOperations {
     pub(super) optimized: ValidatedOptimizedAbstractPlan,
-    pub(super) target_operations: TargetOperationPlan,
+    current_program: Arc<TargetOperationPlanWithNativeCallbacks>,
     pub(super) translation_validation: AbstractToTargetTranslationValidationReceipt,
     pub(super) provider_installation: Option<Box<AdmittedProviderInstallation>>,
 }
@@ -29,12 +30,18 @@ impl ValidatedOptimizedTargetOperations {
         &self.optimized
     }
 
-    pub const fn target(&self) -> NativeTarget {
-        self.target_operations.target
+    pub fn target(&self) -> NativeTarget {
+        self.current_program.plan.target
     }
 
-    pub const fn target_operations(&self) -> &TargetOperationPlan {
-        &self.target_operations
+    pub fn target_operations(&self) -> &TargetOperationPlan {
+        &self.current_program.plan
+    }
+
+    /// The original current program, not a snapshot recovered from replay inputs.
+    /// This owner exposes raw data only; it cannot reconstruct this admission.
+    pub fn shared_program(&self) -> Arc<TargetOperationPlanWithNativeCallbacks> {
+        Arc::clone(&self.current_program)
     }
 
     pub const fn translation_validation(&self) -> &AbstractToTargetTranslationValidationReceipt {
@@ -48,6 +55,13 @@ impl ValidatedOptimizedTargetOperations {
     }
 }
 
+fn current_program(plan: TargetOperationPlan) -> Arc<TargetOperationPlanWithNativeCallbacks> {
+    Arc::new(TargetOperationPlanWithNativeCallbacks {
+        plan,
+        native_callback_arguments: Vec::new(),
+    })
+}
+
 /// Lower one validated optimized abstract plan while retaining the complete
 /// upstream custody beside the target-operation result.
 pub fn lower_optimized_to_target_operations(
@@ -59,7 +73,7 @@ pub fn lower_optimized_to_target_operations(
         validate_abstract_to_target_translation(optimized.plan(), target, &target_operations)?;
     Ok(ValidatedOptimizedTargetOperations {
         optimized,
-        target_operations,
+        current_program: current_program(target_operations),
         translation_validation,
         provider_installation: None,
     })
@@ -87,7 +101,7 @@ pub fn lower_optimized_to_target_operations_with_ieee_float_fma_settlements(
         )?;
     Ok(ValidatedOptimizedTargetOperations {
         optimized,
-        target_operations,
+        current_program: current_program(target_operations),
         translation_validation,
         provider_installation: None,
     })
@@ -104,7 +118,7 @@ pub fn lower_optimized_to_target_operations_with_provider_executions(
         validate_abstract_to_target_translation(optimized.plan(), target, &target_operations)?;
     Ok(ValidatedOptimizedTargetOperations {
         optimized,
-        target_operations,
+        current_program: current_program(target_operations),
         translation_validation,
         provider_installation: None,
     })
@@ -130,7 +144,7 @@ pub fn lower_optimized_to_target_operations_with_provider_executions_and_install
         validate_abstract_to_target_translation(optimized.plan(), target, &target_operations)?;
     Ok(ValidatedOptimizedTargetOperations {
         optimized,
-        target_operations,
+        current_program: current_program(target_operations),
         translation_validation,
         provider_installation: Some(Box::new(installation)),
     })

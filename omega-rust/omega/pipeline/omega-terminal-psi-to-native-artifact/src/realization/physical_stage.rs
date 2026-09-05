@@ -3,7 +3,7 @@
 use crate::realization::callback_machine_code::validate_callback_thunk_assignments;
 use crate::realization::diagnostics::{realization_error, selected_physical_pipeline_failed};
 use crate::realization::model::NativeRealizationCoreRequest;
-use crate::realization::target_stage::NativeTargetStageResult;
+use crate::realization::target_stage::{NativeTargetStageEvidence, NativeTargetStageResult};
 use psi_diagnostics::Diagnostic;
 
 #[derive(Debug)]
@@ -18,13 +18,12 @@ pub(crate) struct OptimizedNativePhysicalStage {
 
 /// One completed physical-routing stage result.
 ///
-/// Identity assignment and selected physical optimization enter through the
-/// same stage. Their authority-distinct results remain explicit for emission;
-/// neither can fall back to the other.
+/// Ordinary and ranked programs share assignment and emission. The selected
+/// physical implementation still produces a different result and must converge
+/// without removing native forms currently supported by baseline assignment.
 #[derive(Debug)]
 pub(crate) enum NativePhysicalStageResult {
-    IdentityOrdinary(omega_assigned_target_operations::AssignedOperationPlanWithNativeCallbacks),
-    IdentityRanked(omega_assigned_target_operations::AssignedOperationPlan),
+    Assigned(omega_assigned_target_operations::AssignedOperationPlanWithNativeCallbacks),
     Optimized(Box<OptimizedNativePhysicalStage>),
 }
 
@@ -32,23 +31,20 @@ pub(crate) fn lower_realization_physical_stage(
     target_stage: NativeTargetStageResult,
     request: &NativeRealizationCoreRequest<'_>,
 ) -> Result<NativePhysicalStageResult, Vec<Diagnostic>> {
-    match target_stage {
-        NativeTargetStageResult::IdentityOrdinary(target) => {
+    let (target, evidence) = target_stage
+        .into_parts()
+        .map_err(|error| realization_error("target program/evidence join", error))?;
+    match evidence {
+        NativeTargetStageEvidence::Ordinary | NativeTargetStageEvidence::Ranked => {
             let assigned = omega_target_operations_to_assigned_target_operations::assign_registers_with_native_callbacks(&target)
                 .map_err(|error| realization_error("ordinary physical assignment", error))?;
             validate_callback_thunk_assignments(
                 request.callback_thunks,
                 &assigned.native_callback_arguments,
             )?;
-            Ok(NativePhysicalStageResult::IdentityOrdinary(assigned))
+            Ok(NativePhysicalStageResult::Assigned(assigned))
         }
-        NativeTargetStageResult::IdentityRanked(target) => {
-            let assigned =
-                omega_target_operations_to_assigned_target_operations::assign_registers(&target)
-                    .map_err(|error| realization_error("ranked physical assignment", error))?;
-            Ok(NativePhysicalStageResult::IdentityRanked(assigned))
-        }
-        NativeTargetStageResult::Optimized(optimized_target) => {
+        NativeTargetStageEvidence::Optimized(optimized_target) => {
             let optimized_plan = optimized_target.optimized().plan().clone();
             let optimized_validation = optimized_target.optimized().validation();
             let has_provider_installation = optimized_target.provider_installation().is_some();

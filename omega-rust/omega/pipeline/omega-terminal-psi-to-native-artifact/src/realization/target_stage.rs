@@ -1,5 +1,9 @@
 //! Complete target lowering after the explicit post-Terminal optimization stage.
 
+mod output;
+
+pub(crate) use output::{NativeTargetStageEvidence, NativeTargetStageResult};
+
 use crate::realization::diagnostics::realization_error;
 use crate::realization::model::{NativeRealizationAuthority, NativeRealizationCoreRequest};
 use crate::realization::optimization_stage::NativeOptimizationStageResult;
@@ -7,18 +11,6 @@ use omega_abstract_operations_to_target_operations::AdmittedBoundarySettlement;
 use omega_installation_evidence::ProviderInstallationEvidence;
 use omega_psi_to_abstract_operations::AdmittedProviderInstallation;
 use psi_diagnostics::Diagnostic;
-
-/// One completed target-lowering stage result.
-///
-/// The variants retain authority-distinct payloads rather than using those
-/// differences to bypass the stage. Physical assignment and optimization
-/// consume this result and never inspect the earlier continuation selection.
-#[derive(Debug)]
-pub(crate) enum NativeTargetStageResult {
-    IdentityOrdinary(omega_target_operations::TargetOperationPlanWithNativeCallbacks),
-    IdentityRanked(omega_target_operations::TargetOperationPlan),
-    Optimized(Box<omega_optimization_pipeline::ValidatedOptimizedTargetOperations>),
-}
 
 pub(crate) fn lower_realization_target_stage(
     optimization_stage: NativeOptimizationStageResult,
@@ -43,7 +35,7 @@ pub(crate) fn lower_realization_target_stage(
                     request.native_callbacks,
                 )
                 .map_err(|error| realization_error("ordinary target lowering", error))?;
-            Ok(NativeTargetStageResult::IdentityOrdinary(target))
+            Ok(NativeTargetStageResult::ordinary(target))
         }
         NativeRealizationAuthority::RankedU32Countdown(ranked) => {
             let abstract_identity = program;
@@ -69,7 +61,7 @@ pub(crate) fn lower_realization_target_stage(
                     request.target,
                 )
                 .map_err(|error| realization_error("ranked target lowering", error))?;
-            Ok(NativeTargetStageResult::IdentityRanked(target))
+            Ok(NativeTargetStageResult::ranked(target))
         }
         NativeRealizationAuthority::Ordinary => {
             let optimized = program;
@@ -87,9 +79,7 @@ pub(crate) fn lower_realization_target_stage(
                 ),
             }
             .map_err(|error| realization_error("optimized target lowering", error))?;
-            Ok(NativeTargetStageResult::Optimized(Box::new(
-                optimized_target,
-            )))
+            Ok(NativeTargetStageResult::optimized(optimized_target))
         }
     }
 }

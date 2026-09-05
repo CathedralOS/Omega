@@ -200,12 +200,23 @@ representations and explicit policy/evidence. No production consumer selects
 its representation or algorithm by allocation/optimization ancestry. Existing
 corruption controls still reject stale, substituted, and mismatched evidence.
 
-### B. The outer ordinary/optimized distinction still selects different outputs
+### B. The outer ordinary/optimized distinction still selects physical implementations
 
-`omega-terminal-psi-to-native-artifact/src/realization/target_stage.rs` retains
-`NativeTargetStageResult::{IdentityOrdinary, IdentityRanked, Optimized}` and
-different lowering entrances. Giving both branches a stage name has not
-completed convergence.
+`omega-terminal-psi-to-native-artifact/src/realization/target_stage.rs` returns
+one `NativeTargetStageResult` owning the current target program separately from
+its evidence. `target_stage/output.rs` retains the same representation-owned
+`TargetOperationPlanWithNativeCallbacks` for ordinary, ranked, and optimized
+lowering. The optimized translation wrapper shares that original immutable
+program; taking raw data does not grant translation or provider admission.
+Physical entry compares the complete current program with retained optimized
+evidence before consuming either, rather than comparing only root IDs.
+
+The separately retained `NativeTargetStageEvidence` still selects transitional
+physical implementations. Ordinary and ranked roles share one callback-aware
+assignment and emission path after their distinct admission checks;
+`physical_stage.rs` returns distinct assigned versus optimized physical outputs.
+Common target ownership is not completion of that convergence: selection must
+stop choosing a different downstream compiler.
 
 The earlier native input now retains one current verified abstract program,
 with native authority bound by complete-plan equality rather than only matching
@@ -218,10 +229,17 @@ unsupported ranked, callback, and FMA selections still reject. Target lowering
 and physical assignment still choose transitional implementations from the
 request's selections, so this does not close the outer convergence requirement.
 
-Next: converge current target and physical program outputs regardless of empty
+Next: converge physical program outputs and implementations regardless of empty
 or nonempty optimization selections. Keep ranked-program, provider, callback,
 and other actual authority distinctions explicit; do not erase them in pursuit
 of a common struct.
+
+In particular, selected-instruction legalization currently rejects ranked
+countdowns and attached Unit structural-scalar operations in
+`omega-target-operations-to-selected-instructions/src/legalization/admission.rs`.
+Ordinary assignment supports those forms. Removing the ordinary entrance before
+its behavior and evidence have moved would reduce supported programs, not
+complete convergence. Preserve those controls while migrating the implementation.
 
 Acceptance: empty and nonempty selections traverse the same public phase graph
 and output nouns. Ordinary and ranked authority is preserved and checked at its
