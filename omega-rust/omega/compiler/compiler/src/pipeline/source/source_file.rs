@@ -1,6 +1,6 @@
 use std::path::PathBuf;
 
-use crate::source::SourceId;
+use source::SourceId;
 use syntax_trees::item::ItemHandle;
 
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
