@@ -44,7 +44,9 @@ pub(super) fn parse_transition_block_target_with_bindings<'tokens, 'source>(
     // `-> (burn(n) + 0)`). A parenthesized call that names a sibling state is
     // re-classified back into a state transition once states are known
     // (symbol assignment), so existing target spellings keep their meaning.
-    let target_shaped = input.at_keyword(KeywordKind::SelfValue) || input.at_name_like();
+    let target_shaped = !input.at_keyword(KeywordKind::True)
+        && !input.at_keyword(KeywordKind::False)
+        && (input.at_keyword(KeywordKind::SelfValue) || input.at_name_like());
     let (expression, rest) = if target_shaped {
         let (expr, rest) = parse_transition_target_expression_handle(syntax_trees, input)?;
         // A struct/case literal arm VALUE (`-> Vec2 { dx: 1, dy: 2 }`) is name-like, so
