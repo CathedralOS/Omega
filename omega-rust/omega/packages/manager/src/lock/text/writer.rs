@@ -1,8 +1,5 @@
 use super::super::PackageLockTarget;
-use super::super::{
-    HistoricalPackagePolicyLimits, PackageLock, PackageLockError as Error,
-    PackageLockRecoveryLimits,
-};
+use super::super::{PackageLock, PackageLockError as Error, PackageLockRecoveryLimits};
 use super::{HEADER, budget::Budget, framing::Writer};
 use omega_package_evidence::record::PackagePolicyBaseline;
 
@@ -14,8 +11,10 @@ impl PackageLock {
     }
 
     /// Emit only records recoverable under these ceilings. Each child is
-    /// decoded once for exact resource accounting and immediately dropped;
-    /// no duplicate full lock or acceptance certificate is constructed.
+    /// decoded once for exact recovery accounting and immediately dropped;
+    /// historical decision emission additionally accounts its temporary text
+    /// and validation storage. No duplicate full lock or acceptance certificate
+    /// is constructed.
     pub fn canonical_text_with_limits(
         &self,
         limits: PackageLockRecoveryLimits,
@@ -49,11 +48,7 @@ impl PackageLock {
                 drop(budget.baseline(&text)?);
                 writer.section("baseline", &text)?;
             }
-            let decisions = target
-                .decisions
-                .canonical_text(&target.source, HistoricalPackagePolicyLimits::default())
-                .map_err(Error::Decisions)?;
-            drop(budget.decisions(&decisions, &target.source)?);
+            let decisions = budget.decision_text(&target.decisions, &target.source)?;
             budget.target_membership(target)?;
             writer.section("decisions", &decisions)?;
             writer.append("end_target\n")?;

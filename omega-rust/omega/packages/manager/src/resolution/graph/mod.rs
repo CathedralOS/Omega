@@ -50,3 +50,4 @@ pub use subject::{
     CanonicalSourceClosureSubjectLimits, CanonicalSourceClosureSubjectRecoveryUsage,
     SOURCE_CLOSURE_SUBJECT_ENCODING_VERSION,
 };
+pub(crate) use subject::{recover_package_key_text, write_package_key_text};

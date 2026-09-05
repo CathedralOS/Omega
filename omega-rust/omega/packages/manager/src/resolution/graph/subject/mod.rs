@@ -7,6 +7,7 @@ mod text;
 mod usage;
 mod validation;
 
+pub(crate) use text::{recover_package_key_text, write_package_key_text};
 pub use usage::CanonicalSourceClosureSubjectRecoveryUsage;
 
 pub use model::{

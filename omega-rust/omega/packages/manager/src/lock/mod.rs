@@ -18,7 +18,7 @@ pub use model::{PackageLock, PackageLockTarget};
 pub const PACKAGE_LOCK_VERSION: u16 = 1;
 
 pub use decisions::{
-    HistoricalPackagePolicyDecision, HistoricalPackagePolicyDecisions,
-    HistoricalPackagePolicyError, HistoricalPackagePolicyLimits,
+    HistoricalPackagePolicyDecision, HistoricalPackagePolicyDecisionSubject,
+    HistoricalPackagePolicyDecisions, HistoricalPackagePolicyError, HistoricalPackagePolicyLimits,
     HistoricalPackagePolicyRecoveryUsage,
 };

@@ -46,16 +46,16 @@ impl Budget {
             .owned_bytes
             .checked_add(bytes)
             .filter(|total| *total <= self.maximum)
-            .ok_or_else(|| Error::new("source-closure recovery exceeds its owned-byte limit"))?;
+            .ok_or_else(|| {
+                Error::allocation_limit("source-closure recovery exceeds its owned-byte limit")
+            })?;
         Ok(())
     }
 
     pub(super) fn reserve<T>(&mut self, count: usize) -> Result<Vec<T>, Error> {
-        self.charge(
-            count
-                .checked_mul(std::mem::size_of::<T>())
-                .ok_or_else(|| Error::new("source-closure recovery allocation size overflow"))?,
-        )?;
+        self.charge(count.checked_mul(std::mem::size_of::<T>()).ok_or_else(|| {
+            Error::allocation_limit("source-closure recovery allocation size overflow")
+        })?)?;
         let mut values = Vec::new();
         values
             .try_reserve_exact(count)
