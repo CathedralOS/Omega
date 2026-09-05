@@ -56,6 +56,9 @@ use typed_trees::{
 
 mod guards;
 
+#[cfg(test)]
+mod tests;
+
 pub(crate) fn build_checked_scalar_graph_plans(
     program: &TypedTrees,
     expressions: &checked_trees::CheckedScalarExpressionPlans,
@@ -222,6 +225,9 @@ fn build_machine_graph(
                     if matches!(transition.exit, TransitionExit::Crash(_))
                         && transition.guard == TransitionGuardNode::Always
                         && !transition.continuation.is_valid()
+                        && program
+                            .statement_table
+                            .transition_target_is_valid(transition.target)
                         && matches!(
                             program.statement_table.transition_target(transition.target),
                             TransitionTargetNode::Terminal
@@ -410,8 +416,17 @@ fn checked_branch_destination(
     transition: &typed_trees::statement::TableTransition,
     is_continuation: bool,
 ) -> Option<CheckedScalarBranchDestination> {
-    if transition.exit != TransitionExit::Ordinary {
-        return None;
+    if matches!(transition.exit, TransitionExit::Crash(_)) {
+        return (!is_continuation
+            && !transition.continuation.is_valid()
+            && program
+                .statement_table
+                .transition_target_is_valid(transition.target)
+            && matches!(
+                program.statement_table.transition_target(transition.target),
+                TransitionTargetNode::Terminal
+            ))
+        .then_some(CheckedScalarBranchDestination::Crash { statement_ordinal });
     }
     let target = if is_continuation {
         transition.continuation

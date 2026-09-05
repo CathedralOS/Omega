@@ -11,6 +11,8 @@ use checked_trees::{CheckFacts, CrashRouteGuard};
 use diagnostics::Diagnostic;
 use typed_trees::TypedTrees;
 
+mod source_fallthrough;
+
 pub(crate) fn infer_path_conditioned_guard_coverage(
     program: &TypedTrees,
     facts: &mut CheckFacts,
@@ -42,6 +44,7 @@ pub(crate) fn infer_path_conditioned_guard_coverage(
         if crash_plan.checked_sites().is_empty() && crash_plan.checked_calls().is_empty() {
             continue;
         }
+        let source_fallthrough = source_fallthrough::collect(program, machine);
 
         let checked_sites = crash_plan
             .checked_sites()
@@ -52,7 +55,7 @@ pub(crate) fn infer_path_conditioned_guard_coverage(
                     .iter()
                     .filter(|guard| guard.applies_at(site.location().state()))
                     .collect::<Vec<_>>();
-                let path_guard_conjuncts = applicable_guards
+                let mut path_guard_conjuncts = applicable_guards
                     .iter()
                     .map(|guard| {
                         crate::facts::canonical_crash_path_predicate(
@@ -85,6 +88,37 @@ pub(crate) fn infer_path_conditioned_guard_coverage(
                         &mut order_relations,
                         &mut integer_disequalities,
                     );
+                }
+                if let Some(fallthrough) = source_fallthrough
+                    .iter()
+                    .find(|fallthrough| fallthrough.location == site.location())
+                {
+                    for &(guard, negated) in &fallthrough.guards {
+                        path_guard_conjuncts.push(crate::facts::canonical_crash_path_predicate(
+                            program,
+                            guard,
+                            negated,
+                            &parameter_names,
+                            &content_conservation,
+                        ));
+                        collect_structural_guard_consequences(
+                            program,
+                            guard,
+                            negated,
+                            &parameter_names,
+                            &content_conservation,
+                            &mut path_predicates,
+                        );
+                        collect_integer_order_relations(
+                            program,
+                            guard,
+                            negated,
+                            &parameter_names,
+                            &content_conservation,
+                            &mut order_relations,
+                            &mut integer_disequalities,
+                        );
+                    }
                 }
                 push_transitive_integer_order_consequences(
                     program,

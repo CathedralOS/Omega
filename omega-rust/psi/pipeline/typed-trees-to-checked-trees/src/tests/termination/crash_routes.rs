@@ -1,6 +1,119 @@
 use super::*;
 
 #[test]
+fn direct_crash_fallthrough_projects_immutable_entry_snapshots() {
+    for (guard, route) in [
+        ("flag", "!flag"),
+        ("flag || (identity(current) && false)", "!flag"),
+        ("!(flag && identity(current))", "flag"),
+        ("true == (flag || identity(current))", "!flag"),
+        ("false == (flag && identity(current))", "flag"),
+    ] {
+        let source = format!(
+            r#"
+            machine identity(input: bool) -> bool
+            requires true == true
+            ensures true == true
+            {{ input }}
+
+            machine value(flag: bool, input: bool) -> bool
+            requires true == true
+            ensures true == true
+            crashes Trap
+                {route}
+            {{
+                let mut current: bool = input;
+                let saved: bool = current;
+                current = identity(!current);
+                transition {{ {guard} -> saved }}
+                crash Trap;
+            }}
+            "#
+        );
+        let tokens = Lexer::new(&source).tokenize().expect("tokenize");
+        let syntax = parse_syntax_trees(&tokens).expect("parse");
+        let resolved = lower_syntax_trees(&syntax).expect("resolve");
+        let typed = lower_symbol_resolved_trees(&resolved).expect("type");
+        let checked = lower_typed_trees(typed)
+            .unwrap_or_else(|diagnostics| panic!("guard {guard}: {diagnostics:?}"));
+        let plan = checked
+            .facts
+            .contract_plans
+            .for_machine(symbol_of_checked(&checked, "value"))
+            .expect("contract plan");
+        let [site] = plan.crash.checked_sites() else {
+            panic!("one source crash site");
+        };
+        assert_eq!(site.guard_covering_buckets().len(), 1, "guard {guard}");
+        assert!(!site.path_guard_conjuncts().is_empty(), "guard {guard}");
+    }
+}
+
+#[test]
+fn direct_crash_fallthrough_does_not_project_unproven_boolean_operands() {
+    for (guard, route) in [
+        ("flag && identity(input)", "!flag"),
+        ("!(flag || identity(input))", "flag"),
+        ("identity(flag)", "!flag"),
+    ] {
+        let source = format!(
+            r#"
+            machine identity(input: bool) -> bool
+            requires true == true
+            ensures true == true
+            {{ input }}
+            machine value(flag: bool, input: bool) -> bool
+            crashes Trap
+                {route}
+            {{ transition {{ {guard} -> true }} crash Trap; }}
+            "#
+        );
+        let tokens = Lexer::new(&source).tokenize().expect("tokenize");
+        let syntax = parse_syntax_trees(&tokens).expect("parse");
+        let resolved = lower_syntax_trees(&syntax).expect("resolve");
+        let typed = lower_symbol_resolved_trees(&resolved).expect("type");
+        let diagnostics = lower_typed_trees(typed).expect_err("route is not implied");
+        assert!(
+            diagnostics.iter().any(|diagnostic| {
+                diagnostic
+                    .message
+                    .contains("machine `value` has an uncovered Trap crash")
+            }),
+            "guard {guard}: {diagnostics:?}"
+        );
+    }
+}
+
+#[test]
+fn direct_crash_fallthrough_does_not_confuse_state_and_entry_parameters() {
+    let source = r#"
+        machine value(flag: bool) -> bool
+        crashes Trap
+            !flag
+        {
+            transition { _ -> next(!flag) }
+            state next(flag: bool) -> bool {
+                transition { flag -> true }
+                crash Trap;
+            }
+        }
+    "#;
+    let tokens = Lexer::new(source).tokenize().expect("tokenize");
+    let syntax = parse_syntax_trees(&tokens).expect("parse");
+    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
+    let diagnostics = lower_typed_trees(typed).expect_err("distinct entry and state snapshots");
+    assert!(
+        diagnostics.iter().any(|diagnostic| {
+            diagnostic
+                .message
+                .contains("machine `value` has an uncovered Trap crash")
+        }),
+        "{diagnostics:?}"
+    );
+}
+
+#[test]
 fn crash_bucket_identity_includes_cause_routes_and_unconditional_presence() {
     let source = r#"
     machine baseline() {}

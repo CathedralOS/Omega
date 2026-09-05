@@ -2997,6 +2997,24 @@ Boolean polarity. Inductive contract and ranking judgments use those facts
 for the exact selected edge; range propagation still invalidates facts affected
 by guard effects or intervening writes.
 
+An authored standalone `crash Trap;` or `crash Abort;` may be the fallback
+after a guarded scalar return or state transfer. The checked destination keeps
+the exact statement coordinate; lowering rejoins its authored cause, live
+terminal target, absence of a continuation, and checked crash-site evidence.
+Only the selected fallback enters a private block with the existing no-successor
+crash terminator and explicit frontier lower bound. A computed guard completes
+first, so its own crash precedes the fallback and a successful ordinary arm
+never executes the crash. This adds no inline crash-arm syntax or new Terminal
+operation.
+
+Crash-route coverage includes stable consequences of earlier failed guards in
+the same source state. These predicates refer to exact immutable entry-parameter
+symbols, not same-spelled locals or parameters of another state. Boolean
+projection can retain `!flag` from a failed `flag || effect()` guard without
+treating the call result as a parameter fact. Unrelated local writes cannot
+invalidate the retained entry snapshots; mutable-storage route transport
+requires its own value evidence.
+
 Immutable and mutable initializers and local assignments in free scalar machines
 use that same evaluation path. Each RHS completes before the following statement;
 private continuation blocks carry prior values and the new result. A computed

@@ -497,6 +497,9 @@ Owners include
   evaluation points and activate staged loans at their evaluation points.
   Complete typed computation plans for remaining numeric policies and selected
   operator calls and borrowed/projected operands and writes.
+  Rejoin pure scalar expression facts to their authored expressions, beyond
+  the current statement/role coordinates; replacing a guard must not reuse
+  a stale pure-expression row.
   Complete nonliteral contract arithmetic and callee-result bounds requiring
   caller-specific snapshots beyond immutable scalar formal comparisons; carry
   those facts into nested exact-cast obligations without rereading arguments.
@@ -505,7 +508,7 @@ Owners include
   computation lowering. Acceptance: selected arguments
   execute left-to-right once, skipped calls never execute, and dynamic RHS
   calls serialize, independently verify, and execute with their exact guards.
-  Extend guarded scalar control to crash arms and longer dispatches. Complete
+  Extend guarded scalar control to longer dispatches. Complete
   anonymous integer landing for argument and aggregate-element destinations
   and the remaining numeric operator/policy surface, so proof and execution
   consume the same values without rereading changed operands.
