@@ -387,57 +387,86 @@ pub(crate) fn build_checked_scalar_expression_plans(
                                 expression: return_expression,
                             });
                         }
-                        let TransitionTargetNode::Named {
-                            path, arguments, ..
-                        } = program.statement_table.transition_target(transition.target)
-                        else {
-                            continue;
-                        };
-                        let Some(target_state) = states
-                            .iter()
-                            .find(|candidate| candidate.symbol == path.symbol)
-                        else {
-                            continue;
-                        };
-                        let target_parameters = program
-                            .state_parameters(target_state)
-                            .iter()
-                            .enumerate()
-                            .filter(|(_, parameter)| !parameter.is_self);
-                        for (argument, (target_position, target_parameter)) in program
-                            .statement_table
-                            .expression_handles(*arguments)
-                            .iter()
-                            .zip(target_parameters)
+                        for (target, continuation) in
+                            [(transition.target, false), (transition.continuation, true)]
                         {
-                            let Some(target_type) =
-                                program.primitive_type_reference(target_parameter.type_reference)
+                            let TransitionTargetNode::Named {
+                                path, arguments, ..
+                            } = program.statement_table.transition_target(target)
                             else {
                                 continue;
                             };
-                            let Some(expression) = lower_return_expression(
-                                program,
-                                operators,
-                                *argument,
-                                &scalar_parameters,
-                                &parameter_types,
-                                &locals,
-                                target_type,
-                                exact_integer_casts,
-                            ) else {
+                            let Some(target_state) = states
+                                .iter()
+                                .find(|candidate| candidate.symbol == path.symbol)
+                            else {
                                 continue;
                             };
-                            let Ok(argument_ordinal) = u32::try_from(target_position) else {
-                                continue;
-                            };
-                            expressions.push(CheckedLocatedScalarExpression {
-                                state: state.symbol,
-                                statement_ordinal,
-                                role: CheckedScalarExpressionRole::TransitionArgument {
-                                    argument_ordinal,
-                                },
-                                expression,
-                            });
+                            let target_parameters = program
+                                .state_parameters(target_state)
+                                .iter()
+                                .enumerate()
+                                .filter(|(_, parameter)| !parameter.is_self);
+                            for (argument, (target_position, target_parameter)) in program
+                                .statement_table
+                                .expression_handles(*arguments)
+                                .iter()
+                                .zip(target_parameters)
+                            {
+                                let Some(target_type) = program
+                                    .primitive_type_reference(target_parameter.type_reference)
+                                else {
+                                    continue;
+                                };
+                                let Some(expression) = lower_return_expression(
+                                    program,
+                                    operators,
+                                    *argument,
+                                    &scalar_parameters,
+                                    &parameter_types,
+                                    &locals,
+                                    target_type,
+                                    exact_integer_casts,
+                                ) else {
+                                    continue;
+                                };
+                                let Ok(argument_ordinal) = u32::try_from(target_position) else {
+                                    continue;
+                                };
+                                let role = if continuation {
+                                    CheckedScalarExpressionRole::TransitionContinuationArgument {
+                                        argument_ordinal,
+                                    }
+                                } else {
+                                    CheckedScalarExpressionRole::TransitionArgument {
+                                        argument_ordinal,
+                                    }
+                                };
+                                source_bindings.append(CheckedScalarExpressionBindings {
+                                    destination: target_parameter.symbol,
+                                    state: state.symbol,
+                                    statement_ordinal,
+                                    role,
+                                    expression: *argument,
+                                    symbols: binding_symbols.insert_many(
+                                        scalar_parameters
+                                            .iter()
+                                            .map(|parameter| parameter.symbol)
+                                            .chain(
+                                                locals
+                                                    .iter()
+                                                    .filter(|local| !local.is_mutable)
+                                                    .map(|local| local.symbol),
+                                            ),
+                                    ),
+                                });
+                                expressions.push(CheckedLocatedScalarExpression {
+                                    state: state.symbol,
+                                    statement_ordinal,
+                                    role,
+                                    expression,
+                                });
+                            }
                         }
                     }
                     _ => {}

@@ -4,6 +4,9 @@ use super::*;
 use psi_facts::ScalarValue;
 use psi_typed_trees::statement::{TransitionExit, TransitionTargetNode};
 
+mod arguments;
+pub(super) use arguments::capture_argument;
+
 #[cfg(test)]
 mod tests;
 
@@ -127,11 +130,10 @@ pub(super) fn record_transition(
     ctx: &mut FlowBuildContext,
     machine: &psi_typed_trees::machine::Machine,
     state: &psi_typed_trees::state::State,
-    statement_index: usize,
     transition: &psi_typed_trees::statement::TableTransition,
     target: psi_typed_trees::statement::TransitionTargetHandle,
     contexts: HandleSpan<FlowSemanticContextRef>,
-    operand_writes: Option<&[CanonicalPlace]>,
+    argument_values: &[ScalarValue],
 ) {
     if transition.exit != TransitionExit::Ordinary
         || !reachable(ctx, program, machine, state.symbol)
@@ -170,9 +172,7 @@ pub(super) fn record_transition(
         if parameter.is_self {
             continue;
         }
-        let argument = arguments
-            .and_then(|arguments| arguments.get(ordinal))
-            .copied();
+        let captured = argument_values.get(ordinal);
         ordinal += 1;
         let scalar = program
             .primitive_type_reference(parameter.type_reference)
@@ -182,56 +182,11 @@ pub(super) fn record_transition(
             });
         let value = if !scalar {
             ScalarValue::Unknown
-        } else if let Some(value) = argument.and_then(|argument| literal(program, argument)) {
-            value
+        } else if arguments.is_some() {
+            captured.cloned().unwrap_or_default()
         } else {
-            let source = if arguments.is_none() {
-                Some(semantic.append_symbol_place(parameter.symbol))
-            } else {
-                argument.and_then(|argument| {
-                    crate::semantic_places::canonical_place_to_fact_place_in_state(
-                        program,
-                        semantic,
-                        state.symbol,
-                        statement_index,
-                        argument,
-                    )
-                })
-            };
-            source
-                .filter(|source| {
-                    let Some(place) = canonical_place_from_semantic_place(
-                        program,
-                        semantic,
-                        semantic.places.get(*source),
-                    ) else {
-                        return false;
-                    };
-                    // A dynamic selector has its own changing dependency; current
-                    // AssignedValue facts do not yet retain that captured selector.
-                    place.segments.iter().all(|segment| {
-                        matches!(
-                            segment,
-                            psi_facts::PlaceSegment::Field { .. }
-                                | psi_facts::PlaceSegment::Case { .. }
-                                | psi_facts::PlaceSegment::FixedIndex { .. }
-                        )
-                    }) && operand_writes.is_some_and(|writes| {
-                        writes.iter().all(|write| {
-                            super::ownership::normalized_event_place_root(program, place.root)
-                                != super::ownership::normalized_event_place_root(
-                                    program, write.root,
-                                )
-                                || !canonical_place_segments_may_overlap(
-                                    program,
-                                    &place.segments,
-                                    &write.segments,
-                                )
-                        })
-                    })
-                })
-                .map(|source| value_at_place(program, semantic, ctx, contexts, source))
-                .unwrap_or_default()
+            let source = semantic.append_symbol_place(parameter.symbol);
+            value_at_place(program, semantic, ctx, contexts, source)
         };
         values.push((parameter.symbol, value));
     }

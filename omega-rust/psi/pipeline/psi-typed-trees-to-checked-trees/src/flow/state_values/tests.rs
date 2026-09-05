@@ -112,6 +112,193 @@ fn check(source: &str, accepted: bool) {
 }
 
 #[test]
+fn computed_state_arguments_use_selected_scalar_operations() {
+    for (scalar_type, body, argument, expected) in [
+        ("u8", "let current: u8 = 3;", "current + 4", "7"),
+        (
+            "u8",
+            "let mut current: u8 = 255;",
+            "((current as u8 in Wrapping) + 1) as u8",
+            "0",
+        ),
+        (
+            "u8",
+            "let mut current: u8 = 255;",
+            "((current as u8 in Saturating) + 1) as u8",
+            "255",
+        ),
+        ("bool", "let mut current: bool = false;", "!current", "true"),
+        ("bool", "let current: u8 = 3;", "current < 4", "true"),
+    ] {
+        for accepted in [true, false] {
+            let comparison = if accepted { "==" } else { "!=" };
+            check(
+                &format!(
+                    "machine produce() -> {scalar_type} ensures result {comparison} {expected} {{ {body} transition {{ _ -> finish({argument}) }} state finish(value: {scalar_type}) -> {scalar_type} {{ value }} }}"
+                ),
+                accepted,
+            );
+        }
+    }
+}
+
+#[test]
+fn state_argument_values_are_saved_before_later_argument_writes() {
+    for (argument, expected) in [("current", "3"), ("current + 1", "4")] {
+        check(
+            &format!(
+                r#"
+                machine replace(target: &mut u8) -> u8 ensures target == 9 {{ target = 9; 0 }}
+                machine produce() -> u8 ensures result == {expected} {{
+                    let mut current: u8 = 3;
+                    transition {{ _ -> finish({argument}, replace(&mut current)) }}
+                    state finish(value: u8, ignored: u8) -> u8 {{ value }}
+                }}
+            "#
+            ),
+            true,
+        );
+    }
+    check(
+        r#"
+            data Main { current: u8; }
+            machine Main::replace(&mut self) -> u8 ensures self.current == 9 { self.current = 9; 0 }
+            machine Main::produce(&mut self) -> u8 ensures result == 3 {
+                self.current = 3;
+                transition { _ -> finish(self.current, self.replace()) }
+                state finish(value: u8, ignored: u8) -> u8 { value }
+            }
+        "#,
+        true,
+    );
+}
+
+#[test]
+fn computed_argument_capture_requires_unique_exact_source_and_destination() {
+    use psi_checked_trees::CheckedScalarExpressionRole;
+    use psi_typed_trees::statement::{StatementNode, TransitionTargetNode};
+    let source = "machine produce() -> u8 { transition { _ -> finish(3u8 + 4u8) } state finish(value: u8) -> u8 { value } }";
+    let tokens = Lexer::new(source).tokenize().expect("tokenize");
+    let syntax = parse_syntax_trees(&tokens).expect("parse");
+    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
+    let checked = crate::lower_typed_trees(typed).expect("checked scalar jump");
+    let program = &checked.typed;
+    let machine = &program.machines()[0];
+    let state = &program.machine_states(machine)[0];
+    let StatementNode::Transition(transition) =
+        &program.statement_table.statements(state.statement_nodes)[0]
+    else {
+        panic!("jump")
+    };
+    let TransitionTargetNode::Named { arguments, .. } =
+        program.statement_table.transition_target(transition.target)
+    else {
+        panic!("named jump")
+    };
+    let argument = program.statement_table.expression_handles(*arguments)[0];
+    for mutation in 0..5 {
+        let mut plans = checked.facts.values.scalar_expressions.clone();
+        let binding = plans
+            .source_bindings
+            .iter()
+            .find(|(_, binding)| {
+                matches!(
+                    binding.role,
+                    CheckedScalarExpressionRole::TransitionArgument { .. }
+                )
+            })
+            .unwrap()
+            .0;
+        match mutation {
+            1 => plans.source_bindings.get_mut(binding).destination = Default::default(),
+            2 => plans.source_bindings.get_mut(binding).expression = Default::default(),
+            3 => {
+                plans
+                    .source_bindings
+                    .append(plans.source_bindings.get(binding).clone());
+            }
+            4 => {
+                let expression = plans
+                    .expressions
+                    .iter()
+                    .find(|expression| {
+                        matches!(
+                            expression.role,
+                            CheckedScalarExpressionRole::TransitionArgument { .. }
+                        )
+                    })
+                    .unwrap()
+                    .clone();
+                plans.expressions.push(expression);
+            }
+            _ => {}
+        }
+        let semantic = Default::default();
+        let context = super::FlowBuildContext::new(
+            &Default::default(),
+            &Default::default(),
+            &semantic,
+            &plans,
+        );
+        let value = super::capture_argument(
+            program,
+            &semantic,
+            &context,
+            machine,
+            state,
+            0,
+            transition.target,
+            0,
+            argument,
+            Default::default(),
+        );
+        assert_eq!(
+            value,
+            if mutation == 0 {
+                psi_facts::ScalarValue::Integer(psi_numerics::bignum::BigInt::from_u64(7))
+            } else {
+                psi_facts::ScalarValue::Unknown
+            },
+            "mutation {mutation}"
+        );
+    }
+}
+
+#[test]
+fn sibling_continuation_values_have_independent_capture() {
+    use psi_typed_trees::statement::StatementNode;
+    for (other, accepted) in [(4, true), (5, false)] {
+        let source = format!(
+            "machine produce(flag: bool) -> u8 ensures result == 7 {{ transition flag {{ true -> first(3u8 + 4u8) false -> second(3u8 + {other}u8) }} state first(value: u8) -> u8 {{ value }} state second(value: u8) -> u8 {{ value }} }}"
+        );
+        let tokens = Lexer::new(&source).tokenize().expect("tokenize");
+        let syntax = parse_syntax_trees(&tokens).expect("parse");
+        let resolved = lower_syntax_trees(&syntax).expect("resolve");
+        let mut typed = lower_symbol_resolved_trees(&resolved).expect("type");
+        let machine = typed.machines()[0].clone();
+        let nodes = typed.machine_states(&machine)[0].statement_nodes;
+        let [
+            StatementNode::Transition(_),
+            StatementNode::Transition(other),
+        ] = typed.statement_table.statements(nodes)
+        else {
+            panic!("two authored arms")
+        };
+        let continuation = other.target;
+        let StatementNode::Transition(first) = &mut typed.statement_table.statements_mut(nodes)[0]
+        else {
+            panic!("primary arm")
+        };
+        first.continuation = continuation;
+        typed.machine_states_mut(&machine)[0].statement_nodes =
+            psi_arena::HandleSpan::from_parts(nodes.start(), 1);
+        let result = crate::lower_typed_trees(typed);
+        assert_eq!(result.is_ok(), accepted, "{source}: {result:?}");
+    }
+}
+
+#[test]
 fn reached_unknown_input_is_not_a_zero_literal() {
     for alternative in ["unknown", "1"] {
         check(

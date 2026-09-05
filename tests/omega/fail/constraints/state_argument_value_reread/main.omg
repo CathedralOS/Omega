@@ -1,0 +1,14 @@
+machine replace(target: &mut u8) -> u8
+ensures target == 9
+{
+    target = 9;
+    0
+}
+
+machine produce() -> u8
+ensures result == 10
+{
+    let mut current: u8 = 3;
+    transition { _ -> finish(current + 1, replace(&mut current)) }
+    state finish(saved: u8, ignored: u8) -> u8 { saved }
+}

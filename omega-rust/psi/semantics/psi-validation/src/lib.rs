@@ -648,11 +648,20 @@ fn validate_program_internal(
                         [..statement_index],
                     parameters: program.state_parameters(state),
                 };
+                let transition_arguments = transitions::TransitionArgumentEnvironments::collect(
+                    program,
+                    machine,
+                    state,
+                    statement,
+                    &value_env,
+                    call_frames.as_ref(),
+                );
                 // R5 value-call frame: conservatively apply the aggregate
                 // may-write set of every call nested in this statement before
-                // checking any of its value uses. This intentionally gives up
-                // evaluation-order precision within one expression, but never
-                // carries a pre-call fact across a mutating value call. A
+                // checking general value uses. Transition arguments retain
+                // their individual evaluation-point environments above. Other
+                // uses give up evaluation-order precision within one expression
+                // rather than carry pre-call facts across a mutating call. A
                 // call-free expression reports an empty frame; any unresolved
                 // call fails closed and clears the environment.
                 let value_written = call_frames.as_ref().and_then(|frames| {
@@ -734,6 +743,7 @@ fn validate_program_internal(
                     statement_handle,
                     statement,
                     &mut value_env,
+                    &transition_arguments,
                     direct_written,
                     &mut exact_integer_casts,
                     &mut boundary_operator_applications,
@@ -882,6 +892,7 @@ fn validate_state_statement_node(
     statement_handle: psi_typed_trees::statement::StatementHandle,
     statement: &StatementNode,
     value_env: &mut arithmetic_domains::ValueEnv,
+    transition_arguments: &transitions::TransitionArgumentEnvironments,
     direct_written: Option<Vec<String>>,
     exact_integer_casts: &mut Vec<ExactIntegerCastFact>,
     boundary_operator_applications: &mut Vec<ValidatedBoundaryOperatorApplication>,
@@ -1574,6 +1585,7 @@ fn validate_state_statement_node(
                 machine,
                 current_state,
                 value_env,
+                transition_arguments.for_target(transition.target),
                 transition.target,
                 machine_symbols,
                 symbols,
@@ -1587,6 +1599,7 @@ fn validate_state_statement_node(
                     machine,
                     current_state,
                     value_env,
+                    transition_arguments.for_target(transition.continuation),
                     transition.continuation,
                     machine_symbols,
                     symbols,
@@ -1616,13 +1629,22 @@ fn validate_state_statement_node(
                 }
                 match program.statement_table.transition_target(target) {
                     TransitionTargetNode::Named { arguments, .. } => {
-                        for argument in program.statement_table.expression_handles(*arguments) {
+                        for (argument_index, argument) in program
+                            .statement_table
+                            .expression_handles(*arguments)
+                            .iter()
+                            .enumerate()
+                        {
+                            let argument_env = transition_arguments
+                                .for_target(target)
+                                .get(argument_index)
+                                .unwrap_or(&narrowed);
                             arithmetic_domains::collect_exact_integer_cast_facts(
                                 program,
                                 machine,
                                 current_state,
                                 *argument,
-                                &narrowed,
+                                argument_env,
                                 exact_integer_casts,
                             );
                         }
@@ -1754,13 +1776,22 @@ fn validate_state_statement_node(
                 if let TransitionTargetNode::Named { arguments, .. } =
                     program.statement_table.transition_target(target)
                 {
-                    for argument in program.statement_table.expression_handles(*arguments) {
+                    for (argument_index, argument) in program
+                        .statement_table
+                        .expression_handles(*arguments)
+                        .iter()
+                        .enumerate()
+                    {
+                        let argument_env = transition_arguments
+                            .for_target(target)
+                            .get(argument_index)
+                            .unwrap_or(&narrowed);
                         arithmetic_domains::validate_arithmetic_domains(
                             program,
                             machine,
                             current_state,
                             *argument,
-                            &narrowed,
+                            argument_env,
                             None,
                             psi_numerics::arithmetic::ArithmeticDomain::Exact,
                             &format!(
