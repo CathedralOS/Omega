@@ -304,6 +304,17 @@ requesting total row 65,537 returns `Incomplete` resource code 2 at its
 type-name start, with limit 65,536 and requested 65,537, before type metadata
 or any constructor processing. Builtin identities need no nominal trie entries,
 but that representation choice does not increase the selected logical total.
+Local environments account for D30's 65,536 active binding rows. Each function
+starts with an empty environment; its parameters, active `let` bindings, and
+current pattern bindings share this limit. A fresh 65,537th binding returns
+`Incomplete` resource code 5 at its name-token start, with limit 65,536 and
+requested 65,537, before insertion. Parameter conflict and annotation checks
+precede provision. A `let` resolves its annotation, checks conflict, provisions
+its body binding, then checks its initializer against the unchanged outer
+environment. Pattern outer conflicts and repeated-binder checks precede each
+provision. Saved environments restore their counts with their names, so sibling
+scopes and disjoint arms do not accumulate bindings. Retained snapshots and
+trie nodes do not add active rows; this is not a generated-runtime slot limit.
 Declarations, constructors, and fields are visited
 in authored order; each parameter's conflict check precedes its own annotation,
 parameters precede the result type, and all declarations precede all bodies.

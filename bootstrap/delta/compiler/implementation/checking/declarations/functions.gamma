@@ -1,25 +1,35 @@
 ; Parameters resolve left to right. Each binder must be fresh before its own
 ; annotation resolves; a failed earlier parameter prevents later judgments.
+; The private builder pairs its active count with an identity cursor. Finish
+; the ordinary counted environment once, only after every parameter succeeds.
 (def catalog_function_parameters
-  ((remaining Int) (parameters Int) (locals Int) (type_rows Int)
+  ((remaining Int) (parameters Int) (builder Int) (type_rows Int)
    (reversed_types Int)) Int
   (if (eq remaining 0)
-    (compiler_complete (pair reversed_types locals))
+    (compiler_complete
+      (pair reversed_types
+        (local_environment (first builder)
+          (identity_cursor_finish (second builder)))))
     (let parameter Int (first parameters)
       (let name Int (syntax_child parameter 0)
-        (let prior Int
-          (name_trie_find_option locals (syntax_after name) (syntax_start name))
-          (if (first prior)
+        (let cursor Int
+          (identity_cursor_seek (second builder)
+            (syntax_start name) (syntax_after name))
+          (if (identity_cursor_present cursor (syntax_after name))
             (compiler_source_rejection 9 (syntax_start name))
             (let resolved Int
               (resolve_declaration_type (syntax_child parameter 1) type_rows)
               (if (eq (first resolved) 0)
-                (catalog_function_parameters
-                  (- remaining 1) (second parameters)
-                  (name_trie_insert locals (syntax_after name) (syntax_start name)
-                    (second resolved))
-                  type_rows
-                  (parameter_types_prepend (second resolved) reversed_types))
+                (let provision Int (local_environment_provision (first builder) name)
+                  (if (eq (first provision) 0)
+                    (catalog_function_parameters
+                      (- remaining 1) (second parameters)
+                      (pair (second provision)
+                        (identity_cursor_commit cursor (syntax_after name)
+                          (second resolved)))
+                      type_rows
+                      (parameter_types_prepend (second resolved) reversed_types))
+                    provision))
                 resolved))))))))
 
 ; Result annotations follow every parameter. Only successful resolution builds
@@ -29,7 +39,7 @@
     (let count Int (syntax_count parameters)
       (let parameter_result Int
         (catalog_function_parameters count (syntax_children parameters)
-          (empty_name_trie) type_rows (empty_parameter_types))
+          (pair 0 (empty_identity_cursor)) type_rows (empty_parameter_types))
         (if (eq (first parameter_result) 0)
           (let result Int
             (resolve_declaration_type (syntax_child form 3) type_rows)

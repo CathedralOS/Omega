@@ -1,7 +1,7 @@
 # Delta resource-boundary gate
 
 Run `sh tests/delta/resource-boundary/run.sh` from the repository root. The gate
-materializes and pins the complete canonical compiler, then compiles twelve full
+materializes and pins the complete canonical compiler, then compiles 23 full
 authored Delta sources through `DCREQ` profile 1 and the selected Gamma evaluator.
 The host neither parses declarations nor injects counters or compiler rows.
 
@@ -68,13 +68,52 @@ in any case, below their separate 65,536-row boundary. All four sources are
 below the 4-MiB source-byte limit. Literal sizes, digests, coordinates, and
 complete 40-byte frames are independently pinned in the fixture owner.
 
+## Active-environment fixture inventory
+
+[`environment_rows.py`](environment_rows.py) defines eleven full authored
+controls for D30's 65,536 active local rows through the same selected compiler
+and unchanged diagnostic allowance.
+
+| Authored source | Bytes | Expected exact DCOUT |
+| --- | ---: | --- |
+| 65,536 parameters, then unknown result annotation | 1,114,135 | Reject 11 at 1,114,124 |
+| Same parameters plus fresh `value65536 : Int` | 1,114,148 | Incomplete 5 at 1,114,124 |
+| Same parameters plus duplicate `value00000 : Missing` | 1,114,152 | Reject 9 at 1,114,124 |
+| Same parameters plus fresh `value65536 : Missing` | 1,114,152 | Reject 11 at 1,114,135 |
+| Full parameter environment plus fresh let | 1,114,167 | Incomplete 5 at 1,114,133 |
+| Full environment plus let with unknown annotation and duplicate name | 1,114,173 | Reject 11 at 1,114,144 |
+| Full environment plus fresh pattern binder | 1,114,196 | Incomplete 5 at 1,114,174 |
+| Full environment plus pattern binder conflicting with a parameter | 1,114,197 | Reject 9 at 1,114,174 |
+| 65,535 parameters, then two repeated names in one pattern | 1,114,195 | Reject 10 at 1,114,173 |
+| 65,535 parameters, nested initializer and sibling lets | 1,114,214 | Reject 20 at 5 |
+| 65,535 parameters, disjoint one-binder match arms | 1,114,230 | Reject 20 at 44 |
+
+Every resource frame uses source coordinate space 1, limit 65,536, and requested
+65,537. Parameter conflict checking precedes its own annotation; successful
+annotation resolution precedes fresh-row provision. Let annotations precede
+conflict checking, and fresh-row provision precedes checking the initializer
+against the unchanged outer environment. Pattern conflicts distinguish an
+existing outer binder from a repeated binder within the same pattern; both
+precede another row provision. Deliberately unknown initializers or arm bodies
+must not displace the earlier refusal.
+
+The two restoration controls allow one additional active binder at a time.
+The nested initializer must use the old environment, sibling lets must restore
+it, and each match arm must start from its saved outer environment. Their bodies
+finish checking before the deliberately nonconforming `main` signature produces
+schema code 20. This avoids requiring emission or generated Gamma admission of
+a 65,535-parameter function. All sources remain below 4 MiB, use at most two
+constructor payload fields, and have fixed byte lengths, SHA256 identities,
+literal coordinate anchors, and full 40-byte outcome frames.
+
 Each evaluation uses the existing full-customer diagnostic allowance of 300
 seconds. The gate prints elapsed time for each exact observation and reports a
 raw evaluator failure or timeout without relabeling it as compiler
 `Incomplete`. A selected evaluator heap or stack failure does not pass, and the
 boundary is not reduced to accommodate it.
 
-These controls test only the type-, function-, and constructor-row boundaries.
+These controls test only the type-, function-, constructor-, and
+active-environment-row boundaries.
 They do not establish all D30 capacities, acceptance or emission of every
 in-bound program, or closure of the Delta edge. Other frontend and request
 behavior remains in the

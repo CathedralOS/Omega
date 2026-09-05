@@ -32,6 +32,7 @@ from pathlib import Path
 from constructor_rows import fixtures as constructor_rows
 from function_rows import fixtures as function_rows
 from type_rows import fixtures as type_rows
+from environment_rows import fixtures as environment_rows
 
 directory = Path(os.environ["RESOURCE_BOUNDARY_TMP"])
 compiler = (directory / "compiler.gamma").read_bytes()
@@ -47,7 +48,8 @@ if identity != expected_identity:
 function_cases = function_rows()
 constructor_cases = constructor_rows()
 type_cases = type_rows()
-cases = function_cases + constructor_cases + type_cases
+environment_cases = environment_rows()
+cases = function_cases + constructor_cases + type_cases + environment_cases
 for name, source, size, digest, expected in cases:
     if len(source) != size or hashlib.sha256(source).hexdigest() != digest:
         raise SystemExit(f"Delta resource boundary {name}: fixture identity changed")
@@ -79,6 +81,6 @@ for name, source, size, digest, expected in cases:
 print(
     f"Delta resource boundary: {len(cases)} exact observations passed "
     f"({len(function_cases)} function-row, {len(constructor_cases)} constructor-row, "
-    f"{len(type_cases)} type-row)"
+    f"{len(type_cases)} type-row, {len(environment_cases)} active-environment)"
 )
 PY

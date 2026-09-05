@@ -44,10 +44,16 @@ frames belong to the expression dispatcher and each concept's payload owner.
 
 Global collection starts at
 [`checking/collection.gamma`](implementation/checking/collection.gamma).
-[`checking/collection/`](implementation/checking/collection/README.md) separates
+[`checking/names/`](implementation/checking/names/README.md) separates
 the private identity cursor, exact prefix navigation, and admitted insertion.
-Only census construction uses these cursors; downstream phases receive the
-ordinary completed catalogs.
+Global census and parameter cataloging share these construction cursors;
+downstream phases receive ordinary completed tries and counted environments.
+
+[`checking/environments.gamma`](implementation/checking/environments.gamma)
+owns counted local environments and their shared active-row provision.
+Parameter cataloging and body binding keep their role-specific conflict and
+annotation order; saved environments carry names and counts together through
+initializer, branch, argument, and match-arm continuations.
 
 Lowering starts at
 [`lowering/program.gamma`](implementation/lowering/program.gamma) and completes
@@ -58,7 +64,7 @@ over-height fragments while retaining evaluation order and binding identity.
 [`emission/program.gamma`](implementation/emission/program.gamma) serializes
 the resulting Gamma plan; it does not select Delta lowering rules.
 
-`implementation/implementation.gamma.sources` selects all 58 shared members
+`implementation/implementation.gamma.sources` selects all 59 shared members
 with exact lengths, digests, and ordered identities. The byte-only source
 materializer validates that closed inventory and prefixes the explicitly
 selected entry. For the canonical entry, its application marker is therefore
@@ -183,7 +189,9 @@ prefix focus and ancestors across insertions. Exact seek rebuilds departed
 prefixes, but a nearby name can reuse its shared prefix without rebuilding the
 whole root. Duplicate lookup still precedes row provision, and insertion
 occurs only after admission. Successful census completion finishes all three
-ordinary roots. Names remain in authored order; there is no sorting pass,
+ordinary roots. Parameter cataloging uses the same cursor helpers for local
+names, then finishes the trie retained by its counted environment. Names remain
+in authored order; there is no sorting pass,
 lookahead past a refusal, mutation, or alternate downstream representation.
 Empty child lists and absent trie options reuse their identical immutable
 absence carrier rather than allocating a replacement on each miss.
@@ -328,7 +336,7 @@ The downgraded full compiler remains separate under
 ## Measurements
 
 ```text
-3,023-line / 133,298-byte canonical entry plus shared Gamma implementation
+3,064-line / 135,346-byte canonical entry plus shared Gamma implementation
 7-line / 195-byte nullary-ADT Delta fixture
   -> 3-line / 165-byte Gamma receipt
   -> selected Gamma evaluation produces byte 9
