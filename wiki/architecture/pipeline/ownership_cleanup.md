@@ -29,7 +29,6 @@ for a crate, and a named internal calculation need not be a public stage.
 | Whole move | What must disappear or change |
 | --- | --- |
 | Dissolve `omega-optimization-validation` | Put durable vocabulary in representations, reusable validity in semantics, and rule-local checks beside the rule. Delete the catch-all crate. |
-| Remove optimization-history-shaped stages | Replace `omega-optimization-run-to-abstract-operations` with the actual current-data transform contract. Downstream compilation must not require an optimization run as its program representation. |
 | Separate generic-instance data from its producer | Rehome `psi-generic-instances` data and instantiation work according to their roles. |
 | Finish the remaining crate disposition | For every other Omega and Psi pipeline crate, decide keep, merge, move or delete and implement that decision. Preserve genuine representation/invariant boundaries, not the existing package count. |
 

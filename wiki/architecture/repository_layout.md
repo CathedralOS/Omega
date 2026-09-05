@@ -154,7 +154,6 @@ Omega/
 |       |
 |       |-- pipeline/                                    # Every checked representation-to-representation transform.
 |       |   |-- [CRATE] omega-psi-to-abstract-operations/
-|       |   |-- [CRATE] omega-optimization-run-to-abstract-operations/
 |       |   |-- [CRATE] omega-abstract-operations-to-target-operations/
 |       |   |-- [CRATE] omega-target-operations-to-{selected-instructions,assigned-target-operations}/
 |       |   |-- [CRATE] omega-terminal-psi-to-native-artifact/

@@ -1,4 +1,4 @@
-use omega_optimization_run_to_abstract_operations::ValidatedOptimizedAbstractPlan;
+use omega_abstract_operations_optimizer::ValidatedOptimizedAbstractPlan;
 use omega_psi_to_abstract_operations::AdmittedProviderInstallation;
 use omega_target::NativeTarget;
 use omega_target_operations::{TargetOperationPlan, TargetOperationPlanWithNativeCallbacks};

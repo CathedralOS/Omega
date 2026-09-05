@@ -6,9 +6,17 @@
 //! Empty selection is identity and precedes [`AnalysisManager`] construction.
 mod analyses;
 mod pass_manager;
+mod phase;
+mod publication;
 mod ranked_rewrites;
 mod registry;
 mod rules;
+
+pub use phase::{AbstractOptimizationError, optimize_abstract_operations};
+pub use publication::{
+    AppliedDecisionCustodyAxis, OptimizedAbstractProjectionError, ValidatedOptimizedAbstractPlan,
+    publish_optimization_run,
+};
 
 pub use analyses::{
     AnalysisManager, AnalysisManagerError, AnalysisProduct, AnalysisRevisionCommit,
@@ -36,20 +44,8 @@ pub(crate) use analyses::{
     analyze_counted_loops, validate_countdown_invariant_constant_analysis,
     validate_countdown_invariant_constant_placement_analysis, validate_counted_loop_analysis,
 };
-pub use pass_manager::{
-    CandidateContractAxis, ExternalDecisionContextAxis, ExternalDecisionReplayError,
-    OptimizationRun, OptimizationRunError, OptimizationRunUsage, PsiOptimizationCommit,
-    PsiValidatedCandidateDeclaration, VerifiedPsiOptimizationSession,
-    baseline_psi_cost_model_identity, replay_psi_pipeline, replay_psi_registry, run_psi_pipeline,
-    run_psi_pipeline_for_projection, run_psi_registry, validate_external_decision_recording,
-};
-pub use ranked_rewrites::{
-    AppliedCountdownInvariantConstantRelocation, CountdownInvariantConstantRelocation,
-    CountdownInvariantConstantRelocationCandidate, CountdownInvariantConstantRelocationError,
-    ValidatedCountdownInvariantConstantRelocation, apply_countdown_invariant_constant_relocation,
-    propose_countdown_invariant_constant_relocations,
-    validate_countdown_invariant_constant_relocation,
-};
+pub use pass_manager::*;
+pub use ranked_rewrites::*;
 pub use registry::{
     OrderedRuleRegistry, PsiOptimizationRule, RuleAnalysisView, RuleProposalError,
     RuleRegistryError, RuleScheduleKey,

@@ -257,7 +257,7 @@ fn run_machine(
 
 fn assert_sccp(
     artifact: &CorpusArtifact,
-    optimized: &omega_optimization_run_to_abstract_operations::ValidatedOptimizedAbstractPlan,
+    optimized: &omega_abstract_operations_optimizer::ValidatedOptimizedAbstractPlan,
 ) {
     let expected_rule = WrappingIntegerAddConstantsRule::contract().identity();
     let commits = optimized
