@@ -67,8 +67,11 @@ declarations, availability, selections, and demands have receipt-free structural
 projections and bounded component encodings. Provider policy retains exact service
 signatures, complete calling applications, binding producers, grants, and
 family links. Terminal permissions retain complete service schemas and generic
-telescopes independently of provider demand. Callable policy normalization,
-complete baseline recovery, and comparison remain open.
+telescopes independently of provider demand. Callable policy retains complete
+signatures, contracts and lifetime bindings, published promises and checked
+summaries, entry mutation, and separately normalized reachable capability flows.
+Its typed crash guards preserve foreign owners without private derivation
+coordinates. Complete baseline composition, recovery, and comparison remain open.
 Dropping audit-relevant families or retaining their reconstruction receipts
 would both be incorrect.
 

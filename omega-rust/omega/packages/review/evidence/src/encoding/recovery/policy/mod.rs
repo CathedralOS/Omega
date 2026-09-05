@@ -6,6 +6,7 @@
 //! representations or reconstructing proofs.
 
 mod behavior;
+mod callable_policy;
 mod calling_application;
 mod conformance;
 mod contracts;
@@ -19,6 +20,7 @@ mod reader;
 mod representation;
 mod selected_providers;
 mod signatures;
+mod structural_expressions;
 mod terminal_permissions;
 
 use PackagePolicyRecoveryError as Error;

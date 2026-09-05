@@ -9,7 +9,7 @@ use crate::record::{
     PackageReviewStructuralPredicatePathSegment,
 };
 
-pub(super) fn project_boolean_expression(
+pub(in crate::capture::behavior) fn project_boolean_expression(
     expression: &psi_checked_trees::CheckedBooleanExpression,
 ) -> PackageReviewBooleanExpression {
     use psi_checked_trees::CheckedBooleanExpression;

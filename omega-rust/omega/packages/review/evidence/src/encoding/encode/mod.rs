@@ -4,6 +4,7 @@
 //! contains their subordinate evidence-family encoders; it is deliberately a
 //! child of this owner rather than a peer persistence domain.
 
+mod callable_policy;
 pub(super) mod calling;
 pub(super) mod declarations;
 pub(super) mod encoder;
@@ -15,6 +16,11 @@ mod selected_providers;
 mod terminal_permissions;
 mod values;
 
+#[cfg(test)]
+pub(super) use values::crashes::{encode_boolean_expression, encode_scalar_expression};
+
+#[cfg(test)]
+pub(super) use callable_policy::encode_callable as encode_policy_callable;
 #[cfg(test)]
 pub(super) use values::expressions::{encode_contract_expression, encode_contract_static_argument};
 #[cfg(test)]

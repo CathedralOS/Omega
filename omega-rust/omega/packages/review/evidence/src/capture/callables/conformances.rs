@@ -35,6 +35,7 @@ pub(super) fn project_callable_conformances(
     binders: &[(SymbolHandle, String)],
     external_callable_signature: Option<&PackageReviewExternalCallableSignature>,
     require_public_trait: bool,
+    mut policy: Option<&mut Vec<crate::record::PackagePolicyCallableConformance>>,
 ) -> Result<
     (
         Vec<PackageReviewCallableConformance>,
@@ -481,6 +482,16 @@ pub(super) fn project_callable_conformances(
                 },
             )?);
         }
+        if let Some(policy) = &mut policy {
+            policy.push(crate::record::PackagePolicyCallableConformance {
+                trait_identity: row.trait_identity.clone(),
+                requirement_identity: row.requirement_identity.clone(),
+                requirement_lifetime_partition: row.requirement_lifetime_partition.clone(),
+                trait_lifetime_arguments: conformance.trait_lifetime_arguments.clone(),
+                arguments: row.arguments.clone(),
+                alias: row.alias.clone(),
+            });
+        }
         projected.push(row);
     }
     if expected_external.is_some() && external_executable_supply.is_empty() {
@@ -489,32 +500,12 @@ pub(super) fn project_callable_conformances(
             machine.name
         ))]);
     }
-    projected.sort();
-    if projected.windows(2).any(|rows| rows[0] == rows[1]) {
-        return Err(vec![Diagnostic::error(format!(
-            "reviewed callable `{}` contains a duplicate exact trait realization",
-            machine.name
-        ))]);
-    }
-    operator_realizations.sort();
-    if operator_realizations
-        .windows(2)
-        .any(|rows| rows[0] == rows[1])
-    {
-        return Err(vec![Diagnostic::error(format!(
-            "reviewed callable `{}` contains a duplicate exact operator realization",
-            machine.name
-        ))]);
-    }
-    external_executable_supply.sort_by(|left, right| left.row.cmp(&right.row));
-    if external_executable_supply
-        .windows(2)
-        .any(|rows| rows[0].row == rows[1].row)
-    {
-        return Err(vec![Diagnostic::error(format!(
-            "reviewed external callable `{}` contains duplicate executable-supply identity",
-            machine.name
-        ))]);
-    }
+    super::conformance_order::finish(
+        machine.name.as_str(),
+        &mut projected,
+        &mut operator_realizations,
+        &mut external_executable_supply,
+        policy,
+    )?;
     Ok((projected, operator_realizations, external_executable_supply))
 }

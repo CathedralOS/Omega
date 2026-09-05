@@ -45,6 +45,16 @@ pub(crate) fn project_callable_contracts(
     entry: &psi_typed_trees::state::State,
     binders: &[(SymbolHandle, String)],
 ) -> Result<Vec<PackageReviewCallableContract>, Vec<Diagnostic>> {
+    project_callable_contracts_with_exposure(compilation, machine, entry, binders, psi_language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure::PublicInterface)
+}
+
+pub(crate) fn project_callable_contracts_with_exposure(
+    compilation: &CheckedCompilation,
+    machine: &psi_typed_trees::machine::Machine,
+    entry: &psi_typed_trees::state::State,
+    binders: &[(SymbolHandle, String)],
+    selection_exposure: psi_language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure,
+) -> Result<Vec<PackageReviewCallableContract>, Vec<Diagnostic>> {
     let parameters = compilation.state_parameters(entry);
     let context = ContractProjectionContext {
         subject_kind: "callable",
@@ -60,7 +70,7 @@ pub(crate) fn project_callable_contracts(
         data_symbol: None,
         lifetime_binders: &machine.lifetime_parameters,
         lifetime_substitutions: &[],
-        selection_exposure: psi_language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure::PublicInterface,
+        selection_exposure,
     };
     project_contracts(
         compilation,

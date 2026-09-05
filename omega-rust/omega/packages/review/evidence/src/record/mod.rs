@@ -5,6 +5,12 @@
 
 mod authority;
 mod authority_expressions;
+mod behavior_policy;
+pub use behavior_policy::{
+    PackagePolicyCapabilityFlow, PackagePolicyCrash, PackagePolicyCrashGuard,
+    PackagePolicyCrashRoute, PackagePolicyInferredCrash, PackagePolicyMutation,
+    PackagePolicyProgressPremise, PackagePolicyTermination,
+};
 mod calling;
 mod conformances;
 mod contracts;
@@ -87,7 +93,8 @@ pub use package::{
     CheckedPackageBoundaryApplicationRealizationReview, CheckedPackageCallableReview,
     CheckedPackageProviderFamilyCoordinateReview, CheckedPackageProviderFamilyReview,
     CheckedPackageProviderReview, CheckedPackageProviderRowIdentity,
-    CheckedPackageReviewProjection, PackagePolicyProviderBinding,
+    CheckedPackageReviewProjection, PackagePolicyCallable, PackagePolicyCallableConformance,
+    PackagePolicyCallableRole, PackagePolicyCallables, PackagePolicyProviderBinding,
     PackagePolicyProviderEvaluatedSyscall, PackagePolicyProviderFamily,
     PackagePolicyProviderFamilyCoordinate, PackagePolicyProviderPlan, PackagePolicyProviderRow,
     PackagePolicySelectedProviders, PackagePolicyServiceAuthority, PackagePolicyServiceMethod,

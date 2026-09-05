@@ -1,4 +1,9 @@
+mod callable_policy;
 mod callables;
+pub use callable_policy::{
+    PackagePolicyCallable, PackagePolicyCallableConformance, PackagePolicyCallableRole,
+    PackagePolicyCallables,
+};
 #[allow(clippy::module_inception)]
 // This file groups record modules; `package` holds the package record itself.
 mod package;

@@ -9,6 +9,21 @@ pub(crate) fn project_machine_invocation_source_locations(
     compilation: &CheckedCompilation,
     machine: &psi_typed_trees::machine::Machine,
 ) -> Result<Vec<ProjectedNestedSourceLocation>, Vec<Diagnostic>> {
+    validate_machine_invocations(compilation, machine)?;
+    let declarations = compilation.machine_invokes(machine);
+    Ok(declarations
+        .iter()
+        .map(|declaration| ProjectedNestedSourceLocation {
+            source_span: declaration.source_span,
+            role: PackageReviewSourceLocationRole::SynchronousInvocation,
+        })
+        .collect())
+}
+
+pub(crate) fn validate_machine_invocations(
+    compilation: &CheckedCompilation,
+    machine: &psi_typed_trees::machine::Machine,
+) -> Result<(), Vec<Diagnostic>> {
     let declarations = compilation.machine_invokes(machine);
     let declared = psi_effects::declared_machine_invocations(compilation, machine);
     if declared.len() != declarations.len() {
@@ -45,13 +60,7 @@ pub(crate) fn project_machine_invocation_source_locations(
         ))]);
     }
 
-    Ok(declarations
-        .iter()
-        .map(|declaration| ProjectedNestedSourceLocation {
-            source_span: declaration.source_span,
-            role: PackageReviewSourceLocationRole::SynchronousInvocation,
-        })
-        .collect())
+    Ok(())
 }
 
 pub(crate) fn project_signature_invocation_source_locations(

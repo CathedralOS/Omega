@@ -10,6 +10,21 @@ pub(crate) fn project_machine_service_reach_source_locations(
     compilation: &CheckedCompilation,
     machine: &psi_typed_trees::machine::Machine,
 ) -> Result<Vec<ProjectedNestedSourceLocation>, Vec<Diagnostic>> {
+    checked_machine_service_reach(compilation, machine).map(authored_service_reach_locations)
+}
+
+/// Rejoin authored targets and checked ceilings without constructing location rows.
+pub(crate) fn validate_machine_service_reach(
+    compilation: &CheckedCompilation,
+    machine: &psi_typed_trees::machine::Machine,
+) -> Result<(), Vec<Diagnostic>> {
+    checked_machine_service_reach(compilation, machine).map(|_| ())
+}
+
+fn checked_machine_service_reach<'a>(
+    compilation: &'a CheckedCompilation,
+    machine: &psi_typed_trees::machine::Machine,
+) -> Result<Option<&'a psi_typed_trees::signature::AuthoredServiceReachRow>, Vec<Diagnostic>> {
     let authored = exact_authored_service_reach_row(
         compilation,
         machine.symbol,
@@ -68,7 +83,7 @@ pub(crate) fn project_machine_service_reach_source_locations(
         ))]);
     }
 
-    Ok(authored_service_reach_locations(authored))
+    Ok(authored)
 }
 
 pub(crate) fn project_signature_service_reach_source_locations(
