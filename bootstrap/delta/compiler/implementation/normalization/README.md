@@ -26,6 +26,11 @@ recorded height fits the remaining budget is reused unchanged. Otherwise travers
 descends through its Gamma call or let structure with one less level available
 to each expression child.
 
+Rebuilt nodes refresh both expanded height and canonical byte extent through
+the ordinary Gamma constructors. Capture renaming therefore cannot retain a
+stale spelling width, and extracted helper calls retain their own extents.
+Reused immutable nodes preserve both summaries.
+
 At budget one, an over-height fragment is extracted whole. Its replacement is
 a call whose arguments are only references to already-bound values. Those
 arguments have height zero, so the replacement call has height one. The helper

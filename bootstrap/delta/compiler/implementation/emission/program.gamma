@@ -1,12 +1,16 @@
-; Publication consumes the complete expanded Gamma plan in declaration order.
-(def emit_program ((program Int)) Int
-  (emit_program_definitions (first program) (second program)))
+; Counting and publication consume the same complete, ordered Gamma plan.
+(def emit_program ((program Int) (publish Int) (written Int)) Int
+  (emit_program_definitions (first program) (second program) publish written))
 
-(def emit_program_definitions ((count Int) (definitions Int)) Int
+(def emit_program_definitions
+  ((count Int) (definitions Int) (publish Int) (written Int)) Int
   (if (eq count 0)
     (if (eq (compilation_profile) 0)
-      10
-      (if (eq (compilation_profile) 1) (emit_conformance_adapter) (fail)))
-    (let definition Int (emit_definition (first definitions))
-      (let newline Int (write '\n')
-        (emit_program_definitions (- count 1) (second definitions))))))
+      written
+      (if (eq (compilation_profile) 1)
+        (emit_conformance_adapter publish written)
+        (fail)))
+    (let definition Int (emit_definition (first definitions) publish written)
+      (let newline Int (emit_character '\n' publish definition)
+        (emit_program_definitions (- count 1) (second definitions)
+          publish newline)))))

@@ -71,9 +71,17 @@ every authored function body before publication. The resulting program is define
 [`normalization/`](implementation/normalization/README.md) then extracts
 over-height fragments while retaining evaluation order and binding identity.
 [`emission/program.gamma`](implementation/emission/program.gamma) serializes
-the resulting Gamma plan; it does not select Delta lowering rules.
+the resulting Gamma plan; it does not select Delta lowering rules. A count-only
+pass through the serializer measures all payload bytes before publication,
+including fixed runtime text and the entry-owned final newline. Above
+16,777,212 bytes, the compiler returns DCOUT resource 12 in emitted-payload
+space at byte 16,777,212 with the exact complete requested count. Final-child
+closes are scalar traversal state, so unary projection chains allocate no
+per-projection continuation during publication. Gamma nodes also retain exact
+serialization extents built from shared formatting helpers and child summaries;
+preflight sums those cached extents without unfolding shared children again.
 
-`implementation/implementation.gamma.sources` selects all 62 shared members
+`implementation/implementation.gamma.sources` selects all 63 shared members
 with exact lengths, digests, and ordered identities. The byte-only source
 materializer validates that closed inventory and prefixes the explicitly
 selected entry. For the canonical entry, its application marker is therefore
@@ -325,7 +333,8 @@ duplicate and nonexhaustive match cases (17/18), missing `main` (19), and
 application schema mismatch (20).
 Missing `main` has no source coordinate; a schema mismatch
 anchors at the entry name. Source-byte, total `type_rows`, authored
-`function_rows` and `constructor_rows`, and expression `parse_depth` refusals
+`function_rows` and `constructor_rows`, active environment, syntax storage,
+payload bytes, and expression `parse_depth` refusals
 have owned resource frames; other compiler-owned resource accounting and
 internal failure publication remain open. Lowering records expanded expression
 heights, including generated wrappers. Normalization uses the selected Gamma
@@ -346,7 +355,7 @@ scalar/nominal slice is not full-language admission.
 Run `sh tests/delta/staged-compiler/run.sh` for lowering and generated execution,
 `sh tests/delta/normalization/run.sh` for body-height and capture behavior,
 `sh tests/delta/request-boundary/run.sh` for exact request outcomes,
-`sh tests/delta/resource-boundary/run.sh` for authored row-provision boundaries,
+`sh tests/delta/resource-boundary/run.sh` for authored resource boundaries,
 `sh tests/delta/frontend-boundary/run.sh` for exact frontend outcomes, and
 `sh tests/gamma/composed-artifact.sh` for composed identity and publication.
 The downgraded full compiler remains separate under
@@ -355,7 +364,7 @@ The downgraded full compiler remains separate under
 ## Measurements
 
 ```text
-3,229-line / 143,690-byte canonical entry plus shared Gamma implementation
+3,343-line / 152,949-byte canonical entry plus shared Gamma implementation
 7-line / 195-byte nullary-ADT Delta fixture
   -> 3-line / 165-byte Gamma receipt
   -> selected Gamma evaluation produces byte 9

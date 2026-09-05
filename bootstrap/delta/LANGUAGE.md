@@ -329,6 +329,15 @@ parameter identities, and replacement calls retain the fragments' evaluation
 and tail positions. A serializer prints the resulting plan rather than
 selecting lowering rules during publication; exact spans supply admitted names
 and literal bytes.
+Serialization first counts the complete payload without writing, including
+fixed helpers, profile text, definition separators, and the entry-owned final
+LF. Expression nodes cache exact occurrence extents using the serializer's
+shared atom and prefix formatting, so preflight need not unfold shared children
+again. Rebuilt nodes refresh that summary; extent addition is checked, not
+saturated. A count above 16,777,212 returns `Incomplete` code 12 in emitted-payload
+coordinate space 2, at byte 16,777,212, with limit 16,777,212 and the exact
+complete requested count. Count and publication share formatting ownership;
+no partial artifact precedes this refusal.
 Grammar implements D30's 1,024-level expression `parse_depth` profile: bodies
 start at level 1, expression children including atoms advance by one, and match
 arm bodies are at their enclosing match's level plus one. Declaration, parameter,
