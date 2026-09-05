@@ -91,9 +91,12 @@ the [Rust Compiler Completion Contract](wiki/releases/rust_compiler_completion_c
   `psi-typed-trees-to-checked-trees/src/checks/contracts/nominal_inputs.rs`
   rejects every later transition with `cannot prove default-domain field
   requirement ... requires [u8; N]::Utf8`. They are the indexed text writers
-  `NOMINAL-FIELD-FLOW` already owns, and they close through its whole-buffer
-  evidence and proved replacement byte, not through a weakened field
-  declaration. The `stdin_*` and `gui` cohorts pass.
+  `NOMINAL-FIELD-FLOW` already owns. Its whole-buffer half is live: a per-byte
+  carrier class now survives an indexed store of a proved in-class byte. What
+  still rejects in both is the replacement byte: `format_number` stores a
+  `narrow_i32_to_u8_trapping` result and `caesar_cipher` a wrapping add over an
+  element read, and neither shape proves a class. Close them there, not through
+  a weakened field declaration. The `stdin_*` and `gui` cohorts pass.
 
   `samples_with_documented_exit_run_correctly` is separately red for all 136
   documented-exit samples: 86 fail native Terminal production at the
@@ -380,10 +383,19 @@ Owners include
   field obligations, while corrupted elements and stale aliased fields reject
   at calls, transitions, and returns. Do not encode universal coverage as an
   unresolved index or assume arbitrary incoming storage is zero-initialized.
-  Indexed text writers such as `print_squares` additionally need whole-buffer
-  ASCII evidence and a proved ASCII replacement byte to preserve that property
-  across stores and state edges. An ASCII byte can corrupt an arbitrary Utf8
-  buffer, so Utf8 membership alone cannot justify that preservation rule.
+  Indexed text writers still owe the replacement byte its proof. A per-byte
+  carrier class survives `buffer[i] = byte` in
+  `psi-typed-trees-to-checked-trees/src/flow/transfers/byte_sequences.rs`, but
+  only for a byte whose value is a live literal. `format_number`'s
+  `narrow_i32_to_u8_trapping` result and `print_squares`'s
+  `narrow_u32_to_u8_wrapping` result publish no result range, and the checker
+  derives none from their `trap_if` calls, so neither byte proves a class.
+  `print_squares` and `caesar_cipher` additionally store through a dynamic index
+  in a loop, which is not a stable value target, so the class must also survive
+  state edges. An ASCII byte can corrupt an arbitrary Utf8 buffer, so Utf8
+  membership alone can never justify the preservation rule. Acceptance:
+  `text_samples_compile_from_authored_program_entry_bindings` is green for
+  `format_number` and `caesar_cipher`.
 
 - **CML4.** Complete `EdgeCleanupPlan` after outgoing materialization and
   transfer commitment, including structural sums, nested projections, cycles,

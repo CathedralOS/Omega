@@ -123,3 +123,160 @@ fn value_proves_predicate(
         }
     })
 }
+
+/// An indexed store replaces exactly ONE byte. A PER-BYTE character class
+/// (`no_nul`, `ascii_only`) survives that replacement when the stored byte is
+/// itself in the class, so whole-carrier evidence outlives a write that retires
+/// the exact `AssignedValue` snapshot the carrier had before it.
+///
+/// `valid_utf8` is deliberately NOT preserved here: an ASCII byte can split a
+/// multi-byte scalar, so UTF-8 is reachable only as a CONSEQUENCE of the
+/// surviving ASCII class (`ByteSequencePredicate::implies`), never as a class
+/// preserved in its own right. The premise is read from the PRE-mutation
+/// contexts, so consecutive stores chain: each one re-proves the class from the
+/// class the previous store left behind.
+#[allow(clippy::too_many_arguments)]
+pub(super) fn append_element_replacement_predicates(
+    program: &psi_typed_trees::TypedTrees,
+    semantic: &mut FactPlan,
+    contexts: &FlowBuildContext,
+    active: HandleSpan<FlowSemanticContextRef>,
+    machine_symbol: SymbolHandle,
+    state_symbol: SymbolHandle,
+    statement_index: usize,
+    target: ExpressionHandle,
+    source_expression: ExpressionHandle,
+    point: ProgramPoint,
+    references: &mut HandleSpan<psi_facts::FactRef>,
+) {
+    let ExpressionNode::Indexed(indexed) = program.expression_table.expression(target) else {
+        return;
+    };
+    let collection = indexed.collection;
+    let active_facts: Vec<_> = contexts
+        .contexts
+        .semantic_context_refs
+        .span_or_empty(active)
+        .iter()
+        .flat_map(|reference| {
+            semantic
+                .context_view(semantic.contexts.get(reference.context))
+                .facts()
+        })
+        .copied()
+        .collect();
+    let Some(carrier) = contextual_expression_place(
+        program,
+        semantic,
+        machine_symbol,
+        state_symbol,
+        statement_index,
+        collection,
+    ) else {
+        return;
+    };
+    let Some(byte) = replacement_byte(
+        program,
+        semantic,
+        &active_facts,
+        machine_symbol,
+        state_symbol,
+        statement_index,
+        source_expression,
+    ) else {
+        return;
+    };
+
+    for predicate in crate::field_domain::ByteSequencePredicate::ALL
+        .into_iter()
+        .filter(|predicate| predicate.is_subslice_preserving())
+    {
+        if !predicate.holds_for(&[byte])
+            || !carrier_proves_predicate(program, semantic, &active_facts, carrier, predicate)
+        {
+            continue;
+        }
+        let fact = semantic.append_fact(Fact {
+            place: FactPlace::Place(carrier),
+            point,
+            origin: FactOrigin::StatementTransfer,
+            evidence: QualificationEvidence::default(),
+            payload: FactPayload::BytePredicate { predicate },
+        });
+        semantic.append_ref(references, fact);
+    }
+}
+
+/// The exact byte an indexed store installs, or `None` when the stored value is
+/// not a live literal. An unproved value leaves the carrier's class unprovable;
+/// it never widens to "some byte".
+#[allow(clippy::too_many_arguments)]
+fn replacement_byte(
+    program: &psi_typed_trees::TypedTrees,
+    semantic: &mut FactPlan,
+    active: &[Fact],
+    machine_symbol: SymbolHandle,
+    state_symbol: SymbolHandle,
+    statement_index: usize,
+    source_expression: ExpressionHandle,
+) -> Option<u8> {
+    let value = program
+        .expression_table
+        .constant_integer_value(source_expression)
+        .or_else(|| {
+            let place = contextual_expression_place(
+                program,
+                semantic,
+                machine_symbol,
+                state_symbol,
+                statement_index,
+                source_expression,
+            )?;
+            active.iter().find_map(|fact| {
+                let FactPayload::AssignedValue { value } = fact.payload else {
+                    return None;
+                };
+                let FactPlace::Place(source) = fact.place else {
+                    return None;
+                };
+                if !semantic.places_equal(source, place) {
+                    return None;
+                }
+                program.expression_table.constant_integer_value(value)
+            })
+        })?;
+    u8::try_from(value).ok()
+}
+
+/// Whether the carrier provably satisfies `predicate` BEFORE the store, from an
+/// exact literal snapshot, an already-proved per-byte class, or a declared
+/// domain whose own predicate implies it.
+fn carrier_proves_predicate(
+    program: &psi_typed_trees::TypedTrees,
+    semantic: &FactPlan,
+    active: &[Fact],
+    carrier: PlaceHandle,
+    predicate: crate::field_domain::ByteSequencePredicate,
+) -> bool {
+    active.iter().any(|fact| {
+        let FactPlace::Place(place) = fact.place else {
+            return false;
+        };
+        if !semantic.places_equal(place, carrier) {
+            return false;
+        }
+        match fact.payload {
+            FactPayload::AssignedValue { value } => matches!(
+                program.expression_table.expression(value),
+                ExpressionNode::String(literal) if predicate.holds_for(literal)
+            ),
+            FactPayload::BytePredicate { predicate: proved } => proved.implies(predicate),
+            FactPayload::DomainMembership { domain_symbol, .. }
+            | FactPayload::ContractDomainMembership { domain_symbol, .. } => {
+                crate::field_domain::domain_byte_predicate(program, domain_symbol)
+                    .is_some_and(|proved| proved.implies(predicate))
+            }
+            _ => false,
+        }
+    })
+}

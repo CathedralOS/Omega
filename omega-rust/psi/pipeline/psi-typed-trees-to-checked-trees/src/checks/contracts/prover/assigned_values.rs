@@ -131,6 +131,42 @@ impl AssignedValues<'_> {
         })
     }
 
+    /// Whether a live per-byte class proved for the whole carrier entails the
+    /// requested domain. An indexed write retires the exact value snapshot but
+    /// leaves this class behind, which is how a text carrier stays provable
+    /// across `buffer[i] = byte`. A domain that is not exactly one recognized
+    /// byte predicate is never reached this way.
+    fn byte_predicate(&self, subject: &CanonicalPlace, symbol: SymbolHandle) -> bool {
+        let Some(required) = crate::field_domain::domain_byte_predicate(self.program, symbol)
+        else {
+            return false;
+        };
+        self.contexts.iter().any(|context| {
+            self.semantic
+                .context_view(self.semantic.contexts.get(*context))
+                .facts()
+                .any(|fact| {
+                    let FactPayload::BytePredicate { predicate } = fact.payload else {
+                        return false;
+                    };
+                    let FactPlace::Place(place) = fact.place else {
+                        return false;
+                    };
+                    predicate.implies(required)
+                        && canonical_place_from_semantic_place(
+                            self.program,
+                            self.semantic,
+                            self.semantic.places.get(place),
+                        )
+                        .is_some_and(|candidate| {
+                            normalized_event_place_root(self.program, candidate.root)
+                                == normalized_event_place_root(self.program, subject.root)
+                                && candidate.segments == subject.segments
+                        })
+                })
+        })
+    }
+
     fn relative_subject(
         &self,
         subject: &CanonicalPlace,
@@ -168,6 +204,9 @@ impl AssignedValues<'_> {
                 symbol,
             )
         {
+            return true;
+        }
+        if self.byte_predicate(subject, symbol) {
             return true;
         }
         if !domain.type_parameters.is_empty() || !domain.index_arguments.is_empty() {

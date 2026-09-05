@@ -307,6 +307,17 @@ pub enum FactPayload {
     AssignedValue {
         value: ExpressionHandle,
     },
+    /// A per-byte character class proved to hold for EVERY byte currently
+    /// stored at `Fact.place`. This is whole-carrier evidence with no declared
+    /// domain behind it: an indexed write retires the exact `AssignedValue`
+    /// snapshot, but a per-byte class survives replacing one byte by another
+    /// byte of the same class, which is what keeps a text carrier provable
+    /// across `buffer[i] = byte`. Mutation invalidation owns its lifetime
+    /// exactly as it owns `AssignedValue`; it is matched by place overlap, so
+    /// any write reaching the carrier retires it.
+    BytePredicate {
+        predicate: psi_language_semantics::byte_predicates::ByteSequencePredicate,
+    },
     BooleanExpression(ExpressionHandle),
     /// A branch-local truth value, invalidated when any expression input changes.
     BooleanValue {
@@ -418,6 +429,7 @@ impl QualificationPayloadIdentity {
             }
             FactPayload::CarryOrigin { .. } => Some(Self::CarryOrigin),
             FactPayload::AssignedValue { .. }
+            | FactPayload::BytePredicate { .. }
             | FactPayload::BooleanValue { .. }
             | FactPayload::BooleanExpression(_)
             | FactPayload::PropositionApplication { .. }
