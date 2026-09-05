@@ -1,0 +1,333 @@
+
+; ---- D56 reserved entry shape -------------------------------------------
+
+(def epsilon_name_is_exit_process ((source Bytes) (nameValue EpsilonName)) Int
+  (match nameValue
+    ((EpsilonNameSpan start end)
+      (if (eq (- end start) 12)
+        (if (epsilon_span_is_8 source start (+ start 8)
+              101 120 105 116 95 112 114 111)
+          (if (eq (bytes_get source (+ start 8)) 99)
+            (if (eq (bytes_get source (+ start 9)) 101)
+              (if (eq (bytes_get source (+ start 10)) 115)
+                (eq (bytes_get source (+ start 11)) 115)
+                0)
+              0)
+            0)
+          0)
+        0))))
+
+(def epsilon_name_is_write_byte ((source Bytes) (nameValue EpsilonName)) Int
+  (match nameValue
+    ((EpsilonNameSpan start end)
+      (epsilon_span_is_10 source start end
+        119 114 105 116 101 95 98 121 116 101))))
+
+(def epsilon_name_is_read_byte ((source Bytes) (nameValue EpsilonName)) Int
+  (match nameValue
+    ((EpsilonNameSpan start end)
+      (if (eq (- end start) 9)
+        (if (epsilon_span_is_8 source start (+ start 8)
+              114 101 97 100 95 98 121 116)
+          (eq (bytes_get source (+ start 8)) 101)
+          0)
+        0))))
+
+(def epsilon_name_is_write_line ((source Bytes) (nameValue EpsilonName)) Int
+  (match nameValue
+    ((EpsilonNameSpan start end)
+      (epsilon_span_is_10 source start end
+        119 114 105 116 101 95 108 105 110 101))))
+
+(def epsilon_console_member_kind ((source Bytes) (nameValue EpsilonName)) Int
+  (if (epsilon_name_is_exit_process source nameValue) 1
+    (if (epsilon_name_is_write_byte source nameValue) 2
+      (if (epsilon_name_is_read_byte source nameValue) 3
+        (if (epsilon_name_is_write_line source nameValue) 4 0)))))
+
+(def epsilon_type_is_never ((typeValue EpsilonType)) Int
+  (match typeValue
+    ((EpsilonI32Type start end) 0)
+    ((EpsilonU8Type start end) 0)
+    ((EpsilonNeverType start end) 1)
+    ((EpsilonNamedType start end name) 0)
+    ((EpsilonArrayType start end element lengthValue) 0)
+    ((EpsilonViewType start end element) 0)))
+
+(def epsilon_type_is_console ((source Bytes) (typeValue EpsilonType)) Int
+  (match typeValue
+    ((EpsilonI32Type start end) 0)
+    ((EpsilonU8Type start end) 0)
+    ((EpsilonNeverType start end) 0)
+    ((EpsilonNamedType start end name)
+      (epsilon_name_is_console_type source name))
+    ((EpsilonArrayType start end element lengthValue) 0)
+    ((EpsilonViewType start end element) 0)))
+
+(def epsilon_type_is_view_u8 ((typeValue EpsilonType)) Int
+  (match typeValue
+    ((EpsilonI32Type start end) 0)
+    ((EpsilonU8Type start end) 0)
+    ((EpsilonNeverType start end) 0)
+    ((EpsilonNamedType start end name) 0)
+    ((EpsilonArrayType start end element lengthValue) 0)
+    ((EpsilonViewType start end element)
+      (match element
+        ((EpsilonI32Type elementStart elementEnd) 0)
+        ((EpsilonU8Type elementStart elementEnd) 1)
+        ((EpsilonNeverType elementStart elementEnd) 0)
+        ((EpsilonNamedType elementStart elementEnd name) 0)
+        ((EpsilonArrayType elementStart elementEnd nested lengthValue) 0)
+        ((EpsilonViewType elementStart elementEnd nested) 0)))))
+
+(def epsilon_parameters_are_none ((parameters EpsilonParameterList)) Int
+  (match parameters
+    (NoEpsilonParameters 1)
+    ((MoreEpsilonParameters item rest) 0)))
+
+(def epsilon_parameters_are_one_i32 ((parameters EpsilonParameterList)) Int
+  (match parameters
+    (NoEpsilonParameters 0)
+    ((MoreEpsilonParameters item rest)
+      (match rest
+        (NoEpsilonParameters
+          (match item
+            ((EpsilonParameterSyntax start end name typeValue)
+              (epsilon_type_is_i32 typeValue))))
+        ((MoreEpsilonParameters next more) 0)))))
+
+(def epsilon_parameters_are_one_view_u8
+  ((parameters EpsilonParameterList)) Int
+  (match parameters
+    (NoEpsilonParameters 0)
+    ((MoreEpsilonParameters item rest)
+      (match rest
+        (NoEpsilonParameters
+          (match item
+            ((EpsilonParameterSyntax start end name typeValue)
+              (epsilon_type_is_view_u8 typeValue))))
+        ((MoreEpsilonParameters next more) 0)))))
+
+(def epsilon_return_is_none ((returnType EpsilonOptionalType)) Int
+  (match returnType
+    (NoEpsilonType 1)
+    ((SomeEpsilonType start end typeValue) 0)))
+
+(def epsilon_return_is_i32 ((returnType EpsilonOptionalType)) Int
+  (match returnType
+    (NoEpsilonType 0)
+    ((SomeEpsilonType start end typeValue) (epsilon_type_is_i32 typeValue))))
+
+(def epsilon_return_is_never ((returnType EpsilonOptionalType)) Int
+  (match returnType
+    (NoEpsilonType 0)
+    ((SomeEpsilonType start end typeValue) (epsilon_type_is_never typeValue))))
+
+(def epsilon_console_signature_valid ((kind Int)
+  (parameters EpsilonParameterList) (returnType EpsilonOptionalType)) Int
+  (if (eq kind 1)
+    (if (epsilon_parameters_are_one_i32 parameters)
+      (epsilon_return_is_never returnType)
+      0)
+    (if (eq kind 2)
+      (if (epsilon_parameters_are_one_i32 parameters)
+        (epsilon_return_is_none returnType)
+        0)
+      (if (eq kind 3)
+        (if (epsilon_parameters_are_none parameters)
+          (epsilon_return_is_i32 returnType)
+          0)
+        (if (eq kind 4)
+          (if (epsilon_parameters_are_one_view_u8 parameters)
+            (epsilon_return_is_none returnType)
+            0)
+          0)))))
+
+(def epsilon_console_members_candidate ((source Bytes)
+  (machines EpsilonBoundaryMachineList) (extent Int)
+  (seenExit Int) (seenWriteByte Int) (seenReadByte Int) (seenWriteLine Int))
+  EpsilonTypeFormationCandidate
+  (match machines
+    (NoEpsilonBoundaryMachines
+      (if (if seenExit
+            (if seenWriteByte (if seenReadByte seenWriteLine 0) 0)
+            0)
+        NoEpsilonTypeFormationCandidate
+        (EpsilonTypeFormationCandidateAt InvalidEntry extent)))
+    ((MoreEpsilonBoundaryMachines item rest)
+      (match item
+        ((EpsilonBoundaryMachineSyntax start end name parameters returnType)
+          (let kind Int (epsilon_console_member_kind source name)
+            (let duplicate Int
+              (if (eq kind 1) seenExit
+                (if (eq kind 2) seenWriteByte
+                  (if (eq kind 3) seenReadByte
+                    (if (eq kind 4) seenWriteLine 0))))
+              (let current EpsilonTypeFormationCandidate
+                (if (if (eq kind 0) 1 duplicate)
+                  (EpsilonTypeFormationCandidateAt InvalidEntry start)
+                  (if (epsilon_console_signature_valid kind parameters returnType)
+                    NoEpsilonTypeFormationCandidate
+                    (EpsilonTypeFormationCandidateAt InvalidEntry start)))
+                (epsilon_type_formation_candidate_min current
+                  (epsilon_console_members_candidate source rest extent
+                    (if (eq kind 1) 1 seenExit)
+                    (if (eq kind 2) 1 seenWriteByte)
+                    (if (eq kind 3) 1 seenReadByte)
+                    (if (eq kind 4) 1 seenWriteLine)))))))))))
+
+(def epsilon_console_declarations_candidate ((source Bytes)
+  (declarations EpsilonDeclarationList) (extent Int) (seenConsole Int))
+  EpsilonTypeFormationCandidate
+  (match declarations
+    (NoEpsilonDeclarations
+      (if seenConsole
+        NoEpsilonTypeFormationCandidate
+        (EpsilonTypeFormationCandidateAt InvalidEntry extent)))
+    ((MoreEpsilonDeclarations item rest)
+      (let current EpsilonTypeFormationCandidate
+        (match item
+          ((EpsilonBoundaryDeclaration start end name machines)
+            (if (epsilon_name_is_console_type source name)
+              (epsilon_type_formation_candidate_min
+                (if seenConsole
+                  (EpsilonTypeFormationCandidateAt InvalidEntry start)
+                  NoEpsilonTypeFormationCandidate)
+                (epsilon_console_members_candidate source machines extent
+                  0 0 0 0))
+              (EpsilonTypeFormationCandidateAt InvalidEntry start)))
+          ((EpsilonDataDeclaration start end name members)
+            (if (epsilon_name_is_console_type source name)
+              (EpsilonTypeFormationCandidateAt InvalidEntry start)
+              NoEpsilonTypeFormationCandidate))
+          ((EpsilonMachineDeclaration start end name inputs returnType bodyValue)
+            NoEpsilonTypeFormationCandidate))
+        (epsilon_type_formation_candidate_min current
+          (epsilon_console_declarations_candidate source rest extent
+            (match item
+              ((EpsilonBoundaryDeclaration start end name machines)
+                (if (epsilon_name_is_console_type source name) 1 seenConsole))
+              ((EpsilonDataDeclaration start end name members) seenConsole)
+              ((EpsilonMachineDeclaration start end name inputs returnType bodyValue)
+                seenConsole))))))))
+
+(def epsilon_main_members_candidate ((source Bytes)
+  (members EpsilonDataMemberList) (extent Int) (seenConsole Int))
+  EpsilonTypeFormationCandidate
+  (match members
+    (NoEpsilonDataMembers
+      (if seenConsole
+        NoEpsilonTypeFormationCandidate
+        (EpsilonTypeFormationCandidateAt InvalidEntry extent)))
+    ((MoreEpsilonDataMembers item rest)
+      (let isConsole Int
+        (epsilon_name_is_console_field source (epsilon_data_member_name item))
+        (let current EpsilonTypeFormationCandidate
+          (if isConsole
+            (if seenConsole
+              (EpsilonTypeFormationCandidateAt InvalidEntry
+                (epsilon_data_member_start item))
+              (match item
+                ((EpsilonFieldMember start end name typeValue)
+                  (if (epsilon_type_is_console source typeValue)
+                    NoEpsilonTypeFormationCandidate
+                    (EpsilonTypeFormationCandidateAt InvalidEntry
+                      (epsilon_type_start typeValue))))
+                ((EpsilonCaseMember start end name payload)
+                  (EpsilonTypeFormationCandidateAt InvalidEntry start))))
+            NoEpsilonTypeFormationCandidate)
+          (epsilon_type_formation_candidate_min current
+            (epsilon_main_members_candidate source rest extent
+              (if isConsole 1 seenConsole))))))))
+
+(def epsilon_main_declarations_candidate ((source Bytes)
+  (declarations EpsilonDeclarationList) (extent Int) (seenMain Int))
+  EpsilonTypeFormationCandidate
+  (match declarations
+    (NoEpsilonDeclarations
+      (if seenMain
+        NoEpsilonTypeFormationCandidate
+        (EpsilonTypeFormationCandidateAt InvalidEntry extent)))
+    ((MoreEpsilonDeclarations item rest)
+      (let isMain Int
+        (match item
+          ((EpsilonBoundaryDeclaration start end name machines)
+            (epsilon_name_is_main source name))
+          ((EpsilonDataDeclaration start end name members)
+            (epsilon_name_is_main source name))
+          ((EpsilonMachineDeclaration start end name inputs returnType bodyValue)
+            0))
+        (let current EpsilonTypeFormationCandidate
+          (if isMain
+            (match item
+              ((EpsilonBoundaryDeclaration start end name machines)
+                (EpsilonTypeFormationCandidateAt InvalidEntry start))
+              ((EpsilonDataDeclaration start end name members)
+                (epsilon_type_formation_candidate_min
+                  (if seenMain
+                    (EpsilonTypeFormationCandidateAt InvalidEntry start)
+                    NoEpsilonTypeFormationCandidate)
+                  (epsilon_type_formation_candidate_min
+                    (if (epsilon_data_members_have_case members)
+                      (EpsilonTypeFormationCandidateAt InvalidEntry start)
+                      NoEpsilonTypeFormationCandidate)
+                    (epsilon_main_members_candidate source members extent 0))))
+              ((EpsilonMachineDeclaration start end name inputs returnType bodyValue)
+                NoEpsilonTypeFormationCandidate))
+            NoEpsilonTypeFormationCandidate)
+          (epsilon_type_formation_candidate_min current
+            (epsilon_main_declarations_candidate source rest extent
+              (if isMain 1 seenMain))))))))
+
+(def epsilon_entry_signature_valid ((inputs EpsilonMachineInputs)
+  (returnType EpsilonOptionalType)) Int
+  (match inputs
+    ((NoEpsilonMachineInputs start end) 0)
+    ((EpsilonPlainMachineInputs start end parameters) 0)
+    ((EpsilonReceiverMachineInputs start end selfName parameters)
+      (if (epsilon_parameters_are_none parameters)
+        (epsilon_return_is_none returnType)
+        0))))
+
+(def epsilon_entry_declarations_candidate ((source Bytes)
+  (declarations EpsilonDeclarationList) (extent Int) (seenEntry Int))
+  EpsilonTypeFormationCandidate
+  (match declarations
+    (NoEpsilonDeclarations
+      (if seenEntry
+        NoEpsilonTypeFormationCandidate
+        (EpsilonTypeFormationCandidateAt InvalidEntry extent)))
+    ((MoreEpsilonDeclarations item rest)
+      (let isEntry Int
+        (match item
+          ((EpsilonBoundaryDeclaration start end name machines) 0)
+          ((EpsilonDataDeclaration start end name members) 0)
+          ((EpsilonMachineDeclaration start end name inputs returnType bodyValue)
+            (epsilon_qualified_name_is_main_entry source name)))
+        (let current EpsilonTypeFormationCandidate
+          (if isEntry
+            (match item
+              ((EpsilonBoundaryDeclaration start end name machines)
+                NoEpsilonTypeFormationCandidate)
+              ((EpsilonDataDeclaration start end name members)
+                NoEpsilonTypeFormationCandidate)
+              ((EpsilonMachineDeclaration start end name inputs returnType bodyValue)
+                (if (if seenEntry 1
+                      (if (epsilon_entry_signature_valid inputs returnType) 0 1))
+                  (EpsilonTypeFormationCandidateAt InvalidEntry start)
+                  NoEpsilonTypeFormationCandidate)))
+            NoEpsilonTypeFormationCandidate)
+          (epsilon_type_formation_candidate_min current
+            (epsilon_entry_declarations_candidate source rest extent
+              (if isEntry 1 seenEntry))))))))
+
+(def epsilon_entry_shape_candidate ((source Bytes)
+  (declarations EpsilonDeclarationList)) EpsilonTypeFormationCandidate
+  (let extent Int (bytes_length source)
+    (if (epsilon_declarations_have_entry_name source declarations)
+      (epsilon_type_formation_candidate_min
+        (epsilon_console_declarations_candidate source declarations extent 0)
+        (epsilon_type_formation_candidate_min
+          (epsilon_main_declarations_candidate source declarations extent 0)
+          (epsilon_entry_declarations_candidate source declarations extent 0)))
+      (EpsilonTypeFormationCandidateAt MissingEntry extent))))

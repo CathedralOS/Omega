@@ -1,0 +1,386 @@
+
+; ---- D31 structural type formation ---------------------------------------
+
+(def epsilon_type_formation_candidate_min_present
+  ((leftReason EpsilonRejectReason) (leftOffset Int)
+  (right EpsilonTypeFormationCandidate)) EpsilonTypeFormationCandidate
+  (match right
+    (NoEpsilonTypeFormationCandidate
+      (EpsilonTypeFormationCandidateAt leftReason leftOffset))
+    ((EpsilonTypeFormationCandidateAt rightReason rightOffset)
+      (if (lt rightOffset leftOffset)
+        right
+        (if (lt leftOffset rightOffset)
+          (EpsilonTypeFormationCandidateAt leftReason leftOffset)
+          (if (epsilon_reject_reasons_equal leftReason rightReason)
+            (EpsilonTypeFormationCandidateAt leftReason leftOffset)
+            (EpsilonTypeFormationConflict leftOffset)))))
+    ((EpsilonTypeFormationConflict rightOffset) right)))
+
+(def epsilon_type_formation_candidate_min ((left EpsilonTypeFormationCandidate)
+  (right EpsilonTypeFormationCandidate)) EpsilonTypeFormationCandidate
+  (match left
+    (NoEpsilonTypeFormationCandidate right)
+    ((EpsilonTypeFormationCandidateAt leftReason leftOffset)
+      (epsilon_type_formation_candidate_min_present leftReason leftOffset
+        right))
+    ((EpsilonTypeFormationConflict leftOffset) left)))
+
+(def epsilon_owner_name_exists ((source Bytes) (nameValue EpsilonName)
+  (owners EpsilonOwnerRowList)) Int
+  (match owners
+    (NoEpsilonOwnerRows 0)
+    ((MoreEpsilonOwnerRows item rest)
+      (match item
+        ((EpsilonOwnerRowSyntax declarationStart rowName kind)
+          (if (epsilon_names_equal source nameValue rowName)
+            1
+            (epsilon_owner_name_exists source nameValue rest)))))))
+
+(def epsilon_name_is_main ((source Bytes) (nameValue EpsilonName)) Int
+  (match nameValue
+    ((EpsilonNameSpan start end)
+      (epsilon_span_is_4 source start end 77 97 105 110))))
+
+(def epsilon_name_is_entry_main ((source Bytes) (nameValue EpsilonName)) Int
+  (match nameValue
+    ((EpsilonNameSpan start end)
+      (epsilon_span_is_4 source start end 109 97 105 110))))
+
+(def epsilon_qualified_name_is_main_entry ((source Bytes)
+  (nameValue EpsilonQualifiedName)) Int
+  (match nameValue
+    ((EpsilonUnqualifiedName start end name) 0)
+    ((EpsilonQualifiedNameSyntax start end owner name)
+      (if (epsilon_name_is_main source owner)
+        (epsilon_name_is_entry_main source name)
+        0))))
+
+(def epsilon_declarations_have_entry_name ((source Bytes)
+  (declarations EpsilonDeclarationList)) Int
+  (match declarations
+    (NoEpsilonDeclarations 0)
+    ((MoreEpsilonDeclarations item rest)
+      (match item
+        ((EpsilonBoundaryDeclaration start end name machines)
+          (epsilon_declarations_have_entry_name source rest))
+        ((EpsilonDataDeclaration start end name members)
+          (epsilon_declarations_have_entry_name source rest))
+        ((EpsilonMachineDeclaration start end name inputs returnType bodyValue)
+          (if (epsilon_qualified_name_is_main_entry source name)
+            1
+            (epsilon_declarations_have_entry_name source rest)))))))
+
+(def epsilon_name_is_console_field ((source Bytes)
+  (nameValue EpsilonName)) Int
+  (match nameValue
+    ((EpsilonNameSpan start end)
+      (epsilon_span_is_7 source start end 99 111 110 115 111 108 101))))
+
+(def epsilon_name_is_console_type ((source Bytes)
+  (nameValue EpsilonName)) Int
+  (match nameValue
+    ((EpsilonNameSpan start end)
+      (epsilon_span_is_7 source start end 67 111 110 115 111 108 101))))
+
+(def epsilon_name_is_reserved_entry_owner ((source Bytes)
+  (nameValue EpsilonName)) Int
+  (if (epsilon_name_is_main source nameValue)
+    1
+    (epsilon_name_is_console_type source nameValue)))
+
+(def epsilon_is_main_console_field ((source Bytes) (owner EpsilonName)
+  (field EpsilonName)) Int
+  (if (epsilon_name_is_main source owner)
+    (epsilon_name_is_console_field source field)
+    0))
+
+(def epsilon_never_placement_candidate ((start Int)
+  (placement EpsilonTypePlacement)) EpsilonTypeFormationCandidate
+  (match placement
+    (EpsilonStoredTypePlacement
+      (EpsilonTypeFormationCandidateAt TypeMismatch start))
+    (EpsilonParameterTypePlacement
+      (EpsilonTypeFormationCandidateAt TypeMismatch start))
+    (EpsilonLocalTypePlacement
+      (EpsilonTypeFormationCandidateAt TypeMismatch start))
+    (EpsilonReturnTypePlacement NoEpsilonTypeFormationCandidate)
+    (EpsilonNestedTypePlacement
+      (EpsilonTypeFormationCandidateAt TypeMismatch start))))
+
+; `u8` is a storage element rather than an ordinary standalone value type.
+; Stored fields and nested array/view elements admit it; authored scalar
+; parameters, locals, and returns do not. Arrays containing `u8` remain valid
+; in value positions because their element is checked at nested placement.
+(def epsilon_u8_placement_candidate ((start Int)
+  (placement EpsilonTypePlacement)) EpsilonTypeFormationCandidate
+  (match placement
+    (EpsilonStoredTypePlacement NoEpsilonTypeFormationCandidate)
+    (EpsilonParameterTypePlacement
+      (EpsilonTypeFormationCandidateAt TypeMismatch start))
+    (EpsilonLocalTypePlacement
+      (EpsilonTypeFormationCandidateAt TypeMismatch start))
+    (EpsilonReturnTypePlacement
+      (EpsilonTypeFormationCandidateAt TypeMismatch start))
+    (EpsilonNestedTypePlacement NoEpsilonTypeFormationCandidate)))
+
+(def epsilon_named_type_formation_candidate ((source Bytes) (start Int)
+  (nameValue EpsilonName) (owners EpsilonOwnerRowList)
+  (placement EpsilonTypePlacement)) EpsilonTypeFormationCandidate
+  (if (epsilon_name_is_console_type source nameValue)
+    (match placement
+      (EpsilonStoredTypePlacement
+        (EpsilonTypeFormationCandidateAt InvalidEntry start))
+      (EpsilonParameterTypePlacement
+        (EpsilonTypeFormationCandidateAt InvalidEntry start))
+      (EpsilonLocalTypePlacement
+        (EpsilonTypeFormationCandidateAt InvalidEntry start))
+      (EpsilonReturnTypePlacement
+        (EpsilonTypeFormationCandidateAt InvalidEntry start))
+      (EpsilonNestedTypePlacement
+        (EpsilonTypeFormationCandidateAt InvalidEntry start)))
+    (if (epsilon_owner_name_exists source nameValue owners)
+      NoEpsilonTypeFormationCandidate
+      (EpsilonTypeFormationCandidateAt UnknownType start))))
+
+(def epsilon_array_length_candidate ((literal EpsilonIntegerLiteral))
+  EpsilonTypeFormationCandidate
+  (match literal
+    ((EpsilonIntegerSpan start end value)
+      (if (eq value 0)
+        (EpsilonTypeFormationCandidateAt InvalidArrayLength start)
+        NoEpsilonTypeFormationCandidate))))
+
+(def epsilon_validate_formed_type ((source Bytes) (typeValue EpsilonType)
+  (owners EpsilonOwnerRowList) (placement EpsilonTypePlacement))
+  EpsilonTypeFormationCandidate
+  (match typeValue
+    ((EpsilonI32Type start end) NoEpsilonTypeFormationCandidate)
+    ((EpsilonU8Type start end)
+      (epsilon_u8_placement_candidate start placement))
+    ((EpsilonNeverType start end)
+      (epsilon_never_placement_candidate start placement))
+    ((EpsilonNamedType start end name)
+      (epsilon_named_type_formation_candidate source start name owners
+        placement))
+    ((EpsilonArrayType start end elementType lengthValue)
+      (epsilon_type_formation_candidate_min
+        (epsilon_validate_formed_type source elementType owners
+          EpsilonNestedTypePlacement)
+        (epsilon_array_length_candidate lengthValue)))
+    ((EpsilonViewType start end elementType)
+      (match placement
+        (EpsilonStoredTypePlacement
+          (EpsilonTypeFormationCandidateAt EscapingView start))
+        (EpsilonParameterTypePlacement
+          (epsilon_validate_formed_type source elementType owners
+            EpsilonNestedTypePlacement))
+        (EpsilonLocalTypePlacement
+          (epsilon_validate_formed_type source elementType owners
+            EpsilonNestedTypePlacement))
+        (EpsilonReturnTypePlacement
+          (EpsilonTypeFormationCandidateAt EscapingView start))
+        (EpsilonNestedTypePlacement
+          (EpsilonTypeFormationCandidateAt EscapingView start))))))
+
+(def epsilon_validate_optional_formed_type ((source Bytes)
+  (typeValue EpsilonOptionalType) (owners EpsilonOwnerRowList)
+  (placement EpsilonTypePlacement)) EpsilonTypeFormationCandidate
+  (match typeValue
+    (NoEpsilonType NoEpsilonTypeFormationCandidate)
+    ((SomeEpsilonType start end item)
+      (epsilon_validate_formed_type source item owners placement))))
+
+(def epsilon_validate_parameter_formed_types ((source Bytes)
+  (parameters EpsilonParameterList) (owners EpsilonOwnerRowList)
+  (placement EpsilonTypePlacement)) EpsilonTypeFormationCandidate
+  (match parameters
+    (NoEpsilonParameters NoEpsilonTypeFormationCandidate)
+    ((MoreEpsilonParameters item rest)
+      (match item
+        ((EpsilonParameterSyntax start end name typeValue)
+          (epsilon_type_formation_candidate_min
+            (epsilon_validate_formed_type source typeValue owners placement)
+            (epsilon_validate_parameter_formed_types source rest owners
+              placement)))))))
+
+(def epsilon_validate_payload_formed_types ((source Bytes)
+  (payload EpsilonOptionalPayload) (owners EpsilonOwnerRowList))
+  EpsilonTypeFormationCandidate
+  (match payload
+    (NoEpsilonPayload NoEpsilonTypeFormationCandidate)
+    ((SomeEpsilonPayload start end parameters)
+      (epsilon_validate_parameter_formed_types source parameters owners
+        EpsilonStoredTypePlacement))))
+
+(def epsilon_validate_data_member_formed_types ((source Bytes)
+  (owner EpsilonName) (members EpsilonDataMemberList)
+  (owners EpsilonOwnerRowList)) EpsilonTypeFormationCandidate
+  (match members
+    (NoEpsilonDataMembers NoEpsilonTypeFormationCandidate)
+    ((MoreEpsilonDataMembers item rest)
+      (let current EpsilonTypeFormationCandidate
+        (match item
+          ((EpsilonFieldMember start end name typeValue)
+            (if (epsilon_is_main_console_field source owner name)
+              NoEpsilonTypeFormationCandidate
+              (epsilon_validate_formed_type source typeValue owners
+                EpsilonStoredTypePlacement)))
+          ((EpsilonCaseMember start end name payload)
+            (epsilon_validate_payload_formed_types source payload owners)))
+        (epsilon_type_formation_candidate_min current
+          (epsilon_validate_data_member_formed_types source owner rest
+            owners))))))
+
+(def epsilon_validate_boundary_machine_formed_types ((source Bytes)
+  (machines EpsilonBoundaryMachineList) (owners EpsilonOwnerRowList))
+  EpsilonTypeFormationCandidate
+  (match machines
+    (NoEpsilonBoundaryMachines NoEpsilonTypeFormationCandidate)
+    ((MoreEpsilonBoundaryMachines item rest)
+      (match item
+        ((EpsilonBoundaryMachineSyntax start end name parameters returnType)
+          (epsilon_type_formation_candidate_min
+            (epsilon_validate_parameter_formed_types source parameters owners
+              EpsilonParameterTypePlacement)
+            (epsilon_type_formation_candidate_min
+              (epsilon_validate_optional_formed_type source returnType owners
+                EpsilonReturnTypePlacement)
+              (epsilon_validate_boundary_machine_formed_types source rest
+                owners))))))))
+
+(def epsilon_validate_statement_formed_types ((source Bytes)
+  (statements EpsilonStatementList) (owners EpsilonOwnerRowList))
+  EpsilonTypeFormationCandidate
+  (match statements
+    (NoEpsilonStatements NoEpsilonTypeFormationCandidate)
+    ((MoreEpsilonStatements item rest)
+      (let current EpsilonTypeFormationCandidate
+        (match item
+          ((EpsilonLetStatement start end name typeValue expressionValue)
+            (epsilon_validate_formed_type source typeValue owners
+              EpsilonLocalTypePlacement))
+          ((EpsilonAssignmentStatement start end placeValue expressionValue)
+            NoEpsilonTypeFormationCandidate)
+          ((EpsilonPostfixStatement start end expressionValue)
+            NoEpsilonTypeFormationCandidate)
+          ((EpsilonAssertStatement start end expressionValue)
+            NoEpsilonTypeFormationCandidate))
+        (epsilon_type_formation_candidate_min current
+          (epsilon_validate_statement_formed_types source rest owners))))))
+
+(def epsilon_validate_state_body_formed_types ((source Bytes)
+  (bodyValue EpsilonStateBody) (owners EpsilonOwnerRowList))
+  EpsilonTypeFormationCandidate
+  (match bodyValue
+    ((EpsilonStateBodySyntax start end statements terminalValue)
+      (epsilon_validate_statement_formed_types source statements owners))))
+
+(def epsilon_validate_state_formed_types ((source Bytes)
+  (states EpsilonStateList) (owners EpsilonOwnerRowList))
+  EpsilonTypeFormationCandidate
+  (match states
+    (NoEpsilonStates NoEpsilonTypeFormationCandidate)
+    ((MoreEpsilonStates item rest)
+      (match item
+        ((EpsilonStateSyntax start end name parameters bodyValue)
+          (epsilon_type_formation_candidate_min
+            (epsilon_validate_parameter_formed_types source parameters owners
+              EpsilonParameterTypePlacement)
+            (epsilon_type_formation_candidate_min
+              (epsilon_validate_state_body_formed_types source bodyValue owners)
+              (epsilon_validate_state_formed_types source rest owners))))))))
+
+(def epsilon_validate_machine_body_formed_types ((source Bytes)
+  (bodyValue EpsilonMachineBody) (owners EpsilonOwnerRowList))
+  EpsilonTypeFormationCandidate
+  (match bodyValue
+    ((EpsilonMachineBodySyntax start end statements terminalValue states)
+      (epsilon_type_formation_candidate_min
+        (epsilon_validate_statement_formed_types source statements owners)
+        (epsilon_validate_state_formed_types source states owners)))))
+
+(def epsilon_validate_machine_input_formed_types ((source Bytes)
+  (inputs EpsilonMachineInputs) (owners EpsilonOwnerRowList))
+  EpsilonTypeFormationCandidate
+  (match inputs
+    ((NoEpsilonMachineInputs start end) NoEpsilonTypeFormationCandidate)
+    ((EpsilonPlainMachineInputs start end parameters)
+      (epsilon_validate_parameter_formed_types source parameters owners
+        EpsilonParameterTypePlacement))
+    ((EpsilonReceiverMachineInputs start end selfName parameters)
+      (epsilon_validate_parameter_formed_types source parameters owners
+        EpsilonParameterTypePlacement))))
+
+(def epsilon_validate_declaration_formed_types ((source Bytes)
+  (declarations EpsilonDeclarationList) (owners EpsilonOwnerRowList))
+  EpsilonTypeFormationCandidate
+  (match declarations
+    (NoEpsilonDeclarations NoEpsilonTypeFormationCandidate)
+    ((MoreEpsilonDeclarations item rest)
+      (let current EpsilonTypeFormationCandidate
+        (match item
+          ((EpsilonBoundaryDeclaration start end name machines)
+            (epsilon_validate_boundary_machine_formed_types source machines
+              owners))
+          ((EpsilonDataDeclaration start end name members)
+            (epsilon_validate_data_member_formed_types source name members
+              owners))
+          ((EpsilonMachineDeclaration start end name inputs returnType bodyValue)
+            (epsilon_type_formation_candidate_min
+              (epsilon_validate_machine_input_formed_types source inputs owners)
+              (epsilon_type_formation_candidate_min
+                (epsilon_validate_optional_formed_type source returnType owners
+                  EpsilonReturnTypePlacement)
+                (epsilon_validate_machine_body_formed_types source bodyValue
+                  owners)))))
+        (epsilon_type_formation_candidate_min current
+          (epsilon_validate_declaration_formed_types source rest owners))))))
+
+(def epsilon_data_members_have_field ((members EpsilonDataMemberList)) Int
+  (match members
+    (NoEpsilonDataMembers 0)
+    ((MoreEpsilonDataMembers item rest)
+      (match item
+        ((EpsilonFieldMember start end name typeValue) 1)
+        ((EpsilonCaseMember start end name payload)
+          (epsilon_data_members_have_field rest))))))
+
+(def epsilon_data_members_have_case ((members EpsilonDataMemberList)) Int
+  (match members
+    (NoEpsilonDataMembers 0)
+    ((MoreEpsilonDataMembers item rest)
+      (match item
+        ((EpsilonFieldMember start end name typeValue)
+          (epsilon_data_members_have_case rest))
+        ((EpsilonCaseMember start end name payload) 1)))))
+
+(def epsilon_data_shape_candidate ((nameValue EpsilonName)
+  (members EpsilonDataMemberList)) EpsilonTypeFormationCandidate
+  (if (epsilon_data_members_have_field members)
+    (if (epsilon_data_members_have_case members)
+      (EpsilonTypeFormationCandidateAt InvalidDataShape
+        (epsilon_name_start nameValue))
+      NoEpsilonTypeFormationCandidate)
+    NoEpsilonTypeFormationCandidate))
+
+(def epsilon_validate_data_shapes ((declarations EpsilonDeclarationList))
+  EpsilonTypeFormationCandidate
+  (match declarations
+    (NoEpsilonDeclarations NoEpsilonTypeFormationCandidate)
+    ((MoreEpsilonDeclarations item rest)
+      (let current EpsilonTypeFormationCandidate
+        (match item
+          ((EpsilonBoundaryDeclaration start end name machines)
+            NoEpsilonTypeFormationCandidate)
+          ((EpsilonDataDeclaration start end name members)
+            (epsilon_data_shape_candidate name members))
+          ((EpsilonMachineDeclaration start end name inputs returnType bodyValue)
+            NoEpsilonTypeFormationCandidate))
+        (epsilon_type_formation_candidate_min current
+          (epsilon_validate_data_shapes rest))))))
+
+(def epsilon_data_shape_kind ((members EpsilonDataMemberList)) EpsilonDataShapeKind
+  (if (epsilon_data_members_have_case members)
+    EpsilonSumShape
+    EpsilonRecordShape))

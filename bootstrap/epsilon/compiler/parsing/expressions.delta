@@ -1,0 +1,412 @@
+
+; ---- type and expression parsing ---------------------------------------
+
+(def epsilon_type_start ((typeValue EpsilonType)) Int
+  (match typeValue
+    ((EpsilonI32Type start end) start)
+    ((EpsilonU8Type start end) start)
+    ((EpsilonNeverType start end) start)
+    ((EpsilonNamedType start end name) start)
+    ((EpsilonArrayType start end element lengthValue) start)
+    ((EpsilonViewType start end element) start)))
+
+(def epsilon_type_end ((typeValue EpsilonType)) Int
+  (match typeValue
+    ((EpsilonI32Type start end) end)
+    ((EpsilonU8Type start end) end)
+    ((EpsilonNeverType start end) end)
+    ((EpsilonNamedType start end name) end)
+    ((EpsilonArrayType start end element lengthValue) end)
+    ((EpsilonViewType start end element) end)))
+
+(def epsilon_expression_start ((expressionValue EpsilonExpression)) Int
+  (match expressionValue
+    ((EpsilonIntegerExpression start end literal) start)
+    ((EpsilonCharacterExpression start end literal) start)
+    ((EpsilonStringExpression start end literal) start)
+    ((EpsilonTrueExpression start end) start)
+    ((EpsilonFalseExpression start end) start)
+    ((EpsilonNameExpression start end name) start)
+    ((EpsilonQualifiedExpression start end owner name arguments) start)
+    ((EpsilonGroupedExpression start end inner) start)
+    ((EpsilonFieldExpression start end base field) start)
+    ((EpsilonCallExpression start end base arguments) start)
+    ((EpsilonIndexExpression start end base indexValue) start)
+    ((EpsilonSliceExpression start end base low high) start)
+    ((EpsilonNegateExpression start end operand) start)
+    ((EpsilonBinaryExpression start end operator operatorStart operatorEnd left right) start)))
+
+(def epsilon_expression_end ((expressionValue EpsilonExpression)) Int
+  (match expressionValue
+    ((EpsilonIntegerExpression start end literal) end)
+    ((EpsilonCharacterExpression start end literal) end)
+    ((EpsilonStringExpression start end literal) end)
+    ((EpsilonTrueExpression start end) end)
+    ((EpsilonFalseExpression start end) end)
+    ((EpsilonNameExpression start end name) end)
+    ((EpsilonQualifiedExpression start end owner name arguments) end)
+    ((EpsilonGroupedExpression start end inner) end)
+    ((EpsilonFieldExpression start end base field) end)
+    ((EpsilonCallExpression start end base arguments) end)
+    ((EpsilonIndexExpression start end base indexValue) end)
+    ((EpsilonSliceExpression start end base low high) end)
+    ((EpsilonNegateExpression start end operand) end)
+    ((EpsilonBinaryExpression start end operator operatorStart operatorEnd left right) end)))
+
+(def epsilon_type_reject_at ((source Bytes) (cursor Int)) EpsilonTypeParseOutcome
+  (let start Int (epsilon_token_start source cursor)
+    (if (eq start (bytes_length source))
+      (EpsilonTypeParseRejected UnexpectedEnd start)
+      (EpsilonTypeParseRejected UnexpectedToken start))))
+
+(def epsilon_expression_reject_at ((source Bytes) (cursor Int)) EpsilonExpressionParseOutcome
+  (let start Int (epsilon_token_start source cursor)
+    (if (eq start (bytes_length source))
+      (EpsilonExpressionParseRejected UnexpectedEnd start)
+      (EpsilonExpressionParseRejected UnexpectedToken start))))
+
+(def epsilon_arguments_reject_at ((source Bytes) (cursor Int)) EpsilonArgumentsParseOutcome
+  (let start Int (epsilon_token_start source cursor)
+    (if (eq start (bytes_length source))
+      (EpsilonArgumentsParseRejected UnexpectedEnd start)
+      (EpsilonArgumentsParseRejected UnexpectedToken start))))
+
+(def epsilon_reverse_expression_list ((input EpsilonExpressionList)
+  (output EpsilonExpressionList)) EpsilonExpressionList
+  (match input
+    (NoEpsilonExpressions output)
+    ((MoreEpsilonExpressions item rest)
+      (epsilon_reverse_expression_list rest (MoreEpsilonExpressions item output)))))
+
+(def epsilon_parse_array_length ((source Bytes) (arrayStart Int)
+  (elementType EpsilonType) (cursor Int)) EpsilonTypeParseOutcome
+  (let lengthStart Int (epsilon_token_start source cursor)
+    (if (eq (epsilon_token_code source lengthStart) 2)
+      (if (eq (epsilon_token_value source lengthStart) 2147483648)
+        (EpsilonTypeParseRejected IntegerLiteralOutOfRange lengthStart)
+        (let lengthEnd Int (epsilon_token_end source lengthStart)
+          (let closeStart Int (epsilon_token_start source lengthEnd)
+            (if (eq (epsilon_token_code source closeStart) 35)
+              (let closeEnd Int (epsilon_token_end source closeStart)
+                (EpsilonTypeParsed
+                  (EpsilonArrayType arrayStart closeEnd elementType
+                    (EpsilonIntegerSpan lengthStart lengthEnd
+                      (epsilon_token_value source lengthStart)))))
+              (epsilon_type_reject_at source lengthEnd)))))
+      (epsilon_type_reject_at source cursor))))
+
+(def epsilon_parse_array_type ((source Bytes) (arrayStart Int) (cursor Int)) EpsilonTypeParseOutcome
+  (let elementOutcome EpsilonTypeParseOutcome (epsilon_parse_type source cursor)
+    (match elementOutcome
+      ((EpsilonTypeParseRejected reasonValue errorOffset) elementOutcome)
+      ((EpsilonTypeParsed elementType)
+        (let semiStart Int (epsilon_token_start source (epsilon_type_end elementType))
+          (if (eq (epsilon_token_code source semiStart) 36)
+            (epsilon_parse_array_length source arrayStart elementType
+              (epsilon_token_end source semiStart))
+            (epsilon_type_reject_at source (epsilon_type_end elementType))))))))
+
+(def epsilon_parse_view_element ((source Bytes) (viewStart Int) (cursor Int)) EpsilonTypeParseOutcome
+  (let elementOutcome EpsilonTypeParseOutcome (epsilon_parse_type source cursor)
+    (match elementOutcome
+      ((EpsilonTypeParseRejected reasonValue errorOffset) elementOutcome)
+      ((EpsilonTypeParsed elementType)
+        (let closeStart Int (epsilon_token_start source (epsilon_type_end elementType))
+          (if (eq (epsilon_token_code source closeStart) 35)
+            (let closeEnd Int (epsilon_token_end source closeStart)
+              (EpsilonTypeParsed (EpsilonViewType viewStart closeEnd elementType)))
+            (epsilon_type_reject_at source (epsilon_type_end elementType))))))))
+
+(def epsilon_parse_type ((source Bytes) (cursor Int)) EpsilonTypeParseOutcome
+  (let start Int (epsilon_token_start source cursor)
+    (let code Int (epsilon_token_code source start)
+      (if (eq code 0)
+        (EpsilonTypeParseRejected UnexpectedEnd start)
+        (let end Int (epsilon_token_end source start)
+          (if (eq code 24) (EpsilonTypeParsed (EpsilonI32Type start end))
+            (if (eq code 25) (EpsilonTypeParsed (EpsilonU8Type start end))
+              (if (eq code 26) (EpsilonTypeParsed (EpsilonNeverType start end))
+                (if (eq code 1)
+                  (EpsilonTypeParsed (EpsilonNamedType start end (EpsilonNameSpan start end)))
+                  (if (eq code 34)
+                    (epsilon_parse_array_type source start end)
+                    (if (eq code 40)
+                      (let openStart Int (epsilon_token_start source end)
+                        (if (eq (epsilon_token_code source openStart) 34)
+                          (epsilon_parse_view_element source start
+                            (epsilon_token_end source openStart))
+                          (epsilon_type_reject_at source end)))
+                      (EpsilonTypeParseRejected UnexpectedToken start))))))))))))
+
+(def epsilon_parse_arguments_acc ((source Bytes) (cursor Int)
+  (accumulator EpsilonExpressionList)) EpsilonArgumentsParseOutcome
+  (let nextStart Int (epsilon_token_start source cursor)
+    (if (eq (epsilon_token_code source nextStart) 33)
+      (let closeEnd Int (epsilon_token_end source nextStart)
+        (EpsilonArgumentsParsed
+          (epsilon_reverse_expression_list accumulator NoEpsilonExpressions) closeEnd))
+      (let expressionOutcome EpsilonExpressionParseOutcome (epsilon_parse_expression source nextStart)
+        (match expressionOutcome
+          ((EpsilonExpressionParseRejected reasonValue errorOffset)
+            (EpsilonArgumentsParseRejected reasonValue errorOffset))
+          ((EpsilonExpressionParsed expressionValue)
+            (let afterExpression Int (epsilon_token_start source
+              (epsilon_expression_end expressionValue))
+              (let afterCode Int (epsilon_token_code source afterExpression)
+                (if (eq afterCode 38)
+                  (let afterComma Int (epsilon_token_end source afterExpression)
+                    (let followingStart Int (epsilon_token_start source afterComma)
+                      (if (eq (epsilon_token_code source followingStart) 33)
+                        (EpsilonArgumentsParseRejected UnexpectedToken followingStart)
+                        (epsilon_parse_arguments_acc source afterComma
+                          (MoreEpsilonExpressions expressionValue accumulator)))))
+                  (if (eq afterCode 33)
+                    (let closeEnd Int (epsilon_token_end source afterExpression)
+                      (EpsilonArgumentsParsed
+                        (epsilon_reverse_expression_list
+                          (MoreEpsilonExpressions expressionValue accumulator)
+                          NoEpsilonExpressions) closeEnd))
+                    (epsilon_arguments_reject_at source afterExpression)))))))))))
+
+(def epsilon_parse_qualified_primary ((source Bytes) (firstStart Int)
+  (firstEnd Int) (cursor Int)) EpsilonExpressionParseOutcome
+  (let secondStart Int (epsilon_token_start source cursor)
+    (if (eq (epsilon_token_code source secondStart) 1)
+      (let secondEnd Int (epsilon_token_end source secondStart)
+        (let openStart Int (epsilon_token_start source secondEnd)
+          (if (eq (epsilon_token_code source openStart) 32)
+            (let argumentsOutcome EpsilonArgumentsParseOutcome
+              (epsilon_parse_arguments_acc source
+                (epsilon_token_end source openStart) NoEpsilonExpressions)
+              (match argumentsOutcome
+                ((EpsilonArgumentsParseRejected reasonValue errorOffset)
+                  (EpsilonExpressionParseRejected reasonValue errorOffset))
+                ((EpsilonArgumentsParsed arguments closeEnd)
+                  (EpsilonExpressionParsed
+                    (EpsilonQualifiedExpression firstStart closeEnd
+                      (EpsilonNameSpan firstStart firstEnd)
+                      (EpsilonNameSpan secondStart secondEnd)
+                      (SomeEpsilonArguments openStart closeEnd arguments))))))
+            (EpsilonExpressionParsed
+              (EpsilonQualifiedExpression firstStart secondEnd
+                (EpsilonNameSpan firstStart firstEnd)
+                (EpsilonNameSpan secondStart secondEnd) NoEpsilonArguments)))))
+      (epsilon_expression_reject_at source cursor))))
+
+(def epsilon_parse_primary ((source Bytes) (cursor Int)) EpsilonExpressionParseOutcome
+  (let start Int (epsilon_token_start source cursor)
+    (let code Int (epsilon_token_code source start)
+      (if (eq code 0)
+        (EpsilonExpressionParseRejected UnexpectedEnd start)
+        (let end Int (epsilon_token_end source start)
+          (if (eq code 2)
+            (if (eq (epsilon_token_value source start) 2147483648)
+              (EpsilonExpressionParseRejected IntegerLiteralOutOfRange start)
+              (EpsilonExpressionParsed
+                (EpsilonIntegerExpression start end
+                  (EpsilonIntegerSpan start end (epsilon_token_value source start)))))
+            (if (eq code 3)
+              (EpsilonExpressionParsed
+                (EpsilonCharacterExpression start end
+                  (EpsilonCharacterSpan start end (epsilon_token_value source start))))
+              (if (eq code 4)
+                (EpsilonExpressionParsed
+                  (EpsilonStringExpression start end (EpsilonStringSpan start end)))
+                (if (eq code 20) (EpsilonExpressionParsed (EpsilonTrueExpression start end))
+                  (if (eq code 21) (EpsilonExpressionParsed (EpsilonFalseExpression start end))
+                    (if (eq code 22)
+                      (EpsilonExpressionParsed
+                        (EpsilonNameExpression start end
+                          (EpsilonNameSpan start end)))
+                      (if (eq code 1)
+                        (let scopeStart Int (epsilon_token_start source end)
+                          (if (eq (epsilon_token_code source scopeStart) 43)
+                            (epsilon_parse_qualified_primary source start end
+                              (epsilon_token_end source scopeStart))
+                            (EpsilonExpressionParsed
+                              (EpsilonNameExpression start end (EpsilonNameSpan start end)))))
+                        (if (eq code 32)
+                          (let innerOutcome EpsilonExpressionParseOutcome (epsilon_parse_expression source end)
+                            (match innerOutcome
+                              ((EpsilonExpressionParseRejected reasonValue errorOffset) innerOutcome)
+                              ((EpsilonExpressionParsed innerExpression)
+                                (let closeStart Int (epsilon_token_start source
+                                  (epsilon_expression_end innerExpression))
+                                  (if (eq (epsilon_token_code source closeStart) 33)
+                                    (let closeEnd Int (epsilon_token_end source closeStart)
+                                      (EpsilonExpressionParsed
+                                        (EpsilonGroupedExpression start closeEnd innerExpression)))
+                                    (epsilon_expression_reject_at source
+                                      (epsilon_expression_end innerExpression)))))))
+                          (EpsilonExpressionParseRejected UnexpectedToken start))))))))))))))
+
+(def epsilon_parse_slice_high ((source Bytes) (base EpsilonExpression)
+  (rangeCursor Int) (low EpsilonOptionalExpression)) EpsilonExpressionParseOutcome
+  (let highStart Int (epsilon_token_start source rangeCursor)
+    (if (eq (epsilon_token_code source highStart) 35)
+      (let closeEnd Int (epsilon_token_end source highStart)
+        (epsilon_parse_postfix_tail source
+          (EpsilonExpressionParsed
+            (EpsilonSliceExpression (epsilon_expression_start base) closeEnd base low NoEpsilonExpression))))
+      (let highOutcome EpsilonExpressionParseOutcome (epsilon_parse_expression source highStart)
+        (match highOutcome
+          ((EpsilonExpressionParseRejected reasonValue errorOffset) highOutcome)
+          ((EpsilonExpressionParsed highExpression)
+            (let closeStart Int (epsilon_token_start source (epsilon_expression_end highExpression))
+              (if (eq (epsilon_token_code source closeStart) 35)
+                (let closeEnd Int (epsilon_token_end source closeStart)
+                  (epsilon_parse_postfix_tail source
+                    (EpsilonExpressionParsed
+                      (EpsilonSliceExpression (epsilon_expression_start base) closeEnd base low
+                        (SomeEpsilonExpression highExpression)))))
+                (epsilon_expression_reject_at source
+                  (epsilon_expression_end highExpression))))))))))
+
+(def epsilon_parse_bracket_suffix ((source Bytes) (base EpsilonExpression)
+  (openStart Int)) EpsilonExpressionParseOutcome
+  (let afterOpen Int (epsilon_token_end source openStart)
+    (let firstStart Int (epsilon_token_start source afterOpen)
+      (if (eq (epsilon_token_code source firstStart) 44)
+        (epsilon_parse_slice_high source base (epsilon_token_end source firstStart) NoEpsilonExpression)
+        (let indexOutcome EpsilonExpressionParseOutcome (epsilon_parse_expression source firstStart)
+          (match indexOutcome
+            ((EpsilonExpressionParseRejected reasonValue errorOffset) indexOutcome)
+            ((EpsilonExpressionParsed indexExpression)
+              (let followingStart Int (epsilon_token_start source
+                (epsilon_expression_end indexExpression))
+                (if (eq (epsilon_token_code source followingStart) 44)
+                  (epsilon_parse_slice_high source base
+                    (epsilon_token_end source followingStart)
+                    (SomeEpsilonExpression indexExpression))
+                  (if (eq (epsilon_token_code source followingStart) 35)
+                    (let closeEnd Int (epsilon_token_end source followingStart)
+                      (epsilon_parse_postfix_tail source
+                        (EpsilonExpressionParsed
+                          (EpsilonIndexExpression (epsilon_expression_start base) closeEnd
+                            base indexExpression))))
+                    (epsilon_expression_reject_at source
+                      (epsilon_expression_end indexExpression))))))))))))
+
+(def epsilon_parse_call_suffix ((source Bytes) (base EpsilonExpression)
+  (openStart Int)) EpsilonExpressionParseOutcome
+  (let argumentsOutcome EpsilonArgumentsParseOutcome
+    (epsilon_parse_arguments_acc source
+      (epsilon_token_end source openStart) NoEpsilonExpressions)
+    (match argumentsOutcome
+      ((EpsilonArgumentsParseRejected reasonValue errorOffset)
+        (EpsilonExpressionParseRejected reasonValue errorOffset))
+      ((EpsilonArgumentsParsed arguments callEnd)
+        (epsilon_parse_postfix_tail source
+          (EpsilonExpressionParsed
+            (EpsilonCallExpression (epsilon_expression_start base) callEnd base arguments)))))))
+
+(def epsilon_parse_postfix_tail ((source Bytes)
+  (current EpsilonExpressionParseOutcome)) EpsilonExpressionParseOutcome
+  (match current
+    ((EpsilonExpressionParseRejected reasonValue errorOffset) current)
+    ((EpsilonExpressionParsed base)
+      (let suffixStart Int (epsilon_token_start source (epsilon_expression_end base))
+        (let suffixCode Int (epsilon_token_code source suffixStart)
+          (if (eq suffixCode 39)
+            (let fieldStart Int (epsilon_token_start source (epsilon_token_end source suffixStart))
+              (if (eq (epsilon_token_code source fieldStart) 1)
+                (let fieldEnd Int (epsilon_token_end source fieldStart)
+                  (epsilon_parse_postfix_tail source
+                    (EpsilonExpressionParsed
+                      (EpsilonFieldExpression (epsilon_expression_start base) fieldEnd base
+                        (EpsilonNameSpan fieldStart fieldEnd)))))
+                (epsilon_expression_reject_at source (epsilon_token_end source suffixStart))))
+            (if (eq suffixCode 32)
+              (epsilon_parse_call_suffix source base suffixStart)
+              (if (eq suffixCode 34)
+                (epsilon_parse_bracket_suffix source base suffixStart)
+                current))))))))
+
+(def epsilon_parse_postfix ((source Bytes) (cursor Int)) EpsilonExpressionParseOutcome
+  (epsilon_parse_postfix_tail source (epsilon_parse_primary source cursor)))
+
+(def epsilon_is_postfix_code ((code Int)) Int
+  (if (eq code 39) 1 (if (eq code 32) 1 (eq code 34))))
+
+(def epsilon_parse_unary ((source Bytes) (cursor Int)) EpsilonExpressionParseOutcome
+  (let start Int (epsilon_token_start source cursor)
+    (if (eq (epsilon_token_code source start) 58)
+      (let afterMinus Int (epsilon_token_end source start)
+        (let operandStart Int (epsilon_token_start source afterMinus)
+          (if (eq (epsilon_token_code source operandStart) 2)
+            (if (eq (epsilon_token_value source operandStart) 2147483648)
+              (let literalEnd Int (epsilon_token_end source operandStart)
+                (let followingStart Int (epsilon_token_start source literalEnd)
+                  (if (epsilon_is_postfix_code (epsilon_token_code source followingStart))
+                    (EpsilonExpressionParseRejected IntegerLiteralOutOfRange operandStart)
+                    (EpsilonExpressionParsed
+                      (EpsilonNegateExpression start literalEnd
+                        (EpsilonIntegerExpression operandStart literalEnd
+                          (EpsilonIntegerSpan operandStart literalEnd 2147483648)))))))
+              (let operandOutcome EpsilonExpressionParseOutcome (epsilon_parse_unary source afterMinus)
+                (match operandOutcome
+                  ((EpsilonExpressionParseRejected reasonValue errorOffset) operandOutcome)
+                  ((EpsilonExpressionParsed operand)
+                    (EpsilonExpressionParsed
+                      (EpsilonNegateExpression start (epsilon_expression_end operand) operand))))))
+            (let operandOutcome EpsilonExpressionParseOutcome (epsilon_parse_unary source afterMinus)
+              (match operandOutcome
+                ((EpsilonExpressionParseRejected reasonValue errorOffset) operandOutcome)
+                ((EpsilonExpressionParsed operand)
+                  (EpsilonExpressionParsed
+                    (EpsilonNegateExpression start (epsilon_expression_end operand) operand))))))))
+      (epsilon_parse_postfix source start))))
+
+(def epsilon_binary_precedence ((operatorCode Int)) Int
+  (if (eq operatorCode 45) 1 (if (eq operatorCode 46) 2
+    (if (eq operatorCode 47) 3 (if (eq operatorCode 48) 4
+      (if (eq operatorCode 40) 5 (if (eq operatorCode 49) 6
+        (if (eq operatorCode 50) 6 (if (eq operatorCode 51) 7
+          (if (eq operatorCode 52) 7 (if (eq operatorCode 53) 7
+            (if (eq operatorCode 54) 7 (if (eq operatorCode 55) 8
+              (if (eq operatorCode 56) 8 (if (eq operatorCode 57) 9
+                (if (eq operatorCode 58) 9 (if (eq operatorCode 59) 10
+                  (if (eq operatorCode 60) 10 (if (eq operatorCode 61) 10 0)))))))))))))))))))
+
+(def epsilon_binary_operator ((operatorCode Int)) EpsilonBinaryOperator
+  (if (eq operatorCode 45) EpsilonLogicalOr (if (eq operatorCode 46) EpsilonLogicalAnd
+    (if (eq operatorCode 47) EpsilonBitOr (if (eq operatorCode 48) EpsilonBitXor
+      (if (eq operatorCode 40) EpsilonBitAnd (if (eq operatorCode 49) EpsilonEqual
+        (if (eq operatorCode 50) EpsilonNotEqual (if (eq operatorCode 51) EpsilonLess
+          (if (eq operatorCode 52) EpsilonLessEqual (if (eq operatorCode 53) EpsilonGreater
+            (if (eq operatorCode 54) EpsilonGreaterEqual (if (eq operatorCode 55) EpsilonShiftLeft
+              (if (eq operatorCode 56) EpsilonShiftRight (if (eq operatorCode 57) EpsilonAdd
+                (if (eq operatorCode 58) EpsilonSubtract (if (eq operatorCode 59) EpsilonMultiply
+                  (if (eq operatorCode 60) EpsilonDivide EpsilonRemainder))))))))))))))))))
+
+(def epsilon_finish_binary ((source Bytes) (minimum Int) (left EpsilonExpression)
+  (operatorStart Int) (operatorCode Int) (rightOutcome EpsilonExpressionParseOutcome)) EpsilonExpressionParseOutcome
+  (match rightOutcome
+    ((EpsilonExpressionParseRejected reasonValue errorOffset) rightOutcome)
+    ((EpsilonExpressionParsed right)
+      (epsilon_parse_binary_tail source minimum
+        (EpsilonExpressionParsed
+          (EpsilonBinaryExpression (epsilon_expression_start left)
+            (epsilon_expression_end right) (epsilon_binary_operator operatorCode)
+            operatorStart (epsilon_token_end source operatorStart) left right))))))
+
+(def epsilon_parse_binary_tail ((source Bytes) (minimum Int)
+  (current EpsilonExpressionParseOutcome)) EpsilonExpressionParseOutcome
+  (match current
+    ((EpsilonExpressionParseRejected reasonValue errorOffset) current)
+    ((EpsilonExpressionParsed left)
+      (let operatorStart Int (epsilon_token_start source (epsilon_expression_end left))
+        (let operatorCode Int (epsilon_token_code source operatorStart)
+          (let precedenceValue Int (epsilon_binary_precedence operatorCode)
+            (if (lt precedenceValue minimum)
+              current
+              (epsilon_finish_binary source minimum left operatorStart operatorCode
+                (epsilon_parse_binary_min source (epsilon_token_end source operatorStart)
+                  (+ precedenceValue 1))))))))))
+
+(def epsilon_parse_binary_min ((source Bytes) (cursor Int)
+  (minimum Int)) EpsilonExpressionParseOutcome
+  (epsilon_parse_binary_tail source minimum (epsilon_parse_unary source cursor)))
+
+(def epsilon_parse_expression ((source Bytes) (cursor Int)) EpsilonExpressionParseOutcome
+  (epsilon_parse_binary_min source cursor 1))

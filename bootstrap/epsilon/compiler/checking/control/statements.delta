@@ -1,0 +1,208 @@
+
+; A statement value relation first consumes a complete value category, then
+; compares its type. Category failures remain independent of the comparison;
+; an unresolved child manufactures neither a mismatch nor an error type.
+(def epsilon_local_scan_statement_value_type_relation ((source Bytes)
+  (expressionValue EpsilonExpression) (expectedType EpsilonType)
+  (storedEstablishment Int) (scan EpsilonLocalResolutionScan))
+  EpsilonLocalResolutionScan
+  (let categoryScan EpsilonLocalResolutionScan
+    (epsilon_local_scan_value_use_candidate expressionValue expressionValue scan)
+    (match categoryScan
+      ((EpsilonLocalResolutionScanSyntax catalog references fields callables stateApplications types
+        candidate)
+        (match (epsilon_find_expression_result expressionValue types)
+          (NoEpsilonExpressionResult categoryScan)
+          ((OneEpsilonExpressionResult resultValue)
+            (match resultValue
+              ((EpsilonValueExpressionResult actualType placeType)
+                (if (epsilon_argument_value_type_compatible source actualType
+                  expectedType storedEstablishment)
+                  categoryScan
+                  (epsilon_local_scan_add_candidate TypeMismatch
+                    (epsilon_expression_start expressionValue) categoryScan)))
+              (EpsilonResultlessExpressionResult categoryScan)
+              (EpsilonNeverExpressionResult categoryScan))))))))
+
+; Assignment place admission consumes only a complete value result. The
+; retained place type is the storage type (not the zero-extended read type),
+; which is required for the later assignment value join and `u8` establishment.
+(def epsilon_local_scan_statement_place_relation
+  ((placeValue EpsilonExpression) (scan EpsilonLocalResolutionScan))
+  EpsilonLocalResolutionScan
+  (let categoryScan EpsilonLocalResolutionScan
+    (epsilon_local_scan_value_use_candidate placeValue placeValue scan)
+    (match categoryScan
+      ((EpsilonLocalResolutionScanSyntax catalog references fields callables stateApplications types
+        candidate)
+        (match (epsilon_find_expression_result placeValue types)
+          (NoEpsilonExpressionResult categoryScan)
+          ((OneEpsilonExpressionResult resultValue)
+            (match resultValue
+              ((EpsilonValueExpressionResult valueType placeType)
+                (match placeType
+                  (NoEpsilonPlaceType
+                    (epsilon_local_scan_add_candidate InvalidPlace
+                      (epsilon_expression_start placeValue) categoryScan))
+                  ((SomeEpsilonPlaceType storageType) categoryScan)))
+              (EpsilonResultlessExpressionResult categoryScan)
+              (EpsilonNeverExpressionResult categoryScan))))))))
+
+; The assignment type relation consumes both a valid left place and a complete
+; right value. It therefore cannot derive a second failure from a missing or
+; non-place left premise, while the right-side category branch is still kept.
+(def epsilon_local_scan_assignment_relation ((source Bytes)
+  (placeValue EpsilonExpression) (assignedValue EpsilonExpression)
+  (scan EpsilonLocalResolutionScan)) EpsilonLocalResolutionScan
+  (let categoryScan EpsilonLocalResolutionScan
+    (epsilon_local_scan_value_use_candidate assignedValue assignedValue
+      (epsilon_local_scan_statement_place_relation placeValue scan))
+    (match categoryScan
+      ((EpsilonLocalResolutionScanSyntax catalog references fields callables stateApplications types
+        candidate)
+        (match (epsilon_find_expression_result placeValue types)
+          (NoEpsilonExpressionResult categoryScan)
+          ((OneEpsilonExpressionResult placeResult)
+            (match placeResult
+              ((EpsilonValueExpressionResult readType placeType)
+                (match placeType
+                  (NoEpsilonPlaceType categoryScan)
+                  ((SomeEpsilonPlaceType storageType)
+                    (match (epsilon_find_expression_result assignedValue types)
+                      (NoEpsilonExpressionResult categoryScan)
+                      ((OneEpsilonExpressionResult assignedResult)
+                        (match assignedResult
+                          ((EpsilonValueExpressionResult assignedType
+                            assignedPlace)
+                            (if (epsilon_argument_value_type_compatible source
+                              assignedType storageType 1)
+                              categoryScan
+                              (epsilon_local_scan_add_candidate TypeMismatch
+                                (epsilon_expression_start assignedValue)
+                                categoryScan)))
+                          (EpsilonResultlessExpressionResult categoryScan)
+                          (EpsilonNeverExpressionResult categoryScan)))))))
+              (EpsilonResultlessExpressionResult categoryScan)
+              (EpsilonNeverExpressionResult categoryScan))))))))
+
+(def epsilon_resolve_local_statement_expressions ((source Bytes)
+  (statementValue EpsilonStatement) (active EpsilonLocalBindingList)
+  (pending EpsilonLocalBindingList) (scan EpsilonLocalResolutionScan))
+  EpsilonLocalResolutionScan
+  (match statementValue
+    ((EpsilonLetStatement start end name typeValue initializer)
+      (epsilon_local_scan_statement_value_type_relation source initializer
+        typeValue 0
+        (epsilon_resolve_local_expression source initializer active pending
+          scan)))
+    ((EpsilonAssignmentStatement start end placeValue assignedValue)
+      (epsilon_local_scan_assignment_relation source placeValue assignedValue
+        (epsilon_resolve_local_expression source assignedValue active pending
+          (epsilon_resolve_local_expression source placeValue active pending
+            scan))))
+    ((EpsilonPostfixStatement start end expressionValue)
+      (epsilon_resolve_local_postfix_statement_expression source expressionValue
+        active pending scan))
+    ((EpsilonAssertStatement start end expressionValue)
+      (epsilon_local_scan_statement_value_type_relation source expressionValue
+        (epsilon_expression_i32_type expressionValue) 0
+        (epsilon_resolve_local_expression source expressionValue active pending
+          scan)))))
+
+(def epsilon_local_activate_statement ((statementValue EpsilonStatement)
+  (active EpsilonLocalBindingList)) EpsilonLocalBindingList
+  (match statementValue
+    ((EpsilonLetStatement start end name typeValue initializer)
+      (MoreEpsilonLocalBindings
+        (EpsilonLetLocal name typeValue statementValue) active))
+    ((EpsilonAssignmentStatement start end placeValue assignedValue) active)
+    ((EpsilonPostfixStatement start end expressionValue) active)
+    ((EpsilonAssertStatement start end expressionValue) active)))
+
+(def epsilon_local_pending_after_statement ((source Bytes)
+  (statementValue EpsilonStatement) (pending EpsilonLocalBindingList))
+  EpsilonLocalBindingList
+  (match statementValue
+    ((EpsilonLetStatement start end name typeValue initializer)
+      (epsilon_remove_pending_binding source name pending))
+    ((EpsilonAssignmentStatement start end placeValue assignedValue) pending)
+    ((EpsilonPostfixStatement start end expressionValue) pending)
+    ((EpsilonAssertStatement start end expressionValue) pending)))
+
+(def epsilon_statement_start ((statementValue EpsilonStatement)) Int
+  (match statementValue
+    ((EpsilonLetStatement start end name typeValue initializer) start)
+    ((EpsilonAssignmentStatement start end placeValue assignedValue) start)
+    ((EpsilonPostfixStatement start end expressionValue) start)
+    ((EpsilonAssertStatement start end expressionValue) start)))
+
+; Superseded by D53: a successful `never` statement ends local block flow, and
+; the first later executable statement or terminal anchors InvalidTerminal at
+; its terminating delimiter. The final pass still visits every authored child
+; but admits no later construct's block-exit parent relation.
+(def epsilon_local_scan_statement_after_never
+  ((statementValue EpsilonStatement) (flow EpsilonStatementSequenceFlow)
+   (scan EpsilonLocalResolutionScan)) EpsilonLocalResolutionScan
+  (match flow
+    (EpsilonStatementSequenceOpen scan)
+    (EpsilonStatementSequenceEndedByNever
+      (epsilon_local_scan_add_candidate InvalidTerminal
+        (- (epsilon_statement_end statementValue) 1) scan))
+    (EpsilonStatementSequenceInvalidAfterNever scan)))
+
+(def epsilon_statement_flow_after ((statementValue EpsilonStatement)
+  (flow EpsilonStatementSequenceFlow) (scan EpsilonLocalResolutionScan))
+  EpsilonStatementSequenceFlow
+  (match flow
+    (EpsilonStatementSequenceEndedByNever
+      EpsilonStatementSequenceInvalidAfterNever)
+    (EpsilonStatementSequenceInvalidAfterNever
+      EpsilonStatementSequenceInvalidAfterNever)
+    (EpsilonStatementSequenceOpen
+      (match statementValue
+        ((EpsilonLetStatement start end name typeValue initializer)
+          EpsilonStatementSequenceOpen)
+        ((EpsilonAssignmentStatement start end placeValue assignedValue)
+          EpsilonStatementSequenceOpen)
+        ((EpsilonAssertStatement start end expressionValue)
+          EpsilonStatementSequenceOpen)
+        ((EpsilonPostfixStatement start end expressionValue)
+          (match scan
+            ((EpsilonLocalResolutionScanSyntax catalog references fields
+              callables stateApplications types candidate)
+              (match (epsilon_find_expression_result expressionValue types)
+                (NoEpsilonExpressionResult EpsilonStatementSequenceOpen)
+                ((OneEpsilonExpressionResult resultValue)
+                  (match resultValue
+                    ((EpsilonValueExpressionResult typeValue placeType)
+                      EpsilonStatementSequenceOpen)
+                    (EpsilonResultlessExpressionResult
+                      EpsilonStatementSequenceOpen)
+                    (EpsilonNeverExpressionResult
+                      EpsilonStatementSequenceEndedByNever)))))))))))
+
+(def epsilon_resolve_local_statements_with_flow ((source Bytes)
+  (statements EpsilonStatementList) (active EpsilonLocalBindingList)
+  (pending EpsilonLocalBindingList) (flow EpsilonStatementSequenceFlow)
+  (scan EpsilonLocalResolutionScan)) EpsilonLocalBlockScan
+  (match statements
+    (NoEpsilonStatements
+      (EpsilonLocalBlockScanSyntax active pending flow scan))
+    ((MoreEpsilonStatements item rest)
+      (let candidateScan EpsilonLocalResolutionScan
+        (epsilon_local_scan_statement_after_never item flow scan)
+        (let expressionScan EpsilonLocalResolutionScan
+          (epsilon_resolve_local_statement_expressions source item active pending
+            candidateScan)
+          (epsilon_resolve_local_statements_with_flow source rest
+            (epsilon_local_activate_statement item active)
+            (epsilon_local_pending_after_statement source item pending)
+            (epsilon_statement_flow_after item flow expressionScan)
+            expressionScan))))))
+
+(def epsilon_resolve_local_statements ((source Bytes)
+  (statements EpsilonStatementList) (active EpsilonLocalBindingList)
+  (pending EpsilonLocalBindingList) (scan EpsilonLocalResolutionScan))
+  EpsilonLocalBlockScan
+  (epsilon_resolve_local_statements_with_flow source statements active pending
+    EpsilonStatementSequenceOpen scan))

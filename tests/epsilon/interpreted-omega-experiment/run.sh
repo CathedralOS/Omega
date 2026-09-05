@@ -6,11 +6,9 @@ OMEGA_REPO_ROOT=$(CDPATH= cd -- "$TEST_DIR/../../.." && pwd -P)
 export OMEGA_REPO_ROOT
 . "$OMEGA_REPO_ROOT/tools/bootstrap/paths.sh"
 . "$OMEGA_REPO_ROOT/tools/bootstrap/gamma/evaluator_env.sh"
-EPSILON="$OMEGA_REPO_ROOT/bootstrap/epsilon/compiler/epsilon_compiler.delta"
-OMEGA_D_SOURCES="$OMEGA_REPO_ROOT/bootstrap/omega/omega_compiler.epsilon.sources"
-OMEGA_D_MATERIALIZER="$OMEGA_REPO_ROOT/tools/bootstrap/epsilon/materialize_source_closure.py"
-OMEGA_BUILD="$OMEGA_REPO_ROOT/source/omega/build.omg"
-DELTA="$OMEGA_REPO_ROOT/bootstrap/delta/compiler/delta_compiler.gamma"
+SOURCE_CLOSURE_MATERIALIZER="$OMEGA_REPO_ROOT/tools/bootstrap/source_closure.py"
+OMEGA_BUILD="$OMEGA_PATH_OMEGA/build.omg"
+DELTA="$OMEGA_PATH_DELTA_COMPILER_SOURCE"
 DRIVER="$TEST_DIR/empty_entry_driver.delta"
 
 command -v python3 >/dev/null 2>&1 || {
@@ -20,6 +18,8 @@ command -v python3 >/dev/null 2>&1 || {
 
 TMP=$(mktemp -d)
 trap 'rm -rf -- "$TMP"' EXIT HUP INT TERM
+EPSILON="$TMP/epsilon_compiler.delta"
+python3 "$SOURCE_CLOSURE_MATERIALIZER" "$OMEGA_PATH_EPSILON_COMPILER_SOURCES" "$EPSILON"
 
 if grep -Eq 'EpsilonAlpha|epsilon_alpha_' "$EPSILON"; then
     echo "Interpreted Omega experiment: Epsilon still owns Alpha encoding" >&2
@@ -31,7 +31,7 @@ fi
     exit 1
 }
 
-python3 "$OMEGA_D_MATERIALIZER" "$OMEGA_D_SOURCES" "$TMP/omega_compiler.epsilon"
+python3 "$SOURCE_CLOSURE_MATERIALIZER" "$OMEGA_PATH_OMEGA_COMPILER_SOURCES" "$TMP/omega_compiler.epsilon"
 grep -F 'data AlphaTapeBuffer {' "$TMP/omega_compiler.epsilon" >/dev/null || {
     echo "Interpreted Omega experiment: Omega D does not own Alpha tape construction" >&2
     exit 1

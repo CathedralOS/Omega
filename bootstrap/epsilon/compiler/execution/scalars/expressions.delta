@@ -1,0 +1,52 @@
+
+(def epsilon_evaluate_scalar_expression ((expressionValue EpsilonExpression)
+  (references EpsilonResolvedLocalReferenceList)
+  (fieldReferences EpsilonResolvedFieldReferenceList)
+  (locals EpsilonEvaluatorLocalValueList)
+  (fieldValues EpsilonEvaluatorFieldValueList)) EpsilonEvaluatorScalarOutcome
+  (match expressionValue
+    ((EpsilonNegateExpression start end operand)
+      (match (epsilon_evaluate_scalar_expression operand references fieldReferences
+        locals fieldValues)
+        (EpsilonEvaluatorScalarUnsupported EpsilonEvaluatorScalarUnsupported)
+        ((EpsilonEvaluatorScalarTrapped kind)
+          (EpsilonEvaluatorScalarTrapped kind))
+        ((EpsilonEvaluatorScalarValue value)
+          (if (eq value -2147483648)
+            (EpsilonEvaluatorScalarTrapped 1)
+            (EpsilonEvaluatorScalarValue (- 0 value))))))
+    ((EpsilonBinaryExpression start end operator operatorStart operatorEnd
+      left right)
+      (epsilon_evaluate_core_binary operator left right references fieldReferences
+        locals fieldValues))
+    ((EpsilonGroupedExpression start end inner)
+      (epsilon_evaluate_scalar_expression inner references fieldReferences
+        locals fieldValues))
+    ((EpsilonIntegerExpression start end literal)
+      (epsilon_evaluator_scalar_outcome_from_optional
+        (epsilon_evaluate_scalar expressionValue references locals)))
+    ((EpsilonCharacterExpression start end literal)
+      (epsilon_evaluator_scalar_outcome_from_optional
+        (epsilon_evaluate_scalar expressionValue references locals)))
+    ((EpsilonTrueExpression start end)
+      (epsilon_evaluator_scalar_outcome_from_optional
+        (epsilon_evaluate_scalar expressionValue references locals)))
+    ((EpsilonFalseExpression start end)
+      (epsilon_evaluator_scalar_outcome_from_optional
+        (epsilon_evaluate_scalar expressionValue references locals)))
+    ((EpsilonNameExpression start end name)
+      (epsilon_evaluator_scalar_outcome_from_optional
+        (epsilon_evaluate_scalar expressionValue references locals)))
+    ((EpsilonStringExpression start end literal) EpsilonEvaluatorScalarUnsupported)
+    ((EpsilonQualifiedExpression start end owner name arguments)
+      EpsilonEvaluatorScalarUnsupported)
+    ((EpsilonFieldExpression start end base field)
+      (epsilon_evaluate_resolved_field_scalar expressionValue base references
+        fieldReferences fieldValues))
+    ((EpsilonCallExpression start end base arguments)
+      EpsilonEvaluatorScalarUnsupported)
+    ((EpsilonIndexExpression start end base indexValue)
+      (epsilon_evaluate_array_element base indexValue references fieldReferences
+        locals fieldValues))
+    ((EpsilonSliceExpression start end base low high)
+      EpsilonEvaluatorScalarUnsupported)))

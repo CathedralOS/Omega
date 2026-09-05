@@ -1,0 +1,68 @@
+
+; A discarded-call statement selects the unqualified machine namespace before
+; local fallback even when its authored argument list is missing. Retain the
+; known identity and reject the bare spelling at the carried outer statement
+; anchor; only genuine machine absence permits ordinary local resolution.
+(def epsilon_resolve_local_postfix_statement_name ((source Bytes)
+  (expressionValue EpsilonExpression) (name EpsilonName)
+  (statementStart Int) (active EpsilonLocalBindingList)
+  (pending EpsilonLocalBindingList) (scan EpsilonLocalResolutionScan))
+  EpsilonLocalResolutionScan
+  (match scan
+    ((EpsilonLocalResolutionScanSyntax catalog references fields callables stateApplications types
+      candidate)
+      (match catalog
+        ((EpsilonResolutionCatalogSyntax rows)
+          (match (epsilon_catalog_find_unqualified_machine source name rows)
+            ((OneEpsilonCatalogMachine machineDeclaration)
+              (epsilon_local_scan_add_candidate TypeMismatch
+                statementStart
+                (epsilon_local_scan_add_callable_reference expressionValue
+                  (EpsilonResolvedUnqualifiedMachineCallable machineDeclaration)
+                  scan)))
+            (NoEpsilonCatalogMachine
+              (epsilon_resolve_local_value_name source expressionValue name active
+                pending scan))))))))
+
+(def epsilon_resolve_local_value_name ((source Bytes)
+  (expressionValue EpsilonExpression) (name EpsilonName)
+  (active EpsilonLocalBindingList) (pending EpsilonLocalBindingList)
+  (scan EpsilonLocalResolutionScan)) EpsilonLocalResolutionScan
+  (match (epsilon_local_find_binding source name active)
+    ((OneEpsilonLocalBinding bindingValue)
+      (let nextScan EpsilonLocalResolutionScan
+        (epsilon_local_scan_add_reference expressionValue bindingValue scan)
+        (match (epsilon_local_scan_binding_type source bindingValue nextScan)
+          (NoEpsilonLocalBindingType nextScan)
+          ((OneEpsilonLocalBindingType typeValue)
+            (epsilon_local_scan_add_value expressionValue
+              (epsilon_storage_read_type expressionValue typeValue)
+              (SomeEpsilonPlaceType typeValue)
+              nextScan)))))
+    (NoEpsilonLocalBinding
+      (match (epsilon_local_find_binding source name pending)
+        ((OneEpsilonLocalBinding bindingValue)
+          (epsilon_local_scan_add_candidate UseBeforeInitialization
+            (epsilon_expression_start expressionValue) scan))
+        (NoEpsilonLocalBinding
+          (epsilon_local_scan_add_candidate UnknownName
+            (epsilon_expression_start expressionValue) scan))))))
+
+(def epsilon_resolve_local_expression_list ((source Bytes)
+  (expressions EpsilonExpressionList) (active EpsilonLocalBindingList)
+  (pending EpsilonLocalBindingList) (scan EpsilonLocalResolutionScan))
+  EpsilonLocalResolutionScan
+  (match expressions
+    (NoEpsilonExpressions scan)
+    ((MoreEpsilonExpressions item rest)
+      (epsilon_resolve_local_expression_list source rest active pending
+        (epsilon_resolve_local_expression source item active pending scan)))))
+
+(def epsilon_resolve_local_optional_expression ((source Bytes)
+  (expressionValue EpsilonOptionalExpression)
+  (active EpsilonLocalBindingList) (pending EpsilonLocalBindingList)
+  (scan EpsilonLocalResolutionScan)) EpsilonLocalResolutionScan
+  (match expressionValue
+    (NoEpsilonExpression scan)
+    ((SomeEpsilonExpression item)
+      (epsilon_resolve_local_expression source item active pending scan))))

@@ -1,0 +1,42 @@
+
+; D31 type formation is a complete source-coordinate candidate judgment.
+(data EpsilonTypePlacement
+  (EpsilonStoredTypePlacement)
+  (EpsilonParameterTypePlacement)
+  (EpsilonLocalTypePlacement)
+  (EpsilonReturnTypePlacement)
+  (EpsilonNestedTypePlacement))
+
+(data EpsilonTypeFormationCandidate
+  (NoEpsilonTypeFormationCandidate)
+  (EpsilonTypeFormationCandidateAt EpsilonRejectReason Int)
+  (EpsilonTypeFormationConflict Int))
+
+(data EpsilonDataShapeKind
+  (EpsilonRecordShape)
+  (EpsilonSumShape))
+
+(data EpsilonDataShapeRow
+  (EpsilonDataShapeRowSyntax Int EpsilonName EpsilonDataShapeKind))
+
+(data EpsilonDataShapeRowList
+  (NoEpsilonDataShapeRows)
+  (MoreEpsilonDataShapeRows EpsilonDataShapeRow EpsilonDataShapeRowList))
+
+(data EpsilonValueEdge
+  (EpsilonValueEdgeSyntax Int EpsilonName EpsilonName Int))
+
+(data EpsilonValueEdgeList
+  (NoEpsilonValueEdges)
+  (MoreEpsilonValueEdges EpsilonValueEdge EpsilonValueEdgeList))
+
+(data EpsilonReachabilityScan
+  (EpsilonReachabilityScanResult Int EpsilonNameList))
+
+(data EpsilonFormedProgram
+  (EpsilonFormedProgramSyntax EpsilonCollectedProgram EpsilonDataShapeRowList EpsilonValueEdgeList))
+
+(data EpsilonTypeFormationOutcome
+  (EpsilonTypeFormationAccepted EpsilonFormedProgram)
+  (EpsilonTypeFormationRejected EpsilonRejectReason Int)
+  (EpsilonTypeFormationInternal Int))

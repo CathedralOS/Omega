@@ -1,0 +1,146 @@
+
+(def epsilon_pattern_is_wildcard ((patternValue EpsilonPattern)) Int
+  (match patternValue
+    ((EpsilonIntegerPattern start end literal) 0)
+    ((EpsilonTruePattern start end) 0)
+    ((EpsilonFalsePattern start end) 0)
+    ((EpsilonWildcardPattern start end) 1)
+    ((EpsilonCasePattern start end owner name binder) 0)))
+
+(def epsilon_arms_have_final_wildcard ((arms EpsilonArmList)) Int
+  (match arms
+    (NoEpsilonArms 0)
+    ((MoreEpsilonArms item rest)
+      (match rest
+        (NoEpsilonArms
+          (match item
+            ((EpsilonArmSyntax start end patternValue continuation)
+              (epsilon_pattern_is_wildcard patternValue))))
+        ((MoreEpsilonArms nextItem nextRest)
+          (epsilon_arms_have_final_wildcard rest))))))
+
+(def epsilon_arms_have_complete_patterns ((arms EpsilonArmList)
+  (control EpsilonControlReferenceLedger)) Int
+  (match arms
+    (NoEpsilonArms 1)
+    ((MoreEpsilonArms item rest)
+      (match item
+        ((EpsilonArmSyntax start end patternValue continuation)
+          (match
+            (epsilon_control_find_complete_transition_pattern patternValue
+              control)
+            (NoEpsilonTransitionPatternKind 0)
+            ((OneEpsilonTransitionPatternKind kind)
+              (epsilon_arms_have_complete_patterns rest control))))))))
+
+(def epsilon_resolved_sum_case_matches_member
+  ((resolved EpsilonResolvedSumCase) (memberValue EpsilonDataMember)) Int
+  (match resolved
+    ((EpsilonResolvedSumCaseSyntax resolvedStart resolvedEnd resolvedName
+      resolvedParameters)
+      (match memberValue
+        ((EpsilonFieldMember start end name typeValue) 0)
+        ((EpsilonCaseMember start end name payload)
+          (if (eq resolvedStart start) (eq resolvedEnd end) 0))))))
+
+(def epsilon_transition_case_is_covered ((terminalValue EpsilonTerminal)
+  (ownerValue EpsilonDeclaration) (caseValue EpsilonDataMember)
+  (references EpsilonTransitionPatternReferenceList)) Int
+  (match references
+    (NoEpsilonTransitionPatternReferences 0)
+    ((MoreEpsilonTransitionPatternReferences item rest)
+      (match item
+        ((EpsilonTransitionPatternNameResolved priorTerminal priorPattern
+          priorKind)
+          (epsilon_transition_case_is_covered terminalValue ownerValue caseValue
+            rest))
+        ((EpsilonTransitionPatternSubjectAdmitted priorTerminal priorPattern
+          priorKind)
+          (epsilon_transition_case_is_covered terminalValue ownerValue caseValue
+            rest))
+        ((EpsilonTransitionPatternIdentityOwned priorTerminal priorPattern
+          priorIdentity)
+          (epsilon_transition_case_is_covered terminalValue ownerValue caseValue
+            rest))
+        ((EpsilonTransitionPatternComplete priorTerminal priorPattern priorKind)
+          (if (epsilon_terminals_same_identity terminalValue priorTerminal)
+            (match priorKind
+              ((EpsilonScalarPatternSelector value)
+                (epsilon_transition_case_is_covered terminalValue ownerValue
+                  caseValue rest))
+              (EpsilonTransitionWildcard
+                (epsilon_transition_case_is_covered terminalValue ownerValue
+                  caseValue rest))
+              ((EpsilonSumCasePattern priorOwner priorCase)
+                (if (epsilon_data_declarations_same_identity ownerValue
+                  priorOwner)
+                  (if (epsilon_resolved_sum_case_matches_member priorCase
+                    caseValue)
+                    1
+                    (epsilon_transition_case_is_covered terminalValue ownerValue
+                      caseValue rest))
+                  (epsilon_transition_case_is_covered terminalValue ownerValue
+                    caseValue rest))))
+            (epsilon_transition_case_is_covered terminalValue ownerValue caseValue
+              rest)))))))
+
+(def epsilon_sum_members_are_covered ((terminalValue EpsilonTerminal)
+  (ownerValue EpsilonDeclaration) (members EpsilonDataMemberList)
+  (references EpsilonTransitionPatternReferenceList)) Int
+  (match members
+    (NoEpsilonDataMembers 1)
+    ((MoreEpsilonDataMembers item rest)
+      (match item
+        ((EpsilonFieldMember start end name typeValue) 0)
+        ((EpsilonCaseMember start end name payload)
+          (if (epsilon_transition_case_is_covered terminalValue ownerValue item
+            references)
+            (epsilon_sum_members_are_covered terminalValue ownerValue rest
+              references)
+            0))))))
+
+(def epsilon_sum_owner_is_covered ((terminalValue EpsilonTerminal)
+  (ownerValue EpsilonDeclaration)
+  (references EpsilonTransitionPatternReferenceList)) Int
+  (match ownerValue
+    ((EpsilonBoundaryDeclaration start end name machines) 0)
+    ((EpsilonMachineDeclaration start end name inputs returnType bodyValue) 0)
+    ((EpsilonDataDeclaration start end name members)
+      (epsilon_sum_members_are_covered terminalValue ownerValue members
+        references))))
+
+(def epsilon_transition_subject_start ((terminalValue EpsilonTerminal)) Int
+  (match terminalValue
+    ((EpsilonTransitionTerminal start end subject arms)
+      (epsilon_expression_start subject))
+    ((EpsilonReturnTerminal start end expressionValue) start)))
+
+(def epsilon_local_scan_transition_coverage ((terminalValue EpsilonTerminal)
+  (arms EpsilonArmList) (scan EpsilonLocalResolutionScan))
+  EpsilonLocalResolutionScan
+  (match scan
+    ((EpsilonLocalResolutionScanSyntax catalog references fields callables
+      control types candidate)
+      (match control
+        ((EpsilonControlReferenceLedgerSyntax states subjects patterns coverages)
+          (match (epsilon_find_transition_subject_reference terminalValue subjects)
+            (NoEpsilonTransitionSubjectReference scan)
+            ((OneEpsilonTransitionSubjectReference subjectKind)
+              (match subjectKind
+                (EpsilonScalarTransitionSubject scan)
+                ((EpsilonSumTransitionSubject ownerValue)
+                  (if (epsilon_arms_have_complete_patterns arms control)
+                    (if (epsilon_arms_have_final_wildcard arms)
+                      (epsilon_local_scan_add_transition_coverage terminalValue
+                        ownerValue EpsilonTransitionCoverageComplete scan)
+                      (if (epsilon_sum_owner_is_covered terminalValue ownerValue
+                        patterns)
+                        (epsilon_local_scan_add_transition_coverage terminalValue
+                          ownerValue EpsilonTransitionCoverageComplete scan)
+                        (epsilon_local_scan_add_candidate NonexhaustiveSum
+                          (epsilon_transition_subject_start terminalValue)
+                          (epsilon_local_scan_add_transition_coverage
+                            terminalValue ownerValue
+                            EpsilonTransitionCoverageMissing scan))))
+                    (epsilon_local_scan_add_transition_coverage terminalValue
+                      ownerValue EpsilonTransitionCoverageUnresolved scan)))))))))))

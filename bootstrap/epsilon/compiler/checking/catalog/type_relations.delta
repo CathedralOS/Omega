@@ -1,0 +1,184 @@
+
+; ---- body-resolution catalog foundation ----------------------------------
+
+(def epsilon_integer_literal_value ((literal EpsilonIntegerLiteral)) Int
+  (match literal
+    ((EpsilonIntegerSpan start end value) value)))
+
+(def epsilon_types_equal ((source Bytes) (left EpsilonType)
+  (right EpsilonType)) Int
+  (match left
+    ((EpsilonI32Type leftStart leftEnd)
+      (match right
+        ((EpsilonI32Type rightStart rightEnd) 1)
+        ((EpsilonU8Type rightStart rightEnd) 0)
+        ((EpsilonNeverType rightStart rightEnd) 0)
+        ((EpsilonNamedType rightStart rightEnd rightName) 0)
+        ((EpsilonArrayType rightStart rightEnd rightElement rightLength) 0)
+        ((EpsilonViewType rightStart rightEnd rightElement) 0)))
+    ((EpsilonU8Type leftStart leftEnd)
+      (match right
+        ((EpsilonI32Type rightStart rightEnd) 0)
+        ((EpsilonU8Type rightStart rightEnd) 1)
+        ((EpsilonNeverType rightStart rightEnd) 0)
+        ((EpsilonNamedType rightStart rightEnd rightName) 0)
+        ((EpsilonArrayType rightStart rightEnd rightElement rightLength) 0)
+        ((EpsilonViewType rightStart rightEnd rightElement) 0)))
+    ((EpsilonNeverType leftStart leftEnd)
+      (match right
+        ((EpsilonI32Type rightStart rightEnd) 0)
+        ((EpsilonU8Type rightStart rightEnd) 0)
+        ((EpsilonNeverType rightStart rightEnd) 1)
+        ((EpsilonNamedType rightStart rightEnd rightName) 0)
+        ((EpsilonArrayType rightStart rightEnd rightElement rightLength) 0)
+        ((EpsilonViewType rightStart rightEnd rightElement) 0)))
+    ((EpsilonNamedType leftStart leftEnd leftName)
+      (match right
+        ((EpsilonI32Type rightStart rightEnd) 0)
+        ((EpsilonU8Type rightStart rightEnd) 0)
+        ((EpsilonNeverType rightStart rightEnd) 0)
+        ((EpsilonNamedType rightStart rightEnd rightName)
+          (epsilon_names_equal source leftName rightName))
+        ((EpsilonArrayType rightStart rightEnd rightElement rightLength) 0)
+        ((EpsilonViewType rightStart rightEnd rightElement) 0)))
+    ((EpsilonArrayType leftStart leftEnd leftElement leftLength)
+      (match right
+        ((EpsilonI32Type rightStart rightEnd) 0)
+        ((EpsilonU8Type rightStart rightEnd) 0)
+        ((EpsilonNeverType rightStart rightEnd) 0)
+        ((EpsilonNamedType rightStart rightEnd rightName) 0)
+        ((EpsilonArrayType rightStart rightEnd rightElement rightLength)
+          (if (eq (epsilon_integer_literal_value leftLength)
+                  (epsilon_integer_literal_value rightLength))
+            (epsilon_types_equal source leftElement rightElement)
+            0))
+        ((EpsilonViewType rightStart rightEnd rightElement) 0)))
+    ((EpsilonViewType leftStart leftEnd leftElement)
+      (match right
+        ((EpsilonI32Type rightStart rightEnd) 0)
+        ((EpsilonU8Type rightStart rightEnd) 0)
+        ((EpsilonNeverType rightStart rightEnd) 0)
+        ((EpsilonNamedType rightStart rightEnd rightName) 0)
+        ((EpsilonArrayType rightStart rightEnd rightElement rightLength) 0)
+        ((EpsilonViewType rightStart rightEnd rightElement)
+          (epsilon_types_equal source leftElement rightElement))))))
+
+(def epsilon_optional_types_equal ((source Bytes) (left EpsilonOptionalType)
+  (right EpsilonOptionalType)) Int
+  (match left
+    (NoEpsilonType
+      (match right
+        (NoEpsilonType 1)
+        ((SomeEpsilonType rightStart rightEnd rightType) 0)))
+    ((SomeEpsilonType leftStart leftEnd leftType)
+      (match right
+        (NoEpsilonType 0)
+        ((SomeEpsilonType rightStart rightEnd rightType)
+          (epsilon_types_equal source leftType rightType))))))
+
+(def epsilon_parameter_types_equal ((source Bytes)
+  (left EpsilonParameterList) (right EpsilonParameterList)) Int
+  (match left
+    (NoEpsilonParameters
+      (match right
+        (NoEpsilonParameters 1)
+        ((MoreEpsilonParameters rightItem rightRest) 0)))
+    ((MoreEpsilonParameters leftItem leftRest)
+      (match right
+        (NoEpsilonParameters 0)
+        ((MoreEpsilonParameters rightItem rightRest)
+          (match leftItem
+            ((EpsilonParameterSyntax leftStart leftEnd leftName leftType)
+              (match rightItem
+                ((EpsilonParameterSyntax rightStart rightEnd rightName rightType)
+                  (if (epsilon_types_equal source leftType rightType)
+                    (epsilon_parameter_types_equal source leftRest rightRest)
+                    0))))))))))
+
+(def epsilon_reject_reason_identity ((reasonValue EpsilonRejectReason)) Int
+  (match reasonValue
+    (InvalidSourceByte 1)
+    (InvalidToken 2)
+    (InvalidCharacterLiteral 3)
+    (UnterminatedString 4)
+    (InvalidEscape 5)
+    (IntegerLiteralOutOfRange 6)
+    (UnexpectedToken 7)
+    (UnexpectedEnd 8)
+    (DuplicateName 9)
+    (MissingEntry 10)
+    (InvalidEntry 11)
+    (InvalidBoundary 12)
+    (UnknownType 13)
+    (RecursiveValueType 14)
+    (InvalidDataShape 15)
+    (InvalidArrayLength 16)
+    (UnknownName 17)
+    (TypeMismatch 18)
+    (ArityMismatch 19)
+    (InvalidPlace 20)
+    (UseBeforeInitialization 21)
+    (EscapingView 22)
+    (InvalidControlTarget 23)
+    (InvalidTerminal 24)
+    (DuplicatePattern 25)
+    (NonexhaustiveSum 26)))
+
+(def epsilon_reject_reasons_equal ((left EpsilonRejectReason)
+  (right EpsilonRejectReason)) Int
+  (eq (epsilon_reject_reason_identity left)
+    (epsilon_reject_reason_identity right)))
+
+(def epsilon_final_reason_list_contains ((target EpsilonRejectReason)
+  (reasons EpsilonFinalReasonList)) Int
+  (match reasons
+    (NoEpsilonFinalReasons 0)
+    ((MoreEpsilonFinalReasons item rest)
+      (if (epsilon_reject_reasons_equal target item)
+        1
+        (epsilon_final_reason_list_contains target rest)))))
+
+(def epsilon_final_reason_list_add ((reasonValue EpsilonRejectReason)
+  (reasons EpsilonFinalReasonList)) EpsilonFinalReasonList
+  (if (epsilon_final_reason_list_contains reasonValue reasons)
+    reasons
+    (MoreEpsilonFinalReasons reasonValue reasons)))
+
+(def epsilon_final_reason_lists_union ((input EpsilonFinalReasonList)
+  (output EpsilonFinalReasonList)) EpsilonFinalReasonList
+  (match input
+    (NoEpsilonFinalReasons output)
+    ((MoreEpsilonFinalReasons reasonValue rest)
+      (epsilon_final_reason_lists_union rest
+        (epsilon_final_reason_list_add reasonValue output)))))
+
+(def epsilon_final_candidate_add ((reasonValue EpsilonRejectReason)
+  (offset Int) (current EpsilonFinalCandidate)) EpsilonFinalCandidate
+  (match current
+    (NoEpsilonFinalCandidate
+      (EpsilonFinalCandidateAt offset
+        (MoreEpsilonFinalReasons reasonValue NoEpsilonFinalReasons)))
+    ((EpsilonFinalCandidateAt currentOffset reasons)
+      (if (lt offset currentOffset)
+        (EpsilonFinalCandidateAt offset
+          (MoreEpsilonFinalReasons reasonValue NoEpsilonFinalReasons))
+        (if (lt currentOffset offset)
+          current
+          (EpsilonFinalCandidateAt offset
+            (epsilon_final_reason_list_add reasonValue reasons)))))))
+
+(def epsilon_final_candidate_merge ((left EpsilonFinalCandidate)
+  (right EpsilonFinalCandidate)) EpsilonFinalCandidate
+  (match left
+    (NoEpsilonFinalCandidate right)
+    ((EpsilonFinalCandidateAt leftOffset leftReasons)
+      (match right
+        (NoEpsilonFinalCandidate left)
+        ((EpsilonFinalCandidateAt rightOffset rightReasons)
+          (if (lt leftOffset rightOffset)
+            left
+            (if (lt rightOffset leftOffset)
+              right
+              (EpsilonFinalCandidateAt leftOffset
+                (epsilon_final_reason_lists_union leftReasons
+                  rightReasons)))))))))

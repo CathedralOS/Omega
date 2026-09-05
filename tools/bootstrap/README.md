@@ -25,6 +25,14 @@ or from physical files in a source archive. Empty directories left by a move do
 not create owners. `sh tests/bootstrap/chain-hygiene.sh` checks this inventory
 behavior in disposable archive and checkout fixtures.
 
+`source_closure.py MANIFEST OUTPUT` checks and concatenates explicitly ordered
+source members. `DeltaSourceClosureV1` selects `.delta` members for the Epsilon
+evaluator; `EpsilonSourceClosureV1` selects `.epsilon` members for Omega D. Both
+use the same identity, length, digest, and canonical relative-path rows. The
+manifest parent owns the complete source-file inventory: missing, extra,
+wrong-language, stale, and symlinked members reject before output replacement.
+Inventory traversal checks membership only; it never selects or orders inputs.
+
 `paths.sh` exports canonical selected-owner paths. Future compiler artifact
 paths may be named while absent; the topology gate does not pretend they exist.
 Shell and Python remain replaceable invocation plumbing and may not parse an
@@ -46,7 +54,7 @@ remain under their language owner.
 | `gamma/evaluator_env.sh` | Selected Beta-authored functional Gamma evaluator materialization. | Delete only when every caller has an equally direct canonical invocation. |
 | `gamma/artifact_env.sh` | Downgraded concatenative Gamma compiler materialization for retained comparison gates. | Delete with the nested concatenative bootstrap evidence. |
 | `delta/` | Downgraded concatenative-Gamma-written Delta compiler composition for retained comparison gates. | Delete with the nested Delta bootstrap compiler. |
-| `epsilon/materialize_source_closure.py` | Byte-exact assembly of explicitly manifested Epsilon source members for D. | Delete only when the selected lower compiler accepts the same canonical member closure directly. |
+| `source_closure.py` | Byte-exact assembly of the Delta-written Epsilon evaluator and Epsilon-written Omega D source closures. | Delete only when the selected lower compilers accept the same canonical member closures directly. |
 
 The retired `verify-lattice.sh`, `test-paths.sh`, historical bootstrap-role facade,
 future-artifact locators, root compiler cache, and receipt profiles had no

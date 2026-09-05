@@ -1,0 +1,350 @@
+
+; ---- transition patterns and arms --------------------------------------
+; D57 gives the arm-list grammar sole ownership of the optional final `_`.
+; The common pattern parser admits only nonwildcards; after a wildcard
+; continuation, the arm-list parser requires the transition-closing `}`.
+
+(def epsilon_pattern_start ((patternValue EpsilonPattern)) Int
+  (match patternValue
+    ((EpsilonIntegerPattern start end literal) start)
+    ((EpsilonTruePattern start end) start)
+    ((EpsilonFalsePattern start end) start)
+    ((EpsilonWildcardPattern start end) start)
+    ((EpsilonCasePattern start end owner name binder) start)))
+
+(def epsilon_pattern_end ((patternValue EpsilonPattern)) Int
+  (match patternValue
+    ((EpsilonIntegerPattern start end literal) end)
+    ((EpsilonTruePattern start end) end)
+    ((EpsilonFalsePattern start end) end)
+    ((EpsilonWildcardPattern start end) end)
+    ((EpsilonCasePattern start end owner name binder) end)))
+
+(def epsilon_continuation_start ((continuationValue EpsilonContinuation)) Int
+  (match continuationValue
+    ((EpsilonExpressionContinuation start end expressionValue) start)
+    ((EpsilonReturnContinuation start end expressionValue) start)))
+
+(def epsilon_continuation_end ((continuationValue EpsilonContinuation)) Int
+  (match continuationValue
+    ((EpsilonExpressionContinuation start end expressionValue) end)
+    ((EpsilonReturnContinuation start end expressionValue) end)))
+
+(def epsilon_arm_start ((armValue EpsilonArm)) Int
+  (match armValue ((EpsilonArmSyntax start end patternValue continuationValue) start)))
+
+(def epsilon_arm_end ((armValue EpsilonArm)) Int
+  (match armValue ((EpsilonArmSyntax start end patternValue continuationValue) end)))
+
+(def epsilon_reverse_names ((input EpsilonNameList) (output EpsilonNameList)) EpsilonNameList
+  (match input
+    (NoEpsilonNames output)
+    ((MoreEpsilonNames item rest)
+      (epsilon_reverse_names rest (MoreEpsilonNames item output)))))
+
+(def epsilon_reverse_arms ((input EpsilonArmList) (output EpsilonArmList)) EpsilonArmList
+  (match input
+    (NoEpsilonArms output)
+    ((MoreEpsilonArms item rest)
+      (epsilon_reverse_arms rest (MoreEpsilonArms item output)))))
+
+(def epsilon_binder_reject_at ((source Bytes) (cursor Int)) EpsilonBinderParseOutcome
+  (let start Int (epsilon_token_start source cursor)
+    (if (eq start (bytes_length source))
+      (EpsilonBinderParseRejected UnexpectedEnd start)
+      (EpsilonBinderParseRejected UnexpectedToken start))))
+
+(def epsilon_pattern_reject_at ((source Bytes) (cursor Int)) EpsilonPatternParseOutcome
+  (let start Int (epsilon_token_start source cursor)
+    (if (eq start (bytes_length source))
+      (EpsilonPatternParseRejected UnexpectedEnd start)
+      (EpsilonPatternParseRejected UnexpectedToken start))))
+
+(def epsilon_continuation_reject_at ((source Bytes) (cursor Int)) EpsilonContinuationParseOutcome
+  (let start Int (epsilon_token_start source cursor)
+    (if (eq start (bytes_length source))
+      (EpsilonContinuationParseRejected UnexpectedEnd start)
+      (EpsilonContinuationParseRejected UnexpectedToken start))))
+
+(def epsilon_arm_reject_at ((source Bytes) (cursor Int)) EpsilonArmParseOutcome
+  (let start Int (epsilon_token_start source cursor)
+    (if (eq start (bytes_length source))
+      (EpsilonArmParseRejected UnexpectedEnd start)
+      (EpsilonArmParseRejected UnexpectedToken start))))
+
+(def epsilon_probe_binder_names ((source Bytes) (cursor Int)) Int
+  (let start Int (epsilon_token_start source cursor)
+    (let code Int (epsilon_token_code source start)
+      (if (eq code 31)
+        (epsilon_token_end source start)
+        (if (eq code 1)
+          (let afterName Int (epsilon_token_end source start)
+            (let followingStart Int (epsilon_token_start source afterName)
+              (let followingCode Int (epsilon_token_code source followingStart)
+                (if (eq followingCode 31)
+                  (epsilon_token_end source followingStart)
+                  (if (eq followingCode 38)
+                    (let afterComma Int (epsilon_token_end source followingStart)
+                      (let nextStart Int (epsilon_token_start source afterComma)
+                        (if (eq (epsilon_token_code source nextStart) 1)
+                          (epsilon_probe_binder_names source afterComma)
+                          -1)))
+                    -1)))))
+          -1)))))
+
+(def epsilon_probe_pattern_end ((source Bytes) (cursor Int)) Int
+  (let start Int (epsilon_token_start source cursor)
+    (let code Int (epsilon_token_code source start)
+      (if (eq code 2) (epsilon_token_end source start)
+        (if (eq code 20) (epsilon_token_end source start)
+          (if (eq code 21) (epsilon_token_end source start)
+            (if (eq code 1)
+              (let firstEnd Int (epsilon_token_end source start)
+                (if (epsilon_span_is_1 source start firstEnd 95)
+                  firstEnd
+                  (let scopeStart Int (epsilon_token_start source firstEnd)
+                    (if (eq (epsilon_token_code source scopeStart) 43)
+                      (let secondStart Int (epsilon_token_start source
+                        (epsilon_token_end source scopeStart))
+                        (if (eq (epsilon_token_code source secondStart) 1)
+                          (let secondEnd Int (epsilon_token_end source secondStart)
+                            (let binderStart Int (epsilon_token_start source secondEnd)
+                              (if (eq (epsilon_token_code source binderStart) 30)
+                                (epsilon_probe_binder_names source
+                                  (epsilon_token_end source binderStart))
+                                secondEnd)))
+                          -1))
+                      -1))))
+              -1)))))))
+
+(def epsilon_probe_pattern_arrow ((source Bytes) (cursor Int)) Int
+  (let patternEnd Int (epsilon_probe_pattern_end source cursor)
+    (if (lt patternEnd 0)
+      -1
+      (let arrowStart Int (epsilon_token_start source patternEnd)
+        (if (eq (epsilon_token_code source arrowStart) 42)
+          (epsilon_token_end source arrowStart)
+          -1)))))
+
+(def epsilon_parse_binder_names ((source Bytes) (binderStart Int) (cursor Int)
+  (accumulator EpsilonNameList)) EpsilonBinderParseOutcome
+  (let nameStart Int (epsilon_token_start source cursor)
+    (let nameCode Int (epsilon_token_code source nameStart)
+      (if (eq nameCode 31)
+        (let binderEnd Int (epsilon_token_end source nameStart)
+          (EpsilonBinderParsed
+            (SomeEpsilonBinder binderStart binderEnd
+              (epsilon_reverse_names accumulator NoEpsilonNames))))
+        (if (eq nameCode 1)
+          (let nameEnd Int (epsilon_token_end source nameStart)
+            (let nextAccumulator EpsilonNameList
+              (MoreEpsilonNames (EpsilonNameSpan nameStart nameEnd) accumulator)
+              (let followingStart Int (epsilon_token_start source nameEnd)
+                (let followingCode Int (epsilon_token_code source followingStart)
+                  (if (eq followingCode 31)
+                    (let binderEnd Int (epsilon_token_end source followingStart)
+                      (EpsilonBinderParsed
+                        (SomeEpsilonBinder binderStart binderEnd
+                          (epsilon_reverse_names nextAccumulator NoEpsilonNames))))
+                    (if (eq followingCode 38)
+                      (let afterComma Int (epsilon_token_end source followingStart)
+                        (let nextStart Int (epsilon_token_start source afterComma)
+                          (if (eq (epsilon_token_code source nextStart) 31)
+                            (EpsilonBinderParseRejected UnexpectedToken nextStart)
+                            (epsilon_parse_binder_names source binderStart afterComma
+                              nextAccumulator))))
+                      (epsilon_binder_reject_at source nameEnd)))))))
+          (epsilon_binder_reject_at source cursor))))))
+
+(def epsilon_parse_case_pattern ((source Bytes) (firstStart Int) (firstEnd Int)
+  (cursor Int)) EpsilonPatternParseOutcome
+  (let secondStart Int (epsilon_token_start source cursor)
+    (if (eq (epsilon_token_code source secondStart) 1)
+      (let secondEnd Int (epsilon_token_end source secondStart)
+        (let binderStart Int (epsilon_token_start source secondEnd)
+          (if (eq (epsilon_token_code source binderStart) 30)
+            (let binderOutcome EpsilonBinderParseOutcome
+              (epsilon_parse_binder_names source binderStart
+                (epsilon_token_end source binderStart) NoEpsilonNames)
+              (match binderOutcome
+                ((EpsilonBinderParseRejected reasonValue errorOffset)
+                  (EpsilonPatternParseRejected reasonValue errorOffset))
+                ((EpsilonBinderParsed binderValue)
+                  (match binderValue
+                    (NoEpsilonBinder (EpsilonPatternParseRejected UnexpectedToken binderStart))
+                    ((SomeEpsilonBinder start end names)
+                      (EpsilonPatternParsed
+                        (EpsilonCasePattern firstStart end
+                          (EpsilonNameSpan firstStart firstEnd)
+                          (EpsilonNameSpan secondStart secondEnd) binderValue)))))))
+            (EpsilonPatternParsed
+              (EpsilonCasePattern firstStart secondEnd
+                (EpsilonNameSpan firstStart firstEnd)
+                (EpsilonNameSpan secondStart secondEnd) NoEpsilonBinder)))))
+      (epsilon_pattern_reject_at source cursor))))
+
+(def epsilon_parse_nonwildcard_pattern ((source Bytes) (cursor Int))
+  EpsilonPatternParseOutcome
+  (let start Int (epsilon_token_start source cursor)
+    (let code Int (epsilon_token_code source start)
+      (let end Int (epsilon_token_end source start)
+        (if (eq code 0) (EpsilonPatternParseRejected UnexpectedEnd start)
+          (if (eq code 2)
+            (if (eq (epsilon_token_value source start) 2147483648)
+              (EpsilonPatternParseRejected IntegerLiteralOutOfRange start)
+              (EpsilonPatternParsed
+                (EpsilonIntegerPattern start end
+                  (EpsilonIntegerSpan start end (epsilon_token_value source start)))))
+            (if (eq code 20) (EpsilonPatternParsed (EpsilonTruePattern start end))
+              (if (eq code 21) (EpsilonPatternParsed (EpsilonFalsePattern start end))
+                (if (eq code 1)
+                  (let scopeStart Int (epsilon_token_start source end)
+                    (if (epsilon_span_is_1 source start end 95)
+                      (EpsilonPatternParseRejected UnexpectedToken start)
+                      (if (eq (epsilon_token_code source scopeStart) 43)
+                        (epsilon_parse_case_pattern source start end
+                          (epsilon_token_end source scopeStart))
+                        (EpsilonPatternParseRejected UnexpectedToken start))))
+                  (EpsilonPatternParseRejected UnexpectedToken start))))))))))
+
+(def epsilon_parse_continuation ((source Bytes) (cursor Int)) EpsilonContinuationParseOutcome
+  (let start Int (epsilon_token_start source cursor)
+    (if (eq (epsilon_token_code source start) 18)
+      (let returnEnd Int (epsilon_token_end source start)
+        (let followingStart Int (epsilon_token_start source returnEnd)
+          (let followingCode Int (epsilon_token_code source followingStart)
+            (if (eq followingCode 31)
+              (EpsilonContinuationParsed
+                (EpsilonReturnContinuation start returnEnd NoEpsilonExpression))
+              (if (eq followingCode 0)
+                (EpsilonContinuationParsed
+                  (EpsilonReturnContinuation start returnEnd NoEpsilonExpression))
+                (if (lt (epsilon_probe_pattern_arrow source followingStart) 0)
+                  (let expressionOutcome EpsilonExpressionParseOutcome (epsilon_parse_expression source followingStart)
+                    (match expressionOutcome
+                      ((EpsilonExpressionParseRejected reasonValue errorOffset)
+                        (EpsilonContinuationParseRejected reasonValue errorOffset))
+                      ((EpsilonExpressionParsed expressionValue)
+                        (EpsilonContinuationParsed
+                          (EpsilonReturnContinuation start
+                            (epsilon_expression_end expressionValue)
+                            (SomeEpsilonExpression expressionValue))))))
+                  (EpsilonContinuationParsed
+                    (EpsilonReturnContinuation start returnEnd NoEpsilonExpression))))))))
+      (let expressionOutcome EpsilonExpressionParseOutcome (epsilon_parse_postfix source start)
+        (match expressionOutcome
+          ((EpsilonExpressionParseRejected reasonValue errorOffset)
+            (EpsilonContinuationParseRejected reasonValue errorOffset))
+          ((EpsilonExpressionParsed expressionValue)
+            (EpsilonContinuationParsed
+              (EpsilonExpressionContinuation (epsilon_expression_start expressionValue)
+                (epsilon_expression_end expressionValue) expressionValue))))))))
+
+(def epsilon_parse_arm_after_pattern ((source Bytes)
+  (patternValue EpsilonPattern)) EpsilonArmParseOutcome
+  (let arrowStart Int (epsilon_token_start source (epsilon_pattern_end patternValue))
+    (if (eq (epsilon_token_code source arrowStart) 42)
+      (let continuationOutcome EpsilonContinuationParseOutcome
+        (epsilon_parse_continuation source (epsilon_token_end source arrowStart))
+        (match continuationOutcome
+          ((EpsilonContinuationParseRejected reasonValue errorOffset)
+            (EpsilonArmParseRejected reasonValue errorOffset))
+          ((EpsilonContinuationParsed continuationValue)
+            (EpsilonArmParsed
+              (EpsilonArmSyntax (epsilon_pattern_start patternValue)
+                (epsilon_continuation_end continuationValue)
+                patternValue continuationValue)))))
+      (epsilon_arm_reject_at source (epsilon_pattern_end patternValue)))))
+
+(def epsilon_parse_nonwildcard_arm ((source Bytes) (cursor Int))
+  EpsilonArmParseOutcome
+  (let patternOutcome EpsilonPatternParseOutcome
+    (epsilon_parse_nonwildcard_pattern source cursor)
+    (match patternOutcome
+      ((EpsilonPatternParseRejected reasonValue errorOffset)
+        (EpsilonArmParseRejected reasonValue errorOffset))
+      ((EpsilonPatternParsed patternValue)
+        (epsilon_parse_arm_after_pattern source patternValue)))))
+
+(def epsilon_parse_wildcard_arm ((source Bytes) (wildcardStart Int))
+  EpsilonArmParseOutcome
+  (let wildcardEnd Int (epsilon_token_end source wildcardStart)
+    (epsilon_parse_arm_after_pattern source
+      (EpsilonWildcardPattern wildcardStart wildcardEnd))))
+
+(def epsilon_finish_wildcard_arm ((source Bytes) (armValue EpsilonArm)
+  (accumulator EpsilonArmList)) EpsilonArmListParseOutcome
+  (let followingStart Int (epsilon_token_start source (epsilon_arm_end armValue))
+    (let followingCode Int (epsilon_token_code source followingStart)
+      (if (eq followingCode 31)
+        (EpsilonArmListParsed
+          (epsilon_reverse_arms (MoreEpsilonArms armValue accumulator)
+            NoEpsilonArms)
+          followingStart)
+        (if (eq followingCode 0)
+          (EpsilonArmListParseRejected UnexpectedEnd followingStart)
+          (EpsilonArmListParseRejected UnexpectedToken followingStart))))))
+
+(def epsilon_parse_arms_acc ((source Bytes) (cursor Int) (count Int)
+  (accumulator EpsilonArmList)) EpsilonArmListParseOutcome
+  (let start Int (epsilon_token_start source cursor)
+    (let code Int (epsilon_token_code source start)
+      (if (eq code 0)
+        (EpsilonArmListParseRejected UnexpectedEnd start)
+        (if (eq code 31)
+          (if (eq count 0)
+            (EpsilonArmListParseRejected UnexpectedToken start)
+            (EpsilonArmListParsed
+              (epsilon_reverse_arms accumulator NoEpsilonArms) start))
+          (if (if (eq code 1)
+                (epsilon_span_is_1 source start
+                  (epsilon_token_end source start) 95)
+                0)
+            (let wildcardOutcome EpsilonArmParseOutcome
+              (epsilon_parse_wildcard_arm source start)
+              (match wildcardOutcome
+                ((EpsilonArmParseRejected reasonValue errorOffset)
+                  (EpsilonArmListParseRejected reasonValue errorOffset))
+                ((EpsilonArmParsed armValue)
+                  (epsilon_finish_wildcard_arm source armValue accumulator))))
+            (let armOutcome EpsilonArmParseOutcome
+              (epsilon_parse_nonwildcard_arm source start)
+              (match armOutcome
+                ((EpsilonArmParseRejected reasonValue errorOffset)
+                  (EpsilonArmListParseRejected reasonValue errorOffset))
+                ((EpsilonArmParsed armValue)
+                  (epsilon_parse_arms_acc source (epsilon_arm_end armValue)
+                    (+ count 1)
+                    (MoreEpsilonArms armValue accumulator)))))))))))
+
+(def epsilon_parse_transition ((source Bytes) (cursor Int)) EpsilonTransitionParseOutcome
+  (let transitionStart Int (epsilon_token_start source cursor)
+    (if (eq (epsilon_token_code source transitionStart) 16)
+      (let expressionOutcome EpsilonExpressionParseOutcome
+        (epsilon_parse_expression source (epsilon_token_end source transitionStart))
+        (match expressionOutcome
+          ((EpsilonExpressionParseRejected reasonValue errorOffset)
+            (EpsilonTransitionParseRejected reasonValue errorOffset))
+          ((EpsilonExpressionParsed expressionValue)
+            (let openStart Int (epsilon_token_start source (epsilon_expression_end expressionValue))
+              (if (eq (epsilon_token_code source openStart) 30)
+                (let armsOutcome EpsilonArmListParseOutcome
+                  (epsilon_parse_arms_acc source (epsilon_token_end source openStart)
+                    0 NoEpsilonArms)
+                  (match armsOutcome
+                    ((EpsilonArmListParseRejected reasonValue errorOffset)
+                      (EpsilonTransitionParseRejected reasonValue errorOffset))
+                    ((EpsilonArmListParsed arms closeStart)
+                      (let transitionEnd Int (epsilon_token_end source closeStart)
+                        (EpsilonTransitionParsed
+                          (EpsilonTransitionTerminal transitionStart transitionEnd
+                            expressionValue arms))))))
+                (let errorStart Int (epsilon_token_start source
+                  (epsilon_expression_end expressionValue))
+                  (if (eq errorStart (bytes_length source))
+                    (EpsilonTransitionParseRejected UnexpectedEnd errorStart)
+                    (EpsilonTransitionParseRejected UnexpectedToken errorStart))))))))
+      (let errorStart Int (epsilon_token_start source cursor)
+        (if (eq errorStart (bytes_length source))
+          (EpsilonTransitionParseRejected UnexpectedEnd errorStart)
+          (EpsilonTransitionParseRejected UnexpectedToken errorStart))))))

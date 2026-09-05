@@ -1,0 +1,53 @@
+
+; The scan carries the immutable catalog context, accumulates custody and
+; expression facts in reverse dependency order, and retains the same neutral
+; final-phase candidate bucket established by the catalog.
+(data EpsilonLocalResolutionScan
+  (EpsilonLocalResolutionScanSyntax EpsilonResolutionCatalog
+    EpsilonResolvedLocalReferenceList EpsilonResolvedFieldReferenceList
+    EpsilonResolvedCallableReferenceList EpsilonControlReferenceLedger
+    EpsilonTypedExpressionList
+    EpsilonFinalCandidate))
+
+; D53 checks each authored block edge locally. State transfers carry exact
+; state custody, while call continuations derive their effect from the existing
+; complete expression facts.
+(data EpsilonBlockExit
+  (EpsilonFalloff)
+  (EpsilonReturnNone)
+  (EpsilonReturnValue EpsilonType)
+  (EpsilonNoNormalReturn)
+  (EpsilonStateTransfer EpsilonState))
+
+(data EpsilonOptionalBlockExit
+  (NoEpsilonBlockExit)
+  (SomeEpsilonBlockExit EpsilonBlockExit))
+
+; Statement traversal separately remembers whether a `never` call has ended
+; the sequence and whether its first invalid executable successor was seen.
+(data EpsilonStatementSequenceFlow
+  (EpsilonStatementSequenceOpen)
+  (EpsilonStatementSequenceEndedByNever)
+  (EpsilonStatementSequenceInvalidAfterNever))
+
+(data EpsilonLocalBlockScan
+  (EpsilonLocalBlockScanSyntax EpsilonLocalBindingList EpsilonLocalBindingList
+    EpsilonStatementSequenceFlow EpsilonLocalResolutionScan))
+
+(data EpsilonLocallyResolvedProgram
+  (EpsilonLocallyResolvedProgramSyntax EpsilonCatalogedProgram
+    EpsilonResolvedLocalReferenceList EpsilonResolvedFieldReferenceList
+    EpsilonResolvedCallableReferenceList EpsilonControlReferenceLedger
+    EpsilonTypedExpressionList
+    EpsilonFinalCandidate))
+
+(data EpsilonLocalResolutionOutcome
+  (EpsilonLocalResolutionAccepted EpsilonLocallyResolvedProgram)
+  (EpsilonLocalResolutionRejected EpsilonRejectReason Int)
+  (EpsilonLocalResolutionInternal Int))
+
+(data EpsilonOwnerIdentity
+  (NoEpsilonOwnerIdentity)
+  (OneEpsilonBoundaryOwner)
+  (OneEpsilonDataOwner)
+  (AmbiguousEpsilonOwnerIdentity))

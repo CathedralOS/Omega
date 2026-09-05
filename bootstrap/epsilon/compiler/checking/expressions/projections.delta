@@ -1,0 +1,450 @@
+
+(def epsilon_expression_i32_type ((expressionValue EpsilonExpression)) EpsilonType
+  (EpsilonI32Type (epsilon_expression_start expressionValue)
+    (epsilon_expression_end expressionValue)))
+
+(def epsilon_expression_string_type ((expressionValue EpsilonExpression))
+  EpsilonType
+  (EpsilonViewType (epsilon_expression_start expressionValue)
+    (epsilon_expression_end expressionValue)
+    (EpsilonU8Type (epsilon_expression_start expressionValue)
+      (epsilon_expression_end expressionValue))))
+
+(def epsilon_expression_view_type ((expressionValue EpsilonExpression)
+  (elementType EpsilonType)) EpsilonType
+  (EpsilonViewType (epsilon_expression_start expressionValue)
+    (epsilon_expression_end expressionValue) elementType))
+
+(def epsilon_name_is_len ((source Bytes) (nameValue EpsilonName)) Int
+  (match nameValue
+    ((EpsilonNameSpan start end)
+      (epsilon_span_is_3 source start end 108 101 110))))
+
+(def epsilon_name_is_as_slice ((source Bytes) (nameValue EpsilonName)) Int
+  (match nameValue
+    ((EpsilonNameSpan start end)
+      (epsilon_span_is_8 source start end 97 115 95 115 108 105 99 101))))
+
+(def epsilon_name_is_contextual_field ((source Bytes) (nameValue EpsilonName)) Int
+  (if (epsilon_name_is_len source nameValue)
+    1
+    (epsilon_name_is_as_slice source nameValue)))
+
+(def epsilon_projected_place_type ((basePlace EpsilonOptionalPlaceType)
+  (storageType EpsilonType)) EpsilonOptionalPlaceType
+  (match basePlace
+    (NoEpsilonPlaceType NoEpsilonPlaceType)
+    ((SomeEpsilonPlaceType baseStorage)
+      (SomeEpsilonPlaceType storageType))))
+
+(def epsilon_local_scan_absent_field_candidate ((source Bytes)
+  (expressionValue EpsilonExpression) (member EpsilonName)
+  (scan EpsilonLocalResolutionScan)) EpsilonLocalResolutionScan
+  (if (epsilon_name_is_contextual_field source member)
+    (epsilon_local_scan_add_candidate TypeMismatch
+      (epsilon_expression_start expressionValue) scan)
+    (epsilon_local_scan_add_candidate UnknownName
+      (epsilon_name_start member) scan)))
+
+(def epsilon_local_scan_known_machine_field_candidate
+  ((expressionValue EpsilonExpression) (useValue EpsilonExpressionUse)
+   (scan EpsilonLocalResolutionScan)) EpsilonLocalResolutionScan
+  (match useValue
+    ((EpsilonTransitionContinuationExpressionUse machineValue continuationStart)
+      (epsilon_local_scan_add_candidate InvalidControlTarget continuationStart
+        scan))
+    (EpsilonOrdinaryExpressionUse
+      (epsilon_local_scan_add_candidate TypeMismatch
+        (epsilon_expression_start expressionValue) scan))
+    (EpsilonCallHeadExpressionUse
+      (epsilon_local_scan_add_candidate TypeMismatch
+        (epsilon_expression_start expressionValue) scan))
+    ((EpsilonPostfixStatementExpressionUse statementStart)
+      (epsilon_local_scan_add_candidate TypeMismatch
+        statementStart scan))))
+
+(def epsilon_local_scan_field_fact ((source Bytes)
+  (expressionValue EpsilonExpression) (base EpsilonExpression)
+  (member EpsilonName) (useValue EpsilonExpressionUse)
+  (scan EpsilonLocalResolutionScan))
+  EpsilonLocalResolutionScan
+  (match scan
+    ((EpsilonLocalResolutionScanSyntax catalog references fields callables stateApplications types
+      candidate)
+      (match (epsilon_find_expression_result base types)
+        (NoEpsilonExpressionResult scan)
+        ((OneEpsilonExpressionResult baseResult)
+          (match baseResult
+            ((EpsilonValueExpressionResult baseType basePlace)
+              (match baseType
+                ((EpsilonI32Type start end)
+                  (epsilon_local_scan_absent_field_candidate source
+                    expressionValue member scan))
+                ((EpsilonU8Type start end)
+                  (epsilon_local_scan_absent_field_candidate source
+                    expressionValue member scan))
+                ((EpsilonNeverType start end)
+                  (epsilon_local_scan_absent_field_candidate source
+                    expressionValue member scan))
+                ((EpsilonNamedType start end ownerName)
+                  (match catalog
+                    ((EpsilonResolutionCatalogSyntax rows)
+                      (match (epsilon_catalog_find_owner source ownerName rows)
+                        (NoEpsilonCatalogOwner
+                          (epsilon_local_scan_absent_field_candidate source
+                            expressionValue member scan))
+                        ((OneEpsilonCatalogBoundaryOwner ownerDeclaration)
+                          (match ownerDeclaration
+                            ((EpsilonBoundaryDeclaration ownerStart ownerEnd
+                              ownerNameValue machines)
+                              (match (epsilon_catalog_find_boundary_machine source
+                                member machines)
+                                (NoEpsilonCatalogBoundaryMember
+                                  (epsilon_local_scan_absent_field_candidate
+                                    source expressionValue member scan))
+                                ((OneEpsilonCatalogBoundaryMember memberValue)
+                                  (epsilon_local_scan_known_machine_field_candidate
+                                    expressionValue useValue scan))))
+                            ((EpsilonDataDeclaration ownerStart ownerEnd
+                              ownerNameValue members) scan)
+                            ((EpsilonMachineDeclaration ownerStart ownerEnd
+                              machineName inputs returnType bodyValue) scan)))
+                        ((OneEpsilonCatalogDataOwner ownerDeclaration shape)
+                          (match ownerDeclaration
+                            ((EpsilonBoundaryDeclaration ownerStart ownerEnd
+                              ownerNameValue machines) scan)
+                            ((EpsilonDataDeclaration ownerStart ownerEnd
+                              ownerNameValue members)
+                              (let memberLookup EpsilonCatalogDataMemberLookup
+                                (epsilon_catalog_find_member_in_data source member
+                                  ownerDeclaration members)
+                                (match memberLookup
+                                  ((OneEpsilonCatalogField ownerValue fieldValue)
+                                    (match fieldValue
+                                      ((EpsilonFieldMember fieldStart fieldEnd
+                                        fieldName fieldType)
+                                        (epsilon_local_scan_add_value
+                                          expressionValue
+                                          (epsilon_storage_read_type
+                                            expressionValue fieldType)
+                                          (epsilon_projected_place_type basePlace
+                                            fieldType)
+                                          (epsilon_local_scan_add_field_reference
+                                            expressionValue ownerValue
+                                            fieldValue scan)))
+                                      ((EpsilonCaseMember fieldStart fieldEnd
+                                        fieldName payload) scan)))
+                                  ((OneEpsilonCatalogCase caseOwner caseValue)
+                                    (epsilon_local_scan_add_candidate TypeMismatch
+                                      (epsilon_expression_start expressionValue)
+                                      scan))
+                                  (NoEpsilonCatalogDataMember
+                                    (match
+                                      (epsilon_catalog_find_qualified_data_machine
+                                        source ownerName member rows)
+                                      ((OneEpsilonCatalogDataMachine machineOwner
+                                        machineDeclaration)
+                                        (epsilon_local_scan_known_machine_field_candidate
+                                          expressionValue useValue scan))
+                                      (NoEpsilonCatalogDataMachine
+                                        (epsilon_local_scan_absent_field_candidate
+                                          source expressionValue member
+                                          scan)))))))
+                            ((EpsilonMachineDeclaration ownerStart ownerEnd
+                              machineName inputs returnType bodyValue)
+                              scan)))))))
+                ((EpsilonArrayType start end element lengthValue)
+                  (if (epsilon_name_is_len source member)
+                    (epsilon_local_scan_add_value expressionValue
+                      (epsilon_expression_i32_type expressionValue)
+                      NoEpsilonPlaceType scan)
+                    (if (epsilon_name_is_as_slice source member)
+                      (match basePlace
+                        (NoEpsilonPlaceType
+                          (epsilon_local_scan_add_candidate InvalidPlace
+                            (epsilon_expression_start base) scan))
+                        ((SomeEpsilonPlaceType storageType)
+                          (epsilon_local_scan_add_value expressionValue
+                            (epsilon_expression_view_type expressionValue element)
+                            NoEpsilonPlaceType scan)))
+                      (epsilon_local_scan_absent_field_candidate source
+                        expressionValue member scan))))
+                ((EpsilonViewType start end element)
+                  (if (epsilon_name_is_len source member)
+                    (epsilon_local_scan_add_value expressionValue
+                      (epsilon_expression_i32_type expressionValue)
+                      NoEpsilonPlaceType scan)
+                    (if (epsilon_name_is_as_slice source member)
+                      (epsilon_local_scan_add_candidate TypeMismatch
+                        (epsilon_expression_start expressionValue) scan)
+                      (epsilon_local_scan_absent_field_candidate source
+                        expressionValue member scan))))))
+            (EpsilonResultlessExpressionResult
+              (epsilon_local_scan_add_candidate TypeMismatch
+                (epsilon_expression_start expressionValue) scan))
+            (EpsilonNeverExpressionResult
+              (epsilon_local_scan_add_candidate InvalidTerminal
+                (epsilon_expression_start (epsilon_call_head_core base))
+                scan))))))))
+
+; Named field-shaped call heads first belong to D36 receiver-machine
+; resolution. Every non-named receiver and every complete category failure can
+; use the one ordinary field classifier immediately; a positive field result
+; is carried through authored groups so the following `()` remains a separate
+; call suffix. Named no-machine branches fall back through the same classifier.
+(def epsilon_local_scan_non_named_call_head_field_fact ((source Bytes)
+  (callBase EpsilonExpression) (useValue EpsilonExpressionUse)
+  (scan EpsilonLocalResolutionScan))
+  EpsilonLocalResolutionScan
+  (match callBase
+    ((EpsilonGroupedExpression start end inner)
+      (match scan
+        ((EpsilonLocalResolutionScanSyntax catalog references fields callables stateApplications
+          types candidate)
+          (match (epsilon_find_expression_result callBase types)
+            ((OneEpsilonExpressionResult resultValue) scan)
+            (NoEpsilonExpressionResult
+              (epsilon_local_scan_propagate_result callBase inner
+                (epsilon_local_scan_non_named_call_head_field_fact source inner
+                  useValue scan)))))))
+    ((EpsilonFieldExpression start end receiver member)
+      (match scan
+        ((EpsilonLocalResolutionScanSyntax catalog references fields callables stateApplications
+          types candidate)
+          (match (epsilon_find_expression_result receiver types)
+            (NoEpsilonExpressionResult scan)
+            ((OneEpsilonExpressionResult receiverResult)
+              (match receiverResult
+                ((EpsilonValueExpressionResult receiverType receiverPlace)
+                  (match receiverType
+                    ((EpsilonI32Type typeStart typeEnd)
+                      (epsilon_local_scan_field_fact source callBase receiver
+                        member useValue scan))
+                    ((EpsilonU8Type typeStart typeEnd)
+                      (epsilon_local_scan_field_fact source callBase receiver
+                        member useValue scan))
+                    ((EpsilonNeverType typeStart typeEnd)
+                      (epsilon_local_scan_field_fact source callBase receiver
+                        member useValue scan))
+                    ((EpsilonNamedType typeStart typeEnd name) scan)
+                    ((EpsilonArrayType typeStart typeEnd element lengthValue)
+                      (epsilon_local_scan_field_fact source callBase receiver
+                        member useValue scan))
+                    ((EpsilonViewType typeStart typeEnd element)
+                      (epsilon_local_scan_field_fact source callBase receiver
+                        member useValue scan))))
+                (EpsilonResultlessExpressionResult
+                  (epsilon_local_scan_field_fact source callBase receiver member
+                    useValue scan))
+                (EpsilonNeverExpressionResult
+                  (epsilon_local_scan_field_fact source callBase receiver member
+                    useValue scan))))))))
+    ((EpsilonIntegerExpression start end literal) scan)
+    ((EpsilonCharacterExpression start end literal) scan)
+    ((EpsilonStringExpression start end literal) scan)
+    ((EpsilonTrueExpression start end) scan)
+    ((EpsilonFalseExpression start end) scan)
+    ((EpsilonNameExpression start end name) scan)
+    ((EpsilonQualifiedExpression start end owner name arguments) scan)
+    ((EpsilonCallExpression start end base arguments) scan)
+    ((EpsilonIndexExpression start end base indexValue) scan)
+    ((EpsilonSliceExpression start end base low high) scan)
+    ((EpsilonNegateExpression start end operand) scan)
+    ((EpsilonBinaryExpression start end operator operatorStart operatorEnd
+      left right) scan)))
+
+(def epsilon_local_scan_reject_value_call ((expressionValue EpsilonExpression)
+  (base EpsilonExpression) (scan EpsilonLocalResolutionScan))
+  EpsilonLocalResolutionScan
+  (match scan
+    ((EpsilonLocalResolutionScanSyntax catalog references fields callables stateApplications types
+      candidate)
+      (match (epsilon_find_expression_result base types)
+        (NoEpsilonExpressionResult scan)
+        ((OneEpsilonExpressionResult resultValue)
+          (match resultValue
+            ((EpsilonValueExpressionResult typeValue placeType)
+              (epsilon_local_scan_add_candidate TypeMismatch
+                (epsilon_expression_start expressionValue) scan))
+            (EpsilonResultlessExpressionResult
+              (epsilon_local_scan_add_candidate TypeMismatch
+                (epsilon_expression_start expressionValue) scan))
+            (EpsilonNeverExpressionResult
+              (epsilon_local_scan_add_candidate InvalidTerminal
+                (epsilon_expression_start (epsilon_call_head_core base))
+                scan))))))))
+
+; Resultless and `never` are complete expression categories whose invalid use
+; is independent of sibling premises. The relation anchor owns a resultless
+; value-use mismatch, while a mispositioned `never` result remains anchored at
+; the exact call beneath any grouping. Value-type and place relations stay in
+; their enclosing joins and therefore wait for every fact they consume.
+(def epsilon_local_scan_value_use_candidate
+  ((expressionValue EpsilonExpression) (child EpsilonExpression)
+  (scan EpsilonLocalResolutionScan)) EpsilonLocalResolutionScan
+  (match scan
+    ((EpsilonLocalResolutionScanSyntax catalog references fields callables stateApplications types
+      candidate)
+      (match (epsilon_find_expression_result child types)
+        (NoEpsilonExpressionResult scan)
+        ((OneEpsilonExpressionResult resultValue)
+          (match resultValue
+            ((EpsilonValueExpressionResult typeValue placeType) scan)
+            (EpsilonResultlessExpressionResult
+              (epsilon_local_scan_add_candidate TypeMismatch
+                (epsilon_expression_start expressionValue) scan))
+            (EpsilonNeverExpressionResult
+              (epsilon_local_scan_add_candidate InvalidTerminal
+                (epsilon_expression_start (epsilon_call_head_core child))
+                scan))))))))
+
+(def epsilon_local_scan_index_fact ((expressionValue EpsilonExpression)
+  (base EpsilonExpression) (indexValue EpsilonExpression)
+  (scan EpsilonLocalResolutionScan)) EpsilonLocalResolutionScan
+  (let categoryScan EpsilonLocalResolutionScan
+    (epsilon_local_scan_value_use_candidate expressionValue indexValue
+      (epsilon_local_scan_value_use_candidate expressionValue base
+        scan))
+    (match categoryScan
+    ((EpsilonLocalResolutionScanSyntax catalog references fields callables stateApplications types
+      candidate)
+      (match (epsilon_find_expression_result base types)
+        (NoEpsilonExpressionResult categoryScan)
+        ((OneEpsilonExpressionResult baseResult)
+          (match (epsilon_find_expression_result indexValue types)
+            (NoEpsilonExpressionResult categoryScan)
+            ((OneEpsilonExpressionResult indexResult)
+              (match baseResult
+                ((EpsilonValueExpressionResult baseType basePlace)
+                  (match indexResult
+                    ((EpsilonValueExpressionResult indexType indexPlace)
+                      (if (epsilon_type_is_i32 indexType)
+                        (match baseType
+                          ((EpsilonI32Type start end)
+                            (epsilon_local_scan_add_candidate TypeMismatch
+                              (epsilon_expression_start expressionValue)
+                              categoryScan))
+                          ((EpsilonU8Type start end)
+                            (epsilon_local_scan_add_candidate TypeMismatch
+                              (epsilon_expression_start expressionValue)
+                              categoryScan))
+                          ((EpsilonNeverType start end)
+                            (epsilon_local_scan_add_candidate TypeMismatch
+                              (epsilon_expression_start expressionValue)
+                              categoryScan))
+                          ((EpsilonNamedType start end name)
+                            (epsilon_local_scan_add_candidate TypeMismatch
+                              (epsilon_expression_start expressionValue)
+                              categoryScan))
+                          ((EpsilonArrayType start end element lengthValue)
+                            (epsilon_local_scan_add_value expressionValue
+                              (epsilon_storage_read_type expressionValue element)
+                              (epsilon_projected_place_type basePlace element)
+                              categoryScan))
+                          ((EpsilonViewType start end element)
+                            (epsilon_local_scan_add_value expressionValue
+                              (epsilon_storage_read_type expressionValue element)
+                              NoEpsilonPlaceType categoryScan)))
+                        (epsilon_local_scan_add_candidate TypeMismatch
+                          (epsilon_expression_start expressionValue)
+                          categoryScan)))
+                    (EpsilonResultlessExpressionResult categoryScan)
+                    (EpsilonNeverExpressionResult categoryScan)))
+                (EpsilonResultlessExpressionResult categoryScan)
+                (EpsilonNeverExpressionResult categoryScan))))))))))
+
+(def epsilon_optional_bound_is_i32 ((bound EpsilonOptionalExpression)
+  (types EpsilonTypedExpressionList)) Int
+  (match bound
+    (NoEpsilonExpression 1)
+    ((SomeEpsilonExpression expressionValue)
+      (match (epsilon_find_expression_result expressionValue types)
+        (NoEpsilonExpressionResult 0)
+        ((OneEpsilonExpressionResult resultValue)
+          (match resultValue
+            ((EpsilonValueExpressionResult typeValue placeType)
+              (epsilon_type_is_i32 typeValue))
+            (EpsilonResultlessExpressionResult 0)
+            (EpsilonNeverExpressionResult 0)))))))
+
+(def epsilon_optional_bound_has_value ((bound EpsilonOptionalExpression)
+  (types EpsilonTypedExpressionList)) Int
+  (match bound
+    (NoEpsilonExpression 1)
+    ((SomeEpsilonExpression expressionValue)
+      (match (epsilon_find_expression_result expressionValue types)
+        (NoEpsilonExpressionResult 0)
+        ((OneEpsilonExpressionResult resultValue)
+          (match resultValue
+            ((EpsilonValueExpressionResult typeValue placeType) 1)
+            (EpsilonResultlessExpressionResult 0)
+            (EpsilonNeverExpressionResult 0)))))))
+
+(def epsilon_local_scan_optional_value_use_candidate
+  ((expressionValue EpsilonExpression) (bound EpsilonOptionalExpression)
+  (scan EpsilonLocalResolutionScan)) EpsilonLocalResolutionScan
+  (match bound
+    (NoEpsilonExpression scan)
+    ((SomeEpsilonExpression child)
+      (epsilon_local_scan_value_use_candidate expressionValue child
+        scan))))
+
+(def epsilon_local_scan_slice_fact ((expressionValue EpsilonExpression)
+  (base EpsilonExpression) (low EpsilonOptionalExpression)
+  (high EpsilonOptionalExpression) (scan EpsilonLocalResolutionScan))
+  EpsilonLocalResolutionScan
+  (let categoryScan EpsilonLocalResolutionScan
+    (epsilon_local_scan_optional_value_use_candidate expressionValue
+      high
+      (epsilon_local_scan_optional_value_use_candidate
+        expressionValue low
+        (epsilon_local_scan_value_use_candidate expressionValue base
+          scan)))
+    (match categoryScan
+      ((EpsilonLocalResolutionScanSyntax catalog references fields callables stateApplications types
+        candidate)
+        (match (epsilon_find_expression_result base types)
+          (NoEpsilonExpressionResult categoryScan)
+          ((OneEpsilonExpressionResult baseResult)
+            (match baseResult
+              ((EpsilonValueExpressionResult baseType basePlace)
+                (if (epsilon_optional_bound_has_value low types)
+                  (if (epsilon_optional_bound_has_value high types)
+                    (if (epsilon_optional_bound_is_i32 low types)
+                      (if (epsilon_optional_bound_is_i32 high types)
+                        (match baseType
+                          ((EpsilonI32Type start end)
+                            (epsilon_local_scan_add_candidate TypeMismatch
+                              (epsilon_expression_start expressionValue)
+                              categoryScan))
+                          ((EpsilonU8Type start end)
+                            (epsilon_local_scan_add_candidate TypeMismatch
+                              (epsilon_expression_start expressionValue)
+                              categoryScan))
+                          ((EpsilonNeverType start end)
+                            (epsilon_local_scan_add_candidate TypeMismatch
+                              (epsilon_expression_start expressionValue)
+                              categoryScan))
+                          ((EpsilonNamedType start end name)
+                            (epsilon_local_scan_add_candidate TypeMismatch
+                              (epsilon_expression_start expressionValue)
+                              categoryScan))
+                          ((EpsilonArrayType start end element lengthValue)
+                            (epsilon_local_scan_add_value expressionValue
+                              (epsilon_expression_view_type expressionValue
+                                element)
+                              NoEpsilonPlaceType categoryScan))
+                          ((EpsilonViewType start end element)
+                            (epsilon_local_scan_add_value expressionValue
+                              (epsilon_expression_view_type expressionValue
+                                element)
+                              NoEpsilonPlaceType categoryScan)))
+                        (epsilon_local_scan_add_candidate TypeMismatch
+                          (epsilon_expression_start expressionValue)
+                          categoryScan))
+                      (epsilon_local_scan_add_candidate TypeMismatch
+                        (epsilon_expression_start expressionValue) categoryScan))
+                    categoryScan)
+                  categoryScan))
+              (EpsilonResultlessExpressionResult categoryScan)
+              (EpsilonNeverExpressionResult categoryScan))))))))

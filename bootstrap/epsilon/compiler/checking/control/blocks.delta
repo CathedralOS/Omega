@@ -1,0 +1,128 @@
+
+(def epsilon_resolve_state_body_locals ((source Bytes)
+  (bodyValue EpsilonStateBody) (active EpsilonLocalBindingList)
+  (machineValue EpsilonDeclaration) (returnType EpsilonOptionalType)
+  (scan EpsilonLocalResolutionScan)) EpsilonLocalResolutionScan
+  (match bodyValue
+    ((EpsilonStateBodySyntax start end statements terminalValue)
+      (match (epsilon_resolve_local_statements source statements active
+        (epsilon_collect_pending_lets statements NoEpsilonLocalBindings) scan)
+        ((EpsilonLocalBlockScanSyntax finalActive finalPending flow nextScan)
+          (epsilon_local_scan_terminal_block_exits source terminalValue end
+            returnType flow
+            (epsilon_resolve_local_terminal source terminalValue finalActive
+                machineValue returnType flow
+              (epsilon_local_scan_terminal_after_never
+                terminalValue flow nextScan))))))))
+
+(def epsilon_resolve_state_locals ((source Bytes) (stateValue EpsilonState)
+  (machineValue EpsilonDeclaration) (machineBindings EpsilonLocalBindingList)
+  (returnType EpsilonOptionalType) (scan EpsilonLocalResolutionScan))
+  EpsilonLocalResolutionScan
+  (match stateValue
+    ((EpsilonStateSyntax start end name parameters bodyValue)
+      (epsilon_resolve_state_body_locals source bodyValue
+        (epsilon_add_state_parameter_bindings parameters machineBindings)
+        machineValue returnType scan))))
+
+(def epsilon_resolve_states_locals ((source Bytes) (states EpsilonStateList)
+  (machineValue EpsilonDeclaration) (machineBindings EpsilonLocalBindingList)
+  (returnType EpsilonOptionalType) (scan EpsilonLocalResolutionScan))
+  EpsilonLocalResolutionScan
+  (match states
+    (NoEpsilonStates scan)
+    ((MoreEpsilonStates item rest)
+      (epsilon_resolve_states_locals source rest machineValue machineBindings
+        returnType
+        (epsilon_resolve_state_locals source item machineValue machineBindings
+          returnType scan)))))
+
+(def epsilon_resolve_machine_body_locals ((source Bytes)
+  (bodyValue EpsilonMachineBody) (machineValue EpsilonDeclaration)
+  (machineBindings EpsilonLocalBindingList) (returnType EpsilonOptionalType)
+  (scan EpsilonLocalResolutionScan)) EpsilonLocalResolutionScan
+  (match bodyValue
+    ((EpsilonMachineBodySyntax start end statements terminalValue states)
+      (match (epsilon_resolve_local_statements source statements machineBindings
+        (epsilon_collect_pending_lets statements NoEpsilonLocalBindings) scan)
+        ((EpsilonLocalBlockScanSyntax finalActive finalPending flow nextScan)
+          (epsilon_resolve_states_locals source states machineValue
+            machineBindings returnType
+            (epsilon_local_scan_terminal_block_exits source terminalValue end
+              returnType flow
+              (epsilon_resolve_local_terminal source terminalValue finalActive
+                machineValue returnType flow
+                (epsilon_local_scan_terminal_after_never
+                  terminalValue flow nextScan)))))))))
+
+(def epsilon_resolve_catalog_declaration_locals ((source Bytes)
+  (row EpsilonCatalogDeclaration) (scan EpsilonLocalResolutionScan))
+  EpsilonLocalResolutionScan
+  (match row
+    ((EpsilonCatalogBoundaryDeclaration declarationValue) scan)
+    ((EpsilonCatalogDataDeclaration declarationValue shape) scan)
+    ((EpsilonCatalogMachineDeclaration declarationValue owner)
+      (match declarationValue
+        ((EpsilonBoundaryDeclaration start end name machines) scan)
+        ((EpsilonDataDeclaration start end name members) scan)
+        ((EpsilonMachineDeclaration start end name inputs returnType bodyValue)
+          (epsilon_resolve_machine_body_locals source bodyValue declarationValue
+            (epsilon_add_catalog_machine_receiver_binding declarationValue owner
+              (epsilon_add_machine_parameter_bindings
+                (epsilon_machine_input_parameters inputs)
+                NoEpsilonLocalBindings))
+            returnType scan))))))
+
+(def epsilon_resolve_catalog_declarations_locals ((source Bytes)
+  (rows EpsilonCatalogDeclarationList) (scan EpsilonLocalResolutionScan))
+  EpsilonLocalResolutionScan
+  (match rows
+    (NoEpsilonCatalogDeclarations scan)
+    ((MoreEpsilonCatalogDeclarations item rest)
+      (epsilon_resolve_catalog_declarations_locals source rest
+        (epsilon_resolve_catalog_declaration_locals source item scan)))))
+
+(def epsilon_resolve_cataloged_locals ((source Bytes)
+  (cataloged EpsilonCatalogedProgram)) EpsilonLocallyResolvedProgram
+  (match cataloged
+    ((EpsilonCatalogedProgramSyntax formed catalogState)
+      (match catalogState
+        ((EpsilonCatalogStateSyntax catalog candidate)
+          (match formed
+            ((EpsilonFormedProgramSyntax collected shapes valueEdges)
+              (match collected
+                ((EpsilonCollectedProgramSyntax program owners machines)
+                  (match program
+                    ((EpsilonSyntaxProgram start end declarations)
+                      (match catalog
+                        ((EpsilonResolutionCatalogSyntax rows)
+                          (match
+                            (epsilon_resolve_catalog_declarations_locals source
+                              rows
+                              (EpsilonLocalResolutionScanSyntax
+                                catalog
+                                NoEpsilonResolvedLocalReferences
+                                NoEpsilonResolvedFieldReferences
+                                NoEpsilonResolvedCallableReferences
+                                (EpsilonControlReferenceLedgerSyntax
+                                  NoEpsilonStateApplicationReferences
+                                  NoEpsilonTransitionSubjectReferences
+                                  NoEpsilonTransitionPatternReferences
+                                  NoEpsilonTransitionCoverageReferences)
+                                NoEpsilonTypedExpressions candidate))
+                            ((EpsilonLocalResolutionScanSyntax finalCatalog
+                              references fields callables stateApplications
+                              types finalCandidate)
+                              (EpsilonLocallyResolvedProgramSyntax cataloged
+                                (epsilon_reverse_resolved_local_references
+                                  references
+                                  NoEpsilonResolvedLocalReferences)
+                                (epsilon_reverse_resolved_field_references fields
+                                  NoEpsilonResolvedFieldReferences)
+                                (epsilon_reverse_resolved_callable_references
+                                  callables NoEpsilonResolvedCallableReferences)
+                                (epsilon_reverse_control_references
+                                  stateApplications)
+                                (epsilon_reverse_typed_expressions types
+                                  NoEpsilonTypedExpressions)
+                                finalCandidate))))))))))))))))

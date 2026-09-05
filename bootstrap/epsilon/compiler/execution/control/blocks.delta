@@ -1,0 +1,22 @@
+
+(def epsilon_evaluate_block ((context EpsilonEvaluatorInvocation)
+  (statements EpsilonStatementList) (terminalValue EpsilonOptionalTerminal)
+  (locals EpsilonEvaluatorLocalValueList)
+  (fields EpsilonEvaluatorFieldValueList) (output Bytes))
+  EpsilonEvaluatorBlockOutcome
+  (match (epsilon_evaluate_statements context statements locals fields output)
+    ((EpsilonEvaluatorBlockFalloff nextLocals nextFields nextOutput)
+      (match terminalValue
+        (NoEpsilonTerminal
+          (EpsilonEvaluatorBlockFalloff nextLocals nextFields nextOutput))
+        ((SomeEpsilonTerminal terminal)
+          (epsilon_evaluate_terminal context terminal nextLocals nextFields
+            nextOutput))))
+    ((EpsilonEvaluatorBlockTransfer stateValue nextLocals nextFields nextOutput)
+      (EpsilonEvaluatorBlockTransfer stateValue nextLocals nextFields nextOutput))
+    ((EpsilonEvaluatorBlockExit code nextOutput)
+      (EpsilonEvaluatorBlockExit code nextOutput))
+    ((EpsilonEvaluatorBlockTrap kind nextOutput)
+      (EpsilonEvaluatorBlockTrap kind nextOutput))
+    ((EpsilonEvaluatorBlockInternal offset) (EpsilonEvaluatorBlockInternal offset))
+    (EpsilonEvaluatorBlockUnsupported EpsilonEvaluatorBlockUnsupported)))

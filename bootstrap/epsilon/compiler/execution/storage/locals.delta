@@ -1,0 +1,115 @@
+
+(def epsilon_evaluator_statements_same_identity ((left EpsilonStatement)
+  (right EpsilonStatement)) Int
+  (if (eq (epsilon_statement_start left) (epsilon_statement_start right))
+    (eq (epsilon_statement_end left) (epsilon_statement_end right))
+    0))
+
+(def epsilon_evaluate_let_value ((target EpsilonStatement)
+  (locals EpsilonEvaluatorLocalValueList)) EpsilonEvaluatorScalar
+  (match locals
+    (NoEpsilonEvaluatorLocalValues NoEpsilonEvaluatorScalar)
+    ((MoreEpsilonEvaluatorLocalValues item rest)
+      (match item
+        ((EpsilonEvaluatorLetValue statementValue value)
+          (if (epsilon_evaluator_statements_same_identity target statementValue)
+            (OneEpsilonEvaluatorScalar value)
+            (epsilon_evaluate_let_value target rest)))
+        ((EpsilonEvaluatorParameterValue parameterValue value)
+          (epsilon_evaluate_let_value target rest))))))
+
+(def epsilon_evaluate_parameter_value ((target EpsilonParameter)
+  (locals EpsilonEvaluatorLocalValueList)) EpsilonEvaluatorScalar
+  (match locals
+    (NoEpsilonEvaluatorLocalValues NoEpsilonEvaluatorScalar)
+    ((MoreEpsilonEvaluatorLocalValues item rest)
+      (match item
+        ((EpsilonEvaluatorLetValue statementValue value)
+          (epsilon_evaluate_parameter_value target rest))
+        ((EpsilonEvaluatorParameterValue parameterValue value)
+          (if (if (eq (epsilon_parameter_start target)
+                      (epsilon_parameter_start parameterValue))
+                (eq (epsilon_parameter_end target)
+                  (epsilon_parameter_end parameterValue))
+                0)
+            (OneEpsilonEvaluatorScalar value)
+            (epsilon_evaluate_parameter_value target rest)))))))
+
+(def epsilon_evaluator_local_homes_same_identity
+  ((left EpsilonEvaluatorLocalValue) (right EpsilonEvaluatorLocalValue)) Int
+  (match left
+    ((EpsilonEvaluatorLetValue leftStatement leftValue)
+      (match right
+        ((EpsilonEvaluatorLetValue rightStatement rightValue)
+          (epsilon_evaluator_statements_same_identity leftStatement rightStatement))
+        ((EpsilonEvaluatorParameterValue rightParameter rightValue) 0)))
+    ((EpsilonEvaluatorParameterValue leftParameter leftValue)
+      (match right
+        ((EpsilonEvaluatorLetValue rightStatement rightValue) 0)
+        ((EpsilonEvaluatorParameterValue rightParameter rightValue)
+          (if (eq (epsilon_parameter_start leftParameter)
+                  (epsilon_parameter_start rightParameter))
+            (eq (epsilon_parameter_end leftParameter)
+              (epsilon_parameter_end rightParameter))
+            0))))))
+
+; A store replaces an established declaration home, never a same-spelled name
+; or an uninitialized slot. Rebuild the prefix without changing other homes.
+(def epsilon_evaluator_replace_local_home ((replacement EpsilonEvaluatorLocalValue)
+  (locals EpsilonEvaluatorLocalValueList)) EpsilonEvaluatorLocalAssignmentOutcome
+  (match locals
+    (NoEpsilonEvaluatorLocalValues EpsilonEvaluatorLocalAssignmentMissing)
+    ((MoreEpsilonEvaluatorLocalValues item rest)
+      (if (epsilon_evaluator_local_homes_same_identity replacement item)
+        (EpsilonEvaluatorLocalAssignmentUpdated
+          (MoreEpsilonEvaluatorLocalValues replacement rest))
+        (match (epsilon_evaluator_replace_local_home replacement rest)
+          (EpsilonEvaluatorLocalAssignmentUnsupported
+            EpsilonEvaluatorLocalAssignmentUnsupported)
+          (EpsilonEvaluatorLocalAssignmentMissing
+            EpsilonEvaluatorLocalAssignmentMissing)
+          ((EpsilonEvaluatorLocalAssignmentUpdated nextRest)
+            (EpsilonEvaluatorLocalAssignmentUpdated
+              (MoreEpsilonEvaluatorLocalValues item nextRest))))))))
+
+(def epsilon_evaluator_assign_local ((expressionValue EpsilonExpression)
+  (value Int) (references EpsilonResolvedLocalReferenceList)
+  (locals EpsilonEvaluatorLocalValueList)) EpsilonEvaluatorLocalAssignmentOutcome
+  (match (epsilon_find_resolved_local_reference expressionValue references)
+    (NoEpsilonResolvedLocalReference EpsilonEvaluatorLocalAssignmentMissing)
+    ((OneEpsilonResolvedLocalReference bindingValue)
+      (match bindingValue
+        ((EpsilonLetLocal name typeValue statementValue)
+          (if (epsilon_type_is_i32 typeValue)
+            (epsilon_evaluator_replace_local_home
+              (EpsilonEvaluatorLetValue statementValue value) locals)
+            EpsilonEvaluatorLocalAssignmentUnsupported))
+        ((EpsilonStateParameterLocal parameterValue)
+          (match parameterValue
+            ((EpsilonParameterSyntax start end name typeValue)
+              (if (epsilon_type_is_i32 typeValue)
+                (epsilon_evaluator_replace_local_home
+                  (EpsilonEvaluatorParameterValue parameterValue value) locals)
+                EpsilonEvaluatorLocalAssignmentUnsupported))))
+        ((EpsilonReceiverLocal name typeValue)
+          EpsilonEvaluatorLocalAssignmentUnsupported)
+        ((EpsilonMachineParameterLocal parameterValue)
+          EpsilonEvaluatorLocalAssignmentUnsupported)
+        ((EpsilonTransitionBinderLocal patternValue name)
+          EpsilonEvaluatorLocalAssignmentUnsupported)))))
+
+(def epsilon_evaluate_resolved_local_scalar ((expressionValue EpsilonExpression)
+  (references EpsilonResolvedLocalReferenceList)
+  (locals EpsilonEvaluatorLocalValueList)) EpsilonEvaluatorScalar
+  (match (epsilon_find_resolved_local_reference expressionValue references)
+    (NoEpsilonResolvedLocalReference NoEpsilonEvaluatorScalar)
+    ((OneEpsilonResolvedLocalReference bindingValue)
+      (match bindingValue
+        ((EpsilonLetLocal name typeValue statementValue)
+          (epsilon_evaluate_let_value statementValue locals))
+        ((EpsilonReceiverLocal name typeValue) NoEpsilonEvaluatorScalar)
+        ((EpsilonMachineParameterLocal parameterValue) NoEpsilonEvaluatorScalar)
+        ((EpsilonStateParameterLocal parameterValue)
+          (epsilon_evaluate_parameter_value parameterValue locals))
+        ((EpsilonTransitionBinderLocal patternValue name)
+          NoEpsilonEvaluatorScalar)))))

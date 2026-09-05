@@ -52,9 +52,10 @@ list or repeat target host/boundary policy; exact
 multi-target requests fan out into independently checked child compilations.
 
 The manifest, not directory enumeration or path order, selects and orders D's
-members. `tools/bootstrap/epsilon/materialize_source_closure.py` validates every
-declared length, digest, source byte, path, and strictly increasing stable
-identity before concatenating bytes without separators. The current six-member
+members. `tools/bootstrap/source_closure.py` validates every
+declared length, digest, source byte, path, strictly increasing stable
+identity, and exact source inventory before concatenating bytes without separators.
+The current six-member
 manifest materializes 13,572 lines / 464,741 bytes with SHA-256
 `621f507b214f0f26ba3c9d4d36a1bb54a26bdeecbcdffcc24a2cb1a266ab8cde`.
 The six authoring files preserve one Epsilon translation unit and its packed

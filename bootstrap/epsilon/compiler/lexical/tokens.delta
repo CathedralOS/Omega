@@ -1,0 +1,227 @@
+
+; ---- allocation-free syntax-token rescan -------------------------------
+;
+; These scalar helpers are called only after LexicallyValid. A parser keeps a
+; source cursor, skips trivia to the next start (or source extent at EOF), and
+; rescans code, end, or literal value as needed. No token fact enters the
+; immutable Delta heap and no coordinate is packed into a narrower integer.
+
+(def epsilon_span_is_1 ((source Bytes) (start Int) (end Int) (a Int)) Int
+  (if (eq (- end start) 1) (eq (bytes_get source start) a) 0))
+
+(def epsilon_span_is_2 ((source Bytes) (start Int) (end Int) (a Int) (b Int)) Int
+  (if (eq (- end start) 2)
+    (if (eq (bytes_get source start) a) (eq (bytes_get source (+ start 1)) b) 0)
+    0))
+
+(def epsilon_span_is_3 ((source Bytes) (start Int) (end Int) (a Int) (b Int) (c Int)) Int
+  (if (eq (- end start) 3)
+    (if (epsilon_span_is_2 source start (+ start 2) a b) (eq (bytes_get source (+ start 2)) c) 0)
+    0))
+
+(def epsilon_span_is_4 ((source Bytes) (start Int) (end Int) (a Int) (b Int) (c Int) (d Int)) Int
+  (if (eq (- end start) 4)
+    (if (epsilon_span_is_3 source start (+ start 3) a b c) (eq (bytes_get source (+ start 3)) d) 0)
+    0))
+
+(def epsilon_span_is_5 ((source Bytes) (start Int) (end Int) (a Int) (b Int) (c Int) (d Int) (e Int)) Int
+  (if (eq (- end start) 5)
+    (if (epsilon_span_is_4 source start (+ start 4) a b c d) (eq (bytes_get source (+ start 4)) e) 0)
+    0))
+
+(def epsilon_span_is_6 ((source Bytes) (start Int) (end Int) (a Int) (b Int) (c Int) (d Int) (e Int) (f Int)) Int
+  (if (eq (- end start) 6)
+    (if (epsilon_span_is_5 source start (+ start 5) a b c d e) (eq (bytes_get source (+ start 5)) f) 0)
+    0))
+
+(def epsilon_span_is_7 ((source Bytes) (start Int) (end Int) (a Int) (b Int) (c Int) (d Int) (e Int) (f Int) (g Int)) Int
+  (if (eq (- end start) 7)
+    (if (epsilon_span_is_6 source start (+ start 6) a b c d e f) (eq (bytes_get source (+ start 6)) g) 0)
+    0))
+
+(def epsilon_span_is_8 ((source Bytes) (start Int) (end Int) (a Int) (b Int) (c Int) (d Int) (e Int) (f Int) (g Int) (h Int)) Int
+  (if (eq (- end start) 8)
+    (if (epsilon_span_is_7 source start (+ start 7) a b c d e f g) (eq (bytes_get source (+ start 7)) h) 0)
+    0))
+
+(def epsilon_span_is_10 ((source Bytes) (start Int) (end Int) (a Int) (b Int) (c Int) (d Int) (e Int) (f Int) (g Int) (h Int) (i Int) (j Int)) Int
+  (if (eq (- end start) 10)
+    (if (epsilon_span_is_8 source start (+ start 8) a b c d e f g h)
+      (if (eq (bytes_get source (+ start 8)) i) (eq (bytes_get source (+ start 9)) j) 0)
+      0)
+    0))
+
+(def epsilon_keyword_code ((source Bytes) (start Int) (end Int)) Int
+  (if (epsilon_span_is_8 source start end 98 111 117 110 100 97 114 121) 10
+    (if (epsilon_span_is_5 source start end 116 114 97 105 116) 11
+      (if (epsilon_span_is_4 source start end 100 97 116 97) 12
+        (if (epsilon_span_is_4 source start end 99 97 115 101) 13
+          (if (epsilon_span_is_7 source start end 109 97 99 104 105 110 101) 14
+            (if (epsilon_span_is_5 source start end 115 116 97 116 101) 15
+              (if (epsilon_span_is_10 source start end 116 114 97 110 115 105 116 105 111 110) 16
+                (if (epsilon_span_is_3 source start end 108 101 116) 17
+                  (if (epsilon_span_is_6 source start end 114 101 116 117 114 110) 18
+                    (if (epsilon_span_is_6 source start end 97 115 115 101 114 116) 19
+                      (if (epsilon_span_is_4 source start end 116 114 117 101) 20
+                        (if (epsilon_span_is_5 source start end 102 97 108 115 101) 21
+                          (if (epsilon_span_is_4 source start end 115 101 108 102) 22
+                            (if (epsilon_span_is_3 source start end 109 117 116) 23
+                              (if (epsilon_span_is_3 source start end 105 51 50) 24
+                                (if (epsilon_span_is_2 source start end 117 56) 25
+                                  (if (epsilon_span_is_5 source start end 110 101 118 101 114) 26 1))))))))))))))))))
+
+(def epsilon_skip_comment ((source Bytes) (index Int) (length Int)) Int
+  (if (eq index length)
+    length
+    (let commentByte Int (bytes_get source index)
+      (if (eq commentByte 10)
+        (epsilon_token_start source index)
+        (if (eq commentByte 13)
+          (epsilon_token_start source index)
+          (epsilon_skip_comment source (+ index 1) length))))))
+
+(def epsilon_token_start ((source Bytes) (index Int)) Int
+  (let length Int (bytes_length source)
+    (if (eq index length)
+      length
+      (let startByte Int (bytes_get source index)
+        (if (is_space startByte)
+          (epsilon_token_start source (+ index 1))
+          (if (eq startByte 47)
+            (if (next_is source index length 47)
+              (epsilon_skip_comment source (+ index 2) length)
+              index)
+            index))))))
+
+(def epsilon_identifier_end ((source Bytes) (index Int) (length Int)) Int
+  (if (eq index length)
+    length
+    (if (is_ident_continue (bytes_get source index))
+      (epsilon_identifier_end source (+ index 1) length)
+      index)))
+
+(def epsilon_number_end ((source Bytes) (index Int) (length Int)) Int
+  (if (eq index length)
+    length
+    (if (is_digit (bytes_get source index))
+      (epsilon_number_end source (+ index 1) length)
+      index)))
+
+(def epsilon_string_end ((source Bytes) (index Int)) Int
+  (let stringByte Int (bytes_get source index)
+    (if (eq stringByte 34)
+      (+ index 1)
+      (if (eq stringByte 92)
+        (if (eq (bytes_get source (+ index 1)) 120)
+          (epsilon_string_end source (+ index 4))
+          (epsilon_string_end source (+ index 2)))
+        (epsilon_string_end source (+ index 1))))))
+
+(def epsilon_character_end ((source Bytes) (start Int)) Int
+  (if (eq (bytes_get source (+ start 1)) 92)
+    (if (eq (bytes_get source (+ start 2)) 120) (+ start 6) (+ start 4))
+    (+ start 3)))
+
+(def epsilon_operator_end ((source Bytes) (start Int) (length Int) (operatorByte Int)) Int
+  (if (eq operatorByte 58)
+    (if (next_is source start length 58) (+ start 2) (+ start 1))
+    (if (eq operatorByte 45)
+      (if (next_is source start length 62) (+ start 2) (+ start 1))
+      (if (eq operatorByte 38)
+        (if (next_is source start length 38) (+ start 2) (+ start 1))
+        (if (eq operatorByte 124)
+          (if (next_is source start length 124) (+ start 2) (+ start 1))
+          (if (eq operatorByte 61)
+            (if (next_is source start length 61) (+ start 2) (+ start 1))
+            (if (eq operatorByte 33) (+ start 2)
+              (if (eq operatorByte 60)
+                (if (next_is source start length 61) (+ start 2)
+                  (if (next_is source start length 60) (+ start 2) (+ start 1)))
+                (if (eq operatorByte 62)
+                  (if (next_is source start length 61) (+ start 2)
+                    (if (next_is source start length 62) (+ start 2) (+ start 1)))
+                  (if (eq operatorByte 46)
+                    (if (next_is source start length 46) (+ start 2) (+ start 1))
+                    (+ start 1)))))))))))
+
+(def epsilon_token_end ((source Bytes) (start Int)) Int
+  (let length Int (bytes_length source)
+    (if (eq start length)
+      length
+      (let tokenByte Int (bytes_get source start)
+        (if (is_ident_start tokenByte)
+          (epsilon_identifier_end source (+ start 1) length)
+          (if (is_digit tokenByte)
+            (epsilon_number_end source (+ start 1) length)
+            (if (eq tokenByte 34)
+              (epsilon_string_end source (+ start 1))
+              (if (eq tokenByte 39)
+                (epsilon_character_end source start)
+                (epsilon_operator_end source start length tokenByte)))))))))
+
+(def epsilon_operator_code ((source Bytes) (start Int) (length Int) (operatorByte Int)) Int
+  (if (eq operatorByte 123) 30 (if (eq operatorByte 125) 31
+    (if (eq operatorByte 40) 32 (if (eq operatorByte 41) 33
+      (if (eq operatorByte 91) 34 (if (eq operatorByte 93) 35
+        (if (eq operatorByte 59) 36
+          (if (eq operatorByte 58) (if (next_is source start length 58) 43 37)
+            (if (eq operatorByte 44) 38
+              (if (eq operatorByte 46) (if (next_is source start length 46) 44 39)
+                (if (eq operatorByte 38) (if (next_is source start length 38) 46 40)
+                  (if (eq operatorByte 61) (if (next_is source start length 61) 49 41)
+                    (if (eq operatorByte 45) (if (next_is source start length 62) 42 58)
+                      (if (eq operatorByte 124) (if (next_is source start length 124) 45 47)
+                        (if (eq operatorByte 94) 48 (if (eq operatorByte 33) 50
+                          (if (eq operatorByte 60)
+                            (if (next_is source start length 61) 52
+                              (if (next_is source start length 60) 55 51))
+                            (if (eq operatorByte 62)
+                              (if (next_is source start length 61) 54
+                                (if (next_is source start length 62) 56 53))
+                              (if (eq operatorByte 43) 57
+                                (if (eq operatorByte 42) 59
+                                  (if (eq operatorByte 47) 60 61))))))))))))))))))))))
+
+(def epsilon_token_code ((source Bytes) (start Int)) Int
+  (let length Int (bytes_length source)
+    (if (eq start length)
+      0
+      (let tokenByte Int (bytes_get source start)
+        (if (is_ident_start tokenByte)
+          (epsilon_keyword_code source start (epsilon_identifier_end source (+ start 1) length))
+          (if (is_digit tokenByte) 2
+            (if (eq tokenByte 39) 3
+              (if (eq tokenByte 34) 4
+                (epsilon_operator_code source start length tokenByte)))))))))
+
+(def epsilon_hex_value ((c Int)) Int
+  (if (is_digit c) (- c 48)
+    (if (ascii_between c 65 70) (+ (- c 65) 10) (+ (- c 97) 10))))
+
+(def epsilon_escape_value ((c Int)) Int
+  (if (eq c 110) 10 (if (eq c 114) 13 (if (eq c 116) 9 c))))
+
+(def epsilon_character_value ((source Bytes) (opening Int)) Int
+  (let characterByte Int (bytes_get source (+ opening 1))
+    (if (eq characterByte 92)
+      (let escapeByte Int (bytes_get source (+ opening 2))
+        (if (eq escapeByte 120)
+          (+ (* (epsilon_hex_value (bytes_get source (+ opening 3))) 16)
+             (epsilon_hex_value (bytes_get source (+ opening 4))))
+          (epsilon_escape_value escapeByte)))
+      characterByte)))
+
+(def epsilon_number_value ((source Bytes) (index Int) (end Int) (value Int)) Int
+  (if (eq index end)
+    value
+    (epsilon_number_value source (+ index 1) end
+      (+ (* value 10) (- (bytes_get source index) 48)))))
+
+(def epsilon_token_value ((source Bytes) (start Int)) Int
+  (let length Int (bytes_length source)
+    (if (eq start length)
+      0
+      (let tokenByte Int (bytes_get source start)
+        (if (is_digit tokenByte)
+          (epsilon_number_value source start (epsilon_number_end source (+ start 1) length) 0)
+          (if (eq tokenByte 39) (epsilon_character_value source start) 0))))))

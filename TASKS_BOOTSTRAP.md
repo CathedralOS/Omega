@@ -59,8 +59,8 @@ Epsilon evaluator.
 
 ## P3 - Delta to Epsilon
 
-- **EPSILON-EVALUATOR.** Complete
-  `bootstrap/epsilon/compiler/epsilon_compiler.delta` against
+- **EPSILON-EVALUATOR.** Complete the Delta source closure selected by
+  `bootstrap/epsilon/compiler/epsilon_compiler.delta.sources` against
   `bootstrap/epsilon/LANGUAGE.md`, deleting inherited structures with no current
   customer. Finish checking, fixed-storage realization, deterministic
   diagnostics, execution, the evaluator entry, and exact composition with D.
