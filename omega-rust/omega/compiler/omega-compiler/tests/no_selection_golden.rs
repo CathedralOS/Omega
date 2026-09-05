@@ -1,5 +1,8 @@
 //! Golden compatibility firewall for the ordinary optimizer-free build path.
 
+#[path = "fixture_rosters/no_selection_golden.rs"]
+mod fixture_roster;
+
 #[path = "no_selection_golden/acceptance_and_diagnostics.rs"]
 mod acceptance_and_diagnostics;
 #[path = "no_selection_golden/native_artifacts.rs"]

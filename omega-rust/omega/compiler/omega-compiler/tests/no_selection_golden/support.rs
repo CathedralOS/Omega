@@ -24,15 +24,21 @@ pub(super) fn repo_root() -> PathBuf {
 }
 
 pub(super) fn interpreter_canary() -> PathBuf {
-    repo_root().join("tests/omega/pass/host/runtime_write_no_newline_exit")
+    repo_root()
+        .join("tests/omega/pass")
+        .join(super::fixture_roster::RUNTIME_WRITE_NO_NEWLINE_EXIT)
 }
 
 pub(super) fn native_canary() -> PathBuf {
-    repo_root().join("tests/omega/pass/optimizer/no_selection_empty_entry")
+    repo_root()
+        .join("tests/omega/pass")
+        .join(super::fixture_roster::NO_SELECTION_EMPTY_ENTRY)
 }
 
 pub(super) fn fail_canary() -> PathBuf {
-    repo_root().join("tests/omega/fail/optimizer/no_selection_wrong_arity")
+    repo_root()
+        .join("tests/omega/fail")
+        .join(super::fixture_roster::NO_SELECTION_WRONG_ARITY)
 }
 
 pub(super) fn golden_for_target(target: &str) -> String {
