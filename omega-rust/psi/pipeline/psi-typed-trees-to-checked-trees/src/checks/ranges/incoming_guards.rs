@@ -699,6 +699,13 @@ pub(super) fn seed_incoming_guard_facts(
     incoming: &[IncomingGuard],
 ) {
     for entry in incoming.iter().filter(|entry| entry.state == state.symbol) {
+        // RangeFacts still keys its scalar relations by display labels. A
+        // foreign state parameter with the same spelling is not the same
+        // value. Parameter facts cross named edges through state_arguments;
+        // only shared machine storage may use this raw-expression shortcut.
+        if !guard_uses_machine_storage_only(program, machine, entry.guard) {
+            continue;
+        }
         if entry.negated {
             seed_negated_guard_facts(program, facts, entry.guard);
         } else {
@@ -714,5 +721,32 @@ pub(super) fn seed_incoming_guard_facts(
                 entry.guard,
             );
         }
+    }
+}
+
+fn guard_uses_machine_storage_only(
+    program: &psi_typed_trees::TypedTrees,
+    machine: &Machine,
+    expression: ExpressionHandle,
+) -> bool {
+    let eligible = |expression| guard_uses_machine_storage_only(program, machine, expression);
+    match program.expression_table.expression(expression) {
+        ExpressionNode::Name(_) => {
+            crate::flow::canonical_place_from_expression(program, expression).is_some_and(|place| {
+                crate::flow::normalized_event_place_root(program, place.root)
+                    == psi_facts::PlaceRoot::Symbol(machine.symbol)
+            })
+        }
+        ExpressionNode::Member(member) => eligible(member.receiver),
+        ExpressionNode::Indexed(indexed) => eligible(indexed.collection) && eligible(indexed.index),
+        ExpressionNode::Binary(binary) => eligible(binary.left) && eligible(binary.right),
+        ExpressionNode::Unary(unary) => eligible(unary.operand),
+        ExpressionNode::Cast(cast) => eligible(cast.value),
+        ExpressionNode::Borrow(borrow) => eligible(borrow.target),
+        ExpressionNode::Integer(_)
+        | ExpressionNode::Boolean(_)
+        | ExpressionNode::Float(_)
+        | ExpressionNode::String(_) => true,
+        _ => false,
     }
 }

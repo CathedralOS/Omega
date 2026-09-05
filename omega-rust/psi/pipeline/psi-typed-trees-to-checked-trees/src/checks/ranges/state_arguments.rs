@@ -11,6 +11,13 @@ use super::seed_machine_requires;
 
 use self::statements::collect_state_argument_facts_from_statement;
 
+struct StateArgumentContext<'program, 'frames> {
+    program: &'program psi_typed_trees::TypedTrees,
+    machine: &'program Machine,
+    state: &'program State,
+    call_frames: Option<&'frames psi_validation::CallFrameResolver<'program>>,
+}
+
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub(super) struct StateArgumentFacts {
     state: SymbolHandle,
@@ -24,6 +31,8 @@ struct ParameterFacts {
     name: String,
     is_self: bool,
     length: MergedFact<usize>,
+    /// A floor shared by all incoming collection values, not an exact extent.
+    minimum_length: MergedBound,
     integer: MergedFact<i64>,
     /// The tightest EXCLUSIVE upper bound every incoming edge proves for
     /// this parameter's argument (R4 transport: an ensures-bounded value
@@ -42,6 +51,14 @@ enum MergedBound {
 }
 
 impl MergedBound {
+    fn merge_lower(&mut self, value: Option<i64>) {
+        *self = match (*self, value) {
+            (Self::Unseen, Some(bound)) => Self::Known(bound),
+            (Self::Known(existing), Some(bound)) => Self::Known(existing.min(bound)),
+            (_, None) | (Self::Unbounded, _) => Self::Unbounded,
+        };
+    }
+
     fn merge(&mut self, value: Option<i64>) {
         *self = match (*self, value) {
             (Self::Unseen, Some(bound)) => Self::Known(bound),
@@ -81,7 +98,7 @@ impl<T: Copy + Eq> MergedFact<T> {
     fn merge(&mut self, value: Option<T>) {
         match (*self, value) {
             (Self::Unseen, Some(value)) => *self = Self::Known(value),
-            (Self::Unseen | Self::Known(_), None) => {}
+            (Self::Unseen | Self::Known(_), None) => *self = Self::Conflicting,
             (Self::Known(existing), Some(value)) if existing == value => {}
             (Self::Known(_), Some(_)) | (Self::Conflicting, _) => *self = Self::Conflicting,
         }
@@ -97,10 +114,6 @@ impl<T: Copy + Eq> MergedFact<T> {
 
 impl MergedIndexProofs {
     fn merge(&mut self, incoming: Vec<ParameterIndexProof>) {
-        if incoming.is_empty() {
-            return;
-        }
-
         let Some(existing) = &mut self.proofs else {
             self.proofs = Some(incoming);
             return;
@@ -114,16 +127,15 @@ impl MergedIndexProofs {
     }
 }
 
-/// Bound on the number of propagation passes. Each pass can only move a
-/// `MergedFact` monotonically (`Unseen -> Known -> Conflicting`), so the
-/// computation is guaranteed to reach a fixpoint; the cap is a defensive guard
-/// against any future non-monotonic change introducing a cycle.
+/// A defensive bound, not proof of convergence. No inferred argument facts
+/// are published if any contribution remains unsettled when it is reached.
 const MAX_PROPAGATION_PASSES: usize = 64;
 
-pub(super) fn collect_state_argument_facts(
-    program: &psi_typed_trees::TypedTrees,
+pub(super) fn collect_state_argument_facts<'program>(
+    program: &'program psi_typed_trees::TypedTrees,
     field_lengths: &[(SymbolHandle, String, usize)],
-    machine: &Machine,
+    machine: &'program Machine,
+    call_frames: Option<&psi_validation::CallFrameResolver<'program>>,
 ) -> Vec<StateArgumentFacts> {
     // Facts about a state's arguments are derived from the call/transition
     // sites that target it. On a recursive or cyclic control-flow path the
@@ -132,28 +144,53 @@ pub(super) fn collect_state_argument_facts(
     // that only become available once the current state's own parameters have
     // been constrained by its incoming edges.
     //
-    // To propagate facts around recursion and cycles we iterate to a fixpoint:
-    // before analysing a state's outgoing arguments we seed the working facts
-    // with everything already known about that state's own parameters (its
-    // incoming-edge facts). Repeating until nothing changes lets a bound flow
-    // forward across each cyclic edge.
+    // Unreached states contribute no edge yet; a reached state with no proof
+    // contributes an unknown value / empty proof set. Keeping those separate
+    // allows a real entry edge to establish a recursive invariant without
+    // ignoring an unbounded reachable predecessor. Each pass rebuilds all
+    // contributions so provisional facts cannot survive later weakening.
+    let Some(entry) = program.machine_states(machine).first() else {
+        return Vec::new();
+    };
     let mut collected: Vec<StateArgumentFacts> = Vec::new();
 
     for _ in 0..MAX_PROPAGATION_PASSES {
-        let previous = collected.clone();
+        let previous = std::mem::take(&mut collected);
 
         for state in program.machine_states(machine) {
+            if state.symbol != entry.symbol
+                && !previous
+                    .iter()
+                    .any(|incoming| incoming.state == state.symbol)
+            {
+                continue;
+            }
+            let context = StateArgumentContext {
+                program,
+                machine,
+                state,
+                call_frames,
+            };
             let mut facts = RangeFacts::new(field_lengths);
+            for parameter in program.state_parameters(state) {
+                facts.define_local(
+                    parameter.symbol,
+                    parameter.name.to_string(),
+                    super::arrays::fixed_array_type_length(program, parameter.type_reference),
+                    None,
+                );
+            }
             seed_machine_requires(program, &mut facts, machine);
             // Seed the source state's own parameter facts gathered so far so
             // that arguments derived from them (e.g. `remaining - 1`) carry the
             // refined bound into the cyclic callee on this pass.
-            seed_state_argument_facts(&mut facts, state, &previous);
+            if state.symbol != entry.symbol {
+                seed_state_argument_facts(&mut facts, state, &previous);
+            }
 
             for statement in program.statement_table.statements(state.statement_nodes) {
                 collect_state_argument_facts_from_statement(
-                    program,
-                    machine,
+                    &context,
                     &mut facts,
                     statement,
                     &mut collected,
@@ -161,12 +198,15 @@ pub(super) fn collect_state_argument_facts(
             }
         }
 
+        // The machine head is callable with every argument its declaration
+        // permits. Internal recursion cannot narrow that external entry set.
+        collected.retain(|incoming| incoming.state != entry.symbol);
         if collected == previous {
-            break;
+            return collected;
         }
     }
 
-    collected
+    Vec::new()
 }
 
 pub(super) fn seed_state_argument_facts(
@@ -187,6 +227,9 @@ pub(super) fn seed_state_argument_facts(
         );
         if let Some(bound) = parameter.upper_bound.get() {
             facts.prove_index_upper_bound(parameter.name.clone(), bound);
+        }
+        if let Some(minimum) = parameter.minimum_length.get() {
+            facts.prove_minimum_length(parameter.name.clone(), minimum);
         }
     }
 

@@ -258,7 +258,7 @@ impl RangeFacts<'_> {
         self.minimum_lengths.push((collection, minimum_length));
     }
 
-    fn minimum_length(&self, collection: &str) -> Option<i64> {
+    pub(in crate::checks::ranges) fn minimum_length(&self, collection: &str) -> Option<i64> {
         self.minimum_lengths
             .iter()
             .find_map(|(known_collection, minimum_length)| {

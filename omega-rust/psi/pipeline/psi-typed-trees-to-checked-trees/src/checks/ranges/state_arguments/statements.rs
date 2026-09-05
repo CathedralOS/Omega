@@ -1,9 +1,8 @@
-use psi_typed_trees::machine::Machine;
 use psi_typed_trees::statement::{StatementNode, TransitionTargetNode};
 
-use super::StateArgumentFacts;
 use super::calls::collect_state_argument_facts_for_call;
 use super::expressions::collect_state_argument_facts_from_expression;
+use super::{StateArgumentContext, StateArgumentFacts};
 use crate::checks::ranges::arrays::fixed_array_type_length;
 use crate::checks::ranges::expressions::{
     expression_indexable_length, expression_integer_value, expression_name,
@@ -13,15 +12,28 @@ use crate::checks::ranges::guards;
 use psi_typed_trees::expression::{ExpressionHandle, ExpressionNode};
 
 pub(super) fn collect_state_argument_facts_from_statement(
-    program: &psi_typed_trees::TypedTrees,
-    machine: &Machine,
+    context: &StateArgumentContext<'_, '_>,
     facts: &mut RangeFacts<'_>,
     statement: &StatementNode,
     collected: &mut Vec<StateArgumentFacts>,
 ) {
+    let program = context.program;
+    let machine = context.machine;
     match statement {
         StatementNode::AssemblyFact(_) => {}
         StatementNode::Assignment(assignment) => {
+            collect_state_argument_facts_from_expression(
+                context,
+                facts,
+                assignment.target,
+                collected,
+            );
+            collect_state_argument_facts_from_expression(
+                context,
+                facts,
+                assignment.value,
+                collected,
+            );
             // A rebind stales any proven upper bound for the target (mirror
             // of the main walk's Assignment arm).
             facts.forget_index_upper_bound(
@@ -31,19 +43,25 @@ pub(super) fn collect_state_argument_facts_from_statement(
                 let next_length = expression_indexable_length(program, facts, assignment.value);
                 let next_integer = expression_integer_value(program, facts, assignment.value);
                 facts.assign_local(symbol, name, next_length, next_integer);
-                seed_boolean_guard_local(program, facts, symbol, name, assignment.value);
+                seed_boolean_guard_local(context, facts, symbol, name, assignment.value);
             }
         }
         StatementNode::Call(call) => {
+            for argument in program.statement_table.expression_handles(call.arguments) {
+                collect_state_argument_facts_from_expression(context, facts, *argument, collected);
+            }
             collect_state_argument_facts_for_call(
                 program,
                 machine,
                 facts,
                 call.target_symbol,
-                Some(&call.target),
                 program.statement_table.expression_handles(call.arguments),
                 collected,
             );
+            let paths = context
+                .call_frames
+                .and_then(|frames| frames.may_write_frame(machine, call).into_complete_paths());
+            facts.invalidate_call_writes(program, context.state, paths.as_deref());
             // R4 witness mint in the COLLECTION pass too: boundary ensures
             // bound the &mut argument places, so a later transition can
             // transport the fact into its target's params.
@@ -52,21 +70,21 @@ pub(super) fn collect_state_argument_facts_from_statement(
             );
         }
         StatementNode::Expression(expression) => {
-            collect_state_argument_facts_from_expression(
-                program,
-                machine,
-                facts,
-                *expression,
-                collected,
-            );
+            collect_state_argument_facts_from_expression(context, facts, *expression, collected);
         }
         StatementNode::LocalData(local) => {
+            collect_state_argument_facts_from_expression(
+                context,
+                facts,
+                local.initial_value,
+                collected,
+            );
             let length = expression_indexable_length(program, facts, local.initial_value)
                 .or_else(|| fixed_array_type_length(program, local.type_reference));
             let integer = expression_integer_value(program, facts, local.initial_value);
             facts.define_local(local.symbol, local.name.to_string(), length, integer);
             seed_boolean_guard_local(
-                program,
+                context,
                 facts,
                 local.symbol,
                 Some(local.name.as_str()),
@@ -83,27 +101,34 @@ pub(super) fn collect_state_argument_facts_from_statement(
                 psi_typed_trees::statement::TransitionGuardNode::When(guard)
                     if guard.is_valid() =>
                 {
+                    collect_state_argument_facts_from_expression(context, facts, guard, collected);
                     let mut narrowed = facts.clone();
-                    guards::seed_guard_facts(program, &mut narrowed, guard);
+                    if context.call_frames.is_some_and(|frames| {
+                        frames
+                            .expression_write_frame(machine, guard)
+                            .into_complete_paths()
+                            .is_some_and(|paths| paths.is_empty())
+                    }) {
+                        guards::seed_guard_facts(program, &mut narrowed, guard);
+                    }
                     Some(narrowed)
                 }
                 _ => None,
             };
-            let target_facts = guarded_facts.as_ref().unwrap_or(facts);
+            let mut target_facts = guarded_facts.unwrap_or_else(|| facts.clone());
 
             collect_state_argument_facts_from_target(
-                program,
-                machine,
-                target_facts,
+                context,
+                &mut target_facts,
                 transition.target,
                 collected,
             );
             // The continuation branch is taken when the guard does not hold, so
             // it is analysed with the unrefined facts.
+            let mut continuation_facts = facts.clone();
             collect_state_argument_facts_from_target(
-                program,
-                machine,
-                facts,
+                context,
+                &mut continuation_facts,
                 transition.continuation,
                 collected,
             );
@@ -112,12 +137,13 @@ pub(super) fn collect_state_argument_facts_from_statement(
 }
 
 fn collect_state_argument_facts_from_target(
-    program: &psi_typed_trees::TypedTrees,
-    machine: &Machine,
-    facts: &RangeFacts<'_>,
+    context: &StateArgumentContext<'_, '_>,
+    facts: &mut RangeFacts<'_>,
     target: psi_typed_trees::statement::TransitionTargetHandle,
     collected: &mut Vec<StateArgumentFacts>,
 ) {
+    let program = context.program;
+    let machine = context.machine;
     if !target.is_valid() {
         return;
     }
@@ -126,6 +152,9 @@ fn collect_state_argument_facts_from_target(
         TransitionTargetNode::Named {
             path, arguments, ..
         } => {
+            for argument in program.statement_table.expression_handles(*arguments) {
+                collect_state_argument_facts_from_expression(context, facts, *argument, collected);
+            }
             let Some(target_state) = program
                 .machine_states(machine)
                 .iter()
@@ -139,31 +168,34 @@ fn collect_state_argument_facts_from_target(
                 machine,
                 facts,
                 target_state.symbol,
-                Some(&target_state.name),
                 program.statement_table.expression_handles(*arguments),
                 collected,
             );
         }
         TransitionTargetNode::Value(value) => {
-            collect_state_argument_facts_from_expression(
-                program, machine, facts, *value, collected,
-            );
+            collect_state_argument_facts_from_expression(context, facts, *value, collected);
         }
         TransitionTargetNode::SelfTarget | TransitionTargetNode::Terminal => {}
     }
 }
 
 fn seed_boolean_guard_local(
-    program: &psi_typed_trees::TypedTrees,
+    context: &StateArgumentContext<'_, '_>,
     facts: &mut RangeFacts<'_>,
     symbol: psi_symbols::SymbolHandle,
     name: Option<&str>,
     expression: ExpressionHandle,
 ) {
+    let program = context.program;
     if matches!(
         program.expression_table.expression(expression),
         ExpressionNode::Binary(_)
-    ) {
+    ) && context.call_frames.is_some_and(|frames| {
+        frames
+            .expression_write_frame(context.machine, expression)
+            .into_complete_paths()
+            .is_some_and(|paths| paths.is_empty())
+    }) {
         facts.define_boolean_guard_local(symbol, name.unwrap_or_default().to_owned(), expression);
     }
 }

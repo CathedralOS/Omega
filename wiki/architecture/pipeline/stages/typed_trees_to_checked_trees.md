@@ -103,6 +103,22 @@ immutable fact-reference spans; they do not reintroduce entry assumptions.
 Raw field qualifications use the same proof checks as contract qualifications,
 and evidence markers are not automatically satisfied obligations.
 
+Index checking distinguishes a proved scalar access, a proved range window,
+a rejected obligation, and an unsupported collection shape. An unsupported
+shape does not establish bounds. Nested arrays use the selected element type's
+extent, with a separate check for each indexing occurrence. Calls retire range
+premises through their caller-visible write frames before later expressions
+reuse them; unknown effects retain no value-dependent range premises. These
+bounds checks do not grant element-domain, borrow, or mutation authority.
+
+Named-state range facts are a fixed-point calculation rooted at machine entry.
+Every reachable incoming edge contributes: an unknown value removes a constant
+or exact length, and an empty relation set participates in the intersection.
+Minimum lengths remain lower bounds, not exact extents. Each pass rebuilds the
+edge contributions, and unconverged inference is withheld. Raw incoming guards
+may refer to shared machine storage; parameter facts instead follow explicit
+argument bindings, never matching names in different states.
+
 Literal assignment values belong to the common semantic fact contexts. They
 are attached to exact stable places and use the same mutation invalidation as
 domain facts; unknown writes supply no value and uninitialized storage supplies
