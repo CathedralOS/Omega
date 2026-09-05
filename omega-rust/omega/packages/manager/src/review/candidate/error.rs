@@ -125,6 +125,10 @@ pub enum CompileResolvedPackageReviewsError {
         package: PackageKey,
         maximum_bytes: usize,
     },
+    RetainedPolicyCanonicalBudget {
+        package: PackageKey,
+        maximum_bytes: usize,
+    },
 }
 
 impl fmt::Display for CompileResolvedPackageReviewsError {
@@ -312,6 +316,14 @@ impl fmt::Display for CompileResolvedPackageReviewsError {
             } => write!(
                 formatter,
                 "retained ordinary obligation ledgers exceeded the {maximum_bytes}-byte review-session ceiling while compiling package `{}`",
+                package.name().as_str()
+            ),
+            Self::RetainedPolicyCanonicalBudget {
+                package,
+                maximum_bytes,
+            } => write!(
+                formatter,
+                "normalized package policies exceeded the {maximum_bytes}-byte aggregate canonical encoding ceiling while compiling package `{}`",
                 package.name().as_str()
             ),
         }

@@ -199,6 +199,7 @@ fn compile_resolved_package_reviews_in_session(
     let mut reviews = Vec::<CompilerIssuedPackageReview>::with_capacity(closure.custodies().len());
     let mut checked_root = None;
     let mut retained_obligation_ledger_total = 0usize;
+    let mut retained_policy_canonical_total = 0usize;
     for key in dependency_first_package_order(closure) {
         verify_transitive_source_custody(
             closure,
@@ -338,6 +339,13 @@ fn compile_resolved_package_reviews_in_session(
         if projection.package() != key.identity() {
             return Err(CompileResolvedPackageReviewsError::IdentityMismatch { package: key });
         }
+        let (policy, policy_total) = super::policy::project(
+            &checked,
+            &key,
+            target_closure.target_profile(),
+            retained_policy_canonical_total,
+        )?;
+        retained_policy_canonical_total = policy_total;
         let semantic_binding_candidates = candidate_service_bindings(&checked, &projection, &key)?;
         let canonical_review_bytes = projection.canonical_review_bytes().map_err(|error| {
             CompileResolvedPackageReviewsError::Encoding {
@@ -412,6 +420,7 @@ fn compile_resolved_package_reviews_in_session(
             semantic_binding_candidates,
             generated_source_bundle: generated_source_bundle.clone(),
             projection,
+            policy,
             canonical_review_bytes,
             canonical_rows,
             obligations,
