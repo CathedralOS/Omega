@@ -55,6 +55,9 @@ fn application_build(body: &str) -> String {
     )
 }
 
+#[path = "fixture_rosters/build_target_activation.rs"]
+mod fixtures;
+
 fn pass_canary_main(name: &str) -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR"))
         .join("../../../../tests/omega/pass")
@@ -255,7 +258,7 @@ fn exact_x86_build_must_opt_in_before_fma_admission_exists() {
 
 #[test]
 fn exact_x86_fma_demand_fails_closed_without_feature_admission() {
-    let main = pass_canary_main("float/named_provider_fused_multiply_add_exit");
+    let main = pass_canary_main(fixtures::NAMED_PROVIDER_FUSED_MULTIPLY_ADD_EXIT);
     for target in ["linux_x86_64", "windows_x86_64"] {
         let diagnostics = compile_to_checked_with_packages(
             &main,
@@ -293,7 +296,7 @@ fn admitted_x86_fma_demand_retains_exact_plan_associations() {
             omega_target::TargetProfile::LinuxX64,
         ),
     ] {
-        let main = pass_canary_main("float/x86_fma_plan_association");
+        let main = pass_canary_main(fixtures::X86_FMA_PLAN_ASSOCIATION);
         let checked = compile_to_checked_with_packages(
             &main,
             Some(target),
@@ -672,7 +675,7 @@ machine Main::main(&mut self) {
 
 #[test]
 fn aarch64_fma_demand_is_not_an_x86_feature_association() {
-    let main = pass_canary_main("float/named_provider_fused_multiply_add_exit");
+    let main = pass_canary_main(fixtures::NAMED_PROVIDER_FUSED_MULTIPLY_ADD_EXIT);
     let checked = compile_to_checked_with_packages(
         &main,
         Some("linux_arm64"),
