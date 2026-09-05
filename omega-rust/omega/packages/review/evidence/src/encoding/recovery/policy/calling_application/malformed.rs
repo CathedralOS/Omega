@@ -45,3 +45,45 @@ fn declared_nested_counts_reject_before_unbounded_allocation() {
     let mut reader = Reader::new(&bytes, PackagePolicyRecoveryLimits::default()).unwrap();
     assert_eq!(callbacks::decode(&mut reader), Err(Error::UnexpectedEnd));
 }
+
+#[test]
+fn opaque_selection_lifetimes_cannot_borrow_the_callback_telescope() {
+    let mut policy = tests::complete_fixture();
+    policy.boundary_lifetime_parameter_count = 1;
+    for layout in &mut policy.callbacks.layouts {
+        layout.terminal_slot.lifetime_arguments = vec![0];
+        layout.terminal_slot.trait_lifetime_arguments = vec![0];
+    }
+    let valid = policy.canonical_bytes().unwrap();
+    assert_eq!(
+        PackagePolicyCallingPlan::recover_canonical(&valid, PackagePolicyRecoveryLimits::default())
+            .unwrap(),
+        policy
+    );
+
+    for trait_arguments in [false, true] {
+        let mut changed = policy.clone();
+        let application = &mut changed.opaque_uses[0].application;
+        if trait_arguments {
+            application.trait_lifetime_arguments = vec![0];
+        } else {
+            application.lifetime_arguments = vec![0];
+        }
+        assert!(changed.canonical_bytes().is_err());
+        // Encode malformed inner fields deliberately, bypassing the public
+        // writer's structural gate to exercise independent offline recovery.
+        let mut encoder =
+            crate::encoding::encode::encoder::Encoder::policy_bounded(4 * 1024 * 1024);
+        encoder.fixed_bytes(CALLING_POLICY_MAGIC);
+        encoder.u16(PACKAGE_CALLING_POLICY_VERSION);
+        crate::encoding::encode::calling::encode_application(&mut encoder, &changed).unwrap();
+        let bytes = encoder.finish().unwrap();
+        assert_eq!(
+            PackagePolicyCallingPlan::recover_canonical(
+                &bytes,
+                PackagePolicyRecoveryLimits::default()
+            ),
+            Err(Error::InvalidValue)
+        );
+    }
+}

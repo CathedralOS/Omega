@@ -4,10 +4,11 @@
 //! contains their subordinate evidence-family encoders; it is deliberately a
 //! child of this owner rather than a peer persistence domain.
 
-mod calling;
+pub(super) mod calling;
 pub(super) mod declarations;
 pub(super) mod encoder;
 pub(super) mod quotients;
+mod representation;
 pub(super) mod review;
 pub(super) mod rows;
 mod values;

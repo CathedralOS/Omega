@@ -6,7 +6,9 @@ use crate::record::{
     PackageReviewRepresentationTargetProfile,
 };
 
-pub(super) fn target(reader: &mut Reader<'_>) -> Result<PackageReviewRepresentationTarget, Error> {
+pub(in crate::encoding::recovery::policy) fn target(
+    reader: &mut Reader<'_>,
+) -> Result<PackageReviewRepresentationTarget, Error> {
     Ok(PackageReviewRepresentationTarget {
         profile: match reader.byte()? {
             0 => PackageReviewRepresentationTargetProfile::LinuxArm64,

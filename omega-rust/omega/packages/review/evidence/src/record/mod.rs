@@ -96,6 +96,8 @@ pub use package::{
 };
 pub use quotients::NonExecutableQuotientPackageReview;
 pub use representation::{
+    PackagePolicyRepresentation, PackagePolicyRepresentationAvailability,
+    PackagePolicyRepresentationDemand, PackagePolicyRepresentationSelection,
     PackageReviewBoundaryCallingPolicy, PackageReviewBoundaryShape,
     PackageReviewBoundaryShapeClass, PackageReviewBoundaryShapeField,
     PackageReviewBoundaryShapeGraph, PackageReviewBoundaryValueClass,

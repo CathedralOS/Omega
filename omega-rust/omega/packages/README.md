@@ -61,10 +61,11 @@ This source record is not an accepted lock: accepted policy baselines and
 decisions, locked resolution, and transaction publication remain separate work.
 
 An accepted policy baseline must not embed the existing review capsule. That
-capsule includes compiler proof and build-replay data. Provider selections and
-opaque-representation disclosures still need policy-only projections of their
-typed facts. External supplies have a receipt-free structural projection and
-component encoding; complete baseline recovery and comparison remain open.
+capsule includes compiler proof and build-replay data. Provider selections still
+need complete policy-only projections of their typed facts. External supplies,
+calling applications, and representation declarations, availability, selections,
+and demands have receipt-free structural projections and bounded component
+encodings; complete baseline recovery and comparison remain open.
 Dropping audit-relevant families or retaining their reconstruction receipts
 would both be incorrect.
 

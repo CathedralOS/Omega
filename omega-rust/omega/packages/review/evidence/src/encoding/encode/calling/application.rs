@@ -16,53 +16,61 @@ impl PackagePolicyCallingPlan {
         let mut encoder = Encoder::policy_bounded(4 * 1024 * 1024);
         encoder.fixed_bytes(CALLING_POLICY_MAGIC);
         encoder.u16(PACKAGE_CALLING_POLICY_VERSION);
-        encode_nominal(&mut encoder, &self.boundary_trait)?;
-        encoder.sequence(&self.boundary_arguments, type_identity)?;
-        encoder.u32(self.boundary_lifetime_parameter_count);
-        encode_nominal(&mut encoder, &self.requirement)?;
-        encode_nominal(&mut encoder, &self.requirement_trait)?;
-        encoder.sequence(&self.requirement_arguments, type_identity)?;
-        encoder.sequence(&self.requirement_lifetime_arguments, ordinal)?;
-        encoder.u32(self.requirement_lifetime_parameter_count);
-        encoder.sequence(&self.static_parameters, encode_type_parameter)?;
-        encode_representation_target(&mut encoder, self.target);
-        encode_boundary_shape_graph(&mut encoder, &self.shape_graph)?;
-        encoder.sequence(&self.semantic_parameters, |encoder, parameter| {
-            encoder.string(&parameter.name)?;
-            type_identity(encoder, &parameter.value_type)?;
-            encoder.boolean(parameter.is_mutable);
-            encoder.boolean(parameter.is_const);
-            encoder.u16(parameter.shape_root);
-            Ok(())
-        })?;
-        encoder.option(self.semantic_result.as_ref(), type_identity)?;
-        encoder.sequence(&self.native_parameters, |encoder, parameter| {
-            encoder.string(&parameter.name)?;
-            match parameter.origin {
-                PackagePolicyNativeParameterOrigin::SemanticFormal {
-                    formal_ordinal,
-                    shape_root,
-                } => {
-                    encoder.byte(0);
-                    encoder.u32(formal_ordinal);
-                    encoder.u16(shape_root);
-                }
-                PackagePolicyNativeParameterOrigin::PrivateCallback {
-                    binder_index,
-                    byte_size,
-                    alignment,
-                } => {
-                    encoder.byte(1);
-                    encoder.u32(binder_index);
-                    encoder.u16(byte_size);
-                    encoder.u16(alignment);
-                }
-            }
-            Ok(())
-        })?;
-        callbacks::encode(&mut encoder, &self.callbacks)?;
-        encoder.sequence(&self.opaque_uses, opaque::encode)?;
-        encode_physical(&mut encoder, &self.physical)?;
+        encode_application(&mut encoder, self)?;
         encoder.finish()
     }
+}
+
+/// Inner semantic fields share their enclosing component's writer budget.
+pub(crate) fn encode_application(
+    encoder: &mut Encoder,
+    application: &PackagePolicyCallingPlan,
+) -> Result<(), PackageReviewEncodingError> {
+    encode_nominal(encoder, &application.boundary_trait)?;
+    encoder.sequence(&application.boundary_arguments, type_identity)?;
+    encoder.u32(application.boundary_lifetime_parameter_count);
+    encode_nominal(encoder, &application.requirement)?;
+    encode_nominal(encoder, &application.requirement_trait)?;
+    encoder.sequence(&application.requirement_arguments, type_identity)?;
+    encoder.sequence(&application.requirement_lifetime_arguments, ordinal)?;
+    encoder.u32(application.requirement_lifetime_parameter_count);
+    encoder.sequence(&application.static_parameters, encode_type_parameter)?;
+    encode_representation_target(encoder, application.target);
+    encode_boundary_shape_graph(encoder, &application.shape_graph)?;
+    encoder.sequence(&application.semantic_parameters, |encoder, parameter| {
+        encoder.string(&parameter.name)?;
+        type_identity(encoder, &parameter.value_type)?;
+        encoder.boolean(parameter.is_mutable);
+        encoder.boolean(parameter.is_const);
+        encoder.u16(parameter.shape_root);
+        Ok(())
+    })?;
+    encoder.option(application.semantic_result.as_ref(), type_identity)?;
+    encoder.sequence(&application.native_parameters, |encoder, parameter| {
+        encoder.string(&parameter.name)?;
+        match parameter.origin {
+            PackagePolicyNativeParameterOrigin::SemanticFormal {
+                formal_ordinal,
+                shape_root,
+            } => {
+                encoder.byte(0);
+                encoder.u32(formal_ordinal);
+                encoder.u16(shape_root);
+            }
+            PackagePolicyNativeParameterOrigin::PrivateCallback {
+                binder_index,
+                byte_size,
+                alignment,
+            } => {
+                encoder.byte(1);
+                encoder.u32(binder_index);
+                encoder.u16(byte_size);
+                encoder.u16(alignment);
+            }
+        }
+        Ok(())
+    })?;
+    callbacks::encode(encoder, &application.callbacks)?;
+    encoder.sequence(&application.opaque_uses, opaque::encode)?;
+    encode_physical(encoder, &application.physical)
 }

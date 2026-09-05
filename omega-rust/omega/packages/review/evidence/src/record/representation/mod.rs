@@ -1,6 +1,7 @@
 //! Stable representation trust evidence.
 
 mod movement;
+mod policy;
 mod shape;
 mod target;
 
@@ -11,6 +12,10 @@ pub use movement::{
     PackageReviewMachineRegister, PackageReviewOpaqueRepresentationMovementRole,
     PackageReviewOpaqueRepresentationOccurrence, PackageReviewOpaqueRepresentationPathElement,
     PackageReviewSystemVEightbyteClass,
+};
+pub use policy::{
+    PackagePolicyRepresentation, PackagePolicyRepresentationAvailability,
+    PackagePolicyRepresentationDemand, PackagePolicyRepresentationSelection,
 };
 pub use shape::{
     PackageReviewBoundaryShape, PackageReviewBoundaryShapeClass, PackageReviewBoundaryShapeField,

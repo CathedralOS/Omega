@@ -15,6 +15,7 @@ mod identity;
 mod model;
 mod physical_calling_policy;
 mod reader;
+mod representation;
 mod signatures;
 
 use PackagePolicyRecoveryError as Error;
