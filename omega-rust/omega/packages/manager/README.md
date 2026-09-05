@@ -28,6 +28,15 @@ manager/
 ```
 
 `operations` is the only owner of complete user or compiler workflows.
+`operations::stage_build_dependency_edit` joins the conservative declaration
+planner to a proposed source snapshot without writing the live `build.omg`.
+It accepts an automatic replacement only and checks the planner's old-file
+digest. The staged local project resolver reads the proposed declaration while
+preserving the original root path/context for package identity and relative
+dependency lookup. Keep the edit plan and staged original identity through
+review and publication. Staging does not freeze unaffected Git selectors or
+provide the recoverable two-file transaction; those remain command integration.
+
 `operations::review_package_change` checks an already-resolved candidate for an
 exact target, rejects outstanding ordinary contract obligations in any package,
 and compares its full policy against an optional accepted lock section. Missing

@@ -74,8 +74,11 @@ adding machinery; do not invent proof-of-review or host-security requirements.
 
 ## 4. Review and publish the change
 
-- [ ] **CAPABILITY-CONFLICT-TRANSACTION.** Connect `review_package_change`
-  and its proposed lock section to a recoverable install/update file transaction.
+- [ ] **CAPABILITY-CONFLICT-TRANSACTION.** Connect staged dependency edits,
+  `review_package_change`, and its proposed lock section to a recoverable
+  install/update file transaction. Retain the edit plan and original live-source
+  identity through review and resume; do not reacquire the candidate as a
+  different project rooted at its temporary snapshot directory.
   Capability changes block pending decisions for the exact changed
   rows, including removals; package-name/source replacement is explicit.
   Initial dangerous authority and accepted assumptions require review.

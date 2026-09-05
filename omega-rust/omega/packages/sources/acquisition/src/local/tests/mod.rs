@@ -28,3 +28,4 @@ mod lock_file;
 mod observation;
 mod path_policy;
 mod snapshots;
+mod staging;

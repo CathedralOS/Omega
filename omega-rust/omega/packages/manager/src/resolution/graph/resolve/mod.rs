@@ -19,6 +19,7 @@ pub use errors::{
 pub use external_local::{
     resolve_external_local_package_closure_with_storage,
     resolve_external_local_project_closure_with_storage,
+    resolve_staged_external_local_project_closure_with_storage,
 };
 pub use git::{
     resolve_git_package_closure_with_storage, resolve_git_project_closure_with_storage,

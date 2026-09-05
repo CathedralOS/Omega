@@ -2430,11 +2430,14 @@ reintroduce or depend on any path that:
 - syntactically scan dependency calls while silently skipping malformed
   dependency builds.
 
-The lock and recoverable transaction paths still need implementation.
-Existing source acquisition, checked review, comparison, and decision handling
-should feed those commands directly after redundant certification prerequisites
-are removed. Unsupported candidates reject specifically. Native compilation
-and its artifact guarantees remain separately enforced.
+The source-lock codec, exact locked recovery, complete-policy comparison and
+decisions, proposed lock sections, and non-mutating dependency-edit staging are
+available building blocks. Command-owned review-file loading/resume, selective
+update pin preservation, and recoverable publication remain integration work.
+These source operations do not require certification prerequisites. Unsupported
+candidates reject specifically; native compilation and its artifact guarantees
+remain separately enforced. The [current model](build_and_package_model.md)
+describes the operation boundaries.
 
 ## Test packages
 

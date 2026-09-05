@@ -1,11 +1,15 @@
 //! Local snapshot staging, publication, reuse, and topology checks.
 
+mod materialize;
+#[cfg(test)]
+use materialize::materialize_local_snapshot;
+use materialize::materialize_local_snapshot_from_open_parent;
+
 use std::ffi::OsStr;
 #[cfg(test)]
 use std::ffi::OsString;
 use std::path::{Path, PathBuf};
 
-use cap_fs_ext::DirExt;
 use sha2::{Digest, Sha256};
 
 use super::model::{ResolvedLocalSnapshot, ResolvedLocalSource};
@@ -13,27 +17,15 @@ use super::observation::issue_local_source_resolution_observation;
 use super::operations::resolve_local_source;
 use crate::SourceResolveError;
 use crate::custody::lock::CacheEntryLock;
+use crate::custody::tree::verify_local_cache_custody;
 #[cfg(test)]
 use crate::custody::tree::verify_local_cache_root_custody;
-use crate::custody::tree::{CacheCustodyKind, verify_local_cache_custody};
 use crate::error::local_snapshot_invalid;
 use crate::identity::digest::{format_sha256, hash_bytes};
-use crate::limits::{
-    LOCAL_CACHE_SNAPSHOTS, LOCAL_SNAPSHOT_CUSTODY_POLICY, LOCAL_SNAPSHOT_METADATA,
-    LOCAL_SNAPSHOT_SOURCE, LocalSourceLimits,
-};
-use crate::snapshot::construction::{
-    create_snapshot_symlink_from_open_root, open_or_create_snapshot_directory,
-    write_snapshot_file_from_open_root,
-};
-use crate::snapshot::metadata::{local_snapshot_metadata, verify_local_snapshot};
-use crate::snapshot::permissions::make_open_snapshot_read_only;
-use crate::snapshot::publication::PendingMaterializedSnapshot;
+use crate::limits::{LOCAL_CACHE_SNAPSHOTS, LOCAL_SNAPSHOT_CUSTODY_POLICY, LocalSourceLimits};
+use crate::snapshot::metadata::verify_local_snapshot;
 use crate::storage::RetainedStorageLane;
-use crate::tree::capture::{
-    CapturedLocalEntryKind, CapturedLocalTree, SourceTreePolicy,
-    capture_local_source_from_open_root,
-};
+use crate::tree::capture::CapturedLocalTree;
 use crate::tree::filesystem::{io_error, raw_os_bytes};
 
 #[cfg(test)]
@@ -69,8 +61,9 @@ pub(crate) fn publish_local_snapshot(
         materialize_local_snapshot(&snapshots, &publication, &captured, limits)?
     };
 
-    finalize_local_snapshot(
-        requested_root,
+    let normalized = finalize_local_tree(
+        &requested_root,
+        &captured.normalized,
         &captured.normalized,
         &publication,
         normalized,
@@ -80,7 +73,14 @@ pub(crate) fn publish_local_snapshot(
             verify_local_cache_root_custody(&canonical_cache_dir)?;
             verify_local_cache_root_custody(&snapshots)
         },
-    )
+    )?;
+    Ok(issue_local_snapshot(
+        requested_root,
+        &captured.normalized,
+        &publication,
+        normalized,
+        limits,
+    ))
 }
 
 pub(crate) fn publish_local_snapshot_in_lane(
@@ -89,11 +89,45 @@ pub(crate) fn publish_local_snapshot_in_lane(
     lane: &RetainedStorageLane,
     limits: LocalSourceLimits,
 ) -> Result<ResolvedLocalSnapshot, SourceResolveError> {
+    let normalized = publish_local_tree_in_lane(
+        &requested_root,
+        &captured,
+        &captured.normalized,
+        lane,
+        limits,
+    )?;
+    let publication = normalized
+        .root
+        .parent()
+        .expect("snapshot source has a publication parent")
+        .to_path_buf();
+    Ok(issue_local_snapshot(
+        requested_root,
+        &captured.normalized,
+        &publication,
+        normalized,
+        limits,
+    ))
+}
+
+pub(super) fn publish_local_tree_in_lane(
+    requested_root: &Path,
+    captured: &CapturedLocalTree,
+    expected_live: &ResolvedLocalSource,
+    lane: &RetainedStorageLane,
+    limits: LocalSourceLimits,
+) -> Result<ResolvedLocalSource, SourceResolveError> {
     lane.verify_path_identity()?;
     let result = (|| {
         validate_retained_local_snapshot_topology(&captured.normalized.root, lane.path())?;
         let snapshots = lane.retain_child(LOCAL_CACHE_SNAPSHOTS)?;
-        publish_local_snapshot_in_retained_collection(requested_root, captured, &snapshots, limits)
+        publish_local_snapshot_in_retained_collection(
+            requested_root,
+            captured,
+            expected_live,
+            &snapshots,
+            limits,
+        )
     })();
     match lane.verify_path_identity() {
         Ok(()) => result,
@@ -102,11 +136,12 @@ pub(crate) fn publish_local_snapshot_in_lane(
 }
 
 fn publish_local_snapshot_in_retained_collection(
-    requested_root: PathBuf,
-    captured: CapturedLocalTree,
+    requested_root: &Path,
+    captured: &CapturedLocalTree,
+    expected_live: &ResolvedLocalSource,
     snapshots: &RetainedStorageLane,
     limits: LocalSourceLimits,
-) -> Result<ResolvedLocalSnapshot, SourceResolveError> {
+) -> Result<ResolvedLocalSource, SourceResolveError> {
     snapshots.verify_path_identity()?;
     let identity = captured.normalized.content_identity.clone();
     let custody_identity = local_snapshot_custody_identity(
@@ -136,19 +171,21 @@ fn publish_local_snapshot_in_retained_collection(
         };
         let normalized = if publication_exists {
             let normalized = verify_local_snapshot(&publication, &identity, limits)?;
-            verify_live_source_unchanged(&captured.normalized, limits)?;
+            verify_live_source_unchanged(expected_live, limits)?;
             normalized
         } else {
             materialize_local_snapshot_from_open_parent(
                 snapshots.path(),
                 snapshots.directory(),
                 &publication,
-                &captured,
+                captured,
+                expected_live,
                 limits,
             )?
         };
-        finalize_local_snapshot(
+        finalize_local_tree(
             requested_root,
+            expected_live,
             &captured.normalized,
             &publication,
             normalized,
@@ -167,24 +204,25 @@ fn publish_local_snapshot_in_retained_collection(
     }
 }
 
-fn finalize_local_snapshot(
-    requested_root: PathBuf,
+fn finalize_local_tree(
+    requested_root: &Path,
     captured_live_source: &ResolvedLocalSource,
+    proposed_source: &ResolvedLocalSource,
     publication: &Path,
     expected_snapshot: ResolvedLocalSource,
     limits: LocalSourceLimits,
     verify_outer_custody: impl Fn() -> Result<(), SourceResolveError>,
-) -> Result<ResolvedLocalSnapshot, SourceResolveError> {
+) -> Result<ResolvedLocalSource, SourceResolveError> {
     let limits = limits.compiler_bounded();
     verify_outer_custody()?;
-    verify_requested_local_root(&requested_root, &captured_live_source.root)?;
+    verify_requested_local_root(requested_root, &captured_live_source.root)?;
     verify_local_cache_custody(publication, limits)?;
 
     let final_snapshot =
-        verify_local_snapshot(publication, &captured_live_source.content_identity, limits)?;
+        verify_local_snapshot(publication, &proposed_source.content_identity, limits)?;
     if final_snapshot.root != expected_snapshot.root
         || !same_source_identity(&final_snapshot, &expected_snapshot)
-        || !same_source_identity(&final_snapshot, captured_live_source)
+        || !same_source_identity(&final_snapshot, proposed_source)
     {
         return Err(local_snapshot_invalid(
             publication,
@@ -195,8 +233,17 @@ fn finalize_local_snapshot(
     verify_live_source_unchanged(captured_live_source, limits)?;
     verify_local_cache_custody(publication, limits)?;
     verify_outer_custody()?;
-    verify_requested_local_root(&requested_root, &captured_live_source.root)?;
+    verify_requested_local_root(requested_root, &captured_live_source.root)?;
+    Ok(final_snapshot)
+}
 
+fn issue_local_snapshot(
+    requested_root: PathBuf,
+    captured_live_source: &ResolvedLocalSource,
+    publication: &Path,
+    final_snapshot: ResolvedLocalSource,
+    limits: LocalSourceLimits,
+) -> ResolvedLocalSnapshot {
     let observation = issue_local_source_resolution_observation(
         &requested_root,
         &captured_live_source.root,
@@ -204,16 +251,16 @@ fn finalize_local_snapshot(
         &final_snapshot,
         limits,
     );
-    Ok(ResolvedLocalSnapshot::from_issued_parts(
+    ResolvedLocalSnapshot::from_issued_parts(
         requested_root,
         captured_live_source.root.clone(),
         final_snapshot.root.clone(),
         final_snapshot,
         observation,
-    ))
+    )
 }
 
-fn verify_requested_local_root(
+pub(super) fn verify_requested_local_root(
     requested_root: &Path,
     expected_canonical_root: &Path,
 ) -> Result<(), SourceResolveError> {
@@ -321,143 +368,7 @@ fn canonicalize_prospective_path(path: &Path) -> Result<PathBuf, SourceResolveEr
     }
 }
 
-#[cfg(test)]
-fn materialize_local_snapshot(
-    snapshots: &Path,
-    publication: &Path,
-    captured: &CapturedLocalTree,
-    limits: LocalSourceLimits,
-) -> Result<ResolvedLocalSource, SourceResolveError> {
-    let identity = &captured.normalized.content_identity;
-    let pending = PendingMaterializedSnapshot::create(
-        CacheCustodyKind::LocalSnapshot,
-        snapshots,
-        &format!(".source-{identity}.stage"),
-    )?;
-    materialize_pending_local_snapshot(pending, snapshots, publication, captured, limits)
-}
-
-fn materialize_local_snapshot_from_open_parent(
-    snapshots: &Path,
-    retained_snapshots: &cap_std::fs::Dir,
-    publication: &Path,
-    captured: &CapturedLocalTree,
-    limits: LocalSourceLimits,
-) -> Result<ResolvedLocalSource, SourceResolveError> {
-    let identity = &captured.normalized.content_identity;
-    let pending = PendingMaterializedSnapshot::create_from_open_parent(
-        CacheCustodyKind::LocalSnapshot,
-        snapshots,
-        retained_snapshots,
-        &format!(".source-{identity}.stage"),
-    )?;
-    materialize_pending_local_snapshot(pending, snapshots, publication, captured, limits)
-}
-
-fn materialize_pending_local_snapshot(
-    mut pending: PendingMaterializedSnapshot,
-    snapshots: &Path,
-    publication: &Path,
-    captured: &CapturedLocalTree,
-    limits: LocalSourceLimits,
-) -> Result<ResolvedLocalSource, SourceResolveError> {
-    let identity = &captured.normalized.content_identity;
-    let source = pending.root.join(LOCAL_SNAPSHOT_SOURCE);
-    pending
-        .directory()?
-        .create_dir(LOCAL_SNAPSHOT_SOURCE)
-        .map_err(|error| io_error(&source, error))?;
-    let source_directory = pending
-        .directory()?
-        .open_dir_nofollow(LOCAL_SNAPSHOT_SOURCE)
-        .map_err(|error| io_error(&source, error))?;
-
-    for entry in &captured.entries {
-        match &entry.kind {
-            CapturedLocalEntryKind::Directory => {
-                open_or_create_snapshot_directory(
-                    CacheCustodyKind::LocalSnapshot,
-                    &source_directory,
-                    &entry.relative_path,
-                    &source,
-                )?;
-            }
-            CapturedLocalEntryKind::File { bytes, executable } => {
-                write_snapshot_file_from_open_root(
-                    CacheCustodyKind::LocalSnapshot,
-                    &source_directory,
-                    &entry.relative_path,
-                    &source,
-                    bytes,
-                    *executable,
-                )?;
-            }
-            CapturedLocalEntryKind::Symlink { target_bytes } => {
-                create_snapshot_symlink_from_open_root(
-                    CacheCustodyKind::LocalSnapshot,
-                    &source_directory,
-                    &entry.relative_path,
-                    &source,
-                    target_bytes,
-                )?;
-            }
-        }
-    }
-
-    let staged = capture_local_source_from_open_root(
-        source.clone(),
-        source_directory
-            .try_clone()
-            .map_err(|error| io_error(&source, error))?,
-        limits,
-        SourceTreePolicy::ExactMaterialized,
-    )?
-    .normalized;
-    if !same_source_identity(&staged, &captured.normalized) {
-        return Err(local_snapshot_invalid(
-            &source,
-            "staged source does not match the captured local tree",
-        ));
-    }
-    verify_live_source_unchanged(&captured.normalized, limits)?;
-
-    write_snapshot_file_from_open_root(
-        CacheCustodyKind::LocalSnapshot,
-        pending.directory()?,
-        Path::new(LOCAL_SNAPSHOT_METADATA),
-        &pending.root,
-        &local_snapshot_metadata(&staged),
-        false,
-    )?;
-    make_open_snapshot_read_only(
-        CacheCustodyKind::LocalSnapshot,
-        pending.directory()?,
-        &pending.root,
-    )?;
-    let finalized = capture_local_source_from_open_root(
-        source.clone(),
-        source_directory
-            .try_clone()
-            .map_err(|error| io_error(&source, error))?,
-        limits,
-        SourceTreePolicy::ExactMaterialized,
-    )?
-    .normalized;
-    if !same_source_identity(&finalized, &captured.normalized) {
-        return Err(local_snapshot_invalid(
-            &source,
-            "finalized snapshot does not match the captured local tree",
-        ));
-    }
-    // Windows will not rename the retained stage while a descendant directory
-    // handle remains open. Verification is complete, so release it before the
-    // atomic publication rename.
-    drop(source_directory);
-    pending.publish(snapshots, publication)?;
-    verify_local_snapshot(publication, identity, limits)
-}
-
-fn verify_live_source_unchanged(
+pub(super) fn verify_live_source_unchanged(
     captured: &ResolvedLocalSource,
     limits: LocalSourceLimits,
 ) -> Result<(), SourceResolveError> {

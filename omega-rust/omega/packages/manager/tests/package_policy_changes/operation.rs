@@ -12,6 +12,8 @@ use omega_package_manager::review::{
 mod lock_file;
 #[path = "operation/semantic.rs"]
 mod semantic;
+#[path = "operation/staging.rs"]
+mod staging;
 
 const MAXIMUM_DOCUMENT_BYTES: usize = 4 * 1024 * 1024;
 const PURE: &str = "pub const VALUE: u64 = 7;\n";

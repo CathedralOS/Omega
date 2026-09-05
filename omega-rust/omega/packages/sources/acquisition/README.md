@@ -18,6 +18,8 @@ src/
 ├── custody/        locks, retained-tree validation, and cache publication
 ├── storage.rs      retained private storage and explicit acquisition lanes
 ├── local/          local-source adapter and issued local observations
+│   ├── staging.rs      proposed file edits with original live-source identity
+│   └── snapshot/       shared captured-tree materialization
 ├── git/            Git transport adapter, object verification, and resolution
 │   ├── request.rs      validate transport, locator, revision, and endpoint
 │   ├── cache/          create, verify, repair, and invalidate retained stores
@@ -52,6 +54,16 @@ already hold one retained lane use the responsibility paths directly:
 for exact snapshot work, and `storage::RetainedStorageLane` for lane custody.
 These are deliberate public seams; cache machinery, native process assembly,
 object verification, and publication internals remain private.
+
+`local::staging` replaces one existing regular file in a proposed snapshot after
+checking its expected raw-byte SHA-256. It leaves the live tree untouched and
+retains its original requested/canonical root and before-edit source identity.
+The shared publisher checks proposed snapshot bytes separately from unchanged
+live source. Landing those exact bytes produces the same source identity and
+can reuse the staged snapshot. This result is not a successful-live-resolution
+observation: callers still check concurrent source/project edits and own file
+transaction recovery. Excluded paths, symlink targets, stale input, and proposals
+over the source byte ceiling reject.
 
 Mutable local package capture excludes `.git`, root `build/`, and root
 `omega.lock` (including ASCII case variants). The lock is project control state,

@@ -6,7 +6,8 @@
 //! graph without reusing its policy as fresh review. [`check_locked_sources`]
 //! freshly checks it and reports complete policy changes. [`review_package_change`]
 //! checks an install/update candidate and joins its comparison and project
-//! decisions to a proposed source lock section. File transactions belong beside
+//! decisions to a proposed source lock section. [`stage_build_dependency_edit`]
+//! prepares a declaration edit without changing live source. File transactions belong beside
 //! these operations rather than in the command-line binary.
 
 mod check_locked_sources;
@@ -15,6 +16,7 @@ pub mod inspect_source;
 mod package_change;
 mod prepare_project;
 mod recover_locked_sources;
+mod stage_build_edit;
 
 pub use check_locked_sources::{
     CheckLockedSourcesError, CheckedLockedSources, check_locked_sources,
@@ -33,3 +35,4 @@ pub use prepare_project::{PrepareLocalProjectError, PreparedLocalProject, prepar
 pub use recover_locked_sources::{
     LockedSourceRecoveryOptions, RecoverLockedSourcesError, recover_locked_sources,
 };
+pub use stage_build_edit::stage_build_dependency_edit;

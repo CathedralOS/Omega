@@ -107,6 +107,10 @@ pub enum SourceResolveError {
     LocalSourceChanged {
         path: PathBuf,
     },
+    LocalSourceReplacementInvalid {
+        path: PathBuf,
+        message: String,
+    },
     SourceSnapshotContentMismatch {
         path: PathBuf,
         expected: SourceContentDigest,
@@ -121,6 +125,9 @@ pub enum SourceResolveError {
 impl fmt::Display for SourceResolveError {
     fn fmt(&self, output: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
+            Self::LocalSourceReplacementInvalid { path, message } => {
+                write!(output, "cannot stage source replacement at `{}`: {message}", path.display())
+            }
             Self::PrivateStorageUnavailable { message } => {
                 write!(output, "private resolver storage is unavailable: {message}")
             }
