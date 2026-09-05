@@ -11,12 +11,11 @@ pub(crate) fn canonical_digest_label(kind: &str, digest: [u8; 32]) -> String {
 }
 
 pub(crate) fn framed_identity(label: &str, children: &[String]) -> String {
-    use std::fmt::Write as _;
-
     let mut identity = String::new();
-    let _ = write!(identity, "{}:{label}", label.len());
-    for child in children {
-        let _ = write!(identity, "{}:{child}", child.len());
-    }
+    let _ = crate::record::write_framed_identity(
+        &mut identity,
+        label,
+        children.iter().map(String::as_str),
+    );
     identity
 }

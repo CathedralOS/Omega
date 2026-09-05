@@ -2979,6 +2979,15 @@ to the canonical plan index rather than a compiler report or receipt digest.
 Generic family declaration coverage does not invent an actual application or
 standalone D29 realization claim. Bounded recovery checks these associations
 under the same resource budget as nested calling and signature values.
+Terminal-permission policy retains the exact service, its complete method
+schema and generic declaration telescope, and each explicitly supplied
+requirement/disposition pair. Unused permissions and unpermitted schema
+siblings remain visible; an explicit empty disposition is not absence.
+Declaration parameters remain symbolic until a checked application exists.
+The existing accepted-service schema checks run before receipt-free projection,
+including UEFI's separation of semantic permission identity from target-owned
+calling authority. Full checked calling context is reviewable baseline meaning,
+not a new permission key or a replacement for receiving-policy containment.
 Complete baseline composition remains separate.
 These components alone are not a package baseline or an acceptance decision.
 

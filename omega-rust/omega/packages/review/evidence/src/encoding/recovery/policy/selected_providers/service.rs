@@ -10,7 +10,9 @@ use psi_language_semantics::{
     CarryAddress, CarryCpu, CarryHostThread, CarryPolicy, CarrySuspension, DomainPredicateBody,
 };
 
-pub(super) fn method(reader: &mut Reader<'_>) -> Result<PackagePolicyServiceMethod, Error> {
+pub(in crate::encoding::recovery::policy) fn method(
+    reader: &mut Reader<'_>,
+) -> Result<PackagePolicyServiceMethod, Error> {
     Ok(PackagePolicyServiceMethod {
         name: reader.string()?,
         requirement_owner: nominal(reader)?,

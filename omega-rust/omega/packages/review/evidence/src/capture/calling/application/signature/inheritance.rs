@@ -20,6 +20,7 @@ pub(super) fn collect(
     requirement: SymbolHandle,
     active: &mut Vec<SymbolHandle>,
     found: &mut Vec<Application>,
+    root_binders: &[(SymbolHandle, String)],
 ) -> Result<(), Vec<Diagnostic>> {
     if active.len() >= 64 || active.contains(&application.owner.symbol) {
         return Err(rejected(
@@ -54,6 +55,11 @@ pub(super) fn collect(
         parameters
             .iter()
             .zip(&application.arguments)
+            .filter(|(parameter, _)| {
+                !root_binders
+                    .iter()
+                    .any(|(symbol, _)| *symbol == parameter.symbol)
+            })
             .map(|(parameter, argument)| (parameter.symbol, *argument))
             .collect::<Vec<_>>(),
     );
@@ -109,6 +115,7 @@ pub(super) fn collect(
             requirement,
             active,
             found,
+            root_binders,
         )?;
     }
     active.pop();

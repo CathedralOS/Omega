@@ -6,6 +6,7 @@ mod families;
 mod methods;
 mod plans;
 mod rows;
+mod service_validation;
 mod signature;
 mod validation;
 
@@ -19,6 +20,7 @@ pub use plans::{PackagePolicyProviderPlan, PackagePolicySelectedProviders};
 pub use rows::{
     PackagePolicyProviderBinding, PackagePolicyProviderEvaluatedSyscall, PackagePolicyProviderRow,
 };
+pub(crate) use service_validation::validate_service_methods;
 pub use signature::PackagePolicyServiceSignature;
 
 #[cfg(test)]

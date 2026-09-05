@@ -33,7 +33,7 @@ pub(super) fn carry() -> CarryPolicy {
     }
 }
 
-pub(super) fn method() -> PackagePolicyServiceMethod {
+pub(in crate::encoding::recovery::policy) fn method() -> PackagePolicyServiceMethod {
     let calling = super::super::calling_application::tests::complete_fixture();
     let signature = PackagePolicyServiceSignature {
         schema_arguments: calling.boundary_arguments.clone(),

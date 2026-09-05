@@ -43,60 +43,8 @@ impl PackagePolicySelectedProviders {
             if plan.grants.windows(2).any(|pair| pair[0] >= pair[1]) {
                 return Err("provider grants repeat or reorder selector kinds");
             }
-            for (index, method) in plan.methods.iter().enumerate() {
-                method.validate_signature()?;
-                method.validate_authority()?;
-                nominal(&method.requirement_owner)?;
-                nominal(&method.requirement)?;
-                if method.requirement.owner != method.requirement_owner.owner
-                    || method.name.is_empty()
-                    || method.parameter_count != method.parameter_type_identities.len()
-                    || method
-                        .parameter_type_identities
-                        .iter()
-                        .any(String::is_empty)
-                    || method.has_result != method.result_type_identity.is_some()
-                    || method
-                        .result_type_identity
-                        .as_ref()
-                        .is_some_and(String::is_empty)
-                    || (!method.has_result && !method.result_claims.is_empty())
-                    || plan.methods[..index]
-                        .iter()
-                        .any(|prior| prior.requirement == method.requirement)
-                    || method.entry_claims.iter().any(|claim| {
-                        claim.parameter_index >= method.parameter_count
-                            || claim.carrier_identity.is_empty()
-                            || claim.domain.is_empty()
-                    })
-                {
-                    return Err("provider method has inconsistent identity, signature, or claims");
-                }
-                if let Some(calling) = &method.calling {
-                    calling.validate_canonical_structure()?;
-                    if !same_target(calling.target.profile, self.target)
-                        || calling.boundary_trait != plan.schema_declaration
-                        || calling.requirement != method.requirement
-                        || calling.requirement_trait != method.requirement_owner
-                        || calling.semantic_parameters.len() != method.parameter_count
-                        || calling.semantic_result.is_some() != method.has_result
-                    {
-                        return Err(
-                            "provider method calling policy is detached from its schema or requirement",
-                        );
-                    }
-                }
-                for premise in &method.termination_premises {
-                    if premise.profile.is_empty()
-                        || matches!(premise.subject, omega_effects::provider_plan::ServiceProgressSubject::Parameter(ordinal) if ordinal >= method.parameter_count)
-                        || premise
-                            .establishment_routes
-                            .iter()
-                            .any(|route| route.requirement_identity.is_empty())
-                    {
-                        return Err("provider progress premise has an invalid subject or route");
-                    }
-                }
+            super::validate_service_methods(&plan.methods, &plan.schema_declaration, self.target)?;
+            for method in &plan.methods {
                 let mut rows = plan
                     .rows
                     .iter()
@@ -223,7 +171,7 @@ impl PackagePolicySelectedProviders {
     }
 }
 
-fn same_target(
+pub(super) fn same_target(
     profile: crate::record::PackageReviewRepresentationTargetProfile,
     target: omega_target::TargetProfile,
 ) -> bool {

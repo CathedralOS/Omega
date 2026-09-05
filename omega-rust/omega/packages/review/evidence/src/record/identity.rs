@@ -1,5 +1,19 @@
 use psi_core::PackageKeyIdentity;
 
+/// One shared length-prefixed semantic identity framing, independent of source
+/// capture and persistence envelopes. The caller chooses the storage strategy.
+pub(crate) fn write_framed_identity<'a>(
+    writer: &mut impl std::fmt::Write,
+    label: &str,
+    children: impl IntoIterator<Item = &'a str>,
+) -> std::fmt::Result {
+    write!(writer, "{}:{label}", label.len())?;
+    for child in children {
+        write!(writer, "{}:{child}", child.len())?;
+    }
+    Ok(())
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct PackageReviewToolchainSourceIdentity {
     pub(crate) digest: [u8; 32],
