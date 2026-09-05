@@ -42,8 +42,9 @@ fn write_only_whole_record_replacement_requires_discardable_root() {
         .collect::<Vec<_>>()
         .join("\n");
     assert!(
-        combined.contains("replaces whole write-only record `pair`")
-            && combined.contains("freely discardable root"),
+        combined.contains("replaces whole write-only aggregate `pair`")
+            && combined
+                .contains("whole-root replacement requires a freely discardable supported root"),
         "expected directed whole-record displacement diagnostic, got:\n{combined}"
     );
 }
@@ -117,8 +118,8 @@ fn write_only_byte_index_must_be_statically_in_bounds() {
         .collect::<Vec<_>>()
         .join("\n");
     assert!(
-        combined.contains("write-only byte array `bytes`")
-            && combined.contains("literal index is outside the fixed byte array"),
+        combined.contains("write-only fixed array `bytes`")
+            && combined.contains("literal index is outside the fixed array"),
         "expected directed fixed-index bounds diagnostic, got:\n{combined}"
     );
 }
