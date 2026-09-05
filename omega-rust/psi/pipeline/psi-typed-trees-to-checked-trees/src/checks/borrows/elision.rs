@@ -11,14 +11,17 @@
 use psi_diagnostics::Diagnostic;
 
 use crate::borrow::view_link::{
-    ViewReturnAmbiguity, ViewReturnSource, resolve_signature_view_return_source,
+    DeclarationLifetimeFrontier, ViewReturnAmbiguity, ViewReturnSource,
+    declaration_lifetime_frontier, resolve_signature_view_return_source,
     resolve_view_return_source,
 };
+mod templates;
 
 pub(super) fn check_view_return_elision(
     program: &psi_typed_trees::TypedTrees,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
+    let mut deferred = Vec::new();
     for machine in program.machines() {
         for state in program.machine_states(machine) {
             let ViewReturnSource::Ambiguous(ambiguity) = resolve_view_return_source(program, state)
@@ -54,9 +57,41 @@ pub(super) fn check_view_return_elision(
 
     for trait_definition in program.traits() {
         for signature in program.trait_machine_signatures(trait_definition) {
+            let parameters = program
+                .trait_type_parameters(trait_definition)
+                .iter()
+                .chain(program.state_signature_type_parameters(signature))
+                .filter(|parameter| {
+                    matches!(
+                        parameter.kind,
+                        psi_typed_trees::data::TypeParameterKind::Type
+                    )
+                })
+                .map(|parameter| parameter.symbol)
+                .collect::<Vec<_>>();
+            if declaration_lifetime_frontier(program, signature.return_type, &parameters)
+                == DeclarationLifetimeFrontier::TemplateDependent
+                && program
+                    .state_signature_parameters(signature)
+                    .iter()
+                    .all(|parameter| {
+                        declaration_lifetime_frontier(
+                            program,
+                            parameter.type_reference,
+                            &parameters,
+                        ) != DeclarationLifetimeFrontier::Incomplete
+                    })
+            {
+                // A template is not an executable lifetime contract. Every
+                // use that still selects this raw signature is fenced below;
+                // concrete machine instances retain the ordinary full check.
+                deferred.push(signature.symbol);
+                continue;
+            }
             check_bodyless_signature(program, signature, diagnostics);
         }
     }
+    templates::check_calls(program, &deferred, diagnostics);
 }
 
 fn check_bodyless_signature(
