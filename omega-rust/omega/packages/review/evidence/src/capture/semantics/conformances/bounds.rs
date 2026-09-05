@@ -77,6 +77,7 @@ pub(crate) fn project_conformance_bounds(
                     selected,
                     binders,
                     lifetime_binders,
+                    &[],
                     declaration_kind,
                     declaration_path,
                 )?;

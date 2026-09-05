@@ -33,9 +33,14 @@ pub use authority::{
     PackageReviewTermination, PackageReviewWriteFrameCompleteness,
 };
 pub use calling::{
-    PackagePolicyEntryControl, PackagePolicyEntryStack, PackagePolicyMachineRegime,
-    PackagePolicyMachineState, PackagePolicyMachineStateSet, PackagePolicyPhysicalCallingContract,
-    PackagePolicyPreemption, PackagePolicyStatePlan,
+    PackagePolicyCallbackBinder, PackagePolicyCallbackDemand, PackagePolicyCallbackDestination,
+    PackagePolicyCallbackInlineField, PackagePolicyCallbackLayout,
+    PackagePolicyCallbackLayoutApplication, PackagePolicyCallbackMaterialization,
+    PackagePolicyCallbacks, PackagePolicyCallingOpaqueUse, PackagePolicyCallingParameter,
+    PackagePolicyCallingPlan, PackagePolicyEntryControl, PackagePolicyEntryStack,
+    PackagePolicyMachineRegime, PackagePolicyMachineState, PackagePolicyMachineStateSet,
+    PackagePolicyNativeParameter, PackagePolicyNativeParameterOrigin,
+    PackagePolicyPhysicalCallingContract, PackagePolicyPreemption, PackagePolicyStatePlan,
 };
 pub use conformances::{
     PackagePolicyClosedConformanceApplication, PackagePolicyConformanceConstArgument,

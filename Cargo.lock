@@ -1229,6 +1229,7 @@ dependencies = [
  "omega-calling-conventions",
  "omega-compiler",
  "omega-effects",
+ "omega-layout",
  "omega-package-compilation",
  "omega-provider-planning",
  "omega-representation-planning",

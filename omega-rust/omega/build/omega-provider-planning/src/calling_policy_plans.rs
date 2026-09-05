@@ -5,6 +5,7 @@
 //! behind the closed normalized-plan validator.
 
 mod callback_layout_catalog;
+mod native_parameters;
 mod opaque_representations;
 
 pub use callback_layout_catalog::{BoundaryCallbackInlineField, BoundaryCallbackLayoutEntry};
@@ -330,13 +331,13 @@ pub struct BoundaryNativeParameter {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum BoundaryNativeParameterShape {
+pub enum BoundaryNativeParameterShape {
     Semantic(u16),
     TargetFunctionPointer { byte_size: u16, alignment: u16 },
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum BoundaryNativeParameterOrigin {
+pub enum BoundaryNativeParameterOrigin {
     SemanticFormal {
         formal_ordinal: u32,
     },
@@ -347,7 +348,7 @@ enum BoundaryNativeParameterOrigin {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-struct BoundaryDirectCallbackParameter {
+pub struct BoundaryDirectCallbackParameter {
     name: String,
     identity: NativeParameterId,
     native_ordinal: u32,

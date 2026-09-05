@@ -10,16 +10,20 @@ pub(super) fn package(reader: &mut Reader<'_>) -> Result<PackageKeyIdentity, Err
 }
 
 pub(super) fn nominal(reader: &mut Reader<'_>) -> Result<PackageReviewNominalIdentity, Error> {
-    let owner = match reader.byte()? {
+    let owner = owner(reader)?;
+    Ok(PackageReviewNominalIdentity {
+        owner,
+        path: reader.string()?,
+    })
+}
+
+pub(super) fn owner(reader: &mut Reader<'_>) -> Result<PackageReviewNominalOwner, Error> {
+    Ok(match reader.byte()? {
         0 => PackageReviewNominalOwner::Package(package(reader)?),
         1 => PackageReviewNominalOwner::ToolchainSource(PackageReviewToolchainSourceIdentity {
             digest: reader.digest()?,
         }),
         _ => return Err(Error::InvalidIdentity),
-    };
-    Ok(PackageReviewNominalIdentity {
-        owner,
-        path: reader.string()?,
     })
 }
 

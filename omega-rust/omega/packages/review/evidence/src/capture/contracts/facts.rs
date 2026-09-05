@@ -22,6 +22,12 @@ pub(crate) struct ContractProjectionContext<'a> {
     pub(crate) domain_symbol: Option<SymbolHandle>,
     pub(crate) data_symbol: Option<SymbolHandle>,
     pub(crate) lifetime_binders: &'a [psi_typed_trees::name::Identifier],
+    /// Source names map to the normalized containing telescope. Later mappings
+    /// shadow earlier ones; checked expression and evidence handles stay intact.
+    pub(crate) lifetime_substitutions: &'a [(
+        psi_typed_trees::name::Identifier,
+        psi_typed_trees::name::Identifier,
+    )],
     pub(crate) selection_exposure:
         psi_language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure,
 }
@@ -53,6 +59,7 @@ pub(crate) fn project_callable_contracts(
         domain_symbol: None,
         data_symbol: None,
         lifetime_binders: &machine.lifetime_parameters,
+        lifetime_substitutions: &[],
         selection_exposure: psi_language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure::PublicInterface,
     };
     project_contracts(
@@ -133,6 +140,7 @@ pub(crate) fn project_callable_contract_entailment_stand_down(
         domain_symbol: None,
         data_symbol: None,
         lifetime_binders: &machine.lifetime_parameters,
+        lifetime_substitutions: &[],
         selection_exposure: if machine.is_public {
             psi_language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure::PublicInterface
         } else {

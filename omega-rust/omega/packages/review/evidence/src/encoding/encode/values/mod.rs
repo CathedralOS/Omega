@@ -1,7 +1,7 @@
 //! Canonical semantic-value encoders, grouped by the value families they encode.
 
 pub(super) mod callables;
-mod conformance_policy;
+pub(super) mod conformance_policy;
 pub(super) mod contracts;
 pub(super) mod crashes;
 pub(super) mod declarations;
@@ -9,7 +9,7 @@ pub(super) mod effects;
 pub(super) mod expressions;
 mod external_policy;
 pub(super) mod identity;
-mod physical_calling_policy;
+pub(super) mod physical_calling_policy;
 pub(super) mod providers;
 pub(super) mod quotients;
 

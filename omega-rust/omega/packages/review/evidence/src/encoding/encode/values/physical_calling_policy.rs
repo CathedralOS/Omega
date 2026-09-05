@@ -18,42 +18,49 @@ impl PackagePolicyPhysicalCallingContract {
     /// Versioned bytes for this physical facet only. No callback identities,
     /// evidence receipts, or acceptance authority are encoded.
     pub fn canonical_bytes(&self) -> Result<Vec<u8>, PackageReviewEncodingError> {
-        if self
-            .ordinary_clobbers()
-            .windows(2)
-            .any(|pair| pair[0] >= pair[1])
-        {
-            return Err(PackageReviewEncodingError::new(
-                "physical calling policy requires canonical register sets",
-            ));
-        }
         let mut encoder = Encoder::policy_bounded(4 * 1024 * 1024);
         encoder.fixed_bytes(PHYSICAL_CALLING_POLICY_MAGIC);
         encoder.u16(PACKAGE_PHYSICAL_CALLING_POLICY_VERSION);
-        encoder.byte(calling_policy_tag(self.policy()));
-        encoder.sequence(self.parameters(), encode_value_placement)?;
-        encoder.option(self.result(), encode_value_placement)?;
-        encoder.sequence(self.ordinary_clobbers(), |encoder, register| {
-            encode_machine_register(encoder, *register);
-            Ok(())
-        })?;
-        encoder.u16(self.stack_alignment());
-        encoder.u16(self.shadow_bytes());
-        match self.entry_control() {
-            PackagePolicyEntryControl::CallReturn => encoder.byte(0),
-            PackagePolicyEntryControl::SupervisorCall {
-                number_register,
-                immediate,
-            } => {
-                encoder.byte(1);
-                encode_machine_register(&mut encoder, number_register);
-                encoder.u16(immediate);
-            }
-            PackagePolicyEntryControl::InterruptReturn => encoder.byte(2),
-        }
-        encode_state(&mut encoder, self.state())?;
+        encode_physical(&mut encoder, self)?;
         encoder.finish()
     }
+}
+
+pub(crate) fn encode_physical(
+    encoder: &mut Encoder,
+    physical: &PackagePolicyPhysicalCallingContract,
+) -> Result<(), PackageReviewEncodingError> {
+    if physical
+        .ordinary_clobbers()
+        .windows(2)
+        .any(|pair| pair[0] >= pair[1])
+    {
+        return Err(PackageReviewEncodingError::new(
+            "physical calling policy requires canonical register sets",
+        ));
+    }
+    encoder.byte(calling_policy_tag(physical.policy()));
+    encoder.sequence(physical.parameters(), encode_value_placement)?;
+    encoder.option(physical.result(), encode_value_placement)?;
+    encoder.sequence(physical.ordinary_clobbers(), |encoder, register| {
+        encode_machine_register(encoder, *register);
+        Ok(())
+    })?;
+    encoder.u16(physical.stack_alignment());
+    encoder.u16(physical.shadow_bytes());
+    match physical.entry_control() {
+        PackagePolicyEntryControl::CallReturn => encoder.byte(0),
+        PackagePolicyEntryControl::SupervisorCall {
+            number_register,
+            immediate,
+        } => {
+            encoder.byte(1);
+            encode_machine_register(encoder, number_register);
+            encoder.u16(immediate);
+        }
+        PackagePolicyEntryControl::InterruptReturn => encoder.byte(2),
+    }
+    encode_state(encoder, physical.state())
 }
 
 fn encode_state(

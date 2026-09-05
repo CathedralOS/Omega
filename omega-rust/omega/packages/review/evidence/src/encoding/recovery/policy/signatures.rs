@@ -83,7 +83,7 @@ fn machine_signature(
     })
 }
 
-fn type_parameter(reader: &mut Reader<'_>) -> Result<PackageReviewTypeParameter, Error> {
+pub(super) fn type_parameter(reader: &mut Reader<'_>) -> Result<PackageReviewTypeParameter, Error> {
     let kind = match reader.byte()? {
         0 => PackageReviewTypeParameterKind::Type,
         1 => PackageReviewTypeParameterKind::Const(type_identity(reader)?),

@@ -1024,6 +1024,14 @@ parameters contribute no invented layout field. The signature is exposed by
 borrowed access so callers cannot substitute an unhashed catalog. These
 compiler-owned records support later receipt-free policy projection; their
 arena handles and compact native IDs are not an accepted-lock encoding.
+The package-policy projector checks those exact compiler associations before
+translating them to package-qualified declarations and ordinal references into
+the retained native and static telescopes. Callback catalogs are ordered by
+their semantic applications, with destination indices rebound after ordering;
+compact-ID sort order does not become policy identity. Layout geometry remains
+the pointee geometry for a reference parameter, distinct from the pointer's ABI
+placement. Bounded typed recovery checks these relationships but does not
+reconstruct a checked calling plan or a native materialization receipt.
 Layout closure and independent replay both prove the field belongs to the root
 record, rejoin the exact child record, and checked-compose the two relative
 offsets while validating the terminal extent inside the child and the final

@@ -22,25 +22,7 @@ impl PackagePolicyClosedConformanceApplication {
         if reader.u16()? != PACKAGE_CONFORMANCE_POLICY_VERSION {
             return Err(Error::UnsupportedVersion);
         }
-        let application = Self {
-            declaration: nominal(&mut reader)?,
-            lifetime_arguments: reader.sequence(4, Reader::u32)?,
-            type_arguments: reader.sequence(8, type_identity)?,
-            const_arguments: reader.sequence(1, const_argument)?,
-            machine_arguments: reader.sequence(41, nominal)?,
-            subject: reader.option(type_identity)?,
-            trait_identity: nominal(&mut reader)?,
-            trait_lifetime_arguments: reader.sequence(4, Reader::u32)?,
-            trait_arguments: reader.sequence(8, type_identity)?,
-            rows: reader.sequence(164, |reader| {
-                Ok(PackagePolicyConformanceRow {
-                    declaring_trait: nominal(reader)?,
-                    requirement: nominal(reader)?,
-                    realization_machine: nominal(reader)?,
-                    realization_state: nominal(reader)?,
-                })
-            })?,
-        };
+        let application = application(&mut reader)?;
         reader.finish()?;
         reader.canonical_scratch(bytes.len())?;
         if application
@@ -52,6 +34,30 @@ impl PackagePolicyClosedConformanceApplication {
         }
         Ok(application)
     }
+}
+
+pub(super) fn application(
+    reader: &mut Reader<'_>,
+) -> Result<PackagePolicyClosedConformanceApplication, Error> {
+    Ok(PackagePolicyClosedConformanceApplication {
+        declaration: nominal(reader)?,
+        lifetime_arguments: reader.sequence(4, Reader::u32)?,
+        type_arguments: reader.sequence(8, type_identity)?,
+        const_arguments: reader.sequence(1, const_argument)?,
+        machine_arguments: reader.sequence(41, nominal)?,
+        subject: reader.option(type_identity)?,
+        trait_identity: nominal(reader)?,
+        trait_lifetime_arguments: reader.sequence(4, Reader::u32)?,
+        trait_arguments: reader.sequence(8, type_identity)?,
+        rows: reader.sequence(164, |reader| {
+            Ok(PackagePolicyConformanceRow {
+                declaring_trait: nominal(reader)?,
+                requirement: nominal(reader)?,
+                realization_machine: nominal(reader)?,
+                realization_state: nominal(reader)?,
+            })
+        })?,
+    })
 }
 
 fn const_argument(reader: &mut Reader<'_>) -> Result<PackagePolicyConformanceConstArgument, Error> {

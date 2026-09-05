@@ -1,6 +1,6 @@
 //! Recover an inert physical component, not validator or native custody.
 
-mod placement;
+pub(super) mod placement;
 mod state;
 #[cfg(test)]
 mod tests;
@@ -21,16 +21,7 @@ impl PackagePolicyPhysicalCallingContract {
         if reader.u16()? != PACKAGE_PHYSICAL_CALLING_POLICY_VERSION {
             return Err(Error::UnsupportedVersion);
         }
-        let component = Self {
-            policy: policy(&mut reader)?,
-            parameters: reader.sequence(13, placement::value_placement)?,
-            result: reader.option(placement::value_placement)?,
-            ordinary_clobbers: reader.sequence(1, placement::register)?,
-            stack_alignment: reader.u16()?,
-            shadow_bytes: reader.u16()?,
-            entry_control: state::entry_control(&mut reader)?,
-            state: state::state_plan(&mut reader)?,
-        };
+        let component = physical(&mut reader)?;
         reader.finish()?;
         reader.canonical_scratch(bytes.len())?;
         if component
@@ -42,6 +33,21 @@ impl PackagePolicyPhysicalCallingContract {
         }
         Ok(component)
     }
+}
+
+pub(super) fn physical(
+    reader: &mut Reader<'_>,
+) -> Result<PackagePolicyPhysicalCallingContract, Error> {
+    Ok(PackagePolicyPhysicalCallingContract {
+        policy: policy(reader)?,
+        parameters: reader.sequence(13, placement::value_placement)?,
+        result: reader.option(placement::value_placement)?,
+        ordinary_clobbers: reader.sequence(1, placement::register)?,
+        stack_alignment: reader.u16()?,
+        shadow_bytes: reader.u16()?,
+        entry_control: state::entry_control(reader)?,
+        state: state::state_plan(reader)?,
+    })
 }
 
 fn policy(reader: &mut Reader<'_>) -> Result<PackageReviewBoundaryCallingPolicy, Error> {

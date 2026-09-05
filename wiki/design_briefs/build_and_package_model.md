@@ -2934,12 +2934,27 @@ explicit containing telescope, so changing which caller lifetime is selected
 remains observable; the enclosing policy retains that telescope. A physical
 calling component retains
 the evaluated placements, clobbers, entry control, and complete machine-state
-promises. It is only the physical part of the calling contract: complete
-provider policy must also retain the exact native telescope, callback and
-opaque-representation applications, and selected-provider associations. Neither
-component alone is a package baseline or an acceptance decision. Their typed
-recovery validates bounded canonical records without replaying compiler or
-native evidence.
+promises. The complete calling component joins that physical part to the exact
+boundary-trait application, declaring requirement application and lifetime
+telescopes, semantic parameter/result types, and ordered native parameter names
+and origins. An inherited requirement retains its declaring trait separately
+from the trait selecting its calling policy. Nested static contracts retain
+lexical lifetime scopes even when an inner binder shadows an outer name;
+expression projection maps those scopes without rewriting checked proof or
+expression handles. Callback rows retain exact static
+binders, requirements, destinations, authored layout-policy/schema applications,
+named inline fields, slot applications, and target-closed geometry. Opaque uses
+retain selected meanings and exact shape paths and placements; unused selections
+belong to representation policy rather than invented calling occurrences.
+
+Capture checks complete live compiler associations and independently replays
+their validation before removing report coordinates and commitments. Neither
+evaluator machine names nor native compact IDs enter the calling component.
+Recovery uses one shared byte, element, and allocation budget across nested
+components and checks their structural associations without recovering compiler
+or native evidence. Complete provider policy must still join selected-provider
+associations and retain service contracts and representation availability.
+These components alone are not a package baseline or an acceptance decision.
 
 The project normally commits the lock and trusts whoever lands its changes.
 Recovery validates format and graph consistency, checks acquired sources against

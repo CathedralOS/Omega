@@ -25,6 +25,7 @@ pub(crate) fn project_domain_predicate_facts(
         domain_symbol: Some(definition.symbol),
         data_symbol: None,
         lifetime_binders: &[],
+        lifetime_substitutions: &[],
         selection_exposure: psi_language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure::PublicInterface,
     };
     let reviewed_package = compilation.package_identity().ok_or_else(|| {

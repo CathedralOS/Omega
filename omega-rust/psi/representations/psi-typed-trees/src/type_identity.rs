@@ -17,6 +17,8 @@ use psi_symbols::SymbolHandle;
 use std::cell::Cell;
 use std::fmt;
 
+mod substitution;
+
 #[derive(Debug, Clone, Default, PartialEq, Eq, Hash)]
 pub struct NormalizedTypeIdentity(String);
 
@@ -204,6 +206,7 @@ impl TypedTrees {
             &TypeIdentityContext {
                 binders,
                 substitutions: &[],
+                active_const_substitutions: &[],
                 exact_toolchain_sources: &[],
                 missing_exact_nominal_owner: None,
                 qualification: TypeIdentityQualification::Ordinary,
@@ -244,6 +247,7 @@ impl TypedTrees {
             &TypeIdentityContext {
                 binders,
                 substitutions: &[],
+                active_const_substitutions: &[],
                 exact_toolchain_sources: &[],
                 missing_exact_nominal_owner: None,
                 qualification: TypeIdentityQualification::PackageQualified,
@@ -269,6 +273,7 @@ impl TypedTrees {
             &TypeIdentityContext {
                 binders,
                 substitutions: &[],
+                active_const_substitutions: &[],
                 exact_toolchain_sources,
                 missing_exact_nominal_owner: Some(&missing_exact_nominal_owner),
                 qualification: TypeIdentityQualification::PackageQualified,
@@ -297,6 +302,7 @@ impl TypedTrees {
             TypeIdentityContext {
                 binders: &[],
                 substitutions: &[],
+                active_const_substitutions: &[],
                 exact_toolchain_sources,
                 missing_exact_nominal_owner: Some(&missing_exact_nominal_owner),
                 qualification: TypeIdentityQualification::PackageQualified,
@@ -335,6 +341,7 @@ impl TypedTrees {
             &TypeIdentityContext {
                 binders,
                 substitutions,
+                active_const_substitutions: &[],
                 exact_toolchain_sources: &[],
                 missing_exact_nominal_owner: None,
                 qualification: TypeIdentityQualification::Ordinary,
@@ -358,6 +365,7 @@ impl TypedTrees {
             &TypeIdentityContext {
                 binders,
                 substitutions,
+                active_const_substitutions: &[],
                 exact_toolchain_sources: &[],
                 missing_exact_nominal_owner: None,
                 qualification: TypeIdentityQualification::PackageQualified,
@@ -383,6 +391,7 @@ impl TypedTrees {
             &TypeIdentityContext {
                 binders,
                 substitutions,
+                active_const_substitutions: &[],
                 exact_toolchain_sources,
                 missing_exact_nominal_owner: Some(&missing_exact_nominal_owner),
                 qualification: TypeIdentityQualification::PackageQualified,
@@ -718,6 +727,7 @@ fn declared_domain_name(
 struct TypeIdentityContext<'binders> {
     binders: &'binders [(SymbolHandle, String)],
     substitutions: &'binders [(SymbolHandle, TypeReferenceHandle)],
+    active_const_substitutions: &'binders [SymbolHandle],
     exact_toolchain_sources: &'binders [(psi_source::SourceId, [u8; 32])],
     missing_exact_nominal_owner: Option<&'binders Cell<bool>>,
     qualification: TypeIdentityQualification,
@@ -972,6 +982,9 @@ fn normalize_index_expression(
                 .map(|member| member.as_str())
                 .collect::<Vec<_>>()
                 .join("::");
+            if let Some(identity) = substitution::index(program, path.symbol, &fallback, context) {
+                return identity;
+            }
             normalize_const_or_nominal_name(
                 program,
                 path.symbol,
@@ -1431,10 +1444,16 @@ fn normalize_array_length(
 ) -> String {
     match length {
         FixedArrayLength::Literal(value) => atom("literal", &value.to_string()),
-        FixedArrayLength::ConstParameter { symbol, name } => atom(
-            "const-parameter",
-            &context.name(program, *symbol, name.as_str()),
-        ),
+        FixedArrayLength::ConstParameter { symbol, name } => {
+            substitution::array_length(program, *symbol, name.as_str(), context).unwrap_or_else(
+                || {
+                    atom(
+                        "const-parameter",
+                        &context.name(program, *symbol, name.as_str()),
+                    )
+                },
+            )
+        }
         FixedArrayLength::ConstCall { name, .. } => atom("const-call", name.as_str()),
     }
 }

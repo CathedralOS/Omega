@@ -179,7 +179,10 @@ const fn copy_disposition_tag(disposition: PackageReviewOpaqueRepresentationCopy
     }
 }
 
-fn encode_representation_target(encoder: &mut Encoder, target: PackageReviewRepresentationTarget) {
+pub(crate) fn encode_representation_target(
+    encoder: &mut Encoder,
+    target: PackageReviewRepresentationTarget,
+) {
     encoder.byte(match target.profile() {
         PackageReviewRepresentationTargetProfile::LinuxArm64 => 0,
         PackageReviewRepresentationTargetProfile::LinuxX64 => 1,
@@ -202,7 +205,7 @@ fn encode_representation_target(encoder: &mut Encoder, target: PackageReviewRepr
     encoder.u16(target.pointer_alignment());
 }
 
-fn encode_boundary_shape_graph(
+pub(crate) fn encode_boundary_shape_graph(
     encoder: &mut Encoder,
     graph: &PackageReviewBoundaryShapeGraph,
 ) -> Result<(), PackageReviewEncodingError> {
@@ -244,7 +247,7 @@ fn encode_boundary_shape_graph(
     })
 }
 
-fn encode_opaque_occurrence(
+pub(crate) fn encode_opaque_occurrence(
     encoder: &mut Encoder,
     occurrence: &PackageReviewOpaqueRepresentationOccurrence,
 ) -> Result<(), PackageReviewEncodingError> {

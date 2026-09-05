@@ -6,7 +6,7 @@ use crate::record::{
     PackageReviewSystemVEightbyteClass,
 };
 
-pub(super) fn value_placement(
+pub(in crate::encoding::recovery::policy) fn value_placement(
     reader: &mut Reader<'_>,
 ) -> Result<PackageReviewBoundaryValuePlacement, Error> {
     let class = match reader.byte()? {

@@ -92,7 +92,55 @@ pub(crate) fn review_signature_type_identity_with_binders_and_substitutions_and_
         psi_typed_trees::name::Identifier,
     )],
 ) -> Result<PackageReviewTypeIdentity, Vec<Diagnostic>> {
-    validate_package_type_identity_input(&compilation.typed, type_reference, binders)?;
+    signature_type_identity(
+        compilation,
+        type_reference,
+        binders,
+        lifetime_binders,
+        substitutions,
+        lifetime_substitutions,
+        false,
+    )
+}
+
+/// Only callers already holding the exact declared const telescope slot may
+/// admit the compiler's unnameable value atoms at this root position.
+pub(crate) fn review_signature_const_argument_identity(
+    compilation: &CheckedCompilation,
+    type_reference: psi_typed_trees::types::TypeReferenceHandle,
+    binders: &[(SymbolHandle, String)],
+    lifetime_binders: &[psi_typed_trees::name::Identifier],
+    substitutions: &[(SymbolHandle, psi_typed_trees::types::TypeReferenceHandle)],
+) -> Result<PackageReviewTypeIdentity, Vec<Diagnostic>> {
+    signature_type_identity(
+        compilation,
+        type_reference,
+        binders,
+        lifetime_binders,
+        substitutions,
+        &[],
+        true,
+    )
+}
+
+fn signature_type_identity(
+    compilation: &CheckedCompilation,
+    type_reference: psi_typed_trees::types::TypeReferenceHandle,
+    binders: &[(SymbolHandle, String)],
+    lifetime_binders: &[psi_typed_trees::name::Identifier],
+    substitutions: &[(SymbolHandle, psi_typed_trees::types::TypeReferenceHandle)],
+    lifetime_substitutions: &[(
+        psi_typed_trees::name::Identifier,
+        psi_typed_trees::name::Identifier,
+    )],
+    const_argument: bool,
+) -> Result<PackageReviewTypeIdentity, Vec<Diagnostic>> {
+    super::validation::validate_package_type_identity_input_inner(
+        &compilation.typed,
+        type_reference,
+        binders,
+        const_argument,
+    )?;
     let runtime = compilation
         .package_qualified_type_identity_with_binders_substitutions_and_toolchain_sources(
             type_reference,

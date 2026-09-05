@@ -38,6 +38,7 @@ pub(crate) fn project_data_invariant_facts(
         domain_symbol: None,
         data_symbol: Some(definition.symbol),
         lifetime_binders: &definition.lifetime_parameters,
+        lifetime_substitutions: &[],
         selection_exposure: psi_language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure::PublicInterface,
     };
     let reviewed_package = compilation.package_identity().ok_or_else(|| {
