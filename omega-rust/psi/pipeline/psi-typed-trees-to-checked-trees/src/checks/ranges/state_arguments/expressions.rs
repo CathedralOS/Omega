@@ -1,150 +1,74 @@
 use psi_typed_trees::expression::{ExpressionHandle, ExpressionNode};
-use psi_typed_trees::machine::Machine;
 
-use super::StateArgumentFacts;
 use super::calls::collect_state_argument_facts_for_call;
+use super::{StateArgumentContext, StateArgumentFacts};
 use crate::checks::ranges::facts::RangeFacts;
 
 pub(super) fn collect_state_argument_facts_from_expression(
-    program: &psi_typed_trees::TypedTrees,
-    machine: &Machine,
-    facts: &RangeFacts<'_>,
+    context: &StateArgumentContext<'_, '_>,
+    facts: &mut RangeFacts<'_>,
     expression: ExpressionHandle,
     collected: &mut Vec<StateArgumentFacts>,
 ) {
     if !expression.is_valid() {
         return;
     }
-
-    match program.expression_table.expression(expression) {
-        ExpressionNode::Atomic(atomic) => collect_state_argument_facts_from_expression(
+    let program = context.program;
+    if let ExpressionNode::Call(call) = program.expression_table.expression(expression) {
+        collect_state_argument_facts_from_expression(context, facts, call.receiver, collected);
+        let arguments = program.expression_table.expression_handles(call.arguments);
+        for argument in arguments {
+            collect_state_argument_facts_from_expression(context, facts, *argument, collected);
+        }
+        collect_state_argument_facts_for_call(
             program,
-            machine,
+            context.machine,
             facts,
-            atomic.value,
+            call.target_symbol,
+            arguments,
             collected,
-        ),
+        );
+        let paths = context.call_frames.and_then(|frames| {
+            frames
+                .expression_write_frame(context.machine, expression)
+                .into_complete_paths()
+        });
+        facts.invalidate_call_writes(program, context.state, paths.as_deref());
+        return;
+    }
+    let mut visit = |child| {
+        collect_state_argument_facts_from_expression(context, facts, child, collected);
+    };
+    match program.expression_table.expression(expression) {
+        ExpressionNode::Atomic(atomic) => visit(atomic.value),
         ExpressionNode::ArrayLiteral(values) => {
             for value in program.expression_table.expression_handles(*values) {
-                collect_state_argument_facts_from_expression(
-                    program, machine, facts, *value, collected,
-                );
+                visit(*value);
             }
         }
         ExpressionNode::Binary(binary) => {
-            collect_state_argument_facts_from_expression(
-                program,
-                machine,
-                facts,
-                binary.left,
-                collected,
-            );
-            collect_state_argument_facts_from_expression(
-                program,
-                machine,
-                facts,
-                binary.right,
-                collected,
-            );
+            visit(binary.left);
+            visit(binary.right);
         }
-        ExpressionNode::Call(call) => {
-            collect_state_argument_facts_for_call(
-                program,
-                machine,
-                facts,
-                call.target_symbol,
-                Some(&call.target),
-                program.expression_table.expression_handles(call.arguments),
-                collected,
-            );
-            collect_state_argument_facts_from_expression(
-                program,
-                machine,
-                facts,
-                call.receiver,
-                collected,
-            );
-            for argument in program.expression_table.expression_handles(call.arguments) {
-                collect_state_argument_facts_from_expression(
-                    program, machine, facts, *argument, collected,
-                );
-            }
-        }
-        ExpressionNode::Cast(cast) => {
-            collect_state_argument_facts_from_expression(
-                program, machine, facts, cast.value, collected,
-            );
-        }
+        ExpressionNode::Cast(cast) => visit(cast.value),
         ExpressionNode::Indexed(indexed) => {
-            collect_state_argument_facts_from_expression(
-                program,
-                machine,
-                facts,
-                indexed.collection,
-                collected,
-            );
-            collect_state_argument_facts_from_expression(
-                program,
-                machine,
-                facts,
-                indexed.index,
-                collected,
-            );
+            visit(indexed.collection);
+            visit(indexed.index);
         }
-        ExpressionNode::Member(member) => {
-            collect_state_argument_facts_from_expression(
-                program,
-                machine,
-                facts,
-                member.receiver,
-                collected,
-            );
-        }
-        ExpressionNode::Borrow(inner) => {
-            collect_state_argument_facts_from_expression(
-                program,
-                machine,
-                facts,
-                inner.target,
-                collected,
-            );
-        }
-        ExpressionNode::Unary(unary) => {
-            collect_state_argument_facts_from_expression(
-                program,
-                machine,
-                facts,
-                unary.operand,
-                collected,
-            );
-        }
+        ExpressionNode::Member(member) => visit(member.receiver),
+        ExpressionNode::Borrow(borrow) => visit(borrow.target),
+        ExpressionNode::Unary(unary) => visit(unary.operand),
         ExpressionNode::Range(range) => {
-            collect_state_argument_facts_from_expression(
-                program,
-                machine,
-                facts,
-                range.start,
-                collected,
-            );
-            collect_state_argument_facts_from_expression(
-                program, machine, facts, range.end, collected,
-            );
+            visit(range.start);
+            visit(range.end);
         }
-        ExpressionNode::StructLiteral(struct_literal) => {
-            for field in program
-                .expression_table
-                .struct_fields(struct_literal.fields)
-            {
-                collect_state_argument_facts_from_expression(
-                    program,
-                    machine,
-                    facts,
-                    field.value,
-                    collected,
-                );
+        ExpressionNode::StructLiteral(literal) => {
+            for field in program.expression_table.struct_fields(literal.fields) {
+                visit(field.value);
             }
         }
-        ExpressionNode::Boolean(_)
+        ExpressionNode::Call(_)
+        | ExpressionNode::Boolean(_)
         | ExpressionNode::Float(_)
         | ExpressionNode::Integer(_)
         | ExpressionNode::Name(_)

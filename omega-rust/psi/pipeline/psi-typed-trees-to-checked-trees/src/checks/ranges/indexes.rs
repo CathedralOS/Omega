@@ -8,11 +8,12 @@ mod validation;
 use super::facts::RangeFacts;
 use validation::check_indexed_access;
 
-pub(super) fn check_expression(
-    program: &psi_typed_trees::TypedTrees,
-    machine: &Machine,
+pub(super) fn check_expression<'program>(
+    program: &'program psi_typed_trees::TypedTrees,
+    machine: &'program Machine,
     state: &State,
-    facts: &RangeFacts<'_>,
+    call_frames: Option<&psi_validation::CallFrameResolver<'program>>,
+    facts: &mut RangeFacts<'_>,
     expression: ExpressionHandle,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
@@ -21,23 +22,75 @@ pub(super) fn check_expression(
     }
 
     match program.expression_table.expression(expression) {
-        ExpressionNode::Atomic(atomic) => {
-            check_expression(program, machine, state, facts, atomic.value, diagnostics)
-        }
+        ExpressionNode::Atomic(atomic) => check_expression(
+            program,
+            machine,
+            state,
+            call_frames,
+            facts,
+            atomic.value,
+            diagnostics,
+        ),
         ExpressionNode::ArrayLiteral(values) => {
             for value in program.expression_table.expression_handles(*values) {
-                check_expression(program, machine, state, facts, *value, diagnostics);
+                check_expression(
+                    program,
+                    machine,
+                    state,
+                    call_frames,
+                    facts,
+                    *value,
+                    diagnostics,
+                );
             }
         }
         ExpressionNode::Binary(binary) => {
-            check_expression(program, machine, state, facts, binary.left, diagnostics);
-            check_expression(program, machine, state, facts, binary.right, diagnostics);
+            check_expression(
+                program,
+                machine,
+                state,
+                call_frames,
+                facts,
+                binary.left,
+                diagnostics,
+            );
+            check_expression(
+                program,
+                machine,
+                state,
+                call_frames,
+                facts,
+                binary.right,
+                diagnostics,
+            );
         }
         ExpressionNode::Call(call) => {
-            check_expression(program, machine, state, facts, call.receiver, diagnostics);
+            check_expression(
+                program,
+                machine,
+                state,
+                call_frames,
+                facts,
+                call.receiver,
+                diagnostics,
+            );
             for argument in program.expression_table.expression_handles(call.arguments) {
-                check_expression(program, machine, state, facts, *argument, diagnostics);
+                check_expression(
+                    program,
+                    machine,
+                    state,
+                    call_frames,
+                    facts,
+                    *argument,
+                    diagnostics,
+                );
             }
+            let paths = call_frames.and_then(|frames| {
+                frames
+                    .expression_write_frame(machine, expression)
+                    .into_complete_paths()
+            });
+            facts.invalidate_call_writes(program, state, paths.as_deref());
         }
         ExpressionNode::Cast(cast) => {
             // A §5b RECAST's operand is an ADDRESS the view starts at, not an
@@ -55,45 +108,109 @@ pub(super) fn check_expression(
                     program,
                     machine,
                     state,
+                    call_frames,
                     facts,
                     indexed.collection,
                     diagnostics,
                 );
-                check_expression(program, machine, state, facts, indexed.index, diagnostics);
+                check_expression(
+                    program,
+                    machine,
+                    state,
+                    call_frames,
+                    facts,
+                    indexed.index,
+                    diagnostics,
+                );
                 return;
             }
-            check_expression(program, machine, state, facts, cast.value, diagnostics)
+            check_expression(
+                program,
+                machine,
+                state,
+                call_frames,
+                facts,
+                cast.value,
+                diagnostics,
+            )
         }
         ExpressionNode::Indexed(indexed) => {
             // Operators lane: `check_indexed_access` now sources the `[]` / `[..]`
             // bounds obligation from the spelled boundary operator's `requires`
             // clause (see `validation.rs`), discharged by the bounds proof below.
-            check_indexed_access(program, machine, state, facts, indexed, diagnostics);
             check_expression(
                 program,
                 machine,
                 state,
+                call_frames,
                 facts,
                 indexed.collection,
                 diagnostics,
             );
-            check_expression(program, machine, state, facts, indexed.index, diagnostics);
+            check_expression(
+                program,
+                machine,
+                state,
+                call_frames,
+                facts,
+                indexed.index,
+                diagnostics,
+            );
+            // Collection/index producers run before the access. Their writes
+            // must retire old scalar and length premises before discharge.
+            check_indexed_access(program, machine, state, facts, indexed, diagnostics);
         }
         ExpressionNode::Member(member) => {
-            check_expression(program, machine, state, facts, member.receiver, diagnostics);
+            check_expression(
+                program,
+                machine,
+                state,
+                call_frames,
+                facts,
+                member.receiver,
+                diagnostics,
+            );
         }
-        ExpressionNode::Borrow(inner) => {
-            check_expression(program, machine, state, facts, inner.target, diagnostics)
-        }
-        ExpressionNode::Unary(unary) => {
-            check_expression(program, machine, state, facts, unary.operand, diagnostics)
-        }
+        ExpressionNode::Borrow(inner) => check_expression(
+            program,
+            machine,
+            state,
+            call_frames,
+            facts,
+            inner.target,
+            diagnostics,
+        ),
+        ExpressionNode::Unary(unary) => check_expression(
+            program,
+            machine,
+            state,
+            call_frames,
+            facts,
+            unary.operand,
+            diagnostics,
+        ),
         ExpressionNode::Range(range) => {
             if range.start.is_valid() {
-                check_expression(program, machine, state, facts, range.start, diagnostics);
+                check_expression(
+                    program,
+                    machine,
+                    state,
+                    call_frames,
+                    facts,
+                    range.start,
+                    diagnostics,
+                );
             }
             if range.end.is_valid() {
-                check_expression(program, machine, state, facts, range.end, diagnostics);
+                check_expression(
+                    program,
+                    machine,
+                    state,
+                    call_frames,
+                    facts,
+                    range.end,
+                    diagnostics,
+                );
             }
         }
         ExpressionNode::StructLiteral(struct_literal) => {
@@ -101,7 +218,15 @@ pub(super) fn check_expression(
                 .expression_table
                 .struct_fields(struct_literal.fields)
             {
-                check_expression(program, machine, state, facts, field.value, diagnostics);
+                check_expression(
+                    program,
+                    machine,
+                    state,
+                    call_frames,
+                    facts,
+                    field.value,
+                    diagnostics,
+                );
             }
         }
         ExpressionNode::Boolean(_)

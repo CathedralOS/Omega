@@ -36,7 +36,8 @@ pub(crate) fn check_indexed_accesses(
     let mut diagnostics = Vec::new();
 
     for machine in program.machines() {
-        let state_argument_facts = collect_state_argument_facts(program, &field_lengths, machine);
+        let state_argument_facts =
+            collect_state_argument_facts(program, &field_lengths, machine, call_frames);
         let incoming_guard_facts = incoming_guards.for_machine(machine.symbol);
         let loop_invariant_facts = collect_loop_invariant_facts(program, machine, call_frames);
         for state in program.machine_states(machine) {
@@ -65,6 +66,7 @@ pub(crate) fn check_indexed_accesses(
                     program,
                     machine,
                     state,
+                    call_frames,
                     &mut facts,
                     statement,
                     &mut diagnostics,

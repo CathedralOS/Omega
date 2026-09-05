@@ -152,10 +152,6 @@ impl RangeFacts<'_> {
         }
     }
 
-    pub(in crate::checks::ranges) fn forget_field_integers(&mut self) {
-        self.integer_fields.clear();
-    }
-
     pub(in crate::checks::ranges) fn define_boolean_guard_local(
         &mut self,
         symbol: SymbolHandle,

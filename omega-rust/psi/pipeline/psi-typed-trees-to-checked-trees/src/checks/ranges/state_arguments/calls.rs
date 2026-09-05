@@ -12,14 +12,14 @@ pub(super) fn collect_state_argument_facts_for_call(
     machine: &Machine,
     facts: &RangeFacts<'_>,
     target_symbol: SymbolHandle,
-    target_name: Option<&psi_typed_trees::name::Identifier>,
     arguments: &[ExpressionHandle],
     collected: &mut Vec<StateArgumentFacts>,
 ) {
-    let Some(target_state) = program.machine_states(machine).iter().find(|state| {
-        (target_symbol.is_valid() && state.symbol == target_symbol)
-            || target_name.is_some_and(|target_name| state.name == *target_name)
-    }) else {
+    let Some(target_state) = program
+        .machine_states(machine)
+        .iter()
+        .find(|state| target_symbol.is_valid() && state.symbol == target_symbol)
+    else {
         return;
     };
 
@@ -39,6 +39,7 @@ pub(super) fn collect_state_argument_facts_for_call(
                     name: parameter.name.to_string(),
                     is_self: parameter.is_self,
                     length: MergedFact::Unseen,
+                    minimum_length: super::MergedBound::Unseen,
                     integer: MergedFact::Unseen,
                     upper_bound: super::MergedBound::Unseen,
                 })
@@ -71,6 +72,13 @@ pub(super) fn collect_state_argument_facts_for_call(
         parameter
             .integer
             .merge(expression_integer_value(program, facts, argument));
+        let minimum_length = facts
+            .minimum_length(&program.expression_table.display_name(argument))
+            .or_else(|| {
+                expression_indexable_length(program, facts, argument)
+                    .and_then(|length| i64::try_from(length).ok())
+            });
+        parameter.minimum_length.merge_lower(minimum_length);
         // R4 transport: a constant argument bounds exclusively at value+1;
         // otherwise the argument's own proven upper bound (ensures-seeded
         // or guard-seeded) carries over by display name.

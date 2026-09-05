@@ -14,12 +14,13 @@ use psi_typed_trees::machine::Machine;
 use psi_typed_trees::state::State;
 use psi_typed_trees::statement::{StatementNode, TransitionGuardNode};
 
-pub(super) fn check_statement(
-    program: &psi_typed_trees::TypedTrees,
-    machine: &Machine,
+pub(super) fn check_statement<'program>(
+    program: &'program psi_typed_trees::TypedTrees,
+    machine: &'program Machine,
     state: &State,
+    call_frames: Option<&psi_validation::CallFrameResolver<'program>>,
     facts: &mut RangeFacts<'_>,
-    statement: &StatementNode,
+    statement: &'program StatementNode,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     match statement {
@@ -29,6 +30,7 @@ pub(super) fn check_statement(
                 program,
                 machine,
                 state,
+                call_frames,
                 facts,
                 assignment.target,
                 diagnostics,
@@ -37,6 +39,7 @@ pub(super) fn check_statement(
                 program,
                 machine,
                 state,
+                call_frames,
                 facts,
                 assignment.value,
                 diagnostics,
@@ -69,7 +72,15 @@ pub(super) fn check_statement(
                 let next_length = expression_indexable_length(program, facts, assignment.value);
                 let next_integer = expression_integer_value(program, facts, assignment.value);
                 facts.assign_local(symbol, name, next_length, next_integer);
-                seed_boolean_guard_local(program, facts, symbol, name, assignment.value);
+                seed_boolean_guard_local(
+                    program,
+                    machine,
+                    call_frames,
+                    facts,
+                    symbol,
+                    name,
+                    assignment.value,
+                );
                 seed_local_alias_facts(program, facts, assignment.value, name);
                 seed_subslice_window_facts(program, facts, assignment.value, name);
             } else if let Some((symbol, name)) = expression_member_name(program, assignment.target)
@@ -81,9 +92,19 @@ pub(super) fn check_statement(
         }
         StatementNode::Call(call) => {
             for argument in program.statement_table.expression_handles(call.arguments) {
-                check_expression(program, machine, state, facts, *argument, diagnostics);
+                check_expression(
+                    program,
+                    machine,
+                    state,
+                    call_frames,
+                    facts,
+                    *argument,
+                    diagnostics,
+                );
             }
-            facts.forget_field_integers();
+            let paths = call_frames
+                .and_then(|frames| frames.may_write_frame(machine, call).into_complete_paths());
+            facts.invalidate_call_writes(program, state, paths.as_deref());
             // R4 witness mint, checker tier: a BOUNDARY callee's `ensures
             // <param> <= K` bounds the `&mut` out-argument's place the
             // moment the call returns (the boundary model's citable fact).
@@ -92,13 +113,22 @@ pub(super) fn check_statement(
             seed_boundary_call_ensures_facts(program, machine, call, facts);
         }
         StatementNode::Expression(expression) => {
-            check_expression(program, machine, state, facts, *expression, diagnostics);
+            check_expression(
+                program,
+                machine,
+                state,
+                call_frames,
+                facts,
+                *expression,
+                diagnostics,
+            );
         }
         StatementNode::LocalData(local) => {
             check_expression(
                 program,
                 machine,
                 state,
+                call_frames,
                 facts,
                 local.initial_value,
                 diagnostics,
@@ -109,6 +139,8 @@ pub(super) fn check_statement(
             facts.define_local(local.symbol, local.name.to_string(), length, integer);
             seed_boolean_guard_local(
                 program,
+                machine,
+                call_frames,
                 facts,
                 local.symbol,
                 Some(local.name.as_str()),
@@ -128,20 +160,35 @@ pub(super) fn check_statement(
             );
         }
         StatementNode::Transition(transition) => {
-            let (target_facts, continuation_facts) = match transition.guard {
+            let (mut target_facts, mut continuation_facts) = match transition.guard {
                 TransitionGuardNode::When(guard) => {
-                    check_expression(program, machine, state, facts, guard, diagnostics);
-                    let mut guarded_facts = facts.clone();
-                    seed_guard_facts(program, &mut guarded_facts, guard);
-                    super::guards::seed_value_vs_value_endpoints(
+                    check_expression(
                         program,
                         machine,
                         state,
-                        &mut guarded_facts,
+                        call_frames,
+                        facts,
                         guard,
+                        diagnostics,
                     );
+                    let mut guarded_facts = facts.clone();
                     let mut negated_facts = facts.clone();
-                    seed_negated_guard_facts(program, &mut negated_facts, guard);
+                    if call_frames.is_some_and(|frames| {
+                        frames
+                            .expression_write_frame(machine, guard)
+                            .into_complete_paths()
+                            .is_some_and(|paths| paths.is_empty())
+                    }) {
+                        seed_guard_facts(program, &mut guarded_facts, guard);
+                        super::guards::seed_value_vs_value_endpoints(
+                            program,
+                            machine,
+                            state,
+                            &mut guarded_facts,
+                            guard,
+                        );
+                        seed_negated_guard_facts(program, &mut negated_facts, guard);
+                    }
                     (guarded_facts, negated_facts)
                 }
                 TransitionGuardNode::Always => (facts.clone(), facts.clone()),
@@ -150,7 +197,8 @@ pub(super) fn check_statement(
                 program,
                 machine,
                 state,
-                &target_facts,
+                call_frames,
+                &mut target_facts,
                 transition.target,
                 diagnostics,
             );
@@ -158,7 +206,8 @@ pub(super) fn check_statement(
                 program,
                 machine,
                 state,
-                &continuation_facts,
+                call_frames,
+                &mut continuation_facts,
                 transition.continuation,
                 diagnostics,
             );
@@ -166,8 +215,10 @@ pub(super) fn check_statement(
     }
 }
 
-fn seed_boolean_guard_local(
-    program: &psi_typed_trees::TypedTrees,
+fn seed_boolean_guard_local<'program>(
+    program: &'program psi_typed_trees::TypedTrees,
+    machine: &'program Machine,
+    call_frames: Option<&psi_validation::CallFrameResolver<'program>>,
     facts: &mut RangeFacts<'_>,
     symbol: psi_symbols::SymbolHandle,
     name: Option<&str>,
@@ -176,7 +227,12 @@ fn seed_boolean_guard_local(
     if matches!(
         program.expression_table.expression(expression),
         ExpressionNode::Binary(_)
-    ) {
+    ) && call_frames.is_some_and(|frames| {
+        frames
+            .expression_write_frame(machine, expression)
+            .into_complete_paths()
+            .is_some_and(|paths| paths.is_empty())
+    }) {
         facts.define_boolean_guard_local(symbol, name.unwrap_or_default().to_owned(), expression);
     }
 }
@@ -256,13 +312,8 @@ pub(super) fn seed_boundary_call_ensures_facts(
     use psi_typed_trees::domain::ProofFact;
     use psi_typed_trees::signature::SignatureContractKind;
     let arguments = program.statement_table.expression_handles(call.arguments);
-    // Drop stale bounds for every &mut-written place first.
-    for argument in arguments {
-        if let ExpressionNode::Borrow(inner) = program.expression_table.expression(*argument) {
-            let place = program.expression_table.display_name(inner.target);
-            facts.forget_index_upper_bound(&place);
-        }
-    }
+    // Both callers apply the complete write frame before reaching this
+    // postcondition publisher. Borrow syntax alone is not a write footprint.
     // Receiver field -> declared trait -> called signature (the shared
     // TypedTrees chain).
     let Some(signature) =
