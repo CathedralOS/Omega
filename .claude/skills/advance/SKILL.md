@@ -12,6 +12,21 @@ ownership firewall. Do not restate them — this skill is the loop that runs on 
 
 Composes with `/loop` for unattended sessions. One invocation is one iteration.
 
+**The loop is executable.** Run it with the Workflow tool rather than
+re-improvising it from this text:
+
+```text
+Workflow({ scriptPath: ".claude/skills/advance/orchestrate.js",
+           args: { agents: 2 } })            // optional: board: "TASKS_OPTIMIZER.md", skipRank: true
+```
+
+The script ranks the corpus, plans disjoint lanes, builds each task in its own
+worktree, then integrates. Lane disjointness, "edited outside its lane", file
+overlap between commits, and "every gate green" are checked **in the script**,
+not left to agent judgment; a commit that fails any of them is refused before
+it reaches `main`. The sections below are the rules each stage's agent
+follows, and what to do when running a slice by hand.
+
 ## What done looks like
 
 The bar is not "the board is shorter." It is: **the Rust reference compiler
