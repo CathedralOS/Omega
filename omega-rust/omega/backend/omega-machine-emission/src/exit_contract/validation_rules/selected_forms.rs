@@ -10,10 +10,10 @@ use omega_selected_instructions::{
 use omega_target::{Architecture, NativeTarget};
 use psi_core::EdgeId;
 
-use crate::{
-    SelectedFormEncodingState, SelectedFormMachineDisposition,
-    StagedOptimizedResolvedSelectedFormLayout, StagedOptimizedSelectedFormEncoding,
+use omega_post_allocation_machine_to_selected_form_encoding::{
+    SelectedFormEncodingState, SelectedFormMachineDisposition, StagedOptimizedSelectedFormEncoding,
 };
+use omega_selected_form_encoding_to_resolved_layout::StagedOptimizedResolvedSelectedFormLayout;
 
 use super::super::{
     error::WholeFunctionExitContractError,
@@ -22,11 +22,14 @@ use super::super::{
     },
 };
 
-pub(in crate::stages::layout::whole_function_exit_contract) fn unique_encoding_rows<'a>(
+pub(in crate::exit_contract) fn unique_encoding_rows<'a>(
     selected: &omega_selected_instructions::SelectedInstructionPlan,
     encoding: &'a StagedOptimizedSelectedFormEncoding,
 ) -> Result<
-    BTreeMap<(psi_core::MachineId, SelectedInstructionId), &'a crate::SelectedFormEncodingRow>,
+    BTreeMap<
+        (psi_core::MachineId, SelectedInstructionId),
+        &'a omega_post_allocation_machine_to_selected_form_encoding::SelectedFormEncodingRow,
+    >,
     WholeFunctionExitContractError,
 > {
     let mut rows = BTreeMap::new();
@@ -79,14 +82,14 @@ pub(in crate::stages::layout::whole_function_exit_contract) fn unique_encoding_r
     Ok(rows)
 }
 
-pub(in crate::stages::layout::whole_function_exit_contract) fn unique_layout_rows(
+pub(in crate::exit_contract) fn unique_layout_rows(
     layout: &StagedOptimizedResolvedSelectedFormLayout,
 ) -> Result<
     BTreeMap<
         (psi_core::MachineId, SelectedInstructionId),
         (
-            &crate::ResolvedSelectedBlockLayout,
-            &crate::ResolvedSelectedFormRow,
+            &omega_machine_code::ResolvedSelectedBlockLayout,
+            &omega_machine_code::ResolvedSelectedFormRow,
         ),
     >,
     WholeFunctionExitContractError,
@@ -109,7 +112,7 @@ pub(in crate::stages::layout::whole_function_exit_contract) fn unique_layout_row
     Ok(rows)
 }
 
-pub(in crate::stages::layout::whole_function_exit_contract) fn reject_preservation_writes(
+pub(in crate::exit_contract) fn reject_preservation_writes(
     machine: &PostAllocationMachineInstruction,
     callee_saved: &BTreeSet<RegisterUnitId>,
     link_units: &BTreeSet<RegisterUnitId>,
@@ -131,8 +134,8 @@ pub(in crate::stages::layout::whole_function_exit_contract) fn reject_preservati
     Ok(())
 }
 
-pub(in crate::stages::layout::whole_function_exit_contract) fn transformed_implicit_writes_any(
-    encoding: &crate::SelectedFormEncodingRow,
+pub(in crate::exit_contract) fn transformed_implicit_writes_any(
+    encoding: &omega_post_allocation_machine_to_selected_form_encoding::SelectedFormEncodingRow,
     units: &BTreeSet<RegisterUnitId>,
 ) -> bool {
     match &encoding.state {
@@ -150,11 +153,11 @@ pub(in crate::stages::layout::whole_function_exit_contract) fn transformed_impli
     }
 }
 
-pub(in crate::stages::layout::whole_function_exit_contract) fn validate_non_return(
+pub(in crate::exit_contract) fn validate_non_return(
     instruction: SelectedInstructionId,
     conditional_terminator: bool,
-    encoding: &crate::SelectedFormEncodingRow,
-    layout: &crate::ResolvedSelectedFormRow,
+    encoding: &omega_post_allocation_machine_to_selected_form_encoding::SelectedFormEncodingRow,
+    layout: &omega_machine_code::ResolvedSelectedFormRow,
 ) -> Result<(), WholeFunctionExitContractError> {
     let effects = match &encoding.state {
         SelectedFormEncodingState::Encoded { footprint, bytes }
@@ -215,7 +218,7 @@ pub(in crate::stages::layout::whole_function_exit_contract) fn validate_non_retu
 }
 
 #[allow(clippy::too_many_arguments)]
-pub(in crate::stages::layout::whole_function_exit_contract) fn validate_return(
+pub(in crate::exit_contract) fn validate_return(
     target: NativeTarget,
     stack_pointer: RegisterViewId,
     link_register: Option<RegisterViewId>,
@@ -224,8 +227,8 @@ pub(in crate::stages::layout::whole_function_exit_contract) fn validate_return(
     psi_return_edge: EdgeId,
     selected: &omega_selected_instructions::SelectedInstruction,
     machine: &PostAllocationMachineInstruction,
-    encoding: &crate::SelectedFormEncodingRow,
-    layout: &crate::ResolvedSelectedFormRow,
+    encoding: &omega_post_allocation_machine_to_selected_form_encoding::SelectedFormEncodingRow,
+    layout: &omega_machine_code::ResolvedSelectedFormRow,
     layout_block_end: u64,
 ) -> Result<WholeFunctionReturnEvidence, WholeFunctionExitContractError> {
     let value = match selected.kind {

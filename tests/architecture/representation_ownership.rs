@@ -391,16 +391,56 @@ fn exit_contract_records_and_identities_are_representation_owned() {
         );
     }
     let wrapper = "pub struct ValidatedWholeFunctionExitContract {";
-    assert!(pipeline.contains(wrapper));
+    let emission = rust_source(
+        &root.join("omega-rust/omega/backend/omega-machine-emission/src/exit_contract"),
+    );
+    assert!(emission.contains(wrapper));
+    assert!(!pipeline.contains(wrapper));
     assert!(!machine.contains(wrapper));
     assert!(machine.contains("omega.terminal.whole-function-exit-contract.v9"));
     assert!(!pipeline.contains("omega.terminal.whole-function-exit-contract.v9"));
     assert!(!machine.contains("omega_machine_optimizer::"));
     assert!(!machine.contains("omega_optimization_pipeline::"));
     assert!(
-        pipeline
+        emission
             .contains("pub fn shared_contract(&self) -> std::sync::Arc<WholeFunctionExitContract>")
     );
+}
+
+#[test]
+fn exit_replay_checks_claimed_records_without_reentering_the_producer() {
+    let root = repository();
+    let owner = root.join("omega-rust/omega/backend/omega-machine-emission/src/exit_contract");
+    let replay = rust_source(&owner.join("validation"));
+    for forbidden in [
+        "compute::",
+        "compute(",
+        "compute_with_frame(",
+        "validate_return(",
+        "validate_structural_unit_functions(",
+        "WholeFunctionExitContract {",
+        "WholeFunctionReturnEvidence {",
+        "WholeFunctionStructuralUnitCallEvidence {",
+        "WholeFunctionStructuralUnitExitEvidence {",
+    ] {
+        assert!(
+            !replay.contains(forbidden),
+            "exit replay uses record producer {forbidden}"
+        );
+    }
+    for (file, expected_count) in [("stage.rs", 4), ("mod.rs", 1)] {
+        let entrance = std::fs::read_to_string(owner.join(file)).unwrap();
+        assert_eq!(
+            entrance.matches("validation::validate(").count(),
+            expected_count
+        );
+        assert!(!entrance.contains("let replayed = compute"));
+    }
+    let coordinator =
+        rust_source(&root.join("omega-rust/omega/pipeline/omega-optimization-pipeline/src"));
+    assert!(!coordinator.contains("pub fn stage_whole_function_exit_contract"));
+    assert!(!coordinator.contains("pub fn validate_whole_function_exit_contract"));
+    assert!(!replay.contains("omega_optimization_pipeline::"));
 }
 
 #[test]

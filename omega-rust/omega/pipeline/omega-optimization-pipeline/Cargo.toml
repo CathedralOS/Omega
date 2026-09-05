@@ -9,6 +9,7 @@ name = "omega_optimization_pipeline"
 path = "src/lib.rs"
 
 [dependencies]
+omega-machine-emission = { path = "../../backend/omega-machine-emission" }
 omega-selected-form-encoding-to-resolved-layout = { path = "../omega-selected-form-encoding-to-resolved-layout" }
 omega-physical-instructions = { path = "../../representations/omega-physical-instructions" }
 omega-calling-conventions = { path = "../../representations/omega-calling-conventions" }
@@ -49,6 +50,7 @@ psi-terminal-fuel = { path = "../../../psi/semantics/psi-terminal-fuel" }
 sha2 = "0.10.9"
 
 [dev-dependencies]
+omega-machine-emission = { path = "../../backend/omega-machine-emission", features = ["test-support"] }
 omega-selected-form-encoding-to-resolved-layout = { path = "../omega-selected-form-encoding-to-resolved-layout", features = ["test-support"] }
 omega-selected-instructions-to-register-homes = { path = "../omega-selected-instructions-to-register-homes", features = ["test-support"] }
 omega-post-allocation-machine-to-selected-form-encoding = { path = "../omega-post-allocation-machine-to-selected-form-encoding", features = ["test-support"] }

@@ -9,6 +9,17 @@ name = "omega_machine_emission"
 path = "src/lib.rs"
 
 [dependencies]
+omega-frame-layout-to-frame-protocol = { path = "../../pipeline/omega-frame-layout-to-frame-protocol" }
+omega-post-allocation-machine-to-frame-layout = { path = "../../pipeline/omega-post-allocation-machine-to-frame-layout" }
+omega-post-allocation-machine-to-optimized-machine = { path = "../../pipeline/omega-post-allocation-machine-to-optimized-machine" }
+omega-post-allocation-machine-to-selected-form-encoding = { path = "../../pipeline/omega-post-allocation-machine-to-selected-form-encoding" }
+omega-register-homes-to-post-allocation-machine = { path = "../../pipeline/omega-register-homes-to-post-allocation-machine" }
+omega-selected-form-encoding-to-resolved-layout = { path = "../../pipeline/omega-selected-form-encoding-to-resolved-layout" }
+omega-machine-optimizer = { path = "../../pipeline/omega-machine-optimizer" }
+omega-regalloc = { path = "../../pipeline/omega-regalloc" }
+omega-register-model = { path = "../../representations/omega-register-model" }
+omega-selected-instructions = { path = "../../representations/omega-selected-instructions" }
+omega-optimization-core = { path = "../../representations/omega-optimization-core" }
 omega-target = { path = "../../representations/omega-target" }
 omega-calling-conventions = { path = "../../representations/omega-calling-conventions" }
 omega-x86-encoding = { path = "../instruction_set_architectures/omega-x86-encoding" }
@@ -38,3 +49,6 @@ psi-syntax-trees-to-symbol-resolved-trees = { path = "../../../psi/pipeline/psi-
 psi-terminal-codec = { path = "../../../psi/semantics/psi-terminal-codec" }
 psi-tokens-to-syntax-trees = { path = "../../../psi/pipeline/psi-tokens-to-syntax-trees" }
 psi-typed-trees-to-checked-trees = { path = "../../../psi/pipeline/psi-typed-trees-to-checked-trees" }
+
+[features]
+test-support = []

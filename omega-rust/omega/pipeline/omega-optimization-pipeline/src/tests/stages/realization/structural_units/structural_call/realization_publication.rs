@@ -69,6 +69,50 @@ pub(super) fn realize_and_publish_structural_call(homes: StagedOptimizedRegister
     assert_eq!(exit_call.shadow_byte_count, 32);
     assert_eq!(exit_call.pre_call_stack_alignment, 16);
 
+    let original_exit = realization.exit_contract().shared_contract();
+    for mutation in 0..7 {
+        let changed = realization.exit_contract_mut().contract_mut();
+        match mutation {
+            0 => changed.structural_unit_functions.reverse(),
+            1 => {
+                changed.structural_unit_functions.pop();
+            }
+            2 => changed.structural_unit_functions[0].call = None,
+            3 => {
+                changed.structural_unit_functions[0]
+                    .call
+                    .as_mut()
+                    .unwrap()
+                    .fixup
+                    .field_byte_offset += 1
+            }
+            4 => {
+                changed.structural_unit_functions[0]
+                    .call
+                    .as_mut()
+                    .unwrap()
+                    .frame_is_balanced = false
+            }
+            5 => changed.structural_unit_functions[0].returned.offset += 1,
+            6 => changed.structural_unit_functions[1].returned.bytes[0] ^= 1,
+            _ => unreachable!(),
+        }
+        changed.identity = changed.recomputed_identity();
+        assert!(
+            matches!(
+                validate_optimized_structural_unit_function_relative_realization(&realization),
+                Err(
+                    OptimizedStructuralUnitFunctionRelativeRealizationError::Exit(
+                        WholeFunctionExitContractError::ArtifactMismatch
+                    )
+                )
+            ),
+            "structural exit mutation {mutation}"
+        );
+        *realization.exit_contract_mut().contract_mut() = (*original_exit).clone();
+        validate_optimized_structural_unit_function_relative_realization(&realization).unwrap();
+    }
+
     let manifest = realization.manifest().record();
     assert_eq!(manifest.statistics.functions, 0);
     assert_eq!(manifest.statistics.blocks, 0);

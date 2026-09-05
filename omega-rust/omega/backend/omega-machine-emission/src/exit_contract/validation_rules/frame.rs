@@ -9,14 +9,17 @@ use omega_selected_instructions::{
 };
 use omega_target::{Architecture, NativeTarget};
 
-use crate::{
-    FunctionTargetFrameLayout, ResolvedSelectedFormRow, ReturnAddressFrameCustody,
+use omega_machine_code::ResolvedSelectedFormRow;
+use omega_post_allocation_machine_to_frame_layout::{
+    FunctionTargetFrameLayout, ReturnAddressFrameCustody,
+};
+use omega_post_allocation_machine_to_selected_form_encoding::{
     SelectedFormEncodingRow, SelectedFormEncodingState, SelectedFormMachineDisposition,
 };
 
 use super::super::WholeFunctionExitContractError;
 
-pub(in crate::stages::layout::whole_function_exit_contract) fn frame_permissions(
+pub(in crate::exit_contract) fn frame_permissions(
     physical: &ValidatedPhysicalRegisterModel,
     frame: Option<&FunctionTargetFrameLayout>,
 ) -> Result<(BTreeSet<RegisterUnitId>, bool), WholeFunctionExitContractError> {
@@ -43,7 +46,7 @@ pub(in crate::stages::layout::whole_function_exit_contract) fn frame_permissions
 }
 
 #[allow(clippy::too_many_arguments)]
-pub(in crate::stages::layout::whole_function_exit_contract) fn validate_preservation_writes(
+pub(in crate::exit_contract) fn validate_preservation_writes(
     machine: &omega_machine_optimizer::PostAllocationMachineInstruction,
     encoding: &SelectedFormEncodingRow,
     callee_saved: &BTreeSet<RegisterUnitId>,
@@ -92,7 +95,7 @@ pub(in crate::stages::layout::whole_function_exit_contract) fn validate_preserva
     Ok(())
 }
 
-pub(in crate::stages::layout::whole_function_exit_contract) fn validate_internal_call(
+pub(in crate::exit_contract) fn validate_internal_call(
     target: NativeTarget,
     stack_pointer: RegisterViewId,
     instruction: SelectedInstructionId,

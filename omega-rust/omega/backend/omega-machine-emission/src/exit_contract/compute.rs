@@ -4,11 +4,11 @@ use omega_regalloc::ValidatedSelectedAnalysis;
 use omega_register_model::ValidatedPhysicalRegisterModel;
 use omega_selected_instructions::{SelectedInstructionKind, SelectedTerminator};
 
-use crate::{
-    StagedOptimizedPostAllocationMachinePlan, StagedOptimizedResolvedSelectedFormLayout,
-    StagedOptimizedSelectedFormEncoding, ValidatedTargetFrameLayout,
-    ValidatedTargetFrameProtocolEncoding,
-};
+use omega_frame_layout_to_frame_protocol::ValidatedTargetFrameProtocolEncoding;
+use omega_post_allocation_machine_to_frame_layout::ValidatedTargetFrameLayout;
+use omega_post_allocation_machine_to_selected_form_encoding::StagedOptimizedSelectedFormEncoding;
+use omega_register_homes_to_post_allocation_machine::StagedOptimizedPostAllocationMachinePlan;
+use omega_selected_form_encoding_to_resolved_layout::StagedOptimizedResolvedSelectedFormLayout;
 
 use super::{
     error::WholeFunctionExitContractError,
@@ -190,7 +190,7 @@ fn compute_inner<S: ValidatedSelectedAnalysis>(
             || !encoding.rows().is_empty()
             || !layout.functions().is_empty()
             || layout.policy()
-                != crate::SelectedFunctionLayoutPolicy::StructuralUnitCallThenReturnSingleEntryBlockV1
+                != omega_machine_code::SelectedFunctionLayoutPolicy::StructuralUnitCallThenReturnSingleEntryBlockV1
             || layout_custody != WholeFunctionExitLayoutCustody::BaselineNearLayoutV1
         {
             return Err(WholeFunctionExitContractError::UnsupportedTargetPolicy);

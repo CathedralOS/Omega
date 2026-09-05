@@ -2,7 +2,9 @@ use omega_register_model::RegisterUnitId;
 use omega_selected_instructions::{SelectedBlockId, SelectedInstructionId};
 use psi_core::MachineId;
 
-use crate::{OptimizedResolvedSelectedFormLayoutError, OptimizedX86BranchRelaxationError};
+use omega_selected_form_encoding_to_resolved_layout::{
+    OptimizedResolvedSelectedFormLayoutError, OptimizedX86BranchRelaxationError,
+};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum WholeFunctionExitContractError {

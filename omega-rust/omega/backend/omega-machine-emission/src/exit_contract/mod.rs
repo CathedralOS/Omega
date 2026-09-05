@@ -5,6 +5,7 @@ mod error;
 mod identity;
 mod model;
 mod stage;
+mod validation;
 mod validation_rules;
 
 pub use error::*;
@@ -14,9 +15,11 @@ pub use stage::*;
 use omega_regalloc::ValidatedSelectedAnalysis;
 use omega_register_model::ValidatedPhysicalRegisterModel;
 
-use crate::{
-    StagedOptimizedPostAllocationMachineOptimization, StagedOptimizedPostAllocationMachinePlan,
-    StagedOptimizedResolvedSelectedFormLayout, StagedOptimizedSelectedFormEncoding,
+use omega_post_allocation_machine_to_optimized_machine::StagedOptimizedPostAllocationMachineOptimization;
+use omega_post_allocation_machine_to_selected_form_encoding::StagedOptimizedSelectedFormEncoding;
+use omega_register_homes_to_post_allocation_machine::StagedOptimizedPostAllocationMachinePlan;
+use omega_selected_form_encoding_to_resolved_layout::{
+    StagedOptimizedResolvedSelectedFormLayout,
     validate_optimized_resolved_selected_form_layout_with_post_allocation_machine_optimization,
 };
 
@@ -82,16 +85,14 @@ pub fn validate_whole_function_exit_contract_with_post_allocation_machine_optimi
     .map_err(WholeFunctionExitContractError::Layout)?;
     let layout_custody =
         validation_rules::post_allocation_layout_custody(machine, encoding, layout, optimization)?;
-    let replayed = compute::compute(
+    validation::validate(
         selected,
         machine,
         physical,
         encoding,
         layout,
         layout_custody,
-    )?;
-    if replayed != *contract.contract {
-        return Err(WholeFunctionExitContractError::ArtifactMismatch);
-    }
-    Ok(())
+        None,
+        contract.contract(),
+    )
 }

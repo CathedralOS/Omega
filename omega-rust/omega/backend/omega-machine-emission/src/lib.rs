@@ -3,6 +3,9 @@
 //! Machine-code emission for the first source-independent terminal-Psi target
 //! operation slice.
 
+mod exit_contract;
+pub use exit_contract::*;
+
 #[cfg(test)]
 use omega_assigned_target_operations::AssignedBooleanControl;
 use omega_assigned_target_operations::{
