@@ -8,6 +8,42 @@ use psi_syntax_trees::types::TypeReferenceNode;
 mod expression_stack;
 
 #[test]
+fn boolean_transition_targets_are_literals_without_parentheses() {
+    for (spelling, expected) in [
+        ("false", false),
+        ("true", true),
+        ("(false)", false),
+        ("(true)", true),
+    ] {
+        let source = format!("machine value() -> bool {{ transition {{ _ -> {spelling} }} }}");
+        let tokens = Lexer::new(&source).tokenize().unwrap();
+        let parsed = parse_syntax_trees(&tokens).unwrap();
+        let machine = parsed
+            .root_items()
+            .find_map(|item| match item {
+                psi_syntax_trees::item::Item::Machine(machine) => Some(machine),
+                _ => None,
+            })
+            .unwrap();
+        let state = parsed
+            .items
+            .state(parsed.items.state_handles(machine.states)[0]);
+        let statement = parsed.items.statements(state.statements)[0];
+        let StatementNode::Transition(transition) = parsed.statements.statement(statement) else {
+            panic!("transition");
+        };
+        let psi_syntax_trees::statement::TransitionTargetNode::Value(expression) =
+            parsed.statements.transition_target(transition.target)
+        else {
+            panic!("literal value target");
+        };
+        assert!(
+            matches!(parsed.expressions.expression(*expression), ExpressionNode::Boolean(value) if *value == expected)
+        );
+    }
+}
+
+#[test]
 fn source_target_declarations_are_retired() {
     let tokens = Lexer::new("target linux_x86_64 { }")
         .tokenize()
