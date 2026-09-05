@@ -2,8 +2,9 @@
 
 use super::{
     PackageReviewEncodingError, calling,
-    declarations::{encode_conformance_shape, encode_representation_target},
+    declarations::encode_representation_target,
     encoder::Encoder,
+    public_api::conformance_shape as encode_conformance_shape,
     values::{conformance_policy, identity::encode_nominal},
 };
 use crate::encoding::{PACKAGE_REPRESENTATION_POLICY_VERSION, REPRESENTATION_POLICY_MAGIC};
@@ -23,21 +24,28 @@ impl PackagePolicyRepresentation {
         let mut encoder = Encoder::policy_bounded(4 * 1024 * 1024);
         encoder.fixed_bytes(REPRESENTATION_POLICY_MAGIC);
         encoder.u16(PACKAGE_REPRESENTATION_POLICY_VERSION);
-        encoder.package_identity(self.package);
-        encode_representation_target(&mut encoder, self.target);
-        encoder.sequence(&self.declarations, encode_nominal)?;
-        encoder.sequence(&self.producer_availability, |encoder, availability| {
-            encode_nominal(encoder, &availability.opaque)?;
-            encode_conformance_shape(encoder, &availability.conformance)?;
-            encode_nominal(encoder, &availability.carrier)
-        })?;
-        encoder.sequence(&self.selected_availability, selection)?;
-        encoder.sequence(&self.demands, |encoder, demand| {
-            encode_nominal(encoder, &demand.opaque)?;
-            calling::encode_application(encoder, &demand.calling)
-        })?;
+        policy(&mut encoder, self)?;
         encoder.finish()
     }
+}
+
+pub(super) fn policy(
+    encoder: &mut Encoder,
+    policy: &PackagePolicyRepresentation,
+) -> Result<(), PackageReviewEncodingError> {
+    encoder.package_identity(policy.package);
+    encode_representation_target(encoder, policy.target);
+    encoder.sequence(&policy.declarations, encode_nominal)?;
+    encoder.sequence(&policy.producer_availability, |encoder, availability| {
+        encode_nominal(encoder, &availability.opaque)?;
+        encode_conformance_shape(encoder, &availability.conformance)?;
+        encode_nominal(encoder, &availability.carrier)
+    })?;
+    encoder.sequence(&policy.selected_availability, selection)?;
+    encoder.sequence(&policy.demands, |encoder, demand| {
+        encode_nominal(encoder, &demand.opaque)?;
+        calling::encode_application(encoder, &demand.calling)
+    })
 }
 
 fn selection(

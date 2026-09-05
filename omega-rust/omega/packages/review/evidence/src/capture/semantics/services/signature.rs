@@ -1,7 +1,7 @@
 //! Typed source signatures are retained even without a selected calling plan.
 
 use super::*;
-use crate::capture::semantics::signatures::parameters::project_calling_type_parameters;
+use crate::capture::semantics::signatures::policy::project_type_parameters;
 use crate::capture::semantics::types::review_signature_type_identity_with_binders;
 use crate::record::{
     PackagePolicyServiceSignature, PackageReviewNominalIdentity,
@@ -166,6 +166,7 @@ pub(super) fn project(
         return Err(rejected("service requirement repeats a lifetime binder"));
     }
     let mut projected = compilation.clone();
+    let source_parameters = parameters;
     let mut parameters = parameters.to_vec();
     let mut scopes = Vec::new();
     let lifetime_substitutions = lifetimes
@@ -182,15 +183,19 @@ pub(super) fn project(
         &mut scopes,
         0,
     )?;
-    let (binders, static_parameters) = project_calling_type_parameters(
+    let (binders, static_parameters) = project_type_parameters(
         &projected,
         compilation,
         &parameters,
+        source_parameters,
         identity.path(),
+        &[],
+        0,
         lifetimes,
         &[],
-        &[],
         &scopes,
+        false,
+        psi_language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure::PublicInterface,
     )?;
     let parameters = values
         .iter()

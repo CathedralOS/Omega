@@ -1,7 +1,7 @@
 //! Exact service-schema permission meaning under one aggregate writer budget.
 
 use super::{
-    declarations::encode_type_parameter, encoder::Encoder,
+    encoder::Encoder, public_api::type_parameter as encode_type_parameter,
     selected_providers::encode_service_method, values::identity::encode_nominal,
 };
 use crate::encoding::{
@@ -17,21 +17,28 @@ impl PackagePolicyTerminalPermissions {
         let mut encoder = Encoder::policy_bounded(4 * 1024 * 1024);
         encoder.fixed_bytes(TERMINAL_PERMISSION_POLICY_MAGIC);
         encoder.u16(PACKAGE_TERMINAL_PERMISSION_POLICY_VERSION);
-        encoder.package_identity(self.package);
-        encoder.string(self.target.identity().as_str())?;
-        encoder.sequence(&self.services, |encoder, service| {
-            encode_nominal(encoder, &service.service)?;
-            encoder.sequence(&service.static_parameters, encode_type_parameter)?;
-            encoder.u32(service.lifetime_parameter_count);
-            encoder.sequence(&service.methods, encode_service_method)?;
-            encoder.sequence(&service.permissions, |encoder, permission| {
-                encode_nominal(encoder, &permission.requirement)?;
-                encoder.sequence(permission.permitted.classes(), |encoder, class| {
-                    encoder.byte(class.canonical_tag());
-                    Ok(())
-                })
-            })
-        })?;
+        policy(&mut encoder, self)?;
         encoder.finish()
     }
+}
+
+pub(super) fn policy(
+    encoder: &mut Encoder,
+    policy: &PackagePolicyTerminalPermissions,
+) -> Result<(), PackageReviewEncodingError> {
+    encoder.package_identity(policy.package);
+    encoder.string(policy.target.identity().as_str())?;
+    encoder.sequence(&policy.services, |encoder, service| {
+        encode_nominal(encoder, &service.service)?;
+        encoder.sequence(&service.static_parameters, encode_type_parameter)?;
+        encoder.u32(service.lifetime_parameter_count);
+        encoder.sequence(&service.methods, encode_service_method)?;
+        encoder.sequence(&service.permissions, |encoder, permission| {
+            encode_nominal(encoder, &permission.requirement)?;
+            encoder.sequence(permission.permitted.classes(), |encoder, class| {
+                encoder.byte(class.canonical_tag());
+                Ok(())
+            })
+        })
+    })
 }

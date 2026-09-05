@@ -1,8 +1,12 @@
-use super::{Error, expressions::expression, identity::nominal, reader::Reader};
+#[cfg(test)]
+use super::expressions::expression;
+use super::{Error, identity::nominal, reader::Reader};
+use crate::record::PackageReviewSynchronousInvocation;
+#[cfg(test)]
 use crate::record::{
     PackageReviewCrashCause, PackageReviewCrashPredicate, PackageReviewCrashRoute,
     PackageReviewCrashRouteGuard, PackageReviewProgressPremise, PackageReviewProgressSubject,
-    PackageReviewSynchronousInvocation, PackageReviewTermination,
+    PackageReviewTermination,
 };
 
 pub(super) fn synchronous_invocation(
@@ -15,6 +19,7 @@ pub(super) fn synchronous_invocation(
     })
 }
 
+#[cfg(test)]
 pub(super) fn termination(reader: &mut Reader<'_>) -> Result<PackageReviewTermination, Error> {
     Ok(match reader.byte()? {
         0 => PackageReviewTermination::NoGuarantee,
@@ -38,6 +43,7 @@ pub(super) fn termination(reader: &mut Reader<'_>) -> Result<PackageReviewTermin
     })
 }
 
+#[cfg(test)]
 pub(super) fn crash_route(reader: &mut Reader<'_>) -> Result<PackageReviewCrashRoute, Error> {
     let cause = match reader.byte()? {
         0 => PackageReviewCrashCause::Trap,

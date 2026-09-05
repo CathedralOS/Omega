@@ -6,7 +6,9 @@ mod replay;
 mod rows;
 
 use crate::capture::providers::selection::validate_selected_provider_declaration_owner;
-use crate::capture::semantics::declarations::nominal_identity;
+use crate::capture::semantics::declarations::{
+    nominal_identity, policy_provider_requirement_identity,
+};
 use crate::capture::semantics::services;
 use crate::record::{
     PackagePolicyProviderPlan, PackagePolicySelectedProviders,
@@ -25,6 +27,16 @@ pub fn project_checked_selected_provider_policy(
     target: TargetProfile,
     package: PackageKeyIdentity,
 ) -> Result<PackagePolicySelectedProviders, Vec<Diagnostic>> {
+    project_with_indices(compilation, target, package).map(|(policy, _)| policy)
+}
+
+/// The second result maps canonical policy positions to checked provenance positions.
+/// It is capture-local custody, never serialized policy.
+pub(super) fn project_with_indices(
+    compilation: &CheckedCompilation,
+    target: TargetProfile,
+    package: PackageKeyIdentity,
+) -> Result<(PackagePolicySelectedProviders, Vec<usize>), Vec<Diagnostic>> {
     replay::validate(compilation, target, package)?;
     let mut plans = compilation
         .selected_provider_provenance()
@@ -57,6 +69,7 @@ pub fn project_checked_selected_provider_policy(
             "an authored provider grant has no unique selected plan",
         ));
     }
+    let original_indices = plans.iter().map(|(index, _)| *index).collect();
     let policy = PackagePolicySelectedProviders {
         package,
         target,
@@ -64,7 +77,7 @@ pub fn project_checked_selected_provider_policy(
         families,
     };
     policy.validate_canonical_structure().map_err(rejected)?;
-    Ok(policy)
+    Ok((policy, original_indices))
 }
 
 fn project_plan(
@@ -139,7 +152,7 @@ fn project_plan(
         ));
     }
     Ok(PackagePolicyProviderPlan {
-        plan_name: plan.name.clone(),
+        plan_name: normalized_plan_name(compilation, retained)?,
         realizing_package: plan.origin_package_identity,
         schema_declaration,
         provider_type: plan.provider_type.clone(),
@@ -149,6 +162,35 @@ fn project_plan(
         rows,
         grants,
     })
+}
+
+fn normalized_plan_name(
+    compilation: &CheckedCompilation,
+    retained: &SelectedProviderReviewProvenance,
+) -> Result<String, Vec<Diagnostic>> {
+    let plan = &retained.plan;
+    let omega_provider_planning::plans::ProviderSchemaDeclaration::BoundaryOperator(symbol) =
+        retained.provider.schema
+    else {
+        return Ok(plan.name.clone());
+    };
+    let generated = omega_provider_planning::plans::satisfies_plan_name(
+        &plan.target,
+        &plan.schema.trait_name,
+        &plan.provider_type,
+    );
+    if plan.name != generated {
+        return Err(rejected(
+            "operator plan name differs from its exact generated provenance",
+        ));
+    }
+    let requirement =
+        policy_provider_requirement_identity(compilation, retained.provider.schema, symbol)?;
+    Ok(omega_provider_planning::plans::satisfies_plan_name(
+        &plan.target,
+        requirement.path(),
+        &plan.provider_type,
+    ))
 }
 
 fn rejected(reason: &str) -> Vec<Diagnostic> {

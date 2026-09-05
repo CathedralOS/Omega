@@ -5,11 +5,11 @@ mod source;
 
 use omega_package_evidence::encoding::PackagePolicyRecoveryLimits;
 use omega_package_evidence::record::{
-    PackagePolicyRepresentation, PackageReviewNominalOwner,
+    PackagePolicyRepresentation, PackagePolicyTypeParameterKind, PackageReviewNominalOwner,
     PackageReviewOpaqueRepresentationApplicationOrigin,
     PackageReviewOpaqueRepresentationCopyDisposition,
     PackageReviewOpaqueRepresentationLifecycleDisposition,
-    PackageReviewRepresentationTargetProfile, PackageReviewTypeParameterKind,
+    PackageReviewRepresentationTargetProfile,
 };
 use omega_package_evidence::{
     project_checked_calling_policy, project_checked_representation_policy,
@@ -233,11 +233,11 @@ fn producer_availability_retains_its_unused_public_generic_telescope() {
     assert_eq!(parameters.len(), 2);
     assert!(matches!(
         parameters[0].kind(),
-        PackageReviewTypeParameterKind::Type
+        PackagePolicyTypeParameterKind::Type
     ));
     assert!(matches!(
         parameters[1].kind(),
-        PackageReviewTypeParameterKind::Const(_)
+        PackagePolicyTypeParameterKind::Const(_)
     ));
     assert!(policy.selected_availability().is_empty());
     assert!(policy.demands().is_empty());

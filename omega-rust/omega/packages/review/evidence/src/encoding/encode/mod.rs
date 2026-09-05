@@ -4,10 +4,12 @@
 //! contains their subordinate evidence-family encoders; it is deliberately a
 //! child of this owner rather than a peer persistence domain.
 
+mod baseline;
 mod callable_policy;
 pub(super) mod calling;
 pub(super) mod declarations;
 pub(super) mod encoder;
+mod public_api;
 pub(super) mod quotients;
 mod representation;
 pub(super) mod review;
@@ -15,6 +17,19 @@ pub(super) mod rows;
 mod selected_providers;
 mod terminal_permissions;
 mod values;
+
+#[cfg(test)]
+pub(super) use baseline::policy as encode_baseline_policy;
+
+#[cfg(test)]
+pub(super) use public_api::machine_contract as encode_policy_machine_contract;
+#[cfg(test)]
+pub(super) use public_api::public_api as encode_public_api;
+
+#[cfg(test)]
+pub(super) use values::declarations::{
+    encode_const_shape, encode_operator_shape, encode_proposition_shape,
+};
 
 #[cfg(test)]
 pub(super) use values::crashes::{encode_boolean_expression, encode_scalar_expression};

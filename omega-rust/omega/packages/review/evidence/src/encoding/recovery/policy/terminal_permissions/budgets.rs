@@ -46,8 +46,8 @@ fn aggregate_element_byte_field_and_depth_limits_include_full_schema() {
                             .static_parameters
                             .iter()
                             .map(|parameter| match &parameter.kind {
-                                crate::record::PackageReviewTypeParameterKind::Machine(_) => 1,
-                                crate::record::PackageReviewTypeParameterKind::Proposition(
+                                crate::record::PackagePolicyTypeParameterKind::Machine(_) => 1,
+                                crate::record::PackagePolicyTypeParameterKind::Proposition(
                                     signature,
                                 ) => signature.parameters.len(),
                                 _ => 0,

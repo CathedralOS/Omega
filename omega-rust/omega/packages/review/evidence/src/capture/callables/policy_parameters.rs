@@ -1,8 +1,8 @@
 //! Scope-preserving static telescopes for complete callable policy.
 
 use crate::capture::calling::application::signature::instantiate_static_parameters;
-use crate::capture::semantics::signatures::parameters::project_callable_policy_type_parameters;
-use crate::record::PackageReviewTypeParameter;
+use crate::capture::semantics::signatures::policy::project_type_parameters;
+use crate::record::PackagePolicyTypeParameter;
 use omega_compiler::CheckedCompilation;
 use psi_diagnostics::Diagnostic;
 use psi_symbols::SymbolHandle;
@@ -12,7 +12,7 @@ pub(super) fn type_parameters(
     machine: &psi_typed_trees::machine::Machine,
     subject: &str,
     public_nominals: bool,
-) -> Result<(Vec<(SymbolHandle, String)>, Vec<PackageReviewTypeParameter>), Vec<Diagnostic>> {
+) -> Result<(Vec<(SymbolHandle, String)>, Vec<PackagePolicyTypeParameter>), Vec<Diagnostic>> {
     let mut parameters = compilation.machine_type_parameters(machine).to_vec();
     if parameters.is_empty() {
         return Ok((Vec::new(), Vec::new()));
@@ -34,13 +34,22 @@ pub(super) fn type_parameters(
         &mut scopes,
         0,
     )?;
-    project_callable_policy_type_parameters(
+    project_type_parameters(
         &projected,
         compilation,
         &parameters,
+        compilation.machine_type_parameters(machine),
         subject,
+        &[],
+        0,
         &machine.lifetime_parameters,
+        &[],
         &scopes,
         public_nominals,
+        if machine.is_public || machine.supply_mode.is_boundary_declaration() {
+            psi_language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure::PublicInterface
+        } else {
+            psi_language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure::PrivateImplementation
+        },
     )
 }

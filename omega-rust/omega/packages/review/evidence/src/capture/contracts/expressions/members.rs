@@ -5,6 +5,10 @@ use omega_compiler::CheckedCompilation;
 use psi_diagnostics::Diagnostic;
 use psi_symbols::SymbolHandle;
 
+mod aliases;
+mod points;
+pub(crate) use points::checked_self_parameter_symbol;
+
 pub(crate) fn contract_member_has_exact_collection_length(
     compilation: &CheckedCompilation,
     expression: psi_typed_trees::expression::ExpressionHandle,
@@ -38,7 +42,10 @@ pub(crate) fn require_exact_checked_contract_nominal_member(
     expected_member: SymbolHandle,
 ) -> Result<(), Vec<Diagnostic>> {
     let selected = exact_checked_contract_nominal_member(compilation, context, expression)?;
-    if !expected_member.is_valid() || selected != expected_member {
+    if !expected_member.is_valid()
+        || (selected != expected_member
+            && !aliases::attached_field(compilation, context, expected_member, selected))
+    {
         return Err(vec![Diagnostic::error(format!(
             "reviewed {} `{}` nominal member disagrees with its exact checked member-selection row",
             context.subject_kind, context.subject_name
@@ -225,6 +232,16 @@ pub(crate) fn contract_member_path_root(
         is_data_subject_field_expression(compilation, data_symbol, expression)
     }) {
         return context.data_symbol.map(psi_facts::PlaceRoot::Symbol);
+    }
+    if context.domain_symbol.is_none()
+        && compilation
+            .expression_table
+            .name_path_members(path.members)
+            .first()
+            .is_some_and(|name| name.as_str() == "self")
+    {
+        return checked_self_parameter_symbol(compilation, context, path)
+            .map(psi_facts::PlaceRoot::Symbol);
     }
     let resolved = path
         .head_symbol
@@ -428,6 +445,7 @@ pub(crate) fn checked_contract_member_path(
         return Ok(selected.clone());
     }
 
+    let (point, origin) = points::contract_point(compilation, context, checked_fact)?;
     let mut candidates = Vec::new();
     for (_, semantic_fact) in compilation.facts.semantic.facts.iter() {
         let contract_fact_matches = matches!(
@@ -436,7 +454,10 @@ pub(crate) fn checked_contract_member_path(
                 | FactPayload::ContractDomainMembership { fact, .. }
                 if fact == checked_fact
         );
-        if semantic_fact.point != context.point || !contract_fact_matches {
+        if semantic_fact.point != point
+            || origin.is_some_and(|origin| semantic_fact.origin != origin)
+            || !contract_fact_matches
+        {
             continue;
         }
         let FactPlace::Place(place_handle) = semantic_fact.place else {

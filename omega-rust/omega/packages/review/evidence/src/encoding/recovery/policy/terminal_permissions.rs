@@ -10,9 +10,9 @@ mod tests;
 use super::{
     Error, PackagePolicyRecoveryLimits,
     identity::{nominal, package},
+    public_api::type_parameter,
     reader::Reader,
     selected_providers::service_method,
-    signatures::type_parameter,
 };
 use crate::encoding::{
     PACKAGE_TERMINAL_PERMISSION_POLICY_VERSION, TERMINAL_PERMISSION_POLICY_MAGIC,
@@ -32,30 +32,7 @@ impl PackagePolicyTerminalPermissions {
         if reader.u16()? != PACKAGE_TERMINAL_PERMISSION_POLICY_VERSION {
             return Err(Error::UnsupportedVersion);
         }
-        let package = package(&mut reader)?;
-        let target_identity = reader.string()?;
-        let target = omega_target::TargetProfile::ALL
-            .into_iter()
-            .find(|target| target.identity().as_str() == target_identity)
-            .ok_or(Error::InvalidValue)?;
-        let policy = Self {
-            package,
-            target,
-            services: reader.sequence(69, |reader| {
-                Ok(PackagePolicyTerminalService {
-                    service: nominal(reader)?,
-                    static_parameters: reader.sequence(3, type_parameter)?,
-                    lifetime_parameter_count: reader.u32()?,
-                    methods: reader.sequence(1, service_method)?,
-                    permissions: reader.sequence(49, |reader| {
-                        Ok(PackagePolicyTerminalPermission {
-                            requirement: nominal(reader)?,
-                            permitted: disposition(reader)?,
-                        })
-                    })?,
-                })
-            })?,
-        };
+        let policy = policy(&mut reader)?;
         reader.finish()?;
         policy
             .validate_canonical_structure()
@@ -70,6 +47,27 @@ impl PackagePolicyTerminalPermissions {
         }
         Ok(policy)
     }
+}
+
+pub(super) fn policy(reader: &mut Reader<'_>) -> Result<PackagePolicyTerminalPermissions, Error> {
+    Ok(PackagePolicyTerminalPermissions {
+        package: package(reader)?,
+        target: super::selected_providers::target(reader)?,
+        services: reader.sequence(69, |reader| {
+            Ok(PackagePolicyTerminalService {
+                service: nominal(reader)?,
+                static_parameters: reader.sequence(3, type_parameter)?,
+                lifetime_parameter_count: reader.u32()?,
+                methods: reader.sequence(1, service_method)?,
+                permissions: reader.sequence(49, |reader| {
+                    Ok(PackagePolicyTerminalPermission {
+                        requirement: nominal(reader)?,
+                        permitted: disposition(reader)?,
+                    })
+                })?,
+            })
+        })?,
+    })
 }
 
 fn disposition(reader: &mut Reader<'_>) -> Result<TerminalAuthorityDisposition, Error> {

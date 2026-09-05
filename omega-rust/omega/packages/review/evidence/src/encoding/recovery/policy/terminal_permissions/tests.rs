@@ -132,7 +132,7 @@ fn every_truncation_unknown_version_and_trailing_bytes_reject() {
         assert!(recover(&bytes[..end]).is_err(), "prefix {end}");
     }
     let mut changed = bytes.clone();
-    changed[TERMINAL_PERMISSION_POLICY_MAGIC.len()] = 2;
+    changed[TERMINAL_PERMISSION_POLICY_MAGIC.len()] = 255;
     assert_eq!(recover(&changed), Err(Error::UnsupportedVersion));
     let mut changed = bytes;
     changed.push(0);

@@ -10,19 +10,19 @@ pub(super) fn generic_fixture() -> PackagePolicyTerminalPermissions {
     let machine = service.methods[0].signature.static_parameters[0].clone();
     let properties = machine.bounds;
     service.static_parameters = vec![
-        PackageReviewTypeParameter {
-            kind: PackageReviewTypeParameterKind::Type,
+        PackagePolicyTypeParameter {
+            kind: PackagePolicyTypeParameterKind::Type,
             bounds: properties,
         },
-        PackageReviewTypeParameter {
-            kind: PackageReviewTypeParameterKind::Const(PackageReviewTypeIdentity {
+        PackagePolicyTypeParameter {
+            kind: PackagePolicyTypeParameterKind::Const(PackageReviewTypeIdentity {
                 canonical: "u64".into(),
             }),
             bounds: properties,
         },
         machine,
-        PackageReviewTypeParameter {
-            kind: PackageReviewTypeParameterKind::Proposition(
+        PackagePolicyTypeParameter {
+            kind: PackagePolicyTypeParameterKind::Proposition(
                 PackageReviewPropositionParameterSignature {
                     parameters: vec![PackageReviewPropositionParameterValue {
                         type_identity: PackageReviewTypeIdentity {
@@ -73,7 +73,7 @@ fn complete_generic_service_telescope_and_contract_kinds_roundtrip() {
     assert_eq!(recover(&bytes).unwrap(), changed);
     let mut changed = original.clone();
     changed.services[0].static_parameters[1].kind =
-        PackageReviewTypeParameterKind::Const(PackageReviewTypeIdentity {
+        PackagePolicyTypeParameterKind::Const(PackageReviewTypeIdentity {
             canonical: "u32".into(),
         });
     let bytes = changed.canonical_bytes().unwrap();

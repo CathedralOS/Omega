@@ -6,8 +6,8 @@ use super::{
     PackagePolicyCallbacks, PackagePolicyCallingOpaqueUse, PackagePolicyPhysicalCallingContract,
 };
 use crate::record::{
-    PackageReviewBoundaryShapeGraph, PackageReviewNominalIdentity,
-    PackageReviewRepresentationTarget, PackageReviewTypeIdentity, PackageReviewTypeParameter,
+    PackagePolicyTypeParameter, PackageReviewBoundaryShapeGraph, PackageReviewNominalIdentity,
+    PackageReviewRepresentationTarget, PackageReviewTypeIdentity,
 };
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
@@ -20,7 +20,7 @@ pub struct PackagePolicyCallingPlan {
     pub(crate) requirement_arguments: Vec<PackageReviewTypeIdentity>,
     pub(crate) requirement_lifetime_arguments: Vec<u32>,
     pub(crate) requirement_lifetime_parameter_count: u32,
-    pub(crate) static_parameters: Vec<PackageReviewTypeParameter>,
+    pub(crate) static_parameters: Vec<PackagePolicyTypeParameter>,
     pub(crate) target: PackageReviewRepresentationTarget,
     pub(crate) shape_graph: PackageReviewBoundaryShapeGraph,
     pub(crate) semantic_parameters: Vec<PackagePolicyCallingParameter>,
@@ -86,7 +86,7 @@ impl PackagePolicyCallingPlan {
     pub const fn requirement_lifetime_parameter_count(&self) -> u32 {
         self.requirement_lifetime_parameter_count
     }
-    pub fn static_parameters(&self) -> &[PackageReviewTypeParameter] {
+    pub fn static_parameters(&self) -> &[PackagePolicyTypeParameter] {
         &self.static_parameters
     }
     pub const fn target(&self) -> &PackageReviewRepresentationTarget {

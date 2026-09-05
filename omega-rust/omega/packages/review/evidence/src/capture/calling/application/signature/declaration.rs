@@ -30,7 +30,7 @@ fn root(
 pub(crate) fn declaration_parameters(
     compilation: &CheckedCompilation,
     symbol: SymbolHandle,
-) -> Result<(Vec<PackageReviewTypeParameter>, u32), Vec<Diagnostic>> {
+) -> Result<(Vec<PackagePolicyTypeParameter>, u32), Vec<Diagnostic>> {
     let owner = root(compilation, symbol)?;
     let mut projected = compilation.clone();
     let mut parameters = compilation.trait_type_parameters(owner).to_vec();
@@ -50,15 +50,19 @@ pub(crate) fn declaration_parameters(
         &mut scopes,
         0,
     )?;
-    let (_, parameters) = project_calling_type_parameters(
+    let (_, parameters) = project_type_parameters(
         &projected,
         compilation,
         &parameters,
+        compilation.trait_type_parameters(owner),
         owner.name.as_str(),
+        &[],
+        0,
         &owner.lifetime_parameters,
         &[],
-        &[],
         &scopes,
+        false,
+        psi_language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure::PublicInterface,
     )?;
     Ok((parameters, count(owner.lifetime_parameters.len())?))
 }

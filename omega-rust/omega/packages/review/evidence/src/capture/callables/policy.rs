@@ -41,6 +41,13 @@ pub fn project_checked_callable_policy(
             PackagePolicyCallableRole::Build
         } else if !machine.is_public && machine.supply_mode == MachineSupplyMode::AdmissionClaim {
             PackagePolicyCallableRole::PrivateAssumption
+        } else if !machine.is_public
+            && matches!(
+                machine.supply_mode,
+                MachineSupplyMode::ExternalRealization { .. }
+            )
+        {
+            PackagePolicyCallableRole::PrivateExternal
         } else if machine.supply_mode.is_boundary_declaration() {
             PackagePolicyCallableRole::Boundary
         } else if machine.is_public {
@@ -62,7 +69,9 @@ pub fn project_checked_callable_policy(
             PackagePolicyCallableRole::Boundary | PackagePolicyCallableRole::PrivateAssumption => {
                 PackageReviewCallableRole::Boundary
             }
-            PackagePolicyCallableRole::Public => PackageReviewCallableRole::Public,
+            PackagePolicyCallableRole::Public | PackagePolicyCallableRole::PrivateExternal => {
+                PackageReviewCallableRole::Public
+            }
         };
         let identity = policy_callable_identity(compilation, machine.symbol)?;
         let projected = surface::project(compilation, machine, review_role, identity, true)?;
@@ -98,7 +107,7 @@ pub fn project_checked_callable_policy(
             identity: surface.identity,
             supply: surface.supply,
             lifetime_parameter_count: surface.lifetime_parameter_count,
-            type_parameters: surface.type_parameters,
+            type_parameters: surface.policy_type_parameters,
             conformance_bounds: surface.conformance_bounds,
             parameters: surface.parameters,
             conformances: surface.policy_conformances,

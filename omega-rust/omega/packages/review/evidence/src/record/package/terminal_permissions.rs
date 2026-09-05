@@ -6,7 +6,7 @@ pub(crate) use generics::write_service_parameter_identity;
 
 use super::{PackagePolicyServiceMethod, provider_policy::validate_service_methods};
 use crate::record::{
-    PackageReviewNominalIdentity, PackageReviewNominalOwner, PackageReviewTypeParameter,
+    PackagePolicyTypeParameter, PackageReviewNominalIdentity, PackageReviewNominalOwner,
 };
 use omega_effects::TerminalAuthorityDisposition;
 use omega_target::TargetProfile;
@@ -68,7 +68,7 @@ impl PackagePolicyTerminalPermissions {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PackagePolicyTerminalService {
     pub(crate) service: PackageReviewNominalIdentity,
-    pub(crate) static_parameters: Vec<PackageReviewTypeParameter>,
+    pub(crate) static_parameters: Vec<PackagePolicyTypeParameter>,
     pub(crate) lifetime_parameter_count: u32,
     /// Complete schema in original declaration order, including unpermitted methods.
     pub(crate) methods: Vec<PackagePolicyServiceMethod>,
@@ -79,7 +79,7 @@ impl PackagePolicyTerminalService {
     pub fn service(&self) -> &PackageReviewNominalIdentity {
         &self.service
     }
-    pub fn static_parameters(&self) -> &[PackageReviewTypeParameter] {
+    pub fn static_parameters(&self) -> &[PackagePolicyTypeParameter] {
         &self.static_parameters
     }
     pub const fn lifetime_parameter_count(&self) -> u32 {

@@ -1,6 +1,6 @@
 //! Canonical receipt-free external-supply policy, independent of review rows.
 
-use super::callables::encode_external_executable_supply_coordinate;
+mod signatures;
 use super::identity::encode_nominal;
 use crate::encoding::encode::encoder::Encoder;
 use crate::encoding::{
@@ -29,12 +29,20 @@ fn encode(
     let mut encoder = Encoder::policy_bounded(maximum_bytes);
     encoder.fixed_bytes(EXTERNAL_SUPPLY_POLICY_MAGIC);
     encoder.u16(PACKAGE_EXTERNAL_SUPPLY_POLICY_VERSION);
-    encode_external_executable_supply_coordinate(
-        &mut encoder,
-        &supply.callable,
-        &supply.signature,
-        &supply.requirement,
-    )?;
+    policy(&mut encoder, supply)?;
+    encoder.finish()
+}
+
+pub(in crate::encoding::encode) fn policy(
+    encoder: &mut Encoder,
+    supply: &PackagePolicyExternalExecutableSupply,
+) -> Result<(), PackageReviewEncodingError> {
+    supply
+        .validate_canonical_structure()
+        .map_err(PackageReviewEncodingError::new)?;
+    encode_nominal(encoder, &supply.callable)?;
+    signatures::signature(encoder, &supply.signature)?;
+    signatures::requirement(encoder, &supply.requirement)?;
     match &supply.binding {
         PackagePolicyExternalBinding::Import { library, symbol } => {
             encoder.byte(0);
@@ -64,9 +72,9 @@ fn encode(
             producer,
         } => {
             encoder.byte(6);
-            encode_target(&mut encoder, target)?;
-            encode_locator(&mut encoder, locator)?;
-            encode_producer(&mut encoder, producer)?;
+            encode_target(encoder, target)?;
+            encode_locator(encoder, locator)?;
+            encode_producer(encoder, producer)?;
         }
         PackagePolicyExternalBinding::NormalizedSyscall {
             target,
@@ -74,12 +82,12 @@ fn encode(
             producer,
         } => {
             encoder.byte(7);
-            encode_target(&mut encoder, target)?;
+            encode_target(encoder, target)?;
             encoder.i64(*number);
-            encode_producer(&mut encoder, producer)?;
+            encode_producer(encoder, producer)?;
         }
     }
-    encoder.finish()
+    Ok(())
 }
 
 fn encode_target(encoder: &mut Encoder, target: &str) -> Result<(), PackageReviewEncodingError> {

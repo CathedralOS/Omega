@@ -7,8 +7,8 @@ fn value_type() -> PackageReviewTypeIdentity {
     }
 }
 
-fn parameter(kind: PackageReviewTypeParameterKind) -> PackageReviewTypeParameter {
-    PackageReviewTypeParameter {
+fn parameter(kind: PackagePolicyTypeParameterKind) -> PackagePolicyTypeParameter {
+    PackagePolicyTypeParameter {
         kind,
         bounds: PackageReviewDataProperties {
             multiplicity: psi_language_semantics::Multiplicity::Unrestricted,
@@ -18,13 +18,13 @@ fn parameter(kind: PackageReviewTypeParameterKind) -> PackageReviewTypeParameter
 }
 
 fn static_parameters(
-    machine: PackageReviewMachineParameterContract,
-) -> Vec<PackageReviewTypeParameter> {
+    machine: PackagePolicyMachineParameterContract,
+) -> Vec<PackagePolicyTypeParameter> {
     vec![
-        parameter(PackageReviewTypeParameterKind::Type),
-        parameter(PackageReviewTypeParameterKind::Const(value_type())),
-        parameter(PackageReviewTypeParameterKind::Machine(machine)),
-        parameter(PackageReviewTypeParameterKind::Proposition(
+        parameter(PackagePolicyTypeParameterKind::Type),
+        parameter(PackagePolicyTypeParameterKind::Const(value_type())),
+        parameter(PackagePolicyTypeParameterKind::Machine(machine)),
+        parameter(PackagePolicyTypeParameterKind::Proposition(
             PackageReviewPropositionParameterSignature {
                 parameters: vec![PackageReviewPropositionParameterValue {
                     type_identity: value_type(),
@@ -104,10 +104,10 @@ fn contracts(offset: u32, lifetime: u32) -> Vec<PackageReviewCallableContract> {
 
 fn static_fixture() -> PackagePolicyCallables {
     let mut policy = fixture();
-    let nested = PackageReviewMachineParameterSignature {
+    let nested = PackagePolicyMachineParameterSignature {
         lifetime_parameter_count: 1,
         type_parameters: static_parameters(
-            PackageReviewMachineParameterContract::RequirementIdentity,
+            PackagePolicyMachineParameterContract::RequirementIdentity,
         ),
         parameters: vec![PackageReviewMachineParameterValue {
             name: "input".into(),
@@ -116,12 +116,12 @@ fn static_fixture() -> PackagePolicyCallables {
             is_mutable: false,
             is_self: false,
         }],
-        return_type: value_type(),
+        return_type: Some(value_type()),
         // Nested statics follow all four outer binders; its lifetime follows the two outer lifetimes.
         contracts: contracts(4, 2),
-        published_crash: vec![PackageReviewCrashRoute {
+        published_crash: vec![PackagePolicyCrashRoute {
             cause: PackageReviewCrashCause::Trap,
-            alternative_guards: vec![PackageReviewCrashRouteGuard::Expression(
+            alternative_guards: vec![PackagePolicyCrashGuard::Expression(
                 PackageReviewContractExpression::Boolean(false),
             )],
         }],
@@ -130,16 +130,16 @@ fn static_fixture() -> PackagePolicyCallables {
         synchronous_invocations: vec![PackageReviewSynchronousInvocation::Parameter(0)],
         suspends: false,
         blocks: true,
-        termination: PackageReviewTermination::NoGuarantee,
+        termination: PackagePolicyTermination::NoGuarantee,
     };
     policy.callables[0].type_parameters =
-        static_parameters(PackageReviewMachineParameterContract::Structural(nested));
+        static_parameters(PackagePolicyMachineParameterContract::Structural(nested));
     policy.callables[0].contracts = contracts(0, 1);
     policy
 }
 
-fn nested(policy: &mut PackagePolicyCallables) -> &mut PackageReviewMachineParameterSignature {
-    let PackageReviewTypeParameterKind::Machine(PackageReviewMachineParameterContract::Structural(
+fn nested(policy: &mut PackagePolicyCallables) -> &mut PackagePolicyMachineParameterSignature {
+    let PackagePolicyTypeParameterKind::Machine(PackagePolicyMachineParameterContract::Structural(
         signature,
     )) = &mut policy.callables[0].type_parameters[2].kind
     else {
@@ -269,9 +269,7 @@ fn result_is_only_available_to_postconditions_with_a_result() {
         let mut policy = static_fixture();
         if is_nested {
             nested(&mut policy).published_crash[0].alternative_guards =
-                vec![PackageReviewCrashRouteGuard::Expression(
-                    result_equals_input(),
-                )];
+                vec![PackagePolicyCrashGuard::Expression(result_equals_input())];
         } else {
             policy.callables[0].checked_crash.published[0].alternative_guards =
                 vec![PackagePolicyCrashGuard::Expression(result_equals_input())];

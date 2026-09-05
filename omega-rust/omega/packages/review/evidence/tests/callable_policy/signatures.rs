@@ -1,6 +1,92 @@
 use super::*;
 
 #[test]
+fn private_external_operational_policy_is_not_replaced_by_its_requirement() {
+    let source = r#"
+pub boundary trait Host {
+    machine ping() suspends; blocks;
+}
+machine ping_leaf()
+satisfies Host::ping via Binding::CompilerIntrinsic;
+"#;
+    let quiet = Fixture::local(source);
+    let published = Fixture::local(&source.replace(
+        "via Binding::CompilerIntrinsic;",
+        "via Binding::CompilerIntrinsic suspends; blocks;",
+    ));
+    let quiet_supply = omega_package_evidence::project_checked_external_supply_policy(
+        &quiet.checked,
+        quiet
+            .checked
+            .machines()
+            .iter()
+            .find(|machine| machine.name.as_str() == "ping_leaf")
+            .unwrap()
+            .symbol,
+    )
+    .unwrap();
+    let published_supply = omega_package_evidence::project_checked_external_supply_policy(
+        &published.checked,
+        published
+            .checked
+            .machines()
+            .iter()
+            .find(|machine| machine.name.as_str() == "ping_leaf")
+            .unwrap()
+            .symbol,
+    )
+    .unwrap();
+    assert_eq!(
+        quiet_supply, published_supply,
+        "the supply signature and binding alone omit outer operational promises"
+    );
+    let quiet = project(&quiet);
+    let published = project(&published);
+    let quiet_leaf = callable(&quiet, "ping_leaf");
+    let published_leaf = callable(&published, "ping_leaf");
+    assert_eq!(
+        quiet_leaf.role(),
+        PackagePolicyCallableRole::PrivateExternal
+    );
+    assert_eq!(
+        quiet_leaf.supply(),
+        PackageReviewCallableSupply::ExternalRealization
+    );
+    assert_eq!(quiet_leaf.declared_may_suspend(), Some(false));
+    assert_eq!(quiet_leaf.declared_may_block(), Some(false));
+    assert_eq!(published_leaf.declared_may_suspend(), Some(true));
+    assert_eq!(published_leaf.declared_may_block(), Some(true));
+    assert_ne!(
+        quiet.canonical_bytes().unwrap(),
+        published.canonical_bytes().unwrap()
+    );
+}
+
+#[test]
+fn nested_machine_result_absence_is_not_a_dummy_type() {
+    let source = "pub machine inspect<machine Work>() -> u64\nwhere machine Work();\n{ 0 }\n";
+    let absent = project(&Fixture::local(source));
+    let present = project(&Fixture::local(
+        &source.replace("Work();", "Work() -> u64;"),
+    ));
+    let signature = |policy: &PackagePolicyCallables| {
+        let PackagePolicyTypeParameterKind::Machine(
+            PackagePolicyMachineParameterContract::Structural(signature),
+        ) = callable(policy, "inspect").type_parameters()[0].kind()
+        else {
+            panic!("one structural machine parameter")
+        };
+        signature.return_type().cloned()
+    };
+    assert!(signature(&absent).is_none());
+    assert!(signature(&present).is_some());
+    assert_ne!(
+        absent.canonical_bytes().unwrap(),
+        present.canonical_bytes().unwrap()
+    );
+}
+
+#[test]
 fn full_static_lifetime_and_contract_signatures_preserve_relations_not_binder_names() {
     let source = r#"
 pub machine borrow<'source, 'temporary>(source: &'source [u8], temporary: &'temporary [u8]) -> &'source [u8] { source }
@@ -28,11 +114,11 @@ ensures value >= 1
     assert_eq!(inspect.type_parameters().len(), 3);
     assert!(matches!(
         inspect.type_parameters()[1].kind(),
-        PackageReviewTypeParameterKind::Const(_)
+        PackagePolicyTypeParameterKind::Const(_)
     ));
     assert!(matches!(
         inspect.type_parameters()[2].kind(),
-        PackageReviewTypeParameterKind::Machine(_)
+        PackagePolicyTypeParameterKind::Machine(_)
     ));
     assert_eq!(callable(&original, "retain").contracts().len(), 2);
     let changed_source = source.replace(

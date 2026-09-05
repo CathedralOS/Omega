@@ -4,7 +4,7 @@ mod validation;
 
 use crate::record::{
     PackagePolicyCallingPlan, PackagePolicyClosedConformanceApplication,
-    PackageReviewConformanceShape, PackageReviewNominalIdentity, PackageReviewNominalOwner,
+    PackagePolicyConformanceShape, PackageReviewNominalIdentity, PackageReviewNominalOwner,
     PackageReviewOpaqueRepresentationApplicationOrigin,
     PackageReviewOpaqueRepresentationCopyDisposition,
     PackageReviewOpaqueRepresentationLifecycleDisposition, PackageReviewRepresentationTarget,
@@ -29,7 +29,7 @@ pub struct PackagePolicyRepresentation {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PackagePolicyRepresentationAvailability {
     pub(crate) opaque: PackageReviewNominalIdentity,
-    pub(crate) conformance: PackageReviewConformanceShape,
+    pub(crate) conformance: PackagePolicyConformanceShape,
     pub(crate) carrier: PackageReviewNominalIdentity,
 }
 
@@ -86,7 +86,7 @@ impl PackagePolicyRepresentationAvailability {
         &self.opaque
     }
 
-    pub const fn conformance(&self) -> &PackageReviewConformanceShape {
+    pub const fn conformance(&self) -> &PackagePolicyConformanceShape {
         &self.conformance
     }
 

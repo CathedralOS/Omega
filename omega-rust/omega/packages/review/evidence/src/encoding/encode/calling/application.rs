@@ -1,7 +1,8 @@
 use super::{Encoder, PackageReviewEncodingError, callbacks, opaque, ordinal, type_identity};
 use crate::encoding::encode::declarations::{
-    encode_boundary_shape_graph, encode_representation_target, encode_type_parameter,
+    encode_boundary_shape_graph, encode_representation_target,
 };
+use crate::encoding::encode::public_api::type_parameter as encode_type_parameter;
 use crate::encoding::encode::values::identity::encode_nominal;
 use crate::encoding::encode::values::physical_calling_policy::encode_physical;
 use crate::encoding::{CALLING_POLICY_MAGIC, PACKAGE_CALLING_POLICY_VERSION};

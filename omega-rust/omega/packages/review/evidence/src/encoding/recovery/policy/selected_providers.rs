@@ -39,12 +39,7 @@ impl PackagePolicySelectedProviders {
         if reader.u16()? != PACKAGE_SELECTED_PROVIDER_POLICY_VERSION {
             return Err(Error::UnsupportedVersion);
         }
-        let policy = Self {
-            package: package(&mut reader)?,
-            target: target(&mut reader)?,
-            plans: reader.sequence(1, plan)?,
-            families: reader.sequence(1, family)?,
-        };
+        let policy = policy(&mut reader)?;
         reader.finish()?;
         policy
             .validate_canonical_structure()
@@ -61,7 +56,16 @@ impl PackagePolicySelectedProviders {
     }
 }
 
-fn target(reader: &mut Reader<'_>) -> Result<omega_target::TargetProfile, Error> {
+pub(super) fn policy(reader: &mut Reader<'_>) -> Result<PackagePolicySelectedProviders, Error> {
+    Ok(PackagePolicySelectedProviders {
+        package: package(reader)?,
+        target: target(reader)?,
+        plans: reader.sequence(1, plan)?,
+        families: reader.sequence(1, family)?,
+    })
+}
+
+pub(super) fn target(reader: &mut Reader<'_>) -> Result<omega_target::TargetProfile, Error> {
     let identity = reader.string()?;
     omega_target::TargetProfile::ALL
         .into_iter()

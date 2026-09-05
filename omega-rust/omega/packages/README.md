@@ -71,9 +71,12 @@ telescopes independently of provider demand. Callable policy retains complete
 signatures, contracts and lifetime bindings, published promises and checked
 summaries, entry mutation, and separately normalized reachable capability flows.
 Its typed crash guards preserve foreign owners without private derivation
-coordinates. Complete baseline composition, recovery, and comparison remain open.
-Dropping audit-relevant families or retaining their reconstruction receipts
-would both be incorrect.
+coordinates. `PackagePolicyBaseline` composes these meanings with all public
+declaration families, external supplies, dangerous authority and slack,
+source-semantic dependencies, and boundary applications under one bounded
+recovery envelope. Manager retention, normalized comparison, and lock integration
+remain open. Dropping audit-relevant families or retaining their reconstruction
+receipts would both be incorrect.
 
 Historical project decisions have a separate bounded text section under
 `manager/src/lock/decisions`. It is scoped to the retained source subject and

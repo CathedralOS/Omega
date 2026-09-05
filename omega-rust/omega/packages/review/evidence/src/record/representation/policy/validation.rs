@@ -48,6 +48,7 @@ impl PackagePolicyRepresentation {
             self.validate_owned_opaque(&candidate.opaque)?;
             nominal(&candidate.carrier)?;
             let conformance = &candidate.conformance;
+            crate::record::public_policy::validation::validate_conformance_shape(conformance)?;
             nominal(&conformance.identity)?;
             nominal(&conformance.interface.trait_identity)?;
             if conformance.identity.owner != PackageReviewNominalOwner::Package(self.package)

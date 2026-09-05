@@ -25,6 +25,7 @@ pub(super) struct CallableSurface {
     pub(super) supply: PackageReviewCallableSupply,
     pub(super) lifetime_parameter_count: usize,
     pub(super) type_parameters: Vec<PackageReviewTypeParameter>,
+    pub(super) policy_type_parameters: Vec<PackagePolicyTypeParameter>,
     pub(super) conformance_bounds: Vec<PackageReviewConformanceBound>,
     pub(super) parameters: Vec<PackageReviewCallableParameter>,
     pub(super) return_type: PackageReviewTypeIdentity,
@@ -84,21 +85,23 @@ pub(super) fn project<'a>(
     // Match the typed authored-selection owner: accepted claims use the
     // boundary interface even when their source name is not public.
     let publishes_interface = machine.is_public || machine.supply_mode.is_boundary_declaration();
-    let (binders, type_parameters) = if policy_mode {
-        super::policy_parameters::type_parameters(
+    let (binders, type_parameters, policy_type_parameters) = if policy_mode {
+        let (binders, parameters) = super::policy_parameters::type_parameters(
             compilation,
             machine,
             subject,
             publishes_interface,
-        )?
+        )?;
+        (binders, Vec::new(), parameters)
     } else {
-        project_type_parameters(
+        let (binders, parameters) = project_type_parameters(
             compilation,
             machine_type_parameters,
             "callable",
             subject,
             &machine.lifetime_parameters,
-        )?
+        )?;
+        (binders, parameters, Vec::new())
     };
     let conformance_bounds = project_conformance_bounds(
         compilation,
@@ -133,14 +136,34 @@ pub(super) fn project<'a>(
         &binders,
         &machine.lifetime_parameters,
     )?;
-    let external_signature = matches!(
-        machine.supply_mode,
-        MachineSupplyMode::ExternalRealization { .. }
-    )
+    let external_signature = (!policy_mode
+        && matches!(
+            machine.supply_mode,
+            MachineSupplyMode::ExternalRealization { .. }
+        ))
     .then(|| project_external_callable_signature(compilation, machine, &binders))
     .transpose()?;
     let mut policy_conformances = Vec::new();
-    let (conformances, operator_realizations, external_executable_supply) =
+    let (conformances, operator_realizations, external_executable_supply) = if policy_mode
+        && matches!(
+            machine.supply_mode,
+            MachineSupplyMode::ExternalRealization { .. }
+        ) {
+        let supplies = super::project_checked_external_supply_policy(compilation, machine.symbol)?;
+        let mut operators = Vec::new();
+        for supply in supplies {
+            match supply.requirement {
+                PackagePolicyExternalRequirement::Trait(conformance) => {
+                    policy_conformances.push(conformance);
+                }
+                PackagePolicyExternalRequirement::Operator { coordinate, alias } => {
+                    operators.push(PackageReviewOperatorRealization { coordinate, alias });
+                }
+                PackagePolicyExternalRequirement::TopLevelRequirement { .. } => {}
+            }
+        }
+        (Vec::new(), operators, Vec::new())
+    } else {
         project_callable_conformances(
             compilation,
             machine,
@@ -149,7 +172,8 @@ pub(super) fn project<'a>(
             external_signature.as_ref(),
             true,
             policy_mode.then_some(&mut policy_conformances),
-        )?;
+        )?
+    };
     let contracts = if policy_mode && !publishes_interface {
         project_callable_contracts_with_exposure(compilation, machine, entry, &binders,
         psi_language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure::PrivateImplementation
@@ -343,6 +367,7 @@ pub(super) fn project<'a>(
             supply,
             lifetime_parameter_count: machine.lifetime_parameters.len(),
             type_parameters,
+            policy_type_parameters,
             conformance_bounds,
             parameters,
             return_type,

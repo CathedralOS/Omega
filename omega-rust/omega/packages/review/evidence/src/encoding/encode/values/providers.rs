@@ -157,7 +157,7 @@ pub(crate) fn encode_boundary_application_realization(
     Ok(())
 }
 
-fn encode_boundary_application(
+pub(in crate::encoding::encode) fn encode_boundary_application(
     encoder: &mut Encoder,
     application: &PackageReviewBoundaryApplication,
 ) -> Result<(), PackageReviewEncodingError> {

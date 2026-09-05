@@ -23,12 +23,19 @@ impl PackagePolicySelectedProviders {
         let mut encoder = Encoder::policy_bounded(4 * 1024 * 1024);
         encoder.fixed_bytes(SELECTED_PROVIDER_POLICY_MAGIC);
         encoder.u16(PACKAGE_SELECTED_PROVIDER_POLICY_VERSION);
-        encoder.package_identity(self.package);
-        encoder.string(self.target.identity().as_str())?;
-        encoder.sequence(&self.plans, plan)?;
-        encoder.sequence(&self.families, family)?;
+        policy(&mut encoder, self)?;
         encoder.finish()
     }
+}
+
+pub(super) fn policy(
+    encoder: &mut Encoder,
+    policy: &PackagePolicySelectedProviders,
+) -> Result<(), PackageReviewEncodingError> {
+    encoder.package_identity(policy.package);
+    encoder.string(policy.target.identity().as_str())?;
+    encoder.sequence(&policy.plans, plan)?;
+    encoder.sequence(&policy.families, family)
 }
 
 fn plan(

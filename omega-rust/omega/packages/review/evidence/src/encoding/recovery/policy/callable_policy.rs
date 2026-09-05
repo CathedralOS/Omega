@@ -1,20 +1,22 @@
 //! Typed callable recovery under one bounded policy reader.
 
 mod behavior;
+pub(super) use behavior::{crash_route, termination};
 #[cfg(test)]
 mod budgets;
 #[cfg(test)]
 mod signatures;
 #[cfg(test)]
-mod tests;
+pub(super) mod tests;
 
 use super::{
     Error, PackagePolicyRecoveryLimits,
     behavior::synchronous_invocation,
     contracts::callable_contract,
     identity::{nominal, operator_coordinate, package, type_identity},
+    public_api::type_parameter,
     reader::Reader,
-    signatures::{conformance_bound, type_parameter},
+    signatures::conformance_bound,
 };
 use crate::encoding::{CALLABLE_POLICY_MAGIC, PACKAGE_CALLABLE_POLICY_VERSION};
 use crate::record::*;
@@ -29,17 +31,7 @@ impl PackagePolicyCallables {
         if reader.u16()? != PACKAGE_CALLABLE_POLICY_VERSION {
             return Err(Error::UnsupportedVersion);
         }
-        let package = package(&mut reader)?;
-        let target_identity = reader.string()?;
-        let target = omega_target::TargetProfile::ALL
-            .into_iter()
-            .find(|target| target.identity().as_str() == target_identity)
-            .ok_or(Error::InvalidValue)?;
-        let policy = Self {
-            package,
-            target,
-            callables: reader.sequence(1, callable)?,
-        };
+        let policy = policy(&mut reader)?;
         reader.finish()?;
         policy
             .validate_canonical_structure()
@@ -56,6 +48,14 @@ impl PackagePolicyCallables {
     }
 }
 
+pub(super) fn policy(reader: &mut Reader<'_>) -> Result<PackagePolicyCallables, Error> {
+    Ok(PackagePolicyCallables {
+        package: package(reader)?,
+        target: super::selected_providers::target(reader)?,
+        callables: reader.sequence(1, callable)?,
+    })
+}
+
 pub(super) fn callable(reader: &mut Reader<'_>) -> Result<PackagePolicyCallable, Error> {
     Ok(PackagePolicyCallable {
         role: match reader.byte()? {
@@ -63,6 +63,7 @@ pub(super) fn callable(reader: &mut Reader<'_>) -> Result<PackagePolicyCallable,
             1 => PackagePolicyCallableRole::Public,
             2 => PackagePolicyCallableRole::Build,
             3 => PackagePolicyCallableRole::PrivateAssumption,
+            4 => PackagePolicyCallableRole::PrivateExternal,
             _ => return Err(Error::InvalidTag),
         },
         identity: nominal(reader)?,
@@ -131,7 +132,7 @@ fn supply(reader: &mut Reader<'_>) -> Result<PackageReviewCallableSupply, Error>
     })
 }
 
-fn callable_conformance(
+pub(super) fn callable_conformance(
     reader: &mut Reader<'_>,
 ) -> Result<PackagePolicyCallableConformance, Error> {
     Ok(PackagePolicyCallableConformance {

@@ -4,26 +4,30 @@
 //! inspect compiler state, encode persistence bytes, or make admission policy.
 
 mod authority;
+mod baseline;
+pub use baseline::PackagePolicyBaseline;
 mod authority_expressions;
 mod behavior_policy;
-pub use behavior_policy::{
-    PackagePolicyCapabilityFlow, PackagePolicyCrash, PackagePolicyCrashGuard,
-    PackagePolicyCrashRoute, PackagePolicyInferredCrash, PackagePolicyMutation,
-    PackagePolicyProgressPremise, PackagePolicyTermination,
-};
+pub use behavior_policy::*;
 mod calling;
 mod conformances;
 mod contracts;
 mod data;
 mod domains;
 mod identity;
+mod semantic_policy;
 pub(crate) use identity::write_framed_identity;
+pub use semantic_policy::{
+    PackagePolicySemanticDependency, PackagePolicySemanticDependencyConsumer,
+};
 pub(crate) mod package;
+mod public_policy;
 mod quotients;
 mod representation;
 mod rows;
 mod signatures;
 mod terminal_authority;
+pub use public_policy::*;
 
 pub use authority::{
     PackageReviewBooleanExpression, PackageReviewCapabilityFlow, PackageReviewCrash,
@@ -93,7 +97,9 @@ pub use package::{
     CheckedPackageBoundaryApplicationRealizationReview, CheckedPackageCallableReview,
     CheckedPackageProviderFamilyCoordinateReview, CheckedPackageProviderFamilyReview,
     CheckedPackageProviderReview, CheckedPackageProviderRowIdentity,
-    CheckedPackageReviewProjection, PackagePolicyCallable, PackagePolicyCallableConformance,
+    CheckedPackageReviewProjection, PackagePolicyBoundaryApplicationDemand,
+    PackagePolicyBoundaryApplicationRealization, PackagePolicyBoundaryApplications,
+    PackagePolicyBoundaryRealization, PackagePolicyCallable, PackagePolicyCallableConformance,
     PackagePolicyCallableRole, PackagePolicyCallables, PackagePolicyProviderBinding,
     PackagePolicyProviderEvaluatedSyscall, PackagePolicyProviderFamily,
     PackagePolicyProviderFamilyCoordinate, PackagePolicyProviderPlan, PackagePolicyProviderRow,
@@ -133,7 +139,8 @@ pub use rows::{
 };
 pub use signatures::{
     PackagePolicyEvaluatedBindingProducer, PackagePolicyExternalBinding,
-    PackagePolicyExternalExecutableSupply, PackageReviewCallableConformance,
+    PackagePolicyExternalCallableSignature, PackagePolicyExternalExecutableSupply,
+    PackagePolicyExternalRequirement, PackageReviewCallableConformance,
     PackageReviewCallableParameter, PackageReviewConformanceBound, PackageReviewConformanceShape,
     PackageReviewConformanceSubject, PackageReviewEvaluatedBindingUsage,
     PackageReviewEvaluatedImport, PackageReviewEvaluatedSyscall, PackageReviewExternalBinding,

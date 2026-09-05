@@ -59,7 +59,7 @@ pub(super) fn application(reader: &mut Reader<'_>) -> Result<PackagePolicyCallin
         requirement_arguments: reader.sequence(8, type_identity)?,
         requirement_lifetime_arguments: reader.sequence(4, Reader::u32)?,
         requirement_lifetime_parameter_count: reader.u32()?,
-        static_parameters: reader.sequence(1, super::signatures::type_parameter)?,
+        static_parameters: reader.sequence(1, super::public_api::type_parameter)?,
         target: shapes::target(reader)?,
         shape_graph: shapes::graph(reader)?,
         semantic_parameters: reader.sequence(20, |reader| {

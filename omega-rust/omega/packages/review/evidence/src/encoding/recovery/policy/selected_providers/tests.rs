@@ -31,7 +31,7 @@ fn all_provider_prefixes_versions_and_trailing_bytes_reject() {
     changed[0] ^= 1;
     assert_eq!(recover(&changed), Err(Error::UnsupportedVersion));
     let mut changed = bytes.clone();
-    changed[SELECTED_PROVIDER_POLICY_MAGIC.len()] = 2;
+    changed[SELECTED_PROVIDER_POLICY_MAGIC.len()] = 255;
     assert_eq!(recover(&changed), Err(Error::UnsupportedVersion));
     let mut changed = bytes;
     changed.push(0);

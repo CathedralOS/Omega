@@ -5,17 +5,20 @@
 //! expression, identity, and behavior vocabulary without inspecting compiler
 //! representations or reconstructing proofs.
 
+mod baseline;
 mod behavior;
 mod callable_policy;
 mod calling_application;
 mod conformance;
 mod contracts;
+mod declarations;
 mod expressions;
 mod external;
 mod identity;
 mod intrinsic;
 mod model;
 mod physical_calling_policy;
+mod public_api;
 mod reader;
 mod representation;
 mod selected_providers;

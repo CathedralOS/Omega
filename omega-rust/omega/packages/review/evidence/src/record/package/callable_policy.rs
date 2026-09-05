@@ -3,14 +3,15 @@
 mod conformances;
 mod getters;
 pub use conformances::PackagePolicyCallableConformance;
-mod validation;
+pub(in crate::record) mod validation;
 
 use crate::record::{
     PackagePolicyCapabilityFlow, PackagePolicyCrash, PackagePolicyMutation,
-    PackagePolicyTermination, PackageReviewCallableContract, PackageReviewCallableParameter,
-    PackageReviewCallableSupply, PackageReviewCheckedServiceReach, PackageReviewConformanceBound,
-    PackageReviewInstallationReach, PackageReviewNominalIdentity, PackageReviewOperatorRealization,
-    PackageReviewSynchronousInvocation, PackageReviewTypeIdentity, PackageReviewTypeParameter,
+    PackagePolicyTermination, PackagePolicyTypeParameter, PackageReviewCallableContract,
+    PackageReviewCallableParameter, PackageReviewCallableSupply, PackageReviewCheckedServiceReach,
+    PackageReviewConformanceBound, PackageReviewInstallationReach, PackageReviewNominalIdentity,
+    PackageReviewOperatorRealization, PackageReviewSynchronousInvocation,
+    PackageReviewTypeIdentity,
 };
 use omega_target::TargetProfile;
 use psi_core::PackageKeyIdentity;
@@ -42,6 +43,7 @@ pub enum PackagePolicyCallableRole {
     Public,
     Build,
     PrivateAssumption,
+    PrivateExternal,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -50,7 +52,7 @@ pub struct PackagePolicyCallable {
     pub(crate) identity: PackageReviewNominalIdentity,
     pub(crate) supply: PackageReviewCallableSupply,
     pub(crate) lifetime_parameter_count: usize,
-    pub(crate) type_parameters: Vec<PackageReviewTypeParameter>,
+    pub(crate) type_parameters: Vec<PackagePolicyTypeParameter>,
     pub(crate) conformance_bounds: Vec<PackageReviewConformanceBound>,
     pub(crate) parameters: Vec<PackageReviewCallableParameter>,
     pub(crate) return_type: Option<PackageReviewTypeIdentity>,

@@ -1,12 +1,11 @@
 use super::{signature::*, signature_expressions::expression};
 use crate::record::*;
 
-pub(super) fn contract(
+pub(in crate::record) fn contract(
     value: &PackageReviewCallableContract,
     scope: &Scope<'_>,
     nesting: usize,
 ) -> Result {
-    depth(nesting)?;
     if let Some(binding) = &value.binding {
         text(binding)?;
     }
@@ -17,23 +16,25 @@ pub(super) fn contract(
         owned_pair(&case.result_data, &case.result_case)?;
     }
     let clause = Scope {
-        outer: scope.outer,
-        statics: scope.statics,
-        static_offset: scope.static_offset,
-        lifetimes: scope.lifetimes,
-        parameters: scope.parameters,
-        nonself_parameters: scope.nonself_parameters,
-        has_self: scope.has_self,
         result: scope.result && value.kind == PackageReviewContractKind::Ensures,
+        ..*scope
     };
-    match &value.fact {
-        PackageReviewContractFact::Expression(value) => expression(value, &clause, nesting + 1)?,
+    fact(&value.fact, &clause, nesting)
+}
+
+pub(in crate::record) fn fact(
+    value: &PackageReviewContractFact,
+    scope: &Scope<'_>,
+    nesting: usize,
+) -> Result {
+    match value {
+        PackageReviewContractFact::Expression(value) => expression(value, scope, nesting)?,
         PackageReviewContractFact::Membership { value, domain } => {
             nominal(domain)?;
-            expression(value, &clause, nesting + 1)?;
+            expression(value, scope, nesting)?;
         }
         PackageReviewContractFact::PropositionParameter(application) => {
-            let Some(PackageReviewTypeParameterKind::Proposition(signature)) =
+            let Some(BinderKind::Proposition(signature)) =
                 scope.static_kind(application.binder_ordinal)
             else {
                 return Err("proposition application does not name a proposition binder");
@@ -42,11 +43,11 @@ pub(super) fn contract(
                 return Err("proposition binder argument count differs from its signature");
             }
             for argument in &application.arguments {
-                expression(argument, &clause, nesting + 1)?;
+                expression(argument, scope, nesting)?;
             }
         }
         PackageReviewContractFact::Proposition(application) => {
-            proposition(application, &clause, nesting + 1)?
+            proposition(application, scope, nesting)?
         }
     }
     Ok(())
@@ -57,7 +58,6 @@ fn proposition(
     scope: &Scope<'_>,
     nesting: usize,
 ) -> Result {
-    depth(nesting)?;
     nominal(&value.declaration)?;
     if value.binders.len() != value.binder_arguments.len()
         || value.parameter_types.len() != value.arguments.len()
@@ -68,7 +68,7 @@ fn proposition(
         value_type(parameter)?;
     }
     for argument in &value.arguments {
-        expression(argument, scope, nesting + 1)?;
+        expression(argument, scope, nesting)?;
     }
     for (binder, argument) in value.binders.iter().zip(&value.binder_arguments) {
         use PackageReviewPropositionBinderArgumentKind as Kind;
@@ -91,12 +91,9 @@ fn proposition(
             Value::GenericBinder(ordinal) => {
                 let valid = matches!(
                     (expected, scope.static_kind(*ordinal)),
-                    (Kind::Type, Some(PackageReviewTypeParameterKind::Type))
-                        | (Kind::Const, Some(PackageReviewTypeParameterKind::Const(_)))
-                        | (
-                            Kind::Machine,
-                            Some(PackageReviewTypeParameterKind::Machine(_))
-                        )
+                    (Kind::Type, Some(BinderKind::Type))
+                        | (Kind::Const, Some(BinderKind::Const))
+                        | (Kind::Machine, Some(BinderKind::Machine))
                 );
                 if !valid {
                     return Err("proposition generic argument escapes its exact binder kind");
@@ -122,7 +119,10 @@ fn proposition(
     Ok(())
 }
 
-fn evidence(value: &PackageReviewEvidenceInterface, scope: &Scope<'_>) -> Result {
+pub(in crate::record) fn evidence(
+    value: &PackageReviewEvidenceInterface,
+    scope: &Scope<'_>,
+) -> Result {
     nominal(&value.trait_identity)?;
     lifetimes(&value.lifetime_arguments, scope)?;
     for argument in &value.arguments {

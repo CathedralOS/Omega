@@ -17,7 +17,7 @@ impl PackagePolicyCallable {
         self.lifetime_parameter_count
     }
 
-    pub fn type_parameters(&self) -> &[PackageReviewTypeParameter] {
+    pub fn type_parameters(&self) -> &[PackagePolicyTypeParameter] {
         &self.type_parameters
     }
 

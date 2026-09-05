@@ -15,8 +15,10 @@ pub mod record;
 pub use encoding::PACKAGE_CALLABLE_POLICY_VERSION;
 
 pub use capture::{
-    project_checked_callable_policy, project_checked_calling_policy,
-    project_checked_conformance_policy, project_checked_package_review,
-    project_checked_representation_policy, project_checked_selected_provider_policy,
-    project_checked_terminal_permission_policy, project_non_executable_quotient_package_review,
+    project_checked_boundary_application_policy, project_checked_callable_policy,
+    project_checked_calling_policy, project_checked_conformance_policy,
+    project_checked_external_supply_policy, project_checked_package_policy,
+    project_checked_package_review, project_checked_representation_policy,
+    project_checked_selected_provider_policy, project_checked_terminal_permission_policy,
+    project_non_executable_quotient_package_review,
 };

@@ -46,7 +46,7 @@ pub(super) fn complete() -> PackagePolicyRepresentation {
         .push(PackagePolicyRepresentationAvailability {
             opaque: selection.opaque.clone(),
             carrier: selection.carrier.clone(),
-            conformance: PackageReviewConformanceShape {
+            conformance: PackagePolicyConformanceShape {
                 identity: selection.application.declaration.clone(),
                 lifetime_parameter_count: 0,
                 type_parameters: Vec::new(),

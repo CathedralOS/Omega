@@ -1,5 +1,6 @@
 use super::{Encoder, PackageReviewEncodingError};
-use crate::encoding::encode::declarations::{encode_type_identity, encode_type_parameter};
+use crate::encoding::encode::declarations::encode_type_identity;
+use crate::encoding::encode::public_api::type_parameter as encode_type_parameter;
 use crate::record::PackagePolicyServiceSignature;
 
 pub(super) fn signature(

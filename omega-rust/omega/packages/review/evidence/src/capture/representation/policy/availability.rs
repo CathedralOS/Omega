@@ -1,7 +1,7 @@
 //! Public producer declarations are available choices, not active selections.
 
 use super::rejected;
-use crate::capture::api::conformances::project_public_conformances;
+use crate::capture::api::policy::conformances as project_public_conformances;
 use crate::capture::semantics::declarations::{nominal_identity, reviewed_package_owns};
 use crate::record::{PackagePolicyRepresentationAvailability, PackageReviewConformanceSubject};
 use omega_compiler::CheckedCompilation;
@@ -30,7 +30,7 @@ pub(super) fn project(
         }
         let matches = public
             .iter()
-            .filter(|candidate| candidate.row.identity() == &identity)
+            .filter(|candidate| candidate.identity() == &identity)
             .collect::<Vec<_>>();
         let [projected] = matches.as_slice() else {
             return Err(rejected(
@@ -81,14 +81,14 @@ pub(super) fn project(
             ));
         }
         let carrier = nominal_identity(compilation, carrier.symbol)?;
-        if projected.row.subject() != &PackageReviewConformanceSubject::Nominal(carrier.clone()) {
+        if projected.subject() != &PackageReviewConformanceSubject::Nominal(carrier.clone()) {
             return Err(rejected(
                 "producer carrier differs from its ordinary public conformance",
             ));
         }
         rows.push(PackagePolicyRepresentationAvailability {
             opaque: nominal_identity(compilation, opaque.symbol)?,
-            conformance: projected.row.clone(),
+            conformance: (*projected).clone(),
             carrier,
         });
     }

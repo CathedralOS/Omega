@@ -1,45 +1,17 @@
 //! Inverse of the complete structural signature vocabulary, without receipts.
 
 use super::Error;
-use super::behavior::{crash_route, synchronous_invocation, termination};
-use super::contracts::callable_contract;
 use super::expressions::static_argument;
 use super::identity::{nominal, type_identity};
 use super::reader::Reader;
+#[cfg(test)]
+use super::{
+    behavior::{crash_route, synchronous_invocation, termination},
+    contracts::callable_contract,
+};
 use crate::record::*;
 
-pub(super) fn external_signature(
-    reader: &mut Reader<'_>,
-) -> Result<PackageReviewExternalCallableSignature, Error> {
-    Ok(PackageReviewExternalCallableSignature {
-        lifetime_parameter_count: reader.usize()?,
-        static_parameters: reader.sequence(2, |reader| {
-            Ok(match reader.byte()? {
-                0 => PackageReviewExternalStaticParameter::Type {
-                    properties: data_properties(reader)?,
-                },
-                1 => PackageReviewExternalStaticParameter::Const {
-                    type_identity: type_identity(reader)?,
-                },
-                2 => PackageReviewExternalStaticParameter::Machine {
-                    contract: machine_contract(reader)?,
-                },
-                _ => return Err(Error::InvalidTag),
-            })
-        })?,
-        conformance_bounds: reader.sequence(1, conformance_bound)?,
-        parameters: reader.sequence(11, |reader| {
-            Ok(PackageReviewExternalCallableParameter {
-                type_identity: type_identity(reader)?,
-                is_const: reader.boolean()?,
-                is_mutable: reader.boolean()?,
-                is_self: reader.boolean()?,
-            })
-        })?,
-        return_type: type_identity(reader)?,
-    })
-}
-
+#[cfg(test)]
 pub(super) fn machine_contract(
     reader: &mut Reader<'_>,
 ) -> Result<PackageReviewMachineParameterContract, Error> {
@@ -56,6 +28,7 @@ pub(super) fn machine_contract(
     })
 }
 
+#[cfg(test)]
 fn machine_signature(
     reader: &mut Reader<'_>,
 ) -> Result<PackageReviewMachineParameterSignature, Error> {
@@ -83,6 +56,7 @@ fn machine_signature(
     })
 }
 
+#[cfg(test)]
 pub(super) fn type_parameter(reader: &mut Reader<'_>) -> Result<PackageReviewTypeParameter, Error> {
     let kind = match reader.byte()? {
         0 => PackageReviewTypeParameterKind::Type,

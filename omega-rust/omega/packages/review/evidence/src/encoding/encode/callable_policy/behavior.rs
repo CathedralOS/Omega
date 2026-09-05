@@ -29,22 +29,7 @@ pub(super) fn crash(
         PackageReviewCrashInterface::InternalInferred => 0,
         PackageReviewCrashInterface::PublishedCeiling => 1,
     });
-    encoder.sequence(&crash.published, |encoder, route| {
-        encoder.byte(match route.cause {
-            PackageReviewCrashCause::Trap => 0,
-            PackageReviewCrashCause::Abort => 1,
-        });
-        encoder.sequence(&route.alternative_guards, |encoder, guard| {
-            match guard {
-                PackagePolicyCrashGuard::Truth => encoder.byte(0),
-                PackagePolicyCrashGuard::Expression(expression) => {
-                    encoder.byte(1);
-                    encode_contract_expression(encoder, expression)?;
-                }
-            }
-            Ok(())
-        })
-    })?;
+    encoder.sequence(&crash.published, crash_route)?;
     encoder.option(
         crash.structural_runtime_requirements.as_deref(),
         |encoder, requirements| encoder.sequence(requirements, encode_boolean_expression),
@@ -65,6 +50,26 @@ pub(super) fn crash(
     Ok(())
 }
 
+pub(in crate::encoding) fn crash_route(
+    encoder: &mut Encoder,
+    route: &PackagePolicyCrashRoute,
+) -> Result<(), PackageReviewEncodingError> {
+    encoder.byte(match route.cause {
+        PackageReviewCrashCause::Trap => 0,
+        PackageReviewCrashCause::Abort => 1,
+    });
+    encoder.sequence(&route.alternative_guards, |encoder, guard| {
+        match guard {
+            PackagePolicyCrashGuard::Truth => encoder.byte(0),
+            PackagePolicyCrashGuard::Expression(expression) => {
+                encoder.byte(1);
+                encode_contract_expression(encoder, expression)?;
+            }
+        }
+        Ok(())
+    })
+}
+
 pub(super) fn mutation(
     encoder: &mut Encoder,
     mutation: &PackagePolicyMutation,
@@ -76,7 +81,7 @@ pub(super) fn mutation(
     encoder.sequence(&mutation.paths, |encoder, path| encoder.string(path))
 }
 
-pub(super) fn termination(
+pub(in crate::encoding) fn termination(
     encoder: &mut Encoder,
     termination: &PackagePolicyTermination,
 ) -> Result<(), PackageReviewEncodingError> {

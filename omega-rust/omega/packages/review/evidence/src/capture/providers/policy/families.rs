@@ -1,5 +1,7 @@
 use super::rejected;
-use crate::capture::semantics::declarations::nominal_identity;
+use crate::capture::semantics::declarations::{
+    nominal_identity, policy_provider_requirement_identity,
+};
 use crate::record::{
     PackagePolicyProviderFamily, PackagePolicyProviderFamilyCoordinate, PackagePolicyProviderPlan,
     PackageReviewProviderFamilyCoverage, PackageReviewProviderSelectionAuthority,
@@ -112,12 +114,20 @@ pub(super) fn project(
                 ));
             };
             coordinates.push(PackagePolicyProviderFamilyCoordinate {
-                requirement_identity: coordinate.requirement_identity.clone(),
+                requirement_identity: policy_provider_requirement_identity(
+                    compilation,
+                    omega_provider_planning::plans::ProviderSchemaDeclaration::BoundaryOperator(
+                        coordinate.symbol,
+                    ),
+                    coordinate.symbol,
+                )?
+                .path,
                 operator_declaration,
                 plan_index: u32::try_from(*index)
                     .map_err(|_| rejected("selected family plan index exceeds u32"))?,
             });
         }
+        coordinates.sort();
         families.push(PackagePolicyProviderFamily {
             family_identity,
             provider_type_declaration,

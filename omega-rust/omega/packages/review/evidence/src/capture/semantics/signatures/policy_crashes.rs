@@ -10,7 +10,7 @@ use psi_diagnostics::Diagnostic;
 use psi_symbols::SymbolHandle;
 use psi_typed_trees::signature::StateSignature;
 
-pub(super) fn project(
+pub(crate) fn project(
     compilation: &CheckedCompilation,
     owner: SymbolHandle,
     signature: &StateSignature,

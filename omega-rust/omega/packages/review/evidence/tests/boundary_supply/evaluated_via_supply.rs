@@ -1,12 +1,47 @@
 use crate::support::*;
 
 fn assert_external_policy_round_trip(
+    checked: &CheckedCompilation,
     supply: &omega_package_evidence::record::PackageReviewExternalExecutableSupply,
 ) {
-    let policy = supply.policy_projection();
-    assert_eq!(policy.callable(), supply.callable());
-    assert_eq!(policy.signature(), supply.signature());
-    assert_eq!(policy.requirement(), supply.requirement());
+    let machine = checked
+        .machines()
+        .iter()
+        .find(|machine| {
+            checked.symbols.display_path(machine.symbol, "::") == supply.callable().path()
+        })
+        .expect("fixture's exact external machine");
+    let policies =
+        omega_package_evidence::project_checked_external_supply_policy(checked, machine.symbol)
+            .unwrap();
+    let [policy] = policies.as_slice() else {
+        panic!("one checked external policy")
+    };
+    assert_eq!(policy.callable().owner(), supply.callable().owner());
+    let surfaces = omega_package_evidence::project_checked_callable_policy(
+        checked,
+        checked.selected_target_profile().unwrap(),
+        checked.package_identity().unwrap(),
+    )
+    .unwrap();
+    assert!(
+        surfaces
+            .callables()
+            .iter()
+            .any(|surface| surface.identity() == policy.callable())
+    );
+    assert_eq!(
+        policy.signature().parameters(),
+        supply.signature().parameters()
+    );
+    assert_eq!(
+        policy.signature().lifetime_parameter_count(),
+        supply.signature().lifetime_parameter_count()
+    );
+    assert_eq!(
+        policy.signature().return_type().is_some(),
+        checked.machine_states(machine)[0].return_type.is_valid()
+    );
     let bytes = policy
         .canonical_bytes()
         .expect("encode checked evaluated binding policy");
@@ -16,7 +51,7 @@ fn assert_external_policy_round_trip(
             omega_package_evidence::encoding::PackagePolicyRecoveryLimits::default(),
         )
         .expect("recover checked binding policy without source or native replay");
-    assert_eq!(recovered, policy);
+    assert_eq!(&recovered, policy);
     assert_eq!(
         recovered
             .canonical_bytes()
@@ -154,8 +189,8 @@ fn review_projects_all_package_owned_evaluated_via_leaves_with_exact_receipts() 
         }
     );
     assert_eq!(ordinal_import.producer().path(), "ordinal_binding");
-    assert_external_policy_round_trip(named);
-    assert_external_policy_round_trip(ordinal);
+    assert_external_policy_round_trip(&checked, named);
+    assert_external_policy_round_trip(&checked, ordinal);
 
     let rows = review
         .canonical_rows()
@@ -264,7 +299,7 @@ pub machine exit_leaf(code: i32)
         syscall.receipt_binding_identity_digest(),
         syscall.binding_identity_digest()
     );
-    assert_external_policy_round_trip(supply);
+    assert_external_policy_round_trip(&checked, supply);
 
     let rows = review.canonical_rows().expect("ordinary syscall rows");
     let row = rows

@@ -5,7 +5,8 @@ mod calling;
 mod signature;
 
 use crate::capture::semantics::declarations::{
-    nominal_identity, provider_requirement_identity, provider_requirement_schema,
+    nominal_identity, policy_provider_requirement_identity, provider_requirement_identity,
+    provider_requirement_schema,
 };
 use crate::record::PackagePolicyServiceMethod;
 use omega_compiler::CheckedCompilation;
@@ -60,12 +61,13 @@ fn project_inner(
     declaration_mode: bool,
 ) -> Result<PackagePolicyServiceMethod, Vec<Diagnostic>> {
     let declaration = provider_requirement_schema(compilation, schema, requirement)?;
-    let identity = provider_requirement_identity(compilation, declaration, requirement)?;
-    if identity.path() != method.requirement_identity {
+    let checked_identity = provider_requirement_identity(compilation, declaration, requirement)?;
+    if checked_identity.path() != method.requirement_identity {
         return Err(rejected(
             "service method changes its exact requirement overload",
         ));
     }
+    let identity = policy_provider_requirement_identity(compilation, declaration, requirement)?;
     let mut owner = nominal_identity(compilation, declaration.symbol())?;
     // Top-level requirements publish their enclosing namespace as owner; it
     // is checked by schema replay, not resolved by searching that spelling.
@@ -102,11 +104,12 @@ fn project_inner(
             calling.as_ref(),
         )?
     };
-    // Terminal permissions review declarations, not the provider schema's
-    // historical diagnostic spellings. Preserve the complete typed meaning in
-    // these redundant fields too, so root-binder alpha renaming cannot change
-    // the normalized declaration. The selected-provider path is unchanged.
-    let parameter_type_identities = if declaration_mode {
+    // Declaration and operator policies retain typed binder coordinates rather
+    // than the source binder names in the replay schema's diagnostic strings.
+    // The original strings were already checked above against the live schema.
+    let normalized_signature_display =
+        declaration_mode || matches!(declaration, ProviderSchemaDeclaration::BoundaryOperator(_));
+    let parameter_type_identities = if normalized_signature_display {
         signature
             .parameters
             .iter()
@@ -115,7 +118,7 @@ fn project_inner(
     } else {
         method.parameter_type_identities.clone()
     };
-    let result_type_identity = if declaration_mode {
+    let result_type_identity = if normalized_signature_display {
         signature
             .result
             .as_ref()
