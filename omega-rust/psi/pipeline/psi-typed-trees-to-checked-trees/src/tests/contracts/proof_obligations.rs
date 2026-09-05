@@ -2,6 +2,103 @@ use super::*;
 use psi_checked_trees::ContractProofFactKind;
 
 #[test]
+fn implicit_unit_exit_cannot_claim_an_unestablished_output_domain() {
+    for body in ["", "let untouched: i32 = 1;", "touch();"] {
+        let source = format!(
+            r#"
+            domain [u8; 4]::Utf8 requires valid_utf8(self);
+            machine touch() {{}}
+            machine fill(out_line: &mut [u8; 4])
+            ensures out_line in Utf8
+            {{ {body} }}
+            "#
+        );
+        let Err(diagnostics) = lower_typed_trees(parse_typed_trees(&source)) else {
+            panic!("Unit body {body:?} cannot establish an unwritten output predicate");
+        };
+        assert!(
+            diagnostics.iter().any(|diagnostic| {
+                diagnostic.message.contains("cannot prove ensures")
+                    && diagnostic.message.contains("Utf8")
+            }),
+            "{body:?}: {diagnostics:#?}"
+        );
+    }
+}
+
+#[test]
+fn implicit_unit_exit_preserves_an_unchanged_input_domain() {
+    for body in ["", "let untouched: i32 = 1;", "touch();"] {
+        let source = format!(
+            r#"
+            domain [u8; 4]::Utf8 requires valid_utf8(self);
+            machine touch() {{}}
+            machine keep(out_line: &mut [u8; 4] in Utf8)
+            ensures out_line in Utf8
+            {{ {body} }}
+            "#
+        );
+        lower_typed_trees(parse_typed_trees(&source))
+            .unwrap_or_else(|diagnostics| panic!("{body:?}: {diagnostics:#?}"));
+    }
+}
+
+#[test]
+fn unit_boundary_signature_publishes_its_output_contract_without_a_body() {
+    let source = r#"
+        domain [u8; 4]::Utf8 requires valid_utf8(self);
+        boundary trait Writer {
+            machine fill(out_line: &mut [u8; 4])
+            ensures out_line[0] == 0;
+        }
+    "#;
+    lower_typed_trees(parse_typed_trees(source))
+        .expect("a boundary signature publishes a guarantee, not a checked empty body");
+}
+
+#[test]
+fn output_writer_establishes_utf8_without_an_input_text_precondition() {
+    let source = r#"
+        domain [u8; 4]::Utf8 requires valid_utf8(self);
+        machine fill(out_line: &mut [u8; 4])
+        ensures out_line in Utf8
+        { out_line = "ok"; }
+
+        machine read(line: [u8; 4] in Utf8) {}
+        data Main { line: [u8; 4]; }
+        machine Main::main(&mut self) {
+            self.line[0] = 255;
+            fill(&mut self.line);
+            read(self.line);
+            fill(&mut self.line);
+            read(self.line);
+        }
+    "#;
+    lower_typed_trees(parse_typed_trees(source))
+        .expect("whole output replacement establishes text after arbitrary input bytes");
+}
+
+#[test]
+fn output_writer_cannot_claim_utf8_after_writing_invalid_bytes() {
+    let source = r#"
+        domain [u8; 4]::Utf8 requires valid_utf8(self);
+        machine fill(out_line: &mut [u8; 4])
+        ensures out_line in Utf8
+        { out_line = [255, 0, 0, 0]; }
+    "#;
+    let Err(diagnostics) = lower_typed_trees(parse_typed_trees(source)) else {
+        panic!("removing the input predicate cannot grant an output predicate");
+    };
+    assert!(
+        diagnostics.iter().any(
+            |diagnostic| diagnostic.message.contains("cannot prove ensures")
+                && diagnostic.message.contains("Utf8")
+        ),
+        "{diagnostics:#?}"
+    );
+}
+
+#[test]
 fn rejects_unproven_exit_ensures_domain_membership() {
     let source = r#"
         data Player {
@@ -1641,6 +1738,7 @@ fn exit_ensures_requirement_label_resolves_attached_data_members() {
             machine_symbol: machine.symbol,
             state_symbol: typed.machine_states(machine)[0].symbol,
             statement_index: 0,
+            transition_target: Default::default(),
         })
         .next()
         .expect("exit context");
@@ -2759,7 +2857,7 @@ fn bounded_byte_domain_membership_projects_to_matching_slice_domain() {
 }
 
 #[test]
-fn bounded_byte_domain_projection_requires_matching_predicate_theory() {
+fn bounded_byte_domain_projection_proves_the_requested_predicate_independently() {
     let source = r#"
         boundary trait Sink {
             machine write(text: [u8] in Text);
@@ -2779,13 +2877,16 @@ fn bounded_byte_domain_projection_requires_matching_predicate_theory() {
         }
 
         machine Main::main(&mut self) {
-            self.text = "Gate";
+            self.text = "G\x00te";
             self.sink.write(self.text);
         }
     "#;
 
-    let diagnostics = lower_typed_trees(parse_typed_trees(source))
-        .expect_err("a carrier projection must not conflate different domain theories");
+    lower_typed_trees(parse_typed_trees(&source.replace(r"G\x00te", "Gate")))
+        .expect("known bytes may independently establish both domain predicates");
+    let Err(diagnostics) = lower_typed_trees(parse_typed_trees(source)) else {
+        panic!("a carrier projection must not conflate different domain theories");
+    };
     assert!(
         diagnostics.iter().any(|diagnostic| {
             diagnostic

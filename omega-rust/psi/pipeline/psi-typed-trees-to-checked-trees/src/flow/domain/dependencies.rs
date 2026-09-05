@@ -2,6 +2,7 @@ mod expression;
 
 use super::*;
 use crate::lookup::{machine_by_symbol, machine_symbol_from_type_reference_handle};
+pub(crate) use expression::relative_place_segments_from_expression;
 use expression::{collect_dependency_paths_from_expression, dedupe_dependency_segments};
 
 #[derive(Debug, Clone, Default)]

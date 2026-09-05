@@ -1,12 +1,15 @@
 mod arrivals;
 mod assembly;
 mod calls;
+mod content_preservation;
 mod direct;
 mod domains;
+mod entailment;
 mod evaluator;
 mod evidence;
 mod exits;
 mod integer_embeddings;
+mod nominal_inputs;
 mod writes;
 // `pub(super)` so the operator-`requires` discharge (checks/operators) can
 // reuse the domain-derived boolean proving labels.
@@ -30,6 +33,8 @@ pub(super) fn check_flow_call_contracts(
     incoming_guards: &crate::checks::ranges::incoming_guards::IncomingGuardIndex,
 ) -> Result<(), Vec<Diagnostic>> {
     let mut diagnostics = Vec::new();
+    let content_plans = psi_validation::build_content_conservation_plans(program);
+    let nominal_requirements = nominal_inputs::DeclaredFieldRequirements::new(&facts.semantic);
 
     assembly::check_assembly_fact_contracts(program, facts, &mut diagnostics);
 
@@ -46,6 +51,7 @@ pub(super) fn check_flow_call_contracts(
     // decomposition of the arm-refined requires; probed 2026-07-16 with
     // add_cancel).
     let proof_only = psi_typed_trees::proof_only::classify(program);
+    let mut entailment = entailment::ProvenExitExpressions::new(program, &proof_only);
     // Call targets carry the callee's ENTRY-STATE symbol (sub-state targets
     // carry that state's); resolve through states as well as the machine
     // symbol itself.
@@ -83,12 +89,21 @@ pub(super) fn check_flow_call_contracts(
                 facts,
                 state_flow,
                 call_flow,
+                &nominal_requirements,
                 incoming_guards.for_machine(state_flow.machine_symbol),
                 &mut diagnostics,
             );
         }
         for exit_flow in facts.flow.control.exits.span_or_empty(state_flow.exits) {
-            check_exit_ensures(program, facts, state_flow, exit_flow, &mut diagnostics);
+            check_exit_ensures(
+                program,
+                facts,
+                state_flow,
+                exit_flow,
+                entailment.for_machine(facts, state_flow.machine_symbol),
+                &content_plans,
+                &mut diagnostics,
+            );
         }
         arrivals::check_self_transition_arrival_requires(
             program,

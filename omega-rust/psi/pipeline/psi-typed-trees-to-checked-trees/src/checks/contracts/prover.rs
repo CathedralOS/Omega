@@ -1,6 +1,8 @@
 use psi_checked_trees::{FlowCallFact, FlowStateFact};
 use psi_facts::{FactPayload, FactPlace};
 
+mod assigned_values;
+pub(super) use assigned_values::prove_domain_at_place;
 mod booleans;
 
 use self::booleans::{
@@ -106,7 +108,13 @@ pub(super) fn semantic_contexts_prove_contract_fact(
                             domain_symbol,
                         ) && semantic.places_match(program, candidate_place, place)
                     })
-            })
+            }) || assigned_values::prove_domain(
+                program,
+                semantic,
+                entry_contexts,
+                place,
+                domain_symbol,
+            )
         }
         FactPayload::ContractCarryPermission { permission, .. } => {
             let FactPlace::Place(place) = fact.place else {

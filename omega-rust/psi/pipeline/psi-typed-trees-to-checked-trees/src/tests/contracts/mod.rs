@@ -1,15 +1,19 @@
 use super::*;
 
 mod assembly;
+mod assigned_values;
+mod byte_sequences;
 mod contract_entailment_certificates;
 mod fact_call_projections;
 mod indexing;
 mod instantiation;
+mod nominal_parameter_fields;
 mod proof_obligations;
 mod propositions;
 mod qualification_evidence;
 mod resultless_laws;
 mod total_specification_arithmetic;
+mod transition_exits;
 
 fn parse_typed_trees(source: &str) -> psi_typed_trees::TypedTrees {
     // The source loader supplies these canonical core declarations in real
@@ -981,3 +985,5 @@ fn outcome_specific_selector_rejects_wrong_case_and_noncall_origin() {
         );
     }
 }
+mod boundary_exit_facts;
+mod copied_fields;

@@ -270,9 +270,11 @@ fn complete_expression_tree(
             pending.push(PendingNode::CallFrame(expression));
             let argument_types = call_argument_types(
                 program,
+                current_machine,
                 call.target_symbol,
                 call.target.as_str(),
                 &receiver_members,
+                super::caller_aliases::CallerWriteSite::Expression(expression),
                 machine_symbols,
                 symbols,
             );
@@ -308,6 +310,7 @@ fn complete_expression_tree(
                 symbols,
                 &receiver_members,
                 call.target.as_str(),
+                super::caller_aliases::CallerWriteSite::Expression(expression),
                 arguments,
                 inference,
             )

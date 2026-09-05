@@ -23,6 +23,8 @@ pub(super) fn check_exit_ensures(
     facts: &CheckFacts,
     state_flow: &FlowStateFact,
     exit_flow: &psi_checked_trees::FlowExitFact,
+    entailment: &super::entailment::MachineEntailmentOutcome,
+    content_plans: &[psi_validation::ContentConservationSourcePlan],
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     let entry_contexts: Vec<_> = facts
@@ -39,6 +41,24 @@ pub(super) fn check_exit_ensures(
     {
         let context = facts.semantic.contexts.get(ensures_context);
         for fact in facts.semantic.context_view(context).facts() {
+            let contract = match fact.payload {
+                psi_facts::FactPayload::ContractBooleanExpression { fact, .. }
+                | psi_facts::FactPayload::ContractDomainMembership { fact, .. }
+                | psi_facts::FactPayload::ContractCarryPermission { fact, .. }
+                | psi_facts::FactPayload::ContractPropositionApplication { fact, .. } => Some(fact),
+                _ => None,
+            };
+            let missing_origins = facts
+                .flow
+                .control
+                .exit_parameter_origins
+                .span_or_empty(exit_flow.parameter_origins)
+                .iter()
+                .filter(|origin| {
+                    Some(origin.contract) == contract && !origin.state_parameter.is_valid()
+                })
+                .map(|origin| program.symbols.name(origin.entry_parameter))
+                .collect::<Vec<_>>();
             let proved = semantic_contexts_prove_contract_fact(
                 program,
                 &facts.semantic,
@@ -92,20 +112,48 @@ pub(super) fn check_exit_ensures(
                 state_flow.machine_symbol,
                 fact,
             );
-            let satisfied = proved
-                || super::integer_embeddings::proves_exit_equality(
-                    program, state_flow, exit_flow, fact,
-                )
+            let checked_entailment = match fact.payload {
+                psi_facts::FactPayload::ContractBooleanExpression { expression, .. } => {
+                    entailment.expressions.contains(&expression)
+                }
+                _ => false,
+            };
+            let satisfied = checked_entailment
                 || evidence_assignment
-                || float_meaning_reflexivity
-                || (authorized_route && route_predicates_satisfied);
+                || (missing_origins.is_empty()
+                    && (proved
+                        || super::content_preservation::proves_exit(
+                            program,
+                            facts,
+                            state_flow,
+                            fact,
+                            content_plans,
+                        )
+                        || super::integer_embeddings::proves_exit_equality(
+                            program, state_flow, exit_flow, fact,
+                        )
+                        || float_meaning_reflexivity
+                        || super::entailment::integral_parameter_reflexivity(program, fact)
+                        || super::entailment::transparent_proposition_proves_exit(
+                            program, entailment, state_flow, fact,
+                        )
+                        || (authorized_route && route_predicates_satisfied)));
 
             if !satisfied {
+                let origin_diagnostic = if missing_origins.is_empty() {
+                    String::new()
+                } else {
+                    format!(
+                        "; no exact incoming reference origin for {}",
+                        missing_origins.join(", ")
+                    )
+                };
                 diagnostics.push(Diagnostic::error(format!(
-                    "cannot prove ensures contract for exit from {} at statement {}: {}",
+                    "cannot prove ensures contract for exit from {} at statement {}: {}{}",
                     machine_name(program, state_flow.machine_symbol),
                     exit_flow.statement_index,
                     semantic_fact_requirement_label(program, &facts.semantic, fact),
+                    origin_diagnostic,
                 )));
             }
         }

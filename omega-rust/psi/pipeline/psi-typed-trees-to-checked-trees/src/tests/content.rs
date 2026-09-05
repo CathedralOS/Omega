@@ -370,9 +370,8 @@ fn old_is_contextual_even_when_a_callable_parameter_has_the_same_name() {
     ));
 }
 
-#[test]
-fn old_retains_an_exact_self_field_place_at_callable_entry() {
-    let source = r#"
+fn retained_self_content_source(body: &str) -> String {
+    r#"
         data ByteUnit {}
         data CountedQuantity<Unit> { magnitude: u64; }
         trait Content<A> { machine project(subject: &Self) -> A; }
@@ -386,10 +385,14 @@ fn old_retains_an_exact_self_field_place_at_callable_entry() {
         machine Store::retain(&mut self)
         ensures
             Owned::content(old(&self.region)) == Owned::content(&self.region)
-        {}
-    "#;
+        { RETAIN_BODY }
+    "#
+    .replace("RETAIN_BODY", body)
+}
 
-    let checked = checked(source);
+#[test]
+fn old_retains_an_exact_self_field_place_at_callable_entry() {
+    let checked = checked(&retained_self_content_source(""));
     let [plan] = checked
         .facts
         .qualifications
@@ -415,6 +418,23 @@ fn old_retains_an_exact_self_field_place_at_callable_entry() {
         subject.segments.as_slice(),
         [ContentPlaceSegment::Field(field)] if field.name == "region" && field.symbol.is_valid()
     ));
+}
+
+#[test]
+fn content_preservation_requires_a_nonmutating_body_not_just_an_equation() {
+    for body in [
+        "self.region.length = 5;",
+        "let alias: &mut Region in Owned = &mut self.region; alias.length = 5;",
+    ] {
+        let diagnostics = rejected(&retained_self_content_source(body));
+        assert!(
+            diagnostics.iter().any(|diagnostic| {
+                diagnostic.message.contains("cannot prove ensures")
+                    && diagnostic.message.contains("Owned.content")
+            }),
+            "{body}: {diagnostics:#?}"
+        );
+    }
 }
 
 #[test]

@@ -1143,9 +1143,13 @@ fn validate_state_statement_node(
             // `&mut` out-arguments' places (the boundary model's citable
             // fact) -- `fw.get_size(&mut self.n)` with `ensures size <= 8`
             // leaves `self.n` in [type_low, 8].
-            if let Some(signature) =
-                crate::calls::boundary_trait_signature(program, machine_symbols, symbols, call)
-            {
+            if let Some(signature) = crate::calls::boundary_trait_signature(
+                program,
+                machine,
+                machine_symbols,
+                symbols,
+                call,
+            ) {
                 arithmetic_domains::seed_out_param_ensures(
                     program,
                     machine,

@@ -75,6 +75,10 @@ the [Rust Compiler Completion Contract](wiki/releases/rust_compiler_completion_c
   work. The post-check completeness scan rejects its remaining late-bound
   authored Call selection after semantic checking succeeds.
 
+  Source cases that write text buffers by index or transport nominal fields
+  through collections also need `NOMINAL-FIELD-FLOW` below; their default-field
+  obligations must be proved, not bypassed to restore sample acceptance.
+
   `samples_with_documented_exit_run_correctly` is blocked for every `cli/text/*`
   sample, every `stdin_*` sample, and `gui/window_demo` by one
   `psi-checked-trees-to-terminal` fence in `src/attached_unit/call_closure.rs`:
@@ -338,12 +342,20 @@ Owners include
   used premise is reconstructed for the exact subject and no qualification or
   similarly shaped row mints one implicitly.
 
-- **UNIT-EXIT-POSTCONDITIONS.** Reject false postconditions on resultless
-  writers in Psi contract checking. A `&mut [u8; 4]` writer currently accepts
-  `ensures out_line in Utf8` after assigning `[255, 0, 0, 0]`, so its text-output
-  contract is not established. Acceptance: invalid and unwritten output
-  predicates reject at every normal Unit exit, while whole valid-text
-  replacement establishes the output predicate without requiring it on input.
+- **NOMINAL-FIELD-FLOW.** Complete declared-field domain evidence in Psi
+  semantic facts, flow transfer, and contract consumption. Collection elements
+  need explicit live coverage for their declared field predicates, transported
+  through indexing, views, copies, and calls. Mutable calls must preserve or
+  establish the appropriate returned field facts; an unchanged nominal type
+  annotation cannot restore evidence retired by a write. Acceptance: the
+  dungeon's `RoomLookup`, `MazeBuilder`, and game-state calls satisfy default
+  field obligations, while corrupted elements and stale aliased fields reject
+  at calls, transitions, and returns. Do not encode universal coverage as an
+  unresolved index or assume arbitrary incoming storage is zero-initialized.
+  Indexed text writers such as `print_squares` additionally need whole-buffer
+  ASCII evidence and a proved ASCII replacement byte to preserve that property
+  across stores and state edges. An ASCII byte can corrupt an arbitrary Utf8
+  buffer, so Utf8 membership alone cannot justify that preservation rule.
 
 - **CML4.** Complete `EdgeCleanupPlan` after outgoing materialization and
   transfer commitment, including structural sums, nested projections, cycles,

@@ -32,7 +32,7 @@ pub(crate) fn fact_referenced_occurrences(
     occurrences
 }
 
-fn append_expression_occurrences(
+pub(crate) fn append_expression_occurrences(
     program: &psi_typed_trees::TypedTrees,
     expression: ExpressionHandle,
     occurrences: &mut Vec<ExpressionHandle>,
@@ -49,9 +49,14 @@ fn append_expression_occurrences(
         {
             append_expression_occurrences(program, member.receiver, occurrences);
         }
-        ExpressionNode::Name(_) | ExpressionNode::Member(_) => occurrences.push(expression),
+        ExpressionNode::Name(_) => occurrences.push(expression),
+        ExpressionNode::Member(member) => {
+            occurrences.push(expression);
+            append_selector_occurrences(program, member.receiver, occurrences);
+        }
         ExpressionNode::Indexed(indexed) => {
             occurrences.push(expression);
+            append_selector_occurrences(program, indexed.collection, occurrences);
             append_expression_occurrences(program, indexed.index, occurrences);
         }
         ExpressionNode::Borrow(inner) => {
@@ -96,5 +101,27 @@ fn append_expression_occurrences(
         | ExpressionNode::Integer(_)
         | ExpressionNode::String(_)
         | ExpressionNode::ZeroValue(_) => {}
+    }
+}
+
+/// A selected field remains one complete storage dependency, but selectors
+/// beneath its receiver are independent values that can redirect the read.
+fn append_selector_occurrences(
+    program: &psi_typed_trees::TypedTrees,
+    expression: ExpressionHandle,
+    occurrences: &mut Vec<ExpressionHandle>,
+) {
+    match program.expression_table.expression(expression) {
+        ExpressionNode::Member(member) => {
+            append_selector_occurrences(program, member.receiver, occurrences)
+        }
+        ExpressionNode::Indexed(indexed) => {
+            append_selector_occurrences(program, indexed.collection, occurrences);
+            append_expression_occurrences(program, indexed.index, occurrences);
+        }
+        ExpressionNode::Borrow(borrow) => {
+            append_selector_occurrences(program, borrow.target, occurrences)
+        }
+        _ => {}
     }
 }

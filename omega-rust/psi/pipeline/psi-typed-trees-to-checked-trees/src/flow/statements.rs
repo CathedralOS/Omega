@@ -88,8 +88,35 @@ pub(super) fn append_state_statement_flow_facts(
         // else-arm call (`false -> consume(text)`) saw 0 entry contexts and a
         // forwarded domain fact never reached it. Snapshot the entry context so we
         // can restore it for the fallthrough after this statement is flowed.
-        let fallthrough_contexts = *active_contexts;
-        let fallthrough_constraints = *active_constraints;
+        let mut fallthrough_contexts = *active_contexts;
+        let mut fallthrough_constraints = *active_constraints;
+        if let StatementNode::Transition(transition) = statement {
+            let start = call_index;
+            while borrow_calls
+                .get(call_index)
+                .is_some_and(|call| call.statement_index == statement_index)
+            {
+                call_index += 1;
+            }
+            super::exits::append_transition_flow_facts(
+                program,
+                borrow,
+                proof,
+                semantic,
+                domains,
+                ctx,
+                machine,
+                state,
+                statement_index,
+                transition,
+                &borrow_calls[start..call_index],
+                &mut state_calls,
+                active_contexts,
+                active_constraints,
+            );
+            fallthrough_contexts = *active_contexts;
+            fallthrough_constraints = *active_constraints;
+        }
         while let Some(borrow_call) = borrow_calls.get(call_index) {
             if borrow_call.statement_index != statement_index {
                 break;
@@ -173,6 +200,10 @@ pub(super) fn append_state_statement_flow_facts(
                 &ctx.contexts.semantic_context_refs,
             );
         }
+        // RHS calls have already contributed their effects. Preserve only
+        // their surviving facts while the assignment still reads its old
+        // source value, before invalidating the overwritten destination.
+        let assignment_source_contexts = *active_contexts;
         let mut mutated_places = storage_writes.unwrap_or_default();
         if let StatementNode::Call(call) = statement {
             mutated_places.extend(operator_statement_call_mutated_places(
@@ -225,6 +256,7 @@ pub(super) fn append_state_statement_flow_facts(
             state.symbol,
             statement_index,
             statement,
+            assignment_source_contexts,
             active_contexts,
             active_constraints,
         );

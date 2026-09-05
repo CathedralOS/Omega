@@ -60,6 +60,35 @@ pub(crate) fn find_call_site<'program>(
     find_call_site_in_statement(&mut traversal, statement)
 }
 
+/// Reuse call-ordinal traversal to distinguish guard evaluation from the two
+/// mutually exclusive target operands of a transition.
+pub(crate) fn transition_call_target(
+    program: &psi_typed_trees::TypedTrees,
+    machine: &psi_typed_trees::machine::Machine,
+    state: &psi_typed_trees::state::State,
+    statement_index: usize,
+    call_ordinal: usize,
+) -> Option<psi_typed_trees::statement::TransitionTargetHandle> {
+    let StatementNode::Transition(transition) = program
+        .statement_table
+        .statements(state.statement_nodes)
+        .get(statement_index)?
+    else {
+        return None;
+    };
+    let mut current_ordinal = 0;
+    let mut traversal = CallSiteTraversal::new(
+        program,
+        machine,
+        state,
+        statement_index,
+        statement_index,
+        call_ordinal,
+        &mut current_ordinal,
+    );
+    traversal::transition_call_target(&mut traversal, transition)
+}
+
 pub(crate) fn call_site_argument_expressions<'program>(
     program: &'program psi_typed_trees::TypedTrees,
     call_site: &CallSite<'program>,

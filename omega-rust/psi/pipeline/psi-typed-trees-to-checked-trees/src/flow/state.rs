@@ -48,6 +48,36 @@ pub(super) fn build_state_flow_fact(
             },
         ],
     );
+    let (rebased_contexts, _) = super::entry_origins::rebase_contexts(
+        program,
+        semantic,
+        ctx,
+        machine,
+        state,
+        state_contexts,
+        true,
+    );
+    state_contexts = rebased_contexts;
+    state_constraints = project_constraint_refs_to_active_contexts(
+        &mut ctx.contexts.constraint_refs,
+        state_constraints,
+        state_contexts,
+        &ctx.contexts.semantic_context_refs,
+    );
+    for context in ctx
+        .contexts
+        .semantic_context_refs
+        .span_or_empty(state_contexts)
+        .to_vec()
+    {
+        append_constraint_ref(
+            &mut ctx.contexts.constraint_refs,
+            &mut state_constraints,
+            FlowConstraintKind::SemanticContext {
+                context: context.context,
+            },
+        );
+    }
     append_constraint_ref(
         &mut ctx.contexts.constraint_refs,
         &mut state_constraints,
@@ -69,6 +99,7 @@ pub(super) fn build_state_flow_fact(
     let state_borrow_weakenings_start = ctx.borrow_lifetimes.weakenings.len();
     let state_boundary_edges_start = ctx.boundaries.edges.len();
     let state_statements_start = ctx.control.statements.len();
+    let state_exits_start = ctx.control.exits.len();
     let state_calls = append_state_statement_flow_facts(
         program,
         borrow,
@@ -93,12 +124,14 @@ pub(super) fn build_state_flow_fact(
             .len(),
         FlowBorrowWeakeningReason::StateExit,
     );
-    let state_exits = append_state_exit_facts(
+    append_state_exit_facts(
+        program,
         proof,
         semantic,
         ctx,
         machine.symbol,
         state.symbol,
+        Default::default(),
         active_contexts,
         active_constraints,
     );
@@ -122,7 +155,7 @@ pub(super) fn build_state_flow_fact(
         boundary_edges: appended_span_since(&ctx.boundaries.edges, state_boundary_edges_start),
         statements: appended_span_since(&ctx.control.statements, state_statements_start),
         calls: state_calls,
-        exits: state_exits,
+        exits: appended_span_since(&ctx.control.exits, state_exits_start),
         service_reach: Default::default(),
         suspension: Default::default(),
         blocking: Default::default(),

@@ -235,6 +235,7 @@ pub(super) fn build_index_compatibility_facts(
                             machine_symbol: machine.symbol,
                             state_symbol: state.symbol,
                             statement_index,
+                            transition_target: Default::default(),
                         },
                         state_calls.contexts_after_value(
                             statement_index,
@@ -271,6 +272,7 @@ pub(super) fn build_index_compatibility_facts(
                                 machine_symbol: machine.symbol,
                                 state_symbol: state.symbol,
                                 statement_index,
+                                transition_target: target,
                             },
                             state_calls.contexts_after_value(
                                 statement_index,
@@ -1310,6 +1312,17 @@ fn point_label(program: &TypedTrees, point: ProgramPoint) -> String {
             statement_index,
             ..
         } => format!("{}:exit-{statement_index}", symbol(state_symbol)),
+        ProgramPoint::TransitionArm {
+            state_symbol,
+            statement_index,
+            transition_target,
+            ..
+        } => format!(
+            "{}:arm-{statement_index}-{}-{}",
+            symbol(state_symbol),
+            transition_target.arena_index(),
+            transition_target.generation(),
+        ),
         ProgramPoint::Statement {
             state_symbol,
             statement_index,

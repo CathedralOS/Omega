@@ -52,11 +52,21 @@ pub struct FlowExitFact {
     pub machine_symbol: SymbolHandle,
     pub state_symbol: SymbolHandle,
     pub statement_index: usize,
+    pub transition_target: psi_typed_trees::statement::TransitionTargetHandle,
+    pub parameter_origins: HandleSpan<FlowExitParameterOrigin>,
     pub entry_semantic_contexts: HandleSpan<FlowSemanticContextRef>,
     pub entry_constraints: HandleSpan<FlowConstraintRef>,
     pub ensures_contexts: HandleSpan<FlowSemanticContextRef>,
     pub ensures_constraints: HandleSpan<FlowConstraintRef>,
     pub ensures: HandleSpan<ContractProofFactRef>,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct FlowExitParameterOrigin {
+    pub contract: psi_arena::Handle<psi_typed_trees::domain::ProofFact>,
+    pub entry_parameter: SymbolHandle,
+    /// Invalid when explicit incoming edges do not establish one exact origin.
+    pub state_parameter: SymbolHandle,
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]

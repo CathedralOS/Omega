@@ -262,6 +262,7 @@ pub(super) fn append_contract_semantic_facts(
                 machine_symbol: exit.machine_symbol,
                 state_symbol: exit.state_symbol,
                 statement_index: exit.statement_index,
+                transition_target: exit.transition_target,
             },
             refs,
         );

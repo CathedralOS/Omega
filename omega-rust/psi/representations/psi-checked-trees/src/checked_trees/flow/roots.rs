@@ -98,6 +98,7 @@ pub struct FlowControlFacts {
     pub statements: Arena<FlowStatementFact>,
     pub calls: Arena<FlowCallFact>,
     pub exits: Arena<FlowExitFact>,
+    pub exit_parameter_origins: Arena<super::FlowExitParameterOrigin>,
     pub states: Arena<FlowStateFact>,
 }
 
@@ -112,6 +113,7 @@ impl FlowControlFacts {
             statements,
             calls,
             exits,
+            exit_parameter_origins: Arena::default(),
             states,
         }
     }

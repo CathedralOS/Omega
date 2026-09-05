@@ -37,7 +37,7 @@ machine GameView::render_room(
     fountain_used: bool,
     enemy_defeated: bool,
     console: &mut Console,
-    line: &mut [u8; 128] in Utf8
+    line: &mut [u8; 128]
 )
 ensures line in Utf8
 {
@@ -60,7 +60,7 @@ machine GameView::render_look(
     fountain_used: bool,
     enemy_defeated: bool,
     console: &mut Console,
-    line: &mut [u8; 128] in Utf8
+    line: &mut [u8; 128]
 )
 ensures line in Utf8
 {
@@ -75,7 +75,7 @@ machine GameView::render_exits(
     level: Level,
     cell: CellId,
     console: &mut Console,
-    line: &mut [u8; 128] in Utf8
+    line: &mut [u8; 128]
 )
 ensures line in Utf8
 {
@@ -264,7 +264,7 @@ machine GameView::render_inventory(
     &mut self,
     player: Player,
     console: &mut Console,
-    line: &mut [u8; 128] in Utf8
+    line: &mut [u8; 128]
 )
 ensures line in Utf8
 {
@@ -276,7 +276,7 @@ machine GameView::render_character(
     &mut self,
     player: Player,
     console: &mut Console,
-    line: &mut [u8; 128] in Utf8
+    line: &mut [u8; 128]
 )
 ensures line in Utf8
 {

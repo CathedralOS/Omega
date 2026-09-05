@@ -127,6 +127,7 @@ pub(crate) fn exact_two_field_record_projection_for_test(
 ) -> Option<(String, String, String, String)> {
     terminal_unit::exact_two_field_record_projection(program, root_type, moved_field, target_type)
 }
+mod entry_origins;
 mod transfers;
 
 use borrow_lifetimes::{filter_expired_borrow_loans, filter_reassigned_borrow_loans};
@@ -152,6 +153,7 @@ use constraints::{
 use context::FlowBuildContext;
 pub(crate) use domain::build_domain_facts;
 use domain::filter_contexts_after_place_mutations;
+pub(crate) use domain::relative_place_segments_from_expression;
 use exits::append_state_exit_facts;
 use mutation::close_storage_places_over_aliases;
 pub(crate) use mutation::{
@@ -182,8 +184,8 @@ pub(crate) use place::{
     canonical_place_joined_segments_may_overlap, canonical_place_overlaps_joined_segments,
     canonical_place_overlaps_segments, canonical_place_segments_equal,
     canonical_place_segments_may_overlap, effective_member_symbol, expression_type_symbol,
-    index_place_segment, literal_argument_access_places, push_field_place_segments,
-    resolve_member_symbol_from_type_symbol, symbol_type_symbol,
+    index_place_segment, literal_argument_access_places, literal_value_projections,
+    push_field_place_segments, resolve_member_symbol_from_type_symbol, symbol_type_symbol,
 };
 use reach::attach_reach_summaries;
 use state::build_state_flow_fact;
