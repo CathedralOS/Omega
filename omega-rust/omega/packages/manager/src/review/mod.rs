@@ -49,12 +49,13 @@ pub use compare::{
 };
 pub use decision::{
     PackagePolicyDecision, PackagePolicyDecisionError, PackagePolicyDecisionSubject,
-    PackagePolicyResolution, ReviewOnlyRootPolicyDecision, ReviewOnlyRootPolicyDirectory,
-    ReviewOnlyRootPolicyDisposition, ReviewOnlyRootPolicyFileError, ReviewOnlyRootPolicyName,
-    ReviewOnlyRootPolicyNameError, ReviewOnlyRootPolicyRecordError,
+    PackagePolicyResolution, PackagePolicyReviewError, ReviewOnlyRootPolicyDecision,
+    ReviewOnlyRootPolicyDirectory, ReviewOnlyRootPolicyDisposition, ReviewOnlyRootPolicyFileError,
+    ReviewOnlyRootPolicyName, ReviewOnlyRootPolicyNameError, ReviewOnlyRootPolicyRecordError,
     ReviewOnlyRootPolicyRecordLimits, ReviewOnlyRootPolicyResolution,
     ReviewOnlyRootPolicyResolutionCommitment, ReviewOnlyRootPolicyResolutionError,
-    recover_review_only_root_policy_resolution, resolve_package_policy_decisions,
+    recover_package_policy_review, recover_review_only_root_policy_resolution,
+    render_package_policy_review, resolve_package_policy_decisions,
     resolve_review_only_root_policy_decisions,
 };
 pub use reconstruction::{
