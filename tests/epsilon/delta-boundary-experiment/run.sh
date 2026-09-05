@@ -28,10 +28,10 @@ expect_metric() {
     }
 }
 
-expect_metric 'source_lines=9927'
-expect_metric 'top_level_forms=728'
+expect_metric 'source_lines=10092'
+expect_metric 'top_level_forms=749'
 expect_metric 'data_forms=160'
-expect_metric 'definition_forms=568'
+expect_metric 'definition_forms=589'
 expect_metric 'optional_forms=8'
 expect_metric 'optional_lines=24'
 expect_metric 'optional_shapes=0/1:4,0/3:4'
@@ -69,7 +69,7 @@ expect_metric 'catalog_gross_ceiling_lines=245'
 expect_metric 'span_gross_ceiling_lines=164'
 expect_metric 'candidate_gross_ceiling_lines=77'
 expect_metric 'combined_gross_ceiling_lines=852'
-expect_metric 'combined_gross_ceiling_per_mille=85'
+expect_metric 'combined_gross_ceiling_per_mille=84'
 
 materialize_gamma_evaluator "$TMP/evaluator" >/dev/null
 EVALUATOR="$TMP/evaluator" DELTA="$DELTA" EPSILON="$EPSILON" \

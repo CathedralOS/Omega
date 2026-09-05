@@ -88,6 +88,10 @@ first C tape only when its ordinary `alpha_bootstrap` target is selected.
   artifact yet. The
   current fact pass does enforce D38's contextual receiver/result relation and
   separate array-view extra-call rejection.
+  Executable scalar slices include unqualified and direct-self machine calls,
+  independent recursive invocation locals, value/resultless returns, and
+  effect-threaded expressions; arbitrary receiver-place and aggregate execution
+  remain incomplete.
 
 Superseded bridge and native-publication experiments remain only in Git
 history. No compatibility owner replaces them. A compact positive/negative

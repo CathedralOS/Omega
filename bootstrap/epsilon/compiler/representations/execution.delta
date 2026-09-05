@@ -45,11 +45,15 @@
   (EpsilonEvaluatorAssignmentTrapped Int)
   (EpsilonEvaluatorAssignmentUpdated EpsilonEvaluatorFieldValueList))
 
-(data EpsilonEvaluatorStatementEffect
-  (EpsilonEvaluatorContinue Bytes)
+; Expressions and ordinary invocations return their committed effects together.
+; Only the outer entry adapter turns a resultless return into process exit.
+(data EpsilonEvaluatorOutcome
+  (EpsilonEvaluatorValue Int EpsilonEvaluatorFieldValueList Bytes)
+  (EpsilonEvaluatorResultless EpsilonEvaluatorFieldValueList Bytes)
   (EpsilonEvaluatorExit Int Bytes)
   (EpsilonEvaluatorTrap Int Bytes)
-  (EpsilonEvaluatorStatementUnsupported))
+  (EpsilonEvaluatorInternal Int)
+  (EpsilonEvaluatorUnsupported))
 
 ; Checked invocation identity stays fixed across its entry and state blocks.
 (data EpsilonEvaluatorInvocation
@@ -60,6 +64,7 @@
 (data EpsilonEvaluatorBlockOutcome
   (EpsilonEvaluatorBlockFalloff EpsilonEvaluatorLocalValueList
     EpsilonEvaluatorFieldValueList Bytes)
+  (EpsilonEvaluatorBlockReturn Int EpsilonEvaluatorFieldValueList Bytes)
   (EpsilonEvaluatorBlockTransfer EpsilonState EpsilonEvaluatorLocalValueList
     EpsilonEvaluatorFieldValueList Bytes)
   (EpsilonEvaluatorBlockExit Int Bytes)
@@ -68,7 +73,6 @@
   (EpsilonEvaluatorBlockUnsupported))
 
 (data EpsilonEvaluatorArgumentsOutcome
-  (EpsilonEvaluatorArgumentsBound EpsilonEvaluatorLocalValueList)
-  (EpsilonEvaluatorArgumentsTrapped Int)
-  (EpsilonEvaluatorArgumentsInternal)
-  (EpsilonEvaluatorArgumentsUnsupported))
+  (EpsilonEvaluatorArgumentsBound EpsilonEvaluatorLocalValueList
+    EpsilonEvaluatorFieldValueList Bytes)
+  (EpsilonEvaluatorArgumentsStopped EpsilonEvaluatorOutcome))

@@ -94,7 +94,12 @@
         ((EpsilonReceiverLocal name typeValue)
           EpsilonEvaluatorLocalAssignmentUnsupported)
         ((EpsilonMachineParameterLocal parameterValue)
-          EpsilonEvaluatorLocalAssignmentUnsupported)
+          (match parameterValue
+            ((EpsilonParameterSyntax start end name typeValue)
+              (if (epsilon_type_is_i32 typeValue)
+                (epsilon_evaluator_replace_local_home
+                  (EpsilonEvaluatorParameterValue parameterValue value) locals)
+                EpsilonEvaluatorLocalAssignmentUnsupported))))
         ((EpsilonTransitionBinderLocal patternValue name)
           EpsilonEvaluatorLocalAssignmentUnsupported)))))
 
@@ -108,8 +113,37 @@
         ((EpsilonLetLocal name typeValue statementValue)
           (epsilon_evaluate_let_value statementValue locals))
         ((EpsilonReceiverLocal name typeValue) NoEpsilonEvaluatorScalar)
-        ((EpsilonMachineParameterLocal parameterValue) NoEpsilonEvaluatorScalar)
+        ((EpsilonMachineParameterLocal parameterValue)
+          (epsilon_evaluate_parameter_value parameterValue locals))
         ((EpsilonStateParameterLocal parameterValue)
           (epsilon_evaluate_parameter_value parameterValue locals))
         ((EpsilonTransitionBinderLocal patternValue name)
           NoEpsilonEvaluatorScalar)))))
+
+(def epsilon_evaluator_is_machine_parameter ((target EpsilonParameter)
+  (parameters EpsilonParameterList)) Int
+  (match parameters
+    (NoEpsilonParameters 0)
+    ((MoreEpsilonParameters item rest)
+      (if (epsilon_evaluator_local_homes_same_identity
+        (EpsilonEvaluatorParameterValue target 0)
+        (EpsilonEvaluatorParameterValue item 0))
+        1
+        (epsilon_evaluator_is_machine_parameter target rest)))))
+
+; A state transfer discards block homes but retains the invocation's current
+; parameter values, including mutations. Spelling never selects a retained row.
+(def epsilon_evaluator_preserve_machine_parameters
+  ((parameters EpsilonParameterList) (locals EpsilonEvaluatorLocalValueList))
+  EpsilonEvaluatorLocalValueList
+  (match locals
+    (NoEpsilonEvaluatorLocalValues NoEpsilonEvaluatorLocalValues)
+    ((MoreEpsilonEvaluatorLocalValues item rest)
+      (match item
+        ((EpsilonEvaluatorLetValue statementValue value)
+          (epsilon_evaluator_preserve_machine_parameters parameters rest))
+        ((EpsilonEvaluatorParameterValue parameterValue value)
+          (if (epsilon_evaluator_is_machine_parameter parameterValue parameters)
+            (MoreEpsilonEvaluatorLocalValues item
+              (epsilon_evaluator_preserve_machine_parameters parameters rest))
+            (epsilon_evaluator_preserve_machine_parameters parameters rest)))))))

@@ -33,7 +33,7 @@ lookahead to recognize a complete following `pattern ->` prefix. Parser success
 wrappers contain only their native AST value and no duplicated cursor or span.
 It deliberately has no final evaluator `main` or composed executable identity.
 The staging execution path starts from a completely checked `Main::main`.
-Scalar locals and state parameters retain exact checked declaration identity;
+Scalar locals, machine parameters, and state parameters retain exact checked declaration identity;
 assignment evaluates against the old values and replaces only the established
 home. Grouped/local reads and `assert` use the same scalar evaluator as
 `Console.write_byte` and `Console.exit_process` arguments. Argument arithmetic
@@ -52,12 +52,20 @@ terminal execution. Scalar transitions consume the checked subject and pattern
 ledgers; only the selected continuation executes, with unmatched scalar subjects
 trapping as `NonExhaustiveTransition`. State arguments evaluate left-to-right
 against the old bindings and install their scalar parameter homes together.
-Transfers discard old block locals, retain receiver storage, and resume the
+Transfers discard old block locals, retain current machine parameter values and
+receiver storage, and resume the
 target state through a tail call. Explicit resultless return, state falloff,
 and the supported Console write/exit continuations complete the Main invocation
-without executing unused states. General machine calls, sum transitions,
-aggregate parameters, nested storage, views, and remaining Console operations
-are still unsupported. Every
+without executing unused states. Ordinary scalar machine calls use checked
+callable identities, evaluate arguments left-to-right, and establish independent
+callee parameter/local homes. Unqualified machines and direct-self receiver
+methods support recursion, scalar returns, resultless falloff/return, and
+explicit exit/trap propagation. Expression outcomes carry committed storage and
+output through arithmetic, arguments, indexes, right sides, returns, and
+transition subjects. Only the outer entry adapter turns ordinary completion
+into process exit; recursive `self.main()` retains the existing receiver.
+Arbitrary receiver places, sum transitions, aggregate parameters, nested storage,
+views, and remaining Console operations are still unsupported. Every
 D17 grammar form now parses, including boundary/data/machine declarations,
 qualified-only receiver forms, states, and exact nonempty whole-program
 exhaustion. D51's receiver-only qualified-machine syntax, ordinary named
@@ -93,7 +101,12 @@ first collects every owner row and exact qualified machine identity from source
 spans, then scans member, parameter, state, let, and transition-binder scopes.
 It compares authored bytes exactly, keeps local identities source-shaped,
 collects transition binders independently of later case and arity validity,
-and returns the globally earliest declaration-start failure. D51's syntax-
+and returns the globally earliest declaration-start failure. Member-pair and
+payload census folds retain the earliest candidate in a tail accumulator, so
+wide records do not consume one Gamma call context per field. The declaration
+fold likewise finishes each declaration's owner, machine, boundary, and contents
+checks before advancing; pending minima do not accumulate across declarations.
+D51's syntax-
 selected case and receiver-method namespaces delete the former D36 case/
 qualified-machine comparison. D56 narrowly transfers duplicate custody for
 `Main`, `Console`, `Main.console`, `Console` members, and exact `Main::main`
@@ -118,7 +131,10 @@ marking every edge in a value cycle at its named-reference coordinate without
 expanding every path through a shared acyclic graph. Candidate identity is now
 exactly its reason and packed coordinate; same-anchor reason equality derives
 from the total reason mapping rather than a parallel integer discriminator.
-The winning candidate is promoted after successful census. D56's final type-
+The member-type candidate fold reverses the member spine and merges each
+candidate on the left of the accumulated result. This preserves the original
+right-associated conflict behavior with bounded call depth. The winning
+candidate is promoted after successful census. D56's final type-
 formation entry subjudgment runs before that promotion: no authored
 `Main::main` owner/name candidate yields only `MissingEntry` at source extent;
 once one exists, every malformed or

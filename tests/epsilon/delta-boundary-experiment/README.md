@@ -1,6 +1,6 @@
 # Delta abstraction-boundary experiment
 
-This experiment asks whether the 9,927-line Delta-authored Epsilon evaluator is
+This experiment asks whether the 10,092-line Delta-authored Epsilon evaluator is
 large because Delta is missing reusable mechanisms, or because Epsilon owns a
 large amount of irreducible language and diagnostic policy.
 
@@ -17,7 +17,7 @@ lines for the corresponding Delta language/compiler implementation.
 | Source span wrapper | 29 start/end helpers | 164 lines | Reject wrapper alone |
 | Candidate minimum fold | 3 candidate types plus 6 merge helpers | 77 lines | Reject generic fold |
 
-Even the impossible combined ceiling is only 852 lines, 8.6% of the Epsilon
+Even the impossible combined ceiling is only 852 lines, 8.4% of the Epsilon
 evaluator. The five proposals therefore cannot explain most of the source-size
 explosion.
 
