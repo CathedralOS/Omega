@@ -96,6 +96,13 @@ of an obligation, not the truth of an authored entry assumption. Rebased facts
 stay scoped to their exact state or exit. Global and machine declaration
 contexts are shared, never populated with a sibling state's derived facts.
 
+A `self` back-edge must re-establish both authored arrival contracts and
+declared field domains. It consumes the exact selected arm's live contexts
+after guard effects, including that arm's guard polarity. These snapshots share
+immutable fact-reference spans; they do not reintroduce entry assumptions.
+Raw field qualifications use the same proof checks as contract qualifications,
+and evidence markers are not automatically satisfied obligations.
+
 Literal assignment values belong to the common semantic fact contexts. They
 are attached to exact stable places and use the same mutation invalidation as
 domain facts; unknown writes supply no value and uninitialized storage supplies
