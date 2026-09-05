@@ -4,11 +4,11 @@
 Ready worktrees enqueue, claim the head, integrate, check, and publish. Every
 queue mutation compares the prior object; publication updates main and the
 queue atomically. Only the coordination ref uses force-with-lease. Waiting is
-local and bounded; tickets never expire automatically. See landing.md.
+local and bounded. Each promoted head gets at most three minutes. See landing.md.
 """
 
 import argparse
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 import json
 import os
 from pathlib import Path
@@ -21,6 +21,7 @@ import uuid
 
 CLAIM_REF = "refs/coordination/omega-landing/main"
 MAIN_REF = "refs/heads/main"
+LEASE_SECONDS = 180
 
 
 class LandingError(Exception):
@@ -39,6 +40,28 @@ def ticket_id(value):
 
 def now():
     return datetime.now(timezone.utc).isoformat()
+
+
+def utc(value):
+    parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+    if parsed.tzinfo is None:
+        raise ValueError("UTC timestamp requires an offset")
+    return parsed.astimezone(timezone.utc)
+
+
+def promote_head(record):
+    """Only changing the head starts a new lease; claim is not a renewal."""
+    if record["entries"]:
+        started = datetime.now(timezone.utc)
+        record["head_promoted_utc"] = started.isoformat()
+        record["head_expires_utc"] = (started + timedelta(seconds=LEASE_SECONDS)).isoformat()
+    else:
+        record["head_promoted_utc"] = None
+        record["head_expires_utc"] = None
+
+
+def expired(record):
+    return bool(record["entries"]) and datetime.now(timezone.utc) >= utc(record["head_expires_utc"])
 
 
 def emit(record):
@@ -87,12 +110,13 @@ class Landing:
     def snapshot(self):
         references = self.references()
         version = references.get(CLAIM_REF, "")
-        record = {"protocol": "omega-landing-v2", "entries": [], "active": None}
+        record = {"protocol": "omega-landing-v3", "entries": [], "active": None,
+                  "head_promoted_utc": None, "head_expires_utc": None}
         if version:
             self.fetch(version)
             try:
                 record = json.loads(self.git("show", "-s", "--format=%B", version).stdout)
-                if record["protocol"] not in ("omega-landing-v1", "omega-landing-v2"):
+                if record["protocol"] not in ("omega-landing-v1", "omega-landing-v2", "omega-landing-v3"):
                     raise ValueError("unknown protocol")
                 if record["protocol"] == "omega-landing-v1":
                     if not isinstance(record["owner"], str):
@@ -120,6 +144,15 @@ class Landing:
             if not entries or entries[0]["ticket"] != active["ticket"]:
                 raise ValueError("active ticket must be first")
             object_id(active["base"], "Reserved base")
+        if record["protocol"] == "omega-landing-v3":
+            started, deadline = record["head_promoted_utc"], record["head_expires_utc"]
+            if entries:
+                if not isinstance(started, str) or not isinstance(deadline, str):
+                    raise ValueError("a queue head requires a lease")
+                if utc(deadline) - utc(started) != timedelta(seconds=LEASE_SECONDS):
+                    raise ValueError("a head lease must be exactly three minutes")
+            elif started is not None or deadline is not None:
+                raise ValueError("an empty queue cannot retain a head lease")
 
     @staticmethod
     def status(snapshot):
@@ -127,10 +160,16 @@ class Landing:
         if record["protocol"] == "omega-landing-v1":
             return {"state": "legacy_reserved", "claim": snapshot["version"],
                     "owner": record["owner"], "main": snapshot["main"]}
+        if record["protocol"] == "omega-landing-v2":
+            return {"state": "legacy_queue", "main": snapshot["main"],
+                    "active": record["active"], "queue": record["entries"], "version": snapshot["version"]}
         queue = [dict(entry, position=index + 1) for index, entry in enumerate(record["entries"])]
         state = "reserved" if record["active"] else "queued" if queue else "available"
+        if expired(record):
+            state = "expired"
         return {"state": state, "main": snapshot["main"], "active": record["active"],
-                "queue": queue, "version": snapshot["version"]}
+                "queue": queue, "version": snapshot["version"],
+                "head_promoted_utc": record["head_promoted_utc"], "head_expires_utc": record["head_expires_utc"]}
 
     def clean_head(self, expected=None):
         head = self.git("rev-parse", "HEAD").stdout
@@ -159,6 +198,8 @@ class Landing:
         return {"state": "released", "claim": options.claim, "action": options.command, "reason": options.reason}
 
     def publication_check(self, options, snapshot):
+        if expired(snapshot["record"]):
+            raise LandingError("The three-minute head lease expired. Rejoin with a new ticket.")
         object_id(options.base, "Base")
         object_id(options.candidate, "Candidate")
         self.clean_head(options.candidate)
@@ -172,9 +213,43 @@ class Landing:
         if self.git("rev-list", "--merges", f"{options.base}..{options.candidate}").stdout:
             raise LandingError("The candidate contains merge commits; main must remain linear.")
 
+    def maintenance(self, snapshot):
+        """Persist migration/expiry separately, before interpreting an action.
+
+        Exact-ref comparison fences old owners and preserves concurrent arrivals.
+        Advancing once gives the next head its own full lease, even if idle.
+        """
+        record = snapshot["record"]
+        if record["protocol"] == "omega-landing-v1":
+            # A legacy holder has no queue ticket. Retire that exact reservation
+            # into history and retain its owner as a newly timed head.
+            record = {"protocol": "omega-landing-v3", "entries": [
+                {"ticket": uuid.uuid4().hex, "owner": record["owner"], "created_utc": now(),
+                 "legacy_claim": snapshot["version"]}], "active": None}
+            promote_head(record)
+        elif record["protocol"] == "omega-landing-v2":
+            record["protocol"] = "omega-landing-v3"
+            promote_head(record)
+        elif expired(record):
+            record["entries"] = record["entries"][1:]
+            record["active"] = None
+            promote_head(record)
+        else:
+            return False
+        updated = self.queue_object(record, snapshot["version"])
+        result = self.git("-c", "push.followTags=false", "push", "--atomic", "--porcelain",
+                          f"--force-with-lease={CLAIM_REF}:{snapshot['version']}", self.push_url,
+                          f"{updated}:{CLAIM_REF}", allow_failure=True)
+        if result.returncode:
+            after = self.references().get(CLAIM_REF, "")
+            if after == snapshot["version"]:
+                raise LandingError(f"Queue maintenance failed or is uncertain. Inspect status. {result.stderr}")
+        return True
+
     def coordinate(self, options):
         deadline = time.monotonic() + options.wait_seconds
         collisions = 0
+        maintenance_attempts = 0
         while True:
             snapshot = self.snapshot()
             record = snapshot["record"]
@@ -182,8 +257,15 @@ class Landing:
                 emit(self.status(snapshot))
                 return 0
             if record["protocol"] == "omega-landing-v1":
-                emit(self.legacy_release(options, snapshot))
-                return 0
+                if options.command in ("release", "recover") and options.claim == snapshot["version"]:
+                    emit(self.legacy_release(options, snapshot))
+                    return 0
+            if self.maintenance(snapshot):
+                maintenance_attempts += 1
+                if maintenance_attempts >= 20:
+                    raise LandingError("Queue changed repeatedly; inspect status before retrying.")
+                continue
+            lease_deadline = record["head_expires_utc"]
             entries, active = record["entries"], record["active"]
             if options.command == "enqueue":
                 self.clean_head()
@@ -197,6 +279,8 @@ class Landing:
                                                     f"--grep={options.ticket}", snapshot["version"]).stdout:
                     raise LandingError("This ticket was already removed. Enqueue with a new ticket.")
                 entries.append({"ticket": options.ticket, "owner": options.owner, "created_utc": now()})
+                if len(entries) == 1:
+                    promote_head(record)
                 result = {"state": "queued", "ticket": options.ticket, "position": len(entries)}
             elif options.command == "claim":
                 self.clean_head()
@@ -207,21 +291,27 @@ class Landing:
                     if remaining <= 0:
                         emit(self.status(snapshot))
                         return 2
-                    time.sleep(min(options.poll_seconds, remaining))
+                    until_expiry = max(0, (utc(record["head_expires_utc"]) - datetime.now(timezone.utc)).total_seconds())
+                    time.sleep(min(options.poll_seconds, remaining, until_expiry))
                     continue
                 if active:
                     self.fetch(active["base"])
-                    emit({"state": "reserved", "claim": options.ticket, "base": active["base"], "owner": entries[0]["owner"]})
+                    emit({"state": "reserved", "claim": options.ticket, "base": active["base"], "owner": entries[0]["owner"],
+                          "expires_utc": record["head_expires_utc"]})
                     return 0
                 record["active"] = {"ticket": options.ticket, "base": snapshot["main"]}
                 self.fetch(snapshot["main"])
-                result = {"state": "reserved", "claim": options.ticket, "base": snapshot["main"], "owner": entries[0]["owner"]}
+                result = {"state": "reserved", "claim": options.ticket, "base": snapshot["main"], "owner": entries[0]["owner"],
+                          "expires_utc": record["head_expires_utc"]}
             elif options.command == "cancel":
                 if active and active["ticket"] == options.ticket:
                     raise LandingError("Ticket is active. Release its claim instead.")
                 if not any(entry["ticket"] == options.ticket for entry in entries):
                     raise LandingError("Ticket is no longer queued.")
+                was_head = entries[0]["ticket"] == options.ticket
                 record["entries"] = [entry for entry in entries if entry["ticket"] != options.ticket]
+                if was_head:
+                    promote_head(record)
                 result = {"state": "cancelled", "ticket": options.ticket, "reason": options.reason}
             else:
                 ticket_id(options.claim)
@@ -234,6 +324,7 @@ class Landing:
                     result = {"state": "released", "claim": options.claim, "action": options.command, "reason": options.reason}
                 record["entries"] = [entry for entry in entries if entry["ticket"] != options.claim]
                 record["active"] = None
+                promote_head(record)
 
             updated = self.queue_object(record, snapshot["version"])
             arguments = ["-c", "push.followTags=false", "push", "--atomic", "--porcelain",
@@ -241,6 +332,10 @@ class Landing:
                          f"{updated}:{CLAIM_REF}"]
             if options.command == "publish":
                 arguments.append(f"{options.candidate}:{MAIN_REF}")
+                # The record above now describes the successor, so use the
+                # pre-mutation lease retained separately for this last check.
+                if datetime.now(timezone.utc) >= utc(lease_deadline):
+                    raise LandingError("The three-minute head lease expired before push. Rejoin.")
             mutation = self.git(*arguments, allow_failure=True)
             if not mutation.returncode:
                 emit(result)
