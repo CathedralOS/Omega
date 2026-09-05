@@ -1,0 +1,103 @@
+
+; A sparse named zero acquires its first case only when a checked sum owner is
+; available. Payload arrays and nested named values keep their lazy zero homes.
+(def epsilon_runtime_normalize_sum ((source Bytes) (owner EpsilonDeclaration)
+  (value EpsilonRuntimeValue)) EpsilonRuntimeValueLookup
+  (match owner
+    ((EpsilonBoundaryDeclaration start end name machines)
+      NoEpsilonRuntimeValue)
+    ((EpsilonMachineDeclaration start end name inputs returnType bodyValue)
+      NoEpsilonRuntimeValue)
+    ((EpsilonDataDeclaration start end name members)
+      (match value
+        ((EpsilonRuntimeInteger integer) NoEpsilonRuntimeValue)
+        ((EpsilonRuntimeViewValue view) NoEpsilonRuntimeValue)
+        ((EpsilonRuntimeSumValue storedOwner caseValue payloads)
+          (if (epsilon_data_declarations_same_identity owner storedOwner)
+            (if (epsilon_runtime_sum_case_is_member caseValue members)
+              (if (epsilon_runtime_sum_payloads_complete
+                    (epsilon_resolved_sum_case_parameters caseValue) payloads)
+                (SomeEpsilonRuntimeValue value)
+                NoEpsilonRuntimeValue)
+              NoEpsilonRuntimeValue)
+            NoEpsilonRuntimeValue))
+        ((EpsilonRuntimeAggregate typeValue children)
+          (match children
+            ((MoreEpsilonRuntimeChildren projection child rest)
+              NoEpsilonRuntimeValue)
+            (NoEpsilonRuntimeChildren
+              (match typeValue
+                ((EpsilonNamedType typeStart typeEnd typeName)
+                  (if (epsilon_names_equal source name typeName)
+                    (epsilon_runtime_sum_default owner members)
+                    NoEpsilonRuntimeValue))
+                ((EpsilonI32Type typeStart typeEnd) NoEpsilonRuntimeValue)
+                ((EpsilonU8Type typeStart typeEnd) NoEpsilonRuntimeValue)
+                ((EpsilonNeverType typeStart typeEnd) NoEpsilonRuntimeValue)
+                ((EpsilonArrayType typeStart typeEnd element lengthValue)
+                  NoEpsilonRuntimeValue)
+                ((EpsilonViewType typeStart typeEnd element)
+                  NoEpsilonRuntimeValue)))))))))
+
+(def epsilon_runtime_sum_case_is_member ((caseValue EpsilonResolvedSumCase)
+  (members EpsilonDataMemberList)) Int
+  (match members
+    (NoEpsilonDataMembers 0)
+    ((MoreEpsilonDataMembers memberValue rest)
+      (if (epsilon_resolved_sum_case_matches_member caseValue memberValue)
+        1
+        (epsilon_runtime_sum_case_is_member caseValue rest)))))
+
+(def epsilon_runtime_sum_payloads_complete ((parameters EpsilonParameterList)
+  (payloads EpsilonRuntimePayloads)) Int
+  (match parameters
+    (NoEpsilonParameters
+      (match payloads
+        (NoEpsilonRuntimePayloads 1)
+        ((MoreEpsilonRuntimePayloads value rest) 0)))
+    ((MoreEpsilonParameters parameterValue remainingParameters)
+      (match payloads
+        (NoEpsilonRuntimePayloads 0)
+        ((MoreEpsilonRuntimePayloads value remainingPayloads)
+          (match parameterValue
+            ((EpsilonParameterSyntax start end name typeValue)
+              (if (eq (epsilon_runtime_store_status typeValue value) 0)
+                (epsilon_runtime_sum_payloads_complete remainingParameters
+                  remainingPayloads)
+                0))))))))
+
+(def epsilon_runtime_sum_default ((owner EpsilonDeclaration)
+  (members EpsilonDataMemberList)) EpsilonRuntimeValueLookup
+  (match members
+    (NoEpsilonDataMembers NoEpsilonRuntimeValue)
+    ((MoreEpsilonDataMembers memberValue rest)
+      (match memberValue
+        ((EpsilonFieldMember start end name typeValue) NoEpsilonRuntimeValue)
+        ((EpsilonCaseMember start end name payload)
+          (let parameters EpsilonParameterList
+            (epsilon_optional_payload_parameters payload)
+            (SomeEpsilonRuntimeValue
+              (EpsilonRuntimeSumValue owner
+                (EpsilonResolvedSumCaseSyntax start end name parameters)
+                (epsilon_runtime_sum_zero_payloads parameters
+                  NoEpsilonRuntimePayloads)))))))))
+
+(def epsilon_runtime_sum_zero_payloads ((parameters EpsilonParameterList)
+  (values EpsilonRuntimePayloads)) EpsilonRuntimePayloads
+  (match parameters
+    (NoEpsilonParameters
+      (epsilon_runtime_reverse_payloads values NoEpsilonRuntimePayloads))
+    ((MoreEpsilonParameters parameterValue rest)
+      (match parameterValue
+        ((EpsilonParameterSyntax start end name typeValue)
+          (epsilon_runtime_sum_zero_payloads rest
+            (MoreEpsilonRuntimePayloads (epsilon_runtime_zero_value typeValue)
+              values)))))))
+
+(def epsilon_runtime_reverse_payloads ((input EpsilonRuntimePayloads)
+  (output EpsilonRuntimePayloads)) EpsilonRuntimePayloads
+  (match input
+    (NoEpsilonRuntimePayloads output)
+    ((MoreEpsilonRuntimePayloads value rest)
+      (epsilon_runtime_reverse_payloads rest
+        (MoreEpsilonRuntimePayloads value output)))))

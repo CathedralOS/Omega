@@ -24,6 +24,7 @@
   (store EpsilonRuntimeStore) (output Bytes)) EpsilonEvaluatorOutcome
   (match value
     ((EpsilonRuntimeInteger scalar) (EpsilonEvaluatorInternal 0))
+    ((EpsilonRuntimeSumValue owner caseValue payloads) (EpsilonEvaluatorInternal 0))
     ((EpsilonRuntimeViewValue view)
       (epsilon_evaluator_integer (epsilon_runtime_view_length view) store output))
     ((EpsilonRuntimeAggregate typeValue children)

@@ -4,6 +4,7 @@
   (store EpsilonRuntimeStore) (output Bytes)) EpsilonEvaluatorOutcome
   (match baseValue
     ((EpsilonRuntimeInteger scalar) (EpsilonEvaluatorInternal 0))
+    ((EpsilonRuntimeSumValue owner caseValue payloads) (EpsilonEvaluatorInternal 0))
     ((EpsilonRuntimeViewValue view)
       (epsilon_evaluator_view_index view index store output))
     ((EpsilonRuntimeAggregate typeValue children)
@@ -35,6 +36,8 @@
             (epsilon_evaluator_index_value baseValue basePlace index
               nextStore nextOutput))
           ((EpsilonRuntimeAggregate typeValue children)
+            (EpsilonEvaluatorInternal (epsilon_expression_start indexValue)))
+          ((EpsilonRuntimeSumValue owner caseValue payloads)
             (EpsilonEvaluatorInternal (epsilon_expression_start indexValue)))
           ((EpsilonRuntimeViewValue view)
             (EpsilonEvaluatorInternal (epsilon_expression_start indexValue)))))

@@ -1,6 +1,6 @@
 # Delta abstraction-boundary experiment
 
-This experiment asks whether the 10,783-line Delta-authored Epsilon evaluator is
+This experiment asks whether the 11,188-line Delta-authored Epsilon evaluator is
 large because Delta is missing reusable mechanisms, or because Epsilon owns a
 large amount of irreducible language and diagnostic policy.
 
@@ -12,12 +12,12 @@ lines for the corresponding Delta language/compiler implementation.
 | Candidate | Exact current family | Free-feature ceiling | Result |
 | --- | --- | ---: | --- |
 | Generic option/result | 8 optional declarations plus 25 parse outcomes | 99 lines | Reject for now |
-| Generic immutable list | 26 ordinary lists, 22 template reverses, 3 template counts | 251 exact lines | Reject standalone elaboration |
+| Generic immutable list | 27 ordinary lists, 22 template reverses, 3 template counts | 254 exact lines | Reject standalone elaboration |
 | Generic catalog/map | 8 catalog result types plus 11 lookup traversals | 245 lines | Reject generic map |
 | Source span wrapper | 29 start/end helpers | 164 lines | Reject wrapper alone |
 | Candidate minimum fold | 3 candidate types plus 6 merge helpers | 77 lines | Reject generic fold |
 
-Even the impossible combined ceiling is only 861 lines, 7.9% of the Epsilon
+Even the impossible combined ceiling is only 864 lines, 7.7% of the Epsilon
 evaluator. The five proposals therefore cannot explain most of the source-size
 explosion.
 
@@ -36,17 +36,17 @@ under current monomorphic Delta. This does not earn that language expansion.
 
 ## Generic lists
 
-This was the strongest candidate. Twenty-six declarations have the ordinary
+This was the strongest candidate. Twenty-seven declarations have the ordinary
 `Empty | More(item, tail)` shape. The three excluded runtime lists retain
 projection/value children, identifier/value roots, and parameter/value arguments;
 each nonempty node has three fields rather than two.
 
-The source has 27 reverse functions. The analyzer selects the 23 named
+The source has 28 reverse functions. The analyzer selects the 23 named
 `epsilon_reverse_*`: 22 are the exact list template and one reverses a four-list
-control ledger. Four runtime-prefixed reverses for children, roots, paths, and
-argument values remain outside this measured helper family. Three count
+control ledger. Five runtime-prefixed reverses for children, roots, paths,
+argument values, and sum payloads remain outside this measured helper family. Three count
 functions are exact templates. The retained replaceable family is therefore
-51 forms, 251 lines, and 11,676 bytes; it is not a count of every reversal in
+52 forms, 254 lines, and 11,809 bytes; it is not a count of every reversal in
 the evaluator.
 
 `list_elaborator.gamma` implements a complete two-pass source transformation
@@ -58,7 +58,7 @@ for this derived form:
 
 `_` omits either helper. One pass emits every data declaration; the second emits
 helpers and ordinary definitions, preserving Delta's required top-level order.
-The 26-line Epsilon family specification expands to 51 forms that are
+The 27-line Epsilon family specification expands to 52 forms that are
 alpha-equivalent to the existing declarations and helpers. A
 smoke program then passes through the ordinary selected Delta compiler and
 executes generated reverse/count functions with result 2.
@@ -66,11 +66,11 @@ executes generated reverse/count functions with result 2.
 The measured authored cost loses:
 
 ```text
-explicit Epsilon family          251 lines / 11,676 bytes
+explicit Epsilon family          254 lines / 11,809 bytes
 Gamma list elaborator            292 lines / 13,200 bytes
-derived Epsilon specifications    26 lines / 3,689 bytes
-derived route total              318 lines / 16,889 bytes
-net                               +67 lines / +5,213 bytes
+derived Epsilon specifications    27 lines / 3,795 bytes
+derived route total              319 lines / 16,995 bytes
+net                               +65 lines / +5,186 bytes
 ```
 
 The standalone pass also introduces another transformation relation. The
@@ -78,7 +78,7 @@ trie-backed global census is fast; remaining whole-source rescans own the
 continued cost. Development timings are diagnostic, not semantics.
 
 A fused implementation could reuse Delta's scanner, but it must cost at most
-225 Gamma lines merely to tie raw line count, before charging proof complexity
+227 Gamma lines merely to tie raw line count, before charging proof complexity
 or the greater audit weight of lower-rung code. Direct virtual-list support must
 also modify type, constructor, arity, match, and helper-function resolution. The
 standalone implementation is therefore a favorable lower bound, not an unfairly

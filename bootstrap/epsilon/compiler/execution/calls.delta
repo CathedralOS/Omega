@@ -24,4 +24,4 @@
               (epsilon_evaluate_receiver_call context callable base arguments
                 bindings store output))
             ((EpsilonResolvedConstructorCallable owner caseValue)
-              EpsilonEvaluatorUnsupported)))))))
+              (EpsilonEvaluatorInternal (epsilon_expression_start expressionValue)))))))))

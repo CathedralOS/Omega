@@ -7,6 +7,7 @@
   (index Int) (high Int)) EpsilonRuntimeValueLookup
   (match value
     ((EpsilonRuntimeInteger integer) NoEpsilonRuntimeValue)
+    ((EpsilonRuntimeSumValue owner caseValue payloads) NoEpsilonRuntimeValue)
     ((EpsilonRuntimeViewValue view) NoEpsilonRuntimeValue)
     ((EpsilonRuntimeAggregate typeValue children)
       (match typeValue
@@ -68,6 +69,7 @@
   (output Bytes)) EpsilonEvaluatorOutcome
   (match value
     ((EpsilonRuntimeInteger integer) (EpsilonEvaluatorInternal 0))
+    ((EpsilonRuntimeSumValue owner caseValue payloads) (EpsilonEvaluatorInternal 0))
     ((EpsilonRuntimeViewValue view) (EpsilonEvaluatorInternal 0))
     ((EpsilonRuntimeAggregate typeValue children)
       (match typeValue

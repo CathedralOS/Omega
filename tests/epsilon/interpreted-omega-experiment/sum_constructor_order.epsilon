@@ -1,0 +1,23 @@
+boundary trait Console {
+  machine exit_process(return_code: i32) -> never;
+  machine write_byte(value: i32);
+  machine read_byte() -> i32;
+  machine write_line(text: &[u8]);
+}
+
+data Choice { case Pair(first: i32, second: i32); }
+data Main { console: Console; }
+
+machine Main::main(&mut self) {
+  let pair: Choice = Choice::Pair(self.trace(65, 1), self.trace(66, 2));
+  transition pair { Choice::Pair{first, second} -> self.done(first, second) }
+}
+machine Main::trace(&mut self, byte: i32, value: i32) -> i32 {
+  self.console.write_byte(byte);
+  return value;
+}
+machine Main::done(&mut self, first: i32, second: i32) {
+  assert first == 1;
+  assert second == 2;
+  self.console.write_byte(67);
+}

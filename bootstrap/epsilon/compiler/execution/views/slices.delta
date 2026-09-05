@@ -6,6 +6,7 @@
   (output Bytes)) EpsilonEvaluatorOutcome
   (match value
     ((EpsilonRuntimeInteger integer) (EpsilonEvaluatorInternal 0))
+    ((EpsilonRuntimeSumValue owner caseValue payloads) (EpsilonEvaluatorInternal 0))
     ((EpsilonRuntimeViewValue view)
       (EpsilonEvaluatorValue value NoEpsilonRuntimePlace store output))
     ((EpsilonRuntimeAggregate typeValue children)
@@ -60,6 +61,8 @@
                 (epsilon_evaluator_slice_bounds view low bound nextStore nextOutput))
               ((EpsilonRuntimeAggregate typeValue children)
                 (EpsilonEvaluatorInternal (epsilon_expression_start expressionValue)))
+              ((EpsilonRuntimeSumValue owner caseValue payloads)
+                (EpsilonEvaluatorInternal (epsilon_expression_start expressionValue)))
               ((EpsilonRuntimeViewValue nestedView)
                 (EpsilonEvaluatorInternal (epsilon_expression_start expressionValue)))))
           ((EpsilonEvaluatorResultless nextStore nextOutput)
@@ -89,6 +92,8 @@
                   nextStore nextOutput))
               ((EpsilonRuntimeAggregate typeValue children)
                 (EpsilonEvaluatorInternal (epsilon_expression_start expressionValue)))
+              ((EpsilonRuntimeSumValue owner caseValue payloads)
+                (EpsilonEvaluatorInternal (epsilon_expression_start expressionValue)))
               ((EpsilonRuntimeViewValue nestedView)
                 (EpsilonEvaluatorInternal (epsilon_expression_start expressionValue)))))
           ((EpsilonEvaluatorResultless nextStore nextOutput)
@@ -112,6 +117,7 @@
             (epsilon_evaluate_slice_low context view low high bindings
               nextStore nextOutput))
           ((EpsilonRuntimeInteger integer) (EpsilonEvaluatorInternal 0))
+          ((EpsilonRuntimeSumValue owner caseValue payloads) (EpsilonEvaluatorInternal 0))
           ((EpsilonRuntimeAggregate typeValue children) (EpsilonEvaluatorInternal 0))))
       ((EpsilonEvaluatorResultless nextStore nextOutput) (EpsilonEvaluatorInternal 0))
       ((EpsilonEvaluatorExit code nextOutput) outcome)

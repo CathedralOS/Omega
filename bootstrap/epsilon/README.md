@@ -89,7 +89,7 @@ first C tape only when its ordinary `alpha_bootstrap` target is selected.
   current fact pass does enforce D38's contextual receiver/result relation and
   separate array-view extra-call rejection.
   The staging executor supports unqualified calls and nested receiver places,
-  independent recursive invocation homes, record/fixed-array value copies,
+  independent recursive invocation homes, record/fixed-array/sum value copies,
   value/resultless returns, and effect-threaded expressions. Runtime places
   distinguish instances by root identifier and checked field/index path;
   scope exit releases local roots without reusing their identifiers, retaining
@@ -98,9 +98,14 @@ first C tape only when its ordinary `alpha_bootstrap` target is selected.
   operations have staging execution paths. Views preserve literal, live-place,
   or existing immutable snapshot backing and expose no assignable place. Sparse
   zero homes avoid eager aggregate allocation but do not establish a complete
-  physical application storage profile. Sum execution, remaining checking and
-  conformance obligations, and exact composition with the complete Omega D
-  source remain incomplete.
+  physical application storage profile. Sum constructors, lazy first-case zero
+  defaults, checked case transitions, and independent arm-local payload homes
+  have staging execution paths under `execution/sums/`. A nonfinal payload
+  argument that fails its `u8` store remains private `Unsupported`, pending
+  [Epsilon constructor payload establishment order](../../OWNER_QUESTIONS.md#epsilon-constructor-payload-establishment-order);
+  final-argument byte-range failures already trap with the completed output
+  prefix. Full sum execution, remaining checking and conformance obligations,
+  and exact composition with the complete Omega D source remain incomplete.
 
 Superseded bridge and native-publication experiments remain only in Git
 history. No compatibility owner replaces them. A compact positive/negative

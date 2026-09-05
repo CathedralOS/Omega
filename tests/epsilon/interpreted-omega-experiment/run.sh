@@ -39,8 +39,8 @@ grep -F 'data AlphaTapeBuffer {' "$TMP/omega_compiler.epsilon" >/dev/null || {
 
 EPSILON_LINES=$(wc -l < "$EPSILON" | tr -d ' ')
 EPSILON_BYTES=$(wc -c < "$EPSILON" | tr -d ' ')
-[ "$EPSILON_LINES" -eq 10783 ]
-[ "$EPSILON_BYTES" -eq 540455 ]
+[ "$EPSILON_LINES" -eq 11188 ]
+[ "$EPSILON_BYTES" -eq 564044 ]
 
 materialize_gamma_evaluator "$TMP/evaluator" >/dev/null
 EPSILON="$EPSILON" DELTA="$DELTA" DRIVER="$DRIVER" TEST_DIR="$TEST_DIR" \
@@ -55,8 +55,8 @@ from pathlib import Path
 artifacts = {
     "evaluator source": (
         Path(os.environ["EPSILON"]).read_bytes(),
-        540455,
-        "1b8f8b12fde77e636360ba45b64b8572595469df6613072d67af20a37f73491c",
+        564044,
+        "444aa8c6eb7392fa07c84fda68e9deecb875aa5356b2a6ac284f2036589a0b38",
     ),
     "slice driver": (
         Path(os.environ["DRIVER"]).read_bytes(),
@@ -129,6 +129,15 @@ add_customer("Omega D request and UTF-8", (
      "e85bfe363cae2b313db528d9776dd4e11a185199c3d453293421da674af17121"),
 ), 40542, "e47a07296fb205934fa013b4aae29d35d51d0e8f1ee08eaf5f7de9c69c2bb099", b"A\n\x00")
 
+add_customer("Omega D numeric-base sums", (
+    (omega_compiler / "representations.epsilon", 30905,
+     "7b2b1ca57752256e9b10446ea8a2469075d9a0cac11ffe97f2037340528064ed"),
+    (omega_compiler / "lexical_classification.epsilon", 2520,
+     "12a3775f19ac6030bcca609acbf530ee64a09111cc24d7e941292e0d05fd996f"),
+    (test_directory / "customers/omega_numeric_base/main.epsilon", 1479,
+     "abf50c23d589624d59b7b3603918d5ab76e6a6192594c50534fbee6cdf334386"),
+), 34904, "0f7f338afa427419fd6cea2e0f0536263d06ff8e41f1720b2e077cb702d1be0e", b"A\x00")
+
 compiler = Path(os.environ["DELTA"]).read_bytes()
 subject = artifacts["evaluator source"][0] + artifacts["slice driver"][0]
 request = (
@@ -147,13 +156,13 @@ def evaluate(program, sealed_input=b"", timeout=300):
     return process.returncode, process.stdout
 
 status, receipt = evaluate(compiler, request)
-if status != 0 or len(receipt) != 645995:
+if status != 0 or len(receipt) != 675465:
     raise SystemExit(
         f"evaluator slice returned {status} with {len(receipt)} bytes "
         f"and SHA-256 {hashlib.sha256(receipt).hexdigest()}"
     )
 if hashlib.sha256(receipt).hexdigest() != (
-    "5169d020de9853d5e9d9c53db6537c8c777dd1685af3ae8b23726326af03426f"
+    "4e6102a2f8fdcaef851dcb42198d5d61dffe4cec8a768d3a42c8c1a2b84b39cd"
 ):
     raise SystemExit(
         "evaluator receipt identity changed to "
@@ -187,7 +196,7 @@ for name, (source, stdin, expected) in controls.items():
         )
     if name.startswith("Omega D "):
         print(f"{name}: exact observation passes", flush=True)
-print(f"Epsilon execution: {len(controls)} exact observations pass", flush=True)
+print(f"Epsilon execution: {len(controls)} exact diagnostic results pass", flush=True)
 PY
 
-echo "Interpreted Omega experiment: value copies, receiver places, state transfers, and exact D customers pass"
+echo "Interpreted Omega experiment: values, views, sums, state transfers, and exact D customers pass"

@@ -28,21 +28,21 @@ expect_metric() {
     }
 }
 
-expect_metric 'source_lines=10783'
-expect_metric 'top_level_forms=816'
-expect_metric 'data_forms=172'
-expect_metric 'definition_forms=644'
+expect_metric 'source_lines=11188'
+expect_metric 'top_level_forms=833'
+expect_metric 'data_forms=173'
+expect_metric 'definition_forms=660'
 expect_metric 'optional_forms=8'
 expect_metric 'optional_lines=24'
 expect_metric 'optional_shapes=0/1:4,0/3:4'
 expect_metric 'parse_outcome_forms=25'
 expect_metric 'parse_outcome_lines=75'
 expect_metric 'parse_outcome_shapes=1/2:18,2/2:7'
-expect_metric 'recursive_list_forms=29'
-expect_metric 'recursive_list_lines=95'
-expect_metric 'recursive_list_shapes=0/2:26,0/3:3'
-expect_metric 'ordinary_list_forms=26'
-expect_metric 'ordinary_list_lines=84'
+expect_metric 'recursive_list_forms=30'
+expect_metric 'recursive_list_lines=98'
+expect_metric 'recursive_list_shapes=0/2:27,0/3:3'
+expect_metric 'ordinary_list_forms=27'
+expect_metric 'ordinary_list_lines=87'
 expect_metric 'reverse_function_forms=23'
 expect_metric 'reverse_function_lines=167'
 expect_metric 'template_reverse_function_forms=22'
@@ -61,15 +61,15 @@ expect_metric 'candidate_lines=10'
 expect_metric 'minimum_function_forms=6'
 expect_metric 'minimum_function_lines=67'
 expect_metric 'generic_sum_gross_ceiling_lines=99'
-expect_metric 'generic_list_gross_ceiling_lines=276'
-expect_metric 'exact_list_family_forms=51'
-expect_metric 'exact_list_family_lines=251'
-expect_metric 'exact_list_family_bytes=11676'
+expect_metric 'generic_list_gross_ceiling_lines=279'
+expect_metric 'exact_list_family_forms=52'
+expect_metric 'exact_list_family_lines=254'
+expect_metric 'exact_list_family_bytes=11809'
 expect_metric 'catalog_gross_ceiling_lines=245'
 expect_metric 'span_gross_ceiling_lines=164'
 expect_metric 'candidate_gross_ceiling_lines=77'
-expect_metric 'combined_gross_ceiling_lines=861'
-expect_metric 'combined_gross_ceiling_per_mille=79'
+expect_metric 'combined_gross_ceiling_lines=864'
+expect_metric 'combined_gross_ceiling_per_mille=77'
 
 materialize_gamma_evaluator "$TMP/evaluator" >/dev/null
 EVALUATOR="$TMP/evaluator" DELTA="$DELTA" EPSILON="$EPSILON" \
@@ -130,7 +130,7 @@ for name, digest in proposals.items():
 
 list_artifacts = {
     "list_elaborator.gamma": (292, 13200, "bda48281d6a61cb4e6fd76f40e7cecc0f9d65c72660114dcfc0363009b884f78"),
-    "list_family.delta-plus": (26, 3689, "7a735100847de679414fc0f40251dca952013ac7d8619ba664be1ed63546d105"),
+    "list_family.delta-plus": (27, 3795, "1c4f623f1c170141c428c458d5d45f116658cfb4cc0566eb20fc8053232eb76f"),
     "list_smoke.delta-plus": (3, 194, "26ead8ae1fb420f914910065c0e51b4e505a0864bd8f11b2e02d323ee4d2b685"),
     "list_smoke.delta": (6, 464, "4e3a8ba3f4bc04a3a3a11d63efb5ba0f848519c0ec6e5c3b37ec2634b0edcd6b"),
 }
@@ -152,9 +152,9 @@ if status != 0 or evaluate(smoke_receipt) != (0, b"\x02"):
 
 family_spec = root.joinpath("list_family.delta-plus").read_bytes()
 status, family_expansion = evaluate(elaborator, family_spec)
-if status != 0 or len(family_expansion) != 10973:
+if status != 0 or len(family_expansion) != 11102:
     raise SystemExit("derived Epsilon list family did not expand")
-if hashlib.sha256(family_expansion).hexdigest() != "02bb471b4cb915d9ff8806b0709098666cd32897e471ec21eb50df9156dda423":
+if hashlib.sha256(family_expansion).hexdigest() != "76625698f4693ebc5989c6948daa9c1ae4586902e26bee3c6e2aaf28ede1cc40":
     raise SystemExit("derived Epsilon list family identity changed")
 
 analyzer = runpy.run_path(str(root / "analyze.py"), run_name="boundary_analyzer")
@@ -192,10 +192,10 @@ wanted = {str(form.tree[1]): form.tree for form in original if selected(form)}
 actual = {str(form.tree[1]): form.tree for form in expanded}
 for name in count_names:
     actual[name] = rename(actual[name], "input", wanted[name][2][0][0])
-if wanted != actual or len(actual) != 51:
+if wanted != actual or len(actual) != 52:
     raise SystemExit("derived Epsilon list family is not alpha-equivalent")
 
-if 292 + 26 - 251 != 67:
+if 292 + 27 - 254 != 65:
     raise SystemExit("derived-list break-even arithmetic changed")
 PY
 

@@ -24,7 +24,7 @@
     ((EpsilonStringExpression start end literal)
       (epsilon_evaluate_string context literal store output))
     ((EpsilonQualifiedExpression start end owner name arguments)
-      EpsilonEvaluatorUnsupported)
+      (epsilon_evaluate_constructor context expressionValue arguments bindings store output))
     ((EpsilonFieldExpression start end base field)
       (epsilon_evaluate_field context expressionValue base field bindings store output))
     ((EpsilonCallExpression start end base arguments)

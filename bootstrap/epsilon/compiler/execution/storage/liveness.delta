@@ -5,6 +5,7 @@
   (identifier Int)) Int
   (match value
     ((EpsilonRuntimeInteger integer) 0)
+    ((EpsilonRuntimeSumValue owner caseValue payloads) 0)
     ((EpsilonRuntimeAggregate typeValue children) 0)
     ((EpsilonRuntimeViewValue view)
       (match view
@@ -29,6 +30,8 @@
 (def epsilon_runtime_binding_identifier ((binding EpsilonEvaluatorBinding)) Int
   (match binding
     ((EpsilonEvaluatorLetBinding statementValue identifier) identifier)
+    ((EpsilonEvaluatorPatternBinding patternValue name typeValue identifier)
+      identifier)
     ((EpsilonEvaluatorParameterBinding parameterValue identifier) identifier)))
 
 (def epsilon_runtime_binding_uses_root ((binding EpsilonEvaluatorBinding)

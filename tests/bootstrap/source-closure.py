@@ -130,8 +130,8 @@ class SourceClosure(unittest.TestCase):
              "528f65b2e2d9666db1c1f3930c9f5784bbfc1497e3b7225b26cb3eee34d2924c"),
             (Path(os.environ["OMEGA_PATH_OMEGA_COMPILER_SOURCES"]), 464741,
              "621f507b214f0f26ba3c9d4d36a1bb54a26bdeecbcdffcc24a2cb1a266ab8cde"),
-            (Path(os.environ["OMEGA_PATH_EPSILON_COMPILER_SOURCES"]), 540455,
-             "1b8f8b12fde77e636360ba45b64b8572595469df6613072d67af20a37f73491c"),
+            (Path(os.environ["OMEGA_PATH_EPSILON_COMPILER_SOURCES"]), 564044,
+             "444aa8c6eb7392fa07c84fda68e9deecb875aa5356b2a6ac284f2036589a0b38"),
         ]
         with tempfile.TemporaryDirectory() as temporary:
             output = Path(temporary) / "output"

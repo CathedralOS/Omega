@@ -65,5 +65,13 @@
     ((EpsilonRuntimeInteger integer)
       (epsilon_runtime_integer_store_status typeValue integer))
     ((EpsilonRuntimeViewValue view) (- 0 1))
+    ((EpsilonRuntimeSumValue owner caseValue payloads)
+      (match typeValue
+        ((EpsilonNamedType start end name) 0)
+        ((EpsilonI32Type start end) (- 0 1))
+        ((EpsilonU8Type start end) (- 0 1))
+        ((EpsilonNeverType start end) (- 0 1))
+        ((EpsilonArrayType start end element lengthValue) (- 0 1))
+        ((EpsilonViewType start end element) (- 0 1))))
     ((EpsilonRuntimeAggregate storedType children)
       (epsilon_runtime_aggregate_store_status typeValue storedType))))

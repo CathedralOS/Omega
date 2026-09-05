@@ -13,6 +13,7 @@
                 (bytes_concat output (bytes_single byte)))))
           ((EpsilonRuntimeAggregate typeValue children)
             (EpsilonEvaluatorInternal 0))
+          ((EpsilonRuntimeSumValue owner caseValue payloads) (EpsilonEvaluatorInternal 0))
           ((EpsilonRuntimeViewValue nestedView) (EpsilonEvaluatorInternal 0)))))
     (EpsilonEvaluatorResultless store
       (bytes_concat output (bytes_single 10)))))
@@ -20,6 +21,7 @@
 (def epsilon_evaluator_console_value ((kind Int) (value EpsilonRuntimeValue)
   (store EpsilonRuntimeStore) (output Bytes)) EpsilonEvaluatorOutcome
   (match value
+    ((EpsilonRuntimeSumValue owner caseValue payloads) (EpsilonEvaluatorInternal 0))
     ((EpsilonRuntimeInteger scalar)
       (if (eq kind 1)
         (EpsilonEvaluatorExit scalar output)

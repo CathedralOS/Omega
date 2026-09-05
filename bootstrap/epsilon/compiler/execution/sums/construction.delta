@@ -1,0 +1,106 @@
+
+; Constructor syntax consumes its exact checked owner/case identity. It never
+; searches the receiver-machine namespace or creates mutable parameter homes.
+(def epsilon_evaluate_constructor ((context EpsilonEvaluatorInvocation)
+  (expressionValue EpsilonExpression) (arguments EpsilonOptionalArguments)
+  (bindings EpsilonEvaluatorBindings) (store EpsilonRuntimeStore) (output Bytes))
+  EpsilonEvaluatorOutcome
+  (match context
+    ((EpsilonEvaluatorInvocationContext source machineValue references
+      fieldReferences callables control receiver blockFloor)
+      (match (epsilon_find_resolved_callable_reference_normalized expressionValue
+        callables)
+        (NoEpsilonResolvedCallableReference
+          (EpsilonEvaluatorInternal (epsilon_expression_start expressionValue)))
+        ((OneEpsilonResolvedCallableReference callable)
+          (match callable
+            ((EpsilonResolvedConstructorCallable owner memberValue)
+              (epsilon_evaluator_construct_case context expressionValue owner
+                memberValue arguments bindings store output))
+            ((EpsilonResolvedUnqualifiedMachineCallable targetMachine)
+              (EpsilonEvaluatorInternal (epsilon_expression_start expressionValue)))
+            ((EpsilonResolvedDataMachineCallable owner targetMachine)
+              (EpsilonEvaluatorInternal (epsilon_expression_start expressionValue)))
+            ((EpsilonResolvedBoundaryMachineCallable owner memberValue)
+              (EpsilonEvaluatorInternal (epsilon_expression_start expressionValue)))))))))
+
+(def epsilon_evaluator_construct_case ((context EpsilonEvaluatorInvocation)
+  (expressionValue EpsilonExpression) (owner EpsilonDeclaration)
+  (memberValue EpsilonDataMember) (arguments EpsilonOptionalArguments)
+  (bindings EpsilonEvaluatorBindings) (store EpsilonRuntimeStore) (output Bytes))
+  EpsilonEvaluatorOutcome
+  (match memberValue
+    ((EpsilonFieldMember start end name typeValue) (EpsilonEvaluatorInternal start))
+    ((EpsilonCaseMember start end name payload)
+      (let parameters EpsilonParameterList
+        (epsilon_optional_payload_parameters payload)
+        (let caseValue EpsilonResolvedSumCase
+          (EpsilonResolvedSumCaseSyntax start end name parameters)
+          (match arguments
+            (NoEpsilonArguments
+              (epsilon_evaluator_construct_arguments context expressionValue
+                owner caseValue parameters NoEpsilonExpressions bindings store
+                output NoEpsilonRuntimePayloads))
+            ((SomeEpsilonArguments openStart closeEnd values)
+              (epsilon_evaluator_construct_arguments context expressionValue
+                owner caseValue parameters values bindings store output
+                NoEpsilonRuntimePayloads))))))))
+
+; Every argument captures a value before the next argument's effects. Successful
+; payload establishment is unobservable and requires no allocation or copy of
+; the immutable aggregate snapshot. Payload order remains declaration order.
+(def epsilon_evaluator_construct_arguments ((context EpsilonEvaluatorInvocation)
+  (expressionValue EpsilonExpression) (owner EpsilonDeclaration)
+  (caseValue EpsilonResolvedSumCase) (parameters EpsilonParameterList)
+  (arguments EpsilonExpressionList) (bindings EpsilonEvaluatorBindings)
+  (store EpsilonRuntimeStore) (output Bytes) (values EpsilonRuntimePayloads))
+  EpsilonEvaluatorOutcome
+  (match parameters
+    (NoEpsilonParameters
+      (match arguments
+        (NoEpsilonExpressions
+          (EpsilonEvaluatorValue
+            (EpsilonRuntimeSumValue owner caseValue
+              (epsilon_runtime_reverse_payloads values NoEpsilonRuntimePayloads))
+            NoEpsilonRuntimePlace store output))
+        ((MoreEpsilonExpressions item rest)
+          (EpsilonEvaluatorInternal (epsilon_expression_start item)))))
+    ((MoreEpsilonParameters parameterValue remainingParameters)
+      (match arguments
+        (NoEpsilonExpressions
+          (EpsilonEvaluatorInternal (epsilon_expression_start expressionValue)))
+        ((MoreEpsilonExpressions argumentValue remainingArguments)
+          (match (epsilon_evaluate_expression context argumentValue bindings store
+            output)
+            ((EpsilonEvaluatorValue value place nextStore nextOutput)
+              (match parameterValue
+                ((EpsilonParameterSyntax start end name typeValue)
+                  (let status Int (epsilon_runtime_store_status typeValue value)
+                    (if (eq status 0)
+                      (epsilon_evaluator_construct_arguments context
+                        expressionValue owner caseValue remainingParameters
+                        remainingArguments bindings nextStore nextOutput
+                        (MoreEpsilonRuntimePayloads value values))
+                      (if (eq status 5)
+                        (epsilon_evaluator_constructor_byte_range
+                          remainingArguments nextOutput)
+                        (EpsilonEvaluatorInternal
+                          (epsilon_expression_start argumentValue))))))))
+            ((EpsilonEvaluatorResultless nextStore nextOutput)
+              (EpsilonEvaluatorInternal (epsilon_expression_start argumentValue)))
+            ((EpsilonEvaluatorExit code nextOutput)
+              (EpsilonEvaluatorExit code nextOutput))
+            ((EpsilonEvaluatorTrap kind nextOutput)
+              (EpsilonEvaluatorTrap kind nextOutput))
+            ((EpsilonEvaluatorInternal offset) (EpsilonEvaluatorInternal offset))
+            (EpsilonEvaluatorUnsupported EpsilonEvaluatorUnsupported)))))))
+
+; LANGUAGE section 6 fixes each argument order and each field establishment
+; order, but not their interleaving when a byte store fails before a later
+; argument. That case remains a staging gap: publish no Epsilon observation.
+; A final argument's ByteRange is settled because all earlier effects completed.
+(def epsilon_evaluator_constructor_byte_range
+  ((remainingArguments EpsilonExpressionList) (output Bytes)) EpsilonEvaluatorOutcome
+  (match remainingArguments
+    (NoEpsilonExpressions (EpsilonEvaluatorTrap 5 output))
+    ((MoreEpsilonExpressions item rest) EpsilonEvaluatorUnsupported)))

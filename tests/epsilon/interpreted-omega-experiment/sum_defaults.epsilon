@@ -1,0 +1,20 @@
+boundary trait Console {
+  machine exit_process(return_code: i32) -> never;
+  machine write_byte(value: i32);
+  machine read_byte() -> i32;
+  machine write_line(text: &[u8]);
+}
+
+data Choice { case Full(value: i32); case Empty; }
+data Main { console: Console; choice: Choice; }
+
+machine Main::main(&mut self) {
+  assert read(self.choice) == 0;
+  assert read(Choice::Empty) == -1;
+  assert read(Choice::Empty()) == -1;
+  assert read(Choice::Full(65)) == 65;
+  self.console.write_byte(65);
+}
+machine read(input: Choice) -> i32 {
+  transition input { Choice::Full{value} -> return value Choice::Empty -> return -1 }
+}

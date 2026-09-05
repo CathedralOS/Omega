@@ -1,0 +1,78 @@
+
+; Resolution keeps the authored binder declaration, not the reference token.
+; Pattern identity plus that declaration distinguishes same-spelled sibling arms.
+(def epsilon_evaluator_read_pattern_binding ((patternValue EpsilonPattern)
+  (name EpsilonName) (bindings EpsilonEvaluatorBindings)
+  (store EpsilonRuntimeStore) (output Bytes) (offset Int)) EpsilonEvaluatorOutcome
+  (match bindings
+    (NoEpsilonEvaluatorBindings (EpsilonEvaluatorInternal offset))
+    ((MoreEpsilonEvaluatorBindings binding rest)
+      (match binding
+        ((EpsilonEvaluatorLetBinding statementValue identifier)
+          (epsilon_evaluator_read_pattern_binding patternValue name rest
+            store output offset))
+        ((EpsilonEvaluatorParameterBinding parameterValue identifier)
+          (epsilon_evaluator_read_pattern_binding patternValue name rest
+            store output offset))
+        ((EpsilonEvaluatorPatternBinding boundPattern boundName typeValue identifier)
+          (if (if (epsilon_patterns_same_identity patternValue boundPattern)
+                (if (eq (epsilon_name_start name) (epsilon_name_start boundName))
+                  (eq (epsilon_name_end name) (epsilon_name_end boundName)) 0) 0)
+            (epsilon_evaluator_read_binding (SomeEpsilonEvaluatorBinding identifier)
+              typeValue store output offset)
+            (epsilon_evaluator_read_pattern_binding patternValue name rest
+              store output offset)))))))
+
+; Payload binders establish ordinary arm-local homes from captured values.
+; They never turn a constructor result into an alias of another value's storage.
+(def epsilon_evaluate_bound_sum_continuation ((context EpsilonEvaluatorInvocation)
+  (patternValue EpsilonPattern) (continuation EpsilonContinuation)
+  (names EpsilonNameList) (parameters EpsilonParameterList)
+  (payload EpsilonRuntimePayloads) (bindings EpsilonEvaluatorBindings)
+  (store EpsilonRuntimeStore) (output Bytes)) EpsilonEvaluatorBlockOutcome
+  (match names
+    (NoEpsilonNames
+      (match parameters
+        (NoEpsilonParameters
+          (match payload
+            (NoEpsilonRuntimePayloads
+              (epsilon_evaluate_continuation context continuation bindings store output))
+            ((MoreEpsilonRuntimePayloads value rest)
+              (EpsilonEvaluatorBlockInternal (epsilon_pattern_start patternValue)))))
+        ((MoreEpsilonParameters parameterValue rest)
+          (EpsilonEvaluatorBlockInternal (epsilon_pattern_start patternValue)))))
+    ((MoreEpsilonNames name remainingNames)
+      (match parameters
+        (NoEpsilonParameters
+          (EpsilonEvaluatorBlockInternal (epsilon_pattern_start patternValue)))
+        ((MoreEpsilonParameters parameterValue remainingParameters)
+          (match payload
+            (NoEpsilonRuntimePayloads
+              (EpsilonEvaluatorBlockInternal (epsilon_pattern_start patternValue)))
+            ((MoreEpsilonRuntimePayloads value remainingPayload)
+              (match parameterValue
+                ((EpsilonParameterSyntax start end parameterName typeValue)
+                  (match (epsilon_runtime_allocate value store)
+                    ((EpsilonRuntimeAllocated identifier nextStore)
+                      (epsilon_evaluate_bound_sum_continuation context patternValue
+                        continuation remainingNames remainingParameters remainingPayload
+                        (MoreEpsilonEvaluatorBindings
+                          (EpsilonEvaluatorPatternBinding patternValue name typeValue
+                            identifier) bindings) nextStore output))))))))))))
+
+(def epsilon_evaluate_sum_continuation ((context EpsilonEvaluatorInvocation)
+  (patternValue EpsilonPattern) (continuation EpsilonContinuation)
+  (caseValue EpsilonResolvedSumCase) (payload EpsilonRuntimePayloads)
+  (bindings EpsilonEvaluatorBindings) (store EpsilonRuntimeStore) (output Bytes))
+  EpsilonEvaluatorBlockOutcome
+  (match patternValue
+    ((EpsilonCasePattern start end owner name binder)
+      (epsilon_evaluate_bound_sum_continuation context patternValue continuation
+        (match binder
+          (NoEpsilonBinder NoEpsilonNames)
+          ((SomeEpsilonBinder binderStart binderEnd names) names))
+        (epsilon_resolved_sum_case_parameters caseValue) payload bindings store output))
+    ((EpsilonIntegerPattern start end literal) (EpsilonEvaluatorBlockInternal start))
+    ((EpsilonTruePattern start end) (EpsilonEvaluatorBlockInternal start))
+    ((EpsilonFalsePattern start end) (EpsilonEvaluatorBlockInternal start))
+    ((EpsilonWildcardPattern start end) (EpsilonEvaluatorBlockInternal start))))

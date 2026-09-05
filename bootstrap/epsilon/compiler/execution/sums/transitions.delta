@@ -1,0 +1,63 @@
+
+; Checking has already established exhaustive nominal case coverage. A runtime
+; miss is an internal contradiction, never the scalar unmatched-subject trap.
+(def epsilon_evaluate_sum_arms ((context EpsilonEvaluatorInvocation)
+  (arms EpsilonArmList) (owner EpsilonDeclaration) (caseValue EpsilonResolvedSumCase)
+  (payload EpsilonRuntimePayloads) (bindings EpsilonEvaluatorBindings)
+  (store EpsilonRuntimeStore) (output Bytes)) EpsilonEvaluatorBlockOutcome
+  (match arms
+    (NoEpsilonArms (EpsilonEvaluatorBlockInternal (epsilon_declaration_end owner)))
+    ((MoreEpsilonArms item rest)
+      (match item
+        ((EpsilonArmSyntax start end patternValue continuation)
+          (match context
+            ((EpsilonEvaluatorInvocationContext source machineValue references
+              fieldReferences callables control receiver blockFloor)
+              (match (epsilon_control_find_complete_transition_pattern patternValue control)
+                (NoEpsilonTransitionPatternKind (EpsilonEvaluatorBlockInternal start))
+                ((OneEpsilonTransitionPatternKind kind)
+                  (match kind
+                    (EpsilonTransitionWildcard
+                      (epsilon_evaluate_continuation context continuation bindings store output))
+                    ((EpsilonScalarPatternSelector selector)
+                      (EpsilonEvaluatorBlockInternal start))
+                    ((EpsilonSumCasePattern patternOwner patternCase)
+                      (if (epsilon_data_declarations_same_identity owner patternOwner)
+                        (if (epsilon_resolved_sum_cases_same_identity caseValue patternCase)
+                          (epsilon_evaluate_sum_continuation context patternValue continuation
+                            caseValue payload bindings store output)
+                          (epsilon_evaluate_sum_arms context rest owner caseValue payload
+                            bindings store output))
+                        (EpsilonEvaluatorBlockInternal start)))))))))))))
+
+(def epsilon_evaluate_sum_subject ((context EpsilonEvaluatorInvocation)
+  (arms EpsilonArmList) (owner EpsilonDeclaration) (value EpsilonRuntimeValue)
+  (bindings EpsilonEvaluatorBindings) (store EpsilonRuntimeStore) (output Bytes))
+  EpsilonEvaluatorBlockOutcome
+  (match context
+    ((EpsilonEvaluatorInvocationContext source machineValue references
+      fieldReferences callables control receiver blockFloor)
+      (match (epsilon_runtime_normalize_sum source owner value)
+        (NoEpsilonRuntimeValue (EpsilonEvaluatorBlockInternal (epsilon_declaration_end owner)))
+        ((SomeEpsilonRuntimeValue normalized)
+          (match normalized
+            ((EpsilonRuntimeSumValue sumOwner caseValue payload)
+              (epsilon_evaluate_sum_arms context arms sumOwner caseValue payload
+                bindings store output))
+            ((EpsilonRuntimeInteger integer) (EpsilonEvaluatorBlockInternal 0))
+            ((EpsilonRuntimeAggregate typeValue children) (EpsilonEvaluatorBlockInternal 0))
+            ((EpsilonRuntimeViewValue view) (EpsilonEvaluatorBlockInternal 0))))))))
+
+(def epsilon_evaluate_sum_transition ((context EpsilonEvaluatorInvocation)
+  (expressionValue EpsilonExpression) (arms EpsilonArmList) (owner EpsilonDeclaration)
+  (bindings EpsilonEvaluatorBindings) (store EpsilonRuntimeStore) (output Bytes))
+  EpsilonEvaluatorBlockOutcome
+  (match (epsilon_evaluate_expression context expressionValue bindings store output)
+    ((EpsilonEvaluatorValue value place nextStore nextOutput)
+      (epsilon_evaluate_sum_subject context arms owner value bindings nextStore nextOutput))
+    ((EpsilonEvaluatorResultless nextStore nextOutput)
+      (EpsilonEvaluatorBlockInternal (epsilon_expression_start expressionValue)))
+    ((EpsilonEvaluatorExit code nextOutput) (EpsilonEvaluatorBlockExit code nextOutput))
+    ((EpsilonEvaluatorTrap kind nextOutput) (EpsilonEvaluatorBlockTrap kind nextOutput))
+    ((EpsilonEvaluatorInternal offset) (EpsilonEvaluatorBlockInternal offset))
+    (EpsilonEvaluatorUnsupported EpsilonEvaluatorBlockUnsupported)))
