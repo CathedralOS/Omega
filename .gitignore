@@ -22,5 +22,5 @@ __pycache__/
 .idea/
 .vscode/
 
-# Local scratch reproductions (not part of the project)
-/scratch_repro/
+# Place for repos that we need to look at but don't want to include.
+/examples/
