@@ -5,7 +5,7 @@ use abstract_operations_to_abstract_operations::validation::validate_verified_ps
 use abstract_operations_to_target_operations::{
     LoweringError as TargetLoweringError, lower_to_target_operations,
 };
-use checked_trees_to_terminal_psi::lower_machine;
+use checked_trees_to_lowered_psi::lower_machine;
 use optimization_unit::recompute_psi_optimization_unit_identity;
 use optimization_unit_semantics::{
     OptimizationUnitValidationError, validate_psi_optimization_unit,
@@ -60,10 +60,7 @@ const GUARDED_CALL_SOURCE: &str = r#"
     }
 "#;
 
-fn lowered_source(
-    source: &str,
-    machine: &str,
-) -> checked_trees_to_terminal_psi::LoweredTerminalPsi {
+fn lowered_source(source: &str, machine: &str) -> lowered_psi::LoweredPsi {
     let tokens = Lexer::new(source).tokenize().expect("tokenize source");
     let syntax = parse_syntax_trees(&tokens).expect("parse source");
     let resolved = lower_syntax_trees(&syntax).expect("resolve source");
@@ -73,7 +70,7 @@ fn lowered_source(
 }
 
 fn optimizer_unit(
-    lowered: &checked_trees_to_terminal_psi::LoweredTerminalPsi,
+    lowered: &lowered_psi::LoweredPsi,
 ) -> terminal_psi_to_abstract_operations::VerifiedPsiOptimizationUnit {
     let semantic = encode_module(&lowered.semantic_module).expect("encode semantics");
     let proof = encode_proof_bundle(&lowered.proof_bundle).expect("encode proof");

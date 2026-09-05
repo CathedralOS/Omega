@@ -19,14 +19,14 @@ pub struct TerminalCompilerBuiltinProposal {
 pub struct TerminalCallbackThunkArtifact {
     private_symbol: std::sync::Arc<str>,
     artifact: std::sync::Arc<terminal_codec::CanonicalTerminalArtifact>,
-    lowering_receipt: checked_trees_to_terminal_psi::CallbackTerminalLoweringReceipt,
+    lowering_receipt: lowered_psi::CallbackTerminalLoweringReceipt,
 }
 
 impl TerminalCallbackThunkArtifact {
     pub fn new(
         private_symbol: std::sync::Arc<str>,
         artifact: terminal_codec::CanonicalTerminalArtifact,
-        lowering_receipt: checked_trees_to_terminal_psi::CallbackTerminalLoweringReceipt,
+        lowering_receipt: lowered_psi::CallbackTerminalLoweringReceipt,
     ) -> Result<Self, &'static str> {
         if private_symbol.is_empty() {
             return Err("Terminal callback thunk has an empty private symbol");
@@ -60,9 +60,7 @@ impl TerminalCallbackThunkArtifact {
         &self.artifact
     }
 
-    pub const fn lowering_receipt(
-        &self,
-    ) -> checked_trees_to_terminal_psi::CallbackTerminalLoweringReceipt {
+    pub const fn lowering_receipt(&self) -> lowered_psi::CallbackTerminalLoweringReceipt {
         self.lowering_receipt
     }
 }
@@ -243,7 +241,7 @@ pub struct TerminalNativeRealizationProposal {
     ieee_float_fma_occurrences: Vec<TerminalIeeeFloatFmaOccurrenceProposal>,
     boundary_application_coverage: boundary_applications::TerminalBoundaryApplicationCoverage,
     checked_boundary_operator_scope:
-        checked_trees_to_terminal_psi::CheckedBoundaryOperatorApplicationScope,
+        lowered_psi_to_terminal_psi::CheckedBoundaryOperatorApplicationScope,
 }
 
 impl TerminalNativeRealizationProposal {
@@ -265,7 +263,7 @@ impl TerminalNativeRealizationProposal {
         ieee_float_fma_occurrences: Vec<TerminalIeeeFloatFmaOccurrenceProposal>,
         boundary_application_demands: boundary_applications::TerminalBoundaryApplicationDemands,
         boundary_application_realizations: boundary_applications::TerminalBoundaryApplicationRealizations,
-        checked_boundary_operator_scope: checked_trees_to_terminal_psi::CheckedBoundaryOperatorApplicationScope,
+        checked_boundary_operator_scope: lowered_psi_to_terminal_psi::CheckedBoundaryOperatorApplicationScope,
     ) -> Result<Self, &'static str> {
         let boundary_application_coverage =
             boundary_applications::TerminalBoundaryApplicationCoverage::new(
@@ -789,7 +787,7 @@ impl TerminalNativeRealizationProposal {
     /// frontend was destroyed.
     pub const fn checked_boundary_operator_scope(
         &self,
-    ) -> &checked_trees_to_terminal_psi::CheckedBoundaryOperatorApplicationScope {
+    ) -> &lowered_psi_to_terminal_psi::CheckedBoundaryOperatorApplicationScope {
         &self.checked_boundary_operator_scope
     }
 

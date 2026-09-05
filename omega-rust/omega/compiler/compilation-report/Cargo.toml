@@ -9,6 +9,8 @@ name = "compilation_report"
 path = "src/lib.rs"
 
 [dependencies]
+lowered-psi = { path = "../../../psi/representations/lowered-psi" }
+lowered-psi-to-terminal-psi = { path = "../../../psi/pipeline/lowered-psi-to-terminal-psi" }
 build-evaluation = { path = "../../build/build-evaluation" }
 boundary-applications = { path = "../../representations/boundary-applications" }
 backend-plan = { path = "../../backend/plans/backend-plan" }
@@ -26,5 +28,4 @@ trust-model = { path = "../../build/trust-model" }
 terminal-codec = { path = "../../../psi/semantics/terminal-codec" }
 semantic-vocabulary = { path = "../../../psi/foundation/semantic-vocabulary" }
 terminal-psi = { path = "../../../psi/representations/terminal-psi" }
-checked-trees-to-terminal-psi = { path = "../../../psi/pipeline/checked-trees-to-terminal-psi" }
 sha2 = "0.10.9"

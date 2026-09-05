@@ -22,7 +22,7 @@ abstract-operations-to-target-operations = { path = "../abstract-operations-to-t
 function-identity = { path = "../../representations/function-identity" }
 terminal-psi-to-abstract-operations = { path = "../terminal-psi-to-abstract-operations" }
 task-plans = { path = "../../representations/task-plans" }
-checked-trees-to-terminal-psi = { path = "../../../psi/pipeline/checked-trees-to-terminal-psi" }
+checked-trees-to-lowered-psi = { path = "../../../psi/pipeline/checked-trees-to-lowered-psi" }
 proof-admission = { path = "../../../psi/semantics/proof-admission" }
 source-files-to-tokens = { path = "../../../psi/pipeline/source-files-to-tokens" }
 symbols = { path = "../../../psi/foundation/symbols" }

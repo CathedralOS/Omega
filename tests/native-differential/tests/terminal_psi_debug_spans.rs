@@ -1,7 +1,7 @@
 #[path = "../fixture_rosters/integer_control.rs"]
 mod fixture_roster;
 
-use checked_trees_to_terminal_psi::lower_machine;
+use checked_trees_to_lowered_psi::lower_machine;
 use compiler::compile_to_checked;
 use semantic_vocabulary::{ContractId, EdgeId, ObligationId, OperationId};
 use std::path::{Path, PathBuf};

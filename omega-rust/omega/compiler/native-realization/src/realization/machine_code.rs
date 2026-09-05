@@ -101,7 +101,7 @@ mod tests {
 
     fn callback_fixture() -> (
         terminal_codec::CanonicalTerminalArtifact,
-        checked_trees_to_terminal_psi::CallbackTerminalLoweringReceipt,
+        lowered_psi::CallbackTerminalLoweringReceipt,
         function_identity::MachineFunctionIdentity,
         calling_conventions::BoundaryEntryPlan,
     ) {
@@ -127,18 +127,18 @@ mod tests {
             .for_machine(selection.machine)
             .and_then(|graph| graph.states.first())
             .expect("callback checked scalar entry");
-        let lowered = checked_trees_to_terminal_psi::lower_bounded_callback_identity_machine(
+        let lowered = checked_trees_to_lowered_psi::lower_bounded_callback_identity_machine(
             &checked,
             selection.machine,
             state.state,
         )
         .expect("bounded callback Terminal lowering");
-        let optimized = checked_trees_to_terminal_psi::run_psi_optimization(
+        let optimized = lowered_psi_to_lowered_psi::run_psi_optimization(
             lowered.terminal,
             optimization::PsiOptimizationSelections::default(),
         )
         .expect("callback identity Psi optimization");
-        let artifact = checked_trees_to_terminal_psi::finalize_terminal_artifact(&optimized)
+        let artifact = lowered_psi_to_terminal_psi::finalize_terminal_artifact(&optimized)
             .expect("canonical callback artifact");
         let signature = calling_conventions::CallSignature {
             parameters: vec![calling_conventions::ValueShape::integer(8, 8)],

@@ -1,4 +1,5 @@
 use std::collections::{BTreeMap, BTreeSet};
+pub use terminal_psi::{RecursiveComponentCertificate, RecursiveEdgeCertificate};
 
 use semantic_vocabulary::{
     ContractId, EvidenceIdentity, ObligationId, Proposition, PropositionContext, RankingRelationId,
@@ -36,23 +37,6 @@ pub struct RecursiveComponentObligation {
     pub ranking_relation: Option<RankingRelationId>,
     pub well_foundedness: CertificateObligation,
     pub edges: Vec<RecursiveEdgeObligation>,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct RecursiveEdgeCertificate {
-    pub obligation: ObligationId,
-    pub evidence: EvidenceRoute,
-}
-
-/// One certificate owns exactly one reconstructed strongly connected
-/// component. The relation citation and well-foundedness evidence occur once;
-/// edge-local evidence proves only the corresponding decrease proposition.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct RecursiveComponentCertificate {
-    pub identity: EvidenceIdentity,
-    pub ranking_relation: RankingRelationId,
-    pub well_foundedness: EvidenceRoute,
-    pub edges: Vec<RecursiveEdgeCertificate>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

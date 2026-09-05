@@ -1,0 +1,12 @@
+[package]
+name = "lowered-psi-to-terminal-psi"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[dependencies]
+checked-trees = { path = "../../representations/checked-trees" }
+lowered-psi = { path = "../../representations/lowered-psi" }
+semantic-vocabulary = { path = "../../foundation/semantic-vocabulary" }
+lowered-psi-to-lowered-psi = { path = "../lowered-psi-to-lowered-psi" }
+terminal-codec = { path = "../../semantics/terminal-codec" }

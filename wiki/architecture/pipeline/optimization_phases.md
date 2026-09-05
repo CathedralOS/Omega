@@ -33,6 +33,12 @@ Pipeline folders name both endpoints literally, including identical endpoints:
 `Y-to-Z`; individual passes and analyses are modules within the owning phase,
 not additional apparent program routes. Empty selections preserve that sequence.
 
+Before Terminal publication the current Rust sequence is
+`checked-trees-to-lowered-psi` → `lowered-psi-to-lowered-psi` →
+`lowered-psi-to-terminal-psi`. The intermediate `LoweredPsi` representation
+owns the unsealed semantics and proof/debug/source companions. The compiler
+coordinator owns product receipts; the stages own only their transformations.
+
 Real boundaries retain distinct representations. Checked-tree lowering changes
 vocabulary when it constructs Psi. Terminalization strengthens the contract by
 sealing an immutable, self-contained Psi product. Terminal-to-abstract lowering
@@ -108,7 +114,7 @@ target-neutral Terminal artifact has no such target policy and leaves later
 physical selection to its receiving authority.
 
 The producer exposes the construction, optimization, and publication seam
-explicitly. `lower_machine` constructs an unsealed `LoweredTerminalPsi`;
+explicitly. `lower_machine` constructs an unsealed `LoweredPsi`;
 `run_psi_optimization` consumes that complete carrier and returns a validated
 `PsiOptimizationStageResult`; `finalize_terminal_artifact` accepts only that
 stage result. The identity execution is live and validates both sides. Named

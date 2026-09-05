@@ -94,7 +94,7 @@ impl NativeRealizationInput {
 
 pub(crate) fn physical_evidence_scope(
     identity_physical_path: bool,
-    checked_scope: Option<&checked_trees_to_terminal_psi::CheckedBoundaryOperatorApplicationScope>,
+    checked_scope: Option<&lowered_psi_to_terminal_psi::CheckedBoundaryOperatorApplicationScope>,
 ) -> native_artifact::NativePhysicalEvidenceScope {
     if identity_physical_path && checked_scope.is_some() {
         native_artifact::NativePhysicalEvidenceScope::UnoptimizedCompleteBoundaryEvidence
@@ -135,7 +135,7 @@ pub struct NativeCallbackThunkSettlement<'artifact> {
     pub callback_function: function_identity::MachineFunctionIdentity,
     pub private_symbol: &'artifact str,
     pub artifact: &'artifact terminal_codec::CanonicalTerminalArtifact,
-    pub lowering_receipt: checked_trees_to_terminal_psi::CallbackTerminalLoweringReceipt,
+    pub lowering_receipt: lowered_psi::CallbackTerminalLoweringReceipt,
     pub boundary_entry_plan: &'artifact calling_conventions::BoundaryEntryPlan,
 }
 
@@ -346,7 +346,7 @@ mod tests {
             "#,
         );
         let empty =
-            checked_trees_to_terminal_psi::produce_terminal_artifact_with_checked_boundary_operator_scope(
+            terminal_production::produce_terminal_artifact_with_checked_boundary_operator_scope(
                 &empty_checked,
                 "Main::launch",
             )
@@ -380,7 +380,7 @@ mod tests {
         let mut nonempty_checked = empty_checked.clone();
         nonempty_checked.facts.operators.boundary_applications = vec![demand.clone()];
         let nonempty =
-            checked_trees_to_terminal_psi::produce_terminal_artifact_with_checked_boundary_operator_scope(
+            terminal_production::produce_terminal_artifact_with_checked_boundary_operator_scope(
                 &nonempty_checked,
                 "Main::launch",
             )

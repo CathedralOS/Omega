@@ -4,38 +4,17 @@
 //! prior semantic axioms. It accepts no proof authority and is not a proof
 //! rule.
 
+pub use terminal_psi::{
+    CorrelatedAffineBranchWitness, CorrelatedAffineStepWitness,
+    IntegerCorrelatedForbiddenRootWitness,
+};
+
 use std::collections::BTreeSet;
 
 use semantic_vocabulary::{
     IntegerCarrier, IntegerSign, IntegerType, IntegerValue, Proposition, PropositionContext,
     ScalarTerm, ScalarType, ValueId,
 };
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct CorrelatedAffineStepWitness {
-    pub definition_axiom: usize,
-    /// Exact prior equality that lands a non-closed right sibling.
-    pub literal_axiom: Option<usize>,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct CorrelatedAffineBranchWitness {
-    pub root: ScalarTerm,
-    pub target: ScalarTerm,
-    pub steps: Vec<CorrelatedAffineStepWitness>,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct IntegerCorrelatedForbiddenRootWitness {
-    pub dividend: CorrelatedAffineBranchWitness,
-    pub divisor: CorrelatedAffineBranchWitness,
-    /// Separates prior operation definitions from retained signature facts.
-    pub definition_axiom_count: usize,
-    pub lower_bound_axiom: usize,
-    pub upper_bound_axiom: usize,
-    /// Exact reducer-facing sufficient proposition reconstructed by the check.
-    pub conclusion: Proposition,
-}
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CheckedIntegerCorrelatedForbiddenRoots {

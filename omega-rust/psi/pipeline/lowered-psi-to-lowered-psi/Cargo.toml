@@ -1,0 +1,12 @@
+[package]
+name = "lowered-psi-to-lowered-psi"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[dependencies]
+lowered-psi = { path = "../../representations/lowered-psi" }
+optimization = { path = "../../representations/optimization" }
+terminal-psi = { path = "../../representations/terminal-psi" }
+terminal-codec = { path = "../../semantics/terminal-codec" }
+terminal-verifier = { path = "../../semantics/terminal-verifier" }

@@ -49,7 +49,7 @@ pub(crate) fn operation_proof_bundle(module: &TerminalModule) -> ProofBundle {
                 .iter()
                 .map(|parameter| parameter.id)
                 .collect();
-            let proof = checked_trees_to_terminal_psi::produce_checked_canonical_integer_proof(
+            let proof = checked_trees_to_lowered_psi::produce_checked_canonical_integer_proof(
                 &context,
                 &question.obligation.proposition,
                 &machine.contract.requires,

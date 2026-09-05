@@ -22,7 +22,7 @@ pub fn realize_requested_native_artifact(
 /// the same Terminal artifact.
 pub fn realize_requested_native_artifact_with_checked_boundary_operator_scope(
     artifact: terminal_codec::CanonicalTerminalArtifact,
-    checked_scope: &checked_trees_to_terminal_psi::CheckedBoundaryOperatorApplicationScope,
+    checked_scope: &lowered_psi_to_terminal_psi::CheckedBoundaryOperatorApplicationScope,
     request: RequestedNativeRealizationRequest<'_>,
 ) -> Result<RequestedNativeArtifact, RequestedNativeArtifactError> {
     if let Err(error) = checked_scope.validate_for_artifact(&artifact) {
@@ -38,7 +38,7 @@ pub fn realize_requested_native_artifact_with_checked_boundary_operator_scope(
 /// the same Terminal production; callers cannot substitute a count or flag.
 pub fn realize_native_artifact_with_checked_boundary_operator_scope(
     artifact: terminal_codec::CanonicalTerminalArtifact,
-    checked_scope: &checked_trees_to_terminal_psi::CheckedBoundaryOperatorApplicationScope,
+    checked_scope: &lowered_psi_to_terminal_psi::CheckedBoundaryOperatorApplicationScope,
     request: NativeRealizationRequest<'_>,
 ) -> Result<NativeArtifact, Vec<Diagnostic>> {
     checked_scope
@@ -52,7 +52,7 @@ pub fn realize_native_artifact_with_checked_boundary_operator_scope(
 /// admission-profile, and optimization-entrance equality is rechecked.
 pub fn realize_native_artifact_with_checked_boundary_operator_scope_and_prepared_input(
     artifact: terminal_codec::CanonicalTerminalArtifact,
-    checked_scope: &checked_trees_to_terminal_psi::CheckedBoundaryOperatorApplicationScope,
+    checked_scope: &lowered_psi_to_terminal_psi::CheckedBoundaryOperatorApplicationScope,
     request: NativeRealizationRequest<'_>,
     prepared_input: &PreparedNativeRealizationInput,
 ) -> Result<NativeArtifact, Vec<Diagnostic>> {

@@ -17,7 +17,7 @@ fn boolean_literal_store_caller_reaches_canonical_installation() {
             }
         "#,
     );
-    let lowered = checked_trees_to_terminal_psi::lower_machine(&checked, "Root::enter")
+    let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, "Root::enter")
         .expect("Boolean literal caller reaches verified Terminal production");
     let semantic = terminal_codec::encode_module(&lowered.semantic_module)
         .expect("encode Boolean literal caller semantics");
@@ -145,7 +145,7 @@ fn verified_boolean_write_only_store_reaches_canonical_installation() {
             }
         "#,
     );
-    let lowered = checked_trees_to_terminal_psi::lower_machine(&checked, "Root::enter")
+    let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, "Root::enter")
         .expect("Boolean write-only store reaches verified Terminal production");
     let semantic = terminal_codec::encode_module(&lowered.semantic_module)
         .expect("encode Boolean store semantics");

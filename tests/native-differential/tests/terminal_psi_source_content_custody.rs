@@ -11,7 +11,7 @@ use abstract_operations_to_target_operations::{
     AdmittedBoundarySettlement, lower_to_target_operations_with_provider_executions,
 };
 use calling_conventions::{CallSignature, ValueShape};
-use checked_trees_to_terminal_psi::lower_machine;
+use checked_trees_to_lowered_psi::lower_machine;
 use image_emission::{
     build_installation_record_with_provider_executions, build_object_artifact,
     decode_installation_record, emit_executable_image, encode_installation_record,

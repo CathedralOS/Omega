@@ -1,0 +1,16 @@
+[package]
+name = "terminal-production"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[dependencies]
+semantic-vocabulary = { path = "../../foundation/semantic-vocabulary" }
+checked-trees = { path = "../../representations/checked-trees" }
+checked-trees-to-lowered-psi = { path = "../../pipeline/checked-trees-to-lowered-psi" }
+lowered-psi = { path = "../../representations/lowered-psi" }
+lowered-psi-to-lowered-psi = { path = "../../pipeline/lowered-psi-to-lowered-psi" }
+lowered-psi-to-terminal-psi = { path = "../../pipeline/lowered-psi-to-terminal-psi" }
+optimization = { path = "../../representations/optimization" }
+terminal-psi = { path = "../../representations/terminal-psi" }
+terminal-codec = { path = "../../semantics/terminal-codec" }

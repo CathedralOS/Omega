@@ -10,6 +10,8 @@ name = "omega_native_differential_test"
 path = "src/lib.rs"
 
 [dependencies]
+lowered-psi = { path = "../../omega-rust/psi/representations/lowered-psi" }
+terminal-production = { path = "../../omega-rust/psi/compiler/terminal-production" }
 checked-interpreter = { path = "../../omega-rust/psi/semantics/checked-interpreter" }
 terminal-interpreter = { path = "../../omega-rust/psi/semantics/terminal-interpreter" }
 arena = { path = "../../omega-rust/psi/foundation/arena" }
@@ -29,7 +31,7 @@ terminal-fuel = { path = "../../omega-rust/psi/semantics/terminal-fuel" }
 terminal-fixed-fuel = { path = "../../omega-rust/psi/semantics/terminal-fixed-fuel" }
 terminal-verifier = { path = "../../omega-rust/psi/semantics/terminal-verifier" }
 proof-admission = { path = "../../omega-rust/psi/semantics/proof-admission" }
-checked-trees-to-terminal-psi = { path = "../../omega-rust/psi/pipeline/checked-trees-to-terminal-psi" }
+checked-trees-to-lowered-psi = { path = "../../omega-rust/psi/pipeline/checked-trees-to-lowered-psi" }
 artifacts = { path = "../../omega-rust/omega/tooling/artifacts", features = ["external-root-report"] }
 component-publication = { path = "../../omega-rust/omega/backend/runtime/component-publication" }
 provider-planning = { path = "../../omega-rust/omega/build/provider-planning", features = ["installed-writer"] }

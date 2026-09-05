@@ -169,7 +169,8 @@ names (Psi's `semantic-vocabulary` and `flow-effects`, for example).
   (`source-files-to-tokens` → `tokens-to-syntax-trees` →
   `syntax-trees-to-symbol-resolved-trees` →
   `symbol-resolved-trees-to-typed-trees` →
-  `typed-trees-to-checked-trees` → `checked-trees-to-terminal-psi`, then
+  `typed-trees-to-checked-trees` → `checked-trees-to-lowered-psi` →
+  `lowered-psi-to-lowered-psi` → `lowered-psi-to-terminal-psi`, then
   `terminal-psi-to-abstract-operations` →
   `abstract-operations-to-target-operations` →
   `target-operations-to-selected-instructions` → image emission).

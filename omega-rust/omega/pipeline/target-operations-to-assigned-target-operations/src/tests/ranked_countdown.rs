@@ -52,7 +52,7 @@ fn ranked_target_from(
     let resolved = lower_syntax_trees(&syntax).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
     let checked = lower_typed_trees(typed).expect("check");
-    let lowered = checked_trees_to_terminal_psi::lower_machine(&checked, "Root::countdown")
+    let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, "Root::countdown")
         .expect("lower terminal countdown");
     let semantic = terminal_codec::encode_module(&lowered.semantic_module).expect("semantic");
     let proof = terminal_codec::encode_proof_bundle(&lowered.proof_bundle).expect("proof");

@@ -52,7 +52,7 @@ fn countdown_input() -> (terminal_psi::TerminalModule, VerifiedPsiOptimizationIn
     let resolved = lower_syntax_trees(&syntax).expect("resolve countdown");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type countdown");
     let checked = lower_typed_trees(typed).expect("check countdown");
-    let lowered = checked_trees_to_terminal_psi::lower_machine(&checked, "Root::countdown")
+    let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, "Root::countdown")
         .expect("lower countdown");
     let semantic = terminal_codec::encode_module(&lowered.semantic_module)
         .expect("encode countdown semantics");

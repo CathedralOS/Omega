@@ -100,7 +100,7 @@ the [Rust Compiler Completion Contract](wiki/releases/rust_compiler_completion_c
 
   `samples_with_documented_exit_run_correctly` is separately red for all 136
   documented-exit samples; before the borrowed-self retry below, 86 failed
-  native Terminal production in `checked-trees-to-terminal-psi` and the rest
+  native Terminal production in `checked-trees-to-lowered-psi` and the rest
   earlier under `NOMINAL-FIELD-FLOW`, a split not yet re-measured. 119 of the
   136 call `Console::read_line(&mut self.pause)` from an attached
   `Main::main(&mut self)`. That argument now has a root: when the
@@ -137,7 +137,7 @@ the [Rust Compiler Completion Contract](wiki/releases/rust_compiler_completion_c
 - **CANARY-CORPUS.** `mbx test -p compiler --test canary_suite` is red
   across most of its roster on a clean tree, while the `AGENTS.md` baseline
   gates are green — so the gate list does not measure this bar. The dominant
-  cause is the same `checked-trees-to-terminal-psi` fence `SAMPLE-CORPUS` names
+  cause is the same `checked-trees-to-lowered-psi` fence `SAMPLE-CORPUS` names
   above, `attached Unit closure is missing a checked transitive machine plan`,
   which owns the clear majority of all failing diagnostics; the rest fall behind
   `NOMINAL-FIELD-FLOW`, missing exact selected program entries, and

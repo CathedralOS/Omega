@@ -10,7 +10,7 @@ pub use model::{
     ValidatedNativeProgramEntrySettlement,
 };
 
-use checked_trees_to_terminal_psi::CheckedProgramEntryTerminalReceipt;
+use terminal_production::CheckedProgramEntryTerminalReceipt;
 
 /// Independently replay the complete source-signature, target, calling-plan,
 /// Terminal-Psi, and entry-identity join without invoking the Psi receipt

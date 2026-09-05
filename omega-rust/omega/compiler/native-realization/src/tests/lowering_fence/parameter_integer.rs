@@ -12,7 +12,7 @@ fn verified_parameter_sourced_write_only_store_reaches_canonical_installation() 
             }
         "#,
     );
-    let lowered = checked_trees_to_terminal_psi::lower_machine(&checked, "Sink::fill")
+    let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, "Sink::fill")
         .expect("parameter-sourced store reaches verified Terminal production");
     let semantic = terminal_codec::encode_module(&lowered.semantic_module)
         .expect("encode parameter-sourced store semantics");
@@ -291,7 +291,7 @@ fn parameter_sourced_write_only_store_caller_reaches_verified_terminal_execution
             }
         "#,
     );
-    let lowered = checked_trees_to_terminal_psi::lower_machine(&checked, "Root::enter")
+    let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, "Root::enter")
         .expect("parameter-sourced store caller reaches verified Terminal production");
     let root = lowered
         .semantic_module

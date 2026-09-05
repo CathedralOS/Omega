@@ -120,7 +120,7 @@ const SELECTED_RESULT_SOURCED_STORE: &str = r#"
 #[test]
 fn direct_dynamic_projected_store_and_call_reach_machine_custody() {
     let checked = checked(SOURCE);
-    let terminal = checked_trees_to_terminal_psi::produce_terminal_artifact(&checked, "Main::run")
+    let terminal = terminal_production::produce_terminal_artifact(&checked, "Main::run")
         .expect("direct dynamic source reaches canonical Terminal");
     let abstract_plan = terminal_psi_to_abstract_operations::lower_artifact_sections(
         terminal.semantic_bytes(),
@@ -203,7 +203,7 @@ fn selected_result_home_reaches_a_projected_store_on_both_linux_targets() {
 fn assert_scalar_result_home_reaches_a_projected_store_and_canonical_installation(
     checked: &checked_trees::CheckedTrees,
 ) {
-    let terminal = checked_trees_to_terminal_psi::produce_terminal_artifact(checked, "Root::enter")
+    let terminal = terminal_production::produce_terminal_artifact(checked, "Root::enter")
         .expect("projected scalar-result store reaches canonical Terminal");
     let abstract_plan = terminal_psi_to_abstract_operations::lower_artifact_sections(
         terminal.semantic_bytes(),
@@ -410,7 +410,7 @@ fn assert_parameter_sourced_field_store(
     expect_stack_source: bool,
 ) {
     let checked = checked(WRITE_ONLY_SOURCE);
-    let terminal = checked_trees_to_terminal_psi::produce_terminal_artifact(&checked, machine)
+    let terminal = terminal_production::produce_terminal_artifact(&checked, machine)
         .expect("parameter-sourced field store reaches canonical Terminal");
     let abstract_plan = terminal_psi_to_abstract_operations::lower_artifact_sections(
         terminal.semantic_bytes(),
@@ -538,9 +538,8 @@ fn record_and_literal_indexed_write_only_field_stores_reach_both_linux_targets()
         ("Sink::indexed", 2, 12),
         ("Sink::boolean_literal", 0, 1),
     ] {
-        let terminal =
-            checked_trees_to_terminal_psi::produce_terminal_artifact(&checked, machine_name)
-                .expect("write-only field store reaches canonical Terminal");
+        let terminal = terminal_production::produce_terminal_artifact(&checked, machine_name)
+            .expect("write-only field store reaches canonical Terminal");
         let abstract_plan = terminal_psi_to_abstract_operations::lower_artifact_sections(
             terminal.semantic_bytes(),
             terminal.proof_bytes(),

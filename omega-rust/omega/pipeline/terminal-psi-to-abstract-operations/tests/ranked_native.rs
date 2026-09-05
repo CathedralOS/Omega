@@ -31,7 +31,7 @@ fn artifact(source: &str) -> (Vec<u8>, Vec<u8>, terminal_psi::TerminalModule) {
     let resolved = lower_syntax_trees(&syntax).expect("resolve fixture");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type fixture");
     let checked = lower_typed_trees(typed).expect("check fixture");
-    let lowered = checked_trees_to_terminal_psi::lower_machine(&checked, "Root::countdown")
+    let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, "Root::countdown")
         .expect("lower ranked fixture");
     let semantic =
         terminal_codec::encode_module(&lowered.semantic_module).expect("encode ranked semantics");

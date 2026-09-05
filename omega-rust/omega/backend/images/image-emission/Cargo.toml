@@ -49,7 +49,7 @@ terminal-psi-to-abstract-operations = { path = "../../../pipeline/terminal-psi-t
 machine-emission = { path = "../../machine-emission" }
 target-operations-to-assigned-target-operations = { path = "../../../pipeline/target-operations-to-assigned-target-operations" }
 extents = { path = "../../../../psi/foundation/extents" }
-checked-trees-to-terminal-psi = { path = "../../../../psi/pipeline/checked-trees-to-terminal-psi" }
+checked-trees-to-lowered-psi = { path = "../../../../psi/pipeline/checked-trees-to-lowered-psi" }
 proof-admission = { path = "../../../../psi/semantics/proof-admission" }
 source-files-to-tokens = { path = "../../../../psi/pipeline/source-files-to-tokens" }
 symbol-resolved-trees-to-typed-trees = { path = "../../../../psi/pipeline/symbol-resolved-trees-to-typed-trees" }

@@ -5334,7 +5334,7 @@ fn free_process_exit_helper_lowers_without_a_synthetic_attachment() {
         checked.selected_provider_provenance(),
     )
     .expect("free process-exit helper should rejoin exact Fused Service custody");
-    let lowered = checked_trees_to_terminal_psi::lower_machine(&checked, "terminate")
+    let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, "terminate")
         .expect("free process-exit helper should lower to canonical Terminal Psi");
     let terminal = lowered
         .semantic_module

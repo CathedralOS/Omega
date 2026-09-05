@@ -120,11 +120,12 @@ mod tests {
         let checked = crate::tests::fixtures::checked_source::checked(
             "data Main {} machine Main::launch() {}",
         );
-        let produced = checked_trees_to_terminal_psi::produce_terminal_artifact_with_checked_boundary_operator_scope(
-            &checked,
-            "Main::launch",
-        )
-        .expect("produce Terminal fixture");
+        let produced =
+            terminal_production::produce_terminal_artifact_with_checked_boundary_operator_scope(
+                &checked,
+                "Main::launch",
+            )
+            .expect("produce Terminal fixture");
         produced.into_parts().0
     }
 
@@ -140,7 +141,7 @@ mod tests {
                 }
             "#,
         );
-        checked_trees_to_terminal_psi::produce_terminal_artifact(&checked, "Root::cleanup_prefix")
+        terminal_production::produce_terminal_artifact(&checked, "Root::cleanup_prefix")
             .expect("produce alternate Terminal fixture")
     }
 

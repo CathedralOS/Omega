@@ -10,7 +10,7 @@ use assigned_target_operations::AssignedOperation;
 use calling_conventions::{
     CallingPolicy, MachineRegister, ValueLocation, ValuePlacement, ValueShape,
 };
-use checked_trees_to_terminal_psi::lower_machine;
+use checked_trees_to_lowered_psi::lower_machine;
 use image_emission::{
     InstallationError, build_installation_record, build_object_artifact,
     decode_installation_record, emit_executable_image, emit_object_container,

@@ -4,16 +4,11 @@
 //! equalities to its root, target, carrier sequence, and exact surviving root
 //! interval. It accepts no proof authority and is not a proof rule.
 
+pub use terminal_psi::IntegerCastChainWitness;
+
 use semantic_vocabulary::{
     IntegerSign, IntegerType, IntegerValue, Proposition, PropositionContext, ScalarTerm, ScalarType,
 };
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct IntegerCastChainWitness {
-    pub root: ScalarTerm,
-    pub target: ScalarTerm,
-    pub definition_axioms: Vec<usize>,
-}
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CheckedIntegerCastChain {

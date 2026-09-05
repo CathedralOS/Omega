@@ -61,7 +61,7 @@ fn checked_descriptor_join_retains_both_predecessors_through_optimization_seed()
     let resolved = lower_syntax_trees(&syntax).expect("resolve source");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type source");
     let checked = lower_typed_trees(typed).expect("check source");
-    let terminal = checked_trees_to_terminal_psi::lower_machine(&checked, "Main::run")
+    let terminal = checked_trees_to_lowered_psi::lower_machine(&checked, "Main::run")
         .expect("joined dynamic source lowers to verified Terminal Psi");
     let semantic = encode_module(&terminal.semantic_module).expect("encode semantics");
     let proof = encode_proof_bundle(&terminal.proof_bundle).expect("encode proof");

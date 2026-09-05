@@ -19,7 +19,7 @@ use super::{
 
 pub(super) fn realize(
     artifact: terminal_codec::CanonicalTerminalArtifact,
-    checked_scope: Option<&checked_trees_to_terminal_psi::CheckedBoundaryOperatorApplicationScope>,
+    checked_scope: Option<&lowered_psi_to_terminal_psi::CheckedBoundaryOperatorApplicationScope>,
     request: NativeRealizationRequest<'_>,
     prepared_input: Option<&PreparedNativeRealizationInput>,
 ) -> Result<NativeArtifact, Vec<Diagnostic>> {
@@ -41,7 +41,7 @@ pub(super) fn realize(
 
 pub(super) fn realize_requested(
     artifact: terminal_codec::CanonicalTerminalArtifact,
-    checked_scope: Option<&checked_trees_to_terminal_psi::CheckedBoundaryOperatorApplicationScope>,
+    checked_scope: Option<&lowered_psi_to_terminal_psi::CheckedBoundaryOperatorApplicationScope>,
     request: RequestedNativeRealizationRequest<'_>,
     prepared_input: Option<&PreparedNativeRealizationInput>,
 ) -> Result<RequestedNativeArtifact, RequestedNativeArtifactError> {
@@ -62,7 +62,7 @@ pub(super) fn realize_requested(
 
 fn realize_core(
     artifact: terminal_codec::CanonicalTerminalArtifact,
-    checked_scope: Option<&checked_trees_to_terminal_psi::CheckedBoundaryOperatorApplicationScope>,
+    checked_scope: Option<&lowered_psi_to_terminal_psi::CheckedBoundaryOperatorApplicationScope>,
     request: super::model::NativeRealizationCoreRequest<'_>,
     image_request: image_emission::ExecutableImageEmissionRequest,
     prepared_input: Option<&PreparedNativeRealizationInput>,

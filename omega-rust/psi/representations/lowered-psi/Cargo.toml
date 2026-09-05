@@ -1,0 +1,11 @@
+[package]
+name = "lowered-psi"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[dependencies]
+terminal-psi = { path = "../terminal-psi" }
+checked-trees = { path = "../checked-trees" }
+symbols = { path = "../../foundation/symbols" }
+semantic-vocabulary = { path = "../../foundation/semantic-vocabulary" }

@@ -31,18 +31,19 @@ pub(super) fn produce_retained_terminal_artifact(
         checked.selected_provider_provenance(),
     )?;
     let psi_optimizations = checked.optimization_selections().project_psi();
-    let produced = checked_trees_to_terminal_psi::produce_terminal_artifact_with_callback_custody_and_optimizations(
-        checked,
-        &entry_machine,
-        callback_placements,
-        psi_optimizations.selections().clone(),
-    )
-    .map_err(|error| {
-        vec![Diagnostic::error(format!(
-            "terminal-artifact production failed: {}",
-            error.error(),
-        ))]
-    })?;
+    let produced =
+        terminal_production::produce_terminal_artifact_with_callback_custody_and_optimizations(
+            checked,
+            &entry_machine,
+            callback_placements,
+            psi_optimizations.selections().clone(),
+        )
+        .map_err(|error| {
+            vec![Diagnostic::error(format!(
+                "terminal-artifact production failed: {}",
+                error.error(),
+            ))]
+        })?;
     let (
         artifact,
         checked_boundary_operator_scope,
@@ -72,10 +73,10 @@ fn project_terminal_native_realization_proposal(
     checked: &crate::pipeline::CheckedCompilation,
     profile: &proof_admission::AdmissionProfile,
     artifact: &terminal_codec::CanonicalTerminalArtifact,
-    checked_boundary_operator_scope: checked_trees_to_terminal_psi::CheckedBoundaryOperatorApplicationScope,
+    checked_boundary_operator_scope: lowered_psi_to_terminal_psi::CheckedBoundaryOperatorApplicationScope,
     callback_placements: &[backend_plan::BoundNominalCallbackPlacement],
-    source_call_occurrences: &[checked_trees_to_terminal_psi::LoweredSourceCallOccurrence],
-    selected_ieee_float_fma_occurrences: &[checked_trees_to_terminal_psi::LoweredSelectedIeeeFloatFmaOccurrence],
+    source_call_occurrences: &[lowered_psi::LoweredSourceCallOccurrence],
+    selected_ieee_float_fma_occurrences: &[lowered_psi::LoweredSelectedIeeeFloatFmaOccurrence],
 ) -> Result<compilation_report::TerminalNativeRealizationProposal, Vec<Diagnostic>> {
     let target_profile = checked.selected_target_profile().ok_or_else(|| {
         vec![Diagnostic::error(
@@ -397,7 +398,7 @@ fn produce_callback_thunk_artifact(
             matching.len(),
         ))]);
     };
-    let lowered = checked_trees_to_terminal_psi::lower_bounded_callback_identity_machine(
+    let lowered = checked_trees_to_lowered_psi::lower_bounded_callback_identity_machine(
         checked,
         placement.selected_machine,
         placement.selected_entry,
@@ -408,7 +409,7 @@ fn produce_callback_thunk_artifact(
         ))]
     })?;
     let psi_optimizations = checked.optimization_selections().project_psi();
-    let optimized = checked_trees_to_terminal_psi::run_psi_optimization(
+    let optimized = lowered_psi_to_lowered_psi::run_psi_optimization(
         lowered.terminal,
         psi_optimizations.selections().clone(),
     );
@@ -418,7 +419,7 @@ fn produce_callback_thunk_artifact(
         ))]
     })?;
     let artifact =
-        checked_trees_to_terminal_psi::finalize_terminal_artifact(&optimized).map_err(|error| {
+        lowered_psi_to_terminal_psi::finalize_terminal_artifact(&optimized).map_err(|error| {
             vec![Diagnostic::error(format!(
                 "callback thunk canonicalization failed: {error}",
             ))]
@@ -505,7 +506,7 @@ fn validate_direct_callback_thunk_shape(
 pub(super) fn project_terminal_boundary_application_coverage(
     checked: &crate::pipeline::CheckedCompilation,
     artifact: &terminal_codec::CanonicalTerminalArtifact,
-    checked_scope: &checked_trees_to_terminal_psi::CheckedBoundaryOperatorApplicationScope,
+    checked_scope: &lowered_psi_to_terminal_psi::CheckedBoundaryOperatorApplicationScope,
 ) -> Result<boundary_applications::TerminalBoundaryApplicationCoverage, Vec<Diagnostic>> {
     let demands = project_terminal_boundary_application_demands(checked, artifact, checked_scope)?;
     let realizations =
@@ -516,7 +517,7 @@ pub(super) fn project_terminal_boundary_application_coverage(
 
 fn project_terminal_boundary_application_realizations(
     checked: &crate::pipeline::CheckedCompilation,
-    checked_scope: &checked_trees_to_terminal_psi::CheckedBoundaryOperatorApplicationScope,
+    checked_scope: &lowered_psi_to_terminal_psi::CheckedBoundaryOperatorApplicationScope,
     demands: &boundary_applications::TerminalBoundaryApplicationDemands,
 ) -> Result<boundary_applications::TerminalBoundaryApplicationRealizations, Vec<Diagnostic>> {
     let nongeneric =
@@ -752,7 +753,7 @@ fn project_compiler_intrinsic_application_realization(
 fn project_terminal_boundary_application_demands(
     checked: &crate::pipeline::CheckedCompilation,
     artifact: &terminal_codec::CanonicalTerminalArtifact,
-    checked_scope: &checked_trees_to_terminal_psi::CheckedBoundaryOperatorApplicationScope,
+    checked_scope: &lowered_psi_to_terminal_psi::CheckedBoundaryOperatorApplicationScope,
 ) -> Result<boundary_applications::TerminalBoundaryApplicationDemands, Vec<Diagnostic>> {
     let mut rows = Vec::with_capacity(checked_scope.occurrences().len());
     for occurrence in checked_scope.occurrences() {

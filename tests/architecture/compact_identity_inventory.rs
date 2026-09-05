@@ -313,7 +313,7 @@ fn checked_machine_contract_compact_coordinates_are_reports_beside_strong_author
     assert!(!terminal.contains("pub contract_fingerprint: u64"));
 
     let attached_path =
-        root.join("omega-rust/psi/pipeline/checked-trees-to-terminal-psi/src/attached_unit.rs");
+        root.join("omega-rust/psi/pipeline/checked-trees-to-lowered-psi/src/attached_unit.rs");
     let attached = fs::read_to_string(&attached_path)
         .unwrap_or_else(|error| panic!("failed to read {}: {error}", attached_path.display()));
     assert!(
@@ -341,7 +341,7 @@ fn machine_specialization_compact_coordinate_is_report_only_beside_strong_author
     );
 
     let lowering_path =
-        root.join("omega-rust/psi/pipeline/checked-trees-to-terminal-psi/src/evidence_lowering.rs");
+        root.join("omega-rust/psi/pipeline/checked-trees-to-lowered-psi/src/evidence_lowering.rs");
     let lowering = fs::read_to_string(&lowering_path)
         .unwrap_or_else(|error| panic!("failed to read {}: {error}", lowering_path.display()));
     assert!(

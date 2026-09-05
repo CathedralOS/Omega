@@ -454,7 +454,7 @@ fn specialized_structural_fixed_operator_terminal_custody_canary_compiles() {
     let checked = compile_to_checked(&canary.join("main.omg"), Some("linux_x86_64"))
         .expect("structural fixed-token custody canary should check");
     let produced =
-        checked_trees_to_terminal_psi::produce_terminal_artifact_with_checked_boundary_operator_scope(
+        terminal_production::produce_terminal_artifact_with_checked_boundary_operator_scope(
             &checked, "exercise",
         )
         .expect("structural fixed-token application should reach Terminal");
@@ -587,7 +587,7 @@ fn nested_checked_boundary_operator_physical_custody_canary_compiles() {
         .find(|contract| contract.machine == helper)
         .expect("nested checked-body helper contract")
         .closed_scalar_values = Default::default();
-    let rejected = checked_trees_to_terminal_psi::produce_terminal_artifact_with_callback_custody(
+    let rejected = terminal_production::produce_terminal_artifact_with_callback_custody(
         &missing_helper_contract,
         &entry,
         (),
@@ -595,8 +595,8 @@ fn nested_checked_boundary_operator_physical_custody_canary_compiles() {
     .expect_err("a nested scalar helper cannot lose its independently replayable contract");
     assert!(matches!(
         rejected.error(),
-        checked_trees_to_terminal_psi::TerminalArtifactProductionError::Lowering(
-            checked_trees_to_terminal_psi::LoweringError::Unsupported(
+        terminal_production::TerminalArtifactProductionError::Lowering(
+            checked_trees_to_lowered_psi::LoweringError::Unsupported(
                 "machine must have exactly one requires and one ensures clause"
             )
         )
@@ -779,7 +779,7 @@ fn fused_service_erasure_rejoins_typed_source_and_selected_plan() {
     );
     selected_dispatch::validate_fused_service_terminal_custody(&baseline, &provenance)
         .expect("exact typed Service, Fused provenance, and selected plan should rejoin");
-    checked_trees_to_terminal_psi::lower_machine(&baseline, "Main::main")
+    checked_trees_to_lowered_psi::lower_machine(&baseline, "Main::main")
         .expect("authorized fused Service carrier should erase during Terminal lowering");
     let parameter_plan = baseline
         .facts
@@ -854,7 +854,7 @@ fn fused_service_erasure_rejoins_typed_source_and_selected_plan() {
         "both direct Service calls must retain ordered checked operations"
     );
     let lowered_parameter =
-        checked_trees_to_terminal_psi::lower_machine(&baseline, "ParameterHarness::run").expect(
+        checked_trees_to_lowered_psi::lower_machine(&baseline, "ParameterHarness::run").expect(
             "authorized direct Service and scalar parameters should lower through Terminal",
         );
     let terminal_parameter_machine = lowered_parameter
@@ -903,7 +903,7 @@ fn fused_service_erasure_rejoins_typed_source_and_selected_plan() {
             .contains("lost its exact Fused erasure settlement")
     }));
     let raw_lowering_error =
-        checked_trees_to_terminal_psi::lower_machine(&parameter_downgrade, "ParameterHarness::run")
+        checked_trees_to_lowered_psi::lower_machine(&parameter_downgrade, "ParameterHarness::run")
             .expect_err("raw Terminal lowering must also reject a removed Service receipt");
     assert!(
         raw_lowering_error
@@ -925,7 +925,7 @@ fn fused_service_erasure_rejoins_typed_source_and_selected_plan() {
             .message
             .contains("scalar parameters do not rejoin the exact immutable typed source partition")
     }));
-    let raw_scalar_parameter_error = checked_trees_to_terminal_psi::lower_machine(
+    let raw_scalar_parameter_error = checked_trees_to_lowered_psi::lower_machine(
         &scalar_parameter_removal,
         "ParameterHarness::run",
     )
@@ -1268,7 +1268,7 @@ fn fused_service_parameter_moves_through_one_exact_internal_hop() {
             "`{fenced}` must remain outside the bounded checked forwarding rung"
         );
         assert!(
-            checked_trees_to_terminal_psi::lower_machine(&baseline, fenced).is_err(),
+            checked_trees_to_lowered_psi::lower_machine(&baseline, fenced).is_err(),
             "`{fenced}` must remain outside Terminal rather than dropping custody"
         );
     }
@@ -1333,7 +1333,7 @@ fn fused_service_parameter_moves_through_one_exact_internal_hop() {
     );
     assert!(claim_transfers.is_empty());
 
-    let lowered = checked_trees_to_terminal_psi::lower_machine(&baseline, "forwarding_once")
+    let lowered = checked_trees_to_lowered_psi::lower_machine(&baseline, "forwarding_once")
         .expect("one exact whole-root Service hop should lower to Terminal Psi");
     assert!(
         lowered.semantic_module.machines.len() >= 2,
@@ -1378,8 +1378,7 @@ fn fused_service_parameter_moves_through_one_exact_internal_hop() {
             panic!("{label} should reject final Fused custody")
         };
         assert!(!diagnostics.is_empty());
-        let Err(_) = checked_trees_to_terminal_psi::lower_machine(mutated, "forwarding_once")
-        else {
+        let Err(_) = checked_trees_to_lowered_psi::lower_machine(mutated, "forwarding_once") else {
             panic!("{label} should reject raw Terminal lowering")
         };
     };

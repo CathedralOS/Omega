@@ -25,7 +25,7 @@ fn scalar_parameter_permutation_reaches_canonical_installation() {
             }
         "#,
     );
-    let lowered = checked_trees_to_terminal_psi::lower_machine(&checked, "Root::enter")
+    let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, "Root::enter")
         .expect("permuted Boolean caller reaches verified Terminal production");
     let root = lowered
         .semantic_module

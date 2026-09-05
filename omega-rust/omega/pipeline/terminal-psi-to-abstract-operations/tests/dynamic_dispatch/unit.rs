@@ -60,7 +60,7 @@ fn verified_forwarded_dynamic_unit_retains_argument_and_parameter_custody() {
         let resolved = lower_syntax_trees(&syntax).expect("resolve source");
         let typed = lower_symbol_resolved_trees(&resolved).expect("type source");
         let checked = lower_typed_trees(typed).expect("check source");
-        let terminal = checked_trees_to_terminal_psi::lower_machine(&checked, "Main::run")
+        let terminal = checked_trees_to_lowered_psi::lower_machine(&checked, "Main::run")
             .expect("dynamic Unit source lowers to verified Terminal Psi");
         let semantic = encode_module(&terminal.semantic_module).expect("encode semantics");
         let proof = encode_proof_bundle(&terminal.proof_bundle).expect("encode proof");
@@ -191,7 +191,7 @@ fn verified_rebound_dynamic_unit_retains_exact_indirect_custody() {
     let resolved = lower_syntax_trees(&syntax).expect("resolve source");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type source");
     let checked = lower_typed_trees(typed).expect("check source");
-    let terminal = checked_trees_to_terminal_psi::lower_machine(&checked, "Main::run")
+    let terminal = checked_trees_to_lowered_psi::lower_machine(&checked, "Main::run")
         .expect("rebound dynamic Unit source lowers to verified Terminal Psi");
     let semantic = encode_module(&terminal.semantic_module).expect("encode semantics");
     let proof = encode_proof_bundle(&terminal.proof_bundle).expect("encode proof");
@@ -246,7 +246,7 @@ fn verified_changed_conformance_unit_retains_both_applications() {
     let resolved = lower_syntax_trees(&syntax).expect("resolve source");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type source");
     let checked = lower_typed_trees(typed).expect("check source");
-    let terminal = checked_trees_to_terminal_psi::lower_machine(&checked, "Main::run")
+    let terminal = checked_trees_to_lowered_psi::lower_machine(&checked, "Main::run")
         .expect("changed-conformance Unit source lowers to verified Terminal Psi");
     let semantic = encode_module(&terminal.semantic_module).expect("encode semantics");
     let proof = encode_proof_bundle(&terminal.proof_bundle).expect("encode proof");

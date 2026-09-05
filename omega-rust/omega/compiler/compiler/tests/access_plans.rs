@@ -15,7 +15,7 @@ use access_plans::{
     adopt_owned_atomic, adopt_owned_stable, bind_schema_correspondence_to_placement, place,
 };
 use build_time_evaluation::{compute_access_plan, compute_layout_plan, compute_placement_plan};
-use checked_trees_to_terminal_psi::lower_machine;
+use checked_trees_to_lowered_psi::lower_machine;
 use compiler::{compile_to_checked, compile_to_checked_with_packages};
 use extents::{
     AddressSpaceId, ExtentContentCustodyReceiptId, ExtentContentValidityReceiptId, ExtentLineageId,

@@ -228,7 +228,7 @@ pub(super) fn acyclic_unit() -> terminal_psi_to_abstract_operations::VerifiedPsi
     let resolved = lower_syntax_trees(&syntax).expect("resolve acyclic unit");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type acyclic unit");
     let checked = lower_typed_trees(typed).expect("check acyclic unit");
-    let lowered = checked_trees_to_terminal_psi::lower_machine(&checked, "Root::once")
+    let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, "Root::once")
         .expect("lower acyclic unit");
     let semantic =
         terminal_codec::encode_module(&lowered.semantic_module).expect("encode acyclic semantics");

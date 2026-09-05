@@ -12,6 +12,15 @@ checkpoints rather than this page accumulating a compatibility chronology.
 
 ## Boundary
 
+The Rust stage sequence is `checked-trees-to-lowered-psi` →
+`lowered-psi-to-lowered-psi` → `lowered-psi-to-terminal-psi`.
+`psi/compiler/terminal-production` sequences those stages and retains the
+checked-source receipts beside the published product. `LoweredPsi` belongs to
+representations; neither optimization nor publication depends on its producer.
+The optimization stage currently validates identity execution and rejects
+selected passes that have not yet been implemented. Its existence alone does
+not establish optimized portable-Psi support.
+
 Psi operates on Omega-branded source files and owns every target-neutral stage
 through one canonical terminal representation. Omega consumes terminal Psi; it
 does not feed source-shaped data back into Psi.
@@ -413,7 +422,7 @@ separately bound by its image identity and executable-image replay.
 
 ## The cut
 
-`checked-trees-to-terminal-psi` is the sole executable semantic handoff.
+`lowered-psi-to-terminal-psi` owns the executable semantic publication boundary.
 `terminal-psi-to-abstract-operations` consumes the verified artifact; unsupported
 vocabulary rejects at that boundary. The former checked-tree, StateGraph, and
 control-flow backend route has been deleted.

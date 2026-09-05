@@ -89,7 +89,7 @@ impl CheckedX86ScalarFmaPlanAssociation {
 
     pub fn matches_lowered_occurrence(
         &self,
-        occurrence: &checked_trees_to_terminal_psi::LoweredSelectedIeeeFloatFmaOccurrence,
+        occurrence: &lowered_psi::LoweredSelectedIeeeFloatFmaOccurrence,
         selected: &effects::SelectedProviderPlanFacts,
         admitted_provider: AdmittedX86ScalarFmaProvider,
     ) -> bool {

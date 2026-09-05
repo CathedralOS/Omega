@@ -54,7 +54,7 @@ fn scalar_result_home_reaches_a_write_only_store_and_canonical_installation() {
             }
         "#,
     );
-    let lowered = checked_trees_to_terminal_psi::lower_machine(&checked, "Root::enter")
+    let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, "Root::enter")
         .expect("runtime scalar result caller reaches verified Terminal production");
     let root = lowered
         .semantic_module
@@ -217,7 +217,7 @@ fn scalar_result_home_reaches_a_write_only_store_and_canonical_installation() {
 fn assert_scalar_result_home_directly_reaches_a_write_only_store_and_canonical_installation(
     checked: &checked_trees::CheckedTrees,
 ) {
-    let lowered = checked_trees_to_terminal_psi::lower_machine(checked, "Root::enter")
+    let lowered = checked_trees_to_lowered_psi::lower_machine(checked, "Root::enter")
         .expect("direct scalar-result store reaches verified Terminal production");
     let root = lowered
         .semantic_module

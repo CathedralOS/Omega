@@ -2,13 +2,7 @@ use numerics::bignum::BigInt;
 use semantic_vocabulary::{
     IntegerMathLiteral, IntegerMathTerm, Proposition, PropositionContext, ScalarTerm,
 };
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum PrimitiveJudgment {
-    Truth,
-    ReflexiveEquality,
-    ClosedIntegerRelation,
-}
+pub use terminal_psi::PrimitiveJudgment;
 
 pub fn decide_primitive(
     context: &PropositionContext,
