@@ -75,7 +75,7 @@ homes.
 
 ## Implementation Map
 
-- `selected-instructions-to-register-homes/src/analyses/liveness/` owns
+- `selected-instructions-to-selected-instructions/src/analyses/liveness/` owns
   computation, content identity and independent validation. Its `staging/`
   module binds those facts to the admitted pipeline input.
 - `selected-instructions` owns the selected CFG; register-model and ISA

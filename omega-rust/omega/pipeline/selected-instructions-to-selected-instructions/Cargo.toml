@@ -1,24 +1,20 @@
 [package]
-name = "selected-instructions-to-register-homes"
+name = "selected-instructions-to-selected-instructions"
 edition.workspace = true
 license.workspace = true
 version.workspace = true
 
-[lib]
-path = "src/lib.rs"
-
 [features]
-test-support = ["selected-instructions-to-selected-instructions/test-support"]
+test-support = []
 
 [dependencies]
-selected-instructions-to-selected-instructions = { path = "../selected-instructions-to-selected-instructions" }
 abstract-operations-to-target-operations = { path = "../abstract-operations-to-target-operations" }
 register-environment = { path = "../../backend/register-environment" }
 isa-aarch64 = { path = "../../backend/instruction_set_architectures/isa-aarch64" }
 isa-x86_64 = { path = "../../backend/instruction_set_architectures/isa-x86_64" }
 optimization-core = { path = "../../representations/optimization-core" }
-register-homes = { path = "../../representations/register-homes" }
 register-model = { path = "../../representations/register-model" }
+register-homes = { path = "../../representations/register-homes" }
 selected-instructions = { path = "../../representations/selected-instructions" }
 target = { path = "../../representations/target" }
 target-operations-to-selected-instructions = { path = "../target-operations-to-selected-instructions" }
@@ -31,6 +27,3 @@ legalized-operations = { path = "../../representations/legalized-operations" }
 target-operations = { path = "../../representations/target-operations" }
 terminal-codec = { path = "../../../psi/semantics/terminal-codec" }
 sha2 = "0.10.9"
-
-[dev-dependencies]
-selected-instructions-to-selected-instructions = { path = "../selected-instructions-to-selected-instructions", features = ["test-support"] }

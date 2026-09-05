@@ -9,6 +9,7 @@ name = "native_realization"
 path = "src/lib.rs"
 
 [dependencies]
+selected-instructions-to-selected-instructions = { path = "../../pipeline/selected-instructions-to-selected-instructions" }
 lowered-psi = { path = "../../../psi/representations/lowered-psi" }
 lowered-psi-to-lowered-psi = { path = "../../../psi/pipeline/lowered-psi-to-lowered-psi" }
 lowered-psi-to-terminal-psi = { path = "../../../psi/pipeline/lowered-psi-to-terminal-psi" }

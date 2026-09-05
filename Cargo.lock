@@ -1134,6 +1134,7 @@ dependencies = [
  "selected-form-encoding-to-resolved-layout",
  "selected-instructions",
  "selected-instructions-to-register-homes",
+ "selected-instructions-to-selected-instructions",
  "semantic-vocabulary",
  "sha2",
  "source-files-to-tokens",
@@ -1831,6 +1832,32 @@ dependencies = [
 
 [[package]]
 name = "selected-instructions-to-register-homes"
+version = "0.1.0"
+dependencies = [
+ "abstract-operations",
+ "abstract-operations-to-target-operations",
+ "calling-conventions",
+ "isa-aarch64",
+ "isa-x86_64",
+ "legalized-operations",
+ "optimization-core",
+ "optimization-unit",
+ "register-environment",
+ "register-homes",
+ "register-model",
+ "selected-instructions",
+ "selected-instructions-to-selected-instructions",
+ "semantic-vocabulary",
+ "sha2",
+ "target",
+ "target-operations",
+ "target-operations-to-selected-instructions",
+ "terminal-codec",
+ "terminal-psi",
+]
+
+[[package]]
+name = "selected-instructions-to-selected-instructions"
 version = "0.1.0"
 dependencies = [
  "abstract-operations",

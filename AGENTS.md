@@ -211,7 +211,9 @@ names (Psi's `semantic-vocabulary` and `flow-effects`, for example).
   `lowered-psi-to-lowered-psi` → `lowered-psi-to-terminal-psi`, then
   `terminal-psi-to-abstract-operations` →
   `abstract-operations-to-target-operations` →
-  `target-operations-to-selected-instructions` → image emission).
+  `target-operations-to-selected-instructions` →
+  `selected-instructions-to-selected-instructions` →
+  `selected-instructions-to-register-homes` → image emission).
   Optimization stages use literal `X-to-X` names: for example,
   `abstract-operations-to-abstract-operations`. They consume and produce
   the same representation; do not invent a `PreOptimized`/`PostOptimized` pair.

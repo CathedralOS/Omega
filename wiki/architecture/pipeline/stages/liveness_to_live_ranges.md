@@ -79,7 +79,7 @@ candidate facts rather than asking an allocator to rederive them.
 
 ## Implementation Map
 
-- `selected-instructions-to-register-homes/src/analyses/live_ranges/`
+- `selected-instructions-to-selected-instructions/src/analyses/live_ranges/`
   owns interval computation, identity and independent replay. Its `staging/`
   module retains cross-step custody.
 - Selected instructions and validated liveness are the inputs; transitional

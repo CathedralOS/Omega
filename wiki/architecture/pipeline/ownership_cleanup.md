@@ -35,7 +35,7 @@ renaming their crates does not satisfy this acceptance condition.
 
 | Whole move | What must disappear or change |
 | --- | --- |
-| Connect the visible stage sequence | Keep `terminal-psi-to-abstract-operations` as the Omega program entrance. Consolidate remaining supporting calculations under their owning program stages. Finish the selected-instruction X-to-X seam without introducing alternate downstream representations. |
+| Connect the visible stage sequence | Keep `terminal-psi-to-abstract-operations` as the Omega program entrance. Consolidate remaining supporting calculations under their owning program stages without introducing alternate downstream representations. |
 | Finish the remaining crate disposition | For every other Omega and Psi pipeline crate, decide keep, merge, move or delete and implement that decision. Preserve genuine representation/invariant boundaries, not the existing package count. |
 
 Keep a compact disposition map while executing this move. It is an inventory,

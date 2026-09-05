@@ -8,20 +8,18 @@ use machine_emission::{
 };
 use post_allocation_machine_to_post_allocation_machine::OptimizedPostAllocationMachineOptimizationError;
 use register_homes_to_post_allocation_machine::OptimizedPostAllocationMachinePipelineError;
-use selected_instructions_to_register_homes::{
-    OptimizedLiveRangeCustodyError, OptimizedLivenessCustodyError,
-};
 use target_operations_to_selected_instructions::OptimizedSelectionPipelineError;
 
 #[derive(Debug)]
 pub enum OptimizedVerifiedPhysicalPipelineError {
+    SelectedOptimization(
+        selected_instructions_to_selected_instructions::SelectedInstructionOptimizationError,
+    ),
     PostTerminalSelectionMismatch,
     UnconsumedPostTerminalPhase(optimization_core::OptimizationExecutionPhase),
     TargetLowering(LoweringError),
     RegisterEnvironment(register_environment::TargetRegisterEnvironmentValidationError),
     Selection(OptimizedSelectionPipelineError),
-    Liveness(OptimizedLivenessCustodyError),
-    LiveRanges(OptimizedLiveRangeCustodyError),
     RegisterAllocation(selected_instructions_to_register_homes::RegisterAllocationError),
     PostAllocationMachine(OptimizedPostAllocationMachinePipelineError),
     PostAllocationMachineOptimization(OptimizedPostAllocationMachineOptimizationError),

@@ -36,6 +36,7 @@ const GOVERNED_ROOTS: &[&str] = &[
     "omega-rust/omega/pipeline/abstract-operations-to-abstract-operations",
     "omega-rust/omega/pipeline/abstract-operations-to-target-operations",
     "omega-rust/omega/pipeline/selected-instructions-to-register-homes",
+    "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions",
     "omega-rust/omega/backend/machine-emission/src/frame_protocol",
     "omega-rust/omega/representations/physical-instructions/src/physical_instructions/costs",
     "tests/native-differential/tests/abstract_publication",
@@ -94,22 +95,22 @@ pub(super) const RULE_STAGES: &[RuleStageDescriptor] = &[
         ],
     },
     RuleStageDescriptor {
-        entrance: "omega-rust/omega/pipeline/selected-instructions-to-register-homes/src/rewrites/selected_lowering/mod.rs",
-        catalog: "omega-rust/omega/pipeline/selected-instructions-to-register-homes/src/rewrites/selected_lowering/catalog.rs",
+        entrance: "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/selected_lowering/mod.rs",
+        catalog: "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/selected_lowering/catalog.rs",
         coordination_marker: "pub fn resolve_selected_lowering_rules",
         catalog_marker: "SELECTED_LOWERING_RULE_CATALOG",
         next_rungs: &[
-            "omega-rust/omega/pipeline/selected-instructions-to-register-homes/src/rewrites/selected_lowering/literal_fold",
+            "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/selected_lowering/literal_fold",
         ],
     },
     RuleStageDescriptor {
-        entrance: "omega-rust/omega/pipeline/selected-instructions-to-register-homes/src/rewrites/allocation_recovery/mod.rs",
-        catalog: "omega-rust/omega/pipeline/selected-instructions-to-register-homes/src/rewrites/allocation_recovery/catalog.rs",
+        entrance: "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/allocation_recovery/mod.rs",
+        catalog: "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/allocation_recovery/catalog.rs",
         coordination_marker: "pub fn selected_allocation_recovery_rule",
         catalog_marker: "ALLOCATION_RECOVERY_RULE_CATALOG",
         next_rungs: &[
-            "omega-rust/omega/pipeline/selected-instructions-to-register-homes/src/rewrites/allocation_recovery/fixed_view_copy",
-            "omega-rust/omega/pipeline/selected-instructions-to-register-homes/src/rewrites/allocation_recovery/pressure_rematerialization",
+            "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/allocation_recovery/fixed_view_copy",
+            "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/allocation_recovery/pressure_rematerialization",
         ],
     },
     RuleStageDescriptor {

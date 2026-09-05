@@ -120,7 +120,7 @@ mod tests {
     use super::*;
     use crate::{
         FixedPrecoloredHomeDomainId, FixedPrecoloredSourceSegmentId, LiveRangePoint,
-        assignment::fixed_precolored_segment_homes::compute::domains::Segment,
+        analyses::fixed_precolored_segment_homes::compute::domains::Segment,
     };
 
     #[test]

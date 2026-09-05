@@ -1,20 +1,18 @@
 #![forbid(unsafe_code)]
 
-//! Optimizer module role: crate map. Selected-program analysis, rewriting, and register assignment.
+//! Optimizer module role: crate map. Register assignment after selected-program optimization.
 //!
-//! Analyses, pre-allocation rewrites, and home assignment share one phase owner.
-//! Rewrites invalidate allocation facts and independently replay their replacements.
-//! Rule-specific implementation modules are not separate pipeline stages.
-//! Liveness, live ranges, legality, recovery and assignment are internal steps
-//! of this transform, not a second allocator crate behind its public entrance.
+//! The preceding X-to-X stage owns selected-lowering rewrites and reusable
+//! selected-program analyses. This phase consumes its current program and proof,
+//! assigns homes, and handles pressure recovery without rerunning that phase.
 
-mod analyses;
 mod assignment;
 mod output;
 mod preservation;
 mod rewrites;
+#[cfg(test)]
+mod selected_rewrite_tests;
 
-pub use analyses::*;
 pub use assignment::*;
 pub use output::{
     AllocationEvidence, AllocationOutput, AllocationReplayError, AllocationSource,
@@ -23,3 +21,4 @@ pub use output::{
 pub use preservation::*;
 pub use register_model::*;
 pub use rewrites::*;
+pub use selected_instructions_to_selected_instructions::*;

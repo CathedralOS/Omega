@@ -504,7 +504,8 @@ fn allocation_algorithms_and_staging_have_one_transform_owner() {
     let workspace = std::fs::read_to_string(root.join("Cargo.toml")).unwrap();
     assert!(!workspace.contains("omega-regalloc"));
 
-    let owner = root.join("omega-rust/omega/pipeline/selected-instructions-to-register-homes/src");
+    let owner =
+        root.join("omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src");
     let source = rust_source(&owner);
     assert!(!source.contains("omega_regalloc::"));
     for declaration in [
@@ -514,10 +515,20 @@ fn allocation_algorithms_and_staging_have_one_transform_owner() {
         "pub fn analyze_live_ranges",
         "pub fn validate_live_ranges",
         "pub fn stage_optimized_live_ranges",
-        "pub fn stage_register_allocation",
     ] {
         assert_eq!(source.matches(declaration).count(), 1, "{declaration}");
     }
+    let allocation = rust_source(
+        &root.join("omega-rust/omega/pipeline/selected-instructions-to-register-homes/src"),
+    );
+    assert_eq!(
+        allocation
+            .matches("pub fn stage_register_allocation")
+            .count(),
+        1
+    );
+    assert!(!source.contains("pub fn stage_register_allocation"));
+    assert!(!allocation.contains("pub fn run_selected_lowering_optimizations"));
     // Assignment may obtain target ABI policy, but the read-only liveness and
     // interval algorithms consume explicit selected facts and register data.
     for analysis in ["liveness", "live_ranges"] {
@@ -615,7 +626,7 @@ fn machine_construction_precedes_and_does_not_depend_on_optimization() {
 
     for (owner, entry) in [
         (
-            "selected-instructions-to-register-homes",
+            "selected-instructions-to-selected-instructions",
             "pub fn analyze_pre_allocation_machine_effects",
         ),
         (
@@ -1068,7 +1079,7 @@ fn psi_program_roots_expose_concept_owners_without_flat_definition_dumps() {
 #[test]
 fn effect_analysis_does_not_depend_on_optimizer_history() {
     let root = repository();
-    let stage = root.join("omega-rust/omega/pipeline/selected-instructions-to-register-homes/src/analyses/machine_effects");
+    let stage = root.join("omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/analyses/machine_effects");
     let source = rust_source(&stage);
     for forbidden in [
         "StagedOptimized",
@@ -1131,12 +1142,21 @@ fn allocation_has_one_phase_owner_and_machine_consumers_ignore_history() {
         );
     }
     let allocation = pipeline.join("selected-instructions-to-register-homes/src");
-    for area in ["analyses", "rewrites", "assignment", "output"] {
+    for area in ["rewrites", "assignment", "output"] {
         assert!(
             allocation.join(area).join("mod.rs").is_file(),
             "missing allocation owner: {area}"
         );
     }
+    let selected = pipeline.join("selected-instructions-to-selected-instructions/src");
+    assert!(!allocation.join("analyses").exists());
+    for area in ["analyses", "rewrites"] {
+        assert!(selected.join(area).join("mod.rs").is_file());
+    }
+    let allocator_entry =
+        std::fs::read_to_string(allocation.join("assignment/current.rs")).unwrap();
+    assert!(allocator_entry.contains("SelectedInstructionOptimizationOutput"));
+    assert!(!allocator_entry.contains("run_selected_lowering_optimizations("));
     let output = rust_source(&allocation.join("output"));
     assert!(output.contains("pub trait AllocationSource: sealed::Sealed"));
     assert!(output.contains("pub struct AllocationOutput<'program>"));
@@ -1392,10 +1412,24 @@ fn physical_coordination_shares_selection_and_does_not_fork_machine_rules_by_his
     );
     assert_eq!(
         entrance
-            .matches("stage_register_allocation(ranges)")
+            .matches("stage_register_allocation(selected)")
             .count(),
         1
     );
+    assert_eq!(
+        entrance
+            .matches("optimize_selected_instructions(selected)")
+            .count(),
+        1
+    );
+    assert!(!entrance.contains("stage_optimized_liveness("));
+    let selected_stage = repository()
+        .join("omega-rust/omega/pipeline/selected-instructions-to-selected-instructions");
+    let selected_manifest = std::fs::read_to_string(selected_stage.join("Cargo.toml")).unwrap();
+    assert!(!selected_manifest.contains("selected-instructions-to-register-homes"));
+    let selected_source = rust_source(&selected_stage.join("src"));
+    assert!(selected_source.contains("run_selected_lowering_optimizations(legality)"));
+    assert!(!selected_source.contains("pub fn assign_register_homes("));
     let recovery = rust_source(&root.join("routes/allocation_recovery"));
     assert_eq!(
         entrance

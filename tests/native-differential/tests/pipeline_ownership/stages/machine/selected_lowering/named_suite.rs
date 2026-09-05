@@ -78,6 +78,16 @@ fn named_selected_lowering_suite_reaches_a_verified_fixed_point_on_both_architec
         );
         let completion = run.custody().identity();
         let final_selected = run.custody().final_selected();
+        let optimized =
+            selected_instructions_to_register_homes::test_support::retain_selected_lowering_run(
+                run,
+            )
+            .unwrap();
+        assert_eq!(optimized.program().selected_identity(), final_selected);
+        let selected_program = optimized.program().clone();
+        let selected_instructions_to_register_homes::SelectedInstructionOptimizationEvidence::LiteralFolds(run) = optimized.into_replayed_evidence().unwrap() else {
+            panic!("selected lowering must retain its executed run");
+        };
         let expected_transformations = run
             .custody()
             .iterations()
@@ -85,6 +95,10 @@ fn named_selected_lowering_suite_reaches_a_verified_fixed_point_on_both_architec
             .map(|iteration| PostAllocationSelectedTransformation::LiteralFold(iteration.fold()))
             .collect::<Vec<_>>();
         let homes = stage_optimized_register_homes_after_selected_lowering(run).unwrap();
+        assert_eq!(
+            selected_program.selected_plan(),
+            homes.replay_allocation().unwrap().selected_plan()
+        );
         let allocation = homes.replay_allocation().unwrap();
         assert_eq!(allocation.selected().selected_identity(), final_selected);
         assert_eq!(allocation.selections(), &selections);

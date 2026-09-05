@@ -3,7 +3,7 @@ use register_model::{RegisterClassId, RegisterViewId, TargetRegisterEnvironmentI
 use selected_instructions::{SelectedBlockId, VirtualRegisterId};
 use semantic_vocabulary::MachineId;
 
-use crate::assignment::spill_choice::identity::encode_terminal_spill_choice_content;
+use crate::analyses::spill_choice::identity::encode_terminal_spill_choice_content;
 use crate::{
     AllocationLegalityIdentity, AllocatorAvailabilityIdentity, LiveRangeIdentity, LiveRangePoint,
 };

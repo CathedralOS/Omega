@@ -234,7 +234,7 @@ fn computed(intervals: &[(u32, u32)]) -> (FunctionSpillChoices, OptimizationWork
     let physical = physical();
     let mut work = WorkCounter::default();
     let result = compute_function(0, &legality, &ranges, &physical, &mut work).unwrap();
-    let replay = crate::assignment::spill_choice::validate::replay_function_for_test(
+    let replay = crate::analyses::spill_choice::validate::replay_function_for_test(
         0, &legality, &ranges, &physical,
     )
     .unwrap();

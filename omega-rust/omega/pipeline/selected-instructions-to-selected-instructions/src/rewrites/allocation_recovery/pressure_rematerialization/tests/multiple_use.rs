@@ -25,6 +25,16 @@ use super::fixtures::multiple_future_fixture;
 
 #[test]
 fn active_resident_is_split_once_before_a_multiple_use_suffix_and_reanalyzes() {
+    exercise_multiple_use_rematerialization(|_, _, _| {});
+}
+
+pub fn exercise_multiple_use_rematerialization(
+    check_assignment: impl FnOnce(
+        &FunctionAllocationLegality,
+        &crate::FunctionLiveRanges,
+        &register_model::ValidatedPhysicalRegisterModel,
+    ),
+) {
     let (selected, ranges, recovery, row) = multiple_future_fixture();
     assert!(matches!(
         build_functions(
@@ -185,22 +195,5 @@ fn active_resident_is_split_once_before_a_multiple_use_suffix_and_reanalyzes() {
             })
             .collect(),
     };
-    let homes = crate::assignment::home_assignment::compute::compute_function(
-        0,
-        &legality,
-        &post_ranges.plan().functions[0],
-        &physical,
-    )
-    .unwrap();
-    assert_eq!(
-        homes,
-        crate::assignment::home_assignment::validate::replay_function(
-            0,
-            &legality,
-            &post_ranges.plan().functions[0],
-            &physical,
-        )
-        .unwrap()
-    );
-    assert_eq!(homes.assignments.len(), 4);
+    check_assignment(&legality, &post_ranges.plan().functions[0], &physical);
 }

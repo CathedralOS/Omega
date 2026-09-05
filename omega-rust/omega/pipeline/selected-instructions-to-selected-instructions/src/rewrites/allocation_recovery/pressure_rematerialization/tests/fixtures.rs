@@ -317,6 +317,7 @@ pub(crate) fn multiple_future_fixture() -> (
     (selected, ranges, recovery, row)
 }
 
+#[cfg(test)]
 pub(super) fn same_instruction_multiple_future_fixture() -> (
     SelectedInstructionPlan,
     LiveRangePlan,

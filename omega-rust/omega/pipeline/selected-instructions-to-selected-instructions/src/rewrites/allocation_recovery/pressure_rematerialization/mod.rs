@@ -7,7 +7,7 @@ pub(crate) mod identity;
 pub(crate) mod model;
 pub(crate) mod validate;
 
-#[cfg(test)]
+#[cfg(any(test, feature = "test-support"))]
 pub(crate) mod tests;
 
 pub use identity::pressure_rematerialization_identity;

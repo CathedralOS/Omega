@@ -24,9 +24,8 @@ pub use model::StagedOptimizedVerifiedPhysicalPipeline;
 use optimization_core::PostTerminalOptimizationSelections;
 pub(crate) use phase_selections::PhysicalOptimizationPhaseSelections;
 use register_environment::baseline_target_register_environment;
-use selected_instructions_to_register_homes::{
-    stage_optimized_live_ranges, stage_optimized_liveness, stage_register_allocation,
-};
+use selected_instructions_to_register_homes::stage_register_allocation;
+use selected_instructions_to_selected_instructions::optimize_selected_instructions;
 
 pub(crate) use routes::{
     ResolvedPhysicalPhaseComposition, ResolvedRealizationPlan, resolve_physical_phase_composition,
@@ -57,11 +56,9 @@ pub fn stage_optimized_verified_physical_pipeline(
             register_environment,
         )
         .map_err(OptimizedVerifiedPhysicalPipelineError::Selection)?;
-    let liveness = stage_optimized_liveness(selected)
-        .map_err(OptimizedVerifiedPhysicalPipelineError::Liveness)?;
-    let ranges = stage_optimized_live_ranges(liveness)
-        .map_err(OptimizedVerifiedPhysicalPipelineError::LiveRanges)?;
-    let allocation = stage_register_allocation(ranges)
+    let selected = optimize_selected_instructions(selected)
+        .map_err(OptimizedVerifiedPhysicalPipelineError::SelectedOptimization)?;
+    let allocation = stage_register_allocation(selected)
         .map_err(OptimizedVerifiedPhysicalPipelineError::RegisterAllocation)?;
     let machine =
         register_homes_to_post_allocation_machine::stage_optimized_post_allocation_machine_plan(

@@ -24,6 +24,16 @@ use super::fixtures::fixture;
 
 #[test]
 fn active_resident_is_split_before_sole_future_use_and_reanalyzes() {
+    exercise_single_use_rematerialization(|_, _, _| {});
+}
+
+pub fn exercise_single_use_rematerialization(
+    check_assignment: impl FnOnce(
+        &FunctionAllocationLegality,
+        &crate::FunctionLiveRanges,
+        &register_model::ValidatedPhysicalRegisterModel,
+    ),
+) {
     let (selected, ranges, recovery, row) = fixture();
     let original = selected.functions[0].blocks[0].instructions[0].clone();
     let (functions, transformed) = build_functions(
@@ -170,20 +180,5 @@ fn active_resident_is_split_before_sole_future_use_and_reanalyzes() {
             })
             .collect(),
     };
-    let homes = crate::assignment::home_assignment::compute::compute_function(
-        0,
-        &legality,
-        &post_ranges.plan().functions[0],
-        &physical,
-    )
-    .unwrap();
-    let replayed_homes = crate::assignment::home_assignment::validate::replay_function(
-        0,
-        &legality,
-        &post_ranges.plan().functions[0],
-        &physical,
-    )
-    .unwrap();
-    assert_eq!(homes, replayed_homes);
-    assert_eq!(homes.assignments.len(), 4);
+    check_assignment(&legality, &post_ranges.plan().functions[0], &physical);
 }
