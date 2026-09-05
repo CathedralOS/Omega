@@ -5169,3 +5169,24 @@ unsupported. The evaluator is 9,285 lines and 461,593 bytes and compiles with
 its driver to a 543,978-byte Gamma receipt. A D-shaped control checks default
 zero, arithmetic assignment, read through a local, repeated update, and final
 Console output. Mutable arrays and indexed places are the next storage frontier.
+
+## D131 — Fixed `i32` array elements use indexed runtime homes
+
+The evaluator represents an established fixed-array element as an immutable
+runtime row keyed by the checker-retained data declaration and member syntax
+identities plus its checked index. Missing rows read as Epsilon's required zero-
+initialized elements. Distinct indices remain independent, and replacing one
+row preserves every other scalar field and array element home.
+
+This slice admits only direct `self.field[index]` places whose retained member
+is a fixed `i32` array. It evaluates the receiver field, then the scalar index,
+checks the exact authored length, and evaluates an assignment right side only
+after that check. An invalid index produces trap code 6 (`Bounds`) before a
+read, write, or right-side trap can occur. Nested arrays, array-valued locals,
+views, `u8` elements, and nonreceiver bases remain unsupported.
+
+The evaluator is 9,536 lines and 475,537 bytes and compiles with its driver to
+a 561,448-byte Gamma receipt. Retained controls check default-zero elements,
+independent indices, arithmetic indices, repeated reads, and prefixed bounds
+traps for both reads and writes; the write control also proves that bounds
+checking precedes a trapping right side.

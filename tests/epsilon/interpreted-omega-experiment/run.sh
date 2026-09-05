@@ -27,6 +27,9 @@ DIVISION_OVERFLOW="$TEST_DIR/division_overflow.epsilon"
 SHIFT_COUNT="$TEST_DIR/shift_count.epsilon"
 SHORT_CIRCUIT="$TEST_DIR/short_circuit.epsilon"
 SCALAR_FIELD="$TEST_DIR/scalar_field.epsilon"
+FIXED_ARRAY="$TEST_DIR/fixed_array.epsilon"
+BOUNDS_READ="$TEST_DIR/bounds_read.epsilon"
+BOUNDS_WRITE="$TEST_DIR/bounds_write.epsilon"
 
 command -v python3 >/dev/null 2>&1 || {
     echo "Interpreted Omega experiment: skipped (python3 absent)"
@@ -53,8 +56,8 @@ grep -F 'data AlphaTapeBuffer {' "$OMEGA_D" >/dev/null || {
 
 EPSILON_LINES=$(wc -l < "$EPSILON" | tr -d ' ')
 EPSILON_BYTES=$(wc -c < "$EPSILON" | tr -d ' ')
-[ "$EPSILON_LINES" -eq 9285 ]
-[ "$EPSILON_BYTES" -eq 461593 ]
+[ "$EPSILON_LINES" -eq 9536 ]
+[ "$EPSILON_BYTES" -eq 475537 ]
 
 materialize_gamma_evaluator "$TMP/evaluator" >/dev/null
 EPSILON="$EPSILON" DELTA="$DELTA" DRIVER="$DRIVER" FIXTURE="$FIXTURE" \
@@ -67,6 +70,8 @@ EPSILON="$EPSILON" DELTA="$DELTA" DRIVER="$DRIVER" FIXTURE="$FIXTURE" \
     DIVISION_OVERFLOW="$DIVISION_OVERFLOW" SHIFT_COUNT="$SHIFT_COUNT" \
     SHORT_CIRCUIT="$SHORT_CIRCUIT" \
     SCALAR_FIELD="$SCALAR_FIELD" \
+    FIXED_ARRAY="$FIXED_ARRAY" BOUNDS_READ="$BOUNDS_READ" \
+    BOUNDS_WRITE="$BOUNDS_WRITE" \
     EVALUATOR="$TMP/evaluator" python3 - <<'PY'
 import hashlib
 import os
@@ -77,8 +82,8 @@ from pathlib import Path
 artifacts = {
     "evaluator source": (
         Path(os.environ["EPSILON"]).read_bytes(),
-        461593,
-        "194b16b6975dbd2501f899905d61e1c6318df80046dd9c4d3413d9efc681dd9f",
+        475537,
+        "f67a7fb6cf8806423e4f84c211894675ab5aae3be143d47f27c01fb117699a83",
     ),
     "slice driver": (
         Path(os.environ["DRIVER"]).read_bytes(),
@@ -165,6 +170,21 @@ artifacts = {
         432,
         "e414d325215dc544a4cfd9307b914fe5fe631f602545eea9341e86727b428d82",
     ),
+    "fixed array": (
+        Path(os.environ["FIXED_ARRAY"]).read_bytes(),
+        540,
+        "6a984a751b0243b8802d47be45ea5841dc2e5d23640bdbf598bdb6bf6bf9566a",
+    ),
+    "bounds read": (
+        Path(os.environ["BOUNDS_READ"]).read_bytes(),
+        333,
+        "ffa640cf78dede53e825b2ba7d78b2c322b88262331f9ae329974d2221f67365",
+    ),
+    "bounds write": (
+        Path(os.environ["BOUNDS_WRITE"]).read_bytes(),
+        334,
+        "45c3b25344e9bcb9622f094477c50a0a0b517c3bfb6cb43c04e74b6d2a80183c",
+    ),
 }
 for name, (data, size, digest) in artifacts.items():
     if len(data) != size or hashlib.sha256(data).hexdigest() != digest:
@@ -188,12 +208,17 @@ def evaluate(program, sealed_input=b"", timeout=300):
     return process.returncode, process.stdout
 
 status, receipt = evaluate(compiler, request)
-if status != 0 or len(receipt) != 543978:
-    raise SystemExit("scalar field evaluator slice did not compile")
+if status != 0 or len(receipt) != 561448:
+    raise SystemExit(
+        f"fixed-array evaluator slice returned {status} with {len(receipt)} bytes"
+    )
 if hashlib.sha256(receipt).hexdigest() != (
-    "7fcddfd534cb177dea18320a5b972b36feec011eee2d7eb017cd4490d9af5612"
+    "ae333f8be4296c59e99db27e7cce60d5e36f4f817f5fb57d8c1f8b1a372154f7"
 ):
-    raise SystemExit("scalar field evaluator receipt identity changed")
+    raise SystemExit(
+        "fixed-array evaluator receipt identity changed to "
+        + hashlib.sha256(receipt).hexdigest()
+    )
 controls = {
     "empty entry": b"\x00",
     "write then exit": b"A\x07",
@@ -211,10 +236,13 @@ controls = {
     "shift count": b"\x84",
     "short circuit": b"\x00",
     "scalar field": b"A\x00",
+    "fixed array": b"A\x00",
+    "bounds read": b"A\x86",
+    "bounds write": b"A\x86",
 }
 for name, expected in controls.items():
     if evaluate(receipt, artifacts[name][0], timeout=120) != (0, expected):
         raise SystemExit(f"{name} did not produce its exact observation")
 PY
 
-echo "Interpreted Omega experiment: scalar fields, locals, and Console execution pass"
+echo "Interpreted Omega experiment: fixed arrays, scalar fields, locals, and Console execution pass"
