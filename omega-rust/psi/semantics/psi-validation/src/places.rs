@@ -302,11 +302,13 @@ fn lexical_place_declaration_before(
 }
 
 mod member_paths;
+mod result_shape;
 use member_paths::{collect_member_path, data_field_or_payload, data_field_or_payload_type};
 pub(crate) use member_paths::{
     data_definition_for_type, declared_member_path_type, first_unknown_nested_field,
     nested_receiver_type_name,
 };
+pub(crate) use result_shape::expression_result_is_reference;
 
 /// Unwrap reference and constraint shells so the structural type underneath
 /// (`[u8; N]`, `usize`, a data name) is inspectable.

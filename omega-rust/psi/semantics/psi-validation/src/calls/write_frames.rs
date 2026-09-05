@@ -240,6 +240,7 @@ fn known_call_written_paths_for_parts_with_origins(
     active_states.push(callee_state.symbol);
     let result = summarize_resolved_call(
         program,
+        current_machine,
         arguments,
         callee_machine,
         callee_state,
@@ -257,6 +258,7 @@ fn known_call_written_paths_for_parts_with_origins(
 #[allow(clippy::too_many_arguments)]
 fn summarize_resolved_call(
     program: &TypedTrees,
+    caller_machine: &Machine,
     arguments: &[ExpressionHandle],
     callee_machine: &Machine,
     callee_state: &State,
@@ -302,8 +304,9 @@ fn summarize_resolved_call(
         )
     })?;
     for relative in relative_paths {
-        if let Some(instantiated) = instantiate_written_path_with_origins(
+        for instantiated in instantiate_written_path_with_origins(
             program,
+            caller_machine,
             &relative,
             receiver_base.as_ref(),
             parameters,
@@ -312,9 +315,10 @@ fn summarize_resolved_call(
             symbols,
             active_states,
             argument_origins,
-        )? && !written.contains(&instantiated)
-        {
-            written.push(instantiated);
+        )? {
+            if !written.contains(&instantiated) {
+                written.push(instantiated);
+            }
         }
     }
 
@@ -470,6 +474,15 @@ fn walk_state_write_prefix(
         match statement {
             StatementNode::AssemblyFact(_) => {}
             StatementNode::Assignment(assignment) => {
+                if alias_bindings::assignment_replaces_untracked_reference(
+                    program,
+                    machine,
+                    state,
+                    assignment,
+                    &local_alias_origins,
+                ) {
+                    return None;
+                }
                 let direct_target = coarse_place_path(program, assignment.target);
                 if let Some(relative) = direct_target.as_deref()
                     && rebind_stable_local_mutable_alias_origin(
@@ -1766,8 +1779,9 @@ fn summarize_state_written_paths_with_permuted_cycles<'program>(
                     .1
                     .clone();
                 for relative in target_writes {
-                    let Some(instantiated) = instantiate_written_path(
+                    for instantiated in instantiate_written_path(
                         program,
+                        machine,
                         &relative,
                         Some("self"),
                         program.state_parameters(target.state),
@@ -1775,25 +1789,23 @@ fn summarize_state_written_paths_with_permuted_cycles<'program>(
                         &equation.locals,
                         symbols,
                         &mut outer_active_states.to_vec(),
-                    )?
-                    else {
-                        continue;
-                    };
-                    let instantiated =
-                        rebase_local_alias_path(&instantiated, &equation.local_alias_origins);
-                    if !relative_state_path_is_visible(
-                        &instantiated,
-                        program.state_parameters(equation.state),
-                        &equation.locals,
                     )? {
-                        continue;
-                    }
-                    let source_writes = summaries
-                        .iter_mut()
-                        .find(|(symbol, _)| *symbol == equation.state.symbol)?;
-                    if !source_writes.1.contains(&instantiated) {
-                        source_writes.1.push(instantiated);
-                        changed = true;
+                        let instantiated =
+                            rebase_local_alias_path(&instantiated, &equation.local_alias_origins);
+                        if !relative_state_path_is_visible(
+                            &instantiated,
+                            program.state_parameters(equation.state),
+                            &equation.locals,
+                        )? {
+                            continue;
+                        }
+                        let source_writes = summaries
+                            .iter_mut()
+                            .find(|(symbol, _)| *symbol == equation.state.symbol)?;
+                        if !source_writes.1.contains(&instantiated) {
+                            source_writes.1.push(instantiated);
+                            changed = true;
+                        }
                     }
                 }
             }
@@ -1900,6 +1912,15 @@ fn build_permuted_cycle_frame_equation<'program>(
         match statement {
             StatementNode::AssemblyFact(_) | StatementNode::Expression(_) => {}
             StatementNode::Assignment(assignment) => {
+                if alias_bindings::assignment_replaces_untracked_reference(
+                    program,
+                    machine,
+                    state,
+                    assignment,
+                    &local_alias_origins,
+                ) {
+                    return None;
+                }
                 let direct_target = coarse_place_path(program, assignment.target);
                 if let Some(relative) = direct_target.as_deref()
                     && rebind_stable_local_mutable_alias_origin(
@@ -2178,8 +2199,9 @@ fn summarize_transition_target_written_paths(
             let parameters = program.state_parameters(target_state);
             let mut instantiated = Vec::new();
             for relative in target_writes {
-                if let Some(path) = instantiate_written_path(
+                for path in instantiate_written_path(
                     program,
+                    machine,
                     &relative,
                     Some("self"),
                     parameters,
@@ -2187,9 +2209,10 @@ fn summarize_transition_target_written_paths(
                     source_locals,
                     symbols,
                     active_states,
-                )? && !instantiated.contains(&path)
-                {
-                    instantiated.push(path);
+                )? {
+                    if !instantiated.contains(&path) {
+                        instantiated.push(path);
+                    }
                 }
             }
             Some(instantiated)

@@ -791,6 +791,10 @@ Current ownership is:
   mutable-to-shared attenuation with the same referee; write-only attenuation
   stays explicit. A reference result cannot use a scalar-call fallback to match
   an owned argument type or an unrelated shared referee.
+  Parameter binding mutability is separate from declared reference access:
+  `mut` on an owned by-value parameter does not require a caller loan, and a
+  mutable shared-reference binding cannot forward exclusive access. Constraint
+  shells retain the same access rule for formals and forwarded values.
   The boundary frame describes the call's writes; operand evaluation separately
   contributes every producer write, and whole-state frames include both.
   The same active-state guard spans helper-result proof and boundary inference,
@@ -798,9 +802,26 @@ Current ownership is:
   Opaque, recursive, and boundary-produced reference results and reference-bearing
   members remain opaque; none is treated as an implicit reborrow.
   Primitive and concrete caller-isolated by-value parameters add no caller
-  writes, but a reference-bearing aggregate remains opaque until its reachable
-  leaf origins can be transported; passing it by value does not erase its
-  mutable references. The same restriction applies to exclusive references to
+  writes. Internal call and transition frame instantiation is set-valued:
+  a reference-bearing record, selected-case, or fixed-array literal transports
+  its demanded exclusive-reference leaves through the same owned-storage and
+  helper-result proof as boundary forwarding. Exact field demands select that
+  declared field; a coarse collection demand visits every literal element and
+  unions its reachable referents. Owned by-value fields remain private and
+  repeated origins are deduplicated. Nominal/field/case substitutions, array
+  length mismatches, and missing or opaque demanded reference leaves cannot
+  become complete empty frames. Operand evaluation still publishes every
+  producer write separately from the callee's frame.
+  Untracked reference-field or whole-carrier replacement makes the body opaque
+  in both ordinary and cyclic state analysis; later writes cannot reuse its
+  original literal substitution. Existing stable local-alias replacement keeps
+  its shared origin transfer. Replacement classification follows declared
+  result types and literal projections, including every candidate array element;
+  an effect-free projected reference is still a replacement, not an owned-value
+  store. Stored/moved carrier origins and aggregate call
+  results still need general leaf-origin transfer; passing an aggregate by value
+  does not erase its mutable references. The same restriction applies to
+  exclusive references to
   reference-bearing carriers; primitive slices retain their collection reach.
   A rejected trait-receiver call stays opaque through every fallback consumer,
   including direct-call queries and state-summary equations. It cannot regain
