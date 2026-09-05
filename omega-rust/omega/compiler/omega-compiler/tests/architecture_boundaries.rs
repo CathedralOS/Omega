@@ -590,9 +590,9 @@ fn typed_to_checked_transition_owns_post_check_settlements_inside_its_surface() 
     );
 
     let selected_execution_dispatches = [
-        "omega_selected_dispatch::settle_selected_execution_dispatch(",
+        "omega_selected_dispatch::settle_selected_execution_dispatch_with_source_edits(",
         "omega_selected_dispatch::retain_selected_compiler_intrinsic_review_identities(",
-        "omega_selected_dispatch::settle_selected_boundary_adapter_dispatch(",
+        "omega_selected_dispatch::settle_selected_boundary_adapter_dispatch_with_source_edits(",
     ];
     let mut ordered_transition_suffix = transition.as_str();
     for settlement_step in [

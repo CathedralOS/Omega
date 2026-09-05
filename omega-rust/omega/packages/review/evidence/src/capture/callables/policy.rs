@@ -30,6 +30,9 @@ pub fn project_checked_callable_policy(
         ));
     }
     let build = compilation.selected_build_machine_symbol();
+    let source = compilation.pre_selected_dispatch_source_trees()?;
+    let mutation_resolver = psi_validation::CallFrameResolver::new(&source)
+        .ok_or_else(|| rejected("pre-selected-dispatch source has no exact call resolver"))?;
     let mut projected_build = false;
     let mut callables = Vec::new();
     let inferred_crash_causes = psi_typed_trees_to_checked_trees::infer_checked_crash_causes(
@@ -78,8 +81,14 @@ pub fn project_checked_callable_policy(
         let capability_flows = behavior::capability_flows(compilation, projected.realized)?;
         let reachable_capability_flows =
             behavior::reachable_capability_flows(compilation, projected.realized)?;
-        let mutation =
-            behavior::mutation(compilation, machine, projected.entry, projected.realized)?;
+        let mutation = behavior::mutation(
+            compilation,
+            &source,
+            &mutation_resolver,
+            machine,
+            projected.entry,
+            projected.realized,
+        )?;
         let checked_termination =
             behavior::termination(compilation, machine, projected.entry, projected.realized)?;
         let declared_termination = behavior::declared_termination(

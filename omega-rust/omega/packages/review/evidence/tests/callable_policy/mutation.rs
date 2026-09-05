@@ -10,6 +10,147 @@ pub machine update(pair: &mut Pair) {
 "#;
 
 #[test]
+fn selected_service_receiver_write_frame_rejoins_checked_source() {
+    let fixture = Fixture::with_build(
+        r#"
+use omega::language::core::service;
+pub boundary trait ClockHost { machine ticks(value: u64) -> u64; }
+data Clock {}
+machine Clock::ticks(value: u64) -> u64 satisfies ClockHost::ticks { value }
+pub data Board { clock: Service<ClockHost> in Bound; marker: u64; other: u64; }
+pub machine Board::read(&mut self) -> u64 reaches ClockHost invokes ClockHost; {
+    self.marker = 1;
+    self.clock.ticks(7)
+}
+"#,
+        "machine build(builder: &mut Build) { builder.package(\"review-fixture\"); builder.select_provider<ClockHost, Clock>(); }",
+    );
+    let machine = fixture
+        .checked
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "Board::read")
+        .unwrap();
+    let entry = &fixture.checked.machine_states(machine)[0];
+    let fresh = psi_validation::CallFrameResolver::new(&fixture.checked.typed)
+        .unwrap()
+        .inferred_state_write_frame(machine, entry);
+    let resolver = psi_validation::CallFrameResolver::new(&fixture.checked.typed).unwrap();
+    for candidate in fixture.checked.machines() {
+        let _ = resolver.inferred_machine_state_write_frames(candidate);
+    }
+    let warmed = resolver.inferred_state_write_frame(machine, entry);
+    assert_eq!(
+        fresh, warmed,
+        "query order cannot change write-frame meaning"
+    );
+    let policy = project(&fixture);
+    assert!(
+        callable(&policy, "Board::read")
+            .mutation()
+            .paths()
+            .contains(&"self.clock".to_owned())
+    );
+    let source = fixture
+        .checked
+        .pre_selected_dispatch_source_trees()
+        .expect("verified dispatch source");
+    let (call_handle, original_call) = source
+        .expression_table
+        .iter_expressions()
+        .find_map(|(handle, expression)| {
+            if let psi_typed_trees::expression::ExpressionNode::Call(call) = expression {
+                (call.target.as_str() == "ticks").then_some((handle, call.clone()))
+            } else {
+                None
+            }
+        })
+        .expect("original source service call");
+    let argument = source
+        .expression_table
+        .expression_handles(original_call.arguments)[0];
+    drop(source);
+    let mut altered = fixture.checked.clone();
+    *altered.typed.expression_table.expression_mut(argument) =
+        psi_typed_trees::expression::ExpressionNode::Integer(
+            psi_numerics::literals::IntegerLiteral::from_value(8),
+        );
+    assert!(
+        altered.pre_selected_dispatch_source_trees().is_err(),
+        "settled argument contents must remain exact"
+    );
+    let mut altered = fixture.checked.clone();
+    let psi_typed_trees::expression::ExpressionNode::Call(call) =
+        altered.typed.expression_table.expression_mut(call_handle)
+    else {
+        panic!("settled adapter call")
+    };
+    call.target_symbol = psi_symbols::SymbolHandle::invalid();
+    assert!(
+        altered.pre_selected_dispatch_source_trees().is_err(),
+        "settled target must remain exact"
+    );
+    let mut altered = fixture.checked.clone();
+    let psi_typed_trees::expression::ExpressionNode::Member(member) =
+        altered.expression_table.expression(original_call.receiver)
+    else {
+        panic!("original receiver member")
+    };
+    let receiver = member.receiver;
+    let psi_typed_trees::expression::ExpressionNode::Name(path) =
+        altered.typed.expression_table.expression_mut(receiver)
+    else {
+        panic!("original self root")
+    };
+    path.head_symbol = psi_symbols::SymbolHandle::invalid();
+    assert!(
+        altered.pre_selected_dispatch_source_trees().is_err(),
+        "dropped source receiver root remains guarded"
+    );
+    let mut altered = fixture.checked.clone();
+    let target = altered
+        .statement_table
+        .statements(entry.statement_nodes)
+        .iter()
+        .find_map(|statement| {
+            if let psi_typed_trees::statement::StatementNode::Assignment(assignment) = statement {
+                Some(assignment.target)
+            } else {
+                None
+            }
+        })
+        .expect("untouched source assignment");
+    let other = altered
+        .data_definitions()
+        .iter()
+        .find(|definition| definition.name.as_str() == "Board")
+        .and_then(|definition| {
+            altered.data_members(definition).iter().find_map(|member| {
+                if let psi_typed_trees::data::DataMember::Field(field) = member {
+                    (field.name.as_str() == "other").then_some(field.symbol)
+                } else {
+                    None
+                }
+            })
+        })
+        .unwrap();
+    let psi_typed_trees::expression::ExpressionNode::Member(member) =
+        altered.typed.expression_table.expression_mut(target)
+    else {
+        panic!("assignment member")
+    };
+    member.member = psi_typed_trees::name::Identifier::generated("other");
+    member.member_symbol = other;
+    altered
+        .pre_selected_dispatch_source_trees()
+        .expect("unrelated source write is not overwritten by restoration");
+    assert!(
+        project_checked_callable_policy(&altered, fixture.target, package_identity()).is_err(),
+        "exact source-frame replay still rejects changed untouched writes"
+    );
+}
+
+#[test]
 fn private_helper_and_state_renames_preserve_entry_root_write_meaning() {
     let original = project(&Fixture::local(SOURCE));
     let renamed_source = SOURCE
