@@ -1,6 +1,8 @@
 //! Fixture inventory is independent of host eligibility and compile filters.
 use super::abi_runtime_values_and_strings::fixture_roster as abi_runtime_values_and_strings;
 use super::content_text_and_carriers::fixture_roster as content_text_and_carriers;
+use super::domains_control_and_structures::fixture_roster as domains_control_and_structures;
+use super::float_plans_and_policies::fixture_roster as float_plans_and_policies;
 use super::generics_and_dependent_facts::fixture_roster as generics_and_dependent_facts;
 use super::providers_float_and_console::fixture_roster as providers_float_and_console;
 use super::ranges_storage_and_entries::fixture_roster as ranges_storage_and_entries;
@@ -47,6 +49,11 @@ fn pass_roster() -> Vec<&'static str> {
         .chain(package_compilation_inputs::PASS_CANARIES)
         .chain(value_and_type_checks::PASS_CANARIES)
         .chain(content_text_and_carriers::PASS_CANARIES)
+        .chain(domains_control_and_structures::PASS_CANARIES)
+        .chain(domains_control_and_structures::BOUNDARY_DOMAIN_ESTABLISHMENT_PASS_CANARIES)
+        .chain(domains_control_and_structures::RECURSIVE_WALK_PASS_CANARIES)
+        .chain(float_plans_and_policies::PASS_CANARIES)
+        .chain(float_plans_and_policies::FLOAT_TO_INTEGER_TRAP_PASS_CANARIES)
         .chain(abi_runtime_values_and_strings::PASS_CANARIES)
         .chain(abi_runtime_values_and_strings::BOUNDED_CARRIER_PASS_CANARIES)
         .chain(providers_float_and_console::PASS_CANARIES)
@@ -58,6 +65,21 @@ fn pass_roster() -> Vec<&'static str> {
         .chain(generics_and_dependent_facts::STRUCTURED_CONST_PASS_CANARIES)
         .chain(time_hosts_and_indexed_storage::PASS_CANARIES)
         .copied()
+        .chain(
+            float_plans_and_policies::POLICY_ADAPTER_PASS_CANARIES
+                .iter()
+                .map(|entry| entry.0),
+        )
+        .chain(
+            float_plans_and_policies::POLICY_DIFFERENTIAL_PASS_CANARIES
+                .iter()
+                .map(|entry| entry.0),
+        )
+        .chain(
+            domains_control_and_structures::ROOTED_RESIDUAL_SCALAR_ENTRY_PASS_CANARIES
+                .iter()
+                .map(|entry| entry.0),
+        )
         .chain(
             abi_runtime_values_and_strings::PRNG_REPOSITORY_PASS_CANARIES
                 .iter()
@@ -113,6 +135,12 @@ fn fail_roster() -> Vec<&'static str> {
         .chain(recast_views::FAIL_CANARIES.iter().copied())
         .chain(layout_plans::FAIL_CANARIES.iter().copied())
         .chain(value_and_type_checks::FAIL_CANARIES.iter().copied())
+        .chain(float_plans_and_policies::FAIL_CANARIES.iter().copied())
+        .chain(
+            float_plans_and_policies::FLOAT_TO_INTEGER_FAIL_CANARIES
+                .iter()
+                .map(|entry| entry.0),
+        )
         .chain(
             content_text_and_carriers::UNAUTHORIZED_ESTABLISHMENT_FAIL_CANARIES
                 .iter()
