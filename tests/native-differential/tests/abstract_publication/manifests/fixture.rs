@@ -15,9 +15,9 @@ pub(super) fn validate(
     optimized: &ValidatedOptimizedAbstractPlan,
     candidate: &PrePhysicalOptimizationManifest,
 ) -> Result<
-    optimization_validation::ValidatedPrePhysicalOptimizationManifest,
+    abstract_operations_to_abstract_operations::validation::ValidatedPrePhysicalOptimizationManifest,
     PrePhysicalOptimizationManifestError,
-> {
+>{
     validate_pre_physical_optimization_manifest(
         candidate,
         optimized.verified_input(),

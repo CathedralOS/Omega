@@ -6,9 +6,10 @@ use optimization_unit::{
     NodeLocation, OptimizationNode, PsiOptimizationFunction, PsiOptimizationUnit, PsiProvenance,
     ValueDefinitionSite, ValueUse, recompute_psi_optimization_unit_identity,
 };
-use optimization_validation::{
+
+use crate::validation::ValidatedOptimizerCycleComponents;
+use optimization_unit::{
     CycleComponentEdge, CycleComponentId, OptimizerUnsignedCountdownRankingCertificate,
-    ValidatedOptimizerCycleComponents,
 };
 use semantic_vocabulary::{BlockId, MachineId, OperationId, ScalarType, ValueId};
 

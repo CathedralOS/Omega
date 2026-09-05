@@ -1,4 +1,5 @@
 use abstract_operations::AbstractOperation;
+use abstract_operations_to_abstract_operations::validation::validate_verified_psi_optimization_unit;
 use abstract_operations_to_target_operations::{
     AdmittedBoundaryExecution, AdmittedBoundarySettlement, LoweringError,
     lower_to_target_operations_with_provider_executions,
@@ -11,7 +12,6 @@ use image_emission::{
 };
 use machine_emission::emit_machine_code;
 use omega_native_differential_test::admit_native_provider;
-use optimization_validation::validate_verified_psi_optimization_unit;
 use proof_admission::AdmissionProfile;
 use semantic_vocabulary::{
     BoundaryMachineId, IntegerValue, ProfileDecisionId, StructuralPlaceKind,

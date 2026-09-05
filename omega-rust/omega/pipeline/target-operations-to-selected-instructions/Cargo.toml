@@ -11,7 +11,7 @@ path = "src/lib.rs"
 [dependencies]
 calling-conventions = { path = "../../representations/calling-conventions" }
 optimization-core = { path = "../../representations/optimization-core" }
-optimization-validation = { path = "../optimization-validation" }
+optimization-unit-semantics = { path = "../../semantics/optimization-unit-semantics" }
 optimization-unit = { path = "../../representations/optimization-unit" }
 register-model = { path = "../../representations/register-model" }
 target = { path = "../../representations/target" }

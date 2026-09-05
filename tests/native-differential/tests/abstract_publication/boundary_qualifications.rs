@@ -1,7 +1,8 @@
 //! Boundary qualification consumption through optimizer projection custody.
 
 use super::*;
-use optimization_validation::{
+
+use abstract_operations_to_abstract_operations::validation::{
     OptimizedAbstractPlanProjectionError, validate_optimized_abstract_plan_projection,
     validate_transformed_psi_optimization_unit,
 };

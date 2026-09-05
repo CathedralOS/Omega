@@ -74,7 +74,7 @@ abstract-operations-to-abstract-operations = { path = "../../omega-rust/omega/pi
 selected-instructions-to-register-homes = { path = "../../omega-rust/omega/pipeline/selected-instructions-to-register-homes" }
 register-model = { path = "../../omega-rust/omega/representations/register-model" }
 optimization-unit = { path = "../../omega-rust/omega/representations/optimization-unit" }
-optimization-validation = { path = "../../omega-rust/omega/pipeline/optimization-validation" }
+optimization-unit-semantics = { path = "../../omega-rust/omega/semantics/optimization-unit-semantics" }
 selected-instructions = { path = "../../omega-rust/omega/representations/selected-instructions" }
 source-files-to-tokens = { path = "../../omega-rust/psi/pipeline/source-files-to-tokens" }
 symbol-resolved-trees-to-typed-trees = { path = "../../omega-rust/psi/pipeline/symbol-resolved-trees-to-typed-trees" }

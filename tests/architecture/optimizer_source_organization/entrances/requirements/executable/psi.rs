@@ -14,7 +14,7 @@ pub(crate) const ENTRANCES: &[RequiredCoordinationEntrance] = &[
         coordination_marker: "match operation",
     },
     RequiredCoordinationEntrance {
-        path: "omega-rust/omega/pipeline/optimization-validation/src/candidates/sparse_conditional_constant_propagation/mod.rs",
+        path: "omega-rust/omega/semantics/optimization-unit-semantics/src/candidates/sparse_conditional_constant_propagation/mod.rs",
         coordination_marker: "pub fn validate_scalar_evaluation_candidate",
     },
     RequiredCoordinationEntrance {
@@ -34,7 +34,7 @@ pub(crate) const ENTRANCES: &[RequiredCoordinationEntrance] = &[
         coordination_marker: "apply::validated(session, validated)",
     },
     RequiredCoordinationEntrance {
-        path: "omega-rust/omega/representations/optimization-unit/src/model.rs",
+        path: "omega-rust/omega/representations/optimization-unit/src/optimization_unit.rs",
         coordination_marker: "pub struct PsiOptimizationUnit",
     },
     RequiredCoordinationEntrance {
@@ -62,31 +62,31 @@ pub(crate) const ENTRANCES: &[RequiredCoordinationEntrance] = &[
         coordination_marker: "fn propose(",
     },
     RequiredCoordinationEntrance {
-        path: "omega-rust/omega/pipeline/optimization-validation/src/candidates/control_flow_cleanup/constant_conditionals/mod.rs",
+        path: "omega-rust/omega/semantics/optimization-unit-semantics/src/candidates/control_flow_cleanup/constant_conditionals/mod.rs",
         coordination_marker: "pub fn validate_constant_conditional_candidate",
     },
     RequiredCoordinationEntrance {
-        path: "omega-rust/omega/pipeline/optimization-validation/src/candidates/control_flow_cleanup/empty_block_threading/linear/mod.rs",
+        path: "omega-rust/omega/semantics/optimization-unit-semantics/src/candidates/control_flow_cleanup/empty_block_threading/linear/mod.rs",
         coordination_marker: "pub fn validate_linear_empty_block_candidate",
     },
     RequiredCoordinationEntrance {
-        path: "omega-rust/omega/pipeline/optimization-validation/src/candidates/control_flow_cleanup/empty_block_threading/path_qualified/mod.rs",
+        path: "omega-rust/omega/semantics/optimization-unit-semantics/src/candidates/control_flow_cleanup/empty_block_threading/path_qualified/mod.rs",
         coordination_marker: "pub fn validate_path_qualified_empty_block_candidate",
     },
     RequiredCoordinationEntrance {
-        path: "omega-rust/omega/pipeline/optimization-validation/src/candidates/control_flow_cleanup/block_merging/adjacent/mod.rs",
+        path: "omega-rust/omega/semantics/optimization-unit-semantics/src/candidates/control_flow_cleanup/block_merging/adjacent/mod.rs",
         coordination_marker: "pub fn validate_adjacent_block_merge_candidate",
     },
     RequiredCoordinationEntrance {
-        path: "omega-rust/omega/pipeline/optimization-validation/src/candidates/control_flow_cleanup/shared_jump_fusion/mod.rs",
+        path: "omega-rust/omega/semantics/optimization-unit-semantics/src/candidates/control_flow_cleanup/shared_jump_fusion/mod.rs",
         coordination_marker: "pub fn validate_shared_jump_fusion_candidate",
     },
     RequiredCoordinationEntrance {
-        path: "omega-rust/omega/pipeline/optimization-validation/src/candidates/control_flow_cleanup/unreachable_private_machines/mod.rs",
+        path: "omega-rust/omega/semantics/optimization-unit-semantics/src/candidates/control_flow_cleanup/unreachable_private_machines/mod.rs",
         coordination_marker: "pub fn validate_unreachable_private_machines_candidate",
     },
     RequiredCoordinationEntrance {
-        path: "omega-rust/omega/pipeline/optimization-validation/src/candidates/control_flow_cleanup/block_merging/non_adjacent/mod.rs",
+        path: "omega-rust/omega/semantics/optimization-unit-semantics/src/candidates/control_flow_cleanup/block_merging/non_adjacent/mod.rs",
         coordination_marker: "pub fn validate_non_adjacent_block_merge_candidate",
     },
     RequiredCoordinationEntrance {
@@ -274,27 +274,27 @@ pub(crate) const ENTRANCES: &[RequiredCoordinationEntrance] = &[
         coordination_marker: "fn propose(",
     },
     RequiredCoordinationEntrance {
-        path: "omega-rust/omega/pipeline/optimization-validation/src/prephysical_manifest/mod.rs",
+        path: "omega-rust/omega/pipeline/abstract-operations-to-abstract-operations/src/validation/prephysical_manifest/mod.rs",
         coordination_marker: "pub fn project_pre_physical_optimization_manifest",
     },
     RequiredCoordinationEntrance {
-        path: "omega-rust/omega/pipeline/optimization-validation/src/candidates/rewrite_accounting/mod.rs",
+        path: "omega-rust/omega/semantics/optimization-unit-semantics/src/candidates/rewrite_accounting/mod.rs",
         coordination_marker: "fn preserve_edge_custody",
     },
     RequiredCoordinationEntrance {
-        path: "omega-rust/omega/pipeline/optimization-validation/src/candidates/global_value_numbering/mod.rs",
+        path: "omega-rust/omega/semantics/optimization-unit-semantics/src/candidates/global_value_numbering/mod.rs",
         coordination_marker: "fn validate_candidate_origin",
     },
     RequiredCoordinationEntrance {
-        path: "omega-rust/omega/pipeline/optimization-validation/src/candidates/global_value_numbering/total_scalar_identity/classification/mod.rs",
+        path: "omega-rust/omega/semantics/optimization-unit-semantics/src/candidates/global_value_numbering/total_scalar_identity/classification/mod.rs",
         coordination_marker: "match identity",
     },
     RequiredCoordinationEntrance {
-        path: "omega-rust/omega/pipeline/optimization-validation/src/candidates/sparse_conditional_constant_propagation/integer_evaluation/mod.rs",
+        path: "omega-rust/omega/semantics/optimization-unit-semantics/src/candidates/sparse_conditional_constant_propagation/integer_evaluation/mod.rs",
         coordination_marker: "pub(crate) fn evaluate_integer_operation",
     },
     RequiredCoordinationEntrance {
-        path: "omega-rust/omega/pipeline/optimization-validation/src/candidates/sparse_conditional_constant_propagation/boolean_evaluation/mod.rs",
+        path: "omega-rust/omega/semantics/optimization-unit-semantics/src/candidates/sparse_conditional_constant_propagation/boolean_evaluation/mod.rs",
         coordination_marker: "pub(super) fn evaluate",
     },
     RequiredCoordinationEntrance {
@@ -314,59 +314,59 @@ pub(crate) const ENTRANCES: &[RequiredCoordinationEntrance] = &[
         coordination_marker: "pub(crate) fn analyze_countdown_invariant_constant_placement",
     },
     RequiredCoordinationEntrance {
-        path: "omega-rust/omega/pipeline/optimization-validation/src/candidates/dead_scalar_elimination/mod.rs",
+        path: "omega-rust/omega/semantics/optimization-unit-semantics/src/candidates/dead_scalar_elimination/mod.rs",
         coordination_marker: "fn validate_candidate_contract",
     },
     RequiredCoordinationEntrance {
-        path: "omega-rust/omega/pipeline/optimization-validation/src/candidates/proof_check_elision/mod.rs",
+        path: "omega-rust/omega/semantics/optimization-unit-semantics/src/candidates/proof_check_elision/mod.rs",
         coordination_marker: "pub fn validate_proof_check_elision_candidate",
     },
     RequiredCoordinationEntrance {
-        path: "omega-rust/omega/pipeline/optimization-validation/src/candidates/copy_propagation/mod.rs",
+        path: "omega-rust/omega/semantics/optimization-unit-semantics/src/candidates/copy_propagation/mod.rs",
         coordination_marker: "fn validate_candidate_contract",
     },
     RequiredCoordinationEntrance {
-        path: "omega-rust/omega/pipeline/optimization-validation/src/unit_validation/operation_contracts/mod.rs",
+        path: "omega-rust/omega/semantics/optimization-unit-semantics/src/unit_validation/operation_contracts/mod.rs",
         coordination_marker: "fn validate_values_and_bindings",
     },
     RequiredCoordinationEntrance {
-        path: "omega-rust/omega/pipeline/optimization-validation/src/unit_validation/function_structure/mod.rs",
+        path: "omega-rust/omega/semantics/optimization-unit-semantics/src/unit_validation/function_structure/mod.rs",
         coordination_marker: "pub(crate) fn validate_function",
     },
     RequiredCoordinationEntrance {
-        path: "omega-rust/omega/pipeline/optimization-validation/src/unit_validation/derived_metadata/mod.rs",
+        path: "omega-rust/omega/semantics/optimization-unit-semantics/src/unit_validation/derived_metadata/mod.rs",
         coordination_marker: "pub(crate) fn validate_places_and_claims",
     },
     RequiredCoordinationEntrance {
-        path: "omega-rust/omega/pipeline/optimization-validation/src/unit_validation/context/mod.rs",
+        path: "omega-rust/omega/pipeline/abstract-operations-to-abstract-operations/src/validation/context/mod.rs",
         coordination_marker: "fn validate_psi_optimization_unit_with_context",
     },
     RequiredCoordinationEntrance {
-        path: "omega-rust/omega/pipeline/optimization-validation/src/unit_validation/context/ranked_cycles/mod.rs",
+        path: "omega-rust/omega/pipeline/abstract-operations-to-abstract-operations/src/validation/context/ranked_cycles/mod.rs",
         coordination_marker: "fn validate_exact_ranked_cycles",
     },
     RequiredCoordinationEntrance {
-        path: "omega-rust/omega/pipeline/optimization-validation/src/unit_validation/context/ranked_cycles/countdown_ranking/mod.rs",
+        path: "omega-rust/omega/pipeline/abstract-operations-to-abstract-operations/src/validation/context/ranked_cycles/countdown_ranking/mod.rs",
         coordination_marker: "fn rederive_exact_certificates",
     },
     RequiredCoordinationEntrance {
-        path: "omega-rust/omega/pipeline/optimization-validation/src/unit_validation/core/mod.rs",
+        path: "omega-rust/omega/semantics/optimization-unit-semantics/src/unit_validation/core/mod.rs",
         coordination_marker: "pub fn validate_psi_optimization_unit",
     },
     RequiredCoordinationEntrance {
-        path: "omega-rust/omega/pipeline/optimization-validation/src/current_value_ranges/mod.rs",
+        path: "omega-rust/omega/semantics/optimization-unit-semantics/src/current_value_ranges/mod.rs",
         coordination_marker: "pub fn validate_current_value_range_fact",
     },
     RequiredCoordinationEntrance {
-        path: "omega-rust/omega/pipeline/optimization-validation/src/projection/mod.rs",
+        path: "omega-rust/omega/pipeline/abstract-operations-to-abstract-operations/src/validation/projection/mod.rs",
         coordination_marker: "pub fn validate_optimized_abstract_plan_projection",
     },
     RequiredCoordinationEntrance {
-        path: "omega-rust/omega/pipeline/optimization-validation/src/unit_validation/structural_catalog/mod.rs",
+        path: "omega-rust/omega/semantics/optimization-unit-semantics/src/unit_validation/structural_catalog/mod.rs",
         coordination_marker: "fn index_structural_catalogs",
     },
     RequiredCoordinationEntrance {
-        path: "omega-rust/omega/pipeline/optimization-validation/src/current_ownership/mod.rs",
+        path: "omega-rust/omega/semantics/optimization-unit-semantics/src/current_ownership/mod.rs",
         coordination_marker: "fn validate_current_ownership_frontier",
     },
     RequiredCoordinationEntrance {

@@ -69,10 +69,10 @@ pub use rewrite::{
 
 /// The exact immutable Terminal Psi semantic site realized by one unit node.
 mod construction;
-mod model;
+mod optimization_unit;
 
 pub use construction::{OptimizationUnitBuildError, reconstruct_psi_optimization_unit_seed};
-pub use model::*;
+pub use optimization_unit::*;
 
 #[cfg(test)]
 mod tests;

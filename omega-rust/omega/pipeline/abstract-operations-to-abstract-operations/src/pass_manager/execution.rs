@@ -11,7 +11,7 @@ use optimization_core::{
     OptimizationUnitIdentity, OptimizationWorkBudget,
 };
 use optimization_unit::{PsiOptimizationUnit, PsiTransformationLedger, PsiTransformationRecord};
-use optimization_validation::{ValidatedPsiRewrite, validate_psi_rewrite_candidate};
+use optimization_unit_semantics::{ValidatedPsiRewrite, validate_psi_rewrite_candidate};
 
 use crate::{AnalysisManager, OrderedRuleRegistry, RuleAnalysisView};
 

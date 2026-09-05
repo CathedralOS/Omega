@@ -13,7 +13,8 @@ use optimization_core::{
 use optimization_unit::{
     AbstractOptimizationEvidence, PsiOptimizationUnit, PsiTransformationLedger,
 };
-use optimization_validation::{
+
+use crate::validation::{
     ValidatedOptimizedAbstractPlanProjection, ValidatedPrePhysicalOptimizationManifest,
 };
 use terminal_psi_to_abstract_operations::VerifiedPsiOptimizationInput;

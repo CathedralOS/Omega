@@ -10,7 +10,7 @@ use optimization_unit::{
     PsiOptimizationUnit, recompute_psi_optimization_unit_identity,
     reconstruct_psi_optimization_unit_seed,
 };
-use optimization_validation::validate_psi_optimization_unit;
+use optimization_unit_semantics::validate_psi_optimization_unit;
 use semantic_vocabulary::{
     BlockId, EdgeId, FuelScheduleIdentity, IntegerSign, IntegerType, IntegerValue, MachineId,
     OperationId, ScalarType, ValueId,

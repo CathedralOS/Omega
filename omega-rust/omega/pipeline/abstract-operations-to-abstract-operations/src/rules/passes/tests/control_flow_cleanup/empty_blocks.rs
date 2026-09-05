@@ -233,7 +233,7 @@ fn path_qualified_empty_block_thread_fans_out_only_on_incoming_edge_antichain() 
         });
     coexecuted.identity = recompute_psi_optimization_unit_identity(&coexecuted);
     assert_eq!(
-        optimization_validation::validate_psi_optimization_unit(&coexecuted),
+        optimization_unit_semantics::validate_psi_optimization_unit(&coexecuted),
         Err(OptimizationUnitValidationError::CoExecutableProvenanceOccurrences(source))
     );
 }

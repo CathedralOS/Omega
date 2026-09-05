@@ -126,7 +126,7 @@ struct PsiEvidence {
     pass_manifests: Vec<optimization_core::OptimizationPassManifestRecord>,
     commits: Vec<abstract_operations_to_abstract_operations::PsiOptimizationCommit>,
     ledger: optimization_unit::PsiTransformationLedger,
-    pre_manifest: optimization_validation::PrePhysicalOptimizationManifest,
+    pre_manifest: optimization_unit::PrePhysicalOptimizationManifest,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -136,7 +136,7 @@ struct MachineEvidence {
     pass_manifests: Vec<optimization_core::OptimizationPassManifestRecord>,
     commits: Vec<abstract_operations_to_abstract_operations::PsiOptimizationCommit>,
     ledger: optimization_unit::PsiTransformationLedger,
-    pre_manifest: optimization_validation::PrePhysicalOptimizationManifest,
+    pre_manifest: optimization_unit::PrePhysicalOptimizationManifest,
     post_manifest: selected_instructions_to_register_homes::PostAllocationOptimizationManifest,
     home_custody: StagedOptimizedRegisterHomeCustodyReceipt,
     machine_custody: StagedOptimizedPostAllocationMachineCustodyReceipt,

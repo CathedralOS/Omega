@@ -47,8 +47,8 @@ fn backend_crates_use_only_reviewed_physical_pipeline_dependencies() {
         ),
         (
             "machine-emission/Cargo.toml",
-            "optimization-validation",
-            "../../pipeline/optimization-validation",
+            "abstract-operations-to-abstract-operations",
+            "../../pipeline/abstract-operations-to-abstract-operations",
         ),
         (
             "machine-emission/Cargo.toml",

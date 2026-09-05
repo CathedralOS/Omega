@@ -1,4 +1,4 @@
-use optimization_validation::PrePhysicalOptimizationManifest;
+use optimization_unit::PrePhysicalOptimizationManifest;
 use selected_instructions_to_register_homes::PostAllocationOptimizationManifest;
 
 use crate::StagedOptimizedVerifiedPhysicalPipeline;

@@ -2,7 +2,7 @@ use abstract_operations::{AbstractDynamicDescriptorSource, AbstractOperation};
 use optimization_unit::{
     recompute_psi_optimization_unit_identity, reconstruct_psi_optimization_unit_seed,
 };
-use optimization_validation::validate_psi_optimization_unit;
+use optimization_unit_semantics::validate_psi_optimization_unit;
 use proof_admission::AdmissionProfile;
 use semantic_vocabulary::FuelScheduleIdentity;
 use source_files_to_tokens::Lexer;

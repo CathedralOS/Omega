@@ -62,8 +62,9 @@ pub(super) fn replay(
                 AppliedDecisionCustodyAxis::CommitPredictedCostDelta,
             ));
         }
-        let accepted = optimization_validation::validate_psi_rewrite_candidate(&unit, declaration)
-            .map_err(OptimizedAbstractProjectionError::CandidateReplay)?;
+        let accepted =
+            optimization_unit_semantics::validate_psi_rewrite_candidate(&unit, declaration)
+                .map_err(OptimizedAbstractProjectionError::CandidateReplay)?;
         if accepted.candidate() != commit.candidate
             || accepted.validator() != commit.validator
             || accepted.unit().identity != commit.output

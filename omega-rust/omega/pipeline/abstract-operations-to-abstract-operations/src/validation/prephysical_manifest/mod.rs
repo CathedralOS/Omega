@@ -5,10 +5,8 @@
 //! entrance alone constructs a candidate and grants validated manifest custody
 //! after independent replay.
 
-mod codec;
 mod model;
 mod projection;
-mod rendering;
 mod validation;
 
 pub use model::*;
@@ -16,20 +14,17 @@ pub use validation::validate_pre_physical_optimization_manifest;
 
 use optimization_core::BaselineDecisionLog;
 use optimization_core::{
-    OptimizationCandidateVerdict, OptimizationExecutionPhase, OptimizationFactReference,
-    OptimizationIdentityBundle, OptimizationPassManifestRecord, OptimizationSelections,
-    OptimizationUnitIdentity, OptimizationWorkBudget, OptimizationWorkUsage,
-    OptimizedAbstractPlanProjectionIdentity, PrePhysicalOptimizationManifestIdentity,
+    OptimizationExecutionPhase, OptimizationIdentityBundle, OptimizationPassManifestRecord,
+    OptimizationSelections, OptimizationWorkBudget, OptimizationWorkUsage,
+    PrePhysicalOptimizationManifestIdentity,
 };
 use optimization_unit::{
-    ProvenanceDisposition, ProvenanceRewrite, PsiOptimizationUnit, PsiProvenance,
-    PsiRealizationSite, PsiTransformationLedger,
+    OptimizationManifestStage, OptimizationStructuralStatistics, PhysicalOptimizationDataStatus,
+    PrePhysicalOptimizationManifest, PsiOptimizationUnit, PsiTransformationLedger,
 };
-use semantic_vocabulary::FuelScheduleIdentity;
-use terminal_psi::TerminalPsiIdentity;
 use terminal_psi_to_abstract_operations::VerifiedPsiOptimizationInput;
 
-use crate::ValidatedOptimizedAbstractPlanProjection;
+use crate::validation::ValidatedOptimizedAbstractPlanProjection;
 
 #[allow(clippy::too_many_arguments)]
 pub fn project_pre_physical_optimization_manifest(

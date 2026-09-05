@@ -166,7 +166,7 @@ pub(in crate::tests) fn projected_fixture(
     .unwrap();
     unit.structural_domains = Arc::from([domain(1, leaf), domain(2, leaf)]);
     unit.identity = optimization_unit::recompute_psi_optimization_unit_identity(&unit);
-    optimization_validation::validate_psi_optimization_unit(&unit)
+    optimization_unit_semantics::validate_psi_optimization_unit(&unit)
         .expect("projected fixture optimization unit remains independently valid");
     (source, target_plan, unit)
 }

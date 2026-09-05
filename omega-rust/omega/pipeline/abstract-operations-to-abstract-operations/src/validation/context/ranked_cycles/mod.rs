@@ -11,15 +11,16 @@ mod replay;
 mod topology;
 
 pub use countdown_ranking::validate_psi_ranking_certificate_snapshot;
-pub use model::{
+pub use model::{ValidatedOptimizerCycleComponents, ValidatedOptimizerRankingCertificates};
+
+use optimization_unit::{
     CycleComponentEdge, CycleComponentId, OptimizerCycleComponent, OptimizerCycleComponentSnapshot,
     OptimizerRankingCertificateSnapshot, OptimizerUnsignedCountdownRankingCertificate,
     OptimizerUnsignedMinusOneDescent, OptimizerUnsignedPositiveGuard,
-    ValidatedOptimizerCycleComponents, ValidatedOptimizerRankingCertificates,
 };
 
 pub(super) struct RankedCycleAdmission {
-    pub(super) policy: function_structure::ControlCyclePolicy,
+    pub(super) machines: Vec<MachineId>,
     pub(super) snapshot: OptimizerCycleComponentSnapshot,
     pub(super) rankings: OptimizerRankingCertificateSnapshot,
 }
@@ -37,12 +38,13 @@ pub(super) fn validate_exact_ranked_cycles(
         &snapshot.components,
         &rankings.certificates,
     )?;
-    let mut policy = function_structure::ControlCyclePolicy::default();
-    for component in &snapshot.components {
-        policy.admit(component.id.machine);
-    }
+    let machines = snapshot
+        .components
+        .iter()
+        .map(|component| component.id.machine)
+        .collect();
     Ok(RankedCycleAdmission {
-        policy,
+        machines,
         snapshot,
         rankings,
     })

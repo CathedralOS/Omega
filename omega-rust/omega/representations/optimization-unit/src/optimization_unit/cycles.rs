@@ -1,6 +1,8 @@
 //! Optimizer module role: carrier leaf. Canonical component identities and optimizer-analysis custody.
 
-use super::*;
+use semantic_vocabulary::{
+    BlockId, EdgeId, IntegerType, IntegerValue, MachineId, OperationId, ValueId,
+};
 
 /// One canonical executable control edge belonging to or crossing an SCC.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -32,47 +34,11 @@ pub struct OptimizerCycleComponent {
 /// Replayable, non-authoritative component snapshot.
 ///
 /// Callers may persist or mutate this data. Only
-/// [`ValidatedOptimizerCycleComponents`] confers optimizer-analysis authority.
+/// independent validation confers optimizer-analysis authority.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct OptimizerCycleComponentSnapshot {
     pub terminal_psi: terminal_psi::TerminalPsiIdentity,
     pub components: Vec<OptimizerCycleComponent>,
-}
-
-/// Opaque authority to use the contained SCC topology for optimizer analysis.
-///
-/// This grants no Terminal execution, rewrite, interpretation, fixed-fuel,
-/// native-lowering, or publication authority.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ValidatedOptimizerCycleComponents {
-    snapshot: OptimizerCycleComponentSnapshot,
-    rankings: ValidatedOptimizerRankingCertificates,
-}
-
-impl ValidatedOptimizerCycleComponents {
-    pub(crate) const fn new(
-        snapshot: OptimizerCycleComponentSnapshot,
-        rankings: ValidatedOptimizerRankingCertificates,
-    ) -> Self {
-        Self { snapshot, rankings }
-    }
-
-    pub const fn terminal_psi(&self) -> terminal_psi::TerminalPsiIdentity {
-        self.snapshot.terminal_psi
-    }
-
-    pub fn components(&self) -> &[OptimizerCycleComponent] {
-        &self.snapshot.components
-    }
-
-    pub const fn snapshot(&self) -> &OptimizerCycleComponentSnapshot {
-        &self.snapshot
-    }
-
-    /// Exact well-founded evidence available to optimizer analyses only.
-    pub const fn ranking_certificates(&self) -> &ValidatedOptimizerRankingCertificates {
-        &self.rankings
-    }
 }
 
 /// The closed unsigned-countdown ranking rule currently understood by the
@@ -119,25 +85,4 @@ pub struct OptimizerUnsignedMinusOneDescent {
 pub struct OptimizerRankingCertificateSnapshot {
     pub terminal_psi: terminal_psi::TerminalPsiIdentity,
     pub certificates: Vec<OptimizerUnsignedCountdownRankingCertificate>,
-}
-
-/// Opaque optimizer-analysis custody for independently reconstructed ranking
-/// evidence. This does not authorize execution or cyclic rewriting.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ValidatedOptimizerRankingCertificates {
-    snapshot: OptimizerRankingCertificateSnapshot,
-}
-
-impl ValidatedOptimizerRankingCertificates {
-    pub(crate) const fn new(snapshot: OptimizerRankingCertificateSnapshot) -> Self {
-        Self { snapshot }
-    }
-
-    pub fn certificates(&self) -> &[OptimizerUnsignedCountdownRankingCertificate] {
-        &self.snapshot.certificates
-    }
-
-    pub const fn snapshot(&self) -> &OptimizerRankingCertificateSnapshot {
-        &self.snapshot
-    }
 }

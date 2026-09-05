@@ -2,12 +2,12 @@
 
 use super::*;
 
+use abstract_operations_to_abstract_operations::validation::validate_transformed_psi_optimization_unit;
 use abstract_operations_to_abstract_operations::{
     CountdownInvariantConstantPlacementAnalysisError,
     CountdownInvariantConstantPlacementAnalysisSnapshot, CountdownInvariantConstantRole,
 };
 use optimization_unit::recompute_psi_optimization_unit_identity;
-use optimization_validation::validate_transformed_psi_optimization_unit;
 use semantic_vocabulary::{IntegerSign, IntegerType, IntegerValue, MachineId, ScalarType};
 
 #[test]

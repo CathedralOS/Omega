@@ -110,7 +110,7 @@ the [Rust Compiler Completion Contract](wiki/releases/rust_compiler_completion_c
   the reference's access, beside the provider-specialized fields. The retry is
   transitional; retain a borrowed `self` unconditionally once
   `validate_provider_attachment_specialization`
-  (`optimization-validation`) admits a `self` parameter beside provider
+  (`optimization-unit-semantics`) admits a `self` parameter beside provider
   roots and the entry bridge passes the `ProgramEntry` loan as that parameter,
   both under `ENTRY-CONTENT-ROOTS` and
   `INSTALLED-PROGRAM-LOCAL-ROOT-INTRODUCTION` in P1. `cli_mvp` now stops at

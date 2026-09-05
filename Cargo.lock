@@ -18,7 +18,7 @@ dependencies = [
  "optimization",
  "optimization-core",
  "optimization-unit",
- "optimization-validation",
+ "optimization-unit-semantics",
  "proof-admission",
  "semantic-vocabulary",
  "terminal-codec",
@@ -970,6 +970,7 @@ name = "machine-emission"
 version = "0.1.0"
 dependencies = [
  "abstract-operations",
+ "abstract-operations-to-abstract-operations",
  "abstract-operations-to-target-operations",
  "assigned-target-operations",
  "calling-conventions",
@@ -981,7 +982,6 @@ dependencies = [
  "isa-x86_64",
  "machine-code",
  "optimization-core",
- "optimization-validation",
  "physical-instructions",
  "post-allocation-machine-to-post-allocation-machine",
  "post-allocation-machine-to-selected-form-encoding",
@@ -1077,7 +1077,7 @@ dependencies = [
  "object-file",
  "optimization",
  "optimization-core",
- "optimization-validation",
+ "optimization-unit",
  "post-allocation-machine-to-post-allocation-machine",
  "program-entry-plan",
  "proof-admission",
@@ -1230,7 +1230,7 @@ dependencies = [
  "object-file",
  "optimization-core",
  "optimization-unit",
- "optimization-validation",
+ "optimization-unit-semantics",
  "physical-instructions",
  "post-allocation-machine-to-post-allocation-machine",
  "post-allocation-machine-to-selected-form-encoding",
@@ -1306,7 +1306,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "optimization-validation"
+name = "optimization-unit-semantics"
 version = "0.1.0"
 dependencies = [
  "abstract-operations",
@@ -1324,7 +1324,6 @@ dependencies = [
  "terminal-psi",
  "terminal-psi-to-abstract-operations",
  "terminal-semantics",
- "terminal-verifier",
  "tokens-to-syntax-trees",
  "typed-trees-to-checked-trees",
 ]
@@ -2036,7 +2035,7 @@ dependencies = [
  "legalized-operations",
  "optimization-core",
  "optimization-unit",
- "optimization-validation",
+ "optimization-unit-semantics",
  "register-environment",
  "register-model",
  "selected-instructions",
@@ -2122,7 +2121,7 @@ dependencies = [
  "checked-trees-to-terminal-psi",
  "installation-evidence",
  "optimization-unit",
- "optimization-validation",
+ "optimization-unit-semantics",
  "proof-admission",
  "semantic-vocabulary",
  "source-files-to-tokens",

@@ -289,7 +289,7 @@ fn exact_cast_rule_uses_unary_evidence_and_target_integer_semantics() {
     assert_ne!(binary_witness.identity(), candidates[0].identity());
     assert!(matches!(
         validate_integer_evaluation_candidate(&unit, &binary_witness),
-        Err(optimization_validation::OptimizationUnitValidationError::CandidateOperandFactMismatch)
+        Err(optimization_unit_semantics::OptimizationUnitValidationError::CandidateOperandFactMismatch)
     ));
 }
 

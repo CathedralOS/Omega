@@ -1,7 +1,9 @@
 //! Immutable optimization-unit aggregate and its exact carrier-family map.
 
 mod attachment;
+mod cycles;
 mod graph;
+mod manifest;
 mod ownership;
 mod proof;
 mod range;
@@ -9,7 +11,9 @@ mod range;
 use super::*;
 
 pub use attachment::*;
+pub use cycles::*;
 pub use graph::*;
+pub use manifest::*;
 pub use ownership::*;
 pub use proof::*;
 pub use range::*;

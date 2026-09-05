@@ -1,7 +1,7 @@
 //! Exact contract, relabelling, cost, and validator custody for all 12 proof-check rows.
 
 use optimization_core::{AnalysisInvalidationSet, AnalysisSet};
-use optimization_validation::validate_psi_rewrite_candidate;
+use optimization_unit_semantics::validate_psi_rewrite_candidate;
 
 use super::*;
 

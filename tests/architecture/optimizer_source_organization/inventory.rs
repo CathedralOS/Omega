@@ -39,7 +39,7 @@ const GOVERNED_ROOTS: &[&str] = &[
     "omega-rust/omega/backend/machine-emission/src/frame_protocol",
     "omega-rust/omega/representations/physical-instructions/src/physical_instructions/costs",
     "tests/native-differential/tests/abstract_publication",
-    "omega-rust/omega/pipeline/optimization-validation",
+    "omega-rust/omega/semantics/optimization-unit-semantics",
     "omega-rust/omega/pipeline/terminal-psi-to-abstract-operations",
     "omega-rust/omega/pipeline/post-allocation-machine-to-post-allocation-machine",
     "omega-rust/omega/backend/machine-emission/src/frame_layout",

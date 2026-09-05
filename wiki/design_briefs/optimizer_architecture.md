@@ -648,7 +648,6 @@ omega-rust/omega/
     abstract-operations-to-abstract-operations/
                                       # post-Terminal abstract-operation analyses and rewrites
     post-allocation-machine-to-post-allocation-machine/        # post-allocation symbolic-machine optimization stage
-    optimization-validation/  # independent optimization-unit validation
     selected-instructions-to-register-homes/                 # physical analyses, allocation, recovery rules
     terminal-psi-to-abstract-operations/
                                       # artifact, optimizer-unit, provider, and lowering entrances
@@ -658,8 +657,10 @@ omega-rust/omega/
                                       # temporary compatibility assignment families
     target-operations-to-selected-instructions/
                                       # legalization and selection stage entrances
-    native-realization/
-                                      # settlement, realization, providers, wrapper encoding/object
+  semantics/
+    optimization-unit-semantics/ # independent unit/rewrite checks; no production-stage dependency
+  compiler/
+    native-realization/        # settlement, realization, providers, wrapper encoding/object
   tooling/
     optimization-policy-offline/ # corpus admission, source splits, reference training/evaluation
 ```

@@ -650,3 +650,17 @@ fn operation_result_return_rejects_sibling_and_partial_predecessor_producers() {
         )
     );
 }
+
+#[test]
+fn stale_stored_content_identity_is_rejected_before_structural_validation() {
+    let mut stale = unit();
+    stale.functions[0].blocks[0].nodes[0].effect.output += 1;
+    let recomputed = recompute_psi_optimization_unit_identity(&stale);
+    assert!(matches!(
+        validate_psi_optimization_unit(&stale),
+        Err(OptimizationUnitValidationError::ContentIdentityMismatch {
+            stored,
+            recomputed: actual,
+        }) if stored == stale.identity && actual == recomputed
+    ));
+}

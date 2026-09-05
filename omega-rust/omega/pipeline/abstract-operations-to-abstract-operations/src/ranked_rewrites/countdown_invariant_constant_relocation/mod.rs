@@ -4,13 +4,13 @@ use optimization_core::{
     OptimizationCandidateIdentity, OptimizationRuleIdentity, OptimizationUnitIdentity,
     OptimizationValidatorIdentity,
 };
+use optimization_unit::CycleComponentId;
 use optimization_unit::{
     EffectLink, NodeLocation, OptimizationFact, OptimizationNode, ProvenanceDisposition,
     ProvenanceRewrite, PsiOptimizationFunction, PsiOptimizationUnit, PsiProvenance,
     PsiRealizationSite, PsiTransformationLedger, PsiTransformationRecord, ValueDefinitionSite,
     recompute_psi_optimization_unit_identity,
 };
-use optimization_validation::CycleComponentId;
 use semantic_vocabulary::{BlockId, MachineId, OperationId};
 
 use crate::{

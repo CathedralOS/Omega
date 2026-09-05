@@ -6,9 +6,9 @@ use optimization_unit::{
     EffectLink, FuelSettlement, NodeLocation, PsiOptimizationFunction, PsiOptimizationUnit,
     PsiProvenance, ValueDefinition, ValueDefinitionSite, recompute_psi_optimization_unit_identity,
 };
-use optimization_validation::{
-    OptimizerUnsignedCountdownRankingCertificate, ValidatedOptimizerCycleComponents,
-};
+
+use crate::validation::ValidatedOptimizerCycleComponents;
+use optimization_unit::OptimizerUnsignedCountdownRankingCertificate;
 use semantic_vocabulary::{
     BlockId, IntegerType, IntegerValue, MachineId, OperationId, ScalarType, ValueId,
 };
