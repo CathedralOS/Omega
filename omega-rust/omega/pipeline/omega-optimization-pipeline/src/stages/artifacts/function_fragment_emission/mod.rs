@@ -7,6 +7,8 @@ mod manifest;
 mod model;
 mod replay;
 mod source;
+mod statistics;
+mod validation;
 
 pub use error::{FunctionFragmentEmissionError, FunctionFragmentEmissionManifestDecodeError};
 pub use model::{
@@ -43,16 +45,12 @@ pub fn validate_optimized_function_fragment_emission(
     staged: &StagedOptimizedFunctionFragmentEmission,
 ) -> Result<StagedFunctionFragmentEmissionCustodyReceipt, FunctionFragmentEmissionError> {
     validate_source(&staged.source)?;
-    let (expected_fragments, expected_manifest) = compute(&staged.source)?;
-    if staged.fragments.recomputed_identity() != staged.fragments.identity
-        || staged.fragments != expected_fragments
-    {
-        return Err(FunctionFragmentEmissionError::ArtifactMismatch);
-    }
-    if staged.manifest != expected_manifest {
-        return Err(FunctionFragmentEmissionError::ManifestMismatch);
-    }
-    let expected = receipt(&expected_manifest, &expected_fragments);
+    omega_machine_emission::validate_resolved_function_fragments(
+        staged.source.program(),
+        &staged.fragments,
+    )?;
+    validation::manifest(staged)?;
+    let expected = receipt(&staged.manifest, &staged.fragments);
     if staged.custody != expected {
         return Err(FunctionFragmentEmissionError::ReceiptMismatch);
     }

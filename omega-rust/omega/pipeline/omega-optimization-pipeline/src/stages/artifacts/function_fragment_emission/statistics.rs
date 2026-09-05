@@ -1,6 +1,6 @@
 use omega_machine_code::{FunctionFragmentControlProvenance, FunctionFragmentEmissionPlan};
 
-use super::super::{FunctionFragmentEmissionError, FunctionFragmentEmissionStatistics};
+use super::{FunctionFragmentEmissionError, FunctionFragmentEmissionStatistics};
 
 pub(super) fn compute(
     fragments: &FunctionFragmentEmissionPlan,

@@ -230,8 +230,9 @@ Replay first validates its historical inputs, then compares complete current
 artifacts and admission facts, not only rehashable IDs. Raw artifacts remain
 usable as data after the producer is dropped, without granting publication
 authority. Layout construction and explicit relaxation now have a transform
-owner outside the coordinator; exit admission lives in the machine-emission
-backend. Fragment and artifact emission still need their proper owners.
+owner outside the coordinator; exit admission and resolved-fragment projection
+live in the machine-emission backend. Fragment publication metadata, placement,
+and artifact emission still need their proper owners.
 Separating data from replay does not complete C.
 
 Acceptance: downstream allocation, layout, and emission APIs consume current
@@ -287,7 +288,8 @@ publication and resumed lowering by a separate authority remain supported.
 
 ### C. The coordinator and stage granularity still have misplaced owners
 
-`omega-optimization-pipeline` contains realization and artifact production,
+`omega-optimization-pipeline` contains realization, fragment publication metadata,
+placement, and artifact production,
 and broad stage re-exports in addition to coordination. It is not yet a thin
 sequence of phase calls. `omega-regalloc`, `omega-machine-optimizer`,
 `omega-optimization-policy`, and `omega-optimization-validation` mix or expose
@@ -319,8 +321,20 @@ effects. It does not invoke the contract, return-record, or structural-record
 producers. Target catalogs and effect predicates remain shared semantic
 primitives; source-to-record assembly and record admission remain separate.
 All five admission entrances preserve their explicit baseline, frame, relaxation,
-or machine-rewrite inputs. This does not complete the remaining fragment and
-artifact emission migration or the outer ordinary/optimized convergence.
+or machine-rewrite inputs. This does not complete the remaining artifact
+migration or the outer ordinary/optimized convergence.
+
+Resolved-fragment construction and direct projection checking also belong to
+`omega-machine-emission`. They consume the current `ResolvedMachineProgram`,
+not a historical realization wrapper. Replay checks exact function/block/span
+rosters, bytes, selected provenance, successor bindings and fuel, and
+row-to-function fixup coordinates without calling the emitter. Raw projection
+is available after the producer is dropped, but grants no publication authority.
+The coordinator still replays the seven admitted source roles before calling
+the backend, checks manifest fields directly, and binds publication custody.
+It no longer owns instruction-byte assembly or regenerates fragments during
+replay. Manifest data/codec ownership, placement, and final artifact emission
+remain to be separated; the narrow backend projection is not all of C.
 
 The machine-code representation supplies `machine_code.rs` as its
 program root, with functions, calls, storage, control flow, ownership, boundary,

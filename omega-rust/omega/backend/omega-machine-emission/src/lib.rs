@@ -5,6 +5,11 @@
 
 mod exit_contract;
 pub use exit_contract::*;
+mod fragments;
+pub use fragments::{
+    ResolvedFragmentEmissionError, emit_resolved_function_fragments,
+    validate_resolved_function_fragments,
+};
 
 #[cfg(test)]
 use omega_assigned_target_operations::AssignedBooleanControl;
