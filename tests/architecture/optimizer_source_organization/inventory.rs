@@ -12,6 +12,7 @@ use crate::Audit;
 const GOVERNED_ROOTS: &[&str] = &[
     "omega-rust/omega/backend/omega-machine-emission/src/exit_contract",
     "omega-rust/omega/backend/omega-machine-emission/src/fragments",
+    "omega-rust/omega/backend/omega-machine-emission/src/frame_application",
     "omega-rust/psi/pipeline/psi-checked-trees-to-terminal/src/preterminal_optimization",
     "omega-rust/psi/representations/psi-optimization/src",
     "omega-rust/omega/backend/plans/omega-program-entry-plan/src/optimized_semantic_entry",

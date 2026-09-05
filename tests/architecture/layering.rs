@@ -5070,10 +5070,17 @@ fn frame_application_validation_cannot_reenter_its_producer() {
         entrance.contains("validation::validate(staged)"),
         "frame application must send candidate artifacts into independent validation",
     );
+    let backend =
+        root.join("omega-rust/omega/backend/omega-machine-emission/src/frame_application");
+    let source_admission = std::fs::read_to_string(stage.join("validation.rs")).unwrap();
+    assert!(source_admission.contains("validate_optimized_function_fragment_emission"));
+    assert!(
+        source_admission.contains("omega_machine_emission::validate_frame_protocol_application")
+    );
     let validation = ["validation.rs", "validation_branch.rs"]
         .into_iter()
         .map(|leaf| {
-            std::fs::read_to_string(stage.join(leaf))
+            std::fs::read_to_string(backend.join(leaf))
                 .unwrap_or_else(|error| panic!("failed to read {leaf}: {error}"))
         })
         .collect::<Vec<_>>()

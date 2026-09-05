@@ -131,6 +131,112 @@ fn frame_application_rejects_a_non_fixed_fragment_source() {
     ));
 }
 
+#[test]
+fn frame_application_data_outlives_its_producer_and_replay_rejects_rehashed_changes() {
+    type Mutation = fn(&mut omega_machine_code::FunctionFragmentFrameApplication);
+    let mutations: [(&str, Mutation); 13] = [
+        ("source manifest", |value| {
+            value.source_fragment_manifest =
+                omega_optimization_core::FunctionFragmentEmissionManifestIdentity::from_bytes(
+                    [0x61; 32],
+                )
+        }),
+        ("source fragments", |value| {
+            value.source_fragments =
+                omega_optimization_core::FunctionFragmentEmissionIdentity::from_bytes([0x62; 32])
+        }),
+        ("protocol", |value| {
+            value.frame_protocol = TargetFrameProtocolEncodingIdentity::from_bytes([0x63; 32])
+        }),
+        ("missing function", |value| value.functions.clear()),
+        ("duplicate function", |value| {
+            value.functions.push(value.functions[0].clone())
+        }),
+        ("prologue offset", |value| {
+            value.functions[0].prologue_function_offset += 1
+        }),
+        ("prologue extent", |value| {
+            value.functions[0].prologue_byte_count += 1
+        }),
+        ("epilogue offset", |value| {
+            value.functions[0].epilogues[0].function_offset += 1
+        }),
+        ("return edge", |value| {
+            value.functions[0].epilogues[0].psi_return_edge =
+                psi_core::EdgeId::new(u64::MAX).unwrap()
+        }),
+        ("missing epilogue", |value| {
+            value.functions[0].epilogues.pop();
+        }),
+        ("prologue bytes", |value| {
+            value.fragments.functions[0].bytes[0] ^= 1
+        }),
+        ("instruction offset", |value| {
+            value.fragments.functions[0].blocks[0].instructions[0].offset += 1
+        }),
+        ("missing block", |value| {
+            value.fragments.functions[0].blocks.pop();
+        }),
+    ];
+    for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
+        let (applied, ..) = staged_application(target);
+        let original = applied.shared_application();
+        assert!(std::ptr::eq(original.as_ref(), applied.application()));
+        let source = applied.source().fragments().clone();
+        let source_manifest = applied.source().manifest().record().identity;
+        let protocol = applied
+            .source()
+            .source()
+            .frame_protocol()
+            .unwrap()
+            .plan()
+            .clone();
+        let physical = applied
+            .source()
+            .source()
+            .register_environment()
+            .physical()
+            .clone();
+        drop(applied);
+        assert_eq!(
+            omega_machine_emission::apply_frame_protocol_to_fragments(
+                &source,
+                source_manifest,
+                &protocol,
+                &physical
+            )
+            .unwrap(),
+            *original
+        );
+        for (name, mutate) in mutations {
+            let mut changed = (*original).clone();
+            mutate(&mut changed);
+            changed.fragments.identity = changed.fragments.recomputed_identity();
+            changed.identity = changed.recomputed_identity();
+            assert_ne!(changed.identity, original.identity, "{name}");
+            assert_eq!(
+                omega_machine_emission::validate_frame_protocol_application(
+                    &source,
+                    source_manifest,
+                    &protocol,
+                    &physical,
+                    &changed
+                ),
+                Err(omega_machine_emission::FrameApplicationError::ArtifactMismatch),
+                "{target:?}: {name}"
+            );
+        }
+        omega_machine_emission::validate_frame_protocol_application(
+            &source,
+            source_manifest,
+            &protocol,
+            &physical,
+            &original,
+        )
+        .unwrap();
+    }
+}
+
 fn staged_application(
     target: NativeTarget,
 ) -> (

@@ -110,6 +110,10 @@ pub(crate) const ENTRANCES: &[RequiredCoordinationEntrance] = &[
         coordination_marker: "emit_resolved_function_fragments",
     },
     RequiredCoordinationEntrance {
+        path: "omega-rust/omega/backend/omega-machine-emission/src/frame_application/mod.rs",
+        coordination_marker: "apply_frame_protocol_to_fragments",
+    },
+    RequiredCoordinationEntrance {
         path: "omega-rust/omega/backend/omega-machine-emission/src/fragments/validation/mod.rs",
         coordination_marker: "pub(super) fn check",
     },

@@ -5,6 +5,10 @@
 
 mod exit_contract;
 pub use exit_contract::*;
+mod frame_application;
+pub use frame_application::{
+    FrameApplicationError, apply_frame_protocol_to_fragments, validate_frame_protocol_application,
+};
 mod fragments;
 pub use fragments::{
     ResolvedFragmentEmissionError, emit_resolved_function_fragments,

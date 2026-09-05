@@ -39,3 +39,25 @@ impl std::fmt::Display for FunctionFragmentFrameApplicationError {
 }
 
 impl std::error::Error for FunctionFragmentFrameApplicationError {}
+
+impl From<omega_machine_emission::FrameApplicationError> for FunctionFragmentFrameApplicationError {
+    fn from(error: omega_machine_emission::FrameApplicationError) -> Self {
+        use omega_machine_emission::FrameApplicationError as Source;
+        match error {
+            Source::RootMismatch => Self::RootMismatch,
+            Source::FunctionRosterMismatch => Self::FunctionRosterMismatch,
+            Source::MissingFunction(value) => Self::MissingFunction(value),
+            Source::InvalidProtocolSpan(value) => Self::InvalidProtocolSpan(value),
+            Source::UnsupportedFramedControl(value) => Self::UnsupportedFramedControl(value),
+            Source::MissingFinalReturn(value) => Self::MissingFinalReturn(value),
+            Source::SourceShapeMismatch(value) => Self::SourceShapeMismatch(value),
+            Source::MissingTargetBlock(value) => Self::MissingTargetBlock(value),
+            Source::BranchFallthroughMismatch(value) => Self::BranchFallthroughMismatch(value),
+            Source::BranchEffectsMismatch(value) => Self::BranchEffectsMismatch(value),
+            Source::X86_64Branch(instruction, error) => Self::X86_64Branch(instruction, error),
+            Source::Aarch64Branch(instruction, error) => Self::Aarch64Branch(instruction, error),
+            Source::OffsetOverflow => Self::OffsetOverflow,
+            Source::ArtifactMismatch => Self::ArtifactMismatch,
+        }
+    }
+}
