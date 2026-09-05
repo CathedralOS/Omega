@@ -11,6 +11,8 @@ use terminal_interpreter::{
 use tokens_to_syntax_trees::parse_syntax_trees;
 use typed_trees_to_checked_trees::lower_typed_trees;
 
+#[path = "scalar_return_calls_source/call_result_bounds.rs"]
+mod call_result_bounds;
 #[path = "scalar_return_calls_source/integer_computations.rs"]
 mod integer_computations;
 

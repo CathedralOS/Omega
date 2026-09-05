@@ -11,6 +11,7 @@ fn guarded_division_obligation_retains_its_selected_arm_facts() {
         &prepared.states,
         prepared.result_type,
         prepared.contract_value,
+        prepared.result_predicate,
         prepared.crash_routes,
         prepared.identity_reshuffles,
         prepared.partition_compositions,

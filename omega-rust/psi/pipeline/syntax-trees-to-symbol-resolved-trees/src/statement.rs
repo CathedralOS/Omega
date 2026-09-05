@@ -276,11 +276,16 @@ fn lower_statement_node(
         }
         syntax::statement::StatementNode::Transition(transition) => {
             let mut hoisted = Vec::new();
+            let unconditional = matches!(
+                transition.guard,
+                syntax::statement::TransitionGuardNode::Always
+            );
             let mut target = lower_transition_target_node(
                 lowerer,
                 syntax_trees,
                 transition.target,
                 &mut hoisted,
+                unconditional,
             )?;
             // A free or direct-self value-machine call as the TERMINAL value
             // of an ALWAYS-guard arm (`transition { _ -> (self.sin(x + k)) }`) hoists
@@ -318,6 +323,7 @@ fn lower_statement_node(
                     syntax_trees,
                     transition.continuation,
                     &mut hoisted,
+                    unconditional,
                 )?;
                 if matches!(
                     transition.guard,
@@ -504,7 +510,14 @@ fn rewrite_children(
     match node {
         ExpressionNode::Binary(binary) => {
             let left = hoist_child(lowerer, binary.left, hoisted, hoist_builtin_calls);
-            let right = hoist_child(lowerer, binary.right, hoisted, hoist_builtin_calls);
+            // A selective RHS is not part of the enclosing statement's eager
+            // evaluation. Its calls and reads must remain behind selection;
+            // checked computation planning materializes supported operands there.
+            let right = if matches!(binary.operator, BinaryOperator::And | BinaryOperator::Or) {
+                binary.right
+            } else {
+                hoist_child(lowerer, binary.right, hoisted, hoist_builtin_calls)
+            };
             set_expression(
                 lowerer,
                 expression,
@@ -2037,6 +2050,7 @@ fn lower_transition_target_node(
     syntax_trees: &SyntaxTrees,
     target: syntax::statement::TransitionTargetHandle,
     hoisted: &mut Vec<Statement>,
+    unconditional: bool,
 ) -> Result<TransitionTarget, Diagnostic> {
     match syntax_trees.statements.transition_target(target) {
         syntax::statement::TransitionTargetNode::Named {
@@ -2054,9 +2068,9 @@ fn lower_transition_target_node(
             // Hoist each argument's operand-position indexed reads into
             // `let __hoist_N` temps (the root is left whole: a BARE indexed
             // arg already delivers through the frame-slot arm). The hoisted
-            // reads are pure loads, so evaluating them before the guard --
-            // even for a not-taken arm -- has no observable effect.
-            for offset in 0..arguments.count() {
+            // reads and calls must not escape a selected arm. Guarded targets
+            // retain their operands for arm-local normalization and checking.
+            for offset in 0..if unconditional { arguments.count() } else { 0 } {
                 let argument = lowerer
                     .symbol_resolved_trees
                     .tables
@@ -2092,8 +2106,12 @@ fn lower_transition_target_node(
         }
         syntax::statement::TransitionTargetNode::Value(expression) => {
             let expression = lower_statement_expression(lowerer, syntax_trees, *expression)?;
-            // Same hoist for a VALUE result (`-> (arr[i] + 5)`).
-            let expression = hoist_operand_indexed_reads(lowerer, expression, hoisted, false);
+            // Same hoist for an unconditional VALUE result (`-> (arr[i] + 5)`).
+            let expression = if unconditional {
+                hoist_operand_indexed_reads(lowerer, expression, hoisted, false)
+            } else {
+                expression
+            };
             Ok(TransitionTarget::Value(expression))
         }
         syntax::statement::TransitionTargetNode::SelfTarget => Ok(TransitionTarget::SelfTarget),

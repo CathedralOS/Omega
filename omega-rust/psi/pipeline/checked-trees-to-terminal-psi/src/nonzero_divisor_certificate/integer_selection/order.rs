@@ -5,8 +5,17 @@ use semantic_vocabulary::Proposition;
 
 use super::super::integer_evidence::cited_facts;
 
+mod aliases;
 mod closed;
 mod transitive;
+
+pub(super) fn prove_aliased_integer_bound(
+    goal: &Proposition,
+    assumptions: &[Proposition],
+    semantic_axioms: &[Proposition],
+) -> Option<ProofNode> {
+    aliases::prove(goal, assumptions, semantic_axioms)
+}
 
 pub(super) fn prove_two_fact_transitive_integer_bound(
     goal: &Proposition,

@@ -1902,7 +1902,7 @@ fn checked_boolean_scalar_term(
     })
 }
 
-fn checked_scalar_term(
+pub(super) fn checked_scalar_term(
     expression: &CheckedScalarExpression,
     values: &[ValueDeclaration],
 ) -> Result<ScalarTerm, LoweringError> {

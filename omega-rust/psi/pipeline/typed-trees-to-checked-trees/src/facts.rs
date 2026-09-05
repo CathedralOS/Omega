@@ -17,6 +17,8 @@ use typed_trees::TypedTrees;
 mod carry;
 mod crash_calls;
 mod index_compatibility;
+#[cfg(test)]
+mod scalar_contract_tests;
 
 pub(crate) use crash_calls::{infer_checked_crash_causes, infer_checked_machine_crash_causes};
 
@@ -981,7 +983,8 @@ fn build_contract_plans(
             false,
         ));
         canonical_facts.sort();
-        let closed_scalar_values = build_closed_scalar_value_contract_plan(program, machine);
+        let closed_scalar_values =
+            build_closed_scalar_value_contract_plan(program, machine, operators);
         let identity = checked_trees::contract_identity(
             machine.supply_mode,
             &published_service_names,
@@ -1174,6 +1177,7 @@ fn build_mutation_facts(program: &TypedTrees) -> checked_trees::MutationFacts {
 fn build_closed_scalar_value_contract_plan(
     program: &TypedTrees,
     machine: &typed_trees::machine::Machine,
+    operators: &checked_trees::CheckedOperatorFacts,
 ) -> checked_trees::ClosedScalarValueContractPlan {
     use typed_trees::{
         domain::ProofFact,
@@ -1181,16 +1185,60 @@ fn build_closed_scalar_value_contract_plan(
         signature::SignatureContractKind,
     };
 
+    let boolean_type =
+        program
+            .type_reference_table
+            .named_references()
+            .find_map(|(type_reference, symbol, _)| {
+                (program.symbols.builtin_type_atom(symbol) == Some(symbols::BuiltinTypeAtom::Bool))
+                    .then_some(type_reference)
+            });
+
     let lower_clause = |contract: &typed_trees::signature::SignatureContract| {
         let [ProofFact::Expression(expression)] = program.proof_facts.span_or_empty(contract.facts)
         else {
             return None;
         };
+        if contract.kind == SignatureContractKind::Ensures
+            && let Some(predicate) = crate::values::lower_integer_result_predicate(
+                program,
+                operators,
+                machine,
+                *expression,
+            )
+        {
+            return Some(checked_trees::ClosedScalarContractValue::ResultPredicate(
+                predicate,
+            ));
+        }
         let ExpressionNode::Binary(binary) = program.expression_table.expression(*expression)
         else {
             return None;
         };
         if binary.operator != BinaryOperator::Equal {
+            return None;
+        }
+        // Boolean literals have one exact builtin carrier. Integer literals
+        // retain wildcard typing rather than guessing a contextual landing.
+        let operand_types = [binary.left, binary.right].map(|operand| {
+            matches!(
+                program.expression_table.expression(operand),
+                ExpressionNode::Boolean(_)
+            )
+            .then_some(boolean_type)
+            .flatten()
+        });
+        if operators.uses.iter().any(|(_, operator)| {
+            operator.expression == *expression
+                && operator.status
+                    != checked_trees::CheckedOperatorResolutionStatus::BuiltinFallback
+        }) || !typed_trees::operator::has_builtin_spelled_expression_meaning(
+            program,
+            machine.symbol,
+            *expression,
+            language_core::OperatorSpelling::Equal,
+            &operand_types,
+        ) {
             return None;
         }
         match (

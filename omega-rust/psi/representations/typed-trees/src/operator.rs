@@ -591,6 +591,42 @@ pub fn resolve_spelling_for_operands<'program>(
         .collect()
 }
 
+/// Admit builtin expression meaning only when neither declared nor selected
+/// trait meanings apply and every authored occurrence retains builtin custody.
+/// Unknown operand types stay wildcard candidates; absence of a later checked
+/// operator row is not independently evidence of builtin meaning.
+pub fn has_builtin_spelled_expression_meaning(
+    program: &TypedTrees,
+    machine_symbol: SymbolHandle,
+    expression: crate::expression::ExpressionHandle,
+    spelling: OperatorSpelling,
+    operand_types: &[Option<TypeReferenceHandle>],
+) -> bool {
+    use language_semantics::declaration_selection::{
+        AuthoredDeclarationSelectionIntrinsic as Intrinsic,
+        AuthoredDeclarationSelectionLateBinding as LateBinding,
+        AuthoredDeclarationSelectionTarget as Target,
+    };
+    resolve_spelling_for_operands(program, spelling, operand_types).is_empty()
+        && selected_trait_operator_meanings(program, machine_symbol, spelling, operand_types)
+            .is_empty()
+        && program
+            .expression_table
+            .authored_selection_occurrences(expression)
+            .all(|occurrence| {
+                program
+                    .authored_declaration_selections()
+                    .get(occurrence)
+                    .is_some_and(|selection| {
+                        matches!(
+                            selection.target(),
+                            Target::Intrinsic(Intrinsic::BuiltinOperator)
+                                | Target::LateBound(LateBinding::CheckedOperator)
+                        )
+                    })
+            })
+}
+
 fn operator_matches_operands(
     program: &TypedTrees,
     operator: &OperatorDefinition,

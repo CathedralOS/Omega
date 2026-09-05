@@ -160,6 +160,7 @@ pub(super) fn lower_scalar_graph_machine(
         &prepared.states,
         prepared.result_type,
         prepared.contract_value,
+        prepared.result_predicate,
         prepared.crash_routes,
         prepared.identity_reshuffles,
         prepared.partition_compositions,
@@ -187,6 +188,7 @@ pub(super) fn lower_selected_scalar_graph_machine(
         &prepared.states,
         prepared.result_type,
         prepared.contract_value,
+        prepared.result_predicate,
         prepared.crash_routes,
         prepared.identity_reshuffles,
         prepared.partition_compositions,
@@ -595,11 +597,22 @@ fn prepare_scalar_graph_machine_with_contract_mode(
         }
         None
     };
+    let result_predicate = if contract_value.is_some() {
+        match closed_scalar_contract_plan(checked, machine)?.ensures() {
+            [Some(ClosedScalarContractValue::ResultPredicate(predicate))] => {
+                Some(predicate.clone())
+            }
+            _ => None,
+        }
+    } else {
+        None
+    };
     Ok(PreparedScalarMachine {
         source_machine: machine,
         states: lowered_states,
         result_type,
         contract_value,
+        result_predicate,
         crash_routes: lower_checked_crash_routes(checked, machine)?,
         identity_reshuffles,
         partition_compositions,
@@ -1569,6 +1582,19 @@ fn validate_closed_scalar_contract(
         || (!allow_crash_contracts && contract.has_crash_clauses())
     {
         return unsupported("machine must have exactly one requires and one ensures clause");
+    }
+    if let ClosedScalarContractValue::ResultPredicate(_) = ensures {
+        return match (result_type, requires) {
+            (ScalarType::Integer(_), ClosedScalarContractValue::Integer(literal)) => {
+                // The requirement is a tautology, not the returned value. The
+                // actual result predicate is proved from every emitted return.
+                Ok(KnownDirectScalar::Integer(integer_value(
+                    literal,
+                    result_type,
+                )?))
+            }
+            _ => unsupported("result predicate requires a matching closed integer requirement"),
+        };
     }
     let (requires, ensures) = match (result_type, requires, ensures) {
         (

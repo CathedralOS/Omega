@@ -86,9 +86,30 @@ fn prove_math_relation(
         )?,
         _ => return None,
     };
-    (lift_fixed_integer_relation(&scalar_goal).as_ref() == Some(goal)).then(|| ProofNode {
+    if lift_fixed_integer_relation(&scalar_goal).as_ref() != Some(goal) {
+        return None;
+    }
+    // A conjunction projection must conclude its exact selected scalar
+    // conjunct. Preserve that proof and use the existing order rule's typed
+    // mathematical normalization, rather than changing the projection itself.
+    let rule = if matches!(scalar_proof.rule, ProofRule::ConjunctionElimination { .. }) {
+        let Proposition::LessOrEqual(left, _) = scalar_goal else {
+            return None;
+        };
+        ProofRule::IntegerLessOrEqualSubstitution {
+            relation: Box::new(scalar_proof),
+            equality: Box::new(ProofNode {
+                conclusion: Proposition::Equal(left.clone(), left),
+                rule: ProofRule::Primitive(PrimitiveJudgment::ReflexiveEquality),
+            }),
+            endpoint: 0,
+        }
+    } else {
+        scalar_proof.rule
+    };
+    Some(ProofNode {
         conclusion: goal.clone(),
-        rule: scalar_proof.rule,
+        rule,
     })
 }
 fn prove_direct_subtract_relation(

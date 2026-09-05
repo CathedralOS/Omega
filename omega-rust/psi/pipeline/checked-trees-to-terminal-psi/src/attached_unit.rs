@@ -2788,6 +2788,7 @@ pub(super) fn lower_attached_unit_closure_including(
             &machine.states,
             machine.result_type,
             machine.contract_value,
+            machine.result_predicate,
             machine.crash_routes,
             machine.identity_reshuffles,
             machine.partition_compositions,

@@ -1,0 +1,15 @@
+machine bounded() -> u16
+requires 7u16 == 7u16
+ensures result >= 7u16 && result < 256u16
+{ 7u16 }
+
+machine value(selected: bool, flag: bool) -> bool
+requires true == true
+ensures true == true
+{
+    transition selected {
+        true -> finish(flag && ((bounded() as u8) == 7u8))
+        false -> finish(false)
+    }
+    state finish(result: bool) -> bool { result }
+}

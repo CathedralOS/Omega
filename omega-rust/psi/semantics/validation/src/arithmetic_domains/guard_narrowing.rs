@@ -152,9 +152,27 @@ fn bound_from(
     literal: i64,
     name_on_left: bool,
 ) -> (String, Option<i64>, Option<i64>) {
+    let interval = comparison_interval(
+        operator,
+        Interval {
+            low: Some(literal),
+            high: Some(literal),
+        },
+        name_on_left,
+    );
+    (name, interval.low, interval.high)
+}
+
+/// Project a builtin comparison onto its subject using the other operand's
+/// interval. Shared by local guard and modular normal-return range consumers.
+pub(super) fn comparison_interval(
+    operator: BinaryOperator,
+    operand: Interval,
+    subject_on_left: bool,
+) -> Interval {
     // Normalise to `name <OP> literal` by flipping the operator when the name is
     // on the right.
-    let operator = if name_on_left {
+    let operator = if subject_on_left {
         operator
     } else {
         match operator {
@@ -166,14 +184,14 @@ fn bound_from(
         }
     };
     let (low, high) = match operator {
-        BinaryOperator::LessOrEqual => (None, Some(literal)),
-        BinaryOperator::Less => (None, Some(literal.saturating_sub(1))),
-        BinaryOperator::GreaterOrEqual => (Some(literal), None),
-        BinaryOperator::Greater => (Some(literal.saturating_add(1)), None),
-        BinaryOperator::Equal => (Some(literal), Some(literal)),
+        BinaryOperator::LessOrEqual => (None, operand.high),
+        BinaryOperator::Less => (None, operand.high.map(|value| value.saturating_sub(1))),
+        BinaryOperator::GreaterOrEqual => (operand.low, None),
+        BinaryOperator::Greater => (operand.low.map(|value| value.saturating_add(1)), None),
+        BinaryOperator::Equal => (operand.low, operand.high),
         _ => (None, None),
     };
-    (name, low, high)
+    Interval { low, high }
 }
 
 /// The comparison operator whose truth is the LOGICAL NEGATION of `operator`

@@ -19,6 +19,7 @@ use typed_trees::statement::{StatementNode, TransitionGuardNode, TransitionTarge
 use typed_trees::types::{PrimitiveType, TypeReferenceHandle, TypeReferenceNode};
 
 mod reserved_results;
+pub(crate) use reserved_results::reserved_result_owner;
 
 mod calls;
 pub use calls::ValidatedIntegerEmbeddingCall;

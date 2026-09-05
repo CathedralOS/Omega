@@ -2959,6 +2959,10 @@ local, or new Terminal operation is manufactured. Invalid handles, cycles,
 duplicate roots/call occurrences, and mismatched carriers or invocation
 coordinates reject before publication.
 
+Resolver operand preprocessing cannot move indexed reads or cast-wrapped calls
+out of guarded transition targets or selective Boolean right operands. These
+operands remain behind their original selection boundary for checked lowering.
+
 Computed call arguments bind the pinned callee's parameter-relative crash
 routes to the actual argument values, using the same route substitution as
 ordinary staged calls. The checker row still supplies exact target-contract
@@ -2973,10 +2977,24 @@ reverses their evaluation. Widening and occurrence-proved exact casts use the
 same pure templates after evaluating their operand once. Cast range obligations
 must still be reconstructed by independent Terminal verification.
 
+Fixed-integer result/literal postconditions, including conjunctions and
+disjunctions, retain predicates over the actual Terminal machine result.
+Normal-return bounds can discharge nested exact casts. Source validation joins
+the reserved result occurrence to its exact contract owner and admits only
+builtin numeric comparisons; a parameter named `result` is not the returned
+value. Strict integer literal bounds normalize to equivalent inclusive bounds
+only when the adjacent endpoint is representable. Publication reconstructs both
+callee postcondition and caller cast obligations, with certificates over the
+emitted return equations and instantiated call guarantees. A literal tautology
+does not stand in for a result guarantee, and a changed return or weakened
+guarantee cannot reuse its serialized evidence.
+
 Remaining numeric policies and selected operator calls, other expression
 destinations, borrowed/projected operands, and named runtime proof outputs still
-need execution-plan extensions. Nested narrowing that requires callee-result
-postcondition bounds needs additional value-fact transport; a call's carrier
+need execution-plan extensions. Parameter-relative and nonliteral result
+postconditions still need complete evaluated-argument transport into Terminal
+contracts; source interval projection uses only immutable formal declarations
+and builtin required bounds, never a reread of caller storage. A call's carrier
 alone never proves a partial conversion.
 The older flat guarded-argument normalization remains on uncovered paths and
 must be retired as those paths move to checked computation planning; this work
