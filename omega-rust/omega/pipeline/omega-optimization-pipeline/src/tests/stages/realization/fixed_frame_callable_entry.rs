@@ -1,5 +1,61 @@
 use crate::FunctionFragmentReplayInputs;
 use crate::tests::*;
+use omega_regalloc::ValidatedSelectedAnalysis;
+
+#[test]
+fn fixed_frame_retains_original_allocation_and_rejects_current_program_substitution() {
+    for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
+        for replace_selected in [false, true] {
+            let selected = staged_exact_add_conditional(target);
+            let ranges =
+                stage_optimized_live_ranges(stage_optimized_liveness(selected).unwrap()).unwrap();
+            let homes = stage_optimized_register_homes(
+                stage_optimized_allocation_legality(ranges).unwrap(),
+            )
+            .unwrap();
+            let current = homes.replay_allocation().unwrap();
+            let selected_owner = current.selected().shared_selected_plan();
+            let home_owner = current.homes().shared_plan();
+            let mut realization =
+                stage_fixed_frame_function_relative_realization(homes, selected_lowering_budget())
+                    .unwrap();
+            assert!(std::sync::Arc::ptr_eq(
+                &selected_owner,
+                &realization.allocation().program().selected
+            ));
+            assert!(std::sync::Arc::ptr_eq(
+                &home_owner,
+                &realization.allocation().program().homes
+            ));
+            validate_fixed_frame_function_relative_realization(&realization).unwrap();
+            let mut substituted = realization.allocation().program().clone();
+            if replace_selected {
+                std::sync::Arc::make_mut(&mut substituted.selected)
+                    .functions
+                    .clear();
+            } else {
+                std::sync::Arc::make_mut(&mut substituted.homes)
+                    .functions
+                    .clear();
+            }
+            realization
+                .allocation_mut()
+                .substitute_current_program_for_test(substituted);
+            assert!(matches!(
+                validate_fixed_frame_function_relative_realization(&realization),
+                Err(FunctionRelativeOptimizationRealizationError::Allocation(
+                    AllocationReplayError::CurrentProgramMismatch
+                ))
+            ));
+            assert!(
+                stage_optimized_function_fragment_emission(
+                    FunctionFragmentReplayInputs::FixedFrame(Box::new(realization)).into(),
+                )
+                .is_err()
+            );
+        }
+    }
+}
 
 fn staged_fixed_frame_callable(
     target: NativeTarget,

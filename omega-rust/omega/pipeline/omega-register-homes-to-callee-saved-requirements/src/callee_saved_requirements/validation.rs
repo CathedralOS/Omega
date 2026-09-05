@@ -1,4 +1,5 @@
-use crate::{StagedOptimizedRegisterHomes, validate_optimized_register_home_custody};
+use omega_regalloc::ValidatedSelectedAnalysis;
+use omega_selected_instructions_to_register_homes::AllocationSource;
 
 use super::{
     AllocatedCalleeSavedRequirementError, AllocatedCalleeSavedRequirementPlan,
@@ -6,25 +7,16 @@ use super::{
 };
 
 pub fn validate_allocated_callee_saved_requirements(
-    source: &StagedOptimizedRegisterHomes,
+    source: &impl AllocationSource,
     candidate: AllocatedCalleeSavedRequirementPlan,
 ) -> Result<ValidatedAllocatedCalleeSavedRequirements, AllocatedCalleeSavedRequirementError> {
-    let upstream = validate_optimized_register_home_custody(
-        source.legality_stage(),
-        source.homes(),
-        source.post_allocation_manifest(),
-    )
-    .map_err(AllocatedCalleeSavedRequirementError::Upstream)?;
-    let selected_stage = source
-        .legality_stage()
-        .live_range_stage()
-        .liveness_stage()
-        .selected_stage();
-    let environment = selected_stage.register_environment();
-    let manifest = source.post_allocation_manifest().record();
-    if upstream != source.custody()
-        || candidate.selected != selected_stage.selected().receipt().identity()
-        || candidate.homes != source.homes().receipt().identity()
+    let current = source
+        .replay_allocation()
+        .map_err(AllocatedCalleeSavedRequirementError::Upstream)?;
+    let environment = current.register_environment();
+    let manifest = current.post_allocation_manifest().record();
+    if candidate.selected != current.selected().selected_identity()
+        || candidate.homes != current.homes().receipt().identity()
         || candidate.post_allocation_manifest != manifest.identity
         || candidate.register_environment != environment.identity()
         || candidate.physical_register_model != environment.physical().identity()
@@ -32,7 +24,7 @@ pub fn validate_allocated_callee_saved_requirements(
     {
         return Err(AllocatedCalleeSavedRequirementError::RootMismatch);
     }
-    let replayed = replay::reconstruct(source, candidate.policy, candidate.budget)?;
+    let replayed = replay::reconstruct(&current, candidate.policy, candidate.budget)?;
     if candidate.usage != replayed.usage {
         return Err(AllocatedCalleeSavedRequirementError::UsageMismatch);
     }

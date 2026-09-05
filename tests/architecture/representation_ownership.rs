@@ -522,6 +522,7 @@ fn allocation_has_one_phase_owner_and_machine_consumers_ignore_history() {
     for consumer in [
         "omega-register-homes-to-post-allocation-machine",
         "omega-post-allocation-machine-to-optimized-machine",
+        "omega-register-homes-to-callee-saved-requirements",
     ] {
         let source = rust_source(&pipeline.join(consumer).join("src"));
         assert!(
@@ -538,6 +539,31 @@ fn allocation_has_one_phase_owner_and_machine_consumers_ignore_history() {
             assert!(
                 !source.contains(forbidden),
                 "{consumer} depends on optimizer history: {forbidden}"
+            );
+        }
+    }
+}
+
+#[test]
+fn fixed_frame_consumes_current_allocation_and_retains_baseline_receipt_role() {
+    let root = repository().join("omega-rust/omega/pipeline/omega-optimization-pipeline/src/stages/realization/function_relative_realization");
+    let route = std::fs::read_to_string(root.join("routes/fixed_frame.rs")).unwrap();
+    assert!(route.contains("RetainedAllocation::try_from(homes)"));
+    let compact_route = route.split_whitespace().collect::<String>();
+    assert!(compact_route.contains("staged.allocation.replay_allocation()"));
+    let assembly = std::fs::read_to_string(root.join("assembly/fixed_frame.rs")).unwrap();
+    assert!(assembly.contains("AllocationEvidence::RegisterHomes(source) => Ok(*source)"));
+    for source in [&route, &assembly] {
+        for forbidden in [
+            "legality_stage()",
+            "live_range_stage()",
+            "liveness_stage()",
+            "selected_stage()",
+            "optimized_target()",
+        ] {
+            assert!(
+                !source.contains(forbidden),
+                "fixed-frame current input walks history: {forbidden}"
             );
         }
     }

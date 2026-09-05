@@ -40,32 +40,21 @@ fn baseline_layout(target: NativeTarget) -> StagedFixedFrameFunctionRelativeReal
 fn post_allocation_disabled_baseline_retains_compare_zero_and_nonzero_branch_on_both_isas() {
     for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
         let realization = baseline_layout(target);
-        let homes = realization.homes();
+        let allocation = realization.allocation().current();
         let layout = realization.layout();
-        let selected = homes
-            .legality_stage()
-            .live_range_stage()
-            .liveness_stage()
-            .selected_stage();
         assert_eq!(
-            selected
-                .optimized_target()
-                .optimized()
-                .selections()
-                .as_slice(),
+            allocation.selections().as_slice(),
             [Optimization::CopyPropagation]
         );
         assert!(
-            selected
-                .optimized_target()
-                .optimized()
+            allocation
                 .selections()
                 .for_phase(
                     omega_optimization_core::OptimizationExecutionPhase::PostAllocationMachine
                 )
                 .is_empty()
         );
-        let entry = &selected.selected().plan().functions[0].blocks[0];
+        let entry = &allocation.selected_plan().functions[0].blocks[0];
         assert_eq!(
             entry.instructions[0].kind,
             SelectedInstructionKind::CompareI64Zero

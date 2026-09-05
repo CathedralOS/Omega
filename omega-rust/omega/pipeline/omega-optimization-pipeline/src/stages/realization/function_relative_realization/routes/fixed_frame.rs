@@ -1,27 +1,21 @@
 //! Direct ordinary function-relative realization with exact fixed-frame custody.
 
 use super::super::{assembly::*, carriers::*, error::*, prelude::*};
+use omega_selected_instructions_to_register_homes::{AllocationSource, RetainedAllocation};
 
 pub fn stage_fixed_frame_function_relative_realization(
     homes: StagedOptimizedRegisterHomes,
     budget: OptimizationWorkBudget,
 ) -> Result<StagedFixedFrameFunctionRelativeRealization, FunctionRelativeOptimizationRealizationError>
 {
-    validate_optimized_register_home_custody(
-        homes.legality_stage(),
-        homes.homes(),
-        homes.post_allocation_manifest(),
-    )
-    .map_err(FunctionRelativeOptimizationRealizationError::DirectHomes)?;
-    let machine = stage_optimized_post_allocation_machine_plan(&homes)
+    let allocation = RetainedAllocation::try_from(homes)
+        .map_err(FunctionRelativeOptimizationRealizationError::Allocation)?;
+    let current = allocation.current();
+    let source = fixed_frame_source(&current)?;
+    let machine = stage_optimized_post_allocation_machine_plan(&current)
         .map_err(FunctionRelativeOptimizationRealizationError::PostAllocationMachine)?;
-    let selected_stage = homes
-        .legality_stage()
-        .live_range_stage()
-        .liveness_stage()
-        .selected_stage();
-    let selected = selected_stage.selected();
-    let environment = selected_stage.register_environment();
+    let selected = current.selected();
+    let environment = current.register_environment();
     let physical = environment.physical();
     let encoding =
         stage_optimized_layout_independent_selected_form_encoding(selected, &machine, physical)
@@ -30,7 +24,7 @@ pub fn stage_fixed_frame_function_relative_realization(
         stage_optimized_resolved_selected_form_layout(selected, &machine, physical, &encoding)
             .map_err(FunctionRelativeOptimizationRealizationError::Layout)?;
     let requirements = stage_allocated_callee_saved_requirements(
-        &homes,
+        &current,
         AllocatedCalleeSavedRequirementPolicy::AllocatedSelectedWritesIntersectAbiPreservationV1,
         budget,
     )
@@ -61,7 +55,7 @@ pub fn stage_fixed_frame_function_relative_realization(
     )
     .map_err(FunctionRelativeOptimizationRealizationError::ExitContract)?;
     let manifest = expected_fixed_frame_manifest(
-        &homes,
+        &current,
         &machine,
         &encoding,
         &layout,
@@ -70,7 +64,7 @@ pub fn stage_fixed_frame_function_relative_realization(
         &exit_contract,
     )?;
     let custody = fixed_frame_custody(
-        &homes,
+        source,
         &machine,
         &requirements,
         &storage,
@@ -80,7 +74,7 @@ pub fn stage_fixed_frame_function_relative_realization(
         &manifest,
     );
     let staged = StagedFixedFrameFunctionRelativeRealization {
-        homes,
+        allocation,
         machine,
         encoding,
         layout,
@@ -102,23 +96,16 @@ pub fn validate_fixed_frame_function_relative_realization(
     StagedFixedFrameFunctionRelativeRealizationCustodyReceipt,
     FunctionRelativeOptimizationRealizationError,
 > {
-    let source = validate_optimized_register_home_custody(
-        staged.homes.legality_stage(),
-        staged.homes.homes(),
-        staged.homes.post_allocation_manifest(),
-    )
-    .map_err(FunctionRelativeOptimizationRealizationError::DirectHomes)?;
+    let current = staged
+        .allocation
+        .replay_allocation()
+        .map_err(FunctionRelativeOptimizationRealizationError::Allocation)?;
+    let source = fixed_frame_source(&current)?;
     let machine =
-        validate_optimized_post_allocation_machine_plan_custody(&staged.homes, &staged.machine)
+        validate_optimized_post_allocation_machine_plan_custody(&current, &staged.machine)
             .map_err(FunctionRelativeOptimizationRealizationError::PostAllocationMachine)?;
-    let selected_stage = staged
-        .homes
-        .legality_stage()
-        .live_range_stage()
-        .liveness_stage()
-        .selected_stage();
-    let selected = selected_stage.selected();
-    let environment = selected_stage.register_environment();
+    let selected = current.selected();
+    let environment = current.register_environment();
     let physical = environment.physical();
     validate_optimized_layout_independent_selected_form_encoding(
         selected,
@@ -135,11 +122,9 @@ pub fn validate_fixed_frame_function_relative_realization(
         &staged.layout,
     )
     .map_err(FunctionRelativeOptimizationRealizationError::Layout)?;
-    let requirements = validate_allocated_callee_saved_requirements(
-        &staged.homes,
-        staged.requirements.plan().clone(),
-    )
-    .map_err(FunctionRelativeOptimizationRealizationError::CalleeSavedRequirements)?;
+    let requirements =
+        validate_allocated_callee_saved_requirements(&current, staged.requirements.plan().clone())
+            .map_err(FunctionRelativeOptimizationRealizationError::CalleeSavedRequirements)?;
     let storage = validate_non_authoritative_callee_save_storage(
         &requirements,
         environment,
@@ -172,7 +157,7 @@ pub fn validate_fixed_frame_function_relative_realization(
     )
     .map_err(FunctionRelativeOptimizationRealizationError::ExitContract)?;
     let manifest = expected_fixed_frame_manifest(
-        &staged.homes,
+        &current,
         &staged.machine,
         &staged.encoding,
         &staged.layout,
@@ -181,7 +166,7 @@ pub fn validate_fixed_frame_function_relative_realization(
         &staged.exit_contract,
     )?;
     let custody = fixed_frame_custody(
-        &staged.homes,
+        source,
         &staged.machine,
         &requirements,
         &storage,
@@ -190,7 +175,7 @@ pub fn validate_fixed_frame_function_relative_realization(
         &staged.exit_contract,
         &manifest,
     );
-    if source != staged.homes.custody()
+    if source != staged.custody.source()
         || machine != staged.machine.custody().clone()
         || manifest.record != staged.manifest.record
         || custody != staged.custody

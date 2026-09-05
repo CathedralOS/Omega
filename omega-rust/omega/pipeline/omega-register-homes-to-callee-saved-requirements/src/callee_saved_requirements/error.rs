@@ -5,7 +5,7 @@ use psi_core::MachineId;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum AllocatedCalleeSavedRequirementError {
-    Upstream(crate::OptimizedRegisterHomeCustodyError),
+    Upstream(omega_selected_instructions_to_register_homes::AllocationReplayError),
     RootMismatch,
     UnsupportedPolicy,
     UnsupportedTargetConvention,

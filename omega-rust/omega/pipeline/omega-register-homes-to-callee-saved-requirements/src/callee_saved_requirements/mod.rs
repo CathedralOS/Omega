@@ -1,6 +1,6 @@
 //! Optimizer module role: executable entrance. Allocation-visible ABI preservation requirements.
 //!
-//! This baseline-home boundary reports selected writes intersecting the exact
+//! This current-allocation boundary reports selected writes intersecting the exact
 //! ABI callee-saved roster, then admits them only after independent keyed
 //! replay. It grants no save/restore, frame, unwind, or publication authority.
 
@@ -19,13 +19,16 @@ pub use validation::validate_allocated_callee_saved_requirements;
 
 use omega_optimization_core::OptimizationWorkBudget;
 
-use crate::StagedOptimizedRegisterHomes;
+use omega_selected_instructions_to_register_homes::AllocationSource;
 
 pub fn stage_allocated_callee_saved_requirements(
-    source: &StagedOptimizedRegisterHomes,
+    source: &impl AllocationSource,
     policy: AllocatedCalleeSavedRequirementPolicy,
     budget: OptimizationWorkBudget,
 ) -> Result<ValidatedAllocatedCalleeSavedRequirements, AllocatedCalleeSavedRequirementError> {
-    let plan = compute::derive(source, policy, budget)?;
-    validate_allocated_callee_saved_requirements(source, plan)
+    let current = source
+        .replay_allocation()
+        .map_err(AllocatedCalleeSavedRequirementError::Upstream)?;
+    let plan = compute::derive(&current, policy, budget)?;
+    validate_allocated_callee_saved_requirements(&current, plan)
 }

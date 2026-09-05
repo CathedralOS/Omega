@@ -3,10 +3,23 @@ use super::super::{
     FunctionRelativeOptimizationUnavailableData, carriers::*, error::*, model::*, prelude::*,
 };
 use super::statistics::function_relative_statistics;
+use omega_selected_instructions_to_register_homes::{AllocationEvidence, AllocationOutput};
+
+/// Preserve the fixed-frame receipt's existing baseline source role. This
+/// extracts evidence only; program and environment reads use current data.
+pub(in crate::stages::realization::function_relative_realization) fn fixed_frame_source(
+    allocation: &AllocationOutput<'_>,
+) -> Result<StagedOptimizedRegisterHomeCustodyReceipt, FunctionRelativeOptimizationRealizationError>
+{
+    match allocation.evidence() {
+        AllocationEvidence::RegisterHomes(source) => Ok(*source),
+        _ => Err(FunctionRelativeOptimizationRealizationError::RootMismatch),
+    }
+}
 
 #[allow(clippy::too_many_arguments)]
 pub(in crate::stages::realization::function_relative_realization) fn expected_fixed_frame_manifest(
-    homes: &StagedOptimizedRegisterHomes,
+    allocation: &AllocationOutput<'_>,
     machine: &StagedOptimizedPostAllocationMachinePlan,
     encoding: &StagedOptimizedSelectedFormEncoding,
     layout: &StagedOptimizedResolvedSelectedFormLayout,
@@ -17,21 +30,15 @@ pub(in crate::stages::realization::function_relative_realization) fn expected_fi
     ValidatedFunctionRelativeOptimizationRealizationManifest,
     FunctionRelativeOptimizationRealizationError,
 > {
-    let selected_stage = homes
-        .legality_stage()
-        .live_range_stage()
-        .liveness_stage()
-        .selected_stage();
-    let optimized = selected_stage.optimized_target().optimized();
-    let selections = optimized.selections();
+    let selections = allocation.selections();
     let selected_lowering = selections.for_phase(OptimizationExecutionPhase::SelectedLowering);
     let allocation_recovery = selections.for_phase(OptimizationExecutionPhase::AllocationRecovery);
     let post_allocation = selections.for_phase(OptimizationExecutionPhase::PostAllocationMachine);
     let function_relative =
         selections.for_phase(OptimizationExecutionPhase::FunctionRelativeLayout);
-    let source = homes.custody();
-    let post = homes.post_allocation_manifest().record();
-    let selected = selected_stage.selected().receipt().identity();
+    let source = fixed_frame_source(allocation)?;
+    let post = allocation.post_allocation_manifest().record();
+    let selected = allocation.selected().selected_identity();
     if !selected_lowering.is_empty()
         || !allocation_recovery.is_empty()
         || !post_allocation.is_empty()
@@ -108,7 +115,7 @@ pub(in crate::stages::realization::function_relative_realization) fn expected_fi
 
 #[allow(clippy::too_many_arguments)]
 pub(in crate::stages::realization::function_relative_realization) fn fixed_frame_custody(
-    homes: &StagedOptimizedRegisterHomes,
+    source: StagedOptimizedRegisterHomeCustodyReceipt,
     machine: &StagedOptimizedPostAllocationMachinePlan,
     requirements: &ValidatedAllocatedCalleeSavedRequirements,
     storage: &ValidatedNonAuthoritativeCalleeSaveStorage,
@@ -118,7 +125,7 @@ pub(in crate::stages::realization::function_relative_realization) fn fixed_frame
     manifest: &ValidatedFunctionRelativeOptimizationRealizationManifest,
 ) -> StagedFixedFrameFunctionRelativeRealizationCustodyReceipt {
     StagedFixedFrameFunctionRelativeRealizationCustodyReceipt {
-        source: homes.custody(),
+        source,
         machine: machine.machine().receipt().identity(),
         requirements: requirements.receipt().identity(),
         storage: storage.receipt().identity(),

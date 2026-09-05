@@ -18,8 +18,9 @@ still own algorithms, and empty optimization selections still take different
 routes. Finish those ownership changes before treating folder cleanup as done.
 
 The allocation and fragment-emission boundaries now own current program data
-independently of replay history. Earlier realization producers and the outer
-native entrance still need their ownership and convergence audit. Psi's
+independently of replay history. The native abstract and target entrances also
+separate current data from authority and replay evidence; physical implementation
+selection and earlier realization producers still need convergence. Psi's
 checked and Terminal roots have been organized, but the other representation
 entrances and actual nonempty pre-Terminal optimization remain separate work.
 
@@ -146,6 +147,11 @@ In `omega-rust/omega/pipeline/`:
   `current()` reads the current admitted facts directly; only replay traverses
   earlier allocation stages. Producers share immutable selected/home artifacts
   with that output rather than copying the selected program into a snapshot.
+- Fixed-frame realization retains that allocation output and reads selected
+  instructions, homes, register environment, selections, and manifests from its
+  current facts. Its validator replays the retained allocation first. The
+  fixed-frame receipt remains baseline-specific; current-data ownership does
+  not silently widen the receipt's admitted source roles.
 
 Fragment emission and structural placement select algorithms by program shape,
 not optimization history. Frame application reads the retained current protocol,
@@ -265,6 +271,11 @@ storage assignment, spill/frame requirement derivation, and frame protocol
 construction. Their correctness boundaries need not all be public crate
 boundaries. Consolidation must retain the distinct checks and evidence.
 
+The callee-saved requirement entrance and validator now consume the sealed
+current-allocation boundary. Direct derivation and independent keyed replay
+remain separate algorithms; neither walks allocation stage histories. This
+input correction does not settle whether the substep needs a separate crate.
+
 Next: after current program outputs exist, assign each calculation to the phase
 that consumes it. Move durable data and independent validation to their owners;
 reduce orchestration to sequencing. Only keep separate crates where a stable
@@ -340,6 +351,13 @@ keep rule-specific proof obligations and domain-separated identities explicit.
    producer joins (D). This organization work can proceed alongside A-C.
 5. Complete applicable nonempty pre-Terminal optimization execution (D), with
    the remaining work kept visible until its behavioral controls pass.
+
+The next A boundaries are the Unit and structural-Unit realization producers,
+the selected-lowering and layout-optimization producers, and the identity-route
+coordinator's history reads. Keep B convergence separate: sharing current target
+data has not yet unified the assigned and optimized physical implementations.
+Likewise, extracting an algorithm from the umbrella coordinator must give it a
+real transform owner, not merely another package beside the coordinator.
 
 ## Completion checklist
 
