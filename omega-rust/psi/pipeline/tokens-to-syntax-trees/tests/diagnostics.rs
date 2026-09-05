@@ -20,6 +20,39 @@ fn top_level_item_error_lists_expected_items() {
 }
 
 #[test]
+fn retired_ranking_clauses_report_their_replacements() {
+    for (clause, retired, replacement) in [
+        (
+            "terminates { decreases remaining; }",
+            "`terminates { decreases ...; }` block form is retired",
+            "terminates by",
+        ),
+        (
+            "decreases remaining;",
+            "standalone `decreases` clause is retired",
+            "terminates by",
+        ),
+        (
+            "increases remaining;",
+            "standalone `increases` clause is retired",
+            "Nat::IncreasingTo(<bound>)",
+        ),
+    ] {
+        let message = parse_error_message(&format!("machine walk(remaining: u64) {clause} {{ }}"));
+        assert!(message.contains(retired), "{message}");
+        assert!(message.contains(replacement), "{message}");
+    }
+}
+
+#[test]
+fn increases_remains_an_ordinary_identifier_outside_a_retired_clause() {
+    let tokens = Lexer::new("machine increases(increases: u64) -> u64 { increases }")
+        .tokenize()
+        .expect("tokenize ordinary contextual name");
+    parse_syntax_trees(&tokens).expect("retirement guidance must not reserve an identifier");
+}
+
+#[test]
 fn wire_data_form_reports_retirement() {
     let message = parse_error_message("wire data Save { 1: seed: u64; }");
     assert!(

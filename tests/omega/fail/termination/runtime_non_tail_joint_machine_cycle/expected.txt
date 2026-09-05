@@ -1,1 +1,1 @@
-ranked runtime cycles must be tail-position calls
+non-tail call edge(s)

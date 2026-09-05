@@ -1,1 +1,1 @@
-cannot prove one joint `terminates by` ranking
+strict measure DECREASE is unproven on edge(s)

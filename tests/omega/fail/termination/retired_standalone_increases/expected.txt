@@ -1,1 +1,1 @@
-standalone `decreases`/`increases` clauses are retired
+standalone `increases` clause is retired

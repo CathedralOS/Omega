@@ -181,6 +181,22 @@ the [Rust Compiler Completion Contract](wiki/releases/rust_compiler_completion_c
   candidates through the existing selection owner, not a candidate-presence
   exemption or a second operator resolver.
 
+- **TERMINATION-RANKING-CHECKS.** Complete the documented joint-ranking and
+  rank-range checks in `validation/src/call_cycles.rs` and
+  `typed-trees-to-checked-trees/src/checks/termination/ranking/`.
+  `termination/joint_lexicographic_machine_call_cycle_compile` is rejected by
+  the scalar `m - 1` admission restriction. The negative
+  `termination/rank_range_excludes_floor` hits a blanket nonzero-floor fence,
+  not the promised rank-range proof diagnostic. These are implementation gaps,
+  not grounds to remove the fixtures or weaken their expected behavior.
+
+  Acceptance: the joint lexicographic positive reaches checked trees; stalled
+  joint cycles and runtime non-tail cycles still reject for their respective
+  reasons; rank ranges are checked against the produced rank, accepting proved
+  constraints and rejecting the floor-excluding case as unproved. Preserve the
+  private-witness/public-guarantee split described in chapter 3 and the
+  [termination brief](wiki/design_briefs/termination_ranking_and_progress.md).
+
 `omega-rust/` remains the production implementation until that contract
 closes. It may remain afterward as a differential implementation while it finds
 real bugs, but Rust agreement is not bootstrap authority and Rust-specific
