@@ -11,6 +11,9 @@ use package_compilation::{
 use semantic_vocabulary::PackageKeyIdentity;
 use std::path::{Path, PathBuf};
 
+#[path = "build_config_granted/generated_invocations.rs"]
+mod generated_invocations;
+
 struct Project {
     root: PathBuf,
 }

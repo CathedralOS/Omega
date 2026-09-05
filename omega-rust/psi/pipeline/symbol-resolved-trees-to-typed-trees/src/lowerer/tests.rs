@@ -15,6 +15,9 @@ use syntax_trees_to_symbol_resolved_trees::{
 };
 use tokens_to_syntax_trees::{parse_syntax_trees, parse_syntax_trees_with_id};
 
+#[path = "tests/generated_invocations.rs"]
+mod generated_invocations;
+
 #[test]
 fn proof_output_runtime_calls_copy_arguments_into_the_statement_arena() {
     use typed_trees::{expression::ExpressionNode, statement::StatementNode};
