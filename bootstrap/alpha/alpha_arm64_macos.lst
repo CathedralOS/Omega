@@ -1,4 +1,4 @@
-source/alpha/alpha_arm64_macos:
+bootstrap/alpha/alpha_arm64_macos:
 (__TEXT,__text) section
 _main:
 0000000100003bd0	stp	x29, x30, [sp, #-0x10]!

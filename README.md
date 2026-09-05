@@ -148,16 +148,17 @@ See [wiki/architecture/architecture.md](wiki/architecture/architecture.md) for a
 
 The selected bootstrap lattice is Alpha -> Beta -> Gamma -> Delta -> Epsilon ->
 Omega. Alpha is raw tape execution; Beta is the trusted imperative tape-
-assembly language; Gamma is the tiny concatenative compiler machine; Delta is
+assembly language; Gamma is the small typed scalar/effect language; Delta is
 the typed functional compiler language; and Epsilon is the fixed-storage
-compiler host. The Epsilon-written compiler closure `D` produces the first full Omega
+compiler host. Their implementations and the Epsilon-written compiler closure
+`D` live under [`bootstrap/`](bootstrap/). D produces the first full Omega
 compiler `omega₀`, which compiles the Omega-written closure `C` into production
 `omega`. Intermediate self-hosting is not a goal. Its active queue lives in
 [`TASKS_BOOTSTRAP.md`](TASKS_BOOTSTRAP.md), while the canonical ownership map
 lives in
 [`repository_structure.md`](wiki/architecture/bootstrap_chain/repository_structure.md).
 Beta's self-reconstructing compiler and admitted Alpha tape live under
-`source/beta/`; the older imperative Gamma rung remains retired.
+`bootstrap/beta/`; the older imperative Gamma rung remains retired.
 The whole-chain audit is defined in
 [`bootstrap_minimization.md`](wiki/design_briefs/bootstrap_minimization.md), and
 the candidate shorter chains and common audit experiment are defined in
@@ -165,7 +166,7 @@ the candidate shorter chains and common audit experiment are defined in
 The literal Epsilon v1 contract and the incidental ordinary-Omega surface used by
 the compiler source are defined and kept distinct in
 [`compiler_source_profile.md`](wiki/architecture/bootstrap_chain/compiler_source_profile.md).
-[`source/omega/README.md`](source/omega/README.md) describes the product-source side;
+[`source/README.md`](source/README.md) describes the final product-source side;
 the replacement derivation checker is a future Gamma tool, not another language rung.
 
 ## Samples And Language Cases

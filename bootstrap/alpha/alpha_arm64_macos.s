@@ -7,7 +7,7 @@
 // not grant either realization authority; the written semantics and each
 // realization's audited correspondence to them are the trust boundary.
 //
-// Trust obligation (source/alpha/README.md): disassemble the committed binary
+// Trust obligation (bootstrap/alpha/README.md): disassemble the committed binary
 // and read it against THIS source.  alpha_arm64_macos.lst is a committed
 // disassembly to ease that audit.
 //

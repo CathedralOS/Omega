@@ -25,9 +25,9 @@ Epsilon-written source can run while compiling `C`, producing a better `omega`.
 
 ## Source ownership
 
-- `source/epsilon/compiler/` owns the Delta-written evaluator that executes Epsilon.
+- `bootstrap/epsilon/compiler/` owns the Delta-written evaluator that executes Epsilon.
 - the Epsilon-written first Omega compiler source closure `D` belongs under
-  `source/omega/`, even though its files end in `.epsilon`;
+  `bootstrap/omega/`;
 - `source/{psi,omega}/` owns the Omega-written self-hosting closure `C` and the
   product target-neutral/target-specific split; and
 - `omega-rust/{psi,omega}/` remains the working Rust implementation and
@@ -36,7 +36,7 @@ Epsilon-written source can run while compiling `C`, producing a better `omega`.
 The former restricted Epsilon-written Darwin compiler prototype was deleted
 rather than relabeled as `D`. It lacked the complete Omega frontend, Psi
 pipeline, optimizer, and product target model; the real closure `D` is being
-authored under `source/omega/` from the full contract.
+authored under `bootstrap/omega/` from the full contract.
 
 ## The source profile used by `C`
 

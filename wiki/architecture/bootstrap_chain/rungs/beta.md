@@ -8,15 +8,15 @@ hexadecimal words, comments, and one fixed-word data directive. Its semantics
 is the deterministic partial relation from Beta source to raw Alpha tape.
 
 The normative contract is
-[`source/beta/LANGUAGE.md`](../../../../source/beta/LANGUAGE.md). The admitted
+[`bootstrap/beta/LANGUAGE.md`](../../../../bootstrap/beta/LANGUAGE.md). The admitted
 1,792-byte compiler tape runs on Alpha, while
-`source/beta/compiler/beta_compiler.beta` reconstructs that tape
+`bootstrap/beta/compiler/beta_compiler.beta` reconstructs that tape
 byte-identically. The compiler differential and strict grammar gates live under
 `tests/beta/compiler/`.
 The finite root audit is published at
-[`source/beta/compiler/AUDIT.md`](../../../../source/beta/compiler/AUDIT.md).
+[`bootstrap/beta/compiler/AUDIT.md`](../../../../bootstrap/beta/compiler/AUDIT.md).
 
 Beta's language-chain customer is the Gamma evaluator at
-`source/gamma/evaluator/gamma_evaluator.beta`. Beta self-reconstruction binds
+`bootstrap/gamma/evaluator/gamma_evaluator.beta`. Beta self-reconstruction binds
 its readable compiler source to the cold-start tape; no later intermediate rung
 is required to self-host.

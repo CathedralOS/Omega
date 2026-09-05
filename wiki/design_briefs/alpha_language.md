@@ -9,7 +9,7 @@ Canonical architecture and executable details live in:
 
 - [Bootstrap chain](../architecture/bootstrap_chain/bootstrap_chain.md)
 - [Alpha rung](../architecture/bootstrap_chain/rungs/alpha.md)
-- [`source/alpha/SEMANTICS.md`](../../source/alpha/SEMANTICS.md)
+- [`bootstrap/alpha/SEMANTICS.md`](../../bootstrap/alpha/SEMANTICS.md)
 
 ## Responsibility
 
@@ -24,7 +24,7 @@ Alpha supplies raw deterministic computation:
 
 It does not parse source text, check proofs, define higher-language meaning, manage
 ownership, allocate objects, or optimize code. The textual assembler is the
-Beta rung and lives at `source/beta/compiler/`; its implementation is itself a
+Beta rung and lives at `bootstrap/beta/compiler/`; its implementation is itself a
 raw Alpha tape.
 
 ## Auditability constraints

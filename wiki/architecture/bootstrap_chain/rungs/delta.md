@@ -8,7 +8,7 @@ immutable bytes, monomorphic functions, mutual recursion, and proper tail
 calls. It exists to implement the Epsilon evaluator.
 
 The normative contract is
-[`source/delta/LANGUAGE.md`](../../../../source/delta/LANGUAGE.md). The canonical
+[`bootstrap/delta/LANGUAGE.md`](../../../../bootstrap/delta/LANGUAGE.md). The canonical
 compiler must be written in Gamma and emit canonical Gamma source. The selected
 Beta-authored Gamma evaluator executes that compiler over Delta source and can
 execute the resulting canonical Gamma receipt. The selected 1,992-line

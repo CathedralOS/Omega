@@ -43,7 +43,7 @@ Epsilon evaluator.
 ## P2 - Gamma to Delta
 
 - **DELTA-COMPILER.** Complete
-  `source/delta/compiler/delta_compiler.gamma` against the full Delta contract,
+  `bootstrap/delta/compiler/delta_compiler.gamma` against the full Delta contract,
   including nominal types, exhaustiveness, checked arithmetic, proper-tail
   lowering, sealed profiles, deterministic failure selection, and canonical
   Gamma emission. DCREQ framing and `ConformanceBytesV1` are executable;
@@ -60,8 +60,8 @@ Epsilon evaluator.
 ## P3 - Delta to Epsilon
 
 - **EPSILON-EVALUATOR.** Complete
-  `source/epsilon/compiler/epsilon_compiler.delta` against
-  `source/epsilon/LANGUAGE.md`, deleting inherited structures with no current
+  `bootstrap/epsilon/compiler/epsilon_compiler.delta` against
+  `bootstrap/epsilon/LANGUAGE.md`, deleting inherited structures with no current
   customer. Finish checking, fixed-storage realization, deterministic
   diagnostics, execution, the evaluator entry, and exact composition with D.
   Acceptance: exact Epsilon-written Omega D executes under the selected lower
@@ -71,7 +71,7 @@ Epsilon evaluator.
 ## P4 - Epsilon to Omega
 
 - **OMEGA-D.** Complete the Epsilon source closure selected by
-  `source/omega/omega_compiler.epsilon.sources` as the first full Omega
+  `bootstrap/omega/omega_compiler.epsilon.sources` as the first full Omega
   compiler. Conservative and slow interpreted execution is acceptable;
   Epsilon features are justified only by this source. Acceptance: interpreted D
   compiles the exact Omega C closure for its ordinary `alpha_bootstrap` target

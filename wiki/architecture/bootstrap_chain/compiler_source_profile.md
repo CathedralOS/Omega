@@ -64,7 +64,7 @@ eventual DCOUT diagnosis.
 ## Epsilon v1
 
 Epsilon is the closed deterministic compiler-host language fixed by D17 and
-`source/epsilon/LANGUAGE.md`. It may share spelling with Omega, but its grammar,
+`bootstrap/epsilon/LANGUAGE.md`. It may share spelling with Omega, but its grammar,
 checking, execution, resources, and observations are self-contained. Its
 evaluator is written in Delta and executes Epsilon directly. Neither
 the superseded translator nor a sample corpus defines Epsilon.
