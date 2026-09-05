@@ -60,7 +60,7 @@ Repackaging corpus source for checked policy projection does not claim native
 execution. Corpus bucket membership does not replace a dedicated owner's
 phase-specific expectation.
 
-Reverse closure remains `CANARY-ROSTER-DERIVATION` in `TASKS.md`: not all
-dedicated test owners are represented yet, so the inventory does not yet reject
-every unregistered directory. New registrations must name an actual executing
-owner rather than an inventory-only exemption list.
+The positive inventory rejects every unregistered fixture directory as well as
+missing source. Negative reverse closure remains `CANARY-ROSTER-DERIVATION` in
+`TASKS.md`: not all negative owners are represented yet. New registrations must
+name an actual executing owner rather than an inventory-only exemption list.

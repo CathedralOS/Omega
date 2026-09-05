@@ -403,30 +403,57 @@ fn compare(
     Ok(difference)
 }
 
-fn assert_registered_fixtures(root: &Path, roster: &[&str], requires_expectation: bool) {
+enum InventoryScope {
+    RegisteredFixtures,
+    CompleteCorpus,
+}
+
+fn assert_registered_fixtures(
+    root: &Path,
+    roster: &[&str],
+    requires_expectation: bool,
+    scope: InventoryScope,
+) {
     let difference =
         compare(root, roster, requires_expectation).unwrap_or_else(|error| panic!("{error}"));
     assert!(
-        difference.missing.is_empty() && difference.incomplete.is_empty(),
+        difference.missing.is_empty()
+            && difference.incomplete.is_empty()
+            && (!matches!(scope, InventoryScope::CompleteCorpus)
+                || difference.unregistered.is_empty()),
         "registered fixture inventory differs from {}: {difference:#?}",
         root.display()
     );
-    // Reverse closure remains TASKS.md's CANARY-ROSTER-DERIVATION: other
-    // dedicated owners must expose their executing tables before this can be
-    // an error. Never infer their coverage from arbitrary source strings.
 }
 
 #[test]
 fn registered_pass_canaries_have_source_on_every_host() {
-    assert_registered_fixtures(&repo_root().join("tests/omega/pass"), &pass_roster(), false);
+    assert_registered_fixtures(
+        &repo_root().join("tests/omega/pass"),
+        &pass_roster(),
+        false,
+        InventoryScope::CompleteCorpus,
+    );
 }
 
 #[test]
 fn registered_fail_canaries_have_source_and_their_owned_expectations() {
     let root = repo_root().join("tests/omega/fail");
     // Every owner needs source; only file-based owners require expected.txt.
-    assert_registered_fixtures(&root, &fail_roster(), false);
-    assert_registered_fixtures(&root, &file_expectation_fail_roster(), true);
+    // Negative reverse closure remains CANARY-ROSTER-DERIVATION. The file
+    // expectation subset deliberately excludes owners with inline diagnostics.
+    assert_registered_fixtures(
+        &root,
+        &fail_roster(),
+        false,
+        InventoryScope::RegisteredFixtures,
+    );
+    assert_registered_fixtures(
+        &root,
+        &file_expectation_fail_roster(),
+        true,
+        InventoryScope::RegisteredFixtures,
+    );
     for (canary, _) in CROSS_TARGET_FAIL_CANARIES {
         assert!(
             ACTIVE_FAIL_CANARIES.contains(canary),
@@ -458,6 +485,20 @@ impl Drop for FixtureTree {
     fn drop(&mut self) {
         fs::remove_dir_all(&self.0).unwrap();
     }
+}
+
+#[test]
+#[should_panic(expected = "registered fixture inventory differs")]
+fn complete_inventory_rejects_a_fixture_without_an_executing_owner() {
+    let tree = FixtureTree::new();
+    tree.fixture("demo/registered", false);
+    tree.fixture("demo/unowned", false);
+    assert_registered_fixtures(
+        &tree.0,
+        &["demo/registered"],
+        false,
+        InventoryScope::CompleteCorpus,
+    );
 }
 
 #[test]
