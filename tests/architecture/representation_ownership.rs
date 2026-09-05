@@ -552,7 +552,8 @@ fn fixed_frame_consumes_current_allocation_and_retains_baseline_receipt_role() {
     let compact_route = route.split_whitespace().collect::<String>();
     assert!(compact_route.contains("staged.allocation.replay_allocation()"));
     let assembly = std::fs::read_to_string(root.join("assembly/fixed_frame.rs")).unwrap();
-    assert!(assembly.contains("AllocationEvidence::RegisterHomes(source) => Ok(*source)"));
+    let roles = std::fs::read_to_string(root.join("assembly/allocation.rs")).unwrap();
+    assert!(roles.contains("AllocationEvidence::RegisterHomes(source) => Ok(*source)"));
     for source in [&route, &assembly] {
         for forbidden in [
             "legality_stage()",
@@ -567,6 +568,45 @@ fn fixed_frame_consumes_current_allocation_and_retains_baseline_receipt_role() {
             );
         }
     }
+}
+
+#[test]
+fn realization_and_emission_replay_do_not_recover_programs_from_history() {
+    let root = repository().join("omega-rust/omega/pipeline/omega-optimization-pipeline/src");
+    let realization = root.join("stages/realization/function_relative_realization");
+    let source = rust_source(&root.join("stages/realization"));
+    for forbidden in [
+        "StagedOptimizedRegisterHomes",
+        "selected_lowering_run()",
+        "steps().last()",
+        "source_legality_stage()",
+        "legality_stage()",
+        "selected_stage()",
+        "optimized_target()",
+    ] {
+        assert!(
+            !source.contains(forbidden),
+            "realization recovers program from history: {forbidden}"
+        );
+    }
+    let replay =
+        std::fs::read_to_string(root.join("stages/artifacts/function_fragment_emission/replay.rs"))
+            .unwrap();
+    assert!(replay.contains("fn allocation(&self)"));
+    for forbidden in [
+        "selected_lowering_run()",
+        "steps().last()",
+        "legality_stage()",
+        "selected_stage()",
+        "shared_selected_after_lowering",
+    ] {
+        assert!(
+            !replay.contains(forbidden),
+            "emission replay recovers program from history: {forbidden}"
+        );
+    }
+    let roles = std::fs::read_to_string(realization.join("assembly/allocation.rs")).unwrap();
+    assert!(roles.contains("AllocationEvidence::SelectedLowering(source) => Ok(source)"));
 }
 
 #[test]

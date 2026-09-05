@@ -51,8 +51,12 @@ pub(in crate::coordination::physical_pipeline) fn stage_allocation_and_realizati
                 .map_err(OptimizedVerifiedPhysicalPipelineError::AllocationLegality)?;
             let homes = stage_optimized_register_homes(legality)
                 .map_err(OptimizedVerifiedPhysicalPipelineError::RegisterHomes)?;
-            let realization = stage_function_relative_layout_optimization_realization(homes)
-                .map_err(OptimizedVerifiedPhysicalPipelineError::FunctionRelativeRealization)?;
+            let allocation = homes
+                .try_into()
+                .map_err(OptimizedVerifiedPhysicalPipelineError::AllocationReplay)?;
+            let realization =
+                stage_function_relative_layout_optimization_realization(allocation)
+                    .map_err(OptimizedVerifiedPhysicalPipelineError::FunctionRelativeRealization)?;
             Ok(StagedOptimizedVerifiedPhysicalPipeline::from(realization))
         }
         ResolvedRealizationPlan::SelectedLowering => {
@@ -62,7 +66,10 @@ pub(in crate::coordination::physical_pipeline) fn stage_allocation_and_realizati
                 .map_err(OptimizedVerifiedPhysicalPipelineError::SelectedLowering)?;
             let homes = stage_optimized_register_homes_after_selected_lowering(run)
                 .map_err(OptimizedVerifiedPhysicalPipelineError::SelectedLoweringHomes)?;
-            let realization = stage_selected_lowering_function_relative_realization(homes)
+            let allocation = homes
+                .try_into()
+                .map_err(OptimizedVerifiedPhysicalPipelineError::AllocationReplay)?;
+            let realization = stage_selected_lowering_function_relative_realization(allocation)
                 .map_err(OptimizedVerifiedPhysicalPipelineError::FunctionRelativeRealization)?;
             Ok(StagedOptimizedVerifiedPhysicalPipeline::from(realization))
         }

@@ -36,7 +36,8 @@ fn frameless_exit_contract_rejects_unpreserved_x86_callee_saved_write() {
         .unwrap()
         .units
         .clone();
-    let error = stage_selected_lowering_function_relative_realization(homes).unwrap_err();
+    let error = stage_selected_lowering_function_relative_realization(homes.try_into().unwrap())
+        .unwrap_err();
     let FunctionRelativeOptimizationRealizationError::ExitContract(
         WholeFunctionExitContractError::CalleeSavedWrite { instruction, unit },
     ) = error

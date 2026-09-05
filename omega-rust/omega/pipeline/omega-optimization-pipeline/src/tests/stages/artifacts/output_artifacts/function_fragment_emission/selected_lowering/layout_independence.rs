@@ -120,7 +120,8 @@ fn publish_exact_selected_lowering(
     assert_eq!(run.custody().action_count(), 2);
     assert_eq!(run.steps().len(), 2);
     let homes = stage_optimized_register_homes_after_selected_lowering(run).unwrap();
-    let realization = stage_selected_lowering_function_relative_realization(homes).unwrap();
+    let realization =
+        stage_selected_lowering_function_relative_realization(homes.try_into().unwrap()).unwrap();
 
     assert_eq!(
         validate_selected_lowering_function_relative_realization_custody(&realization).unwrap(),
@@ -128,7 +129,8 @@ fn publish_exact_selected_lowering(
     );
     assert!(realization.relaxation().is_none());
     let transformations = &realization
-        .homes()
+        .allocation()
+        .current()
         .post_allocation_manifest()
         .record()
         .selected_transformations;

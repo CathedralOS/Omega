@@ -2,20 +2,9 @@ use super::super::{
     FunctionRelativeOptimizationRealizationScope, FunctionRelativeOptimizationRealizationStage,
     FunctionRelativeOptimizationUnavailableData, carriers::*, error::*, model::*, prelude::*,
 };
+use super::allocation::baseline_allocation_source;
 use super::statistics::function_relative_statistics;
-use omega_selected_instructions_to_register_homes::{AllocationEvidence, AllocationOutput};
-
-/// Preserve the fixed-frame receipt's existing baseline source role. This
-/// extracts evidence only; program and environment reads use current data.
-pub(in crate::stages::realization::function_relative_realization) fn fixed_frame_source(
-    allocation: &AllocationOutput<'_>,
-) -> Result<StagedOptimizedRegisterHomeCustodyReceipt, FunctionRelativeOptimizationRealizationError>
-{
-    match allocation.evidence() {
-        AllocationEvidence::RegisterHomes(source) => Ok(*source),
-        _ => Err(FunctionRelativeOptimizationRealizationError::RootMismatch),
-    }
-}
+use omega_selected_instructions_to_register_homes::AllocationOutput;
 
 #[allow(clippy::too_many_arguments)]
 pub(in crate::stages::realization::function_relative_realization) fn expected_fixed_frame_manifest(
@@ -36,7 +25,7 @@ pub(in crate::stages::realization::function_relative_realization) fn expected_fi
     let post_allocation = selections.for_phase(OptimizationExecutionPhase::PostAllocationMachine);
     let function_relative =
         selections.for_phase(OptimizationExecutionPhase::FunctionRelativeLayout);
-    let source = fixed_frame_source(allocation)?;
+    let source = baseline_allocation_source(allocation)?;
     let post = allocation.post_allocation_manifest().record();
     let selected = allocation.selected().selected_identity();
     if !selected_lowering.is_empty()

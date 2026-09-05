@@ -3,10 +3,6 @@ use super::prelude::*;
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum FunctionRelativeOptimizationRealizationError {
     Allocation(omega_selected_instructions_to_register_homes::AllocationReplayError),
-    Homes(OptimizedPostSelectedLoweringHomeCustodyError),
-    DirectHomes(OptimizedRegisterHomeCustodyError),
-    FixedViewSource(OptimizedPostCopyRegisterHomeCustodyError),
-    ActiveResidentSource(OptimizedActiveResidentRematerializationError),
     PostAllocationMachine(OptimizedPostAllocationMachinePipelineError),
     PostAllocationMachineOptimization(OptimizedPostAllocationMachineOptimizationError),
     Encoding(OptimizedSelectedFormEncodingError),
