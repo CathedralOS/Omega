@@ -450,7 +450,7 @@ fn proof_machine_result_may_determine_proof_computation() {
     lower_typed_trees(typed(
         r#"
         data Nat { case Zero; case Succ(previous: Nat); }
-        machine proof_value(value: Nat) -> i32 { 7 }
+        machine proof_value(value: Nat) -> i32 [0..=7] { 7 }
         machine proof_twice(value: Nat) -> i32 {
             proof_value(value) + proof_value(value)
         }

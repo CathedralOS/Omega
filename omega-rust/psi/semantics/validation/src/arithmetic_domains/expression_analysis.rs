@@ -40,6 +40,49 @@ const NEUTRAL: Analysis = Analysis {
     primitive: None,
 };
 
+/// A resolved monomorphic free call has its declared carrier and policy even
+/// when no body or result-contract range is available. Unknown values are not
+/// untyped values: their full carrier range still constrains later operations.
+fn resolved_free_integer_call(
+    program: &TypedTrees,
+    call: &TableCallExpression,
+) -> Option<Analysis> {
+    if !call.target_symbol.is_valid()
+        || call.receiver.is_valid()
+        || !call.machine_arguments.is_empty()
+        || call.static_requirement_dispatch.is_some()
+        || call.quotient_operation.is_some()
+        || call.private_layout_operation.is_some()
+    {
+        return None;
+    }
+    let mut targets = program.machines().iter().filter_map(|machine| {
+        let state = program.machine_states(machine).first()?;
+        (state.symbol == call.target_symbol).then_some((machine, state))
+    });
+    let (machine, state) = targets.next()?;
+    if targets.next().is_some()
+        || machine.attached_data.is_some()
+        || !program.machine_type_parameters(machine).is_empty()
+        || !machine.lifetime_parameters.is_empty()
+        || program
+            .state_parameters(state)
+            .iter()
+            .any(|parameter| parameter.is_self)
+    {
+        return None;
+    }
+    let primitive = program.primitive_type_reference(state.return_type)?;
+    let carrier_range = primitive_range(primitive)?;
+    Some(Analysis {
+        domain: Some(program.arithmetic_domain_for_type_reference(state.return_type)),
+        interval: range_constraint_interval(program, state.return_type)
+            .map(|declared| declared.intersect(carrier_range))
+            .unwrap_or(carrier_range),
+        primitive: Some(primitive),
+    })
+}
+
 #[allow(clippy::too_many_arguments)]
 pub(super) fn analyze(
     program: &TypedTrees,
@@ -645,6 +688,10 @@ pub(super) fn analyze(
                     interval: Interval::UNBOUNDED,
                     primitive: Some(return_primitive),
                 };
+            }
+
+            if let Some(result) = resolved_free_integer_call(program, call) {
+                return result;
             }
 
             // S4: the `min`/`max` builtins bound their result by their operands'
