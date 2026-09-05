@@ -14,7 +14,14 @@ command -v python3 >/dev/null 2>&1 || {
 
 TMP=$(mktemp -d)
 trap 'rm -rf -- "$TMP"' EXIT HUP INT TERM
-COMPILER="$OMEGA_PATH_DELTA_COMPILER_SOURCE"
+COMPILER="$TMP/development.gamma"
+CANONICAL_COMPILER="$TMP/compiler.gamma"
+python3 "$OMEGA_REPO_ROOT/tools/bootstrap/source_closure.py" \
+    "$OMEGA_PATH_DELTA_COMPILER_SOURCES" "$COMPILER" \
+    --prefix "$OMEGA_PATH_DELTA_COMPILER_DEVELOPMENT_ENTRY"
+python3 "$OMEGA_REPO_ROOT/tools/bootstrap/source_closure.py" \
+    "$OMEGA_PATH_DELTA_COMPILER_SOURCES" "$CANONICAL_COMPILER" \
+    --prefix "$OMEGA_PATH_DELTA_COMPILER_SOURCE"
 SOURCE="$GATE_DIR/nullary_match.delta"
 EXPECTED="$GATE_DIR/nullary_match.gamma"
 PAYLOAD_SOURCE="$GATE_DIR/payload_match.delta"
@@ -33,7 +40,8 @@ python3 "$OMEGA_REPO_ROOT/tools/bootstrap/source_closure.py" \
 
 materialize_gamma_evaluator "$TMP/evaluator" >/dev/null
 
-COMPILER="$COMPILER" SOURCE="$SOURCE" EXPECTED="$EXPECTED" \
+COMPILER="$COMPILER" CANONICAL_COMPILER="$CANONICAL_COMPILER" \
+    SOURCE="$SOURCE" EXPECTED="$EXPECTED" \
     PAYLOAD_SOURCE="$PAYLOAD_SOURCE" PAYLOAD_EXPECTED="$PAYLOAD_EXPECTED" \
     RECURSIVE_SOURCE="$RECURSIVE_SOURCE" RECURSIVE_EXPECTED="$RECURSIVE_EXPECTED" \
     LIST_SOURCE="$LIST_SOURCE" LIST_EXPECTED="$LIST_EXPECTED" \
@@ -49,6 +57,7 @@ import subprocess
 from pathlib import Path
 
 compiler = Path(os.environ["COMPILER"]).read_bytes()
+canonical_compiler = Path(os.environ["CANONICAL_COMPILER"]).read_bytes()
 source = Path(os.environ["SOURCE"]).read_bytes()
 expected = Path(os.environ["EXPECTED"]).read_bytes()
 payload_source = Path(os.environ["PAYLOAD_SOURCE"]).read_bytes()
@@ -64,7 +73,8 @@ forward_expected = Path(os.environ["FORWARD_EXPECTED"]).read_bytes()
 epsilon_source = Path(os.environ["EPSILON_SOURCE"]).read_bytes()
 
 for name, data, lines, size, digest in (
-    ("compiler", compiler, 2206, 89407, "01cda8d7bd00fae0b9c9ebe135ad6dd825f6b274c95a92298363e3d4993955cf"),
+    ("development compiler", compiler, 2228, 90862, "f86c249249dea585d0bf19b3f55acccc1fe81c1d2aac45efb63f0c6611ed7a0a"),
+    ("canonical compiler", canonical_compiler, 2236, 91079, "c28efd74ffd9a79fe097f6445f6dcac96af22c002178b2f5251b02a35beb5948"),
     ("source", source, 7, 195, "3fb6a3ef60b54c8b77b066edeec32a4c77fd9fb5ede8a64c997cbc8b7a9a1fec"),
     ("receipt", expected, 3, 165, "23cbae7abf00860445e72b9075d189adb841cf165bf8103f7f7bcd5c81aed74f"),
     ("payload source", payload_source, 7, 186, "31affd043cd04144a6a6adf5353ef4080eaf34524cfc64d0d08f0c60d12c7802"),
@@ -115,7 +125,7 @@ def dcreq(profile, delta_source):
 
 conformance_identity = b"(def main ((source Bytes)) Bytes source)\n"
 profile_status, profile_receipt = evaluate(
-    compiler, dcreq(1, conformance_identity)
+    canonical_compiler, dcreq(1, conformance_identity)
 )
 if profile_status != 0 or not profile_receipt.startswith(
     b"(def $application () Int 1)\n"
@@ -129,7 +139,7 @@ conformance_trap = (
     b"(def main ((source Bytes)) Bytes "
     b"(let ignored Int (bytes_get source -1) source))\n"
 )
-trap_status, trap_receipt = evaluate(compiler, dcreq(1, conformance_trap))
+trap_status, trap_receipt = evaluate(canonical_compiler, dcreq(1, conformance_trap))
 if trap_status != 0 or evaluate(trap_receipt) != (249, b""):
     raise SystemExit("ConformanceBytesV1 did not map an authored trap")
 
@@ -139,14 +149,14 @@ if evaluate(profile_receipt, b"A" * 4194305) != (253, b""):
 conformance_double = (
     b"(def main ((source Bytes)) Bytes (bytes_concat source source))\n"
 )
-double_status, double_receipt = evaluate(compiler, dcreq(1, conformance_double))
+double_status, double_receipt = evaluate(canonical_compiler, dcreq(1, conformance_double))
 if double_status != 0:
     raise SystemExit("ConformanceBytesV1 output-extent fixture did not compile")
 if evaluate(double_receipt, b"A" * 2097153) != (254, b""):
     raise SystemExit("ConformanceBytesV1 did not reject adjacent output extent")
 
 wrong_schema = b"(def main () Int 7)\n"
-if evaluate(compiler, dcreq(1, wrong_schema))[0] == 0:
+if evaluate(canonical_compiler, dcreq(1, wrong_schema))[0] == 0:
     raise SystemExit("ConformanceBytesV1 admitted the wrong main schema")
 
 malformed_requests = (
@@ -156,7 +166,7 @@ malformed_requests = (
     dcreq(1, conformance_identity) + b"x",
 )
 for malformed_request in malformed_requests:
-    if evaluate(compiler, malformed_request)[0] == 0:
+    if evaluate(canonical_compiler, malformed_request)[0] == 0:
         raise SystemExit("malformed DCREQ unexpectedly compiled")
 
 if evaluate(compiler, source) != (0, expected):

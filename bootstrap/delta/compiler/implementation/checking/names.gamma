@@ -1,0 +1,161 @@
+(def empty_name_trie () Int
+  (pair 0 0))
+
+(def empty_name_children () Int
+  (pair 0 0))
+
+; A child row is (pair byte (pair child rest)). The outer option keeps empty
+; distinct from a pair reference without using pair provenance in a condition.
+(def name_child ((children Int) (byte Int)) Int
+  (if (eq (first children) 0)
+    (empty_name_trie)
+    (let row Int (second children)
+      (let child_and_rest Int (second row)
+        (if (eq (first row) byte)
+          (first child_and_rest)
+          (name_child (second child_and_rest) byte))))))
+
+(def name_children_prepend
+  ((children Int) (byte Int) (child Int)) Int
+  (pair 1 (pair byte (pair child children))))
+
+(def name_children_replace
+  ((children Int) (byte Int) (child Int)) Int
+  (if (eq (first children) 0)
+    (fail)
+    (let row Int (second children)
+      (let stored_byte Int (first row)
+        (let child_and_rest Int (second row)
+          (if (eq stored_byte byte)
+            (pair 1 (pair stored_byte (pair child (second child_and_rest))))
+            (pair 1
+              (pair stored_byte
+                (pair (first child_and_rest)
+                  (name_children_replace
+                    (second child_and_rest) byte child))))))))))
+
+(def name_trie_new_path ((end Int) (index Int) (payload Int)) Int
+  (if (eq index end)
+    (pair 1 (pair (pair 1 payload) (empty_name_children)))
+    (let child Int (name_trie_new_path end (+ index 1) payload)
+      (let children Int
+        (name_children_prepend (empty_name_children) (source_read index) child)
+        (pair 1 (pair (pair 0 0) children))))))
+
+(def name_trie_insert
+  ((trie Int) (end Int) (index Int) (payload Int)) Int
+  (if (eq (first trie) 0)
+    (name_trie_new_path end index payload)
+    (let node Int (second trie)
+      (let terminal Int (first node)
+        (let children Int (second node)
+          (if (eq index end)
+            (if (first terminal)
+              (fail)
+              (pair 1 (pair (pair 1 payload) children)))
+            (let byte Int (source_read index)
+              (let child Int (name_child children byte)
+                (let next_child Int
+                  (name_trie_insert child end (+ index 1) payload)
+                  (let next_children Int
+                    (if (first child)
+                      (name_children_replace children byte next_child)
+                      (name_children_prepend children byte next_child))
+                    (pair 1 (pair terminal next_children))))))))))))
+
+(def name_trie_find_option ((trie Int) (end Int) (index Int)) Int
+  (if (eq (first trie) 0)
+    (pair 0 0)
+    (let node Int (second trie)
+      (if (eq index end)
+        (first node)
+        (name_trie_find_option
+          (name_child (second node) (source_read index))
+          end (+ index 1))))))
+
+(def name_trie_find ((trie Int) (end Int) (index Int)) Int
+  (let result Int (name_trie_find_option trie end index)
+    (if (first result) (second result) 0)))
+
+; Type metadata is (pair owner (pair constructor-count has-payload)).
+; Constructor metadata is
+; (pair type-metadata (pair tag-plus-one (pair arity declaration-end))).
+(def type_metadata_owner ((metadata Int)) Int
+  (first metadata))
+
+(def type_metadata_constructor_count ((metadata Int)) Int
+  (first (second metadata)))
+
+(def type_metadata_has_payload ((metadata Int)) Int
+  (second (second metadata)))
+
+(def constructor_metadata_type ((metadata Int)) Int
+  (first metadata))
+
+(def constructor_metadata_owner ((metadata Int)) Int
+  (type_metadata_owner (constructor_metadata_type metadata)))
+
+(def constructor_metadata_tag ((metadata Int)) Int
+  (first (second metadata)))
+
+(def constructor_metadata_arity ((metadata Int)) Int
+  (first (second (second metadata))))
+
+(def constructor_metadata_declaration_end ((metadata Int)) Int
+  (second (second (second metadata))))
+
+(def global_types ((globals Int)) Int
+  (first globals))
+
+(def global_constructors ((globals Int)) Int
+  (first (second globals)))
+
+(def global_functions ((globals Int)) Int
+  (second (second globals)))
+
+; Parameter types form a raw right-nested pair list. Cached arity governs every
+; traversal, so no condition or comparison observes the pair reference.
+; Function metadata is
+; (pair owner (pair arity (pair result-type
+;   (pair parameter-types (pair parameter-locals body-start))))).
+(def empty_parameter_types () Int
+  0)
+
+(def parameter_types_prepend ((type Int) (rest Int)) Int
+  (pair type rest))
+
+(def reverse_parameter_types
+  ((input Int) (remaining Int) (output Int)) Int
+  (if (eq remaining 0)
+    output
+    (reverse_parameter_types
+      (second input) (- remaining 1)
+      (parameter_types_prepend (first input) output))))
+
+(def function_metadata_owner ((metadata Int)) Int
+  (first metadata))
+
+(def function_metadata_arity ((metadata Int)) Int
+  (first (second metadata)))
+
+(def function_metadata_result_type ((metadata Int)) Int
+  (first (second (second metadata))))
+
+(def function_metadata_parameter_types ((metadata Int)) Int
+  (first (second (second (second metadata)))))
+
+(def function_metadata_parameter_locals ((metadata Int)) Int
+  (first (second (second (second (second metadata))))))
+
+(def function_metadata_body_start ((metadata Int)) Int
+  (second (second (second (second (second metadata))))))
+
+(def find_function_metadata
+  ((name Int) (name_end Int) (globals Int)) Int
+  (name_trie_find_option (global_functions globals) name_end name))
+
+(def require_function_metadata
+  ((name Int) (name_end Int) (globals Int)) Int
+  (let found Int (find_function_metadata name name_end globals)
+    (if (first found) (second found) (fail))))
+

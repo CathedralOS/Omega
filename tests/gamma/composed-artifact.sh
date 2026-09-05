@@ -10,10 +10,12 @@ export OMEGA_REPO_ROOT
 TMP=$(mktemp -d)
 trap 'rm -rf -- "$TMP"' EXIT HUP INT TERM
 INVOKE="$OMEGA_REPO_ROOT/tools/bootstrap/gamma/invoke.py"
-SOURCE="$OMEGA_PATH_DELTA_COMPILER_SOURCE"
+SOURCE="$TMP/compiler.gamma"
+python3 "$OMEGA_REPO_ROOT/tools/bootstrap/source_closure.py" \
+    "$OMEGA_PATH_DELTA_COMPILER_SOURCES" "$SOURCE" \
+    --prefix "$OMEGA_PATH_DELTA_COMPILER_SOURCE"
 MANIFEST="$OMEGA_PATH_DELTA_COMPILER/delta_compiler.composed"
-CUSTOMER="$OMEGA_REPO_ROOT/tests/delta/staged-compiler/nullary_match.delta"
-EXPECTED="$OMEGA_REPO_ROOT/tests/delta/staged-compiler/nullary_match.gamma"
+CUSTOMER="$OMEGA_REPO_ROOT/tests/delta/staged-compiler/conformance_identity.delta"
 
 materialize_gamma_evaluator "$TMP/evaluator" >/dev/null
 
@@ -35,9 +37,35 @@ if Path(os.environ["MANIFEST"]).read_bytes() != expected:
     raise SystemExit("Delta compiler composed identity changed")
 PY
 
+CUSTOMER="$CUSTOMER" TMP="$TMP" python3 - <<'PY'
+import os
+import struct
+from pathlib import Path
+
+source = Path(os.environ["CUSTOMER"]).read_bytes()
+temporary = Path(os.environ["TMP"])
+(temporary / "request").write_bytes(
+    b"DCREQ\x01\x00\x00" + struct.pack("<II", 1, len(source)) + source
+)
+(temporary / "payload").write_bytes(b"ABC\x00\xff")
+(temporary / "failure-expected").write_bytes(
+    b"\xffDCOUT\x01\x00" + struct.pack("<BBHIQQQ", 1, 4, 0, 1, 0, 0, 0)
+)
+PY
 python3 "$INVOKE" --evaluator "$TMP/evaluator" --source "$SOURCE" \
-    --input "$CUSTOMER" --output "$TMP/receipt.gamma" --timeout 60
-cmp "$TMP/receipt.gamma" "$EXPECTED"
+    --input "$TMP/request" --output "$TMP/receipt.gamma" --timeout 60
+python3 "$INVOKE" --evaluator "$TMP/evaluator" --source "$TMP/receipt.gamma" \
+    --input "$TMP/payload" --output "$TMP/observation" --timeout 60
+cmp "$TMP/observation" "$TMP/payload"
+
+# Raw source is malformed DCREQ, and its nonzero DCOUT frame is published.
+set +e
+python3 "$INVOKE" --evaluator "$TMP/evaluator" --source "$SOURCE" \
+    --input "$CUSTOMER" --output "$TMP/failure-frame" --timeout 60
+STATUS=$?
+set -e
+[ "$STATUS" -eq 1 ]
+cmp "$TMP/failure-frame" "$TMP/failure-expected"
 
 cat > "$TMP/late-trap.gamma" <<'EOF'
 (def $application () Int 1)

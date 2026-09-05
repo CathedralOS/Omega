@@ -1,0 +1,10 @@
+; Raw Delta frontend diagnostics, not the canonical DCREQ compiler entry.
+; This unmarked transformer preserves the scalar emitter's final newline.
+(def main () Int
+  (compile_admitted_source 0))
+
+(def source_length () Int (input))
+
+(def source_read ((index Int)) Int (read index))
+
+(def compilation_profile () Int 0)

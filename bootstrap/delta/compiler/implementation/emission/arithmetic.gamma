@@ -1,0 +1,158 @@
+(def emit_arithmetic_name ((open Int) (marker Int)) Int
+  (let ignored0 Int (write '$')
+    (let ignored1 Int (write marker)
+      (emit_decimal open))))
+
+(def emit_binding_prefix ((open Int) (marker Int)) Int
+  (let ignored0 Int (write '(')
+    (let ignored1 Int (write 'l')
+      (let ignored2 Int (write 'e')
+        (let ignored3 Int (write 't')
+          (let ignored4 Int (write '\s')
+            (let ignored5 Int (emit_arithmetic_name open marker)
+              (let ignored6 Int (write '\s')
+                (let ignored7 Int (emit_int_word)
+                  (write '\s'))))))))))
+
+(def emit_if_prefix () Int
+  (let ignored0 Int (write '(')
+    (let ignored1 Int (write 'i')
+      (let ignored2 Int (write 'f')
+        (write '\s')))))
+
+(def emit_named_comparison
+  ((open Int) (left_marker Int) (right_marker Int) (equal Int)) Int
+  (let ignored0 Int (write '(')
+    (let ignored1 Int (write (if equal 'e' 'l'))
+      (let ignored2 Int (write (if equal 'q' 't'))
+        (let ignored3 Int (write '\s')
+          (let ignored4 Int (emit_arithmetic_name open left_marker)
+            (let ignored5 Int (write '\s')
+              (let ignored6 Int
+                (emit_arithmetic_name open right_marker)
+                (write ')')))))))))
+
+(def emit_zero_comparison
+  ((open Int) (marker Int) (zero_first Int) (equal Int)) Int
+  (let ignored0 Int (write '(')
+    (let ignored1 Int (write (if equal 'e' 'l'))
+      (let ignored2 Int (write (if equal 'q' 't'))
+        (let ignored3 Int (write '\s')
+          (let ignored4 Int
+            (if zero_first
+              (write '0')
+              (emit_arithmetic_name open marker))
+            (let ignored5 Int (write '\s')
+              (let ignored6 Int
+                (if zero_first
+                  (emit_arithmetic_name open marker)
+                  (write '0'))
+                (write ')')))))))))
+
+(def emit_trap () Int
+  (let ignored0 Int (write '(')
+    (let ignored1 Int (write '/')
+      (let ignored2 Int (write '\s')
+        (let ignored3 Int (write '1')
+          (let ignored4 Int (write '\s')
+            (let ignored5 Int (write '0')
+              (write ')'))))))))
+
+(def emit_overflow_branch
+  ((open Int) (left_marker Int) (right_marker Int)) Int
+  (let ignored0 Int (emit_if_prefix)
+    (let ignored1 Int
+      (emit_named_comparison open left_marker right_marker 0)
+      (let ignored2 Int (write '\s')
+        (let ignored3 Int (emit_trap)
+          (let ignored4 Int (write '\s')
+            (let ignored5 Int (emit_arithmetic_name open 122)
+              (write ')'))))))))
+
+(def emit_add_sub_guard ((open Int) (subtract Int)) Int
+  (let ignored0 Int (emit_if_prefix)
+    (let ignored1 Int (emit_zero_comparison open 114 1 0)
+      (let ignored2 Int (write '\s')
+        (let ignored3 Int
+          (if subtract
+            (emit_overflow_branch open 108 122)
+            (emit_overflow_branch open 122 108))
+          (let ignored4 Int (write '\s')
+            (let ignored5 Int (emit_if_prefix)
+              (let ignored6 Int (emit_zero_comparison open 114 0 0)
+                (let ignored7 Int (write '\s')
+                  (let ignored8 Int
+                    (if subtract
+                      (emit_overflow_branch open 122 108)
+                      (emit_overflow_branch open 108 122))
+                    (let ignored9 Int (write '\s')
+                      (let ignored10 Int (emit_arithmetic_name open 122)
+                        (let ignored11 Int (write ')')
+                          (write ')'))))))))))))))
+
+(def emit_product_check ((open Int)) Int
+  (let ignored0 Int (write '(')
+    (let ignored1 Int (write 'e')
+      (let ignored2 Int (write 'q')
+        (let ignored3 Int (write '\s')
+          (let ignored4 Int (write '(')
+            (let ignored5 Int (write '/')
+              (let ignored6 Int (write '\s')
+                (let ignored7 Int (emit_arithmetic_name open 122)
+                  (let ignored8 Int (write '\s')
+                    (let ignored9 Int (emit_arithmetic_name open 108)
+                      (let ignored10 Int (write ')')
+                        (let ignored11 Int (write '\s')
+                          (let ignored12 Int
+                            (emit_arithmetic_name open 114)
+                            (write ')')))))))))))))))
+
+(def emit_multiply_guard ((open Int)) Int
+  (let ignored0 Int (emit_if_prefix)
+    (let ignored1 Int (emit_zero_comparison open 108 0 1)
+      (let ignored2 Int (write '\s')
+        (let ignored3 Int (emit_arithmetic_name open 122)
+          (let ignored4 Int (write '\s')
+            (let ignored5 Int (emit_if_prefix)
+              (let ignored6 Int (emit_product_check open)
+                (let ignored7 Int (write '\s')
+                  (let ignored8 Int (emit_arithmetic_name open 122)
+                    (let ignored9 Int (write '\s')
+                      (let ignored10 Int (emit_trap)
+                        (let ignored11 Int (write ')')
+                          (write ')'))))))))))))))
+
+(def emit_raw_arithmetic
+  ((open Int) (head Int) (head_end Int)) Int
+  (let ignored0 Int (write '(')
+    (let ignored1 Int (emit_span head head_end)
+      (let ignored2 Int (write '\s')
+        (let ignored3 Int (emit_arithmetic_name open 108)
+          (let ignored4 Int (write '\s')
+            (let ignored5 Int (emit_arithmetic_name open 114)
+              (write ')'))))))))
+
+(def emit_checked_arithmetic
+  ((open Int) (head Int) (head_end Int) (args Int) (globals Int)) Int
+  (let ignored0 Int (emit_binding_prefix open 108)
+    (let after_left Int (emit_expression args globals)
+      (let ignored1 Int (write '\s')
+        (let ignored2 Int (emit_binding_prefix open 114)
+          (let after_right Int (emit_expression (skip after_left) globals)
+            (let close Int (skip after_right)
+              (if (eq (source_read close) 41)
+                (let ignored3 Int (write '\s')
+                  (let ignored4 Int (emit_binding_prefix open 122)
+                    (let ignored5 Int (emit_raw_arithmetic open head head_end)
+                      (let ignored6 Int (write '\s')
+                        (let byte Int (source_read head)
+                          (let ignored7 Int
+                            (if (eq byte 42)
+                              (emit_multiply_guard open)
+                              (emit_add_sub_guard open (eq byte 45)))
+                            (let ignored8 Int (write ')')
+                              (let ignored9 Int (write ')')
+                                (let ignored10 Int (write ')')
+                                  (token_end close))))))))))
+                (fail)))))))))
+

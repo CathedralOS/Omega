@@ -1,0 +1,22 @@
+(def compile_admitted_source ((profile Int)) Int
+  (let envelope Int (validate_source_envelope 0)
+    (let type_rows Int
+      (catalog_global_types 0 (empty_name_trie))
+      (let constructor_rows Int (empty_name_trie)
+        (let function_rows Int (empty_name_trie)
+            (let checked Int
+              (validate_global_program
+                0 0 0 0 type_rows constructor_rows function_rows)
+              (let types Int (check_program_types 0 checked)
+                (let schema Int (validate_application_profile profile checked)
+                  (let marker Int
+                    (if (eq profile 0) 0 (emit_application_marker))
+                    (let runtime Int
+                      (if (if (eq profile 1) 1 (source_uses_bytes_builtin 0))
+                        (emit_bytes_runtime)
+                        0)
+                      (let profile_runtime Int
+                        (if (eq profile 1)
+                          (emit_conformance_runtime)
+                          0)
+                        (emit_program 0 checked))))))))))))

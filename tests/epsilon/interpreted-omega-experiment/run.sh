@@ -8,7 +8,6 @@ export OMEGA_REPO_ROOT
 . "$OMEGA_REPO_ROOT/tools/bootstrap/gamma/evaluator_env.sh"
 SOURCE_CLOSURE_MATERIALIZER="$OMEGA_REPO_ROOT/tools/bootstrap/source_closure.py"
 OMEGA_BUILD="$OMEGA_PATH_OMEGA/build.omg"
-DELTA="$OMEGA_PATH_DELTA_COMPILER_SOURCE"
 DRIVER="$TEST_DIR/execution_driver.delta"
 
 command -v python3 >/dev/null 2>&1 || {
@@ -19,6 +18,9 @@ command -v python3 >/dev/null 2>&1 || {
 TMP=$(mktemp -d)
 trap 'rm -rf -- "$TMP"' EXIT HUP INT TERM
 EPSILON="$TMP/epsilon_compiler.delta"
+DELTA="$TMP/delta_compiler.gamma"
+python3 "$SOURCE_CLOSURE_MATERIALIZER" "$OMEGA_PATH_DELTA_COMPILER_SOURCES" \
+    "$DELTA" --prefix "$OMEGA_PATH_DELTA_COMPILER_SOURCE"
 python3 "$SOURCE_CLOSURE_MATERIALIZER" "$OMEGA_PATH_EPSILON_COMPILER_SOURCES" "$EPSILON"
 
 if grep -Eq 'EpsilonAlpha|epsilon_alpha_' "$EPSILON"; then

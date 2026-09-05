@@ -1,0 +1,391 @@
+(def fail () Int
+  (read (input)))
+
+(def ascii_between ((byte Int) (low Int) (high Int)) Int
+  (if (lt byte low) 0
+    (if (lt high byte) 0 1)))
+
+(def source_byte_allowed ((byte Int)) Int
+  (if (eq byte 9) 1
+    (if (eq byte 10) 1
+      (if (eq byte 13) 1
+        (ascii_between byte 32 126)))))
+
+(def validate_source_envelope ((index Int)) Int
+  (if (eq index (source_length))
+    0
+    (if (source_byte_allowed (source_read index))
+      (validate_source_envelope (+ index 1))
+      (fail))))
+
+(def is_space ((byte Int)) Int
+  (lt byte 33))
+
+(def skip_comment ((index Int)) Int
+  (if (eq index (source_length))
+    index
+    (let byte Int (source_read index)
+      (if (eq byte 10)
+        (+ index 1)
+        (if (eq byte 13)
+          (+ index 1)
+          (skip_comment (+ index 1)))))))
+
+(def skip ((index Int)) Int
+  (if (eq index (source_length))
+    index
+    (let byte Int (source_read index)
+      (if (is_space byte)
+        (skip (+ index 1))
+        (if (eq byte 59)
+          (skip (skip_comment (+ index 1)))
+          index)))))
+
+(def token_end ((index Int)) Int
+  (if (eq index (source_length))
+    index
+    (let byte Int (source_read index)
+      (if (eq byte 40)
+        (+ index 1)
+        (if (eq byte 41)
+          (+ index 1)
+          (token_word_end index))))))
+
+(def token_word_end ((index Int)) Int
+  (if (eq index (source_length))
+    index
+    (let byte Int (source_read index)
+      (if (is_space byte)
+        index
+        (if (eq byte 40)
+          index
+          (if (eq byte 41)
+            index
+            (if (eq byte 59)
+              index
+              (token_word_end (+ index 1)))))))))
+
+(def same_span ((left Int) (left_end Int) (right Int) (right_end Int)) Int
+  (if (eq (- left_end left) (- right_end right))
+    (same_span_bytes left right (- left_end left))
+    0))
+
+(def same_span_bytes ((left Int) (right Int) (remaining Int)) Int
+  (if (eq remaining 0)
+    1
+    (if (eq (source_read left) (source_read right))
+      (same_span_bytes (+ left 1) (+ right 1) (- remaining 1))
+      0)))
+
+(def packed_span_equal ((index Int) (remaining Int) (packed Int)) Int
+  (if (eq remaining 0)
+    1
+    (if (eq (source_read index) (% packed 256))
+      (packed_span_equal (+ index 1) (- remaining 1) (/ packed 256))
+      0)))
+
+(def token_packed
+  ((start Int) (end Int) (length Int) (packed Int)) Int
+  (if (eq (- end start) length)
+    (packed_span_equal start length packed)
+    0))
+
+(def token_data ((start Int) (end Int)) Int
+  (if (eq (- end start) 4)
+    (if (eq (source_read start) 100)
+      (if (eq (source_read (+ start 1)) 97)
+        (if (eq (source_read (+ start 2)) 116)
+          (eq (source_read (+ start 3)) 97)
+          0)
+        0)
+      0)
+    0))
+
+(def token_def ((start Int) (end Int)) Int
+  (if (eq (- end start) 3)
+    (if (eq (source_read start) 100)
+      (if (eq (source_read (+ start 1)) 101)
+        (eq (source_read (+ start 2)) 102)
+        0)
+      0)
+    0))
+
+(def token_main ((start Int) (end Int)) Int
+  (if (eq (- end start) 4)
+    (if (eq (source_read start) 109)
+      (if (eq (source_read (+ start 1)) 97)
+        (if (eq (source_read (+ start 2)) 105)
+          (eq (source_read (+ start 3)) 110)
+          0)
+        0)
+      0)
+    0))
+
+(def token_match ((start Int) (end Int)) Int
+  (if (eq (- end start) 5)
+    (if (eq (source_read start) 109)
+      (if (eq (source_read (+ start 1)) 97)
+        (if (eq (source_read (+ start 2)) 116)
+          (if (eq (source_read (+ start 3)) 99)
+            (eq (source_read (+ start 4)) 104)
+            0)
+          0)
+        0)
+      0)
+    0))
+
+(def token_let ((start Int) (end Int)) Int
+  (if (eq (- end start) 3)
+    (if (eq (source_read start) 108)
+      (if (eq (source_read (+ start 1)) 101)
+        (eq (source_read (+ start 2)) 116)
+        0)
+      0)
+    0))
+
+(def token_int ((start Int) (end Int)) Int
+  (if (eq (- end start) 3)
+    (if (eq (source_read start) 73)
+      (if (eq (source_read (+ start 1)) 110)
+        (eq (source_read (+ start 2)) 116)
+        0)
+      0)
+    0))
+
+(def token_if ((start Int) (end Int)) Int
+  (token_packed start end 2 26217))
+
+(def token_eq ((start Int) (end Int)) Int
+  (token_packed start end 2 29029))
+
+(def token_lt ((start Int) (end Int)) Int
+  (token_packed start end 2 29804))
+
+(def token_bytes ((start Int) (end Int)) Int
+  (token_packed start end 5 495623371074))
+
+(def bytes_builtin_kind ((start Int) (end Int)) Int
+  (if (lt (- end start) 9)
+    0
+    (if (token_packed start (+ start 6) 6 104949228009826)
+      (let suffix Int (+ start 6)
+        (if (token_packed suffix end 5 521644567909)
+          1
+          (if (token_packed suffix end 6 111516266162547)
+            2
+            (if (token_packed suffix end 6 114849160783212)
+              3
+              (if (token_packed suffix end 3 7628135)
+                4
+                (if (token_packed suffix end 6 127961628831587)
+                  5
+                  0))))))
+      0)))
+
+(def bytes_builtin_arity_plus_one ((start Int) (end Int)) Int
+  (let kind Int (bytes_builtin_kind start end)
+    (if (eq kind 1)
+      1
+      (if (eq kind 2)
+        2
+        (if (eq kind 3)
+          2
+          (if (eq kind 4)
+            3
+            (if (eq kind 5) 3 0)))))))
+
+(def token_bytes_builtin ((start Int) (end Int)) Int
+  (if (eq (bytes_builtin_arity_plus_one start end) 0) 0 1))
+
+(def source_uses_bytes_builtin ((index Int)) Int
+  (let start Int (skip index)
+    (if (eq start (source_length))
+      0
+      (let end Int (token_end start)
+        (if (token_bytes_builtin start end)
+          1
+          (source_uses_bytes_builtin end))))))
+
+(def is_upper ((byte Int)) Int
+  (if (lt byte 65)
+    0
+    (lt byte 91)))
+
+(def is_digit ((byte Int)) Int
+  (if (lt byte 48)
+    0
+    (lt byte 58)))
+
+(def is_lower ((byte Int)) Int
+  (if (lt byte 97)
+    0
+    (lt byte 123)))
+
+(def is_identifier_start ((byte Int)) Int
+  (if (is_upper byte)
+    1
+    (if (is_lower byte) 1 (eq byte 95))))
+
+(def is_identifier_continue ((byte Int)) Int
+  (if (is_identifier_start byte) 1 (is_digit byte)))
+
+(def identifier_tail_valid ((index Int) (end Int)) Int
+  (if (eq index end)
+    1
+    (if (is_identifier_continue (source_read index))
+      (identifier_tail_valid (+ index 1) end)
+      0)))
+
+(def reserved_name ((start Int) (end Int)) Int
+  (if (token_data start end) 1
+    (if (token_def start end) 1
+      (if (token_match start end) 1
+        (if (token_let start end) 1
+          (if (token_if start end) 1
+            (if (token_eq start end) 1
+              (if (token_lt start end) 1
+                (if (token_int start end) 1
+                  (if (token_bytes start end) 1
+                    (token_bytes_builtin start end)))))))))))
+
+(def value_name_valid ((start Int) (end Int)) Int
+  (if (eq start end)
+    0
+    (if (reserved_name start end)
+      0
+      (if (is_lower (source_read start))
+        (identifier_tail_valid (+ start 1) end)
+        (if (eq (source_read start) 95)
+          (identifier_tail_valid (+ start 1) end)
+          0)))))
+
+(def upper_name_valid ((start Int) (end Int)) Int
+  (if (eq start end)
+    0
+    (if (reserved_name start end)
+      0
+      (if (is_upper (source_read start))
+        (identifier_tail_valid (+ start 1) end)
+        0))))
+
+(def require_value_name ((start Int) (end Int)) Int
+  (if (value_name_valid start end) 0 (fail)))
+
+(def validate_local_declaration
+  ((name Int) (name_end Int) (type_name Int) (type_end Int)
+   (type_rows Int)) Int
+  (let checked_name Int (require_value_name name name_end)
+    (if (field_type_valid type_name type_end type_rows) 0 (fail))))
+
+(def integer_digits_valid
+  ((index Int) (end Int) (value Int) (negative Int)) Int
+  (if (eq index end)
+    (if negative
+      1
+      (if (eq value -9223372036854775808) 0 1))
+    (let byte Int (source_read index)
+      (if (is_digit byte)
+        (let digit Int (- byte 48)
+          (if (lt value -922337203685477580)
+            0
+            (if (eq value -922337203685477580)
+              (if (lt 8 digit)
+                0
+                (integer_digits_valid
+                  (+ index 1) end (- (* value 10) digit) negative))
+              (integer_digits_valid
+                (+ index 1) end (- (* value 10) digit) negative))))
+        0))))
+
+(def integer_literal_valid ((start Int) (end Int)) Int
+  (if (eq start end)
+    0
+    (if (eq (source_read start) 45)
+      (if (eq (+ start 1) end)
+        0
+        (integer_digits_valid (+ start 1) end 0 1))
+      (integer_digits_valid start end 0 0))))
+
+(def skip_expression ((index Int)) Int
+  (let start Int (skip index)
+    (if (eq (source_read start) 40)
+      (skip_list (token_end start))
+      (token_end start))))
+
+(def skip_list ((index Int)) Int
+  (let start Int (skip index)
+    (if (eq (source_read start) 41)
+      (token_end start)
+      (skip_list (skip_expression start)))))
+
+(def form_head ((form Int)) Int
+  (skip (token_end form)))
+
+(def form_head_end ((form Int)) Int
+  (token_end (form_head form)))
+
+(def field_type_shape_valid ((start Int) (end Int)) Int
+  (if (token_int start end)
+    1
+    (if (token_bytes start end)
+      1
+      (upper_name_valid start end))))
+
+(def constructor_shape_arity_at ((constructor_end Int)) Int
+  (count_constructor_shape_fields (skip constructor_end) 0))
+
+(def count_constructor_shape_fields ((index Int) (count Int)) Int
+  (let next Int (skip index)
+    (if (eq (source_read next) 41)
+      count
+      (let type_end Int (token_end next)
+        (if (field_type_shape_valid next type_end)
+          (count_constructor_shape_fields type_end (+ count 1))
+          (fail))))))
+
+(def field_type_valid ((start Int) (end Int) (type_rows Int)) Int
+  (if (token_int start end)
+    1
+    (if (token_bytes start end)
+      1
+      (if (upper_name_valid start end)
+        (first (name_trie_find_option type_rows end start))
+        0))))
+
+(def constructor_shape_after ((constructor_end Int)) Int
+  (constructor_shape_fields_after (skip constructor_end)))
+
+(def constructor_shape_fields_after ((index Int)) Int
+  (let next Int (skip index)
+    (if (eq (source_read next) 41)
+      (token_end next)
+      (let type_end Int (token_end next)
+        (if (field_type_shape_valid next type_end)
+          (constructor_shape_fields_after type_end)
+          (fail))))))
+
+(def constructor_arity_at ((constructor_end Int) (type_rows Int)) Int
+  (count_constructor_fields (skip constructor_end) 0 type_rows))
+
+(def count_constructor_fields
+  ((index Int) (count Int) (type_rows Int)) Int
+  (let next Int (skip index)
+    (if (eq (source_read next) 41)
+      count
+      (let type_end Int (token_end next)
+        (if (field_type_valid next type_end type_rows)
+          (count_constructor_fields type_end (+ count 1) type_rows)
+          (fail))))))
+
+(def constructor_after ((constructor_end Int) (type_rows Int)) Int
+  (constructor_fields_after (skip constructor_end) type_rows))
+
+(def constructor_fields_after ((index Int) (type_rows Int)) Int
+  (let next Int (skip index)
+    (if (eq (source_read next) 41)
+      (token_end next)
+      (let type_end Int (token_end next)
+        (if (field_type_valid next type_end type_rows)
+          (constructor_fields_after type_end type_rows)
+          (fail))))))
+

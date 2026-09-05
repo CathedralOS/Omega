@@ -15,7 +15,10 @@ command -v python3 >/dev/null 2>&1 || {
 TMP=$(mktemp -d)
 trap 'rm -rf -- "$TMP"' EXIT HUP INT TERM
 EPSILON="$TMP/epsilon_compiler.delta"
-DELTA="$OMEGA_PATH_DELTA_COMPILER_SOURCE"
+DELTA="$TMP/delta_compiler.gamma"
+python3 "$OMEGA_REPO_ROOT/tools/bootstrap/source_closure.py" \
+    "$OMEGA_PATH_DELTA_COMPILER_SOURCES" "$DELTA" \
+    --prefix "$OMEGA_PATH_DELTA_COMPILER_DEVELOPMENT_ENTRY"
 python3 "$OMEGA_REPO_ROOT/tools/bootstrap/source_closure.py" \
     "$OMEGA_PATH_EPSILON_COMPILER_SOURCES" "$EPSILON"
 ANALYSIS=$(python3 "$GATE_DIR/analyze.py" "$EPSILON")

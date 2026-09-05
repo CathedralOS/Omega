@@ -1,0 +1,291 @@
+(def emit_program ((index Int) (globals Int)) Int
+  (let form Int (skip index)
+    (if (eq form (source_length))
+      (if (eq (compilation_profile) 0)
+        10
+        (if (eq (compilation_profile) 1)
+          (emit_conformance_adapter)
+          (fail)))
+      (let head Int (form_head form)
+        (let head_end Int (token_end head)
+          (if (token_data head head_end)
+            (emit_program
+              (skip_expression form) globals)
+            (if (token_def head head_end)
+              (let next Int (emit_definition form globals)
+                (let ignored Int (write '\n')
+                  (emit_program next globals)))
+              (fail))))))))
+
+(def emit_definition ((form Int) (globals Int)) Int
+  (let head Int (form_head form)
+    (let name Int (skip (token_end head))
+      (let name_end Int (token_end name)
+        (let ignored0 Int (write '(')
+          (let ignored1 Int (emit_span head (token_end head))
+            (let ignored2 Int (write '\s')
+              (let ignored3 Int (emit_function_name name name_end)
+                (let ignored4 Int (write '\s')
+                  (let parameters Int (skip name_end)
+                    (let after_parameters Int
+                      (emit_parameters parameters globals)
+                      (let ignored5 Int (write '\s')
+                        (let result_type Int (skip after_parameters)
+                          (let after_type Int (token_end result_type)
+                            (let ignored6 Int (emit_int_word)
+                              (let ignored7 Int (write '\s')
+                                (let after_body Int
+                                  (emit_expression (skip after_type) globals)
+                                  (let close Int (skip after_body)
+                                    (if (eq (source_read close) 41)
+                                      (let ignored8 Int (write ')')
+                                        (token_end close))
+                                      (fail))))))))))))))))))))
+
+(def emit_parameters ((open Int) (globals Int)) Int
+  (if (eq (source_read open) 40)
+    (let ignored Int (write '(')
+      (emit_parameter_items (token_end open) globals))
+    (fail)))
+
+(def emit_parameter_items ((index Int) (globals Int)) Int
+  (let item Int (skip index)
+    (if (eq (source_read item) 41)
+      (let ignored Int (write ')')
+        (token_end item))
+      (let name Int (skip (token_end item))
+        (let name_end Int (token_end name)
+          (let type_name Int (skip name_end)
+            (let type_end Int (token_end type_name)
+              (let close Int (skip type_end)
+                (if (eq (source_read close) 41)
+                  (let ignored Int
+                    (emit_parameter name name_end)
+                    (emit_parameter_tail (token_end close) globals))
+                  (fail))))))))))
+
+(def emit_parameter_tail ((next Int) (globals Int)) Int
+  (let separated Int (skip next)
+    (if (eq (source_read separated) 41)
+      (emit_parameter_items next globals)
+      (let ignored Int (write '\s')
+        (emit_parameter_items next globals)))))
+
+(def emit_expression ((index Int) (globals Int)) Int
+  (if (eq (source_read (skip index)) 40)
+    (emit_list_expression (skip index) globals)
+    (emit_atom (skip index) globals)))
+
+(def emit_atom ((start Int) (globals Int)) Int
+  (let end Int (token_end start)
+    (let first Int (source_read start)
+      (if (is_upper first)
+        (if (upper_name_valid start end)
+          (let metadata Int (require_constructor_metadata start end globals)
+            (let tag Int (constructor_metadata_tag metadata)
+              (if (eq (constructor_metadata_arity metadata) 0)
+                (if (type_metadata_has_payload
+                      (constructor_metadata_type metadata))
+                    (let ignored0 Int (emit_pair_prefix)
+                      (let ignored1 Int (emit_decimal (- tag 1))
+                        (let ignored2 Int (write '\s')
+                          (let ignored3 Int (write '0')
+                            (let ignored4 Int (write ')')
+                              end)))))
+                    (let ignored Int (emit_decimal (- tag 1))
+                      end))
+                (fail))))
+          (fail))
+        (if (is_digit first)
+          (if (integer_literal_valid start end)
+            (let ignored Int (emit_span start end) end)
+            (fail))
+          (if (eq first 45)
+            (if (integer_literal_valid start end)
+              (let ignored Int (emit_span start end) end)
+              (fail))
+            (if (value_name_valid start end)
+              (let ignored Int (emit_span start end) end)
+              (fail))))))))
+
+(def emit_list_expression ((open Int) (globals Int)) Int
+  (let head Int (skip (token_end open))
+    (let head_end Int (token_end head)
+      (if (token_match head head_end)
+        (emit_match open (skip head_end) globals)
+        (if (token_let head head_end)
+          (emit_let open (skip head_end) globals)
+          (if (is_upper (source_read head))
+            (emit_constructor open head head_end globals)
+            (emit_generic_list
+              open head head_end (skip head_end) globals)))))))
+
+(def emit_constructor
+  ((open Int) (name Int) (name_end Int) (globals Int)) Int
+  (let metadata Int (require_constructor_metadata name name_end globals)
+    (let tag Int (constructor_metadata_tag metadata)
+      (let arity Int (constructor_metadata_arity metadata)
+        (if (type_metadata_has_payload (constructor_metadata_type metadata))
+            (let ignored0 Int (emit_pair_prefix)
+              (let ignored1 Int (emit_decimal (- tag 1))
+                (let ignored2 Int (write '\s')
+                  (if (eq arity 0)
+                    (let close Int (skip name_end)
+                      (if (eq (source_read close) 41)
+                        (let ignored3 Int (write '0')
+                          (let ignored4 Int (write ')')
+                            (token_end close)))
+                        (fail)))
+                    (let argument Int (skip name_end)
+                      (let after_argument Int
+                        (emit_constructor_fields argument arity globals)
+                        (let close Int (skip after_argument)
+                          (if (eq (source_read close) 41)
+                            (let ignored3 Int (write ')')
+                              (token_end close))
+                            (fail)))))))))
+            (if (eq arity 0)
+              (let ignored0 Int (emit_decimal (- tag 1))
+                (let close Int (skip name_end)
+                  (if (eq (source_read close) 41)
+                    (token_end close)
+                    (fail))))
+                    (fail)))))))
+
+(def emit_constructor_fields
+  ((index Int) (remaining Int) (globals Int)) Int
+        (if (eq remaining 1)
+          (emit_expression index globals)
+          (let ignored0 Int (emit_pair_prefix)
+            (let after_first Int (emit_expression index globals)
+              (let ignored1 Int (write '\s')
+                (let after_rest Int
+                  (emit_constructor_fields
+                    (skip after_first) (- remaining 1) globals)
+                  (let ignored2 Int (write ')')
+                    after_rest)))))))
+
+(def operator_arity_plus_one ((start Int) (end Int)) Int
+  (if (eq (- end start) 1)
+    (let byte Int (source_read start)
+      (if (eq byte 43) 3
+        (if (eq byte 45) 3
+          (if (eq byte 42) 3
+            (if (eq byte 47) 3
+              (if (eq byte 37) 3 0))))))
+    0))
+
+(def checked_arithmetic_head ((start Int) (end Int)) Int
+  (if (eq (- end start) 1)
+    (let byte Int (source_read start)
+      (if (eq byte 43) 1
+        (if (eq byte 45) 1
+          (if (eq byte 42) 1 0))))
+    0))
+
+(def emit_bytes_helper_name ((kind Int)) Int
+  (if (if (eq (compilation_profile) 1) (eq kind 4) 0)
+    (let ignored0 Int (write '$')
+      (let ignored1 Int (write 'p')
+        (let ignored2 Int (write 'b')
+          (write 'g'))))
+    (let ignored0 Int (write '$')
+      (let ignored1 Int (write 'd')
+        (let ignored2 Int (write 'b')
+          (write
+            (if (eq kind 1)
+              'e'
+              (if (eq kind 2)
+                's'
+                (if (eq kind 3)
+                  'l'
+                  (if (eq kind 4)
+                    'g'
+                    (if (eq kind 5) 'c' (fail))))))))))))
+
+(def emit_bytes_builtin
+  ((head Int) (head_end Int) (args Int) (globals Int)) Int
+  (let kind Int (bytes_builtin_kind head head_end)
+    (let arity Int (bytes_builtin_arity_plus_one head head_end)
+      (if kind
+        (let ignored0 Int (write '(')
+          (let ignored1 Int (emit_bytes_helper_name kind)
+            (emit_generic_arguments args (- arity 1) globals)))
+        (fail)))))
+
+(def generic_head_arity
+  ((start Int) (end Int) (globals Int)) Int
+  (if (token_if start end)
+    4
+    (if (token_eq start end)
+      3
+      (if (token_lt start end)
+        3
+        (let bytes_arity Int (bytes_builtin_arity_plus_one start end)
+          (if bytes_arity
+            bytes_arity
+            (let operator_arity Int (operator_arity_plus_one start end)
+              (if operator_arity
+                operator_arity
+                (if (value_name_valid start end)
+                  (let found Int (find_function_metadata start end globals)
+                    (if (first found)
+                      (+ (function_metadata_arity (second found)) 1)
+                      0))
+                  0)))))))))
+
+(def emit_generic_list
+  ((open Int) (head Int) (head_end Int) (args Int) (globals Int)) Int
+  (if (token_bytes_builtin head head_end)
+    (emit_bytes_builtin head head_end args globals)
+    (if (checked_arithmetic_head head head_end)
+      (emit_checked_arithmetic open head head_end args globals)
+      (let arity Int (generic_head_arity head head_end globals)
+        (if arity
+          (let ignored0 Int (write '(')
+            (let ignored1 Int
+              (if (value_name_valid head head_end)
+                (emit_function_name head head_end)
+                (emit_span head head_end))
+              (emit_generic_arguments args (- arity 1) globals)))
+          (fail))))))
+
+(def emit_generic_arguments
+  ((index Int) (remaining Int) (globals Int)) Int
+  (let next Int (skip index)
+    (if (eq remaining 0)
+      (if (eq (source_read next) 41)
+        (let ignored Int (write ')')
+          (token_end next))
+        (fail))
+      (if (eq (source_read next) 41)
+        (fail)
+        (let ignored0 Int (write '\s')
+          (let after Int (emit_expression next globals)
+            (emit_generic_arguments after (- remaining 1) globals)))))))
+
+(def emit_let ((open Int) (index Int) (globals Int)) Int
+  (let name Int (skip index)
+    (let name_end Int (token_end name)
+      (let type_name Int (skip name_end)
+        (let type_end Int (token_end type_name)
+          (let ignored0 Int (write '(')
+            (let ignored1 Int (write 'l')
+              (let ignored2 Int (write 'e')
+                (let ignored3 Int (write 't')
+                  (let ignored4 Int (write '\s')
+                    (let ignored5 Int (emit_span name name_end)
+                      (let ignored6 Int (write '\s')
+                        (let ignored7 Int (emit_int_word)
+                          (let ignored8 Int (write '\s')
+                            (let after_initializer Int
+                              (emit_expression (skip type_end) globals)
+                              (let ignored9 Int (write '\s')
+                                (let after_body Int
+                                  (emit_expression (skip after_initializer) globals)
+                                  (let close Int (skip after_body)
+                                    (if (eq (source_read close) 41)
+                                      (let ignored10 Int (write ')')
+                                        (token_end close))
+                                      (fail))))))))))))))))))))
+
