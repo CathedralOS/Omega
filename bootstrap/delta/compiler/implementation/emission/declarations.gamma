@@ -1,0 +1,31 @@
+(def emit_definition ((node Int) (globals Int)) Int
+  (let head Int (syntax_child node 0)
+    (let name Int (syntax_child node 1)
+      (let parameters Int (syntax_child node 2)
+        (let open Int (write '(')
+          (let keyword Int (emit_span (syntax_start head) (syntax_after head))
+            (let separator Int (write '\s')
+              (let identity Int
+                (emit_function_name (syntax_start name) (syntax_after name))
+                (let parameter_space Int (write '\s')
+                  (let parameter_open Int (write '(')
+                    (let parameter_items Int
+                      (emit_parameter_nodes (syntax_count parameters)
+                        (syntax_children parameters))
+                      (let parameter_close Int (write ')')
+                        (let result_space Int (write '\s')
+                          (let result_type Int (emit_int_word)
+                            (let body_space Int (write '\s')
+                              (let body Int
+                                (emission_visit (syntax_child node 4) 0 0 globals)
+                                (write ')')))))))))))))))))
+
+(def emit_parameter_nodes ((count Int) (nodes Int)) Int
+  (if (eq count 0)
+    0
+    (let name Int (syntax_child (first nodes) 0)
+      (let parameter Int (emit_parameter (syntax_start name) (syntax_after name))
+        (if (eq count 1)
+          0
+          (let separator Int (write '\s')
+            (emit_parameter_nodes (- count 1) (second nodes))))))))

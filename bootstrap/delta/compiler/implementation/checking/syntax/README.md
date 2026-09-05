@@ -100,18 +100,19 @@ The retained program is consumed, not discarded after validation:
   tail transitions rather than recursive source walks. Constructor metadata
   retains ordered resolved field types, so calls and patterns do not rescan
   payload annotations.
-- Emission traverses retained top-level forms. It skips data declarations
-  without rescanning their bodies and verifies that each source-based function
-  traversal ends at its retained `after` coordinate.
+- Emission traverses retained declarations, expressions, and pattern children.
+  Its shared visit/resume machine uses explicit continuation payloads instead
+  of recursive source-coordinate walks. Atom spans still supply exact authored
+  names, admitted numeric text, and hygienic generated-name coordinates.
 
-Expression emission still reads checked source coordinates; it has not yet
-migrated to retained child nodes. Emission
-remains after the complete static preflight, as required by
+The [emitter](../../emission/README.md) remains after the complete static
+preflight, as required by
 [D114](../../../../../../wiki/architecture/bootstrap_chain/decisions.md#d114--delta-emission-consumes-the-completed-static-preflight).
 Other compiler-owned resource/internal failure propagation and successful
-expression emission throughout the admitted depth remain separate work.
-Complete retained-node frontend traversal and the `parse_depth` refusal do not
-establish those later properties.
+generated-program admission throughout the Delta depth profile remain separate
+work. The selected Gamma evaluator caps generated bodies at 255 nested lists;
+lowering may add wrappers. Complete retained-node compiler traversal and the
+`parse_depth` refusal do not establish that later profile property.
 
 The [boundary contract](../../boundary/README.md#body-traversal-and-coordinates)
 records body diagnostic order and coordinates. Declaration parameters check

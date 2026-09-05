@@ -11,8 +11,8 @@ The normative contract is
 [`bootstrap/delta/LANGUAGE.md`](../../../../bootstrap/delta/LANGUAGE.md). The canonical
 compiler must be written in Gamma and emit canonical Gamma source. The selected
 Beta-authored Gamma evaluator executes that compiler over Delta source and can
-execute the resulting canonical Gamma receipt. The selected 2,785-line source
-is one canonical request entry plus 32 manifested shared implementation members.
+execute the resulting canonical Gamma receipt. The selected 2,591-line source
+is one canonical request entry plus 40 manifested shared implementation members.
 It enforces Delta's textual-ASCII byte envelope, identifier and
 reserved-name grammar, signed-literal range, and exact global function
 signatures. A complete lexical pass follows source-envelope validation and
@@ -61,8 +61,11 @@ the whole declaration phase precedes all bodies. Grammar also owns D30's
 returns `Incomplete` code 8 at its source start with limit/requested 1,024/1,025.
 This check follows balanced parsing and precedes that expression's grammar
 judgment, not node or queue allocation. Body typing consumes retained
-expression and pattern nodes and propagates canonical failures. Emission still
-traverses checked expression source coordinates. Other compiler-owned
-resource/internal outcomes, successful emission throughout the admitted depth,
+expression and pattern nodes and propagates canonical failures. Emission also
+consumes retained nodes with explicit visit/resume continuations. Stack-safe
+compiler traversal does not establish generated Gamma admission: each generated
+body remains subject to the selected evaluator's separate 255-list nesting
+bound. Other compiler-owned resource/internal outcomes, successful generated
+admission throughout Delta's 1,024-level depth profile,
 and final edge closure remain open;
 underlying evaluator failures do not stand in for those compiler outcomes.

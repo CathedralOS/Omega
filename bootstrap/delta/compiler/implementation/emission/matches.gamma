@@ -1,240 +1,38 @@
-(def emit_match ((match_start Int) (scrutinee Int) (globals Int)) Int
-  (let scrutinee_end Int (skip_expression scrutinee)
-    (let first_arm Int (skip scrutinee_end)
-      (let first_pattern Int (skip (token_end first_arm))
-        (let first_constructor Int (pattern_constructor first_pattern)
-        (let first_constructor_end Int (token_end first_constructor)
-          (let metadata Int
-            (require_constructor_metadata
-              first_constructor first_constructor_end globals)
-            (let type_metadata Int (constructor_metadata_type metadata)
-              (let owner Int (type_metadata_owner type_metadata)
-              (let count Int (type_metadata_constructor_count type_metadata)
-                (if (type_metadata_has_payload type_metadata)
-                  (emit_payload_match
-                    match_start scrutinee scrutinee_end first_arm count owner
-                    globals)
-                  (emit_nullary_match
-                    match_start scrutinee first_arm count owner globals))))))))))))
+; A checked match retains its subject and authored arm order. Subject and arm
+; bodies enter the shared expression machine; no source subtree is reparsed.
+(def emission_match ((node Int) (depth Int) (frames Int) (globals Int)) Int
+  (let metadata Int (emission_match_metadata node globals)
+    (let payload Int
+      (type_metadata_has_payload (constructor_metadata_type metadata))
+      (let prefix Int
+        (emit_match_binding_prefix (syntax_start node) (if payload 1 0))
+        (emission_visit (syntax_child node 1) (+ depth 1)
+          (emission_frame 6 node frames) globals)))))
 
-(def emit_nullary_match
-  ((match_start Int) (scrutinee Int) (first_arm Int) (count Int) (owner Int)
-   (globals Int)) Int
-  (let ignored0 Int (write '(')
-    (let ignored1 Int (write 'l')
-      (let ignored2 Int (write 'e')
-        (let ignored3 Int (write 't')
-          (let ignored4 Int (write '\s')
-            (let ignored5 Int (emit_match_name match_start)
-              (let ignored6 Int (write '\s')
-                (let ignored7 Int (emit_int_word)
-                  (let ignored8 Int (write '\s')
-                    (let after_scrutinee Int (emit_expression scrutinee globals)
-                      (let ignored9 Int (write '\s')
-                        (let after_arms Int
-                          (emit_match_arms
-                            first_arm 0 count owner match_start globals)
-                          (let ignored10 Int (write ')')
-                            after_arms))))))))))))))
+; Kind 6 has already been popped. One close frame owns the match's binding
+; wrappers and every remaining authored-order conditional wrapper.
+(def emission_match_subject_done
+  ((node Int) (depth Int) (frames Int) (globals Int)) Int
+  (let metadata Int (emission_match_metadata node globals)
+    (let payload Int
+      (type_metadata_has_payload (constructor_metadata_type metadata))
+      (let separated Int (write '\s')
+        (let unpacked Int
+          (if payload (emit_match_unpack (syntax_start node)) 0)
+          (let count Int (- (syntax_count node) 2)
+            (emission_match_arms count
+              (second (second (syntax_children node))) (syntax_start node)
+              (+ depth 1)
+              (emission_frame 2 (+ (- count 1) (if payload 3 1)) frames)
+              globals)))))))
 
-(def emit_payload_match
-  ((match_start Int) (scrutinee Int) (scrutinee_end Int)
-   (first_arm Int) (count Int) (owner Int) (globals Int)) Int
-  (let ignored0 Int (write '(')
-    (let ignored1 Int (write 'l')
-      (let ignored2 Int (write 'e')
-        (let ignored3 Int (write 't')
-          (let ignored4 Int (write '\s')
-            (let ignored5 Int (emit_match_value_name match_start)
-              (let ignored6 Int (write '\s')
-                (let ignored7 Int (emit_int_word)
-                  (let ignored8 Int (write '\s')
-                    (let after_scrutinee Int (emit_expression scrutinee globals)
-                      (let ignored9 Int (write '\s')
-                        (let ignored10 Int (write '(')
-                          (let ignored11 Int (write 'l')
-                            (let ignored12 Int (write 'e')
-                              (let ignored13 Int (write 't')
-                                (let ignored14 Int (write '\s')
-                                  (let ignored15 Int (emit_match_name match_start)
-                                    (let ignored16 Int (write '\s')
-                                      (let ignored17 Int (emit_int_word)
-                                        (let ignored18 Int (write '\s')
-                                          (let ignored19 Int (emit_first_prefix)
-                                            (let ignored20 Int
-                                              (emit_match_value_name match_start)
-                                              (let ignored21 Int (write ')')
-                                                (let ignored22 Int (write '\s')
-                                                  (let ignored23 Int (write '(')
-                                                    (let ignored24 Int (write 'l')
-                                                      (let ignored25 Int (write 'e')
-                                                        (let ignored26 Int (write 't')
-                                                          (let ignored27 Int (write '\s')
-                                                            (let ignored28 Int
-                                                              (emit_match_payload_name match_start)
-                                                              (let ignored29 Int (write '\s')
-                                                                (let ignored30 Int (emit_int_word)
-                                                                  (let ignored31 Int (write '\s')
-                                                                    (let ignored32 Int
-                                                                      (emit_second_prefix)
-                                                                      (let ignored33 Int
-                                                                        (emit_match_value_name match_start)
-                                                                        (let ignored34 Int (write ')')
-                                                                          (let ignored35 Int (write '\s')
-                                                                            (let after_arms Int
-                                                                              (emit_match_arms
-                                                                                first_arm 0 count owner match_start globals)
-                                                                              (let ignored36 Int (write ')')
-                                                                                (let ignored37 Int (write ')')
-                                                                                  (let ignored38 Int (write ')')
-                                                                                    after_arms))))))))))))))))))))))))))))))))))))))))))
+(def emission_match_constructor ((pattern Int)) Int
+  (if (eq (syntax_count pattern) -1)
+    pattern
+    (syntax_child pattern 0)))
 
-(def pattern_constructor ((pattern Int)) Int
-  (if (eq (source_read pattern) 40)
-    (skip (token_end pattern))
-    pattern))
-
-(def pattern_body ((pattern Int) (constructor_end Int) (arity Int)) Int
-  (if (eq (source_read pattern) 40)
-    (let after_pattern Int (pattern_after_binders constructor_end arity)
-      (if (eq after_pattern 0)
-        (fail)
-        (skip after_pattern)))
-    (if (eq arity 0)
-      (skip constructor_end)
-      (fail))))
-
-(def pattern_after_binders ((index Int) (remaining Int)) Int
-  (if (eq remaining 0)
-    (let close Int (skip index)
-      (if (eq (source_read close) 41)
-        (token_end close)
-        0))
-    (let binder Int (skip index)
-      (if (eq (source_read binder) 41)
-        0
-        (pattern_after_binders (token_end binder) (- remaining 1))))))
-
-(def pattern_shape_valid ((pattern Int) (constructor_end Int) (arity Int)) Int
-  (if (eq (source_read pattern) 40)
-    (if (eq (pattern_after_binders constructor_end arity) 0) 0 1)
-    (if (eq arity 0) 1 0)))
-
-(def emit_second_prefixes ((remaining Int)) Int
-  (if (eq remaining 0)
-    0
-    (let ignored Int (emit_second_prefix)
-      (emit_second_prefixes (- remaining 1)))))
-
-(def emit_closes ((remaining Int)) Int
-  (if (eq remaining 0)
-    0
-    (let ignored Int (write ')')
-      (emit_closes (- remaining 1)))))
-
-(def emit_payload_projection
-  ((index Int) (arity Int) (match_start Int)) Int
-  (if (eq arity 1)
-    (emit_match_payload_name match_start)
-    (if (eq (+ index 1) arity)
-      (let ignored0 Int (emit_second_prefixes index)
-        (let ignored1 Int (emit_match_payload_name match_start)
-          (emit_closes index)))
-      (let ignored0 Int (emit_first_prefix)
-        (let ignored1 Int (emit_second_prefixes index)
-          (let ignored2 Int (emit_match_payload_name match_start)
-            (emit_closes (+ index 1))))))))
-
-(def emit_arm_body
-  ((body Int) (pattern Int) (constructor_end Int) (arity Int)
-   (match_start Int) (globals Int)) Int
-  (if (eq arity 0)
-    (emit_expression body globals)
-    (emit_pattern_bindings
-      body (skip constructor_end) 0 arity match_start globals)))
-
-(def emit_pattern_bindings
-  ((body Int) (binder_index Int) (field_index Int) (arity Int)
-   (match_start Int) (globals Int)) Int
-  (if (eq field_index arity)
-    (emit_expression body globals)
-    (let binder Int (skip binder_index)
-      (let binder_end Int (token_end binder)
-        (let checked Int (require_value_name binder binder_end)
-          (let ignored0 Int (write '(')
-            (let ignored1 Int (write 'l')
-              (let ignored2 Int (write 'e')
-                (let ignored3 Int (write 't')
-                  (let ignored4 Int (write '\s')
-                    (let ignored5 Int (emit_span binder binder_end)
-                      (let ignored6 Int (write '\s')
-                        (let ignored7 Int (emit_int_word)
-                          (let ignored8 Int (write '\s')
-                            (let ignored9 Int
-                              (emit_payload_projection field_index arity match_start)
-                              (let ignored10 Int (write '\s')
-                                (let after_body Int
-                                  (emit_pattern_bindings
-                                    body binder_end (+ field_index 1)
-                                    arity match_start globals)
-                                  (let ignored11 Int (write ')')
-                                    after_body))))))))))))))))))
-
-(def emit_match_arms
-  ((index Int) (arm_index Int) (count Int) (owner Int) (match_start Int)
-   (globals Int)) Int
-  (let arm Int (skip index)
-    (if (eq (source_read arm) 40)
-      (let pattern Int (skip (token_end arm))
-        (let constructor Int (pattern_constructor pattern)
-        (let constructor_end Int (token_end constructor)
-          (let metadata Int
-            (require_constructor_metadata constructor constructor_end globals)
-            (let actual_tag Int (constructor_metadata_tag metadata)
-              (let actual_owner Int (constructor_metadata_owner metadata)
-              (let arity Int (constructor_metadata_arity metadata)
-              (if (pattern_shape_valid pattern constructor_end arity)
-                (if (eq actual_owner owner)
-                  (let body Int (pattern_body pattern constructor_end arity)
-                    (if (eq (+ arm_index 1) count)
-                      (let after_body Int
-                        (emit_arm_body
-                          body pattern constructor_end arity match_start globals)
-                        (let arm_close Int (skip after_body)
-                          (if (eq (source_read arm_close) 41)
-                            (let match_close Int (skip (token_end arm_close))
-                              (if (eq (source_read match_close) 41)
-                                (token_end match_close)
-                                (fail)))
-                            (fail))))
-                      (let ignored0 Int (write '(')
-                        (let ignored1 Int (write 'i')
-                          (let ignored2 Int (write 'f')
-                            (let ignored3 Int (write '\s')
-                              (let ignored4 Int (write '(')
-                                (let ignored5 Int (write 'e')
-                                  (let ignored6 Int (write 'q')
-                                    (let ignored7 Int (write '\s')
-                                      (let ignored8 Int (emit_match_name match_start)
-                                        (let ignored9 Int (write '\s')
-                                          (let ignored10 Int (emit_decimal (- actual_tag 1))
-                                            (let ignored11 Int (write ')')
-                                              (let ignored12 Int (write '\s')
-                                                (let after_body Int
-                                                  (emit_arm_body
-                                                    body pattern constructor_end arity match_start
-                                                    globals)
-                                                  (let arm_close Int (skip after_body)
-                                                    (if (eq (source_read arm_close) 41)
-                                                      (let ignored13 Int (write '\s')
-                                                        (let after_rest Int
-                                                          (emit_match_arms
-                                                            (token_end arm_close)
-                                                            (+ arm_index 1)
-                                                            count owner match_start globals)
-                                                          (let ignored14 Int (write ')')
-                                                            after_rest)))
-                                                      (fail)))))))))))))))))))
-                  (fail))
-              (fail)))))))))
-      (fail))))
+(def emission_match_metadata ((node Int) (globals Int)) Int
+  (let constructor Int
+    (emission_match_constructor (syntax_child (syntax_child node 2) 0))
+    (require_constructor_metadata
+      (syntax_start constructor) (syntax_after constructor) globals)))

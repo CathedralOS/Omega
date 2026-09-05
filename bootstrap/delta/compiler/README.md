@@ -35,7 +35,12 @@ Body typing starts at
 expression dispatch, branches, bindings, calls, and matches. Continuation
 frames belong to the expression dispatcher and each concept's payload owner.
 
-`implementation/implementation.gamma.sources` selects all 32 shared members
+Emission starts at
+[`emission/program.gamma`](implementation/emission/program.gamma), then follows
+[`emission/README.md`](implementation/emission/README.md) into retained
+declarations, the common expression machine, and concept-owned lowering.
+
+`implementation/implementation.gamma.sources` selects all 40 shared members
 with exact lengths, digests, and ordered identities. The byte-only source
 materializer validates that closed inventory and prefixes the explicitly
 selected entry. For the canonical entry, its application marker is therefore
@@ -117,7 +122,7 @@ neither hash collisions, absent-edge trees, nor repeated whole-source lookup.
 Type and constructor names may still share a spelling, as
 required by Delta's grammar-distinguished namespaces. Name recursion advances
 once per complete byte; a 200-byte identifier witness guards practical Gamma
-call-context headroom, while the Epsilon customer currently tops out at 56.
+call-context headroom, while the Epsilon customer currently tops out at 58.
 
 The frontend validates identifier spelling at declarations, types, parameters,
 local binders, constructor patterns, atoms, and application heads.
@@ -158,7 +163,11 @@ The complete type-check pass finishes before the first output byte. Emission
 therefore consumes that established preflight instead of revalidating data
 declarations, parameter annotations, function results, or `let` annotations.
 It copies admitted numeric spans without repeating their spelling/range checks.
-It still parses every source coordinate needed to construct canonical Gamma.
+It consumes retained expression and pattern children through explicit
+visit/resume continuations. Source spans supply names and literal bytes, not
+reconstructed subtree boundaries. Resume handlers receive the already-popped
+depth and previous stack; pending closes and remaining children have separate
+concept-owned payloads.
 The raw-source development gate requires every rejected program to leave output
 empty, including defects after otherwise emit-capable declarations. The
 canonical entry instead publishes a complete DCOUT frame for owned failures;
@@ -219,10 +228,11 @@ application schema mismatch (20).
 Missing `main` has no source coordinate; a schema mismatch
 anchors at the entry name. Source-byte and expression `parse_depth` refusals
 have owned resource frames; other compiler-owned resource accounting and
-internal failure publication remain open. Expression emission still follows checked
-source coordinates, and its nesting behavior is not established by the retained
-frontend, including for inputs inside the 1,024-level profile. Underlying
-evaluator failures on those paths are not DCOUT. These
+internal failure publication remain open. Stack-safe compiler traversal does
+not guarantee generated Gamma admission throughout the 1,024-level Delta
+profile: the selected Gamma evaluator separately caps each generated body at
+255 nested expression lists, and lowering can introduce additional wrappers.
+Underlying evaluator failures on those paths are not DCOUT. These
 frontend diagnostics do not establish final edge closure.
 Calls emitted in tail position remain in Gamma tail position through
 `if`, `let`, and lowered `match`; the selected evaluator executes a 100,000-node
@@ -239,7 +249,7 @@ The downgraded full compiler remains separate under
 ## Measurements
 
 ```text
-2,785-line / 118,673-byte canonical entry plus shared Gamma implementation
+2,591-line / 109,334-byte canonical entry plus shared Gamma implementation
 7-line / 195-byte nullary-ADT Delta fixture
   -> 3-line / 165-byte Gamma receipt
   -> selected Gamma evaluation produces byte 9
