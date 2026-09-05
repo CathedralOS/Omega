@@ -76,6 +76,16 @@ Incomplete or corrupted descendant objects fail without automatic repair.
 This whole-root entrance does not select workspace members or reconstruct a
 manager lock's package graph.
 
+The companion `resolve_git_workspace_member_at_revision_in_lanes` uses that
+same recorded commit/root tree with the existing bounded workspace planner.
+It authenticates root and declared-member declarations at that revision, then
+materializes only the selected member. Returned custody distinguishes the
+recorded repository root tree from the selected member tree and retains the
+declarations that justified navigation. Both storage lanes remain checked;
+unrelated repository payloads are not copied into the member snapshot. The
+manager still owns interpreting declarations and matching the lock's package
+identity and complete source graph.
+
 Dependency direction is deliberate: the `local` and `git` adapters may use
 `identity`, `tree`, `snapshot`, `custody`, and `storage`; those shared owners
 must not depend back on either adapter. The local and Git adapters must not
