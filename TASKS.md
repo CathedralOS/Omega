@@ -95,22 +95,22 @@ the [Rust Compiler Completion Contract](wiki/releases/rust_compiler_completion_c
   evidence and proved replacement byte, not through a weakened field
   declaration. The `stdin_*` and `gui` cohorts pass.
 
-  `samples_with_documented_exit_run_correctly` is separately red for every
-  documented-exit sample, `cli/basics/cli_mvp` included: each reaches checked
-  trees and then fails native Terminal production at one
-  `psi-checked-trees-to-terminal` fence in `src/attached_unit/call_closure.rs`,
-  `attached Unit closure is missing a checked transitive machine plan`. The
-  fence is accurate. The producer is
-  `psi-typed-trees-to-checked-trees/src/flow/terminal_unit/`, which mints no
-  `CheckedUnitEffectMachinePlan` for an attached `Main::main` that calls
-  `Console::read_line(&mut self.pause)`. Two admissions there remain open:
-  `build_call_operation` rejects a static boundary-requirement argument that
-  projects a caller parameter instead of naming the whole parameter
-  (`calls.rs`, the `!place.segments.is_empty()` fence), and a projected owned
-  `[u8; N] in D` carrier has no admitted presentation as the requirement's
-  borrowed `&[u8]` view. The `CallUnit` lane in the same file already owns
-  field-path and fixed-index projection; share that owner rather than copying
-  it.
+  `samples_with_documented_exit_run_correctly` is separately red for all 136
+  documented-exit samples: 86 fail native Terminal production at the
+  `psi-checked-trees-to-terminal` fence `attached Unit closure is missing a
+  checked transitive machine plan`, the rest earlier under `NOMINAL-FIELD-FLOW`
+  below. The fence is accurate. 119 of the 136 call
+  `Console::read_line(&mut self.pause)`, and no attached `Main::main(&mut self)`
+  can supply that argument: a borrowed `self` produces no structural parameter
+  in `structural_signature_with_affine_pair`
+  (`psi-typed-trees-to-checked-trees/src/flow/terminal_unit/calls.rs`), and the
+  attached-Unit Terminal lane mints places only for provider-specialized
+  attachment fields, so an ordinary attached data field has no root a call
+  argument can name. An owned `self` does produce that root and the boundary
+  call lane closes on it end to end; every documented-exit sample takes
+  `&mut self`. Giving the borrowed attachment an addressable root belongs to
+  `ENTRY-CONTENT-ROOTS` and `INSTALLED-PROGRAM-LOCAL-ROOT-INTRODUCTION` under
+  P1.
 
   Acceptance: both tests pass, with every maintained sample reaching checked
   trees and every documented exit oracle observed on its matching host.
