@@ -644,29 +644,29 @@ linux_arm64 machine Filesystem::rda_step(&mut self, step: u64) {
         }
     }
     state rds_rm_child(&mut self, entry: DirEntry) {
-        transition entry.name_len < 256 { true -> rds_rm_child_go(entry) _ -> rds_fail() }
+        transition entry.name_len < 256 { true -> rds_rm_child_go(entry, entry.name_len) _ -> rds_fail() }
     }
-    state rds_rm_child_go(&mut self, entry: DirEntry) {
-        self.rda_rc = self.host.unlink_at(self.rda_fd, entry.name[0..entry.name_len], 512);
+    state rds_rm_child_go(&mut self, entry: DirEntry, name_len: u64[0..=255]) {
+        self.rda_rc = self.host.unlink_at(self.rda_fd, entry.name[0..name_len], 512);
         transition self.rda_rc == 0 { true -> rds_continue() _ -> rds_fail() }
     }
 
     // A live first entry: files unlink; subdirs open + PUSH (descend).
     state rds_entry(&mut self, entry: DirEntry) {
-        transition entry.name_len < 256 { true -> rds_kind(entry) _ -> rds_fail() }
+        transition entry.name_len < 256 { true -> rds_kind(entry, entry.name_len) _ -> rds_fail() }
     }
-    state rds_kind(&mut self, entry: DirEntry) {
+    state rds_kind(&mut self, entry: DirEntry, name_len: u64[0..=255]) {
         transition entry.is_dir {
-            true -> rds_descend(entry)
-            false -> rds_unlink(entry)
+            true -> rds_descend(entry, name_len)
+            false -> rds_unlink(entry, name_len)
         }
     }
-    state rds_unlink(&mut self, entry: DirEntry) {
-        self.rda_rc = self.host.unlink_at(self.rda_fd, entry.name[0..entry.name_len], 0);
+    state rds_unlink(&mut self, entry: DirEntry, name_len: u64[0..=255]) {
+        self.rda_rc = self.host.unlink_at(self.rda_fd, entry.name[0..name_len], 0);
         transition self.rda_rc == 0 { true -> rds_continue() _ -> rds_fail() }
     }
-    state rds_descend(&mut self, entry: DirEntry) {
-        self.rda_sub = self.host.open_at(self.rda_fd, entry.name[0..entry.name_len], self.read_flags);
+    state rds_descend(&mut self, entry: DirEntry, name_len: u64[0..=255]) {
+        self.rda_sub = self.host.open_at(self.rda_fd, entry.name[0..name_len], self.read_flags);
         self.rda_rc = self.rda_sub;
         transition self.rda_sub >= 0 { true -> rds_push() _ -> rds_fail() }
     }
