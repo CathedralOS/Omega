@@ -2,10 +2,11 @@
 
 mod capture;
 mod model;
+mod normalized;
 mod text;
 
 pub use model::{
-    HistoricalPackagePolicyDecision, HistoricalPackagePolicyDecisions,
-    HistoricalPackagePolicyError, HistoricalPackagePolicyLimits,
+    HistoricalPackagePolicyDecision, HistoricalPackagePolicyDecisionSubject,
+    HistoricalPackagePolicyDecisions, HistoricalPackagePolicyError, HistoricalPackagePolicyLimits,
     HistoricalPackagePolicyRecoveryUsage,
 };

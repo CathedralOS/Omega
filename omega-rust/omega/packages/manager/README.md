@@ -194,9 +194,18 @@ evidence-promotion step. It records decisions, not whether an audit happened.
 `all_required_changes_accepted` describes only the represented choices, not
 permission to publish. Source-lineage replacement still needs its own explicit
 comparison finding: source/path drift currently recommends audit and must not
-be mistaken for a blocking replacement decision. Decision text/file handling,
-removed-package history in the lock, fresh compiler obligations, and
+be mistaken for a blocking replacement decision. Fresh compiler obligations and
 transactional candidate/project-file rechecks remain integration work.
+
+The separately versioned restart record recovers only against the current
+comparison. It rejoins every package and obligation, reruns that complete
+decision validation, and checks canonical text against borrowed input under one
+budget. It is not historical lock policy and cannot authorize another update.
+Historical capture is a distinct consumer: it records those choices in the
+source-scoped lock decision section without claiming that an audit occurred.
+Removed-package and directional role decisions remain representable after the
+old checkout disappears. Transactional publication and independent fresh
+compiler/source checks remain operation work.
 
 Return to the [package subsystem map](../README.md), or consult:
 
