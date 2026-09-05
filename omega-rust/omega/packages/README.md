@@ -61,10 +61,17 @@ This source record is not an accepted lock: accepted policy baselines and
 decisions, locked resolution, and transaction publication remain separate work.
 
 An accepted policy baseline must not embed the existing review capsule. That
-capsule includes compiler proof and build-replay data. Provider selections,
-external executable supplies, and opaque-representation disclosures need
-policy-only projections of their typed facts; dropping those audit-relevant
-families or retaining their reconstruction receipts would both be incorrect.
+capsule includes compiler proof and build-replay data. Provider selections and
+opaque-representation disclosures still need policy-only projections of their
+typed facts. External supplies have a receipt-free structural projection and
+component encoding; complete baseline recovery and comparison remain open.
+Dropping audit-relevant families or retaining their reconstruction receipts
+would both be incorrect.
+
+Historical project decisions have a separate bounded text section under
+`manager/src/lock/decisions`. It is scoped to the retained source subject and
+loads without old source or old compiler conflicts. It cannot stand in for
+fresh root-policy resolution or the full normalized accepted baseline.
 
 Design and security references:
 

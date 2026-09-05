@@ -19,6 +19,7 @@ const PACKAGE_CRATES: &[&str] = &[
 const MANAGER_OWNERS: &[&str] = &[
     "admission",
     "declarations",
+    "lock",
     "operations",
     "resolution",
     "review",

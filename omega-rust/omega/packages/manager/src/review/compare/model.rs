@@ -4,7 +4,7 @@ use super::format::{RenderByteCounter, render_conflict_set};
 use super::render_error::ReviewOnlyCapabilityConflictRenderError;
 use crate::declarations::BuildDeclarationKind;
 use crate::declarations::PackageKey;
-use crate::resolution::graph::DependencyRequestPath;
+use crate::resolution::graph::{CanonicalSourceClosureSubjectFingerprint, DependencyRequestPath};
 use crate::review::candidate::ReviewOnlySourceConsumptionCommitment;
 use omega_package_evidence::record::{
     PackageReviewCanonicalRowKind, PackageReviewCanonicalRowRisk, PackageReviewCanonicalRowSource,
@@ -275,13 +275,19 @@ impl ReviewOnlyPackageCapabilityConflicts {
 /// Fresh packages expose only trust-bearing rows that require root policy;
 /// ordinary API rows have no prior compatibility contract. Removed packages
 /// and source-lineage replacement still receive separate provenance triage.
-/// Durable admission remains absent until accepted lock evidence is sealed.
+/// Accepted-lock publication remains a separate project transaction.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ReviewOnlyCapabilityConflictSet {
     pub(super) packages: Vec<ReviewOnlyPackageCapabilityConflicts>,
+    pub(super) source_subject: CanonicalSourceClosureSubjectFingerprint,
 }
 
 impl ReviewOnlyCapabilityConflictSet {
+    /// Exact source graph, root role, requests, and target used for comparison.
+    pub const fn source_subject(&self) -> &CanonicalSourceClosureSubjectFingerprint {
+        &self.source_subject
+    }
+
     pub fn packages(&self) -> &[ReviewOnlyPackageCapabilityConflicts] {
         &self.packages
     }

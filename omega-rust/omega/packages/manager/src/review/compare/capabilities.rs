@@ -1,7 +1,7 @@
 //! Exact capability-set comparison and row conflict construction.
 
 use super::commitments::{
-    ConflictFingerprintBaseline, derive_candidate_closure_commitment, derive_conflict_fingerprint,
+    ConflictFingerprintBaseline, derive_candidate_closure_identity, derive_conflict_fingerprint,
 };
 use super::model::*;
 use super::resources::{ComparisonInputBudget, account_review_resources};
@@ -58,8 +58,15 @@ pub(crate) fn compare_review_only_capability_records<B: PackageReviewEvidence>(
     let candidate_by_key = validate_review_only_closure(source_closure, candidate)
         .map_err(map_candidate_closure_validation_error)?
         .into_reviews_by_key();
-    let candidate_closure =
-        derive_candidate_closure_commitment(candidate_sources, &candidate_by_key)?;
+    for review in &candidate_by_key {
+        if review.projection().target() != candidate_sources.target_profile() {
+            return Err(ReviewOnlyCapabilityConflictError::CandidateTargetMismatch {
+                package: Box::new(review.key().clone()),
+            });
+        }
+    }
+    let (candidate_closure, source_subject) =
+        derive_candidate_closure_identity(candidate_sources, &candidate_by_key)?;
 
     let mut packages = Vec::new();
     packages
@@ -179,7 +186,10 @@ pub(crate) fn compare_review_only_capability_records<B: PackageReviewEvidence>(
         });
     }
     packages.sort_by(|left, right| left.key.cmp(&right.key));
-    Ok(ReviewOnlyCapabilityConflictSet { packages })
+    Ok(ReviewOnlyCapabilityConflictSet {
+        packages,
+        source_subject,
+    })
 }
 
 fn map_candidate_closure_validation_error(
