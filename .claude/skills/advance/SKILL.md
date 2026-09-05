@@ -12,20 +12,18 @@ ownership firewall. Do not restate them — this skill is the loop that runs on 
 
 Composes with `/loop` for unattended sessions. One invocation is one iteration.
 
-**The loop is executable.** Run it with the Workflow tool rather than
-re-improvising it from this text:
+No orchestration script lives in this repository. This repository is Rust,
+Omega, and `sh`; it carries no JavaScript or Python, and the loop is not a
+reason to add either. The session runs the loop with the harness's own agent
+and workflow tools, and any script those tools need is authored for that run
+and stays outside the tree.
 
-```text
-Workflow({ scriptPath: ".claude/skills/advance/orchestrate.js",
-           args: { agents: 2 } })            // optional: board: "TASKS_OPTIMIZER.md", skipRank: true
-```
-
-The script ranks the corpus, plans disjoint lanes, builds each task in its own
-worktree, then integrates. Lane disjointness, "edited outside its lane", file
-overlap between commits, and "every gate green" are checked **in the script**,
-not left to agent judgment; a commit that fails any of them is refused before
-it reaches `main`. The sections below are the rules each stage's agent
-follows, and what to do when running a slice by hand.
+Whatever runs the loop must enforce four checks mechanically, not by asking an
+agent whether it complied: lanes are pairwise disjoint by path prefix before
+anything is spawned; a commit that touched a file outside its lane is refused;
+two commits that touched the same file are not both integrated; and a commit
+whose gates were not every one literally green is refused. A commit that fails
+any of these never reaches `main`.
 
 ## What done looks like
 
