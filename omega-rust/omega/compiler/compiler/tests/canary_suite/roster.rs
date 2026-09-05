@@ -6,9 +6,11 @@ use super::content_text_and_carriers::fixture_roster as content_text_and_carrier
 use super::domains_control_and_structures::fixture_roster as domains_control_and_structures;
 use super::float_plans_and_policies::fixture_roster as float_plans_and_policies;
 use super::generics_and_dependent_facts::fixture_roster as generics_and_dependent_facts;
+use super::host_text_filesystem_and_abi::fixture_roster as host_text_filesystem_and_abi;
 use super::layouts_and_pending::fixture_roster as layouts_and_pending;
 use super::providers_float_and_console::fixture_roster as providers_float_and_console;
 use super::ranges_storage_and_entries::fixture_roster as ranges_storage_and_entries;
+use super::reports_and_capabilities::fixture_roster as reports_and_capabilities;
 use super::structural_selected_operator::fixture_roster as structural_selected_operator;
 use super::surface_and_targets::fixture_roster as surface_and_targets;
 use super::time_hosts_and_indexed_storage::fixture_roster as time_hosts_and_indexed_storage;
@@ -60,6 +62,11 @@ fn pass_roster() -> Vec<&'static str> {
         .chain(layouts_and_pending::PASS_CANARIES)
         .chain(artifact_footprints::PASS_CANARIES)
         .chain(structural_selected_operator::PASS_CANARIES)
+        .chain(reports_and_capabilities::PASS_CANARIES)
+        .chain(reports_and_capabilities::CHECKED_CAPABILITY_PASS_CANARIES)
+        .chain(reports_and_capabilities::SIGNED_RAT_PASS_CANARIES)
+        .chain(host_text_filesystem_and_abi::PASS_CANARIES)
+        .chain(host_text_filesystem_and_abi::CROSS_WINDOWS_PASS_CANARIES)
         .chain(WINDOWS_HOST_PASS_CANARIES)
         .chain(concurrency_carry::PASS_CANARIES)
         .chain(recast_views::PASS_CANARIES)
@@ -88,6 +95,16 @@ fn pass_roster() -> Vec<&'static str> {
         .chain(generics_and_dependent_facts::STRUCTURED_CONST_PASS_CANARIES)
         .chain(time_hosts_and_indexed_storage::PASS_CANARIES)
         .copied()
+        .chain(
+            reports_and_capabilities::CAPABILITY_VERB_PASS_CANARIES
+                .iter()
+                .map(|entry| entry.0),
+        )
+        .chain(
+            reports_and_capabilities::CAPABILITY_FLOW_PASS_CANARIES
+                .iter()
+                .map(|entry| entry.0),
+        )
         .chain(
             float_plans_and_policies::POLICY_ADAPTER_PASS_CANARIES
                 .iter()
@@ -155,6 +172,7 @@ fn file_expectation_fail_roster() -> Vec<&'static str> {
 fn fail_roster() -> Vec<&'static str> {
     file_expectation_fail_roster()
         .into_iter()
+        .chain(reports_and_capabilities::FAIL_CANARIES.iter().copied())
         .chain(atomics_and_target_canaries::FAIL_CANARIES.iter().copied())
         .chain(concurrency_carry::FAIL_CANARIES.iter().map(|entry| entry.0))
         .chain(recast_views::FAIL_CANARIES.iter().copied())

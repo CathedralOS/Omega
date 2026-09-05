@@ -1,5 +1,8 @@
 use super::*;
 
+#[path = "../fixture_rosters/host_text_filesystem_and_abi.rs"]
+pub(super) mod fixture_roster;
+
 fn write_cross_target_application_build(source_dir: &Path) {
     fs::write(
         source_dir.join("build.omg"),
@@ -10,7 +13,7 @@ fn write_cross_target_application_build(source_dir: &Path) {
 
 #[test]
 fn runtime_stdin_command_branch_exit_canary_runs() {
-    let canary = pass_canary("text/runtime_stdin_command_branch_exit");
+    let canary = pass_canary(fixture_roster::RUNTIME_STDIN_COMMAND_BRANCH_EXIT);
     let build_dir = std::env::temp_dir().join(format!(
         "omega-runtime-stdin-command-branch-{}",
         std::process::id()
@@ -126,7 +129,7 @@ fn contained_loop_command_branch_carrier_canary_runs() {
 #[cfg(windows)]
 #[test]
 fn windows_fs_wrapper_dark_methods_exit_canary_runs() {
-    let canary = pass_canary("filesystem/windows_wrapper_dark_methods_exit");
+    let canary = pass_canary(fixture_roster::WINDOWS_WRAPPER_DARK_METHODS_EXIT);
     let main_path = canary.join("main.omg");
 
     let checked = compile_to_checked(&main_path, None)
@@ -166,7 +169,7 @@ stderr:
 #[cfg(windows)]
 #[test]
 fn windows_fs_wrapper_results_exit_canary_runs() {
-    let canary = pass_canary("filesystem/windows_wrapper_results_exit");
+    let canary = pass_canary(fixture_roster::WINDOWS_WRAPPER_RESULTS_EXIT);
     let main_path = canary.join("main.omg");
 
     let checked = compile_to_checked(&main_path, None)
@@ -210,7 +213,7 @@ fn windows_fs_wrapper_results_exit_canary_runs() {
 #[cfg(windows)]
 #[test]
 fn runtime_local_host_result_dispatch_exit_canary_runs() {
-    let canary = pass_canary("filesystem/runtime_local_host_result_dispatch_exit");
+    let canary = pass_canary(fixture_roster::RUNTIME_LOCAL_HOST_RESULT_DISPATCH_EXIT);
     let main_path = canary.join("main.omg");
 
     let checked = compile_to_checked(&main_path, None)
@@ -255,7 +258,7 @@ stderr:
 #[cfg(windows)]
 #[test]
 fn windows_fs_raw_roundtrip_exit_canary_runs() {
-    let canary = pass_canary("filesystem/windows_raw_roundtrip_exit");
+    let canary = pass_canary(fixture_roster::WINDOWS_RAW_ROUNDTRIP_EXIT);
     let main_path = canary.join("main.omg");
 
     let checked = compile_to_checked(&main_path, None)
@@ -304,7 +307,7 @@ fn windows_fs_raw_roundtrip_exit_canary_runs() {
 #[cfg(windows)]
 #[test]
 fn windows_fs_self_value_call_literal_path_exit_canary_runs() {
-    let canary = pass_canary("filesystem/self_value_call_literal_path_exit");
+    let canary = pass_canary(fixture_roster::SELF_VALUE_CALL_LITERAL_PATH_EXIT);
     let main_path = canary.join("main.omg");
 
     let checked = compile_to_checked(&main_path, None)
@@ -350,7 +353,7 @@ fn windows_fs_self_value_call_literal_path_exit_canary_runs() {
 #[cfg(windows)]
 #[test]
 fn windows_fs_discarded_self_call_literal_errno_exit_canary_runs() {
-    let canary = pass_canary("filesystem/discarded_self_call_literal_errno_exit");
+    let canary = pass_canary(fixture_roster::DISCARDED_SELF_CALL_LITERAL_ERRNO_EXIT);
     let main_path = canary.join("main.omg");
 
     let checked = compile_to_checked(&main_path, None)
@@ -395,7 +398,7 @@ fn windows_fs_discarded_self_call_literal_errno_exit_canary_runs() {
 #[cfg(windows)]
 #[test]
 fn windows_fs_wrapper_param_shadow_exit_canary_runs() {
-    let canary = pass_canary("filesystem/wrapper_param_shadow_exit");
+    let canary = pass_canary(fixture_roster::WRAPPER_PARAM_SHADOW_EXIT);
     let main_path = canary.join("main.omg");
 
     let checked = compile_to_checked(&main_path, None)
@@ -438,7 +441,7 @@ fn windows_fs_wrapper_param_shadow_exit_canary_runs() {
 #[cfg(windows)]
 #[test]
 fn windows_fs_wrapper_open_with_exit_canary_runs() {
-    let canary = pass_canary("filesystem/wrapper_open_with_exit");
+    let canary = pass_canary(fixture_roster::WRAPPER_OPEN_WITH_EXIT);
     let main_path = canary.join("main.omg");
 
     let checked = compile_to_checked(&main_path, None)
@@ -481,7 +484,7 @@ fn windows_fs_wrapper_open_with_exit_canary_runs() {
 #[cfg(windows)]
 #[test]
 fn windows_fs_field_receiver_method_exit_canary_runs() {
-    let canary = pass_canary("filesystem/field_receiver_method_exit");
+    let canary = pass_canary(fixture_roster::FIELD_RECEIVER_METHOD_EXIT);
     let main_path = canary.join("main.omg");
 
     let checked = compile_to_checked(&main_path, None)
@@ -526,7 +529,7 @@ fn windows_fs_field_receiver_method_exit_canary_runs() {
 #[cfg(windows)]
 #[test]
 fn runtime_arm_target_host_result_exit_canary_runs() {
-    let canary = pass_canary("calls/runtime_arm_target_host_result_exit");
+    let canary = pass_canary(fixture_roster::RUNTIME_ARM_TARGET_HOST_RESULT_EXIT);
     let main_path = canary.join("main.omg");
 
     let checked = compile_to_checked(&main_path, None)
@@ -569,7 +572,7 @@ stderr:
 // resolution would take the exit-71 arm.
 #[test]
 fn runtime_qualified_case_value_exit_canary_runs() {
-    let canary = pass_canary("expressions/runtime_qualified_case_value_exit");
+    let canary = pass_canary(fixture_roster::RUNTIME_QUALIFIED_CASE_VALUE_EXIT);
     let main_path = canary.join("main.omg");
 
     let checked = compile_to_checked(&main_path, None)
@@ -616,7 +619,7 @@ stderr:
 // inert internal present.
 #[test]
 fn single_target_internal_machine_skipped_canary_runs() {
-    let canary = pass_canary("targets/single_target_internal_machine_skipped");
+    let canary = pass_canary(fixture_roster::SINGLE_TARGET_INTERNAL_MACHINE_SKIPPED);
     let main_path = canary.join("main.omg");
 
     let checked = compile_to_checked(&main_path, None)
@@ -662,7 +665,7 @@ fn target_machine_gating_exit_canary_runs() {
     // from the host's real target while THREE inert same-name machines sit
     // beside it -- 63 + 7 reaches 70 only if selection and inertness both
     // hold in both engines.
-    let canary = pass_canary("targets/target_machine_gating_exit");
+    let canary = pass_canary(fixture_roster::TARGET_MACHINE_GATING_EXIT);
     let main_path = canary.join("main.omg");
 
     let checked = compile_to_checked(&main_path, None)
@@ -709,7 +712,7 @@ fn target_machine_gating_exit_canary_runs() {
 #[cfg(windows)]
 #[test]
 fn windows_wrapper_create_new_exit_canary_runs() {
-    let canary = pass_canary("filesystem/windows_wrapper_create_new_exit");
+    let canary = pass_canary(fixture_roster::WINDOWS_WRAPPER_CREATE_NEW_EXIT);
     let main_path = canary.join("main.omg");
 
     let checked = compile_to_checked(&main_path, None)
@@ -752,7 +755,7 @@ fn ring_requirement_satisfies_exit_canary_runs() {
     // settled CommutativeSemiring surface -- free-shaped requirements, an
     // ensures LAW, `satisfies Trait::req [as Alias]`, Self binding the
     // carrier -- with the satisfier machines actually RUN (2 + 1 = depth 3).
-    let canary = pass_canary("traits/ring_requirement_satisfies_exit");
+    let canary = pass_canary(fixture_roster::RING_REQUIREMENT_SATISFIES_EXIT);
     let main_path = canary.join("main.omg");
 
     let checked = compile_to_checked(&main_path, None)
@@ -800,7 +803,7 @@ fn ring_requirement_satisfies_exit_canary_runs() {
 #[cfg(windows)]
 #[test]
 fn windows_find_enumeration_exit_canary_runs() {
-    let canary = pass_canary("filesystem/windows_find_enumeration_exit");
+    let canary = pass_canary(fixture_roster::WINDOWS_FIND_ENUMERATION_EXIT);
     let main_path = canary.join("main.omg");
 
     let checked = compile_to_checked(&main_path, None)
@@ -848,7 +851,7 @@ fn windows_find_enumeration_exit_canary_runs() {
 #[cfg(windows)]
 #[test]
 fn windows_read_dir_nth_exit_canary_runs() {
-    let canary = pass_canary("filesystem/windows_read_dir_nth_exit");
+    let canary = pass_canary(fixture_roster::WINDOWS_READ_DIR_NTH_EXIT);
     let main_path = canary.join("main.omg");
 
     let checked = compile_to_checked(&main_path, None)
@@ -890,7 +893,7 @@ fn windows_read_dir_nth_exit_canary_runs() {
 #[cfg(windows)]
 #[test]
 fn windows_set_file_time_exit_canary_runs() {
-    let canary = pass_canary("filesystem/windows_set_file_time_exit");
+    let canary = pass_canary(fixture_roster::WINDOWS_SET_FILE_TIME_EXIT);
     let main_path = canary.join("main.omg");
 
     let checked = compile_to_checked(&main_path, None)
@@ -936,7 +939,7 @@ fn windows_set_file_time_exit_canary_runs() {
 // migration into target files.
 #[test]
 fn filesystem_set_times_target_implementations_compile() {
-    let canary = pass_canary("filesystem/windows_wrapper_set_times_exit");
+    let canary = pass_canary(fixture_roster::WINDOWS_WRAPPER_SET_TIMES_EXIT);
     for target in [
         "windows_x86_64",
         "linux_x86_64",
@@ -951,7 +954,7 @@ fn filesystem_set_times_target_implementations_compile() {
 #[cfg(windows)]
 #[test]
 fn windows_wrapper_set_times_exit_canary_runs() {
-    let canary = pass_canary("filesystem/windows_wrapper_set_times_exit");
+    let canary = pass_canary(fixture_roster::WINDOWS_WRAPPER_SET_TIMES_EXIT);
     let main_path = canary.join("main.omg");
 
     let checked = compile_to_checked(&main_path, None)
@@ -993,7 +996,7 @@ fn windows_wrapper_set_times_exit_canary_runs() {
 
 #[test]
 fn filesystem_lock_target_implementations_compile() {
-    let canary = pass_canary("filesystem/windows_wrapper_lock_exit");
+    let canary = pass_canary(fixture_roster::WINDOWS_WRAPPER_LOCK_EXIT);
     for target in [
         "windows_x86_64",
         "linux_x86_64",
@@ -1008,7 +1011,7 @@ fn filesystem_lock_target_implementations_compile() {
 #[cfg(windows)]
 #[test]
 fn windows_wrapper_lock_exit_canary_runs() {
-    let canary = pass_canary("filesystem/windows_wrapper_lock_exit");
+    let canary = pass_canary(fixture_roster::WINDOWS_WRAPPER_LOCK_EXIT);
     let main_path = canary.join("main.omg");
 
     let checked = compile_to_checked(&main_path, None)
@@ -1056,7 +1059,7 @@ fn windows_wrapper_lock_exit_canary_runs() {
 // the trailing close can clobber it). Interp + native.
 #[test]
 fn windows_canonicalize_canary_is_targetless_and_interprets() {
-    let canary = pass_canary("filesystem/windows_canonicalize_exit");
+    let canary = pass_canary(fixture_roster::WINDOWS_CANONICALIZE_EXIT);
     let checked = compile_to_checked(&canary.join("main.omg"), None)
         .expect("windows canonicalize canary should compile to checked trees");
     assert_eq!(
@@ -1079,7 +1082,7 @@ fn windows_canonicalize_canary_is_targetless_and_interprets() {
 #[cfg(windows)]
 #[test]
 fn windows_canonicalize_exit_canary_runs() {
-    let canary = pass_canary("filesystem/windows_canonicalize_exit");
+    let canary = pass_canary(fixture_roster::WINDOWS_CANONICALIZE_EXIT);
 
     let build_dir = std::env::temp_dir().join(format!("omega-win-canon-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
@@ -1112,7 +1115,7 @@ fn windows_canonicalize_exit_canary_runs() {
 #[cfg(windows)]
 #[test]
 fn windows_hard_link_exit_canary_runs() {
-    let canary = pass_canary("filesystem/windows_hard_link_exit");
+    let canary = pass_canary(fixture_roster::WINDOWS_HARD_LINK_EXIT);
     let main_path = canary.join("main.omg");
 
     let checked = compile_to_checked(&main_path, None)
@@ -1154,7 +1157,7 @@ fn windows_hard_link_exit_canary_runs() {
 #[cfg(windows)]
 #[test]
 fn windows_positioned_io_exit_canary_runs() {
-    let canary = pass_canary("filesystem/windows_positioned_io_exit");
+    let canary = pass_canary(fixture_roster::WINDOWS_POSITIONED_IO_EXIT);
     let main_path = canary.join("main.omg");
 
     let checked = compile_to_checked(&main_path, None)
@@ -1198,7 +1201,7 @@ fn windows_positioned_io_exit_canary_runs() {
 #[cfg(windows)]
 #[test]
 fn windows_wrapper_metadata_exit_canary_runs() {
-    let canary = pass_canary("filesystem/windows_wrapper_metadata_exit");
+    let canary = pass_canary(fixture_roster::WINDOWS_WRAPPER_METADATA_EXIT);
     let main_path = canary.join("main.omg");
 
     let checked = compile_to_checked(&main_path, None)
@@ -1242,7 +1245,7 @@ stderr:
 #[cfg(windows)]
 #[test]
 fn windows_wrapper_exists_exit_canary_runs() {
-    let canary = pass_canary("filesystem/windows_wrapper_exists_exit");
+    let canary = pass_canary(fixture_roster::WINDOWS_WRAPPER_EXISTS_EXIT);
     let main_path = canary.join("main.omg");
 
     let checked = compile_to_checked(&main_path, None)
@@ -1281,7 +1284,7 @@ fn windows_wrapper_exists_exit_canary_runs() {
 #[cfg(windows)]
 #[test]
 fn windows_wrapper_set_len_exit_canary_runs() {
-    let canary = pass_canary("filesystem/windows_wrapper_set_len_exit");
+    let canary = pass_canary(fixture_roster::WINDOWS_WRAPPER_SET_LEN_EXIT);
     let main_path = canary.join("main.omg");
     let checked = compile_to_checked(&main_path, None)
         .expect("set_len canary should compile to checked trees");
@@ -1315,7 +1318,7 @@ fn windows_wrapper_set_len_exit_canary_runs() {
 #[cfg(windows)]
 #[test]
 fn windows_wrapper_copy_exit_canary_runs() {
-    let canary = pass_canary("filesystem/windows_wrapper_copy_exit");
+    let canary = pass_canary(fixture_roster::WINDOWS_WRAPPER_COPY_EXIT);
     let main_path = canary.join("main.omg");
     let checked =
         compile_to_checked(&main_path, None).expect("copy canary should compile to checked trees");
@@ -1349,13 +1352,7 @@ fn cross_windows_general_imports_compile() {
     // ENT2c: exercise general and composite plan-driven imports through full PE
     // layout/emission on every development host: seven-argument GUI, key/time,
     // the dedicated byte-at-a-time line reader, and a source external call.
-    for canary_name in [
-        "host/runtime_gui_window_lifecycle_exit",
-        "host/runtime_user32_key_state_exit",
-        "time/runtime_time_host_native_exit",
-        "text/runtime_stdin_line_buffering_exit",
-        "capabilities/windows_provides_import_exit",
-    ] {
+    for &canary_name in fixture_roster::CROSS_WINDOWS_PASS_CANARIES {
         let canary = pass_canary(canary_name);
         let scratch = std::env::temp_dir().join(format!(
             "omega-win-plan-import-{}-{}",
@@ -1382,7 +1379,7 @@ fn cross_windows_general_imports_compile() {
 
 #[test]
 fn cross_aarch64_stack_import_compiles_with_planned_layout() {
-    let canary = pass_canary("capabilities/aarch64_stack_import_compile");
+    let canary = pass_canary(fixture_roster::AARCH64_STACK_IMPORT_COMPILE);
     let scratch =
         std::env::temp_dir().join(format!("omega-aarch64-stack-import-{}", std::process::id()));
     let _ = fs::remove_dir_all(&scratch);
@@ -1417,7 +1414,7 @@ fn cross_aarch64_stack_import_compiles_with_planned_layout() {
 
 #[test]
 fn native_fixed_arrays_classify_by_value_without_pointer_decay() {
-    let canary = pass_canary("capabilities/native_fixed_array_import_compile");
+    let canary = pass_canary(fixture_roster::NATIVE_FIXED_ARRAY_IMPORT_COMPILE);
     for (target, expected_float) in [
         ("windows_x86_64", "aggregate 16/4"),
         ("linux_x86_64", "hfa4x32"),
@@ -1472,7 +1469,7 @@ fn native_fixed_arrays_classify_by_value_without_pointer_decay() {
 
 #[test]
 fn cross_win64_distinguishes_separate_pointer_length_from_descriptor_record() {
-    let canary = pass_canary("capabilities/win64_pointer_length_vs_descriptor_compile");
+    let canary = pass_canary(fixture_roster::WIN64_POINTER_LENGTH_VS_DESCRIPTOR_COMPILE);
     let scratch = unique_no_output_build_dir();
     let src_dir = scratch.join("src");
     let build_dir = scratch.join("out");
@@ -1533,7 +1530,7 @@ fn cross_win64_distinguishes_separate_pointer_length_from_descriptor_record() {
 
 #[test]
 fn cross_aarch64_hfa_import_compiles_with_fragmented_plan() {
-    let canary = pass_canary("capabilities/aarch64_hfa_import_compile");
+    let canary = pass_canary(fixture_roster::AARCH64_HFA_IMPORT_COMPILE);
     let scratch =
         std::env::temp_dir().join(format!("omega-aarch64-hfa-import-{}", std::process::id()));
     let _ = fs::remove_dir_all(&scratch);
@@ -1565,7 +1562,7 @@ fn cross_aarch64_hfa_import_compiles_with_fragmented_plan() {
 
 #[test]
 fn cross_aarch64_erased_hfa_import_keeps_two_vector_fragments() {
-    let canary = pass_canary("capabilities/aarch64_erased_hfa_import_compile");
+    let canary = pass_canary(fixture_roster::AARCH64_ERASED_HFA_IMPORT_COMPILE);
     let scratch = std::env::temp_dir().join(format!(
         "omega-aarch64-erased-hfa-import-{}",
         std::process::id()
