@@ -2,7 +2,7 @@
 
 Status: engineering contract, revised 2026-08-30. This document defines the
 security properties that Omega's package-source resolver must enforce;
-remaining implementation work is tracked in `TASKS_PACKAGE_MANAGER.md`. It does
+remaining implementation work is tracked in `TASKS.md`. It does
 not define package or language syntax.
 
 ## Trust boundary

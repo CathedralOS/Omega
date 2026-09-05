@@ -42,7 +42,7 @@ certificates and native/build replay data belong to compiler artifacts or
 caches when a concrete consumer needs them, not to the ordinary lock payload.
 
 For a short workflow overview, read [Package Manager: Scope and Workflow](package_manager_first_draft.md).
-Implementation progress belongs on [the task board](../../TASKS_PACKAGE_MANAGER.md),
+Remaining implementation work belongs on [the task board](../../TASKS.md),
 not in a second package specification.
 
 ## Design posture
@@ -4344,11 +4344,11 @@ custody is retained in the checked product rather than reconstructed from an
 ambient staging path.
 
 Native publication must preserve the checked source/generated-source/artifact
-relationship and satisfy the compiler's native guarantees. `TASKS.md` owns
-that work. `TASKS_PACKAGE_MANAGER.md` owns source install/update transactions,
-lock persistence, and review integration. Older native promotion machinery is
-owned by that compiler handoff, not a new install/update requirement. Neither
-workflow requires a lock that certifies its own acceptance.
+relationship and satisfy the compiler's native guarantees. `TASKS.md` tracks
+remaining work under its owning area: compiler native publication or package
+source install/update, lock persistence, and review integration. Older native
+promotion machinery is owned by that compiler handoff, not a new install/update
+requirement. Neither workflow requires a lock that certifies its own acceptance.
 
 ## Discovery topics, not package-manager blockers
 

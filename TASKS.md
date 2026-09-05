@@ -2,10 +2,10 @@
 
 This file is the current cross-project execution board, not a changelog.
 Completed work belongs in Git history and the durable architecture/design pages.
-Detailed bootstrap, optimizer, and package-manager work lives only in
-[`TASKS_BOOTSTRAP.md`](TASKS_BOOTSTRAP.md),
-[`TASKS_OPTIMIZER.md`](TASKS_OPTIMIZER.md), and
-[`TASKS_PACKAGE_MANAGER.md`](TASKS_PACKAGE_MANAGER.md).
+Detailed bootstrap and optimizer work lives only in
+[`TASKS_BOOTSTRAP.md`](TASKS_BOOTSTRAP.md) and
+[`TASKS_OPTIMIZER.md`](TASKS_OPTIMIZER.md).
+Package-manager work belongs here when there is a concrete remaining task.
 
 A task remains here only when it names:
 

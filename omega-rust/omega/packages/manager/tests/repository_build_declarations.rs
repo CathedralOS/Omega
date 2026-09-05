@@ -36,7 +36,9 @@ impl Drop for TempTree {
 fn repository_root() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR"))
         .ancestors()
-        .find(|ancestor| ancestor.join("TASKS_PACKAGE_MANAGER.md").is_file())
+        .find(|ancestor| {
+            ancestor.join("Cargo.toml").is_file() && ancestor.join("source/omega").is_dir()
+        })
         .expect("package-manager should live beneath the Omega repository")
         .to_path_buf()
 }

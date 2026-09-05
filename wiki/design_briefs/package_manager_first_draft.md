@@ -2,7 +2,7 @@
 
 This is the short package-manager plan. The
 [Build And Package Model](build_and_package_model.md) owns language/build
-semantics; [remaining tasks](../../TASKS_PACKAGE_MANAGER.md) own unfinished work.
+semantics; [TASKS.md](../../TASKS.md) tracks concrete unfinished work.
 The [subsystem map](../../omega-rust/omega/packages/README.md) leads to code and
 implementation contracts. This document does not duplicate compiler schemas.
 

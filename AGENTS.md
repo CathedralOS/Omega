@@ -314,8 +314,8 @@ Configuration that looks wrong but is deliberate:
 
 ## Workflow
 
-`TASKS.md`, `TASKS_BOOTSTRAP.md`, `TASKS_OPTIMIZER.md`, and
-`TASKS_PACKAGE_MANAGER.md` are **execution boards, not changelogs**. A task
+`TASKS.md`, `TASKS_BOOTSTRAP.md`, and `TASKS_OPTIMIZER.md` are
+**execution boards, not changelogs**. A task
 stays only while it names unfinished work, its owning code/design area, any
 real blocker, and a concrete acceptance condition. Remove it when acceptance
 passes — do not append landed substeps, version history, test counts, or
