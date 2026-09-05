@@ -29,6 +29,10 @@ impl ProjectAllocation for StagedOptimizedActiveResidentRematerialization {
             .liveness_stage()
             .selected_stage();
         AllocationOutput {
+            program: omega_register_homes::AllocatedProgramRef {
+                selected: self.rematerialization().transformed(),
+                homes: self.homes().plan(),
+            },
             selected: SelectedProgramRef::new(self.rematerialization()),
             liveness: self.liveness(),
             ranges: self.ranges(),
@@ -36,7 +40,7 @@ impl ProjectAllocation for StagedOptimizedActiveResidentRematerialization {
             homes: self.homes(),
             manifest: self.post_allocation_manifest(),
             environment: selected.register_environment(),
-            target_input: selected.optimized_target(),
+            target_input: selected.optimized_target_owner(),
             selections: selected.optimized_target().optimized().selections(),
             budget: selected.optimized_target().optimized().budget_per_pass(),
             evidence: AllocationEvidence::ActiveResidentRematerialization(

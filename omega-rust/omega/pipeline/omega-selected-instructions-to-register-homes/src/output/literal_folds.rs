@@ -33,6 +33,10 @@ impl ProjectAllocation for StagedOptimizedRegisterHomesAfterLiteralFolds {
             .selected_stage();
         let step = folds.final_step();
         AllocationOutput {
+            program: omega_register_homes::AllocatedProgramRef {
+                selected: step.fold().transformed(),
+                homes: self.homes().plan(),
+            },
             selected: SelectedProgramRef::new(step.fold()),
             liveness: step.liveness(),
             ranges: step.ranges(),
@@ -40,7 +44,7 @@ impl ProjectAllocation for StagedOptimizedRegisterHomesAfterLiteralFolds {
             homes: self.homes(),
             manifest: self.post_allocation_manifest(),
             environment: selected.register_environment(),
-            target_input: selected.optimized_target(),
+            target_input: selected.optimized_target_owner(),
             selections: selected.optimized_target().optimized().selections(),
             budget: selected.optimized_target().optimized().budget_per_pass(),
             evidence: AllocationEvidence::LiteralFolds(self.custody().to_owned()),
@@ -81,6 +85,10 @@ impl ProjectAllocation for StagedOptimizedRegisterHomesAfterSelectedLowering {
             ),
         };
         AllocationOutput {
+            program: omega_register_homes::AllocatedProgramRef {
+                selected: program.plan(),
+                homes: self.homes().plan(),
+            },
             selected: program,
             liveness,
             ranges,
@@ -88,7 +96,7 @@ impl ProjectAllocation for StagedOptimizedRegisterHomesAfterSelectedLowering {
             homes: self.homes(),
             manifest: self.post_allocation_manifest(),
             environment: selected.register_environment(),
-            target_input: selected.optimized_target(),
+            target_input: selected.optimized_target_owner(),
             selections: selected.optimized_target().optimized().selections(),
             budget: selected.optimized_target().optimized().budget_per_pass(),
             evidence: AllocationEvidence::SelectedLowering(self.custody().to_owned()),

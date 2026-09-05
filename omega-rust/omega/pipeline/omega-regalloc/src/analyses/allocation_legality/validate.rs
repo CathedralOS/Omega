@@ -158,7 +158,10 @@ pub fn validate_allocation_legality(
             .map(|register| register.entry_transitions.len())
             .sum(),
     };
-    Ok(ValidatedAllocationLegality { plan, receipt })
+    Ok(ValidatedAllocationLegality {
+        plan: plan.into(),
+        receipt,
+    })
 }
 
 fn replay_register(

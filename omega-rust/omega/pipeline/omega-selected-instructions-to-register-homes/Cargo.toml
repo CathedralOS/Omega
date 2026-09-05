@@ -17,6 +17,7 @@ omega-isa-aarch64 = { path = "../../backend/instruction_set_architectures/omega-
 omega-isa-x86_64 = { path = "../../backend/instruction_set_architectures/omega-isa-x86_64" }
 omega-optimization-core = { path = "../../representations/omega-optimization-core" }
 omega-regalloc = { path = "../omega-regalloc" }
+omega-register-homes = { path = "../../representations/omega-register-homes" }
 omega-register-model = { path = "../../representations/omega-register-model" }
 omega-selected-instructions = { path = "../../representations/omega-selected-instructions" }
 omega-target = { path = "../../representations/omega-target" }

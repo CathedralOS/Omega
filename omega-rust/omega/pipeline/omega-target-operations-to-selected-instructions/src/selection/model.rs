@@ -5,12 +5,17 @@ use omega_selected_instructions::{SelectedInstructionPlan, SelectedInstructionPl
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ValidatedSelectedInstructions {
-    pub(super) plan: SelectedInstructionPlan,
+    pub(super) plan: std::sync::Arc<SelectedInstructionPlan>,
     pub(super) receipt: SelectedInstructionValidationReceipt,
 }
 
 impl ValidatedSelectedInstructions {
-    pub const fn plan(&self) -> &SelectedInstructionPlan {
+    /// Share the immutable admitted program independently of selection history.
+    pub fn shared_plan(&self) -> std::sync::Arc<SelectedInstructionPlan> {
+        std::sync::Arc::clone(&self.plan)
+    }
+
+    pub fn plan(&self) -> &SelectedInstructionPlan {
         &self.plan
     }
 

@@ -35,6 +35,10 @@ impl ProjectAllocation for StagedOptimizedRegisterHomesAfterFixedViewCopies {
             .liveness_stage()
             .selected_stage();
         AllocationOutput {
+            program: omega_register_homes::AllocatedProgramRef {
+                selected: &copies.copies().plan().transformed,
+                homes: self.homes().plan(),
+            },
             selected: SelectedProgramRef::new(copies.copies()),
             liveness: reanalysis.liveness(),
             ranges: reanalysis.ranges(),
@@ -42,7 +46,7 @@ impl ProjectAllocation for StagedOptimizedRegisterHomesAfterFixedViewCopies {
             homes: self.homes(),
             manifest: self.post_allocation_manifest(),
             environment: selected.register_environment(),
-            target_input: selected.optimized_target(),
+            target_input: selected.optimized_target_owner(),
             selections: selected.optimized_target().optimized().selections(),
             budget: selected.optimized_target().optimized().budget_per_pass(),
             evidence: AllocationEvidence::FixedViewCopies(self.custody().to_owned()),

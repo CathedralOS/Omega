@@ -1,6 +1,34 @@
 use crate::tests::*;
 use omega_regalloc::ValidatedSelectedAnalysis;
 
+fn assert_owned_program(
+    retained: &omega_selected_instructions_to_register_homes::RetainedAllocation,
+) {
+    let current = retained.current();
+    assert!(std::ptr::eq(
+        retained.program().selected.as_ref(),
+        current.program().selected
+    ));
+    assert!(std::ptr::eq(
+        retained.program().homes.as_ref(),
+        current.program().homes
+    ));
+    assert!(std::ptr::eq(
+        retained.program().selected.as_ref(),
+        current.selected_plan()
+    ));
+    assert!(std::ptr::eq(
+        retained.program().homes.as_ref(),
+        current.homes().plan()
+    ));
+    let replayed = retained.replay_allocation().unwrap();
+    assert_eq!(
+        replayed.selected_plan(),
+        retained.program().selected.as_ref()
+    );
+    assert_eq!(replayed.homes().plan(), retained.program().homes.as_ref());
+}
+
 fn baseline(target: NativeTarget) -> StagedOptimizedRegisterHomes {
     let selected = staged_exact_add_conditional(target);
     let liveness = stage_optimized_liveness(selected).unwrap();
@@ -52,8 +80,20 @@ fn retained_allocation_projects_the_same_facts_as_fresh_replay() {
 
     for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
         let source = baseline(target);
+        let original = source.replay_allocation().unwrap();
+        let selected_owner = original.selected().shared_selected_plan();
+        let home_owner = original.homes().shared_plan();
         let expected_machine = stage_optimized_post_allocation_machine_plan(&source).unwrap();
         let retained = RetainedAllocation::try_from(source).unwrap();
+        assert_owned_program(&retained);
+        assert!(std::sync::Arc::ptr_eq(
+            &selected_owner,
+            &retained.program().selected
+        ));
+        assert!(std::sync::Arc::ptr_eq(
+            &home_owner,
+            &retained.program().homes
+        ));
         let current = retained.current();
         let replayed = retained.replay_allocation().unwrap();
         assert_eq!(current.selected_plan(), replayed.selected_plan());
@@ -75,7 +115,57 @@ fn retained_allocation_projects_the_same_facts_as_fresh_replay() {
             stage_optimized_post_allocation_machine_plan(&retained).unwrap(),
             expected_machine
         );
+        let program = retained.program().clone();
+        drop(retained);
+        assert_eq!(program.selected, selected_owner);
+        assert_eq!(program.homes, home_owner);
     }
+}
+
+#[test]
+fn current_program_substitution_cannot_pass_replay() {
+    use omega_selected_instructions_to_register_homes::RetainedAllocation;
+
+    for replace_selected in [false, true] {
+        let mut retained =
+            RetainedAllocation::try_from(baseline(NativeTarget::linux_x64())).unwrap();
+        let alternate =
+            RetainedAllocation::try_from(baseline(NativeTarget::linux_arm64())).unwrap();
+        let mut substituted = retained.program().clone();
+        if replace_selected {
+            substituted.selected = alternate.program().selected.clone();
+        } else {
+            substituted.homes = alternate.program().homes.clone();
+        }
+        retained.substitute_current_program_for_test(substituted);
+        assert!(matches!(
+            retained.replay_allocation(),
+            Err(AllocationReplayError::CurrentProgramMismatch)
+        ));
+    }
+}
+
+#[test]
+fn editing_a_raw_program_clone_cannot_mutate_admitted_allocation() {
+    use omega_selected_instructions_to_register_homes::RetainedAllocation;
+
+    let retained = RetainedAllocation::try_from(baseline(NativeTarget::linux_x64())).unwrap();
+    let selected_identity = retained.current().selected().selected_identity();
+    let original_homes = retained.program().homes.encode();
+    let mut proposal = retained.program().clone();
+    std::sync::Arc::make_mut(&mut proposal.selected)
+        .functions
+        .clear();
+    std::sync::Arc::make_mut(&mut proposal.homes)
+        .functions
+        .clear();
+    assert_ne!(proposal, *retained.program());
+    assert_eq!(retained.program().homes.encode(), original_homes);
+    assert_eq!(
+        retained.current().selected().selected_identity(),
+        selected_identity
+    );
+    assert_owned_program(&retained);
 }
 
 #[test]
@@ -131,6 +221,7 @@ fn allocation_phase_matches_explicit_baseline_and_selected_lowering_sequences() 
     for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
         for lowering in [false, true] {
             let phase = stage_register_allocation(ranges(target, lowering)).unwrap();
+            assert_owned_program(&phase);
             let expected = if lowering {
                 let legality =
                     stage_optimized_allocation_legality_for_frameless_leaf(ranges(target, true))
@@ -165,6 +256,42 @@ fn allocation_phase_matches_explicit_baseline_and_selected_lowering_sequences() 
 }
 
 #[test]
+fn fixed_view_recovery_publishes_the_same_owned_program_contract() {
+    for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
+        let (semantic, proof) = conditional_forwarded_parameter_artifact();
+        let optimized = optimize_artifact_sections(
+            &semantic,
+            &proof,
+            &AdmissionProfile::default(),
+            ExplicitOptimizationRequest::new(
+                OptimizationSelections::new([
+                    Optimization::CopyPropagation,
+                    Optimization::SharedEntryFixedViewCopyAfterCompareBeforeBranchV1,
+                ])
+                .unwrap(),
+                OptimizationWorkBudget::new(1024, 1024, 1024, 1024, 1024).unwrap(),
+            )
+            .unwrap(),
+        )
+        .unwrap();
+        let target_input = lower_optimized_to_target_operations(optimized, target).unwrap();
+        let selected = stage_optimized_instruction_selection(target_input).unwrap();
+        let ranges =
+            stage_optimized_live_ranges(stage_optimized_liveness(selected).unwrap()).unwrap();
+        let retained = stage_register_allocation(ranges).unwrap();
+        assert_owned_program(&retained);
+        assert!(matches!(
+            retained.current().evidence(),
+            AllocationEvidence::FixedViewCopies(_)
+        ));
+        assert_eq!(
+            stage_optimized_post_allocation_machine_plan(&retained).unwrap(),
+            stage_optimized_post_allocation_machine_plan(&retained.current()).unwrap(),
+        );
+    }
+}
+
+#[test]
 fn allocation_phase_matches_explicit_recovery_on_both_targets() {
     for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
         let selected = staged_active_resident_exact_add_chain_with_selections(
@@ -178,6 +305,7 @@ fn allocation_phase_matches_explicit_recovery_on_both_targets() {
         let ranges =
             stage_optimized_live_ranges(stage_optimized_liveness(selected).unwrap()).unwrap();
         let allocation = stage_register_allocation(ranges).unwrap();
+        assert_owned_program(&allocation);
         let expected = stage_optimized_active_resident_rematerialization(
             staged_active_resident_two_view_legality(target),
             SpillChoicePolicy::SingleBlockFarthestEndThenHighestVregV1,

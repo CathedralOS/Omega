@@ -92,7 +92,7 @@ pub fn validate_fixed_view_copies(
             .unwrap_or(plan.copies.len().min(expected_copies.len()));
         return Err(FixedViewCopyError::CopyMismatch { index });
     }
-    if plan.transformed != expected_transformed {
+    if *plan.transformed != expected_transformed {
         return Err(FixedViewCopyError::TransformedPlanMismatch);
     }
     Ok(seal_validation(selected, plan))

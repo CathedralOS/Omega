@@ -1605,6 +1605,7 @@ dependencies = [
  "omega-isa-x86_64",
  "omega-optimization-core",
  "omega-regalloc",
+ "omega-register-homes",
  "omega-register-model",
  "omega-selected-instructions",
  "omega-target",

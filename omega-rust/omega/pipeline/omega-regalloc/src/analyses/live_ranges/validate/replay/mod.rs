@@ -71,7 +71,10 @@ pub(super) fn replay_live_ranges(
     }
 
     let receipt = super::receipt::build_receipt(&plan);
-    Ok(ValidatedLiveRanges { plan, receipt })
+    Ok(ValidatedLiveRanges {
+        plan: plan.into(),
+        receipt,
+    })
 }
 
 #[cfg(test)]

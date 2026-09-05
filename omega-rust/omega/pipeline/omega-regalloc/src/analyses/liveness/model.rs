@@ -172,12 +172,12 @@ impl LivenessValidationReceipt {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ValidatedLiveness {
-    pub(crate) plan: LivenessPlan,
+    pub(crate) plan: std::sync::Arc<LivenessPlan>,
     pub(crate) receipt: LivenessValidationReceipt,
 }
 
 impl ValidatedLiveness {
-    pub const fn plan(&self) -> &LivenessPlan {
+    pub fn plan(&self) -> &LivenessPlan {
         &self.plan
     }
 

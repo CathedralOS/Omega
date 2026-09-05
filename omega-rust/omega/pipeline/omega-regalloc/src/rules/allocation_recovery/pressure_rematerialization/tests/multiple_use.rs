@@ -117,7 +117,7 @@ fn active_resident_is_split_once_before_a_multiple_use_suffix_and_reanalyzes() {
     };
     let validated = ValidatedPressureRematerialization {
         plan,
-        transformed,
+        transformed: transformed.into(),
         receipt,
     };
     assert_eq!(validated.receipt().rewritten_use_count(), 2);

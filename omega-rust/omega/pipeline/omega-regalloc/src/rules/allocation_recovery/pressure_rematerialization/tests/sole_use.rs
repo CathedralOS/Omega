@@ -105,7 +105,7 @@ fn active_resident_is_split_before_sole_future_use_and_reanalyzes() {
     };
     let validated = ValidatedPressureRematerialization {
         plan,
-        transformed,
+        transformed: transformed.into(),
         receipt,
     };
     let liveness = analyze_liveness(&validated).unwrap();

@@ -18,7 +18,7 @@ use omega_target_to_register_environment::ValidatedTargetRegisterEnvironment;
 /// publication authority.
 #[derive(Debug)]
 pub struct StagedOptimizedSelectedInstructions {
-    pub(super) optimized_target: ValidatedOptimizedTargetOperations,
+    pub(super) optimized_target: std::sync::Arc<ValidatedOptimizedTargetOperations>,
     pub(super) register_environment: ValidatedTargetRegisterEnvironment,
     pub(super) legalized: ValidatedLegalizedOperations,
     pub(super) selected: ValidatedSelectedInstructions,
@@ -26,7 +26,12 @@ pub struct StagedOptimizedSelectedInstructions {
 }
 
 impl StagedOptimizedSelectedInstructions {
-    pub const fn optimized_target(&self) -> &ValidatedOptimizedTargetOperations {
+    /// Retained upstream proof input, shared without moving it into program data.
+    pub fn optimized_target_owner(&self) -> &std::sync::Arc<ValidatedOptimizedTargetOperations> {
+        &self.optimized_target
+    }
+
+    pub fn optimized_target(&self) -> &ValidatedOptimizedTargetOperations {
         &self.optimized_target
     }
 

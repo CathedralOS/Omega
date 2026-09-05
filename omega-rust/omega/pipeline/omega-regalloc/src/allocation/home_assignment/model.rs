@@ -57,12 +57,17 @@ impl RegisterHomeValidationReceipt {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ValidatedRegisterHomes {
-    pub(crate) plan: RegisterHomePlan,
+    pub(crate) plan: std::sync::Arc<RegisterHomePlan>,
     pub(crate) receipt: RegisterHomeValidationReceipt,
 }
 
 impl ValidatedRegisterHomes {
-    pub const fn plan(&self) -> &RegisterHomePlan {
+    /// Share current immutable data; the returned artifact grants no new authority.
+    pub fn shared_plan(&self) -> std::sync::Arc<RegisterHomePlan> {
+        std::sync::Arc::clone(&self.plan)
+    }
+
+    pub fn plan(&self) -> &RegisterHomePlan {
         &self.plan
     }
     pub const fn receipt(&self) -> RegisterHomeValidationReceipt {

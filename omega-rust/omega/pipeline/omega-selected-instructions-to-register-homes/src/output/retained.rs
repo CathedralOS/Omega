@@ -1,4 +1,4 @@
-use super::{AllocationOutput, AllocationReplayError, AllocationSource, ProjectAllocation, sealed};
+use super::{AllocationOutput, AllocationReplayError, AllocationSource, sealed};
 use crate::{
     StagedOptimizedActiveResidentRematerialization, StagedOptimizedRegisterHomes,
     StagedOptimizedRegisterHomesAfterFixedViewCopies,
@@ -6,16 +6,16 @@ use crate::{
     StagedOptimizedRegisterHomesAfterSelectedLowering,
 };
 
-/// Owned allocation inputs admitted by independent replay. The history is
-/// private and immutable; consumers read current facts without replaying the
-/// analysis on every accessor. Full replay remains available at proof gates.
+/// Current allocated program and a separate replay-only evidence graph.
+/// Ordinary reads never traverse the evidence or select a program by history.
 #[derive(Debug)]
 pub struct RetainedAllocation {
-    history: History,
+    current: super::current::CurrentAllocation,
+    replay: ReplayInputs,
 }
 
 #[derive(Debug)]
-enum History {
+enum ReplayInputs {
     Baseline(Box<StagedOptimizedRegisterHomes>),
     FixedView(Box<StagedOptimizedRegisterHomesAfterFixedViewCopies>),
     LiteralFolds(Box<StagedOptimizedRegisterHomesAfterLiteralFolds>),
@@ -25,11 +25,19 @@ enum History {
 
 impl RetainedAllocation {
     #[cfg(feature = "test-support")]
+    pub fn substitute_current_program_for_test(
+        &mut self,
+        program: omega_register_homes::AllocatedProgram,
+    ) {
+        self.current.program = program;
+    }
+
+    #[cfg(feature = "test-support")]
     pub fn fixed_view_copy_proof_for_test(
         &self,
     ) -> Option<&omega_regalloc::ValidatedFixedViewCopies> {
-        match &self.history {
-            History::FixedView(source) => {
+        match &self.replay {
+            ReplayInputs::FixedView(source) => {
                 Some(source.reanalysis_stage().transformation_stage().copies())
             }
             _ => None,
@@ -40,8 +48,10 @@ impl RetainedAllocation {
     pub fn rematerialization_availability_for_test(
         &self,
     ) -> Option<&omega_regalloc::ValidatedAllocatorAvailability> {
-        match &self.history {
-            History::Rematerialization(source) => Some(source.source().allocator_availability()),
+        match &self.replay {
+            ReplayInputs::Rematerialization(source) => {
+                Some(source.source().allocator_availability())
+            }
             _ => None,
         }
     }
@@ -52,20 +62,18 @@ impl RetainedAllocation {
     pub fn rematerialization_proof_for_test(
         &self,
     ) -> Option<&omega_regalloc::ValidatedPressureRematerialization> {
-        match &self.history {
-            History::Rematerialization(source) => Some(source.rematerialization()),
+        match &self.replay {
+            ReplayInputs::Rematerialization(source) => Some(source.rematerialization()),
             _ => None,
         }
     }
 
+    pub fn program(&self) -> &omega_register_homes::AllocatedProgram {
+        &self.current.program
+    }
+
     pub fn current(&self) -> AllocationOutput<'_> {
-        match &self.history {
-            History::Baseline(source) => source.project_allocation(),
-            History::FixedView(source) => source.project_allocation(),
-            History::LiteralFolds(source) => source.project_allocation(),
-            History::SelectedLowering(source) => source.project_allocation(),
-            History::Rematerialization(source) => source.project_allocation(),
-        }
+        self.current.view()
     }
 }
 
@@ -73,15 +81,16 @@ impl sealed::Sealed for RetainedAllocation {}
 
 impl AllocationSource for RetainedAllocation {
     fn replay_allocation(&self) -> Result<AllocationOutput<'_>, AllocationReplayError> {
-        let current = match &self.history {
-            History::Baseline(source) => source.replay_allocation(),
-            History::FixedView(source) => source.replay_allocation(),
-            History::LiteralFolds(source) => source.replay_allocation(),
-            History::SelectedLowering(source) => source.replay_allocation(),
-            History::Rematerialization(source) => source.replay_allocation(),
+        let current = match &self.replay {
+            ReplayInputs::Baseline(source) => source.replay_allocation(),
+            ReplayInputs::FixedView(source) => source.replay_allocation(),
+            ReplayInputs::LiteralFolds(source) => source.replay_allocation(),
+            ReplayInputs::SelectedLowering(source) => source.replay_allocation(),
+            ReplayInputs::Rematerialization(source) => source.replay_allocation(),
         }?;
         validate_recovery_selection(&current)?;
-        Ok(current)
+        self.current.validate_against(&current)?;
+        Ok(self.current())
     }
 }
 
@@ -89,9 +98,12 @@ impl TryFrom<StagedOptimizedRegisterHomes> for RetainedAllocation {
     type Error = AllocationReplayError;
 
     fn try_from(source: StagedOptimizedRegisterHomes) -> Result<Self, Self::Error> {
-        validate_recovery_selection(&source.replay_allocation()?)?;
+        let replayed = source.replay_allocation()?;
+        validate_recovery_selection(&replayed)?;
+        let current = super::current::CurrentAllocation::from_replayed(&replayed);
         Ok(Self {
-            history: History::Baseline(Box::new(source)),
+            current,
+            replay: ReplayInputs::Baseline(Box::new(source)),
         })
     }
 }
@@ -102,9 +114,12 @@ impl TryFrom<StagedOptimizedRegisterHomesAfterFixedViewCopies> for RetainedAlloc
     fn try_from(
         source: StagedOptimizedRegisterHomesAfterFixedViewCopies,
     ) -> Result<Self, Self::Error> {
-        validate_recovery_selection(&source.replay_allocation()?)?;
+        let replayed = source.replay_allocation()?;
+        validate_recovery_selection(&replayed)?;
+        let current = super::current::CurrentAllocation::from_replayed(&replayed);
         Ok(Self {
-            history: History::FixedView(Box::new(source)),
+            current,
+            replay: ReplayInputs::FixedView(Box::new(source)),
         })
     }
 }
@@ -115,9 +130,12 @@ impl TryFrom<StagedOptimizedRegisterHomesAfterLiteralFolds> for RetainedAllocati
     fn try_from(
         source: StagedOptimizedRegisterHomesAfterLiteralFolds,
     ) -> Result<Self, Self::Error> {
-        validate_recovery_selection(&source.replay_allocation()?)?;
+        let replayed = source.replay_allocation()?;
+        validate_recovery_selection(&replayed)?;
+        let current = super::current::CurrentAllocation::from_replayed(&replayed);
         Ok(Self {
-            history: History::LiteralFolds(Box::new(source)),
+            current,
+            replay: ReplayInputs::LiteralFolds(Box::new(source)),
         })
     }
 }
@@ -128,9 +146,12 @@ impl TryFrom<StagedOptimizedRegisterHomesAfterSelectedLowering> for RetainedAllo
     fn try_from(
         source: StagedOptimizedRegisterHomesAfterSelectedLowering,
     ) -> Result<Self, Self::Error> {
-        validate_recovery_selection(&source.replay_allocation()?)?;
+        let replayed = source.replay_allocation()?;
+        validate_recovery_selection(&replayed)?;
+        let current = super::current::CurrentAllocation::from_replayed(&replayed);
         Ok(Self {
-            history: History::SelectedLowering(Box::new(source)),
+            current,
+            replay: ReplayInputs::SelectedLowering(Box::new(source)),
         })
     }
 }
@@ -141,9 +162,12 @@ impl TryFrom<StagedOptimizedActiveResidentRematerialization> for RetainedAllocat
     fn try_from(
         source: StagedOptimizedActiveResidentRematerialization,
     ) -> Result<Self, Self::Error> {
-        validate_recovery_selection(&source.replay_allocation()?)?;
+        let replayed = source.replay_allocation()?;
+        validate_recovery_selection(&replayed)?;
+        let current = super::current::CurrentAllocation::from_replayed(&replayed);
         Ok(Self {
-            history: History::Rematerialization(Box::new(source)),
+            current,
+            replay: ReplayInputs::Rematerialization(Box::new(source)),
         })
     }
 }

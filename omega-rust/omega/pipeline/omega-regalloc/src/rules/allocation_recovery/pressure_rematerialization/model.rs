@@ -291,7 +291,7 @@ impl PressureRematerializationValidationReceipt {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ValidatedPressureRematerialization {
     pub(crate) plan: PressureRematerializationPlan,
-    pub(crate) transformed: SelectedInstructionPlan,
+    pub(crate) transformed: std::sync::Arc<SelectedInstructionPlan>,
     pub(crate) receipt: PressureRematerializationValidationReceipt,
 }
 
@@ -299,7 +299,12 @@ impl ValidatedPressureRematerialization {
     pub const fn plan(&self) -> &PressureRematerializationPlan {
         &self.plan
     }
-    pub const fn transformed(&self) -> &SelectedInstructionPlan {
+    /// Share current immutable data; the returned artifact grants no new authority.
+    pub fn shared_transformed(&self) -> std::sync::Arc<SelectedInstructionPlan> {
+        std::sync::Arc::clone(&self.transformed)
+    }
+
+    pub fn transformed(&self) -> &SelectedInstructionPlan {
         &self.transformed
     }
     pub const fn receipt(&self) -> PressureRematerializationValidationReceipt {

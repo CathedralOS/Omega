@@ -1,4 +1,5 @@
 use crate::tests::*;
+use omega_regalloc::ValidatedSelectedAnalysis;
 
 #[test]
 fn explicit_one_view_availability_reaches_real_pressure_and_recovery_on_both_architectures() {
@@ -548,6 +549,29 @@ fn two_explicit_u12_exact_add_folds_close_one_view_pressure_on_both_architecture
         assert_eq!(
             validate_optimized_register_home_after_literal_fold_custody(&staged_homes).unwrap(),
             *staged_homes.custody()
+        );
+        let original = staged_homes.replay_allocation().unwrap();
+        let selected_owner = original.selected().shared_selected_plan();
+        let home_owner = original.homes().shared_plan();
+        let retained = omega_selected_instructions_to_register_homes::RetainedAllocation::try_from(
+            staged_homes,
+        )
+        .unwrap();
+        assert!(std::sync::Arc::ptr_eq(
+            &selected_owner,
+            &retained.program().selected
+        ));
+        assert!(std::sync::Arc::ptr_eq(
+            &home_owner,
+            &retained.program().homes
+        ));
+        assert_eq!(
+            retained.current().selected_plan(),
+            retained.replay_allocation().unwrap().selected_plan()
+        );
+        assert_eq!(
+            stage_optimized_post_allocation_machine_plan(&retained).unwrap(),
+            post
         );
     }
 }

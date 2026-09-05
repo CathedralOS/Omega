@@ -93,5 +93,8 @@ pub fn validate_selected_instructions(
         )?;
     }
     let receipt = receipt(&plan, legalized);
-    Ok(ValidatedSelectedInstructions { plan, receipt })
+    Ok(ValidatedSelectedInstructions {
+        plan: plan.into(),
+        receipt,
+    })
 }
