@@ -33,6 +33,7 @@ psi-syntax-trees = { path = "../../../psi/representations/psi-syntax-trees" }
 psi-tokens = { path = "../../../psi/representations/psi-tokens" }
 psi-tokens-to-syntax-trees = { path = "../../../psi/pipeline/psi-tokens-to-syntax-trees" }
 cap-std = "4.0.3"
+cap-fs-ext = "4.0.3"
 sha2 = "0.10.9"
 
 [dev-dependencies]

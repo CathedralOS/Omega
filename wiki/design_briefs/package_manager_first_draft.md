@@ -2412,7 +2412,7 @@ manufacture a portable “proof of audit.”
 The `omega-package-manager` release surface now contains reviewed corrected-model
 building blocks for immutable source custody, typed identity and closure,
 compiler handoff/review, exact row conflicts, and review-only triage. The ratified
-acceptance model above still needs transaction integration. The legacy manifest,
+acceptance model above still needs command integration. The legacy manifest,
 name-keyed lock,
 whole-section receipt, caller-constructed instance, and install/update
 scaffolding and standalone dependency scanner were deleted rather than retained
@@ -2433,7 +2433,9 @@ reintroduce or depend on any path that:
 The source-lock codec, exact locked recovery, complete-policy comparison and
 decisions, proposed lock sections, and non-mutating dependency-edit staging are
 available building blocks. Command-owned review-file loading/resume, selective
-update pin preservation, and recoverable publication remain integration work.
+update pin preservation, and command orchestration remain integration work.
+Reviewed pair publication and interruption recovery use a bounded commit-intent
+journal and OS mutex, without additional evidence-promotion prerequisites.
 These source operations do not require certification prerequisites. Unsupported
 candidates reject specifically; native compilation and its artifact guarantees
 remain separately enforced. The [current model](build_and_package_model.md)

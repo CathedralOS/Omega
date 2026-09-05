@@ -1154,6 +1154,7 @@ dependencies = [
 name = "omega-package-manager"
 version = "0.1.0"
 dependencies = [
+ "cap-fs-ext",
  "cap-std",
  "omega-boundary-applications",
  "omega-build-declarations",

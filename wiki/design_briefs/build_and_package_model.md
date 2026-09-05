@@ -3985,7 +3985,7 @@ detect stale or accidentally edited review input; they do not authenticate the
 author or prove anybody performed an audit. A retained rejection prevents the
 represented choices from accepting the candidate. Even complete acceptance is
 not permission to publish without the transaction's source/project-file checks.
-Command-owned review-file persistence and final transaction integration remain
+Command-owned review-file persistence and command integration remain
 downstream work. The older review-only decision codec and file layer below are
 implementation facilities, not additional install/update acceptance gates.
 
@@ -4020,7 +4020,33 @@ Landing the reviewed declaration bytes yields the same root source pin; neither
 staging nor review writes accepted project files. The caller retains the plan
 and stage to detect intervening edits. Manual declaration patches still need
 author placement. Preserving unaffected Git pins during selective updates and
-recoverable publication of `build.omg` with `omega.lock` remain transaction work.
+command-owned review-file resume remain integration work.
+
+`publish_reviewed_package_change` joins the staged build edit with all reviewed
+target sections and their exact decisions. It checks original file bytes,
+stage/root/edit identity, retained target coverage, and comparison against the
+supplied accepted lock. It rechecks snapshots, current local dependency pins,
+and unchanged original project source without recompilation or certification.
+
+Publication uses a persistent OS mutex and bounded commit-intent journal under
+ignored `build/package-manager`. The journal contains only fixed old/new build
+and lock bytes, including explicit absence of an old lock. Once intent is
+recorded, recovery completes forward. It first checks the whole live pair:
+each file must match its recorded old or new bytes. An unrelated edit stops
+recovery and retains the journal. Failures before intent leave the pair unchanged;
+a pending-publication error afterward may represent partially completed writes.
+
+The pair is recoverable, not two simultaneously visible filesystem renames.
+Package commands must hold the mutex while loading accepted files and recover
+pending state first. Ordinary project preparation participates when state already
+exists, without creating transaction files in a read-only source-only checkout.
+Each replacement preserves permissions and uses synchronized atomic stages under
+the ignored state directory, so interrupted staging cannot change source identity.
+Unix directory synchronization errors propagate; the current Windows utility
+does not flush directory metadata and makes no equivalent power-loss durability
+claim. This coordinates processes; it does not protect a project from its own
+author or prove review occurred. Pending journals must not be removed as
+disposable build-cache cleanup.
 
 Review compilation may execute compiler-scoped build code: package-input reads,
 disposable-output writes, and compiler logging are permitted before package
