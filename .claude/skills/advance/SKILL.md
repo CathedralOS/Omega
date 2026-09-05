@@ -213,7 +213,8 @@ branches never lands anything.
 Follow the landing reservation procedure linked by `AGENTS.md`. Prepare the
 worker commits in your own integration worktree, then enqueue when ready. Wait
 locally for the FIFO head and claim before incorporating current main and running
-final gates. Rebase onto the returned base, integrate
+final gates. The promoted head has a nonrenewable three-minute UTC lease; if it
+expires, rejoin at the tail with a new ticket. Rebase onto the returned base, integrate
 ready commits in sequence, and run the full gate list on that candidate. Publish
 the exact verified SHA through `tools/landing.py`; do not pull/rebase again
 between validation and publication or push directly to main. A busy reservation

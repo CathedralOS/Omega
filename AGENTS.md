@@ -339,9 +339,11 @@ rebasing it onto `main` and fast-forwarding, not by merging.
 Reserve only final integration and publication with `tools/landing.py`
 (Python 3 and Git; no shell-specific runtime or third-party Python packages).
 Develop and checkpoint in an isolated worktree first; `main` is the only shared
-code branch. Join the shared FIFO queue when ready. Only its first ticket may
-claim the reservation; use the command's local wait instead of an AI polling
-loop. Once reserved, rebase onto its returned base, run
+code branch. Join the shared FIFO queue when ready. Each promoted head has a
+nonrenewable 180-second UTC lease, starting at promotion rather than claim.
+Only that head may claim; use the command's local wait instead of an AI polling
+loop. Expired heads are removed by the next coordinating client, which gives
+the next ticket its own three minutes. Once reserved, rebase onto its returned base, run
 the applicable checks locally, and publish the exact verified commit through
 the command. All writers use this route rather than direct pushes to `main`.
 An occupied reservation does not prevent development or reading incoming main.
@@ -350,7 +352,9 @@ gate failure before continuing implementation. Rejoining starts at the tail.
 Owner-authorized baseline exceptions may proceed only with documented evidence
 that the same failures occur without the change; retain the tested revisions,
 commands, and results in the checkpoint. Do not relabel new failures as baseline.
-Do not expire or steal a reservation automatically.
+Never extend a head lease or bypass the exact-reference publication checks.
+Expiry is automatic; early cancellation/recovery still requires the exact
+ticket/claim and the owner's direction.
 See [landing](tools/landing.md) for commands,
 observed-owner recovery, and handling an uncertain network result. This protocol
 coordinates publishing across machines; it does not assign work ownership.
