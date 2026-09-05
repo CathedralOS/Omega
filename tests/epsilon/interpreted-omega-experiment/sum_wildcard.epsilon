@@ -1,0 +1,24 @@
+boundary trait Console {
+  machine exit_process(return_code: i32) -> never;
+  machine write_byte(value: i32);
+  machine read_byte() -> i32;
+  machine write_line(text: &[u8]);
+}
+
+data Choice { case First; case Second(value: i32); }
+data Main { console: Console; }
+
+machine Main::main(&mut self) {
+  transition Choice::First {
+    Choice::Second{value} -> next(1 / 0)
+    _ -> next(65)
+  }
+  state next(value: i32) {
+    assert value == 65;
+    transition Choice::First {
+      Choice::First -> self.console.write_byte(value)
+      Choice::Second{other} -> self.console.write_byte(1 / 0)
+      _ -> self.console.write_byte(2 / 0)
+    }
+  }
+}

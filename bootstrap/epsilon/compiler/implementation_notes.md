@@ -34,9 +34,9 @@ wrappers contain only their native AST value and no duplicated cursor or span.
 It deliberately has no final evaluator `main` or composed executable identity.
 The staging execution path starts from `Main::main` accepted by the current
 checking pipeline; the remaining conformance obligations below still apply.
-Local, machine-parameter, and state-parameter bindings retain exact checked
-declaration identity while their runtime roots distinguish separate invocations.
-Ordinary values are immutable scalar, record, or fixed-array snapshots; view
+Local, machine-parameter, state-parameter, and transition-payload bindings retain
+exact checked declaration identity while their roots distinguish invocations.
+Ordinary values are immutable scalar, record, fixed-array, or sum snapshots; view
 values retain a descriptor for their backing and range. Places retain a root
 identifier, an ordered field/index path, and the leaf's storage type.
 Field paths use the checked owner and member identities, not copied type spans
@@ -107,16 +107,40 @@ argument captures its value before the next argument's effects; callee
 parameters and locals receive independent roots. Nested receiver calls share
 the selected live place, including fields and indexed records, rather than
 copying a receiver out and writing it back on return. Unqualified and receiver
-machines support recursion, scalar/record/array value returns, resultless
+machines support recursion, scalar/record/array/sum value returns, resultless
 falloff/return, and explicit exit/trap propagation. Ordinary completion releases
 callee roots and returns a value without a place; committed effects on caller
 storage survive. Expression outcomes carry committed storage and
 output through arithmetic, arguments, indexes, right sides, returns, and
 transition subjects. Only the outer entry adapter turns ordinary completion
 into process exit; recursive `self.main()` retains the existing receiver.
-Sum construction and transitions remain unsupported. Typed aggregate defaults
-do not supply missing sum tags. These storage, view, and call operations do not
-establish that the complete Omega D source executes. Every
+
+Sum construction enters through `execution/sums/construction.delta` and consumes
+the exact checked constructor owner and case, never a receiver-machine lookup.
+Arguments evaluate left-to-right and capture immutable payload snapshots in
+declaration order. `sums/defaults.delta` normalizes an unwritten named sum only
+when its checked owner is available: the first declared case receives typed
+zero payloads, with nested records, arrays, and sums remaining lazy. Concrete
+sum values retain exact owner/case identity and independent payload values.
+
+`sums/transitions.delta` evaluates the subject once and selects the first
+matching complete checked case or wildcard. Missing admitted sum coverage is
+an internal contradiction, not the scalar unmatched-subject trap.
+`sums/bindings.delta` establishes fresh payload homes only for the selected arm;
+lookup uses exact pattern and binder-declaration identity. Mutating a record or
+array binder does not mutate the original subject. A view captured from a
+binder array retains that independent backing across state transfer through the
+ordinary root-liveness rule; unused binder roots are reclaimed normally.
+
+Constructor byte-range failures have one explicit staging gap. A final payload
+argument outside `0..255` traps as `ByteRange` after all preceding argument
+effects. A failing nonfinal byte payload returns private `Unsupported`, without
+publishing an Epsilon observation or evaluating later arguments. The relative
+order between field establishment and later argument effects awaits
+[Epsilon constructor payload establishment order](../../../OWNER_QUESTIONS.md#epsilon-constructor-payload-establishment-order).
+Valid payloads and final-argument failures do not require that choice; this is
+not a claim of full sum execution. These storage, view, sum, and call operations
+also do not establish that the complete Omega D source executes. Every
 D17 grammar form now parses, including boundary/data/machine declarations,
 qualified-only receiver forms, states, and exact nonempty whole-program
 exhaustion. D51's receiver-only qualified-machine syntax, ordinary named

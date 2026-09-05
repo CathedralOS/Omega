@@ -1,0 +1,27 @@
+boundary trait Console {
+  machine exit_process(return_code: i32) -> never;
+  machine write_byte(value: i32);
+  machine read_byte() -> i32;
+  machine write_line(text: &[u8]);
+}
+
+data Cell { value: i32; }
+data Packet { case Pair(value: Cell, marker: i32); }
+data Main { console: Console; original: Cell; }
+
+machine Main::main(&mut self) {
+  self.original.value = 65;
+  let packet: Packet = Packet::Pair(self.original, self.change());
+  transition packet { Packet::Pair{snapshot, marker} -> self.done(snapshot, marker) }
+}
+machine Main::change(&mut self) -> i32 {
+  self.console.write_byte(65);
+  self.original.value = 66;
+  return 0;
+}
+machine Main::done(&mut self, snapshot: Cell, marker: i32) {
+  assert snapshot.value == 65;
+  assert marker == 0;
+  assert self.original.value == 66;
+  self.console.write_byte(66);
+}

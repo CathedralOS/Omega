@@ -16,8 +16,8 @@ Delta-written Epsilon evaluator + exact Epsilon-written Omega D
 The gate requires the Omega product build to bind exactly one
 `alpha_bootstrap::ProgramEntry`, requires Omega D to retain its Alpha tape
 construction, and rejects any `EpsilonAlpha`/`epsilon_alpha_` backend residue in
-the Delta-written Epsilon implementation. The evaluator is currently 10,783
-lines / 540,455 bytes, authored in 71 explicitly manifested members.
+the Delta-written Epsilon implementation. The evaluator is currently 11,188
+lines / 564,044 bytes, authored in 75 explicitly manifested members.
 
 The executable slice runs the current checking pipeline, locates `Main::main`,
 and executes an empty entry, scalar `let` and local/parameter assignment,
@@ -57,15 +57,20 @@ assignment replaces descendants rather than retaining previously written
 children absent from the copied value. Index expressions evaluate once against
 live storage, so their writes are visible to the selected read; a final indexed
 assignment preserves sibling writes made while evaluating its right side.
-Sum values and transitions remain outside this execution milestone. Views and
-all four Console operations execute with the controls below.
+Sum values retain their checked nominal owner, case identity, and immutable
+payload snapshots. Sparse sum defaults select the first declared case and
+zero payload homes. Transitions evaluate their subject once, select only the
+matching checked case or final wildcard, and establish independent arm-local
+payload homes. Those homes support ordinary receiver mutation and array views;
+state transfers retain backing required by captured views.
+Views and all four Console operations execute with the controls below.
 Any retained `Unsupported` staging outcome is not an Epsilon observation and
 cannot survive in the final evaluator.
 
 The gate compiles the exact evaluator plus `execution_driver.delta` through the
-selected Delta route and pins the 645,995-byte Gamma receipt, SHA-256
-`5169d020de9853d5e9d9c53db6537c8c777dd1685af3ae8b23726326af03426f`.
-One hundred eight ordinary controls cover
+selected Delta route and pins the 675,465-byte Gamma receipt, SHA-256
+`4e6102a2f8fdcaef851dcb42198d5d61dffe4cec8a768d3a42c8c1a2b84b39cd`.
+The original 108 ordinary controls cover
 success, local, receiver-field, and fixed-array values, repeated mutation,
 output, comparisons, bitwise/shift/division behavior, short-circuiting, bounds
 ordering, byte-storage range boundaries, and trap prefixes. State controls
@@ -147,8 +152,28 @@ Its 40,542-byte packed source exercises the actual `OmegaRequestEnvelope` and
 view. It checks empty/nonempty outer OCREQ frames, hostile lengths and trailing
 bytes, valid multibyte UTF-8, and malformed continuation, surrogate, out-of-range,
 and truncated encodings. Its expected observation is `A`, LF, and zero exit.
-The inventory verifies 111 observations: 108 ordinary fixtures and three
-whole-member D customers, plus the six private-framing controls above.
+The fourth customer concatenates whole `representations.epsilon` and
+`lexical_classification.epsilon` with
+[`customers/omega_numeric_base/main.epsilon`](customers/omega_numeric_base/main.epsilon).
+Its 34,904-byte source exercises all four cases in D's actual
+`omega_digit_in_base` machine and the first-case default. Eighteen assertions
+cover admitted and rejected digits; expected output is `A` and zero exit.
+
+Sixteen sum controls cover nullary spellings, first-case defaults, nested sums
+in records/arrays, payload ByteRange and argument traps, once-only subjects,
+wildcards, snapshots before later argument effects, binder copies and receiver
+places, ordinary calls/returns, recursion, state transfers, and retained views
+of binder-owned arrays. A separate staging control,
+`sum_byte_order_unsettled.epsilon`, requires private driver byte `fc` with no
+Epsilon observation when a nonfinal byte payload fails before another argument.
+The relationship between that store failure and later argument effects awaits
+the [payload-establishment ruling](../../../OWNER_QUESTIONS.md#epsilon-constructor-payload-establishment-order).
+This control does not bless `Unsupported` as language behavior.
+
+The inventory specifies 128 language/customer observations (124 ordinary
+fixtures and four whole-member D customers), one explicit staging refusal,
+and six private-framing controls. A focused run passed all 17 sum controls and
+the whole D numeric-base customer; the full regression gate is being rerun.
 
 This is executable boundary evidence, not a completed interpreter edge.
 Acceptance still requires execution of all Epsilon statements, expressions,

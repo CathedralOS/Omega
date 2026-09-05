@@ -22,6 +22,8 @@
             (SomeEpsilonEvaluatorBinding identifier)
             (epsilon_evaluator_find_let_binding target rest)))
         ((EpsilonEvaluatorParameterBinding parameterValue identifier)
+          (epsilon_evaluator_find_let_binding target rest))
+        ((EpsilonEvaluatorPatternBinding patternValue name typeValue identifier)
           (epsilon_evaluator_find_let_binding target rest))))))
 
 (def epsilon_evaluator_find_parameter_binding ((target EpsilonParameter)
@@ -31,6 +33,8 @@
     ((MoreEpsilonEvaluatorBindings item rest)
       (match item
         ((EpsilonEvaluatorLetBinding statementValue identifier)
+          (epsilon_evaluator_find_parameter_binding target rest))
+        ((EpsilonEvaluatorPatternBinding patternValue name typeValue identifier)
           (epsilon_evaluator_find_parameter_binding target rest))
         ((EpsilonEvaluatorParameterBinding parameterValue identifier)
           (if (epsilon_evaluator_parameters_same_identity target parameterValue)
@@ -48,6 +52,8 @@
         ((EpsilonRuntimeViewValue view)
           (EpsilonEvaluatorValue value NoEpsilonRuntimePlace store output))
         ((EpsilonRuntimeInteger integer)
+          (EpsilonEvaluatorValue value (SomeEpsilonRuntimePlace place) store output))
+        ((EpsilonRuntimeSumValue owner caseValue payload)
           (EpsilonEvaluatorValue value (SomeEpsilonRuntimePlace place) store output))
         ((EpsilonRuntimeAggregate typeValue children)
           (EpsilonEvaluatorValue value (SomeEpsilonRuntimePlace place) store output))))))
@@ -97,7 +103,8 @@
                     (epsilon_evaluator_find_parameter_binding parameterValue bindings)
                     typeValue store output (epsilon_expression_start expressionValue)))))
             ((EpsilonTransitionBinderLocal patternValue name)
-              EpsilonEvaluatorUnsupported)))))))
+              (epsilon_evaluator_read_pattern_binding patternValue name bindings
+                store output (epsilon_expression_start expressionValue)))))))))
 
 (def epsilon_evaluator_is_machine_parameter ((target EpsilonParameter)
   (parameters EpsilonParameterList)) Int
@@ -118,6 +125,8 @@
     ((MoreEpsilonEvaluatorBindings item rest)
       (match item
         ((EpsilonEvaluatorLetBinding statementValue identifier)
+          (epsilon_evaluator_preserve_machine_parameters parameters rest))
+        ((EpsilonEvaluatorPatternBinding patternValue name typeValue identifier)
           (epsilon_evaluator_preserve_machine_parameters parameters rest))
         ((EpsilonEvaluatorParameterBinding parameterValue identifier)
           (if (epsilon_evaluator_is_machine_parameter parameterValue parameters)

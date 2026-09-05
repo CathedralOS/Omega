@@ -138,7 +138,8 @@
             ((OneEpsilonTransitionSubjectReference kind)
               (match kind
                 ((EpsilonSumTransitionSubject owner)
-                  EpsilonEvaluatorBlockUnsupported)
+                  (epsilon_evaluate_sum_transition context expressionValue arms owner
+                    bindings store output))
                 (EpsilonScalarTransitionSubject
                   (match (epsilon_evaluate_expression context expressionValue
                     bindings store output)
@@ -157,6 +158,8 @@
                           (epsilon_evaluate_scalar_arms context arms scalar bindings
                             nextStore nextOutput))
                         ((EpsilonRuntimeAggregate typeValue children)
+                          (EpsilonEvaluatorBlockInternal start))
+                        ((EpsilonRuntimeSumValue owner caseValue payload)
                           (EpsilonEvaluatorBlockInternal start))
                         ((EpsilonRuntimeViewValue view)
                           (EpsilonEvaluatorBlockInternal start))))))))))))))

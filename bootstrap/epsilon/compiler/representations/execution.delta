@@ -18,7 +18,14 @@
 (data EpsilonRuntimeValue
   (EpsilonRuntimeInteger Int)
   (EpsilonRuntimeAggregate EpsilonType EpsilonRuntimeChildren)
+  (EpsilonRuntimeSumValue EpsilonDeclaration EpsilonResolvedSumCase EpsilonRuntimePayloads)
   (EpsilonRuntimeViewValue EpsilonRuntimeView))
+
+; Case identity belongs to its checked nominal owner. Payload positions follow
+; declaration order and contain independent immutable value snapshots.
+(data EpsilonRuntimePayloads
+  (NoEpsilonRuntimePayloads)
+  (MoreEpsilonRuntimePayloads EpsilonRuntimeValue EpsilonRuntimePayloads))
 
 ; Views retain their ultimate backing, never another view variable's home.
 ; Ordinary non-place array values already own immutable snapshots; slicing one
@@ -78,7 +85,8 @@
 
 (data EpsilonEvaluatorBinding
   (EpsilonEvaluatorLetBinding EpsilonStatement Int)
-  (EpsilonEvaluatorParameterBinding EpsilonParameter Int))
+  (EpsilonEvaluatorParameterBinding EpsilonParameter Int)
+  (EpsilonEvaluatorPatternBinding EpsilonPattern EpsilonName EpsilonType Int))
 
 (data EpsilonEvaluatorBindings
   (NoEpsilonEvaluatorBindings)
