@@ -3,6 +3,9 @@ use std::fs;
 use std::path::Path;
 use std::process::Output;
 
+#[path = "authority/missing_baseline.rs"]
+mod missing_baseline;
+
 const TARGET: target::TargetProfile = target::TargetProfile::LinuxX64;
 const FILE_BUILD: &str = include_str!("../../../../tests/fixtures/packages/file-journal/build.omg");
 const FILE_SOURCE: &str = include_str!("../../../../tests/fixtures/packages/file-journal/main.omg");
