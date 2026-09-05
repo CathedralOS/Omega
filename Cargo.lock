@@ -271,7 +271,6 @@ version = "0.1.0"
 dependencies = [
  "omega-abstract-operations",
  "omega-optimization-core",
- "omega-optimization-policy",
  "omega-optimization-unit",
  "omega-optimization-validation",
  "omega-psi-to-abstract-operations",
@@ -514,7 +513,6 @@ dependencies = [
  "omega-machine-emission",
  "omega-object-file",
  "omega-optimization-core",
- "omega-optimization-policy",
  "omega-package-compilation",
  "omega-program-entry-plan",
  "omega-provider-planning",
@@ -1086,18 +1084,10 @@ dependencies = [
 ]
 
 [[package]]
-name = "omega-optimization-policy"
-version = "0.1.0"
-dependencies = [
- "omega-optimization-core",
-]
-
-[[package]]
 name = "omega-optimization-policy-offline"
 version = "0.1.0"
 dependencies = [
  "omega-optimization-core",
- "omega-optimization-policy",
  "sha2",
 ]
 
@@ -1109,7 +1099,6 @@ dependencies = [
  "omega-abstract-operations-optimizer",
  "omega-abstract-operations-to-target-operations",
  "omega-optimization-core",
- "omega-optimization-policy",
  "omega-optimization-unit",
  "omega-optimization-validation",
  "omega-psi-to-abstract-operations",
@@ -1140,7 +1129,6 @@ version = "0.1.0"
 dependencies = [
  "omega-abstract-operations",
  "omega-optimization-core",
- "omega-optimization-policy",
  "omega-optimization-unit",
  "omega-psi-to-abstract-operations",
  "psi-checked-trees-to-terminal",

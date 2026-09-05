@@ -648,7 +648,6 @@ omega-rust/omega/
     omega-abstract-operations-optimizer/
                                       # post-Terminal abstract-operation analyses and rewrites
     omega-post-allocation-machine-to-optimized-machine/        # post-allocation symbolic-machine optimization stage
-    omega-optimization-policy/      # deterministic decisions over validated candidates
     omega-optimization-validation/  # independent optimization-unit validation
     omega-selected-instructions-to-register-homes/                 # physical analyses, allocation, recovery rules
     omega-psi-to-abstract-operations/

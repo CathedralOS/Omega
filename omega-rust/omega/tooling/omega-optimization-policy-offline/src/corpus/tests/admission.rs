@@ -1,7 +1,7 @@
-use omega_optimization_core::{OptimizationDecisionSchemaIdentity, OptimizationReasonCode};
-use omega_optimization_policy::{
+use omega_optimization_core::{
     ExternalDecisionAction, ExternalDecisionContext, ExternalDecisionLog,
 };
+use omega_optimization_core::{OptimizationDecisionSchemaIdentity, OptimizationReasonCode};
 
 use super::fixture::{chosen_point, context, encoded_log, skipped_point, source};
 use crate::{OfflinePolicyCorpusError, admit_external_decision_logs, decision_surface_identity};
@@ -21,7 +21,7 @@ fn admission_canonicalizes_log_order_and_returns_identity_bound_receipt() {
     assert_eq!(ordered.examples().len(), 2);
     assert_eq!(
         ordered.receipt().schema(),
-        omega_optimization_policy::external_psi_decision_schema_v2_identity()
+        omega_optimization_core::external_psi_decision_schema_v2_identity()
     );
     assert_eq!(
         ordered.examples()[0].point().action(),

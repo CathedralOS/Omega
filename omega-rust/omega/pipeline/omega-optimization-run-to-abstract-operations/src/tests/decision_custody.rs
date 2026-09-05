@@ -8,9 +8,9 @@ use omega_optimization_core::{
     OptimizationPassIdentity, OptimizationPassManifestRecord, OptimizationReasonCode,
     OptimizationRuleSetIdentity, OptimizationUnitIdentity, OptimizationValidatorIdentity,
 };
-use omega_optimization_policy::{
-    BaselinePolicy, ExternalCandidateFeatures, ExternalDecisionAction, ExternalDecisionLog,
-    ExternalDecisionPoint, ValidatedCandidateSummary,
+use omega_optimization_core::{
+    BaselineDecisionLogBuilder, ExternalCandidateFeatures, ExternalDecisionAction,
+    ExternalDecisionLog, ExternalDecisionPoint, ValidatedCandidateSummary,
 };
 
 type Fixture = fn() -> VerifiedPsiOptimizationUnit;
@@ -642,7 +642,7 @@ fn replace_baseline_cost(
     candidate: OptimizationCandidateIdentity,
     changed_cost: i64,
 ) {
-    let mut policy = BaselinePolicy::default();
+    let mut policy = BaselineDecisionLogBuilder::default();
     for record in &run.decisions.records {
         let considered = record.considered.iter().map(|summary| {
             if summary.candidate == candidate {

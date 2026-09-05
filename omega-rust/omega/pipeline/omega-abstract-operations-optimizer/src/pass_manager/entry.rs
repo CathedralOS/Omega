@@ -1,7 +1,7 @@
+use omega_optimization_core::ExternalDecisionLog;
 use omega_optimization_core::{
     OptimizationSelections, OptimizationWorkBudget, PsiOptimizationSelectionProjection,
 };
-use omega_optimization_policy::ExternalDecisionLog;
 use omega_psi_to_abstract_operations::VerifiedPsiOptimizationUnit;
 
 use crate::{

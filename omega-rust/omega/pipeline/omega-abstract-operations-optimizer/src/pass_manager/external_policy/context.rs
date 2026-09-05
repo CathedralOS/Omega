@@ -1,9 +1,9 @@
 use omega_optimization_core::{
-    OptimizationRuleSetIdentity, OptimizationSelections, OptimizationUnitIdentity,
-};
-use omega_optimization_policy::{
     ExternalDecisionContext, external_psi_decision_schema_v2_identity,
     psi_target_neutral_decision_target_v2_identity,
+};
+use omega_optimization_core::{
+    OptimizationRuleSetIdentity, OptimizationSelections, OptimizationUnitIdentity,
 };
 
 use super::super::{ExternalDecisionContextAxis, baseline_psi_cost_model_identity};

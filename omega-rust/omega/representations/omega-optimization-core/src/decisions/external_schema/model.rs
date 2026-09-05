@@ -1,4 +1,4 @@
-use omega_optimization_core::{
+use crate::{
     AnalysisSet, CoreContractDecodeError, OptimizationCandidateIdentity,
     OptimizationDecisionIdentity, OptimizationDecisionLogIdentity,
     OptimizationDecisionSchemaIdentity, OptimizationDecisionTargetIdentity,

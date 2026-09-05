@@ -14,5 +14,4 @@ path = "src/bin/omega-optimization-policy-offline/main.rs"
 
 [dependencies]
 omega-optimization-core = { path = "../../representations/omega-optimization-core" }
-omega-optimization-policy = { path = "../../pipeline/omega-optimization-policy" }
 sha2 = "0.10.9"

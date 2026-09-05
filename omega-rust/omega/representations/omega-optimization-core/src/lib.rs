@@ -3,9 +3,13 @@
 //! `selection` is the authoritative exact-name registry and canonical selection
 //! codec. `contracts` defines rule and budget contracts. `identities` owns the
 //! domain-separated identities carried between stages, while `manifest` owns
-//! their common publication records. This crate has no executable optimizer.
+//! their common publication records. `decisions` owns baseline logs and the
+//! external decision wire schema, not candidate selection. This crate has no
+//! executable optimizer.
 
 mod contracts;
+mod decisions;
+pub use decisions::*;
 mod report_request;
 pub use report_request::OptimizationReportRequest;
 mod identities;

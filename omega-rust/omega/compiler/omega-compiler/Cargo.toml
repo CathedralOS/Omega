@@ -11,7 +11,6 @@ path = "src/lib.rs"
 [features]
 experimental-external-optimization-policy = [
     "dep:omega-bounded-process",
-    "dep:omega-optimization-policy",
 ]
 
 [dependencies]
@@ -26,7 +25,6 @@ omega-trust-model = { path = "../../build/omega-trust-model" }
 omega-core = { path = "../../representations/omega-core" }
 omega-boundary-applications = { path = "../../representations/omega-boundary-applications" }
 omega-optimization-core = { path = "../../representations/omega-optimization-core" }
-omega-optimization-policy = { path = "../../pipeline/omega-optimization-policy", optional = true }
 omega-abstract-operations-to-target-operations = { path = "../../pipeline/omega-abstract-operations-to-target-operations" }
 psi-core = { path = "../../../psi/foundation/psi-core" }
 psi-arena = { path = "../../../psi/foundation/psi-arena" }
@@ -93,6 +91,5 @@ omega-object-file = { path = "../../backend/object/omega-object-file" }
 omega-program-entry-plan = { path = "../../backend/plans/omega-program-entry-plan" }
 omega-package-compilation = { path = "../../build/omega-package-compilation", features = ["test-support"] }
 omega-installation-evidence = { path = "../../representations/omega-installation-evidence" }
-omega-optimization-policy = { path = "../../pipeline/omega-optimization-policy" }
 psi-facts = { path = "../../../psi/representations/psi-facts" }
 psi-terminal = { path = "../../../psi/representations/psi-terminal" }

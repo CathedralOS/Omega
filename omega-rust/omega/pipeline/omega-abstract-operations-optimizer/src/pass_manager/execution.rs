@@ -1,13 +1,13 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use omega_optimization_core::{
+    BaselineDecisionLog, BaselineDecisionLogBuilder, BaselineDecisionOutcome, ExternalDecisionLog,
+};
+use omega_optimization_core::{
     Optimization, OptimizationCandidateVerdict, OptimizationDecisionRecord,
     OptimizationIdentityBundle, OptimizationPassManifestRecord, OptimizationReasonCode,
     OptimizationRuleContract, OptimizationRuleSetIdentity, OptimizationSelections,
     OptimizationUnitIdentity, OptimizationWorkBudget,
-};
-use omega_optimization_policy::{
-    BaselineDecisionLog, BaselineDecisionOutcome, BaselinePolicy, ExternalDecisionLog,
 };
 use omega_optimization_unit::{
     PsiOptimizationUnit, PsiTransformationLedger, PsiTransformationRecord,
@@ -22,6 +22,7 @@ use super::{
     OptimizationRunUsage, PsiOptimizationCommit, PsiValidatedCandidateDeclaration,
     VerifiedPsiOptimizationSession,
     accounting::*,
+    baseline::choose_baseline,
     baseline_psi_cost_model_identity,
     external_policy::{
         ExternalDecisionReplayCursor, expected_context, external_points_from_manifest_decisions,
@@ -236,7 +237,7 @@ fn run_unit_inner_with_retention(
     let mut seen_candidates = BTreeSet::new();
     let mut seen_revisions = BTreeMap::from([(unit.identity, 0)]);
     let mut dispatched = BTreeSet::new();
-    let mut policy = BaselinePolicy::default();
+    let mut recorded_decisions = BaselineDecisionLogBuilder::default();
     loop {
         charge(&mut usage.iterations, budget.iterations(), "iterations")?;
         let previous_measure = convergence_measure(&unit, registry);
@@ -302,19 +303,19 @@ fn run_unit_inner_with_retention(
                 .map(|features| features.summary())
                 .collect::<Vec<_>>();
             let outcome = if let Some(replay) = external_replay.as_deref_mut() {
-                let outcome = replay
+                replay
                     .choose(unit.identity, contract.identity(), &external_features)
-                    .map_err(OptimizationRunError::ExternalDecisionReplay)?;
-                policy
-                    .record_validated_outcome(unit.identity, summaries.iter().copied(), outcome)
-                    .map_err(|error| {
-                        OptimizationRunError::ExternalDecisionReplay(
-                            ExternalDecisionReplayError::InvalidRecordedOutcome(error),
-                        )
-                    })?
+                    .map_err(OptimizationRunError::ExternalDecisionReplay)?
             } else {
-                policy.choose(unit.identity, summaries.iter().copied())
+                choose_baseline(&summaries)
             };
+            recorded_decisions
+                .record_validated_outcome(unit.identity, summaries.iter().copied(), outcome)
+                .map_err(|error| {
+                    OptimizationRunError::ExternalDecisionReplay(
+                        ExternalDecisionReplayError::InvalidRecordedOutcome(error),
+                    )
+                })?;
             for (candidate, accepted) in &validated {
                 let verdict = match outcome {
                     BaselineDecisionOutcome::Choose(chosen) if chosen == candidate.identity() => {
@@ -356,7 +357,7 @@ fn run_unit_inner_with_retention(
             if dispatched.len() != registry.len() {
                 return Err(OptimizationRunError::RegistryCoverageMismatch);
             }
-            let decisions = policy.finish();
+            let decisions = recorded_decisions.finish();
             let pass_manifest = build_pass_manifest(
                 registry,
                 initial_identity,

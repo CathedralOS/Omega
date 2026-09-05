@@ -1,4 +1,4 @@
-use omega_optimization_core::{
+use crate::{
     AcceptedObligationFactIdentity, AnalysisKind, AnalysisSet, CoreContractDecodeError,
     OptimizationCandidateIdentity, OptimizationFactReference, OptimizationFactReferenceDecodeError,
     OptimizationReasonCode, OptimizationRuleIdentity, OptimizationRuleSetIdentity,
@@ -6,7 +6,7 @@ use omega_optimization_core::{
     ScalarConstantFactIdentity, TargetCostModelIdentity, ValueRangeFactIdentity,
 };
 
-use crate::{BaselinePolicy, ValidatedCandidateSummary};
+use crate::{BaselineDecisionOutcome, ValidatedCandidateSummary};
 
 use super::*;
 
@@ -88,11 +88,7 @@ fn point() -> ExternalDecisionPoint {
 #[test]
 fn point_canonicalizes_candidates_and_facts_without_changing_policy_outcome() {
     let summaries = [summary(b"slow", -1), summary(b"fast", -3)];
-    let mut baseline = BaselinePolicy::default();
-    let outcome = baseline.choose(
-        OptimizationUnitIdentity::from_canonical_bytes(b"input"),
-        summaries,
-    );
+    let outcome = BaselineDecisionOutcome::Choose(summaries[1].candidate);
     let slow = ExternalCandidateFeatures::new(
         summaries[0],
         AnalysisSet::new([AnalysisKind::EffectSummaries]),

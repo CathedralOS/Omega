@@ -5,6 +5,7 @@
 //! external-decision replay, and [`accounting`] owns convergence and manifests.
 
 mod accounting;
+mod baseline;
 mod entry;
 mod execution;
 mod external_policy;

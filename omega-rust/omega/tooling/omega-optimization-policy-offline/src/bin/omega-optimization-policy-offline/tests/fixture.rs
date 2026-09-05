@@ -10,7 +10,7 @@ use omega_optimization_core::{
     OptimizationRuleSetIdentity, OptimizationSelectionIdentity, OptimizationUnitIdentity,
     TargetCostModelIdentity,
 };
-use omega_optimization_policy::{
+use omega_optimization_core::{
     ExternalCandidateFeatures, ExternalDecisionAction, ExternalDecisionContext,
     ExternalDecisionLog, ExternalDecisionPoint, ValidatedCandidateSummary,
     external_psi_decision_schema_v2_identity, psi_target_neutral_decision_target_v2_identity,

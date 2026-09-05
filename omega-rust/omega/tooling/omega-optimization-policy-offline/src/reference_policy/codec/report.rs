@@ -1,5 +1,5 @@
+use omega_optimization_core::ExternalDecisionAction;
 use omega_optimization_core::{OptimizationCandidateIdentity, OptimizationReasonCode};
-use omega_optimization_policy::ExternalDecisionAction;
 
 use crate::{
     DecisionSurfaceIdentity, OfflinePolicyCorpusIdentity, OfflinePolicySplit,

@@ -36,6 +36,27 @@ fn rust_source(directory: &Path) -> String {
 }
 
 #[test]
+fn optimization_decision_records_do_not_own_candidate_selection() {
+    let root = repository();
+    let records = rust_source(
+        &root.join("omega-rust/omega/representations/omega-optimization-core/src/decisions"),
+    );
+    assert!(records.contains("pub struct BaselineDecisionLogBuilder"));
+    assert!(!records.contains("fn choose("));
+    assert!(!records.contains("fn choose_baseline("));
+    assert!(!records.contains("omega_abstract_operations_optimizer::"));
+    let chooser = std::fs::read_to_string(root.join(
+        "omega-rust/omega/pipeline/omega-abstract-operations-optimizer/src/pass_manager/baseline.rs",
+    )).unwrap();
+    assert!(chooser.contains("pub(super) fn choose_baseline("));
+    assert!(
+        !root
+            .join("omega-rust/omega/pipeline/omega-optimization-policy/Cargo.toml")
+            .exists()
+    );
+}
+
+#[test]
 fn text_placement_data_and_independent_checking_have_separate_owners() {
     let root = repository();
     let data = rust_source(&root.join(

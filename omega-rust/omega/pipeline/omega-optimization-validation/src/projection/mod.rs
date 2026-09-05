@@ -6,13 +6,13 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use omega_abstract_operations::AbstractOperationPlan;
+use omega_optimization_core::{BaselineDecisionLog, BaselineDecisionLogDecodeError};
 use omega_optimization_core::{
     OptimizationCandidateVerdict, OptimizationExecutionPhase, OptimizationIdentityBundle,
     OptimizationPassManifestRecord, OptimizationRuleSetIdentity, OptimizationSelectionIdentity,
     OptimizationSelections, OptimizationUnitIdentity, OptimizationValidatorIdentity,
     OptimizedAbstractPlanProjectionIdentity, TargetCostModelIdentity, TransformationLedgerIdentity,
 };
-use omega_optimization_policy::{BaselineDecisionLog, BaselineDecisionLogDecodeError};
 use omega_optimization_unit::{
     InvalidPsiTransformationLedger, ProvenanceDisposition, PsiOptimizationUnit, PsiProvenance,
     PsiRealizationSite, PsiTransformationLedger,

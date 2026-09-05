@@ -22,7 +22,7 @@ pub(crate) const ENTRANCES: &[RequiredCoordinationEntrance] = &[
         coordination_marker: "DECISION_WIRE_FORMAT",
     },
     RequiredCoordinationEntrance {
-        path: "omega-rust/omega/pipeline/omega-optimization-policy/src/external_schema/mod.rs",
+        path: "omega-rust/omega/representations/omega-optimization-core/src/decisions/external_schema/mod.rs",
         coordination_marker: "impl ExternalDecisionPoint",
     },
     RequiredCoordinationEntrance {

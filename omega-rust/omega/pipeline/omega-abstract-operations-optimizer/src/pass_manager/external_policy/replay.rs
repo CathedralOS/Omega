@@ -1,10 +1,10 @@
 use std::collections::BTreeSet;
 
-use omega_optimization_core::{OptimizationRuleIdentity, OptimizationUnitIdentity};
-use omega_optimization_policy::{
+use omega_optimization_core::{
     BaselineDecisionOutcome, ExternalCandidateFeatures, ExternalDecisionAction,
     ExternalDecisionContext, ExternalDecisionLog, ExternalDecisionPoint,
 };
+use omega_optimization_core::{OptimizationRuleIdentity, OptimizationUnitIdentity};
 
 use super::super::ExternalDecisionReplayError;
 use super::context;

@@ -1,6 +1,6 @@
 use super::fixture::{chosen_point, encoded_log, skipped_point, source};
 use crate::{OfflinePolicyCorpusError, admit_external_decision_logs, decode_offline_policy_corpus};
-use omega_optimization_policy::ExternalDecisionSchemaError;
+use omega_optimization_core::ExternalDecisionSchemaError;
 
 const HEADER: usize = 8 + 4 + 32 + 4;
 

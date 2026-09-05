@@ -1,10 +1,10 @@
 use omega_optimization_core::{
-    OptimizationCandidateVerdict, OptimizationDecisionRecord, OptimizationReasonCode,
-    OptimizationRuleSetIdentity,
-};
-use omega_optimization_policy::{
     BaselineDecisionLog, BaselineDecisionOutcome, ExternalCandidateFeatures, ExternalDecisionLog,
     ExternalDecisionPoint,
+};
+use omega_optimization_core::{
+    OptimizationCandidateVerdict, OptimizationDecisionRecord, OptimizationReasonCode,
+    OptimizationRuleSetIdentity,
 };
 
 use super::super::{OptimizationRun, OptimizationRunError};

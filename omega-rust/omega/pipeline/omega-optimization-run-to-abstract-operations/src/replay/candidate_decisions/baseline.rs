@@ -4,7 +4,7 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use omega_abstract_operations_optimizer::OptimizationRun;
 use omega_optimization_core::OptimizationCandidateVerdict;
-use omega_optimization_policy::{BaselineDecisionLog, BaselineDecisionOutcome};
+use omega_optimization_core::{BaselineDecisionLog, BaselineDecisionOutcome};
 
 use crate::OptimizedAbstractProjectionError;
 use crate::error::{AppliedDecisionCustodyAxis, custody_error};

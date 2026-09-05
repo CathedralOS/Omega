@@ -1,5 +1,5 @@
 use omega_optimization_core::OptimizationRuleContract;
-use omega_optimization_policy::{
+use omega_optimization_core::{
     ExternalCandidateFeatures, ExternalDecisionSchemaError, ValidatedCandidateSummary,
 };
 use omega_optimization_unit::PsiRewriteCandidate;

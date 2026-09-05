@@ -1,7 +1,7 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use omega_optimization_core::OptimizationUnitIdentity;
-use omega_optimization_policy::{ExternalDecisionLog, external_psi_decision_schema_v2_identity};
+use omega_optimization_core::{ExternalDecisionLog, external_psi_decision_schema_v2_identity};
 
 use super::identity::{corpus_identity, decision_surface_identity};
 use super::model::{
