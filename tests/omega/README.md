@@ -51,10 +51,14 @@ fixture path: the enabled test must still satisfy the native compilation,
 execution, target, and exact-status checks. Missing or ambiguous references do
 not justify skipping an umbrella compilation.
 
-Cross-layer native differential tests own their shared inputs under
+Compiler library tests share their corpus identities through the compiler test
+leaves too. Package tests keep leaves in their owning package's
+`tests/fixture_rosters/`; cross-layer native differential tests use
 `tests/native-differential/fixture_rosters/`. The compiler inventory includes
-only those dependency-free leaves, not the differential harness. Corpus bucket
-membership does not replace a dedicated owner's phase-specific expectation.
+only those dependency-free leaves, not the package or differential harness.
+Repackaging corpus source for checked policy projection does not claim native
+execution. Corpus bucket membership does not replace a dedicated owner's
+phase-specific expectation.
 
 Reverse closure remains `CANARY-ROSTER-DERIVATION` in `TASKS.md`: not all
 dedicated test owners are represented yet, so the inventory does not yet reject
