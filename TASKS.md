@@ -118,6 +118,22 @@ the [Rust Compiler Completion Contract](wiki/releases/rust_compiler_completion_c
   Acceptance: both tests pass, with every maintained sample reaching checked
   trees and every documented exit oracle observed on its matching host.
 
+- **CANARY-CORPUS.** `mbx test -p omega-compiler --test canary_suite` is red
+  across most of its roster on a clean tree, while the `AGENTS.md` baseline
+  gates are green — so the gate list does not measure this bar. The dominant
+  cause is the same `psi-checked-trees-to-terminal` fence `SAMPLE-CORPUS` names
+  above, `attached Unit closure is missing a checked transitive machine plan`,
+  which owns the clear majority of all failing diagnostics; the rest fall behind
+  `NOMINAL-FIELD-FLOW`, private-data exposure in public interfaces, missing
+  exact selected program entries, and index/subslice bound proofs. Owning areas
+  are those entries, not this one. Blocker: clearing the fence advances each
+  affected canary to its next failure rather than passing it outright, so the
+  distribution must be re-ranked after it closes rather than assumed. Rank with
+  the pipeline in the `advance` skill and attribute with the filter variables in
+  `AGENTS.md`; a full run costs several minutes and cannot separate a session's
+  own breakage from the standing state. Acceptance: every remaining red canary
+  is attributed to a named entry on a board, and this entry is replaced by those.
+
 `omega-rust/` remains the production implementation until that contract
 closes. It may remain afterward as a differential implementation while it finds
 real bugs, but Rust agreement is not bootstrap authority and Rust-specific
