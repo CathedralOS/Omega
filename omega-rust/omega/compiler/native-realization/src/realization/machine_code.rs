@@ -55,6 +55,10 @@ pub(crate) fn emit_realization_machine_code(
             let (plan, physical_evidence_scope) = emit_return_only_optimized_fragments(
                 optimized.physical,
                 OptimizedFragmentPublicationRequest {
+                    identity_scope: request
+                        .optimization_selections
+                        .is_empty()
+                        .then_some(initial_physical_evidence_scope),
                     has_provider_installation: optimized.has_provider_installation,
                     has_boundary_settlements: !settlements.is_empty(),
                     boundary_application_coverage,
@@ -63,7 +67,22 @@ pub(crate) fn emit_realization_machine_code(
                     validation: optimized.validation,
                     final_unit: optimized.final_unit,
                 },
-            )?;
+            )
+            .map_err(|diagnostics| {
+                if request.optimization_selections.is_empty() {
+                    diagnostics
+                } else {
+                    diagnostics
+                        .into_iter()
+                        .flat_map(|diagnostic| {
+                            super::diagnostics::selected_physical_pipeline_failed(
+                                request.optimization_selections.selections(),
+                                diagnostic.message,
+                            )
+                        })
+                        .collect()
+                }
+            })?;
             Ok(EmittedRealizationMachineCode {
                 machine_code: MachineCodePlanWithPrivateFunctions {
                     plan,

@@ -21,6 +21,8 @@ use diagnostics::Diagnostic;
 use selected_instructions::MachineAlternativeFamily;
 
 pub(super) struct OptimizedFragmentPublicationRequest<'request> {
+    /// Exact original scope is reusable only for the identity optimization run.
+    pub(super) identity_scope: Option<native_artifact::NativePhysicalEvidenceScope>,
     pub(super) has_provider_installation: bool,
     pub(super) has_boundary_settlements: bool,
     pub(super) boundary_application_coverage:
@@ -41,6 +43,14 @@ pub(super) fn emit_return_only_optimized_fragments(
     ),
     Vec<Diagnostic>,
 > {
+    if request.identity_scope.is_some()
+        && physical.selections() != optimization_core::OptimizationSelections::default().identity()
+    {
+        return Err(super::diagnostics::realization_error(
+            "identity physical-evidence projection",
+            "nonidentity physical selections cannot retain the original evidence scope",
+        ));
+    }
     if request.has_provider_installation || request.has_boundary_settlements {
         return Err(super::diagnostics::realization_error(
             "optimized fragment native publication",
@@ -101,6 +111,9 @@ pub(super) fn emit_return_only_optimized_fragments(
                     error,
                 )
             })?
+        }
+        (Some(_), None) if request.identity_scope.is_some() => {
+            request.identity_scope.expect("identity scope was checked")
         }
         (Some(_), None) => {
             return Err(super::diagnostics::realization_error(
