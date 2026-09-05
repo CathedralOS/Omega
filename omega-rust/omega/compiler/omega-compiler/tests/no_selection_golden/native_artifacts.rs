@@ -1,5 +1,5 @@
 use omega_compiler::compile_to_checked;
-use omega_optimization_pipeline::OptimizationReportRequest;
+use omega_optimization_core::OptimizationReportRequest;
 
 use super::support::{
     HOSTED_NATIVE_TARGETS, compile_retained_native, golden_for_target, native_canary,

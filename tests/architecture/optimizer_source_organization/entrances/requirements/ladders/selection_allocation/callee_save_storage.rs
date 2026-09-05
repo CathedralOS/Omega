@@ -21,10 +21,10 @@ pub(super) const PRODUCTION: SemanticLadder = SemanticLadder {
 pub(super) const COVERAGE: SemanticLadder = SemanticLadder {
     family: "non-authoritative callee-save storage coverage",
     paths: &[
-        "omega-rust/omega/pipeline/omega-optimization-pipeline/src/tests/stages/allocation/register_allocation/callee_save_storage/mod.rs",
-        "omega-rust/omega/pipeline/omega-optimization-pipeline/src/tests/stages/allocation/register_allocation/callee_save_storage/fixture.rs",
-        "omega-rust/omega/pipeline/omega-optimization-pipeline/src/tests/stages/allocation/register_allocation/callee_save_storage/positive.rs",
-        "omega-rust/omega/pipeline/omega-optimization-pipeline/src/tests/stages/allocation/register_allocation/callee_save_storage/corruption.rs",
-        "omega-rust/omega/pipeline/omega-optimization-pipeline/src/tests/stages/allocation/register_allocation/callee_save_storage/budget.rs",
+        "tests/native-differential/tests/pipeline_ownership/stages/allocation/register_allocation/callee_save_storage/mod.rs",
+        "tests/native-differential/tests/pipeline_ownership/stages/allocation/register_allocation/callee_save_storage/fixture.rs",
+        "tests/native-differential/tests/pipeline_ownership/stages/allocation/register_allocation/callee_save_storage/positive.rs",
+        "tests/native-differential/tests/pipeline_ownership/stages/allocation/register_allocation/callee_save_storage/corruption.rs",
+        "tests/native-differential/tests/pipeline_ownership/stages/allocation/register_allocation/callee_save_storage/budget.rs",
     ],
 };

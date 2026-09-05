@@ -1,14 +1,21 @@
 use omega_abstract_operations::AbstractOperation;
 use omega_abstract_operations_optimizer::WrappingIntegerAddConstantsRule;
+use omega_abstract_operations_to_target_operations::*;
 use omega_isa_aarch64::validate_aarch64_shortest_movn_materialization;
 use omega_isa_x86_64::{
     decode_x86_64_mov_r32_imm32_i64_materialization,
     decode_x86_64_mov_r64_imm32_sign_extended_i64_materialization,
 };
 use omega_optimization_core::{Optimization, OptimizationSelections, OptimizationWorkBudget};
-use omega_optimization_pipeline::*;
 use omega_optimization_unit::PsiRewritePatch;
+use omega_post_allocation_machine_to_optimized_machine::*;
+use omega_post_allocation_machine_to_selected_form_encoding::*;
+use omega_register_homes_to_post_allocation_machine::*;
+use omega_selected_form_encoding_to_resolved_layout::*;
+use omega_selected_instructions_to_register_homes::*;
 use omega_target::NativeTarget;
+use omega_target_to_register_environment::*;
+use omega_terminal_psi_to_native_artifact::*;
 use psi_core::IntegerValue;
 use psi_proof_admission::AdmissionProfile;
 

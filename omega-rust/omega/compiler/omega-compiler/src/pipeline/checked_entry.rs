@@ -403,7 +403,7 @@ impl CheckedCompilation {
     /// This remains independent of the exact transformation selection.
     pub const fn optimization_report_request(
         &self,
-    ) -> omega_optimization_pipeline::OptimizationReportRequest {
+    ) -> omega_optimization_core::OptimizationReportRequest {
         self.optimization.report()
     }
 

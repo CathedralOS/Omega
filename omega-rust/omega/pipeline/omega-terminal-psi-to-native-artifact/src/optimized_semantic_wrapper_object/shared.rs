@@ -12,16 +12,16 @@ pub(crate) use omega_object_file::{
     ObjectLocalSymbolId, RelocationFreeObjectPlan, RelocationFreeObjectSymbolRole, SectionKind,
     canonical_private_machine_symbol_name, section_name,
 };
+pub(crate) use omega_object_file::{
+    OptimizedObjectArtifactError, StagedValidatedOptimizedObjectArtifact,
+    validate_optimized_object_artifact,
+};
 pub(crate) use omega_optimization_core::{
     OptimizedObjectArtifactIdentity, OptimizedObjectArtifactManifestIdentity,
     OptimizedProgramStorageSemanticWrapperObjectContainerIdentity,
     OptimizedProgramStorageSemanticWrapperObjectIdentity,
     OptimizedProgramStorageSemanticWrapperObjectManifestIdentity,
     RelocationFreeObjectContainerIdentity, RelocationFreeObjectPlanIdentity,
-};
-pub(crate) use omega_optimization_pipeline::{
-    OptimizedObjectArtifactError, StagedValidatedOptimizedObjectArtifact,
-    validate_optimized_object_artifact,
 };
 pub(crate) use omega_program_entry_plan::{
     OptimizedProgramStorageSemanticEntryContract,

@@ -68,8 +68,8 @@ The build/compiler hooks and two top-level optimizer-pipeline routes are:
 | Injected exact-name vocabulary | `omega-compiler/src/pipeline/optimization/build_vocabulary/mod.rs` | sole `fragments.rs` mapping used by both prelude variants |
 | Checked selection custody | `omega-compiler/src/pipeline/optimization/checked_handoff/mod.rs` | retained selection, identity, and report request |
 | Native compiler realization | `omega-compiler/src/compiler/optimization/mod.rs` | `admission.rs`, `rollback/`, `native_realization.rs` |
-| Verified abstract-operation optimization | `omega-optimization-pipeline/src/coordination/abstract_operation_optimization/mod.rs` | `request.rs`, selected compatibility catalog, independent abstract projection |
-| Native physical continuation | `omega-optimization-pipeline/src/coordination/physical_pipeline/mod.rs` | `routes/composition/`, then one named route |
+| Verified abstract-operation optimization | `pipeline/omega-terminal-psi-to-native-artifact/src/native_pipeline/abstract_operation_optimization/mod.rs` | `request.rs`, selected compatibility catalog, independent abstract projection |
+| Native physical continuation | `pipeline/omega-terminal-psi-to-native-artifact/src/native_pipeline/physical_pipeline/mod.rs` | `routes/composition/`, then one named route |
 | Attached Unit abstract-to-target lowering | `omega-abstract-operations-to-target-operations/src/lowering/unit.rs` | `unit/setup.rs`, `unit/body.rs`, then named call, return, scalar, and structural leaves |
 
 The ordinary empty-selection compiler path does not enter the explicit Psi
@@ -140,7 +140,7 @@ and opaque validated carrier, `freeze.rs` coordinates component preservation,
 and `freeze/normalized_component.rs` independently owns the sole authenticated
 zero/one relocation normalization. `replay.rs` owns post-run rederivation. The
 33-line stage-group entrance is not a second public validation entrance.
-The mirrored `omega-optimization-pipeline/src/tests/cyclic_psi.rs` leaf builds a
+The mirrored `tests/native-differential/tests/pipeline_ownership/cyclic_psi.rs` leaf builds a
 real source countdown and pins CFG, dominator, SCC, loop, and liveness analysis
 plus topology/frozen-body corruption. General cyclic authority and cyclic
 rewrite consumers remain outside this taxonomy.

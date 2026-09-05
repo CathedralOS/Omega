@@ -43,18 +43,32 @@ omega-target-operations = { path = "../../omega-rust/omega/representations/omega
 omega-assigned-target-operations = { path = "../../omega-rust/omega/representations/omega-assigned-target-operations" }
 omega-abstract-operations-to-target-operations = { path = "../../omega-rust/omega/pipeline/omega-abstract-operations-to-target-operations" }
 omega-target-operations-to-assigned-target-operations = { path = "../../omega-rust/omega/pipeline/omega-target-operations-to-assigned-target-operations" }
-omega-machine-emission = { path = "../../omega-rust/omega/backend/omega-machine-emission" }
+omega-machine-emission = { path = "../../omega-rust/omega/backend/omega-machine-emission", features = ["test-support"] }
 omega-machine-code = { path = "../../omega-rust/omega/representations/omega-machine-code" }
 omega-image-emission = { path = "../../omega-rust/omega/backend/images/omega-image-emission" }
 omega-installation-evidence = { path = "../../omega-rust/omega/representations/omega-installation-evidence" }
 omega-psi-to-abstract-operations = { path = "../../omega-rust/omega/pipeline/omega-psi-to-abstract-operations" }
-omega-terminal-psi-to-native-artifact = { path = "../../omega-rust/omega/pipeline/omega-terminal-psi-to-native-artifact" }
-omega-native-artifact = { path = "../../omega-rust/omega/backend/artifacts/omega-native-artifact" }
+omega-terminal-psi-to-native-artifact = { path = "../../omega-rust/omega/pipeline/omega-terminal-psi-to-native-artifact", features = ["test-support"] }
+omega-native-artifact = { path = "../../omega-rust/omega/backend/artifacts/omega-native-artifact", features = ["test-support"] }
 omega-component-candidate = { path = "../../omega-rust/omega/backend/artifacts/omega-component-candidate" }
 omega-program-entry-plan = { path = "../../omega-rust/omega/backend/plans/omega-program-entry-plan" }
 omega-effects = { path = "../../omega-rust/omega/representations/omega-effects" }
 
 [dev-dependencies]
+omega-object-file = { path = "../../omega-rust/omega/backend/object/omega-object-file", features = ["test-support"] }
+omega-legalized-operations = { path = "../../omega-rust/omega/representations/omega-legalized-operations" }
+omega-physical-instructions = { path = "../../omega-rust/omega/representations/omega-physical-instructions" }
+omega-target-to-register-environment = { path = "../../omega-rust/omega/pipeline/omega-target-to-register-environment" }
+omega-spill-access-constraints-to-frame-requirements = { path = "../../omega-rust/omega/pipeline/omega-spill-access-constraints-to-frame-requirements" }
+omega-selected-form-encoding-to-resolved-layout = { path = "../../omega-rust/omega/pipeline/omega-selected-form-encoding-to-resolved-layout" }
+omega-selected-instructions-to-machine-effects = { path = "../../omega-rust/omega/pipeline/omega-selected-instructions-to-machine-effects" }
+omega-register-homes-to-post-allocation-machine = { path = "../../omega-rust/omega/pipeline/omega-register-homes-to-post-allocation-machine" }
+omega-register-homes-to-callee-saved-requirements = { path = "../../omega-rust/omega/pipeline/omega-register-homes-to-callee-saved-requirements" }
+omega-post-allocation-machine-to-selected-form-encoding = { path = "../../omega-rust/omega/pipeline/omega-post-allocation-machine-to-selected-form-encoding" }
+omega-post-allocation-machine-to-optimized-machine = { path = "../../omega-rust/omega/pipeline/omega-post-allocation-machine-to-optimized-machine" }
+omega-post-allocation-machine-to-frame-layout = { path = "../../omega-rust/omega/pipeline/omega-post-allocation-machine-to-frame-layout" }
+omega-frame-layout-to-frame-protocol = { path = "../../omega-rust/omega/pipeline/omega-frame-layout-to-frame-protocol" }
+omega-callee-saved-requirements-to-save-storage = { path = "../../omega-rust/omega/pipeline/omega-callee-saved-requirements-to-save-storage" }
 omega-compiler = { path = "../../omega-rust/omega/compiler/omega-compiler" }
 omega-component-deployment = { path = "../../omega-rust/omega/build/omega-component-deployment" }
 omega-effects = { path = "../../omega-rust/omega/representations/omega-effects" }
@@ -62,7 +76,6 @@ omega-isa-aarch64 = { path = "../../omega-rust/omega/backend/instruction_set_arc
 omega-isa-x86_64 = { path = "../../omega-rust/omega/backend/instruction_set_architectures/omega-isa-x86_64" }
 omega-optimization-run-to-abstract-operations = { path = "../../omega-rust/omega/pipeline/omega-optimization-run-to-abstract-operations" }
 omega-optimization-core = { path = "../../omega-rust/omega/representations/omega-optimization-core" }
-omega-optimization-pipeline = { path = "../../omega-rust/omega/pipeline/omega-optimization-pipeline" }
 omega-target-operations-to-selected-instructions = { path = "../../omega-rust/omega/pipeline/omega-target-operations-to-selected-instructions" }
 omega-abstract-operations-optimizer = { path = "../../omega-rust/omega/pipeline/omega-abstract-operations-optimizer" }
 omega-selected-instructions-to-register-homes = { path = "../../omega-rust/omega/pipeline/omega-selected-instructions-to-register-homes" }

@@ -24,6 +24,8 @@ pub(crate) fn check(audit: &mut Audit) {
     }
 
     for obsolete in [
+        "omega-rust/omega/pipeline/omega-optimization-pipeline/Cargo.toml",
+        "omega-rust/omega/pipeline/omega-optimization-pipeline/src/lib.rs",
         "omega-rust/omega/representations/omega-optimization-core/src/manifest.rs",
         "omega-rust/omega/representations/omega-legalized-operations/src/validation/call_source.rs",
         "omega-rust/omega/representations/omega-optimization-unit/src/identity/operation_encoding.rs",
@@ -36,8 +38,8 @@ pub(crate) fn check(audit: &mut Audit) {
         "omega-rust/omega/pipeline/omega-selected-instructions-to-register-homes/src/analyses/live_ranges/validate/replay.rs",
         "omega-rust/omega/pipeline/omega-selected-instructions-to-register-homes/src/analyses/live_ranges/validate/tests.rs",
         "omega-rust/omega/representations/omega-optimization-unit/src/ledger.rs",
-        "omega-rust/omega/pipeline/omega-optimization-pipeline/src/tests/stages/allocation/register_allocation.rs",
-        "omega-rust/omega/pipeline/omega-optimization-pipeline/src/tests/stages/machine/selected_lowering.rs",
+        "tests/native-differential/tests/pipeline_ownership/stages/allocation/register_allocation.rs",
+        "tests/native-differential/tests/pipeline_ownership/stages/machine/selected_lowering.rs",
         "omega-rust/omega/pipeline/omega-abstract-operations-to-target-operations/src/lowering/scalar/conditional_control.rs",
         "omega-rust/omega/pipeline/omega-terminal-psi-to-native-artifact/src/realization/providers/settlements.rs",
         "omega-rust/omega/pipeline/omega-selected-instructions-to-machine-effects/src/facts/codec.rs",
@@ -46,7 +48,7 @@ pub(crate) fn check(audit: &mut Audit) {
         "omega-rust/omega/pipeline/omega-target-operations-to-selected-instructions/src/legalization/source/leaves.rs",
         "omega-rust/omega/representations/omega-optimization-unit/src/rewrite/model.rs",
         "omega-rust/omega/representations/omega-optimization-unit/src/construction.rs",
-        "omega-rust/omega/pipeline/omega-optimization-pipeline/src/stages/realization/function_relative_realization/codec.rs",
+        "omega-rust/omega/backend/omega-machine-emission/src/function_realization/codec.rs",
         "omega-rust/omega/pipeline/omega-abstract-operations-optimizer/src/rules/passes/control_flow_cleanup/block_merging.rs",
         "omega-rust/omega/pipeline/omega-abstract-operations-optimizer/src/rules/passes/control_flow_cleanup/empty_block_threading.rs",
         "omega-rust/omega/pipeline/omega-optimization-validation/src/candidates/control_flow_cleanup/block_merging.rs",
@@ -194,11 +196,11 @@ pub(crate) fn check(audit: &mut Audit) {
         "omega-rust/omega/pipeline/omega-abstract-operations-to-target-operations/src/tests/translation_validation_crash.rs",
         "omega-rust/omega/pipeline/omega-abstract-operations-to-target-operations/src/tests/translation_validation_integer_bitwise_not_parameter.rs",
         "omega-rust/omega/pipeline/omega-abstract-operations-to-target-operations/src/tests/translation_validation_integer_less_or_equal_parameters.rs",
-        "omega-rust/omega/pipeline/omega-optimization-pipeline/src/tests/stages/selection/optimized_target_operations/comparison.rs",
-        "omega-rust/omega/pipeline/omega-optimization-pipeline/src/tests/stages/selection/optimized_target_operations/unary.rs",
+        "tests/native-differential/tests/pipeline_ownership/stages/selection/optimized_target_operations/comparison.rs",
+        "tests/native-differential/tests/pipeline_ownership/stages/selection/optimized_target_operations/unary.rs",
         "omega-rust/omega/pipeline/omega-abstract-operations-to-target-operations/src/tests/parameter_translation_fixture/bitwise.rs",
-        "omega-rust/omega/pipeline/omega-optimization-pipeline/src/tests/fixtures/target_translation/bitwise.rs",
-        "omega-rust/omega/pipeline/omega-optimization-pipeline/src/tests/stages/selection/optimized_target_operations/bitwise.rs",
+        "tests/native-differential/tests/pipeline_ownership/fixtures/target_translation/bitwise.rs",
+        "tests/native-differential/tests/pipeline_ownership/stages/selection/optimized_target_operations/bitwise.rs",
     ] {
         if repository.join(obsolete).exists() {
             violations.insert(format!(
@@ -207,7 +209,7 @@ pub(crate) fn check(audit: &mut Audit) {
         }
     }
 
-    let obsolete_selected_lowering_schedule = "omega-rust/omega/pipeline/omega-optimization-pipeline/src/stages/machine/literal_folds/schedule.rs";
+    let obsolete_selected_lowering_schedule = "omega-rust/omega/pipeline/omega-terminal-psi-to-native-artifact/src/stages/machine/literal_folds/schedule.rs";
     if repository
         .join(obsolete_selected_lowering_schedule)
         .exists()
@@ -329,7 +331,7 @@ pub(crate) fn check(audit: &mut Audit) {
             && (path.starts_with(
                 "omega-rust/omega/pipeline/omega-selected-instructions-to-register-homes/src/rewrites/",
             ) || path.starts_with(
-                "omega-rust/omega/pipeline/omega-optimization-pipeline/src/stages/machine/literal_folds/",
+                "omega-rust/omega/pipeline/omega-terminal-psi-to-native-artifact/src/stages/machine/literal_folds/",
             ))
     }) {
         match fs::read_to_string(repository.join(path)) {

@@ -30,14 +30,14 @@ pub(super) fn extract(
 ) -> Result<
     (
         OptimizationSelections,
-        omega_optimization_pipeline::OptimizationReportRequest,
+        omega_optimization_core::OptimizationReportRequest,
     ),
     String,
 > {
     if vocabulary == OptimizationBuildVocabulary::LegacyWithoutField {
         return Ok((
             OptimizationSelections::default(),
-            omega_optimization_pipeline::OptimizationReportRequest::Suppressed,
+            omega_optimization_core::OptimizationReportRequest::Suppressed,
         ));
     }
     let BuildTimeValue::Struct { fields, .. } = build else {
@@ -65,8 +65,8 @@ pub(super) fn extract(
         ));
     };
     let report = match *report_count {
-        0 => omega_optimization_pipeline::OptimizationReportRequest::Suppressed,
-        1 => omega_optimization_pipeline::OptimizationReportRequest::EmitHumanText,
+        0 => omega_optimization_core::OptimizationReportRequest::Suppressed,
+        1 => omega_optimization_core::OptimizationReportRequest::EmitHumanText,
         count if count > 1 => {
             return Err("optimization human report is requested more than once".to_owned());
         }

@@ -771,7 +771,7 @@ mod tests {
             let plan = plan_elf_indexed_section_payloads(headers(target, &IMPORTS)).unwrap();
             assert_eq!(plan.row_count(), 13);
             assert_eq!(plan.dynamic_fixup_count(), 8);
-            assert_eq!(plan.contents.rows[0].bytes, []);
+            assert!(plan.contents.rows[0].bytes.is_empty());
             assert_eq!(plan.contents.rows[7].bytes.len(), 36);
             assert_eq!(plan.contents.rows[11].bytes.len(), 256);
             assert_eq!(plan.contents.rows[12].bytes.len(), 112);

@@ -476,7 +476,7 @@ fn offline_policy_corpus_excludes_compiler_activation_and_process_owners() {
             "omega-bounded-process",
             "omega-build-evaluation",
             "omega-compiler",
-            "omega-optimization-pipeline",
+            "omega-terminal-psi-to-native-artifact",
             "omega-abstract-operations-optimizer",
         ],
     );
@@ -2037,7 +2037,7 @@ fn terminal_component_staging_consumes_only_the_psi_owned_artifact() {
             )
         });
     let optimizer_physical_model_path = root.join(
-        "omega-rust/omega/pipeline/omega-optimization-pipeline/src/coordination/physical_pipeline/model.rs",
+        "omega-rust/omega/pipeline/omega-terminal-psi-to-native-artifact/src/native_pipeline/physical_pipeline/model.rs",
     );
     let optimizer_physical_model = std::fs::read_to_string(&optimizer_physical_model_path)
         .unwrap_or_else(|error| {
@@ -2047,7 +2047,7 @@ fn terminal_component_staging_consumes_only_the_psi_owned_artifact() {
             )
         });
     let optimizer_physical_pipeline_path = root.join(
-        "omega-rust/omega/pipeline/omega-optimization-pipeline/src/coordination/physical_pipeline/mod.rs",
+        "omega-rust/omega/pipeline/omega-terminal-psi-to-native-artifact/src/native_pipeline/physical_pipeline/mod.rs",
     );
     let optimizer_physical_pipeline = std::fs::read_to_string(&optimizer_physical_pipeline_path)
         .unwrap_or_else(|error| {
@@ -2057,7 +2057,7 @@ fn terminal_component_staging_consumes_only_the_psi_owned_artifact() {
             )
         });
     let optimizer_physical_phase_selections_path = root.join(
-        "omega-rust/omega/pipeline/omega-optimization-pipeline/src/coordination/physical_pipeline/phase_selections.rs",
+        "omega-rust/omega/pipeline/omega-terminal-psi-to-native-artifact/src/native_pipeline/physical_pipeline/phase_selections.rs",
     );
     let optimizer_physical_phase_selections = std::fs::read_to_string(
         &optimizer_physical_phase_selections_path,
@@ -2069,7 +2069,7 @@ fn terminal_component_staging_consumes_only_the_psi_owned_artifact() {
         )
     });
     let optimizer_physical_composition_path = root.join(
-        "omega-rust/omega/pipeline/omega-optimization-pipeline/src/coordination/physical_pipeline/routes/composition/mod.rs",
+        "omega-rust/omega/pipeline/omega-terminal-psi-to-native-artifact/src/native_pipeline/physical_pipeline/routes/composition/mod.rs",
     );
     let optimizer_physical_composition =
         std::fs::read_to_string(&optimizer_physical_composition_path).unwrap_or_else(|error| {
@@ -2079,7 +2079,7 @@ fn terminal_component_staging_consumes_only_the_psi_owned_artifact() {
             )
         });
     let optimizer_identity_route_path = root.join(
-        "omega-rust/omega/pipeline/omega-optimization-pipeline/src/coordination/physical_pipeline/routes/identity.rs",
+        "omega-rust/omega/pipeline/omega-terminal-psi-to-native-artifact/src/native_pipeline/physical_pipeline/routes/identity.rs",
     );
     let optimizer_identity_route = std::fs::read_to_string(&optimizer_identity_route_path)
         .unwrap_or_else(|error| {
@@ -2089,7 +2089,7 @@ fn terminal_component_staging_consumes_only_the_psi_owned_artifact() {
             )
         });
     let optimizer_selected_phases_path = root.join(
-        "omega-rust/omega/pipeline/omega-optimization-pipeline/src/coordination/physical_pipeline/routes/selected_phases.rs",
+        "omega-rust/omega/pipeline/omega-terminal-psi-to-native-artifact/src/native_pipeline/physical_pipeline/routes/selected_phases.rs",
     );
     let optimizer_selected_phases = std::fs::read_to_string(&optimizer_selected_phases_path)
         .unwrap_or_else(|error| {
@@ -2140,7 +2140,7 @@ fn terminal_component_staging_consumes_only_the_psi_owned_artifact() {
             && !optimizer_physical_model.contains("PhysicalIdentity")
             && !optimizer_physical_model.contains("PsiOnly")
             && optimizer_physical_model.contains(
-                ") -> &crate::ValidatedFunctionRelativeOptimizationRealizationManifest"
+                ") -> &omega_machine_emission::ValidatedFunctionRelativeOptimizationRealizationManifest"
             )
             && optimizer_physical_model.contains("into_function_fragment_emission_source(")
             && optimizer_selected_phases
@@ -2256,7 +2256,7 @@ fn terminal_component_staging_consumes_only_the_psi_owned_artifact() {
         .find("let (target, evidence) = target_stage")
         .expect("physical routing consumes current target data and bound evidence");
     let selected_physical_stage = physical_stage
-        .find("let physical = omega_optimization_pipeline::stage_optimized_verified_physical_pipeline")
+        .find("let physical = crate::stage_optimized_verified_physical_pipeline")
         .expect("optimized realization visibly enters physical optimization after target lowering");
     let transitional_assignment =
         "omega_target_operations_to_assigned_target_operations::assign_registers";
@@ -2744,7 +2744,7 @@ fn psi_reference_execution_ownership_and_production_realization_are_enforced() {
     );
     let roots = [
         "omega-optimization-core",
-        "omega-optimization-pipeline",
+        "omega-terminal-psi-to-native-artifact",
         "omega-abstract-operations",
         "omega-psi-to-abstract-operations",
         "omega-abstract-operations-to-target-operations",
@@ -2854,7 +2854,7 @@ fn optimizer_register_models_remain_on_the_production_isa_lane() {
         .unwrap_or_else(|error| panic!("failed to read {}: {error}", regalloc_manifest.display()));
     for forbidden in [
         "omega-assigned-target-operations",
-        "omega-optimization-pipeline",
+        "omega-terminal-psi-to-native-artifact",
     ] {
         assert!(
             !regalloc_manifest_source
@@ -2885,7 +2885,7 @@ fn optimizer_register_models_remain_on_the_production_isa_lane() {
     }
 
     let pipeline_manifest =
-        root.join("omega-rust/omega/pipeline/omega-optimization-pipeline/Cargo.toml");
+        root.join("omega-rust/omega/pipeline/omega-terminal-psi-to-native-artifact/Cargo.toml");
     let manifest_source = std::fs::read_to_string(&pipeline_manifest)
         .unwrap_or_else(|error| panic!("failed to read {}: {error}", pipeline_manifest.display()));
     for dependency in ["omega-isa-x86_64", "omega-isa-aarch64"] {
@@ -3104,7 +3104,7 @@ fn optimizer_register_models_remain_on_the_production_isa_lane() {
         "bounded liveness must consume the opaque validated selected-instruction carrier"
     );
     assert!(
-        graph["omega-optimization-pipeline"]
+        graph["omega-terminal-psi-to-native-artifact"]
             .deps
             .contains(&"omega-selected-instructions-to-register-homes".to_string()),
         "optimized-native realization must retain liveness custody above omega-selected-instructions-to-register-homes"
@@ -5077,7 +5077,7 @@ fn resolved_layout_validation_cannot_reenter_its_producer() {
 fn frame_application_validation_cannot_reenter_its_producer() {
     let root = workspace_root();
     let stage = root.join(
-        "omega-rust/omega/pipeline/omega-optimization-pipeline/src/stages/artifacts/function_fragment_frame_application",
+        "omega-rust/omega/backend/omega-machine-emission/src/fragment_emission/frame_application",
     );
     let entrance = std::fs::read_to_string(stage.join("mod.rs"))
         .expect("read function-fragment frame-application entrance");
@@ -5089,9 +5089,7 @@ fn frame_application_validation_cannot_reenter_its_producer() {
         root.join("omega-rust/omega/backend/omega-machine-emission/src/frame_application");
     let source_admission = std::fs::read_to_string(stage.join("validation.rs")).unwrap();
     assert!(source_admission.contains("validate_optimized_function_fragment_emission"));
-    assert!(
-        source_admission.contains("omega_machine_emission::validate_frame_protocol_application")
-    );
+    assert!(source_admission.contains("crate::validate_frame_protocol_application"));
     let validation = ["validation.rs", "validation_branch.rs"]
         .into_iter()
         .map(|leaf| {
@@ -5115,9 +5113,7 @@ fn frame_application_validation_cannot_reenter_its_producer() {
 #[test]
 fn selected_lowering_fragment_admission_is_rule_independent() {
     let root = workspace_root();
-    let stage = root.join(
-        "omega-rust/omega/pipeline/omega-optimization-pipeline/src/stages/artifacts/function_fragment_emission",
-    );
+    let stage = root.join("omega-rust/omega/backend/omega-machine-emission/src/fragment_emission");
     let source = std::fs::read_to_string(stage.join("replay.rs"))
         .expect("read function-fragment replay inputs");
     let custody = std::fs::read_to_string(stage.join("custody.rs"))
@@ -5540,9 +5536,9 @@ fn build_evaluation_physical_package_source_uses_strong_commitment() {
 #[test]
 fn allocation_recovery_has_one_route_and_one_realization_carrier() {
     let root = workspace_root();
-    let pipeline = root.join("omega-rust/omega/pipeline/omega-optimization-pipeline/src");
+    let pipeline = root.join("omega-rust/omega/pipeline/omega-terminal-psi-to-native-artifact/src");
     let route = std::fs::read_to_string(
-        pipeline.join("coordination/physical_pipeline/routes/allocation_recovery/mod.rs"),
+        pipeline.join("native_pipeline/physical_pipeline/routes/allocation_recovery/mod.rs"),
     )
     .expect("read allocation-recovery route entrance");
     for required in [
@@ -5556,18 +5552,20 @@ fn allocation_recovery_has_one_route_and_one_realization_carrier() {
             "allocation-recovery route must expose `{required}`"
         );
     }
-    let model = std::fs::read_to_string(pipeline.join("coordination/physical_pipeline/model.rs"))
-        .expect("read physical carrier model");
+    let model =
+        std::fs::read_to_string(pipeline.join("native_pipeline/physical_pipeline/model.rs"))
+            .expect("read physical carrier model");
     assert!(
         model.contains("pub struct StagedOptimizedVerifiedPhysicalPipeline")
             && model.contains("StagedAllocationRecoveryFunctionRelativeRealization")
     );
     assert!(!model.contains("ActiveResidentRematerialization {"));
 
-    let fragment_source = std::fs::read_to_string(
-        pipeline.join("stages/artifacts/function_fragment_emission/replay.rs"),
-    )
-    .expect("read fragment source taxonomy");
+    let fragment_source =
+        std::fs::read_to_string(root.join(
+            "omega-rust/omega/backend/omega-machine-emission/src/fragment_emission/replay.rs",
+        ))
+        .expect("read fragment source taxonomy");
     assert!(
         fragment_source.contains(
             "AllocationRecovery(Box<StagedAllocationRecoveryFunctionRelativeRealization>)"

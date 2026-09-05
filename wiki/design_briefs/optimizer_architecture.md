@@ -620,8 +620,8 @@ route:
 | How does `build.omg` become one exact selection? | `omega-build-evaluation/src/optimization/mod.rs` -> `vocabulary.rs`, `selection.rs` |
 | Where is the sole injected exact-name mapping used by both build preludes? | `omega-compiler/src/pipeline/optimization/build_vocabulary/mod.rs` -> `fragments.rs` |
 | What checked selection reaches native compilation after release rollback? | `omega-compiler/src/compiler/optimization/mod.rs` -> `rollback/`, `native_realization.rs` |
-| Which post-Terminal abstract-operation optimizations were explicitly requested, and what verified plan leaves? | `omega-optimization-pipeline/src/coordination/abstract_operation_optimization/mod.rs` |
-| Which physical phase composition runs next? | `omega-optimization-pipeline/src/coordination/physical_pipeline/mod.rs` |
+| Which post-Terminal abstract-operation optimizations were explicitly requested, and what verified plan leaves? | `pipeline/omega-terminal-psi-to-native-artifact/src/native_pipeline/abstract_operation_optimization/mod.rs` |
+| Which physical phase composition runs next? | `pipeline/omega-terminal-psi-to-native-artifact/src/native_pipeline/physical_pipeline/mod.rs` |
 | Which exact post-Terminal abstract-operation passes and local rules are enabled? | `omega-abstract-operations-optimizer/src/rules/mod.rs` -> `rules/catalog.rs` -> `passes/<exact-pass>/mod.rs` |
 | Which selected-lowering or allocation-recovery rule is enabled? | `omega-selected-instructions-to-register-homes/src/rewrites/<phase>/mod.rs` -> adjacent `catalog.rs` |
 | Which post-allocation machine rule is enabled for the ISA? | `omega-post-allocation-machine-to-optimized-machine/src/rules/mod.rs` -> `rules/catalog.rs` -> `<isa>/<exact-rule>/mod.rs` |
@@ -648,7 +648,6 @@ omega-rust/omega/
     omega-abstract-operations-optimizer/
                                       # post-Terminal abstract-operation analyses and rewrites
     omega-post-allocation-machine-to-optimized-machine/        # post-allocation symbolic-machine optimization stage
-    omega-optimization-pipeline/    # transitional cross-stage coordinator to dissolve
     omega-optimization-policy/      # deterministic decisions over validated candidates
     omega-optimization-validation/  # independent optimization-unit validation
     omega-selected-instructions-to-register-homes/                 # physical analyses, allocation, recovery rules

@@ -102,6 +102,10 @@
 //! actually followed.
 
 mod container;
+mod fragment_container;
+pub use fragment_container::*;
+mod artifact_custody;
+pub use artifact_custody::*;
 mod names;
 mod plan;
 mod relocation_free_object;

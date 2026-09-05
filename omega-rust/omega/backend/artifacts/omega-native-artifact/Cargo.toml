@@ -9,6 +9,9 @@ name = "omega_native_artifact"
 path = "src/lib.rs"
 
 [dependencies]
+omega-register-model = { path = "../../../representations/omega-register-model" }
+omega-selected-instructions = { path = "../../../representations/omega-selected-instructions" }
+omega-selected-instructions-to-register-homes = { path = "../../../pipeline/omega-selected-instructions-to-register-homes" }
 omega-abstract-operations = { path = "../../../representations/omega-abstract-operations" }
 omega-boundary-applications = { path = "../../../representations/omega-boundary-applications" }
 omega-calling-conventions = { path = "../../../representations/omega-calling-conventions" }
@@ -28,3 +31,6 @@ psi-core = { path = "../../../../psi/foundation/psi-core" }
 psi-terminal = { path = "../../../../psi/representations/psi-terminal" }
 psi-terminal-codec = { path = "../../../../psi/semantics/psi-terminal-codec" }
 sha2 = "0.10.9"
+
+[features]
+test-support = ["omega-object-file/test-support"]

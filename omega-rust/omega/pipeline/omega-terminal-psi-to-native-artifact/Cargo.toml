@@ -9,13 +9,23 @@ name = "omega_terminal_psi_to_native_artifact"
 path = "src/lib.rs"
 
 [dependencies]
+omega-abstract-operations-optimizer = { path = "../omega-abstract-operations-optimizer" }
+omega-optimization-run-to-abstract-operations = { path = "../omega-optimization-run-to-abstract-operations" }
+omega-optimization-validation = { path = "../omega-optimization-validation" }
+omega-post-allocation-machine-to-frame-layout = { path = "../omega-post-allocation-machine-to-frame-layout" }
+omega-post-allocation-machine-to-optimized-machine = { path = "../omega-post-allocation-machine-to-optimized-machine" }
+omega-register-homes-to-post-allocation-machine = { path = "../omega-register-homes-to-post-allocation-machine" }
+omega-selected-form-encoding-to-resolved-layout = { path = "../omega-selected-form-encoding-to-resolved-layout" }
+omega-selected-instructions-to-register-homes = { path = "../omega-selected-instructions-to-register-homes" }
+omega-target-operations-to-selected-instructions = { path = "../omega-target-operations-to-selected-instructions" }
+omega-target-to-register-environment = { path = "../omega-target-to-register-environment" }
+psi-terminal-fuel = { path = "../../../psi/semantics/psi-terminal-fuel" }
 omega-boundary-applications = { path = "../../representations/omega-boundary-applications" }
 omega-effects = { path = "../../representations/omega-effects" }
 omega-function-identity = { path = "../../representations/omega-function-identity" }
 omega-calling-conventions = { path = "../../representations/omega-calling-conventions" }
 omega-object-file = { path = "../../backend/object/omega-object-file" }
 omega-optimization-core = { path = "../../representations/omega-optimization-core" }
-omega-optimization-pipeline = { path = "../omega-optimization-pipeline" }
 omega-program-entry-plan = { path = "../../backend/plans/omega-program-entry-plan" }
 omega-target = { path = "../../representations/omega-target" }
 omega-task-plans = { path = "../../representations/omega-task-plans" }
@@ -56,3 +66,10 @@ psi-symbol-resolved-trees-to-typed-trees = { path = "../../../psi/pipeline/psi-s
 psi-syntax-trees-to-symbol-resolved-trees = { path = "../../../psi/pipeline/psi-syntax-trees-to-symbol-resolved-trees" }
 psi-tokens-to-syntax-trees = { path = "../../../psi/pipeline/psi-tokens-to-syntax-trees" }
 psi-typed-trees-to-checked-trees = { path = "../../../psi/pipeline/psi-typed-trees-to-checked-trees" }
+
+[features]
+test-support = [
+    "omega-machine-emission/test-support",
+    "omega-object-file/test-support",
+    "omega-native-artifact/test-support",
+]

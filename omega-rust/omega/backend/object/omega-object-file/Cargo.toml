@@ -9,6 +9,9 @@ name = "omega_object_file"
 path = "src/lib.rs"
 
 [dependencies]
+omega-machine-emission = { path = "../../omega-machine-emission" }
+omega-psi-to-abstract-operations = { path = "../../../pipeline/omega-psi-to-abstract-operations" }
+psi-terminal-codec = { path = "../../../../psi/semantics/psi-terminal-codec" }
 omega-machine-code = { path = "../../../representations/omega-machine-code" }
 omega-core = { path = "../../../representations/omega-core" }
 omega-function-identity = { path = "../../../representations/omega-function-identity" }
@@ -19,3 +22,6 @@ psi-core = { path = "../../../../psi/foundation/psi-core" }
 psi-terminal = { path = "../../../../psi/representations/psi-terminal" }
 omega-target = { path = "../../../representations/omega-target" }
 sha2 = "0.10.9"
+
+[features]
+test-support = ["omega-machine-emission/test-support"]

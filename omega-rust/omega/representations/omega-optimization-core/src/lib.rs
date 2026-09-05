@@ -6,6 +6,8 @@
 //! their common publication records. This crate has no executable optimizer.
 
 mod contracts;
+mod report_request;
+pub use report_request::OptimizationReportRequest;
 mod identities;
 mod manifest;
 mod selection;

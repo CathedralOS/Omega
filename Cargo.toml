@@ -95,7 +95,6 @@ members = [
     "omega-rust/omega/pipeline/omega-optimization-policy",
     "omega-rust/omega/pipeline/omega-abstract-operations-optimizer",
     "omega-rust/omega/pipeline/omega-optimization-run-to-abstract-operations",
-    "omega-rust/omega/pipeline/omega-optimization-pipeline",
     "omega-rust/omega/pipeline/omega-target-operations-to-assigned-target-operations",
     "omega-rust/omega/backend/instruction_set_architectures/omega-isa-aarch64",
     "omega-rust/omega/backend/instruction_set_architectures/omega-isa-x86_64",

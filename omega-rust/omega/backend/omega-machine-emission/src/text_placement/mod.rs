@@ -3,6 +3,7 @@
 //! Source and frame admission belong to the caller. These entrances transform
 //! raw data and check its exact placement; neither grants publication authority.
 mod conversion;
+pub(crate) mod custody;
 mod error;
 mod production;
 mod source;

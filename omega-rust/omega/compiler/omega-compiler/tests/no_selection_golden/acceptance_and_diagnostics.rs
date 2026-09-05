@@ -1,5 +1,5 @@
 use omega_compiler::compile_to_checked;
-use omega_optimization_pipeline::OptimizationReportRequest;
+use omega_optimization_core::OptimizationReportRequest;
 use psi_checked_interpreter::interpret_entry;
 
 use super::support::{

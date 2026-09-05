@@ -8,6 +8,8 @@
 //! own source compilation, component policy, installation, or publication.
 
 mod entry_settlement;
+mod native_pipeline;
+pub use native_pipeline::*;
 mod optimized_semantic_wrapper_encoding;
 mod optimized_semantic_wrapper_object;
 mod realization;
