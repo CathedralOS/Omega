@@ -12,16 +12,6 @@ host credentials, and organizational review policy have separate owners.
 
 ## Required integration
 
-- [ ] **PACKAGE-REVIEW-PROJECTION.** In `review/evidence/` and
-  `manager/src/review/`, close gaps in the compiler report for supported source
-  dependencies: package-qualified unsafe/public APIs, declared and inferred
-  reach, reachable implementation authority, selected providers, opaque
-  supplies, and explicit assumptions. Include transitive dependency paths.
-  Acceptance: false reach ceilings, spoofed identities, invalid proofs, and
-  omitted transitive authority reject. Unsupported analysis is explicit, never
-  an empty capability set. Use the earliest checked compiler representation
-  that establishes each fact; generic effects remain conservative.
-
 - [ ] **PACKAGE-MANAGER-RELEASE-AUDIT.** Extend real-command/network coverage to
   same-name/different-source replacement and transitive helper authority.
   Test HTTPS and SSH independently where credentials permit.

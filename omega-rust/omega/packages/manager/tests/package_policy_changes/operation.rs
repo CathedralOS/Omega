@@ -8,6 +8,8 @@ use package_manager::review::{
 
 #[path = "operation/commands.rs"]
 mod commands;
+#[path = "operation/generic_reach.rs"]
+mod generic_reach;
 #[path = "operation/lock_file.rs"]
 mod lock_file;
 #[path = "operation/publication.rs"]

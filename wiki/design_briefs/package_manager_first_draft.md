@@ -135,6 +135,11 @@ transitive and generated authority stays visible. Claim-free opaque boundary
 data recommends representation/code audit without pretending to assert a false
 proof. More dangerous claims or mechanisms remain separate findings.
 
+An unbound static machine parameter contributes its contractual service reach
+when called; review does not infer a selected implementation. Changing that
+contract changes normalized policy. Public callables with unresolved
+installation-bound reach reject explicitly instead of reporting empty authority.
+
 Use the earliest checked compiler representation that establishes a fact.
 No new Chi stage, native binary, lock certificate, or chain of evidence
 promotion is required merely to review a source dependency. Native ABI,
