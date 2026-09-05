@@ -1,18 +1,17 @@
-//! Width-gate custody for anonymous expressions consumed by checked returns.
+//! Width-gate custody for anonymous expressions with checked scalar consumers.
 
 use super::*;
 use psi_typed_trees::statement::{StatementNode, TransitionGuardNode, TransitionTargetNode};
 
-pub(in crate::literals) fn append_return_literals(
+pub(in crate::literals) fn append_destination_literals(
     program: &TypedTrees,
     blessed: &mut Vec<ExpressionHandle>,
 ) {
-    let admitted = |state: &psi_typed_trees::state::State, expression| {
+    let admitted = |destination, expression| {
         has_large_leaf(program, expression)
-            && program.arithmetic_domain_for_type_reference(state.return_type)
-                == ArithmeticDomain::Exact
+            && program.arithmetic_domain_for_type_reference(destination) == ArithmeticDomain::Exact
             && program
-                .primitive_type_reference(state.return_type)
+                .primitive_type_reference(destination)
                 .is_some_and(|primitive| {
                     land_anonymous_integer_expression(
                         program,
@@ -30,7 +29,7 @@ pub(in crate::literals) fn append_return_literals(
             for statement in program.statement_table.statements(state.statement_nodes) {
                 match statement {
                     StatementNode::Expression(expression) => {
-                        if admitted(state, *expression) {
+                        if admitted(state.return_type, *expression) {
                             append_tree(program, *expression, &mut owned);
                         } else {
                             other_roots.push(*expression);
@@ -50,7 +49,7 @@ pub(in crate::literals) fn append_return_literals(
                                         && transition.exit
                                             == psi_typed_trees::statement::TransitionExit::Ordinary
                                         && !transition.continuation.is_valid()
-                                        && admitted(state, *expression) =>
+                                        && admitted(state.return_type, *expression) =>
                                 {
                                     append_tree(program, *expression, &mut owned)
                                 }
@@ -63,7 +62,17 @@ pub(in crate::literals) fn append_return_literals(
                             }
                         }
                     }
-                    StatementNode::LocalData(local) => other_roots.push(local.initial_value),
+                    StatementNode::LocalData(local) => {
+                        // The checked scalar-local producer currently owns
+                        // immutable bindings only. Mutable stores retain their
+                        // width gate until their materialization is supported.
+                        if !local.is_mutable && admitted(local.type_reference, local.initial_value)
+                        {
+                            append_tree(program, local.initial_value, &mut owned);
+                        } else {
+                            other_roots.push(local.initial_value);
+                        }
+                    }
                     StatementNode::Assignment(assignment) => {
                         other_roots.extend([assignment.target, assignment.value])
                     }
@@ -78,8 +87,8 @@ pub(in crate::literals) fn append_return_literals(
         return;
     }
     // A shared node is not globally granted a new width position merely
-    // because one of its uses returns it. An external parent or non-return
-    // executable root retains the old width gate for that whole shared part.
+    // because one of its uses has a checked destination. An external parent or
+    // unsupported executable root retains the old gate for that shared part.
     let mut excluded = Vec::new();
     for root in other_roots {
         if owned.contains(&root) {

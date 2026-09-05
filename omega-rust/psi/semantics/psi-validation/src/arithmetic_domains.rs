@@ -154,15 +154,15 @@ pub(crate) fn validate_arithmetic_domains(
     .0
 }
 
-pub(crate) fn validate_anonymous_return_range(
+pub(crate) fn validate_anonymous_integer_range(
     program: &TypedTrees,
-    state: &State,
+    destination: TypeReferenceHandle,
     expression: ExpressionHandle,
     owner: &str,
     diagnostics: &mut Vec<Diagnostic>,
 ) -> Option<(Interval, Option<PrimitiveType>)> {
-    let primitive = program.primitive_type_reference(state.return_type)?;
-    if program.arithmetic_domain_for_type_reference(state.return_type) != ArithmeticDomain::Exact
+    let primitive = program.primitive_type_reference(destination)?;
+    if program.arithmetic_domain_for_type_reference(destination) != ArithmeticDomain::Exact
         || primitive == PrimitiveType::Addr
         || !primitive.accepts_integer_literal()
     {
@@ -1349,9 +1349,13 @@ pub(crate) fn validate_return_value_range(
 ) {
     let return_primitive = program.primitive_type_reference(state.return_type);
     let return_domain = program.arithmetic_domain_for_type_reference(state.return_type);
-    if let Some((interval, _)) =
-        validate_anonymous_return_range(program, state, return_expression, owner, diagnostics)
-    {
+    if let Some((interval, _)) = validate_anonymous_integer_range(
+        program,
+        state.return_type,
+        return_expression,
+        owner,
+        diagnostics,
+    ) {
         enforce_declared_return_range(program, state.return_type, interval, owner, diagnostics);
         return;
     }
