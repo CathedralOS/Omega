@@ -75,7 +75,7 @@ pub fn validate_pressure_rematerialization<S: ValidatedSelectedAnalysis>(
     );
     Ok(ValidatedPressureRematerialization {
         plan,
-        transformed: replay.transformed,
+        transformed: replay.transformed.into(),
         receipt: validation_receipt,
     })
 }

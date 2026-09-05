@@ -64,7 +64,7 @@ pub struct FixedViewCopyPlan {
     pub budget: OptimizationWorkBudget,
     pub usage: OptimizationWorkUsage,
     pub copies: Vec<FixedViewCopy>,
-    pub transformed: SelectedInstructionPlan,
+    pub transformed: std::sync::Arc<SelectedInstructionPlan>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

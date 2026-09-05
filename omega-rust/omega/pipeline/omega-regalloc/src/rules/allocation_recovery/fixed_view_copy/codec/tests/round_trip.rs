@@ -84,7 +84,7 @@ fn artifact_v8_round_trips_u64_less_than_terminator_vocabulary() {
         panic!("shared fixture must begin with a conditional branch")
     };
     instruction.kind = SelectedInstructionKind::ConditionalBranchU64LessThan;
-    plan.transformed.functions[0].blocks[0].terminator =
+    std::sync::Arc::make_mut(&mut plan.transformed).functions[0].blocks[0].terminator =
         SelectedTerminator::ConditionalBranchU64LessThan {
             instruction,
             when_less: when_nonzero,
@@ -98,7 +98,7 @@ fn artifact_v8_round_trips_u64_less_than_terminator_vocabulary() {
 fn artifact_v9_round_trips_scalar_call_callee_vocabulary() {
     let mut plan = plan(FixedViewCopyPolicy::LeafLocalBeforeFixedUseV1);
     let callee = MachineId::new(901).unwrap();
-    plan.transformed.functions[0].blocks[0].instructions[0].kind =
+    std::sync::Arc::make_mut(&mut plan.transformed).functions[0].blocks[0].instructions[0].kind =
         SelectedInstructionKind::CallI64 { callee };
 
     assert_eq!(FixedViewCopyPlan::decode(&encode_v9(&plan)).unwrap(), plan);
@@ -117,7 +117,7 @@ fn artifact_v10_round_trips_signed_less_than_terminator_vocabulary() {
         panic!("shared fixture must begin with a conditional branch")
     };
     instruction.kind = SelectedInstructionKind::ConditionalBranchI64LessThan;
-    plan.transformed.functions[0].blocks[0].terminator =
+    std::sync::Arc::make_mut(&mut plan.transformed).functions[0].blocks[0].terminator =
         SelectedTerminator::ConditionalBranchI64LessThan {
             instruction,
             when_less: when_nonzero,

@@ -256,7 +256,7 @@ fn finish(
             budget: prefix.budget,
             usage: prefix.usage,
             copies: prefix.copies,
-            transformed,
+            transformed: transformed.into(),
         },
         expected_transformed: prefix.expected_transformed,
         transformed_payload_matches,

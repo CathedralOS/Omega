@@ -84,7 +84,7 @@ fn program_representations_have_named_roots_and_concept_owners() {
         (
             "omega-register-homes",
             "register_homes",
-            "RegisterHomePlan",
+            "AllocatedProgram",
             &["storage", "evidence", "identity", "codec"][..],
         ),
         (
@@ -334,6 +334,23 @@ fn allocation_has_one_phase_owner_and_machine_consumers_ignore_history() {
     assert!(output.contains("pub enum AllocationEvidence"));
     assert!(output.contains("pub struct RetainedAllocation"));
     assert!(output.contains("impl TryFrom<StagedOptimizedRegisterHomes>"));
+    let retained = std::fs::read_to_string(allocation.join("output/retained.rs")).unwrap();
+    let current_accessor = retained
+        .split("pub fn current(&self)")
+        .nth(1)
+        .unwrap()
+        .split("impl sealed::Sealed")
+        .next()
+        .unwrap();
+    assert!(current_accessor.contains("self.current.view()"));
+    assert!(!current_accessor.contains("match"));
+    assert!(!current_accessor.contains("self.replay"));
+    let current = std::fs::read_to_string(allocation.join("output/current.rs")).unwrap();
+    assert!(current.contains("program: AllocatedProgram"));
+    assert!(current.contains("program: self.program.as_ref()"));
+    assert!(!current.contains("StagedOptimized"));
+    assert!(!current.contains("History"));
+    assert!(retained.contains("self.current.validate_against(&current)?"));
     for consumer in [
         "omega-register-homes-to-post-allocation-machine",
         "omega-post-allocation-machine-to-optimized-machine",

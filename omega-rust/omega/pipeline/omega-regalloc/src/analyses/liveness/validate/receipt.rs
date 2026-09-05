@@ -56,5 +56,8 @@ pub(super) fn admit_validated_liveness(
         tied_pair_count,
         early_clobber_count,
     };
-    ValidatedLiveness { plan, receipt }
+    ValidatedLiveness {
+        plan: plan.into(),
+        receipt,
+    }
 }

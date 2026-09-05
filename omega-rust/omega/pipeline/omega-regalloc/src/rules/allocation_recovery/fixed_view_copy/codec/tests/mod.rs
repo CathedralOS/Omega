@@ -62,6 +62,7 @@ pub(super) fn plan(policy: FixedViewCopyPolicy) -> FixedViewCopyPlan {
             functions: vec![function],
             structural_unit_functions: Vec::new(),
             projected_structural_call_returns: Vec::new(),
-        },
+        }
+        .into(),
     }
 }

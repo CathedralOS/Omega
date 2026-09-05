@@ -118,12 +118,12 @@ impl AllocationLegalityValidationReceipt {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ValidatedAllocationLegality {
-    pub(crate) plan: AllocationLegalityPlan,
+    pub(crate) plan: std::sync::Arc<AllocationLegalityPlan>,
     pub(crate) receipt: AllocationLegalityValidationReceipt,
 }
 
 impl ValidatedAllocationLegality {
-    pub const fn plan(&self) -> &AllocationLegalityPlan {
+    pub fn plan(&self) -> &AllocationLegalityPlan {
         &self.plan
     }
     pub const fn receipt(&self) -> AllocationLegalityValidationReceipt {

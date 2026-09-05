@@ -29,7 +29,7 @@ pub(super) fn admit_literal_fold(
     };
     ValidatedLiteralFold {
         plan,
-        transformed,
+        transformed: transformed.into(),
         receipt,
     }
 }

@@ -227,7 +227,7 @@ pub(crate) fn compute_terminal_fixed_view_copies(
         budget,
         usage,
         copies,
-        transformed,
+        transformed: transformed.into(),
     })
 }
 

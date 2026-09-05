@@ -53,22 +53,26 @@ In `omega-rust/omega/pipeline/`:
 - Its `stages/artifacts/function_fragment_emission/source.rs` still projects
   inputs through prior homes, legality, ranges, and selection stages.
 - `omega-selected-instructions-to-register-homes/src/output/retained.rs`
-  stores five old allocation histories. `current()` provides a common borrowed
-  view; it does not yet own one independent current allocated program.
+  owns a current `AllocatedProgram` plus a separate five-role replay input graph.
+  `current()` reads the current admitted facts directly; only replay traverses
+  earlier allocation stages. Producers share immutable selected/home artifacts
+  with that output rather than copying the selected program into a snapshot.
 
 The shared emission computation is real progress: it selects algorithms by
 program shape rather than optimization history. The remaining adapters are
 migration machinery, not the finished representation boundary.
 
-`omega-register-homes/src/register_homes.rs` now owns the raw physical-home
-assignment and its version-6 codec under representations. Its prerequisite
-identities are data, not validation authority. `omega-regalloc` still owns the
-independent validator and its private admitted wrapper; its analysis schemas
-also remain to be separated from computation. This removes one wrong-owner
-dependency but does not yet supply a complete allocated-program root.
+`omega-register-homes/src/register_homes.rs` owns the current allocated-program
+root; its storage area owns the physical-home table with the unchanged version-6
+codec. Its prerequisite identities are data, not validation authority.
+`omega-regalloc` still owns the independent validator and its private admitted
+wrappers; its analysis schemas remain to be separated from computation. The
+allocation admission capsule still retains an upstream target/proof input for
+downstream proof joins. That is not a replacement for converging target outputs.
 
-Next: define representation-owned current allocated and physical program roots,
-then have producers construct them directly. Retain transformation evidence
+Next: replace the physical result's remaining ancestry adapter with a current
+physical-program root and remove old producer-stage packaging where only replay
+inputs are required. Retain transformation evidence
 separately with exact bindings. Replay may require prior inputs, but execution
 must not recover its current program by traversing those inputs. Do not discard
 proof inputs merely to make the ownership graph look smaller.

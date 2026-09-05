@@ -184,7 +184,7 @@ fn fixed_view_copies_are_explicit_reanalyzed_and_deterministic() {
             Err(FixedViewCopyError::CopyMismatch { index: 0 })
         ));
         let mut corrupted = materialized.copies().plan().clone();
-        corrupted.transformed.functions[0].blocks[1].instructions[0]
+        std::sync::Arc::make_mut(&mut corrupted.transformed).functions[0].blocks[1].instructions[0]
             .provenance
             .values
             .clear();

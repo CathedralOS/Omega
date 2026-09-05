@@ -16,4 +16,4 @@ pub use fixed_precolored_split_requirements::*;
 pub use live_ranges::*;
 pub use liveness::*;
 pub use recovery_classification::*;
-pub use selected_input::{SelectedProgramRef, ValidatedSelectedAnalysis};
+pub use selected_input::{OwnedSelectedProgram, SelectedProgramRef, ValidatedSelectedAnalysis};

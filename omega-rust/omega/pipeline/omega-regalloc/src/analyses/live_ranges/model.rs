@@ -269,12 +269,12 @@ impl LiveRangeValidationReceipt {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ValidatedLiveRanges {
-    pub(crate) plan: LiveRangePlan,
+    pub(crate) plan: std::sync::Arc<LiveRangePlan>,
     pub(crate) receipt: LiveRangeValidationReceipt,
 }
 
 impl ValidatedLiveRanges {
-    pub const fn plan(&self) -> &LiveRangePlan {
+    pub fn plan(&self) -> &LiveRangePlan {
         &self.plan
     }
     pub const fn receipt(&self) -> LiveRangeValidationReceipt {

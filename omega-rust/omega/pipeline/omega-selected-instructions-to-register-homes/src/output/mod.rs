@@ -1,9 +1,10 @@
 //! Optimizer module role: stage group. Current allocation facts and separate replay evidence.
 //!
-//! Only this owner interprets retained allocation histories. Consumers receive
-//! the same borrowed current-program view after every independently replayed route.
+//! Current program data is owned independently of retained replay inputs.
+//! Every route publishes the same program and view; only replay inspects history.
 
 mod baseline;
+mod current;
 mod fixed_view;
 mod literal_folds;
 mod model;

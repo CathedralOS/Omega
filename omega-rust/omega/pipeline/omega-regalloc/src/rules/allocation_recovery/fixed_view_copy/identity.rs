@@ -317,7 +317,8 @@ mod tests {
                 functions: Vec::new(),
                 structural_unit_functions: Vec::new(),
                 projected_structural_call_returns: Vec::new(),
-            },
+            }
+            .into(),
         }
     }
 
@@ -363,7 +364,9 @@ mod tests {
             |plan| plan.copies[0].copy_constraint.variant += 1,
             |plan| plan.copies.clear(),
             |plan| plan.copies[0].destinations.clear(),
-            |plan| plan.transformed.entry = MachineId::new(2).unwrap(),
+            |plan| {
+                std::sync::Arc::make_mut(&mut plan.transformed).entry = MachineId::new(2).unwrap()
+            },
         ];
         for mutate in mutations {
             let mut changed = plan();

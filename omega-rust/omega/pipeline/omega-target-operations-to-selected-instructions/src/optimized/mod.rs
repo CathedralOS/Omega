@@ -32,7 +32,7 @@ pub fn stage_optimized_instruction_selection(
     )
     .map_err(OptimizedSelectionPipelineError::Custody)?;
     Ok(StagedOptimizedSelectedInstructions {
-        optimized_target,
+        optimized_target: optimized_target.into(),
         register_environment,
         legalized,
         selected,

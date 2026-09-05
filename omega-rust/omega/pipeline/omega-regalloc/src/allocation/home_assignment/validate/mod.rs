@@ -57,7 +57,7 @@ pub fn validate_register_homes(
     }
     let validation_receipt = receipt::build(&plan, ranges);
     Ok(ValidatedRegisterHomes {
-        plan,
+        plan: plan.into(),
         receipt: validation_receipt,
     })
 }

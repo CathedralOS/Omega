@@ -283,7 +283,7 @@ impl LiteralFoldValidationReceipt {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ValidatedLiteralFold {
     pub(crate) plan: LiteralFoldPlan,
-    pub(crate) transformed: SelectedInstructionPlan,
+    pub(crate) transformed: std::sync::Arc<SelectedInstructionPlan>,
     pub(crate) receipt: LiteralFoldValidationReceipt,
 }
 
@@ -291,7 +291,12 @@ impl ValidatedLiteralFold {
     pub const fn plan(&self) -> &LiteralFoldPlan {
         &self.plan
     }
-    pub const fn transformed(&self) -> &SelectedInstructionPlan {
+    /// Share current immutable data; the returned artifact grants no new authority.
+    pub fn shared_transformed(&self) -> std::sync::Arc<SelectedInstructionPlan> {
+        std::sync::Arc::clone(&self.transformed)
+    }
+
+    pub fn transformed(&self) -> &SelectedInstructionPlan {
         &self.transformed
     }
     pub const fn receipt(&self) -> LiteralFoldValidationReceipt {

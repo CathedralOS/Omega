@@ -1,4 +1,4 @@
-//! Current physical-home assignments and their exact prerequisite identities.
+//! Current selected program and its physical-home assignments.
 //!
 //! `storage` owns per-function assignments; `evidence` names the input analyses.
 //! `identity` and `codec` preserve the canonical version-6 artifact contract.
@@ -8,25 +8,22 @@ pub mod codec;
 pub mod evidence;
 pub mod identity;
 pub mod storage;
+pub mod view;
 
 pub use codec::RegisterHomeDecodeError;
 pub use evidence::*;
 pub use identity::{RegisterHomeIdentity, register_home_identity};
 pub use storage::*;
+pub use view::AllocatedProgramRef;
 
-use omega_register_model::TargetRegisterEnvironmentIdentity;
-
-/// Bounded, deterministic physical homes for one transition-free legality
-/// plan. The artifact grants no spill, frame, instruction-emission, or
-/// publication authority.
+/// One current allocated program, independent of the route that produced it.
+/// Immutable artifacts may be shared with replay evidence without copying
+/// their contents or making execution traverse that evidence. Raw data alone
+/// grants no allocation, emission, or publication authority.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct RegisterHomePlan {
-    pub legality: AllocationLegalityIdentity,
-    pub ranges: LiveRangeIdentity,
-    pub register_environment: TargetRegisterEnvironmentIdentity,
-    pub allocator_availability: AllocatorAvailabilityIdentity,
-    pub functions: Vec<FunctionRegisterHomes>,
-    pub structural_unit_functions: Vec<FunctionRegisterHomes>,
+pub struct AllocatedProgram {
+    pub selected: std::sync::Arc<omega_selected_instructions::SelectedInstructionPlan>,
+    pub homes: std::sync::Arc<RegisterHomePlan>,
 }
 
 #[cfg(test)]

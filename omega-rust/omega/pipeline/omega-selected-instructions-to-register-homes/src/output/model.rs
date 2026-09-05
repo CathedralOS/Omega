@@ -21,6 +21,7 @@ use crate::{
 /// by independent replay in the allocation phase.
 #[derive(Clone)]
 pub struct AllocationOutput<'program> {
+    pub(super) program: omega_register_homes::AllocatedProgramRef<'program>,
     pub(super) selected: SelectedProgramRef<'program>,
     pub(super) liveness: &'program ValidatedLiveness,
     pub(super) ranges: &'program ValidatedLiveRanges,
@@ -29,19 +30,25 @@ pub struct AllocationOutput<'program> {
     pub(super) manifest: &'program ValidatedPostAllocationOptimizationManifest,
     pub(super) environment: &'program ValidatedTargetRegisterEnvironment,
     pub(super) evidence: AllocationEvidence,
-    pub(super) target_input: &'program omega_abstract_operations_to_target_operations::ValidatedOptimizedTargetOperations,
+    pub(super) target_input: &'program std::sync::Arc<
+        omega_abstract_operations_to_target_operations::ValidatedOptimizedTargetOperations,
+    >,
     pub(super) selections: &'program OptimizationSelections,
     pub(super) budget: OptimizationWorkBudget,
 }
 
 impl<'program> AllocationOutput<'program> {
+    pub const fn program(&self) -> omega_register_homes::AllocatedProgramRef<'program> {
+        self.program
+    }
+
     /// The selected program's borrow remains tied to the retained input, not this view.
     pub fn selected_plan(&self) -> &'program omega_selected_instructions::SelectedInstructionPlan {
-        self.selected.plan()
+        self.program.selected
     }
 
     /// Earlier target/proof input retained for independent downstream joins.
-    pub const fn target_input(
+    pub fn target_input(
         &self,
     ) -> &'program omega_abstract_operations_to_target_operations::ValidatedOptimizedTargetOperations
     {
@@ -96,6 +103,7 @@ pub enum AllocationEvidence {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum AllocationReplayError {
+    CurrentProgramMismatch,
     SelectionMismatch,
     RegisterHomes(OptimizedRegisterHomeCustodyError),
     FixedViewCopies(OptimizedPostCopyRegisterHomeCustodyError),
