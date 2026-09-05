@@ -1552,11 +1552,14 @@ Current ownership is:
   natural-number ranking proof shapes, `checks/termination/ranking/nat/guards.rs`
   owns natural-number guard predicates,
   `checks/termination/ranking/nat/arguments.rs` owns natural-number next-argument
-  rewrite predicates, `checks/termination/ranking/slice.rs` owns slice-length
-  ranking proof shapes, `checks/termination/ranking/slice/guards.rs` owns
-  slice-length guard predicates, and
-  `checks/termination/ranking/slice/arguments.rs` owns slice-tail next-argument
-  rewrite predicates. `checks/termination/progress.rs` independently replays
+  rewrite predicates. `checks/termination/ranking/slice.rs` owns runtime
+  slice-edge routing; it shares `psi-validation/src/slice_ranking.rs` with
+  proof-machine recursion. The shared rule requires the exact slice parameter,
+  its nonempty length guard, and its `1..` tail. Each caller establishes guard
+  dominance and binding stability; a false-arm call or rebound descriptor
+  cannot consume that premise. Retained ranking subjects, view arguments, and
+  ranges resolve in the entry signature before checking, not by display-name
+  recovery at a recursive edge. `checks/termination/progress.rs` independently replays
   retained qualification correspondence before deriving checked progress
   summaries; malformed, label-only, out-of-bounds/nonliteral/runtime-indexed,
   later/missing/duplicate/reordered/type- or symbol-substituted local,
