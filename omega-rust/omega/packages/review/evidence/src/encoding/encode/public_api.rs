@@ -1,6 +1,6 @@
 //! Full policy declarations share the enclosing baseline writer and budgets.
 
-mod declarations;
+pub(super) mod declarations;
 mod signatures;
 use super::{PackageReviewEncodingError, encoder::Encoder};
 use crate::record::*;

@@ -1,7 +1,7 @@
 use super::*;
 use crate::record::PackageReviewNominalOwner;
 
-pub(super) fn fixture() -> PackagePolicyTerminalPermissions {
+pub(in crate::encoding::recovery::policy) fn fixture() -> PackagePolicyTerminalPermissions {
     let mut method = super::super::selected_providers::service_method_fixture();
     method.parameter_type_identities = method
         .signature

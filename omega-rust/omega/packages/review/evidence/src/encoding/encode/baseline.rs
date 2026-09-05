@@ -1,6 +1,6 @@
 //! One envelope and resource budget for the composed package policy.
 
-mod boundary;
+pub(super) mod boundary;
 mod recovery;
 
 use super::{
@@ -88,7 +88,7 @@ pub(in crate::encoding) fn policy(
     })
 }
 
-fn semantic_dependency(
+pub(super) fn semantic_dependency(
     encoder: &mut Encoder,
     dependency: &PackagePolicySemanticDependency,
 ) -> Result<(), PackageReviewEncodingError> {

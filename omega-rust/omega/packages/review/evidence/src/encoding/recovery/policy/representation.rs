@@ -8,6 +8,8 @@ mod budgets;
 #[cfg(test)]
 mod fixtures;
 #[cfg(test)]
+pub(super) use fixtures::complete as row_fixture;
+#[cfg(test)]
 mod tests;
 
 #[cfg(test)]

@@ -21,10 +21,12 @@ pub use semantic_policy::{
     PackagePolicySemanticDependency, PackagePolicySemanticDependencyConsumer,
 };
 pub(crate) mod package;
+mod policy_rows;
 mod public_policy;
 mod quotients;
 mod representation;
 mod rows;
+pub use policy_rows::*;
 mod signatures;
 mod terminal_authority;
 pub use public_policy::*;

@@ -10,6 +10,7 @@ pub(super) mod calling;
 pub(super) mod declarations;
 pub(super) mod encoder;
 pub(super) mod membership;
+mod policy_rows;
 mod public_api;
 pub(super) mod quotients;
 mod representation;

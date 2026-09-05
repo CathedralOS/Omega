@@ -6,6 +6,8 @@ mod budgets;
 mod generics;
 #[cfg(test)]
 mod tests;
+#[cfg(test)]
+pub(super) use tests::fixture as row_fixture;
 
 use super::{
     Error, PackagePolicyRecoveryLimits,

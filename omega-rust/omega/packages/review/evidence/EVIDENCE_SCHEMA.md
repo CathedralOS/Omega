@@ -76,6 +76,31 @@ remain. Reconstructed binary capacity is charged before typed recovery and its
 canonical scratch; verification does not allocate another expanded text buffer.
 This adds no proof, acceptance, or replay fields and changes no binary schema.
 
+Complete normalized comparison rows have their own version 1, independent of
+legacy review row version 88. Binary rows start with
+`OMEGA-PACKAGE-POLICY-ROW` and a zero byte; named text starts with
+`omega_package_policy_row_text 1` and LF. Each row binds its row and baseline
+schemas, package, exact target, kind, initial/update decision classification,
+audit classifications, and full policy value. The separate semantic key selects
+the declaration or application being compared; it is not a report index.
+
+The closed kinds are header; the seven public declaration families; callable;
+selected-provider association; terminal service and permission; representation
+target, declaration, availability, selection and demand; external supply;
+dangerous capability and slack; semantic dependency; and symbolic boundary
+demand. The selected-provider association contains complete plans, families,
+and closed D29 realizations together, preserving their internal canonical plan
+links. Duplicate kind/key coordinates reject. No legacy row or whole-baseline
+encoding is changed, and row text is not a whole-baseline recovery envelope.
+
+One projection permits at most 65,536 rows, 128 MiB of requested row-table and
+retained buffer storage, 1,048,576 sequence elements and recursive entries across
+sizing and emission, and semantic depth 128. Per-row ceilings are 1 MiB of key,
+4 MiB of canonical binary, and 32 MiB of text. Caller ceilings may only lower
+these bounds. The row table and key/binary/text output are measured and charged
+before allocation; usage permits one aggregate budget across both compared
+graphs. Allocator overhead and the already borrowed typed policy are excluded.
+
 The ordinary obligation-semantics schema is version 7. Its result
 vocabulary explicitly leaves bodyless accepted claims, dangerous authorities,
 external executable supplies, and exact terminal-authority permissions open

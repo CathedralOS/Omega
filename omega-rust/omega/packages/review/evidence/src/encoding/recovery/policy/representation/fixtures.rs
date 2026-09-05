@@ -27,7 +27,7 @@ pub(super) fn empty() -> PackagePolicyRepresentation {
     }
 }
 
-pub(super) fn complete() -> PackagePolicyRepresentation {
+pub(in crate::encoding::recovery::policy) fn complete() -> PackagePolicyRepresentation {
     let mut policy = empty();
     let calling = super::super::calling_application::tests::complete_fixture();
     let used = &calling.opaque_uses[0];
