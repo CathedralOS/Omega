@@ -216,8 +216,18 @@
 (def epsilon_validate_data_member_formed_types ((source Bytes)
   (owner EpsilonName) (members EpsilonDataMemberList)
   (owners EpsilonOwnerRowList)) EpsilonTypeFormationCandidate
+  (epsilon_validate_data_member_formed_types_fold source owner
+    (epsilon_reverse_data_members members NoEpsilonDataMembers) owners
+    NoEpsilonTypeFormationCandidate))
+
+; Reversing the spine preserves the original right-associated candidate merge,
+; including conflict precedence, without retaining one call frame per member.
+(def epsilon_validate_data_member_formed_types_fold ((source Bytes)
+  (owner EpsilonName) (members EpsilonDataMemberList)
+  (owners EpsilonOwnerRowList) (candidate EpsilonTypeFormationCandidate))
+  EpsilonTypeFormationCandidate
   (match members
-    (NoEpsilonDataMembers NoEpsilonTypeFormationCandidate)
+    (NoEpsilonDataMembers candidate)
     ((MoreEpsilonDataMembers item rest)
       (let current EpsilonTypeFormationCandidate
         (match item
@@ -228,9 +238,8 @@
                 EpsilonStoredTypePlacement)))
           ((EpsilonCaseMember start end name payload)
             (epsilon_validate_payload_formed_types source payload owners)))
-        (epsilon_type_formation_candidate_min current
-          (epsilon_validate_data_member_formed_types source owner rest
-            owners))))))
+        (epsilon_validate_data_member_formed_types_fold source owner rest owners
+          (epsilon_type_formation_candidate_min current candidate))))))
 
 (def epsilon_validate_boundary_machine_formed_types ((source Bytes)
   (machines EpsilonBoundaryMachineList) (owners EpsilonOwnerRowList))

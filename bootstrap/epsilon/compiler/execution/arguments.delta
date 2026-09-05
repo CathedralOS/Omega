@@ -1,0 +1,48 @@
+
+; Argument effects commit left-to-right while every argument reads the caller's
+; local environment. New parameter homes become visible only after all arguments.
+(def epsilon_evaluate_arguments ((context EpsilonEvaluatorInvocation)
+  (parameters EpsilonParameterList) (arguments EpsilonExpressionList)
+  (locals EpsilonEvaluatorLocalValueList)
+  (fields EpsilonEvaluatorFieldValueList) (output Bytes)
+  (bound EpsilonEvaluatorLocalValueList)) EpsilonEvaluatorArgumentsOutcome
+  (match parameters
+    (NoEpsilonParameters
+      (match arguments
+        (NoEpsilonExpressions (EpsilonEvaluatorArgumentsBound bound fields output))
+        ((MoreEpsilonExpressions item rest)
+          (EpsilonEvaluatorArgumentsStopped
+            (EpsilonEvaluatorInternal (epsilon_expression_start item))))))
+    ((MoreEpsilonParameters parameterValue remainingParameters)
+      (match arguments
+        (NoEpsilonExpressions
+          (EpsilonEvaluatorArgumentsStopped
+            (EpsilonEvaluatorInternal (epsilon_parameter_start parameterValue))))
+        ((MoreEpsilonExpressions expressionValue remainingArguments)
+          (match parameterValue
+            ((EpsilonParameterSyntax start end name typeValue)
+              (if (epsilon_type_is_i32 typeValue)
+                (let outcome EpsilonEvaluatorOutcome
+                  (epsilon_evaluate_expression context expressionValue locals
+                    fields output)
+                  (match outcome
+                    ((EpsilonEvaluatorValue value nextFields nextOutput)
+                      (epsilon_evaluate_arguments context remainingParameters
+                        remainingArguments locals nextFields nextOutput
+                        (MoreEpsilonEvaluatorLocalValues
+                          (EpsilonEvaluatorParameterValue parameterValue value)
+                          bound)))
+                    ((EpsilonEvaluatorResultless nextFields nextOutput)
+                      (EpsilonEvaluatorArgumentsStopped
+                        (EpsilonEvaluatorInternal
+                          (epsilon_expression_start expressionValue))))
+                    ((EpsilonEvaluatorExit code nextOutput)
+                      (EpsilonEvaluatorArgumentsStopped outcome))
+                    ((EpsilonEvaluatorTrap kind nextOutput)
+                      (EpsilonEvaluatorArgumentsStopped outcome))
+                    ((EpsilonEvaluatorInternal offset)
+                      (EpsilonEvaluatorArgumentsStopped outcome))
+                    (EpsilonEvaluatorUnsupported
+                      (EpsilonEvaluatorArgumentsStopped outcome))))
+                (EpsilonEvaluatorArgumentsStopped
+                  EpsilonEvaluatorUnsupported)))))))))

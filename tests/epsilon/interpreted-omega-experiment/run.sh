@@ -39,8 +39,8 @@ grep -F 'data AlphaTapeBuffer {' "$TMP/omega_compiler.epsilon" >/dev/null || {
 
 EPSILON_LINES=$(wc -l < "$EPSILON" | tr -d ' ')
 EPSILON_BYTES=$(wc -c < "$EPSILON" | tr -d ' ')
-[ "$EPSILON_LINES" -eq 9927 ]
-[ "$EPSILON_BYTES" -eq 497563 ]
+[ "$EPSILON_LINES" -eq 10092 ]
+[ "$EPSILON_BYTES" -eq 507516 ]
 
 materialize_gamma_evaluator "$TMP/evaluator" >/dev/null
 EPSILON="$EPSILON" DELTA="$DELTA" DRIVER="$DRIVER" TEST_DIR="$TEST_DIR" \
@@ -55,8 +55,8 @@ from pathlib import Path
 artifacts = {
     "evaluator source": (
         Path(os.environ["EPSILON"]).read_bytes(),
-        497563,
-        "fedd2c1ad0934bac9970d8bbc02959d7cc926af215734889d6621c8377ba93a0",
+        507516,
+        "13897864aedd63d815df5aad1c68a23d5e585df2645dcbd907641b0adad5846a",
     ),
     "slice driver": (
         Path(os.environ["DRIVER"]).read_bytes(),
@@ -85,6 +85,29 @@ with (test_directory / "fixtures.tsv").open(encoding="ascii", newline="") as man
 if set(controls) != {path.name for path in test_directory.glob("*.epsilon")}:
     raise SystemExit("fixture manifest does not cover the exact Epsilon fixture inventory")
 
+# This customer uses whole, unchanged D members. The host only checks identities
+# and concatenates bytes; no function extraction or source translation occurs.
+omega_compiler = Path(os.environ["OMEGA_PATH_OMEGA_COMPILER"])
+customer_members = (
+    (omega_compiler / "representations.epsilon", 30905,
+     "7b2b1ca57752256e9b10446ea8a2469075d9a0cac11ffe97f2037340528064ed"),
+    (omega_compiler / "lexical_classification.epsilon", 2520,
+     "12a3775f19ac6030bcca609acbf530ee64a09111cc24d7e941292e0d05fd996f"),
+    (test_directory / "customers/omega_lexical/main.epsilon", 1486,
+     "6ce07453269102f7f468241d1a066a21cbe08c2a0652bb460c9c34d2f6ef11b2"),
+)
+customer_source = b""
+for path, size, digest in customer_members:
+    data = path.read_bytes()
+    if len(data) != size or hashlib.sha256(data).hexdigest() != digest:
+        raise SystemExit(f"Omega D lexical customer member identity changed: {path.name}")
+    customer_source += data
+if len(customer_source) != 34911 or hashlib.sha256(customer_source).hexdigest() != (
+    "45447a0cc81353c88d341354b444537bfb113b304fcab50659d774a5fab08e1b"
+):
+    raise SystemExit("Omega D lexical customer packed identity changed")
+controls["Omega D lexical helpers"] = (customer_source, b"A\x00")
+
 compiler = Path(os.environ["DELTA"]).read_bytes()
 subject = artifacts["evaluator source"][0] + artifacts["slice driver"][0]
 request = (
@@ -103,13 +126,13 @@ def evaluate(program, sealed_input=b"", timeout=300):
     return process.returncode, process.stdout
 
 status, receipt = evaluate(compiler, request)
-if status != 0 or len(receipt) != 585453:
+if status != 0 or len(receipt) != 599984:
     raise SystemExit(
         f"evaluator slice returned {status} with {len(receipt)} bytes "
         f"and SHA-256 {hashlib.sha256(receipt).hexdigest()}"
     )
 if hashlib.sha256(receipt).hexdigest() != (
-    "f01b27e30b020740e9d2ba3c9ed3d4891ab211c7dca1e4323722f6e11da6ebe8"
+    "1799457c1c9f1475675d470a012838f094d284c212e74cc6267e9bab37800e1c"
 ):
     raise SystemExit(
         "evaluator receipt identity changed to "
@@ -126,4 +149,4 @@ for name, (source, expected) in controls.items():
 print(f"Epsilon execution: {len(controls)} exact observations pass", flush=True)
 PY
 
-echo "Interpreted Omega experiment: storage, scalar state transfers, and Console execution pass"
+echo "Interpreted Omega experiment: scalar calls, storage, state transfers, and exact D lexical customer pass"

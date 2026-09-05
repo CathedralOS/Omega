@@ -1,0 +1,26 @@
+boundary trait Console {
+  machine exit_process(return_code: i32) -> never;
+  machine write_byte(value: i32);
+  machine read_byte() -> i32;
+  machine write_line(text: &[u8]);
+}
+
+data Main { console: Console; depth: i32; }
+
+machine Main::main(&mut self) {
+  self.depth = self.depth + 1;
+  transition self.depth {
+    1 -> outer()
+    _ -> inner()
+  }
+  state outer() {
+    self.main();
+    assert self.depth == 2;
+    self.console.write_byte(66);
+  }
+  state inner() {
+    assert self.depth == 2;
+    self.console.write_byte(65);
+    return;
+  }
+}

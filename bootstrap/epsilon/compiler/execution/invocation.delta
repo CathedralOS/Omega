@@ -1,10 +1,13 @@
 
-; Transfers stay tail calls: entering a state never retains the old block frame.
+; State transfers reuse one invocation. Ordinary calls create their own local
+; environment and return values/effects to the caller that owns its continuation.
 (def epsilon_evaluator_resume ((context EpsilonEvaluatorInvocation)
-  (outcome EpsilonEvaluatorBlockOutcome)) EpsilonEvaluatorSliceOutcome
+  (outcome EpsilonEvaluatorBlockOutcome)) EpsilonEvaluatorOutcome
   (match outcome
     ((EpsilonEvaluatorBlockFalloff locals fields output)
-      (EpsilonEvaluatorSliceExit 0 output))
+      (EpsilonEvaluatorResultless fields output))
+    ((EpsilonEvaluatorBlockReturn value fields output)
+      (EpsilonEvaluatorValue value fields output))
     ((EpsilonEvaluatorBlockTransfer stateValue locals fields output)
       (match stateValue
         ((EpsilonStateSyntax start end name parameters bodyValue)
@@ -13,10 +16,64 @@
               (epsilon_evaluator_resume context
                 (epsilon_evaluate_block context statements terminalValue locals
                   fields output)))))))
-    ((EpsilonEvaluatorBlockExit code output) (EpsilonEvaluatorSliceExit code output))
-    ((EpsilonEvaluatorBlockTrap kind output) (EpsilonEvaluatorSliceTrap kind output))
-    ((EpsilonEvaluatorBlockInternal offset) (EpsilonEvaluatorSliceInternal offset))
-    (EpsilonEvaluatorBlockUnsupported EpsilonEvaluatorSliceUnsupported)))
+    ((EpsilonEvaluatorBlockExit code output) (EpsilonEvaluatorExit code output))
+    ((EpsilonEvaluatorBlockTrap kind output) (EpsilonEvaluatorTrap kind output))
+    ((EpsilonEvaluatorBlockInternal offset) (EpsilonEvaluatorInternal offset))
+    (EpsilonEvaluatorBlockUnsupported EpsilonEvaluatorUnsupported)))
+
+(def epsilon_evaluate_invocation ((context EpsilonEvaluatorInvocation)
+  (locals EpsilonEvaluatorLocalValueList)
+  (fields EpsilonEvaluatorFieldValueList) (output Bytes)) EpsilonEvaluatorOutcome
+  (match context
+    ((EpsilonEvaluatorInvocationContext source machineValue references
+      fieldReferences callables control)
+      (match machineValue
+        ((EpsilonMachineDeclaration start end name inputs returnType bodyValue)
+          (match bodyValue
+            ((EpsilonMachineBodySyntax bodyStart bodyEnd statements
+              terminalValue states)
+              (epsilon_evaluator_resume context
+                (epsilon_evaluate_block context statements terminalValue locals
+                  fields output)))))
+        ((EpsilonBoundaryDeclaration start end name machines)
+          (EpsilonEvaluatorInternal start))
+        ((EpsilonDataDeclaration start end name members)
+          (EpsilonEvaluatorInternal start))))))
+
+(def epsilon_evaluate_machine_call ((context EpsilonEvaluatorInvocation)
+  (targetMachine EpsilonDeclaration) (arguments EpsilonExpressionList)
+  (locals EpsilonEvaluatorLocalValueList)
+  (fields EpsilonEvaluatorFieldValueList) (output Bytes)) EpsilonEvaluatorOutcome
+  (match targetMachine
+    ((EpsilonMachineDeclaration start end name inputs returnType bodyValue)
+      (match (epsilon_evaluate_arguments context
+        (epsilon_machine_input_parameters inputs) arguments locals fields output
+        NoEpsilonEvaluatorLocalValues)
+        ((EpsilonEvaluatorArgumentsStopped outcome) outcome)
+        ((EpsilonEvaluatorArgumentsBound bound nextFields nextOutput)
+          (match context
+            ((EpsilonEvaluatorInvocationContext source machineValue references
+              fieldReferences callables control)
+              (epsilon_evaluate_invocation
+                (EpsilonEvaluatorInvocationContext source targetMachine references
+                  fieldReferences callables control)
+                bound nextFields nextOutput))))))
+    ((EpsilonBoundaryDeclaration start end name machines)
+      (EpsilonEvaluatorInternal start))
+    ((EpsilonDataDeclaration start end name members)
+      (EpsilonEvaluatorInternal start))))
+
+; This is the only adapter that maps ordinary completion to process exit.
+; Calling Main::main recursively goes through epsilon_evaluate_machine_call.
+(def epsilon_evaluator_finish_entry ((outcome EpsilonEvaluatorOutcome))
+  EpsilonEvaluatorSliceOutcome
+  (match outcome
+    ((EpsilonEvaluatorResultless fields output) (EpsilonEvaluatorSliceExit 0 output))
+    ((EpsilonEvaluatorValue value fields output) (EpsilonEvaluatorSliceInternal 0))
+    ((EpsilonEvaluatorExit code output) (EpsilonEvaluatorSliceExit code output))
+    ((EpsilonEvaluatorTrap kind output) (EpsilonEvaluatorSliceTrap kind output))
+    ((EpsilonEvaluatorInternal offset) (EpsilonEvaluatorSliceInternal offset))
+    (EpsilonEvaluatorUnsupported EpsilonEvaluatorSliceUnsupported)))
 
 (def epsilon_evaluate_entry_declarations ((source Bytes)
   (declarations EpsilonDeclarationList)
@@ -36,15 +93,11 @@
             fieldReferences callables control))
         ((EpsilonMachineDeclaration start end name inputs returnType bodyValue)
           (if (epsilon_qualified_name_is_main_entry source name)
-            (match bodyValue
-              ((EpsilonMachineBodySyntax bodyStart bodyEnd statements
-                terminalValue states)
-                (let context EpsilonEvaluatorInvocation
-                  (EpsilonEvaluatorInvocationContext source item references
-                    fieldReferences callables control)
-                  (epsilon_evaluator_resume context
-                    (epsilon_evaluate_block context statements terminalValue
-                      NoEpsilonEvaluatorLocalValues NoEpsilonEvaluatorFieldValues
-                      (bytes_empty))))))
+            (epsilon_evaluator_finish_entry
+              (epsilon_evaluate_invocation
+                (EpsilonEvaluatorInvocationContext source item references
+                  fieldReferences callables control)
+                NoEpsilonEvaluatorLocalValues NoEpsilonEvaluatorFieldValues
+                (bytes_empty)))
             (epsilon_evaluate_entry_declarations source rest references
               fieldReferences callables control)))))))

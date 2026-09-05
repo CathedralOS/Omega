@@ -1,0 +1,29 @@
+boundary trait Console {
+  machine exit_process(return_code: i32) -> never;
+  machine write_byte(value: i32);
+  machine read_byte() -> i32;
+  machine write_line(text: &[u8]);
+}
+
+data Main { console: Console; }
+
+machine Main::main(&mut self) {
+  let depth: i32 = 5;
+  let total: i32 = recursive_sum(depth);
+  assert depth == 5;
+  assert total == 15;
+  self.console.write_byte(total + 50);
+}
+
+machine recursive_sum(depth: i32) -> i32 {
+  transition depth {
+    0 -> return 0
+    _ -> recurse()
+  }
+  state recurse() {
+    let original: i32 = depth;
+    let subtotal: i32 = recursive_sum(depth - 1);
+    assert original == depth;
+    return subtotal + depth;
+  }
+}

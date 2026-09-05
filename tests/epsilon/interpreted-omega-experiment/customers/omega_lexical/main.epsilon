@@ -1,0 +1,41 @@
+boundary trait Console {
+  machine exit_process(return_code: i32) -> never;
+  machine write_byte(value: i32);
+  machine read_byte() -> i32;
+  machine write_line(text: &[u8]);
+}
+
+data Main { console: Console; }
+
+machine Main::main(&mut self) {
+  assert omega_is_whitespace(9) == 1;
+  assert omega_is_whitespace(10) == 1;
+  assert omega_is_whitespace(13) == 1;
+  assert omega_is_whitespace(32) == 1;
+  assert omega_is_whitespace(11) == 0;
+  assert omega_is_whitespace(65) == 0;
+  assert omega_is_identifier_start(95) == 1;
+  assert omega_is_identifier_start(65) == 1;
+  assert omega_is_identifier_start(90) == 1;
+  assert omega_is_identifier_start(97) == 1;
+  assert omega_is_identifier_start(122) == 1;
+  assert omega_is_identifier_start(48) == 0;
+  assert omega_is_identifier_start(64) == 0;
+  assert omega_is_identifier_continue(95) == 1;
+  assert omega_is_identifier_continue(65) == 1;
+  assert omega_is_identifier_continue(122) == 1;
+  assert omega_is_identifier_continue(48) == 1;
+  assert omega_is_identifier_continue(57) == 1;
+  assert omega_is_identifier_continue(47) == 0;
+  assert omega_is_identifier_continue(58) == 0;
+  assert omega_hex_value(48) == 0;
+  assert omega_hex_value(57) == 9;
+  assert omega_hex_value(65) == 10;
+  assert omega_hex_value(70) == 15;
+  assert omega_hex_value(97) == 10;
+  assert omega_hex_value(102) == 15;
+  assert omega_hex_value(47) == -1;
+  assert omega_hex_value(71) == -1;
+  assert omega_hex_value(103) == -1;
+  self.console.write_byte(65);
+}
