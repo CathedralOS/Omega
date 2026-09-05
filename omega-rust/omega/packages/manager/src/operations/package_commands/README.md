@@ -10,6 +10,8 @@ package_commands/
 ├── planning.rs    dependency edits and exact update selections
 ├── candidate.rs   stage, resolve, check every target, and publish
 ├── review.rs      compiler findings and per-change decisions
+├── source_review.rs  separate bounded source-code diagnostics
+├── old_sources.rs    exact old-source recovery through custody issuers
 ├── state.rs       retained proposal and review files
 ├── proposal.rs    restart record
 └── proposal/      bounded framing and codec tests
@@ -66,15 +68,22 @@ Ignored `build/package-manager/` contains:
 - `proposal`: candidate pins, proposed build bytes, targets, and original
   project-file/source identities needed to resume.
 - `review-<target>.txt`: compiler-rendered findings and editable decisions.
+- `source-diff.txt`: separate, escaped source-code patches, regenerated on resume.
+  Its contents are hostile source data and cannot supply project decisions.
 - `check-<target>/`: disposable compiler/build outputs.
 - `transaction.lock` and `pending`: the separate publication mutex and
   commit-intent journal, owned by [publication](../publication/README.md).
 
 Resume fetches only the proposed exact pins if needed, recompiles, and rejects
 source, graph, accepted-file, or finding drift. Missing old source does not
-prevent comparison with accepted policy. The command does not yet load an old
-checkout or render a source-code diff; its report explicitly recommends
-standalone candidate audit or obtaining that diff separately.
+prevent comparison with accepted policy. Source diagnostics recover recorded
+Git commits and named members without refreshing selectors. Unchanged candidate
+custody or an exact live local root can also supply the baseline. Changed local
+dependencies have no cache-only old-source recovery entrance and receive
+standalone candidate output. The report names missing old source, binary content,
+and rendering limits explicitly. Source patches share an 8 MiB output ceiling
+and the renderer's independent per-package limits; they never enter capability
+review or decision recovery.
 
 `--discard-review` removes the proposal, leaving review files as diagnostics.
 It does not roll back accepted files or discard publication recovery. Every

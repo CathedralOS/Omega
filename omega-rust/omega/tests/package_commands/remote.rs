@@ -45,6 +45,11 @@ fn install_update_and_import(repository: &str) {
         "selected version update did not edit the authored revision"
     );
     assert_exact_pin(&fixture, REVISION);
+    assert!(String::from_utf8_lossy(&output.stdout).contains("Source diff: arithmetic-kernels"));
+    let source_diff = fixture.read("root/build/package-manager/source-diff.txt");
+    assert!(source_diff.contains(&format!("baseline_git_commit {BASELINE}\n")));
+    assert!(source_diff.contains(&format!("candidate_git_commit {REVISION}\n")));
+    assert!(source_diff.contains("left + right") && source_diff.contains("right + left"));
 
     let updated_build = fixture.accepted_files().0;
     let output = fixture.omega(&["update", "arithmetic_kernels", "--to", REVISION]);

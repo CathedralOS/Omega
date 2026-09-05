@@ -106,9 +106,6 @@ pub(super) fn prepare<'a>(
                 ));
             }
         }
-        if !missing_baseline && review.changes().source_subject_changed() {
-            result.report.push_str("Source pins changed. Previous source was not loaded; use standalone candidate review or obtain the source diff separately.\n");
-        }
     }
     Ok(result)
 }

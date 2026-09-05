@@ -8,6 +8,8 @@ use package_manager::operations::{
 
 #[path = "commands/review.rs"]
 mod review;
+#[path = "commands/source_diff.rs"]
+mod source_diff;
 #[path = "commands/stale.rs"]
 mod stale;
 #[path = "commands/targets.rs"]

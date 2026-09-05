@@ -1,5 +1,8 @@
 //! Load accepted state, stage the command, check its exact graph, and publish.
 
+#[path = "source_review.rs"]
+mod source_review;
+
 use super::model::{
     PackageCommand, PackageCommandError, PackageCommandOutcome, PackageCommandStatus, failure,
 };
@@ -177,6 +180,13 @@ pub(super) fn execute(
         None
     };
     let mut choices = review::prepare(&files, transaction, &reviews, resume, accepted.is_none())?;
+    choices.report.push_str(&source_review::prepare(
+        &files,
+        transaction,
+        accepted.as_ref(),
+        &closure,
+        storage,
+    )?);
     if let Some(text) = proposal_text {
         // Publish the proposal only after every target's findings are present.
         // It is review state, never the accepted pair's commit intent.
