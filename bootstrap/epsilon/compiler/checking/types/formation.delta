@@ -297,17 +297,27 @@
 (def epsilon_validate_state_formed_types ((source EpsilonSourceView)
   (states EpsilonStateList) (owners EpsilonOwnerRowList))
   EpsilonTypeFormationCandidate
+  (epsilon_validate_state_formed_types_fold source
+    (epsilon_reverse_states states NoEpsilonStates) owners
+    NoEpsilonTypeFormationCandidate))
+
+; Retain min(parameters, min(body, suffix)) exactly: conflict precedence makes
+; reassociating these candidates invalid. Reverse only the state-list spine.
+(def epsilon_validate_state_formed_types_fold ((source EpsilonSourceView)
+  (states EpsilonStateList) (owners EpsilonOwnerRowList)
+  (candidate EpsilonTypeFormationCandidate)) EpsilonTypeFormationCandidate
   (match states
-    (NoEpsilonStates NoEpsilonTypeFormationCandidate)
+    (NoEpsilonStates candidate)
     ((MoreEpsilonStates item rest)
       (match item
         ((EpsilonStateSyntax start end name parameters bodyValue)
-          (epsilon_type_formation_candidate_min
-            (epsilon_validate_parameter_formed_types source parameters owners
-              EpsilonParameterTypePlacement)
+          (epsilon_validate_state_formed_types_fold source rest owners
             (epsilon_type_formation_candidate_min
-              (epsilon_validate_state_body_formed_types source bodyValue owners)
-              (epsilon_validate_state_formed_types source rest owners))))))))
+              (epsilon_validate_parameter_formed_types source parameters owners
+                EpsilonParameterTypePlacement)
+              (epsilon_type_formation_candidate_min
+                (epsilon_validate_state_body_formed_types source bodyValue owners)
+                candidate))))))))
 
 (def epsilon_validate_machine_body_formed_types ((source EpsilonSourceView)
   (bodyValue EpsilonMachineBody) (owners EpsilonOwnerRowList))
