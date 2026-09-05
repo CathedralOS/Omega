@@ -13,39 +13,18 @@ chain.
 
 The Rust toolchain is pinned in `rust-toolchain.toml`; `rustup` selects it.
 
-### Mandatory Cargo wrapper
+### Cargo wrapper
 
-Before the first Rust build command in a session, run `mbx --version`. When it
-is available, it must report `mbx 1.7.0` or newer. If `mbx` is missing or
-older, report the problem. Do not install, upgrade, or silently fall back to
-Cargo; direct Cargo build commands are allowed for the rest of that session
-only after explicit user authorization.
+Use `mbx` in place of Cargo when available: `cargo test ...` becomes
+`mbx test ...`, not `mbx cargo test ...`. If `mbx` is unavailable, use Cargo
+without asking for permission.
 
-Use this table literally:
-
-| Work | Required command |
-| --- | --- |
-| Format | `cargo fmt ...` |
-| Remove ordinary Cargo output | `cargo clean ...` |
-| Build, check, lint, test, run, bench, or generate docs | `mbx <subcommand> ...` |
-
-`mbx` replaces the leading `cargo`; it does not precede it.
-
-```text
-WRONG: cargo test -p omega-compiler
-WRONG: mbx cargo test -p omega-compiler
-RIGHT: mbx test -p omega-compiler
-```
-
-This rule applies in the main checkout, worktrees, temporary clones, scripts,
-background jobs, and validation harnesses. `cargo fmt` and `cargo clean` are
-the only direct-Cargo exceptions because they do not compile and `mbx clean`
-has different semantics.
+Keep using `cargo fmt` and `cargo clean` directly; `mbx clean` has different
+semantics. The examples below assume `mbx` is available.
 
 Baseline gates for a fresh checkout:
 
 ```bash
-mbx --version
 cargo fmt --all -- --check
 mbx clippy --workspace --all-targets -- -D warnings
 mbx test -p omega-architecture-test --all-targets
