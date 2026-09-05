@@ -472,8 +472,9 @@ Owners include
   Finish executable lowering for state arguments whose evaluation invokes
   effects; materialize effectful returns and earlier call arguments at their exact
   evaluation points and activate staged loans at their evaluation points.
-  Complete typed computation plans for effectful arithmetic/casts,
-  return/initializer/guard roots, and borrowed/projected operands. Retire the
+  Complete typed computation plans for remaining numeric policies and selected
+  operator calls, return/initializer/guard roots, and borrowed/projected operands.
+  Carry callee result bounds into nested exact-cast obligations. Retire the
   remaining flat guarded-argument call hoisting once these paths use the same
   evaluation graph. Owning area: argument normalization and checked scalar
   computation lowering. Acceptance: selected arguments
