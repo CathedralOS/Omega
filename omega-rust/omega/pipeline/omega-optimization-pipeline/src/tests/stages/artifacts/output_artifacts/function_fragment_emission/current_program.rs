@@ -63,7 +63,7 @@ fn emission_retains_original_current_artifacts_without_the_producer_history() {
             if let Some(protocol) = source.frame_protocol() {
                 assert!(std::ptr::eq(
                     protocol.plan(),
-                    replay.fixed_frame_realization().unwrap().protocol().plan()
+                    replay.frame_protocol().unwrap().plan()
                 ));
             }
             let emitted = stage_optimized_function_fragment_emission(source).unwrap();

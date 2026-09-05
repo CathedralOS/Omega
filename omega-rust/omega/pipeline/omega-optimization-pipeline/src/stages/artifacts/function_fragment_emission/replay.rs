@@ -88,11 +88,23 @@ impl FunctionFragmentReplayInputs {
         }
     }
 
-    pub const fn fixed_frame_realization(
-        &self,
-    ) -> Option<&StagedFixedFrameFunctionRelativeRealization> {
+    /// Routes whose realization owns a validated target frame protocol. The
+    /// Unit baseline route joins the fixed-frame route here because every
+    /// AArch64 Unit function carries a saved return address.
+    pub fn frame_protocol(&self) -> Option<&crate::ValidatedTargetFrameProtocolEncoding> {
         match self {
-            Self::FixedFrame(realization) => Some(realization),
+            Self::FixedFrame(realization) => Some(realization.protocol()),
+            Self::UnitBaseline(realization) => realization.protocol(),
+            _ => None,
+        }
+    }
+
+    /// The target-owned geometry the frame protocol encodes. Present exactly
+    /// where [`Self::frame_protocol`] is.
+    pub fn frame_layout(&self) -> Option<&crate::ValidatedTargetFrameLayout> {
+        match self {
+            Self::FixedFrame(realization) => Some(realization.frame()),
+            Self::UnitBaseline(realization) => realization.frame().map(|frame| frame.layout()),
             _ => None,
         }
     }

@@ -19,6 +19,7 @@ pub fn target_frame_layout_identity(plan: &TargetFrameLayoutPlan) -> TargetFrame
     hasher.update([abi_tag(plan.abi)]);
     hasher.update([match plan.policy {
         TargetFrameLayoutPolicy::CanonicalOrdinaryCallFrameV1 => 0,
+        TargetFrameLayoutPolicy::CanonicalSavedReturnAddressFrameV1 => 1,
     }]);
     encode_len(&mut hasher, plan.functions.len());
     for function in &plan.functions {

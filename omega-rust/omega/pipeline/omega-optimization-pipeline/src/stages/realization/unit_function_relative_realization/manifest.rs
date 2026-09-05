@@ -14,7 +14,7 @@ use crate::{
     ValidatedFunctionRelativeOptimizationRealizationManifest, ValidatedWholeFunctionExitContract,
 };
 
-use super::model::OptimizedUnitFunctionRelativeRealizationError;
+use super::model::{OptimizedUnitFunctionRelativeRealizationError, UnitSavedReturnAddressFrame};
 use super::source::validate_source;
 use omega_selected_instructions_to_register_homes::AllocationOutput;
 
@@ -23,6 +23,7 @@ pub(super) fn expected_manifest(
     machine: &StagedOptimizedPostAllocationMachinePlan,
     encoding: &StagedOptimizedSelectedFormEncoding,
     layout: &StagedOptimizedResolvedSelectedFormLayout,
+    frame: Option<&UnitSavedReturnAddressFrame>,
     exit_contract: &ValidatedWholeFunctionExitContract,
 ) -> Result<
     ValidatedFunctionRelativeOptimizationRealizationManifest,
@@ -31,6 +32,22 @@ pub(super) fn expected_manifest(
     let selections = current.selections();
     let source = validate_source(current)?;
     let post = current.post_allocation_manifest().record();
+    let (expected_exit_frame, realization_frame) = match frame {
+        Some(frame) => (
+            crate::WholeFunctionFrameDisposition::CanonicalFixedFrameV1 {
+                layout: frame.layout().receipt().identity(),
+                protocol: frame.protocol().receipt().identity(),
+            },
+            FunctionRelativeFrameDisposition::CanonicalFixedFrameV1 {
+                layout: frame.layout().receipt().identity(),
+                protocol: frame.protocol().receipt().identity(),
+            },
+        ),
+        None => (
+            crate::WholeFunctionFrameDisposition::FramelessV1,
+            FunctionRelativeFrameDisposition::Unavailable,
+        ),
+    };
     if post.selected_lowering_completion.is_some()
         || post.selected != source.selected()
         || post.target != layout.target()
@@ -47,6 +64,12 @@ pub(super) fn expected_manifest(
             != machine.machine().receipt().identity()
         || exit_contract.contract().pre_layout != encoding.identity()
         || exit_contract.contract().resolved_layout != layout.identity()
+        || exit_contract.contract().frame != expected_exit_frame
+        || frame.is_some_and(|frame| {
+            frame.layout().receipt().post_allocation_machine()
+                != machine.machine().receipt().identity()
+                || frame.protocol().receipt().frame_layout() != frame.layout().receipt().identity()
+        })
     {
         return Err(OptimizedUnitFunctionRelativeRealizationError::RootMismatch);
     }
@@ -79,7 +102,7 @@ pub(super) fn expected_manifest(
         scope: FunctionRelativeOptimizationRealizationScope::FunctionRelativeFragmentsWithValidatedWholeFunctionExitV1,
         statistics: function_relative_statistics(layout)
             .map_err(OptimizedUnitFunctionRelativeRealizationError::Manifest)?,
-        frame: FunctionRelativeFrameDisposition::Unavailable,
+        frame: realization_frame,
         machine_emission: unavailable,
         section_placement: unavailable,
         symbols: unavailable,

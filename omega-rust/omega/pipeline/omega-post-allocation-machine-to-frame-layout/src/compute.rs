@@ -19,9 +19,6 @@ pub(super) fn derive(
     environment: &ValidatedTargetRegisterEnvironment,
     policy: TargetFrameLayoutPolicy,
 ) -> Result<TargetFrameLayoutPlan, TargetFrameLayoutError> {
-    if policy != TargetFrameLayoutPolicy::CanonicalOrdinaryCallFrameV1 {
-        return Err(TargetFrameLayoutError::UnsupportedPolicy);
-    }
     let machine_plan = machine.machine().plan();
     let requirement_plan = requirements.plan();
     let storage_plan = storage.plan();
@@ -94,6 +91,7 @@ pub(super) fn derive(
                 function_layout(
                     environment,
                     requirement_plan.abi,
+                    policy,
                     machine_function.machine,
                     contains_call,
                     storage_function.abstract_area_bytes,
@@ -119,6 +117,7 @@ pub(super) fn derive(
 fn function_layout(
     environment: &ValidatedTargetRegisterEnvironment,
     abi: FrameAbiPreservationConvention,
+    policy: TargetFrameLayoutPolicy,
     machine: psi_core::MachineId,
     contains_call: bool,
     callee_save_area_bytes: u64,
@@ -164,7 +163,9 @@ fn function_layout(
                     .view_named("x30")
                     .ok_or(TargetFrameLayoutError::MissingLinkRegisterView)?
                     .id;
-                if contains_call {
+                if contains_call
+                    || policy == TargetFrameLayoutPolicy::CanonicalSavedReturnAddressFrameV1
+                {
                     let link_offset = align_up(callee_save_area_bytes, 8)?;
                     let used = link_offset
                         .checked_add(8)
