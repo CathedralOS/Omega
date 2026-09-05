@@ -104,6 +104,12 @@ target-independent source graph. Each baseline matches its source package and
 target; decisions match the complete target-bound source subject. These are
 inert project records, not fresh compiler authorization.
 
+Evidence enumerates every concrete retained package owner, including owners
+inside canonical type/callable identities; the manager requires membership in
+the exact transitive source graph. Foreign symbolic boundary demands also join
+the owning baseline's exact operator telescope. Neither check requires direct
+dependency edges or public availability of arbitrary carried declarations.
+
 The versioned `omega.lock` text embeds the canonical source, named policy, and
 historical-decision sections verbatim, using explicit byte lengths. No whole
 child is replaced by an opaque escaped payload. Loading requires no checkout,
@@ -111,7 +117,8 @@ source acquisition, compiler run, proof certificate, or native replay. Recovery
 checks outer framing and every child's canonical meaning and associations.
 `PackageLockRecoveryLimits` bounds the entire input, requested owned storage
 (including validation scratch), target sections, package rows, authored and
-selected dependency requests, policy sequence elements, and decisions. Child
+selected dependency requests, policy sequence elements, semantic identity
+traversal nodes, and decisions. Child
 usage is deducted from the same aggregate limits rather than reset per target.
 Allocator overhead and already borrowed input are not part of owned-storage
 accounting. Locked resolution and atomic install/update publication remain open.

@@ -16,6 +16,17 @@ projections, and selected dependency edges. Only target-sensitive baseline and
 decision state may differ. The format lists explicitly supplied targets; it
 does not discover a deployment set or establish a support matrix.
 
+Every concrete package owner retained anywhere in the complete policy must
+belong to that target's exact transitive source graph. Evidence owns this
+enumeration, including compiler canonical type and callable identities; the
+manager supplies package-key membership, not a second semantic parser. A
+transitively carried type does not need a direct dependency edge. Toolchain
+owners, absent optional owners, and symbolic binders do not assert package
+membership. Foreign symbolic boundary demands additionally join the owning
+baseline's exact boundary operator and Type-only telescope. These are inert
+cross-record consistency checks, not source replay, public availability checks
+for arbitrary carried declarations, or fresh audit certification.
+
 ## Version 1 text
 
 The outer grammar is line-oriented ASCII. Counts and byte lengths are unsigned
@@ -57,6 +68,7 @@ loading never upgrades pins or treats unknown policy as empty.
 | Source package rows, across target sections | 16,384 |
 | Authored plus selected dependency-request rows | 262,144 |
 | Policy sequence and recursive entries | 1,048,576 |
+| Semantic identity traversal nodes | 1,048,576 |
 | Historical decisions | 65,536 |
 
 Child format ceilings also apply: source text is at most 64 MiB, each complete
@@ -70,6 +82,9 @@ Input text and previously owned values remain borrowed and are not charged;
 allocator overhead is excluded. Each child reports its consumed allowance, which
 the lock subtracts before recovering the next child. Outer target and baseline
 vectors are charged before reservation.
+The sorted package-owner index and any exact unescape buffers also consume
+the same owned-storage allowance. Semantic identity work is cumulative across
+baselines and targets, with an additional per-identity nesting ceiling of 128.
 
 `canonical_text_with_limits` uses the same child recovery accounting so it does
 not emit a record that exceeds the chosen recovery ceilings. It drops each

@@ -18,6 +18,12 @@ use std::cell::Cell;
 use std::fmt;
 
 mod substitution;
+#[cfg(test)]
+mod visitor_tests;
+
+pub use psi_language_semantics::type_identity::{
+    TypeIdentityPackageOwnerVisitor, TypeIdentityVisitError, visit_type_identity_package_owners,
+};
 
 #[derive(Debug, Clone, Default, PartialEq, Eq, Hash)]
 pub struct NormalizedTypeIdentity(String);

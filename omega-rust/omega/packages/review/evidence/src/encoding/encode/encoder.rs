@@ -1,12 +1,15 @@
 use super::PackageReviewEncodingError;
 use psi_core::PackageKeyIdentity;
 
+mod membership;
 mod scalars;
 pub(in crate::encoding) mod text;
 
 pub(crate) struct Encoder<'text> {
     output: Vec<u8>,
     text: Option<text::Writer<'text>>,
+    membership: Option<&'text mut dyn super::membership::Observer>,
+    membership_error: Option<crate::encoding::PackagePolicyMembershipError>,
     encoded_bytes: usize,
     maximum_bytes: usize,
     exceeded: bool,
@@ -20,6 +23,8 @@ impl<'text> Encoder<'text> {
         Self {
             output: Vec::new(),
             text: None,
+            membership: None,
+            membership_error: None,
             encoded_bytes: 0,
             maximum_bytes,
             exceeded: false,
@@ -118,7 +123,7 @@ impl<'text> Encoder<'text> {
             return;
         }
         self.encoded_bytes = required;
-        if self.text.is_some() {
+        if self.text.is_some() || self.membership.is_some() {
             return;
         }
         if self.output.try_reserve(bytes.len()).is_err() {
@@ -180,6 +185,10 @@ impl<'text> Encoder<'text> {
     }
 
     pub(crate) fn package_identity(&mut self, identity: PackageKeyIdentity) {
+        if let Some(observer) = &mut self.membership {
+            let result = observer.package(identity);
+            self.record_membership_result(result);
+        }
         self.fixed_bytes(&identity.digest());
     }
 
@@ -191,6 +200,11 @@ impl<'text> Encoder<'text> {
     }
 
     pub(crate) fn check(&self) -> Result<(), PackageReviewEncodingError> {
+        if self.membership_error.is_some() {
+            return Err(PackageReviewEncodingError::new(
+                "package policy membership validation failed",
+            ));
+        }
         if let Some(text) = &self.text {
             text.check()?;
         }

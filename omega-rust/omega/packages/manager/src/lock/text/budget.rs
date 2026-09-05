@@ -16,6 +16,23 @@ pub(super) struct Budget {
 }
 
 impl Budget {
+    pub(super) fn target_membership(
+        &mut self,
+        target: &super::super::PackageLockTarget,
+    ) -> Result<(), Error> {
+        let usage = super::super::validation::policy_source_membership(
+            target,
+            self.remaining.maximum_owned_bytes,
+            self.remaining.maximum_identity_nodes,
+        )?;
+        self.owned(usage.owned_bytes)?;
+        count(
+            &mut self.remaining.maximum_identity_nodes,
+            usage.identity_nodes,
+        )?;
+        Ok(())
+    }
+
     pub(super) fn new(limits: PackageLockRecoveryLimits) -> Self {
         Self { remaining: limits }
     }

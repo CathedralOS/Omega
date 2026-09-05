@@ -1,6 +1,8 @@
 use super::HistoricalPackagePolicyError;
 use crate::resolution::graph::CanonicalSourceClosureSubjectError;
-use omega_package_evidence::encoding::{PackagePolicyRecoveryError, PackageReviewEncodingError};
+use omega_package_evidence::encoding::{
+    PackagePolicyMembershipError, PackagePolicyRecoveryError, PackageReviewEncodingError,
+};
 use std::fmt;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -21,6 +23,8 @@ pub enum PackageLockError {
     Policy(PackagePolicyRecoveryError),
     Decisions(HistoricalPackagePolicyError),
     Encoding(PackageReviewEncodingError),
+    PolicySourceMembership(PackagePolicyMembershipError),
+    BoundaryApplicationMismatch,
 }
 
 impl fmt::Display for PackageLockError {
@@ -38,6 +42,8 @@ impl fmt::Display for PackageLockError {
             Self::SourceGraphMismatch => "package lock target sections disagree about the immutable source graph",
             Self::BaselineCoverage => "package lock requires one ordered baseline for every source package",
             Self::DecisionSourceMismatch => "package lock decisions belong to a different source graph or target",
+            Self::BoundaryApplicationMismatch => "package lock boundary demand has no matching operator telescope in its owning baseline",
+            Self::PolicySourceMembership(error) => return error.fmt(formatter),
             Self::Source(error) => return error.fmt(formatter),
             Self::Policy(error) => return error.fmt(formatter),
             Self::Decisions(error) => return error.fmt(formatter),

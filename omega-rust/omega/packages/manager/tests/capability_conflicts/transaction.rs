@@ -12,6 +12,8 @@ mod fixture;
 mod historical_policy;
 #[path = "transaction/lock_framing.rs"]
 mod lock_framing;
+#[path = "transaction/lock_membership_budget.rs"]
+mod lock_membership_budget;
 #[path = "transaction/package_lock.rs"]
 mod package_lock;
 #[path = "transaction/root_policy.rs"]

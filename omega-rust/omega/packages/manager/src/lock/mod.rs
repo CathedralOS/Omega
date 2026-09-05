@@ -10,6 +10,7 @@ mod error;
 mod limits;
 mod model;
 mod text;
+mod validation;
 
 pub use error::PackageLockError;
 pub use limits::PackageLockRecoveryLimits;
