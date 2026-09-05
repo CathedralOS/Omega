@@ -44,6 +44,59 @@ fn staged_object_container() -> StagedOptimizedRelocationFreeObjectContainer {
 }
 
 #[test]
+fn current_object_data_outlives_custody_and_replay_rejects_rehashed_substitution() {
+    let staged = staged_object_container();
+    let object = staged.shared_object();
+    let container = staged.shared_container();
+    let manifest = staged.manifest().shared_record();
+    assert!(std::sync::Arc::ptr_eq(&object, &staged.shared_object()));
+    assert!(std::sync::Arc::ptr_eq(
+        &container,
+        &staged.shared_container()
+    ));
+    assert!(std::sync::Arc::ptr_eq(
+        &manifest,
+        &staged.manifest().shared_record()
+    ));
+    let text = staged.source().text_section().clone();
+    let selections = object.selections;
+    drop(staged);
+    omega_object_file::validate_relocation_free_object_from_text(&text, selections, &object)
+        .expect("current data remains independently checkable without its producer");
+    assert_eq!(
+        omega_object_file::decode_relocation_free_object(&container.bytes).unwrap(),
+        *object,
+    );
+    assert_eq!(manifest.object, object.identity);
+
+    let mutations: [fn(&mut omega_object_file::RelocationFreeObjectPlan); 5] = [
+        |object| object.text_section.bytes[0] ^= 1,
+        |object| object.psi.program_fingerprint = SemanticFingerprint::from_bytes([77; 32]),
+        |object| object.fuel_schedule = FuelScheduleIdentity::new(90_001).unwrap(),
+        |object| object.selections = OptimizationSelectionIdentity::from_bytes([78; 32]),
+        |object| {
+            object.source_text_section =
+                TerminalRelocationFreeTextSectionIdentity::from_canonical_bytes(
+                    b"substituted source",
+                )
+        },
+    ];
+    for mutate in mutations {
+        let mut changed = (*object).clone();
+        mutate(&mut changed);
+        changed.identity = changed.recomputed_identity().unwrap();
+        omega_object_file::validate_relocation_free_object(&changed)
+            .expect("mutation is a canonical object, not a stale-hash test");
+        assert_eq!(
+            omega_object_file::validate_relocation_free_object_from_text(
+                &text, selections, &changed
+            ),
+            Err(omega_object_file::RelocationFreeObjectFromTextError::SourceMismatch),
+        );
+    }
+}
+
+#[test]
 fn every_representable_object_container_manifest_field_rejects_after_reauthentication() {
     let mut staged = staged_object_container();
     let baseline = staged.manifest().record().clone();

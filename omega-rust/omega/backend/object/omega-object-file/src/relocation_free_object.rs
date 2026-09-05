@@ -3,6 +3,11 @@
 
 use std::collections::BTreeSet;
 
+mod publication;
+mod text_section;
+pub use publication::*;
+pub use text_section::*;
+
 use crate::{SectionKind, section_name};
 use omega_optimization_core::{
     OptimizationSelectionIdentity, RelocationFreeObjectContainerIdentity,
