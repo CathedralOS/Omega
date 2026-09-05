@@ -1,10 +1,16 @@
 use super::{BoundsCheckResult, RangeFacts, check_indexed_access};
-use typed_trees::expression::{ExpressionNode, TableIndexedExpression};
+use typed_trees::expression::{ExpressionHandle, ExpressionNode, TableIndexedExpression};
+
+mod selected;
 
 fn fixture(
     collection_type: &str,
     access: &str,
-) -> (typed_trees::TypedTrees, TableIndexedExpression) {
+) -> (
+    typed_trees::TypedTrees,
+    ExpressionHandle,
+    TableIndexedExpression,
+) {
     let source =
         format!("machine inspect(items: &{collection_type}, index: u64) {{ items{access}; }}");
     let tokens = source_files_to_tokens::Lexer::new(&source)
@@ -15,20 +21,20 @@ fn fixture(
         syntax_trees_to_symbol_resolved_trees::lower_syntax_trees(&syntax).expect("resolve");
     let program =
         symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).expect("type");
-    let indexed = program
+    let (expression, indexed) = program
         .expression_table
         .iter_expressions()
-        .filter_map(|(_, expression)| match expression {
-            ExpressionNode::Indexed(indexed) => Some(*indexed),
+        .filter_map(|(expression, node)| match node {
+            ExpressionNode::Indexed(indexed) => Some((expression, *indexed)),
             _ => None,
         })
         .last()
         .expect("indexed expression");
-    (program, indexed)
+    (program, expression, indexed)
 }
 
 fn result(collection_type: &str, access: &str, prove_index: bool) -> BoundsCheckResult {
-    let (program, indexed) = fixture(collection_type, access);
+    let (program, expression, indexed) = fixture(collection_type, access);
     let machine = &program.machines()[0];
     let state = &program.machine_states(machine)[0];
     let mut facts = RangeFacts::new(&[]);
@@ -48,7 +54,15 @@ fn result(collection_type: &str, access: &str, prove_index: bool) -> BoundsCheck
     }
     // An unrelated diagnostic must not change this occurrence's proof result.
     let mut diagnostics = vec![diagnostics::Diagnostic::error("earlier error")];
-    let result = check_indexed_access(&program, machine, state, &facts, &indexed, &mut diagnostics);
+    let result = check_indexed_access(
+        &program,
+        machine,
+        state,
+        &facts,
+        expression,
+        &indexed,
+        &mut diagnostics,
+    );
     assert_eq!(diagnostics.len() > 1, result == BoundsCheckResult::Rejected);
     result
 }
@@ -104,14 +118,18 @@ fn unrecognized_collection_is_not_a_bounds_admission() {
 #[test]
 fn nested_index_traversal_checks_each_collection_extent() {
     for (access, accepted) in [("[3][1]", true), ("[4][1]", false), ("[3][2]", false)] {
-        let (program, _) = fixture("[[u8; 2]; 4]", access);
+        let (program, _, _) = fixture("[[u8; 2]; 4]", access);
         let frames = validation::CallFrameResolver::new(&program);
         let incoming = crate::checks::ranges::incoming_guards::IncomingGuardIndex::build(
             &program,
             frames.as_ref(),
         );
-        let checked =
-            crate::checks::ranges::check_indexed_accesses(&program, frames.as_ref(), &incoming);
+        let checked = crate::checks::ranges::check_indexed_accesses(
+            &program,
+            &checked_trees::CheckedOperatorFacts::default(),
+            frames.as_ref(),
+            &incoming,
+        );
         assert_eq!(checked.is_ok(), accepted, "{access}: {checked:?}");
     }
 }

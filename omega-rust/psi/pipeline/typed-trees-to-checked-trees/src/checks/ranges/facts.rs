@@ -6,6 +6,8 @@ mod values;
 
 #[derive(Clone)]
 pub(super) struct RangeFacts<'field> {
+    pub(super) checked_operators: Option<&'field checked_trees::CheckedOperatorFacts>,
+    pub(super) statement_index: usize,
     fields: &'field [(SymbolHandle, String, usize)],
     integer_fields: Vec<(SymbolHandle, String, i64)>,
     locals: Vec<(SymbolHandle, String, usize)>,
@@ -43,6 +45,8 @@ pub(super) struct RangeFacts<'field> {
 impl<'field> RangeFacts<'field> {
     pub(super) fn new(fields: &'field [(SymbolHandle, String, usize)]) -> Self {
         Self {
+            checked_operators: None,
+            statement_index: 0,
             fields,
             integer_fields: Vec::new(),
             locals: Vec::new(),

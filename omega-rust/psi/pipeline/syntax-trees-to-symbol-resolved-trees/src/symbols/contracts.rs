@@ -12,6 +12,7 @@ use super::targets::assign_static_argument_symbols;
 /// Resolve contract value references, call targets, and static machine
 /// arguments in the owning callable's scope. Machine contracts use entry
 /// parameters; state contracts use only that state's explicit parameters.
+/// Operator contracts use their own declared operand and generic binders.
 /// Membership domain names retain their separate declaration lookup.
 pub(super) fn assign_contract_reference_symbols(
     program: &mut SymbolResolvedTrees,
@@ -112,6 +113,44 @@ pub(super) fn assign_contract_reference_symbols(
                 child_type_references,
             );
         }
+    }
+
+    // Operators publish contracts independently of machines. Their formal
+    // names must acquire lexical identities here, before checked consumers
+    // associate a selected contract with its actual operand tuple.
+    for operator in roots
+        .operators
+        .iter()
+        .chain(roots.domain_definitions.iter().flat_map(|domain| {
+            tables
+                .declarations
+                .operator_definitions
+                .span_or_empty(domain.operators)
+        }))
+    {
+        let scope = MachineScope {
+            symbol: operator.symbol,
+            type_parameters: data_type_parameters.span_or_empty(operator.type_parameters),
+            attached_data: None,
+            attached_data_symbol: SymbolHandle::invalid(),
+            inherited_data_members: None,
+            owned_data: &[],
+            prior_statements: &[],
+            data_definitions,
+            data_members,
+            type_constraints: &tables.types.constraints,
+        };
+        assign_contract_span(
+            symbols,
+            &scope,
+            state_parameters.span_or_empty(operator.parameters),
+            operator.symbol,
+            operator.contracts,
+            signature_contracts,
+            proof_facts,
+            expression_table,
+            child_type_references,
+        );
     }
 }
 

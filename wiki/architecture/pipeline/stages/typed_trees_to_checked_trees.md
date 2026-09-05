@@ -143,6 +143,16 @@ premises through their caller-visible write frames before later expressions
 reuse them; unknown effects retain no value-dependent range premises. These
 bounds checks do not grant element-domain, borrow, or mutation authority.
 
+Indexed syntax can match fixed-array or slice storage to a shared slice
+operator parameter. Only the collection shell adapts: the element binding,
+remaining operand types, domain participation, and ambiguity checks remain
+exact. Named calls do not acquire this conversion. The checked operator use
+and its closed boundary application retain the selected declaration and element
+argument. Bounds checking consumes that same selection and its actual bound
+contract; another declaration with the same token cannot supply the premise.
+Additional requirements must be discharged independently or reject. Authored
+selection finalization remains a separate exact-occurrence gate.
+
 Named-state range facts are a fixed-point calculation rooted at machine entry.
 Every reachable incoming edge contributes: an unknown value removes a constant
 or exact length, and an empty relation set participates in the intersection.

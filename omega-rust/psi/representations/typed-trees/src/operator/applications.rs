@@ -56,6 +56,31 @@ pub fn closed_operator_application_for_operands(
     operator: &OperatorDefinition,
     operand_types: &[Option<TypeReferenceHandle>],
 ) -> Option<Vec<ClosedOperatorApplicationArgument>> {
+    closed_application_for_operands(program, operator, operand_types, false)
+}
+
+/// Reconstruct the same shared collection adaptation used by indexed spelling
+/// selection, retaining the exact closed element binder for boundary demands.
+pub fn closed_indexed_operator_application_for_operands(
+    program: &TypedTrees,
+    operator: &OperatorDefinition,
+    operand_types: &[Option<TypeReferenceHandle>],
+) -> Option<Vec<ClosedOperatorApplicationArgument>> {
+    if !matches!(
+        operator.spelling,
+        Some(super::OperatorSpelling::Index | super::OperatorSpelling::Range)
+    ) {
+        return None;
+    }
+    closed_application_for_operands(program, operator, operand_types, true)
+}
+
+fn closed_application_for_operands(
+    program: &TypedTrees,
+    operator: &OperatorDefinition,
+    operand_types: &[Option<TypeReferenceHandle>],
+    indexed_collection: bool,
+) -> Option<Vec<ClosedOperatorApplicationArgument>> {
     if !operator.lifetime_parameters.is_empty() {
         return None;
     }
@@ -80,18 +105,30 @@ pub fn closed_operator_application_for_operands(
     let matches = operand_types
         .iter()
         .zip(normalized_operand_parameters(parameters))
-        .all(|(actual, expected)| {
+        .enumerate()
+        .all(|(position, (actual, expected))| {
             actual.is_none_or(|actual| {
+                let (matched_actual, matched_expected) = if indexed_collection && position == 0 {
+                    super::indexing::shared_collection_elements(
+                        program,
+                        actual,
+                        expected.type_reference,
+                    )
+                    .unwrap_or((actual, expected.type_reference))
+                } else {
+                    (actual, expected.type_reference)
+                };
                 type_reference_matches_with_policy(
                     program,
-                    actual,
-                    expected.type_reference,
+                    matched_actual,
+                    matched_expected,
                     None,
                     type_parameters,
                     &mut bindings,
                     &mut const_bindings,
                     false,
                 ) && declared_domain_constraints_match(program, actual, expected.type_reference)
+                    && declared_domain_constraints_match(program, matched_actual, matched_expected)
             })
         });
     if !matches {
