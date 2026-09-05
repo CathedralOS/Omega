@@ -1,0 +1,38 @@
+// A nested state reads a field of a field, and an element of a field, of a
+// struct the entry block bound with `let`.
+//
+// The single-level case already has a canary beside this one. Two levels was
+// separate: root type recovery for a captured entry-block local answered only
+// for the state that authored the binding, so the place algebra could build
+// `packet.header.room_id` but never recover its root type, and the authored
+// MemberAccess selection stayed late-bound through checking.
+
+data Header {
+    room_id: u32;
+}
+
+data Packet {
+    header: Header;
+    samples: [i32; 4];
+}
+
+data Main {
+}
+
+machine Main::main(&mut self) {
+    let packet: Packet = Packet {
+        header: Header { room_id: 300 },
+        samples: [150, 0 - 2, 0, 0]
+    };
+
+    transition {
+        _ -> check_packet()
+    }
+
+    state check_packet(&mut self) {
+        transition packet.header.room_id == 300 && packet.samples[0] == 150 {
+            true -> {}
+            _ -> {}
+        }
+    }
+}

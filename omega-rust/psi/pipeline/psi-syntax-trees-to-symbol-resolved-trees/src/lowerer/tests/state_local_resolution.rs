@@ -245,3 +245,71 @@ fn local_call_targets_follow_prior_declarations_not_receiver_spelling() {
         );
     }
 }
+
+#[test]
+fn nested_states_bind_entry_block_locals_to_the_entry_symbol() {
+    let source = r#"
+        data Header { room_id: u32; }
+        data Packet { header: Header; }
+        data Main {}
+
+        machine Main::main(&mut self) {
+            let packet: Packet = Packet { header: Header { room_id: 300 } };
+
+            transition { _ -> check_packet() }
+
+            state check_packet(&mut self) {
+                transition packet.header.room_id == 300 { true -> {} _ -> {} }
+            }
+        }
+    "#;
+    let tokens = Lexer::new(source).tokenize().expect("tokenize captured local");
+    let syntax = parse_syntax_trees(&tokens).expect("parse captured local");
+    let program = lower_syntax_trees(&syntax).expect("resolve captured local");
+    let machine = program
+        .machines
+        .iter()
+        .find(|machine| machine.name.as_str() == "Main::main")
+        .expect("Main::main machine");
+    let states = program.machine_state_handles(machine.states);
+    let entry = program.machine_state(states[0]);
+    let psi_symbol_resolved_trees::statement::StatementNode::LocalData(local) = &program
+        .tables
+        .bodies
+        .statements
+        .statements(entry.statement_nodes)[0]
+    else {
+        panic!("entry block binds `packet`")
+    };
+
+    // `packet` appears only in the nested state's guard, so the sole Name
+    // expression spelling it is the captured read under test.
+    let packet = program
+        .tables
+        .bodies
+        .expressions
+        .iter_expressions()
+        .find_map(|(_, node)| match node {
+            psi_symbol_resolved_trees::expression::ExpressionNode::Name(path)
+                if program
+                    .tables
+                    .bodies
+                    .expressions
+                    .name_path_members(path.members)
+                    .iter()
+                    .map(psi_symbol_resolved_trees::name::DiagnosticName::as_str)
+                    .eq(["packet"]) =>
+            {
+                Some(path)
+            }
+            _ => None,
+        })
+        .expect("nested state reads `packet`");
+
+    assert!(local.symbol.is_valid(), "entry binding owns a symbol");
+    assert_eq!(
+        packet.symbol, local.symbol,
+        "a nested state must bind the entry block's `let` to its own symbol"
+    );
+    assert_eq!(packet.head_symbol, local.symbol);
+}
