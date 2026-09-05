@@ -106,6 +106,16 @@ pub(crate) fn validate_value_position_calls(
             );
         }
         StatementNode::LocalData(local_data) => {
+            crate::locals::StateValueScope {
+                program,
+                machine,
+                state,
+                machine_symbols,
+                symbols,
+                prior_statements: writable_roots.statements,
+                context: "local type bound",
+            }
+            .type_reference(local_data.type_reference, diagnostics);
             scan_expression_calls(
                 program,
                 machine,
@@ -625,6 +635,16 @@ fn scan_expression_calls(
             );
         }
         ExpressionNode::Cast(cast) => {
+            crate::locals::StateValueScope {
+                program,
+                machine,
+                state,
+                machine_symbols,
+                symbols,
+                prior_statements: writable_roots.statements,
+                context: "cast type bound",
+            }
+            .type_reference(cast.target_type, diagnostics);
             // All cast TARGET/SOURCE type validation lives behind one dispatcher.
             crate::expression_types::validate_cast_types(
                 program,

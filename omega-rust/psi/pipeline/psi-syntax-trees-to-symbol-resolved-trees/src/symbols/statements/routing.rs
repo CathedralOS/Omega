@@ -133,6 +133,15 @@ pub(super) fn assign_statement_symbols(
                 machine.symbol,
                 &mut local_data.type_reference,
             );
+            crate::symbols::type_references::assign_type_value_expression_symbols(
+                symbols,
+                machine,
+                parameters,
+                state_symbol,
+                expression_table,
+                child_type_references,
+                &local_data.type_reference,
+            );
             if local_data.initial_value.is_valid() {
                 assign_statement_expression_symbols(
                     symbols,

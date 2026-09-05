@@ -4,6 +4,9 @@ use psi_typed_trees::data::{DataMember, TypeParameterKind};
 use psi_typed_trees::signature::StateParameter;
 use psi_typed_trees::statement::StatementNode;
 use psi_typed_trees::{TypedTrees, machine::Machine, state::State};
+mod type_value_scope;
+mod value_scope;
+pub(crate) use value_scope::StateValueScope;
 
 /// A named operator's complete declaration namespace is not a storage read.
 /// Retained value identities never acquire namespace status from spelling.
