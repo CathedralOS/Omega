@@ -35,7 +35,7 @@ Follow the supported source-change flow through:
 `omega install` and `omega update` use that flow, including selective updates,
 per-target review files, `--resume`, and recoverable publication. Start at the
 [command operation](manager/src/operations/package_commands/README.md) for usage
-and its source map. The [task board](../../../../TASKS_PACKAGE_MANAGER.md) contains
+and its source map. The [task board](../../../TASKS.md) contains
 only remaining work. Source-code diffs are separate from editable capability decisions;
 verified old local snapshots can be recovered from the existing cache. Install
 can select a Git workspace member with `--package <declared-name>`; its declared name still
@@ -73,6 +73,6 @@ rejects during candidate checking.
 
 Design and acquisition references:
 
-- [Build And Package Model](../../../../wiki/design_briefs/build_and_package_model.md)
-- [Package Manager: Scope and Workflow](../../../../wiki/design_briefs/package_manager_first_draft.md)
+- [Build And Package Model](../../../wiki/design_briefs/build_and_package_model.md)
+- [Package Manager: Scope and Workflow](../../../wiki/design_briefs/package_manager_first_draft.md)
 - [Source Resolver Security](sources/acquisition/SOURCE_RESOLVER_SECURITY.md)

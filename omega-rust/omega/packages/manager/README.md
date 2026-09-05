@@ -312,4 +312,4 @@ Return to the [package subsystem map](../README.md), or consult:
 
 - [Scope and workflow](../../../../wiki/design_briefs/package_manager_first_draft.md)
 - [`build_and_package_model.md`](../../../../wiki/design_briefs/build_and_package_model.md)
-- [`TASKS_PACKAGE_MANAGER.md`](../../../../TASKS_PACKAGE_MANAGER.md)
+- [`TASKS.md`](../../../../TASKS.md)
