@@ -83,6 +83,23 @@ mbx test -p omega-compiler --test canary_suite proof_and_float_suites::fail_cana
 corpus; its submodules live in `tests/canary_suite/`. Filter by module or
 feature name to run a single group.
 
+The two tests above also select corpus members from
+`OMEGA_PASS_CANARY_FILTER` and `OMEGA_FAIL_CANARY_FILTER`: comma-separated
+trimmed substrings matched against the `group/name` path, so `wire/` takes a
+whole group. Unset runs the whole corpus, and a value matching nothing fails
+the test rather than passing empty. Every other test in the target ignores
+both. `OMEGA_CANARY_JOBS` overrides the outer worker count, which defaults to
+host parallelism capped at 12 and must be a positive integer.
+
+```bash
+OMEGA_PASS_CANARY_FILTER=nested_parameter_receiver_call \
+  mbx test -p omega-compiler --test canary_suite entry_and_abi::pass_canaries_compile
+```
+
+`canary_suite` is not in the baseline gates above and a full run is currently
+red, so a filtered run scoped to what you changed is how a failure gets
+attributed.
+
 ### Bootstrap gates
 
 Bootstrap gates are `sh` scripts, not Cargo tests, and self-skip when `python3`
