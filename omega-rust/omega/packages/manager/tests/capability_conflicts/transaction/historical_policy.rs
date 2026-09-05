@@ -71,15 +71,17 @@ pub(super) fn assert_historical_policy(
     assert_eq!(historical.decisions().len(), 2);
     for decision in historical.decisions() {
         assert_eq!(
-            subject.packages()[decision.package_index()].key(),
+            subject.packages()[decision.package_index().unwrap()].key(),
             scenario.candidate_sources.graph().root()
         );
         assert!(
             resolution
                 .decisions()
                 .iter()
-                .any(|fresh| fresh.conflict().digest() == decision.conflict()
-                    && fresh.disposition() == decision.disposition())
+                .any(
+                    |fresh| Some(fresh.conflict().digest()) == decision.conflict()
+                        && fresh.disposition() == decision.disposition()
+                )
         );
     }
     let text = historical.canonical_text(&subject, limits).unwrap();

@@ -90,12 +90,15 @@ layer or certifying lock acceptance is not a prerequisite. The source and
 review crates remain subordinate to those operations.
 
 `lock/decisions` records historical choices against the complete canonical
-source subject. Its bounded ASCII section refers to that subject's sorted
-package entries and binds the exact root, role, graph, and target. Recovery
-needs only the retained source subject, not the old checkout or a recreated
-compiler conflict. It preserves both acceptance and rejection without making
-either a fresh authorization. Fresh capture still requires the complete exact
-current resolution.
+source subject. `HistoricalPackagePolicyDecisions::capture_policy` consumes the
+complete-policy comparison and its exact resolved project choices. Version 2
+retains the comparison identity, optional prior source association, and typed
+row/root-role/source-replacement subjects. Removed-package decisions do not
+index the candidate-only graph. Version 1 records remain readable in their
+original indexed form; loading does not invent a modern comparison for them.
+Recovery needs only the retained source subject, not an old checkout or
+recreated compiler conflict. It preserves acceptance and rejection as trusted
+project records, without making either fresh authorization or audit evidence.
 
 `lock::PackageLock` composes that history with the immutable source graph and
 one complete typed `PackagePolicyBaseline` for every source package. Exact target
@@ -220,7 +223,7 @@ certificate, reviewer receipt, or authentication of the project author.
 
 `all_required_changes_accepted` describes only the represented choices, not
 permission to publish. Explicit command intent, review-file handling,
-removed-package history in the lock, fresh compiler obligations, and
+fresh compiler obligations, and
 transactional candidate/project-file rechecks remain integration work.
 
 Return to the [package subsystem map](../README.md), or consult:

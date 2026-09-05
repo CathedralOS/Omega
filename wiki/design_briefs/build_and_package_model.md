@@ -3052,6 +3052,20 @@ declaration availability or fresh audit truth.
 Recovering these inert records requires no source checkout or compiler run;
 it is separate from acquiring pinned content and publishing a transaction.
 
+Complete-policy decision history retains the exact comparison identity,
+candidate source-subject association, optional prior source association, and
+each row/root-role/source-replacement choice. Removed-package decisions do not
+index the candidate-only graph. The version 2 historical decision child is
+bounded, fixed-vocabulary LF text; subjects are strictly ordered and each has
+one accept/reject disposition. Capture checks the supplied completed resolution
+against the comparison and candidate source, without replaying the compiler.
+Recovery trusts the project author and checks only record structure, resource
+limits, and candidate source association; neither old source nor reconstruction
+of the old comparison is required. Rejection remains rejection. Version 1
+indexed history stays readable in its original form without an invented modern
+comparison. Neither format authorizes a later changed candidate or proves an
+audit occurred.
+
 The project normally commits the lock and trusts whoever lands its changes.
 Recovery validates format and graph consistency, checks acquired sources against
 pins, and treats recorded acceptance as project policy. It does not reconstruct
