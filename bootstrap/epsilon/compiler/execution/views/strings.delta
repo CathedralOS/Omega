@@ -24,7 +24,7 @@
   EpsilonEvaluatorOutcome
   (match context
     ((EpsilonEvaluatorInvocationContext source machineValue references
-      fieldReferences callables control receiver blockFloor)
+      receiver blockFloor)
       (match literal
         ((EpsilonStringSpan start end)
           (let decoded Bytes

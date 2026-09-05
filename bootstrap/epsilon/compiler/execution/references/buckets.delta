@@ -1,0 +1,36 @@
+; A bucket retains each original typed ledger independently. Updating one kind
+; never changes the order or contents of another kind.
+(def epsilon_runtime_empty_reference_bucket () EpsilonRuntimeReferenceBucket
+  (EpsilonRuntimeReferenceBucketAt NoEpsilonResolvedLocalReferences
+    NoEpsilonResolvedFieldReferences NoEpsilonResolvedCallableReferences
+    (EpsilonRuntimeControlBucketAt NoEpsilonStateApplicationReferences
+      NoEpsilonTransitionSubjectReferences NoEpsilonTransitionPatternReferences)))
+
+(def epsilon_runtime_prepend_reference ((reference EpsilonRuntimeReference)
+  (bucket EpsilonRuntimeReferenceBucket)) EpsilonRuntimeReferenceBucket
+  (match bucket
+    ((EpsilonRuntimeReferenceBucketAt locals fields callables control)
+      (match control
+        ((EpsilonRuntimeControlBucketAt states subjects patterns)
+          (match reference
+            ((EpsilonRuntimeLocalReference row)
+              (EpsilonRuntimeReferenceBucketAt
+                (MoreEpsilonResolvedLocalReferences row locals) fields callables control))
+            ((EpsilonRuntimeFieldReference row)
+              (EpsilonRuntimeReferenceBucketAt locals
+                (MoreEpsilonResolvedFieldReferences row fields) callables control))
+            ((EpsilonRuntimeCallableReference row)
+              (EpsilonRuntimeReferenceBucketAt locals fields
+                (MoreEpsilonResolvedCallableReferences row callables) control))
+            ((EpsilonRuntimeStateReference row)
+              (EpsilonRuntimeReferenceBucketAt locals fields callables
+                (EpsilonRuntimeControlBucketAt
+                  (MoreEpsilonStateApplicationReferences row states) subjects patterns)))
+            ((EpsilonRuntimeSubjectReference row)
+              (EpsilonRuntimeReferenceBucketAt locals fields callables
+                (EpsilonRuntimeControlBucketAt states
+                  (MoreEpsilonTransitionSubjectReferences row subjects) patterns)))
+            ((EpsilonRuntimePatternReference row)
+              (EpsilonRuntimeReferenceBucketAt locals fields callables
+                (EpsilonRuntimeControlBucketAt states subjects
+                  (MoreEpsilonTransitionPatternReferences row patterns))))))))))

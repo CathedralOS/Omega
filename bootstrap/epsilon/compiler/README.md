@@ -21,6 +21,7 @@ normative Epsilon request or observation envelope.
 | Calls | [`execution/calls.delta`](execution/calls.delta) dispatches checked callable identities. [`calls/receivers.delta`](execution/calls/receivers.delta) selects the receiver place; [`arguments.delta`](execution/arguments.delta) captures value arguments; [`calls/parameters.delta`](execution/calls/parameters.delta) installs and releases callee homes. |
 | Expressions | [`execution/expressions.delta`](execution/expressions.delta) dispatches expression forms and carries effects into scalar operations, calls, and storage access. |
 | Sums | [`execution/sums/construction.delta`](execution/sums/construction.delta) captures checked constructor payloads; [`defaults.delta`](execution/sums/defaults.delta) normalizes lazy zero sums. [`transitions.delta`](execution/sums/transitions.delta) selects checked cases; [`bindings.delta`](execution/sums/bindings.delta) establishes independent arm-local payload homes. |
+| Runtime references | [`execution/references.delta`](execution/references.delta) prepares the shared index and complete linear fallback. [`rows.delta`](execution/references/rows.delta) sequences expression ledgers; [`control_rows.delta`](execution/references/control_rows.delta) selects state, subject, and completed-pattern records. [`construction.delta`](execution/references/construction.delta) owns interval insertion, [`buckets.delta`](execution/references/buckets.delta) preserves typed ledger order, and [`lookup.delta`](execution/references/lookup.delta) delegates exact queries. |
 | Projections | [`execution/projections/fields.delta`](execution/projections/fields.delta) selects checked record fields and contextual array/view members; [`indexes.delta`](execution/projections/indexes.delta) evaluates indexes and checks bounds before access. |
 | Views | [`execution/views/slices.delta`](execution/views/slices.delta) sequences base and bound evaluation. [`backing.delta`](execution/views/backing.delta) reads ultimate backing and implements place-only `.as_slice`; [`strings.delta`](execution/views/strings.delta) decodes literal bytes. |
 | Storage | [`execution/storage/homes.delta`](execution/storage/homes.delta) owns runtime roots, reads, writes, and reclamation. [`places.delta`](execution/storage/places.delta) walks projection paths; [`liveness.delta`](execution/storage/liveness.delta) retains backing roots needed by surviving state views. Sibling files own immutable values, sparse children, and local bindings. |
@@ -28,7 +29,7 @@ normative Epsilon request or observation envelope.
 | Runtime operations | [`execution/statements.delta`](execution/statements.delta) applies statements. `scalars/` and `control/` own scalar operations and block/state control. |
 | Shared representations | [`representations/`](representations/) groups syntax, parsing outcomes, checked facts, diagnostics, and execution values by concept. |
 
-The 76 authoring members have at most 450 lines each; the root entrance has 22.
+The 82 authoring members have at most 450 lines each; the root entrance has 22.
 Files end at complete top-level Delta forms. They are not independent Delta
 modules: they share one translation unit and the language gains no imports.
 
@@ -46,11 +47,26 @@ source inventory, then concatenates bytes without separators. It does not parse
 or lower Delta. Bootstrap callers use `OMEGA_PATH_EPSILON_COMPILER_SOURCES`
 from the shared role registry rather than reading the entrance as the full source.
 
-The packed evaluator is 11,280 lines / 568,684 bytes, SHA-256
-`68c0a974718e933bd9ca023b3b929ade0acda913aadd39112c422f29c7cd120b`.
+The packed evaluator is 11,688 lines / 591,132 bytes, SHA-256
+`c8a330c8c777e23b9b555adfeccb7485c5b7f66f128c709232e445fa4036f2b5`.
 When editing a member, update its manifest length and digest; change membership
 explicitly when adding or removing source. Update exact test identities only
 after reviewing the semantic change and its generated receipt.
+
+Runtime reference lookup uses a derivative index, not a replacement checked
+program. Entry builds an immutable interval tree over source-start coordinates.
+Each leaf retains separate ordered local, field, callable, state-application,
+transition-subject, and completed-pattern ledgers. Original lookup helpers still
+own exact kind/span matching and progress precedence. Callable grouping is
+normalized before bucket selection; other queries retain their exact targets.
+State rows preserve both Complete and Resolved records, while only Complete
+pattern records enter the index. Missing completion cannot become executable.
+All invocations share the tree, never their local values or roots. Invalid build
+premises retain all six original query ledgers, including incomplete pattern
+facts, in a linear fallback. Coverage remains in the unchanged checking ledger
+and has no runtime query. Construction allocates logarithmic paths in the
+existing Gamma pair arena; it neither enlarges that profile nor establishes
+Epsilon's final physical storage bounds.
 
 ## Validation and completion
 
@@ -61,6 +77,7 @@ sh tests/bootstrap/source-closure.sh
 sh tools/bootstrap/check-chain-hygiene.sh
 sh tests/epsilon/delta-boundary-experiment/run.sh
 sh tests/epsilon/checking/run.sh
+sh tests/epsilon/runtime-references/run.sh
 sh tests/epsilon/interpreted-omega-experiment/run.sh
 sh tests/delta/staged-compiler/run.sh
 ```

@@ -7,9 +7,9 @@
   (store EpsilonRuntimeStore) (output Bytes)) EpsilonEvaluatorOutcome
   (match context
     ((EpsilonEvaluatorInvocationContext source machineValue references
-      fieldReferences callables control receiver blockFloor)
-      (match (epsilon_find_resolved_callable_reference_normalized expressionValue
-        callables)
+      receiver blockFloor)
+      (match (epsilon_runtime_find_callable_reference_normalized expressionValue
+        references)
         (NoEpsilonResolvedCallableReference
           (EpsilonEvaluatorInternal (epsilon_expression_start expressionValue)))
         ((OneEpsilonResolvedCallableReference callable)

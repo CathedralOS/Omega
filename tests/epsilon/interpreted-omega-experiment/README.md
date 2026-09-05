@@ -16,8 +16,8 @@ Delta-written Epsilon evaluator + exact Epsilon-written Omega D
 The gate requires the Omega product build to bind exactly one
 `alpha_bootstrap::ProgramEntry`, requires Omega D to retain its Alpha tape
 construction, and rejects any `EpsilonAlpha`/`epsilon_alpha_` backend residue in
-the Delta-written Epsilon implementation. The evaluator is currently 11,280
-lines / 568,684 bytes, authored in 76 explicitly manifested members.
+the Delta-written Epsilon implementation. The evaluator is currently 11,688
+lines / 591,132 bytes, authored in 82 explicitly manifested members.
 
 The executable slice runs the current checking pipeline, locates `Main::main`,
 and executes an empty entry, scalar `let` and local/parameter assignment,
@@ -70,8 +70,8 @@ cannot survive in the final evaluator.
 The gate compiles the exact evaluator plus the 54-line / 2,505-byte
 `execution_driver.delta` (SHA-256
 `68c21b984122cad9d47ddde5b9681da6cadf80aa1ead2da41cf7bb8817dc372e`) through the
-selected Delta route and pins the 680,334-byte Gamma receipt, SHA-256
-`c95325ec61f294cd87360be5559898689d25527538c64994bf21b2ff7799ef23`.
+selected Delta route and pins the 698,283-byte Gamma receipt, SHA-256
+`a75a079ad24bdf097ddce56e5816d84108b62c8a676c1c570a619a78423e84c3`.
 The ordinary controls cover
 success, local, receiver-field, and fixed-array values, repeated mutation,
 output, comparisons, bitwise/shift/division behavior, short-circuiting, bounds
@@ -100,13 +100,29 @@ all resource bounds, root-release paths, or identifier-exhaustion behavior.
 A standalone byte-array control passes and returns a fixed array by value,
 indexes a returned non-place value, reads its `.len`, and mutates a local copy
 without changing the original array.
+The contextual-field control combines array/view lengths with nested authored
+record fields named `len` and `as_slice`. Effectful receiver indexes run once,
+and a retained array view observes a later update. Runtime array/view `.len`
+selection skips the unrelated record-field ledger; named records still consume
+their exact checked projection identities.
+Checked local, record-field, callable, state-application, transition-subject,
+and completed-pattern references are indexed once at entry and shared by calls
+and state transfers. Their separate source-start bucket ledgers retain original
+kind/span matching and progress precedence, so nested postfix projections with
+the same start cannot answer for one another. Callable grouping normalizes
+before bucket selection; invocation-local values and storage remain separate.
+Missing Complete pattern facts remain missing. Invalid construction preserves
+all original query ledgers for linear lookup, including incomplete pattern
+records. The [direct reference controls](../runtime-references/README.md)
+compare indexed and original lookup on synthetic checked facts independently
+of this source-program execution gate.
 
 The development driver receives a four-byte little-endian source length,
 exactly that many Epsilon source bytes, and all remaining bytes as sealed stdin.
 The host only frames bytes; ordinary Delta code separates the two inputs.
 The split builds balanced byte trees. The host diagnostic timeout is 300 seconds
 per compilation or execution, not an Epsilon observation or resource verdict;
-the whole D Alpha-tape customer takes about 166 seconds on the measured host.
+the whole D Alpha-tape customer takes about 141 seconds on the measured host.
 Gamma's published resource profile is unchanged.
 This is private test framing, not the final evaluator request/observation
 envelope. Six malformed-frame controls expect the single tag byte `05`,
@@ -200,6 +216,37 @@ Its 34,904-byte source exercises all four cases in D's actual
 cover admitted and rejected digits; the expected result is tagged `Exit(0)`
 with stdout `A`.
 
+The fifth customer combines the unchanged `representations.epsilon`,
+`request_and_utf8.epsilon`, `lexical_classification.epsilon`, and `lexer.epsilon`
+members with [`customers/omega_lexer/main.epsilon`](customers/omega_lexer/main.epsilon).
+The four production members total 85,458 bytes. The 160-line / 6,771-byte Main
+has SHA-256 `e4a262f1b011402970f958afbc6c950882bb75906fc7244b3ea19c8d489a0e06`;
+the complete 3,377-line / 92,229-byte customer has SHA-256
+`d53f8f57eb7963c1a3126d206edc9b3b6c2bd4c2fd19c0989cf68053c7abf4bd`.
+Its 32 assertions and 14 checked sum cases call D's actual `scan_at` and
+`validate_lexical` entries. They require exact token kinds, spans, cursors,
+keyword/punctuation/base metadata, escaped-string length, nested comments,
+whole-view completion, UTF-8 priority, trailing out-of-profile rejection,
+unterminated comments, unsupported escapes, and recovery after a previous
+failure. The required observation is tagged `Exit(0)` with stdout `A`.
+The complete default gate produced that exact observation in 282.011 seconds
+on the measured host, within the unchanged 300-second watchdog. This remains
+a narrow timing margin, not an Epsilon execution bound or a portable speed claim.
+No scanner function is extracted, rewritten, or replaced; this contract is not
+evidence of complete Omega parsing or compilation.
+
+Run that customer alone with:
+
+```sh
+sh tests/epsilon/interpreted-omega-experiment/run.sh --customer 'Omega D lexer'
+```
+
+Selection retains all fixture and member identity checks, exact evaluator
+receipt reconstruction, and seven private-framing controls. It then executes
+only the named customer; a missing, empty, or unknown name cannot produce an
+empty passing selection. Omitting the option runs the complete inventory. A
+selected-customer result does not replace full-suite evidence.
+
 Sixteen sum controls cover nullary spellings, first-case defaults, nested sums
 in records/arrays, payload ByteRange and argument traps, once-only subjects,
 wildcards, snapshots before later argument effects, binder copies and receiver
@@ -211,8 +258,8 @@ The relationship between that store failure and later argument effects awaits
 the [payload-establishment ruling](../../../OWNER_QUESTIONS.md#epsilon-constructor-payload-establishment-order).
 This control does not bless `Unsupported` as language behavior.
 
-The inventory specifies 142 diagnostic results: 141 language/customer judgments
-(137 ordinary fixtures and four whole-member D customers), plus one explicit
+The inventory specifies 144 diagnostic results: 143 language/customer judgments
+(138 ordinary fixtures and five whole-member D customers), plus one explicit
 staging refusal. Seven private-framing controls are counted separately. The companion
 [checking gate](../checking/README.md) pins exact checker reasons and coordinates
 without executing Epsilon programs; this gate retains execution and whole-D

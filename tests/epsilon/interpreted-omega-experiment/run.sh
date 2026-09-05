@@ -1,6 +1,15 @@
 #!/usr/bin/env sh
 set -eu
 
+EPSILON_SELECTED_CUSTOMER=
+if [ "$#" -ne 0 ]; then
+    if [ "$#" -ne 2 ] || [ "$1" != "--customer" ] || [ -z "$2" ]; then
+        echo "usage: sh run.sh [--customer 'Omega D customer name']" >&2
+        exit 2
+    fi
+    EPSILON_SELECTED_CUSTOMER=$2
+fi
+
 TEST_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd -P)
 OMEGA_REPO_ROOT=$(CDPATH= cd -- "$TEST_DIR/../../.." && pwd -P)
 export OMEGA_REPO_ROOT
@@ -41,24 +50,26 @@ grep -F 'data AlphaTapeBuffer {' "$TMP/omega_compiler.epsilon" >/dev/null || {
 
 EPSILON_LINES=$(wc -l < "$EPSILON" | tr -d ' ')
 EPSILON_BYTES=$(wc -c < "$EPSILON" | tr -d ' ')
-[ "$EPSILON_LINES" -eq 11280 ]
-[ "$EPSILON_BYTES" -eq 568684 ]
+[ "$EPSILON_LINES" -eq 11688 ]
+[ "$EPSILON_BYTES" -eq 591132 ]
 
 materialize_gamma_evaluator "$TMP/evaluator" >/dev/null
 EPSILON="$EPSILON" DELTA="$DELTA" DRIVER="$DRIVER" TEST_DIR="$TEST_DIR" \
+    EPSILON_SELECTED_CUSTOMER="$EPSILON_SELECTED_CUSTOMER" \
     EVALUATOR="$TMP/evaluator" python3 - <<'PY'
 import csv
 import hashlib
 import os
 import struct
 import subprocess
+import time
 from pathlib import Path
 
 artifacts = {
     "evaluator source": (
         Path(os.environ["EPSILON"]).read_bytes(),
-        568684,
-        "68c0a974718e933bd9ca023b3b929ade0acda913aadd39112c422f29c7cd120b",
+        591132,
+        "c8a330c8c777e23b9b555adfeccb7485c5b7f66f128c709232e445fa4036f2b5",
     ),
     "slice driver": (
         Path(os.environ["DRIVER"]).read_bytes(),
@@ -140,6 +151,26 @@ add_customer("Omega D numeric-base sums", (
      "abf50c23d589624d59b7b3603918d5ab76e6a6192594c50534fbee6cdf334386"),
 ), 34904, "0f7f338afa427419fd6cea2e0f0536263d06ff8e41f1720b2e077cb702d1be0e", b"\x00\x00\x00\x00\x00A")
 
+add_customer("Omega D lexer", (
+    (omega_compiler / "representations.epsilon", 30905,
+     "7b2b1ca57752256e9b10446ea8a2469075d9a0cac11ffe97f2037340528064ed"),
+    (omega_compiler / "request_and_utf8.epsilon", 7384,
+     "663acd44f754150f9cfea7bf3e08afda6b13aeca99b4a7fc08141ae66da89abe"),
+    (omega_compiler / "lexical_classification.epsilon", 2520,
+     "12a3775f19ac6030bcca609acbf530ee64a09111cc24d7e941292e0d05fd996f"),
+    (omega_compiler / "lexer.epsilon", 44649,
+     "e16e7a42ee0848ff56b06dff4e9900569ae57724a281c0d3bada847717412ba6"),
+    (test_directory / "customers/omega_lexer/main.epsilon", 6771,
+     "e4a262f1b011402970f958afbc6c950882bb75906fc7244b3ea19c8d489a0e06"),
+), 92229, "d53f8f57eb7963c1a3126d206edc9b3b6c2bd4c2fd19c0989cf68053c7abf4bd", b"\x00\x00\x00\x00\x00A")
+
+selected_customer = os.environ["EPSILON_SELECTED_CUSTOMER"]
+if selected_customer:
+    if not selected_customer.startswith("Omega D ") or selected_customer not in controls:
+        raise SystemExit(f"unknown exact Omega D customer: {selected_customer}")
+    controls = {selected_customer: controls[selected_customer]}
+    print(f"Selected Epsilon customer: {selected_customer}", flush=True)
+
 compiler = Path(os.environ["DELTA"]).read_bytes()
 subject = artifacts["evaluator source"][0] + artifacts["slice driver"][0]
 request = (
@@ -158,13 +189,13 @@ def evaluate(program, sealed_input=b"", timeout=300):
     return process.returncode, process.stdout
 
 status, receipt = evaluate(compiler, request)
-if status != 0 or len(receipt) != 680334:
+if status != 0 or len(receipt) != 698283:
     raise SystemExit(
         f"evaluator slice returned {status} with {len(receipt)} bytes "
         f"and SHA-256 {hashlib.sha256(receipt).hexdigest()}"
     )
 if hashlib.sha256(receipt).hexdigest() != (
-    "c95325ec61f294cd87360be5559898689d25527538c64994bf21b2ff7799ef23"
+    "a75a079ad24bdf097ddce56e5816d84108b62c8a676c1c570a619a78423e84c3"
 ):
     raise SystemExit(
         "evaluator receipt identity changed to "
@@ -191,6 +222,7 @@ print(f"Epsilon development framing: {len(driver_controls)} observations pass", 
 for name, (source, stdin, expected) in controls.items():
     # Development-only separation of source and stdin, not the final Epsilon envelope.
     application_input = struct.pack("<I", len(source)) + source + stdin
+    started = time.monotonic()
     status, observation = evaluate(receipt, application_input)
     if (status, observation) != (0, expected):
         raise SystemExit(
@@ -198,8 +230,15 @@ for name, (source, stdin, expected) in controls.items():
             f"received status {status} and {observation.hex()}"
         )
     if name.startswith("Omega D "):
-        print(f"{name}: exact observation passes", flush=True)
+        print(
+            f"{name}: exact observation passes in {time.monotonic() - started:.3f}s",
+            flush=True,
+        )
 print(f"Epsilon execution: {len(controls)} exact diagnostic results pass", flush=True)
 PY
 
-echo "Interpreted Omega experiment: values, views, sums, state transfers, and exact D customers pass"
+if [ -n "$EPSILON_SELECTED_CUSTOMER" ]; then
+    echo "Interpreted Omega customer: $EPSILON_SELECTED_CUSTOMER passes"
+else
+    echo "Interpreted Omega experiment: values, views, sums, state transfers, and exact D customers pass"
+fi

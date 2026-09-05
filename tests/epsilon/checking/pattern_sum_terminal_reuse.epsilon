@@ -1,0 +1,20 @@
+boundary trait Console {
+  machine exit_process(return_code: i32) -> never;
+  machine write_byte(value: i32);
+  machine read_byte() -> i32;
+  machine write_line(text: &[u8]);
+}
+
+data Main { console: Console; }
+machine Main::main(&mut self) {}
+
+data Choice { case First; case Second; }
+machine first(value: Choice) {
+  transition value { Choice::First -> next(value) Choice::Second -> return }
+  state next(item: Choice) {
+    transition item { Choice::First -> return Choice::Second -> return }
+  }
+}
+machine second(value: Choice) {
+  transition value { Choice::First -> return Choice::Second -> return _ -> return }
+}

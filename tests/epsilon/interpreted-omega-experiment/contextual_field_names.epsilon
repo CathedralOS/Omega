@@ -1,0 +1,34 @@
+boundary trait Console {
+  machine exit_process(return_code: i32) -> never;
+  machine write_byte(value: i32);
+  machine read_byte() -> i32;
+  machine write_line(text: &[u8]);
+}
+
+data Names { len: i32; as_slice: u8; }
+data Group { names: Names; bytes: [u8; 2]; }
+data Main { console: Console; groups: [Group; 2]; selections: i32; }
+
+machine Main::main(&mut self) {
+  assert self.groups[1].names.len == 0 && self.groups[1].names.as_slice == 0;
+  self.groups[1].names.len = 7;
+  self.groups[1].names.as_slice = 64;
+  self.groups[1].names.len = self.groups[1].names.len + 1;
+  self.groups[1].names.as_slice = self.groups[1].names.as_slice + 1;
+  assert self.groups[1].names.len == 8 && self.groups[1].names.as_slice == 65;
+  assert self.groups[0].names.len == 0 && self.groups[0].names.as_slice == 0;
+  let array_length: i32 = self.groups[self.select()].bytes.len;
+  assert array_length == 2 && self.selections == 1;
+  let authored_length: i32 = self.groups[self.select()].names.len;
+  assert authored_length == 8 && self.selections == 2;
+  let view: &[u8] = self.groups[self.select()].bytes.as_slice;
+  assert view.len == 2 && self.selections == 3;
+  self.groups[1].bytes[0] = self.groups[1].names.as_slice;
+  assert view[0] == 65 && view[1] == 0;
+  self.console.write_byte(view[0]);
+}
+
+machine Main::select(&mut self) -> i32 {
+  self.selections = self.selections + 1;
+  return 1;
+}

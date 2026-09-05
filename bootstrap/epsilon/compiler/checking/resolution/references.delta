@@ -311,7 +311,10 @@
             (epsilon_resolved_sum_cases_same_identity leftCase rightCase)
             0))))))
 
-(def epsilon_transition_pattern_identity_is_owned
+; Checking prepends one terminal's pattern facts contiguously. Continuations
+; cannot introduce another terminal, so older terminals end this search. This
+; query is only for that current prefix, not the reversed execution ledger.
+(def epsilon_current_transition_prefix_owns_identity
   ((targetTerminal EpsilonTerminal)
    (targetIdentity EpsilonTransitionPatternIdentity)
    (references EpsilonTransitionPatternReferenceList)) Int
@@ -320,23 +323,28 @@
     ((MoreEpsilonTransitionPatternReferences item rest)
       (match item
         ((EpsilonTransitionPatternNameResolved terminalValue patternValue kind)
-          (epsilon_transition_pattern_identity_is_owned targetTerminal
-            targetIdentity rest))
+          (if (epsilon_terminals_same_identity targetTerminal terminalValue)
+            (epsilon_current_transition_prefix_owns_identity targetTerminal
+              targetIdentity rest)
+            0))
         ((EpsilonTransitionPatternSubjectAdmitted terminalValue patternValue kind)
-          (epsilon_transition_pattern_identity_is_owned targetTerminal
-            targetIdentity rest))
+          (if (epsilon_terminals_same_identity targetTerminal terminalValue)
+            (epsilon_current_transition_prefix_owns_identity targetTerminal
+              targetIdentity rest)
+            0))
         ((EpsilonTransitionPatternIdentityOwned terminalValue patternValue identity)
           (if (epsilon_terminals_same_identity targetTerminal terminalValue)
             (if (epsilon_transition_pattern_identities_same targetIdentity
               identity)
               1
-              (epsilon_transition_pattern_identity_is_owned targetTerminal
+              (epsilon_current_transition_prefix_owns_identity targetTerminal
                 targetIdentity rest))
-            (epsilon_transition_pattern_identity_is_owned targetTerminal
-              targetIdentity rest)))
+            0))
         ((EpsilonTransitionPatternComplete terminalValue patternValue kind)
-          (epsilon_transition_pattern_identity_is_owned targetTerminal
-            targetIdentity rest))))))
+          (if (epsilon_terminals_same_identity targetTerminal terminalValue)
+            (epsilon_current_transition_prefix_owns_identity targetTerminal
+              targetIdentity rest)
+            0))))))
 
 (def epsilon_control_find_state_application ((target EpsilonExpression)
   (control EpsilonControlReferenceLedger)) EpsilonStateApplicationReferenceLookup

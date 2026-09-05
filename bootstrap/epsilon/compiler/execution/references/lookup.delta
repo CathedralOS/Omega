@@ -1,0 +1,82 @@
+; Bucket selection only narrows the ledger. Each query still delegates to the
+; original exact kind/start/end matcher in its own reference kind.
+(def epsilon_runtime_find_reference_bucket ((coordinate Int) (low Int) (high Int)
+  (tree EpsilonRuntimeReferenceTree)) EpsilonRuntimeReferenceBucket
+  (match tree
+    (EmptyEpsilonRuntimeReferenceTree (epsilon_runtime_empty_reference_bucket))
+    ((LeafEpsilonRuntimeReferenceTree bucket)
+      (if (eq (- high low) 1)
+        bucket
+        (epsilon_runtime_empty_reference_bucket)))
+    ((BranchEpsilonRuntimeReferenceTree left right)
+      (if (lt 1 (- high low))
+        (let middle Int (+ low (/ (- high low) 2))
+          (if (lt coordinate middle)
+            (epsilon_runtime_find_reference_bucket coordinate low middle left)
+            (epsilon_runtime_find_reference_bucket coordinate middle high right)))
+        (epsilon_runtime_empty_reference_bucket)))))
+
+(def epsilon_runtime_reference_bucket ((start Int) (end Int)
+  (references EpsilonRuntimeReferences)) EpsilonRuntimeReferenceBucket
+  (match references
+    ((LinearEpsilonRuntimeReferences original) original)
+    ((IndexedEpsilonRuntimeReferences extent tree)
+      (if (epsilon_runtime_reference_span_valid start end extent)
+        (epsilon_runtime_find_reference_bucket
+          start 0 extent tree)
+        (epsilon_runtime_empty_reference_bucket)))))
+
+(def epsilon_runtime_find_local_reference ((target EpsilonExpression)
+  (references EpsilonRuntimeReferences)) EpsilonResolvedLocalReferenceLookup
+  (match (epsilon_runtime_reference_bucket (epsilon_expression_start target)
+    (epsilon_expression_end target) references)
+    ((EpsilonRuntimeReferenceBucketAt locals fields callables control)
+      (epsilon_find_resolved_local_reference target locals))))
+
+(def epsilon_runtime_find_field_reference ((target EpsilonExpression)
+  (references EpsilonRuntimeReferences)) EpsilonResolvedFieldReferenceLookup
+  (match (epsilon_runtime_reference_bucket (epsilon_expression_start target)
+    (epsilon_expression_end target) references)
+    ((EpsilonRuntimeReferenceBucketAt locals fields callables control)
+      (epsilon_find_resolved_field_reference target fields))))
+
+; Group wrappers have distinct starts. Normalize before choosing the bucket,
+; not after choosing the outer wrapper's bucket. Local and field queries do not
+; normalize, and an application retains its own exact callable custody.
+(def epsilon_runtime_find_callable_reference_normalized
+  ((target EpsilonExpression) (references EpsilonRuntimeReferences))
+  EpsilonResolvedCallableReferenceLookup
+  (let core EpsilonExpression (epsilon_call_head_core target)
+    (match (epsilon_runtime_reference_bucket (epsilon_expression_start core)
+      (epsilon_expression_end core) references)
+      ((EpsilonRuntimeReferenceBucketAt locals fields callables control)
+        (epsilon_find_resolved_callable_reference core callables)))))
+
+; State syntax is already normalized by the control-expression caller. Preserve
+; both progress stages and delegate their exact precedence to the checked lookup.
+(def epsilon_runtime_find_state_application ((target EpsilonExpression)
+  (references EpsilonRuntimeReferences)) EpsilonStateApplicationReferenceLookup
+  (match (epsilon_runtime_reference_bucket (epsilon_expression_start target)
+    (epsilon_expression_end target) references)
+    ((EpsilonRuntimeReferenceBucketAt locals fields callables control)
+      (match control
+        ((EpsilonRuntimeControlBucketAt states subjects patterns)
+          (epsilon_find_state_application_reference target states))))))
+
+(def epsilon_runtime_find_transition_subject ((target EpsilonTerminal)
+  (references EpsilonRuntimeReferences)) EpsilonTransitionSubjectReferenceLookup
+  (match (epsilon_runtime_reference_bucket (epsilon_runtime_terminal_start target)
+    (epsilon_terminal_end target) references)
+    ((EpsilonRuntimeReferenceBucketAt locals fields callables control)
+      (match control
+        ((EpsilonRuntimeControlBucketAt states subjects patterns)
+          (epsilon_find_transition_subject_reference target subjects))))))
+
+(def epsilon_runtime_find_complete_transition_pattern ((target EpsilonPattern)
+  (references EpsilonRuntimeReferences)) EpsilonTransitionPatternKindLookup
+  (match (epsilon_runtime_reference_bucket (epsilon_pattern_start target)
+    (epsilon_pattern_end target) references)
+    ((EpsilonRuntimeReferenceBucketAt locals fields callables control)
+      (match control
+        ((EpsilonRuntimeControlBucketAt states subjects patterns)
+          (epsilon_find_transition_pattern_complete target patterns))))))

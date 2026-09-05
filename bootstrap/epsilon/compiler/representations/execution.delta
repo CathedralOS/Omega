@@ -110,12 +110,43 @@
   (EpsilonEvaluatorInternal Int)
   (EpsilonEvaluatorUnsupported))
 
+; Runtime buckets retain original checked rows in their own typed ledgers.
+; Indexing narrows lookup, never replaces exact expression identity or order.
+(data EpsilonRuntimeReference
+  (EpsilonRuntimeLocalReference EpsilonResolvedLocalReference)
+  (EpsilonRuntimeFieldReference EpsilonResolvedFieldReference)
+  (EpsilonRuntimeCallableReference EpsilonResolvedCallableReference)
+  (EpsilonRuntimeStateReference EpsilonStateApplicationReference)
+  (EpsilonRuntimeSubjectReference EpsilonTransitionSubjectReference)
+  (EpsilonRuntimePatternReference EpsilonTransitionPatternReference))
+
+(data EpsilonRuntimeControlBucket
+  (EpsilonRuntimeControlBucketAt EpsilonStateApplicationReferenceList
+    EpsilonTransitionSubjectReferenceList EpsilonTransitionPatternReferenceList))
+
+(data EpsilonRuntimeReferenceBucket
+  (EpsilonRuntimeReferenceBucketAt EpsilonResolvedLocalReferenceList
+    EpsilonResolvedFieldReferenceList EpsilonResolvedCallableReferenceList
+    EpsilonRuntimeControlBucket))
+
+(data EpsilonRuntimeReferenceTree
+  (EmptyEpsilonRuntimeReferenceTree)
+  (BranchEpsilonRuntimeReferenceTree
+    EpsilonRuntimeReferenceTree EpsilonRuntimeReferenceTree)
+  (LeafEpsilonRuntimeReferenceTree EpsilonRuntimeReferenceBucket))
+
+(data EpsilonRuntimeReferences
+  (IndexedEpsilonRuntimeReferences Int EpsilonRuntimeReferenceTree)
+  (LinearEpsilonRuntimeReferences EpsilonRuntimeReferenceBucket))
+
+(data EpsilonRuntimeReferenceInsertion
+  (InsertedEpsilonRuntimeReference EpsilonRuntimeReferenceTree)
+  (InvalidEpsilonRuntimeReferenceInsertion))
+
 ; The block-root floor is fixed after machine-parameter homes are installed.
 (data EpsilonEvaluatorInvocation
   (EpsilonEvaluatorInvocationContext Bytes EpsilonDeclaration
-    EpsilonResolvedLocalReferenceList EpsilonResolvedFieldReferenceList
-    EpsilonResolvedCallableReferenceList EpsilonControlReferenceLedger
-    EpsilonRuntimeOptionalPlace Int))
+    EpsilonRuntimeReferences EpsilonRuntimeOptionalPlace Int))
 
 (data EpsilonEvaluatorBlockOutcome
   (EpsilonEvaluatorBlockFalloff EpsilonEvaluatorBindings EpsilonRuntimeStore Bytes)

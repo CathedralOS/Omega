@@ -6,8 +6,8 @@
   EpsilonEvaluatorBlockOutcome
   (match context
     ((EpsilonEvaluatorInvocationContext source machineValue references
-      fieldReferences callables control receiver blockRootFloor)
-      (match (epsilon_control_find_state_application expressionValue control)
+      receiver blockRootFloor)
+      (match (epsilon_runtime_find_state_application expressionValue references)
         (NoEpsilonStateApplicationReference
           (match (epsilon_evaluate_expression context expressionValue bindings
             store output)
@@ -102,9 +102,9 @@
         ((EpsilonArmSyntax start end patternValue continuation)
           (match context
             ((EpsilonEvaluatorInvocationContext source machineValue references
-              fieldReferences callables control receiver blockRootFloor)
-              (match (epsilon_control_find_complete_transition_pattern
-                patternValue control)
+              receiver blockRootFloor)
+              (match (epsilon_runtime_find_complete_transition_pattern
+                patternValue references)
                 (NoEpsilonTransitionPatternKind
                   (EpsilonEvaluatorBlockInternal start))
                 ((OneEpsilonTransitionPatternKind kind)
@@ -131,8 +131,8 @@
     ((EpsilonTransitionTerminal start end expressionValue arms)
       (match context
         ((EpsilonEvaluatorInvocationContext source machineValue references
-          fieldReferences callables control receiver blockRootFloor)
-          (match (epsilon_control_find_transition_subject terminalValue control)
+          receiver blockRootFloor)
+          (match (epsilon_runtime_find_transition_subject terminalValue references)
             (NoEpsilonTransitionSubjectReference
               (EpsilonEvaluatorBlockInternal start))
             ((OneEpsilonTransitionSubjectReference kind)

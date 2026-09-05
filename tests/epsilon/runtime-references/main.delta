@@ -1,0 +1,7 @@
+; Each control query emits index shape, linear selection, then indexed selection.
+; The host compares exact bytes;
+; all AST construction and lookup decisions are ordinary evaluated Delta.
+(def main ((input Bytes)) Bytes
+  (bytes_concat (reference_test_states)
+    (bytes_concat (reference_test_subjects)
+      (bytes_concat (reference_test_patterns) (reference_test_expressions)))))

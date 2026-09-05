@@ -73,8 +73,8 @@
   (store EpsilonRuntimeStore) (output Bytes)) EpsilonEvaluatorOutcome
   (match context
     ((EpsilonEvaluatorInvocationContext source machineValue references
-      fieldReferences callables control receiver blockRootFloor)
-      (match (epsilon_find_resolved_local_reference expressionValue references)
+      receiver blockRootFloor)
+      (match (epsilon_runtime_find_local_reference expressionValue references)
         (NoEpsilonResolvedLocalReference
           (EpsilonEvaluatorInternal (epsilon_expression_start expressionValue)))
         ((OneEpsilonResolvedLocalReference bindingValue)

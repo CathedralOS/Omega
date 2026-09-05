@@ -12,8 +12,8 @@
         ((EpsilonArmSyntax start end patternValue continuation)
           (match context
             ((EpsilonEvaluatorInvocationContext source machineValue references
-              fieldReferences callables control receiver blockFloor)
-              (match (epsilon_control_find_complete_transition_pattern patternValue control)
+              receiver blockFloor)
+              (match (epsilon_runtime_find_complete_transition_pattern patternValue references)
                 (NoEpsilonTransitionPatternKind (EpsilonEvaluatorBlockInternal start))
                 ((OneEpsilonTransitionPatternKind kind)
                   (match kind
@@ -36,7 +36,7 @@
   EpsilonEvaluatorBlockOutcome
   (match context
     ((EpsilonEvaluatorInvocationContext source machineValue references
-      fieldReferences callables control receiver blockFloor)
+      receiver blockFloor)
       (match (epsilon_runtime_normalize_sum source owner value)
         (NoEpsilonRuntimeValue (EpsilonEvaluatorBlockInternal (epsilon_declaration_end owner)))
         ((SomeEpsilonRuntimeValue normalized)
