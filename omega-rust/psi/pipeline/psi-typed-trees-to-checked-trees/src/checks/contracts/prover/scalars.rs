@@ -11,6 +11,45 @@ use psi_typed_trees::expression::{
 
 pub(in crate::checks::contracts) use psi_facts::ScalarValue;
 
+/// Closed Boolean facts need no state-entry premise. Resolve no names or
+/// runtime leaves, and use only the independently selected builtin meanings.
+pub(in crate::checks::contracts) fn closed_boolean_value(
+    program: &TypedTrees,
+    operators: &psi_checked_trees::CheckedOperatorFacts,
+    expression: ExpressionHandle,
+) -> Option<bool> {
+    if !has_builtin_operators(program, operators, expression) {
+        return None;
+    }
+    let ScalarValue::Boolean(value) = evaluate(program, expression, &mut |_| None)? else {
+        return None;
+    };
+    Some(value)
+}
+
+pub(in crate::checks::contracts) fn has_builtin_operators(
+    program: &TypedTrees,
+    operators: &psi_checked_trees::CheckedOperatorFacts,
+    expression: ExpressionHandle,
+) -> bool {
+    if operators.uses.iter().any(|(_, operator_use)| {
+        operator_use.expression == expression
+            && operator_use.status
+                != psi_checked_trees::CheckedOperatorResolutionStatus::BuiltinFallback
+    }) {
+        return false;
+    }
+    match program.expression_table.expression(expression) {
+        ExpressionNode::Binary(binary) => {
+            has_builtin_operators(program, operators, binary.left)
+                && has_builtin_operators(program, operators, binary.right)
+        }
+        ExpressionNode::Unary(unary) => has_builtin_operators(program, operators, unary.operand),
+        ExpressionNode::Borrow(borrow) => has_builtin_operators(program, operators, borrow.target),
+        _ => true,
+    }
+}
+
 pub(super) fn literal(program: &TypedTrees, expression: ExpressionHandle) -> Option<ScalarValue> {
     if !program.expression_table.expression_is_valid(expression) {
         return None;
@@ -138,7 +177,66 @@ pub(super) fn evaluate_with_comparisons(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use psi_checked_trees::{
+        CheckedOperatorFacts, CheckedOperatorResolutionStatus, CheckedOperatorUseFact,
+    };
     use psi_typed_trees::expression::{TableBinaryExpression, TableUnaryExpression};
+
+    #[test]
+    fn closed_boolean_values_preserve_false_and_selected_operator_identity() {
+        let mut program = TypedTrees::default();
+        for left in [false, true] {
+            for right in [false, true] {
+                let left_expression = program
+                    .expression_table
+                    .insert(ExpressionNode::Boolean(left));
+                let right_expression = program
+                    .expression_table
+                    .insert(ExpressionNode::Boolean(right));
+                for (operator, expected) in [
+                    (BinaryOperator::Equal, left == right),
+                    (BinaryOperator::NotEqual, left != right),
+                ] {
+                    let expression = program.expression_table.insert(ExpressionNode::Binary(
+                        TableBinaryExpression {
+                            operator,
+                            left: left_expression,
+                            right: right_expression,
+                        },
+                    ));
+                    let mut operators = CheckedOperatorFacts::default();
+                    assert_eq!(
+                        closed_boolean_value(&program, &operators, expression),
+                        Some(expected)
+                    );
+                    operators.uses.append(CheckedOperatorUseFact {
+                        expression,
+                        status: CheckedOperatorResolutionStatus::BuiltinFallback,
+                        ..Default::default()
+                    });
+                    assert_eq!(
+                        closed_boolean_value(&program, &operators, expression),
+                        Some(expected)
+                    );
+                    // Even a conflicting later row must not be hidden by the
+                    // first matching builtin row or by an enclosing negation.
+                    operators.uses.append(CheckedOperatorUseFact {
+                        expression,
+                        status: CheckedOperatorResolutionStatus::Resolved,
+                        ..Default::default()
+                    });
+                    assert_eq!(closed_boolean_value(&program, &operators, expression), None);
+                    let negated = program.expression_table.insert(ExpressionNode::Unary(
+                        TableUnaryExpression {
+                            operator: UnaryOperator::LogicalNot,
+                            operand: expression,
+                        },
+                    ));
+                    assert_eq!(closed_boolean_value(&program, &operators, negated), None);
+                }
+            }
+        }
+    }
 
     #[test]
     fn short_circuit_proofs_do_not_query_the_unevaluated_operand() {
