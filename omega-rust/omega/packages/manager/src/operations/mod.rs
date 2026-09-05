@@ -15,6 +15,7 @@ mod compile_project;
 pub mod inspect_source;
 mod package_change;
 mod prepare_project;
+mod publication;
 mod recover_locked_sources;
 mod stage_build_edit;
 
@@ -32,6 +33,10 @@ pub use inspect_source::{
 };
 pub use package_change::{PackageChangeError, PackageChangeReview, review_package_change};
 pub use prepare_project::{PrepareLocalProjectError, PreparedLocalProject, prepare_local_project};
+pub use publication::{
+    PackageFileTransaction, PackagePublicationError, PackagePublicationLimits,
+    PublishReviewedPackageChangeError, publish_reviewed_package_change,
+};
 pub use recover_locked_sources::{
     LockedSourceRecoveryOptions, RecoverLockedSourcesError, recover_locked_sources,
 };

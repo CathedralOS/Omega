@@ -19,21 +19,7 @@ credential policy and audit seriousness belong to the operator, not Omega.
 Escalate a genuinely unclear authority boundary to an owner question before
 adding machinery; do not invent proof-of-review or host-security requirements.
 
-## 1. Simplify the existing implementation
-
-- [ ] **PACKAGE-ACCEPTANCE-SIMPLIFICATION.** In
-  `omega-rust/omega/packages/manager` and its review interfaces, replace the
-  certification/promotion prerequisites with compiler review plus explicit
-  project decisions. Reuse source resolution, checked review, comparison, and
-  decision handling. Remove wrappers and repeated reconstruction whose only
-  purpose is promoting the same in-process result into supposed trust.
-  Preserve checks that detect mismatched source, graph, target, review, or
-  decisions. Acceptance: a checked supported closure can enter a transaction
-  without native emission, a certificate-bearing package artifact, or a sealed
-  `PackageInstance`. Existing compiler proof/artifact validators retain their
-  actual guarantees.
-
-## 2. Resolve and check the candidate
+## 1. Resolve and check the candidate
 
 - [ ] **PACKAGE-REVIEW-PROJECTION.** Finish the compiler-to-manager report
   needed for supported source dependencies: package-qualified public APIs,
@@ -57,7 +43,7 @@ adding machinery; do not invent proof-of-review or host-security requirements.
   hide authority in generated code. Installing source does not publish a native
   executable.
 
-## 3. Record pins and accepted policy
+## 2. Record pins and accepted policy
 
 - [ ] **LOCK-BASELINE-RECOVERY.** Connect locked recovery and fresh checking
   to command-level lock loading and explicit missing-baseline/unavailable-source
@@ -72,13 +58,13 @@ adding machinery; do not invent proof-of-review or host-security requirements.
   Acceptance: fresh checkout, offline cache reuse, missing old source,
   mismatched content, and stale/incompatible review data have explicit outcomes.
 
-## 4. Review and publish the change
+## 3. Review and publish the change
 
-- [ ] **CAPABILITY-CONFLICT-TRANSACTION.** Connect staged dependency edits,
-  `review_package_change`, and its proposed lock section to a recoverable
-  install/update file transaction. Retain the edit plan and original live-source
-  identity through review and resume; do not reacquire the candidate as a
-  different project rooted at its temporary snapshot directory.
+- [ ] **CAPABILITY-CONFLICT-TRANSACTION.** Wire reviewed publication into
+  install/update commands and command-owned review-file persistence/resume.
+  Retain the edit plan and original live-source identity across resume; open
+  the project transaction before loading accepted files and recover pending
+  intent before treating the pair as a usable baseline.
   Capability changes block pending decisions for the exact changed
   rows, including removals; package-name/source replacement is explicit.
   Initial dangerous authority and accepted assumptions require review.
@@ -88,9 +74,10 @@ adding machinery; do not invent proof-of-review or host-security requirements.
   both alias and source change; graph comparison must not infer pairing from
   package names or authored positions.
   Recheck candidate identity and project-file versions before committing.
-  Acceptance: unresolved/stale decisions and concurrent edits leave the
-  previously accepted project state intact; interruption cannot leave
-  `build.omg` and `omega.lock` describing different accepted graphs.
+  Acceptance: unresolved/stale decisions and pre-publication concurrent edits
+  leave accepted project files intact. An interrupted pair is reported pending
+  and recovered before use; unexpected edited bytes stop recovery without being
+  overwritten. No mixed pair is silently treated as an accepted graph.
   Decision records identify accepted changes; they do not prove an audit.
 
 - [ ] **AUDIT-RESULT-INTEGRATION.** Present compiler-rendered capability diffs,
@@ -104,7 +91,7 @@ adding machinery; do not invent proof-of-review or host-security requirements.
   advisory service; package prose cannot inject instructions into capability
   triage. External project policy may require stronger review.
 
-## 5. Commands and integration tests
+## 4. Commands and integration tests
 
 - [ ] **OMEGA-INSTALL.** Implement
   `omega install <source> [--rev <revision>] [--as <alias>]` in

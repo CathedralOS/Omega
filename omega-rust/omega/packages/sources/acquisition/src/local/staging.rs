@@ -27,6 +27,9 @@ pub struct StagedLocalSnapshot {
     original: ResolvedLocalSource,
     normalized: ResolvedLocalSource,
     limits: LocalSourceLimits,
+    replacement_path: SourceRelativePath,
+    expected_sha256: [u8; 32],
+    replacement_sha256: [u8; 32],
 }
 
 impl StagedLocalSnapshot {
@@ -48,6 +51,18 @@ impl StagedLocalSnapshot {
 
     pub fn snapshot_root(&self) -> &Path {
         &self.normalized.root
+    }
+
+    pub fn replacement_path(&self) -> &SourceRelativePath {
+        &self.replacement_path
+    }
+
+    pub const fn expected_sha256(&self) -> &[u8; 32] {
+        &self.expected_sha256
+    }
+
+    pub const fn replacement_sha256(&self) -> &[u8; 32] {
+        &self.replacement_sha256
     }
 
     /// Detect edits since staging before the caller publishes project files.
@@ -85,6 +100,9 @@ pub fn stage_local_source_replacement_in_lane(
         original,
         normalized,
         limits,
+        replacement_path: relative_path.clone(),
+        expected_sha256: *expected_sha256,
+        replacement_sha256: Sha256::digest(replacement).into(),
     })
 }
 

@@ -7,8 +7,8 @@ The ratified destination is Cargo-like repository install/update with
 compiler-derived reachability, unsafe API, and assumption review. The lock
 records pins, the graph, accepted baselines, and decisions; the project trusts
 whoever lands it. No sealed/certified `PackageInstance` or certificate of lock
-acceptance is required. The implementation described below still contains
-redundant evidence-promotion and policy-replay machinery to simplify. Actual
+acceptance is required. Source publication consumes checked review and exact
+project decisions directly. Actual
 compiler proof/reach checks and native artifact validation remain independent
 of installation.
 
@@ -34,8 +34,8 @@ It accepts an automatic replacement only and checks the planner's old-file
 digest. The staged local project resolver reads the proposed declaration while
 preserving the original root path/context for package identity and relative
 dependency lookup. Keep the edit plan and staged original identity through
-review and publication. Staging does not freeze unaffected Git selectors or
-provide the recoverable two-file transaction; those remain command integration.
+review and publication. Staging does not freeze unaffected Git selectors;
+selective update resolution remains command integration.
 
 `operations::review_package_change` checks an already-resolved candidate for an
 exact target, rejects outstanding ordinary contract obligations in any package,
@@ -50,9 +50,14 @@ to accept, rechecks retained source snapshots and selections, and constructs the
 proposed target from complete candidate policy and direct decision history.
 Rejected, foreign, or stale choices cannot produce a proposal through this
 operation. The result remains an unwritten `PackageLockTarget`, not permission
-to publish. Command-owned review files, concurrent project edits, immediate
-source/build rechecks, multi-target reconciliation, and atomic file publication
-still belong to the transaction.
+to publish. `publish_reviewed_package_change` joins the staged edit and all
+retained target reviews to exact current project bytes, then records commit
+intent and publishes the pair under a project mutex. Interruption recovery
+completes forward only from recorded old/new contents; unrelated edits stop it.
+Ordinary project preparation coordinates with existing pending state before
+snapshotting. See [publication](src/operations/publication/README.md) for the
+file protocol and platform limits. Command-owned review-file loading/resume
+and selective pin reconciliation remain integration work.
 
 Candidate checking executes the existing scoped build evaluator, so it is not
 side-effect-free: package-input reads, disposable-output writes, and compiler
@@ -157,7 +162,8 @@ selected dependency requests, policy sequence elements, semantic identity
 traversal nodes, and decisions. Child
 usage is deducted from the same aggregate limits rather than reset per target.
 Allocator overhead and already borrowed input are not part of owned-storage
-accounting. Atomic install/update publication remains open.
+accounting. Reviewed publication owns recoverable pair writes;
+install/update command integration remains open.
 Serialization uses the same recovery accounting one child at a time, discarding
 that scratch before the next child. It therefore refuses an output that exceeds
 the chosen recovery ceilings even when its text fits. This is a resource check,
@@ -179,7 +185,7 @@ Recovery borrows the accepted lock, so unavailable source or content drift does
 not destroy the readable policy baseline. Its result is a source closure usable
 by ordinary compiler inputs, not a fresh analysis or renewed acceptance of old
 decisions. Missing-baseline handling, standalone candidate audit, and
-transactional publication remain separate integration work.
+command-owned publication/resume remain separate integration work.
 
 `operations::check_locked_sources` follows exact recovery with fresh checking of
 the complete graph through the ordinary candidate-review entrance. It preserves
@@ -255,9 +261,9 @@ both rendering and recovery. This is ordinary resume consistency, not an audit
 certificate, reviewer receipt, or authentication of the project author.
 
 `all_required_changes_accepted` describes only the represented choices, not
-permission to publish. Explicit command intent, review-file handling,
-fresh compiler obligations, and
-transactional candidate/project-file rechecks remain integration work.
+permission to publish. Reviewed publication joins these choices to candidate
+and project-file checks. Explicit command replacement intent and review-file
+loading/resume remain integration work.
 
 Return to the [package subsystem map](../README.md), or consult:
 

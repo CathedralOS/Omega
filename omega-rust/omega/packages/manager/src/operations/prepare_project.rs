@@ -1,5 +1,6 @@
 //! Prepare one local `build.omg` project for package-aware compilation.
 
+use super::{PackageFileTransaction, PackagePublicationError, PackagePublicationLimits};
 use crate::resolution::graph::{
     PackageSourceClosureLimits, ResolveExternalLocalPackageClosureError,
     ResolvedPackageSourceClosure, resolve_external_local_project_closure_with_storage,
@@ -42,11 +43,13 @@ pub enum PrepareLocalProjectError {
     Closure(ResolveExternalLocalPackageClosureError),
     MissingRootCustody,
     CompilerInputs(Vec<PackageCompilationInputError>),
+    Publication(PackagePublicationError),
 }
 
 impl fmt::Display for PrepareLocalProjectError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
+            Self::Publication(error) => error.fmt(formatter),
             Self::EntryOutsideProject {
                 entry,
                 project_root,
@@ -98,6 +101,16 @@ pub fn prepare_local_project(
         .filter(|parent| !parent.as_os_str().is_empty())
         .unwrap_or_else(|| Path::new("."))
         .to_path_buf();
+    let mut transaction =
+        PackageFileTransaction::open_if_present(&project_root, PackagePublicationLimits::default())
+            .map_err(PrepareLocalProjectError::Publication)?;
+    if let Some(transaction) = &mut transaction {
+        transaction
+            .recover()
+            .map_err(PrepareLocalProjectError::Publication)?;
+    }
+    // A deleted declaration during a pending transaction is a recovery
+    // conflict, not permission to bypass package preparation as standalone.
     if !project_root.join("build.omg").is_file() {
         return Ok(None);
     }

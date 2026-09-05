@@ -10,6 +10,8 @@ use omega_package_manager::review::{
 
 #[path = "operation/lock_file.rs"]
 mod lock_file;
+#[path = "operation/publication.rs"]
+mod publication;
 #[path = "operation/semantic.rs"]
 mod semantic;
 #[path = "operation/staging.rs"]
