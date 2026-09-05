@@ -34,15 +34,17 @@ pub use candidate::{
     compile_resolved_package_reviews_with_semantic_bindings,
 };
 pub use compare::{
-    LockedPolicyComparisonError, ReviewOnlyCandidateClosureCommitment,
-    ReviewOnlyCapabilityConflict, ReviewOnlyCapabilityConflictBaseline,
-    ReviewOnlyCapabilityConflictChange, ReviewOnlyCapabilityConflictError,
-    ReviewOnlyCapabilityConflictFingerprint, ReviewOnlyCapabilityConflictLimits,
-    ReviewOnlyCapabilityConflictRenderError, ReviewOnlyCapabilityConflictSet,
-    ReviewOnlyPackageCapabilityConflicts, ReviewOnlyRootRoleChange,
-    ReviewOnlyRootRoleComparisonError, ReviewOnlyRootRoleContract, ReviewSetRole,
-    compare_locked_package_policies, compare_review_only_capabilities,
-    compare_review_only_initial_capabilities,
+    LockedPolicyComparisonError, PackagePolicyChangeError, PackagePolicyChangeFingerprint,
+    PackagePolicyChangeKind, PackagePolicyChangeLimits, PackagePolicyChangeSet,
+    PackagePolicyDependencyPath, PackagePolicyDependencyPathStep, PackagePolicyPackageChange,
+    PackagePolicyRowChange, ReviewOnlyCandidateClosureCommitment, ReviewOnlyCapabilityConflict,
+    ReviewOnlyCapabilityConflictBaseline, ReviewOnlyCapabilityConflictChange,
+    ReviewOnlyCapabilityConflictError, ReviewOnlyCapabilityConflictFingerprint,
+    ReviewOnlyCapabilityConflictLimits, ReviewOnlyCapabilityConflictRenderError,
+    ReviewOnlyCapabilityConflictSet, ReviewOnlyPackageCapabilityConflicts,
+    ReviewOnlyRootRoleChange, ReviewOnlyRootRoleComparisonError, ReviewOnlyRootRoleContract,
+    ReviewSetRole, compare_locked_package_policies, compare_package_policy_changes,
+    compare_review_only_capabilities, compare_review_only_initial_capabilities,
 };
 pub use decision::{
     ReviewOnlyRootPolicyDecision, ReviewOnlyRootPolicyDirectory, ReviewOnlyRootPolicyDisposition,

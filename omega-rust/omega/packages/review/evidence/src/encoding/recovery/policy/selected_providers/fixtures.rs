@@ -120,7 +120,7 @@ pub(in crate::encoding::recovery::policy) fn method() -> PackagePolicyServiceMet
     }
 }
 
-pub(super) fn complete() -> PackagePolicySelectedProviders {
+pub(in crate::encoding::recovery::policy) fn complete() -> PackagePolicySelectedProviders {
     let mut policy = empty();
     let method = method();
     let row = PackagePolicyProviderRow {

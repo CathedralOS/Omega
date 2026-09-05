@@ -70,7 +70,7 @@ pub(super) fn policy(
     })
 }
 
-fn selection(
+pub(super) fn selection(
     encoder: &mut Encoder,
     selection: &PackagePolicyRepresentationSelection,
 ) -> Result<(), PackageReviewEncodingError> {

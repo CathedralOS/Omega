@@ -9,6 +9,8 @@ pub(super) use traits::conformance_shape;
 
 #[cfg(test)]
 mod tests;
+#[cfg(test)]
+pub(super) use tests::fixture as row_fixture;
 
 use super::{Error, declarations, reader::Reader};
 use crate::record::PackagePolicyPublicApi;

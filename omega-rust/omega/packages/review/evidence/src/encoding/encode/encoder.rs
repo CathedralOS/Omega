@@ -2,6 +2,7 @@ use super::PackageReviewEncodingError;
 use psi_core::PackageKeyIdentity;
 
 mod membership;
+mod policy_rows;
 mod scalars;
 pub(in crate::encoding) mod text;
 
@@ -13,6 +14,8 @@ pub(crate) struct Encoder<'text> {
     encoded_bytes: usize,
     maximum_bytes: usize,
     exceeded: bool,
+    measure_only: bool,
+    retain_binary_with_text: bool,
     policy_elements: Option<usize>,
     policy_depth: usize,
     maximum_policy_depth: usize,
@@ -28,6 +31,8 @@ impl<'text> Encoder<'text> {
             encoded_bytes: 0,
             maximum_bytes,
             exceeded: false,
+            measure_only: false,
+            retain_binary_with_text: false,
             policy_elements: None,
             policy_depth: 0,
             maximum_policy_depth: 0,
@@ -123,7 +128,10 @@ impl<'text> Encoder<'text> {
             return;
         }
         self.encoded_bytes = required;
-        if self.text.is_some() || self.membership.is_some() {
+        if self.measure_only
+            || (self.text.is_some() && !self.retain_binary_with_text)
+            || self.membership.is_some()
+        {
             return;
         }
         if self.output.try_reserve(bytes.len()).is_err() {

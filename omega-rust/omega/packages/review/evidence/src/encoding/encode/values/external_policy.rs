@@ -42,6 +42,14 @@ pub(in crate::encoding::encode) fn policy(
     supply
         .validate_canonical_structure()
         .map_err(PackageReviewEncodingError::new)?;
+    validated_value(encoder, supply)
+}
+
+/// An enclosing, privately constructed baseline already validated this value.
+pub(in crate::encoding::encode) fn validated_value(
+    encoder: &mut Encoder,
+    supply: &PackagePolicyExternalExecutableSupply,
+) -> Result<(), PackageReviewEncodingError> {
     encoder.field("callable", |encoder| {
         encode_nominal(encoder, &supply.callable)
     })?;

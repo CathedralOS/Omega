@@ -13,6 +13,7 @@ mod format;
 mod limits;
 mod locked_policy;
 mod model;
+mod policy;
 mod render_error;
 mod resources;
 mod risk;
@@ -30,6 +31,12 @@ pub use model::{
     ReviewOnlyCapabilityConflictLimits, ReviewOnlyCapabilityConflictSet,
     ReviewOnlyPackageCapabilityConflicts, ReviewOnlyRootRoleChange,
     ReviewOnlyRootRoleComparisonError, ReviewOnlyRootRoleContract, ReviewSetRole,
+};
+pub use policy::{
+    PackagePolicyChangeError, PackagePolicyChangeFingerprint, PackagePolicyChangeKind,
+    PackagePolicyChangeLimits, PackagePolicyChangeSet, PackagePolicyDependencyPath,
+    PackagePolicyDependencyPathStep, PackagePolicyPackageChange, PackagePolicyRowChange,
+    compare_package_policy_changes,
 };
 pub use render_error::ReviewOnlyCapabilityConflictRenderError;
 pub(crate) use risk::changed_review_risk;

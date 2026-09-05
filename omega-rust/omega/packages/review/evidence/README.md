@@ -208,6 +208,29 @@ hexadecimal. The text-format version is independent of the unchanged binary
 baseline and component versions. `recover_text()` reconstructs the bounded
 canonical scalar stream, applies existing typed recovery, and verifies every
 text byte by streaming the recovered value through the same named traversal.
+
+`PackagePolicyBaseline::canonical_rows_with_limits()` projects that complete
+policy into independently versioned comparison rows. Every row retains its
+semantic coordinate, complete canonical value, and named readable text; a digest
+does not replace its meaning. Coordinates use exact declaration identities,
+not report positions. Selected provider plans, their families, and closed D29
+applications remain one association row because their canonical plan indices
+are meaningful only together. Symbolic demands remain separately keyed by their
+operator, producer callable, and type-binder mapping.
+
+Rows distinguish initial trust requirements from changes to an existing
+compatibility contract. Ordinary initial API and checked callable contracts do
+not invent assumptions. Admission claims, external supplies and their outer
+contracts, dangerous authority, and explicit permissions retain their review
+requirements. Claim-free representation policy and ceiling slack recommend
+audit without becoming blanket approval requirements. These classifications
+are inert findings, not decisions or proof that a review occurred.
+
+Projection bounds the complete row table, retained key/binary/text buffers,
+aggregate structural traversal, and nesting. It measures output before reserving
+storage and reports usage so a manager can share ceilings across both complete
+graphs. Sizing and emission both consume the structural budget. Existing whole
+policy binary/text formats and legacy compiler-review rows remain unchanged.
 Changing a field name, variant label, order, escape, or container cannot preserve
 an accepted text record merely by retaining its binary scalars.
 

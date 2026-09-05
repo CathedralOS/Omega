@@ -5,6 +5,8 @@ mod dependencies;
 #[cfg(test)]
 mod external_tests;
 #[cfg(test)]
+mod row_tests;
+#[cfg(test)]
 mod tests;
 #[cfg(test)]
 mod text_tests;

@@ -111,7 +111,7 @@ fn parameters() -> Vec<PackagePolicyTypeParameter> {
     .collect()
 }
 
-fn fixture() -> PackagePolicyPublicApi {
+pub(in crate::encoding::recovery::policy) fn fixture() -> PackagePolicyPublicApi {
     PackagePolicyPublicApi {
         traits: vec![PackagePolicyTraitShape {
             identity: identity("Trait"),

@@ -18,7 +18,7 @@ use super::super::{
 use super::signatures::formal;
 use super::*;
 
-pub(super) fn trait_shape(
+pub(in crate::encoding::encode) fn trait_shape(
     encoder: &mut Encoder,
     shape: &PackagePolicyTraitShape,
 ) -> Result<(), PackageReviewEncodingError> {
@@ -143,7 +143,7 @@ pub(in crate::encoding) fn conformance_shape(
     })
 }
 
-pub(super) fn domain_shape(
+pub(in crate::encoding::encode) fn domain_shape(
     encoder: &mut Encoder,
     shape: &PackagePolicyDomainShape,
 ) -> Result<(), PackageReviewEncodingError> {
@@ -209,7 +209,7 @@ pub(super) fn domain_shape(
     })
 }
 
-pub(super) fn operator_shape(
+pub(in crate::encoding::encode) fn operator_shape(
     encoder: &mut Encoder,
     shape: &PackagePolicyOperatorShape,
 ) -> Result<(), PackageReviewEncodingError> {
@@ -252,7 +252,7 @@ pub(super) fn operator_shape(
     })
 }
 
-pub(super) fn data_shape(
+pub(in crate::encoding::encode) fn data_shape(
     encoder: &mut Encoder,
     shape: &PackagePolicyDataShape,
 ) -> Result<(), PackageReviewEncodingError> {
