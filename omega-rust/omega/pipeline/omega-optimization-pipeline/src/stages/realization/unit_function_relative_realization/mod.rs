@@ -15,15 +15,15 @@ pub use model::*;
 pub(crate) use source::validate_unit_shape;
 pub use validation::validate_optimized_unit_function_relative_realization;
 
-use crate::StagedOptimizedRegisterHomes;
+use omega_selected_instructions_to_register_homes::RetainedAllocation;
 
 pub fn stage_optimized_unit_function_relative_realization(
-    homes: StagedOptimizedRegisterHomes,
+    allocation: RetainedAllocation,
 ) -> Result<
     StagedOptimizedUnitFunctionRelativeRealization,
     OptimizedUnitFunctionRelativeRealizationError,
 > {
-    let staged = construction::construct_unit_function_relative_realization(homes)?;
+    let staged = construction::construct_unit_function_relative_realization(allocation)?;
     validate_optimized_unit_function_relative_realization(&staged)?;
     Ok(staged)
 }

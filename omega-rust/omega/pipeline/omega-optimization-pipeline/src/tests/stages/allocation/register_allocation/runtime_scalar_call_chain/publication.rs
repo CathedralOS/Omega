@@ -11,8 +11,11 @@ fn staged_fixed_frame_text(
 ) {
     let budget =
         OptimizationWorkBudget::new(1_000_000, 1_000_000, 1_000_000, 1_000_000, 1_000_000).unwrap();
-    let realization =
-        stage_fixed_frame_function_relative_realization(staged_homes(target), budget).unwrap();
+    let realization = stage_fixed_frame_function_relative_realization(
+        staged_homes(target).try_into().unwrap(),
+        budget,
+    )
+    .unwrap();
     let fragments = stage_optimized_function_fragment_emission(
         FunctionFragmentReplayInputs::FixedFrame(Box::new(realization)).into(),
     )

@@ -1,5 +1,68 @@
 use crate::FunctionFragmentReplayInputs;
 use crate::tests::*;
+use omega_regalloc::ValidatedSelectedAnalysis;
+
+#[test]
+fn unit_realization_shares_current_allocation_and_rejects_substitution() {
+    for target in [
+        NativeTarget::linux_x64(),
+        NativeTarget::uefi_x64(),
+        NativeTarget::linux_arm64(),
+    ] {
+        let (_, _, selected) = staged_unit_return(target);
+        let ranges =
+            stage_optimized_live_ranges(stage_optimized_liveness(selected).unwrap()).unwrap();
+        let homes =
+            stage_optimized_register_homes(stage_optimized_allocation_legality(ranges).unwrap())
+                .unwrap();
+        let current = homes.replay_allocation().unwrap();
+        let selected_owner = current.selected().shared_selected_plan();
+        let home_owner = current.homes().shared_plan();
+        let mut realization =
+            stage_optimized_unit_function_relative_realization(homes.try_into().unwrap()).unwrap();
+        assert!(std::sync::Arc::ptr_eq(
+            &selected_owner,
+            &realization.allocation().program().selected
+        ));
+        assert!(std::sync::Arc::ptr_eq(
+            &home_owner,
+            &realization.allocation().program().homes
+        ));
+        let original = realization.allocation().program().clone();
+        for replace_selected in [false, true] {
+            let mut changed = original.clone();
+            if replace_selected {
+                std::sync::Arc::make_mut(&mut changed.selected)
+                    .functions
+                    .clear();
+            } else {
+                std::sync::Arc::make_mut(&mut changed.homes)
+                    .functions
+                    .clear();
+            }
+            realization
+                .allocation_mut()
+                .substitute_current_program_for_test(changed);
+            assert!(matches!(
+                validate_optimized_unit_function_relative_realization(&realization),
+                Err(OptimizedUnitFunctionRelativeRealizationError::Allocation(
+                    AllocationReplayError::CurrentProgramMismatch
+                ))
+            ));
+            realization
+                .allocation_mut()
+                .substitute_current_program_for_test(original.clone());
+            validate_optimized_unit_function_relative_realization(&realization).unwrap();
+        }
+        let retained_program = realization.allocation().program().clone();
+        drop(realization);
+        assert!(std::sync::Arc::ptr_eq(
+            &retained_program.selected,
+            &selected_owner
+        ));
+        assert!(std::sync::Arc::ptr_eq(&retained_program.homes, &home_owner));
+    }
+}
 
 #[test]
 fn zero_vreg_unit_return_reaches_replayed_homes_and_machine_custody() {
@@ -171,7 +234,8 @@ fn zero_vreg_unit_return_reaches_replayed_homes_and_machine_custody() {
             .is_err()
         );
 
-        let mut realization = stage_optimized_unit_function_relative_realization(homes).unwrap();
+        let mut realization =
+            stage_optimized_unit_function_relative_realization(homes.try_into().unwrap()).unwrap();
         assert_eq!(realization.manifest().record().statistics.functions, 1);
         assert_eq!(realization.manifest().record().statistics.blocks, 1);
         assert_eq!(realization.manifest().record().statistics.instructions, 1);

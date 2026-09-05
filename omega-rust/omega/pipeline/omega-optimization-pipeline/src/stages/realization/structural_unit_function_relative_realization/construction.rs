@@ -1,5 +1,7 @@
+use omega_selected_instructions_to_register_homes::{AllocationSource, RetainedAllocation};
+
 use crate::{
-    StagedOptimizedRegisterHomes, stage_optimized_layout_independent_selected_form_encoding,
+    stage_optimized_layout_independent_selected_form_encoding,
     stage_optimized_post_allocation_machine_plan, stage_optimized_resolved_selected_form_layout,
     stage_whole_function_exit_contract,
 };
@@ -10,19 +12,21 @@ use super::model::{
     OptimizedStructuralUnitFunctionRelativeRealizationError,
     StagedOptimizedStructuralUnitFunctionRelativeRealization,
 };
-use super::source::{selected_stage, validate_source};
+use super::source::validate_source;
 
 pub(super) fn construct_structural_unit_function_relative_realization(
-    homes: StagedOptimizedRegisterHomes,
+    allocation: RetainedAllocation,
 ) -> Result<
     StagedOptimizedStructuralUnitFunctionRelativeRealization,
     OptimizedStructuralUnitFunctionRelativeRealizationError,
 > {
-    let source = validate_source(&homes)?;
-    let selected_stage = selected_stage(&homes);
-    let selected = selected_stage.selected();
-    let physical = selected_stage.register_environment().physical();
-    let machine = stage_optimized_post_allocation_machine_plan(&homes)
+    let current = allocation
+        .replay_allocation()
+        .map_err(OptimizedStructuralUnitFunctionRelativeRealizationError::Allocation)?;
+    let source = validate_source(&current)?;
+    let selected = current.selected();
+    let physical = current.register_environment().physical();
+    let machine = stage_optimized_post_allocation_machine_plan(&current)
         .map_err(OptimizedStructuralUnitFunctionRelativeRealizationError::Machine)?;
     let encoding =
         stage_optimized_layout_independent_selected_form_encoding(selected, &machine, physical)
@@ -33,10 +37,10 @@ pub(super) fn construct_structural_unit_function_relative_realization(
     let exit_contract =
         stage_whole_function_exit_contract(selected, &machine, physical, &encoding, &layout)
             .map_err(OptimizedStructuralUnitFunctionRelativeRealizationError::Exit)?;
-    let manifest = expected_manifest(&homes, &machine, &encoding, &layout, &exit_contract)?;
+    let manifest = expected_manifest(&current, &machine, &encoding, &layout, &exit_contract)?;
     let custody = structural_unit_realization_receipt(source, &machine, &exit_contract, &manifest);
     Ok(StagedOptimizedStructuralUnitFunctionRelativeRealization {
-        homes,
+        allocation,
         machine,
         encoding,
         layout,

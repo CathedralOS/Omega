@@ -2,7 +2,6 @@ use omega_optimization_core::{
     FunctionRelativeOptimizationRealizationManifestIdentity, OptimizationExecutionPhase,
     OptimizationSelectionIdentity,
 };
-use omega_regalloc::ValidatedSelectedAnalysis;
 
 use crate::stages::realization::function_relative_realization::{
     function_relative_statistics, seal_function_relative_manifest,
@@ -11,16 +10,17 @@ use crate::{
     FunctionRelativeFrameDisposition, FunctionRelativeOptimizationRealizationError,
     FunctionRelativeOptimizationRealizationManifest, FunctionRelativeOptimizationRealizationScope,
     FunctionRelativeOptimizationRealizationStage, FunctionRelativeOptimizationUnavailableData,
-    StagedOptimizedPostAllocationMachinePlan, StagedOptimizedRegisterHomes,
-    StagedOptimizedResolvedSelectedFormLayout, StagedOptimizedSelectedFormEncoding,
-    ValidatedFunctionRelativeOptimizationRealizationManifest, ValidatedWholeFunctionExitContract,
+    StagedOptimizedPostAllocationMachinePlan, StagedOptimizedResolvedSelectedFormLayout,
+    StagedOptimizedSelectedFormEncoding, ValidatedFunctionRelativeOptimizationRealizationManifest,
+    ValidatedWholeFunctionExitContract,
 };
 
 use super::model::OptimizedStructuralUnitFunctionRelativeRealizationError;
-use super::source::selected_stage;
+use super::source::validate_source;
+use omega_selected_instructions_to_register_homes::AllocationOutput;
 
 pub(super) fn expected_manifest(
-    homes: &StagedOptimizedRegisterHomes,
+    current: &AllocationOutput<'_>,
     machine: &StagedOptimizedPostAllocationMachinePlan,
     encoding: &StagedOptimizedSelectedFormEncoding,
     layout: &StagedOptimizedResolvedSelectedFormLayout,
@@ -29,12 +29,10 @@ pub(super) fn expected_manifest(
     ValidatedFunctionRelativeOptimizationRealizationManifest,
     OptimizedStructuralUnitFunctionRelativeRealizationError,
 > {
-    let selected_stage = selected_stage(homes);
-    let optimized = selected_stage.optimized_target().optimized();
-    let selections = optimized.selections();
-    let source = homes.custody();
-    let post = homes.post_allocation_manifest().record();
-    let selected_plan = selected_stage.selected().selected_plan();
+    let selections = current.selections();
+    let source = validate_source(current)?;
+    let post = current.post_allocation_manifest().record();
+    let selected_plan = current.selected_plan();
     let structural_function_count = u64::try_from(selected_plan.structural_unit_functions.len())
         .map_err(|_| {
             OptimizedStructuralUnitFunctionRelativeRealizationError::Manifest(

@@ -1,10 +1,10 @@
 use omega_optimization_core::FunctionRelativeOptimizationRealizationManifestIdentity;
+use omega_selected_instructions_to_register_homes::{AllocationReplayError, RetainedAllocation};
 
 use crate::{
     FunctionRelativeOptimizationRealizationError, OptimizedPostAllocationMachinePipelineError,
-    OptimizedRegisterHomeCustodyError, StagedOptimizedPostAllocationMachineCustodyReceipt,
-    StagedOptimizedPostAllocationMachinePlan, StagedOptimizedRegisterHomeCustodyReceipt,
-    StagedOptimizedRegisterHomes, StagedOptimizedResolvedSelectedFormLayout,
+    StagedOptimizedPostAllocationMachineCustodyReceipt, StagedOptimizedPostAllocationMachinePlan,
+    StagedOptimizedRegisterHomeCustodyReceipt, StagedOptimizedResolvedSelectedFormLayout,
     StagedOptimizedSelectedFormEncoding, ValidatedFunctionRelativeOptimizationRealizationManifest,
     ValidatedWholeFunctionExitContract, WholeFunctionExitContractIdentity,
 };
@@ -15,7 +15,7 @@ use crate::{
 /// authority.
 #[derive(Debug)]
 pub struct StagedOptimizedStructuralUnitFunctionRelativeRealization {
-    pub(super) homes: StagedOptimizedRegisterHomes,
+    pub(super) allocation: RetainedAllocation,
     pub(super) machine: StagedOptimizedPostAllocationMachinePlan,
     pub(super) encoding: StagedOptimizedSelectedFormEncoding,
     pub(super) layout: StagedOptimizedResolvedSelectedFormLayout,
@@ -25,8 +25,13 @@ pub struct StagedOptimizedStructuralUnitFunctionRelativeRealization {
 }
 
 impl StagedOptimizedStructuralUnitFunctionRelativeRealization {
-    pub const fn homes(&self) -> &StagedOptimizedRegisterHomes {
-        &self.homes
+    pub const fn allocation(&self) -> &RetainedAllocation {
+        &self.allocation
+    }
+
+    #[cfg(test)]
+    pub(crate) fn allocation_mut(&mut self) -> &mut RetainedAllocation {
+        &mut self.allocation
     }
 
     pub const fn machine(&self) -> &StagedOptimizedPostAllocationMachinePlan {
@@ -101,7 +106,7 @@ impl StagedOptimizedStructuralUnitFunctionRelativeRealizationCustodyReceipt {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum OptimizedStructuralUnitFunctionRelativeRealizationError {
-    Homes(OptimizedRegisterHomeCustodyError),
+    Allocation(AllocationReplayError),
     Machine(OptimizedPostAllocationMachinePipelineError),
     Encoding(crate::OptimizedSelectedFormEncodingError),
     Layout(crate::OptimizedResolvedSelectedFormLayoutError),

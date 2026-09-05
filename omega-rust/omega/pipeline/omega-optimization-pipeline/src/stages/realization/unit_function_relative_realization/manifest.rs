@@ -10,16 +10,16 @@ use crate::{
     FunctionRelativeFrameDisposition, FunctionRelativeOptimizationRealizationManifest,
     FunctionRelativeOptimizationRealizationScope, FunctionRelativeOptimizationRealizationStage,
     FunctionRelativeOptimizationUnavailableData, StagedOptimizedPostAllocationMachinePlan,
-    StagedOptimizedRegisterHomes, StagedOptimizedResolvedSelectedFormLayout,
-    StagedOptimizedSelectedFormEncoding, ValidatedFunctionRelativeOptimizationRealizationManifest,
-    ValidatedWholeFunctionExitContract,
+    StagedOptimizedResolvedSelectedFormLayout, StagedOptimizedSelectedFormEncoding,
+    ValidatedFunctionRelativeOptimizationRealizationManifest, ValidatedWholeFunctionExitContract,
 };
 
 use super::model::OptimizedUnitFunctionRelativeRealizationError;
-use super::source::selected_stage;
+use super::source::validate_source;
+use omega_selected_instructions_to_register_homes::AllocationOutput;
 
 pub(super) fn expected_manifest(
-    homes: &StagedOptimizedRegisterHomes,
+    current: &AllocationOutput<'_>,
     machine: &StagedOptimizedPostAllocationMachinePlan,
     encoding: &StagedOptimizedSelectedFormEncoding,
     layout: &StagedOptimizedResolvedSelectedFormLayout,
@@ -28,11 +28,9 @@ pub(super) fn expected_manifest(
     ValidatedFunctionRelativeOptimizationRealizationManifest,
     OptimizedUnitFunctionRelativeRealizationError,
 > {
-    let selected_stage = selected_stage(homes);
-    let optimized = selected_stage.optimized_target().optimized();
-    let selections = optimized.selections();
-    let source = homes.custody();
-    let post = homes.post_allocation_manifest().record();
+    let selections = current.selections();
+    let source = validate_source(current)?;
+    let post = current.post_allocation_manifest().record();
     if post.selected_lowering_completion.is_some()
         || post.selected != source.selected()
         || post.target != layout.target()
