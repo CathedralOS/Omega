@@ -173,6 +173,10 @@ fn transition_free_register_homes_are_deterministic_and_cfg_exact() {
             register_home_identity(&corrupted),
             staged.homes().receipt().identity()
         );
+        // A fresh canonical frame can carry invalid assignments. Data integrity
+        // does not grant the independent allocator admission retained above.
+        let decoded = RegisterHomePlan::decode(&corrupted.encode()).unwrap();
+        assert_eq!(decoded, corrupted);
         let legality = staged.legality_stage();
         let ranges = legality.live_range_stage();
         assert!(matches!(
@@ -184,7 +188,7 @@ fn transition_free_register_homes_are_deterministic_and_cfg_exact() {
                 environment.constraints(),
                 environment.reservations(),
                 environment.allocation_constraint_keys(),
-                corrupted,
+                decoded,
             ),
             Err(RegisterHomeError::VirtualRegisterMismatch { .. })
                 | Err(RegisterHomeError::UnknownOrIncompatibleView { .. })

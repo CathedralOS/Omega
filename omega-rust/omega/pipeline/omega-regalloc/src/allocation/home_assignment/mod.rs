@@ -3,7 +3,6 @@
 use crate::*;
 
 pub(crate) mod compute;
-pub(crate) mod identity;
 pub(crate) mod model;
 pub(crate) mod validate;
 
@@ -11,8 +10,11 @@ pub(crate) mod validate;
 #[path = "tests/mod.rs"]
 mod tests;
 
-pub use identity::register_home_identity;
 pub use model::*;
+pub use omega_register_homes::{
+    FunctionRegisterHomes, RegisterHomeDecodeError, RegisterHomeIdentity, RegisterHomePlan,
+    VirtualRegisterHome, register_home_identity,
+};
 pub use validate::validate_register_homes;
 
 /// Assign deterministic physical views for the bounded transition-free,

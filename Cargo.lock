@@ -1446,6 +1446,7 @@ dependencies = [
  "omega-legalized-operations",
  "omega-optimization-core",
  "omega-optimization-unit",
+ "omega-register-homes",
  "omega-register-model",
  "omega-selected-instructions",
  "omega-target",
@@ -1454,6 +1455,16 @@ dependencies = [
  "psi-core",
  "psi-terminal",
  "psi-terminal-codec",
+ "sha2",
+]
+
+[[package]]
+name = "omega-register-homes"
+version = "0.1.0"
+dependencies = [
+ "omega-register-model",
+ "omega-selected-instructions",
+ "psi-core",
  "sha2",
 ]
 

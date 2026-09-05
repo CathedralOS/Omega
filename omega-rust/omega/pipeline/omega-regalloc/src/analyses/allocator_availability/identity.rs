@@ -10,7 +10,7 @@ pub fn allocator_availability_identity(
     let mut bytes = Vec::new();
     bytes.extend_from_slice(b"omega.terminal-allocator-availability.v1\0");
     bytes.extend_from_slice(&encode_terminal_allocator_availability_content(plan));
-    AllocatorAvailabilityIdentity(Sha256::digest(bytes).into())
+    AllocatorAvailabilityIdentity::from_bytes(Sha256::digest(bytes).into())
 }
 
 pub(crate) fn encode_terminal_allocator_availability_content(

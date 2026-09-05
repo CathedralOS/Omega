@@ -6,18 +6,7 @@ use crate::{
     AllocatorAvailabilityIdentity, LiveRangeIdentity, LiveRangePoint, VirtualFixedConstraintSite,
 };
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub struct AllocationLegalityIdentity(pub(crate) [u8; 32]);
-
-impl AllocationLegalityIdentity {
-    pub const fn from_bytes(bytes: [u8; 32]) -> Self {
-        Self(bytes)
-    }
-
-    pub const fn bytes(self) -> [u8; 32] {
-        self.0
-    }
-}
+pub use omega_register_homes::AllocationLegalityIdentity;
 
 /// Exact physical-view legality before allocation. This is analysis output,
 /// not a home assignment: incompatible fixed views remain explicit transition

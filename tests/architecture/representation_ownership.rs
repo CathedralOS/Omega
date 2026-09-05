@@ -82,6 +82,12 @@ fn selected_program_has_one_representation_entrance() {
 fn program_representations_have_named_roots_and_concept_owners() {
     for (package, module, program, areas) in [
         (
+            "omega-register-homes",
+            "register_homes",
+            "RegisterHomePlan",
+            &["storage", "evidence", "identity", "codec"][..],
+        ),
+        (
             "omega-abstract-operations",
             "abstract_operations",
             "AbstractOperationPlan",
@@ -148,6 +154,37 @@ fn program_representations_have_named_roots_and_concept_owners() {
             "{package} contains stage ancestry"
         );
     }
+}
+
+#[test]
+fn register_home_data_is_independent_of_allocation_authority() {
+    let owner = repository().join("omega-rust/omega/representations/omega-register-homes");
+    let representation = rust_source(&owner.join("src"));
+    let allocator = rust_source(&repository().join("omega-rust/omega/pipeline/omega-regalloc/src"));
+    for declaration in [
+        "pub struct RegisterHomePlan {",
+        "pub struct FunctionRegisterHomes {",
+        "pub struct VirtualRegisterHome {",
+        "pub struct RegisterHomeIdentity(",
+        "pub struct AllocationLegalityIdentity(",
+        "pub struct LiveRangeIdentity(",
+        "pub struct AllocatorAvailabilityIdentity(",
+    ] {
+        assert_eq!(
+            representation.matches(declaration).count(),
+            1,
+            "{declaration}"
+        );
+        assert!(
+            !allocator.contains(declaration),
+            "allocator owns {declaration}"
+        );
+    }
+    assert!(!representation.contains("ValidatedRegisterHomes"));
+    assert!(allocator.contains("pub struct ValidatedRegisterHomes {"));
+    let manifest = std::fs::read_to_string(owner.join("Cargo.toml")).unwrap();
+    assert!(!manifest.contains("omega-regalloc"));
+    assert!(!manifest.contains("/pipeline/"));
 }
 
 #[test]
