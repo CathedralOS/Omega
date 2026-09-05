@@ -45,6 +45,12 @@ that same table. Inventory membership does not schedule another compilation or
 change a checked-only case into a native case. Inline diagnostic owners need not
 add an unused `expected.txt` merely to appear in the inventory.
 
+The exact-native coverage index also resolves named fixture constants through
+the executing module's declared roster leaf. A constant supplies only the
+fixture path: the enabled test must still satisfy the native compilation,
+execution, target, and exact-status checks. Missing or ambiguous references do
+not justify skipping an umbrella compilation.
+
 Cross-layer native differential tests own their shared inputs under
 `tests/native-differential/fixture_rosters/`. The compiler inventory includes
 only those dependency-free leaves, not the differential harness. Corpus bucket

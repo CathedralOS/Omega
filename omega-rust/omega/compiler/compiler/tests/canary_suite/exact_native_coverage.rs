@@ -2,6 +2,9 @@ use std::collections::BTreeMap;
 use std::fs;
 use std::path::{Path, PathBuf};
 
+#[path = "exact_native_coverage/fixture_constants.rs"]
+mod fixture_constants;
+
 pub(super) const EXPECTED_UNIQUE_ROOTED_ACTIVE_COVERAGE: usize = 794;
 pub(super) const EXPECTED_UNIQUE_DIRECT_ACTIVE_COVERAGE: usize = 4;
 pub(super) const EXPECTED_UNIQUE_CROSS_TARGET_COVERAGE: usize = 32;
@@ -63,7 +66,16 @@ impl ExactNativeCanaryCoverageIndex {
             })?;
             index.source_file_count += 1;
             index.source_byte_count += source.len();
-            index.index_source(&path, &source);
+            let constants = fixture_constants::load(&source, |relative| {
+                let leaf = path
+                    .parent()
+                    .expect("source module has a parent")
+                    .join(relative);
+                fs::read_to_string(&leaf).map_err(|error| {
+                    format!("cannot read fixture roster {}: {error}", leaf.display())
+                })
+            })?;
+            index.index_source(&path, &source, &constants);
         }
         Ok(index)
     }
@@ -87,17 +99,20 @@ impl ExactNativeCanaryCoverageIndex {
         for (path, source) in sources {
             index.source_file_count += 1;
             index.source_byte_count += source.len();
-            index.index_source(Path::new(path), source);
+            index.index_source(Path::new(path), source, &BTreeMap::new());
         }
         index
     }
 
-    fn index_source(&mut self, path: &Path, source: &str) {
+    fn index_source(&mut self, path: &Path, source: &str, constants: &BTreeMap<String, String>) {
         let code = mask_source(source, false);
         let structure = mask_source(source, true);
         for test in enabled_test_functions(&structure, &code) {
             self.test_body_count += 1;
-            if let Some((kind, canary, expected_status)) = exact_native_coverage(&test.body) {
+            let canaries = fixture_constants::pass_canaries(&test.body, constants);
+            if let Some((kind, canary, expected_status)) =
+                exact_native_coverage(&test.body, &canaries)
+            {
                 self.qualifying_test_count += 1;
                 let owners = match kind {
                     ExactNativeOwnerKind::Rooted => &mut self.rooted_owners,
@@ -112,7 +127,7 @@ impl ExactNativeCanaryCoverageIndex {
                         expected_status,
                     });
             }
-            for (kind, canary, target) in exact_target_coverage(&test.body) {
+            for (kind, canary, target) in exact_target_coverage(&test.body, &canaries) {
                 self.qualifying_target_compile_count += 1;
                 let owners = match kind {
                     ExactTargetOwnerKind::CrossTarget => &mut self.cross_target_owners,
@@ -371,9 +386,11 @@ enum ExactTargetOwnerKind {
     RootedTarget,
 }
 
-fn exact_native_coverage(body: &str) -> Option<(ExactNativeOwnerKind, String, i32)> {
-    let canaries = exact_pass_canary_literals(body);
-    let [canary] = canaries.as_slice() else {
+fn exact_native_coverage(
+    body: &str,
+    canaries: &[String],
+) -> Option<(ExactNativeOwnerKind, String, i32)> {
+    let [canary] = canaries else {
         return None;
     };
     let compact = body
@@ -447,9 +464,11 @@ fn exact_checked_report_native_status(compact: &str) -> Option<i32> {
     expected
 }
 
-fn exact_target_coverage(body: &str) -> Vec<(ExactTargetOwnerKind, String, String)> {
-    let canaries = exact_pass_canary_literals(body);
-    let [canary] = canaries.as_slice() else {
+fn exact_target_coverage(
+    body: &str,
+    canaries: &[String],
+) -> Vec<(ExactTargetOwnerKind, String, String)> {
+    let [canary] = canaries else {
         return Vec::new();
     };
     let compact = body
@@ -645,28 +664,6 @@ fn valid_target_literal(target: &str) -> bool {
         && target
             .bytes()
             .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'_' | b'-'))
-}
-
-fn exact_pass_canary_literals(body: &str) -> Vec<String> {
-    const PREFIX: &str = "pass_canary(\"";
-    let mut canaries = Vec::new();
-    let mut remainder = body;
-    while let Some(start) = remainder.find(PREFIX) {
-        remainder = &remainder[start + PREFIX.len()..];
-        let Some(end) = remainder.find("\")") else {
-            break;
-        };
-        let canary = &remainder[..end];
-        if !canary.is_empty()
-            && canary
-                .bytes()
-                .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'/' | b'_' | b'-'))
-        {
-            canaries.push(canary.to_owned());
-        }
-        remainder = &remainder[end + 2..];
-    }
-    canaries
 }
 
 fn mask_source(source: &str, mask_literals: bool) -> String {
