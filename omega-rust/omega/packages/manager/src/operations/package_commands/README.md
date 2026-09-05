@@ -54,6 +54,9 @@ first, otherwise a unique package name. Selected Git repository members move
 together; unrelated repositories keep exact pins. `--to` requires one selection
 with a root-authored Git request. A missing lock requires an unselected update
 and fresh graph review; unsupported lock formats reject before acquisition.
+Existing review files do not supply a missing lock baseline or automatically
+approve the fresh review. Dangerous dependencies still require their exact
+decisions before a new lock is published.
 
 Blocking findings return exit status 3 and leave accepted project files intact.
 Edit each `pending` decision to `accept` or `reject` in the reported review
