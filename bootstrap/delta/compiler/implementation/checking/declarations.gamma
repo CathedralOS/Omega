@@ -4,53 +4,6 @@
     (name_trie_find_option (global_constructors globals) name_end name)
     (if (first found) (second found) (fail))))
 
-(def catalog_type_constructors
-  ((index Int) (count Int) (has_payload Int)) Int
-  (let item Int (skip index)
-    (if (eq (source_read item) 41)
-      (if (eq count 0)
-        (fail)
-        (pair (token_end item) (pair count has_payload)))
-      (let constructor Int (skip (token_end item))
-        (let constructor_end Int (token_end constructor)
-          (if (upper_name_valid constructor constructor_end)
-            (let arity Int (constructor_shape_arity_at constructor_end)
-              (catalog_type_constructors
-                (constructor_shape_after constructor_end)
-                (+ count 1) (+ has_payload arity)))
-            (fail)))))))
-
-(def catalog_global_data ((form Int) (type_rows Int)) Int
-  (let head Int (form_head form)
-    (let type_name Int (skip (token_end head))
-      (let type_end Int (token_end type_name)
-        (if (upper_name_valid type_name type_end)
-          (let result Int
-            (catalog_type_constructors (skip type_end) 0 0)
-            (let summary Int (second result)
-              (let metadata Int
-                (pair (+ form 1) (pair (first summary) (second summary)))
-                (pair (first result)
-                  (name_trie_insert
-                    type_rows type_end type_name metadata)))))
-          (fail))))))
-
-(def catalog_global_types
-  ((index Int) (type_rows Int)) Int
-  (let form Int (skip index)
-    (if (eq form (source_length))
-      type_rows
-      (if (eq (source_read form) 40)
-        (let head Int (form_head form)
-          (let head_end Int (token_end head)
-            (if (token_data head head_end)
-              (let result Int (catalog_global_data form type_rows)
-                (catalog_global_types (first result) (second result)))
-              (if (token_def head head_end)
-                type_rows
-                (fail)))))
-        (fail)))))
-
 (def catalog_function_parameters
   ((index Int) (locals Int) (type_rows Int) (count Int)
    (reversed_types Int)) Int
@@ -104,78 +57,81 @@
                           (pair (second tail) (skip result_end))))))))))))
       (fail))))
 
-(def validate_global_data
-  ((form Int) (type_rows Int) (constructor_rows Int)) Int
+(def resolve_collected_data ((form Int) (globals Int)) Int
   (let head Int (form_head form)
     (let type_name Int (skip (token_end head))
       (let type_end Int (token_end type_name)
-        (let found Int (name_trie_find_option type_rows type_end type_name)
+        (let found Int
+          (name_trie_find_option (global_types globals) type_end type_name)
           (if (first found)
-            (validate_global_constructors
-              (skip type_end) (second found) type_rows constructor_rows 0)
+            (if (eq (type_metadata_owner (second found)) (+ form 1))
+              (resolve_collected_constructors
+                (skip type_end) (second found) globals 0)
+              (fail))
             (fail)))))))
 
-(def validate_global_constructors
-  ((index Int) (type_metadata Int) (type_rows Int)
-   (constructor_rows Int) (count Int)) Int
+; Collection established exact owner, tag, arity, and declaration custody.
+; Only this phase resolves payload type spellings against all collected types.
+(def resolve_collected_constructors
+  ((index Int) (type_metadata Int) (globals Int) (count Int)) Int
   (let item Int (skip index)
     (if (eq (source_read item) 41)
       (if (eq count (type_metadata_constructor_count type_metadata))
-        (pair (token_end item) constructor_rows)
+        (token_end item)
         (fail))
       (let constructor Int (skip (token_end item))
         (let constructor_end Int (token_end constructor)
-          (if (upper_name_valid constructor constructor_end)
-            (let arity Int
-              (constructor_arity_at constructor_end type_rows)
-              (let metadata Int
-                (pair type_metadata
-                  (pair (+ count 1) (pair arity constructor_end)))
-                (validate_global_constructors
-                  (constructor_after constructor_end type_rows)
-                  type_metadata type_rows
-                  (name_trie_insert
-                    constructor_rows constructor_end constructor metadata)
-                  (+ count 1))))
-            (fail)))))))
+          (let metadata Int
+            (require_constructor_metadata constructor constructor_end globals)
+            (if (eq (constructor_metadata_owner metadata)
+                    (type_metadata_owner type_metadata))
+              (if (eq (constructor_metadata_tag metadata) (+ count 1))
+                (if (eq (constructor_metadata_declaration_end metadata) constructor_end)
+                  (let arity Int
+                    (constructor_arity_at constructor_end (global_types globals))
+                    (if (eq arity (constructor_metadata_arity metadata))
+                      (resolve_collected_constructors
+                        (constructor_after constructor_end (global_types globals))
+                        type_metadata globals (+ count 1))
+                      (fail)))
+                  (fail))
+                (fail))
+              (fail))))))))
 
-(def validate_global_program
-  ((index Int) (saw_function Int) (function_count Int) (main_count Int)
-   (type_rows Int) (constructor_rows Int) (function_rows Int)) Int
+; Raw function rows are (pair declaration-owner name-end), not typed metadata.
+; Consume that exact custody before replacing them with resolved signatures.
+(def resolve_collected_function ((form Int) (globals Int)) Int
+  (let name Int (skip (token_end (form_head form)))
+    (let name_end Int (token_end name)
+      (let found Int (find_function_metadata name name_end globals)
+        (if (first found)
+          (let raw Int (second found)
+            (if (eq (first raw) (+ form 1))
+              (if (eq (second raw) name_end)
+                (catalog_function_signature
+                  (- (first raw) 1) (second raw) (global_types globals))
+                (fail))
+              (fail)))
+          (fail))))))
+
+(def resolve_collected_declarations
+  ((index Int) (collected_globals Int) (resolved_function_rows Int)) Int
   (let form Int (skip index)
     (if (eq form (source_length))
-      (if (eq function_count 0)
-        (fail)
-        (if (eq main_count 1)
-          (pair type_rows (pair constructor_rows function_rows))
-          (fail)))
-      (if (eq (source_read form) 40)
-        (let head Int (form_head form)
-          (let head_end Int (token_end head)
-            (if (token_data head head_end)
-              (if saw_function
-                (fail)
-                (let result Int
-                  (validate_global_data form type_rows constructor_rows)
-                  (validate_global_program
-                    (first result) 0 function_count main_count
-                    type_rows (second result) function_rows)))
-              (if (token_def head head_end)
-                (let name Int (skip head_end)
-                  (let name_end Int (token_end name)
-                    (if (value_name_valid name name_end)
-                      (let metadata Int
-                        (catalog_function_signature form name_end type_rows)
-                        (validate_global_program
-                          (skip_expression form) 1 (+ function_count 1)
-                          (+ main_count (token_main name name_end))
-                          type_rows constructor_rows
-                          (name_trie_insert
-                            function_rows name_end name metadata)))
-                      (fail))))
-                (fail)))))
-        (fail)))))
-
-; Negative types are exact builtins. Positive types are exact nominal
-; declaration owners. Zero is reserved as an absent lookup or as the first-arm
-; result sentinel.
+      (compiler_complete
+        (pair (global_types collected_globals)
+          (pair (global_constructors collected_globals) resolved_function_rows)))
+      (let head Int (form_head form)
+        (let head_end Int (token_end head)
+          (if (token_data head head_end)
+            (resolve_collected_declarations
+              (resolve_collected_data form collected_globals)
+              collected_globals resolved_function_rows)
+            (if (token_def head head_end)
+              (let name Int (skip head_end)
+                (let name_end Int (token_end name)
+                  (let metadata Int (resolve_collected_function form collected_globals)
+                    (resolve_collected_declarations
+                      (skip_expression form) collected_globals
+                      (name_trie_insert resolved_function_rows name_end name metadata)))))
+              (fail))))))))

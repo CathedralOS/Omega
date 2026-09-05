@@ -4,9 +4,11 @@
 (def main () Int
   (let admission Int (validate_compilation_request)
     (if (eq (first admission) 0)
-      (let terminator Int (compile_admitted_source (second admission))
-        (let published Int (write terminator)
-          (pair 0 1)))
+      (let compilation Int (compile_admitted_source (second admission))
+        (if (eq (first compilation) 0)
+          (let published Int (write (second compilation))
+            (pair 0 1))
+          (publish_compiler_failure compilation)))
       (publish_compiler_failure admission))))
 
 (def source_length () Int

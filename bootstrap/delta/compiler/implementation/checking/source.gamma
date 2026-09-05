@@ -13,10 +13,10 @@
 
 (def validate_source_envelope ((index Int)) Int
   (if (eq index (source_length))
-    0
+    (compiler_complete 0)
     (if (source_byte_allowed (source_read index))
       (validate_source_envelope (+ index 1))
-      (fail))))
+      (compiler_source_rejection 3 index))))
 
 (def is_space ((byte Int)) Int
   (lt byte 33))
@@ -388,4 +388,3 @@
         (if (field_type_valid next type_end type_rows)
           (constructor_fields_after type_end type_rows)
           (fail))))))
-

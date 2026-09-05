@@ -1,3 +1,6 @@
+; Negative types are exact builtins. Positive types are exact nominal
+; declaration owners. Zero is reserved as an absent lookup or as the first-arm
+; result sentinel.
 (def int_type () Int
   -1)
 
@@ -347,4 +350,3 @@
               (check_program_types
                 (check_definition_type form globals) globals)
               (fail))))))))
-

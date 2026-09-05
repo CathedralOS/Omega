@@ -275,9 +275,11 @@ scalar/nominal type relation. Authored signed arithmetic has checked runtime
 lowering, ordinary tail calls survive `if`, `let`, and `match`, and the five
 normative `Bytes` operations lower through a private length-bearing rope.
 `ConformanceBytesV1` framing, schema validation, and generated execution are
-implemented. Strict DCREQ admission now publishes canonical DCOUT request
-rejections and source-length refusals. Frontend/schema diagnostics and later
-resource/internal DCOUT failures remain incomplete; underlying evaluator
+implemented. Strict DCREQ admission publishes canonical DCOUT request
+rejections and source-length refusals. Source-envelope, duplicate-global, and
+post-frontend entry-schema diagnostics also publish canonical DCOUT. Remaining
+frontend diagnostics and later resource/internal DCOUT failures remain
+incomplete; underlying evaluator
 failures do not substitute for them. The complete compiler artifact remains
 absent. The former concatenative-Gamma
 implementation is retained only under Delta-owned bootstrap material and does

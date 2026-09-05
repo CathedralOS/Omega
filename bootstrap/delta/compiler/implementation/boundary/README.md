@@ -1,10 +1,12 @@
 # Delta request boundary
 
 `request.gamma` implements D30/D33 admission. `outcome.gamma` owns the private
-failure value and its complete DCOUT V1 publication. The outer
-`../../delta_compiler.gamma` entry consumes admission before invoking the
-compiler pipeline. No admission function writes output or observes Delta
-source. Failure publication returns the generic Gamma application result
+failure value, phase-success carrier, and complete DCOUT V1 publication. The
+outer `../../delta_compiler.gamma` entry consumes request admission before
+invoking the compiler pipeline. No request-admission function writes output or
+observes Delta source. Compiler phases return an explicit success carrying the
+next phase's data, or the unchanged owned failure. Failure publication returns
+the generic Gamma application result
 `(pair tag 1)` after writing exactly one frame.
 
 Admission order is complete 16-byte header, first incorrect magic/version/
@@ -28,6 +30,29 @@ bytes, little-endian u32 code at byte 12, and little-endian u64 coordinate,
 limit, and requested fields at bytes 16, 24, and 32. Tag equals process status.
 This is a projection of embedded compiler constants, not a runtime host table.
 
+The source envelope, complete global identity census, and post-frontend entry
+schema additionally own these Reject results (tag 1, zero limit/requested):
+
+| Code | Meaning | Coordinate space | Coordinate |
+| --- | --- | --- | --- |
+| 3 | invalid_source_byte | 1 Delta source | first forbidden byte |
+| 6 | duplicate_type | 1 Delta source | later type name |
+| 7 | duplicate_constructor | 1 Delta source | later constructor name |
+| 8 | duplicate_function | 1 Delta source | later function name |
+| 19 | missing_entry | 0 none | zero |
+| 20 | entry_schema_mismatch | 1 Delta source | present `main` declaration name |
+
+Collection visits globals in authored order across their distinct namespaces,
+without resolving a declaration type. The complete type/constructor catalogs
+and raw function declaration custody then feed declaration-type resolution;
+only its complete typed metadata reaches body checking. A duplicate therefore
+precedes unknown declaration types, including an earlier unknown function
+parameter or constructor payload type. Schema runs only after the ordinary
+frontend accepts: an invalid body cannot turn into missing-entry or
+wrong-signature rejection. Empty source remains invalid Delta syntax, not an
+otherwise valid program missing an entry. Profile 2 and schema code 21 remain
+retired.
+
 The common layout and IDs follow the D13/D30/D33 contract. Their retained
 historical table is recoverable at
 `78d8f51053^:source/delta/compiler/dcout-v1.tsv`; the shared field layout is at
@@ -35,9 +60,10 @@ historical table is recoverable at
 detached table participates in execution. D125 removes profile 2, not the
 request-failure identities.
 
-This is request-boundary coverage, not full DCOUT closure. Frontend/schema
-failures still reach the shared evaluator trap, and later resource/internal
-outcomes do not yet carry compiler-owned evidence. Those empty-output evaluator
+This is partial frontend-boundary coverage, not full DCOUT closure. Remaining
+syntax, local-name, type, arity, and match failures still reach the shared
+evaluator trap, and later resource/internal outcomes do not yet carry
+compiler-owned evidence. Those empty-output evaluator
 statuses must not be decoded as DCOUT or synthesized into frames by a runner.
 The generated ConformanceBytesV1 program's statuses are separately owned by
 its adapter. Successful compiler output remains the exact unwrapped Gamma

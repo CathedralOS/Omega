@@ -1,7 +1,9 @@
+; Entry existence is an option, not a declaration-collection requirement.
+; Only an accepted ordinary frontend reaches this profile-specific phase.
 (def find_main_metadata ((index Int) (globals Int)) Int
   (let form Int (skip index)
     (if (eq form (source_length))
-      (fail)
+      (pair 0 0)
       (let head Int (form_head form)
         (let head_end Int (token_end head)
           (if (token_data head head_end)
@@ -10,25 +12,30 @@
               (let name Int (skip head_end)
                 (let name_end Int (token_end name)
                   (if (token_main name name_end)
-                    (require_function_metadata name name_end globals)
+                    (pair 1 (require_function_metadata name name_end globals))
                     (find_main_metadata (skip_expression form) globals))))
               (fail))))))))
 
-(def validate_conformance_profile ((globals Int)) Int
-  (let metadata Int (find_main_metadata 0 globals)
-    (if (eq (function_metadata_arity metadata) 1)
-      (if (eq (function_metadata_result_type metadata) (bytes_type))
-        (if (eq (first (function_metadata_parameter_types metadata))
-                (bytes_type))
-          0
-          (fail))
-        (fail))
-      (fail))))
+(def reject_entry_schema ((metadata Int)) Int
+  (let declaration Int (- (function_metadata_owner metadata) 1)
+    (let name Int (skip (form_head_end declaration))
+      (compiler_source_rejection 20 name))))
+
+(def validate_conformance_profile ((metadata Int)) Int
+  (if (eq (function_metadata_arity metadata) 1)
+    (if (eq (function_metadata_result_type metadata) (bytes_type))
+      (if (eq (first (function_metadata_parameter_types metadata)) (bytes_type))
+        (compiler_complete 0)
+        (reject_entry_schema metadata))
+      (reject_entry_schema metadata))
+    (reject_entry_schema metadata)))
 
 (def validate_application_profile ((profile Int) (globals Int)) Int
-  (if (eq profile 0)
-    0
-    (if (eq profile 1)
-      (validate_conformance_profile globals)
-      (fail))))
-
+  (let entry Int (find_main_metadata 0 globals)
+    (if (eq (first entry) 0)
+      (compiler_failure 1 0 19 0 0 0)
+      (if (eq profile 0)
+        (compiler_complete 0)
+        (if (eq profile 1)
+          (validate_conformance_profile (second entry))
+          (fail))))))

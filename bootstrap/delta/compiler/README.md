@@ -2,7 +2,7 @@
 
 `delta_compiler.gamma` is the canonical request entry of the selected
 Gamma-authored Delta stage. It admits DCREQ, runs the shared compiler pipeline,
-and publishes either the successful Gamma receipt or an owned request-failure
+and publishes either the successful Gamma receipt or an owned failure
 frame through the selected Beta-authored Gamma evaluator.
 `delta_compiler.composed` binds the complete entry-plus-implementation bytes and
 evaluator-tape identity under `GammaComposedV1`, not the entry file alone.
@@ -19,7 +19,7 @@ and emission. Concept-owned members are grouped below it:
 - `implementation/emission/`: program structure, matches, value representation,
   checked arithmetic, byte helpers/adapters, and textual output.
 
-`implementation/implementation.gamma.sources` selects all 14 shared members
+`implementation/implementation.gamma.sources` selects all 15 shared members
 with exact lengths, digests, and ordered identities. The byte-only source
 materializer validates that closed inventory and prefixes the explicitly
 selected entry. For the canonical entry, its application marker is therefore
@@ -58,11 +58,13 @@ by an authored Delta name.
 
 Before tokenization or emission, the stage rejects every source byte except HT,
 LF, CR, and printable ASCII, exactly matching Delta's textual envelope. It then
-scans the complete declaration sequence. A first pass collects exact type
-owners, constructor counts, and representation shape without resolving forward
-field types. A second pass resolves those fields against the complete type
-catalog and records each constructor's owner, tag, arity, and declaration
-coordinates.
+scans the complete declaration sequence. Collection records every type,
+constructor, and function identity, constructor counts, representation shape,
+and source coordinates before resolving any declaration type. Duplicate
+identities therefore precede declaration-type and body failures. Resolution
+then checks fields and signatures against the complete catalogs, followed by
+body checking. Entry existence and application schema are checked only after
+the complete ordinary frontend succeeds.
 It requires all nonempty `data` declarations before one or more functions,
 exactly one `main`, and unique type, constructor, and function declarations in
 their separate namespaces. Exact source-byte names are retained in persistent
@@ -77,8 +79,8 @@ The frontend validates identifier spelling at declarations, types, parameters,
 local binders, constructor patterns, atoms, and application heads.
 Keywords, `Int`, `Bytes`, and the five closed `bytes_*` builtin names cannot be
 redeclared. Decimal literals are scanned without overflow and admit exactly
-`INT64_MIN..INT64_MAX`. The global census also rejects repeated parameter names
-within a function before expression emission begins.
+`INT64_MIN..INT64_MAX`. Declaration resolution also rejects repeated parameter
+names within a function before body checking begins.
 
 A type-checking pass begins each function from the typed parameter environment
 retained by the global catalog, then extends the immutable exact-name trie for
@@ -96,10 +98,11 @@ The complete type-check pass finishes before the first output byte. Emission
 therefore consumes that established preflight instead of revalidating data
 declarations, parameter annotations, function results, or `let` annotations.
 It still parses every source coordinate needed to construct canonical Gamma.
-The frontend malformed-source gate requires every rejected program to leave
-output empty, including defects after otherwise emit-capable declarations.
-Owned request failures instead publish their complete DCOUT frame before any
-frontend or emitter work begins.
+The raw-source development gate requires every rejected program to leave output
+empty, including defects after otherwise emit-capable declarations. The
+canonical entry instead publishes a complete DCOUT frame for owned failures;
+request admission precedes source inspection, and no emitter runs before every
+frontend and schema check succeeds.
 
 Each match check retains its seen constructors in another immutable exact-name
 trie. Same-owner validation plus duplicate rejection and exact constructor-count
@@ -142,15 +145,21 @@ owns empty/nonempty publication plus authored-trap, input-extent, and
 output-extent statuses. Strict request admission publishes canonical DCOUT for
 malformed framing, unknown profiles, and source-length refusal; see
 [`implementation/boundary/README.md`](implementation/boundary/README.md).
-Frontend, schema, later resource accounting, and internal-failure DCOUT outcomes
-remain open. Their current evaluator-owned failures are not compiler verdicts.
+Owned source failures now include forbidden source byte (code 3), duplicate
+type/constructor/function identity (6/7/8), missing `main` (19), and application
+schema mismatch (20). Missing `main` has no source coordinate; a schema mismatch
+anchors at the entry name. Other syntax, declaration-type, and body failures
+still exit through evaluator-owned Gamma status 249 without publication, not
+DCOUT. Completing those paths, later resource accounting, internal failures,
+and final edge closure remains open.
 Calls emitted in tail position remain in Gamma tail position through
 `if`, `let`, and lowered `match`; the selected evaluator executes a 100,000-node
 construction and traversal in bounded call context. Static acceptance of the
 scalar/nominal slice is not full-language admission.
 
 Run `sh tests/delta/staged-compiler/run.sh` for lowering and generated execution,
-`sh tests/delta/request-boundary/run.sh` for exact request outcomes, and
+`sh tests/delta/request-boundary/run.sh` for exact request outcomes,
+`sh tests/delta/frontend-boundary/run.sh` for exact frontend outcomes, and
 `sh tests/gamma/composed-artifact.sh` for composed identity and publication.
 The downgraded full compiler remains separate under
 [`../bootstrap/concatenative-compiler/`](../bootstrap/concatenative-compiler/).
@@ -158,7 +167,7 @@ The downgraded full compiler remains separate under
 ## Measurements
 
 ```text
-2,236-line / 91,079-byte canonical entry plus shared Gamma implementation
+2,319-line / 95,924-byte canonical entry plus shared Gamma implementation
 7-line / 195-byte nullary-ADT Delta fixture
   -> 3-line / 165-byte Gamma receipt
   -> selected Gamma evaluation produces byte 9
@@ -186,12 +195,12 @@ The downgraded full compiler remains separate under
 11-line / 397-byte forward/mutual nominal fixture
   -> 3-line / 956-byte byte-identical Gamma receipt
   -> all nullary, unary, and three-field constructor shapes produce byte 7
-828-line / 30,608-byte Epsilon declaration census
+882-line / 33,031-byte Epsilon declaration prefix plus scalar entry
   -> exact 21-byte scalar Gamma receipt within the evaluator watchdog
-9,119-line / 452,145-byte current Epsilon source plus diagnostic entry
-  -> 525,740-byte Gamma receipt in 72.6 seconds on the development host
+11,300-line / 569,628-byte current Epsilon source plus checking entry
+  -> byte-identical 676,611-byte Gamma receipt
+  -> 38 exact checking judgments
 3,001-function / 66,266-byte scale fixture
   -> 78,271-byte Gamma receipt
-  -> selected Gamma evaluation produces byte 199; staged transformation is
-     about 12 seconds on the development host
+  -> selected Gamma evaluation produces byte 199
 ```

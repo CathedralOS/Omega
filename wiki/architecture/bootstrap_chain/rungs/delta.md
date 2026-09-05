@@ -11,12 +11,14 @@ The normative contract is
 [`bootstrap/delta/LANGUAGE.md`](../../../../bootstrap/delta/LANGUAGE.md). The canonical
 compiler must be written in Gamma and emit canonical Gamma source. The selected
 Beta-authored Gamma evaluator executes that compiler over Delta source and can
-execute the resulting canonical Gamma receipt. The selected 2,236-line source
-is one canonical request entry plus 14 manifested shared implementation members.
+execute the resulting canonical Gamma receipt. The selected 2,319-line source
+is one canonical request entry plus 15 manifested shared implementation members.
 It enforces Delta's textual-ASCII byte envelope, identifier and
 reserved-name grammar, signed-literal range, and exact global function
-signatures. A two-pass immutable metadata catalog preserves forward and mutual
-nominal declarations without repeated whole-source lookup. Function metadata
+signatures. Complete type, constructor, and function identity collection
+precedes declaration-type resolution and body checking, so later global
+duplicates are not hidden by earlier type defects. Immutable metadata catalogs
+preserve forward and mutual declarations without repeated whole-source lookup. Function metadata
 likewise retains ordered resolved signatures and typed parameter environments
 once for all calls. Sparse bytewise tries store only present child edges. Its
 immutable exact-name environments reject unknown locals and
@@ -30,7 +32,7 @@ arbitrary-field recursive algebraic data and exact arbitrary-order exhaustive
 global declaration order, nonempty data, unique namespaces, and exactly one
 `main`. That whole-program type check completes before the first output byte;
 emission consumes the checked result without repeating declaration and binder
-validation, and malformed frontend inputs currently publish nothing. Tail calls remain in
+validation. Tail calls remain in
 tail position through emitted `if`, `let`, and
 lowered `match`; a 100,000-node construction/traversal witness completes in the
 selected evaluator's bounded call context. Authored signed arithmetic evaluates
@@ -39,7 +41,11 @@ operands once and traps at every Delta overflow boundary. The five typed
 concatenation and proper-tail lookup. Canonical DCREQ framing and
 `ConformanceBytesV1` are executable. Request admission publishes exact DCOUT
 frames for malformed framing, unknown profiles, and source-length refusal;
-raw-source diagnostics have a separate source-owned entry sharing the same
-implementation. The admitted complete edge remains absent while frontend/schema
-and later resource/internal DCOUT outcomes, deterministic failure selection,
-and final edge closure remain open.
+source-byte rejection (3), duplicate type/constructor/function identity (6/7/8),
+missing `main` (19), and entry-schema mismatch (20) also have owned DCOUT
+publication. Entry schema runs only after the complete frontend succeeds.
+Raw-source diagnostics have a separate source-owned entry sharing the same
+implementation. Other syntax, declaration-type, and body failures remain
+evaluator-owned Gamma status 249 without publication, not DCOUT. Those
+remaining frontend paths, later resource/internal outcomes, deterministic
+failure selection, and final edge closure remain open.

@@ -158,4 +158,3 @@
   ((name Int) (name_end Int) (globals Int)) Int
   (let found Int (find_function_metadata name name_end globals)
     (if (first found) (second found) (fail))))
-

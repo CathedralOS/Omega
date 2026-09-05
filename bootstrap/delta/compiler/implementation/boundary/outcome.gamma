@@ -1,5 +1,11 @@
 ; Common DCOUT V1 value: tag, space, code, coordinate, limit, requested.
 ; No output is written while deciding admission. Publication owns the frame.
+(def compiler_complete ((value Int)) Int
+  (pair 0 value))
+
+(def compiler_source_rejection ((code Int) (coordinate Int)) Int
+  (compiler_failure 1 1 code coordinate 0 0))
+
 (def compiler_failure ((tag Int) (space Int) (code Int) (coordinate Int)
   (limit Int) (requested Int)) Int
   (pair tag (pair space (pair code (pair coordinate (pair limit requested))))))
