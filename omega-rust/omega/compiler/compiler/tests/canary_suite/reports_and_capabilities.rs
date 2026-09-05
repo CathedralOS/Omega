@@ -1,5 +1,8 @@
 use super::*;
 
+#[path = "../fixture_rosters/reports_and_capabilities.rs"]
+pub(super) mod fixture_roster;
+
 fn assert_native_exit_code(report: &CompileReport, expected: i32, fixture: &str) {
     let executable = report
         .checked_native_executable_path()
@@ -46,7 +49,7 @@ fn output_only_checks_suppress_artifacts_without_suppressing_wire_validation() {
     let success_build_dir = unique_no_output_build_dir();
     let success = compiler::compile(
         CompileRequest::new(CompilerOptions {
-            root_path: pass_canary("dependent/boundary_equality_recast_witness_compile")
+            root_path: pass_canary(fixture_roster::BOUNDARY_EQUALITY_RECAST_WITNESS_COMPILE)
                 .join("main.omg"),
             build_dir: Some(success_build_dir.clone()),
             target_name: None,
@@ -63,7 +66,8 @@ fn output_only_checks_suppress_artifacts_without_suppressing_wire_validation() {
     let failure_build_dir = unique_no_output_build_dir();
     let diagnostics = compiler::compile(
         CompileRequest::new(CompilerOptions {
-            root_path: fail_canary("wire/wire_compatibility_preservation_unmet").join("main.omg"),
+            root_path: fail_canary(fixture_roster::WIRE_COMPATIBILITY_PRESERVATION_UNMET)
+                .join("main.omg"),
             build_dir: Some(failure_build_dir.clone()),
             target_name: None,
         })
@@ -87,7 +91,7 @@ fn full_checked_observation_emits_ordered_timings_with_checked_snapshots() {
     let build_dir = unique_no_output_build_dir();
     let report = compiler::compile(
         CompileRequest::new(CompilerOptions {
-            root_path: pass_canary("dependent/boundary_equality_recast_witness_compile")
+            root_path: pass_canary(fixture_roster::BOUNDARY_EQUALITY_RECAST_WITNESS_COMPILE)
                 .join("main.omg"),
             build_dir: Some(build_dir.clone()),
             target_name: None,
@@ -128,7 +132,8 @@ fn full_checked_observation_emits_ordered_timings_with_checked_snapshots() {
 
 #[test]
 fn checked_semantic_equality_excludes_timing_observations() {
-    let main = pass_canary("dependent/boundary_equality_recast_witness_compile").join("main.omg");
+    let main =
+        pass_canary(fixture_roster::BOUNDARY_EQUALITY_RECAST_WITNESS_COMPILE).join("main.omg");
     let first = compile_to_checked(&main, None).expect("first checked compilation");
     let replay = compile_to_checked(&main, None).expect("replayed checked compilation");
     assert_eq!(
@@ -142,7 +147,7 @@ fn output_only_backend_compile_keeps_primary_image_and_certification() {
     let build_dir = unique_no_output_build_dir();
     let report = compiler::compile(
         CompileRequest::new(CompilerOptions {
-            root_path: pass_canary("terminal_psi/selected_empty_component").join("main.omg"),
+            root_path: pass_canary(fixture_roster::SELECTED_EMPTY_COMPONENT).join("main.omg"),
             build_dir: Some(build_dir.clone()),
             target_name: Some("linux_x86_64".into()),
         })
@@ -177,7 +182,7 @@ fn typed_requested_product_stops_at_exact_check_and_native_artifact_boundaries()
     let check_dir = unique_no_output_build_dir();
     let report = compiler::compile(
         CompileRequest::new(CompilerOptions {
-            root_path: pass_canary("build/explicit_program_entry_binding").join("main.omg"),
+            root_path: pass_canary(fixture_roster::EXPLICIT_PROGRAM_ENTRY_BINDING).join("main.omg"),
             build_dir: Some(check_dir.clone()),
             target_name: Some("windows_x86_64".into()),
         })
@@ -192,7 +197,7 @@ fn typed_requested_product_stops_at_exact_check_and_native_artifact_boundaries()
     let native_dir = unique_no_output_build_dir();
     let native = compiler::compile(
         CompileRequest::new(CompilerOptions {
-            root_path: pass_canary("terminal_psi/selected_empty_component").join("main.omg"),
+            root_path: pass_canary(fixture_roster::SELECTED_EMPTY_COMPONENT).join("main.omg"),
             build_dir: Some(native_dir.clone()),
             target_name: Some("linux_x86_64".into()),
         })
@@ -229,7 +234,7 @@ fn typed_requested_product_stops_at_exact_check_and_native_artifact_boundaries()
     let terminal_dir = unique_no_output_build_dir();
     let terminal = compiler::compile(
         CompileRequest::new(CompilerOptions {
-            root_path: pass_canary("terminal_psi/selected_empty_component").join("main.omg"),
+            root_path: pass_canary(fixture_roster::SELECTED_EMPTY_COMPONENT).join("main.omg"),
             build_dir: Some(terminal_dir.clone()),
             target_name: Some("linux_x86_64".into()),
         })
@@ -293,7 +298,7 @@ fn typed_requested_product_stops_at_exact_check_and_native_artifact_boundaries()
 
     let unsupported = compiler::compile(
         CompileRequest::new(CompilerOptions {
-            root_path: pass_canary("build/explicit_program_entry_binding").join("main.omg"),
+            root_path: pass_canary(fixture_roster::EXPLICIT_PROGRAM_ENTRY_BINDING).join("main.omg"),
             build_dir: None,
             target_name: Some("windows_x86_64".into()),
         })
@@ -309,7 +314,7 @@ fn typed_requested_product_stops_at_exact_check_and_native_artifact_boundaries()
     let unsupported_native_dir = unique_no_output_build_dir();
     let unsupported_native = compiler::compile(
         CompileRequest::new(CompilerOptions {
-            root_path: pass_canary("build/explicit_program_entry_binding").join("main.omg"),
+            root_path: pass_canary(fixture_roster::EXPLICIT_PROGRAM_ENTRY_BINDING).join("main.omg"),
             build_dir: Some(unsupported_native_dir.clone()),
             target_name: Some("windows_x86_64".into()),
         })
@@ -332,7 +337,8 @@ fn typed_requested_product_stops_at_exact_check_and_native_artifact_boundaries()
 fn disposable_native_canary_helper_emits_only_the_primary_image() {
     let build_dir = unique_no_output_build_dir();
     let report = compile(CanaryCompileSpec {
-        root_path: pass_canary("calls/free_standing_machine_helper_compile").join("main.omg"),
+        root_path: pass_canary(fixture_roster::FREE_STANDING_MACHINE_HELPER_COMPILE)
+            .join("main.omg"),
         build_dir: Some(build_dir.clone()),
         target_name: None,
         product: CanaryCompileProduct::NativeArtifactAndPublish,
@@ -374,7 +380,7 @@ fn artifact_file_footprint(directory: &Path) -> (usize, u64) {
 
 #[test]
 fn rooted_native_helpers_separate_disposable_and_auxiliary_artifacts() {
-    let canary = pass_canary("ownership/linear_transfer_and_consume");
+    let canary = pass_canary(fixture_roster::LINEAR_TRANSFER_AND_CONSUME);
     let scratch = unique_no_output_build_dir();
     let output_only = scratch.join("output-only");
     let full = scratch.join("full");
@@ -413,7 +419,7 @@ fn rooted_native_helpers_separate_disposable_and_auxiliary_artifacts() {
 
 #[test]
 fn boundary_trait_canary_reports_capability_use() {
-    let canary = pass_canary("traits/boundary_trait_effects_host_call");
+    let canary = pass_canary(fixture_roster::BOUNDARY_TRAIT_EFFECTS_HOST_CALL);
     let main_path = canary.join("main.omg");
     let scratch = std::env::temp_dir().join(format!(
         "omega-capability-manifest-canary-{}",
@@ -503,7 +509,7 @@ fn boundary_trait_canary_reports_capability_use() {
 
 #[test]
 fn opaque_boundary_data_reaches_checked_facts_without_a_layout_claim() {
-    let canary = pass_canary("proofs/boundary_data_opaque_contract");
+    let canary = pass_canary(fixture_roster::BOUNDARY_DATA_OPAQUE_CONTRACT);
     let checked = compile_to_checked(&canary.join("main.omg"), None)
         .expect("opaque boundary data should be usable in frontend contracts");
     let opaque = checked
@@ -534,7 +540,7 @@ fn opaque_boundary_data_reaches_checked_facts_without_a_layout_claim() {
 // (v1 -> v2, newest era -> current), never every era against current.
 #[test]
 fn wire_cross_era_type_change_reports_requires_migration_verdict() {
-    let canary = pass_canary("wire/wire_cross_era_type_change_migration");
+    let canary = pass_canary(fixture_roster::WIRE_CROSS_ERA_TYPE_CHANGE_MIGRATION);
     let main_path = canary.join("main.omg");
     let build_dir = std::env::temp_dir().join(format!(
         "omega-wire-migration-verdict-canary-{}",
@@ -577,7 +583,7 @@ fn wire_cross_era_type_change_reports_requires_migration_verdict() {
 
 #[test]
 fn wire_compatibility_demand_reports_directional_facts_and_migration_route() {
-    let canary = pass_canary("wire/wire_compatibility_demand_report");
+    let canary = pass_canary(fixture_roster::WIRE_COMPATIBILITY_DEMAND_REPORT);
     let build_dir = std::env::temp_dir().join(format!(
         "omega-wire-edge-demand-canary-{}",
         std::process::id()
@@ -638,7 +644,7 @@ fn wire_compatibility_demand_reports_directional_facts_and_migration_route() {
 // rows end at control flow and must not reappear in a backend artifact.
 #[test]
 fn backend_report_renders_ownership_summary_events() {
-    let canary = pass_canary("ownership/linear_transfer_and_consume");
+    let canary = pass_canary(fixture_roster::LINEAR_TRANSFER_AND_CONSUME);
     let build_dir = std::env::temp_dir().join(format!(
         "omega-ownership-spine-canary-{}",
         std::process::id()
@@ -718,7 +724,7 @@ fn backend_report_renders_ownership_summary_events() {
 
 #[test]
 fn backend_report_renders_transparent_record_claim_paths() {
-    let canary = pass_canary("ownership/linear_transparent_record_frontier");
+    let canary = pass_canary(fixture_roster::LINEAR_TRANSPARENT_RECORD_FRONTIER);
     let build_dir = std::env::temp_dir().join(format!(
         "omega-transparent-record-frontier-{}",
         std::process::id()
@@ -779,7 +785,7 @@ fn backend_report_renders_transparent_record_claim_paths() {
 
 #[test]
 fn backend_report_realizes_state_call_entry_at_call_site() {
-    let canary = pass_canary("ownership/linear_state_call_handoff");
+    let canary = pass_canary(fixture_roster::LINEAR_STATE_CALL_HANDOFF);
     let build_dir = std::env::temp_dir().join(format!(
         "omega-ownership-state-call-canary-{}",
         std::process::id()
@@ -823,7 +829,7 @@ fn backend_report_realizes_state_call_entry_at_call_site() {
 
 #[test]
 fn backend_report_separates_transition_and_nested_call_ordinals() {
-    let canary = pass_canary("ownership/linear_transition_nested_call_handoff");
+    let canary = pass_canary(fixture_roster::LINEAR_TRANSITION_NESTED_CALL_HANDOFF);
     let build_dir = std::env::temp_dir().join(format!(
         "omega-ownership-transition-multicall-canary-{}",
         std::process::id()
@@ -888,7 +894,7 @@ fn backend_report_separates_transition_and_nested_call_ordinals() {
 
 #[test]
 fn backend_report_separates_repeated_transition_call_ordinals() {
-    let canary = pass_canary("ownership/linear_repeated_transition_call_handoff");
+    let canary = pass_canary(fixture_roster::LINEAR_REPEATED_TRANSITION_CALL_HANDOFF);
     let build_dir = std::env::temp_dir().join(format!(
         "omega-ownership-repeated-transition-call-canary-{}",
         std::process::id()
@@ -961,7 +967,7 @@ fn backend_report_separates_repeated_transition_call_ordinals() {
 
 #[test]
 fn backend_report_realizes_linear_boundary_entry_from_prologue() {
-    let canary = pass_canary("ownership/linear_boundary_entry_handoff");
+    let canary = pass_canary(fixture_roster::LINEAR_BOUNDARY_ENTRY_HANDOFF);
     let build_dir = std::env::temp_dir().join(format!(
         "omega-ownership-boundary-entry-canary-{}",
         std::process::id()
@@ -1025,7 +1031,7 @@ fn backend_report_realizes_linear_boundary_entry_from_prologue() {
 
 #[test]
 fn linear_obligation_survives_dispatched_call_continuation() {
-    let canary = pass_canary("ownership/linear_live_across_call_continuation");
+    let canary = pass_canary(fixture_roster::LINEAR_LIVE_ACROSS_CALL_CONTINUATION);
     let build_dir = std::env::temp_dir().join(format!(
         "omega-ownership-call-continuation-canary-{}",
         std::process::id()
@@ -1089,7 +1095,7 @@ fn linear_obligation_survives_dispatched_call_continuation() {
 
 #[test]
 fn backend_report_preserves_fresh_state_call_result_origin() {
-    let canary = pass_canary("ownership/linear_fresh_state_call_result_handoff");
+    let canary = pass_canary(fixture_roster::LINEAR_FRESH_STATE_CALL_RESULT_HANDOFF);
     let build_dir = std::env::temp_dir().join(format!(
         "omega-ownership-fresh-state-result-canary-{}",
         std::process::id()
@@ -1133,7 +1139,7 @@ fn backend_report_preserves_fresh_state_call_result_origin() {
 
 #[test]
 fn backend_report_preserves_path_aligned_multi_claim_state_result() {
-    let canary = pass_canary("ownership/linear_transparent_record_state_result");
+    let canary = pass_canary(fixture_roster::LINEAR_TRANSPARENT_RECORD_STATE_RESULT);
     let build_dir = std::env::temp_dir().join(format!(
         "omega-ownership-multi-state-result-canary-{}",
         std::process::id()
@@ -1177,7 +1183,7 @@ fn backend_report_preserves_path_aligned_multi_claim_state_result() {
 
 #[test]
 fn backend_report_preserves_direct_aggregate_state_result_mapping() {
-    let canary = pass_canary("ownership/linear_aggregate_state_result");
+    let canary = pass_canary(fixture_roster::LINEAR_AGGREGATE_STATE_RESULT);
     let build_dir = std::env::temp_dir().join(format!(
         "omega-ownership-aggregate-state-result-canary-{}",
         std::process::id()
@@ -1217,10 +1223,7 @@ fn backend_report_preserves_direct_aggregate_state_result_mapping() {
 fn checked_only_capability_canaries_compile_in_isolation() {
     // A focused guard for the checked authority-flow canaries, independent of
     // the batched `pass_canaries_compile` sweep (which also covers them).
-    for canary_name in [
-        "capabilities/uses_caller_folder",
-        "capabilities/uses_caller_capability_requires",
-    ] {
+    for &canary_name in fixture_roster::CHECKED_CAPABILITY_PASS_CANARIES {
         let canary = pass_canary(canary_name);
         if let Err(diagnostics) = check_canary(&canary) {
             panic!(
@@ -1238,11 +1241,7 @@ fn checked_only_capability_canaries_compile_in_isolation() {
 
 #[test]
 fn signed_rat_metric_canaries_compile_in_isolation() {
-    for canary_name in [
-        "proofs/rat_metric_compile",
-        "proofs/signed_rat_metric_compile",
-        "proofs/cauchy_predicates_compile",
-    ] {
+    for &canary_name in fixture_roster::SIGNED_RAT_PASS_CANARIES {
         let canary = pass_canary(canary_name);
         if let Err(diagnostics) = check_canary(&canary) {
             panic!(
@@ -1280,7 +1279,7 @@ fn checked_only_canaries_are_not_backend_umbrella_members() {
 
 #[test]
 fn float_meaning_core_surface_compiles_in_isolation() {
-    let canary = pass_canary("core/float_meaning_core_surface");
+    let canary = pass_canary(fixture_roster::FLOAT_MEANING_CORE_SURFACE);
     if let Err(diagnostics) = check_canary(&canary) {
         panic!(
             "expected FloatMeaning core canary {} to reach checked semantics, but got diagnostics:\n{}",
@@ -1296,10 +1295,7 @@ fn float_meaning_core_surface_compiles_in_isolation() {
 
 #[test]
 fn capability_manifest_reports_authority_flow_verbs() {
-    for (canary_name, verb) in [
-        ("capabilities/acquires_filesystem_authority", "acquires"),
-        ("capabilities/stores_capability", "stores"),
-    ] {
+    for &(canary_name, verb) in fixture_roster::CAPABILITY_VERB_PASS_CANARIES {
         let canary = pass_canary(canary_name);
         let build_dir = std::env::temp_dir().join(format!(
             "omega-capability-verb-canary-{}-{}",
@@ -1362,22 +1358,7 @@ fn capability_flows_retain_exact_direct_and_propagated_sites() {
     // not just direct boundary calls: a helper that mints or derives authority
     // and returns it flows the same verb up to its caller, and the boundary
     // report records the helper as provenance.
-    for (canary_name, propagated_routes) in [
-        (
-            "capabilities/acquires_through_helper_return",
-            // The second line shows the verb traveling a further call level: the
-            // entry machine acquires through the mid-level helper, which acquired
-            // through the boundary-touching helper.
-            &[
-                ("Backup::stage", "acquires", "Vault::pick"),
-                ("Main::main", "acquires", "Backup::stage"),
-            ][..],
-        ),
-        (
-            "capabilities/derives_through_helper",
-            &[("Worker::open_main_log", "derives", "Worker::open_log")][..],
-        ),
-    ] {
+    for &(canary_name, propagated_routes) in fixture_roster::CAPABILITY_FLOW_PASS_CANARIES {
         let canary = pass_canary(canary_name);
         let build_dir = std::env::temp_dir().join(format!(
             "omega-capability-nested-canary-{}-{}",
@@ -1435,7 +1416,7 @@ fn capability_flows_retain_exact_direct_and_propagated_sites() {
 
 #[test]
 fn unapproved_boundary_call_canary_is_rejected() {
-    let canary = fail_canary("capabilities/unapproved_host_call");
+    let canary = fail_canary(fixture_roster::UNAPPROVED_HOST_CALL);
     let diagnostics = match compile_canary_without_output(&canary) {
         Ok(report) => panic!(
             "expected unapproved boundary call canary to reject, but it compiled: {}",
