@@ -3,23 +3,24 @@
 (def collect_global_identities ((program Int)) Int
   (collect_global_nodes (first program) (second program)
     (pair (empty_name_trie)
-      (pair (empty_name_trie) (empty_name_trie)))))
+      (pair (empty_name_trie) (empty_name_trie))) 0))
 
-(def collect_global_nodes ((remaining Int) (forms Int) (globals Int)) Int
+(def collect_global_nodes
+  ((remaining Int) (forms Int) (globals Int) (function_count Int)) Int
   (if (eq remaining 0)
     (compiler_complete globals)
     (let form Int (first forms)
       (let head Int (syntax_child form 0)
-        (let collected Int
-          (if (token_data (syntax_start head) (syntax_after head))
-            (collect_data_identity form globals)
-            (if (token_def (syntax_start head) (syntax_after head))
-              (collect_function_identity form globals)
-              (fail)))
-          (if (eq (first collected) 0)
-            (collect_global_nodes
-              (- remaining 1) (second forms) (second collected))
-            collected))))))
+        (let is_data Int (token_data (syntax_start head) (syntax_after head))
+          (let collected Int
+            (if is_data
+              (collect_data_identity form globals)
+              (collect_function_identity form globals function_count))
+            (if (eq (first collected) 0)
+              (collect_global_nodes
+                (- remaining 1) (second forms) (second collected)
+                (if is_data function_count (+ function_count 1)))
+              collected)))))))
 
 (def count_constructor_payloads
   ((remaining Int) (constructors Int) (total Int)) Int
@@ -74,7 +75,10 @@
 
 ; The raw row retains its exact function node instead of a rescanned body end.
 ; Typed metadata is constructed only after the whole global census succeeds.
-(def collect_function_identity ((form Int) (globals Int)) Int
+; D30 counts authored function rows, not resolved copies or generated helpers.
+; Duplicate lookup precedes provision: only a new identity requests a new row.
+(def collect_function_identity
+  ((form Int) (globals Int) (function_count Int)) Int
   (let name Int (syntax_child form 1)
     (let start Int (syntax_start name)
       (let after Int (syntax_after name)
@@ -82,8 +86,10 @@
           (name_trie_find_option (global_functions globals) after start)
           (if (first prior)
             (compiler_source_rejection 8 start)
-            (compiler_complete
-              (pair (global_types globals)
-                (pair (global_constructors globals)
-                  (name_trie_insert (global_functions globals) after start
-                    (pair (+ (syntax_start form) 1) (pair after form))))))))))))
+            (if (lt function_count 32768)
+              (compiler_complete
+                (pair (global_types globals)
+                  (pair (global_constructors globals)
+                    (name_trie_insert (global_functions globals) after start
+                      (pair (+ (syntax_start form) 1) (pair after form))))))
+              (compiler_failure 2 1 4 start 32768 (+ function_count 1)))))))))
