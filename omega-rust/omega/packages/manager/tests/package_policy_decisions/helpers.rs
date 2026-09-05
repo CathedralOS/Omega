@@ -18,22 +18,32 @@ pub(super) fn decisions(
     changes: &PackagePolicyChangeSet,
     disposition: ReviewOnlyRootPolicyDisposition,
 ) -> Vec<PackagePolicyDecision> {
-    changes
-        .decision_obligations(PackagePolicyDecisionLimits::default())
-        .unwrap()
-        .iter()
-        .map(|obligation| changes.policy_decision(obligation, disposition).unwrap())
-        .collect()
+    let mut decisions = Vec::new();
+    if changes.root_role_change().is_some() {
+        decisions.push(PackagePolicyDecision {
+            subject: PackagePolicyDecisionSubject::RootRole,
+            disposition,
+        });
+    }
+    for package in changes.packages() {
+        for row in package.rows().iter().filter(|row| row.requires_decision()) {
+            decisions.push(PackagePolicyDecision {
+                subject: PackagePolicyDecisionSubject::Row(row.fingerprint().digest()),
+                disposition,
+            });
+        }
+    }
+    decisions
 }
 
 pub(super) fn resolution(
     changes: &PackagePolicyChangeSet,
     disposition: ReviewOnlyRootPolicyDisposition,
-) -> PackagePolicyDecisionResolution {
+) -> PackagePolicyResolution {
     let resolution = resolve_package_policy_decisions(
         changes,
+        changes.fingerprint().digest(),
         &decisions(changes, disposition),
-        PackagePolicyDecisionLimits::default(),
     )
     .unwrap();
     let text = resolution
@@ -50,7 +60,7 @@ pub(super) fn history_lock(
     sources: &ResolvedPackageSourceClosure,
     reviews: &CompilerIssuedPackageReviewSet,
     changes: &PackagePolicyChangeSet,
-    resolved: &PackagePolicyDecisionResolution,
+    resolved: &PackagePolicyResolution,
 ) -> PackageLock {
     let source = CanonicalSourceClosureSubject::from_resolved(
         &sources.for_exact_target(TARGET),

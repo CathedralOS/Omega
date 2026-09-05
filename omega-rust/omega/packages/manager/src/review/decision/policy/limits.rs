@@ -1,8 +1,8 @@
 use super::PackagePolicyDecisionError as Error;
 
-/// Hard-clamped aggregate limits. Requested storage includes obligation and
-/// decision tables and output text; borrowed inputs and allocator overhead are
-/// not counted. The scan ceiling includes packages, rows, and root-role change.
+/// One bounded operation counts requested table/text storage before allocation.
+/// Borrowed inputs and allocator overhead are excluded. Comparison scans count
+/// packages, rows, and the optional root-role subject; sorting is in place.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct PackagePolicyDecisionLimits {
     pub maximum_bytes: usize,
@@ -10,6 +10,7 @@ pub struct PackagePolicyDecisionLimits {
     pub maximum_owned_bytes: usize,
     pub maximum_changes: usize,
 }
+
 impl Default for PackagePolicyDecisionLimits {
     fn default() -> Self {
         Self {
@@ -20,10 +21,12 @@ impl Default for PackagePolicyDecisionLimits {
         }
     }
 }
+
 pub(super) struct Budget {
-    pub(super) limits: PackagePolicyDecisionLimits,
+    limits: PackagePolicyDecisionLimits,
     owned: usize,
 }
+
 impl Budget {
     pub(super) fn new(limits: PackagePolicyDecisionLimits) -> Self {
         let hard = PackagePolicyDecisionLimits::default();
@@ -40,6 +43,13 @@ impl Budget {
     pub(super) fn decisions(&self, count: usize) -> Result<(), Error> {
         if count > self.limits.maximum_decisions {
             Err(Error::DecisionLimitExceeded)
+        } else {
+            Ok(())
+        }
+    }
+    pub(super) fn changes(&self, count: usize) -> Result<(), Error> {
+        if count > self.limits.maximum_changes {
+            Err(Error::ChangeLimitExceeded)
         } else {
             Ok(())
         }
@@ -70,5 +80,44 @@ impl Budget {
             .try_reserve_exact(count)
             .map_err(|_| Error::AllocationFailed)?;
         Ok(result)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn caller_ceilings_cannot_raise_format_limits() {
+        let budget = Budget::new(PackagePolicyDecisionLimits {
+            maximum_bytes: usize::MAX,
+            maximum_decisions: usize::MAX,
+            maximum_owned_bytes: usize::MAX,
+            maximum_changes: usize::MAX,
+        });
+        let hard = PackagePolicyDecisionLimits::default();
+        assert_eq!(
+            budget.bytes(hard.maximum_bytes + 1),
+            Err(Error::ByteLimitExceeded)
+        );
+        assert_eq!(
+            budget.decisions(hard.maximum_decisions + 1),
+            Err(Error::DecisionLimitExceeded)
+        );
+        assert_eq!(
+            budget.changes(hard.maximum_changes + 1),
+            Err(Error::ChangeLimitExceeded)
+        );
+    }
+
+    #[test]
+    fn all_tables_consume_one_preallocation_budget() {
+        let mut budget = Budget::new(PackagePolicyDecisionLimits {
+            maximum_owned_bytes: 12,
+            ..Default::default()
+        });
+        assert!(budget.vector::<u32>(2).is_ok());
+        assert!(budget.vector::<u32>(1).is_ok());
+        assert_eq!(budget.vector::<u8>(1), Err(Error::OwnedLimitExceeded));
     }
 }

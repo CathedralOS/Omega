@@ -8,8 +8,9 @@ mod storage;
 
 pub use model::{ReviewOnlyRootPolicyDecision, ReviewOnlyRootPolicyDisposition};
 pub use policy::{
-    PackagePolicyDecision, PackagePolicyDecisionError, PackagePolicyDecisionSubject,
-    PackagePolicyResolution, resolve_package_policy_decisions,
+    PackagePolicyDecision, PackagePolicyDecisionError, PackagePolicyDecisionLimits,
+    PackagePolicyDecisionSubject, PackagePolicyResolution, recover_package_policy_decisions,
+    resolve_package_policy_decisions, resolve_package_policy_decisions_with_limits,
 };
 pub use record::{
     ReviewOnlyRootPolicyRecordError, ReviewOnlyRootPolicyRecordLimits,

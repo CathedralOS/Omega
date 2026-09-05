@@ -19,9 +19,12 @@ fn pure_initial_policy_has_an_empty_resolution_while_every_assumption_needs_a_ch
     assert!(empty.all_required_changes_accepted());
     let package = &pure.packages()[0];
     let row = &package.rows()[0];
-    assert_eq!(
-        pure.row_policy_decision(package, row, ACCEPT).unwrap_err(),
-        PackagePolicyDecisionError::NonBlockingRow
+    let advisory = PackagePolicyDecision {
+        subject: PackagePolicyDecisionSubject::Row(row.fingerprint().digest()),
+        disposition: ACCEPT,
+    };
+    assert!(
+        resolve_package_policy_decisions(&pure, pure.fingerprint().digest(), &[advisory]).is_err()
     );
 
     source(&tree, CLAIMS, "");
@@ -37,49 +40,33 @@ fn pure_initial_policy_has_an_empty_resolution_while_every_assumption_needs_a_ch
         accepted
             .decisions()
             .iter()
-            .all(|decision| decision.disposition() == ACCEPT)
+            .all(|decision| decision.disposition == ACCEPT)
     );
     assert!(
         rejected
             .decisions()
             .iter()
-            .all(|decision| decision.disposition() == REJECT)
+            .all(|decision| decision.disposition == REJECT)
     );
-    assert_ne!(accepted.fingerprint(), rejected.fingerprint());
+    assert_ne!(accepted, rejected);
     let mut mixed = selected.clone();
-    mixed[1] = changes
-        .policy_decision(mixed[1].obligation(), REJECT)
-        .unwrap();
+    mixed[1].disposition = REJECT;
     let mixed =
-        resolve_package_policy_decisions(&changes, &mixed, PackagePolicyDecisionLimits::default())
-            .unwrap();
+        resolve_package_policy_decisions(&changes, changes.fingerprint().digest(), &mixed).unwrap();
     assert!(!mixed.all_required_changes_accepted());
     assert_eq!(
-        resolve_package_policy_decisions(
-            &changes,
-            &selected[..1],
-            PackagePolicyDecisionLimits::default()
-        )
-        .unwrap_err(),
-        PackagePolicyDecisionError::MissingDecision
+        resolve_package_policy_decisions(&changes, changes.fingerprint().digest(), &selected[..1],)
+            .unwrap_err(),
+        PackagePolicyDecisionError::MissingDecision(selected[1].subject)
     );
     let duplicate = vec![selected[0], selected[0]];
     assert_eq!(
-        resolve_package_policy_decisions(
-            &changes,
-            &duplicate,
-            PackagePolicyDecisionLimits::default()
-        )
-        .unwrap_err(),
-        PackagePolicyDecisionError::DuplicateDecision
+        resolve_package_policy_decisions(&changes, changes.fingerprint().digest(), &duplicate,)
+            .unwrap_err(),
+        PackagePolicyDecisionError::DuplicateDecision(selected[0].subject)
     );
     assert!(
-        pure.policy_decision(selected[0].obligation(), ACCEPT)
-            .is_err()
-    );
-    assert!(
-        resolve_package_policy_decisions(&pure, &selected, PackagePolicyDecisionLimits::default())
-            .is_err()
+        resolve_package_policy_decisions(&pure, changes.fingerprint().digest(), &selected).is_err()
     );
     for limits in [
         PackagePolicyDecisionLimits {
@@ -95,7 +82,15 @@ fn pure_initial_policy_has_an_empty_resolution_while_every_assumption_needs_a_ch
             ..Default::default()
         },
     ] {
-        assert!(resolve_package_policy_decisions(&changes, &selected, limits).is_err());
+        assert!(
+            resolve_package_policy_decisions_with_limits(
+                &changes,
+                changes.fingerprint().digest(),
+                &selected,
+                limits
+            )
+            .is_err()
+        );
     }
     let text = accepted
         .canonical_text(PackagePolicyDecisionLimits::default())
@@ -217,8 +212,8 @@ fn baseline_only_and_source_only_changes_make_old_decisions_stale() {
     assert!(
         resolve_package_policy_decisions(
             &changed_source,
+            changes.fingerprint().digest(),
             accepted_resolution.decisions(),
-            PackagePolicyDecisionLimits::default()
         )
         .is_err()
     );

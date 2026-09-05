@@ -12,10 +12,11 @@ use omega_package_manager::resolution::graph::{
 use omega_package_manager::resolution::package_compilation_inputs;
 use omega_package_manager::review::{
     CompilerIssuedPackageReviewSet, PackagePolicyChangeLimits, PackagePolicyChangeSet,
-    PackagePolicyDecision, PackagePolicyDecisionLimits, PackagePolicyDecisionResolution,
-    ReviewOnlyRootPolicyDisposition, compare_package_policy_changes,
+    PackagePolicyDecision, PackagePolicyDecisionLimits, PackagePolicyDecisionSubject,
+    PackagePolicyResolution, ReviewOnlyRootPolicyDisposition, compare_package_policy_changes,
     compile_resolved_package_candidate_reviews, compile_resolved_package_reviews,
     recover_package_policy_decisions, resolve_package_policy_decisions,
+    resolve_package_policy_decisions_with_limits,
 };
 use omega_package_source::{ExternalSourceContext, LocalSourceLimits, SourceResolverStorage};
 use omega_target::TargetProfile;

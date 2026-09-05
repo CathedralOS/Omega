@@ -1,7 +1,8 @@
 use super::*;
 use crate::review::{
-    PackagePolicyChangeSet, PackagePolicyDecisionResolution, PackagePolicyDecisionSubject,
+    PackagePolicyChangeSet, PackagePolicyDecisionSubject, PackagePolicyResolution,
 };
+use sha2::{Digest, Sha256};
 
 impl HistoricalPackagePolicyDecisions {
     /// Record the exact completed normalized choices as inert V2 history.
@@ -9,7 +10,7 @@ impl HistoricalPackagePolicyDecisions {
     pub fn capture_policy_changes(
         source: &Source,
         changes: &PackagePolicyChangeSet,
-        resolution: &PackagePolicyDecisionResolution,
+        resolution: &PackagePolicyResolution,
         limits: Limits,
     ) -> Result<Self, Error> {
         Self::capture_policy_changes_with_usage(source, changes, resolution, limits, usize::MAX)
@@ -19,7 +20,7 @@ impl HistoricalPackagePolicyDecisions {
     pub fn capture_policy_changes_with_usage(
         source: &Source,
         changes: &PackagePolicyChangeSet,
-        resolution: &PackagePolicyDecisionResolution,
+        resolution: &PackagePolicyResolution,
         limits: Limits,
         maximum_owned_bytes: usize,
     ) -> Result<(Self, Usage), Error> {
@@ -27,7 +28,7 @@ impl HistoricalPackagePolicyDecisions {
         if source.fingerprint() != changes.candidate_source_subject() {
             return Err(Error::SourceSubjectMismatch);
         }
-        if resolution.change_set() != changes.fingerprint() {
+        if resolution.comparison() != changes.fingerprint() {
             return Err(Error::ResolutionMismatch);
         }
         let count = resolution.decisions().len();
@@ -48,46 +49,59 @@ impl HistoricalPackagePolicyDecisions {
         decisions
             .try_reserve_exact(count)
             .map_err(|_| Error::AllocationFailed)?;
-        // One temporary identity index joins removed and present keys without
-        // cloning the comparison or repeatedly scanning its package union.
-        type Index = (psi_core::PackageKeyIdentity, usize);
+        // One temporary row index joins upstream decision subjects back to
+        // their exact package without rebuilding compiler review or policy.
+        type Index = ([u8; 32], usize);
         usage.charge(
-            changes
-                .packages()
-                .len()
+            count
                 .checked_mul(std::mem::size_of::<Index>())
                 .ok_or(Error::AllocationLimitExceeded)?,
             maximum_owned_bytes,
         )?;
         let mut index = Vec::new();
         index
-            .try_reserve_exact(changes.packages().len())
+            .try_reserve_exact(count)
             .map_err(|_| Error::AllocationFailed)?;
-        index.extend(
-            changes
-                .packages()
-                .iter()
-                .enumerate()
-                .map(|(ordinal, package)| (package.key().identity(), ordinal)),
-        );
+        for (ordinal, package) in changes.packages().iter().enumerate() {
+            for row in package.rows().iter().filter(|row| row.requires_decision()) {
+                if index.len() == count {
+                    return Err(Error::ResolutionMismatch);
+                }
+                index.push((row.fingerprint().digest(), ordinal));
+            }
+        }
         index.sort_unstable();
         if index.windows(2).any(|pair| pair[0].0 == pair[1].0) {
             return Err(Error::ResolutionMismatch);
         }
         let mut removed_text_bytes = 0usize;
         for decision in resolution.decisions() {
-            let ordinal = index
-                .binary_search_by_key(&decision.package(), |entry| entry.0)
-                .map_err(|_| Error::UnknownPackage)?;
-            let package = &changes.packages()[index[ordinal].1];
+            let (ordinal, conflict) = match decision.subject {
+                PackagePolicyDecisionSubject::Row(fingerprint) => {
+                    let entry = index
+                        .binary_search_by_key(&fingerprint, |entry| entry.0)
+                        .map_err(|_| Error::ResolutionMismatch)?;
+                    (index[entry].1, fingerprint)
+                }
+                PackagePolicyDecisionSubject::RootRole => {
+                    let role = changes.root_role_change().ok_or(Error::InvalidSubject)?;
+                    let ordinal = changes
+                        .packages()
+                        .binary_search_by(|package| package.key().cmp(role.root()))
+                        .map_err(|_| Error::UnknownPackage)?;
+                    let mut hash = Sha256::new();
+                    hash.update(b"OMEGA-HISTORICAL-ROOT-ROLE-DECISION\0");
+                    hash.update(1_u16.to_le_bytes());
+                    hash.update(changes.fingerprint().digest());
+                    (ordinal, hash.finalize().into())
+                }
+            };
+            let package = &changes.packages()[ordinal];
             let candidate = source
                 .packages()
                 .binary_search_by(|entry| entry.key().cmp(package.key()));
-            if decision.change_set() != changes.fingerprint() {
-                return Err(Error::ResolutionMismatch);
-            }
-            let subject = match decision.obligation().subject() {
-                PackagePolicyDecisionSubject::Row { .. } => match package.candidate_resolution() {
+            let subject = match decision.subject {
+                PackagePolicyDecisionSubject::Row(_) => match package.candidate_resolution() {
                     Some(expected) => {
                         let package_index = candidate.map_err(|_| Error::UnknownPackage)?;
                         if source.packages()[package_index].resolution() != expected {
@@ -124,31 +138,20 @@ impl HistoricalPackagePolicyDecisions {
                         Subject::RemovedPackage { key }
                     }
                 },
-                PackagePolicyDecisionSubject::RootRole {
-                    baseline_role,
-                    candidate_role,
-                    broken_contract,
-                } => {
+                PackagePolicyDecisionSubject::RootRole => {
                     let change = changes.root_role_change().ok_or(Error::InvalidSubject)?;
-                    if change.root() != package.key()
-                        || change.baseline_role() != baseline_role
-                        || change.candidate_role() != candidate_role
-                        || change.broken_contract() != broken_contract
-                    {
-                        return Err(Error::InvalidSubject);
-                    }
                     Subject::RootRole {
                         package_index: candidate.map_err(|_| Error::UnknownPackage)?,
-                        baseline_role,
-                        candidate_role,
-                        broken_contract,
+                        baseline_role: change.baseline_role(),
+                        candidate_role: change.candidate_role(),
+                        broken_contract: change.broken_contract(),
                     }
                 }
             };
             decisions.push(HistoricalPackagePolicyDecision {
                 subject,
-                conflict: decision.obligation().fingerprint().digest(),
-                disposition: decision.disposition(),
+                conflict,
+                disposition: decision.disposition,
             });
         }
         decisions.sort_unstable_by(validation::compare);

@@ -4,6 +4,12 @@
 //! Resolving choices checks only their exact coverage and context, without
 //! reconstructing the compiler result or manufacturing evidence of review.
 
+mod limits;
+mod text;
+
+pub use limits::PackagePolicyDecisionLimits;
+pub use text::recover_package_policy_decisions;
+
 use super::ReviewOnlyRootPolicyDisposition;
 use crate::review::{PackagePolicyChangeFingerprint, PackagePolicyChangeSet};
 use std::fmt;
@@ -62,6 +68,15 @@ pub enum PackagePolicyDecisionError {
     MissingDecision(PackagePolicyDecisionSubject),
     DuplicateComparisonSubject(PackagePolicyDecisionSubject),
     AllocationFailed,
+    DecisionLimitExceeded,
+    ChangeLimitExceeded,
+    ByteLimitExceeded,
+    OwnedLimitExceeded,
+    LengthOverflow,
+    InvalidFraming,
+    UnsupportedVersion,
+    InvalidDisposition,
+    NonCanonicalDecisions,
 }
 
 impl fmt::Display for PackagePolicyDecisionError {
@@ -101,6 +116,15 @@ impl fmt::Display for PackagePolicyDecisionError {
                 )
             }
             Self::AllocationFailed => formatter.write_str("package decision allocation failed"),
+            Self::DecisionLimitExceeded => formatter.write_str("package decisions exceed the decision-count limit"),
+            Self::ChangeLimitExceeded => formatter.write_str("package decision comparison exceeds the scan limit"),
+            Self::ByteLimitExceeded => formatter.write_str("package decision text exceeds the byte limit"),
+            Self::OwnedLimitExceeded => formatter.write_str("package decisions exceed the owned-storage limit"),
+            Self::LengthOverflow => formatter.write_str("package decision resource length overflow"),
+            Self::InvalidFraming => formatter.write_str("package decision text has invalid canonical framing"),
+            Self::UnsupportedVersion => formatter.write_str("unsupported package decision text version; retain current source pins and recover with a compatible toolchain"),
+            Self::InvalidDisposition => formatter.write_str("package decision text has an unknown disposition"),
+            Self::NonCanonicalDecisions => formatter.write_str("package decision text repeats or misorders subjects"),
         }
     }
 }
@@ -119,29 +143,62 @@ pub fn resolve_package_policy_decisions(
     comparison: [u8; 32],
     decisions: &[PackagePolicyDecision],
 ) -> Result<PackagePolicyResolution, PackagePolicyDecisionError> {
+    resolve_package_policy_decisions_with_limits(
+        changes,
+        comparison,
+        decisions,
+        PackagePolicyDecisionLimits::default(),
+    )
+}
+
+/// The same exact resolver under lowerable aggregate resource ceilings.
+pub fn resolve_package_policy_decisions_with_limits(
+    changes: &PackagePolicyChangeSet,
+    comparison: [u8; 32],
+    decisions: &[PackagePolicyDecision],
+    limits: PackagePolicyDecisionLimits,
+) -> Result<PackagePolicyResolution, PackagePolicyDecisionError> {
+    resolve(
+        changes,
+        comparison,
+        decisions,
+        &mut limits::Budget::new(limits),
+    )
+}
+
+fn resolve(
+    changes: &PackagePolicyChangeSet,
+    comparison: [u8; 32],
+    decisions: &[PackagePolicyDecision],
+    budget: &mut limits::Budget,
+) -> Result<PackagePolicyResolution, PackagePolicyDecisionError> {
     use PackagePolicyDecisionError as Error;
     use PackagePolicyDecisionSubject as Subject;
 
     if comparison != changes.fingerprint().digest() {
         return Err(Error::WrongComparison);
     }
+    budget.decisions(decisions.len())?;
     // Comparison construction bounds the row count. No caller-provided count
     // controls allocation until it has been checked against that actual set.
+    budget.changes(changes.packages().len())?;
     let row_count = changes
         .packages()
         .iter()
         .try_fold(0usize, |count, package| {
             count
                 .checked_add(package.rows().len())
-                .ok_or(Error::AllocationFailed)
+                .ok_or(Error::LengthOverflow)
         })?;
     let count = row_count
         .checked_add(usize::from(changes.root_role_change().is_some()))
-        .ok_or(Error::AllocationFailed)?;
-    let mut subjects = Vec::new();
-    subjects
-        .try_reserve_exact(count)
-        .map_err(|_| Error::AllocationFailed)?;
+        .ok_or(Error::LengthOverflow)?;
+    budget.changes(
+        count
+            .checked_add(changes.packages().len())
+            .ok_or(Error::LengthOverflow)?,
+    )?;
+    let mut subjects = budget.vector(count)?;
     if changes.root_role_change().is_some() {
         subjects.push((Subject::RootRole, true));
     }
@@ -163,10 +220,7 @@ pub fn resolve_package_policy_decisions(
     if decisions.len() > required_count {
         return Err(Error::TooManyDecisions);
     }
-    let mut sorted = Vec::new();
-    sorted
-        .try_reserve_exact(decisions.len())
-        .map_err(|_| Error::AllocationFailed)?;
+    let mut sorted = budget.vector(decisions.len())?;
     for decision in decisions {
         let index = subjects
             .binary_search_by_key(&decision.subject, |(subject, _)| *subject)

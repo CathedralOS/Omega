@@ -5,7 +5,6 @@ pub(crate) mod baseline;
 mod candidate;
 mod compare;
 mod decision;
-mod policy_decisions;
 pub(crate) mod reconstruction;
 mod symbolic_boundary_applications;
 
@@ -48,21 +47,15 @@ pub use compare::{
     compare_review_only_capabilities, compare_review_only_initial_capabilities,
 };
 pub use decision::{
-    PackagePolicyDecision, PackagePolicyDecisionError, PackagePolicyDecisionSubject,
-    PackagePolicyResolution, ReviewOnlyRootPolicyDecision, ReviewOnlyRootPolicyDirectory,
-    ReviewOnlyRootPolicyDisposition, ReviewOnlyRootPolicyFileError, ReviewOnlyRootPolicyName,
-    ReviewOnlyRootPolicyNameError, ReviewOnlyRootPolicyRecordError,
+    PackagePolicyDecision, PackagePolicyDecisionError, PackagePolicyDecisionLimits,
+    PackagePolicyDecisionSubject, PackagePolicyResolution, ReviewOnlyRootPolicyDecision,
+    ReviewOnlyRootPolicyDirectory, ReviewOnlyRootPolicyDisposition, ReviewOnlyRootPolicyFileError,
+    ReviewOnlyRootPolicyName, ReviewOnlyRootPolicyNameError, ReviewOnlyRootPolicyRecordError,
     ReviewOnlyRootPolicyRecordLimits, ReviewOnlyRootPolicyResolution,
     ReviewOnlyRootPolicyResolutionCommitment, ReviewOnlyRootPolicyResolutionError,
-    recover_review_only_root_policy_resolution, resolve_package_policy_decisions,
+    recover_package_policy_decisions, recover_review_only_root_policy_resolution,
+    resolve_package_policy_decisions, resolve_package_policy_decisions_with_limits,
     resolve_review_only_root_policy_decisions,
-};
-pub use policy_decisions::{
-    PackagePolicyDecision, PackagePolicyDecisionError, PackagePolicyDecisionLimits,
-    PackagePolicyDecisionObligation, PackagePolicyDecisionResolution,
-    PackagePolicyDecisionResolutionFingerprint, PackagePolicyDecisionSubject,
-    PackagePolicyObligationFingerprint, recover_package_policy_decisions,
-    resolve_package_policy_decisions,
 };
 pub use reconstruction::{
     CanonicalPackageReconstructionEntry, CanonicalPackageReconstructionQuestion,

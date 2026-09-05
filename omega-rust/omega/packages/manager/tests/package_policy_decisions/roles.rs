@@ -39,38 +39,23 @@ fn directional_root_role_obligations_are_resolved_and_recorded_beside_row_choice
         ),
     ] {
         let changes = compare(accepted.target(TARGET), sources, reviews);
-        let obligations = changes
-            .decision_obligations(PackagePolicyDecisionLimits::default())
-            .unwrap();
-        let role = obligations
-            .iter()
-            .find(|obligation| {
-                matches!(
-                    obligation.subject(),
-                    PackagePolicyDecisionSubject::RootRole { .. }
-                )
-            })
-            .unwrap();
-        assert!(
-            matches!(role.subject(), PackagePolicyDecisionSubject::RootRole { broken_contract, .. } if broken_contract == expected)
+        assert_eq!(
+            changes.root_role_change().unwrap().broken_contract(),
+            expected
         );
         let mut supplied = decisions(&changes, ACCEPT);
-        supplied.retain(|decision| decision.obligation().fingerprint() != role.fingerprint());
+        supplied.retain(|decision| decision.subject != PackagePolicyDecisionSubject::RootRole);
         assert!(
-            resolve_package_policy_decisions(
-                &changes,
-                &supplied,
-                PackagePolicyDecisionLimits::default()
-            )
-            .is_err()
+            resolve_package_policy_decisions(&changes, changes.fingerprint().digest(), &supplied,)
+                .is_err()
         );
-        supplied.push(changes.policy_decision(role, REJECT).unwrap());
-        let resolved = resolve_package_policy_decisions(
-            &changes,
-            &supplied,
-            PackagePolicyDecisionLimits::default(),
-        )
-        .unwrap();
+        supplied.push(PackagePolicyDecision {
+            subject: PackagePolicyDecisionSubject::RootRole,
+            disposition: REJECT,
+        });
+        let resolved =
+            resolve_package_policy_decisions(&changes, changes.fingerprint().digest(), &supplied)
+                .unwrap();
         assert!(!resolved.all_required_changes_accepted());
         let lock = history_lock(sources, reviews, &changes, &resolved);
         let target = lock.target(TARGET).unwrap();
