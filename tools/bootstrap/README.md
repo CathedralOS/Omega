@@ -20,6 +20,10 @@ enumerates the implemented compiler source/tape identities, inventories every
 retained source, test, and bootstrap-tool owner, rejects alternate bootstrap
 owners and native compiler identities above Alpha, and prevents a lower
 compiler owner from reaching beyond its immediate successor.
+Owner roots come from tracked and nonignored untracked files in a Git checkout,
+or from physical files in a source archive. Empty directories left by a move do
+not create owners. `sh tests/bootstrap/chain-hygiene.sh` checks this inventory
+behavior in disposable archive and checkout fixtures.
 
 `paths.sh` exports canonical selected-owner paths. Future compiler artifact
 paths may be named while absent; the topology gate does not pretend they exist.

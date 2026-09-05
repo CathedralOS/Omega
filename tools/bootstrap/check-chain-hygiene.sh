@@ -11,6 +11,22 @@ fail() {
   exit 1
 }
 
+owner_roots() {
+  # Empty relocation leftovers and ignored local artifacts are not owners.
+  # Include untracked source so a new alternate owner fails before staging.
+  if [ -e "$OMEGA_REPO_ROOT/.git" ] &&
+      git -C "$OMEGA_REPO_ROOT" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+    owner_files=$(git -C "$OMEGA_REPO_ROOT" ls-files \
+      --cached --others --exclude-standard -- "$1") ||
+      fail "cannot inventory $1 owners"
+  else
+    # Source archives remain checkable without Git metadata or a Git binary.
+    owner_files=$(find "$OMEGA_REPO_ROOT/$1" -mindepth 2 ! -type d -print | \
+      sed "s#^$OMEGA_REPO_ROOT/##")
+  fi
+  printf '%s\n' "$owner_files" | awk -F/ 'NF >= 3 { print $2 }' | sort -u
+}
+
 for required in \
   "$OMEGA_PATH_ALPHA" \
   "$OMEGA_PATH_BETA" \
@@ -26,6 +42,8 @@ for required in \
   "$OMEGA_PATH_OMEGA" \
   "$OMEGA_PATH_OMEGA_D" \
   "$OMEGA_PATH_OMEGA_COMPILER" \
+  "$OMEGA_REPO_ROOT/source/library" \
+  "$OMEGA_REPO_ROOT/source/psi" \
   "$OMEGA_REPO_ROOT/tools/bootstrap/epsilon"
 do
   [ -d "$required" ] || fail "required owner is absent: $required"
@@ -92,16 +110,14 @@ do
   [ ! -e "$retired" ] || fail "retired owner remains: $retired"
 done
 
-tracked_source_roots=$(find "$OMEGA_REPO_ROOT/source" -mindepth 1 -maxdepth 1 \
-  -type d -exec basename {} \; | sort)
+tracked_source_roots=$(owner_roots source)
 expected_source_roots='library
 omega
 psi'
 [ "$tracked_source_roots" = "$expected_source_roots" ] ||
   fail "tracked final-source owners differ from library, Psi, and Omega"
 
-tracked_bootstrap_roots=$(find "$OMEGA_PATH_BOOTSTRAP" -mindepth 1 -maxdepth 1 \
-  -type d -exec basename {} \; | sort)
+tracked_bootstrap_roots=$(owner_roots bootstrap)
 expected_bootstrap_roots='alpha
 beta
 delta
