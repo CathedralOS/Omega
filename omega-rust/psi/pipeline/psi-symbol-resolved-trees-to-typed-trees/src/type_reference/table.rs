@@ -11,7 +11,9 @@ pub(super) fn lower_type_reference_handle_from_table_with_context(
     source_trees: &SymbolResolvedTrees,
     typed_trees: &mut typed::TypedTrees,
     type_reference: resolved::types::TypeReferenceHandle,
-    exposure: psi_language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure,
+    exposure: Option<
+        psi_language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure,
+    >,
 ) -> Result<typed::types::TypeReferenceHandle, Diagnostic> {
     match source_trees
         .tables

@@ -143,7 +143,7 @@ pub fn lower_seeded_extension(
         source_trees: &source,
         equality_scope: None,
         type_reference_exposure:
-            psi_language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure::PrivateImplementation,
+            Some(psi_language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure::PrivateImplementation),
     };
     for declaration in source.const_declarations.iter().skip(const_frontier) {
         let declared_type = match lowerer.with_type_reference_exposure(
@@ -1022,7 +1022,7 @@ pub fn lower_symbol_resolved_trees(
         source_trees: symbol_resolved_trees,
         equality_scope: None,
         type_reference_exposure:
-            psi_language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure::PrivateImplementation,
+            Some(psi_language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure::PrivateImplementation),
     };
     lowerer.typed_trees.service_reaches = symbol_resolved_trees.service_reaches.clone();
     lowerer.typed_trees.service_reach_rows = symbol_resolved_trees.service_reach_rows.clone();
@@ -1352,17 +1352,23 @@ pub(crate) struct Lowerer<'source> {
     /// The value-typing scope of the state body currently being lowered;
     /// `==` expansion uses it to find an operand's data type.
     pub(crate) equality_scope: Option<crate::equatable::EqualityScope>,
+    /// None lowers a compiler-derived type without inventing an authored
+    /// occurrence. Original generic applications retain their own exposure.
     pub(crate) type_reference_exposure:
-        psi_language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure,
+        Option<psi_language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure>,
 }
 
 impl Lowerer<'_> {
     pub(crate) fn with_type_reference_exposure<T>(
         &mut self,
-        exposure: psi_language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure,
+        exposure: impl Into<
+            Option<
+                psi_language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure,
+            >,
+        >,
         operation: impl FnOnce(&mut Self) -> Result<T, Diagnostic>,
     ) -> Result<T, Diagnostic> {
-        let previous = std::mem::replace(&mut self.type_reference_exposure, exposure);
+        let previous = std::mem::replace(&mut self.type_reference_exposure, exposure.into());
         let result = operation(self);
         self.type_reference_exposure = previous;
         result

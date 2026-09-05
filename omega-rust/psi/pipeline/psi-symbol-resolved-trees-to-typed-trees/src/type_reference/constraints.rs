@@ -9,7 +9,9 @@ pub(super) fn lower_type_constraint_node_span_from_table(
     source_trees: &SymbolResolvedTrees,
     typed_trees: &mut typed::TypedTrees,
     constraints: HandleSpan<resolved::types::TypeConstraintNode>,
-    exposure: psi_language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure,
+    exposure: Option<
+        psi_language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure,
+    >,
 ) -> Result<HandleSpan<typed::types::TypeConstraintNode>, Diagnostic> {
     let mut span = HandleSpan::empty();
 
@@ -44,8 +46,8 @@ pub(super) fn lower_type_constraint_node_span_from_table(
                     subject: classify_domain_constraint_subject(name.as_str(), arguments.len()),
                     name,
                     arguments,
-                    authored_selection: domain.name.is_source_backed().then_some(
-                        typed::types::AuthoredDomainConstraintSelection {
+                    authored_selection: exposure.filter(|_| domain.name.is_source_backed()).map(
+                        |exposure| typed::types::AuthoredDomainConstraintSelection {
                             source_span: domain.name.source_span(),
                             exposure,
                         },
@@ -83,8 +85,11 @@ pub(crate) fn lower_type_constraint_node_span_with_context(
     source_trees: &SymbolResolvedTrees,
     typed_trees: &mut typed::TypedTrees,
     constraints: HandleSpan<resolved::types::TypeConstraint>,
-    exposure: psi_language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure,
+    exposure: impl Into<
+        Option<psi_language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure>,
+    >,
 ) -> Result<HandleSpan<typed::types::TypeConstraintNode>, Diagnostic> {
+    let exposure = exposure.into();
     let mut span = HandleSpan::empty();
 
     for constraint in source_trees
@@ -133,7 +138,7 @@ pub(crate) fn lower_element_applicable_constraints(
             source_trees,
             typed_trees,
             constraint,
-            psi_language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure::PrivateImplementation,
+            Some(psi_language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure::PrivateImplementation),
         )?;
         typed_trees
             .type_reference_table
@@ -147,7 +152,9 @@ fn lower_type_constraint_node_with_context(
     source_trees: &SymbolResolvedTrees,
     typed_trees: &mut typed::TypedTrees,
     constraint: &resolved::types::TypeConstraint,
-    exposure: psi_language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure,
+    exposure: Option<
+        psi_language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure,
+    >,
 ) -> Result<typed::types::TypeConstraintNode, Diagnostic> {
     match constraint {
         resolved::types::TypeConstraint::Named(name) => Ok(
@@ -175,8 +182,8 @@ fn lower_type_constraint_node_with_context(
                     subject: classify_domain_constraint_subject(name.as_str(), arguments.len()),
                     name,
                     arguments,
-                    authored_selection: domain.name.is_source_backed().then_some(
-                        typed::types::AuthoredDomainConstraintSelection {
+                    authored_selection: exposure.filter(|_| domain.name.is_source_backed()).map(
+                        |exposure| typed::types::AuthoredDomainConstraintSelection {
                             source_span: domain.name.source_span(),
                             exposure,
                         },

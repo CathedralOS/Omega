@@ -112,6 +112,7 @@ pub(super) fn parse_machine<'tokens, 'source>(
         return Ok((
             Machine {
                 name,
+                generic_data_template: Default::default(),
                 attached_data,
                 is_public: false,
                 target: None,
@@ -229,6 +230,7 @@ pub(super) fn parse_machine<'tokens, 'source>(
     Ok((
         Machine {
             name,
+            generic_data_template: Default::default(),
             attached_data,
             is_public: false,
             target: None,

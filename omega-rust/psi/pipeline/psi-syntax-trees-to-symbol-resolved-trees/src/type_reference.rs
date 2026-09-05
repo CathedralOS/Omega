@@ -16,6 +16,42 @@ pub(crate) fn lower_type_reference_handle(
     syntax_trees: &SyntaxTrees,
     type_reference: syntax::types::TypeReferenceHandle,
 ) -> Result<TypeReference, Diagnostic> {
+    let lowered = lower_type_reference_node(lowerer, syntax_trees, type_reference)?;
+    let origin = syntax_trees
+        .type_references
+        .generic_application_origin(type_reference);
+    if origin.is_valid() {
+        let application = lower_type_reference_handle(lowerer, syntax_trees, origin)?;
+        let instance = lowerer
+            .symbol_resolved_trees
+            .tables
+            .declarations
+            .child_type_references
+            .insert(lowered.clone());
+        let application = lowerer
+            .symbol_resolved_trees
+            .tables
+            .declarations
+            .child_type_references
+            .insert(application);
+        lowerer
+            .symbol_resolved_trees
+            .tables
+            .types
+            .generic_application_origins
+            .insert(psi_symbol_resolved_trees::types::GenericApplicationOrigin {
+                instance,
+                application,
+            });
+    }
+    Ok(lowered)
+}
+
+fn lower_type_reference_node(
+    lowerer: &mut Lowerer,
+    syntax_trees: &SyntaxTrees,
+    type_reference: syntax::types::TypeReferenceHandle,
+) -> Result<TypeReference, Diagnostic> {
     match syntax_trees.type_references.type_reference(type_reference) {
         syntax::types::TypeReferenceNode::Reference {
             referee,

@@ -55,6 +55,7 @@ fn snapshots_materialize_resolved_roots_and_table_counts() {
         .insert_many([state]);
     program.machines.push(Machine {
         symbol: SymbolHandle::invalid(),
+        generic_data_origin: Default::default(),
         name: DiagnosticName::generated("main"),
         attached_data: None,
         attached_data_symbol: SymbolHandle::invalid(),

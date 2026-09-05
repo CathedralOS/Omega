@@ -8,7 +8,23 @@ use psi_diagnostics::Diagnostic;
 use psi_symbol_resolved_trees as resolved;
 use psi_typed_trees as typed;
 
+mod generic_data;
+
 pub(crate) fn lower_machine(
+    lowerer: &mut Lowerer,
+    machine: &resolved::machine::Machine,
+) -> Result<typed::machine::Machine, Diagnostic> {
+    let derived = generic_data::is_derived(lowerer.source_trees, machine)?;
+    let exposure = if derived {
+        None
+    } else {
+        lowerer.type_reference_exposure
+    };
+    lowerer
+        .with_type_reference_exposure(exposure, |lowerer| lower_machine_contents(lowerer, machine))
+}
+
+fn lower_machine_contents(
     lowerer: &mut Lowerer,
     machine: &resolved::machine::Machine,
 ) -> Result<typed::machine::Machine, Diagnostic> {
@@ -285,11 +301,11 @@ pub(crate) fn lower_machine(
                     | psi_language_semantics::MachineSupplyMode::Boundary
                     | psi_language_semantics::MachineSupplyMode::AdmissionClaim
             );
-        let exposure = if publishes_entry_signature && state_index == 0 {
+        let exposure = lowerer.type_reference_exposure.map(|_| if publishes_entry_signature && state_index == 0 {
             psi_language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure::PublicInterface
         } else {
             psi_language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure::PrivateImplementation
-        };
+        });
         let state = lowerer.with_type_reference_exposure(exposure, |lowerer| {
             lower_state(lowerer, machine.attached_data.as_ref(), state)
         })?;
