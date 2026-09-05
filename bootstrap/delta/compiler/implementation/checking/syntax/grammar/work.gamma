@@ -1,0 +1,61 @@
+; All projections below consume parser-owned nodes or counted work spines.
+(def grammar_reject ((node Int)) Int
+  (compiler_source_rejection 4 (syntax_start node)))
+
+(def grammar_missing ((node Int)) Int
+  (compiler_source_rejection 4 (- (syntax_after node) 1)))
+
+(def grammar_child_at ((children Int) (index Int)) Int
+  (if (eq index 0)
+    (first children)
+    (grammar_child_at (second children) (- index 1))))
+
+(def grammar_exact_count ((node Int) (expected Int)) Int
+  (let count Int (syntax_count node)
+    (if (lt count 0)
+      (grammar_reject node)
+      (if (lt count expected)
+        (grammar_missing node)
+        (if (eq count expected)
+          (compiler_complete 0)
+          (grammar_reject
+            (grammar_child_at (syntax_children node) expected)))))))
+
+(def grammar_minimum_count ((node Int) (minimum Int)) Int
+  (let count Int (syntax_count node)
+    (if (lt count 0)
+      (grammar_reject node)
+      (if (lt count minimum)
+        (grammar_missing node)
+        (compiler_complete 0)))))
+
+(def grammar_queue_node ((role Int) (node Int) (work Int)) Int
+  (pair (+ (first work) 1)
+    (pair (pair role node) (second work))))
+
+; Restore ordered children ahead of existing work without recursive descent.
+(def grammar_queue_nodes
+  ((role Int) (count Int) (nodes Int) (work Int)) Int
+  (pair (+ count (first work))
+    (grammar_prepend_reversed role count
+      (syntax_reverse_nodes count nodes 0) (second work))))
+
+(def grammar_prepend_reversed
+  ((role Int) (count Int) (nodes Int) (entries Int)) Int
+  (if (eq count 0)
+    entries
+    (grammar_prepend_reversed role (- count 1) (second nodes)
+      (pair (pair role (first nodes)) entries))))
+
+(def grammar_atom_role ((role Int) (node Int) (work Int)) Int
+  (if (eq (syntax_count node) -1)
+    (let start Int (syntax_start node)
+      (let after Int (syntax_after node)
+        (let valid Int
+          (if (eq role 2)
+            (value_name_valid start after)
+            (if (eq role 3)
+              (upper_name_valid start after)
+              (field_type_shape_valid start after)))
+          (if valid (compiler_complete work) (grammar_reject node)))))
+    (grammar_reject node)))

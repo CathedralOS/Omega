@@ -4,28 +4,36 @@
     (if (eq (first envelope) 0)
       (let tokens Int (validate_source_tokens 0)
         (if (eq (first tokens) 0)
-          (let collected Int
-            (collect_global_identities 0 0 0
-              (empty_name_trie) (empty_name_trie) (empty_name_trie))
-            (if (eq (first collected) 0)
-              (compile_collected_source profile (second collected))
-              collected))
+          (let syntax Int (parse_source_syntax)
+            (if (eq (first syntax) 0)
+              (compile_parsed_source profile (second syntax))
+              syntax))
           tokens))
       envelope)))
 
-(def compile_collected_source ((profile Int) (collected Int)) Int
+(def compile_parsed_source ((profile Int) (program Int)) Int
+  (let grammar Int (validate_program_syntax program)
+    (if (eq (first grammar) 0)
+      (let collected Int (collect_global_identities (second grammar))
+        (if (eq (first collected) 0)
+          (compile_collected_source profile (second grammar) (second collected))
+          collected))
+      grammar)))
+
+(def compile_collected_source
+  ((profile Int) (program Int) (collected Int)) Int
   (let resolution Int
-    (resolve_collected_declarations 0 collected (empty_name_trie))
+    (resolve_collected_declarations program collected (empty_name_trie))
     (if (eq (first resolution) 0)
       (let checked Int (second resolution)
-        (let bodies Int (check_program_types 0 checked)
+        (let bodies Int (check_program_types program checked)
           (let schema Int (validate_application_profile profile checked)
             (if (eq (first schema) 0)
-              (compiler_complete (emit_checked_program profile checked))
+              (compiler_complete (emit_checked_program profile program checked))
               schema))))
       resolution)))
 
-(def emit_checked_program ((profile Int) (checked Int)) Int
+(def emit_checked_program ((profile Int) (program Int) (checked Int)) Int
   (let marker Int
     (if (eq profile 0) 0 (emit_application_marker))
     (let runtime Int
@@ -34,4 +42,4 @@
         0)
       (let profile_runtime Int
         (if (eq profile 1) (emit_conformance_runtime) 0)
-        (emit_program 0 checked)))))
+        (emit_program program checked)))))

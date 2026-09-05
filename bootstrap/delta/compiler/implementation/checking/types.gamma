@@ -338,15 +338,19 @@
                   (fail)))
               (fail))))))))
 
-(def check_program_types ((index Int) (globals Int)) Int
-  (let form Int (skip index)
-    (if (eq form (source_length))
-      0
-      (let head Int (form_head form)
-        (let head_end Int (token_end head)
-          (if (token_data head head_end)
-            (check_program_types (skip_expression form) globals)
-            (if (token_def head head_end)
-              (check_program_types
-                (check_definition_type form globals) globals)
+; Reuse the parsed declaration order and exact boundaries. Expression typing
+; still consumes checked source coordinates while its node migration proceeds.
+(def check_program_types ((program Int) (globals Int)) Int
+  (check_program_nodes (first program) (second program) globals))
+
+(def check_program_nodes ((count Int) (forms Int) (globals Int)) Int
+  (if (eq count 0)
+    0
+    (let form Int (first forms)
+      (let head Int (syntax_child form 0)
+        (if (token_data (syntax_start head) (syntax_after head))
+          (check_program_nodes (- count 1) (second forms) globals)
+          (let after Int (check_definition_type (syntax_start form) globals)
+            (if (eq after (syntax_after form))
+              (check_program_nodes (- count 1) (second forms) globals)
               (fail))))))))

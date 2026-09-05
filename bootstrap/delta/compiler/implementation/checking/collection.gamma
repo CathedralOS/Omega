@@ -1,106 +1,88 @@
-; Global identity collection precedes every declaration-type resolution.
-; Syntax and unmigrated frontend failures remain evaluator-owned staging traps.
-(def catalog_type_constructors
-  ((index Int) (count Int) (has_payload Int)) Int
-  (let item Int (skip index)
-    (if (eq (source_read item) 41)
-      (if (eq count 0)
-        (fail)
-        (pair (token_end item) (pair count has_payload)))
-      (let constructor Int (skip (token_end item))
-        (let constructor_end Int (token_end constructor)
-          (if (upper_name_valid constructor constructor_end)
-            (let arity Int (constructor_shape_arity_at constructor_end)
-              (catalog_type_constructors
-                (constructor_shape_after constructor_end)
-                (+ count 1) (+ has_payload arity)))
-            (fail)))))))
+; Grammar has accepted the complete counted syntax program. This phase owns
+; global identity only; it resolves no declaration type or expression.
+(def collect_global_identities ((program Int)) Int
+  (collect_global_nodes (first program) (second program)
+    (pair (empty_name_trie)
+      (pair (empty_name_trie) (empty_name_trie)))))
+
+(def collect_global_nodes ((remaining Int) (forms Int) (globals Int)) Int
+  (if (eq remaining 0)
+    (compiler_complete globals)
+    (let form Int (first forms)
+      (let head Int (syntax_child form 0)
+        (let collected Int
+          (if (token_data (syntax_start head) (syntax_after head))
+            (collect_data_identity form globals)
+            (if (token_def (syntax_start head) (syntax_after head))
+              (collect_function_identity form globals)
+              (fail)))
+          (if (eq (first collected) 0)
+            (collect_global_nodes
+              (- remaining 1) (second forms) (second collected))
+            collected))))))
+
+(def count_constructor_payloads
+  ((remaining Int) (constructors Int) (total Int)) Int
+  (if (eq remaining 0)
+    total
+    (count_constructor_payloads
+      (- remaining 1) (second constructors)
+      (+ total (- (syntax_count (first constructors)) 1)))))
+
+(def collect_data_identity ((form Int) (globals Int)) Int
+  (let name Int (syntax_child form 1)
+    (let start Int (syntax_start name)
+      (let after Int (syntax_after name)
+        (let prior Int (name_trie_find_option (global_types globals) after start)
+          (if (first prior)
+            (compiler_source_rejection 6 start)
+            (let count Int (- (syntax_count form) 2)
+              (let constructors Int (syntax_drop_children (syntax_children form) 2)
+                (let metadata Int
+                  (pair (+ (syntax_start form) 1)
+                    (pair count (count_constructor_payloads count constructors 0)))
+                  (let collected Int
+                    (collect_constructor_identities count constructors metadata
+                      (global_constructors globals) 1)
+                    (if (eq (first collected) 0)
+                      (compiler_complete
+                        (pair
+                          (name_trie_insert (global_types globals) after start metadata)
+                          (pair (second collected) (global_functions globals))))
+                      collected)))))))))))
 
 (def collect_constructor_identities
-  ((index Int) (type_metadata Int) (constructor_rows Int) (count Int)) Int
-  (let item Int (skip index)
-    (if (eq (source_read item) 41)
-      (if (eq count (type_metadata_constructor_count type_metadata))
-        (compiler_complete constructor_rows)
-        (fail))
-      (let constructor Int (skip (token_end item))
-        (let constructor_end Int (token_end constructor)
-          (let prior Int
-            (name_trie_find_option constructor_rows constructor_end constructor)
-            (if (first prior)
-              (compiler_source_rejection 7 constructor)
-              (let arity Int (constructor_shape_arity_at constructor_end)
+  ((remaining Int) (constructors Int) (type_metadata Int)
+   (constructor_rows Int) (tag Int)) Int
+  (if (eq remaining 0)
+    (compiler_complete constructor_rows)
+    (let constructor Int (first constructors)
+      (let name Int (syntax_child constructor 0)
+        (let start Int (syntax_start name)
+          (let after Int (syntax_after name)
+            (let prior Int (name_trie_find_option constructor_rows after start)
+              (if (first prior)
+                (compiler_source_rejection 7 start)
                 (let metadata Int
                   (pair type_metadata
-                    (pair (+ count 1) (pair arity constructor_end)))
+                    (pair tag (pair (- (syntax_count constructor) 1) after)))
                   (collect_constructor_identities
-                    (constructor_shape_after constructor_end) type_metadata
-                    (name_trie_insert
-                      constructor_rows constructor_end constructor metadata)
-                    (+ count 1)))))))))))
+                    (- remaining 1) (second constructors) type_metadata
+                    (name_trie_insert constructor_rows after start metadata)
+                    (+ tag 1)))))))))))
 
-(def collect_data_identity
-  ((form Int) (function_count Int) (type_rows Int)
-   (constructor_rows Int) (function_rows Int)) Int
-  (let type_name Int (skip (token_end (form_head form)))
-    (let type_end Int (token_end type_name)
-      (if (upper_name_valid type_name type_end)
-        (let prior Int (name_trie_find_option type_rows type_end type_name)
+; The raw row retains its exact function node instead of a rescanned body end.
+; Typed metadata is constructed only after the whole global census succeeds.
+(def collect_function_identity ((form Int) (globals Int)) Int
+  (let name Int (syntax_child form 1)
+    (let start Int (syntax_start name)
+      (let after Int (syntax_after name)
+        (let prior Int
+          (name_trie_find_option (global_functions globals) after start)
           (if (first prior)
-            (compiler_source_rejection 6 type_name)
-            (let result Int (catalog_type_constructors (skip type_end) 0 0)
-              (let summary Int (second result)
-                (let metadata Int
-                  (pair (+ form 1) (pair (first summary) (second summary)))
-                  (let constructors Int
-                    (collect_constructor_identities
-                      (skip type_end) metadata constructor_rows 0)
-                    (if (eq (first constructors) 0)
-                      (collect_global_identities
-                        (first result) 0 function_count
-                        (name_trie_insert type_rows type_end type_name metadata)
-                        (second constructors) function_rows)
-                      constructors)))))))
-        (fail)))))
-
-(def collect_function_identity
-  ((form Int) (function_count Int) (type_rows Int)
-   (constructor_rows Int) (function_rows Int)) Int
-  (let name Int (skip (token_end (form_head form)))
-    (let name_end Int (token_end name)
-      (if (value_name_valid name name_end)
-        (let prior Int (name_trie_find_option function_rows name_end name)
-          (if (first prior)
-            (compiler_source_rejection 8 name)
-            (let after_form Int (skip_expression form)
-              (collect_global_identities
-                after_form 1 (+ function_count 1)
-                type_rows constructor_rows
-                (name_trie_insert function_rows name_end name
-                  (pair (+ form 1) (pair name_end after_form)))))))
-        (fail)))))
-
-; Visit declarations in authored order across all three distinct namespaces.
-; At least one function is grammatical; presence and shape of main are not
-; collection premises and belong to profile checking after an accepted frontend.
-(def collect_global_identities
-  ((index Int) (saw_function Int) (function_count Int)
-   (type_rows Int) (constructor_rows Int) (function_rows Int)) Int
-  (let form Int (skip index)
-    (if (eq form (source_length))
-      (if (eq function_count 0)
-        (fail)
-        (compiler_complete (pair type_rows (pair constructor_rows function_rows))))
-      (if (eq (source_read form) 40)
-        (let head Int (form_head form)
-          (let head_end Int (token_end head)
-            (if (token_data head head_end)
-              (if saw_function
-                (fail)
-                (collect_data_identity
-                  form function_count type_rows constructor_rows function_rows))
-              (if (token_def head head_end)
-                (collect_function_identity
-                  form function_count type_rows constructor_rows function_rows)
-                (fail)))))
-        (fail)))))
+            (compiler_source_rejection 8 start)
+            (compiler_complete
+              (pair (global_types globals)
+                (pair (global_constructors globals)
+                  (name_trie_insert (global_functions globals) after start
+                    (pair (+ (syntax_start form) 1) (pair after form))))))))))))

@@ -1,0 +1,38 @@
+; Lexical admission has completed. This parser retains only balanced forms and
+; exact token spans; declaration and expression grammar belong to later phases.
+(def parse_source_syntax () Int
+  (parse_syntax_nodes 0 0 0 0 0))
+
+; Each explicit stack frame is
+; (pair open (pair parent-count (pair parent-reversed previous-stack))).
+; Depth and counts govern every projection. Nesting consumes immutable storage,
+; not Gamma return contexts, and adds no private compiler resource ceiling.
+(def parse_syntax_nodes
+  ((index Int) (depth Int) (count Int) (reversed Int) (stack Int)) Int
+  (let start Int (skip index)
+    (if (eq start (source_length))
+      (if (eq depth 0)
+        (compiler_complete
+          (pair count (syntax_reverse_nodes count reversed 0)))
+        (compiler_source_rejection 4 start))
+      (let byte Int (source_read start)
+        (let after Int (token_end start)
+          (if (eq byte 40)
+            (parse_syntax_nodes after (+ depth 1) 0 0
+              (pair start (pair count (pair reversed stack))))
+            (if (eq byte 41)
+              (if (eq depth 0)
+                (compiler_source_rejection 4 start)
+                (parse_syntax_close after depth count reversed stack))
+              (parse_syntax_nodes after depth (+ count 1)
+                (pair (syntax_node start after -1 0) reversed) stack))))))))
+
+(def parse_syntax_close
+  ((after Int) (depth Int) (count Int) (reversed Int) (stack Int)) Int
+  (let parent Int (second stack)
+    (let retained Int (second parent)
+      (let node Int
+        (syntax_node (first stack) after count
+          (syntax_reverse_nodes count reversed 0))
+        (parse_syntax_nodes after (- depth 1) (+ (first parent) 1)
+          (pair node (first retained)) (second retained))))))

@@ -30,14 +30,14 @@ bytes, little-endian u32 code at byte 12, and little-endian u64 coordinate,
 limit, and requested fields at bytes 16, 24, and 32. Tag equals process status.
 This is a projection of embedded compiler constants, not a runtime host table.
 
-The source envelope, lexical tokens, complete global identity census, and
-post-frontend entry schema additionally own these Reject results (tag 1, zero
-limit/requested):
+The source envelope, lexical tokens, structural syntax, complete global identity
+census, and post-frontend entry schema additionally own these Reject results
+(tag 1, zero limit/requested):
 
 | Code | Meaning | Coordinate space | Coordinate |
 | --- | --- | --- | --- |
 | 3 | invalid_source_byte | 1 Delta source | first forbidden byte |
-| 4 | invalid_syntax (lexical token coverage) | 1 Delta source | malformed token start |
+| 4 | invalid_syntax | 1 Delta source | malformed token/node, unexpected closing delimiter, or exact EOF |
 | 5 | integer_literal_out_of_range | 1 Delta source | out-of-range decimal token start |
 | 6 | duplicate_type | 1 Delta source | later type name |
 | 7 | duplicate_constructor | 1 Delta source | later constructor name |
@@ -54,14 +54,31 @@ global collection, but a forbidden source byte anywhere wins in the earlier
 envelope phase. Reserved-word positions and balanced forms still belong to the
 structural frontend; a bare minus is a valid operator token, not an integer atom.
 
+Balanced parsing precedes grammar-role checking: an unmatched closing delimiter
+or missing close is reported before a role defect in an otherwise completed
+earlier form. Both traversals are explicit counted worklists. They do not grow
+Gamma call depth with source nesting. Grammar then checks declarations and their
+children in authored order, with each required list shape checked before its
+child roles. A malformed present child anchors at its start; a missing required
+child anchors at the encountered closing delimiter; an unfinished form anchors
+at exact source EOF. Empty and data-only programs lack the required function
+declaration and reject at source EOF. These are explicit phase and coordinate
+rules, not a claim that every frontend category chooses the smallest offset.
+
+Function/constructor applications, constructor patterns, and recognized
+arithmetic/Bytes call-like heads retain their argument lists for semantic arity
+checking. Their signature/payload disagreements do not become structural syntax
+failures. Unknown names, duplicate local binders, and match coverage also remain
+semantic judgments after the complete global census.
+
 Collection visits globals in authored order across their distinct namespaces,
 without resolving a declaration type. The complete type/constructor catalogs
-and raw function declaration custody then feed declaration-type resolution;
+and raw function nodes then feed declaration-type resolution;
 only its complete typed metadata reaches body checking. A duplicate therefore
 precedes unknown declaration types, including an earlier unknown function
 parameter or constructor payload type. Schema runs only after the ordinary
 frontend accepts: an invalid body cannot turn into missing-entry or
-wrong-signature rejection. Empty source remains invalid Delta syntax, not an
+wrong-signature rejection. Empty source is invalid Delta syntax, not an
 otherwise valid program missing an entry. Profile 2 and schema code 21 remain
 retired.
 
@@ -73,7 +90,7 @@ detached table participates in execution. D125 removes profile 2, not the
 request-failure identities.
 
 This is partial frontend-boundary coverage, not full DCOUT closure. Remaining
-structural syntax, local-name, type, arity, and match failures still reach the shared
+local-name, type, arity, and match failures still reach the shared
 evaluator trap, and later resource/internal outcomes do not yet carry
 compiler-owned evidence. Those empty-output evaluator
 statuses must not be decoded as DCOUT or synthesized into frames by a runner.

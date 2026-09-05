@@ -1,0 +1,87 @@
+(def grammar_program
+  ((program Int) (count Int) (forms Int) (saw_function Int)) Int
+  (if (eq count 0)
+    (if saw_function
+      (compiler_complete program)
+      (compiler_source_rejection 4 (source_length)))
+    (let node Int (first forms)
+      (let shape Int (grammar_minimum_count node 1)
+        (if (eq (first shape) 0)
+          (let head Int (first (syntax_children node))
+            (if (eq (syntax_count head) -1)
+              (grammar_declaration program count forms saw_function node head)
+              (grammar_reject head)))
+          shape)))))
+
+(def grammar_declaration
+  ((program Int) (count Int) (forms Int) (saw_function Int)
+   (node Int) (head Int)) Int
+  (let start Int (syntax_start head)
+    (let after Int (syntax_after head)
+      (if (token_data start after)
+        (if saw_function
+          (grammar_reject node)
+          (grammar_finish_declaration program count forms 0
+            (grammar_data node)))
+        (if (token_def start after)
+          (grammar_finish_declaration program count forms 1
+            (grammar_function node))
+          (grammar_reject head))))))
+
+(def grammar_finish_declaration
+  ((program Int) (count Int) (forms Int) (saw_function Int)
+   (prepared Int)) Int
+  (if (eq (first prepared) 0)
+    (let checked Int (grammar_run (second prepared))
+      (if (eq (first checked) 0)
+        (grammar_program program (- count 1) (second forms) saw_function)
+        checked))
+    prepared))
+
+(def grammar_data ((node Int)) Int
+  (let shape Int (grammar_minimum_count node 3)
+    (if (eq (first shape) 0)
+      (let tail Int (second (syntax_children node))
+        (compiler_complete
+          (grammar_queue_node 3 (first tail)
+            (grammar_queue_nodes 7 (- (syntax_count node) 2)
+              (second tail) (pair 0 0)))))
+      shape)))
+
+(def grammar_function ((node Int)) Int
+  (let shape Int (grammar_exact_count node 5)
+    (if (eq (first shape) 0)
+      (let tail Int (second (syntax_children node))
+        (compiler_complete
+          (grammar_queue_node 2 (first tail)
+            (grammar_queue_node 5 (grammar_child_at tail 1)
+              (grammar_queue_node 4 (grammar_child_at tail 2)
+                (grammar_queue_node 1 (grammar_child_at tail 3)
+                  (pair 0 0)))))))
+      shape)))
+
+(def grammar_parameters ((node Int) (work Int)) Int
+  (let shape Int (grammar_minimum_count node 0)
+    (if (eq (first shape) 0)
+      (compiler_complete
+        (grammar_queue_nodes 6 (syntax_count node) (syntax_children node) work))
+      shape)))
+
+(def grammar_parameter ((node Int) (work Int)) Int
+  (let shape Int (grammar_exact_count node 2)
+    (if (eq (first shape) 0)
+      (let children Int (syntax_children node)
+        (compiler_complete
+          (grammar_queue_node 2 (first children)
+            (grammar_queue_node 4 (grammar_child_at children 1) work))))
+      shape)))
+
+(def grammar_constructor ((node Int) (work Int)) Int
+  (let shape Int (grammar_minimum_count node 1)
+    (if (eq (first shape) 0)
+      (let children Int (syntax_children node)
+        (compiler_complete
+          (grammar_queue_node 3 (first children)
+            (grammar_queue_nodes 4 (- (syntax_count node) 1)
+              (second children) work))))
+      shape)))
