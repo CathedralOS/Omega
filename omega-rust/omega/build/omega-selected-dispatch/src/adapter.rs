@@ -82,17 +82,47 @@ impl BoundaryAdapterRewriteBatch {
     }
 }
 
+/// Transformation-only settlement. Compiler publication uses the retaining
+/// entrance below so later source queries can validate the exact rewrite.
 pub fn settle_selected_boundary_adapter_dispatch(
     checked: &mut Arc<CheckedTrees>,
     selected_plans: &omega_effects::SelectedProviderPlanFacts,
 ) -> Result<(), Vec<Diagnostic>> {
+    settle_with_source_edits(
+        checked,
+        selected_plans,
+        super::source_edits::SourceEditBuilder::ignored(),
+    )
+    .map(|_| ())
+}
+
+/// Publish boundary rewrites only after sealing their exact source custody.
+pub fn settle_selected_boundary_adapter_dispatch_with_source_edits(
+    checked: &mut Arc<CheckedTrees>,
+    selected_plans: &omega_effects::SelectedProviderPlanFacts,
+) -> Result<super::SelectedDispatchSourceEdits, Vec<Diagnostic>> {
+    settle_with_source_edits(
+        checked,
+        selected_plans,
+        super::source_edits::SourceEditBuilder::default(),
+    )
+}
+
+fn settle_with_source_edits(
+    checked: &mut Arc<CheckedTrees>,
+    selected_plans: &omega_effects::SelectedProviderPlanFacts,
+    mut source_edits: super::source_edits::SourceEditBuilder,
+) -> Result<super::SelectedDispatchSourceEdits, Vec<Diagnostic>> {
     let rewrites = plan_selected_boundary_adapter_rewrites(checked, selected_plans)?;
     if rewrites.is_empty() {
-        return Ok(());
+        return Ok(super::SelectedDispatchSourceEdits::default());
     }
 
-    apply_selected_boundary_adapter_rewrites(Arc::make_mut(checked), rewrites);
-    Ok(())
+    let mut staged = checked.as_ref().clone();
+    apply_selected_boundary_adapter_rewrites(&mut staged, rewrites, &mut source_edits);
+    let source_edits = source_edits.finish(&staged.typed)?;
+    *Arc::make_mut(checked) = staged;
+    Ok(source_edits)
 }
 
 fn plan_selected_boundary_adapter_rewrites(
@@ -423,9 +453,20 @@ fn plan_selected_boundary_adapter_rewrites(
 fn apply_selected_boundary_adapter_rewrites(
     checked: &mut CheckedTrees,
     rewrites: BoundaryAdapterRewriteBatch,
+    source_edits: &mut super::source_edits::SourceEditBuilder,
 ) {
     let typed = &mut checked.typed;
     for mut rewrite in rewrites.statement_rewrites {
+        let handle = psi_arena::Handle::from_parts(
+            rewrite
+                .statements
+                .start()
+                .arena_index()
+                .checked_add(u32::try_from(rewrite.index).expect("statement index fits arena"))
+                .expect("statement handle overflow"),
+            rewrite.statements.start().generation(),
+        );
+        source_edits.statement(typed, handle);
         if rewrite.adapter.forward_receiver {
             let receiver_expression = synthesize_place_expression(
                 &mut typed.expression_table,
@@ -451,6 +492,7 @@ fn apply_selected_boundary_adapter_rewrites(
     }
 
     for mut rewrite in rewrites.expression_rewrites {
+        source_edits.expression(typed, rewrite.expression);
         if rewrite.adapter.forward_receiver {
             let old_arguments = typed
                 .expression_table
@@ -837,6 +879,8 @@ fn synthesize_place_expression(
 
 #[cfg(test)]
 mod tests {
+    mod source_retention;
+
     use super::*;
     use omega_effects::provider_plan::{ProviderBinding, ProviderPlan};
     use psi_typed_trees::expression::ExpressionNode;
