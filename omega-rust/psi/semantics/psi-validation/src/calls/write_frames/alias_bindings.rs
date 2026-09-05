@@ -15,6 +15,47 @@ use psi_typed_trees::machine::Machine;
 use psi_typed_trees::state::State;
 use psi_typed_trees::statement::TableAssignment;
 
+/// Whole-reference transport across a named edge requires the original input
+/// binding, not merely a source expression with the same parameter symbol.
+pub fn state_reference_parameter_binding_is_stable(
+    program: &TypedTrees,
+    machine: &Machine,
+    state: &State,
+    parameter: psi_symbols::SymbolHandle,
+) -> bool {
+    if !program.state_parameters(state).iter().any(|candidate| {
+        candidate.symbol == parameter
+            && type_reference_is_reference(program, candidate.type_reference)
+    }) {
+        return false;
+    }
+    let is_binding = |expression| {
+        let source = super::FrameSourcePlace::from_expression(program, expression);
+        source.root == parameter && source.segments.is_empty()
+    };
+    program
+        .statement_table
+        .statements(state.statement_nodes)
+        .iter()
+        .all(|statement| {
+            if let psi_typed_trees::statement::StatementNode::Assignment(assignment) = statement
+                && is_binding(assignment.target)
+                && expression_may_rebind_mutable_alias(program, machine, state, assignment.value)
+            {
+                return false;
+            }
+            !super::statement_value_expression_roots(program, statement)
+                .into_iter()
+                .any(|expression| {
+                    super::local_aliases::expression_has_exclusive_borrow(
+                        program,
+                        expression,
+                        &is_binding,
+                    )
+                })
+        })
+}
+
 /// Stable local aliases have an explicit replacement transfer. A reference
 /// field or carrier does not yet: changing it before a later write invalidates
 /// every original argument-leaf substitution, so the body must stay opaque.

@@ -599,6 +599,102 @@ fn is_equality_conjunction(program: &TypedTrees, expression: ExpressionHandle) -
 /// `mul` -- the trait's own requirement names) resolve to the CARRIER's bound
 /// machines first. This is the N3 shape-match machinery promoted from
 /// suggestion-only to load-bearing.
+/// Exact correspondence, not a proof: every listed authored source expression
+/// must independently have a positive entailment result before its matching
+/// inherited law expression can be consumed.
+pub struct MatchedLawGuarantee {
+    pub machine: SymbolHandle,
+    pub requirement: SymbolHandle,
+    pub expression: ExpressionHandle,
+    pub source_expressions: Vec<ExpressionHandle>,
+}
+
+pub fn matched_machine_law_guarantees(
+    program: &TypedTrees,
+    machine_symbol: SymbolHandle,
+) -> Vec<MatchedLawGuarantee> {
+    let Some(machine) = program.machines().iter().find(|machine| {
+        machine.symbol == machine_symbol
+            && machine.supply_mode == psi_language_semantics::MachineSupplyMode::CheckedBody
+    }) else {
+        return Vec::new();
+    };
+    let mut outcomes = Vec::new();
+    for conformance in program.machine_trait_conformances(machine) {
+        let Some(trait_definition) = program
+            .traits()
+            .iter()
+            .find(|definition| definition.symbol == conformance.symbol)
+        else {
+            continue;
+        };
+        let Some(requirement) = program
+            .trait_machine_signatures(trait_definition)
+            .iter()
+            .find(|requirement| {
+                requirement.symbol.is_valid()
+                    && requirement.symbol == conformance.requirement_symbol
+                    && conformance.requirement.as_ref() == Some(&requirement.name)
+            })
+        else {
+            continue;
+        };
+        let mut diagnostics = Vec::new();
+        let mut matches = Vec::new();
+        check_law_conformance_with_matches(
+            program,
+            machine,
+            conformance.alias.as_ref().map(|alias| alias.as_str()),
+            trait_definition,
+            requirement,
+            program
+                .type_reference_table
+                .type_reference_handles(conformance.arguments),
+            &mut diagnostics,
+            &mut matches,
+        );
+        if !diagnostics.is_empty() {
+            continue;
+        }
+        for contract in program
+            .state_signature_contracts(requirement)
+            .iter()
+            .filter(|contract| contract.kind == SignatureContractKind::Ensures)
+        {
+            for fact in program.proof_facts.span_or_empty(contract.facts) {
+                let ProofFact::Expression(expression) = fact else {
+                    continue;
+                };
+                if !is_equality_conjunction(program, *expression) {
+                    continue;
+                }
+                let mut conjuncts = Vec::new();
+                collect_equality_conjuncts(program, *expression, &mut conjuncts);
+                let Some(source_expressions) = conjuncts
+                    .iter()
+                    .map(|conjunct| {
+                        matches
+                            .iter()
+                            .find_map(|(law, source)| (law == conjunct).then_some(*source))
+                    })
+                    .collect::<Option<Vec<_>>>()
+                else {
+                    continue;
+                };
+                if !source_expressions.is_empty() {
+                    outcomes.push(MatchedLawGuarantee {
+                        machine: machine_symbol,
+                        requirement: requirement.symbol,
+                        expression: *expression,
+                        source_expressions,
+                    });
+                }
+            }
+        }
+    }
+    outcomes
+}
+
 pub(crate) fn check_law_conformance(
     program: &TypedTrees,
     machine: &Machine,
@@ -607,6 +703,28 @@ pub(crate) fn check_law_conformance(
     requirement: &StateSignature,
     explicit_trait_arguments: &[psi_typed_trees::types::TypeReferenceHandle],
     diagnostics: &mut Vec<Diagnostic>,
+) {
+    check_law_conformance_with_matches(
+        program,
+        machine,
+        conformance_alias,
+        trait_definition,
+        requirement,
+        explicit_trait_arguments,
+        diagnostics,
+        &mut Vec::new(),
+    );
+}
+
+fn check_law_conformance_with_matches(
+    program: &TypedTrees,
+    machine: &Machine,
+    conformance_alias: Option<&str>,
+    trait_definition: &TraitDefinition,
+    requirement: &StateSignature,
+    explicit_trait_arguments: &[psi_typed_trees::types::TypeReferenceHandle],
+    diagnostics: &mut Vec<Diagnostic>,
+    matches: &mut Vec<(ExpressionHandle, ExpressionHandle)>,
 ) {
     // The declared law conjuncts (Equal binaries; And-chains split;
     // `result`-mentioning conjuncts are functional specs, not laws -- they
@@ -700,14 +818,20 @@ pub(crate) fn check_law_conformance(
 
     // The satisfier's own PROVEN ensures conjuncts (machine-checked by this
     // engine before this point -- compiling means proven).
-    let mut proven_conjuncts: Vec<ExpressionHandle> = Vec::new();
+    let mut proven_conjuncts: Vec<(ExpressionHandle, ExpressionHandle)> = Vec::new();
     for contract in program.machine_contracts(machine) {
         if contract.kind != SignatureContractKind::Ensures {
             continue;
         }
         for fact in program.proof_facts.span_or_empty(contract.facts) {
             if let ProofFact::Expression(expression) = fact {
-                collect_equality_conjuncts(program, *expression, &mut proven_conjuncts);
+                let mut conjuncts = Vec::new();
+                collect_equality_conjuncts(program, *expression, &mut conjuncts);
+                proven_conjuncts.extend(
+                    conjuncts
+                        .into_iter()
+                        .map(|conjunct| (conjunct, *expression)),
+                );
             }
         }
     }
@@ -757,22 +881,22 @@ pub(crate) fn check_law_conformance(
             continue;
         }
 
-        let matched = proven_conjuncts.iter().any(|proven| {
+        let matched = proven_conjuncts.iter().find_map(|(proven, source)| {
             let ExpressionNode::Binary(proven_binary) =
                 program.expression_table.expression(*proven)
             else {
-                return false;
+                return None;
             };
             let (Some(proven_left), Some(proven_right)) = (
                 structural_term(program, proven_binary.left),
                 structural_term(program, proven_binary.right),
             ) else {
-                return false;
+                return None;
             };
             if term_mentions_variable(&proven_left, &result_binder)
                 || term_mentions_variable(&proven_right, &result_binder)
             {
-                return false;
+                return None;
             }
             let proven_left = unfold_constant_applications(program, proven_left);
             let proven_right = unfold_constant_applications(program, proven_right);
@@ -789,9 +913,12 @@ pub(crate) fn check_law_conformance(
                         )
                         && bindings_are_forall_general(&bindings, &satisfier_parameters)
                 })
+                .then_some(*source)
         });
 
-        if !matched {
+        if let Some(source) = matched {
+            matches.push((*law_conjunct, source));
+        } else {
             diagnostics.push(Diagnostic::error(format!(
                 "machine `{}` satisfies `{}::{}` but proves no ensures matching the declared \
                  law `{} == {}` -- a law requirement's satisfier must carry that equation as a \

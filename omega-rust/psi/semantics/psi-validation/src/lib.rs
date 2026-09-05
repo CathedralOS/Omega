@@ -55,6 +55,7 @@ pub use crate::call_cycles::{
 };
 pub use crate::calls::{
     AssignmentWriteTarget, CallFrameResolver, LocalWriteOrigin, frame_paths_overlap,
+    state_reference_parameter_binding_is_stable,
 };
 use crate::calls::{
     validate_call_node, validate_proof_machine_recursion, validate_self_recursive_call_positions,
@@ -157,7 +158,9 @@ pub struct ExactIntegerCastFact {
 }
 
 pub use contract_entailment::integer_embedding_sources_equal;
+pub use contract_entailment::is_arm_pattern_marker;
 pub use contract_entailment::transparent_proposition_application_entailed;
+pub use contract_entailment::{MatchedLawGuarantee, matched_machine_law_guarantees};
 pub use float_projection_invocations::{
     ValidatedFloatMeaningEqualityProposition, ValidatedFloatMeaningProjectionInvocation,
 };

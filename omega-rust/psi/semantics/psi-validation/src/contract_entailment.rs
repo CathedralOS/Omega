@@ -85,6 +85,7 @@ pub(crate) use exit_coverage::entailment_covers_all_exits;
 pub use arithmetic_judgment::integer_embedding_sources_equal;
 use arithmetic_judgment::{Engine, Judgment, Polynomial};
 use inductive_judgment::inductive_transition_entailment;
+pub use law_conformance::{MatchedLawGuarantee, matched_machine_law_guarantees};
 pub(crate) use law_conformance::{
     check_law_conformance, check_operator_contract_conformance, checked_operator_contract_snapshot,
 };
@@ -333,7 +334,7 @@ const RESULT_BINDER: &str = "result";
 /// VALIDATION carriers minted by the transition parser, not body shape:
 /// every proof-side statement-shape walk steps over them, the same way
 /// citation statements are stepped over.
-pub(super) fn is_arm_pattern_marker(statement: &StatementNode) -> bool {
+pub fn is_arm_pattern_marker(statement: &StatementNode) -> bool {
     matches!(
         statement,
         StatementNode::LocalData(local)

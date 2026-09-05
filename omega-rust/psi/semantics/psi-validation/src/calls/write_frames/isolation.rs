@@ -83,25 +83,44 @@ pub(super) fn type_is_caller_isolated_local(
     program: &TypedTrees,
     handle: TypeReferenceHandle,
 ) -> bool {
-    type_is_caller_isolated_local_inner(program, handle, &mut Vec::new())
+    type_is_caller_isolated_local_inner(program, handle, &mut Vec::new(), false)
+}
+
+/// Erased recursive proof values can have finite constructor terms without a
+/// runtime layout. Follow the same storage-shape law as ordinary isolation,
+/// but an inline back-edge is not an alias. References still fail closed.
+pub(super) fn type_is_caller_isolated_proof_value(
+    program: &TypedTrees,
+    handle: TypeReferenceHandle,
+) -> bool {
+    type_is_caller_isolated_local_inner(program, handle, &mut Vec::new(), true)
 }
 
 fn type_is_caller_isolated_local_inner(
     program: &TypedTrees,
     handle: TypeReferenceHandle,
     visiting: &mut Vec<SymbolHandle>,
+    proof_values: bool,
 ) -> bool {
     if program.primitive_type_reference(handle).is_some() {
         return true;
     }
     match program.type_reference_table.type_reference(handle) {
         TypeReferenceNode::Constrained { base_type, .. } => {
-            type_is_caller_isolated_local_inner(program, *base_type, visiting)
+            type_is_caller_isolated_local_inner(program, *base_type, visiting, proof_values)
         }
         TypeReferenceNode::FixedArray { element_type, .. } => {
-            type_is_caller_isolated_local_inner(program, *element_type, visiting)
+            type_is_caller_isolated_local_inner(program, *element_type, visiting, proof_values)
         }
         TypeReferenceNode::Named { symbol, name } => {
+            if proof_values
+                && matches!(
+                    program.symbols.builtin_type_atom(*symbol),
+                    Some(psi_symbols::BuiltinTypeAtom::UInt | psi_symbols::BuiltinTypeAtom::Int)
+                )
+            {
+                return true;
+            }
             let mut definitions = program.data_definitions().iter().filter(|definition| {
                 if symbol.is_valid() {
                     definition.symbol == *symbol
@@ -115,7 +134,7 @@ fn type_is_caller_isolated_local_inner(
             if definitions.next().is_some() {
                 return false;
             }
-            data_definition_is_caller_isolated(program, definition, visiting)
+            data_definition_is_caller_isolated(program, definition, visiting, proof_values)
         }
         TypeReferenceNode::Reference { .. }
         | TypeReferenceNode::Slice { .. }
@@ -155,35 +174,50 @@ pub(super) fn struct_literal_type_is_caller_isolated(
     };
     definitions.next().is_none()
         && unique_shape
-        && data_definition_is_caller_isolated(program, definition, &mut Vec::new())
+        && data_definition_is_caller_isolated(program, definition, &mut Vec::new(), false)
 }
 
 pub(super) fn data_definition_has_only_owned_storage(
     program: &TypedTrees,
     definition: &psi_typed_trees::data::DataDefinition,
 ) -> bool {
-    data_definition_is_caller_isolated(program, definition, &mut Vec::new())
+    data_definition_is_caller_isolated(program, definition, &mut Vec::new(), false)
 }
 
 fn data_definition_is_caller_isolated(
     program: &TypedTrees,
     definition: &psi_typed_trees::data::DataDefinition,
     visiting: &mut Vec<SymbolHandle>,
+    proof_values: bool,
 ) -> bool {
-    if !definition.type_parameters.is_empty() || visiting.contains(&definition.symbol) {
+    if !definition.type_parameters.is_empty()
+        || (proof_values
+            && definition.supply_mode != psi_language_semantics::DataSupplyMode::CheckedShape)
+    {
         return false;
+    }
+    if visiting.contains(&definition.symbol) {
+        return proof_values;
     }
     visiting.push(definition.symbol);
     let isolated = program
         .data_members(definition)
         .iter()
         .all(|member| match member {
-            DataMember::Field(field) => {
-                type_is_caller_isolated_local_inner(program, field.type_reference, visiting)
-            }
+            DataMember::Field(field) => type_is_caller_isolated_local_inner(
+                program,
+                field.type_reference,
+                visiting,
+                proof_values,
+            ),
             DataMember::Variant(variant) => {
                 program.data_payload_fields(variant).iter().all(|field| {
-                    type_is_caller_isolated_local_inner(program, field.type_reference, visiting)
+                    type_is_caller_isolated_local_inner(
+                        program,
+                        field.type_reference,
+                        visiting,
+                        proof_values,
+                    )
                 })
             }
         });
