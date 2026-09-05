@@ -1,6 +1,9 @@
 use super::*;
 
 pub(super) struct FlowBuildContext {
+    pub(super) state_value_inputs: Vec<super::state_values::StateValues>,
+    pub(super) built_state_value_inputs: Vec<SymbolHandle>,
+    pub(super) state_value_inputs_changed_after_build: bool,
     pub(super) state_mutation_summary_cache: StateMutationSummaryCache,
     pub(super) contexts: FlowContextFacts,
     pub(super) invalidations: FlowInvalidationFacts,
@@ -13,6 +16,9 @@ pub(super) struct FlowBuildContext {
 impl FlowBuildContext {
     pub(super) fn new(borrow: &BorrowFacts, proof: &ProofFacts, semantic: &FactPlan) -> Self {
         Self {
+            state_value_inputs: Vec::new(),
+            built_state_value_inputs: Vec::new(),
+            state_value_inputs_changed_after_build: false,
             state_mutation_summary_cache: StateMutationSummaryCache::default(),
             contexts: FlowContextFacts::with_roots(
                 psi_arena::Arena::with_capacity(semantic.contexts.len().saturating_mul(2)),

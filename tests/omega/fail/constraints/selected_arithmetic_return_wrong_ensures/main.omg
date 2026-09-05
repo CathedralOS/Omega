@@ -1,0 +1,3 @@
+machine wrapped_sum() -> u8
+ensures result == 255
+{ ((255u8 as u8 in Wrapping) + 2) as u8 }

@@ -15,7 +15,7 @@ pub(in crate::checks::contracts) enum ScalarValue {
 }
 
 pub(super) fn literal(program: &TypedTrees, expression: ExpressionHandle) -> Option<ScalarValue> {
-    if !expression.is_valid() {
+    if !program.expression_table.expression_is_valid(expression) {
         return None;
     }
     match program.expression_table.expression(expression) {
@@ -42,7 +42,7 @@ pub(super) fn evaluate_with_comparisons(
     resolve_leaf: &mut impl FnMut(ExpressionHandle) -> Option<ScalarValue>,
     comparison_is_admitted: &impl Fn(&ScalarValue, &ScalarValue) -> bool,
 ) -> Option<ScalarValue> {
-    if !expression.is_valid() {
+    if !program.expression_table.expression_is_valid(expression) {
         return None;
     }
     if let Some(value) = literal(program, expression) {
@@ -130,6 +130,31 @@ pub(super) fn evaluate_with_comparisons(
 mod tests {
     use super::*;
     use psi_typed_trees::expression::{TableBinaryExpression, TableUnaryExpression};
+
+    #[test]
+    fn absent_and_stale_expressions_never_supply_dummy_zero_evidence() {
+        let mut program = TypedTrees::default();
+        let zero = program.expression_table.insert(ExpressionNode::Integer(
+            psi_numerics::literals::IntegerLiteral::zero(),
+        ));
+        assert_eq!(
+            literal(&program, zero),
+            Some(ScalarValue::Integer(BigInt::zero()))
+        );
+        for missing in [
+            ExpressionHandle::invalid(),
+            ExpressionHandle::from_parts(zero.arena_index(), zero.generation() + 1),
+            ExpressionHandle::from_parts(u32::MAX, zero.generation()),
+        ] {
+            assert_eq!(literal(&program, missing), None);
+            assert_eq!(
+                evaluate(&program, missing, &mut |_| panic!(
+                    "missing source reached leaf lookup"
+                )),
+                None
+            );
+        }
+    }
 
     #[test]
     fn unadmitted_boolean_equality_cannot_become_domain_evidence() {

@@ -1047,6 +1047,10 @@ impl ExpressionTable {
         self.expressions.get(handle)
     }
 
+    pub fn expression_is_valid(&self, handle: ExpressionHandle) -> bool {
+        self.expressions.is_valid(handle)
+    }
+
     pub fn iter_expressions(&self) -> impl Iterator<Item = (ExpressionHandle, &ExpressionNode)> {
         self.expressions.iter()
     }

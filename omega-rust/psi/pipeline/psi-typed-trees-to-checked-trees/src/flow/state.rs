@@ -16,6 +16,8 @@ pub(super) fn build_state_flow_fact(
         return;
     };
 
+    ctx.built_state_value_inputs.push(state.symbol);
+    super::state_values::append_entry_context(program, semantic, ctx, machine, state);
     let mut state_contexts = psi_arena::HandleSpan::empty();
     let mut state_constraints = psi_arena::HandleSpan::empty();
     append_flow_contexts_for_points(

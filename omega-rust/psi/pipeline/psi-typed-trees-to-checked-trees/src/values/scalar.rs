@@ -2,8 +2,8 @@ use psi_checked_trees::{
     CheckedBooleanExpression, CheckedIeeeFloatComparisonKind, CheckedIntegerBinaryKind,
     CheckedIntegerComparisonKind, CheckedIntegerRange, CheckedLocatedScalarExpression,
     CheckedOperatorFacts, CheckedOperatorResolutionStatus, CheckedScalarExpression,
-    CheckedScalarExpressionPlans, CheckedScalarExpressionRole, CheckedStructuralParameterField,
-    CheckedStructuralPredicatePathSegment,
+    CheckedScalarExpressionBindings, CheckedScalarExpressionPlans, CheckedScalarExpressionRole,
+    CheckedStructuralParameterField, CheckedStructuralPredicatePathSegment,
 };
 use psi_numerics::{
     arithmetic::ArithmeticDomain,
@@ -31,6 +31,8 @@ pub(crate) fn build_checked_scalar_expression_plans(
     exact_integer_casts: &[psi_validation::ExactIntegerCastFact],
 ) -> CheckedScalarExpressionPlans {
     let mut expressions = Vec::new();
+    let mut source_bindings = psi_arena::Arena::default();
+    let mut binding_symbols = psi_arena::Arena::default();
     for machine in program.machines() {
         let states = program.machine_states(machine);
         for state in states {
@@ -176,7 +178,7 @@ pub(crate) fn build_checked_scalar_expression_plans(
                             expressions.extend(arguments);
                         }
                         if let Some(result_type) = result_type
-                            && let Some(expression) = lower_return_expression(
+                            && let Some(return_expression) = lower_return_expression(
                                 program,
                                 operators,
                                 *expression,
@@ -187,11 +189,23 @@ pub(crate) fn build_checked_scalar_expression_plans(
                                 exact_integer_casts,
                             )
                         {
+                            source_bindings.append(CheckedScalarExpressionBindings {
+                                state: state.symbol,
+                                statement_ordinal,
+                                role: CheckedScalarExpressionRole::Return,
+                                expression: *expression,
+                                symbols: binding_symbols.insert_many(
+                                    scalar_parameters
+                                        .iter()
+                                        .map(|parameter| parameter.symbol)
+                                        .chain(locals.iter().map(|local| local.symbol)),
+                                ),
+                            });
                             expressions.push(CheckedLocatedScalarExpression {
                                 state: state.symbol,
                                 statement_ordinal,
                                 role: CheckedScalarExpressionRole::Return,
-                                expression,
+                                expression: return_expression,
                             });
                         }
                     }
@@ -312,7 +326,7 @@ pub(crate) fn build_checked_scalar_expression_plans(
                             && let TransitionTargetNode::Value(expression) =
                                 program.statement_table.transition_target(transition.target)
                             && let Some(result_type) = result_type
-                            && let Some(expression) = lower_return_expression(
+                            && let Some(return_expression) = lower_return_expression(
                                 program,
                                 operators,
                                 *expression,
@@ -323,11 +337,23 @@ pub(crate) fn build_checked_scalar_expression_plans(
                                 exact_integer_casts,
                             )
                         {
+                            source_bindings.append(CheckedScalarExpressionBindings {
+                                state: state.symbol,
+                                statement_ordinal,
+                                role: CheckedScalarExpressionRole::Return,
+                                expression: *expression,
+                                symbols: binding_symbols.insert_many(
+                                    scalar_parameters
+                                        .iter()
+                                        .map(|parameter| parameter.symbol)
+                                        .chain(locals.iter().map(|local| local.symbol)),
+                                ),
+                            });
                             expressions.push(CheckedLocatedScalarExpression {
                                 state: state.symbol,
                                 statement_ordinal,
                                 role: CheckedScalarExpressionRole::Return,
-                                expression,
+                                expression: return_expression,
                             });
                         }
                         let TransitionTargetNode::Named {
@@ -388,7 +414,11 @@ pub(crate) fn build_checked_scalar_expression_plans(
             }
         }
     }
-    CheckedScalarExpressionPlans { expressions }
+    CheckedScalarExpressionPlans {
+        expressions,
+        source_bindings,
+        binding_symbols,
+    }
 }
 
 fn lower_closed_integer_literal_guard(

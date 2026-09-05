@@ -404,14 +404,15 @@ Owners include
   occurrence disappears, duplicates, or is cleaned after transfer.
 
 - **STATE-LOCAL-VALUE-FRONTIER.** Complete live contract/value-fact transport
-  across explicit state arguments. Materialize selected-arithmetic and effectful
-  return values at their exact evaluation points so exit proof can consume
-  their numeric laws without rereading changed operands.
+  across explicit state arguments, including computed values and dynamic
+  projections. Retain selected arithmetic values across local assignments and
+  materialize effectful returns at their exact evaluation points. Add
+  destination-correct landing for wholly anonymous integer expressions so exit
+  proof can consume their numeric laws without rereading changed operands.
   Acceptance: implicit cross-state use rejects, while explicit renamed
   transfers retain exact contracts, field selection, ownership and cleanup
-  without requiring a runtime copy. Wrong
-  results, mismatched output origins, and invalidated writes reject scalar
-  postconditions at every normal exit.
+  without requiring a runtime copy. Wrong results, mismatched output origins,
+  and invalidated writes reject scalar postconditions at every normal exit.
 
 - **CLEANUP-HOOK-SELECTION-AND-ERASED-OWNERSHIP.** Finish ordinary generic
   `drop<T>` and runtime cleanup invocation after exact owner-attached hook
