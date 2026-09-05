@@ -1,6 +1,6 @@
 use omega_isa_aarch64::validate_aarch64_selected_form_encoding;
 use omega_isa_x86_64::validate_x86_64_selected_form_encoding;
-use omega_machine_optimizer::PostAllocationMachineInstruction;
+use omega_physical_instructions::PostAllocationMachineInstruction;
 use omega_register_model::{RegisterViewId, ValidatedPhysicalRegisterModel};
 use omega_selected_instructions::{
     MachineEncodedEffects, MachineSizeKnowledge, SelectedInstruction, SelectedInstructionId,

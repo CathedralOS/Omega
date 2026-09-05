@@ -62,7 +62,7 @@ pub struct FunctionFragmentEmissionManifest {
     pub fuel_schedule: FuelScheduleIdentity,
     pub selected: omega_selected_instructions::SelectedInstructionPlanIdentity,
     pub post_allocation_manifest: PostAllocationOptimizationManifestIdentity,
-    pub post_allocation_machine: omega_machine_optimizer::PostAllocationMachineIdentity,
+    pub post_allocation_machine: omega_physical_instructions::PostAllocationMachineIdentity,
     pub final_pre_layout: SelectedFormEncodingIdentity,
     pub final_resolved_layout: crate::ResolvedSelectedFormLayoutIdentity,
     pub whole_function_exit_contract: WholeFunctionExitContractIdentity,

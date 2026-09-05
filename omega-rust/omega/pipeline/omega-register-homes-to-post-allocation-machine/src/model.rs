@@ -1,7 +1,8 @@
 use omega_machine_optimizer::{
-    PostAllocationMachineError, PostAllocationMachineIdentity, ValidatedPostAllocationMachinePlan,
+    PostAllocationMachineError, ValidatedPostAllocationMachinePlan,
     ValidatedPreAllocationMachineEffects,
 };
+use omega_physical_instructions::PostAllocationMachineIdentity;
 use omega_selected_instructions_to_machine_effects::MachineEffectStageError;
 use omega_selected_instructions_to_register_homes::{AllocationEvidence, AllocationReplayError};
 

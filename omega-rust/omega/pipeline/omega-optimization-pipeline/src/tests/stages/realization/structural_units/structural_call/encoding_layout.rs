@@ -25,8 +25,28 @@ pub(super) fn verify_structural_call_encoding_and_layout(homes: &StagedOptimized
     assert_eq!(post.custody().function_count(), 0);
     assert_eq!(post.custody().structural_unit_function_count(), 2);
     assert_eq!(post.machine().receipt().function_count(), 2);
+    assert_eq!(post.machine().receipt().block_count(), 2);
     assert_eq!(post.machine().receipt().instruction_count(), 3);
     assert_eq!(post.machine().receipt().operand_count(), 0);
+    let physical_program = post.machine().plan();
+    let call = physical_program.structural_unit_functions[0]
+        .call
+        .as_ref()
+        .unwrap();
+    let return_actions = physical_program
+        .structural_unit_functions
+        .iter()
+        .map(|function| {
+            let instruction = &function.return_instruction;
+            instruction.unit_uses.len()
+                + instruction.unit_defs.len()
+                + instruction.unit_clobbers.len()
+        })
+        .sum::<usize>();
+    assert_eq!(
+        post.machine().receipt().unit_action_count(),
+        return_actions + call.unit_uses.len() + call.unit_defs.len() + call.unit_clobbers.len()
+    );
     let mut corrupted = post.machine().plan().clone();
     corrupted.structural_unit_functions[0]
         .call
@@ -34,6 +54,10 @@ pub(super) fn verify_structural_call_encoding_and_layout(homes: &StagedOptimized
         .unwrap()
         .unit_uses
         .clear();
+    // Canonical encoding authenticates data; it cannot admit a different call.
+    corrupted.identity = omega_machine_optimizer::post_allocation_machine_identity(&corrupted);
+    let corrupted = omega_machine_optimizer::PostAllocationMachinePlan::decode(&corrupted.encode())
+        .expect("substituted data has a valid canonical frame, not realization authority");
     assert!(
         omega_machine_optimizer::validate_post_allocation_machine_plan(
             range_stage.liveness_stage().selected_stage().selected(),

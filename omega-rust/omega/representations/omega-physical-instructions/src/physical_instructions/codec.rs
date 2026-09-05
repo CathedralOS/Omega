@@ -1,4 +1,4 @@
-//! Version-5 post-allocation machine-plan framing and final admission.
+//! Version-5 post-allocation machine-plan framing and content authentication.
 //!
 //! The entrance owns the wire marker/version, canonical content boundary,
 //! trailing-byte rejection, and final identity authentication. Ordered content,

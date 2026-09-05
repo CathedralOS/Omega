@@ -2,7 +2,7 @@ use omega_calling_conventions::MachineRegister;
 use omega_isa_x86_64::{
     X86_64SelectedStructuralUnitCallFootprint, X86_64StructuralUnitInternalControlFixup,
 };
-use omega_machine_optimizer::PostAllocationMachineIdentity;
+use omega_physical_instructions::PostAllocationMachineIdentity;
 use omega_register_model::{RegisterUnitId, RegisterViewId};
 use omega_selected_instructions::{
     MachineAlternativeFamily, MachineAlternativeKey, MachineEncodedEffects,

@@ -1,11 +1,12 @@
 //! Ordered V3 content decoding after frame admission.
 
 use omega_optimization_core::PostAllocationOptimizationManifestIdentity;
-use omega_regalloc::{AllocationLegalityIdentity, LiveRangeIdentity, RegisterHomeIdentity};
+use omega_register_homes::{AllocationLegalityIdentity, LiveRangeIdentity, RegisterHomeIdentity};
 use omega_register_model::{
     PhysicalRegisterModelIdentity, RegisterConstraintCatalogIdentity,
     TargetRegisterEnvironmentIdentity,
 };
+use omega_selected_instructions::PreAllocationMachineEffectIdentity;
 use omega_selected_instructions::{
     MachineEffectCatalogIdentity, SelectedBlockId, SelectedInstructionPlanIdentity,
 };
@@ -14,7 +15,6 @@ use psi_core::MachineId;
 use crate::{
     MachineAlternativeChoiceRule, PostAllocationMachineBlock, PostAllocationMachineFunction,
     PostAllocationMachineIdentity, PostAllocationMachinePlan, PostAllocationStructuralUnitFunction,
-    PreAllocationMachineEffectIdentity,
 };
 use omega_selected_instructions::selected_instructions::effects::program::encoding as effect_codec;
 
@@ -25,7 +25,7 @@ use super::super::{
     cursor::{array, byte, length, map_field_error, u32_field, u64_field},
 };
 
-pub(in crate::planning::post_allocation::codec) fn decode_content(
+pub(in crate::physical_instructions::codec) fn decode_content(
     cursor: &mut effect_codec::Cursor<'_>,
     identity: PostAllocationMachineIdentity,
     allow_i64_less_than: bool,

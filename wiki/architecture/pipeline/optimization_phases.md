@@ -1,6 +1,7 @@
 # Optimization Phases
 
 [Pipeline](pipeline.md) | [Optimizer architecture](../../design_briefs/optimizer_architecture.md)
+| [Ownership cleanup plan](ownership_cleanup.md)
 
 Status: target architecture and migration contract.
 

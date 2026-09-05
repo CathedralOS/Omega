@@ -1,0 +1,23 @@
+[package]
+name = "omega-physical-instructions"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[lib]
+name = "omega_physical_instructions"
+path = "src/lib.rs"
+
+[dependencies]
+omega-optimization-core = { path = "../omega-optimization-core" }
+omega-optimization-unit = { path = "../omega-optimization-unit" }
+omega-register-homes = { path = "../omega-register-homes" }
+omega-register-model = { path = "../omega-register-model" }
+omega-selected-instructions = { path = "../omega-selected-instructions" }
+omega-target = { path = "../omega-target" }
+psi-core = { path = "../../../psi/foundation/psi-core" }
+sha2 = "0.10.9"
+
+[dev-dependencies]
+omega-target-operations = { path = "../omega-target-operations" }
+psi-terminal = { path = "../../../psi/representations/psi-terminal" }
