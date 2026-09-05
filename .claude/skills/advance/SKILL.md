@@ -134,6 +134,26 @@ tool.
 
 The orchestrator stays in the main checkout and does not edit there.
 
+Two worker-prompt rules, each from a measured failure in the first live
+iteration:
+
+- **Gate in the foreground and do not return before the commit.** Every worker
+  that backgrounded a gate and returned "waiting for a notification" paused
+  there; each resume is a fresh turn that re-reads `AGENTS.md` and this skill.
+  Four pauses cost more wall time than the gates did.
+- **Probes name fixtures, not test functions.** `OMEGA_PASS_CANARY_FILTER`
+  matches the `group/name` fixture path (`targets/aarch64_hfa_entry_argument`);
+  a Rust test name (`entry_and_abi::…`) goes to the cargo test filter instead.
+  Two workers received the wrong shape and had to correct it.
+
+The orchestrator also runs no builds of its own while workers gate.
+`omega-bounded-process` has zero workspace dependencies and its CPU-limit test
+says in its own comment that a loaded host starves it of user time; it went
+red three times under concurrent builds and passed 7/7 with and without the
+change the moment the machine was idle. A red gate on a crate the change
+cannot reach is attributed with `cargo tree` and an idle re-run, not by
+assertion — and not by ignoring it.
+
 ## Build it
 
 Priorities specific to this codebase, in the order they bite:
