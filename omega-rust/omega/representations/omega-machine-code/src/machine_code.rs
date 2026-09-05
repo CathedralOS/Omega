@@ -28,7 +28,7 @@ pub use layout::{
     ResolvedMachineProgram, ResolvedSelectedBlockLayout, ResolvedSelectedFormLayoutIdentity,
     ResolvedSelectedFormRow, ResolvedSelectedFunctionLayout, ResolvedStructuralUnitCallLayout,
     ResolvedStructuralUnitFunctionLayout, SelectedFunctionLayoutPolicy,
-    resolved_machine_layout_identity,
+    X86BranchRelaxationIdentity, resolved_machine_layout_identity,
 };
 pub use ownership::*;
 pub use provenance::*;

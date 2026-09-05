@@ -4,18 +4,7 @@ use psi_core::MachineId;
 
 use crate::TargetFrameLayoutIdentity;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub struct TargetFrameProtocolEncodingIdentity([u8; 32]);
-
-impl TargetFrameProtocolEncodingIdentity {
-    pub const fn from_bytes(bytes: [u8; 32]) -> Self {
-        Self(bytes)
-    }
-
-    pub const fn bytes(self) -> [u8; 32] {
-        self.0
-    }
-}
+pub use omega_machine_code::TargetFrameProtocolEncodingIdentity;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum TargetFrameProtocolEncodingPolicy {

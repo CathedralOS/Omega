@@ -282,6 +282,20 @@ The coordinator imports these entrances. Raw layout data and its content
 identity remain in `omega-machine-code`, and ISA encoding remains in the target
 backends. This extraction does not settle exit checking or emission ownership.
 
+Whole-function exit records and their unchanged version-9 content identity now
+belong to `omega-machine-code` under `functions/exit_contract`. The validated
+wrapper retains the original shared record, but raw data and recomputed hashes
+grant no admission. Frame-layout, frame-protocol, and branch-relaxation identity
+types have representation owners; the named physical-rewrite identities used by
+exit custody live in `omega-physical-instructions`. Producer crates re-export
+these data identities without changing their bytes or meaning.
+
+Exit-contract construction and admission still live in the coordinator, and
+exit validation currently re-enters its construction routine. Separating the
+raw records is a prerequisite to moving those algorithms; it does not establish
+independent exit reconstruction or complete C. Preserve the exact frame,
+layout, return, and callee-save checks when giving them their owning phase.
+
 The machine-code representation supplies `machine_code.rs` as its
 program root, with functions, calls, storage, control flow, ownership, boundary,
 provenance, instruction, and fragment areas. Its raw encoding records do not

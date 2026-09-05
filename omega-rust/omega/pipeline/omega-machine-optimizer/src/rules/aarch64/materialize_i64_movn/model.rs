@@ -11,18 +11,7 @@ use psi_core::MachineId;
 
 use crate::PostAllocationMachineIdentity;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub struct Aarch64MovnMaterializationIdentity([u8; 32]);
-
-impl Aarch64MovnMaterializationIdentity {
-    pub const fn from_bytes(bytes: [u8; 32]) -> Self {
-        Self(bytes)
-    }
-
-    pub const fn bytes(self) -> [u8; 32] {
-        self.0
-    }
-}
+pub use omega_physical_instructions::Aarch64MovnMaterializationIdentity;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct Aarch64MovnMaterializationRevisionIdentity([u8; 32]);

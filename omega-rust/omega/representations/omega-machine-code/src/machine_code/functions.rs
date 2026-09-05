@@ -1,5 +1,8 @@
 //! Emitted program functions and separately identified compiler-private functions.
 
+pub mod exit_contract;
+pub use exit_contract::*;
+
 use crate::{
     BoundarySettlementRecord, DynamicCallRecord, DynamicParameterCallRecord, ForeignCallRelocation,
     ForwardedDynamicDescriptorCallRecord, ForwardedDynamicParameterCallRecord,

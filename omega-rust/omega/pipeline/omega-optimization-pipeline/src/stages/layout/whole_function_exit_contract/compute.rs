@@ -215,7 +215,7 @@ fn compute_inner<S: ValidatedSelectedAnalysis>(
             WholeFunctionExitPolicy::MicrosoftX64FramelessStructuralUnitLeafV1
         };
         let mut contract = WholeFunctionExitContract {
-            identity: WholeFunctionExitContractIdentity([0; 32]),
+            identity: WholeFunctionExitContractIdentity::from_bytes([0; 32]),
             selected: machine.selected,
             post_allocation_manifest: machine.post_allocation_manifest,
             post_allocation_machine: machine.identity,
@@ -467,7 +467,7 @@ fn compute_inner<S: ValidatedSelectedAnalysis>(
     }
 
     let mut contract = WholeFunctionExitContract {
-        identity: WholeFunctionExitContractIdentity([0; 32]),
+        identity: WholeFunctionExitContractIdentity::from_bytes([0; 32]),
         selected: machine.selected,
         post_allocation_manifest: machine.post_allocation_manifest,
         post_allocation_machine: machine.identity,
