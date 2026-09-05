@@ -151,6 +151,115 @@ pub machine Board::read(&mut self) -> u64 reaches ClockHost invokes ClockHost; {
 }
 
 #[test]
+fn nested_float_and_boundary_batches_restore_in_reverse_settlement_order() {
+    use psi_typed_trees::expression::ExpressionNode;
+
+    let fixture = Fixture::with_build(
+        r#"
+use omega::language::core::service;
+pub data F32 {}
+pub boundary operator F32::negate(value: f32) -> f32;
+pub data FloatProvider {}
+pub machine FloatProvider::negate(value: f32) -> f32
+    satisfies F32::negate via Binding::CompilerIntrinsic;
+pub boundary trait ClockHost { machine ticks(value: f32) -> f32; }
+data Clock {}
+machine Clock::ticks(value: f32) -> f32 satisfies ClockHost::ticks { value }
+pub data Board { clock: Service<ClockHost> in Bound; }
+pub machine Board::read(&mut self) -> f32 reaches ClockHost invokes ClockHost; {
+    F32::negate(self.clock.ticks(7.0f32))
+}
+"#,
+        r#"machine build(builder: &mut Build) {
+    builder.package("review-fixture");
+    builder.select_provider<F32::negate, FloatProvider>();
+    builder.select_provider<ClockHost, Clock>();
+}"#,
+    );
+    let source = fixture
+        .checked
+        .pre_selected_dispatch_source_trees()
+        .expect("reverse validation restores both overlapping settlement batches");
+    let operator = source
+        .operators()
+        .iter()
+        .find(|operator| {
+            source
+                .operator_path_members(operator.name)
+                .iter()
+                .map(|member| member.as_str())
+                .eq(["F32", "negate"])
+        })
+        .expect("authored float operator");
+    let uses = fixture
+        .checked
+        .facts
+        .operators
+        .named_uses
+        .iter()
+        .filter(|(_, operator_use)| operator_use.selected_operator_symbol == operator.symbol)
+        .map(|(_, operator_use)| operator_use)
+        .collect::<Vec<_>>();
+    let [operator_use] = uses.as_slice() else {
+        panic!("one exact selected float use");
+    };
+    let outer = operator_use.expression;
+    let ExpressionNode::Call(original_negate) = source.expression_table.expression(outer) else {
+        panic!("restored named float operator");
+    };
+    assert_eq!(
+        psi_typed_trees::operator::resolve_named_expression_call(&source, original_negate)
+            .map(|selected| selected.symbol),
+        Some(operator.symbol),
+    );
+    let [inner] = source
+        .expression_table
+        .expression_handles(original_negate.arguments)
+    else {
+        panic!("one nested boundary operand");
+    };
+    let ExpressionNode::Call(original_ticks) = source.expression_table.expression(*inner) else {
+        panic!("restored boundary call inside original float arguments");
+    };
+    assert_eq!(original_ticks.target.as_str(), "ticks");
+    assert!(original_ticks.receiver.is_valid());
+    let [literal] = source
+        .expression_table
+        .expression_handles(original_ticks.arguments)
+    else {
+        panic!("one scalar boundary argument");
+    };
+    let literal = *literal;
+    // The first batch guards the boundary call as an operand of the replaced
+    // float root. The second batch changes that same operand, so validating
+    // the first against settled source before undoing the second must fail.
+    let ExpressionNode::Binary(settled_negate) = fixture.checked.expression_table.expression(outer)
+    else {
+        panic!("float settlement must replace the outer named operation");
+    };
+    assert_eq!(settled_negate.left, *inner);
+    let ExpressionNode::Call(settled_ticks) = fixture.checked.expression_table.expression(*inner)
+    else {
+        panic!("boundary settlement must retain its call node");
+    };
+    assert_eq!(settled_ticks.target.as_str(), "Clock::ticks");
+    assert_ne!(settled_ticks.target_symbol, original_ticks.target_symbol);
+    assert!(!settled_ticks.receiver.is_valid());
+    drop(source);
+    project(&fixture);
+
+    let mut altered = fixture.checked.clone();
+    *altered.typed.expression_table.expression_mut(literal) = ExpressionNode::Float(
+        psi_numerics::literals::FloatLiteral::from_f64(8.0)
+            .with_landing(psi_numerics::literals::FloatFormat::F32),
+    );
+    assert!(
+        altered.pre_selected_dispatch_source_trees().is_err(),
+        "nested operand changes invalidate the overlapping source graph"
+    );
+}
+
+#[test]
 fn private_helper_and_state_renames_preserve_entry_root_write_meaning() {
     let original = project(&Fixture::local(SOURCE));
     let renamed_source = SOURCE
