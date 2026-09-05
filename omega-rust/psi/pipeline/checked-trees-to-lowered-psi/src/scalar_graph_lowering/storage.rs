@@ -5,6 +5,7 @@ use super::*;
 #[cfg(test)]
 mod tests;
 
+#[derive(Clone)]
 pub(super) struct ScalarBindings {
     immutable: Vec<usize>,
     storage: Vec<(symbols::SymbolHandle, ScalarType, usize)>,

@@ -229,7 +229,7 @@ fn lower_statement_node(
                 lowerer,
                 expression,
                 &mut hoisted,
-                OperandHoisting::Return,
+                OperandHoisting::Computation,
             );
             // A free or direct-self value-machine call as the trailing return
             // (`state go(..) -> f64 { ..; self.sin(x) }`) hoists into the
@@ -266,7 +266,7 @@ fn lower_statement_node(
                     lowerer,
                     initial_value,
                     &mut hoisted,
-                    OperandHoisting::Value,
+                    OperandHoisting::Computation,
                 )
             } else {
                 initial_value
@@ -492,8 +492,8 @@ fn bare_syntax_name(
 enum OperandHoisting {
     Value,
     Guard,
-    /// Checked return computations retain call results at their evaluation points.
-    Return,
+    /// Checked initializers and returns retain calls at their evaluation points.
+    Computation,
 }
 
 /// Hoists every runtime-indexed read in OPERAND position out of `value`.
@@ -581,7 +581,7 @@ fn rewrite_children(
                     ExpressionNode::Indexed(_)
                 ) {
                 cast.value
-            } else if mode != OperandHoisting::Return
+            } else if mode != OperandHoisting::Computation
                 && !cast.form.is_recast()
                 && is_hoistable_value_cast_call(lowerer, cast.value)
             {
@@ -598,9 +598,9 @@ fn rewrite_children(
                 //        (__hoist as T in Policy)
                 //
                 // The callee's declared return types the synthetic local in
-                // `infer_hoist_temp_type`. Return computations instead retain
-                // the original call beneath the cast: moving it here could
-                // run it before an earlier sibling call.
+                // `infer_hoist_temp_type`. Checked initializer and return
+                // computations instead retain the original call beneath the
+                // cast: moving it here could run it before an earlier sibling.
                 hoist_into_temp(lowerer, cast.value, hoisted)
             } else {
                 hoist_child(lowerer, cast.value, hoisted, mode)
@@ -2138,7 +2138,12 @@ fn lower_transition_target_node(
             let expression = lower_statement_expression(lowerer, syntax_trees, *expression)?;
             // Same hoist for an unconditional VALUE result (`-> (arr[i] + 5)`).
             let expression = if unconditional {
-                hoist_operand_indexed_reads(lowerer, expression, hoisted, OperandHoisting::Return)
+                hoist_operand_indexed_reads(
+                    lowerer,
+                    expression,
+                    hoisted,
+                    OperandHoisting::Computation,
+                )
             } else {
                 expression
             };

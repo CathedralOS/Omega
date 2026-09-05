@@ -380,3 +380,204 @@ fn scalar_computations_refuse_missing_or_duplicate_return_call_custody() {
         );
     }
 }
+
+#[test]
+fn scalar_computations_keep_initializer_roles_and_prior_binding_positions() {
+    let checked = checked_source(
+        r#"
+        machine inner(input: bool) -> bool { input }
+        machine value(flag: bool) -> bool {
+            let previous: bool = flag;
+            let mut current: bool = inner(previous);
+            let selected: bool = previous && inner(current);
+            selected
+        }
+        "#,
+        false,
+    );
+    let machine = checked
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "value")
+        .unwrap();
+    let state = &checked.machine_states(machine)[0];
+    let plans = &checked.facts.values.scalar_computations;
+    let roots = plans
+        .roots
+        .iter()
+        .map(|(_, root)| root)
+        .filter(|root| root.state == state.symbol)
+        .collect::<Vec<_>>();
+    assert_eq!(roots.len(), 2);
+    assert_eq!(roots[0].statement_ordinal, 1);
+    assert_eq!(
+        roots[0].role,
+        CheckedScalarExpressionRole::StorageInitializer
+    );
+    assert_eq!(roots[1].statement_ordinal, 2);
+    assert_eq!(
+        roots[1].role,
+        CheckedScalarExpressionRole::LocalInitializer { binding_ordinal: 1 }
+    );
+    let CheckedScalarComputationKind::Call { arguments, .. } = plans.nodes.get(roots[0].root).kind
+    else {
+        panic!("storage initializer call");
+    };
+    let argument = plans.operands.span_or_empty(arguments)[0];
+    assert_eq!(
+        plans.nodes.get(argument).kind,
+        CheckedScalarComputationKind::Value(CheckedScalarExpression::Boolean(Box::new(
+            CheckedBooleanExpression::Local { position: 1 },
+        )))
+    );
+    for root in &roots {
+        let StatementNode::LocalData(local) = &checked
+            .statement_table
+            .statements(state.statement_nodes)[root.statement_ordinal as usize]
+        else {
+            panic!("initializer source");
+        };
+        assert_eq!(
+            plans.nodes.get(root.root).authored_root,
+            local.initial_value
+        );
+    }
+    let graph = checked
+        .facts
+        .flow
+        .terminal_scalar_graphs
+        .machines
+        .iter()
+        .find(|graph| graph.machine == machine.symbol)
+        .unwrap();
+    assert_eq!(
+        graph.states[0]
+            .bindings
+            .iter()
+            .map(|binding| binding.value.clone())
+            .collect::<Vec<_>>(),
+        vec![
+            checked_trees::CheckedScalarBindingValue::Expression,
+            checked_trees::CheckedScalarBindingValue::Computation,
+            checked_trees::CheckedScalarBindingValue::Computation
+        ]
+    );
+}
+
+#[test]
+fn scalar_computations_do_not_duplicate_pure_or_direct_call_initializers() {
+    let checked = checked_source(
+        r#"
+        machine inner(input: bool) -> bool { input }
+        machine constant() -> bool { true }
+        machine value(flag: bool) -> bool {
+            let first: bool = !flag;
+            let second: bool = inner(first);
+            let third: bool = constant();
+            second && third
+        }
+        "#,
+        false,
+    );
+    assert!(
+        checked
+            .facts
+            .values
+            .scalar_computations
+            .roots
+            .iter()
+            .next()
+            .is_none()
+    );
+    let machine = checked
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "value")
+        .unwrap();
+    let graph = checked
+        .facts
+        .flow
+        .terminal_scalar_graphs
+        .machines
+        .iter()
+        .find(|graph| graph.machine == machine.symbol)
+        .unwrap();
+    assert_eq!(
+        graph.states[0].bindings[0].value,
+        checked_trees::CheckedScalarBindingValue::Expression
+    );
+    for binding in &graph.states[0].bindings[1..] {
+        assert!(matches!(
+            binding.value,
+            checked_trees::CheckedScalarBindingValue::DirectCall { .. }
+        ));
+    }
+}
+
+#[test]
+fn scalar_computations_retain_nested_initializer_invocations() {
+    let checked = checked_source(
+        r#"
+        machine inner(input: bool) -> bool { input }
+        machine outer(input: bool) -> bool { input }
+        machine value(flag: bool) -> bool {
+            let result: bool = outer(inner(flag));
+            result
+        }
+        "#,
+        false,
+    );
+    let plans = &checked.facts.values.scalar_computations;
+    let roots = plans.roots.iter().map(|(_, root)| root).collect::<Vec<_>>();
+    assert_eq!(roots.len(), 1);
+    assert_eq!(
+        roots[0].role,
+        CheckedScalarExpressionRole::LocalInitializer { binding_ordinal: 0 }
+    );
+    let CheckedScalarComputationKind::Call { arguments, .. } = plans.nodes.get(roots[0].root).kind
+    else {
+        panic!("outer initializer invocation");
+    };
+    assert!(matches!(
+        plans
+            .nodes
+            .get(plans.operands.span_or_empty(arguments)[0])
+            .kind,
+        CheckedScalarComputationKind::Call { .. }
+    ));
+}
+
+#[test]
+fn scalar_computations_retain_integer_initializer_applications() {
+    let checked = checked_source(
+        r#"
+        machine identity(input: u8 in Wrapping) -> u8 in Wrapping { input }
+        machine value(input: u8 in Wrapping) -> u8 in Wrapping {
+            let result: u8 in Wrapping = identity(input) + 1u8;
+            result
+        }
+        "#,
+        false,
+    );
+    let plans = &checked.facts.values.scalar_computations;
+    let roots = plans.roots.iter().map(|(_, root)| root).collect::<Vec<_>>();
+    assert_eq!(roots.len(), 1);
+    assert_eq!(
+        roots[0].role,
+        CheckedScalarExpressionRole::LocalInitializer { binding_ordinal: 0 }
+    );
+    let CheckedScalarComputationKind::Apply { operands, .. } = plans.nodes.get(roots[0].root).kind
+    else {
+        panic!("initializer arithmetic application");
+    };
+    let operands = plans.operands.span_or_empty(operands);
+    assert_eq!(operands.len(), 2);
+    assert!(matches!(
+        plans.nodes.get(operands[0]).kind,
+        CheckedScalarComputationKind::Call { .. }
+    ));
+    assert!(matches!(
+        plans.nodes.get(operands[1]).kind,
+        CheckedScalarComputationKind::Value(_)
+    ));
+}

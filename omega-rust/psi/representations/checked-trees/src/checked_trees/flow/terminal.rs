@@ -110,6 +110,8 @@ pub enum CheckedScalarBindingDestination {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum CheckedScalarBindingValue {
     Expression,
+    /// The initializer's exact role names its checked computation root.
+    Computation,
     /// One closed, receiver-free call whose result initializes this binding.
     /// The call coordinate joins directly to the checked crash-call row; its
     /// arguments live in `CheckedScalarExpressionPlans` under the same binding

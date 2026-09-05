@@ -9,8 +9,13 @@ pub(super) fn validate(
     site: &Site<'_>,
     role: CheckedScalarExpressionRole,
     root: Computation,
+    expected_destination: symbols::SymbolHandle,
 ) -> Result<(), LoweringError> {
     let program = &checked.typed;
+    let plans = &checked.facts.values.scalar_computations;
+    if !plans.nodes.is_valid(root) {
+        return unsupported("scalar computation root disagrees with its authored destination");
+    }
     let state = program
         .machines()
         .iter()
@@ -24,17 +29,48 @@ pub(super) fn validate(
         .ok_or(LoweringError::Unsupported(
             "scalar computation root has no authored state",
         ))?;
-    let expression = match program
-        .statement_table
-        .statements(state.statement_nodes)
-        .get(site.statement as usize)
-    {
+    let statements = program.statement_table.statements(state.statement_nodes);
+    let expression = match statements.get(site.statement as usize) {
+        Some(StatementNode::LocalData(local))
+            if program.primitive_type_reference(local.type_reference)
+                == Some(plans.nodes.get(root).primitive_type) =>
+        {
+            match role {
+                CheckedScalarExpressionRole::LocalInitializer { binding_ordinal }
+                    if !local.is_mutable && !expected_destination.is_valid() =>
+                {
+                    // Computation planning numbers only initialized immutable
+                    // primitive locals. Mutable storage does not occupy that namespace.
+                    let preceding_bindings = statements[..site.statement as usize]
+                        .iter()
+                        .filter(|statement| {
+                            matches!(statement, StatementNode::LocalData(local)
+                                if !local.is_mutable
+                                    && local.initial_value.is_valid()
+                                    && program
+                                        .primitive_type_reference(local.type_reference)
+                                        .is_some())
+                        })
+                        .count();
+                    (u32::try_from(preceding_bindings).ok() == Some(binding_ordinal))
+                        .then_some(local.initial_value)
+                }
+                CheckedScalarExpressionRole::StorageInitializer
+                    if local.is_mutable
+                        && expected_destination.is_valid()
+                        && local.symbol == expected_destination =>
+                {
+                    Some(local.initial_value)
+                }
+                _ => None,
+            }
+        }
         Some(StatementNode::Expression(expression))
-            if role == CheckedScalarExpressionRole::Return =>
+            if role == CheckedScalarExpressionRole::Return && !expected_destination.is_valid() =>
         {
             Some(*expression)
         }
-        Some(StatementNode::Transition(transition)) => {
+        Some(StatementNode::Transition(transition)) if !expected_destination.is_valid() => {
             let target = match role {
                 CheckedScalarExpressionRole::ContinuationReturn
                 | CheckedScalarExpressionRole::TransitionContinuationArgument { .. } => {
@@ -64,13 +100,10 @@ pub(super) fn validate(
         }
         _ => None,
     };
-    let plans = &checked.facts.values.scalar_computations;
-    if !plans.nodes.is_valid(root)
-        || !expression.is_some_and(|expression| {
-            program.expression_table.expression_is_valid(expression)
-                && plans.nodes.get(root).authored_root == expression
-        })
-    {
+    if !expression.is_some_and(|expression| {
+        program.expression_table.expression_is_valid(expression)
+            && plans.nodes.get(root).authored_root == expression
+    }) {
         return unsupported("scalar computation root disagrees with its authored destination");
     }
     Ok(())

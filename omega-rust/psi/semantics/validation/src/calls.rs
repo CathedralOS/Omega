@@ -29,7 +29,8 @@ mod write_frames;
 use expression_scanning::receiver_member_chain;
 pub(crate) use expression_scanning::{
     declared_receiver_type_reference, report_local_receiver_value_call,
-    report_nested_call_in_bound_value_call, validate_value_position_calls,
+    report_nested_call_in_bound_value_call, report_nested_call_in_local_initializer,
+    validate_value_position_calls,
 };
 use generic_bounds::validate_machine_call_type_parameter_bounds;
 pub(crate) use inline_assembly::validate_asm_value_destination;

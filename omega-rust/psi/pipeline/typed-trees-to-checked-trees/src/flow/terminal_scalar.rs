@@ -59,12 +59,13 @@ mod guards;
 pub(crate) fn build_checked_scalar_graph_plans(
     program: &TypedTrees,
     expressions: &checked_trees::CheckedScalarExpressionPlans,
+    computations: &checked_trees::CheckedScalarComputationPlans,
 ) -> CheckedScalarGraphPlans {
     CheckedScalarGraphPlans {
         machines: program
             .machines()
             .iter()
-            .filter_map(|machine| build_machine_graph(program, machine, expressions))
+            .filter_map(|machine| build_machine_graph(program, machine, expressions, computations))
             .collect(),
     }
 }
@@ -73,6 +74,7 @@ fn build_machine_graph(
     program: &TypedTrees,
     machine: &typed_trees::machine::Machine,
     expressions: &checked_trees::CheckedScalarExpressionPlans,
+    computations: &checked_trees::CheckedScalarComputationPlans,
 ) -> Option<CheckedScalarMachineGraph> {
     let source_states = program.machine_states(machine);
     if source_states.is_empty() {
@@ -119,12 +121,32 @@ fn build_machine_graph(
                             {
                                 return None;
                             }
-                            let value = checked_binding_value(program, local.initial_value)?;
-                            if local.is_mutable && value != CheckedScalarBindingValue::Expression {
+                            let statement_ordinal = u32::try_from(statement_index).ok()?;
+                            let role = if local.is_mutable {
+                                checked_trees::CheckedScalarExpressionRole::StorageInitializer
+                            } else {
+                                checked_trees::CheckedScalarExpressionRole::LocalInitializer {
+                                    binding_ordinal: u32::try_from(statements[..statement_index]
+                                        .iter().filter(|statement| matches!(statement,
+                                            StatementNode::LocalData(local) if !local.is_mutable
+                                        )).count()).ok()?,
+                                }
+                            };
+                            let value = if computations
+                                .root_at(state.symbol, statement_ordinal, role)
+                                .is_some()
+                            {
+                                CheckedScalarBindingValue::Computation
+                            } else {
+                                checked_binding_value(program, local.initial_value)?
+                            };
+                            if local.is_mutable
+                                && matches!(value, CheckedScalarBindingValue::DirectCall { .. })
+                            {
                                 return None;
                             }
                             Some(CheckedScalarBinding {
-                                statement_ordinal: u32::try_from(statement_index).ok()?,
+                                statement_ordinal,
                                 destination: if local.is_mutable {
                                     CheckedScalarBindingDestination::StorageInitialize {
                                         symbol: local.symbol,

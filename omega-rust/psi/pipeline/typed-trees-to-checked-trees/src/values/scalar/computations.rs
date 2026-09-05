@@ -1,4 +1,4 @@
-//! Checked execution plans for call-bearing scalar arguments and returns.
+//! Checked execution plans for call-bearing scalar initializers, arguments, and returns.
 
 use super::*;
 use checked_trees::{
@@ -44,10 +44,61 @@ pub(crate) fn build_checked_scalar_computation_plans(
             let mut locals = Vec::new();
             let statements = program.statement_table.statements(state.statement_nodes);
             for (statement_index, statement) in statements.iter().enumerate() {
+                let Ok(statement_ordinal) = u32::try_from(statement_index) else {
+                    continue;
+                };
                 if let StatementNode::LocalData(local) = statement {
-                    if let Some(primitive_type) =
-                        program.primitive_type_reference(local.type_reference)
+                    if local.initial_value.is_valid()
+                        && let Some(primitive_type) =
+                            program.primitive_type_reference(local.type_reference)
                     {
+                        let binding_ordinal = u32::try_from(
+                            locals
+                                .iter()
+                                .filter(|local: &&ScalarLocal| !local.is_mutable)
+                                .count(),
+                        );
+                        if let Ok(binding_ordinal) = binding_ordinal {
+                            let role = if local.is_mutable {
+                                CheckedScalarExpressionRole::StorageInitializer
+                            } else {
+                                CheckedScalarExpressionRole::LocalInitializer { binding_ordinal }
+                            };
+                            // Keep the established direct-call binding coordinates when
+                            // every argument already has a pure checked plan.
+                            if local.is_mutable
+                                || !has_pure_call_arguments(
+                                    program,
+                                    pure,
+                                    state.symbol,
+                                    statement_ordinal,
+                                    binding_ordinal,
+                                    local.initial_value,
+                                )
+                            {
+                                Builder {
+                                    program,
+                                    operators,
+                                    flow,
+                                    exact_integer_casts,
+                                    machine: machine.symbol,
+                                    state: state.symbol,
+                                    statement_index,
+                                    parameters,
+                                    parameter_types: &parameter_types,
+                                    locals: &locals,
+                                    plans: &mut plans,
+                                }
+                                .record_root(
+                                    pure,
+                                    statement_ordinal,
+                                    role,
+                                    local.initial_value,
+                                    primitive_type,
+                                );
+                            }
+                        }
+                        // The initializer may read earlier locals, never its own binding.
                         locals.push(ScalarLocal {
                             is_mutable: local.is_mutable,
                             symbol: local.symbol,
@@ -59,9 +110,6 @@ pub(crate) fn build_checked_scalar_computation_plans(
                     }
                     continue;
                 }
-                let Ok(statement_ordinal) = u32::try_from(statement_index) else {
-                    continue;
-                };
                 let mut builder = Builder {
                     program,
                     operators,
@@ -168,6 +216,43 @@ pub(crate) fn build_checked_scalar_computation_plans(
         }
     }
     plans
+}
+
+fn has_pure_call_arguments(
+    program: &TypedTrees,
+    pure: &CheckedScalarExpressionPlans,
+    state: SymbolHandle,
+    statement_ordinal: u32,
+    binding_ordinal: u32,
+    expression: ExpressionHandle,
+) -> bool {
+    let ExpressionNode::Call(call) = program.expression_table.expression(expression) else {
+        return false;
+    };
+    if call.receiver.is_valid() || !call.machine_arguments.is_empty() {
+        return false;
+    }
+    let Some(parameters) = crate::call_target_parameters(program, call.target_symbol) else {
+        return false;
+    };
+    let arguments = program.expression_table.expression_handles(call.arguments);
+    arguments.len() == parameters.len()
+        && !parameters
+            .iter()
+            .any(|parameter| parameter.is_self || parameter.is_const || parameter.is_mutable)
+        && arguments.iter().enumerate().all(|(index, _)| {
+            u32::try_from(index).ok().is_some_and(|argument_ordinal| {
+                pure.expression_at(
+                    state,
+                    statement_ordinal,
+                    CheckedScalarExpressionRole::CallArgument {
+                        binding_ordinal,
+                        argument_ordinal,
+                    },
+                )
+                .is_some()
+            })
+        })
 }
 
 struct Builder<'program, 'plans> {

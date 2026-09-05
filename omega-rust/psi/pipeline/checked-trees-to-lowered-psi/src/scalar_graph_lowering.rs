@@ -4,6 +4,7 @@ use super::*;
 
 mod branch_destinations;
 mod computations;
+mod initializers;
 mod storage;
 
 pub(super) fn checked_scalar_computation_call_targets(
@@ -301,114 +302,9 @@ fn prepare_scalar_graph_machine_with_contract_mode(
             .copied()
             .map(terminal_scalar_type)
             .collect::<Result<Vec<_>, _>>()?;
-        let mut value_types = parameter_types.clone();
-        let mut scalar_bindings = storage::ScalarBindings::new(parameter_types.len());
-        let mut immutable_ordinal = 0u32;
-        let mut bindings = Vec::with_capacity(state.bindings.len());
-        for (binding_index, binding) in state.bindings.iter().enumerate() {
-            use checked_trees::CheckedScalarBindingDestination;
-            if usize::try_from(binding.statement_ordinal).ok() != Some(binding_index) {
-                return unsupported("scalar computations drifted from statement order");
-            }
-            let binding_ordinal = immutable_ordinal;
-            let role = match binding.destination {
-                CheckedScalarBindingDestination::Immutable => {
-                    CheckedScalarExpressionRole::LocalInitializer { binding_ordinal }
-                }
-                CheckedScalarBindingDestination::StorageInitialize { .. } => {
-                    CheckedScalarExpressionRole::StorageInitializer
-                }
-                CheckedScalarBindingDestination::StorageAssign { .. } => {
-                    CheckedScalarExpressionRole::AssignmentValue
-                }
-            };
-            if let CheckedScalarBindingDestination::StorageInitialize { symbol }
-            | CheckedScalarBindingDestination::StorageAssign { symbol } = binding.destination
-            {
-                let mut custody = checked
-                    .facts
-                    .values
-                    .scalar_expressions
-                    .source_bindings
-                    .iter()
-                    .filter(|(_, source)| {
-                        source.state == state.state
-                            && source.statement_ordinal == binding.statement_ordinal
-                            && source.role == role
-                    });
-                let Some((_, source)) = custody.next() else {
-                    return unsupported(
-                        "scalar storage destination lost its checked source custody",
-                    );
-                };
-                if custody.next().is_some()
-                    || source.destination != symbol
-                    || !checked
-                        .typed
-                        .expression_table
-                        .expression_is_valid(source.expression)
-                {
-                    return unsupported(
-                        "scalar storage destination disagrees with its checked source custody",
-                    );
-                }
-            }
-            let binding_type = terminal_scalar_type(binding.primitive_type)?;
-            let lowered = match &binding.value {
-                CheckedScalarBindingValue::Expression => {
-                    let expression = scalar_bindings.expression_at(
-                        checked,
-                        state.state,
-                        binding.statement_ordinal,
-                        role,
-                    )?;
-                    if expression.scalar_type() != binding_type {
-                        return unsupported(
-                            "checked scalar local initializer type must match its binding",
-                        );
-                    }
-                    validate_direct_parameter_types(&expression, &value_types)?;
-                    LoweredScalarBinding::Expression(expression)
-                }
-                CheckedScalarBindingValue::DirectCall {
-                    target_machine,
-                    target_state,
-                    call_ordinal,
-                    argument_count,
-                } => {
-                    if binding.destination != CheckedScalarBindingDestination::Immutable {
-                        return unsupported(
-                            "scalar storage computations do not admit direct calls",
-                        );
-                    }
-                    LoweredScalarBinding::DirectCall(lower_checked_direct_call_binding(
-                        checked,
-                        machine,
-                        state.state,
-                        binding.statement_ordinal,
-                        binding_ordinal,
-                        *target_machine,
-                        *target_state,
-                        *call_ordinal,
-                        *argument_count,
-                        binding_type,
-                        &value_types,
-                        &scalar_bindings,
-                    )?)
-                }
-            };
-            scalar_bindings.append(binding.destination, binding_type, value_types.len())?;
-            if binding.destination == CheckedScalarBindingDestination::Immutable {
-                immutable_ordinal =
-                    immutable_ordinal
-                        .checked_add(1)
-                        .ok_or(LoweringError::Unsupported(
-                            "scalar immutable local count exceeds u32",
-                        ))?;
-            }
-            bindings.push(lowered);
-            value_types.push(binding_type);
-        }
+        let prepared = initializers::prepare(checked, machine, state, parameter_types)?;
+        let value_types = &prepared.value_types;
+        let scalar_bindings = &prepared.scalar_bindings;
         let terminator = match &state.terminator {
             CheckedScalarStateTerminator::Return { statement_ordinal } => {
                 let computed_entry = if let Some(target) = return_sink {
@@ -416,8 +312,8 @@ fn prepare_scalar_graph_machine_with_contract_mode(
                         state.state,
                         *statement_ordinal,
                         CheckedScalarExpressionRole::Return,
-                        &scalar_bindings,
-                        &value_types,
+                        scalar_bindings,
+                        value_types,
                         result_type,
                         target,
                     )?
@@ -427,7 +323,7 @@ fn prepare_scalar_graph_machine_with_contract_mode(
                 if let Some(target) = computed_entry {
                     LoweredScalarBranchTerminator::Jump {
                         target,
-                        arguments: computations::parameters(&value_types),
+                        arguments: computations::parameters(value_types),
                     }
                 } else {
                     let expression = scalar_bindings.expression_at(
@@ -441,7 +337,7 @@ fn prepare_scalar_graph_machine_with_contract_mode(
                             "checked scalar return type must match the machine result",
                         );
                     }
-                    validate_direct_parameter_types(&expression, &value_types)?;
+                    validate_direct_parameter_types(&expression, value_types)?;
                     LoweredScalarBranchTerminator::Return { expression }
                 }
             }
@@ -477,16 +373,16 @@ fn prepare_scalar_graph_machine_with_contract_mode(
                 };
                 let condition = *condition;
                 validate_short_circuit_expression(&condition)?;
-                validate_boolean_parameter_types(&condition, &value_types)?;
+                validate_boolean_parameter_types(&condition, value_types)?;
 
                 let (when_true_target, when_true_arguments) =
                     branch_destinations::lower_destination(
                         checked,
                         states,
                         state.state,
-                        &value_types,
+                        value_types,
                         when_true,
-                        &scalar_bindings,
+                        scalar_bindings,
                         result_type,
                         return_sink,
                         &mut computations,
@@ -496,9 +392,9 @@ fn prepare_scalar_graph_machine_with_contract_mode(
                         checked,
                         states,
                         state.state,
-                        &value_types,
+                        value_types,
                         when_false,
-                        &scalar_bindings,
+                        scalar_bindings,
                         result_type,
                         return_sink,
                         &mut computations,
@@ -521,19 +417,15 @@ fn prepare_scalar_graph_machine_with_contract_mode(
                     checked,
                     states,
                     state.state,
-                    &value_types,
+                    value_types,
                     successor,
-                    &scalar_bindings,
+                    scalar_bindings,
                     &mut computations,
                 )?;
                 LoweredScalarBranchTerminator::Jump { target, arguments }
             }
         };
-        lowered_states.push(LoweredScalarBranchState {
-            parameter_types,
-            bindings,
-            terminator,
-        });
+        lowered_states.push(prepared.finish(state.state, terminator, &mut computations)?);
     }
 
     if return_sink.is_some() {
