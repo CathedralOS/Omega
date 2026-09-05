@@ -30,22 +30,30 @@
         (compiler_complete 0)))))
 
 (def grammar_queue_node ((role Int) (node Int) (work Int)) Int
+  (grammar_queue_node_at_depth role node 0 work))
+
+(def grammar_queue_node_at_depth
+  ((role Int) (node Int) (depth Int) (work Int)) Int
   (pair (+ (first work) 1)
-    (pair (pair role node) (second work))))
+    (pair (pair role (pair node depth)) (second work))))
 
 ; Restore ordered children ahead of existing work without recursive descent.
 (def grammar_queue_nodes
   ((role Int) (count Int) (nodes Int) (work Int)) Int
+  (grammar_queue_nodes_at_depth role count nodes 0 work))
+
+(def grammar_queue_nodes_at_depth
+  ((role Int) (count Int) (nodes Int) (depth Int) (work Int)) Int
   (pair (+ count (first work))
-    (grammar_prepend_reversed role count
+    (grammar_prepend_reversed role count depth
       (syntax_reverse_nodes count nodes 0) (second work))))
 
 (def grammar_prepend_reversed
-  ((role Int) (count Int) (nodes Int) (entries Int)) Int
+  ((role Int) (count Int) (depth Int) (nodes Int) (entries Int)) Int
   (if (eq count 0)
     entries
-    (grammar_prepend_reversed role (- count 1) (second nodes)
-      (pair (pair role (first nodes)) entries))))
+    (grammar_prepend_reversed role (- count 1) depth (second nodes)
+      (pair (pair role (pair (first nodes) depth)) entries))))
 
 (def grammar_atom_role ((role Int) (node Int) (work Int)) Int
   (if (eq (syntax_count node) -1)

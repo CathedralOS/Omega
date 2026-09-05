@@ -288,8 +288,14 @@ parameters precede the result type, and all declarations precede all bodies.
 Retained balanced syntax and grammar judgments feed the global census,
 signature resolution, and complete body typing. Emission consumes the parsed
 declaration boundaries but still traverses checked expression source coordinates.
-Its expression-depth behavior and compiler-owned resource/internal DCOUT
-outcomes remain open; underlying evaluator failures do not substitute for those
+Grammar implements D30's 1,024-level expression `parse_depth` profile: bodies
+start at level 1, expression children including atoms advance by one, and match
+arm bodies are at their enclosing match's level plus one. Declaration, parameter,
+and pattern structure adds no expression levels. Before judging a level-1,025
+expression, it returns `Incomplete` code 8 at that node's source start, with
+limit 1,024 and requested 1,025. Complete balanced parsing precedes this check.
+Successful emission throughout that admitted depth and other compiler-owned
+resource/internal DCOUT outcomes remain open; underlying evaluator failures do not substitute for those
 outcomes. These frontend judgments do not close the Delta edge or establish
 full resource conformance. The complete compiler artifact remains
 absent. The former concatenative-Gamma

@@ -43,8 +43,21 @@ Within a declaration, enclosing shape checks precede its queued children;
 queued roles run in source order before the next declaration.
 
 The grammar entrance coordinates a counted worklist instead of recursively
-checking nested expressions. Each work entry pairs a role with a retained
-node. The subordinate files own these roles:
+checking nested expressions. Work is `(pair count entries)` and each entry is
+`(pair role (pair node depth))`. Ordinary queue helpers default to depth zero;
+depth-aware helpers preserve expression levels and inherited match-arm levels.
+A function body starts at level 1; expression children
+advance by one, including atoms. Match arm bodies use their enclosing match's
+level plus one, without counting arm or pattern wrappers. Declarations,
+parameters, and patterns do not themselves consume expression levels.
+
+Before an expression's grammar judgment, level 1,025 produces D30
+`Incomplete(parse_depth)`: halt/tag 2, resource code 8, Delta-source space 1,
+the expression's start, limit 1,024, and requested 1,025. Balanced parsing still
+completes first; the retained node and queue entry have already been allocated
+when the level is checked. Earlier queued grammar failures therefore keep their order,
+and the limit check precedes the over-limit node's own grammar failure.
+The subordinate files own these roles:
 
 | Owner | Roles |
 | --- | --- |
@@ -95,8 +108,9 @@ Expression emission still reads checked source coordinates; it has not yet
 migrated to retained child nodes. Emission
 remains after the complete static preflight, as required by
 [D114](../../../../../../wiki/architecture/bootstrap_chain/decisions.md#d114--delta-emission-consumes-the-completed-static-preflight).
-Compiler-owned resource/internal failure propagation and expression-emission
-depth remain separate work. Complete retained-node frontend traversal does not
+Other compiler-owned resource/internal failure propagation and successful
+expression emission throughout the admitted depth remain separate work.
+Complete retained-node frontend traversal and the `parse_depth` refusal do not
 establish those later properties.
 
 The [boundary contract](../../boundary/README.md#body-traversal-and-coordinates)
@@ -107,8 +121,8 @@ arguments in order, and matches defer final coverage until every arm succeeds.
 
 The explicit parser stack and grammar worklist use ordinary Gamma pairs.
 Gamma's immutable arena accounts for cumulative allocations and does not
-reclaim abandoned construction spines. This implementation adds no new language
-nesting limit or Gamma primitive. Selected evaluator exhaustion remains an
-evaluator-owned failure until compiler-owned resource accounting and canonical
-DCOUT publication are implemented; retained syntax does not establish full
-Delta resource conformance.
+reclaim abandoned construction spines. The selected 1,024-level compiler
+profile is not a Delta language nesting limit or a new Gamma primitive.
+Selected evaluator exhaustion remains an evaluator-owned failure; expression
+depth accounting does not translate it into guessed compiler resource codes or
+establish full Delta resource conformance.

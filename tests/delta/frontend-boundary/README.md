@@ -7,7 +7,7 @@ Python frames requests, invokes those source-owned stages, and compares exact
 observations. It neither parses Delta nor selects diagnostic reasons or source
 coordinates.
 
-The 203 exact 40-byte DCOUT controls cover the frontend phases:
+The 225 exact 40-byte DCOUT controls cover the frontend phases:
 
 - Source-byte rejection uses code 3 and Delta-source coordinate space 1. Invalid
   bytes, including bytes inside comments and a Unicode BOM, precede syntax and
@@ -72,6 +72,19 @@ valid `if` expressions complete checking before missing-entry code 19. Neither
 requires deeply nested Gamma emission; successful emission at that depth is
 not claimed.
 
+The 22 controls in `depth_fixtures.py` pin D30's expression `parse_depth`:
+function bodies begin at level 1, and expression children, including atoms,
+advance one level. At level 1,025 the compiler returns `Incomplete` code 8 at
+the expression start, with limit 1,024 and requested 1,025. Exact-limit valid
+programs complete frontend checking and report missing-entry code 19 without
+requiring deep Gamma emission. Calls, let initializers and bodies, match
+scrutinees and arm bodies, and sibling depth restoration are covered. Nested
+single-case matches have additional pattern and arm parentheses that must not
+count toward expression depth. Source bytes, lexical defects, and complete
+balanced parsing precede depth accounting; earlier grammar defects retain
+priority, while depth refusal precedes grammar judgment at the refused node
+and the later global census and semantic phases.
+
 Twenty-six accepted programs exercise identity compilation, exact entry selection
 after `main_suffix`, cross-namespace spelling reuse, forward and mutual data
 visibility, forward and mutual function visibility, and the admitted ASCII
@@ -93,9 +106,9 @@ input including NUL and high bytes.
 The expected coordinates are literal authored fixture facts or lengths of
 explicit fixture-construction prefixes, never source searches. Whole-frame
 comparison checks the reason, halt/tag agreement, coordinate space, reserved
-zeros, little-endian coordinate, and zeroed unused resource fields. Compiler
+zeros, little-endian coordinate, and exact resource fields (zero when unused). Compiler
 source identity is pinned before any observation. The gate implements the
-bounded checks above, not resource conformance, arbitrary emission-depth
+bounded checks above, not full resource conformance, arbitrary emission-depth
 closure, or closure of the Delta bootstrap edge.
 
 The phase order is fixed by [D20](../../../wiki/architecture/bootstrap_chain/decisions.md#d20--delta-names-resolve-through-four-namespaces-without-active-shadowing)
