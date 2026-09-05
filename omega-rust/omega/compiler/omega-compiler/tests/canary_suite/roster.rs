@@ -2,6 +2,8 @@
 use super::generics_and_dependent_facts::fixture_roster as generics_and_dependent_facts;
 use super::time_hosts_and_indexed_storage::fixture_roster as time_hosts_and_indexed_storage;
 use super::value_and_type_checks::fixture_roster as value_and_type_checks;
+use super::value_calls_and_dispatch::fixture_roster as value_calls_and_dispatch;
+use super::wire_and_algorithms::fixture_roster as wire_and_algorithms;
 use super::*;
 
 #[path = "../fixture_rosters/build_target_activation.rs"]
@@ -40,6 +42,8 @@ fn pass_roster() -> Vec<&'static str> {
         .chain(no_selection_golden::PASS_CANARIES)
         .chain(package_compilation_inputs::PASS_CANARIES)
         .chain(value_and_type_checks::PASS_CANARIES)
+        .chain(value_calls_and_dispatch::PASS_CANARIES)
+        .chain(wire_and_algorithms::PASS_CANARIES)
         .chain(generics_and_dependent_facts::PASS_CANARIES)
         .chain(generics_and_dependent_facts::STRUCTURED_CONST_PASS_CANARIES)
         .chain(time_hosts_and_indexed_storage::PASS_CANARIES)
@@ -83,6 +87,7 @@ fn fail_roster() -> Vec<&'static str> {
         .chain(recast_views::FAIL_CANARIES.iter().copied())
         .chain(layout_plans::FAIL_CANARIES.iter().copied())
         .chain(value_and_type_checks::FAIL_CANARIES.iter().copied())
+        .chain(wire_and_algorithms::FAIL_CANARIES.iter().copied())
         .chain(
             generics_and_dependent_facts::STRUCTURED_CONST_FAIL_CANARIES
                 .iter()
