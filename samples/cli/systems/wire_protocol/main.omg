@@ -81,11 +81,11 @@ machine Main::main(&mut self) {
 
     let ok_and_sizes: bool = self.verdict == WireVerdict::Sound && self.written == 13 && self.read == 13;
     transition ok_and_sizes {
-        true -> check_fields()
+        true -> check_fields(decoded)
         false -> bad_sizes()
     }
 
-    state check_fields(&mut self) {
+    state check_fields(&mut self, decoded: SensorPacketValue) {
         let fields_ok: bool = decoded.header.room_id == 300
             && decoded.samples.length == 2
             && decoded.samples.items[0] == 150

@@ -107,6 +107,12 @@ opaque external supply.
 
 ## Ownership Rules
 
+State values follow chapter 4's explicit parameter frontier: transitions name
+the values delivered to the target state. Existing accepted entry-local or
+entry-parameter captures are an implementation gap, not a language extension.
+Member-selection fixes must not broaden that gap. Explicit state arguments
+retain nominal member identity without requiring physical copies.
+
 Must own:
 
 - Proof obligations and whether current facts discharge them.
