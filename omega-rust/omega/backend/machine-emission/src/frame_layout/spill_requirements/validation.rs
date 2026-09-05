@@ -1,6 +1,6 @@
 use selected_instructions_to_register_homes::ValidatedAbstractSpillAccessConstraints;
 
-use crate::ValidatedTargetRegisterEnvironment;
+use crate::frame_layout::ValidatedTargetRegisterEnvironment;
 
 use super::{
     NonAuthoritativeSpillFrameRequirementPlan, SpillFrameRequirementError,

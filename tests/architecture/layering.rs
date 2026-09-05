@@ -3934,9 +3934,8 @@ fn abstract_spill_access_constraints_are_independent_and_non_executable() {
 #[test]
 fn spill_frame_requirements_are_independent_and_non_authoritative() {
     let root = workspace_root();
-    let stage = root.join(
-        "omega-rust/omega/pipeline/post-allocation-machine-to-frame-layout/src/spill_requirements",
-    );
+    let stage =
+        root.join("omega-rust/omega/backend/machine-emission/src/frame_layout/spill_requirements");
     let entrance = std::fs::read_to_string(stage.join("mod.rs"))
         .expect("read spill-frame requirement entrance");
     assert!(

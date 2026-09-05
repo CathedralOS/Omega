@@ -3,7 +3,7 @@
 use optimization_core::{OptimizationWorkBudget, OptimizationWorkUsage};
 use selected_instructions_to_register_homes::ValidatedAbstractSpillAccessConstraints;
 
-use crate::ValidatedTargetRegisterEnvironment;
+use crate::frame_layout::ValidatedTargetRegisterEnvironment;
 use register_environment::selected_abi_preservation;
 
 use super::{
@@ -92,7 +92,7 @@ fn reconstruct_function(
 }
 
 #[cfg(test)]
-pub(in crate::spill_requirements) fn replay_zero_access_requirement_for_test(
+pub(in crate::frame_layout::spill_requirements) fn replay_zero_access_requirement_for_test(
     machine: semantic_vocabulary::MachineId,
 ) -> FunctionSpillFrameRequirements {
     reconstruct_function(

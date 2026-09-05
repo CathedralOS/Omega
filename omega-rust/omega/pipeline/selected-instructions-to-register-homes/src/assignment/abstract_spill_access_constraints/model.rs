@@ -12,18 +12,7 @@ mod error;
 
 pub use error::*;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub struct AbstractSpillAccessConstraintPlanIdentity(pub(crate) [u8; 32]);
-
-impl AbstractSpillAccessConstraintPlanIdentity {
-    pub const fn from_bytes(bytes: [u8; 32]) -> Self {
-        Self(bytes)
-    }
-
-    pub const fn bytes(self) -> [u8; 32] {
-        self.0
-    }
-}
+pub use register_homes::AbstractSpillAccessConstraintPlanIdentity;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum AbstractSpillAccessConstraintPolicy {

@@ -11,7 +11,6 @@ path = "src/lib.rs"
 [dependencies]
 abstract-operations-to-abstract-operations = { path = "../../pipeline/abstract-operations-to-abstract-operations" }
 optimization-validation = { path = "../../pipeline/optimization-validation" }
-post-allocation-machine-to-frame-layout = { path = "../../pipeline/post-allocation-machine-to-frame-layout" }
 post-allocation-machine-to-post-allocation-machine = { path = "../../pipeline/post-allocation-machine-to-post-allocation-machine" }
 register-homes-to-post-allocation-machine = { path = "../../pipeline/register-homes-to-post-allocation-machine" }
 selected-form-encoding-to-resolved-layout = { path = "../../pipeline/selected-form-encoding-to-resolved-layout" }

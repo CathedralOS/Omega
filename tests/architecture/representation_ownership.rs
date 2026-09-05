@@ -23,6 +23,7 @@ fn native_coordination_and_target_setup_are_not_program_stages() {
         "native-realization",
         "target-to-register-environment",
         "register-environment",
+        "post-allocation-machine-to-frame-layout",
     ] {
         assert!(!pipeline.join(retired).join("Cargo.toml").exists());
     }
@@ -96,13 +97,57 @@ fn generic_data_normalization_is_private_work_inside_name_resolution() {
 }
 
 #[test]
+fn frame_records_are_data_and_backend_validation_remains_sealed() {
+    let root = repository();
+    let records = rust_source(&root.join(
+        "omega-rust/omega/representations/machine-code/src/machine_code/storage/frame_layout",
+    ));
+    for name in [
+        "TargetFrameLayoutPlan",
+        "NonAuthoritativeCalleeSaveStoragePlan",
+        "NonAuthoritativeSpillFrameRequirementPlan",
+    ] {
+        assert!(records.contains(&format!("pub struct {name}")));
+    }
+    for forbidden in [
+        "ValidatedTarget",
+        "ValidatedNonAuthoritative",
+        "stage_",
+        "fn compute",
+    ] {
+        assert!(
+            !records.contains(forbidden),
+            "raw frame records contain {forbidden}"
+        );
+    }
+    let allocation = std::fs::read_to_string(root.join(
+        "omega-rust/omega/representations/register-homes/src/register_homes/preservation.rs",
+    ))
+    .unwrap();
+    assert!(allocation.contains("pub struct AllocatedCalleeSavedRequirementPlan"));
+    assert!(!allocation.contains("pub struct ValidatedAllocated"));
+    let backend = root.join("omega-rust/omega/backend/machine-emission/src/frame_layout");
+    assert!(
+        std::fs::read_to_string(backend.join("model.rs"))
+            .unwrap()
+            .contains("pub struct ValidatedTargetFrameLayout")
+    );
+    let manifest = std::fs::read_to_string(
+        root.join("omega-rust/omega/representations/machine-code/Cargo.toml"),
+    )
+    .unwrap();
+    assert!(!manifest.contains("/pipeline/"));
+    assert!(!manifest.contains("/backend/"));
+}
+
+#[test]
 fn frame_calculations_have_phase_owners_and_replay_does_not_run_producers() {
     let root = repository();
     for owner in [
         "omega-rust/omega/pipeline/selected-instructions-to-register-homes/src/preservation",
-        "omega-rust/omega/pipeline/post-allocation-machine-to-frame-layout/src/save_storage",
-        "omega-rust/omega/pipeline/post-allocation-machine-to-frame-layout/src/spill_requirements",
-        "omega-rust/omega/pipeline/post-allocation-machine-to-frame-layout/src",
+        "omega-rust/omega/backend/machine-emission/src/frame_layout/save_storage",
+        "omega-rust/omega/backend/machine-emission/src/frame_layout/spill_requirements",
+        "omega-rust/omega/backend/machine-emission/src/frame_layout",
         "omega-rust/omega/backend/machine-emission/src/frame_protocol",
     ] {
         let owner = root.join(owner);

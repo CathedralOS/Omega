@@ -64,7 +64,7 @@ pub fn abstract_spill_access_constraint_plan_identity(
             }
         }
     }
-    AbstractSpillAccessConstraintPlanIdentity(Sha256::digest(bytes).into())
+    AbstractSpillAccessConstraintPlanIdentity::from_bytes(Sha256::digest(bytes).into())
 }
 
 fn action(bytes: &mut Vec<u8>, id: crate::GeneralizedSpillActionId) {

@@ -983,7 +983,6 @@ dependencies = [
  "optimization-core",
  "optimization-validation",
  "physical-instructions",
- "post-allocation-machine-to-frame-layout",
  "post-allocation-machine-to-post-allocation-machine",
  "post-allocation-machine-to-selected-form-encoding",
  "proof-admission",
@@ -1079,7 +1078,6 @@ dependencies = [
  "optimization",
  "optimization-core",
  "optimization-validation",
- "post-allocation-machine-to-frame-layout",
  "post-allocation-machine-to-post-allocation-machine",
  "program-entry-plan",
  "proof-admission",
@@ -1234,7 +1232,6 @@ dependencies = [
  "optimization-unit",
  "optimization-validation",
  "physical-instructions",
- "post-allocation-machine-to-frame-layout",
  "post-allocation-machine-to-post-allocation-machine",
  "post-allocation-machine-to-selected-form-encoding",
  "program-entry-plan",
@@ -1463,23 +1460,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "post-allocation-machine-to-frame-layout"
-version = "0.1.0"
-dependencies = [
- "machine-code",
- "optimization-core",
- "physical-instructions",
- "register-environment",
- "register-homes-to-post-allocation-machine",
- "register-model",
- "selected-instructions",
- "selected-instructions-to-register-homes",
- "semantic-vocabulary",
- "sha2",
- "target",
-]
-
-[[package]]
 name = "post-allocation-machine-to-post-allocation-machine"
 version = "0.1.0"
 dependencies = [
@@ -1636,10 +1616,12 @@ dependencies = [
 name = "register-homes"
 version = "0.1.0"
 dependencies = [
+ "optimization-core",
  "register-model",
  "selected-instructions",
  "semantic-vocabulary",
  "sha2",
+ "target",
 ]
 
 [[package]]

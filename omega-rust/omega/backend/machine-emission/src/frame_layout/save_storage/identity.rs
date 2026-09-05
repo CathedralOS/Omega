@@ -1,6 +1,6 @@
 use sha2::{Digest, Sha256};
 
-use crate::save_storage::{
+use crate::frame_layout::save_storage::{
     AllocatedCalleeSavedFunctionKind, CalleeSavedModificationWitness,
     FrameAbiPreservationConvention,
 };

@@ -5,7 +5,7 @@ use selected_instructions::{SelectedInstructionKind, SelectedTerminator};
 use selected_instructions_to_register_homes::ValidatedSelectedAnalysis;
 
 use crate::ValidatedTargetFrameProtocolEncoding;
-use post_allocation_machine_to_frame_layout::ValidatedTargetFrameLayout;
+use crate::frame_layout::ValidatedTargetFrameLayout;
 use post_allocation_machine_to_selected_form_encoding::StagedOptimizedSelectedFormEncoding;
 use register_homes_to_post_allocation_machine::StagedOptimizedPostAllocationMachinePlan;
 use selected_form_encoding_to_resolved_layout::StagedOptimizedResolvedSelectedFormLayout;

@@ -161,7 +161,6 @@ Omega/
 |       |   |-- [CRATE] selected-instructions-to-register-homes/
 |       |   |-- [CRATE] register-homes-to-post-allocation-machine/
 |       |   |-- [CRATE] post-allocation-machine-to-post-allocation-machine/
-|       |   |-- [CRATE] post-allocation-machine-to-frame-layout/
 |       |   |-- [CRATE] post-allocation-machine-to-selected-form-encoding/
 |       |   |-- [CRATE] selected-form-encoding-to-resolved-layout/
 |       |   |-- [CRATE] target-operations-to-assigned-target-operations/ # Alternate route still to delete.
@@ -169,7 +168,7 @@ Omega/
 |       |
 |       |-- backend/                                     # Target/runtime primitives and backend-owned artifacts.
 |       |   |-- [CRATE] register-environment/              # Shared target/ABI setup and validation.
-|       |   |-- [CRATE] {layout,machine-emission}/
+|       |   |-- [CRATE] {layout,machine-emission}/          # Emission owns frame geometry and protocol.
 |       |   |-- instruction_set_architectures/
 |       |   |   |-- [CRATE] isa-{aarch64,x86_64}/
 |       |   |   `-- [CRATE] x86-encoding/

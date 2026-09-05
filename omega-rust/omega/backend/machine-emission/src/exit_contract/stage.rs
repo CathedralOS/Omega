@@ -2,7 +2,7 @@ use register_model::ValidatedPhysicalRegisterModel;
 use selected_instructions_to_register_homes::ValidatedSelectedAnalysis;
 
 use crate::ValidatedTargetFrameProtocolEncoding;
-use post_allocation_machine_to_frame_layout::ValidatedTargetFrameLayout;
+use crate::frame_layout::ValidatedTargetFrameLayout;
 use post_allocation_machine_to_post_allocation_machine::StagedOptimizedAarch64CbnzFusion;
 use post_allocation_machine_to_selected_form_encoding::StagedOptimizedSelectedFormEncoding;
 use register_homes_to_post_allocation_machine::StagedOptimizedPostAllocationMachinePlan;

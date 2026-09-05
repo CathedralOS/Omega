@@ -63,7 +63,6 @@ selected-form-encoding-to-resolved-layout = { path = "../../omega-rust/omega/pip
 register-homes-to-post-allocation-machine = { path = "../../omega-rust/omega/pipeline/register-homes-to-post-allocation-machine" }
 post-allocation-machine-to-selected-form-encoding = { path = "../../omega-rust/omega/pipeline/post-allocation-machine-to-selected-form-encoding" }
 post-allocation-machine-to-post-allocation-machine = { path = "../../omega-rust/omega/pipeline/post-allocation-machine-to-post-allocation-machine" }
-post-allocation-machine-to-frame-layout = { path = "../../omega-rust/omega/pipeline/post-allocation-machine-to-frame-layout" }
 compiler = { path = "../../omega-rust/omega/compiler/compiler" }
 component-deployment = { path = "../../omega-rust/omega/build/component-deployment" }
 effects = { path = "../../omega-rust/omega/representations/effects" }

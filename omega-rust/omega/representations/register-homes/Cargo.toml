@@ -5,6 +5,8 @@ license.workspace = true
 version.workspace = true
 
 [dependencies]
+optimization-core = { path = "../optimization-core" }
+target = { path = "../target" }
 register-model = { path = "../register-model" }
 selected-instructions = { path = "../selected-instructions" }
 semantic-vocabulary = { path = "../../../psi/foundation/semantic-vocabulary" }

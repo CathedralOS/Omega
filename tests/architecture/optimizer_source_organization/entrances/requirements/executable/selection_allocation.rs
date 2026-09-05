@@ -278,11 +278,11 @@ pub(crate) const ENTRANCES: &[RequiredCoordinationEntrance] = &[
         coordination_marker: "pub fn stage_allocated_callee_saved_requirements",
     },
     RequiredCoordinationEntrance {
-        path: "omega-rust/omega/pipeline/post-allocation-machine-to-frame-layout/src/save_storage/mod.rs",
+        path: "omega-rust/omega/backend/machine-emission/src/frame_layout/save_storage/mod.rs",
         coordination_marker: "pub fn stage_non_authoritative_callee_save_storage",
     },
     RequiredCoordinationEntrance {
-        path: "omega-rust/omega/pipeline/post-allocation-machine-to-frame-layout/src/spill_requirements/mod.rs",
+        path: "omega-rust/omega/backend/machine-emission/src/frame_layout/spill_requirements/mod.rs",
         coordination_marker: "pub fn stage_non_authoritative_spill_frame_requirements",
     },
     RequiredCoordinationEntrance {

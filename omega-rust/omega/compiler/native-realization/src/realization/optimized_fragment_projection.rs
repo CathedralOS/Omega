@@ -219,7 +219,7 @@ fn project_function(
     fragment: &machine_code::FunctionFragment,
     return_bytes: &[u8],
     applied_frame: Option<&FunctionAppliedFrameProtocol>,
-    frame_layout: Option<&post_allocation_machine_to_frame_layout::ValidatedTargetFrameLayout>,
+    frame_layout: Option<&machine_emission::frame_layout::ValidatedTargetFrameLayout>,
 ) -> Result<MachineCodeFunction, &'static str> {
     let stack = unit_stack_evidence(fragment, return_bytes, applied_frame, frame_layout)?;
     // A framed function opens its block after the prologue and places the

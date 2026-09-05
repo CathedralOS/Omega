@@ -82,7 +82,6 @@ members = [
     "omega-rust/omega/pipeline/selected-instructions-to-register-homes",
     "omega-rust/omega/pipeline/register-homes-to-post-allocation-machine",
     "omega-rust/omega/pipeline/post-allocation-machine-to-post-allocation-machine",
-    "omega-rust/omega/pipeline/post-allocation-machine-to-frame-layout",
     "omega-rust/omega/pipeline/post-allocation-machine-to-selected-form-encoding",
     "omega-rust/omega/pipeline/selected-form-encoding-to-resolved-layout",
     "omega-rust/omega/pipeline/optimization-validation",

@@ -1,66 +1,31 @@
 use optimization_core::{OptimizationWorkBudget, OptimizationWorkUsage};
 use register_model::TargetRegisterEnvironmentIdentity;
 use selected_instructions_to_register_homes::AbstractSpillAccessConstraintPlanIdentity;
-use semantic_vocabulary::MachineId;
 use target::NativeTarget;
 
 pub use register_environment::FrameAbiPreservationConvention;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub struct NonAuthoritativeSpillFrameRequirementIdentity([u8; 32]);
-
-impl NonAuthoritativeSpillFrameRequirementIdentity {
-    pub const fn from_bytes(bytes: [u8; 32]) -> Self {
-        Self(bytes)
-    }
-
-    pub const fn bytes(self) -> [u8; 32] {
-        self.0
-    }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum NonAuthoritativeSpillFrameRequirementPolicy {
-    AbstractSpillAreaAndPreservationConventionV1,
-}
-
-/// Requirements only. This artifact has no selected base, offset, frame size,
-/// red-zone placement, shadow space, instruction, fault, unwind, or probing field.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct NonAuthoritativeSpillFrameRequirementPlan {
-    pub abstract_spill_access_constraints: AbstractSpillAccessConstraintPlanIdentity,
-    pub register_environment: TargetRegisterEnvironmentIdentity,
-    pub target: NativeTarget,
-    pub policy: NonAuthoritativeSpillFrameRequirementPolicy,
-    pub budget: OptimizationWorkBudget,
-    pub usage: OptimizationWorkUsage,
-    pub functions: Vec<FunctionSpillFrameRequirements>,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct FunctionSpillFrameRequirements {
-    pub machine: MachineId,
-    pub abstract_spill_area_bytes: u64,
-    pub abstract_spill_area_alignment: u64,
-    pub abi_preservation_convention: FrameAbiPreservationConvention,
-    pub abi_stack_alignment: u16,
-    /// ABI capacity fact only; this is never a decision to use the red zone.
-    pub abi_red_zone_capacity_bytes: u16,
-}
+pub use machine_code::{
+    FunctionSpillFrameRequirements, NonAuthoritativeSpillFrameRequirementIdentity,
+    NonAuthoritativeSpillFrameRequirementPlan, NonAuthoritativeSpillFrameRequirementPolicy,
+};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct NonAuthoritativeSpillFrameRequirementReceipt {
-    pub(in crate::spill_requirements) identity: NonAuthoritativeSpillFrameRequirementIdentity,
-    pub(in crate::spill_requirements) abstract_spill_access_constraints:
+    pub(in crate::frame_layout::spill_requirements) identity:
+        NonAuthoritativeSpillFrameRequirementIdentity,
+    pub(in crate::frame_layout::spill_requirements) abstract_spill_access_constraints:
         AbstractSpillAccessConstraintPlanIdentity,
-    pub(in crate::spill_requirements) register_environment: TargetRegisterEnvironmentIdentity,
-    pub(in crate::spill_requirements) target: NativeTarget,
-    pub(in crate::spill_requirements) policy: NonAuthoritativeSpillFrameRequirementPolicy,
-    pub(in crate::spill_requirements) usage: OptimizationWorkUsage,
-    pub(in crate::spill_requirements) function_count: usize,
-    pub(in crate::spill_requirements) spill_bearing_function_count: usize,
-    pub(in crate::spill_requirements) max_abstract_spill_area_bytes: u64,
-    pub(in crate::spill_requirements) max_abstract_spill_area_alignment: u64,
+    pub(in crate::frame_layout::spill_requirements) register_environment:
+        TargetRegisterEnvironmentIdentity,
+    pub(in crate::frame_layout::spill_requirements) target: NativeTarget,
+    pub(in crate::frame_layout::spill_requirements) policy:
+        NonAuthoritativeSpillFrameRequirementPolicy,
+    pub(in crate::frame_layout::spill_requirements) usage: OptimizationWorkUsage,
+    pub(in crate::frame_layout::spill_requirements) function_count: usize,
+    pub(in crate::frame_layout::spill_requirements) spill_bearing_function_count: usize,
+    pub(in crate::frame_layout::spill_requirements) max_abstract_spill_area_bytes: u64,
+    pub(in crate::frame_layout::spill_requirements) max_abstract_spill_area_alignment: u64,
 }
 
 impl NonAuthoritativeSpillFrameRequirementReceipt {
@@ -100,8 +65,9 @@ impl NonAuthoritativeSpillFrameRequirementReceipt {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ValidatedNonAuthoritativeSpillFrameRequirements {
-    pub(in crate::spill_requirements) plan: NonAuthoritativeSpillFrameRequirementPlan,
-    pub(in crate::spill_requirements) receipt: NonAuthoritativeSpillFrameRequirementReceipt,
+    pub(in crate::frame_layout::spill_requirements) plan: NonAuthoritativeSpillFrameRequirementPlan,
+    pub(in crate::frame_layout::spill_requirements) receipt:
+        NonAuthoritativeSpillFrameRequirementReceipt,
 }
 
 impl ValidatedNonAuthoritativeSpillFrameRequirements {

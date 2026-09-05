@@ -1,6 +1,6 @@
 use register_model::ValidatedPreservationStorageCatalog;
 
-use crate::save_storage::FunctionAllocatedCalleeSavedRequirements;
+use crate::frame_layout::save_storage::FunctionAllocatedCalleeSavedRequirements;
 
 use super::super::{
     FunctionNonAuthoritativeCalleeSaveStorage, NonAuthoritativeCalleeSaveSlot,

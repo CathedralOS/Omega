@@ -62,7 +62,7 @@ pub(crate) const ENTRANCES: &[RequiredCoordinationEntrance] = &[
         coordination_marker: "fn stage_optimized_post_allocation_machine_plan",
     },
     RequiredCoordinationEntrance {
-        path: "omega-rust/omega/pipeline/post-allocation-machine-to-frame-layout/src/lib.rs",
+        path: "omega-rust/omega/backend/machine-emission/src/frame_layout/mod.rs",
         coordination_marker: "pub fn stage_target_frame_layout",
     },
     RequiredCoordinationEntrance {

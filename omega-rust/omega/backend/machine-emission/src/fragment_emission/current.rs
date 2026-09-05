@@ -15,8 +15,7 @@ pub(super) struct CurrentFunctionFragmentInput {
     pub(super) encoding:
         post_allocation_machine_to_selected_form_encoding::StagedOptimizedSelectedFormEncoding,
     pub(super) frame_protocol: Option<crate::ValidatedTargetFrameProtocolEncoding>,
-    pub(super) frame_layout:
-        Option<post_allocation_machine_to_frame_layout::ValidatedTargetFrameLayout>,
+    pub(super) frame_layout: Option<crate::frame_layout::ValidatedTargetFrameLayout>,
     pub(super) exit: crate::ValidatedWholeFunctionExitContract,
     pub(super) manifest: crate::ValidatedFunctionRelativeOptimizationRealizationManifest,
     pub(super) post_allocation_manifest:

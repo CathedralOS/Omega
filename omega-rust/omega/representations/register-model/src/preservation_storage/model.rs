@@ -1,3 +1,12 @@
+/// Exact target-owned preservation convention selected for frame planning.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum FrameAbiPreservationConvention {
+    SystemVAMD64,
+    MicrosoftX64,
+    Aapcs64,
+    DarwinAapcs64,
+}
+
 use super::super::{PhysicalRegisterModelIdentity, RegisterUnitId, RegisterViewId};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]

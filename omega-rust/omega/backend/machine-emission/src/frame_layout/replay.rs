@@ -3,7 +3,7 @@
 use selected_instructions::MachineAlternativeFamily;
 use target::Architecture;
 
-use crate::{
+use crate::frame_layout::{
     AllocatedCalleeSavedFunctionKind, FrameAbiPreservationConvention, ReturnAddressFrameCustody,
     StagedOptimizedPostAllocationMachinePlan, TargetFrameLayoutError as Error,
     TargetFrameLayoutPlan, TargetFrameLayoutPolicy, ValidatedAllocatedCalleeSavedRequirements,

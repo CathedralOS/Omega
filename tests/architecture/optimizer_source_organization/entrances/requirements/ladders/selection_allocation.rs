@@ -313,13 +313,13 @@ pub(crate) const LADDERS: &[SemanticLadder] = &[
     SemanticLadder {
         family: "non-authoritative spill-frame requirements",
         paths: &[
-            "omega-rust/omega/pipeline/post-allocation-machine-to-frame-layout/src/spill_requirements/mod.rs",
-            "omega-rust/omega/pipeline/post-allocation-machine-to-frame-layout/src/spill_requirements/model.rs",
-            "omega-rust/omega/pipeline/post-allocation-machine-to-frame-layout/src/spill_requirements/identity.rs",
-            "omega-rust/omega/pipeline/post-allocation-machine-to-frame-layout/src/spill_requirements/compute.rs",
-            "omega-rust/omega/pipeline/post-allocation-machine-to-frame-layout/src/spill_requirements/replay.rs",
-            "omega-rust/omega/pipeline/post-allocation-machine-to-frame-layout/src/spill_requirements/validation.rs",
-            "omega-rust/omega/pipeline/post-allocation-machine-to-frame-layout/src/spill_requirements/custody.rs",
+            "omega-rust/omega/backend/machine-emission/src/frame_layout/spill_requirements/mod.rs",
+            "omega-rust/omega/backend/machine-emission/src/frame_layout/spill_requirements/model.rs",
+            "omega-rust/omega/backend/machine-emission/src/frame_layout/spill_requirements/identity.rs",
+            "omega-rust/omega/backend/machine-emission/src/frame_layout/spill_requirements/compute.rs",
+            "omega-rust/omega/backend/machine-emission/src/frame_layout/spill_requirements/replay.rs",
+            "omega-rust/omega/backend/machine-emission/src/frame_layout/spill_requirements/validation.rs",
+            "omega-rust/omega/backend/machine-emission/src/frame_layout/spill_requirements/custody.rs",
         ],
     },
     SemanticLadder {

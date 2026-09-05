@@ -7,14 +7,7 @@ use register_model::{PreservationConvention, ValidatedPreservationStorageCatalog
 
 use crate::ValidatedTargetRegisterEnvironment;
 
-/// Exact target-owned preservation convention selected for frame planning.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum FrameAbiPreservationConvention {
-    SystemVAMD64,
-    MicrosoftX64,
-    Aapcs64,
-    DarwinAapcs64,
-}
+pub use register_model::FrameAbiPreservationConvention;
 
 #[derive(Debug, Clone, Copy)]
 pub struct SelectedAbiPreservation<'model> {

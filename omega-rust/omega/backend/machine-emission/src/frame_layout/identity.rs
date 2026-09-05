@@ -1,6 +1,6 @@
 use sha2::{Digest, Sha256};
 
-use crate::{AllocatedCalleeSavedFunctionKind, FrameAbiPreservationConvention};
+use crate::frame_layout::{AllocatedCalleeSavedFunctionKind, FrameAbiPreservationConvention};
 
 use super::{
     ReturnAddressFrameCustody, TargetFrameLayoutIdentity, TargetFrameLayoutPlan,

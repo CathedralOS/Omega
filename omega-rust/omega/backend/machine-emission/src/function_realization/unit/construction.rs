@@ -1,11 +1,11 @@
 use selected_instructions_to_register_homes::{AllocationSource, RetainedAllocation};
 
-use crate::{TargetFrameProtocolEncodingPolicy, stage_target_frame_protocol_encoding};
-use crate::{stage_whole_function_exit_contract, stage_whole_function_exit_contract_with_frame};
-use post_allocation_machine_to_frame_layout::{
+use crate::frame_layout::{
     NonAuthoritativeCalleeSaveStoragePolicy, stage_non_authoritative_callee_save_storage,
 };
-use post_allocation_machine_to_frame_layout::{TargetFrameLayoutPolicy, stage_target_frame_layout};
+use crate::frame_layout::{TargetFrameLayoutPolicy, stage_target_frame_layout};
+use crate::{TargetFrameProtocolEncodingPolicy, stage_target_frame_protocol_encoding};
+use crate::{stage_whole_function_exit_contract, stage_whole_function_exit_contract_with_frame};
 use post_allocation_machine_to_selected_form_encoding::stage_optimized_layout_independent_selected_form_encoding;
 use register_homes_to_post_allocation_machine::stage_optimized_post_allocation_machine_plan;
 use selected_form_encoding_to_resolved_layout::stage_optimized_resolved_selected_form_layout;

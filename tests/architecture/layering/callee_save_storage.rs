@@ -3,8 +3,8 @@ use super::{recursive_rust_source, workspace_root};
 #[test]
 fn is_target_owned_independent_and_non_authoritative() {
     let root = workspace_root();
-    let stage = root
-        .join("omega-rust/omega/pipeline/post-allocation-machine-to-frame-layout/src/save_storage");
+    let stage =
+        root.join("omega-rust/omega/backend/machine-emission/src/frame_layout/save_storage");
     let entrance =
         std::fs::read_to_string(stage.join("mod.rs")).expect("read callee-save storage entrance");
     assert!(

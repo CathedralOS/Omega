@@ -4,7 +4,7 @@ use register_model::{
     PreservationStorageGroupId, RegisterUnitId, ValidatedPreservationStorageCatalog,
 };
 
-use crate::save_storage::{
+use crate::frame_layout::save_storage::{
     AllocatedCalleeSavedRequirementPlan, AllocatedCalleeSavedUnitRequirement,
 };
 
