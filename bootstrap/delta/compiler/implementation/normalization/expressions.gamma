@@ -1,0 +1,46 @@
+; Height is Gamma expression-list height, independent of this work stack.
+; Fitting nodes retain their exact structure. Oversized fragments at budget1
+; become calls with atom arguments; helper bodies restart at the profile255.
+(def normalization_frame ((kind Int) (payload Int) (previous Int)) Int
+  (pair kind (pair payload previous)))
+
+(def normalization_visit
+  ((node Int) (budget Int) (depth Int) (frames Int) (state Int)) Int
+  (if (lt budget (gamma_height node))
+    (if (eq budget 1)
+      (normalization_extract node depth frames state)
+      (let payload Int (gamma_payload node)
+        (if (eq (gamma_kind node) 7)
+          (normalization_arguments (first payload) (first (second payload))
+            (first (second payload)) (second (second payload)) 0
+            (- budget 1) depth frames state)
+          (if (eq (gamma_kind node) 8)
+            (normalization_visit (first (second payload)) (- budget 1) (+ depth 1)
+              (normalization_frame 2
+                (pair (first payload) (pair (second (second payload)) (- budget 1)))
+                frames) state)
+            (fail)))))
+    (normalization_resume node depth frames state)))
+
+; 1 remaining arguments, 2 let body, 3 completed let initializer, 4 helper.
+; Resume pops exactly once, then forwards the decreased depth and prior stack.
+(def normalization_resume
+  ((value Int) (depth Int) (frames Int) (state Int)) Int
+  (if (eq depth 0)
+    (pair value state)
+    (let kind Int (first frames)
+      (let retained Int (second frames)
+        (let payload Int (first retained)
+          (let previous Int (second retained)
+            (let next_depth Int (- depth 1)
+              (if (eq kind 1)
+                (normalization_argument_done value payload next_depth previous state)
+                (if (eq kind 2)
+                  (normalization_initializer_done value payload next_depth previous state)
+                  (if (eq kind 3)
+                    (normalization_resume
+                      (gamma_let (first payload) (second payload) value)
+                      next_depth previous state)
+                    (if (eq kind 4)
+                      (normalization_helper_done value payload next_depth previous state)
+                      (fail))))))))))))

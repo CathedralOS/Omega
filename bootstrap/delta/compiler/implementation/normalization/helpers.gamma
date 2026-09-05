@@ -1,0 +1,31 @@
+; State retains next hygienic identity, helper count, and reversed definitions.
+(def normalization_state ((next_identity Int) (count Int) (helpers Int)) Int
+  (pair next_identity (pair count helpers)))
+
+(def normalization_extract
+  ((node Int) (depth Int) (frames Int) (state Int)) Int
+  (let name Int (gamma_generated 104 (first state))
+    (let captured Int (capture_expression node (+ (first state) 1))
+      (let helpers Int (second state)
+        (normalization_visit (capture_body captured) (normalization_height_limit) (+ depth 1)
+          (normalization_frame 4
+            (pair name (pair (capture_count captured)
+              (pair (capture_parameters captured) (capture_arguments captured))))
+            frames)
+          (normalization_state (capture_next_identity captured)
+            (first helpers) (second helpers)))))))
+
+; The normalized helper body is complete before its replacement call resumes.
+(def normalization_helper_done
+  ((body Int) (payload Int) (depth Int) (frames Int) (state Int)) Int
+  (let specification Int (second payload)
+    (let captures Int (second specification)
+      (let definition Int
+        (gamma_definition (first payload) (first specification)
+          (first captures) body)
+        (let helpers Int (second state)
+          (normalization_resume
+            (gamma_call (first payload) (first specification) (second captures))
+            depth frames
+            (normalization_state (first state) (+ (first helpers) 1)
+              (pair definition (second helpers)))))))))

@@ -1,0 +1,35 @@
+; Traversal state is next identity, mapping count, reversed mapping rows.
+(def capture_state ((next_identity Int) (count Int) (rows Int)) Int
+  (pair next_identity (pair count rows)))
+
+(def capture_finish ((body Int) (state Int)) Int
+  (let mappings Int (second state)
+    (capture_finish_rows (first mappings) (second mappings) 0 0
+      body (first state) (first mappings))))
+
+; Reversing the mapping rows produces matching first-occurrence parameter and
+; argument lists. Arguments remain the original already-bound value atoms.
+(def capture_finish_rows
+  ((remaining Int) (rows Int) (parameters Int) (arguments Int)
+   (body Int) (next_identity Int) (count Int)) Int
+  (if (eq remaining 0)
+    (pair next_identity (pair body (pair count (pair parameters arguments))))
+    (let row Int (first rows)
+      (capture_finish_rows (- remaining 1) (second rows)
+        (pair (second row) parameters) (pair (first row) arguments)
+        body next_identity count))))
+
+(def capture_next_identity ((result Int)) Int
+  (first result))
+
+(def capture_body ((result Int)) Int
+  (first (second result)))
+
+(def capture_count ((result Int)) Int
+  (first (second (second result))))
+
+(def capture_parameters ((result Int)) Int
+  (first (second (second (second result)))))
+
+(def capture_arguments ((result Int)) Int
+  (second (second (second (second result)))))

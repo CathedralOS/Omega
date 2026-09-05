@@ -2,7 +2,8 @@
 (def compile_admitted_source ((profile Int)) Int
   (let prepared Int (prepare_admitted_source profile)
     (if (eq (first prepared) 0)
-      (compiler_complete (emit_checked_program profile (second prepared)))
+      (let normalized Int (normalize_program (second prepared))
+        (compiler_complete (emit_checked_program profile normalized)))
       prepared)))
 
 (def prepare_admitted_source ((profile Int)) Int

@@ -8,8 +8,10 @@ parameters, and body. [expressions.gamma](expressions.gamma) prints the plan's
 ordinary Gamma calls and lets; [atoms.gamma](atoms.gamma) prints its atoms.
 
 The pipeline finishes the complete frontend, selected-profile schema check,
-and [lowering](../lowering/README.md) of every authored body before writing the first
-receipt byte. Emission does not classify Delta expressions, resolve locals,
+and [lowering](../lowering/README.md) and
+[normalization](../normalization/README.md) of every authored body before
+writing the first receipt byte. Emission does not classify Delta expressions,
+resolve locals,
 expand constructors or patterns, or choose checked-arithmetic guards. Those
 decisions are already explicit Gamma structure.
 
@@ -49,12 +51,11 @@ execution receipts remain separate full-customer reconstruction gates. A
 changed receipt requires explanation, not a relaxed expectation.
 
 The [lowering-plan gate](../../../../../tests/delta/lowering-plan/README.md)
-checks authored expectations against the plan's expanded body heights before
-serialization. Recording those heights does not normalize or lift over-height
-bodies. The [selected Gamma profile](../../../../gamma/EVALUATOR_PROFILE.md#exact-capacities)
-still admits at most 255 nested expression lists per generated function body.
-Generated wrappers can exceed that bound within Delta's admitted 1,024-level
-expression profile.
+checks authored expectations against the pre-normalization plan's expanded
+body heights. The separate normalizer handles the
+[selected Gamma profile](../../../../gamma/EVALUATOR_PROFILE.md#exact-capacities)
+limit of 255 nested expression lists per generated function body. Serialization
+does not make extraction or capture decisions and does not alter those budgets.
 
 Plan and continuation pairs consume the selected evaluator's finite immutable
 arena. Stack-safe compiler traversal, complete-before-write planning, and exact

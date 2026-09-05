@@ -289,9 +289,13 @@ Retained balanced syntax and grammar judgments feed the global census,
 signature resolution, complete body typing, and selected-profile validation.
 Lowering then completes an expanded Gamma program before the first output byte.
 Explicit continuations retain pending children, while the plan records binding
-identities and generated expression-list heights. A separate serializer prints
-the plan rather than selecting lowering rules during publication; exact spans
-supply admitted names and literal bytes.
+identities and generated expression-list heights. A separate normalizer reuses
+fitting subtrees and extracts over-height fragments into generated functions
+under a 255-list body budget. Captures pass established values through fresh
+parameter identities, and replacement calls retain the fragments' evaluation
+and tail positions. A serializer prints the resulting plan rather than
+selecting lowering rules during publication; exact spans supply admitted names
+and literal bytes.
 Grammar implements D30's 1,024-level expression `parse_depth` profile: bodies
 start at level 1, expression children including atoms advance by one, and match
 arm bodies are at their enclosing match's level plus one. Declaration, parameter,
@@ -300,10 +304,11 @@ expression, it returns `Incomplete` code 8 at that node's source start, with
 limit 1,024 and requested 1,025. Complete balanced parsing precedes this check.
 Stack-safe compiler traversal does not guarantee generated Gamma admission
 throughout that depth. The selected evaluator separately bounds each generated
-body at 255 nested expression lists, and lowering can add wrappers. Recorded
-expanded heights do not yet normalize or lift over-height bodies. That
-generated-profile obligation and other compiler-owned resource/internal DCOUT
-outcomes remain open; underlying evaluator failures do not substitute for those
+body at 255 nested expression lists; normalization handles that nesting bound,
+but generated helper count, non-tail runtime contexts, and immutable storage
+remain separately bounded. Full generated-profile admission and other
+compiler-owned resource/internal DCOUT outcomes remain open; underlying
+evaluator failures do not substitute for those
 outcomes. These frontend judgments do not close the Delta edge or establish
 full resource conformance. The complete compiler artifact remains
 absent. The former concatenative-Gamma

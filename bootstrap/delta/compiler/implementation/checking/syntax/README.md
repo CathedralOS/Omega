@@ -113,10 +113,12 @@ preflight, as required by
 Other compiler-owned resource/internal failure propagation and successful
 generated-program admission throughout the Delta depth profile remain separate
 work. The selected Gamma evaluator caps generated bodies at 255 nested lists;
-lowering may add wrappers. The plan records those expanded heights but does not
-yet normalize or lift over-height bodies. Complete retained-node compiler
-traversal and the `parse_depth` refusal do not establish that later profile
-property.
+lowering may add wrappers. A separate
+[normalization pass](../../normalization/README.md) uses the recorded expanded
+heights to extract over-height fragments. That body-height transform does not
+close the separate helper-count, runtime-context, storage, or compiler-owned
+resource/internal boundaries. The `parse_depth` refusal is not evidence of
+those later properties.
 
 The [boundary contract](../../boundary/README.md#body-traversal-and-coordinates)
 records body diagnostic order and coordinates. Declaration parameters check
