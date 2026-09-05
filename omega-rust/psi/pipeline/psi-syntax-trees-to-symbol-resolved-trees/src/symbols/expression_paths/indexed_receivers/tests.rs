@@ -155,6 +155,7 @@ fn indexed_candidate_rejects_foreign_and_stale_parameter_roots() {
         prior_statements: &[],
         data_definitions: &program.data_definitions,
         data_members: &program.tables.declarations.data_members,
+        type_constraints: &program.tables.types.constraints,
     };
     for variant in ["exact", "foreign", "stale"] {
         let mut table = program.tables.bodies.expressions.clone();

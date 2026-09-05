@@ -890,6 +890,18 @@ fn validate_state_statement_node(
     match statement {
         StatementNode::AssemblyFact(fact) => {
             let state = current_state;
+            if let Some(state) = state {
+                crate::locals::StateValueScope {
+                    program,
+                    machine,
+                    state,
+                    machine_symbols,
+                    symbols,
+                    prior_statements: writable_roots.statements,
+                    context: "asm assertion",
+                }
+                .expression(fact.expression, diagnostics);
+            }
             if !proof_facts::is_boolean_asm_fact_expression(
                 program,
                 machine,

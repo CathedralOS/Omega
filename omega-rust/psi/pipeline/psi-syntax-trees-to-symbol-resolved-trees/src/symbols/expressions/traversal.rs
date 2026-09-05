@@ -134,6 +134,16 @@ pub(in crate::symbols) fn assign_expression_table_symbols(
                 &mut target_type,
             );
             *child_type_references.get_mut(cast.target_type) = target_type;
+            let target_type = child_type_references.get(cast.target_type).clone();
+            crate::symbols::type_references::assign_type_value_expression_symbols(
+                symbols,
+                machine,
+                parameters,
+                state_symbol,
+                expression_table,
+                child_type_references,
+                &target_type,
+            );
             for offset in 0..cast.semantic_domain_arguments.count() {
                 let start = cast.semantic_domain_arguments.start();
                 let handle =
@@ -318,6 +328,16 @@ pub(in crate::symbols) fn assign_expression_table_symbols(
                 &mut target_type,
             );
             *child_type_references.get_mut(type_reference) = target_type;
+            let target_type = child_type_references.get(type_reference).clone();
+            crate::symbols::type_references::assign_type_value_expression_symbols(
+                symbols,
+                machine,
+                parameters,
+                state_symbol,
+                expression_table,
+                child_type_references,
+                &target_type,
+            );
         }
     }
 }

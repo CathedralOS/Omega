@@ -61,6 +61,7 @@ pub(super) fn assign_statement_reference_symbols(
             prior_statements: &[],
             data_definitions,
             data_members,
+            type_constraints,
         };
         // Ranking expressions belong to the entry signature, not a later
         // statement or a same-spelled parameter in another state. Resolve
@@ -93,6 +94,21 @@ pub(super) fn assign_statement_reference_symbols(
             let state = machine_states.get_mut(state);
             let state_symbol = state.symbol;
             let parameters = state_parameters.span_or_empty(state.parameters);
+            for type_reference in parameters
+                .iter()
+                .map(|parameter| &parameter.type_reference)
+                .chain(state.return_type.iter())
+            {
+                super::type_references::assign_type_value_expression_symbols(
+                    symbols,
+                    &machine_scope,
+                    parameters,
+                    state_symbol,
+                    expression_table,
+                    child_type_references,
+                    type_reference,
+                );
+            }
             let statements = state_statements.span_mut_or_empty(state.statements);
             for index in 0..statements.len() {
                 let (prior_statements, remaining) = statements.split_at_mut(index);

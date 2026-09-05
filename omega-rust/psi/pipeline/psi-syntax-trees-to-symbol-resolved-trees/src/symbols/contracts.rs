@@ -46,6 +46,7 @@ pub(super) fn assign_contract_reference_symbols(
             prior_statements: &[],
             data_definitions,
             data_members,
+            type_constraints: &tables.types.constraints,
         };
         let states = machine_state_handles.span_or_empty(machine.states);
         let entry = states.first().map(|handle| machine_states.get(*handle));
@@ -96,6 +97,7 @@ pub(super) fn assign_contract_reference_symbols(
             prior_statements: &[],
             data_definitions,
             data_members,
+            type_constraints: &tables.types.constraints,
         };
         for signature in trait_machine_signatures.span_or_empty(trait_definition.machines) {
             assign_contract_span(
@@ -219,6 +221,16 @@ fn assign_contract_call_symbols(
                 &mut target_type,
             );
             *child_type_references.get_mut(cast.target_type) = target_type;
+            let target_type = child_type_references.get(cast.target_type).clone();
+            crate::symbols::type_references::assign_type_value_expression_symbols(
+                symbols,
+                machine,
+                parameters,
+                state_symbol,
+                expression_table,
+                child_type_references,
+                &target_type,
+            );
             for offset in 0..cast.semantic_domain_arguments.count() {
                 let start = cast.semantic_domain_arguments.start();
                 let handle =
@@ -378,6 +390,16 @@ fn assign_contract_call_symbols(
                 &mut target_type,
             );
             *child_type_references.get_mut(type_reference) = target_type;
+            let target_type = child_type_references.get(type_reference).clone();
+            crate::symbols::type_references::assign_type_value_expression_symbols(
+                symbols,
+                machine,
+                parameters,
+                state_symbol,
+                expression_table,
+                child_type_references,
+                &target_type,
+            );
         }
         ExpressionNode::Name(path) => assign_name_symbol(
             symbols,
