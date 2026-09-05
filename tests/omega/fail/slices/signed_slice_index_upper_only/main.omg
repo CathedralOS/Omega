@@ -1,0 +1,5 @@
+machine read(items: &[u8], index: i64) -> u8
+requires index < items.len;
+{
+    items[index]
+}

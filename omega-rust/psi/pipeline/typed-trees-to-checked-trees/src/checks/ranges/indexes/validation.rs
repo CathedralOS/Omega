@@ -20,6 +20,7 @@ use super::super::types::{
     expression_type_reference,
 };
 
+mod lower_bounds;
 mod selected;
 #[cfg(test)]
 mod tests;
@@ -96,6 +97,39 @@ pub(super) fn check_indexed_access(
         return BoundsCheckResult::Unsupported;
     };
     if !proven {
+        BoundsCheckResult::Rejected
+    } else if (spelling == OperatorSpelling::Range || length.is_none())
+        && !lower_bounds::prove(
+            program,
+            machine,
+            state,
+            facts,
+            indexed,
+            spelling,
+            if spelling == OperatorSpelling::Range {
+                12
+            } else {
+                4
+            },
+        )
+    {
+        // The collection-relative vocabulary above proves only upper bounds
+        // and endpoint ordering. It is shared by unknown slices and symbolic
+        // windows over fixed arrays; neither route implies non-negativity.
+        // Known-array scalar checking already owns its lower-bound judgment,
+        // including the supported hoisted-initializer proof route.
+        diagnostics.push(Diagnostic::error(with_attribution(
+            format!(
+                "cannot prove {} `{}` is non-negative",
+                if spelling == OperatorSpelling::Range {
+                    "every subslice range endpoint of"
+                } else {
+                    "index"
+                },
+                program.expression_table.display_name(indexed.index),
+            ),
+            attribution,
+        )));
         BoundsCheckResult::Rejected
     } else if spelling == OperatorSpelling::Range {
         BoundsCheckResult::ProvenRange
