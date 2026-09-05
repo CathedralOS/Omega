@@ -1,5 +1,7 @@
 use super::*;
 
+mod assignments;
+
 fn checked(argument: &str, combined: bool) -> checked_trees::CheckedTrees {
     let source = format!(
         r#"

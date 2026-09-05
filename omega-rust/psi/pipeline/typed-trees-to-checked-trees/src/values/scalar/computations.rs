@@ -1,4 +1,4 @@
-//! Checked execution plans for call-bearing scalar initializers, arguments, and returns.
+//! Checked execution plans for call-bearing scalar writes, arguments, and returns.
 
 use super::*;
 use checked_trees::{
@@ -123,6 +123,26 @@ pub(crate) fn build_checked_scalar_computation_plans(
                     locals: &locals,
                     plans: &mut plans,
                 };
+                if let StatementNode::Assignment(assignment) = statement {
+                    if let ExpressionNode::Name(name) =
+                        program.expression_table.expression(assignment.target)
+                        && let Some(local) = locals
+                            .iter()
+                            .find(|local| local.symbol == name.symbol && local.is_mutable)
+                    {
+                        // The completed RHS replaces storage only after evaluation.
+                        // Reads here retain the existing destination symbol; assignments
+                        // neither append an immutable local nor change its namespace.
+                        builder.record_root(
+                            pure,
+                            statement_ordinal,
+                            CheckedScalarExpressionRole::AssignmentValue,
+                            assignment.value,
+                            local.primitive_type,
+                        );
+                    }
+                    continue;
+                }
                 if let StatementNode::Expression(expression) = statement
                     && statement_index + 1 == statements.len()
                     && let Some(result_type) = program.primitive_type_reference(state.return_type)

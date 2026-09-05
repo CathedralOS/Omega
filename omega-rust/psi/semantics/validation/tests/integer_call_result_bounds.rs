@@ -88,6 +88,77 @@ fn result_alias_uses_only_the_formals_declared_or_builtin_required_range() {
 }
 
 #[test]
+fn assignment_result_alias_retains_its_exact_cast_fact() {
+    let program = typed(
+        r#"
+        machine bounded(input: u16) -> u16
+        requires input < 256u16
+        ensures result == input
+        { input }
+        machine value(input: u16) -> u8 {
+            let mut current: u8 = 0u8;
+            current = bounded(input % 256u16) as u8;
+            current
+        }
+        "#,
+    );
+    let facts = validation::validate_program_after_generic_contract_entailment_with_facts(&program)
+        .unwrap_or_else(|diagnostics| panic!("{diagnostics:#?}"));
+    let [cast] = facts.exact_integer_casts.as_slice() else {
+        panic!("one assignment cast");
+    };
+    assert_eq!(cast.minimum, numerics::bignum::BigInt::from_i64(0));
+    assert_eq!(cast.maximum, numerics::bignum::BigInt::from_i64(255));
+}
+
+#[test]
+fn assignment_cast_facts_use_the_value_before_each_write() {
+    let program = typed(
+        r#"
+        machine value() -> u16 {
+            let mut current: u16 = 7u16;
+            current = ((current as u8) as u16) + 1u16;
+            current = ((current as u8) as u16) + 1u16;
+            current
+        }
+        "#,
+    );
+    let facts = validation::validate_program_after_generic_contract_entailment_with_facts(&program)
+        .unwrap_or_else(|diagnostics| panic!("{diagnostics:#?}"));
+    let casts = facts
+        .exact_integer_casts
+        .iter()
+        .filter(|cast| cast.target_type == typed_trees::types::PrimitiveType::U8)
+        .collect::<Vec<_>>();
+    assert_eq!(casts.len(), 2);
+    for (cast, old_value) in casts.iter().zip([7, 8]) {
+        assert_eq!(cast.minimum, numerics::bignum::BigInt::from_i64(old_value));
+        assert_eq!(cast.maximum, numerics::bignum::BigInt::from_i64(old_value));
+    }
+}
+
+#[test]
+fn assignment_cast_cannot_reuse_a_value_retired_by_an_earlier_write() {
+    let program = typed(
+        r#"
+        machine value() -> u16 {
+            let mut current: u16 = 7u16;
+            current = 511u16;
+            current = (current as u8) as u16;
+            current
+        }
+        "#,
+    );
+    let diagnostics = validation::validate_program(&program).unwrap_err();
+    assert!(
+        diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.message.contains("not provably representable")),
+        "{diagnostics:#?}"
+    );
+}
+
+#[test]
 fn parameter_named_result_does_not_constrain_the_return_value() {
     let program = typed(
         r#"

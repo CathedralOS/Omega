@@ -1065,11 +1065,12 @@ fn validate_state_statement_node(
                     diagnostics,
                 );
             }
-            calls::report_nested_call_in_bound_value_call(
+            calls::report_nested_call_in_local_assignment(
                 program,
                 machine,
+                current_state,
                 state_name,
-                assignment.value,
+                assignment,
                 diagnostics,
             );
             calls::report_local_receiver_value_call(
@@ -1131,6 +1132,14 @@ fn validate_state_statement_node(
             }
             // Analyze the RHS against pre-store facts, then invalidate every
             // spelling of the storage before recording the new target value.
+            arithmetic_domains::collect_exact_integer_cast_facts(
+                program,
+                machine,
+                current_state,
+                assignment.value,
+                value_env,
+                exact_integer_casts,
+            );
             if let Some(written) = direct_written {
                 value_env.invalidate_written_paths(&written);
             } else {

@@ -10,7 +10,7 @@ use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use typed_trees::machine::Machine;
 use typed_trees::name::Identifier;
 use typed_trees::state::State;
-use typed_trees::statement::{StatementNode, TransitionTargetNode};
+use typed_trees::statement::{StatementNode, TableAssignment, TransitionTargetNode};
 
 /// A value call on a LET-BOUND LOCAL receiver (`let p: Pair = ..; p.total()`)
 /// reads ZII natively: receiver resolution reaches machine FIELDS and state
@@ -145,8 +145,69 @@ pub(crate) fn report_nested_call_in_local_initializer(
     value: ExpressionHandle,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
-    if free_scalar_machine(program, machine)
-        && let ExpressionNode::Call(call) = program.expression_table.expression(value)
+    if free_scalar_computation_call(program, machine, value) {
+        // This exempts a destination, not its semantics. Ordinary call checks
+        // still validate every argument; unsupported computation nodes or call
+        // custody fail lowering before any Terminal artifact can be published.
+        return;
+    }
+    report_nested_call_in_bound_value_call(program, machine, state_name, value, diagnostics);
+}
+
+/// Only an exact mutable scalar local is an assignment computation destination.
+/// Projected storage, state parameters, and attached/structural callers keep the
+/// realization fence until their writes have the same checked evaluation path.
+pub(crate) fn report_nested_call_in_local_assignment(
+    program: &TypedTrees,
+    machine: &Machine,
+    state: Option<&State>,
+    state_name: &str,
+    assignment: &TableAssignment,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    if let Some(state) = state
+        && let ExpressionNode::Name(path) = program.expression_table.expression(assignment.target)
+        && path.symbol.is_valid()
+        && program
+            .expression_table
+            .name_path_members(path.members)
+            .len()
+            == 1
+        && program
+            .statement_table
+            .statements(state.statement_nodes)
+            .iter()
+            .any(|statement| {
+                matches!(statement, StatementNode::LocalData(local)
+                    if local.symbol == path.symbol
+                        && local.is_mutable
+                        && program.primitive_type_reference(local.type_reference).is_some())
+            })
+        && free_scalar_computation_call(program, machine, assignment.value)
+    {
+        return;
+    }
+    report_nested_call_in_bound_value_call(
+        program,
+        machine,
+        state_name,
+        assignment.value,
+        diagnostics,
+    );
+}
+
+fn free_scalar_computation_call(
+    program: &TypedTrees,
+    machine: &Machine,
+    value: ExpressionHandle,
+) -> bool {
+    if !value.is_valid() {
+        return false;
+    }
+    let ExpressionNode::Call(call) = program.expression_table.expression(value) else {
+        return false;
+    };
+    free_scalar_machine(program, machine)
         && !call.receiver.is_valid()
         && call.machine_arguments.is_empty()
         && call.evidence_arguments.is_empty()
@@ -158,13 +219,6 @@ pub(crate) fn report_nested_call_in_local_initializer(
                     .first()
                     .is_some_and(|entry| entry.symbol == call.target_symbol)
         })
-    {
-        // This exempts a destination, not its semantics. Ordinary call checks
-        // still validate every argument; unsupported computation nodes or call
-        // custody fail lowering before any Terminal artifact can be published.
-        return;
-    }
-    report_nested_call_in_bound_value_call(program, machine, state_name, value, diagnostics);
 }
 
 fn free_scalar_machine(program: &TypedTrees, machine: &Machine) -> bool {

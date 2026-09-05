@@ -176,14 +176,24 @@ fn build_machine_graph(
                                         _ => None,
                                     }
                                 })?;
+                            let statement_ordinal = u32::try_from(statement_index).ok()?;
+                            let role = checked_trees::CheckedScalarExpressionRole::AssignmentValue;
+                            let value = if computations
+                                .root_at(state.symbol, statement_ordinal, role)
+                                .is_some()
+                            {
+                                CheckedScalarBindingValue::Computation
+                            } else {
+                                CheckedScalarBindingValue::Expression
+                            };
                             Some(CheckedScalarBinding {
-                                statement_ordinal: u32::try_from(statement_index).ok()?,
+                                statement_ordinal,
                                 destination: CheckedScalarBindingDestination::StorageAssign {
                                     symbol: local.symbol,
                                 },
                                 primitive_type: program
                                     .primitive_type_reference(local.type_reference)?,
-                                value: CheckedScalarBindingValue::Expression,
+                                value,
                             })
                         }
                         _ => None,
