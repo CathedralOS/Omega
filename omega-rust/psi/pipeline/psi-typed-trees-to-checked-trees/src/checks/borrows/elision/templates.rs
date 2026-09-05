@@ -4,7 +4,7 @@ use psi_diagnostics::Diagnostic;
 use psi_symbols::SymbolHandle;
 use psi_typed_trees::{
     TypedTrees,
-    expression::{ExpressionHandle, ExpressionNode},
+    expression::{ExpressionHandle, ExpressionNode, StaticMachineArgument},
     statement::{StatementNode, TransitionTargetNode},
 };
 
@@ -39,6 +39,8 @@ pub(super) fn check_calls(
                             call.target_symbol,
                             Receiver::Named(receiver),
                             call.target.as_str(),
+                            &call.machine_arguments,
+                            program.statement_table.expression_handles(call.arguments),
                             diagnostics,
                         );
                     }
@@ -47,8 +49,9 @@ pub(super) fn check_calls(
                             if !target.is_valid() {
                                 continue;
                             }
-                            if let TransitionTargetNode::Named { path, .. } =
-                                program.statement_table.transition_target(target)
+                            if let TransitionTargetNode::Named {
+                                path, arguments, ..
+                            } = program.statement_table.transition_target(target)
                             {
                                 let members =
                                     program.statement_table.name_path_members(path.members);
@@ -65,6 +68,8 @@ pub(super) fn check_calls(
                                     path.symbol,
                                     Receiver::Named(receiver.map(|name| name.as_str())),
                                     name,
+                                    &[],
+                                    program.statement_table.expression_handles(*arguments),
                                     diagnostics,
                                 );
                             }
@@ -91,6 +96,8 @@ pub(super) fn check_calls(
                         call.target_symbol,
                         Receiver::Value(call.receiver),
                         call.target.as_str(),
+                        &call.machine_arguments,
+                        program.expression_table.expression_handles(call.arguments),
                         diagnostics,
                     );
                 }
@@ -107,6 +114,8 @@ fn check_target(
     target: SymbolHandle,
     receiver: Receiver<'_>,
     name: &str,
+    static_arguments: &[StaticMachineArgument],
+    arguments: &[ExpressionHandle],
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     let unresolved_frontier = deferred.contains(&target)
@@ -143,10 +152,46 @@ fn check_target(
                     .is_some_and(|signature| deferred.contains(&signature.symbol))
             }
         };
-    if unresolved_frontier {
+    if unresolved_frontier
+        && !closed_view_free_return(program, machine, state, target, static_arguments, arguments)
+    {
         diagnostics.push(Diagnostic::error(format!(
             "call `{name}` in machine `{}` has a template-dependent returned-carrier lifetime frontier; a concrete checked callable is required before this call can produce or discard a value",
             machine.name,
         )));
     }
+}
+
+fn closed_view_free_return(
+    program: &TypedTrees,
+    caller: &psi_typed_trees::machine::Machine,
+    state: &psi_typed_trees::state::State,
+    target: SymbolHandle,
+    static_arguments: &[StaticMachineArgument],
+    arguments: &[ExpressionHandle],
+) -> bool {
+    let signature = program
+        .traits()
+        .iter()
+        .flat_map(|definition| program.trait_machine_signatures(definition))
+        .find(|signature| signature.symbol == target)
+        .or_else(|| program.machine_parameter_signature_in(caller, target));
+    let Some(signature) = signature else {
+        return false;
+    };
+    let Some(substitutions) = psi_validation::closed_static_call_type_bindings(
+        program,
+        caller,
+        state,
+        signature,
+        static_arguments,
+        arguments,
+    ) else {
+        return false;
+    };
+    crate::borrow::view_link::substituted_result_is_view_free(
+        program,
+        signature.return_type,
+        &substitutions,
+    )
 }
