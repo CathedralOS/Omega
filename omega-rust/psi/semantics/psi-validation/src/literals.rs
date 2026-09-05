@@ -71,6 +71,9 @@ pub(crate) fn validate_suffix_magnitudes(program: &TypedTrees, diagnostics: &mut
 
 mod float_landing;
 pub use float_landing::land_float_literal_destinations;
+mod integer_landing;
+pub(crate) use integer_landing::{anonymous_integer_value, land_integer_value};
+pub use integer_landing::{has_anonymous_operator_meaning, land_anonymous_integer_expression};
 
 pub(crate) fn validate_suffix_landings(program: &TypedTrees, diagnostics: &mut Vec<Diagnostic>) {
     use psi_numerics::literals::LandedIntegerType;

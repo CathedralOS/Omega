@@ -1,0 +1,15 @@
+machine anonymous_sum() -> u8
+ensures result == 7
+{ 3 + 4 }
+
+machine unsigned_intermediate() -> u8
+ensures result == 255
+{ (255 + 1) - 1 }
+
+machine negative_intermediate() -> u8
+ensures result == 1
+{ (0 - 1) + 2 }
+
+machine full_unsigned_precision() -> u64
+ensures result == 18446744073709551615
+{ (18446744073709551615 + 1) - 1 }
