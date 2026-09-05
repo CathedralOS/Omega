@@ -17,11 +17,14 @@ use super::request::GitSourceRequest;
 use super::workspace::GitWorkspaceProjectionError;
 
 mod acquisition;
+mod exact_revision;
 mod issuance;
 mod materialization;
 mod network;
 mod pinned_source;
+mod recorded_objects;
 mod repository;
+mod selection;
 mod workspace_member;
 
 use acquisition::resolve_git_source_from_retained_cache_with;
@@ -29,6 +32,11 @@ use materialization::materialize_whole_git_source;
 
 pub use pinned_source::{
     resolve_git_source_from_pin_in_lane, resolve_git_source_from_pin_in_lane_with_primary_git,
+};
+
+pub use exact_revision::{
+    GitExactRevisionAcquisition, resolve_git_source_at_revision_in_lane,
+    resolve_git_source_at_revision_in_lane_with_primary_git,
 };
 
 pub use workspace_member::{

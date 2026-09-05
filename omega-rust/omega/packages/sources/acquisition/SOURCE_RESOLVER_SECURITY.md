@@ -192,6 +192,16 @@ The trusted parent independently revalidates command success, object
 identities, the materialized tree, cache custody, and source limits before
 publishing `ResolvedGitSource`. Helper output alone never issues a result.
 
+Whole-root acquisition from recorded commit/root-tree IDs retains the authored
+request but never resolves its mutable selector. Offline mode performs no
+transport or discovery. When exact fetching is allowed, only a successful,
+exact full-ID absence response permits fetching that commit; a failed command,
+malformed response, or custody mismatch is not an absence signal. Present
+objects still require full authentication. Recorded commit/root-tree absence
+does not invalidate an otherwise healthy offline cache; descendant
+incompleteness or corruption fails without automatic repair. These inert IDs
+are not privately issued operation-local reuse pins or live source custody.
+
 Pipeline consistency is compiler-owned even though hostile same-user isolation
 is not. Resolution binds one exact commit and tree, validates a private
 materialization, and publishes one immutable snapshot. Later phases consume

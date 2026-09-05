@@ -45,13 +45,47 @@ pub(crate) fn create_git_cache_entry(
     execution_transport: GitExecutionTransport,
     limits: LocalSourceLimits,
 ) -> Result<(), SourceResolveError> {
+    create_git_cache_entry_with_format(
+        executor,
+        cache_dir,
+        cache_directory,
+        entry_root,
+        entry_name,
+        cache_identity,
+        locator_identity,
+        fetch_locator,
+        requested_rev,
+        execution_transport,
+        limits,
+        None,
+    )
+}
+
+/// A recorded full object ID supplies the repository format without remote
+/// selector discovery. `None` preserves the ordinary acquisition path.
+pub(crate) fn create_git_cache_entry_with_format(
+    executor: &GitExecutor,
+    cache_dir: &Path,
+    cache_directory: &CapabilityDirectory,
+    entry_root: &Path,
+    entry_name: &OsStr,
+    cache_identity: &str,
+    locator_identity: &str,
+    fetch_locator: &str,
+    requested_rev: &str,
+    execution_transport: GitExecutionTransport,
+    limits: LocalSourceLimits,
+    known_format: Option<GitObjectIdAlgorithm>,
+) -> Result<(), SourceResolveError> {
     let mut pending = PendingCacheEntry::create(cache_dir, cache_directory, cache_identity)?;
     let repository = pending.root.join(GIT_CACHE_REPOSITORY);
     let empty_template = pending.root.join("empty-template");
     pending.create_private_directory("empty-template", &empty_template)?;
     pending.verify_ambient_path_identity(cache_dir)?;
-    let object_format_result =
-        discover_git_object_format(executor, &pending.root, fetch_locator, requested_rev);
+    let object_format_result = match known_format {
+        Some(format) => Ok(format),
+        None => discover_git_object_format(executor, &pending.root, fetch_locator, requested_rev),
+    };
     let object_format = reconcile_git_cache_operation_result(
         object_format_result,
         pending.verify_ambient_path_identity(cache_dir),

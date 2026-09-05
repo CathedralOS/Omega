@@ -4,7 +4,7 @@ use crate::custody::lock::CacheEntryLock;
 use crate::custody::publication::{direct_cache_child_name, retained_cache_directory_exists};
 use crate::custody::tree::CacheCustodyKind;
 use crate::error::SourceResolveError;
-use crate::git::cache::creation::create_git_cache_entry;
+use crate::git::cache::creation::{create_git_cache_entry, create_git_cache_entry_with_format};
 use crate::git::cache::identity::git_cache_identity;
 use crate::git::cache::invalidation::invalidate_git_cache_entry_from_open_parent;
 use crate::git::cache::repository::VerifiedGitRepository;
@@ -22,9 +22,11 @@ use cap_std::fs::Dir as CapabilityDirectory;
 use std::ffi::OsString;
 use std::path::{Path, PathBuf};
 
+use super::exact_revision::GitExactRevisionAcquisition;
 use super::issuance::finalize_git_resolution;
 use super::materialization::GitMaterializedSource;
 use super::repository::resolve_verified_git_cache_entry_with;
+use super::selection::GitRevisionSelection;
 
 pub(super) fn resolve_git_source_from_retained_cache_with<Evidence, PlannerError>(
     primary_git: &PrimaryGitSelection,
@@ -44,20 +46,37 @@ pub(super) fn resolve_git_source_from_retained_cache_with<Evidence, PlannerError
         GitWorkspaceProjectionError<PlannerError>,
     >,
 ) -> Result<(ResolvedGitSource, Evidence), GitWorkspaceProjectionError<PlannerError>> {
-    if let Some(pin) = pin
-        && !pin.matches_request(
-            request.requested_locator(),
-            request.lineage(),
-            request.locator_identity(),
-            request.transport_profile(),
-            request.requested_revision(),
-        )
-    {
-        return Err(SourceResolveError::GitExecutionBoundaryInvalid {
-            message: "Git acquisition reuse pin does not match the exact source request".to_owned(),
-        }
-        .into());
-    }
+    resolve_git_source_from_retained_cache_with_selection(
+        primary_git,
+        package_controlled_roots,
+        request,
+        cache_dir,
+        cache_directory,
+        limits,
+        GitRevisionSelection::Ordinary(pin),
+        materialize,
+    )
+}
+
+pub(super) fn resolve_git_source_from_retained_cache_with_selection<Evidence, PlannerError>(
+    primary_git: &PrimaryGitSelection,
+    package_controlled_roots: &[PathBuf],
+    request: &GitSourceRequest,
+    cache_dir: &Path,
+    cache_directory: &CapabilityDirectory,
+    limits: LocalSourceLimits,
+    selection: GitRevisionSelection<'_>,
+    materialize: impl FnOnce(
+        &GitExecutor,
+        &VerifiedGitRepository,
+        &str,
+        LocalSourceLimits,
+    ) -> Result<
+        GitMaterializedSource<Evidence>,
+        GitWorkspaceProjectionError<PlannerError>,
+    >,
+) -> Result<(ResolvedGitSource, Evidence), GitWorkspaceProjectionError<PlannerError>> {
+    selection.validate_request(request)?;
     let execution_transport = request.execution_transport();
     let executor = GitExecutor::selected(
         primary_git,
@@ -119,26 +138,47 @@ pub(super) fn resolve_git_source_from_retained_cache_with<Evidence, PlannerError
                 ));
             }
         } else {
-            if pin.is_some() {
+            if matches!(selection, GitRevisionSelection::Ordinary(Some(_))) {
                 return Err(SourceResolveError::GitCacheInvalid {
                     path: entry_root,
                     message: "pinned Git acquisition cache entry is absent".to_owned(),
                 }
                 .into());
             }
-            let creation_result = create_git_cache_entry(
-                &executor,
-                cache_dir,
-                entry_lock.parent(),
-                &entry_root,
-                &entry_name,
-                &cache_identity,
-                locator_identity,
-                request.fetch_locator(),
-                requested_rev,
-                execution_transport,
-                limits,
-            );
+            if let GitRevisionSelection::Recorded(recorded) = selection
+                && recorded.acquisition == GitExactRevisionAcquisition::Offline
+            {
+                return Err(recorded.unavailable().into());
+            }
+            let creation_result = match selection {
+                GitRevisionSelection::Recorded(recorded) => create_git_cache_entry_with_format(
+                    &executor,
+                    cache_dir,
+                    entry_lock.parent(),
+                    &entry_root,
+                    &entry_name,
+                    &cache_identity,
+                    locator_identity,
+                    request.fetch_locator(),
+                    requested_rev,
+                    execution_transport,
+                    limits,
+                    Some(recorded.algorithm),
+                ),
+                GitRevisionSelection::Ordinary(_) => create_git_cache_entry(
+                    &executor,
+                    cache_dir,
+                    entry_lock.parent(),
+                    &entry_root,
+                    &entry_name,
+                    &cache_identity,
+                    locator_identity,
+                    request.fetch_locator(),
+                    requested_rev,
+                    execution_transport,
+                    limits,
+                ),
+            };
             reconcile_git_cache_operation_result(
                 creation_result,
                 entry_lock.verify_path_identity(),
@@ -160,8 +200,9 @@ pub(super) fn resolve_git_source_from_retained_cache_with<Evidence, PlannerError
             requested_rev,
             execution_transport,
             limits,
-            pin.is_none() && (!cache_entry_existed || !is_object_id(requested_rev)),
-            pin,
+            matches!(selection, GitRevisionSelection::Ordinary(None))
+                && (!cache_entry_existed || !is_object_id(requested_rev)),
+            selection,
             materialize
                 .take()
                 .expect("one Git resolution invokes one materializer"),
@@ -184,6 +225,17 @@ pub(super) fn resolve_git_source_from_retained_cache_with<Evidence, PlannerError
                 Ok((source, evidence))
             }
             Err(GitWorkspaceProjectionError::Source(error)) => {
+                // Exact absence was established by the object protocol under
+                // current cache custody. It is not corrupt selector cache state.
+                if matches!(selection, GitRevisionSelection::Recorded(_))
+                    && matches!(
+                        error,
+                        SourceResolveError::GitExactRevisionUnavailable { .. }
+                    )
+                    && namespace_result.is_ok()
+                {
+                    return Err(GitWorkspaceProjectionError::Source(error));
+                }
                 let invalidation_result = invalidate_git_cache_entry_from_open_parent(
                     cache_dir,
                     entry_lock.parent(),
