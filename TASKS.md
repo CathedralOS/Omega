@@ -468,12 +468,13 @@ Owners include
 
 - **STATE-LOCAL-VALUE-FRONTIER.** Complete live contract/value-fact transport
   across explicit state arguments, including directly computed arguments and
-  dynamic projections. Capture selected arithmetic in mutable initializers and
-  assignment expressions; materialize effectful returns and earlier call
+  dynamic projections. Give selected scalar expressions explicit mutable-storage
+  operands, shared by proof and executable lowering without changing immutable
+  binding identities; materialize effectful returns and earlier call
   arguments at their exact evaluation points and activate staged loans at their
   evaluation points.
-  Complete anonymous integer landing for guarded returns, mutable locals,
-  argument/store destinations, and the remaining numeric operator/policy
+  Complete anonymous integer landing for guarded returns, argument and
+  aggregate-element destinations, and the remaining numeric operator/policy
   surface, so proof and execution consume the same values without rereading
   changed operands.
   Non-divisible anonymous integer division and signed remainder await the

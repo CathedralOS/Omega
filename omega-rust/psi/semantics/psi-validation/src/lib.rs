@@ -1071,17 +1071,29 @@ fn validate_state_statement_node(
             let assignment_target_domain = assignment_target_type
                 .map(|handle| program.arithmetic_domain_for_type_reference(handle))
                 .unwrap_or(psi_numerics::arithmetic::ArithmeticDomain::Exact);
-            let (interval, source_primitive) = arithmetic_domains::validate_value_range(
-                program,
-                machine,
-                current_state,
-                assignment.value,
-                value_env,
-                assignment_target_primitive,
-                assignment_target_domain,
-                &owner,
-                diagnostics,
-            );
+            let (interval, source_primitive) = assignment_target_type_raw
+                .and_then(|destination| {
+                    arithmetic_domains::validate_anonymous_integer_range(
+                        program,
+                        places::assignment_value_type(program, destination),
+                        assignment.value,
+                        &owner,
+                        diagnostics,
+                    )
+                })
+                .unwrap_or_else(|| {
+                    arithmetic_domains::validate_value_range(
+                        program,
+                        machine,
+                        current_state,
+                        assignment.value,
+                        value_env,
+                        assignment_target_primitive,
+                        assignment_target_domain,
+                        &owner,
+                        diagnostics,
+                    )
+                });
             // Only a CLEANLY-analyzed RHS reaches the narrowing check -- an RHS that
             // already erred (its own overflow, a type error) is not re-flagged.
             if diagnostics.len() == before {
@@ -1458,17 +1470,14 @@ fn validate_state_statement_node(
                 diagnostics,
             );
             let before = diagnostics.len();
-            let (interval, source_primitive) = (!local_data.is_mutable)
-                .then(|| {
-                    arithmetic_domains::validate_anonymous_integer_range(
-                        program,
-                        local_data.type_reference,
-                        local_data.initial_value,
-                        &owner,
-                        diagnostics,
-                    )
-                })
-                .flatten()
+            let (interval, source_primitive) =
+                arithmetic_domains::validate_anonymous_integer_range(
+                    program,
+                    local_data.type_reference,
+                    local_data.initial_value,
+                    &owner,
+                    diagnostics,
+                )
                 .unwrap_or_else(|| {
                     arithmetic_domains::validate_value_range(
                         program,

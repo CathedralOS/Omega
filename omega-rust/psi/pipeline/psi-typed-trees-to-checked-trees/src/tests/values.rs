@@ -103,6 +103,19 @@ fn scalar_return_custody_retains_filtered_parameters_and_dense_prior_locals() {
             })
             .collect();
         assert_eq!(initializers.len(), 3);
+        let storage: Vec<_> = plans
+            .source_bindings
+            .iter()
+            .map(|(_, row)| row)
+            .filter(|row| row.role == CheckedScalarExpressionRole::StorageInitializer)
+            .collect();
+        assert_eq!(storage.len(), 1);
+        assert_eq!(storage[0].expression, locals[1].initial_value);
+        assert_eq!(storage[0].statement_ordinal, 1);
+        assert_eq!(
+            plans.binding_symbols.span_or_empty(storage[0].symbols),
+            &[parameters[1].symbol, parameters[3].symbol]
+        );
         for (position, row) in initializers.iter().enumerate() {
             assert_eq!(row.state, state.symbol);
             assert_eq!(row.statement_ordinal as usize, position + 2);

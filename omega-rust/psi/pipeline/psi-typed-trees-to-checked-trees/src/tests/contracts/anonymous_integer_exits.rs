@@ -68,9 +68,15 @@ fn anonymous_local_initializers_land_without_widths_on_intermediate_values() {
         ),
         ("(255 + 1) - 129", "u8 [0..=127]"),
     ] {
-        let source = format!("machine value() {{ let landed: {target} = {expression}; }}");
-        lower_typed_trees(parse_typed_trees(&source))
-            .unwrap_or_else(|diagnostics| panic!("{source}: {diagnostics:#?}"));
+        for body in [
+            format!("let landed: {target} = {expression};"),
+            format!("let mut landed: {target} = {expression};"),
+            format!("let mut landed: {target} = 0; landed = {expression};"),
+        ] {
+            let source = format!("machine value() {{ {body} }}");
+            lower_typed_trees(parse_typed_trees(&source))
+                .unwrap_or_else(|diagnostics| panic!("{source}: {diagnostics:#?}"));
+        }
     }
 }
 
@@ -84,17 +90,24 @@ fn anonymous_local_landing_enforces_final_carrier_and_refinement_ranges() {
         ("(255 + 1) - 1", "u8 [0..=127]"),
         ("(255u8 + 1u8) - 1u8", "u8"),
     ] {
-        let source = format!("machine value() {{ let landed: {target} = {expression}; }}");
-        let diagnostics = lower_typed_trees(parse_typed_trees(&source))
-            .expect_err("a local destination cannot discard its numeric obligations");
-        assert!(
-            diagnostics.iter().any(|diagnostic| {
-                diagnostic.message.contains("does not fit destination")
-                    || diagnostic.message.contains("may overflow")
-                    || diagnostic.message.contains("declared range")
-            }),
-            "{source}: {diagnostics:#?}"
-        );
+        for body in [
+            format!("let landed: {target} = {expression};"),
+            format!("let mut landed: {target} = {expression};"),
+            format!("let mut landed: {target} = 0; landed = {expression};"),
+        ] {
+            let source = format!("machine value() {{ {body} }}");
+            let diagnostics = lower_typed_trees(parse_typed_trees(&source))
+                .expect_err("a local destination cannot discard its numeric obligations");
+            assert!(
+                diagnostics.iter().any(|diagnostic| {
+                    diagnostic.message.contains("does not fit destination")
+                        || diagnostic.message.contains("may overflow")
+                        || diagnostic.message.contains("declared range")
+                        || diagnostic.message.contains("satisfies bounded target")
+                }),
+                "{source}: {diagnostics:#?}"
+            );
+        }
     }
 }
 
@@ -139,6 +152,8 @@ fn destination_landing_does_not_bless_a_shared_literal_at_an_unhandled_call_site
     for body in [
         "(18446744073709551615 + 1) - 1",
         "let landed: u64 = (18446744073709551615 + 1) - 1; landed",
+        "let mut landed: u64 = (18446744073709551615 + 1) - 1; landed",
+        "let mut landed: u64 = 0; landed = (18446744073709551615 + 1) - 1; landed",
     ] {
         let mut program = parse_typed_trees(&format!(
             r#"

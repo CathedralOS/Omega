@@ -63,18 +63,38 @@ pub(in crate::literals) fn append_destination_literals(
                         }
                     }
                     StatementNode::LocalData(local) => {
-                        // The checked scalar-local producer currently owns
-                        // immutable bindings only. Mutable stores retain their
-                        // width gate until their materialization is supported.
-                        if !local.is_mutable && admitted(local.type_reference, local.initial_value)
-                        {
+                        if admitted(local.type_reference, local.initial_value) {
                             append_tree(program, local.initial_value, &mut owned);
                         } else {
                             other_roots.push(local.initial_value);
                         }
                     }
                     StatementNode::Assignment(assignment) => {
-                        other_roots.extend([assignment.target, assignment.value])
+                        other_roots.push(assignment.target);
+                        let destination = crate::places::declared_place_type_raw(
+                            program,
+                            machine,
+                            Some(state),
+                            assignment.target,
+                        )
+                        .or_else(|| {
+                            crate::places::declared_indexed_projection_type_raw(
+                                program,
+                                machine,
+                                Some(state),
+                                assignment.target,
+                            )
+                        });
+                        if destination.is_some_and(|destination| {
+                            admitted(
+                                crate::places::assignment_value_type(program, destination),
+                                assignment.value,
+                            )
+                        }) {
+                            append_tree(program, assignment.value, &mut owned);
+                        } else {
+                            other_roots.push(assignment.value);
+                        }
                     }
                     StatementNode::Call(call) => other_roots
                         .extend(program.statement_table.expression_handles(call.arguments)),

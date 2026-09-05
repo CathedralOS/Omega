@@ -1,0 +1,14 @@
+machine produce() -> u64
+ensures result == 18446744073709551615u64
+{
+    let mut current: u64 = (18446744073709551615 + 1) - 1;
+    let saved: u64 = current;
+    current = 3 + 4;
+    saved
+}
+
+machine output_value(output: &mut u8)
+ensures output == 255
+{
+    output = (255 + 1) - 1;
+}

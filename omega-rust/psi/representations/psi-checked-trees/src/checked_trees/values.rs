@@ -169,6 +169,9 @@ pub struct CheckedLocatedScalarExpression {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum CheckedScalarExpressionRole {
+    /// Initial value written into mutable local storage. This does not append
+    /// an immutable runtime binding or change the scalar operand namespace.
+    StorageInitializer,
     LocalInitializer {
         binding_ordinal: u32,
     },

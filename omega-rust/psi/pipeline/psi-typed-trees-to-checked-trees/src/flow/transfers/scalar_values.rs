@@ -1,10 +1,10 @@
-//! Capture a selected local computation while its operand facts are live.
+//! Capture a selected initializer or assignment while its operand facts are live.
 
 use super::*;
 use psi_checked_trees::CheckedScalarExpressionRole;
 use psi_facts::ScalarValue;
 
-pub(super) fn capture_local(
+pub(super) fn capture_statement(
     program: &psi_typed_trees::TypedTrees,
     semantic: &FactPlan,
     context: &FlowBuildContext,
@@ -13,14 +13,12 @@ pub(super) fn capture_local(
     statement: &StatementNode,
     active: HandleSpan<FlowSemanticContextRef>,
 ) -> Option<ScalarValue> {
-    let StatementNode::LocalData(local) = statement else {
-        return None;
+    let source = match statement {
+        StatementNode::LocalData(local) => local.initial_value,
+        StatementNode::Assignment(assignment) => assignment.value,
+        _ => return None,
     };
-    if local.is_mutable
-        || !program
-            .expression_table
-            .expression_is_valid(local.initial_value)
-    {
+    if !program.expression_table.expression_is_valid(source) {
         return None;
     }
     let statement_ordinal = u32::try_from(statement_index).ok()?;
@@ -28,11 +26,20 @@ pub(super) fn capture_local(
     let mut bindings = plans.source_bindings.iter().filter(|(_, binding)| {
         binding.state == state
             && binding.statement_ordinal == statement_ordinal
-            && binding.expression == local.initial_value
-            && matches!(
-                binding.role,
-                CheckedScalarExpressionRole::LocalInitializer { .. }
-            )
+            && binding.expression == source
+            && match statement {
+                StatementNode::LocalData(local) if local.is_mutable => {
+                    binding.role == CheckedScalarExpressionRole::StorageInitializer
+                }
+                StatementNode::LocalData(_) => matches!(
+                    binding.role,
+                    CheckedScalarExpressionRole::LocalInitializer { .. }
+                ),
+                StatementNode::Assignment(_) => {
+                    binding.role == CheckedScalarExpressionRole::AssignmentValue
+                }
+                _ => false,
+            }
     });
     let (_, binding) = bindings.next()?;
     if bindings.next().is_some() {
