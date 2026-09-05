@@ -1,6 +1,6 @@
 // A fixed non-HFA AAPCS64 result returns its two runtime-storage words in x0/x1.
-data Pair { first: u64; second: u64; }
-data Main { output: Pair; }
+pub data Pair { first: u64; second: u64; }
+pub data Main { output: Pair; }
 boundary machine Main::main(&self) -> Pair {
     transition { _ -> (self.output) }
 }

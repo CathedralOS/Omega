@@ -1,8 +1,8 @@
 // Microsoft x64 indirect-result entry pin: the caller-owned destination
 // arrives in RCX, shifting the declared marker to RDX. The terminal record is
 // copied through the preserved pointer, which is also returned in RAX.
-data Pair { first: u64; second: u64; }
-data Main { output: Pair; }
+pub data Pair { first: u64; second: u64; }
+pub data Main { output: Pair; }
 
 boundary machine Main::main(&mut self, marker: u64) -> Pair {
     transition { _ -> (self.output) }

@@ -1,7 +1,7 @@
 // Microsoft x64 by-reference aggregate entry pin: the first scalar occupies
 // RCX, the record pointer occupies RDX, and the following scalar remains in R8.
-data Triple { first: u64; second: u64; third: u64; }
-data Main { observed: Triple; }
+pub data Triple { first: u64; second: u64; third: u64; }
+pub data Main { observed: Triple; }
 
 boundary machine Main::main(
     &mut self,

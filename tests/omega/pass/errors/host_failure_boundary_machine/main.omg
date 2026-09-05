@@ -3,21 +3,21 @@
 // semantic source surface exposes neither a result out-parameter nor an
 // invisible unwind.
 
-data Buffer {
+pub data Buffer {
     len: u64;
 }
 
-data IOError {
+pub data IOError {
     code: i32;
 }
 
-data ReadOutcome {
+pub data ReadOutcome {
     case Read(bytes: u64);
     case Closed;
     case Failed(error: IOError);
 }
 
-data HostFile {
+pub data HostFile {
     handle: i32;
 }
 

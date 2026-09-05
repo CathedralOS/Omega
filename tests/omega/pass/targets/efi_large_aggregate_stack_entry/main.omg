@@ -1,7 +1,7 @@
 // Microsoft x64's fifth positional argument is a pointer in the incoming
 // stack-argument area when the declared record is passed by reference.
-data Pair { first: u64; second: u64; }
-data Main { observed: Pair; }
+pub data Pair { first: u64; second: u64; }
+pub data Main { observed: Pair; }
 
 boundary machine Main::main(
     &mut self,

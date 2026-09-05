@@ -1,8 +1,8 @@
 // Microsoft x64's directly representable record class arrives in RCX and
 // returns in RAX. Both directions are selected from the normalized boundary
 // plan rather than treating the record as an untyped scalar coincidence.
-data Pair { first: u32; second: u32; }
-data Main { observed: Pair; output: Pair; }
+pub data Pair { first: u32; second: u32; }
+pub data Main { observed: Pair; output: Pair; }
 
 boundary machine Main::main(&mut self, input: Pair) -> Pair {
     self.observed = input;

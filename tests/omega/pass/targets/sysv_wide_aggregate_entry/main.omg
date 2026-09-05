@@ -1,14 +1,14 @@
 // A five-word record exceeds both the SysV register ceiling and the separate
 // 32-byte Microsoft boundary-handoff exception. It arrives inline on the
 // incoming SysV stack and every fragment is copied into runtime storage.
-data WideRecord {
+pub data WideRecord {
     first: u64;
     second: u64;
     third: u64;
     fourth: u64;
     fifth: u64;
 }
-data Main { observed: u64; }
+pub data Main { observed: u64; }
 boundary machine Main::main(&mut self, value: WideRecord) -> i32 {
     self.observed = value.first + value.second + value.third + value.fourth + value.fifth;
     transition { _ -> (0) }

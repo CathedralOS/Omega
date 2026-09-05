@@ -3,12 +3,12 @@ use omega::language::core::float_operations;
 // A flat homogeneous floating-point aggregate follows AAPCS64 entry
 // classification. Pair arrives in v0/v1 rather than the integer x0/x1 bank;
 // the source-to-object test pins the two generated d-register stores.
-data Pair {
+pub data Pair {
     first: f64;
     second: f64;
 }
 
-data Main { observed: f64; }
+pub data Main { observed: f64; }
 
 boundary machine Main::main(&mut self, pair: Pair) -> i32 {
     self.observed = pair.second;

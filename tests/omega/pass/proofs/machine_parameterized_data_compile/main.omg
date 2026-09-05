@@ -2,7 +2,7 @@
 // machine symbol. The family contract is checked at a concrete use, while a
 // recursive occurrence forwards its own static parameter without storing a
 // callable value.
-data Index {
+pub data Index {
     case Zero;
     case Next(previous: Index);
 }

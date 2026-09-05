@@ -12,7 +12,7 @@
 //                                            working; locked here).
 // The dedicated suite test asserts the report shows the pointee derefs and no
 // flat slot+field read.
-data EfiSystemTable {
+pub data EfiSystemTable {
     hdr_signature: u64;
     hdr_revision: u32;
     hdr_header_size: u32;
@@ -26,7 +26,7 @@ data EfiSystemTable {
     console_out_handle: addr;
     con_out: addr;
 }
-data Main {
+pub data Main {
     c: addr;
 }
 boundary machine Main::main(&mut self, handle: addr, table: &EfiSystemTable) -> i32 {

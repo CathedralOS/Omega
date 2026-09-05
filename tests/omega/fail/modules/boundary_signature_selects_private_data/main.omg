@@ -1,0 +1,14 @@
+// FAIL canary: a boundary machine publishes an interface even when it is not
+// spelled `pub`, so every declaration its signature selects must be public.
+// Compare tests/omega/pass/proofs/boundary_data_opaque_contract, where the
+// selected carrier is `pub boundary data`.
+
+data Payload {
+    value: u64;
+}
+
+boundary machine observe(payload: Payload);
+
+machine Main::main() -> i32 {
+    0
+}

@@ -3,7 +3,7 @@
 // field placement, each leaf names its field, and the dispatch-only table
 // pointer stays outside the foreign signature. Cross-compiled for uefi_x86_64 on
 // any host; this is the same shape Cathedral's real boot package consumes.
-boundary trait BootServices {
+pub boundary trait BootServices {
     machine get_memory_map(
         this: addr,
         map_size: &mut u64,
@@ -33,13 +33,13 @@ uefi_x86_64 machine EfiBootServicesTable::get_memory_map_leaf(
     desc_version: &mut u32
 ) -> i32 satisfies BootServices::get_memory_map via Binding::TableFunction(get_memory_map);
 uefi_x86_64 machine EfiBootServicesTable::exit_boot_services_leaf(this: addr, handle: addr, key: u64) -> i32 satisfies BootServices::exit_boot_services via Binding::TableFunction(exit_boot_services);
-data EfiSystemTable {
+pub data EfiSystemTable {
     hdr_signature: u64; hdr_revision: u32; hdr_header_size: u32; hdr_crc: u32; hdr_reserved: u32;
     firmware_vendor: addr; firmware_revision: u32; fw_pad: u32;
     console_in_handle: addr; con_in: addr; console_out_handle: addr; con_out: addr;
     runtime_services: addr; boot_services: addr;
 }
-data Main {
+pub data Main {
     bs: BootServices;
     map_size: u64;
     key: u64;

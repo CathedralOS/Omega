@@ -945,6 +945,7 @@ const CHECKED_ONLY_FAIL_CANARIES: &[&str] = &[
     "control_flow/tuple_destructure_second_missing_field",
     "modules/ambiguous_imported_data",
     "modules/use_unresolved_path",
+    "modules/boundary_signature_selects_private_data",
     "operators/domain_operator_alpha_equivalent_generic_duplicate",
     "operators/domain_operator_duplicate",
     "operators/domain_operator_reordered_generic_duplicate",

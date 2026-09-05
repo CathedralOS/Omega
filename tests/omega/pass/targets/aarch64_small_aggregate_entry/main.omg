@@ -1,12 +1,12 @@
 // A non-HFA fixed aggregate of at most 16 bytes follows AAPCS64 C.12. The
 // leading scalar consumes x0; Pair then arrives whole in x1/x2. The
 // source-to-object test pins both generated x-register stores.
-data Pair {
+pub data Pair {
     first: u64;
     second: u64;
 }
 
-data Main { observed: u64; }
+pub data Main { observed: u64; }
 
 boundary machine Main::main(&mut self, tag: u64, pair: Pair) -> i32 {
     self.observed = tag + pair.second;

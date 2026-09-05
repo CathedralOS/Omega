@@ -8,7 +8,7 @@
 // static storage and takes no register. The prologue stores each register into
 // the parameter's frame slot before anything else runs. This is the calling
 // plan's INBOUND direction: typed entry parameters replace argc/argv.
-data Main { h: addr; }
+pub data Main { h: addr; }
 
 boundary machine Main::main(&mut self, handle: addr, table: addr) -> i32 {
     self.h = handle;
