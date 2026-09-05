@@ -1,5 +1,7 @@
 use std::ffi::OsString;
 
+mod packages;
+
 const SOURCE_USAGE: &str = "usage: omega audit source --kind <local|git> <locator> [--rev <rev>]";
 
 pub(super) fn run(arguments: impl Iterator<Item = OsString>) {
@@ -12,6 +14,10 @@ pub(super) fn run(arguments: impl Iterator<Item = OsString>) {
         source(arguments);
         return;
     }
+    if subcommand == "packages" {
+        packages::run(arguments);
+        return;
+    }
     eprintln!("unknown audit command `{}`", subcommand.to_string_lossy());
     usage();
     std::process::exit(2);
@@ -19,6 +25,7 @@ pub(super) fn run(arguments: impl Iterator<Item = OsString>) {
 
 fn usage() {
     eprintln!("{SOURCE_USAGE}");
+    eprintln!("{}", packages::USAGE);
 }
 
 fn source(arguments: impl Iterator<Item = OsString>) {

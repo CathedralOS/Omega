@@ -34,13 +34,6 @@ host credentials, and organizational review policy have separate owners.
   Psi's seeded typing continuation; do not bypass its retained-table checks in
   the manager.
 
-- [ ] **OMEGA-AUDIT-PACKAGES.** Expose graph and authority inspection through the
-  CLI using the existing manager report. Show exact pins, accepted policy,
-  freshly checked reach/API/assumption findings, and dependency paths.
-  Acceptance: users can identify which package and API introduces authority;
-  unavailable analysis and historical acceptance are not presented as fresh
-  compiler findings or proof of an audit.
-
 - [ ] **PACKAGE-MANAGER-RELEASE-AUDIT.** Complete real-command/network coverage
   for dangerous initial installs, capability changes/removals, retained
   dangerous authority, same-name/different-source, transitive authority, and
