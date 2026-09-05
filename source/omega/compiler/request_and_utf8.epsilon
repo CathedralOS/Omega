@@ -1,0 +1,264 @@
+
+// Validate the byte-exact D25 outer frame without inventing the subject or
+// invocation section encodings. All raw u32 lengths reject when their high bit
+// is set before signed conversion. Subtraction-dominated extent checks keep
+// hostile lengths from reaching trapping i32 addition.
+machine OmegaRequestEnvelope::frame_ocreq(
+    &mut self,
+    request: &[u8]
+) {
+    self.complete = 0;
+    self.subject_start = 0;
+    self.subject_end = 0;
+    self.invocation_start = 0;
+    self.invocation_end = 0;
+
+    transition request.len >= 16 {
+        true -> check_identity()
+        _ -> reject()
+    }
+
+    state check_identity() {
+        transition
+            (request[0] == 79) &&
+            (request[1] == 67) &&
+            (request[2] == 82) &&
+            (request[3] == 69) &&
+            (request[4] == 81) &&
+            (request[5] == 1) &&
+            (request[6] == 0) &&
+            (request[7] == 0)
+        {
+            true -> check_subject_high_bit()
+            _ -> reject()
+        }
+    }
+
+    state check_subject_high_bit() {
+        transition request[11] < 128 {
+            true -> check_invocation_high_bit()
+            _ -> reject()
+        }
+    }
+
+    state check_invocation_high_bit() {
+        transition request[15] < 128 {
+            true -> decode_lengths()
+            _ -> reject()
+        }
+    }
+
+    state decode_lengths() {
+        let subject_length: i32 =
+            request[8] +
+            (request[9] * 256) +
+            (request[10] * 65536) +
+            (request[11] * 16777216);
+        let invocation_length: i32 =
+            request[12] +
+            (request[13] * 256) +
+            (request[14] * 65536) +
+            (request[15] * 16777216);
+        transition subject_length <= request.len - 16 {
+            true -> retain_subject(subject_length, invocation_length)
+            _ -> reject()
+        }
+    }
+
+    state retain_subject(subject_length: i32, invocation_length: i32) {
+        self.subject_start = 16;
+        self.subject_end = 16 + subject_length;
+        transition invocation_length <= request.len - self.subject_end {
+            true -> retain_invocation(invocation_length)
+            _ -> reject()
+        }
+    }
+
+    state retain_invocation(invocation_length: i32) {
+        self.invocation_start = self.subject_end;
+        self.invocation_end = self.invocation_start + invocation_length;
+        transition self.invocation_end == request.len {
+            true -> accept()
+            _ -> reject()
+        }
+    }
+
+    state accept() {
+        self.complete = 1;
+    }
+
+    state reject() {
+        self.complete = 0;
+        self.subject_start = 0;
+        self.subject_end = 0;
+        self.invocation_start = 0;
+        self.invocation_end = 0;
+    }
+}
+
+// Validate one exact source byte view. On failure error_offset is the lead byte
+// of the malformed scalar, matching LEXICAL-PROFILE-V1's one-byte diagnostic
+// span. This does not decide where non-ASCII scalars are permitted by the lexer.
+machine OmegaUtf8Validation::validate(&mut self, source: &[u8]) {
+    self.valid = 1;
+    self.error_offset = 0;
+    transition source.len {
+        0 -> return
+        _ -> scan(0)
+    }
+
+    state scan(index: i32) {
+        transition index < source.len {
+            true -> first(index)
+            _ -> return
+        }
+    }
+
+    state first(index: i32) {
+        let byte0: i32 = source[index];
+        transition byte0 < 128 {
+            true -> advance(index, 1)
+            _ -> two_lead(index, byte0)
+        }
+    }
+
+    state two_lead(index: i32, byte0: i32) {
+        transition (byte0 >= 194) && (byte0 <= 223) {
+            true -> two_extent(index)
+            _ -> three_lead(index, byte0)
+        }
+    }
+
+    state two_extent(index: i32) {
+        transition source.len - index >= 2 {
+            true -> two_tail(index)
+            _ -> invalid(index)
+        }
+    }
+
+    state two_tail(index: i32) {
+        let byte1: i32 = source[index + 1];
+        transition (byte1 >= 128) && (byte1 <= 191) {
+            true -> advance(index, 2)
+            _ -> invalid(index)
+        }
+    }
+
+    state three_lead(index: i32, byte0: i32) {
+        transition (byte0 >= 224) && (byte0 <= 239) {
+            true -> three_extent(index, byte0)
+            _ -> four_lead(index, byte0)
+        }
+    }
+
+    state three_extent(index: i32, byte0: i32) {
+        transition source.len - index >= 3 {
+            true -> three_tails(index, byte0)
+            _ -> invalid(index)
+        }
+    }
+
+    state three_tails(index: i32, byte0: i32) {
+        let byte1: i32 = source[index + 1];
+        let byte2: i32 = source[index + 2];
+        transition (byte2 >= 128) && (byte2 <= 191) {
+            true -> three_second(index, byte0, byte1)
+            _ -> invalid(index)
+        }
+    }
+
+    state three_second(index: i32, byte0: i32, byte1: i32) {
+        transition byte0 {
+            224 -> three_e0(index, byte1)
+            237 -> three_ed(index, byte1)
+            _ -> three_regular(index, byte1)
+        }
+    }
+
+    state three_e0(index: i32, byte1: i32) {
+        transition (byte1 >= 160) && (byte1 <= 191) {
+            true -> advance(index, 3)
+            _ -> invalid(index)
+        }
+    }
+
+    state three_ed(index: i32, byte1: i32) {
+        transition (byte1 >= 128) && (byte1 <= 159) {
+            true -> advance(index, 3)
+            _ -> invalid(index)
+        }
+    }
+
+    state three_regular(index: i32, byte1: i32) {
+        transition (byte1 >= 128) && (byte1 <= 191) {
+            true -> advance(index, 3)
+            _ -> invalid(index)
+        }
+    }
+
+    state four_lead(index: i32, byte0: i32) {
+        transition (byte0 >= 240) && (byte0 <= 244) {
+            true -> four_extent(index, byte0)
+            _ -> invalid(index)
+        }
+    }
+
+    state four_extent(index: i32, byte0: i32) {
+        transition source.len - index >= 4 {
+            true -> four_tails(index, byte0)
+            _ -> invalid(index)
+        }
+    }
+
+    state four_tails(index: i32, byte0: i32) {
+        let byte1: i32 = source[index + 1];
+        let byte2: i32 = source[index + 2];
+        let byte3: i32 = source[index + 3];
+        transition (byte2 >= 128) && (byte2 <= 191) &&
+            (byte3 >= 128) && (byte3 <= 191) {
+            true -> four_second(index, byte0, byte1)
+            _ -> invalid(index)
+        }
+    }
+
+    state four_second(index: i32, byte0: i32, byte1: i32) {
+        transition byte0 {
+            240 -> four_f0(index, byte1)
+            244 -> four_f4(index, byte1)
+            _ -> four_regular(index, byte1)
+        }
+    }
+
+    state four_f0(index: i32, byte1: i32) {
+        transition (byte1 >= 144) && (byte1 <= 191) {
+            true -> advance(index, 4)
+            _ -> invalid(index)
+        }
+    }
+
+    state four_f4(index: i32, byte1: i32) {
+        transition (byte1 >= 128) && (byte1 <= 143) {
+            true -> advance(index, 4)
+            _ -> invalid(index)
+        }
+    }
+
+    state four_regular(index: i32, byte1: i32) {
+        transition (byte1 >= 128) && (byte1 <= 191) {
+            true -> advance(index, 4)
+            _ -> invalid(index)
+        }
+    }
+
+    state advance(index: i32, width: i32) {
+        transition true {
+            true -> scan(index + width)
+        }
+    }
+
+    state invalid(index: i32) {
+        self.valid = 0;
+        self.error_offset = index;
+        return;
+    }
+}

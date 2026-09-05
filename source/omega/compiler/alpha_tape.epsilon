@@ -1,0 +1,1217 @@
+
+machine AlphaTapeBuffer::initialize(&mut self) {
+    self.length = 0;
+    self.label_count = 0;
+    self.fixup_count = 0;
+    self.status = 0;
+    self.failure_offset = 0;
+    self.failure_requested = 0;
+    self.finalized = 0;
+}
+
+machine AlphaTapeBuffer::payload_length(&mut self) -> i32 {
+    return self.length;
+}
+
+machine AlphaTapeBuffer::is_open(&mut self) -> i32 {
+    transition self.status {
+        0 -> check_finalized()
+        _ -> return 0
+    }
+
+    state check_finalized() {
+        transition self.finalized {
+            0 -> return 1
+            _ -> return 0
+        }
+    }
+}
+
+machine AlphaTapeBuffer::fail_internal(&mut self, detail: i32) -> i32 {
+    transition self.is_open() {
+        1 -> record_failure()
+        _ -> return 0
+    }
+
+    state record_failure() {
+        self.status = 2;
+        self.failure_offset = self.length;
+        self.failure_requested = detail;
+        return 0;
+    }
+}
+
+machine AlphaTapeBuffer::fail_capacity(&mut self, detail: i32) -> i32 {
+    transition self.is_open() {
+        1 -> record_failure()
+        _ -> return 0
+    }
+
+    state record_failure() {
+        self.status = 1;
+        self.failure_offset = self.length;
+        self.failure_requested = detail;
+        return 0;
+    }
+}
+
+machine AlphaTapeBuffer::fail_structure(
+    &mut self,
+    payload_offset: i32,
+    detail: i32
+) -> i32 {
+    transition self.is_open() {
+        1 -> record_failure()
+        _ -> return 0
+    }
+
+    state record_failure() {
+        self.status = 2;
+        self.failure_offset = payload_offset;
+        self.failure_requested = detail;
+        return 0;
+    }
+}
+
+// Return width + 16 * address-operand offset. An offset of zero means that the
+// instruction has no direct target. Zero is not an Alpha instruction.
+machine alpha_instruction_shape(opcode: i32) -> i32 {
+    transition opcode {
+        0 -> return 2
+        1 -> return 10
+        2 -> return 3
+        3 -> return 3
+        4 -> return 3
+        5 -> return 3
+        6 -> return 3
+        7 -> return 3
+        8 -> return 3
+        9 -> return 3
+        10 -> return 3
+        11 -> return 3
+        12 -> return 25
+        13 -> return 42
+        14 -> return 42
+        15 -> return 59
+        16 -> return 59
+        17 -> return 2
+        18 -> return 2
+        19 -> return 25
+        20 -> return 1
+        _ -> return 0
+    }
+}
+
+// Labels are monotonic compiler-owned IDs. A label is defined at most once;
+// aliases at one instruction start use distinct IDs and remain explicit.
+machine AlphaTapeBuffer::new_label(&mut self) -> i32 {
+    transition self.is_open() {
+        1 -> check_capacity()
+        _ -> return -1
+    }
+
+    state check_capacity() {
+        transition (self.label_count >= 0) && (self.label_count < 16777212) {
+            true -> allocate()
+            _ -> classify_count()
+        }
+    }
+
+    state classify_count() {
+        transition self.label_count {
+            16777212 -> capacity()
+            _ -> invalid_count()
+        }
+    }
+
+    state allocate() {
+        let label: i32 = self.label_count;
+        self.label_offsets[label] = 0;
+        self.label_defined[label] = 0;
+        self.label_count = self.label_count + 1;
+        return label;
+    }
+
+    state invalid_count() {
+        self.fail_internal(self.label_count);
+        return -1;
+    }
+
+    state capacity() {
+        self.fail_capacity(16777213);
+        return -1;
+    }
+}
+
+machine AlphaTapeBuffer::define_label(&mut self, label: i32) -> i32 {
+    transition self.is_open() {
+        1 -> check_profile()
+        _ -> return 0
+    }
+
+    state check_profile() {
+        transition (self.label_count >= 0) &&
+            (self.label_count <= 16777212) &&
+            (self.length >= 0) &&
+            (self.length <= 16777212) {
+            true -> check_low()
+            _ -> invalid_profile()
+        }
+    }
+
+    state check_low() {
+        transition label >= 0 {
+            true -> check_high()
+            _ -> invalid_label()
+        }
+    }
+
+    state check_high() {
+        transition label < self.label_count {
+            true -> check_unbound()
+            _ -> invalid_label()
+        }
+    }
+
+    state check_unbound() {
+        transition self.label_defined[label] {
+            0 -> bind()
+            _ -> invalid_label()
+        }
+    }
+
+    state bind() {
+        self.label_offsets[label] = self.length;
+        self.label_defined[label] = 1;
+        return 1;
+    }
+
+    state invalid_label() {
+        return self.fail_internal(label);
+    }
+
+    state invalid_profile() {
+        return self.fail_internal(self.label_count);
+    }
+}
+
+// Reserve an entire instruction before any of its bytes are written. This is
+// the atomicity boundary for every emitter below.
+machine AlphaTapeBuffer::reserve(&mut self, count: i32) -> i32 {
+    transition self.is_open() {
+        1 -> check_length()
+        _ -> return 0
+    }
+
+    state check_length() {
+        transition (self.length >= 0) && (self.length <= 16777212) {
+            true -> check_count()
+            _ -> corrupt_length()
+        }
+    }
+
+    state check_count() {
+        transition count >= 0 {
+            true -> check_capacity()
+            _ -> invalid_count()
+        }
+    }
+
+    state check_capacity() {
+        transition count <= 16777212 - self.length {
+            true -> return 1
+            _ -> capacity()
+        }
+    }
+
+    state corrupt_length() {
+        self.status = 2;
+        self.failure_offset = 0;
+        self.failure_requested = self.length;
+        return 0;
+    }
+
+    state invalid_count() {
+        self.status = 2;
+        self.failure_offset = self.length;
+        self.failure_requested = count;
+        return 0;
+    }
+
+    state capacity() {
+        self.status = 1;
+        self.failure_offset = self.length;
+        self.failure_requested = count;
+        return 0;
+    }
+}
+
+// Checked emitters reserve a full instruction before entering these writers.
+// Epsilon has no private visibility, so each writer also defends its complete
+// direct call: it cannot bypass sealing, trap on u8 range, or partially cross
+// the tape capacity.
+machine AlphaTapeBuffer::write_reserved_byte(&mut self, value: i32) {
+    transition self.is_open() {
+        1 -> check_value()
+        _ -> return
+    }
+
+    state check_value() {
+        transition (value >= 0) && (value <= 255) {
+            true -> check_capacity()
+            _ -> invalid_value()
+        }
+    }
+
+    state check_capacity() {
+        transition self.reserve(1) {
+            true -> write_byte()
+            _ -> return
+        }
+    }
+
+    state write_byte() {
+        self.bytes[self.length] = value;
+        self.length = self.length + 1;
+        return;
+    }
+
+    state invalid_value() {
+        self.fail_internal(value);
+        return;
+    }
+
+}
+
+machine AlphaTapeBuffer::write_reserved_word(&mut self, value: i32) {
+    transition self.reserve(4) {
+        1 -> write_word()
+        _ -> return
+    }
+
+    state write_word() {
+        self.write_reserved_byte(value & 255);
+        self.write_reserved_byte((value >> 8) & 255);
+        self.write_reserved_byte((value >> 16) & 255);
+        self.write_reserved_byte((value >> 24) & 255);
+        return;
+    }
+}
+
+machine AlphaTapeBuffer::write_reserved_address(&mut self, target: i32) {
+    transition self.is_open() {
+        1 -> check_target()
+        _ -> return
+    }
+
+    state check_target() {
+        transition (target >= 0) && (target <= 1048571) {
+            true -> check_capacity()
+            _ -> invalid_target()
+        }
+    }
+
+    state check_capacity() {
+        transition self.reserve(8) {
+            1 -> write_address()
+            _ -> return
+        }
+    }
+
+    state write_address() {
+        self.write_reserved_word(target);
+        self.write_reserved_word(0);
+        return;
+    }
+
+    state invalid_target() {
+        self.fail_internal(target);
+        return;
+    }
+}
+
+// Shape r: halt(0), read(17), write(18). Width 2.
+machine AlphaTapeBuffer::emit_r(&mut self, opcode: i32, register: i32) -> i32 {
+    transition self.is_open() {
+        1 -> check_opcode()
+        _ -> return 0
+    }
+
+    state check_opcode() {
+        transition (opcode == 0) || (opcode == 17) || (opcode == 18) {
+            true -> check_register()
+            _ -> invalid_opcode()
+        }
+    }
+
+    state check_register() {
+        transition (register >= 0) && (register <= 255) {
+            true -> reserve_instruction()
+            _ -> invalid_register()
+        }
+    }
+
+    state reserve_instruction() {
+        transition self.reserve(2) {
+            1 -> write_instruction()
+            _ -> return 0
+        }
+    }
+
+    state write_instruction() {
+        self.write_reserved_byte(opcode);
+        self.write_reserved_byte(register);
+        return 1;
+    }
+
+    state invalid_opcode() {
+        return self.fail_internal(opcode);
+    }
+
+    state invalid_register() {
+        return self.fail_internal(register);
+    }
+}
+
+// Shape r,r: mov through store (2..11). Width 3.
+machine AlphaTapeBuffer::emit_rr(
+    &mut self,
+    opcode: i32,
+    left: i32,
+    right: i32
+) -> i32 {
+    transition self.is_open() {
+        1 -> check_opcode()
+        _ -> return 0
+    }
+
+    state check_opcode() {
+        transition (opcode >= 2) && (opcode <= 11) {
+            true -> check_left()
+            _ -> invalid_opcode()
+        }
+    }
+
+    state check_left() {
+        transition (left >= 0) && (left <= 255) {
+            true -> check_right()
+            _ -> invalid_left()
+        }
+    }
+
+    state check_right() {
+        transition (right >= 0) && (right <= 255) {
+            true -> reserve_instruction()
+            _ -> invalid_right()
+        }
+    }
+
+    state reserve_instruction() {
+        transition self.reserve(3) {
+            1 -> write_instruction()
+            _ -> return 0
+        }
+    }
+
+    state write_instruction() {
+        self.write_reserved_byte(opcode);
+        self.write_reserved_byte(left);
+        self.write_reserved_byte(right);
+        return 1;
+    }
+
+    state invalid_opcode() {
+        return self.fail_internal(opcode);
+    }
+
+    state invalid_left() {
+        return self.fail_internal(left);
+    }
+
+    state invalid_right() {
+        return self.fail_internal(right);
+    }
+}
+
+// imm(1) carries an arbitrary 64-bit pattern as low and high i32 halves.
+// Width 10.
+machine AlphaTapeBuffer::emit_imm(
+    &mut self,
+    register: i32,
+    low: i32,
+    high: i32
+) -> i32 {
+    transition self.is_open() {
+        1 -> check_register()
+        _ -> return 0
+    }
+
+    state check_register() {
+        transition (register >= 0) && (register <= 255) {
+            true -> reserve_instruction()
+            _ -> invalid_register()
+        }
+    }
+
+    state reserve_instruction() {
+        transition self.reserve(10) {
+            1 -> write_instruction()
+            _ -> return 0
+        }
+    }
+
+    state write_instruction() {
+        self.write_reserved_byte(1);
+        self.write_reserved_byte(register);
+        self.write_reserved_word(low);
+        self.write_reserved_word(high);
+        return 1;
+    }
+
+    state invalid_register() {
+        return self.fail_internal(register);
+    }
+}
+
+// Shape address: jmp(12), call(19). Width 9.
+machine AlphaTapeBuffer::emit_jump(
+    &mut self,
+    opcode: i32,
+    target: i32
+) -> i32 {
+    transition self.is_open() {
+        1 -> check_opcode()
+        _ -> return 0
+    }
+
+    state check_opcode() {
+        transition (opcode == 12) || (opcode == 19) {
+            true -> check_target()
+            _ -> invalid_opcode()
+        }
+    }
+
+    state check_target() {
+        transition (target >= 0) && (target <= 1048571) {
+            true -> reserve_instruction()
+            _ -> invalid_target()
+        }
+    }
+
+    state reserve_instruction() {
+        transition self.reserve(9) {
+            1 -> write_instruction()
+            _ -> return 0
+        }
+    }
+
+    state write_instruction() {
+        self.write_reserved_byte(opcode);
+        self.write_reserved_address(target);
+        return 1;
+    }
+
+    state invalid_opcode() {
+        return self.fail_internal(opcode);
+    }
+
+    state invalid_target() {
+        return self.fail_internal(target);
+    }
+}
+
+// Shape r,address: jz(13), jnz(14). Width 10.
+machine AlphaTapeBuffer::emit_rx(
+    &mut self,
+    opcode: i32,
+    register: i32,
+    target: i32
+) -> i32 {
+    transition self.is_open() {
+        1 -> check_opcode()
+        _ -> return 0
+    }
+
+    state check_opcode() {
+        transition (opcode == 13) || (opcode == 14) {
+            true -> check_register()
+            _ -> invalid_opcode()
+        }
+    }
+
+    state check_register() {
+        transition (register >= 0) && (register <= 255) {
+            true -> check_target()
+            _ -> invalid_register()
+        }
+    }
+
+    state check_target() {
+        transition (target >= 0) && (target <= 1048571) {
+            true -> reserve_instruction()
+            _ -> invalid_target()
+        }
+    }
+
+    state reserve_instruction() {
+        transition self.reserve(10) {
+            1 -> write_instruction()
+            _ -> return 0
+        }
+    }
+
+    state write_instruction() {
+        self.write_reserved_byte(opcode);
+        self.write_reserved_byte(register);
+        self.write_reserved_address(target);
+        return 1;
+    }
+
+    state invalid_opcode() {
+        return self.fail_internal(opcode);
+    }
+
+    state invalid_register() {
+        return self.fail_internal(register);
+    }
+
+    state invalid_target() {
+        return self.fail_internal(target);
+    }
+}
+
+// Shape r,r,address: jlt(15), jeq(16). Width 11.
+machine AlphaTapeBuffer::emit_rrx(
+    &mut self,
+    opcode: i32,
+    left: i32,
+    right: i32,
+    target: i32
+) -> i32 {
+    transition self.is_open() {
+        1 -> check_opcode()
+        _ -> return 0
+    }
+
+    state check_opcode() {
+        transition (opcode == 15) || (opcode == 16) {
+            true -> check_left()
+            _ -> invalid_opcode()
+        }
+    }
+
+    state check_left() {
+        transition (left >= 0) && (left <= 255) {
+            true -> check_right()
+            _ -> invalid_left()
+        }
+    }
+
+    state check_right() {
+        transition (right >= 0) && (right <= 255) {
+            true -> check_target()
+            _ -> invalid_right()
+        }
+    }
+
+    state check_target() {
+        transition (target >= 0) && (target <= 1048571) {
+            true -> reserve_instruction()
+            _ -> invalid_target()
+        }
+    }
+
+    state reserve_instruction() {
+        transition self.reserve(11) {
+            1 -> write_instruction()
+            _ -> return 0
+        }
+    }
+
+    state write_instruction() {
+        self.write_reserved_byte(opcode);
+        self.write_reserved_byte(left);
+        self.write_reserved_byte(right);
+        self.write_reserved_address(target);
+        return 1;
+    }
+
+    state invalid_opcode() {
+        return self.fail_internal(opcode);
+    }
+
+    state invalid_left() {
+        return self.fail_internal(left);
+    }
+
+    state invalid_right() {
+        return self.fail_internal(right);
+    }
+
+    state invalid_target() {
+        return self.fail_internal(target);
+    }
+}
+
+// ret(20). Width 1.
+machine AlphaTapeBuffer::emit_ret(&mut self) -> i32 {
+    transition self.reserve(1) {
+        1 -> write_instruction()
+        _ -> return 0
+    }
+
+    state write_instruction() {
+        self.write_reserved_byte(20);
+        return 1;
+    }
+}
+
+// Record the one address operand of the most recently emitted instruction.
+// Strictly increasing operand offsets give every fixup one owner and reject
+// duplicate registration without a second bitmap.
+machine AlphaTapeBuffer::record_fixup(
+    &mut self,
+    label: i32,
+    instruction_start: i32,
+    operand_offset: i32
+) -> i32 {
+    transition self.is_open() {
+        1 -> check_profile()
+        _ -> return 0
+    }
+
+    state check_profile() {
+        transition (self.length >= 0) &&
+            (self.length <= 16777212) &&
+            (self.label_count >= 0) &&
+            (self.label_count <= 16777212) {
+            true -> check_label_low()
+            _ -> invalid_profile()
+        }
+    }
+
+    state check_label_low() {
+        transition label >= 0 {
+            true -> check_label_high()
+            _ -> invalid_label()
+        }
+    }
+
+    state check_label_high() {
+        transition label < self.label_count {
+            true -> check_instruction_low()
+            _ -> invalid_label()
+        }
+    }
+
+    state check_instruction_low() {
+        transition instruction_start >= 0 {
+            true -> check_instruction_high()
+            _ -> invalid_instruction()
+        }
+    }
+
+    state check_instruction_high() {
+        transition instruction_start < self.length {
+            true -> check_shape()
+            _ -> invalid_instruction()
+        }
+    }
+
+    state check_shape() {
+        let shape: i32 = alpha_instruction_shape(
+            self.bytes[instruction_start]
+        );
+        transition shape / 16 {
+            0 -> invalid_instruction()
+            _ -> check_operand(shape)
+        }
+    }
+
+    state check_operand(shape: i32) {
+        transition operand_offset == instruction_start + (shape / 16) {
+            true -> check_instruction_end(shape)
+            _ -> invalid_operand()
+        }
+    }
+
+    state check_instruction_end(shape: i32) {
+        transition instruction_start + (shape % 16) == self.length {
+            true -> check_count()
+            _ -> invalid_instruction()
+        }
+    }
+
+    state check_count() {
+        transition (self.fixup_count >= 0) && (self.fixup_count < 1864134) {
+            true -> check_order()
+            _ -> invalid_count()
+        }
+    }
+
+    state check_order() {
+        transition self.fixup_count {
+            0 -> record()
+            _ -> check_previous()
+        }
+    }
+
+    state check_previous() {
+        let previous: i32 = self.fixup_operands[self.fixup_count - 1];
+        transition previous < operand_offset {
+            true -> record()
+            _ -> invalid_operand()
+        }
+    }
+
+    state record() {
+        let fixup: i32 = self.fixup_count;
+        self.fixup_labels[fixup] = label;
+        self.fixup_instructions[fixup] = instruction_start;
+        self.fixup_operands[fixup] = operand_offset;
+        self.fixup_resolved[fixup] = 0;
+        self.fixup_count = self.fixup_count + 1;
+        return 1;
+    }
+
+    state invalid_label() {
+        return self.fail_structure(instruction_start, label);
+    }
+
+    state invalid_instruction() {
+        return self.fail_structure(instruction_start, operand_offset);
+    }
+
+    state invalid_operand() {
+        return self.fail_structure(instruction_start, operand_offset);
+    }
+
+    state invalid_count() {
+        return self.fail_structure(instruction_start, self.fixup_count);
+    }
+
+    state invalid_profile() {
+        return self.fail_structure(instruction_start, self.length);
+    }
+}
+
+machine AlphaTapeBuffer::emit_jump_label(
+    &mut self,
+    opcode: i32,
+    label: i32
+) -> i32 {
+    let instruction_start: i32 = self.length;
+    transition self.emit_jump(opcode, 0) {
+        1 -> own_fixup(instruction_start)
+        _ -> return 0
+    }
+
+    state own_fixup(instruction_start: i32) {
+        return self.record_fixup(
+            label,
+            instruction_start,
+            instruction_start + 1
+        );
+    }
+}
+
+machine AlphaTapeBuffer::emit_rx_label(
+    &mut self,
+    opcode: i32,
+    register: i32,
+    label: i32
+) -> i32 {
+    let instruction_start: i32 = self.length;
+    transition self.emit_rx(opcode, register, 0) {
+        1 -> own_fixup(instruction_start)
+        _ -> return 0
+    }
+
+    state own_fixup(instruction_start: i32) {
+        return self.record_fixup(
+            label,
+            instruction_start,
+            instruction_start + 2
+        );
+    }
+}
+
+machine AlphaTapeBuffer::emit_rrx_label(
+    &mut self,
+    opcode: i32,
+    left: i32,
+    right: i32,
+    label: i32
+) -> i32 {
+    let instruction_start: i32 = self.length;
+    transition self.emit_rrx(opcode, left, right, 0) {
+        1 -> own_fixup(instruction_start)
+        _ -> return 0
+    }
+
+    state own_fixup(instruction_start: i32) {
+        return self.record_fixup(
+            label,
+            instruction_start,
+            instruction_start + 3
+        );
+    }
+}
+
+// Bind every recorded symbolic target exactly through its recorded operand.
+// A second call is idempotent, but no fixup can be skipped or redirected.
+machine AlphaTapeBuffer::resolve_fixups(&mut self) -> i32 {
+    transition self.is_open() {
+        1 -> rebuild_partition()
+        _ -> return 0
+    }
+
+    state rebuild_partition() {
+        transition self.rebuild_instruction_partition() {
+            1 -> check_count()
+            _ -> return 0
+        }
+    }
+
+    state check_count() {
+        transition (self.fixup_count >= 0) && (self.fixup_count <= 1864134) {
+            true -> check_label_count()
+            _ -> invalid_count()
+        }
+    }
+
+    state check_label_count() {
+        transition (self.label_count >= 0) && (self.label_count <= 16777212) {
+            true -> resolve(0)
+            _ -> invalid_label_count()
+        }
+    }
+
+    state resolve(fixup: i32) {
+        transition fixup < self.fixup_count {
+            true -> check_resolved(fixup)
+            _ -> return 1
+        }
+    }
+
+    state check_resolved(fixup: i32) {
+        transition self.fixup_resolved[fixup] {
+            0 -> check_label(fixup)
+            1 -> next(fixup)
+            _ -> invalid_fixup(fixup)
+        }
+    }
+
+    state check_label(fixup: i32) {
+        let label: i32 = self.fixup_labels[fixup];
+        transition (label >= 0) && (label < self.label_count) {
+            true -> check_defined(fixup, label)
+            _ -> invalid_fixup(fixup)
+        }
+    }
+
+    state check_defined(fixup: i32, label: i32) {
+        transition self.label_defined[label] {
+            1 -> check_target(fixup, label)
+            _ -> invalid_fixup(fixup)
+        }
+    }
+
+    state check_target(fixup: i32, label: i32) {
+        let target: i32 = self.label_offsets[label];
+        transition (target >= 0) && (target < self.length) {
+            true -> check_owner(fixup, target)
+            _ -> invalid_fixup(fixup)
+        }
+    }
+
+    state check_owner(fixup: i32, target: i32) {
+        let instruction_start: i32 = self.fixup_instructions[fixup];
+        let operand_offset: i32 = self.fixup_operands[fixup];
+        transition (instruction_start >= 0) &&
+            (instruction_start < self.length) &&
+            (operand_offset >= 0) &&
+            (operand_offset <= self.length - 8) {
+            true -> check_owner_start(
+                fixup,
+                instruction_start,
+                operand_offset,
+                target
+            )
+            _ -> invalid_fixup(fixup)
+        }
+    }
+
+    state check_owner_start(
+        fixup: i32,
+        instruction_start: i32,
+        operand_offset: i32,
+        target: i32
+    ) {
+        transition self.instruction_starts[instruction_start] {
+            1 -> inspect_owner(fixup, instruction_start, operand_offset, target)
+            _ -> invalid_fixup(fixup)
+        }
+    }
+
+    state inspect_owner(
+        fixup: i32,
+        instruction_start: i32,
+        operand_offset: i32,
+        target: i32
+    ) {
+        let shape: i32 = alpha_instruction_shape(
+            self.bytes[instruction_start]
+        );
+        transition (shape / 16 != 0) &&
+            (operand_offset == instruction_start + (shape / 16)) {
+            true -> write_fixup(fixup, operand_offset, target)
+            _ -> invalid_fixup(fixup)
+        }
+    }
+
+    state write_fixup(fixup: i32, operand_offset: i32, target: i32) {
+        let index: i32 = operand_offset;
+        self.bytes[index] = target & 255;
+        self.bytes[index + 1] = (target >> 8) & 255;
+        self.bytes[index + 2] = (target >> 16) & 255;
+        self.bytes[index + 3] = (target >> 24) & 255;
+        self.bytes[index + 4] = 0;
+        self.bytes[index + 5] = 0;
+        self.bytes[index + 6] = 0;
+        self.bytes[index + 7] = 0;
+        self.fixup_resolved[fixup] = 1;
+        transition true {
+            true -> next(fixup)
+        }
+    }
+
+    state next(fixup: i32) {
+        transition true {
+            true -> resolve(fixup + 1)
+        }
+    }
+
+    state invalid_count() {
+        return self.fail_structure(0, self.fixup_count);
+    }
+
+    state invalid_label_count() {
+        return self.fail_structure(0, self.label_count);
+    }
+
+    state invalid_fixup(fixup: i32) {
+        return self.fail_structure(
+            self.fixup_instructions[fixup],
+            self.fixup_operands[fixup]
+        );
+    }
+}
+
+// Decode the canonical in-tape address form produced by this encoder. Alpha
+// addresses are 64-bit, but every compiler-generated direct target is a
+// nonnegative offset inside the at-most-16,777,212-byte payload. Return -1 when
+// high bytes make that final form noncanonical.
+machine AlphaTapeBuffer::decode_address(&mut self, payload_offset: i32) -> i32 {
+    transition (self.length >= 0) && (self.length <= 16777212) {
+        true -> check_offset()
+        _ -> return -1
+    }
+
+    state check_offset() {
+        transition payload_offset >= 0 {
+            true -> check_extent()
+            _ -> return -1
+        }
+    }
+
+    state check_extent() {
+        transition payload_offset <= self.length - 8 {
+            true -> decode()
+            _ -> return -1
+        }
+    }
+
+    state decode() {
+        let index: i32 = payload_offset;
+        transition (self.bytes[index + 3] == 0) &&
+            (self.bytes[index + 4] == 0) &&
+            (self.bytes[index + 5] == 0) &&
+            (self.bytes[index + 6] == 0) &&
+            (self.bytes[index + 7] == 0) {
+            true -> return self.bytes[index] +
+                (self.bytes[index + 1] * 256) +
+                (self.bytes[index + 2] * 65536)
+            _ -> return -1
+        }
+    }
+}
+
+// Reconstruct the payload's unique instruction partition without interpreting
+// direct targets. Finalization runs this over the unpatched bytes so a fixup
+// owner cannot be forged from an opcode-looking immediate or register byte.
+machine AlphaTapeBuffer::rebuild_instruction_partition(&mut self) -> i32 {
+    transition self.is_open() {
+        1 -> check_length()
+        _ -> return 0
+    }
+
+    state check_length() {
+        transition (self.length > 0) && (self.length <= 16777212) {
+            true -> clear_starts(0)
+            _ -> invalid_length()
+        }
+    }
+
+    state clear_starts(cursor: i32) {
+        transition cursor < self.length {
+            true -> clear_start(cursor)
+            _ -> first_scan(0)
+        }
+    }
+
+    state clear_start(cursor: i32) {
+        self.instruction_starts[cursor] = 0;
+        transition true {
+            true -> clear_starts(cursor + 1)
+        }
+    }
+
+    state first_scan(pc: i32) {
+        transition pc < self.length {
+            true -> first_instruction(pc)
+            _ -> return 1
+        }
+    }
+
+    state first_instruction(pc: i32) {
+        let opcode: i32 = self.bytes[pc];
+        let shape: i32 = alpha_instruction_shape(opcode);
+        transition shape {
+            0 -> invalid_instruction(pc, opcode)
+            _ -> first_extent(pc, shape % 16)
+        }
+    }
+
+    state first_extent(pc: i32, width: i32) {
+        transition width <= self.length - pc {
+            true -> mark_start(pc, width)
+            _ -> invalid_instruction(pc, width)
+        }
+    }
+
+    state mark_start(pc: i32, width: i32) {
+        self.instruction_starts[pc] = 1;
+        transition true {
+            true -> first_scan(pc + width)
+        }
+    }
+
+    state invalid_length() {
+        return self.fail_structure(0, self.length);
+    }
+
+    state invalid_instruction(pc: i32, detail: i32) {
+        return self.fail_structure(pc, detail);
+    }
+}
+
+// Replay the completed payload independently of emitter call order. Rebuild
+// its partition, then require every direct jump/call target to land on a
+// reconstructed instruction start. Inline data and implicit zero-filled suffix
+// instructions are deliberately not admitted.
+machine AlphaTapeBuffer::validate_structure(&mut self) -> i32 {
+    transition self.rebuild_instruction_partition() {
+        1 -> second_scan(0)
+        _ -> return 0
+    }
+
+    state second_scan(pc: i32) {
+        transition pc < self.length {
+            true -> second_instruction(pc)
+            _ -> return 1
+        }
+    }
+
+    state second_instruction(pc: i32) {
+        let shape: i32 = alpha_instruction_shape(self.bytes[pc]);
+        let width: i32 = shape % 16;
+        let target_epsilon: i32 = shape / 16;
+        transition target_epsilon {
+            0 -> second_advance(pc, width)
+            _ -> decode_target(pc, width, target_epsilon)
+        }
+    }
+
+    state decode_target(pc: i32, width: i32, target_epsilon: i32) {
+        let target: i32 = self.decode_address(pc + target_epsilon);
+        transition target >= 0 {
+            true -> check_target_extent(pc, width, target)
+            _ -> invalid_instruction(pc, target)
+        }
+    }
+
+    state check_target_extent(pc: i32, width: i32, target: i32) {
+        transition target < self.length {
+            true -> check_target_start(pc, width, target)
+            _ -> invalid_instruction(pc, target)
+        }
+    }
+
+    state check_target_start(pc: i32, width: i32, target: i32) {
+        transition self.instruction_starts[target] {
+            1 -> second_advance(pc, width)
+            _ -> invalid_instruction(pc, target)
+        }
+    }
+
+    state second_advance(pc: i32, width: i32) {
+        transition true {
+            true -> second_scan(pc + width)
+        }
+    }
+
+    state invalid_instruction(pc: i32, detail: i32) {
+        return self.fail_structure(pc, detail);
+    }
+}
+
+// Seal the exact raw Alpha payload. Native seed stamping owns the descriptive
+// four-byte length prefix; it is not part of a `.tape` or compiler identity.
+// Once finalized, no instruction or fixup may modify the payload.
+machine AlphaTapeBuffer::finalize(&mut self) -> i32 {
+    transition self.is_open() {
+        1 -> check_payload()
+        _ -> return 0
+    }
+
+    state check_payload() {
+        transition (self.length > 0) && (self.length <= 16777212) {
+            true -> resolve_payload()
+            _ -> invalid_payload()
+        }
+    }
+
+    state resolve_payload() {
+        transition self.resolve_fixups() {
+            1 -> replay_payload()
+            _ -> return 0
+        }
+    }
+
+    state replay_payload() {
+        transition self.validate_structure() {
+            1 -> seal()
+            _ -> return 0
+        }
+    }
+
+    state seal() {
+        self.finalized = 1;
+        return 1;
+    }
+
+    state invalid_payload() {
+        return self.fail_internal(self.length);
+    }
+}

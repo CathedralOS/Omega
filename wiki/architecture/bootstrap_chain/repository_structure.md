@@ -24,7 +24,8 @@ source/
       epsilon_compiler.delta     incomplete Delta-written Epsilon evaluator
   psi/                           target-neutral Omega product phases
   omega/
-    omega_compiler.epsilon       incomplete Epsilon-written Omega compiler D
+    compiler/*.epsilon           incomplete Epsilon-written Omega compiler D
+    omega_compiler.epsilon.sources canonical D member manifest
     build.omg, main.omg          Omega-written compiler C roots
   library/                       Omega libraries
   omega-rust/                    maintained comparator, never bootstrap authority
@@ -62,7 +63,7 @@ its source suffix names the language implementing it:
 | Gamma evaluator | `source/gamma/evaluator/gamma_evaluator.beta` |
 | Delta compiler | `source/delta/compiler/delta_compiler.gamma` (selected staged implementation) |
 | Epsilon evaluator | `source/epsilon/compiler/epsilon_compiler.delta` |
-| Omega `D` | `source/omega/omega_compiler.epsilon` |
+| Omega `D` | `source/omega/omega_compiler.epsilon.sources` and `source/omega/compiler/*.epsilon` |
 | Omega `C` | `source/omega/build.omg`, `source/omega/main.omg` |
 
 There is no intermediate self-host owner or generic bootstrap source bucket.

@@ -211,7 +211,8 @@ Omega/
 |   |   `-- std/                                           # Higher-level standard package surface.
 |   |-- psi/                                               # Omega-written target-neutral phases through terminal Psi.
 |   |-- omega/                                             # Epsilon- and Omega-written product compiler implementations.
-|   |   |-- omega_compiler.epsilon                         # Epsilon-written full Omega compiler D.
+|   |   |-- compiler/                                      # Epsilon-written full Omega compiler D members.
+|   |   |-- omega_compiler.epsilon.sources                 # Canonical D source-member manifest.
 |   |   |-- build.omg                                      # Product build/composition entrypoint.
 |   |   |-- main.omg                                       # Product machine entrypoint.
 |

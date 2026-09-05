@@ -7,7 +7,8 @@ export OMEGA_REPO_ROOT
 . "$OMEGA_REPO_ROOT/tools/bootstrap/paths.sh"
 . "$OMEGA_REPO_ROOT/tools/bootstrap/gamma/evaluator_env.sh"
 EPSILON="$OMEGA_REPO_ROOT/source/epsilon/compiler/epsilon_compiler.delta"
-OMEGA_D="$OMEGA_REPO_ROOT/source/omega/omega_compiler.epsilon"
+OMEGA_D_SOURCES="$OMEGA_REPO_ROOT/source/omega/omega_compiler.epsilon.sources"
+OMEGA_D_MATERIALIZER="$OMEGA_REPO_ROOT/tools/bootstrap/epsilon/materialize_source_closure.py"
 OMEGA_BUILD="$OMEGA_REPO_ROOT/source/omega/build.omg"
 DELTA="$OMEGA_REPO_ROOT/source/delta/compiler/delta_compiler.gamma"
 DRIVER="$TEST_DIR/empty_entry_driver.delta"
@@ -49,7 +50,8 @@ fi
     exit 1
 }
 
-grep -F 'data AlphaTapeBuffer {' "$OMEGA_D" >/dev/null || {
+python3 "$OMEGA_D_MATERIALIZER" "$OMEGA_D_SOURCES" "$TMP/omega_compiler.epsilon"
+grep -F 'data AlphaTapeBuffer {' "$TMP/omega_compiler.epsilon" >/dev/null || {
     echo "Interpreted Omega experiment: Omega D does not own Alpha tape construction" >&2
     exit 1
 }

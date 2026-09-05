@@ -24,6 +24,7 @@ for required in \
   "$OMEGA_PATH_EPSILON" \
   "$OMEGA_PATH_EPSILON_COMPILER" \
   "$OMEGA_PATH_OMEGA" \
+  "$OMEGA_PATH_OMEGA_COMPILER" \
   "$OMEGA_REPO_ROOT/tools/bootstrap/epsilon"
 do
   [ -d "$required" ] || fail "required owner is absent: $required"
@@ -61,8 +62,6 @@ done
 [ -f "$OMEGA_PATH_EPSILON/LANGUAGE.md" ] || fail "Epsilon contract is absent"
 [ -f "$OMEGA_PATH_EPSILON_COMPILER_SOURCE" ] ||
   fail "Delta-written Epsilon compiler source is absent"
-[ -f "$OMEGA_PATH_OMEGA_COMPILER_SOURCE" ] ||
-  fail "Epsilon-written Omega D source is absent"
 [ -f "$OMEGA_PATH_OMEGA_COMPILER_SOURCES" ] ||
   fail "Epsilon-written Omega D source manifest is absent"
 [ -x "$OMEGA_REPO_ROOT/tools/bootstrap/epsilon/materialize_source_closure.py" ] ||
@@ -113,10 +112,20 @@ tracked_compiler_sources=$(find \
   grep -E '/[^/]*compiler\.(beta|gamma|delta|epsilon|omg)$' | sort || true)
 expected_compiler_sources='source/beta/compiler/beta_compiler.beta
 source/delta/compiler/delta_compiler.gamma
-source/epsilon/compiler/epsilon_compiler.delta
-source/omega/omega_compiler.epsilon'
+source/epsilon/compiler/epsilon_compiler.delta'
 [ "$tracked_compiler_sources" = "$expected_compiler_sources" ] ||
   fail "compiler source exists outside selected edges"
+
+tracked_omega_d_sources=$(find "$OMEGA_PATH_OMEGA_COMPILER" -type f \
+  -name '*.epsilon' -print | sed "s#^$OMEGA_REPO_ROOT/##" | sort)
+expected_omega_d_sources='source/omega/compiler/alpha_tape.epsilon
+source/omega/compiler/lexer.epsilon
+source/omega/compiler/lexical_classification.epsilon
+source/omega/compiler/parser.epsilon
+source/omega/compiler/representations.epsilon
+source/omega/compiler/request_and_utf8.epsilon'
+[ "$tracked_omega_d_sources" = "$expected_omega_d_sources" ] ||
+  fail "Omega D source members differ from the selected closure"
 
 tracked_compiler_tapes=$(find \
   "$OMEGA_PATH_BETA" "$OMEGA_PATH_GAMMA" "$OMEGA_PATH_DELTA" \
@@ -148,8 +157,22 @@ for bootstrap_source in \
   "$OMEGA_PATH_DELTA_COMPILER_SOURCE" \
   "$OMEGA_PATH_DELTA_COMPILER_COMPOSED" \
   "$OMEGA_PATH_CONCATENATIVE_DELTA_COMPILER_SOURCE" \
-  "$OMEGA_PATH_EPSILON_COMPILER_SOURCE" \
-  "$OMEGA_PATH_OMEGA_COMPILER_SOURCE"
+  "$OMEGA_PATH_EPSILON_COMPILER_SOURCE"
+do
+  if ! od -An -tu1 -v "$bootstrap_source" | awk '
+    {
+      for (i = 1; i <= NF; i++) {
+        b = $i + 0
+        if (b != 9 && b != 10 && b != 13 && (b < 32 || b > 126)) exit 1
+      }
+    }
+  '; then
+    fail "bootstrap source contains a forbidden byte: $bootstrap_source"
+  fi
+done
+
+find "$OMEGA_PATH_OMEGA_COMPILER" -type f -name '*.epsilon' -print | sort |
+while IFS= read -r bootstrap_source
 do
   if ! od -An -tu1 -v "$bootstrap_source" | awk '
     {

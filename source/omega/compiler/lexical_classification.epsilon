@@ -1,0 +1,117 @@
+
+machine omega_is_whitespace(byte: i32) -> i32 {
+    transition byte {
+        9 -> return 1
+        10 -> return 1
+        13 -> return 1
+        32 -> return 1
+        _ -> return 0
+    }
+}
+
+machine omega_is_identifier_start(byte: i32) -> i32 {
+    transition byte == 95 {
+        true -> return 1
+        _ -> upper()
+    }
+
+    state upper() {
+        transition (byte >= 65) && (byte <= 90) {
+            true -> return 1
+            _ -> lower()
+        }
+    }
+
+    state lower() {
+        transition (byte >= 97) && (byte <= 122) {
+            true -> return 1
+            _ -> return 0
+        }
+    }
+}
+
+machine omega_is_identifier_continue(byte: i32) -> i32 {
+    transition omega_is_identifier_start(byte) {
+        1 -> return 1
+        _ -> digit()
+    }
+
+    state digit() {
+        transition (byte >= 48) && (byte <= 57) {
+            true -> return 1
+            _ -> return 0
+        }
+    }
+}
+
+machine omega_hex_value(byte: i32) -> i32 {
+    transition (byte >= 48) && (byte <= 57) {
+        true -> return byte - 48
+        _ -> lower()
+    }
+
+    state lower() {
+        transition (byte >= 97) && (byte <= 102) {
+            true -> return byte - 87
+            _ -> upper()
+        }
+    }
+
+    state upper() {
+        transition (byte >= 65) && (byte <= 70) {
+            true -> return byte - 55
+            _ -> return -1
+        }
+    }
+}
+
+machine omega_digit_in_base(byte: i32, base: OmegaNumericBase) -> i32 {
+    transition base {
+        OmegaNumericBase::Binary -> binary()
+        OmegaNumericBase::Octal -> octal()
+        OmegaNumericBase::Decimal -> decimal()
+        OmegaNumericBase::Hexadecimal -> hex()
+    }
+
+    state binary() {
+        transition (byte >= 48) && (byte <= 49) {
+            true -> return 1
+            _ -> return 0
+        }
+    }
+
+    state octal() {
+        transition (byte >= 48) && (byte <= 55) {
+            true -> return 1
+            _ -> return 0
+        }
+    }
+
+    state decimal() {
+        transition (byte >= 48) && (byte <= 57) {
+            true -> return 1
+            _ -> return 0
+        }
+    }
+
+    state hex() {
+        transition (byte >= 48) && (byte <= 57) {
+            true -> return 1
+            _ -> hex_upper()
+        }
+    }
+
+    state hex_upper() {
+        transition (byte >= 65) && (byte <= 70) {
+            true -> return 1
+            _ -> hex_lower()
+        }
+    }
+
+    state hex_lower() {
+        transition (byte >= 97) && (byte <= 102) {
+            true -> return 1
+            _ -> return 0
+        }
+    }
+}
