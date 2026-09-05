@@ -20,6 +20,9 @@ needed for independent replay through publication.
   ownership and all representation roots; (4) make selected pre-Terminal Psi
   optimization real. Prioritize whole-route and whole-owner removal over helper
   extractions. Keep discoveries within these packages, not new top-level tasks.
+  Start with whole-owner consolidation; physical feature parity must not defer
+  every visible crate cleanup. Internal allocation steps do not each need a
+  crate simply because they have separate stage documents.
   Acceptance: the plan's complete checklist passes, including preserved ordinary,
   ranked and callback behavior, empty/nonempty selection on one graph, standalone
   Psi and separately authorized resumed lowering, and independent replay.
@@ -146,18 +149,6 @@ needed for independent replay through publication.
 - **GENERAL-CALL-CLOBBERS.** Extend live-across-call allocation and clobber
   validation from the landed attached-Unit fork/join slice through general
   scalar and structural calls on each ABI.
-
-- **REGALLOC-STAGE-CRATES.** Six stage docs under
-  `wiki/architecture/pipeline/stages/` have no matching `X-to-Y` crate:
-  `selected_instructions_to_liveness`, `liveness_to_live_ranges`,
-  `live_ranges_to_allocation_legality`, `allocation_legality_to_register_homes`,
-  `allocation_legality_to_fixed_view_copies`, and
-  `fixed_view_copies_to_reanalyzed_legality`. All six live inside
-  `omega-regalloc`, so the repository layout no longer describes the pipeline
-  the docs describe and the architecture test enforces no direction between
-  them. Split them out once each boundary stops moving. Acceptance: every stage
-  doc names an existing crate, and `omega-architecture-test` covers the
-  dependency direction between the split crates.
 
 ## Machine optimization
 
