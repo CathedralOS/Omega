@@ -28,6 +28,7 @@ mod traversal;
 use result_realization::report_void_value_callee;
 pub(crate) use result_realization::{
     report_local_receiver_value_call, report_nested_call_in_bound_value_call,
+    report_nested_call_in_local_initializer,
 };
 pub(crate) use target_resolution::declared_receiver_type_reference;
 use target_resolution::{named_type_reference_name, report_unresolved_value_call};

@@ -499,7 +499,7 @@ Owners include
   effects; materialize effectful returns and earlier call arguments at their exact
   evaluation points and activate staged loans at their evaluation points.
   Complete typed computation plans for remaining numeric policies and selected
-  operator calls, initializer/guard roots, and borrowed/projected operands.
+  operator calls, guard/assignment roots, and borrowed/projected operands.
   Complete nonliteral contract arithmetic and callee-result bounds requiring
   caller-specific snapshots beyond immutable scalar formal comparisons; carry
   those facts into nested exact-cast obligations without rereading arguments.

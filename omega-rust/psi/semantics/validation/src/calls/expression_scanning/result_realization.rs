@@ -135,6 +135,59 @@ fn type_reference_contains_dynamic_trait(
     }
 }
 
+/// Free scalar initializers use checked computation lowering, which retains
+/// nested results before invoking their consumer. Other value destinations keep
+/// the older realization fence until they use that same evaluation path.
+pub(crate) fn report_nested_call_in_local_initializer(
+    program: &TypedTrees,
+    machine: &Machine,
+    state_name: &str,
+    value: ExpressionHandle,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    if free_scalar_machine(program, machine)
+        && let ExpressionNode::Call(call) = program.expression_table.expression(value)
+        && !call.receiver.is_valid()
+        && call.machine_arguments.is_empty()
+        && call.evidence_arguments.is_empty()
+        && call.static_requirement_dispatch.is_none()
+        && program.machines().iter().any(|target| {
+            free_scalar_machine(program, target)
+                && program
+                    .machine_states(target)
+                    .first()
+                    .is_some_and(|entry| entry.symbol == call.target_symbol)
+        })
+    {
+        // This exempts a destination, not its semantics. Ordinary call checks
+        // still validate every argument; unsupported computation nodes or call
+        // custody fail lowering before any Terminal artifact can be published.
+        return;
+    }
+    report_nested_call_in_bound_value_call(program, machine, state_name, value, diagnostics);
+}
+
+fn free_scalar_machine(program: &TypedTrees, machine: &Machine) -> bool {
+    let states = program.machine_states(machine);
+    machine.attached_data.is_none()
+        && machine.type_parameters.is_empty()
+        && machine.owned_data.is_empty()
+        && !states.is_empty()
+        && states.iter().all(|state| {
+            program
+                .primitive_type_reference(state.return_type)
+                .is_some()
+                && program.state_parameters(state).iter().all(|parameter| {
+                    !parameter.is_self
+                        && !parameter.is_const
+                        && !parameter.is_mutable
+                        && program
+                            .primitive_type_reference(parameter.type_reference)
+                            .is_some()
+                })
+        })
+}
+
 /// A LET/ASSIGNMENT-bound value call whose ARGUMENT nests another machine call
 /// (`let out = self.double(self.inc(3))`) reads a garbage inner result: the
 /// inner callee's frame locals cannot materialize inside the outer call's

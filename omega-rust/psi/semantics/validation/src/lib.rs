@@ -1467,7 +1467,7 @@ fn validate_state_statement_node(
                     diagnostics,
                 );
             }
-            calls::report_nested_call_in_bound_value_call(
+            calls::report_nested_call_in_local_initializer(
                 program,
                 machine,
                 state_name,

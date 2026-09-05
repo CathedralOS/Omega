@@ -105,6 +105,71 @@ impl<'a> Expansion<'a> {
         )
     }
 
+    #[allow(clippy::too_many_arguments)]
+    pub(super) fn initializer(
+        &mut self,
+        state: symbols::SymbolHandle,
+        statement: u32,
+        role: CheckedScalarExpressionRole,
+        destination: symbols::SymbolHandle,
+        bindings: &storage::ScalarBindings,
+        source_types: &[ScalarType],
+        result_type: ScalarType,
+        target: usize,
+    ) -> Result<usize, LoweringError> {
+        let site = Site {
+            state,
+            statement,
+            bindings,
+        };
+        let mut roots = self
+            .checked
+            .facts
+            .values
+            .scalar_computations
+            .roots
+            .iter()
+            .map(|(_, root)| root)
+            .filter(|root| {
+                root.state == state && root.statement_ordinal == statement && root.role == role
+            });
+        let root = roots.next().ok_or(LoweringError::Unsupported(
+            "scalar initializer has no checked computation root",
+        ))?;
+        if roots.next().is_some() || root.machine != self.machine {
+            return unsupported("scalar computation root custody is duplicated or mismatched");
+        }
+        if self
+            .checked
+            .facts
+            .proof
+            .proof_output_calls
+            .iter()
+            .any(|(_, call)| {
+                call.caller_machine_symbol == self.machine && call.runtime_call.is_some()
+            })
+        {
+            return unsupported(
+                "scalar computation calls need exact named proof-output operation custody",
+            );
+        }
+        source_custody::validate(
+            self.checked,
+            self.machine,
+            &site,
+            role,
+            root.root,
+            destination,
+        )?;
+        let argument = Argument::Computation(root.root);
+        if self.argument_type(&argument)? != result_type {
+            return unsupported("scalar computation result disagrees with its destination");
+        }
+        // Unlike a state transfer, the following statements retain every prior
+        // completed value, including immutable snapshots of overwritten storage.
+        self.argument(&argument, source_types, target, &site, &mut Vec::new())
+    }
+
     fn destination(
         &mut self,
         site: Site<'_>,
@@ -148,7 +213,14 @@ impl<'a> Expansion<'a> {
                         "scalar computation root custody is duplicated or mismatched",
                     );
                 }
-                source_custody::validate(self.checked, self.machine, &site, role, root.root)?;
+                source_custody::validate(
+                    self.checked,
+                    self.machine,
+                    &site,
+                    role,
+                    root.root,
+                    symbols::SymbolHandle::default(),
+                )?;
                 Argument::Computation(root.root)
             } else {
                 Argument::Value(site.bindings.expression_at(
@@ -187,7 +259,7 @@ impl<'a> Expansion<'a> {
         )?))
     }
 
-    fn push(&mut self, state: LoweredScalarBranchState) -> usize {
+    pub(super) fn push(&mut self, state: LoweredScalarBranchState) -> usize {
         let index = self.base + self.states.len();
         self.states.push(state);
         index
