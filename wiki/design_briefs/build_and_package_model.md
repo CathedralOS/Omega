@@ -2923,6 +2923,24 @@ a fingerprint alone cannot explain a change. Cache paths, proof certificates,
 native artifacts, build replay transcripts, audit receipts, and compiler-private
 handles are not part of this basic payload.
 
+The review implementation exposes bounded inert policy components separately
+from its replay-bearing review encoding. A closed conformance component retains
+the exact source-qualified declaration, instantiated subject and trait,
+declaration-ordered type/const/machine arguments, lifetime relationships, and
+requirement-to-realization rows. Projection uses retained resolved arguments,
+including private named layout slots; diagnostic argument spellings do not
+stand in for package-qualified identities. Lifetime ordinals refer to the
+explicit containing telescope, so changing which caller lifetime is selected
+remains observable; the enclosing policy retains that telescope. A physical
+calling component retains
+the evaluated placements, clobbers, entry control, and complete machine-state
+promises. It is only the physical part of the calling contract: complete
+provider policy must also retain the exact native telescope, callback and
+opaque-representation applications, and selected-provider associations. Neither
+component alone is a package baseline or an acceptance decision. Their typed
+recovery validates bounded canonical records without replaying compiler or
+native evidence.
+
 The project normally commits the lock and trusts whoever lands its changes.
 Recovery validates format and graph consistency, checks acquired sources against
 pins, and treats recorded acceptance as project policy. It does not reconstruct

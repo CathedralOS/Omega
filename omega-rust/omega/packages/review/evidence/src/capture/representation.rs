@@ -5,7 +5,7 @@
 //! representation availability. Exact semantic-dependency capture and physical
 //! boundary-contract translation live in the named leaves below.
 
-mod physical_contract;
+pub(super) mod physical_contract;
 mod semantic_dependencies;
 
 pub(crate) use semantic_dependencies::project_semantic_dependencies;

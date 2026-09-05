@@ -11,6 +11,10 @@ mod dependency_trust;
 mod domains;
 mod traits;
 
+pub(crate) use dependency_trust::{
+    calling_policy_tag, encode_machine_register, encode_value_placement,
+};
+
 pub(crate) use conformances::{encode_conformance_bound, encode_conformance_shape};
 #[allow(
     unused_imports,

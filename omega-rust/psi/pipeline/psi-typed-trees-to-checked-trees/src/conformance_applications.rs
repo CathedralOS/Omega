@@ -321,6 +321,7 @@ pub fn close_conformance_application(
     );
     Ok(ClosedConformanceApplication {
         declaration: conformance.symbol,
+        arguments: supplied.into(),
         lifetime_arguments,
         type_arguments,
         const_arguments,
