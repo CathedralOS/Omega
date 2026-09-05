@@ -77,12 +77,9 @@
 //! `omega/src/command/output.rs:12` is the only production caller of
 //! `publish_retained_native_artifact`; nine canary tests call it too.
 //! `compiler/src/compiler/native_checked.rs:23` calls the custody check.
-//! The crate's own tests are 424 of its 1478 lines and only two functions:
-//! `rollback_receipt_is_custody_only_for_native_products` and
-//! `executable_publication_pair_rejects_every_cross_copy_drift`, the second of
-//! which walks every field of the pair rule one substitution at a time. Two
-//! names, not two cases - a `cargo test` count of 3 for this crate understates
-//! what runs by an order of magnitude.
+//! Custody tests reject rollback on check-only products and cross-copy drift
+//! in executable publication. Terminal rollback additionally rejoins the
+//! effective selection to the published Psi execution and pending proposal.
 //!
 //! `ProductionCompilationSubject::from_checked` is `pub` and `#[doc(hidden)]`
 //! rather than `pub(crate)` because its only caller lives in another crate, at
@@ -886,6 +883,21 @@ impl CompileReport {
         }
     }
 
+    /// Attach the subtractive build overlay only when the published Psi and
+    /// pending native proposal carry its exact effective selection.
+    pub fn with_terminal_optimization_rollback(
+        mut self,
+        rollback: Option<OptimizationRollbackReceipt>,
+    ) -> Result<Self, &'static str> {
+        if self.output_kind != CompileOutputKind::TerminalArtifact {
+            return Err("Terminal rollback requires a Terminal product");
+        }
+        self.optimization_rollback = rollback;
+        self.has_consistent_executable_publication_custody()
+            .then_some(self)
+            .ok_or("Terminal rollback does not match the published optimization selection")
+    }
+
     pub fn terminal_callback_placements(
         &self,
     ) -> Option<&[backend_plan::BoundNominalCallbackPlacement]> {
@@ -948,9 +960,28 @@ impl CompileReport {
                 .optimization_rollback
                 .as_ref()
                 .is_none_or(OptimizationRollbackReceipt::is_consistent),
-            CompileOutputKind::CheckOnly
-            | CompileOutputKind::TerminalArtifact
-            | CompileOutputKind::ObjectContainer => self.optimization_rollback.is_none(),
+            CompileOutputKind::TerminalArtifact => {
+                self.optimization_rollback.as_ref().is_none_or(|receipt| {
+                    receipt.is_consistent()
+                        && receipt.requested_disabled().as_slice().iter().all(|rule| {
+                            rule.execution_phase()
+                                == optimization_core::OptimizationExecutionPhase::Psi
+                        })
+                        && self.artifact().is_some_and(|artifact| {
+                            artifact.optimization().selection()
+                                == receipt.effective().project_psi().selections().identity()
+                        })
+                        && self
+                            .terminal_native_realization_proposal()
+                            .is_some_and(|proposal| {
+                                proposal.post_terminal_optimizations()
+                                    == &receipt.effective().project_post_terminal()
+                            })
+                })
+            }
+            CompileOutputKind::CheckOnly | CompileOutputKind::ObjectContainer => {
+                self.optimization_rollback.is_none()
+            }
         };
         if !rollback_matches_kind {
             return false;
@@ -1158,7 +1189,7 @@ mod tests {
     }
 
     #[test]
-    fn rollback_receipt_is_custody_only_for_native_products() {
+    fn rollback_receipt_is_forbidden_on_check_only_products() {
         let selected = optimization_core::OptimizationSelections::new([
             optimization_core::Optimization::ControlFlowCleanup,
         ])

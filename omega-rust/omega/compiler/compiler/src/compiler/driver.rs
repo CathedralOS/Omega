@@ -201,7 +201,13 @@ fn terminal_report(
 ) -> Result<CompileReport, Vec<Diagnostic>> {
     let request = request.into_inner();
     let profile = request.terminal_admission_profile;
-    retained_terminal_report(request.options.root_path, checked, &profile, false)
+    retained_terminal_report(
+        request.options.root_path,
+        checked,
+        &profile,
+        false,
+        &request.optimization_rollback,
+    )
 }
 
 /// Consume one already-checked package production into its retained Terminal
@@ -215,7 +221,13 @@ pub(super) fn retained_terminal_report_from_checked_package(
     checked: crate::pipeline::CheckedCompilation,
     profile: &proof_admission::AdmissionProfile,
 ) -> Result<CompileReport, Vec<Diagnostic>> {
-    retained_terminal_report(root_path, checked, profile, true)
+    retained_terminal_report(
+        root_path,
+        checked,
+        profile,
+        true,
+        &super::OptimizationRollback::default(),
+    )
 }
 
 fn retained_terminal_report(
@@ -223,6 +235,7 @@ fn retained_terminal_report(
     checked: crate::pipeline::CheckedCompilation,
     profile: &proof_admission::AdmissionProfile,
     require_package_custody: bool,
+    rollback: &super::OptimizationRollback,
 ) -> Result<CompileReport, Vec<Diagnostic>> {
     if require_package_custody {
         checked.verify_current_source_consumption()?;
@@ -234,12 +247,18 @@ fn retained_terminal_report(
         )]);
     }
     let source_file_count = checked.source_file_count();
-    let artifact = super::terminal_product::produce_retained_terminal_artifact(&checked, profile)?;
+    let rollback = rollback.settle(checked.optimization_selections());
+    let artifact = super::terminal_product::produce_retained_terminal_artifact(
+        &checked,
+        profile,
+        rollback.effective(),
+    )?;
     CompileReport::from_retained_terminal_artifact(
         root_path,
         source_file_count,
         artifact,
         production_subject,
     )
+    .and_then(|report| report.with_terminal_optimization_rollback(rollback.into_receipt()))
     .map_err(|message| vec![Diagnostic::error(message)])
 }

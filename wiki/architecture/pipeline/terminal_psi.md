@@ -17,9 +17,15 @@ The Rust stage sequence is `checked-trees-to-lowered-psi` →
 `psi/compiler/terminal-production` sequences those stages and retains the
 checked-source receipts beside the published product. `LoweredPsi` belongs to
 representations; neither optimization nor publication depends on its producer.
-The optimization stage currently validates identity execution and rejects
-selected passes that have not yet been implemented. Its existence alone does
-not establish optimized portable-Psi support.
+The optimization stage validates empty-selection identity execution and executes
+selected dead total scalar elimination. Its independent checker preserves exact
+surviving operations and proof questions; source-custody uses, float projections,
+and suspension frontiers remain live. Proof-bearing closures remain unchanged
+until proof-context transport is implemented. Other unported selections reject;
+this does not establish support for the complete target-neutral pass suite.
+Terminal-product rollback can subtract Psi-stage selections, but cannot claim
+to disable a native stage that the invocation never executes. The report binds
+the effective Psi selection and the companion's pending native selection.
 
 Psi operates on Omega-branded source files and owns every target-neutral stage
 through one canonical terminal representation. Omega consumes terminal Psi; it

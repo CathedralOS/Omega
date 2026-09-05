@@ -818,6 +818,60 @@ fn terminal_product_routes_selected_psi_pass_to_preterminal_stage() {
 }
 
 #[test]
+fn terminal_product_executes_and_can_disable_the_selected_psi_pass() {
+    let root = project(
+        "terminal-dead-scalars",
+        Some(
+            r#"
+machine build(builder: &mut Build) {
+    builder.application("terminal-dead-scalars");
+    builder.roots.bind(windows_x86_64::ProgramEntry, Main::main);
+    builder.optimizations.enable(Optimization::DeadPureScalarElimination);
+}
+"#,
+        ),
+    );
+    let request = || {
+        CompileRequest::new(CompileOptions {
+            root_path: root.join("main.omg"),
+            build_dir: None,
+            target_name: Some("windows_x86_64".into()),
+        })
+        .with_requested_product(RequestedCompileProduct::TerminalArtifact)
+    };
+    let identity = compiler::compile(request().with_optimization_rollback(
+        OptimizationRollback::new([Optimization::DeadPureScalarElimination]).unwrap(),
+    ))
+    .expect("rollback executes the identity stage");
+    let selected = compiler::compile(request()).expect("selected pre-Terminal pass executes");
+    assert_eq!(
+        identity.artifact().unwrap().semantic_bytes(),
+        selected.artifact().unwrap().semantic_bytes(),
+        "an empty Unit body is already minimal"
+    );
+    assert_ne!(
+        identity.artifact().unwrap().optimization().selection(),
+        selected.artifact().unwrap().optimization().selection()
+    );
+    let receipt = identity.optimization_rollback_receipt().unwrap();
+    assert!(receipt.effective().is_empty());
+    assert!(
+        receipt
+            .actually_disabled()
+            .contains(Optimization::DeadPureScalarElimination)
+    );
+    assert!(identity.has_consistent_executable_publication_custody());
+    assert!(selected.optimization_rollback_receipt().is_none());
+    selected.artifact().unwrap().validate().unwrap();
+    assert!(
+        selected
+            .with_terminal_optimization_rollback(Some(receipt.clone()))
+            .is_err(),
+        "a rollback receipt cannot substitute for the selection that actually ran"
+    );
+}
+
+#[test]
 fn terminal_product_retains_the_exact_pending_physical_selection() {
     let root = project(
         "selected-terminal-physical-proposal",

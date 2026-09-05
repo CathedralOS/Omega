@@ -15,7 +15,7 @@ pub struct OptimizationRollback {
     requested_disabled: OptimizationSelections,
 }
 
-/// Complete native-realization view of one release rollback request.
+/// Complete artifact-production view of one release rollback request.
 ///
 /// The effective selection and optional report receipt are constructed
 /// together so callers cannot reimplement the empty-request identity case.
@@ -37,8 +37,8 @@ impl OptimizationRollbackSettlement {
 
 impl OptimizationRollback {
     /// Reconstruct the optional public report receipt for compatibility with
-    /// callers that inspect rollback evidence independently. Production native
-    /// realization consumes [`Self::settle`] so effective selection cannot
+    /// callers that inspect rollback evidence independently. Artifact
+    /// production consumes [`Self::settle`] so effective selection cannot
     /// detach from this receipt.
     pub fn reconcile(
         &self,

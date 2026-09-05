@@ -30,7 +30,7 @@ pub use reconstruction::{
     ReconstructedTerminalObligationOwner, ReconstructedTerminalObligationSet,
     reconstruct_interpretable_operation_obligations,
     reconstruct_interpretable_terminal_obligations, reconstruct_operation_obligations,
-    reconstruct_terminal_obligations,
+    reconstruct_optimizable_terminal_obligations, reconstruct_terminal_obligations,
 };
 pub(crate) use substitution::{
     substitute_proposition_structural_places, substitute_proposition_values,

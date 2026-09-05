@@ -1,6 +1,6 @@
 //! The three optimization sets a release rollback keeps apart: what the build
 //! selected, what a release asked to turn off, and the intersection that actually
-//! reached native realization.
+//! was removed before the selected stages executed.
 
 use optimization_core::{Optimization, OptimizationSelections};
 
@@ -8,7 +8,7 @@ use optimization_core::{Optimization, OptimizationSelections};
 ///
 /// The authored build selection remains intact. `requested_disabled` is the
 /// fleet/release request, `actually_disabled` is its intersection with this
-/// build, and `effective` is the only set allowed to enter native realization.
+/// build, and `effective` is the only set allowed to enter artifact production.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct OptimizationRollbackReceipt {
     build_selected: OptimizationSelections,
