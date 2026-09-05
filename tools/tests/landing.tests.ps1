@@ -72,9 +72,36 @@ function Check([bool]$Condition, [string]$Description) {
 function Assert-Remote([string]$Main, [string]$Claim) {
     if ((Git $remote @('rev-parse', 'refs/heads/main')) -ne $Main) { throw 'Remote main changed unexpectedly.' }
     $references = Git $writerA @('ls-remote', '--refs', $remote, $claimReference)
-    if (($Claim -and $references -ne "$Claim`t$claimReference") -or (-not $Claim -and $references)) {
-        throw "Unexpected reservation: $references"
+    $active = ''
+    if ($references) {
+        $record = (Git $remote @('show', '-s', '--format=%B', $claimReference)) | ConvertFrom-Json
+        if ($record.active) { $active = $record.active.ticket }
     }
+    if ($active -ne $Claim) { throw "Unexpected active ticket: $active" }
+}
+
+function Enqueue([string]$Directory, [string]$Owner) {
+    return ((Run-Landing $Directory @('enqueue', '-Owner', $Owner)).Output | ConvertFrom-Json).ticket
+}
+
+function Reserve([string]$Directory, [string]$Owner) {
+    $ticket = Enqueue $Directory $Owner
+    return (Run-Landing $Directory @('claim', '-Ticket', $ticket)).Output | ConvertFrom-Json
+}
+
+function Queue-State {
+    return (Run-Landing $writerA @('status')).Output | ConvertFrom-Json
+}
+
+function Replace-OnPush($Record, [string]$Expected) {
+    $messageFile = Join-Path $testRoot 'replacement.json'
+    [IO.File]::WriteAllText($messageFile, ($Record | ConvertTo-Json -Depth 8 -Compress), [Text.UTF8Encoding]::new($false))
+    $replacement = Git $remote @('commit-tree', "$Expected^{tree}", '-p', $Expected, '-F', $messageFile)
+    $remoteForShell = $remote.Replace('\', '/').Replace("'", "'\''")
+    $markerForShell = (Join-Path $testRoot ([guid]::NewGuid().ToString('N'))).Replace('\', '/').Replace("'", "'\''")
+    # One mutation after preflight, before the server sees the attempted push.
+    Install-Hook $localHooks 'pre-push' "if [ ! -f '$markerForShell' ]; then touch '$markerForShell'; git --git-dir='$remoteForShell' update-ref $claimReference $replacement $Expected || exit 1; fi"
+    $null = Git $writerA @('config', 'core.hooksPath', $localHooks)
 }
 
 function Install-Hook([string]$Directory, [string]$Name, [string]$Body) {
@@ -89,6 +116,7 @@ try {
     $null = Git $testRoot @('init', '-b', 'main', $writerA)
     foreach ($setting in @(@('user.name', 'Landing Test'), @('user.email', 'landing@example.invalid'), @('core.hooksPath', $emptyHooks), @('commit.gpgSign', 'false'))) {
         $null = Git $writerA (@('config') + $setting)
+        if ($setting[0] -ne 'core.hooksPath') { $null = Git $remote (@('config') + $setting) }
     }
     $null = Git $writerA @('commit', '--allow-empty', '-m', 'initial')
     $null = Git $writerA @('remote', 'add', 'origin', $remote)
@@ -97,127 +125,179 @@ try {
     foreach ($setting in @(@('user.name', 'Landing Test'), @('user.email', 'landing@example.invalid'), @('core.hooksPath', $emptyHooks), @('commit.gpgSign', 'false'))) {
         $null = Git $writerB (@('config') + $setting)
     }
+    $localHooks = Join-Path $testRoot 'race-hooks'
     $initial = Git $writerA @('rev-parse', 'HEAD')
-    $status = (Run-Landing $writerA @('status')).Output | ConvertFrom-Json
-    Check ($status.state -eq 'available') 'an unreserved repository is available'
-    $null = Run-Landing $writerA @('claim') 1
-    Assert-Remote $initial ''
-    Check $true 'a claim requires an identifiable owner'
+    Check ((Queue-State).state -eq 'available') 'an uninitialized queue is available'
+    $null = Run-Landing $writerA @('enqueue') 1
+    $null = Run-Landing $writerA @('claim', '-Owner', 'old client') 1
+    Check $true 'enqueue requires an owner and claim requires a ticket'
 
-    [System.IO.File]::WriteAllText((Join-Path $writerA 'unfinished.txt'), 'unfinished')
-    $null = Run-Landing $writerA @('claim', '-Owner', 'A') 1
+    [IO.File]::WriteAllText((Join-Path $writerA 'unfinished.txt'), 'unfinished')
+    $null = Run-Landing $writerA @('enqueue', '-Owner', 'A') 1
     Remove-Item -LiteralPath (Join-Path $writerA 'unfinished.txt')
-    Assert-Remote $initial ''
-    Check $true 'uncheckpointed work cannot occupy the landing reservation'
+    Check ((Queue-State).queue.Count -eq 0) 'unfinished work cannot join the ready queue'
 
-    $reservationA = (Run-Landing $writerA @('claim', '-Owner', 'A / café')).Output | ConvertFrom-Json
-    Check ($reservationA.base -eq $initial) 'claim returns the fetched integration base'
-    $busy = (Run-Landing $writerB @('claim', '-Owner', 'B') 2).Output | ConvertFrom-Json
-    if ($busy.claim -ne $reservationA.claim -or $busy.owner -ne 'A / café') {
-        throw "Owner round trip failed: expected claim $($reservationA.claim), got $($busy.claim); owner '$($busy.owner)' ($(([char[]]$busy.owner | ForEach-Object { [int]$_ }) -join ','))"
-    }
-    Check ($busy.claim -eq $reservationA.claim -and $busy.owner -eq 'A / café') 'the other writer sees the UTF-8 owner and exits busy'
-    $null = Run-Landing $writerB @('release', '-Claim', $initial) 1
-    Assert-Remote $initial $reservationA.claim
-    Check $true 'a different claim cannot release the reservation'
-    $null = Run-Landing $writerA @('publish', '-Claim', $reservationA.claim, '-Base', $initial, '-Candidate', $initial) 1
-    Check $true 'publishing an unchanged candidate requires release instead'
+    $ticketA = Enqueue $writerA 'A / café'
+    $ticketB = Enqueue $writerB 'B'
+    $ticketC = Enqueue $writerB 'C'
+    $state = Queue-State
+    Check (($state.queue.ticket -join ',') -eq "$ticketA,$ticketB,$ticketC" -and $state.queue[0].owner -eq 'A / café') 'FIFO order and UTF-8 owners survive across writers'
+    $null = Run-Landing $writerA @('enqueue', '-Owner', 'A / café', '-Ticket', $ticketA)
+    $null = Run-Landing $writerA @('enqueue', '-Owner', 'impostor', '-Ticket', $ticketA) 1
+    Check ((Queue-State).queue.Count -eq 3) 'retrying a live ticket never duplicates or changes its owner'
+    $null = Run-Landing $writerB @('claim', '-Ticket', $ticketB) 2
+    $null = Run-Landing $writerB @('claim', '-Ticket', $ticketC, '-WaitSeconds', '1', '-PollSeconds', '1') 2
+    Check ((Queue-State).queue.Count -eq 3) 'later arrivals cannot jump ahead and wait timeout preserves position'
+
+    $reservationA = (Run-Landing $writerA @('claim', '-Ticket', $ticketA)).Output | ConvertFrom-Json
+    $repeated = (Run-Landing $writerA @('claim', '-Ticket', $ticketA)).Output | ConvertFrom-Json
+    Check ($reservationA.base -eq $initial -and $repeated.base -eq $initial) 'head claims the current base and a retry returns the same reservation'
+    $null = Run-Landing $writerB @('release', '-Claim', $ticketB) 1
+    $null = Run-Landing $writerA @('cancel', '-Ticket', $ticketA) 1
+    Check $true 'waiting tickets cannot release the owner and active tickets require release'
+    $null = Run-Landing $writerB @('cancel', '-Ticket', $ticketC)
+    Check (((Queue-State).queue.ticket -join ',') -eq "$ticketA,$ticketB") 'cancellation preserves the remaining order'
 
     $null = Git $writerA @('commit', '--allow-empty', '-m', 'candidate A')
     $candidateA = Git $writerA @('rev-parse', 'HEAD')
-    [System.IO.File]::WriteAllText((Join-Path $writerA 'unfinished.txt'), 'unfinished')
-    $null = Run-Landing $writerA @('publish', '-Claim', $reservationA.claim, '-Base', $initial, '-Candidate', $candidateA) 1
+    $null = Run-Landing $writerA @('publish', '-Claim', $ticketA, '-Base', $initial, '-Candidate', $initial) 1
+    $null = Run-Landing $writerA @('publish', '-Claim', $ticketA, '-Base', $candidateA, '-Candidate', $candidateA) 1
+    [IO.File]::WriteAllText((Join-Path $writerA 'unfinished.txt'), 'unfinished')
+    $null = Run-Landing $writerA @('publish', '-Claim', $ticketA, '-Base', $initial, '-Candidate', $candidateA) 1
     Remove-Item -LiteralPath (Join-Path $writerA 'unfinished.txt')
-    Check $true 'dirty candidates cannot publish'
-    $null = Run-Landing $writerA @('publish', '-Claim', $reservationA.claim, '-Base', $initial, '-Candidate', $initial) 1
-    Check $true 'the candidate must be the exact current HEAD'
-    $null = Run-Landing $writerA @('recover', '-Claim', $reservationA.claim) 1
-    Check $true 'recovery requires an explicit reason'
-    $null = Run-Landing $writerB @('recover', '-Claim', $reservationA.claim, '-Reason', 'A abandoned integration in this test')
-    $reservationB = (Run-Landing $writerB @('claim', '-Owner', 'B')).Output | ConvertFrom-Json
-    $null = Run-Landing $writerA @('publish', '-Claim', $reservationA.claim, '-Base', $initial, '-Candidate', $candidateA) 1
-    $null = Run-Landing $writerA @('release', '-Claim', $reservationA.claim) 1
-    Assert-Remote $initial $reservationB.claim
-    Check $true 'a recovered owner cannot publish or remove a replacement reservation'
+    Assert-Remote $initial $ticketA
+    Check $true 'publication requires the exact clean candidate and reserved base'
 
-    $null = Git $writerB @('commit', '--allow-empty', '-m', 'candidate B')
-    $candidateB = Git $writerB @('rev-parse', 'HEAD')
-    # Reject main on the server to prove release is not a separate successful push.
     $remoteHooks = Join-Path $remote 'hooks'
     Install-Hook $remoteHooks 'pre-receive' 'while read old new ref; do if [ "$ref" = refs/heads/main ]; then exit 1; fi; done'
-    $null = Run-Landing $writerB @('publish', '-Claim', $reservationB.claim, '-Base', $initial, '-Candidate', $candidateB) 1
-    Assert-Remote $initial $reservationB.claim
+    $null = Run-Landing $writerA @('publish', '-Claim', $ticketA, '-Base', $initial, '-Candidate', $candidateA) 1
+    Assert-Remote $initial $ticketA
+    Check (((Queue-State).queue.ticket -join ',') -eq "$ticketA,$ticketB") 'server rejection preserves main, its owner, and every waiting ticket'
     Remove-Item -LiteralPath (Join-Path $remoteHooks 'pre-receive')
-    Check $true 'server rejection leaves both main and the reservation intact'
-    $published = (Run-Landing $writerB @('publish', '-Claim', $reservationB.claim, '-Base', $initial, '-Candidate', $candidateB)).Output | ConvertFrom-Json
-    Assert-Remote $candidateB ''
-    Check ($published.state -eq 'published') 'the owner publishes and releases together'
 
-    # Writer A has divergent local history; the wrapper must never force main.
-    $reservationA = (Run-Landing $writerA @('claim', '-Owner', 'A')).Output | ConvertFrom-Json
-    $null = Run-Landing $writerA @('publish', '-Claim', $reservationA.claim, '-Base', $candidateB, '-Candidate', $candidateA) 1
-    Assert-Remote $candidateB $reservationA.claim
-    Check $true 'a divergent candidate cannot overwrite main'
-    $null = Git $writerA @('rebase', $candidateB)
-    $candidateA = Git $writerA @('rev-parse', 'HEAD')
-    $side = Git $writerA @('commit-tree', 'HEAD^{tree}', '-p', $candidateB, '-m', 'side')
-    $merge = Git $writerA @('commit-tree', 'HEAD^{tree}', '-p', $candidateA, '-p', $side, '-m', 'merge')
-    $null = Git $writerA @('switch', '--detach', $merge)
-    $null = Run-Landing $writerA @('publish', '-Claim', $reservationA.claim, '-Base', $candidateB, '-Candidate', $merge) 1
-    $null = Git $writerA @('switch', '--detach', $candidateA)
-    Check $true 'merge commits cannot enter linear main'
+    # The second worktree waits locally and acquires automatically after A lands.
+    $waitingB = Start-Landing $writerB @('claim', '-Ticket', $ticketB, '-WaitSeconds', '20', '-PollSeconds', '1')
+    $null = Run-Landing $writerA @('publish', '-Claim', $ticketA, '-Base', $initial, '-Candidate', $candidateA)
+    $waitResult = Finish-Landing $waitingB
+    if ($waitResult.Code -ne 0) { throw "Wait failed: $($waitResult.Error) $($waitResult.Output)" }
+    $reservationB = $waitResult.Output | ConvertFrom-Json
+    Assert-Remote $candidateA $ticketB
+    Check ($reservationB.base -eq $candidateA -and (Queue-State).queue.Count -eq 1) 'publication pops only the head and the local waiter reserves the newly published base'
+    $null = Run-Landing $writerA @('enqueue', '-Owner', 'A / café', '-Ticket', $ticketA) 1
+    Check $true 'retired tickets cannot be resurrected by a resumed old owner'
 
-    # Replace the claim after the script's preflight but before Git sends updates.
-    $localHooks = Join-Path $testRoot 'race-hooks'
-    $remoteForShell = $remote.Replace('\', '/').Replace("'", "'\''")
-    Install-Hook $localHooks 'pre-push' "git --git-dir='$remoteForShell' update-ref $claimReference $($reservationB.claim) $($reservationA.claim)"
-    $null = Git $writerA @('config', 'core.hooksPath', $localHooks)
-    $null = Run-Landing $writerA @('publish', '-Claim', $reservationA.claim, '-Base', $candidateB, '-Candidate', $candidateA) 1
-    $null = Git $writerA @('config', 'core.hooksPath', $emptyHooks)
-    Assert-Remote $candidateB $reservationB.claim
-    Check $true 'replacement during publication fences the stale owner atomically'
-    $null = Run-Landing $writerB @('release', '-Claim', $reservationB.claim)
+    $null = Run-Landing $writerB @('recover', '-Claim', $ticketB) 1
+    $null = Run-Landing $writerA @('recover', '-Claim', $ticketB, '-Reason', 'B confirmed it stopped')
+    $replacement = Reserve $writerA 'replacement'
+    $null = Run-Landing $writerB @('release', '-Claim', $ticketB) 1
+    $null = Run-Landing $writerB @('publish', '-Claim', $ticketB, '-Base', $candidateA, '-Candidate', $candidateA) 1
+    Assert-Remote $candidateA $replacement.claim
+    Check $true 'recovery requires a reason and fences the former owner'
+    $null = Run-Landing $writerA @('release', '-Claim', $replacement.claim)
+    Check ((Queue-State).state -eq 'available' -and (Queue-State).version) 'an empty persistent queue prevents old clients from claiming an absent reference'
 
-    # Keep both publishers active; exactly one may acquire, on every attempt.
+    # Both enqueue mutations must survive; their serialized order is authoritative.
     foreach ($round in 1..3) {
-        $runningA = Start-Landing $writerA @('claim', '-Owner', "A round $round")
-        $runningB = Start-Landing $writerB @('claim', '-Owner', "B round $round")
+        $runningA = Start-Landing $writerA @('enqueue', '-Owner', "A round $round")
+        $runningB = Start-Landing $writerB @('enqueue', '-Owner', "B round $round")
         $resultA = Finish-Landing $runningA
         $resultB = Finish-Landing $runningB
-        Check ((@($resultA.Code, $resultB.Code) | Sort-Object) -join ',' -eq '0,2') "simultaneous acquisition round $round has one winner"
-        $winner = if ($resultA.Code -eq 0) { $resultA } else { $resultB }
-        $winnerRepository = if ($resultA.Code -eq 0) { $writerA } else { $writerB }
-        $claim = ($winner.Output | ConvertFrom-Json).claim
-        $null = Run-Landing $winnerRepository @('release', '-Claim', $claim)
+        if ($resultA.Code -ne 0 -or $resultB.Code -ne 0) { throw "Concurrent enqueue failed: $($resultA.Error) $($resultB.Error)" }
+        $state = Queue-State
+        Check ($state.queue.Count -eq 2 -and ($state.queue.ticket | Sort-Object -Unique).Count -eq 2) "simultaneous enqueue round $round retains both arrivals"
+        $null = Run-Landing $writerA @('claim', '-Ticket', $state.queue[1].ticket) 2
+        $head = (Run-Landing $writerA @('claim', '-Ticket', $state.queue[0].ticket)).Output | ConvertFrom-Json
+        $null = Run-Landing $writerA @('release', '-Claim', $head.claim)
+        $next = (Run-Landing $writerB @('claim', '-Ticket', $state.queue[1].ticket)).Output | ConvertFrom-Json
+        $null = Run-Landing $writerB @('release', '-Claim', $next.claim)
     }
 
-    $reservationA = (Run-Landing $writerA @('claim', '-Owner', 'A')).Output | ConvertFrom-Json
-    $null = Git $writerB @('commit', '--allow-empty', '-m', 'uncoordinated writer')
+    $reservationA = Reserve $writerA 'A race'
+    $null = Git $writerA @('commit', '--allow-empty', '-m', 'candidate after A')
+    $candidateNext = Git $writerA @('rev-parse', 'HEAD')
+    $version = (Queue-State).version
+    $record = (Git $remote @('show', '-s', '--format=%B', $version)) | ConvertFrom-Json -AsHashtable
+    $arriving = [guid]::NewGuid().ToString('N')
+    $record.entries += @{ ticket = $arriving; owner = 'arrived during push'; created_utc = '2026-09-05T00:00:00Z' }
+    Replace-OnPush $record $version
+    $null = Run-Landing $writerA @('publish', '-Claim', $reservationA.claim, '-Base', $candidateA, '-Candidate', $candidateNext)
+    $null = Git $writerA @('config', 'core.hooksPath', $emptyHooks)
+    Assert-Remote $candidateNext ''
+    Check (((Queue-State).queue.ticket -join ',') -eq $arriving) 'enqueue during publication retries metadata without dropping the new arrival'
+    $next = (Run-Landing $writerB @('claim', '-Ticket', $arriving)).Output | ConvertFrom-Json
+    $null = Run-Landing $writerB @('release', '-Claim', $next.claim)
+
+    $reservationA = Reserve $writerA 'A recovered during push'
+    $null = Git $writerA @('commit', '--allow-empty', '-m', 'candidate after race')
+    $candidateFinal = Git $writerA @('rev-parse', 'HEAD')
+    $version = (Queue-State).version
+    $record = (Git $remote @('show', '-s', '--format=%B', $version)) | ConvertFrom-Json -AsHashtable
+    $record.entries = @()
+    $record.active = $null
+    Replace-OnPush $record $version
+    $null = Run-Landing $writerA @('publish', '-Claim', $reservationA.claim, '-Base', $candidateNext, '-Candidate', $candidateFinal) 1
+    $null = Git $writerA @('config', 'core.hooksPath', $emptyHooks)
+    Assert-Remote $candidateNext ''
+    Check $true 'recovery between preflight and push prevents publication atomically'
+
+    $reservationA = Reserve $writerA 'A linear history'
+    $null = Git $writerB @('commit', '--allow-empty', '-m', 'divergent B')
+    $divergent = Git $writerB @('rev-parse', 'HEAD')
+    $null = Run-Landing $writerB @('publish', '-Claim', $reservationA.claim, '-Base', $candidateNext, '-Candidate', $divergent) 1
+    $side = Git $writerA @('commit-tree', 'HEAD^{tree}', '-p', $candidateNext, '-m', 'side')
+    $merge = Git $writerA @('commit-tree', 'HEAD^{tree}', '-p', $candidateFinal, '-p', $side, '-m', 'merge')
+    $null = Git $writerA @('switch', '--detach', $merge)
+    $null = Run-Landing $writerA @('publish', '-Claim', $reservationA.claim, '-Base', $candidateNext, '-Candidate', $merge) 1
+    $null = Git $writerA @('switch', '--detach', $candidateFinal)
+    Assert-Remote $candidateNext $reservationA.claim
+    Check $true 'divergent candidates and merge commits cannot overwrite linear main'
+
+    $null = Git $writerB @('fetch', 'origin', 'main')
+    $null = Git $writerB @('rebase', 'origin/main')
     $outsider = Git $writerB @('rev-parse', 'HEAD')
     $null = Git $writerB @('push', 'origin', 'HEAD:refs/heads/main')
-    $null = Run-Landing $writerA @('publish', '-Claim', $reservationA.claim, '-Base', $candidateB, '-Candidate', $candidateA) 1
+    $null = Run-Landing $writerA @('publish', '-Claim', $reservationA.claim, '-Base', $candidateNext, '-Candidate', $candidateFinal) 1
     Assert-Remote $outsider $reservationA.claim
     $null = Run-Landing $writerA @('release', '-Claim', $reservationA.claim)
-    Check $true 'a writer bypassing the protocol is detected without overwriting its work'
+    Check $true 'an uncoordinated main push is detected without overwriting it'
 
-    # Some remotes fetch from one repository but push to another. Claims and
-    # main observations must follow the one actual publication destination.
+    $ticketA = Enqueue $writerA 'head that stopped'
+    $ticketB = Enqueue $writerB 'next ready'
+    $null = Run-Landing $writerA @('cancel', '-Ticket', $ticketA, '-Reason', 'head confirmed stopped')
+    $next = (Run-Landing $writerB @('claim', '-Ticket', $ticketB)).Output | ConvertFrom-Json
+    $null = Run-Landing $writerB @('release', '-Claim', $next.claim)
+    Check $true 'cancelling an abandoned waiting head lets the next ticket advance'
+
+    # Fetch and push may target different repositories. Coordinate at the latter.
     $alternate = Join-Path $testRoot 'alternate.git'
     $null = Git $testRoot @('clone', '--bare', $remote, $alternate)
     $null = Git $writerB @('commit', '--allow-empty', '-m', 'fetch destination moves')
     $fetchOnly = Git $writerB @('rev-parse', 'HEAD')
     $null = Git $writerB @('push', 'origin', 'HEAD:refs/heads/main')
     $null = Git $writerA @('config', 'remote.origin.pushurl', $alternate)
-    $alternateClaim = (Run-Landing $writerA @('claim', '-Owner', 'A alternate')).Output | ConvertFrom-Json
-    Check ($alternateClaim.base -eq $outsider) 'the reserved base comes from the actual push destination'
+    $alternateClaim = Reserve $writerA 'A alternate'
+    Check ($alternateClaim.base -eq $outsider -and (Queue-State).active.ticket -eq $alternateClaim.claim) 'queue, claim, and status use the actual push destination'
     Assert-Remote $fetchOnly ''
-    $alternateState = (Run-Landing $writerA @('status')).Output | ConvertFrom-Json
-    Check ($alternateState.claim -eq $alternateClaim.claim) 'status and publication use the same push destination'
     $null = Run-Landing $writerA @('release', '-Claim', $alternateClaim.claim)
     $null = Git $writerA @('config', '--add', 'remote.origin.pushurl', $remote)
-    $null = Run-Landing $writerA @('claim', '-Owner', 'A multiple destinations') 1
+    $null = Run-Landing $writerA @('enqueue', '-Owner', 'multiple destinations') 1
     Assert-Remote $fetchOnly ''
-    Check $true 'multiple push destinations are refused without claiming either'
+    Check $true 'multiple push destinations are refused without changing either queue'
+    $null = Git $writerA @('config', '--unset-all', 'remote.origin.pushurl')
+
+    # An in-flight v1 reservation must survive upgrade until explicitly released.
+    $messageFile = Join-Path $testRoot 'legacy.json'
+    [IO.File]::WriteAllText($messageFile, '{"protocol":"omega-landing-v1","owner":"legacy owner"}', [Text.UTF8Encoding]::new($false))
+    $legacy = Git $remote @('commit-tree', 'refs/heads/main^{tree}', '-F', $messageFile)
+    $previous = (Queue-State).version
+    $null = Git $remote @('update-ref', $claimReference, $legacy, $previous)
+    Check ((Queue-State).state -eq 'legacy_reserved') 'status identifies an in-flight legacy reservation'
+    $null = Run-Landing $writerA @('enqueue', '-Owner', 'upgrade') 1
+    Check ((Git $remote @('rev-parse', $claimReference)) -eq $legacy) 'FIFO upgrade refuses to replace a legacy owner'
+    $null = Run-Landing $writerA @('release', '-Claim', $legacy)
+    $upgraded = Reserve $writerA 'upgraded'
+    $null = Run-Landing $writerA @('release', '-Claim', $upgraded.claim)
+    Check ((Queue-State).state -eq 'available') 'FIFO initializes after an explicit legacy release'
 
     Write-Output "$script:passed landing checks passed. Fixtures: $testRoot"
 } catch {
