@@ -1989,6 +1989,9 @@ fn terminal_component_staging_consumes_only_the_psi_owned_artifact() {
     let target_stage_path = realization_root.join("target_stage.rs");
     let target_stage = std::fs::read_to_string(&target_stage_path)
         .unwrap_or_else(|error| panic!("failed to read {}: {error}", target_stage_path.display()));
+    let target_output_path = realization_root.join("target_stage/output.rs");
+    let target_output = std::fs::read_to_string(&target_output_path)
+        .unwrap_or_else(|error| panic!("failed to read {}: {error}", target_output_path.display()));
     let physical_stage_path = realization_root.join("physical_stage.rs");
     let physical_stage = std::fs::read_to_string(&physical_stage_path).unwrap_or_else(|error| {
         panic!("failed to read {}: {error}", physical_stage_path.display())
@@ -2017,7 +2020,7 @@ fn terminal_component_staging_consumes_only_the_psi_owned_artifact() {
     let model = std::fs::read_to_string(&model_path)
         .unwrap_or_else(|error| panic!("failed to read {}: {error}", model_path.display()));
     let production_realization = format!(
-        "{realization}\n{api}\n{input}\n{optimization_stage}\n{target_stage}\n{physical_stage}\n{optimized_fragment_projection}\n{machine_code}\n{callback_machine_code}"
+        "{realization}\n{api}\n{input}\n{optimization_stage}\n{target_stage}\n{target_output}\n{physical_stage}\n{optimized_fragment_projection}\n{machine_code}\n{callback_machine_code}"
     );
     let selection_path =
         root.join("omega-rust/omega/representations/omega-optimization-core/src/selection.rs");
@@ -2124,7 +2127,13 @@ fn terminal_component_staging_consumes_only_the_psi_owned_artifact() {
                 "optimization: Option<omega_psi_to_abstract_operations::VerifiedPsiOptimizationInput>",
             )
             && !input.contains("reject_pre_terminal_selections(")
-            && target_stage.contains("enum NativeTargetStageResult")
+            && target_output.contains("struct NativeTargetStageResult")
+            && !target_output.contains("enum NativeTargetStageResult")
+            && target_output.contains("program: Arc<TargetOperationPlanWithNativeCallbacks>")
+            && target_output.contains("program: evidence.shared_program()")
+            && target_output.contains("self.program != evidence.shared_program()")
+            && target_output.contains("Ok((self.program, self.evidence))")
+            && physical_stage.contains("target program/evidence join")
             && optimizer_physical_model.contains("StagedOptimizedUnitFunctionRelativeRealization")
             && optimizer_physical_model.contains("StagedOptimizedStructuralUnitFunctionRelativeRealization")
             && optimizer_physical_model.contains("StagedFixedFrameFunctionRelativeRealization")
@@ -2177,6 +2186,10 @@ fn terminal_component_staging_consumes_only_the_psi_owned_artifact() {
             && target_stage
                 .contains("lower_optimized_to_target_operations_with_provider_executions")
             && physical_stage.contains("enum NativePhysicalStageResult")
+            && physical_stage.contains("NativeTargetStageEvidence::Ordinary | NativeTargetStageEvidence::Ranked")
+            && physical_stage.contains("Assigned(omega_assigned_target_operations::AssignedOperationPlanWithNativeCallbacks)")
+            && !physical_stage.contains("IdentityRanked")
+            && !machine_code.contains("IdentityRanked")
             && physical_stage.contains("Optimized(Box<OptimizedNativePhysicalStage>)")
             && physical_stage.contains("stage_optimized_verified_physical_pipeline(")
             && machine_code.contains("lower_realization_target_stage(")
@@ -2222,7 +2235,7 @@ fn terminal_component_staging_consumes_only_the_psi_owned_artifact() {
         .find("let optimized_target = match provider_installation")
         .expect("optimized realization visibly constructs its validated target-stage result");
     let selected_target_result = selected_target_conveyor
-        .find("Ok(NativeTargetStageResult::Optimized(Box::new(")
+        .find("Ok(NativeTargetStageResult::optimized(optimized_target))")
         .expect("optimized realization publishes its validated target-stage result");
     let optimization_stage_entrance = machine_code
         .find("let optimization_stage =")
@@ -2237,8 +2250,8 @@ fn terminal_component_staging_consumes_only_the_psi_owned_artifact() {
         .find("match physical_stage {")
         .expect("machine realization consumes the completed physical stage");
     let physical_target_consumption = physical_stage
-        .find("match target_stage {")
-        .expect("physical routing consumes the completed target stage");
+        .find("let (target, evidence) = target_stage")
+        .expect("physical routing consumes current target data and bound evidence");
     let selected_physical_stage = physical_stage
         .find("let physical = omega_optimization_pipeline::stage_optimized_verified_physical_pipeline")
         .expect("optimized realization visibly enters physical optimization after target lowering");
