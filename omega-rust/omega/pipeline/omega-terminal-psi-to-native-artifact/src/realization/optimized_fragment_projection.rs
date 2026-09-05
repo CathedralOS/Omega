@@ -8,15 +8,15 @@
 //! produced it.
 
 use omega_machine_code::{
-    Aarch64ReturnLinkEvidence, FunctionAppliedFrameProtocol, FunctionFragmentEmissionPlan,
-    MachineCodeFunction, MachineCodePlan, SemanticCodeAttribution, SemanticCodeSite,
-    StackAdjustmentPair, UnitStackEvidence,
+    FunctionAppliedFrameProtocol, FunctionFragmentEmissionPlan, MachineCodeFunction,
+    MachineCodePlan, SemanticCodeAttribution, SemanticCodeSite,
 };
 use omega_optimization_pipeline::{
-    ReturnAddressFrameCustody, StagedFunctionFragmentFrameApplication,
-    StagedOptimizedFunctionFragmentEmission, stage_function_fragment_frame_application,
-    validate_optimized_function_fragment_emission,
+    StagedFunctionFragmentFrameApplication, StagedOptimizedFunctionFragmentEmission,
+    stage_function_fragment_frame_application, validate_optimized_function_fragment_emission,
 };
+
+use super::optimized_fragment_unit_stack::unit_stack_evidence;
 use omega_selected_instructions::MachineAlternativeFamily;
 use psi_diagnostics::Diagnostic;
 
@@ -313,96 +313,12 @@ fn project_function(
     })
 }
 
-/// Derive the object boundary's Unit stack evidence from the applied frame
-/// bytes and the target-owned geometry that produced them. A frameless route
-/// carries neither, which is the x86-64 Unit leaf shape.
-fn unit_stack_evidence(
-    fragment: &omega_machine_code::FunctionFragment,
-    return_bytes: &[u8],
-    applied_frame: Option<&FunctionAppliedFrameProtocol>,
-    frame_layout: Option<&omega_optimization_pipeline::ValidatedTargetFrameLayout>,
-) -> Result<UnitStackEvidence, &'static str> {
-    let Some(applied) = applied_frame else {
-        return Ok(UnitStackEvidence {
-            frame: None,
-            aarch64_return_link: None,
-            stack_alignment: 16,
-        });
-    };
-    let layout = frame_layout
-        .ok_or("optimized framed Unit fragment has no target frame layout")?
-        .plan()
-        .functions
-        .iter()
-        .find(|row| row.machine == fragment.machine)
-        .ok_or("optimized framed Unit fragment has no target frame layout row")?;
-    let ReturnAddressFrameCustody::SavedLinkRegister {
-        frame_offset_bytes, ..
-    } = layout.return_address
-    else {
-        return Err("optimized framed Unit fragment does not save its return address");
-    };
-    saved_link_unit_stack_evidence(
-        layout.frame_size_bytes,
-        frame_offset_bytes,
-        applied,
-        fragment.byte_count,
-        return_bytes.len(),
-    )
-}
-
-/// The AAPCS64 saved-link protocol allocates the frame and stores the link in
-/// the prologue, then reloads and releases in the epilogue that precedes the
-/// return. An empty Unit body puts the epilogue immediately after the
-/// prologue, so the function is prologue, epilogue, return.
-fn saved_link_unit_stack_evidence(
-    frame_size_bytes: u64,
-    link_offset_bytes: u64,
-    applied: &FunctionAppliedFrameProtocol,
-    function_byte_count: u64,
-    return_byte_count: usize,
-) -> Result<UnitStackEvidence, &'static str> {
-    const ADJUSTMENT_BYTES: u64 = 4;
-    const LINK_BYTES: u64 = 4;
-    let [epilogue] = applied.epilogues.as_slice() else {
-        return Err("optimized framed Unit fragment requires one applied epilogue");
-    };
-    if applied.prologue_function_offset != 0
-        || applied.prologue_byte_count != ADJUSTMENT_BYTES + LINK_BYTES
-        || epilogue.byte_count != LINK_BYTES + ADJUSTMENT_BYTES
-        || epilogue.function_offset != applied.prologue_byte_count
-        || epilogue.function_offset + epilogue.byte_count + return_byte_count as u64
-            != function_byte_count
-    {
-        return Err("optimized framed Unit fragment is not the exact saved-link protocol shape");
-    }
-    let byte_size = u32::try_from(frame_size_bytes)
-        .map_err(|_| "optimized framed Unit frame size is not encodable")?;
-    let frame_byte_offset = u32::try_from(link_offset_bytes)
-        .map_err(|_| "optimized framed Unit link offset is not encodable")?;
-    Ok(UnitStackEvidence {
-        frame: Some(StackAdjustmentPair {
-            byte_size,
-            allocation_offset: 0,
-            allocation_byte_count: ADJUSTMENT_BYTES as usize,
-            release_offset: (epilogue.function_offset + LINK_BYTES) as usize,
-            release_byte_count: ADJUSTMENT_BYTES as usize,
-        }),
-        aarch64_return_link: Some(Aarch64ReturnLinkEvidence {
-            frame_byte_offset,
-            store_offset: ADJUSTMENT_BYTES as usize,
-            load_offset: epilogue.function_offset as usize,
-        }),
-        stack_alignment: 16,
-    })
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
     use omega_machine_code::{
-        FunctionAppliedFrameEpilogue, FunctionFragment, FunctionFragmentBlockSpan,
-        FunctionFragmentControlProvenance, FunctionFragmentInstructionSpan,
+        FunctionFragment, FunctionFragmentBlockSpan, FunctionFragmentControlProvenance,
+        FunctionFragmentInstructionSpan,
     };
     use omega_selected_instructions::{
         MachineAlternativeKey, SelectedBlockId, SelectedInstructionId,
@@ -494,53 +410,70 @@ mod tests {
             project_function(&return_fragment(AARCH64_RETURN), X86_RETURN, None, None).is_err()
         );
     }
-    /// The exact framed AArch64 Unit function the optimized route emits: a
-    /// sixteen-byte frame whose link slot sits at offset zero, the epilogue
-    /// immediately after the prologue, and the return last.
-    /// `omega-image-emission` pins the matching bytes and evidence at its
-    /// object boundary.
+    /// An empty machine selected for optimization joins Terminal Psi to object
+    /// custody. Only x86-64 is exercised: an authored empty machine resolves to
+    /// `CanonicalFixedFrameBodyV1`, not the Unit baseline route, and that route
+    /// takes the AAPCS64 leaf exemption, so its AArch64 function is still a
+    /// bare `ret` the object boundary rejects. `TASKS_OPTIMIZER.md` owns that.
     #[test]
-    fn saved_link_evidence_matches_the_object_boundary_geometry() {
-        let applied = FunctionAppliedFrameProtocol {
-            machine: MachineId::new(1).expect("nonzero machine"),
-            prologue_function_offset: 0,
-            prologue_byte_count: 8,
-            epilogues: vec![FunctionAppliedFrameEpilogue {
-                block: SelectedBlockId(1),
-                return_instruction: SelectedInstructionId(1),
-                psi_return_edge: EdgeId::new(7).expect("nonzero edge"),
-                function_offset: 8,
-                byte_count: 8,
-            }],
-        };
-        let evidence = saved_link_unit_stack_evidence(16, 0, &applied, 20, AARCH64_RETURN.len())
-            .expect("exact saved-link protocol");
-        assert_eq!(
-            evidence.frame,
-            Some(StackAdjustmentPair {
-                byte_size: 16,
-                allocation_offset: 0,
-                allocation_byte_count: 4,
-                release_offset: 12,
-                release_byte_count: 4,
-            })
-        );
-        assert_eq!(
-            evidence.aarch64_return_link,
-            Some(Aarch64ReturnLinkEvidence {
-                frame_byte_offset: 0,
-                store_offset: 4,
-                load_offset: 8,
-            })
-        );
-        assert_eq!(evidence.stack_alignment, 16);
+    fn optimized_empty_machine_reaches_object_custody() {
+        {
+            let (target, expected_bytes) = (omega_target::NativeTarget::linux_x64(), 1_usize);
+            let checked = crate::tests::fixtures::checked_source::checked(
+                "data Main {} machine Main::launch() {}",
+            );
+            let artifact =
+                psi_checked_trees_to_terminal::produce_terminal_artifact(&checked, "Main::launch")
+                    .expect("canonical empty-machine Terminal artifact");
+            let input = omega_psi_to_abstract_operations::lower_artifact_sections_for_optimization(
+                artifact.semantic_bytes(),
+                artifact.proof_bytes(),
+                &psi_proof_admission::AdmissionProfile::default(),
+            )
+            .expect("verified abstract input");
+            let abstract_program = omega_optimization_pipeline::optimize_verified_abstract_input(
+                input,
+                omega_optimization_pipeline::compiler_baseline_request_v1(
+                    &omega_optimization_core::OptimizationSelections::default(),
+                ),
+            )
+            .expect("complete abstract optimization");
+            let post_terminal = abstract_program.selections().project_post_terminal();
+            let optimized_target =
+                omega_abstract_operations_to_target_operations::lower_optimized_to_target_operations(
+                    abstract_program,
+                    target,
+                )
+                .expect("independently validated target lowering");
+            let physical = omega_optimization_pipeline::stage_optimized_verified_physical_pipeline(
+                optimized_target,
+                post_terminal.selections(),
+            )
+            .expect("optimized physical pipeline");
+            let emitted = omega_optimization_pipeline::stage_optimized_function_fragment_emission(
+                physical.into_function_fragment_emission_source(),
+            )
+            .expect("optimized function-fragment emission");
+            let projected =
+                ProjectedFragments::from_emission(emitted).expect("applied frame protocol");
+            let plan =
+                project_return_only_unit_fragments(&projected).expect("return-only projection");
 
-        let mut short_epilogue = applied.clone();
-        short_epilogue.epilogues[0].byte_count = 4;
-        assert!(saved_link_unit_stack_evidence(16, 0, &short_epilogue, 20, 4).is_err());
+            let [function] = plan.functions.as_slice() else {
+                panic!("one projected Unit function");
+            };
+            assert_eq!(function.bytes.len(), expected_bytes);
+            let stack = function.unit_stack.expect("Unit stack evidence");
+            assert_eq!(
+                stack.aarch64_return_link.is_some(),
+                target.architecture == omega_target::Architecture::Aarch64
+            );
+            assert_eq!(stack.frame.is_some(), stack.aarch64_return_link.is_some());
 
-        let mut detached_epilogue = applied;
-        detached_epilogue.epilogues[0].function_offset = 12;
-        assert!(saved_link_unit_stack_evidence(16, 0, &detached_epilogue, 20, 4).is_err());
+            let object = omega_image_emission::build_object_artifact(&plan)
+                .expect("optimized empty machine reaches object custody");
+            assert_eq!(object.target(), target);
+            assert_eq!(object.text_bytes(), function.bytes.as_slice());
+        }
     }
 }
