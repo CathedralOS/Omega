@@ -65,14 +65,16 @@ pub(crate) fn invalidate_git_cache_entry_from_open_parent(
             "Git cache entry changed while opening it for invalidation",
         ));
     }
-    entry_directory
-        .remove_file(GIT_CACHE_METADATA)
-        .map_err(|error| io_error(&entry_root.join(GIT_CACHE_METADATA), error))?;
+    match entry_directory.remove_file(GIT_CACHE_METADATA) {
+        Ok(()) => {}
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
+        Err(error) => return Err(io_error(&entry_root.join(GIT_CACHE_METADATA), error)),
+    }
     synchronize_cache_parent(cache_directory, cache_root)
 }
 
 #[cfg(unix)]
-fn synchronize_cache_parent(
+pub(super) fn synchronize_cache_parent(
     cache_directory: &CapabilityDirectory,
     cache_root: &Path,
 ) -> Result<(), SourceResolveError> {
@@ -85,7 +87,7 @@ fn synchronize_cache_parent(
 }
 
 #[cfg(not(unix))]
-fn synchronize_cache_parent(
+pub(super) fn synchronize_cache_parent(
     _cache_directory: &CapabilityDirectory,
     _cache_root: &Path,
 ) -> Result<(), SourceResolveError> {

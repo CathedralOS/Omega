@@ -206,6 +206,22 @@ authenticated declaration planner, then publishes only the selected member.
 The repository root-tree pin and materialized member-tree identity remain
 distinct; neither can substitute for the other's source navigation meaning.
 
+A failed transport command is not itself cache corruption. After process
+cleanup, the resolver restores its pre-fetch canonical Git configuration and
+retains the entry only if its post-command repository custody still verifies.
+Previously fetched exact objects remain available offline. A warm cache for an
+authored full commit ID is probed for that exact object before deciding whether
+a fetch is needed; cache existence alone cannot stand for a successful fetch.
+
+Missing `source.identity` marks an incomplete or previously invalidated entry.
+A new acquisition that permits fetching may discard that bounded cache child
+under its entry lock and rebuild it through the ordinary verified acquisition
+path. It never manufactures metadata over the old objects. Offline and
+operation-local pin recovery do not rebuild. A recorded-pin rebuild fetches only
+the recorded commit, never the authored selector. Corruption discovered during
+the current attempt still rejects that attempt; it is not converted into an
+absence signal or a successful fallback fetch.
+
 Pipeline consistency is compiler-owned even though hostile same-user isolation
 is not. Resolution binds one exact commit and tree, validates a private
 materialization, and publishes one immutable snapshot. Later phases consume
@@ -226,8 +242,8 @@ does not claim protection from a process that already possesses the same user
 authority after resolution completes.
 
 Mutable local capture omits Git metadata, the root build-output directory, and
-root `omega.lock` including ASCII case variants. The lock must not hash itself
-through the root source selection. Nested lock-named files remain source, and
+root `omega.lock` and `omega.admissions`, including ASCII case variants. Project
+policy must not hash itself through the root source selection. Nested policy-named files remain source, and
 links into excluded control state reject. These omissions do not apply to
 exact materialized/Git tree verification. Lock loading is a separate manager
 operation; excluding the file from source identity does not ignore its accepted

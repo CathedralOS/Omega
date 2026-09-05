@@ -80,6 +80,13 @@ the exact original request, retained cache, commit and root tree without
 refetching; an absent or invalid pinned cache fails. These privately issued
 pins prevent drift within one traversal, not persisted lock recovery.
 
+Failed transport restores canonical repository configuration and keeps a cache
+only after post-command custody checks. Prior exact objects remain usable
+offline. Missing `source.identity` entries are discarded and rebuilt only by a
+new acquisition that permits fetching, under the existing entry lock and cache
+bounds. Offline and operation-local pin use cannot silently rebuild; recorded
+revisions never fall back to selector refresh. See `git/cache/retry.rs`.
+
 `git::resolution::resolve_git_source_at_revision_in_lane` instead accepts
 inert recorded `GitCommitId` and `GitTreeId` values for whole-root acquisition.
 Its explicit `Offline` mode performs no transport or revision discovery;
