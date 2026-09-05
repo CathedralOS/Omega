@@ -1,0 +1,21 @@
+boundary trait Console {
+  machine exit_process(return_code: i32) -> never;
+  machine write_byte(value: i32);
+  machine read_byte() -> i32;
+  machine write_line(text: &[u8]);
+}
+
+data Main {
+  console: Console;
+}
+
+machine Main::main(&mut self) {
+  self.console.write_byte(0);
+  self.console.write_byte(1);
+  self.console.write_byte(2);
+  self.console.write_byte(3);
+  self.console.write_byte(4);
+  self.console.write_byte(5);
+  self.console.write_byte(128);
+  self.console.write_byte(255);
+}

@@ -88,7 +88,15 @@ and appending LF; argument traps retain the preceding output without emitting
 the line. `write_byte` and `exit_process` retain their existing effect ordering.
 The diagnostic driver accepts a private source-length/source/stdin frame and
 splits it in ordinary Delta using balanced byte trees. This test transport is
-not the final evaluator request or observation profile.
+not the final evaluator request or observation profile. Its result has an
+explicit private tag: exit carries the full signed `i32` code and stdout;
+trap carries the closed trap kind and exact output prefix; rejection carries
+the closed reason and exact source offset. Internal failure, unsupported
+staging, and malformed private input have separate tags. This avoids collapsing
+exits modulo 256 or discarding checking evidence. The
+[execution gate](../../../tests/epsilon/interpreted-omega-experiment/README.md#private-execution-observations)
+documents the exact byte layout. Outer Gamma failures are not converted into
+these diagnostic results.
 
 One checked invocation context drives the same statement/block evaluator for
 entry and states. Block falloff retains locals, storage, and output before
