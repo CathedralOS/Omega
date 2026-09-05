@@ -50,32 +50,55 @@ fn invalid_proof_and_service_reach_remain_compiler_failures() {
         "domains/exit_ensures_unproven",
         "capabilities/effect_ceiling_exceeded",
     ] {
-        let tree = Tree::new();
         let fixture = corpus.join(case);
-        source(
-            &tree,
-            &fs::read_to_string(fixture.join("main.omg")).unwrap(),
-            "",
-        );
+        let main = fs::read_to_string(fixture.join("main.omg")).unwrap();
         let expected = fs::read_to_string(fixture.join("expected.txt")).unwrap();
-        let closure = resolve(&tree, "invalid");
-        let owner = closure.graph().root().clone();
-        let error = review_package_change(closure, TARGET, None, &tree.path("build")).unwrap_err();
-        let PackageChangeError::Compilation(CompileResolvedPackageReviewsError::Compilation {
-            package,
-            diagnostics,
-        }) = error
-        else {
-            panic!("expected compiler failure for {case}, got {error:?}");
-        };
-        assert_eq!(package, owner);
-        let rendered = diagnostics
-            .iter()
-            .map(|diagnostic| diagnostic.message.as_str())
-            .collect::<Vec<_>>()
-            .join("\n");
-        assert!(rendered.contains(expected.trim()), "{case}: {rendered}");
-        assert!(!tree.path("sources/root/omega.lock").exists());
+        for transitive in [false, true] {
+            let tree = Tree::new();
+            if transitive {
+                super::transitive::source_chain(&tree, "invalid-leaf", &main);
+            } else {
+                source(&tree, &main, "");
+            }
+            let build = fs::read(tree.path("sources/root/build.omg")).unwrap();
+            let closure = resolve(&tree, "invalid");
+            let owner = if transitive {
+                assert_eq!(closure.graph().packages().len(), 3);
+                closure
+                    .custodies()
+                    .iter()
+                    .find(|custody| custody.key().name().as_str() == "invalid-leaf")
+                    .unwrap()
+                    .key()
+                    .clone()
+            } else {
+                closure.graph().root().clone()
+            };
+            let error =
+                review_package_change(closure, TARGET, None, &tree.path("build")).unwrap_err();
+            let PackageChangeError::Compilation(CompileResolvedPackageReviewsError::Compilation {
+                package,
+                diagnostics,
+            }) = error
+            else {
+                panic!("expected compiler failure for {case}, transitive={transitive}: {error:?}");
+            };
+            assert_eq!(package, owner, "{case}, transitive={transitive}");
+            let rendered = diagnostics
+                .iter()
+                .map(|diagnostic| diagnostic.message.as_str())
+                .collect::<Vec<_>>()
+                .join("\n");
+            assert!(
+                rendered.contains(expected.trim()),
+                "{case}, transitive={transitive}: {rendered}"
+            );
+            assert!(!tree.path("sources/root/omega.lock").exists());
+            assert_eq!(
+                fs::read(tree.path("sources/root/build.omg")).unwrap(),
+                build
+            );
+        }
     }
 }
 

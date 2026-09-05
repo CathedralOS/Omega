@@ -16,6 +16,8 @@ mod publication;
 mod semantic;
 #[path = "operation/staging.rs"]
 mod staging;
+#[path = "operation/transitive.rs"]
+mod transitive;
 
 const MAXIMUM_DOCUMENT_BYTES: usize = 4 * 1024 * 1024;
 const PURE: &str = "pub const VALUE: u64 = 7;\n";
