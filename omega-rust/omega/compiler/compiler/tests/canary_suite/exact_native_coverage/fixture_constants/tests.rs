@@ -140,6 +140,34 @@ fn named_constants_preserve_native_identity_and_status() {
 }
 
 #[test]
+fn root_suite_resolves_its_declared_child_roster_without_path_traversal() {
+    let declaration = "#[path = \"fixture_rosters/example.rs\"] mod fixture_roster;";
+    let constants = load(declaration, |path| {
+        assert_eq!(path, "fixture_rosters/example.rs");
+        Ok(LEAF.to_owned())
+    })
+    .unwrap();
+    assert_eq!(
+        pass_canaries("pass_canary(fixture_roster::EXAMPLE)", &constants),
+        ["demo/example"]
+    );
+    for path in [
+        "fixture_rosters/../other.rs",
+        "fixture_rosters/nested/example.rs",
+        "../../fixture_rosters/example.rs",
+        "/fixture_rosters/example.rs",
+    ] {
+        assert!(
+            load(
+                &declaration.replace("fixture_rosters/example.rs", path),
+                |_| { panic!("invalid roster path must not be read") }
+            )
+            .is_err()
+        );
+    }
+}
+
+#[test]
 fn missing_foreign_dynamic_and_multiple_references_fail_closed() {
     for argument in [
         "fixture_roster::MISSING",

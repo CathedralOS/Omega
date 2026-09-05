@@ -183,6 +183,9 @@ fn interpret(checked: &CheckedCompilation, stdin: &[u8]) -> InterpretOutcome {
     )
 }
 
+#[path = "fixture_rosters/canary_suite.rs"]
+mod fixture_roster;
+
 #[path = "canary_suite/inline_asm.rs"]
 mod inline_asm;
 #[path = "canary_suite/relational_invariants.rs"]
@@ -3124,14 +3127,14 @@ fn executable_name() -> &'static str {
 
 #[test]
 fn boundary_equality_recast_witness_compiles_to_checked_trees() {
-    let canary = pass_canary("dependent/boundary_equality_recast_witness_compile");
+    let canary = pass_canary(fixture_roster::BOUNDARY_EQUALITY_RECAST_WITNESS_COMPILE);
     compile_to_checked(&canary.join("main.omg"), None)
         .expect("boundary equality/recast witness should reach checked trees");
 }
 
 #[test]
 fn task_runtime_machine_selection_builds_omega_activation_sidecar() {
-    let canary = pass_canary("tasks/task_runtime_machine_selection_compile");
+    let canary = pass_canary(fixture_roster::TASK_RUNTIME_MACHINE_SELECTION_COMPILE);
     let checked = compile_to_checked(&canary.join("main.omg"), None)
         .expect("core task-runtime machine selection should reach checked trees");
     let activations = checked.task_activations().as_slice();

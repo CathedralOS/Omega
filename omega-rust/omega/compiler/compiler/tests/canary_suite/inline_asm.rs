@@ -1,5 +1,8 @@
 use super::*;
 
+#[path = "../fixture_rosters/inline_asm.rs"]
+pub(super) mod fixture_roster;
+
 fn compile_x86_image(canary_name: &str, build_name: &str, success: &str) -> (PathBuf, Vec<u8>) {
     let canary = pass_canary(canary_name);
     let build_dir = std::env::temp_dir().join(format!("{build_name}-{}", std::process::id()));
@@ -49,7 +52,7 @@ fn assert_contract_rejects(canary_name: &str, expected: &str) {
 #[test]
 fn x86_asm_fences_emit_exact_bytes_and_refuse_aarch64() {
     let (build_dir, image) = compile_x86_image(
-        "inline_asm/asm_fences_compile",
+        fixture_roster::ASM_FENCES_COMPILE,
         "omega-asm-fences",
         "x86 memory fences should cross-compile",
     );
@@ -67,7 +70,7 @@ fn x86_asm_fences_emit_exact_bytes_and_refuse_aarch64() {
     let _ = fs::remove_dir_all(build_dir);
 
     assert_aarch64_rejects(
-        "inline_asm/asm_fences_compile",
+        fixture_roster::ASM_FENCES_COMPILE,
         "asm instruction `lfence` is x86_64-only",
     );
 }
@@ -75,7 +78,7 @@ fn x86_asm_fences_emit_exact_bytes_and_refuse_aarch64() {
 #[test]
 fn x86_asm_interrupt_control_emits_exact_bytes_and_refuses_aarch64() {
     let (build_dir, image) = compile_x86_image(
-        "inline_asm/asm_interrupt_control_compile",
+        fixture_roster::ASM_INTERRUPT_CONTROL_COMPILE,
         "omega-asm-interrupt-control",
         "x86 interrupt control should cross-compile under the boot-root authority",
     );
@@ -86,7 +89,7 @@ fn x86_asm_interrupt_control_emits_exact_bytes_and_refuses_aarch64() {
     let _ = fs::remove_dir_all(build_dir);
 
     assert_aarch64_rejects(
-        "inline_asm/asm_interrupt_control_compile",
+        fixture_roster::ASM_INTERRUPT_CONTROL_COMPILE,
         "asm instruction `cli` is x86_64-only",
     );
 }
@@ -94,7 +97,7 @@ fn x86_asm_interrupt_control_emits_exact_bytes_and_refuses_aarch64() {
 #[test]
 fn hosted_cli_cannot_claim_machine_owner_authority_with_an_effect_row() {
     assert_contract_rejects(
-        "inline_asm/asm_cli_requires_machine_authority",
+        fixture_roster::ASM_CLI_REQUIRES_MACHINE_AUTHORITY,
         "asm instruction `cli`, which requires a FREESTANDING boundary root",
     );
 }
@@ -102,7 +105,7 @@ fn hosted_cli_cannot_claim_machine_owner_authority_with_an_effect_row() {
 #[test]
 fn x86_asm_flags_emit_balanced_sequences_and_refuse_aarch64() {
     let (build_dir, image) = compile_x86_image(
-        "inline_asm/asm_flags_compile",
+        fixture_roster::ASM_FLAGS_COMPILE,
         "omega-asm-flags",
         "x86 RFLAGS operations should compile under boot-root authority",
     );
@@ -119,27 +122,14 @@ fn x86_asm_flags_emit_balanced_sequences_and_refuse_aarch64() {
     let _ = fs::remove_dir_all(build_dir);
 
     assert_aarch64_rejects(
-        "inline_asm/asm_flags_compile",
+        fixture_roster::ASM_FLAGS_COMPILE,
         "asm instruction `pushfq` is x86_64-only",
     );
 }
 
 #[test]
 fn asm_flags_enforce_authority_and_saved_place_contracts() {
-    for (name, expected) in [
-        (
-            "inline_asm/asm_popfq_requires_machine_authority",
-            "asm instruction `popfq`, which requires a FREESTANDING boundary root",
-        ),
-        (
-            "inline_asm/asm_pushfq_requires_u64_destination",
-            "asm instruction `pushfq` operand `destination` requires an exact `u64` writable place",
-        ),
-        (
-            "inline_asm/asm_popfq_requires_saved_place",
-            "asm instruction `popfq` operand `saved flags` requires target register `rflags` constraint `u64`",
-        ),
-    ] {
+    for &(name, expected) in fixture_roster::FLAGS_FAIL_CANARIES {
         assert_contract_rejects(name, expected);
     }
 }
@@ -147,7 +137,7 @@ fn asm_flags_enforce_authority_and_saved_place_contracts() {
 #[test]
 fn x86_asm_msr_emits_structured_sequences_and_refuse_aarch64() {
     let (build_dir, image) = compile_x86_image(
-        "inline_asm/asm_msr_compile",
+        fixture_roster::ASM_MSR_COMPILE,
         "omega-asm-msr",
         "x86 MSR operations should compile under boot-root authority",
     );
@@ -166,27 +156,14 @@ fn x86_asm_msr_emits_structured_sequences_and_refuse_aarch64() {
     let _ = fs::remove_dir_all(build_dir);
 
     assert_aarch64_rejects(
-        "inline_asm/asm_msr_compile",
+        fixture_roster::ASM_MSR_COMPILE,
         "asm instruction `rdmsr` is x86_64-only",
     );
 }
 
 #[test]
 fn asm_msr_enforces_authority_and_value_contracts() {
-    for (name, expected) in [
-        (
-            "inline_asm/asm_wrmsr_requires_machine_authority",
-            "asm instruction `wrmsr`, which requires a FREESTANDING boundary root",
-        ),
-        (
-            "inline_asm/asm_rdmsr_requires_u64_destination",
-            "asm instruction `rdmsr` operand `destination` requires an exact `u64` writable place",
-        ),
-        (
-            "inline_asm/asm_wrmsr_requires_u64_value",
-            "asm instruction `wrmsr` operand `value` requires an exact `u64` for target register `edx:eax`, found `u32`",
-        ),
-    ] {
+    for &(name, expected) in fixture_roster::MSR_FAIL_CANARIES {
         assert_contract_rejects(name, expected);
     }
 }
@@ -194,7 +171,7 @@ fn asm_msr_enforces_authority_and_value_contracts() {
 #[test]
 fn x86_asm_control_registers_emit_exact_sequences_and_refuse_aarch64() {
     let (build_dir, image) = compile_x86_image(
-        "inline_asm/asm_control_registers_compile",
+        fixture_roster::ASM_CONTROL_REGISTERS_COMPILE,
         "omega-asm-control-registers",
         "x86 control-register operations should compile under boot-root authority",
     );
@@ -230,27 +207,14 @@ fn x86_asm_control_registers_emit_exact_sequences_and_refuse_aarch64() {
     let _ = fs::remove_dir_all(build_dir);
 
     assert_aarch64_rejects(
-        "inline_asm/asm_control_registers_compile",
+        fixture_roster::ASM_CONTROL_REGISTERS_COMPILE,
         "asm instruction `read_cr0` is x86_64-only",
     );
 }
 
 #[test]
 fn asm_control_registers_enforce_authority_and_value_contracts() {
-    for (name, expected) in [
-        (
-            "inline_asm/asm_write_cr3_requires_machine_authority",
-            "asm instruction `write_cr3`, which requires a FREESTANDING boundary root",
-        ),
-        (
-            "inline_asm/asm_read_cr3_requires_u64_destination",
-            "asm instruction `read_cr3` operand `destination` requires an exact `u64` writable place",
-        ),
-        (
-            "inline_asm/asm_write_cr3_requires_u64_value",
-            "asm instruction `write_cr3` operand `value` requires an exact `u64` for target register `cr3`, found `u32`",
-        ),
-    ] {
+    for &(name, expected) in fixture_roster::CONTROL_REGISTER_FAIL_CANARIES {
         assert_contract_rejects(name, expected);
     }
 }
