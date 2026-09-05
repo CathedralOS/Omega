@@ -1047,6 +1047,12 @@ impl ExpressionTable {
         self.expressions.get(handle)
     }
 
+    /// Whether an exact generational handle still names a live expression.
+    /// Custody checks must distinguish a real zero literal from dummy storage.
+    pub fn contains_expression(&self, handle: ExpressionHandle) -> bool {
+        self.expressions.is_valid(handle)
+    }
+
     pub fn iter_expressions(&self) -> impl Iterator<Item = (ExpressionHandle, &ExpressionNode)> {
         self.expressions.iter()
     }
