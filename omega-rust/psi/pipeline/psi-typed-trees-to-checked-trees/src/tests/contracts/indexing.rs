@@ -347,6 +347,7 @@ fn indexes_call_contract_facts_by_target_machine() {
     program.statement_table.push_statement(
         &mut caller_state.statement_nodes,
         StatementNode::Call(TableCall {
+            receiver_root_symbol: target_machine_symbol,
             source_span: psi_source::SourceSpan::default(),
             authored_call_selection: None,
             receiver_symbol: target_machine_symbol,
@@ -536,6 +537,7 @@ fn indexes_inherited_trait_contracts_by_concrete_call_target() {
     program.statement_table.push_statement(
         &mut caller_state.statement_nodes,
         StatementNode::Call(TableCall {
+            receiver_root_symbol: target_machine_symbol,
             source_span: psi_source::SourceSpan::default(),
             authored_call_selection: None,
             receiver_symbol: target_machine_symbol,

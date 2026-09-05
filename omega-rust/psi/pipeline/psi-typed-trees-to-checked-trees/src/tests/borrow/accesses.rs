@@ -130,6 +130,7 @@ fn collects_mutable_attached_data_argument_access_roots() {
     program.statement_table.push_statement(
         &mut state.statement_nodes,
         StatementNode::Call(TableCall {
+            receiver_root_symbol: SymbolHandle::invalid(),
             source_span: psi_source::SourceSpan::default(),
             authored_call_selection: None,
             receiver_symbol: machine_symbol,
@@ -258,6 +259,7 @@ fn collects_disjoint_member_access_segments() {
     program.statement_table.push_statement(
         &mut state.statement_nodes,
         StatementNode::Call(TableCall {
+            receiver_root_symbol: SymbolHandle::invalid(),
             source_span: psi_source::SourceSpan::default(),
             authored_call_selection: None,
             receiver_symbol: machine_symbol,
@@ -504,6 +506,7 @@ fn collects_unresolved_local_argument_access_roots() {
     program.statement_table.push_statement(
         &mut state.statement_nodes,
         StatementNode::Call(TableCall {
+            receiver_root_symbol: SymbolHandle::invalid(),
             source_span: psi_source::SourceSpan::default(),
             authored_call_selection: None,
             receiver_symbol: machine_symbol,

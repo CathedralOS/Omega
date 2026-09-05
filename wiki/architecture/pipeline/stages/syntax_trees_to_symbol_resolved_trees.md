@@ -42,6 +42,9 @@ Must own:
   construction identities before name resolution.
 - Constructing symbol identity for definitions.
 - Stamping references with symbol handles when lookup is source/scope based.
+- Statement calls retain the exact lexical receiver root independently of the
+  final projected receiver symbol. A member awaiting type-aware resolution does
+  not erase its already-resolved current-state parameter or prior-local root.
 - Resolving indexed expression-call receivers through declared array/slice
   element types and subsequent exact-owner member declarations. Each index
   consumes one collection layer, independently of its runtime value. Roots

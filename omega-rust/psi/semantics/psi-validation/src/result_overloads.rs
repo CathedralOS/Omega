@@ -297,7 +297,7 @@ pub fn resolve_named_result_overloads(program: &mut TypedTrees) -> Result<(), Ve
                 .insert(ExpressionNode::Name(TableNamePath {
                     members,
                     member_symbols: psi_arena::HandleSpan::empty(),
-                    head_symbol: call.receiver_symbol,
+                    head_symbol: call.receiver_root_symbol,
                     symbol: call.receiver_symbol,
                 }))
         };

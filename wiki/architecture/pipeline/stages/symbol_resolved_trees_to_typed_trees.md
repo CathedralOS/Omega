@@ -42,6 +42,9 @@ Must own:
 
 - Type identity, type compatibility, and signature compatibility.
 - Typed call, transition, operator, domain, effect, and boundary surfaces.
+- Preserve statement receiver roots separately from final receiver members
+  through lowering, copying, and specialization. State-scope checks consume the
+  root declaration; projected member ancestry is not storage-root identity.
 - Method candidates on call-produced receivers follow the producer's exact
   declared return type after receiver children lower. Member and array/slice
   projections retain their nominal declaration identity; a same-spelled foreign

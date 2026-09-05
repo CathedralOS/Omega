@@ -3556,11 +3556,16 @@ fn statement_span_handles(span: HandleSpan<StatementNode>) -> Vec<Handle<Stateme
 fn statement_receiver_path(
     program: &TypedTrees,
     expression: ExpressionHandle,
-) -> Option<(SymbolHandle, Vec<psi_typed_trees::name::Identifier>)> {
+) -> Option<(
+    SymbolHandle,
+    SymbolHandle,
+    Vec<psi_typed_trees::name::Identifier>,
+)> {
     match program.expression_table.expression(expression) {
         ExpressionNode::Atomic(atomic) => statement_receiver_path(program, atomic.value),
         ExpressionNode::Borrow(inner) => statement_receiver_path(program, inner.target),
         ExpressionNode::Name(path) => Some((
+            path.head_symbol,
             path.symbol,
             program
                 .expression_table
@@ -3568,9 +3573,9 @@ fn statement_receiver_path(
                 .to_vec(),
         )),
         ExpressionNode::Member(member) => {
-            let (symbol, mut path) = statement_receiver_path(program, member.receiver)?;
+            let (root, symbol, mut path) = statement_receiver_path(program, member.receiver)?;
             path.push(member.member.clone());
-            Some((symbol, path))
+            Some((root, symbol, path))
         }
         _ => None,
     }
@@ -3628,7 +3633,7 @@ fn rewrite_cloned_calls(
                 })
                 .flatten()
                 .and_then(|receiver| statement_receiver_path(program, receiver));
-            let receiver = evidence_receiver.as_ref().map(|(_, members)| {
+            let receiver = evidence_receiver.as_ref().map(|(_, _, members)| {
                 let mut receiver = HandleSpan::empty();
                 for member in members {
                     program
@@ -3648,11 +3653,15 @@ fn rewrite_cloned_calls(
                 call.target_symbol = *target;
                 call.target = name.clone();
             }
-            if let (Some((receiver_symbol, _)), Some(receiver)) = (evidence_receiver, receiver) {
+            if let (Some((root, receiver_symbol, _)), Some(receiver)) =
+                (evidence_receiver, receiver)
+            {
+                call.receiver_root_symbol = root;
                 call.receiver_symbol = receiver_symbol;
                 call.receiver = receiver;
                 call.arguments = span_without_first(call.arguments);
             } else if evidence_dispatch.is_some() {
+                call.receiver_root_symbol = SymbolHandle::invalid();
                 call.receiver_symbol = SymbolHandle::invalid();
                 call.receiver = HandleSpan::empty();
             }
@@ -4064,7 +4073,7 @@ fn apply_specialization(program: &mut TypedTrees, candidate: &Candidate) -> Resu
                 })
                 .flatten()
                 .and_then(|receiver| statement_receiver_path(program, receiver));
-            let receiver = evidence_receiver.as_ref().map(|(_, members)| {
+            let receiver = evidence_receiver.as_ref().map(|(_, _, members)| {
                 let mut receiver = HandleSpan::empty();
                 for member in members {
                     program
@@ -4084,11 +4093,15 @@ fn apply_specialization(program: &mut TypedTrees, candidate: &Candidate) -> Resu
                 call.target_symbol = *symbol;
                 call.target = name.clone();
             }
-            if let (Some((receiver_symbol, _)), Some(receiver)) = (evidence_receiver, receiver) {
+            if let (Some((root, receiver_symbol, _)), Some(receiver)) =
+                (evidence_receiver, receiver)
+            {
+                call.receiver_root_symbol = root;
                 call.receiver_symbol = receiver_symbol;
                 call.receiver = receiver;
                 call.arguments = span_without_first(call.arguments);
             } else if evidence_dispatch.is_some() {
+                call.receiver_root_symbol = SymbolHandle::invalid();
                 call.receiver_symbol = SymbolHandle::invalid();
                 call.receiver = HandleSpan::empty();
             }

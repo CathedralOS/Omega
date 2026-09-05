@@ -128,3 +128,104 @@ fn local_scope_begins_after_its_initializer() {
         );
     }
 }
+
+#[test]
+fn projected_statement_receivers_retain_the_exact_current_state_root() {
+    for body in [
+        "packet.inner.touch();",
+        "let local: Packet; local.inner.touch();",
+    ] {
+        let source = format!(
+            "data Inner {{ value: u64; }} data Packet {{ inner: Inner; }} machine Inner::touch(&mut self) {{ self.value = 1; }} machine run(packet: &mut Packet) {{ {body} }}"
+        );
+        let program = typed(&source);
+        let machine = program
+            .machines()
+            .iter()
+            .find(|machine| machine.name.as_str() == "run")
+            .unwrap();
+        let state = &program.machine_states(machine)[0];
+        let call = program
+            .statement_table
+            .statements(state.statement_nodes)
+            .iter()
+            .find_map(|statement| {
+                if let psi_typed_trees::statement::StatementNode::Call(call) = statement {
+                    Some(call)
+                } else {
+                    None
+                }
+            })
+            .expect("projected statement call");
+        validate_program(&program).unwrap_or_else(|diagnostics| {
+            panic!(
+                "{diagnostics:?}: {call:?}; root {:?}",
+                program.symbols.get(call.receiver_root_symbol)
+            )
+        });
+        assert_ne!(call.receiver_root_symbol, call.receiver_symbol);
+        assert_eq!(
+            program.symbols.get(call.receiver_root_symbol).parent,
+            state.symbol
+        );
+        assert_eq!(
+            program
+                .statement_table
+                .name_path_members(call.receiver)
+                .last()
+                .unwrap()
+                .as_str(),
+            "inner"
+        );
+    }
+}
+
+#[test]
+fn projected_statement_receivers_reject_missing_or_foreign_state_roots() {
+    let source = "data Inner { value: u64; } data Packet { inner: Inner; } machine Inner::touch(&mut self) { self.value = 1; } machine run(packet: &mut Packet) { transition { _ -> next(packet) } state next(packet: &mut Packet) { packet.inner.touch(); } }";
+    let program = typed(source);
+    validate_program(&program).expect("explicit forwarded receiver");
+    let machine = program
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "run")
+        .unwrap();
+    let states = program.machine_states(machine);
+    let foreign = program.state_parameters(&states[0])[0].symbol;
+    let current = states
+        .iter()
+        .find(|state| state.name.as_str() == "next")
+        .unwrap();
+    let statements = current.statement_nodes;
+    for root in [psi_symbols::SymbolHandle::invalid(), foreign] {
+        let mut altered = program.clone();
+        let call = altered
+            .statement_table
+            .statements_mut(statements)
+            .iter_mut()
+            .find_map(|statement| {
+                if let psi_typed_trees::statement::StatementNode::Call(call) = statement {
+                    Some(call)
+                } else {
+                    None
+                }
+            })
+            .unwrap();
+        call.receiver_root_symbol = root;
+        let diagnostics = validate_program(&altered)
+            .expect_err("absent or sibling storage cannot authorize receiver");
+        assert!(
+            diagnostics
+                .iter()
+                .any(|diagnostic| diagnostic.message.contains("uses `packet`")),
+            "{diagnostics:?}"
+        );
+    }
+    let capture = source
+        .replace("next(packet)", "next()")
+        .replace("state next(packet: &mut Packet)", "state next()");
+    assert!(
+        validate_program(&typed(&capture)).is_err(),
+        "nested fields do not permit implicit entry capture"
+    );
+}
