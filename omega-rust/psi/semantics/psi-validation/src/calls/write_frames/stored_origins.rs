@@ -32,6 +32,7 @@ pub(super) use frozen_cases::statement_exposes_frozen_binding;
 
 pub(super) use projections::reference_leaves_before_statement;
 pub(super) use projections::symbolic_reference_leaves;
+pub(super) use projections::{project_stored_origins, projected_type};
 pub(super) use reference_values::canonical_reference_origins;
 pub(super) use reference_values::source_reaches_leaf;
 pub(super) use type_origins::declared_origins;
@@ -42,6 +43,7 @@ pub(super) struct StoredLocalOrigins {
     pub local_symbol: SymbolHandle,
     pub references: Vec<StoredWriteOrigin>,
     pub cases: Vec<Vec<PlaceSegment>>,
+    pub moves: Vec<super::path_instantiation::aggregate_arguments::AggregateMove>,
 }
 
 #[derive(Debug, Clone)]
@@ -112,6 +114,7 @@ pub(super) fn declaration_origins(
         local_symbol: local.symbol,
         references: origins,
         cases: leaves.cases,
+        moves: leaves.moves,
     })
 }
 

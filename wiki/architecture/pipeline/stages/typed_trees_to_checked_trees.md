@@ -931,9 +931,26 @@ Current ownership is:
   writes beneath a selected payload do not replace its containing case.
   The shared statement exposure check runs before frame fallbacks, including
   implicit exclusive receivers and receivers nested inside value expressions.
-  A declared input sum still denotes every possible case. Forwarding a selected
-  caller case through a helper's input/result relation needs separate case
-  substitution. Passing an aggregate by value does not erase its references.
+  A declared input sum still denotes every possible case. Owned input moves
+  retain a structural result-subtree relation alongside those possible cases.
+  After checking the helper body, result substitution replaces that subtree's
+  cases and reference leaves together from the actual argument. An empty input
+  case therefore removes its absent payload leaves instead of failing to find
+  a reference that cannot exist. The relation composes through frozen locals,
+  nested literals, helper calls, and fixed or runtime array projections; fixed
+  output positions retain their cases and runtime selections retain all
+  candidates. Constructor-owned siblings keep their own case evidence.
+  Symbolic local reference rows are filtered against retained case evidence
+  before transport: an excluded branch contributes no leaves, but missing case
+  evidence stays opaque rather than proving an empty subtree.
+  Case-bearing input replacement or exclusive exposure invalidates the frozen
+  relation, including for owned-only or shared-only payloads. Payload scalar
+  writes do not replace an enclosing case. Caller case evidence cannot justify
+  an unproved payload projection inside the helper body, and result relations
+  do not specialize or contaminate cached state-write summaries. Conditional
+  helper-body refinement and graph-level result routes remain unfinished.
+  Passing an aggregate by value does not erase its references or authorize a
+  loan; declared lifetime and borrow checks remain separate.
   Exclusive references to reference-bearing carriers remain opaque; primitive
   slices retain their collection reach.
   A rejected trait-receiver call stays opaque through every fallback consumer,

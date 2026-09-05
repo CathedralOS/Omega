@@ -3,7 +3,9 @@
 //! establish whether those selectors can transport the retained leaves.
 
 use super::super::isolation::concrete_nominal_type;
-use super::super::path_instantiation::aggregate_arguments::{AggregateOrigins, ReferenceLeaf};
+use super::super::path_instantiation::aggregate_arguments::{
+    AggregateMove, AggregateOrigins, ReferenceLeaf,
+};
 use super::StoredLocalOrigins;
 use psi_facts::{FactPlan, PlaceRoot, PlaceSegment};
 use psi_symbols::SymbolKind;
@@ -143,10 +145,13 @@ pub(in crate::calls::write_frames) fn reference_leaves_before_statement(
     let declared_origins = if parameter.is_some() || stored.is_none() {
         let mut origins =
             super::type_origins::declared_origins(program, root, source_name, source_reference)?;
-        if parameter.is_none()
-            && let Some(cases) = inference.and_then(|inference| inference.local_cases(root))
-        {
-            origins.cases = cases.to_vec();
+        if parameter.is_none() {
+            if let Some(cases) = inference.and_then(|inference| inference.local_cases(root)) {
+                origins.cases = cases.to_vec();
+            }
+            if let Some(moves) = inference.and_then(|inference| inference.local_moves(root)) {
+                origins.moves = moves.to_vec();
+            }
         }
         Some(origins)
     } else {
@@ -155,15 +160,29 @@ pub(in crate::calls::write_frames) fn reference_leaves_before_statement(
     let established = declared_origins.as_ref().or_else(|| {
         stored.and_then(|stored| stored.iter().find(|local| local.local_symbol == root))
     });
-    if established.is_none()
-        && !super::super::type_is_caller_isolated_local(program, source_reference)
-    {
-        return None;
-    }
+    let Some(established) = established else {
+        return (super::super::type_is_caller_isolated_local(program, source_reference)
+            && !segments
+                .iter()
+                .any(|segment| matches!(segment, PlaceSegment::Case { .. })))
+        .then(AggregateOrigins::default);
+    };
+    project_stored_origins(program, established, segments, declared_origins.is_some())
+}
+
+/// Project frozen or symbolic aggregate evidence after the caller validates
+/// the root declaration and the selected type. Case presence remains part of
+/// projection, including subtrees with no exclusive-reference leaves.
+pub(in crate::calls::write_frames) fn project_stored_origins(
+    program: &TypedTrees,
+    established: &StoredLocalOrigins,
+    segments: &[PlaceSegment],
+    symbolic: bool,
+) -> Option<AggregateOrigins> {
     let mut leaves = AggregateOrigins::default();
     for (index, selected) in segments.iter().enumerate() {
         if let PlaceSegment::Case { .. } = selected {
-            let mut candidates = established?.cases.iter().filter(|case| {
+            let mut candidates = established.cases.iter().filter(|case| {
                 case.len() == index + 1 && prefix_matches(&segments[..index], &case[..index])
             });
             // Missing and mixed active cases are not evidence that the
@@ -177,8 +196,20 @@ pub(in crate::calls::write_frames) fn reference_leaves_before_statement(
             }
         }
     }
-    for prior in established.into_iter().flat_map(|local| &local.references) {
+    for prior in &established.references {
         if !prefix_matches(segments, &prior.local_segments) {
+            continue;
+        }
+        // Type-derived rows describe every possible branch. A caller's
+        // retained cases may exclude one, including a fixed element selected
+        // from a type-derived unknown-element row.
+        let mut selected_path = prior.local_segments.clone();
+        for (candidate, selected) in selected_path.iter_mut().zip(segments) {
+            if matches!(*candidate, PlaceSegment::Index { expression } if !expression.is_valid()) {
+                *candidate = *selected;
+            }
+        }
+        if !case_path_is_possible(&selected_path, &established.cases)? {
             continue;
         }
         let local_segments = prior.local_segments[segments.len()..].to_vec();
@@ -194,7 +225,7 @@ pub(in crate::calls::write_frames) fn reference_leaves_before_statement(
             }
         }
         let mut origin = prior.origin.clone();
-        if declared_origins.is_some() {
+        if symbolic {
             // A type-derived wildcard describes all possible elements, but a
             // moved fixed projection selects one. Preserve that selector in
             // source evidence without narrowing the coarse write footprint.
@@ -210,15 +241,50 @@ pub(in crate::calls::write_frames) fn reference_leaves_before_statement(
             origin,
         });
     }
-    for case in established.into_iter().flat_map(|local| &local.cases) {
+    for case in &established.cases {
         if prefix_matches(segments, case) {
             leaves.cases.push(case[segments.len()..].to_vec());
+        }
+    }
+    for moved in &established.moves {
+        if prefix_matches(segments, &moved.local_segments) {
+            leaves.moves.push(AggregateMove {
+                local_segments: moved.local_segments[segments.len()..].to_vec(),
+                source: moved.source.clone(),
+                type_reference: moved.type_reference,
+            });
+        } else if prefix_matches(&moved.local_segments, segments) {
+            let remaining = &segments[moved.local_segments.len()..];
+            leaves.moves.push(AggregateMove {
+                local_segments: Vec::new(),
+                source: moved.source.append_segments(remaining),
+                type_reference: projected_type(program, moved.type_reference, remaining)?,
+            });
         }
     }
     // Zero leaves follows a validated shape/projection, not failed lookup.
     // Symbolic paths still require caller-prefix expansion; only the frozen
     // transfer has already accounted for the preceding declarations here.
     Some(leaves)
+}
+
+/// An excluded outer branch makes all of its inner rows absent. Otherwise,
+/// missing container evidence is incomplete, not proof of a reference-free
+/// subtree. Runtime selectors retain every matching possible branch.
+fn case_path_is_possible(path: &[PlaceSegment], cases: &[Vec<PlaceSegment>]) -> Option<bool> {
+    for (index, selected) in path.iter().enumerate() {
+        if !matches!(selected, PlaceSegment::Case { .. }) {
+            continue;
+        }
+        let mut candidates = cases.iter().filter(|case| {
+            case.len() == index + 1 && prefix_matches(&path[..index], &case[..index])
+        });
+        let first = candidates.next()?;
+        if first[index] != *selected && !candidates.any(|case| case[index] == *selected) {
+            return Some(false);
+        }
+    }
+    Some(true)
 }
 
 pub(super) fn prefix_matches(selected: &[PlaceSegment], candidate: &[PlaceSegment]) -> bool {
@@ -238,7 +304,7 @@ pub(super) fn prefix_matches(selected: &[PlaceSegment], candidate: &[PlaceSegmen
         })
 }
 
-fn projected_type(
+pub(in crate::calls::write_frames) fn projected_type(
     program: &TypedTrees,
     mut reference: TypeReferenceHandle,
     segments: &[PlaceSegment],
@@ -350,4 +416,123 @@ fn unconstrained_type(
         reference = *base_type;
     }
     reference.is_valid().then_some(reference)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::calls::write_frames::stored_origins::StoredWriteOrigin;
+    use crate::calls::write_frames::{FramePathPrecision, FramePlaceOrigin, FrameSourcePlace};
+    use psi_symbols::SymbolHandle;
+
+    fn symbolic_reference(
+        path: Vec<PlaceSegment>,
+        cases: Vec<Vec<PlaceSegment>>,
+    ) -> StoredLocalOrigins {
+        let local_symbol = SymbolHandle::from_parts(1, 1);
+        StoredLocalOrigins {
+            local_symbol,
+            references: vec![StoredWriteOrigin {
+                local_symbol,
+                local_path: "local".into(),
+                local_segments: path.clone(),
+                origin: FramePlaceOrigin {
+                    path: "local".into(),
+                    precision: FramePathPrecision::Exact,
+                    source: FrameSourcePlace {
+                        root: local_symbol,
+                        segments: path,
+                    },
+                },
+            }],
+            cases,
+            moves: Vec::new(),
+        }
+    }
+
+    #[test]
+    fn symbolic_projection_distinguishes_absent_missing_and_possible_cases() {
+        let program = TypedTrees::default();
+        let selected = PlaceSegment::Case {
+            variant: SymbolHandle::from_parts(2, 1),
+        };
+        let empty = PlaceSegment::Case {
+            variant: SymbolHandle::from_parts(3, 1),
+        };
+        let mut origins = symbolic_reference(vec![selected], vec![vec![empty]]);
+        let projected =
+            project_stored_origins(&program, &origins, &[], true).expect("known empty case");
+        assert!(projected.references.is_empty());
+        assert_eq!(projected.cases, vec![vec![empty]]);
+
+        origins.cases.clear();
+        assert!(project_stored_origins(&program, &origins, &[], true).is_none());
+        origins.cases = vec![vec![empty], vec![selected]];
+        assert_eq!(
+            project_stored_origins(&program, &origins, &[], true)
+                .expect("possible selected case")
+                .references
+                .len(),
+            1
+        );
+
+        origins.references[0].local_segments.clear();
+        origins.cases.clear();
+        assert_eq!(
+            project_stored_origins(&program, &origins, &[], true)
+                .expect("case-free reference")
+                .references
+                .len(),
+            1
+        );
+
+        origins.references[0].local_segments = vec![selected, selected];
+        origins.cases = vec![vec![empty]];
+        assert!(
+            project_stored_origins(&program, &origins, &[], true)
+                .expect("outer case excludes inner missing evidence")
+                .references
+                .is_empty()
+        );
+    }
+
+    #[test]
+    fn symbolic_projection_checks_selected_array_element_cases() {
+        let program = TypedTrees::default();
+        let selected = PlaceSegment::Case {
+            variant: SymbolHandle::from_parts(2, 1),
+        };
+        let empty = PlaceSegment::Case {
+            variant: SymbolHandle::from_parts(3, 1),
+        };
+        let wildcard = PlaceSegment::Index {
+            expression: ExpressionHandle::invalid(),
+        };
+        let first = PlaceSegment::FixedIndex { index: 0 };
+        let second = PlaceSegment::FixedIndex { index: 1 };
+        let origins = symbolic_reference(
+            vec![wildcard, selected],
+            vec![vec![first, empty], vec![second, selected]],
+        );
+        assert!(
+            project_stored_origins(&program, &origins, &[first], true)
+                .expect("first is empty")
+                .references
+                .is_empty()
+        );
+        assert_eq!(
+            project_stored_origins(&program, &origins, &[second], true)
+                .expect("second is selected")
+                .references
+                .len(),
+            1
+        );
+        assert_eq!(
+            project_stored_origins(&program, &origins, &[wildcard], true)
+                .expect("runtime may select either")
+                .references
+                .len(),
+            1
+        );
+    }
 }
