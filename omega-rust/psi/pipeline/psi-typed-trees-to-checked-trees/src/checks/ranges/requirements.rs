@@ -1,16 +1,31 @@
 use psi_typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use psi_typed_trees::machine::Machine;
 use psi_typed_trees::signature::SignatureContractKind;
+use psi_typed_trees::state::State;
 
 use super::facts::RangeFacts;
 use super::guards::seed_guard_facts;
 
-pub(super) fn seed_machine_requires(
+/// Machine preconditions belong to the callable entry. Named states receive
+/// their own declared preconditions and facts transported by incoming edges,
+/// never a replay of a different state's same-spelled parameter expressions.
+pub(super) fn seed_state_requires(
     program: &psi_typed_trees::TypedTrees,
     facts: &mut RangeFacts<'_>,
     machine: &Machine,
+    state: &State,
 ) {
-    for contract in program.machine_contracts(machine) {
+    let is_entry = state.symbol.is_valid()
+        && program
+            .machine_states(machine)
+            .first()
+            .is_some_and(|entry| entry.symbol == state.symbol);
+    for contract in program
+        .machine_contracts(machine)
+        .iter()
+        .filter(|_| is_entry)
+        .chain(program.state_contracts(state))
+    {
         if contract.kind != SignatureContractKind::Requires {
             continue;
         }

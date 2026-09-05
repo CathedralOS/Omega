@@ -7,7 +7,7 @@ use psi_typed_trees::machine::Machine;
 use psi_typed_trees::state::State;
 
 use super::facts::RangeFacts;
-use super::seed_machine_requires;
+use super::seed_state_requires;
 
 use self::statements::collect_state_argument_facts_from_statement;
 
@@ -180,7 +180,7 @@ pub(super) fn collect_state_argument_facts<'program>(
                     None,
                 );
             }
-            seed_machine_requires(program, &mut facts, machine);
+            seed_state_requires(program, &mut facts, machine, state);
             // Seed the source state's own parameter facts gathered so far so
             // that arguments derived from them (e.g. `remaining - 1`) carry the
             // refined bound into the cyclic callee on this pass.

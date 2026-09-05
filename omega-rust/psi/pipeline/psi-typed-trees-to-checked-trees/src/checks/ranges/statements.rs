@@ -44,33 +44,13 @@ pub(super) fn check_statement<'program>(
                 assignment.value,
                 diagnostics,
             );
-            // The target's prior index upper bound is STALE the moment it is
-            // reassigned (it now holds a different value). Drop it so a loosening
-            // reassignment (`j = j + 1`) cannot retain an old tighter bound and
-            // wrongly prove an access AFTER the mutation. Any new bound is
-            // re-derived below from the value (`seed_offset_index_bound`).
-            facts.forget_index_upper_bound(
+            // RHS effects and values are evaluated before replacing the target.
+            let next_length = expression_indexable_length(program, facts, assignment.value);
+            let next_integer = expression_integer_value(program, facts, assignment.value);
+            facts.invalidate_assignment_bounds(
                 &program.expression_table.display_name(assignment.target),
             );
-            // Collection-relative index/range facts (`i < items.len`,
-            // `i <= items.len`) name the scalar value in their second slot.
-            // Reassigning that scalar invalidates them too; otherwise a guard
-            // or loop-head invariant about the old value could prove an access
-            // using the new value.
-            facts.forget_index_position_facts(
-                &program.expression_table.display_name(assignment.target),
-            );
-            // The `>= 0` fact is likewise STALE on reassignment -- the new value
-            // may be negative. A `>= 0` guard re-establishes it where it holds.
-            facts.forget_non_negative(&program.expression_table.display_name(assignment.target));
-            // Orderings (`i <= j`) naming the target are STALE on reassignment --
-            // a guard re-establishes them where they still hold. Without this a
-            // chained bound (`i <= j < len => i < len`) could survive a loosening
-            // write to `i` or `j`.
-            facts.forget_orderings(&program.expression_table.display_name(assignment.target));
             if let Some((symbol, name)) = expression_name(program, assignment.target) {
-                let next_length = expression_indexable_length(program, facts, assignment.value);
-                let next_integer = expression_integer_value(program, facts, assignment.value);
                 facts.assign_local(symbol, name, next_length, next_integer);
                 seed_boolean_guard_local(
                     program,
@@ -85,7 +65,6 @@ pub(super) fn check_statement<'program>(
                 seed_subslice_window_facts(program, facts, assignment.value, name);
             } else if let Some((symbol, name)) = expression_member_name(program, assignment.target)
             {
-                let next_integer = expression_integer_value(program, facts, assignment.value);
                 facts.assign_field_integer(symbol, name, next_integer);
                 seed_offset_index_bound(program, facts, assignment.target, assignment.value);
             }

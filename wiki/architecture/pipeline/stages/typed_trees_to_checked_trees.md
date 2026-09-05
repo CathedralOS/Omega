@@ -89,6 +89,13 @@ the other arm's facts. Named state jumps are transfers, and crash edges are not
 normal returns. Exit proof consumes the facts live on the returning path, not
 the guarantees it is trying to establish.
 
+Machine `requires` assumptions are scoped to the generated entry state, not
+the machine-wide context. Internal jumps check the target state's authored
+requirements without reapplying machine-entry contracts or publishing machine
+return guarantees. Actual invocations retain both contract sides. A `self`
+back-edge to entry must re-establish its machine preconditions; a named-state
+back-edge owes that state's own arrival requirements.
+
 Reference origins across named states are a finite, entry-reachable dataflow
 calculation. Renaming and identity-preserving loops retain the entry subject;
 conflicting, unknown, or rebound references do not. This transports the subject
@@ -118,6 +125,10 @@ Minimum lengths remain lower bounds, not exact extents. Each pass rebuilds the
 edge contributions, and unconverged inference is withheld. Raw incoming guards
 may refer to shared machine storage; parameter facts instead follow explicit
 argument bindings, never matching names in different states.
+Both range walks seed machine requirements only at entry and authored state
+requirements at their declaring state. Assignments retire stale scalar and
+collection bounds through one shared invalidation rule before replacement
+facts can flow into a later state.
 
 Literal assignment values belong to the common semantic fact contexts. They
 are attached to exact stable places and use the same mutation invalidation as

@@ -40,9 +40,27 @@ pub(super) fn proof_obligation_point(obligation: &ProofObligationFact) -> Progra
     }
 }
 
-pub(super) fn contract_fact_point(contract: &ContractProofFact) -> ProgramPoint {
+pub(super) fn contract_fact_point(
+    program: &psi_typed_trees::TypedTrees,
+    contract: &ContractProofFact,
+) -> ProgramPoint {
     match contract.owner {
         ContractProofFactOwner::Machine { machine_symbol } => {
+            // A machine precondition is an entry assumption, not an invariant
+            // to regrant at every state. Ensures keep their declaration owner
+            // and become obligations at each normal exit instead.
+            if contract.kind == ContractProofFactKind::Requires
+                && let Some(entry) = program
+                    .machines()
+                    .iter()
+                    .find(|machine| machine.symbol == machine_symbol)
+                    .and_then(|machine| program.machine_states(machine).first())
+            {
+                return ProgramPoint::State {
+                    machine_symbol,
+                    state_symbol: entry.symbol,
+                };
+            }
             ProgramPoint::Machine { machine_symbol }
         }
         ContractProofFactOwner::MachineState {

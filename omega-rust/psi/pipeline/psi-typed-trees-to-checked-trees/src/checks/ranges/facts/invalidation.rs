@@ -2,6 +2,21 @@ use super::RangeFacts;
 use psi_typed_trees::{TypedTrees, state::State, statement::StatementNode};
 
 impl RangeFacts<'_> {
+    /// Shared direct-assignment transfer for the checking and incoming-edge
+    /// walks. Replacing an index invalidates its ordering/position premises;
+    /// replacing a collection descriptor invalidates its extent/window rows.
+    /// Value snapshots are replaced separately after the RHS is evaluated.
+    pub(in crate::checks::ranges) fn invalidate_assignment_bounds(&mut self, target: &str) {
+        self.forget_index_upper_bound(target);
+        self.forget_index_position_facts(target);
+        self.forget_non_negative(target);
+        self.forget_orderings(target);
+        self.forget_collection_facts(target);
+        // A saved Boolean expression is not a persistent proof of its old
+        // operands after a direct assignment any more than after a call.
+        self.boolean_locals.clear();
+    }
+
     /// A complete call frame includes both caller storage and overlapping live
     /// alias spellings. Unknown effects retire all value-dependent premises;
     /// declared fixed-array extents remain true regardless of element writes.
