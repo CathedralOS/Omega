@@ -1,0 +1,32 @@
+boundary trait Console {
+  machine exit_process(return_code: i32) -> never;
+  machine write_byte(value: i32);
+  machine read_byte() -> i32;
+  machine write_line(text: &[u8]);
+}
+
+data Main {
+  console: Console;
+  values: [u8; 4];
+}
+
+machine Main::main(&mut self) {
+  assert self.values[0] == 0;
+  assert self.values[3] == 0;
+  self.values[0] = 128;
+  self.values[1 + 1] = self.values[0] + 127;
+  assert self.values[0] == 128;
+  assert self.values[1] == 0;
+  assert self.values[2] == 255;
+  let maximum: i32 = self.values[2];
+  assert maximum + 1 == 256;
+  self.values[3] = self.values[2] - 190;
+  let first: i32 = self.values[3];
+  self.console.write_byte(first);
+  self.values[0] = 0;
+  assert self.values[0] == 0;
+  assert self.values[2] == 255;
+  self.values[3] = self.values[3] + 1;
+  let second: i32 = self.values[3];
+  self.console.write_byte(second);
+}
