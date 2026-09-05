@@ -647,6 +647,7 @@ const CHECKED_ONLY_PASS_CANARIES: &[&str] = &[
     "traits/trait_satisfies_machine_signature",
     "providers/service_fused_erasure_compile",
     "control_flow/termination_countdown_compile",
+    "control_flow/entry_local_member_access_in_nested_state",
     "termination/custom_ranking_order_compile",
     "termination/default_order_nat_countdown_compile",
     "termination/default_order_slice_length_compile",
