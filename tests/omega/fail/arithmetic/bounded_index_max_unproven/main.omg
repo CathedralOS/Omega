@@ -3,8 +3,8 @@ data Main {
 
 machine Main::main(
     &mut self,
-    room_count: u32,
-    index: u64
-) -> u32 {
+    room_count: u64 [1..=16],
+    index: u64 [0..=16]
+) -> u64 [1..=16] {
     max(room_count, index + 1)
 }

@@ -1,5 +1,5 @@
 data Room {
-    exit_count: u32;
+    exit_count: u32 [0..=4];
 }
 
 data Main {
@@ -9,15 +9,14 @@ machine Main::main(
     &mut self,
     room: Room
 ) {
-    match room.exit_count > 0 {
+    transition room.exit_count > 0 {
         true -> append(room.exit_count)
         false -> {}
     }
-    
 
     state append(
         &mut self,
-        exit_count: u64
+        exit_count: u32 [1..=4]
     ) {
     }
 }

@@ -207,6 +207,25 @@ the [Rust Compiler Completion Contract](wiki/releases/rust_compiler_completion_c
   unresolved or substituted operator selections still reject. Do not bypass
   the authored-selection guard or infer authority from the operator's spelling.
 
+- **BOUNDED-RETURN-ARRIVAL-FACTS.** Preserve established state requirements and
+  incoming guards in bounded-return obligations in
+  `psi/semantics/proof/src/obligations.rs` and `checker.rs`.
+  `arithmetic/bounded_guarded_increment` rejects `exit_count + 1` because the
+  return interval uses the declared `[0..=4]` operand range without the checked
+  arrival requirement `exit_count < 4`. Acceptance: the checked fixture proves
+  its `[0..=4]` result, while removing the arrival premise still rejects.
+
+- **EXACT-CALL-RESULT-RELATIONS.** Carry exact call-result comparisons through
+  state arrivals and arithmetic validation in
+  `psi/semantics/validation/src/arithmetic_domains/`. The restored
+  `arithmetic/bounded_guarded_subtraction` guards and requires
+  `xp >= cost(level)`, but subtraction only consumes relations between places,
+  losing the bound for `xp - cost(level)`. Acceptance: the pure repeated-call
+  fixture reaches checked trees using exact target/input identity and valid
+  effect facts; changed arguments, intervening mutation, or effectful calls
+  cannot inherit that relation merely from matching source text. Non-entry
+  state requirements must contribute established facts to the arithmetic check.
+
 `omega-rust/` remains the production implementation until that contract
 closes. It may remain afterward as a differential implementation while it finds
 real bugs, but Rust agreement is not bootstrap authority and Rust-specific
