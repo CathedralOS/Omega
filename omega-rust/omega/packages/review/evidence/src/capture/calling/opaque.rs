@@ -19,13 +19,11 @@ use omega_provider_planning::calling_policy_plans::{
 };
 use omega_representation_planning::OpaqueRepresentationSelection;
 use psi_diagnostics::Diagnostic;
-use psi_typed_trees::name::Identifier;
 
 pub(super) fn project(
     compilation: &CheckedCompilation,
     realization: &BoundaryCallingPlanRealization,
     validated: &ValidatedBoundaryEntryPlan,
-    lifetime_binders: &[Identifier],
 ) -> Result<Vec<PackagePolicyCallingOpaqueUse>, Vec<Diagnostic>> {
     if validated.plan() != realization.exact_boundary_entry_plan()
         || validated.plan() != &realization.boundary_entry_plan
@@ -37,14 +35,7 @@ pub(super) fn project(
     if uses.is_empty() {
         return Ok(Vec::new());
     }
-    let retained = compilation.opaque_representation_selections();
-    let selections = omega_representation_planning::rederive_opaque_representation_selections(
-        &compilation.typed,
-        retained
-            .first()
-            .map(OpaqueRepresentationSelection::selecting_machine),
-        retained,
-    )?;
+    let selections = crate::capture::representation::rederive_selections(compilation)?;
     let mut opaque_symbols = Vec::new();
     let mut rows = Vec::new();
     for use_ in uses {
@@ -116,7 +107,7 @@ pub(super) fn project(
             application: project_checked_conformance_policy(
                 compilation,
                 selection.application(),
-                lifetime_binders,
+                &[],
             )?,
             origin: project_representation_origin(selection.origin()),
             lifecycle: project_representation_lifecycle(selection.lifecycle()),

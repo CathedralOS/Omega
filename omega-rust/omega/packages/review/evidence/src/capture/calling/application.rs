@@ -66,12 +66,7 @@ pub fn project_checked_calling_policy(
     )?;
     let native_parameters =
         native::project(materialized, &semantic.semantic_parameters, &callbacks)?;
-    let opaque_uses = opaque::project(
-        compilation,
-        realization,
-        &validated,
-        &semantic.lifetime_binders,
-    )?;
+    let opaque_uses = opaque::project(compilation, realization, &validated)?;
     let policy = PackagePolicyCallingPlan {
         boundary_trait: semantic.boundary_trait,
         boundary_arguments: semantic.boundary_arguments,

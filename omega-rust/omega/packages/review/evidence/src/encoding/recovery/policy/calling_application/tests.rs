@@ -98,7 +98,7 @@ pub(super) fn fixture() -> PackagePolicyCallingPlan {
     }
 }
 
-fn complete_fixture() -> PackagePolicyCallingPlan {
+pub(in crate::encoding::recovery::policy) fn complete_fixture() -> PackagePolicyCallingPlan {
     let mut policy = fixture();
     let native = evaluate_ordinary_boundary_entry_plan(
         CallingPolicy::SystemVAMD64,

@@ -2952,8 +2952,18 @@ their validation before removing report coordinates and commitments. Neither
 evaluator machine names nor native compact IDs enter the calling component.
 Recovery uses one shared byte, element, and allocation budget across nested
 components and checks their structural associations without recovering compiler
-or native evidence. Complete provider policy must still join selected-provider
-associations and retain service contracts and representation availability.
+or native evidence. Representation policy separately retains package-owned
+opaque declarations, complete public producer-conformance surfaces, every
+selected application (including unused placement-only choices), and actual
+demands with their full calling applications. Producer availability retains its
+uninstantiated public telescope and does not manufacture a selected application.
+Selection capture reharvests the exact authoritative build even when the
+retained selection collection is empty. That build has no static or lifetime
+telescope; selected conformance lifetimes cannot bind to a called requirement's
+telescope. Recovery checks selection ownership, producer associations, and
+complete per-application opaque-demand coverage under the shared resource budget.
+Complete provider policy must still join selected-provider associations and
+retain service contracts; complete baseline composition remains separate.
 These components alone are not a package baseline or an acceptance decision.
 
 The project normally commits the lock and trusts whoever lands its changes.

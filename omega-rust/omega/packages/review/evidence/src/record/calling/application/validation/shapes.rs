@@ -98,7 +98,14 @@ pub(super) fn validate_opaque(policy: &PackagePolicyCallingPlan) -> Result<(), &
         return Err("calling opaque uses are not canonical");
     }
     for (index, use_) in policy.opaque_uses.iter().enumerate() {
-        super::validate_application_lifetimes(policy, &use_.application)?;
+        // Opaque selections belong to the nongeneric authoritative build, not
+        // to the boundary requirement's lifetime telescope. Callback slots
+        // retain their separate calling-relative lifetime validation.
+        if !use_.application.lifetime_arguments.is_empty()
+            || !use_.application.trait_lifetime_arguments.is_empty()
+        {
+            return Err("calling opaque selection has no build lifetime telescope");
+        }
         validate_nominal(&use_.opaque)?;
         validate_nominal(&use_.carrier)?;
         validate_nominal(&use_.application.declaration)?;

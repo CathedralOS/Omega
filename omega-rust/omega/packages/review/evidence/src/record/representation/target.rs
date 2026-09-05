@@ -1,5 +1,7 @@
 //! Stable target identity retained by representation demand evidence.
 
+mod validation;
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub enum PackageReviewRepresentationTargetProfile {
     LinuxArm64,

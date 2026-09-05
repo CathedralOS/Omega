@@ -4,6 +4,8 @@ mod application;
 mod callbacks;
 mod opaque;
 
+pub(crate) use application::encode_application;
+
 use super::encoder::Encoder;
 use crate::encoding::PackageReviewEncodingError;
 use crate::record::PackageReviewTypeIdentity;

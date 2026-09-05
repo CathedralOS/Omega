@@ -112,7 +112,9 @@ fn proposition_binder(reader: &mut Reader<'_>) -> Result<PackageReviewPropositio
     })
 }
 
-fn evidence_interface(reader: &mut Reader<'_>) -> Result<PackageReviewEvidenceInterface, Error> {
+pub(super) fn evidence_interface(
+    reader: &mut Reader<'_>,
+) -> Result<PackageReviewEvidenceInterface, Error> {
     Ok(PackageReviewEvidenceInterface {
         trait_identity: nominal(reader)?,
         lifetime_arguments: reader.sequence(4, |reader| reader.u32())?,

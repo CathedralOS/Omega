@@ -86,6 +86,23 @@ nesting limits. The existing full-review encoding and validators are unchanged.
 Integration into the complete normalized policy baseline remains separate;
 this component is not an accepted-lock record or an acceptance decision.
 
+`project_checked_representation_policy` captures complete representation policy
+for one package in the checked closure. It keeps opaque declarations, full
+public conformance availability, all independently rederived selections, and
+actual calling demands separate. An unused placement-only selection remains
+visible just like an unused checked-copy selection. The selecting package owns
+choices and demands even when opaque declarations and carriers are foreign.
+The authoritative build's empty lifetime telescope is distinct from a called
+requirement's telescope. Its name, spans, and compiler receipts do not enter
+policy identity.
+
+The `OMEGA-REPRESENTATION-POLICY` version-1 encoding embeds full calling and
+conformance meanings under one recovery budget. It checks exact ownership,
+producer/selection associations, and complete opaque-use coverage within each
+retained calling application. This is inert policy, not reconstructed native
+evidence or an accepted lock. The older representation-TCB review rows and
+their replay-bearing encoding remain unchanged.
+
 The supported result lanes do not pretend to prove a bodyless accepted claim,
 grant dangerous authority, validate externally supplied executable code, or
 exercise or admit a terminal-authority permission. `ledger/results.rs` rejoins

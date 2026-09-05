@@ -4,7 +4,9 @@ use crate::record::*;
 
 // These fixtures have only nominal machine statics, so each machine contract
 // charges one node in addition to its outer list element.
-pub(super) fn fixture_elements(policy: &PackagePolicyCallingPlan) -> usize {
+pub(in crate::encoding::recovery::policy) fn fixture_elements(
+    policy: &PackagePolicyCallingPlan,
+) -> usize {
     let conformance_elements = |application: &PackagePolicyClosedConformanceApplication| {
         application.lifetime_arguments.len()
             + application.type_arguments.len()
@@ -73,13 +75,10 @@ pub(super) fn fixture_elements(policy: &PackagePolicyCallingPlan) -> usize {
             .len()
 }
 
-#[test]
-fn owned_storage_exact_boundary_includes_complete_canonical_scratch() {
-    let policy = fixture();
-    let bytes = policy.canonical_bytes().unwrap();
+fn fixture_owned(policy: &PackagePolicyCallingPlan) -> usize {
     let physical = &policy.physical;
     let states = &physical.state;
-    let owned = policy.boundary_trait.path.len()
+    policy.boundary_trait.path.len()
         + policy.requirement.path.len()
         + policy.requirement_trait.path.len()
         + std::mem::size_of::<PackageReviewBoundaryShape>()
@@ -103,7 +102,13 @@ fn owned_storage_exact_boundary_includes_complete_canonical_scratch() {
         .map(|set| set.len())
         .sum::<usize>()
             * std::mem::size_of::<PackagePolicyMachineState>()
-        + bytes.len();
+}
+
+#[test]
+fn owned_storage_exact_boundary_includes_complete_canonical_scratch() {
+    let policy = fixture();
+    let bytes = policy.canonical_bytes().unwrap();
+    let owned = fixture_owned(&policy) + bytes.len();
     let limits = |owned| {
         PackagePolicyRecoveryLimits::new(
             bytes.len(),
@@ -119,6 +124,43 @@ fn owned_storage_exact_boundary_includes_complete_canonical_scratch() {
     );
     assert_eq!(
         PackagePolicyCallingPlan::recover_canonical(&bytes, limits(owned - 1)),
+        Err(Error::AllocationLimitExceeded)
+    );
+}
+
+#[test]
+fn inner_calling_codec_keeps_bytes_and_shares_aggregate_budgets() {
+    use crate::encoding::encode::{calling::encode_application, encoder::Encoder};
+
+    let policy = fixture();
+    let standalone = policy.canonical_bytes().unwrap();
+    let body = &standalone[CALLING_POLICY_MAGIC.len() + 2..];
+    let mut encoder = Encoder::policy_bounded(4 * 1024 * 1024);
+    encode_application(&mut encoder, &policy).unwrap();
+    encode_application(&mut encoder, &policy).unwrap();
+    let aggregate = encoder.finish().unwrap();
+    assert_eq!(
+        aggregate,
+        [body, body].concat(),
+        "inner fields have no nested envelope"
+    );
+    let elements = fixture_elements(&policy);
+    let owned = fixture_owned(&policy);
+    let limits = |elements, owned| {
+        PackagePolicyRecoveryLimits::new(aggregate.len(), usize::MAX, elements, owned, usize::MAX)
+    };
+    let mut reader = Reader::new(&aggregate, limits(2 * elements, 2 * owned)).unwrap();
+    assert_eq!(application(&mut reader).unwrap(), policy);
+    assert_eq!(application(&mut reader).unwrap(), policy);
+    reader.finish().unwrap();
+
+    let mut reader = Reader::new(&aggregate, limits(2 * elements - 1, 2 * owned)).unwrap();
+    assert_eq!(application(&mut reader).unwrap(), policy);
+    assert_eq!(application(&mut reader), Err(Error::ElementLimitExceeded));
+    let mut reader = Reader::new(&aggregate, limits(2 * elements, 2 * owned - 1)).unwrap();
+    assert_eq!(application(&mut reader).unwrap(), policy);
+    assert_eq!(
+        application(&mut reader),
         Err(Error::AllocationLimitExceeded)
     );
 }
