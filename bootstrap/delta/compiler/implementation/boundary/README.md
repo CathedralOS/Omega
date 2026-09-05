@@ -31,8 +31,8 @@ limit, and requested fields at bytes 16, 24, and 32. Tag equals process status.
 This is a projection of embedded compiler constants, not a runtime host table.
 
 The source envelope, lexical tokens, structural syntax, complete global identity
-census, and post-frontend entry schema additionally own these Reject results
-(tag 1, zero limit/requested):
+census, declaration resolution, and post-frontend entry schema additionally own
+these Reject results (tag 1, zero limit/requested):
 
 | Code | Meaning | Coordinate space | Coordinate |
 | --- | --- | --- | --- |
@@ -42,6 +42,8 @@ census, and post-frontend entry schema additionally own these Reject results
 | 6 | duplicate_type | 1 Delta source | later type name |
 | 7 | duplicate_constructor | 1 Delta source | later constructor name |
 | 8 | duplicate_function | 1 Delta source | later function name |
+| 9 | active_local_conflict (parameters only) | 1 Delta source | later parameter name |
+| 11 | unknown_type (declarations only) | 1 Delta source | constructor field, parameter, or result type name |
 | 19 | missing_entry | 0 none | zero |
 | 20 | entry_schema_mismatch | 1 Delta source | present `main` declaration name |
 
@@ -76,7 +78,14 @@ without resolving a declaration type. The complete type/constructor catalogs
 and raw function nodes then feed declaration-type resolution;
 only its complete typed metadata reaches body checking. A duplicate therefore
 precedes unknown declaration types, including an earlier unknown function
-parameter or constructor payload type. Schema runs only after the ordinary
+parameter or constructor payload type. Declaration resolution visits declarations,
+constructors, and fields in authored order. For each function, it visits
+parameters in order and checks each parameter's name conflict before resolving
+that parameter's annotation; it resolves the result type after all parameters.
+An earlier unknown annotation therefore precedes a later parameter conflict,
+while a conflicting parameter precedes its own unknown annotation. The entire
+declaration phase completes before any body checking, and failures propagate
+unchanged through the phase outcome. Schema runs only after the ordinary
 frontend accepts: an invalid body cannot turn into missing-entry or
 wrong-signature rejection. Empty source is invalid Delta syntax, not an
 otherwise valid program missing an entry. Profile 2 and schema code 21 remain
@@ -90,8 +99,8 @@ detached table participates in execution. D125 removes profile 2, not the
 request-failure identities.
 
 This is partial frontend-boundary coverage, not full DCOUT closure. Remaining
-local-name, type, arity, and match failures still reach the shared
-evaluator trap, and later resource/internal outcomes do not yet carry
+body-local conflicts, body annotation types, value-name, type, arity, and match
+failures still reach the shared evaluator trap, and later resource/internal outcomes do not yet carry
 compiler-owned evidence. Those empty-output evaluator
 statuses must not be decoded as DCOUT or synthesized into frames by a runner.
 The generated ConformanceBytesV1 program's statuses are separately owned by

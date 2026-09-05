@@ -31,7 +31,7 @@ directory = Path(os.environ["FRONTEND_BOUNDARY_TMP"])
 compiler = (directory / "compiler.gamma").read_bytes()
 identity = (len(compiler.splitlines()), len(compiler), hashlib.sha256(compiler).hexdigest())
 if identity != (
-    2693, 111236, "48526e2713778321efcc15121b70269c4c7d91cf007e31cad53f66ff18e47671"
+    2727, 113178, "ee6818499f770fd2ad2b06286a6f9509e4f0b1cd9f7acca4a15122d2cb473042"
 ):
     raise SystemExit(f"Delta compiler identity changed: {identity}")
 
@@ -213,11 +213,68 @@ deep_prefix = b"(def main () Int " + b"(helper " * 1000
 cases.append(("deep structural traversal", deep_prefix + b"-" + b")" * 1001,
               rejection(4, len(deep_prefix))))
 
+# Declaration judgments consume the completed global census and retained nodes.
+# Prefixes author exact type/binder coordinates; no host lookup chooses a reason.
+declarations = (
+    ("unknown parameter type without main", 11,
+     b"(def helper ((value ", b"Unknown", b")) Int 0)\n"),
+    ("unknown result type without main", 11,
+     b"(def helper () ", b"Unknown", b" 0)\n"),
+    ("unknown constructor field without main", 11,
+     b"(data Item (Item ", b"Unknown", b"))\n(def helper () Int 0)\n"),
+    ("unknown later constructor field", 11,
+     b"(data Item (Item Int Bytes ", b"Unknown", b"))\n" + identity_source),
+    ("unknown field in later constructor", 11,
+     b"(data Item (Empty) (Full Int ", b"Unknown", b"))\n" + identity_source),
+    ("constructor spelling does not declare a type", 11,
+     b"(data Item (OnlyConstructor))\n(def helper ((value ",
+     b"OnlyConstructor", b")) Int 0)\n"),
+    ("type prefix is not an exact declaration", 11,
+     b"(data ItemLong (Empty))\n(def helper () ", b"Item", b" Empty)\n"),
+    ("type suffix is not an exact declaration", 11,
+     b"(data Item (Empty))\n(def helper () ", b"ItemLong", b" Empty)\n"),
+    ("first parameter type before later parameter type", 11,
+     b"(def helper ((first ", b"Unknown", b") (second Missing)) Int 0)\n"),
+    ("parameter type before result type", 11,
+     b"(def helper ((value ", b"Unknown", b")) Missing 0)\n"),
+    ("earlier constructor type before later signature", 11,
+     b"(data Item (Item ", b"Unknown", b"))\n(def helper () Missing 0)\n"),
+    ("earlier function result before later parameter", 11,
+     b"(def first () ", b"Unknown", b" 0)\n(def second ((value Missing)) Int 0)\n"),
+    ("later signature before earlier body failure", 11,
+     b"(def first () Int missing)\n(def second () ", b"Unknown", b" 0)\n"),
+    ("unknown main signature before entry schema", 11,
+     b"(def main ((source Bytes)) ", b"Unknown", b" source)\n"),
+    ("type coordinate after comments and whitespace", 11,
+     b"; leading\r\n(def helper ((value ; annotation\r\n\t",
+     b"Unknown", b")) Int 0)\n"),
+    ("duplicate parameter without main", 9,
+     b"(def helper ((value Int) (", b"value", b" Int)) Int 0)\n"),
+    ("duplicate parameter before its unknown type", 9,
+     b"(def helper ((value Int) (", b"value", b" Unknown)) Int 0)\n"),
+    ("earlier unknown type before duplicate parameter", 11,
+     b"(def helper ((value ", b"Unknown", b") (value Int)) Int 0)\n"),
+    ("nonadjacent parameter conflict", 9,
+     b"(def helper ((value Int) (other Bytes) (", b"value", b" Int)) Int 0)\n"),
+    ("duplicate parameter before unknown result and body", 9,
+     b"(def helper ((value Int) (", b"value", b" Int)) Unknown missing)\n"),
+    ("later parameter conflict before earlier body failure", 9,
+     b"(def first () Int missing)\n(def second ((value Int) (",
+     b"value", b" Int)) Int 0)\n"),
+    ("global duplicate before earlier parameter conflict", 8,
+     b"(def helper ((value Int) (value Int)) Int 0)\n(def ",
+     b"helper", b" () Int 0)\n"),
+)
+for name, code, prefix, offending, suffix in declarations:
+    cases.append((name, prefix + offending + suffix, rejection(code, len(prefix))))
+
 # These unfinished frontend paths must remain evaluator-owned failures, not
 # guessed DCOUT frames or schema diagnostics derived before frontend success.
 for name, source in (
-    ("unknown signature type without main", b"(def helper ((value Unknown)) Int 0)\n"),
-    ("unknown constructor type without main", b"(data Item (Item Unknown))\n(def helper () Int 0)\n"),
+    ("unknown let annotation remains body-owned",
+     b"(def helper () Int (let value Unknown 0 0))\n"),
+    ("let conflict remains body-owned",
+     b"(def helper ((value Int)) Int (let value Int 0 value))\n"),
     ("unknown body name without main", b"(def helper () Int missing)\n"),
     ("wrong present entry with body error", b"(def main () Int missing)\n"),
     ("wrong present entry with body type error", b"(def main () Int (bytes_empty))\n"),
@@ -252,6 +309,18 @@ accepted = (
     ("forward and mutually visible data",
      b"(data Left (End) (ToRight Right))\n"
      b"(data Right (ToLeft Left))\n" + identity_source),
+    ("nominal parameters and result retain resolved types",
+     b"(data Item (Item Bytes))\n"
+     b"(def wrap ((source Bytes)) Item (Item source))\n"
+     b"(def unwrap ((item Item)) Bytes (match item ((Item value) value)))\n"
+     b"(def main ((source Bytes)) Bytes (unwrap (wrap source)))\n"),
+    ("parameter spelling prefixes remain distinct",
+     b"(def helper ((value Bytes) (value_more Bytes)) Bytes value_more)\n"
+     b"(def main ((source Bytes)) Bytes (helper (bytes_empty) source))\n"),
+    ("parameter spelling reuse across functions",
+     b"(def first ((value Bytes)) Bytes value)\n"
+     b"(def second ((value Bytes)) Bytes (first value))\n"
+     b"(def main ((source Bytes)) Bytes (second source))\n"),
     ("forward and mutually visible functions",
      b"(def first ((value Int)) Int (if value (second 0) 0))\n"
      b"(def second ((value Int)) Int (if value (first 0) 0))\n"

@@ -19,7 +19,17 @@ and emission. Concept-owned members are grouped below it:
 - `implementation/emission/`: program structure, matches, value representation,
   checked arithmetic, byte helpers/adapters, and textual output.
 
-`implementation/implementation.gamma.sources` selects all 23 shared members
+Declaration resolution starts at
+[`checking/declarations.gamma`](implementation/checking/declarations.gamma).
+Its subordinate `checking/declarations/` members separate
+[`functions.gamma`](implementation/checking/declarations/functions.gamma)
+(parameters and signatures),
+[`data.gamma`](implementation/checking/declarations/data.gamma)
+(constructors and fields), and
+[`types.gamma`](implementation/checking/declarations/types.gamma)
+(retained type-node resolution).
+
+`implementation/implementation.gamma.sources` selects all 26 shared members
 with exact lengths, digests, and ordered identities. The byte-only source
 materializer validates that closed inventory and prefixes the explicitly
 selected entry. For the canonical entry, its application marker is therefore
@@ -76,7 +86,12 @@ constructor, and function identity, constructor counts, representation shape,
 and source coordinates before resolving any declaration type. Duplicate
 identities therefore precede declaration-type and body failures. Resolution
 then checks fields and signatures against the complete catalogs, followed by
-body checking. Entry existence and application schema are checked only after
+body checking. Declaration resolution visits declarations, constructors, and
+fields in authored order. Each function parameter's conflict check precedes its
+own type annotation, parameters precede the result type, and the whole
+declaration phase precedes all bodies. Failures retain their exact source node
+and propagate without converting evaluator failures into compiler judgments.
+Entry existence and application schema are checked only after
 the complete ordinary frontend succeeds. The entry lookup follows the four
 exact `main` bytes in the resolved function trie, including its terminal
 presence; a prefix or longer spelling is not an entry. It does not rescan the
@@ -170,10 +185,12 @@ malformed framing, unknown profiles, and source-length refusal; see
 [`implementation/boundary/README.md`](implementation/boundary/README.md).
 Owned source failures now include forbidden source byte (code 3), invalid token
 spelling and structural grammar (code 4), out-of-range integer literal (5),
-duplicate type/constructor/function identity (6/7/8), missing `main` (19), and application
-schema mismatch (20). Missing `main` has no source coordinate; a schema mismatch
-anchors at the entry name. Declaration-type, name-resolution, semantic arity,
-and other body-checking failures
+duplicate type/constructor/function identity (6/7/8), parameter-name conflict
+(the declaration subset of 9), unknown field/signature type (the declaration
+subset of 11), missing `main` (19), and application schema mismatch (20).
+Missing `main` has no source coordinate; a schema mismatch
+anchors at the entry name. Body-local conflicts and annotation types, value-name
+resolution, semantic arity, and other body-checking failures
 still exit through evaluator-owned Gamma status 249 without publication, not
 DCOUT. Completing those paths, later resource accounting, internal failures,
 and final edge closure remains open.
@@ -192,7 +209,7 @@ The downgraded full compiler remains separate under
 ## Measurements
 
 ```text
-2,693-line / 111,236-byte canonical entry plus shared Gamma implementation
+2,727-line / 113,178-byte canonical entry plus shared Gamma implementation
 7-line / 195-byte nullary-ADT Delta fixture
   -> 3-line / 165-byte Gamma receipt
   -> selected Gamma evaluation produces byte 9

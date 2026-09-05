@@ -278,7 +278,14 @@ normative `Bytes` operations lower through a private length-bearing rope.
 implemented. Strict DCREQ admission publishes canonical DCOUT request
 rejections and source-length refusals. Source-envelope, lexical token and
 integer-range, structural syntax, duplicate-global, and post-frontend
-entry-schema diagnostics also publish canonical DCOUT. Retained balanced syntax
+entry-schema diagnostics also publish canonical DCOUT. Declaration resolution
+additionally publishes code 9 for repeated parameter names and code 11 for
+unknown constructor-field, parameter, and result types. The complete global
+census precedes this phase. Declarations, constructors, and fields are visited
+in authored order; each parameter's conflict check precedes its own annotation,
+parameters precede the result type, and all declarations precede all bodies.
+Body-local conflict and annotation-type diagnostics remain incomplete.
+Retained balanced syntax
 and grammar judgments feed the global census and signature resolution; body
 checking and emission also consume the parsed declaration boundaries. Remaining
 semantic frontend diagnostics and later resource/internal DCOUT failures remain
