@@ -1,0 +1,24 @@
+boundary trait Console {
+  machine exit_process(return_code: i32) -> never;
+  machine write_byte(value: i32);
+  machine read_byte() -> i32;
+  machine write_line(text: &[u8]);
+}
+
+data Group { bytes: [u8; 2]; }
+data Main { console: Console; groups: [Group; 2]; count: i32; }
+
+machine Main::main(&mut self) {
+  self.groups[1].bytes[0] = 66;
+  self.groups[1].bytes[1] = 67;
+  let selected: &[u8] = self.groups[self.select()].bytes.as_slice;
+  assert self.count == 1;
+  assert selected.len == 2;
+  self.console.write_line(selected);
+}
+
+machine Main::select(&mut self) -> i32 {
+  self.count = self.count + 1;
+  self.console.write_byte(65);
+  return 1;
+}

@@ -157,4 +157,6 @@
                           (epsilon_evaluate_scalar_arms context arms scalar bindings
                             nextStore nextOutput))
                         ((EpsilonRuntimeAggregate typeValue children)
+                          (EpsilonEvaluatorBlockInternal start))
+                        ((EpsilonRuntimeViewValue view)
                           (EpsilonEvaluatorBlockInternal start))))))))))))))

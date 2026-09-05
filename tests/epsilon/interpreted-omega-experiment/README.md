@@ -16,8 +16,8 @@ Delta-written Epsilon evaluator + exact Epsilon-written Omega D
 The gate requires the Omega product build to bind exactly one
 `alpha_bootstrap::ProgramEntry`, requires Omega D to retain its Alpha tape
 construction, and rejects any `EpsilonAlpha`/`epsilon_alpha_` backend residue in
-the Delta-written Epsilon implementation. The evaluator is currently 10,321
-lines / 517,029 bytes, authored in 65 explicitly manifested members.
+the Delta-written Epsilon implementation. The evaluator is currently 10,783
+lines / 540,455 bytes, authored in 71 explicitly manifested members.
 
 The executable slice runs the current checking pipeline, locates `Main::main`,
 and executes an empty entry, scalar `let` and local/parameter assignment,
@@ -57,12 +57,15 @@ assignment replaces descendants rather than retaining previously written
 children absent from the copied value. Index expressions evaluate once against
 live storage, so their writes are visible to the selected read; a final indexed
 assignment preserves sibling writes made while evaluating its right side.
-Sum values and transitions, views, and remaining Console operations
-stay explicitly `Unsupported`; that staging outcome is not an Epsilon
-observation and cannot survive in the final evaluator.
+Sum values and transitions remain outside this execution milestone. Views and
+all four Console operations execute with the controls below.
+Any retained `Unsupported` staging outcome is not an Epsilon observation and
+cannot survive in the final evaluator.
 
-The gate compiles the exact evaluator plus eight-line driver through the selected
-Delta route and pins the 614,216-byte Gamma receipt. Eighty-seven ordinary controls cover
+The gate compiles the exact evaluator plus `execution_driver.delta` through the
+selected Delta route and pins the 645,995-byte Gamma receipt, SHA-256
+`5169d020de9853d5e9d9c53db6537c8c777dd1685af3ae8b23726326af03426f`.
+One hundred eight ordinary controls cover
 success, local, receiver-field, and fixed-array values, repeated mutation,
 output, comparisons, bitwise/shift/division behavior, short-circuiting, bounds
 ordering, byte-storage range boundaries, and trap prefixes. State controls
@@ -71,8 +74,10 @@ wildcard selection, unmatched non-Boolean scalar subjects, grouped transfers,
 return/Console continuations, and a 1,024-transfer countdown. Mutation controls
 interleave local and parameter homes and transfer their updated values; Console
 controls cover computed arguments and traps before the effect. The explicit
-`fixtures.tsv` inventory pins each fixture's bytes, digest, and expected
-observation; the gate rejects missing or unlisted fixtures. Call controls cover
+`fixtures.tsv` inventory pins each fixture's bytes, digest, expected observation,
+and sealed input in its trailing `stdin_hex` column. Empty input is written as
+the quoted empty TSV field `""`. The gate rejects missing or unlisted fixtures.
+Call controls cover
 recursive frame isolation, machine-parameter mutation across states, ordinary
 return versus process exit, grouped receiver applications, recursive entry on
 existing storage, short-circuit suppression of calls, left-to-right effects and
@@ -88,6 +93,26 @@ all resource bounds, root-release paths, or identifier-exhaustion behavior.
 A standalone byte-array control passes and returns a fixed array by value,
 indexes a returned non-place value, reads its `.len`, and mutates a local copy
 without changing the original array.
+
+The development driver receives a four-byte little-endian source length,
+exactly that many Epsilon source bytes, and all remaining bytes as sealed stdin.
+The host only frames bytes; ordinary Delta code separates the two inputs.
+The split builds balanced byte trees. The host diagnostic timeout is 300 seconds
+per compilation or execution, not an Epsilon observation or resource verdict;
+the whole D Alpha-tape customer takes about 166 seconds on the measured host.
+Gamma's published resource profile is unchanged.
+This is private test framing, not the final evaluator request/observation
+envelope. Five malformed-frame controls expect the driver byte `fd`; a valid
+zero-length source expects Epsilon rejection byte `fa`. Those six framing
+observations are counted separately from the language/customer inventory.
+
+View controls cover closed literal escapes, NUL/high bytes, empty views,
+single-evaluation `.as_slice`, omitted and explicit slice bounds, nested views,
+bounds/effect order, live backing updates, immutable-element and descriptor rejection,
+record-field reads, returned-array snapshots, and local backing retained across
+state transfers and recursive calls. Console controls pin exact `write_line`
+bytes and LF, trap prefixes, ordered reads of `0`, `128`, and `255`, and stable
+EOF through nested calls and states.
 
 One customer concatenates the whole, unchanged Omega D
 `representations.epsilon` and `lexical_classification.epsilon` members with
@@ -114,8 +139,16 @@ calls. It checks separate byte storage and lengths, little-endian word writes,
 the four `255` bytes written for `-1`, and reinitialization of one buffer without
 changing the other. Its expected observation is `ABCDEFGH` followed by the
 driver's zero exit byte. No D functions or types are extracted or replaced.
-The pinned receipt passes all 89 observations: 87 ordinary fixtures and two
-whole-member D customers.
+The third customer concatenates whole `representations.epsilon` and
+`request_and_utf8.epsilon` members with
+[`customers/omega_request/main.epsilon`](customers/omega_request/main.epsilon).
+Its 40,542-byte packed source exercises the actual `OmegaRequestEnvelope` and
+`OmegaUtf8Validation` receiver machines using literals and a Main-owned array
+view. It checks empty/nonempty outer OCREQ frames, hostile lengths and trailing
+bytes, valid multibyte UTF-8, and malformed continuation, surrogate, out-of-range,
+and truncated encodings. Its expected observation is `A`, LF, and zero exit.
+The inventory verifies 111 observations: 108 ordinary fixtures and three
+whole-member D customers, plus the six private-framing controls above.
 
 This is executable boundary evidence, not a completed interpreter edge.
 Acceptance still requires execution of all Epsilon statements, expressions,

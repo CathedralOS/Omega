@@ -1,0 +1,25 @@
+boundary trait Console {
+  machine exit_process(return_code: i32) -> never;
+  machine write_byte(value: i32);
+  machine read_byte() -> i32;
+  machine write_line(text: &[u8]);
+}
+
+data Main { console: Console; }
+
+machine Main::main(&mut self) {
+  let text: &[u8] = "\n\r\t\"\\\x00\x80\xFF";
+  assert text.len == 8;
+  assert text[0] == 10;
+  assert text[1] == 13;
+  assert text[2] == 9;
+  assert text[3] == 34;
+  assert text[4] == 92;
+  assert text[5] == 0;
+  assert text[6] == 128;
+  assert text[7] == 255;
+  assert "".len == 0;
+  assert "A"[0] == 65;
+  self.console.write_line(text);
+  self.console.write_line("");
+}

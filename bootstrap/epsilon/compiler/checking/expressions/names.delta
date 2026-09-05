@@ -24,6 +24,19 @@
               (epsilon_resolve_local_value_name source expressionValue name active
                 pending scan))))))))
 
+; Local storage identity does not make an immutable view assignable. D37 keeps
+; this distinction in the optional place fact, not in a mutability flag.
+(def epsilon_local_value_place_type ((typeValue EpsilonType))
+  EpsilonOptionalPlaceType
+  (match typeValue
+    ((EpsilonViewType start end element) NoEpsilonPlaceType)
+    ((EpsilonI32Type start end) (SomeEpsilonPlaceType typeValue))
+    ((EpsilonU8Type start end) (SomeEpsilonPlaceType typeValue))
+    ((EpsilonNamedType start end name) (SomeEpsilonPlaceType typeValue))
+    ((EpsilonArrayType start end element lengthValue)
+      (SomeEpsilonPlaceType typeValue))
+    ((EpsilonNeverType start end) NoEpsilonPlaceType)))
+
 (def epsilon_resolve_local_value_name ((source Bytes)
   (expressionValue EpsilonExpression) (name EpsilonName)
   (active EpsilonLocalBindingList) (pending EpsilonLocalBindingList)
@@ -37,7 +50,7 @@
           ((OneEpsilonLocalBindingType typeValue)
             (epsilon_local_scan_add_value expressionValue
               (epsilon_storage_read_type expressionValue typeValue)
-              (SomeEpsilonPlaceType typeValue)
+              (epsilon_local_value_place_type typeValue)
               nextScan)))))
     (NoEpsilonLocalBinding
       (match (epsilon_local_find_binding source name pending)

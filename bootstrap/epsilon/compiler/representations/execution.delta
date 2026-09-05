@@ -17,7 +17,19 @@
 ; zero defaults, not eagerly allocated storage for the entire declared array.
 (data EpsilonRuntimeValue
   (EpsilonRuntimeInteger Int)
-  (EpsilonRuntimeAggregate EpsilonType EpsilonRuntimeChildren))
+  (EpsilonRuntimeAggregate EpsilonType EpsilonRuntimeChildren)
+  (EpsilonRuntimeViewValue EpsilonRuntimeView))
+
+; Views retain their ultimate backing, never another view variable's home.
+; Ordinary non-place array values already own immutable snapshots; slicing one
+; shares that snapshot. The place-only .as_slice route never uses that case.
+(data EpsilonRuntimeViewBacking
+  (EpsilonRuntimeLiteralBacking Bytes)
+  (EpsilonRuntimePlaceBacking EpsilonRuntimePlace)
+  (EpsilonRuntimeSnapshotBacking EpsilonRuntimeValue))
+
+(data EpsilonRuntimeView
+  (EpsilonRuntimeViewAt EpsilonRuntimeViewBacking EpsilonType Int Int))
 
 (data EpsilonRuntimeProjection
   (EpsilonRuntimeField EpsilonDeclaration EpsilonDataMember)
@@ -48,8 +60,13 @@
   (NoEpsilonRuntimeRoots)
   (MoreEpsilonRuntimeRoots Int EpsilonRuntimeValue EpsilonRuntimeRoots))
 
+; The one sealed Console owns one input position across every invocation.
+; Output stays in the observation prefix rather than a mutable program root.
+(data EpsilonRuntimeConsoleInput
+  (EpsilonRuntimeConsoleInputAt Bytes Int))
+
 (data EpsilonRuntimeStore
-  (EpsilonRuntimeStoreState Int EpsilonRuntimeRoots))
+  (EpsilonRuntimeStoreState Int EpsilonRuntimeRoots EpsilonRuntimeConsoleInput))
 
 (data EpsilonRuntimeAllocation
   (EpsilonRuntimeAllocated Int EpsilonRuntimeStore))

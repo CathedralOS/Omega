@@ -109,9 +109,11 @@ be structural and compositional, never a file or AST allowlist.
 
 ## Closure rules
 
-- `D` and `C` are independently package-resolved exact closures.
-- The first edge compiles Delta; the second compiles Omega. No compiler pretends
-  the two source languages are interchangeable.
+- `D` is an exact manifested Epsilon closure; `C` is an independently
+  package-resolved Omega closure.
+- Interpreted `D` compiles Omega `C` to `omega₀`; `omega₀` compiles the same
+  Omega `C` to `omega`. Epsilon is D's implementation language, not its input
+  language, and Delta implements the evaluator that executes D.
 - Unsupported source rejects loudly; there is no approximate meaning.
 - Resource ceilings are explicit inputs or semantic bounds, not hidden host
   limits.

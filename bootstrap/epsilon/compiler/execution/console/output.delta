@@ -1,0 +1,36 @@
+
+(def epsilon_evaluator_write_view ((view EpsilonRuntimeView) (index Int)
+  (store EpsilonRuntimeStore) (output Bytes)) EpsilonEvaluatorOutcome
+  (if (lt index (epsilon_runtime_view_length view))
+    (match (epsilon_runtime_view_read view index store)
+      (NoEpsilonRuntimeValue (EpsilonEvaluatorInternal 0))
+      ((SomeEpsilonRuntimeValue value)
+        (match value
+          ((EpsilonRuntimeInteger byte)
+            (if (if (lt byte 0) 1 (lt 255 byte))
+              (EpsilonEvaluatorInternal 0)
+              (epsilon_evaluator_write_view view (+ index 1) store
+                (bytes_concat output (bytes_single byte)))))
+          ((EpsilonRuntimeAggregate typeValue children)
+            (EpsilonEvaluatorInternal 0))
+          ((EpsilonRuntimeViewValue nestedView) (EpsilonEvaluatorInternal 0)))))
+    (EpsilonEvaluatorResultless store
+      (bytes_concat output (bytes_single 10)))))
+
+(def epsilon_evaluator_console_value ((kind Int) (value EpsilonRuntimeValue)
+  (store EpsilonRuntimeStore) (output Bytes)) EpsilonEvaluatorOutcome
+  (match value
+    ((EpsilonRuntimeInteger scalar)
+      (if (eq kind 1)
+        (EpsilonEvaluatorExit scalar output)
+        (if (eq kind 2)
+          (if (if (lt scalar 0) 1 (lt 255 scalar))
+            (EpsilonEvaluatorTrap 5 output)
+            (EpsilonEvaluatorResultless store
+              (bytes_concat output (bytes_single scalar))))
+          (EpsilonEvaluatorInternal 0))))
+    ((EpsilonRuntimeViewValue view)
+      (if (eq kind 4)
+        (epsilon_evaluator_write_view view 0 store output)
+        (EpsilonEvaluatorInternal 0)))
+    ((EpsilonRuntimeAggregate typeValue children) (EpsilonEvaluatorInternal 0))))

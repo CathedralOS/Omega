@@ -45,6 +45,8 @@
             (epsilon_evaluator_complete_scalar
               (epsilon_evaluator_i32_outcome (- 0 scalar)) nextStore nextOutput))
           ((EpsilonRuntimeAggregate typeValue children)
+            (EpsilonEvaluatorInternal (epsilon_expression_start expressionValue)))
+          ((EpsilonRuntimeViewValue view)
             (EpsilonEvaluatorInternal (epsilon_expression_start expressionValue)))))
       ((EpsilonEvaluatorResultless nextStore nextOutput)
         (EpsilonEvaluatorInternal (epsilon_expression_start expressionValue)))
@@ -71,6 +73,8 @@
                 (epsilon_evaluate_core_binary_values operator leftValue rightValue)
                 nextStore nextOutput)))
           ((EpsilonRuntimeAggregate typeValue children)
+            (EpsilonEvaluatorInternal (epsilon_expression_start expressionValue)))
+          ((EpsilonRuntimeViewValue view)
             (EpsilonEvaluatorInternal (epsilon_expression_start expressionValue)))))
       ((EpsilonEvaluatorResultless nextStore nextOutput)
         (EpsilonEvaluatorInternal (epsilon_expression_start expressionValue)))
@@ -107,6 +111,8 @@
             (epsilon_evaluate_binary_left context operator leftValue right
               bindings nextStore nextOutput))
           ((EpsilonRuntimeAggregate typeValue children)
+            (EpsilonEvaluatorInternal (epsilon_expression_start expressionValue)))
+          ((EpsilonRuntimeViewValue view)
             (EpsilonEvaluatorInternal (epsilon_expression_start expressionValue)))))
       ((EpsilonEvaluatorResultless nextStore nextOutput)
         (EpsilonEvaluatorInternal (epsilon_expression_start expressionValue)))

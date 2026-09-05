@@ -1,0 +1,20 @@
+boundary trait Console {
+  machine exit_process(return_code: i32) -> never;
+  machine write_byte(value: i32);
+  machine read_byte() -> i32;
+  machine write_line(text: &[u8]);
+}
+
+data Main { console: Console; bytes: [u8; 2]; replacement: [u8; 2]; }
+
+machine Main::main(&mut self) {
+  self.bytes[0] = 64;
+  let view: &[u8] = self.bytes.as_slice;
+  self.bytes[0] = 65;
+  assert view[0] == 65;
+  self.replacement[0] = 66;
+  self.bytes = self.replacement;
+  assert view.len == 2;
+  assert view[0] == 66;
+  self.console.write_byte(view[0]);
+}

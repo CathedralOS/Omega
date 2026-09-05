@@ -1,0 +1,35 @@
+; Private development frame: u32 source length, exact source, sealed stdin.
+; Splitting is authored Delta behavior, not a host parser or final edge envelope.
+; Balanced byte trees keep random source access logarithmic after the split.
+(def epsilon_experiment_bytes_range ((input Bytes) (start Int) (end Int)) Bytes
+  (if (eq start end)
+    (bytes_empty)
+    (if (eq (+ start 1) end)
+      (bytes_single (bytes_get input start))
+      (let middle Int (+ start (/ (- end start) 2))
+        (bytes_concat
+          (epsilon_experiment_bytes_range input start middle)
+          (epsilon_experiment_bytes_range input middle end))))))
+
+(def epsilon_experiment_observation ((source Bytes) (input Bytes)) Bytes
+  (match (epsilon_evaluate_entry_slice source input)
+    ((EpsilonEvaluatorSliceExit code output)
+      (bytes_concat output (bytes_single (% (+ (% code 256) 256) 256))))
+    ((EpsilonEvaluatorSliceTrap kind output)
+      (bytes_concat output (bytes_single (+ 128 kind))))
+    ((EpsilonEvaluatorSliceRejected reasonValue errorOffset) (bytes_single 250))
+    ((EpsilonEvaluatorSliceInternal errorOffset) (bytes_single 251))
+    (EpsilonEvaluatorSliceUnsupported (bytes_single 252))))
+
+(def main ((request Bytes)) Bytes
+  (if (lt (bytes_length request) 4)
+    (bytes_single 253)
+    (let sourceLength Int
+      (+ (+ (bytes_get request 0) (* (bytes_get request 1) 256))
+         (+ (* (bytes_get request 2) 65536) (* (bytes_get request 3) 16777216)))
+      (if (lt (- (bytes_length request) 4) sourceLength)
+        (bytes_single 253)
+        (epsilon_experiment_observation
+          (epsilon_experiment_bytes_range request 4 (+ 4 sourceLength))
+          (epsilon_experiment_bytes_range request (+ 4 sourceLength)
+            (bytes_length request)))))))

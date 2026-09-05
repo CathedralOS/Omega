@@ -61,6 +61,7 @@
   (projection EpsilonRuntimeProjection)) EpsilonRuntimeValueLookup
   (match value
     ((EpsilonRuntimeInteger integer) NoEpsilonRuntimeValue)
+    ((EpsilonRuntimeViewValue view) NoEpsilonRuntimeValue)
     ((EpsilonRuntimeAggregate typeValue children)
       (match (epsilon_runtime_projection_default typeValue projection)
         (NoEpsilonRuntimeValue NoEpsilonRuntimeValue)
@@ -97,6 +98,7 @@
   EpsilonRuntimeValueLookup
   (match parent
     ((EpsilonRuntimeInteger integer) NoEpsilonRuntimeValue)
+    ((EpsilonRuntimeViewValue view) NoEpsilonRuntimeValue)
     ((EpsilonRuntimeAggregate typeValue children)
       (match (epsilon_runtime_projection_default typeValue projection)
         (NoEpsilonRuntimeValue NoEpsilonRuntimeValue)

@@ -1,0 +1,12 @@
+
+(def epsilon_evaluator_read_input ((store EpsilonRuntimeStore)
+  (output Bytes)) EpsilonEvaluatorOutcome
+  (match store
+    ((EpsilonRuntimeStoreState nextIdentifier roots consoleInput)
+      (match consoleInput
+        ((EpsilonRuntimeConsoleInputAt input cursor)
+          (if (lt cursor (bytes_length input))
+            (epsilon_evaluator_integer (bytes_get input cursor)
+              (EpsilonRuntimeStoreState nextIdentifier roots
+                (EpsilonRuntimeConsoleInputAt input (+ cursor 1))) output)
+            (epsilon_evaluator_integer -1 store output)))))))

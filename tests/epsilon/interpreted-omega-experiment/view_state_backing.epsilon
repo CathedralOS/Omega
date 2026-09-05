@@ -1,0 +1,44 @@
+boundary trait Console {
+  machine exit_process(return_code: i32) -> never;
+  machine write_byte(value: i32);
+  machine read_byte() -> i32;
+  machine write_line(text: &[u8]);
+}
+
+data Main { console: Console; bytes: [u8; 2]; }
+
+machine Main::main(&mut self) {
+  self.bytes[0] = 65;
+  self.bytes[1] = 66;
+  let local: [u8; 2] = self.bytes;
+  let view: &[u8] = local.as_slice;
+  transition 0 { 0 -> next(view) }
+  state next(retained: &[u8]) {
+    let replacement: [u8; 2] = self.bytes;
+    replacement[0] = 67;
+    assert retained[0] == 65;
+    transition 0 { 0 -> middle(retained) }
+  }
+  state middle(retained: &[u8]) {
+    let replacement: [u8; 2] = self.bytes;
+    replacement[0] = 68;
+    assert retained[0] == 65;
+    assert recursive_read(retained, 3) == 65;
+    self.console.write_line(retained);
+    let fresh: [u8; 2] = self.bytes;
+    fresh[0] = 67;
+    transition 0 { 0 -> finish(fresh[..1]) }
+  }
+  state finish(retained: &[u8]) {
+    assert retained.len == 1;
+    assert retained[0] == 67;
+    self.console.write_line(retained);
+  }
+}
+
+machine recursive_read(view: &[u8], depth: i32) -> i32 {
+  transition depth {
+    0 -> return view[0]
+    _ -> return recursive_read(view, depth - 1)
+  }
+}

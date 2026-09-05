@@ -1,39 +1,29 @@
 
-(def epsilon_evaluate_one_scalar_argument
-  ((context EpsilonEvaluatorInvocation) (arguments EpsilonExpressionList)
-  (bindings EpsilonEvaluatorBindings) (store EpsilonRuntimeStore)
-  (output Bytes)) EpsilonEvaluatorOutcome
-  (match arguments
-    (NoEpsilonExpressions (EpsilonEvaluatorInternal 0))
-    ((MoreEpsilonExpressions item rest)
-      (match rest
-        (NoEpsilonExpressions
-          (epsilon_evaluate_expression context item bindings store output))
-        ((MoreEpsilonExpressions nextItem nextRest)
-          (EpsilonEvaluatorInternal (epsilon_expression_start nextItem)))))))
-
-(def epsilon_evaluate_console_scalar_effect ((context EpsilonEvaluatorInvocation)
+; Checked Console identity selects the operation. Argument effects finish before
+; the byte/line/exit effect; reads advance the one sealed input cursor.
+(def epsilon_evaluate_console_effect ((context EpsilonEvaluatorInvocation)
   (kind Int) (arguments EpsilonExpressionList) (bindings EpsilonEvaluatorBindings)
   (store EpsilonRuntimeStore) (output Bytes)) EpsilonEvaluatorOutcome
-  (if (if (eq kind 1) 1 (eq kind 2))
-    (let outcome EpsilonEvaluatorOutcome
-      (epsilon_evaluate_one_scalar_argument context arguments bindings store output)
-      (match outcome
-        ((EpsilonEvaluatorValue value place nextStore nextOutput)
-          (match value
-            ((EpsilonRuntimeInteger scalar)
-              (if (eq kind 1)
-                (EpsilonEvaluatorExit scalar nextOutput)
-                (if (if (lt scalar 0) 1 (lt 255 scalar))
-                  (EpsilonEvaluatorTrap 5 nextOutput)
-                  (EpsilonEvaluatorResultless nextStore
-                    (bytes_concat nextOutput (bytes_single scalar))))))
-            ((EpsilonRuntimeAggregate typeValue children)
-              (EpsilonEvaluatorInternal 0))))
-        ((EpsilonEvaluatorResultless nextStore nextOutput)
-          (EpsilonEvaluatorInternal 0))
-        ((EpsilonEvaluatorExit code nextOutput) outcome)
-        ((EpsilonEvaluatorTrap trapKind nextOutput) outcome)
-        ((EpsilonEvaluatorInternal offset) outcome)
-        (EpsilonEvaluatorUnsupported outcome)))
-    EpsilonEvaluatorUnsupported))
+  (if (eq kind 3)
+    (match arguments
+      (NoEpsilonExpressions (epsilon_evaluator_read_input store output))
+      ((MoreEpsilonExpressions item rest)
+        (EpsilonEvaluatorInternal (epsilon_expression_start item))))
+    (match arguments
+      (NoEpsilonExpressions (EpsilonEvaluatorInternal 0))
+      ((MoreEpsilonExpressions item rest)
+        (match rest
+          (NoEpsilonExpressions
+            (let outcome EpsilonEvaluatorOutcome
+              (epsilon_evaluate_expression context item bindings store output)
+              (match outcome
+                ((EpsilonEvaluatorValue value place nextStore nextOutput)
+                  (epsilon_evaluator_console_value kind value nextStore nextOutput))
+                ((EpsilonEvaluatorResultless nextStore nextOutput)
+                  (EpsilonEvaluatorInternal (epsilon_expression_start item)))
+                ((EpsilonEvaluatorExit code nextOutput) outcome)
+                ((EpsilonEvaluatorTrap trapKind nextOutput) outcome)
+                ((EpsilonEvaluatorInternal offset) outcome)
+                (EpsilonEvaluatorUnsupported outcome))))
+          ((MoreEpsilonExpressions nextItem nextRest)
+            (EpsilonEvaluatorInternal (epsilon_expression_start nextItem))))))))

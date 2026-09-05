@@ -37,12 +37,20 @@
             (SomeEpsilonEvaluatorBinding identifier)
             (epsilon_evaluator_find_parameter_binding target rest)))))))
 
+; A view binding owns a private descriptor home, but D37 exposes no authored
+; place for that immutable value. Its backing place remains inside the view.
 (def epsilon_evaluator_read_place ((place EpsilonRuntimePlace)
   (store EpsilonRuntimeStore) (output Bytes) (offset Int)) EpsilonEvaluatorOutcome
   (match (epsilon_runtime_read place store)
     (NoEpsilonRuntimeValue (EpsilonEvaluatorInternal offset))
     ((SomeEpsilonRuntimeValue value)
-      (EpsilonEvaluatorValue value (SomeEpsilonRuntimePlace place) store output))))
+      (match value
+        ((EpsilonRuntimeViewValue view)
+          (EpsilonEvaluatorValue value NoEpsilonRuntimePlace store output))
+        ((EpsilonRuntimeInteger integer)
+          (EpsilonEvaluatorValue value (SomeEpsilonRuntimePlace place) store output))
+        ((EpsilonRuntimeAggregate typeValue children)
+          (EpsilonEvaluatorValue value (SomeEpsilonRuntimePlace place) store output))))))
 
 (def epsilon_evaluator_read_binding ((binding EpsilonEvaluatorBindingLookup)
   (typeValue EpsilonType) (store EpsilonRuntimeStore) (output Bytes)
