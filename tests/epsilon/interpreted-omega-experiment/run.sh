@@ -26,6 +26,7 @@ DIVISION_ZERO="$TEST_DIR/division_zero.epsilon"
 DIVISION_OVERFLOW="$TEST_DIR/division_overflow.epsilon"
 SHIFT_COUNT="$TEST_DIR/shift_count.epsilon"
 SHORT_CIRCUIT="$TEST_DIR/short_circuit.epsilon"
+SCALAR_FIELD="$TEST_DIR/scalar_field.epsilon"
 
 command -v python3 >/dev/null 2>&1 || {
     echo "Interpreted Omega experiment: skipped (python3 absent)"
@@ -52,8 +53,8 @@ grep -F 'data AlphaTapeBuffer {' "$OMEGA_D" >/dev/null || {
 
 EPSILON_LINES=$(wc -l < "$EPSILON" | tr -d ' ')
 EPSILON_BYTES=$(wc -c < "$EPSILON" | tr -d ' ')
-[ "$EPSILON_LINES" -eq 9108 ]
-[ "$EPSILON_BYTES" -eq 452671 ]
+[ "$EPSILON_LINES" -eq 9285 ]
+[ "$EPSILON_BYTES" -eq 461593 ]
 
 materialize_gamma_evaluator "$TMP/evaluator" >/dev/null
 EPSILON="$EPSILON" DELTA="$DELTA" DRIVER="$DRIVER" FIXTURE="$FIXTURE" \
@@ -65,6 +66,7 @@ EPSILON="$EPSILON" DELTA="$DELTA" DRIVER="$DRIVER" FIXTURE="$FIXTURE" \
     FULL_SCALAR="$FULL_SCALAR" DIVISION_ZERO="$DIVISION_ZERO" \
     DIVISION_OVERFLOW="$DIVISION_OVERFLOW" SHIFT_COUNT="$SHIFT_COUNT" \
     SHORT_CIRCUIT="$SHORT_CIRCUIT" \
+    SCALAR_FIELD="$SCALAR_FIELD" \
     EVALUATOR="$TMP/evaluator" python3 - <<'PY'
 import hashlib
 import os
@@ -75,8 +77,8 @@ from pathlib import Path
 artifacts = {
     "evaluator source": (
         Path(os.environ["EPSILON"]).read_bytes(),
-        452671,
-        "a7dfd30c55b3e99e510e3229263f7fe863e8485bb7712e08e6f592cd7bf1e11d",
+        461593,
+        "194b16b6975dbd2501f899905d61e1c6318df80046dd9c4d3413d9efc681dd9f",
     ),
     "slice driver": (
         Path(os.environ["DRIVER"]).read_bytes(),
@@ -158,6 +160,11 @@ artifacts = {
         320,
         "3ec652c83dc00bf125412c33b46af3b18c6824a42fc7e5d43f4bb48704b60255",
     ),
+    "scalar field": (
+        Path(os.environ["SCALAR_FIELD"]).read_bytes(),
+        432,
+        "e414d325215dc544a4cfd9307b914fe5fe631f602545eea9341e86727b428d82",
+    ),
 }
 for name, (data, size, digest) in artifacts.items():
     if len(data) != size or hashlib.sha256(data).hexdigest() != digest:
@@ -181,12 +188,12 @@ def evaluate(program, sealed_input=b"", timeout=300):
     return process.returncode, process.stdout
 
 status, receipt = evaluate(compiler, request)
-if status != 0 or len(receipt) != 534217:
-    raise SystemExit("complete scalar evaluator slice did not compile")
+if status != 0 or len(receipt) != 543978:
+    raise SystemExit("scalar field evaluator slice did not compile")
 if hashlib.sha256(receipt).hexdigest() != (
-    "526d207589efb1748fbd1c3bab2010d52630c5bce89b80f03aace77ee6ee51af"
+    "7fcddfd534cb177dea18320a5b972b36feec011eee2d7eb017cd4490d9af5612"
 ):
-    raise SystemExit("complete scalar evaluator receipt identity changed")
+    raise SystemExit("scalar field evaluator receipt identity changed")
 controls = {
     "empty entry": b"\x00",
     "write then exit": b"A\x07",
@@ -203,10 +210,11 @@ controls = {
     "division overflow": b"\x83",
     "shift count": b"\x84",
     "short circuit": b"\x00",
+    "scalar field": b"A\x00",
 }
 for name, expected in controls.items():
     if evaluate(receipt, artifacts[name][0], timeout=120) != (0, expected):
         raise SystemExit(f"{name} did not produce its exact observation")
 PY
 
-echo "Interpreted Omega experiment: complete scalar, locals, and Console execution pass"
+echo "Interpreted Omega experiment: scalar fields, locals, and Console execution pass"

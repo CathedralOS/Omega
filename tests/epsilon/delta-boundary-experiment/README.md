@@ -12,12 +12,12 @@ lines for the corresponding Delta language/compiler implementation.
 | Candidate | Exact current family | Free-feature ceiling | Result |
 | --- | --- | ---: | --- |
 | Generic option/result | 8 optional declarations plus 25 parse outcomes | 99 lines | Reject for now |
-| Generic immutable list | 25 ordinary lists, 22 template reverses, 3 template counts | 249 exact lines | Reject standalone elaboration |
+| Generic immutable list | 26 ordinary lists, 22 template reverses, 3 template counts | 253 exact lines | Reject standalone elaboration |
 | Generic catalog/map | 8 catalog result types plus 11 lookup traversals | 245 lines | Reject generic map |
 | Source span wrapper | 29 start/end helpers | 164 lines | Reject wrapper alone |
 | Candidate minimum fold | 3 candidate types plus 6 merge helpers | 77 lines | Reject generic fold |
 
-Even the impossible combined ceiling is only 848 lines, 9.5% of the Epsilon
+Even the impossible combined ceiling is only 852 lines, 9.1% of the Epsilon
 evaluator. The five proposals therefore cannot explain most of the source-size
 explosion.
 
@@ -36,11 +36,11 @@ under current monomorphic Delta. This does not earn that language expansion.
 
 ## Generic lists
 
-This was the strongest candidate. Twenty-five declarations have the ordinary
+This was the strongest candidate. Twenty-six declarations have the ordinary
 `Empty | More(item, tail)` shape; the excluded trie has a three-field node. Of
 the 23 reverse functions, 22 are the exact list template and one reverses a
 four-list control ledger. Three count functions are exact templates. The real
-replaceable family is therefore 50 forms, 249 lines, and 11,579 bytes.
+replaceable family is therefore 51 forms, 253 lines, and 11,749 bytes.
 
 `list_elaborator.gamma` implements a complete two-pass source transformation
 for this derived form:
@@ -51,7 +51,7 @@ for this derived form:
 
 `_` omits either helper. One pass emits every data declaration; the second emits
 helpers and ordinary definitions, preserving Delta's required top-level order.
-The 25-line Epsilon family specification expands to 50 forms that are
+The 26-line Epsilon family specification expands to 51 forms that are
 alpha-equivalent to the existing declarations and helpers. A
 smoke program then passes through the ordinary selected Delta compiler and
 executes generated reverse/count functions with result 2.
@@ -59,11 +59,11 @@ executes generated reverse/count functions with result 2.
 The measured authored cost loses:
 
 ```text
-explicit Epsilon family          249 lines / 11,579 bytes
+explicit Epsilon family          253 lines / 11,749 bytes
 Gamma list elaborator            292 lines / 13,200 bytes
-derived Epsilon specifications    25 lines / 3,605 bytes
-derived route total              317 lines / 16,805 bytes
-net                               +68 lines / +5,226 bytes
+derived Epsilon specifications    26 lines / 3,736 bytes
+derived route total              318 lines / 16,936 bytes
+net                               +65 lines / +5,187 bytes
 ```
 
 The standalone pass also introduces another transformation relation. The
@@ -71,7 +71,7 @@ trie-backed global census is fast; remaining whole-source rescans own the
 continued cost. Development timings are diagnostic, not semantics.
 
 A fused implementation could reuse Delta's scanner, but it must cost at most
-224 Gamma lines merely to tie raw line count, before charging proof complexity
+227 Gamma lines merely to tie raw line count, before charging proof complexity
 or the greater audit weight of lower-rung code. Direct virtual-list support must
 also modify type, constructor, arity, match, and helper-function resolution. The
 standalone implementation is therefore a favorable lower bound, not an unfairly

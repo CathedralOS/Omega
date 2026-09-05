@@ -1,0 +1,20 @@
+boundary trait Console {
+  machine exit_process(return_code: i32) -> never;
+  machine write_byte(value: i32);
+  machine read_byte() -> i32;
+  machine write_line(text: &[u8]);
+}
+
+data Main {
+  console: Console;
+  count: i32;
+}
+
+machine Main::main(&mut self) {
+  assert self.count == 0;
+  self.count = 60 + 5;
+  let value: i32 = self.count;
+  self.console.write_byte(value);
+  self.count = self.count + 1;
+  assert self.count == 66;
+}
