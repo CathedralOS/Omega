@@ -4,8 +4,11 @@ use super::{
     run_command_bounded, run_command_bounded_with_budget, shell_command, temp_root,
 };
 use super::{SourceResolveError, reconcile_git_command_result};
+use crate::git::executable::executor::GitCommandDeadline;
+use crate::limits::GIT_COMMAND_TIMEOUT;
+use std::time::Duration;
 #[cfg(unix)]
-use std::time::{Duration, Instant};
+use std::time::Instant;
 
 #[cfg(unix)]
 #[test]
@@ -196,5 +199,64 @@ fn cleanup_failure_outranks_whole_resolution_expiry() {
     assert!(matches!(
         reconcile_git_command_result(result, budget),
         Err(SourceResolveError::GitCleanupFailed { .. })
+    ));
+}
+
+#[test]
+fn resolution_clamped_deadline_keeps_its_origin_when_cleanup_finishes_early() {
+    let deadline = GitCommandDeadline::new(Duration::from_millis(29), Duration::from_millis(30));
+    assert_eq!(deadline.duration(), Duration::from_millis(29));
+    let timeout = SourceResolveError::GitTimedOut {
+        operation: "command".to_owned(),
+        timeout_millis: 29,
+    };
+    let result: Result<(), _> = Err(deadline.project_error(timeout));
+    // Execution reserves time for cleanup. A successful early cleanup leaves
+    // the absolute resolution clock unexpired, but did not change the limit
+    // which caused the command to be stopped.
+    assert!(matches!(
+        reconcile_git_command_result(result, Ok(())),
+        Err(SourceResolveError::GitResolutionTimedOut { timeout_millis: 30 })
+    ));
+    let cleanup = SourceResolveError::GitCleanupFailed {
+        operation: "command".to_owned(),
+        message: "process group may remain".to_owned(),
+    };
+    let result: Result<(), _> = Err(deadline.project_error(cleanup));
+    assert!(matches!(
+        reconcile_git_command_result(result, Ok(())),
+        Err(SourceResolveError::GitCleanupFailed { .. })
+    ));
+    let successful: Result<(), SourceResolveError> = Ok(());
+    assert!(reconcile_git_command_result(successful, Ok(())).is_ok());
+}
+
+#[test]
+fn command_deadline_remains_distinct_until_the_resolution_clock_expires() {
+    let deadline = GitCommandDeadline::new(
+        GIT_COMMAND_TIMEOUT + Duration::from_secs(1),
+        GIT_COMMAND_TIMEOUT + Duration::from_secs(2),
+    );
+    assert_eq!(deadline.duration(), GIT_COMMAND_TIMEOUT);
+    let timeout = || SourceResolveError::GitTimedOut {
+        operation: "command".to_owned(),
+        timeout_millis: super::duration_millis(GIT_COMMAND_TIMEOUT),
+    };
+    let result: Result<(), _> = Err(deadline.project_error(timeout()));
+    assert!(matches!(
+        reconcile_git_command_result(result, Ok(())),
+        Err(SourceResolveError::GitTimedOut { .. })
+    ));
+    let result: Result<(), _> = Err(deadline.project_error(timeout()));
+    assert!(matches!(
+        reconcile_git_command_result(
+            result,
+            Err(SourceResolveError::GitResolutionTimedOut {
+                timeout_millis: 122000
+            })
+        ),
+        Err(SourceResolveError::GitResolutionTimedOut {
+            timeout_millis: 122000
+        })
     ));
 }

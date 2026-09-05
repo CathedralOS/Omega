@@ -87,15 +87,16 @@ where
     S: AsRef<OsStr>,
 {
     let mut command = sealed_git_command(executor, working_directory, phase)?;
-    let command_timeout = executor.begin_launch()?;
+    let deadline = executor.begin_launch()?;
     command.args(args);
     let result = run_command_bounded_with_budget(
         command,
         "command",
         GIT_STDOUT_LIMIT,
         GIT_STDERR_LIMIT,
-        command_timeout,
+        deadline.duration(),
         executor.captured_output_budget.clone(),
-    );
+    )
+    .map_err(|error| deadline.project_error(error));
     reconcile_git_command_result(result, executor.verify_budget())
 }
