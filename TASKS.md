@@ -84,10 +84,16 @@ the [Rust Compiler Completion Contract](wiki/releases/rust_compiler_completion_c
   through collections also need `NOMINAL-FIELD-FLOW` below; their default-field
   obligations must be proved, not bypassed to restore sample acceptance.
 
-  `samples_with_documented_exit_run_correctly` is blocked for every `cli/text/*`
-  sample, every `stdin_*` sample, and `gui/window_demo` by one
-  `psi-checked-trees-to-terminal` fence in `src/attached_unit/call_closure.rs`:
-  `attached Unit closure is missing a checked transitive machine plan`.
+  `text_samples_compile_from_authored_program_entry_bindings` is red for
+  `caesar_cipher` and `format_number` alone. Both build a `[u8; N] in Utf8`
+  carrier out of raw `u8` element stores (`self.out[self.i] = self.ch as u8`,
+  `self.buffer[0] = self.tens_byte`), so
+  `psi-typed-trees-to-checked-trees/src/checks/contracts/nominal_inputs.rs`
+  rejects every later transition with `cannot prove default-domain field
+  requirement ... requires [u8; N]::Utf8`. They are the indexed text writers
+  `NOMINAL-FIELD-FLOW` already owns, and they close through its whole-buffer
+  evidence and proved replacement byte, not through a weakened field
+  declaration. The `stdin_*` and `gui` cohorts pass.
 
   Acceptance: both tests pass, with every maintained sample reaching checked
   trees and every documented exit oracle observed on its matching host.
