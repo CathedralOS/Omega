@@ -6,7 +6,7 @@ pub(crate) const ENTRANCES: &[RequiredCoordinationEntrance] = &[
         coordination_marker: "pub fn target_cost_model",
     },
     RequiredCoordinationEntrance {
-        path: "omega-rust/omega/pipeline/selected-instructions-to-register-homes/src/analyses/machine_effects/facts/mod.rs",
+        path: "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/analyses/machine_effects/facts/mod.rs",
         coordination_marker: "pub fn analyze_pre_allocation_machine_effects",
     },
     RequiredCoordinationEntrance {

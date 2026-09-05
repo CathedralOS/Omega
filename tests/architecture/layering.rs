@@ -2145,8 +2145,8 @@ fn terminal_component_staging_consumes_only_the_psi_owned_artifact() {
             )
         });
     let physical_catalog_entrances = [
-        "omega-rust/omega/pipeline/selected-instructions-to-register-homes/src/rewrites/selected_lowering/mod.rs",
-        "omega-rust/omega/pipeline/selected-instructions-to-register-homes/src/rewrites/allocation_recovery/mod.rs",
+        "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/selected_lowering/mod.rs",
+        "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/allocation_recovery/mod.rs",
         "omega-rust/omega/pipeline/post-allocation-machine-to-post-allocation-machine/src/rules/mod.rs",
         "omega-rust/omega/pipeline/selected-form-encoding-to-resolved-layout/src/x86_branch_relaxation/catalog.rs",
     ]
@@ -3362,7 +3362,7 @@ fn executable_container_v2_retains_strong_imported_authority_commitments() {
 fn selected_lowering_validation_cannot_reenter_its_producer() {
     let root = workspace_root();
     let rule = root
-        .join("omega-rust/omega/pipeline/selected-instructions-to-register-homes/src/rewrites/selected_lowering/literal_fold");
+        .join("omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/selected_lowering/literal_fold");
     let entrance = std::fs::read_to_string(rule.join("mod.rs"))
         .expect("read selected-lowering literal-fold entrance");
     assert!(
@@ -4100,7 +4100,7 @@ fn allocated_callee_saved_requirements_are_independent_exact_and_non_authoritati
 fn fixed_precolored_interval_replay_cannot_reenter_its_producer_or_assign_homes() {
     let root = workspace_root();
     let stage = root
-        .join("omega-rust/omega/pipeline/selected-instructions-to-register-homes/src/analyses/fixed_precolored_intervals");
+        .join("omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/analyses/fixed_precolored_intervals");
     let entrance = std::fs::read_to_string(stage.join("mod.rs"))
         .expect("read fixed/precolored interval entrance");
     assert!(
@@ -4663,11 +4663,11 @@ fn projected_structural_selection_replay_is_independent_and_downstream_is_fenced
     }
     for (path, fence) in [
         (
-            "omega-rust/omega/pipeline/selected-instructions-to-register-homes/src/analyses/liveness/compute.rs",
+            "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/analyses/liveness/compute.rs",
             "ProjectedStructuralCallReturnUnsupported",
         ),
         (
-            "omega-rust/omega/pipeline/selected-instructions-to-register-homes/src/analyses/machine_effects/facts/compute.rs",
+            "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/analyses/machine_effects/facts/compute.rs",
             "ProjectedStructuralCallReturnUnsupported",
         ),
     ] {

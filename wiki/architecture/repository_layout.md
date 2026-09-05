@@ -163,6 +163,7 @@ Omega/
 |       |   |-- [CRATE] abstract-operations-to-abstract-operations/
 |       |   |-- [CRATE] abstract-operations-to-target-operations/
 |       |   |-- [CRATE] target-operations-to-selected-instructions/
+|       |   |-- [CRATE] selected-instructions-to-selected-instructions/
 |       |   |-- [CRATE] selected-instructions-to-register-homes/
 |       |   |-- [CRATE] register-homes-to-post-allocation-machine/
 |       |   |-- [CRATE] post-allocation-machine-to-post-allocation-machine/
@@ -401,9 +402,12 @@ keeps the compiler-owned build protocol independent of whether std exists.
   source-shaped backend fallback is an architecture violation.
 - `machine-emission` produces production machine code, and
   `backend/object/*` owns sections, symbols, and relocations.
-- `selected-instructions-to-register-homes` owns selected analyses,
-  allocation, recovery, machine-effect analysis and their independent replay as
-  internal transform steps. Effect facts are not another program output;
+- `selected-instructions-to-selected-instructions` owns selected-lowering
+  rewrites and reusable selected-program analysis, including machine effects.
+  It publishes the same current selected-program carrier for empty and nonempty
+  selections, with replay evidence retained separately.
+  `selected-instructions-to-register-homes` consumes that result, assigns homes,
+  and owns allocation-pressure recovery. Effect facts are not another program output;
   `register-homes-to-post-allocation-machine` constructs the machine plan;
   `post-allocation-machine-to-post-allocation-machine` owns its opt-in rewrites.
   No construction stage depends on a later optimizer. The bounded target-to-assigned

@@ -231,8 +231,8 @@ enablement and order.
 |---|---|---|---|
 | Mandatory legalization | `target-operations-to-selected-instructions/src/legalization/mod.rs` | `legalization/catalog.rs` | `source/`, `replay/` |
 | Psi | `abstract-operations-to-abstract-operations/src/rules/mod.rs` | `rules/catalog.rs` | `passes/<exact-pass>/` |
-| Selected lowering | `selected-instructions-to-register-homes/src/rewrites/selected_lowering/mod.rs` | adjacent `catalog.rs` | `literal_fold/` |
-| Allocation recovery | `selected-instructions-to-register-homes/src/rewrites/allocation_recovery/mod.rs` | adjacent `catalog.rs` | `fixed_view_copy/`, `pressure_rematerialization/` |
+| Selected lowering | `selected-instructions-to-selected-instructions/src/rewrites/selected_lowering/mod.rs` | adjacent `catalog.rs` | `literal_fold/` |
+| Allocation recovery | `selected-instructions-to-selected-instructions/src/rewrites/allocation_recovery/mod.rs` | adjacent `catalog.rs` | `fixed_view_copy/`, `pressure_rematerialization/` |
 | Post-allocation machine | `post-allocation-machine-to-post-allocation-machine/src/rules/mod.rs` | `rules/catalog.rs` | `rules/peephole_matching/`, then `rules/<isa>/<exact-rule>/` |
 | Function-relative layout | `selected-form-encoding-to-resolved-layout/src/x86_branch_relaxation/mod.rs` | adjacent `catalog.rs` | compute and independent validation |
 
@@ -295,7 +295,7 @@ entrance.
 
 Fixed/precolored interval analysis is deliberately absent from the selectable
 rule table. Its 24-line
-`selected-instructions-to-register-homes/src/analyses/fixed_precolored_intervals/mod.rs` entrance joins
+`selected-instructions-to-selected-instructions/src/analyses/fixed_precolored_intervals/mod.rs` entrance joins
 `compute.rs` to independently keyed `replay.rs` through the sole `validate.rs`
 admission seam; `model.rs` and `identity.rs` own its closed point-interval and
 receipt vocabulary. The mirrored cross-target tests live below
@@ -305,11 +305,11 @@ producer. This is fixed-constraint evidence, not home selection, copy
 insertion, range splitting, or a selectable optimization.
 
 The fixed-use descent continues through two equally explicit entrances.
-`selected-instructions-to-register-homes/src/analyses/fixed_precolored_split_requirements/mod.rs` joins
+`selected-instructions-to-selected-instructions/src/analyses/fixed_precolored_split_requirements/mod.rs` joins
 the positional `compute/` ladder to the independently keyed `replay/` ladder;
 their named function, topology, cut, partition, and work leaves own factual
 source segmentation. Beside it,
-`selected-instructions-to-register-homes/src/assignment/fixed_precolored_segment_homes/mod.rs` joins a
+`selected-instructions-to-selected-instructions/src/analyses/fixed_precolored_segment_homes/mod.rs` joins a
 64-line assignment entrance to independent replay. Both sides descend through
 separate domain, conflict, placement, and work leaves, while producer-only root
 and function mechanics and replay-only indexes remain obvious one rung lower.

@@ -81,9 +81,10 @@ run only when their exact names are selected.
 
 ## Allocation and frame ownership
 
-Allocation owns machine-effect analysis and ABI-preserved-register discovery.
+Selected-program analysis owns machine effects; allocation owns ABI-preserved-register discovery.
 Machine effects describe the current selected program and are not a competing
-program stage; both construction and replay live in allocation's analyses.
+program stage; both construction and replay live in the selected-instruction
+X-to-X stage's analysis modules.
 Frame layout owns abstract
 callee-save storage and spill requirements; machine emission owns packing the
 resulting prologue/epilogue bytes. These calculations are modules of their
@@ -222,11 +223,13 @@ Rematerialized programs use the ordinary encoding and resolved-layout stages.
 The separate active-resident encoding crate and its layout/realization wrappers
 have been removed; their byte and corruption controls exercise the shared paths.
 
-Physical coordination performs instruction selection, liveness, live ranges,
-register allocation, and post-allocation machine construction once. Ordinary
-allocation, selected lowering, and recovery use the allocation owner's entry;
-that owner executes rule policies, recovery availability, reanalysis, and any
-required frameless contract. Function-relative realization consumes the same
+Physical coordination performs instruction selection, selected-instruction
+optimization, register allocation, and post-allocation machine construction
+once. The selected-instruction X-to-X stage owns selected-lowering execution,
+including liveness and pressure analyses and their reconstruction after a fold.
+Allocation consumes that result and owns assignment and pressure recovery.
+Required frameless contracts are explicit in the analysis for their consuming
+rewrite or layout policy. Function-relative realization consumes the same
 allocation and machine outputs and independently checks their join. It cannot
 rerun either earlier stage or substitute a machine from another allocation.
 Optional later layout execution is read from its phase
@@ -246,8 +249,11 @@ before entering the common analysis. Persisted effect rows, identities, and
 encoding are selected-representation-owned; analysis and admission remain
 pipeline-owned.
 
-Allocation analyses, rewrites, reanalysis, and assignment now share the
-`selected-instructions-to-register-homes` phase owner. Its sealed
+Selected-lowering rewrites and selected-program analyses belong to
+`selected-instructions-to-selected-instructions`; they do not assign register
+homes. The result retains one current selected program and separate replay
+inputs. The successor `selected-instructions-to-register-homes` consumes it
+without re-executing the selected-lowering suite. Its sealed
 allocation boundary independently reconstructs retained evidence and exposes
 one immutable current-program view, with policy and evidence separate from the
 program's identity. Both machine-plan construction and post-allocation machine

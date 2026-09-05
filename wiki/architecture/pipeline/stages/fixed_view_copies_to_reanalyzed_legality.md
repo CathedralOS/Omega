@@ -42,7 +42,7 @@ direct transition-free path. It still grants no machine-emission authority.
 
 ## Implementation Map
 
-- `selected-instructions-to-register-homes/src/analyses/reanalysis/`
+- `selected-instructions-to-selected-instructions/src/analyses/reanalysis/`
   owns transformed analysis custody over the sealed selected-analysis input.
 - The same transform's `assignment/transformed/` owns post-copy home assignment
   and its retained evidence. Neither step is a separate allocator crate.

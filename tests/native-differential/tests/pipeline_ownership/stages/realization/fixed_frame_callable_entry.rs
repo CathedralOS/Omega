@@ -8,7 +8,13 @@ fn fixed_frame_rejects_a_machine_from_another_allocation_before_encoding() {
         let selected = staged_exact_add_conditional(target);
         let ranges =
             stage_optimized_live_ranges(stage_optimized_liveness(selected).unwrap()).unwrap();
-        selected_instructions_to_register_homes::stage_register_allocation(ranges).unwrap()
+        selected_instructions_to_register_homes::stage_register_allocation(
+            selected_instructions_to_register_homes::optimize_analyzed_selected_instructions(
+                ranges,
+            )
+            .unwrap(),
+        )
+        .unwrap()
     };
     let allocation = allocate(NativeTarget::linux_x64());
     let other = allocate(NativeTarget::linux_arm64());

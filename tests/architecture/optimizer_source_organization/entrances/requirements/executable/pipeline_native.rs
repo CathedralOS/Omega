@@ -26,7 +26,7 @@ pub(crate) const ENTRANCES: &[RequiredCoordinationEntrance] = &[
         coordination_marker: "validate_abstract_to_target_translation",
     },
     RequiredCoordinationEntrance {
-        path: "omega-rust/omega/pipeline/selected-instructions-to-register-homes/src/analyses/legality/mod.rs",
+        path: "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/analyses/legality/mod.rs",
         coordination_marker: "pub fn stage_optimized_allocation_legality_with_availability",
     },
     RequiredCoordinationEntrance {
@@ -34,19 +34,19 @@ pub(crate) const ENTRANCES: &[RequiredCoordinationEntrance] = &[
         coordination_marker: "pub fn stage_optimized_register_homes",
     },
     RequiredCoordinationEntrance {
-        path: "omega-rust/omega/pipeline/selected-instructions-to-register-homes/src/analyses/liveness/staging/mod.rs",
+        path: "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/analyses/liveness/staging/mod.rs",
         coordination_marker: "pub fn stage_optimized_liveness",
     },
     RequiredCoordinationEntrance {
-        path: "omega-rust/omega/pipeline/selected-instructions-to-register-homes/src/analyses/live_ranges/staging/mod.rs",
+        path: "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/analyses/live_ranges/staging/mod.rs",
         coordination_marker: "pub fn stage_optimized_live_ranges",
     },
     RequiredCoordinationEntrance {
-        path: "omega-rust/omega/pipeline/selected-instructions-to-register-homes/src/rewrites/fixed_view/fixed_view_copies/mod.rs",
+        path: "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/fixed_view/fixed_view_copies/mod.rs",
         coordination_marker: "pub fn stage_optimized_fixed_view_copies",
     },
     RequiredCoordinationEntrance {
-        path: "omega-rust/omega/pipeline/selected-instructions-to-register-homes/src/analyses/reanalysis/mod.rs",
+        path: "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/analyses/reanalysis/mod.rs",
         coordination_marker: "pub fn stage_optimized_selected_reanalysis",
     },
     RequiredCoordinationEntrance {
@@ -74,11 +74,11 @@ pub(crate) const ENTRANCES: &[RequiredCoordinationEntrance] = &[
         coordination_marker: "pub fn stage_optimized_active_resident_rematerialization",
     },
     RequiredCoordinationEntrance {
-        path: "omega-rust/omega/pipeline/selected-instructions-to-register-homes/src/analyses/machine_effects/mod.rs",
+        path: "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/analyses/machine_effects/mod.rs",
         coordination_marker: "pub fn analyze_machine_effects",
     },
     RequiredCoordinationEntrance {
-        path: "omega-rust/omega/pipeline/selected-instructions-to-register-homes/src/rewrites/literal_folds/mod.rs",
+        path: "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/literal_folds/mod.rs",
         coordination_marker: "pub fn run_selected_lowering_optimizations",
     },
     RequiredCoordinationEntrance {

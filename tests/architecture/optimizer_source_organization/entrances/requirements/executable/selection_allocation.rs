@@ -6,7 +6,7 @@ pub(crate) const ENTRANCES: &[RequiredCoordinationEntrance] = &[
         coordination_marker: "pub fn validate_machine_effect_catalog",
     },
     RequiredCoordinationEntrance {
-        path: "omega-rust/omega/pipeline/selected-instructions-to-register-homes/src/analyses/live_ranges/validate/replay/mod.rs",
+        path: "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/analyses/live_ranges/validate/replay/mod.rs",
         coordination_marker: "pub(super) fn replay_live_ranges",
     },
     RequiredCoordinationEntrance {
@@ -14,23 +14,23 @@ pub(crate) const ENTRANCES: &[RequiredCoordinationEntrance] = &[
         coordination_marker: "impl LegalizedCallUnit",
     },
     RequiredCoordinationEntrance {
-        path: "omega-rust/omega/pipeline/selected-instructions-to-register-homes/src/rewrites/allocation_recovery/fixed_view_copy/codec/mod.rs",
+        path: "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/allocation_recovery/fixed_view_copy/codec/mod.rs",
         coordination_marker: "impl FixedViewCopyPlan",
     },
     RequiredCoordinationEntrance {
-        path: "omega-rust/omega/pipeline/selected-instructions-to-register-homes/src/rewrites/allocation_recovery/fixed_view_copy/codec/selected/mod.rs",
+        path: "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/allocation_recovery/fixed_view_copy/codec/selected/mod.rs",
         coordination_marker: "fn decode_selected_plan",
     },
     RequiredCoordinationEntrance {
-        path: "omega-rust/omega/pipeline/selected-instructions-to-register-homes/src/analyses/live_ranges/validate.rs",
+        path: "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/analyses/live_ranges/validate.rs",
         coordination_marker: "pub fn validate_live_ranges",
     },
     RequiredCoordinationEntrance {
-        path: "omega-rust/omega/pipeline/selected-instructions-to-register-homes/src/analyses/live_ranges/compute.rs",
+        path: "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/analyses/live_ranges/compute.rs",
         coordination_marker: "pub(crate) fn compute_terminal_live_ranges",
     },
     RequiredCoordinationEntrance {
-        path: "omega-rust/omega/pipeline/selected-instructions-to-register-homes/src/analyses/liveness/validate/mod.rs",
+        path: "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/analyses/liveness/validate/mod.rs",
         coordination_marker: "pub fn validate_liveness",
     },
     RequiredCoordinationEntrance {
@@ -38,11 +38,11 @@ pub(crate) const ENTRANCES: &[RequiredCoordinationEntrance] = &[
         coordination_marker: "compute::compute_terminal_register_homes(",
     },
     RequiredCoordinationEntrance {
-        path: "omega-rust/omega/pipeline/selected-instructions-to-register-homes/src/assignment/fixed_precolored_segment_homes/mod.rs",
+        path: "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/analyses/fixed_precolored_segment_homes/mod.rs",
         coordination_marker: "pub fn assign_fixed_precolored_segment_homes",
     },
     RequiredCoordinationEntrance {
-        path: "omega-rust/omega/pipeline/selected-instructions-to-register-homes/src/rewrites/fixed_view/fixed_precolored_segment_homes/mod.rs",
+        path: "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/fixed_view/fixed_precolored_segment_homes/mod.rs",
         coordination_marker: "pub fn stage_optimized_fixed_precolored_segment_homes",
     },
     RequiredCoordinationEntrance {
@@ -158,19 +158,19 @@ pub(crate) const ENTRANCES: &[RequiredCoordinationEntrance] = &[
         coordination_marker: "pub(super) fn reconstruct_structural_unit_contract",
     },
     RequiredCoordinationEntrance {
-        path: "omega-rust/omega/pipeline/selected-instructions-to-register-homes/src/rewrites/selected_lowering/literal_fold/mod.rs",
+        path: "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/selected_lowering/literal_fold/mod.rs",
         coordination_marker: "compute::compute_terminal_literal_fold(",
     },
     RequiredCoordinationEntrance {
-        path: "omega-rust/omega/pipeline/selected-instructions-to-register-homes/src/rewrites/selected_lowering/literal_fold/compute/mod.rs",
+        path: "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/selected_lowering/literal_fold/compute/mod.rs",
         coordination_marker: "derive_function_folds(selected, recovery, &rows)",
     },
     RequiredCoordinationEntrance {
-        path: "omega-rust/omega/pipeline/selected-instructions-to-register-homes/src/rewrites/selected_lowering/literal_fold/validate/mod.rs",
+        path: "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/selected_lowering/literal_fold/validate/mod.rs",
         coordination_marker: "reconstruct_literal_fold(selected, recovery, &rows)",
     },
     RequiredCoordinationEntrance {
-        path: "omega-rust/omega/pipeline/selected-instructions-to-register-homes/src/rewrites/allocation_recovery/pressure_rematerialization/mod.rs",
+        path: "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/allocation_recovery/pressure_rematerialization/mod.rs",
         coordination_marker: "pub fn rematerialize_selected_active_resident",
     },
     RequiredCoordinationEntrance {
@@ -186,7 +186,7 @@ pub(crate) const ENTRANCES: &[RequiredCoordinationEntrance] = &[
         coordination_marker: "pub(super) fn validate",
     },
     RequiredCoordinationEntrance {
-        path: "omega-rust/omega/pipeline/selected-instructions-to-register-homes/src/assignment/spill_choice/mod.rs",
+        path: "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/analyses/spill_choice/mod.rs",
         coordination_marker: "pub fn choose_spill_victims",
     },
     RequiredCoordinationEntrance {
@@ -294,39 +294,39 @@ pub(crate) const ENTRANCES: &[RequiredCoordinationEntrance] = &[
         coordination_marker: "pub fn bind_synthetic_reload_values",
     },
     RequiredCoordinationEntrance {
-        path: "omega-rust/omega/pipeline/selected-instructions-to-register-homes/src/analyses/allocation_legality/mod.rs",
+        path: "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/analyses/allocation_legality/mod.rs",
         coordination_marker: "pub fn analyze_allocation_legality",
     },
     RequiredCoordinationEntrance {
-        path: "omega-rust/omega/pipeline/selected-instructions-to-register-homes/src/analyses/fixed_precolored_intervals/mod.rs",
+        path: "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/analyses/fixed_precolored_intervals/mod.rs",
         coordination_marker: "pub fn analyze_fixed_precolored_intervals",
     },
     RequiredCoordinationEntrance {
-        path: "omega-rust/omega/pipeline/selected-instructions-to-register-homes/src/analyses/fixed_precolored_split_requirements/mod.rs",
+        path: "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/analyses/fixed_precolored_split_requirements/mod.rs",
         coordination_marker: "pub fn analyze_fixed_precolored_split_requirements",
     },
     RequiredCoordinationEntrance {
-        path: "omega-rust/omega/pipeline/selected-instructions-to-register-homes/src/analyses/allocator_availability/mod.rs",
+        path: "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/analyses/allocator_availability/mod.rs",
         coordination_marker: "pub fn materialize_allocator_availability",
     },
     RequiredCoordinationEntrance {
-        path: "omega-rust/omega/pipeline/selected-instructions-to-register-homes/src/analyses/live_ranges/mod.rs",
+        path: "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/analyses/live_ranges/mod.rs",
         coordination_marker: "pub fn analyze_live_ranges",
     },
     RequiredCoordinationEntrance {
-        path: "omega-rust/omega/pipeline/selected-instructions-to-register-homes/src/analyses/liveness/mod.rs",
+        path: "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/analyses/liveness/mod.rs",
         coordination_marker: "pub fn analyze_liveness",
     },
     RequiredCoordinationEntrance {
-        path: "omega-rust/omega/pipeline/selected-instructions-to-register-homes/src/analyses/recovery_classification/mod.rs",
+        path: "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/analyses/recovery_classification/mod.rs",
         coordination_marker: "pub fn classify_pressure_recovery",
     },
     RequiredCoordinationEntrance {
-        path: "omega-rust/omega/pipeline/selected-instructions-to-register-homes/src/rewrites/allocation_recovery/fixed_view_copy/mod.rs",
+        path: "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/allocation_recovery/fixed_view_copy/mod.rs",
         coordination_marker: "pub fn materialize_fixed_view_copies",
     },
     RequiredCoordinationEntrance {
-        path: "omega-rust/omega/pipeline/selected-instructions-to-register-homes/src/rewrites/allocation_recovery/fixed_view_copy/validate/mod.rs",
+        path: "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/allocation_recovery/fixed_view_copy/validate/mod.rs",
         coordination_marker: "pub fn validate_fixed_view_copies",
     },
 ];

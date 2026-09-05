@@ -77,7 +77,7 @@ unsupported. No result from this stage can enter machine emission.
 
 ## Implementation Map
 
-- `selected-instructions-to-register-homes/src/analyses/allocation_legality/`
+- `selected-instructions-to-selected-instructions/src/analyses/allocation_legality/`
   owns computation, identity and independent replay. The adjacent `legality/`
   module selects policy and retains cross-step custody.
 - `register-model` owns aliases, write footprints and validated active

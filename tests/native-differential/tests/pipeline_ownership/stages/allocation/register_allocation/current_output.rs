@@ -118,7 +118,13 @@ fn baseline_realizations_reject_selected_lowering_evidence_roles() {
         );
         let ranges =
             stage_optimized_live_ranges(stage_optimized_liveness(selected).unwrap()).unwrap();
-        let allocation = stage_register_allocation(ranges).unwrap();
+        let allocation = stage_register_allocation(
+            selected_instructions_to_register_homes::optimize_analyzed_selected_instructions(
+                ranges,
+            )
+            .unwrap(),
+        )
+        .unwrap();
         assert!(matches!(
             allocation.current().evidence(),
             AllocationEvidence::SelectedLowering(_)
@@ -337,7 +343,27 @@ fn allocation_phase_matches_explicit_baseline_and_selected_lowering_sequences() 
 
     for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
         for lowering in [false, true] {
-            let phase = stage_register_allocation(ranges(target, lowering)).unwrap();
+            let input = ranges(target, lowering);
+            let before = input
+                .liveness_stage()
+                .selected_stage()
+                .selected()
+                .selected_plan()
+                .clone();
+            let optimized =
+                selected_instructions_to_register_homes::optimize_analyzed_selected_instructions(
+                    input,
+                )
+                .unwrap();
+            let selected_program = optimized.program().clone();
+            // This ample-register fixture completes even the selected suite
+            // without applying a pressure-driven fold.
+            assert_eq!(selected_program.selected_plan(), &before);
+            let phase = stage_register_allocation(optimized).unwrap();
+            assert_eq!(
+                phase.current().selected_plan(),
+                selected_program.selected_plan()
+            );
             assert_owned_program(&phase);
             let expected = if lowering {
                 let legality =
@@ -395,7 +421,13 @@ fn fixed_view_recovery_publishes_the_same_owned_program_contract() {
         let selected = stage_optimized_instruction_selection(target_input).unwrap();
         let ranges =
             stage_optimized_live_ranges(stage_optimized_liveness(selected).unwrap()).unwrap();
-        let retained = stage_register_allocation(ranges).unwrap();
+        let retained = stage_register_allocation(
+            selected_instructions_to_register_homes::optimize_analyzed_selected_instructions(
+                ranges,
+            )
+            .unwrap(),
+        )
+        .unwrap();
         assert_owned_program(&retained);
         assert!(matches!(
             retained.current().evidence(),
@@ -406,6 +438,27 @@ fn fixed_view_recovery_publishes_the_same_owned_program_contract() {
             stage_optimized_post_allocation_machine_plan(&retained.current()).unwrap(),
         );
     }
+}
+
+#[test]
+fn selected_optimization_rejects_a_substituted_current_program_before_assignment() {
+    use selected_instructions_to_register_homes::{
+        SelectedInstructionOptimizationError, optimize_selected_instructions,
+    };
+    let target = NativeTarget::linux_x64();
+    let mut optimized =
+        optimize_selected_instructions(staged_exact_add_conditional(target)).unwrap();
+    let other = optimize_selected_instructions(staged_conditional(target)).unwrap();
+    assert_ne!(optimized.program(), other.program());
+    optimized.substitute_current_program_for_test(other.program().clone());
+    assert!(matches!(
+        stage_register_allocation(optimized),
+        Err(
+            selected_instructions_to_register_homes::RegisterAllocationError::SelectedOptimization(
+                SelectedInstructionOptimizationError::CurrentProgramMismatch
+            )
+        )
+    ));
 }
 
 #[test]
@@ -421,7 +474,13 @@ fn allocation_phase_matches_explicit_recovery_on_both_targets() {
         let declared_budget = selected.optimized_target().optimized().budget_per_pass();
         let ranges =
             stage_optimized_live_ranges(stage_optimized_liveness(selected).unwrap()).unwrap();
-        let allocation = stage_register_allocation(ranges).unwrap();
+        let allocation = stage_register_allocation(
+            selected_instructions_to_register_homes::optimize_analyzed_selected_instructions(
+                ranges,
+            )
+            .unwrap(),
+        )
+        .unwrap();
         assert_owned_program(&allocation);
         let expected = stage_optimized_active_resident_rematerialization(
             staged_active_resident_two_view_legality(target),

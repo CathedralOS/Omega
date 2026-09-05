@@ -3,18 +3,29 @@ use optimization_core::{Optimization, OptimizationExecutionPhase};
 
 use crate::{
     AllocationReplayError, OptimizedAllocationLegalityCustodyError,
-    OptimizedLiteralFoldCustodyError, OptimizedPostSelectedLoweringHomeCustodyError,
-    OptimizedRegisterHomeCustodyError, RetainedAllocation, StagedOptimizedLiveRanges,
-    run_selected_lowering_optimizations, stage_optimized_allocation_legality,
+    OptimizedPostSelectedLoweringHomeCustodyError, OptimizedRegisterHomeCustodyError,
+    RetainedAllocation, stage_optimized_allocation_legality,
     stage_optimized_allocation_legality_for_frameless_leaf, stage_optimized_register_homes,
     stage_optimized_register_homes_after_selected_lowering,
 };
 
 /// Execute the exact selected allocation rules and publish one current result.
-/// Availability, rewrites, reanalysis, assignment, and replay belong to this phase.
+/// Selected-lowering rewrites have already completed. Assignment consumes their
+/// retained proof; pressure recovery remains internal to allocation.
 pub fn stage_register_allocation(
-    ranges: StagedOptimizedLiveRanges,
+    selected: crate::SelectedInstructionOptimizationOutput,
 ) -> Result<RetainedAllocation, RegisterAllocationError> {
+    let ranges = match selected
+        .into_replayed_evidence()
+        .map_err(RegisterAllocationError::SelectedOptimization)?
+    {
+        crate::SelectedInstructionOptimizationEvidence::Identity(ranges) => ranges,
+        crate::SelectedInstructionOptimizationEvidence::LiteralFolds(run) => {
+            let homes = stage_optimized_register_homes_after_selected_lowering(run)
+                .map_err(RegisterAllocationError::TransformedHomes)?;
+            return RetainedAllocation::try_from(homes).map_err(RegisterAllocationError::Replay);
+        }
+    };
     let selections = ranges
         .liveness_stage()
         .selected_stage()
@@ -26,12 +37,6 @@ pub fn stage_register_allocation(
     )
     .map_err(RegisterAllocationError::RecoveryCatalog)?;
     if let Some(rule) = recovery {
-        if !selections
-            .for_phase(OptimizationExecutionPhase::SelectedLowering)
-            .is_empty()
-        {
-            return Err(RegisterAllocationError::UnsupportedComposition);
-        }
         return match rule {
             Optimization::SharedEntryFixedViewCopyAfterCompareBeforeBranchV1 => {
                 RetainedAllocation::try_from(stage_fixed_view_register_allocation(ranges)?)
@@ -44,40 +49,25 @@ pub fn stage_register_allocation(
             _ => Err(RegisterAllocationError::UnsupportedComposition),
         };
     }
-    if selections
-        .for_phase(OptimizationExecutionPhase::SelectedLowering)
-        .is_empty()
-    {
-        // Function-relative branch relaxation currently admits a frameless
-        // leaf. That allocation contract belongs here, not in a second
-        // compiler-owned allocator invocation selected by the layout route.
-        let frameless = !selections
-            .for_phase(OptimizationExecutionPhase::FunctionRelativeLayout)
-            .is_empty();
-        let legality = if frameless {
-            stage_optimized_allocation_legality_for_frameless_leaf(ranges)
-        } else {
-            stage_optimized_allocation_legality(ranges)
-        }
-        .map_err(RegisterAllocationError::Legality)?;
-        let homes =
-            stage_optimized_register_homes(legality).map_err(RegisterAllocationError::Homes)?;
-        RetainedAllocation::try_from(homes).map_err(RegisterAllocationError::Replay)
+    // Function-relative branch relaxation currently admits a frameless
+    // leaf. That allocation contract belongs here, not in a second
+    // compiler-owned allocator invocation selected by the layout route.
+    let frameless = !selections
+        .for_phase(OptimizationExecutionPhase::FunctionRelativeLayout)
+        .is_empty();
+    let legality = if frameless {
+        stage_optimized_allocation_legality_for_frameless_leaf(ranges)
     } else {
-        // The currently admitted selected-lowering rules use the frameless-leaf
-        // allocation contract. Keep that requirement at their allocation owner.
-        let legality = stage_optimized_allocation_legality_for_frameless_leaf(ranges)
-            .map_err(RegisterAllocationError::Legality)?;
-        let run = run_selected_lowering_optimizations(legality)
-            .map_err(RegisterAllocationError::SelectedLowering)?;
-        let homes = stage_optimized_register_homes_after_selected_lowering(run)
-            .map_err(RegisterAllocationError::TransformedHomes)?;
-        RetainedAllocation::try_from(homes).map_err(RegisterAllocationError::Replay)
+        stage_optimized_allocation_legality(ranges)
     }
+    .map_err(RegisterAllocationError::Legality)?;
+    let homes = stage_optimized_register_homes(legality).map_err(RegisterAllocationError::Homes)?;
+    RetainedAllocation::try_from(homes).map_err(RegisterAllocationError::Replay)
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum RegisterAllocationError {
+    SelectedOptimization(crate::SelectedInstructionOptimizationError),
     UnsupportedComposition,
     RecoveryCatalog(crate::AllocationRecoveryRuleCatalogError),
     FixedSegments(crate::OptimizedFixedPrecoloredSegmentHomeCustodyError),
@@ -87,7 +77,6 @@ pub enum RegisterAllocationError {
     Rematerialization(crate::OptimizedActiveResidentRematerializationError),
     Legality(OptimizedAllocationLegalityCustodyError),
     Homes(OptimizedRegisterHomeCustodyError),
-    SelectedLowering(OptimizedLiteralFoldCustodyError),
     TransformedHomes(OptimizedPostSelectedLoweringHomeCustodyError),
     Replay(AllocationReplayError),
 }
