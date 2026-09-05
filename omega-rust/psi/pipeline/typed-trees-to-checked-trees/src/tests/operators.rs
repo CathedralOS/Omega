@@ -10,6 +10,7 @@ use typed_trees::operator::{
 use typed_trees::types::TypeReferenceHandle;
 
 mod applications;
+mod destinations;
 
 fn indexed_selection_fixture(
     source: &str,
