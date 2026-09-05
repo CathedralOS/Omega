@@ -43,22 +43,22 @@
       (if (eq c 116) 1
         (if (eq c 34) 1 (eq c 92))))))
 
-(def next_is ((source Bytes) (index Int) (length Int) (expected Int)) Int
+(def next_is ((source EpsilonSourceView) (index Int) (length Int) (expected Int)) Int
   (if (lt (+ index 1) length)
-    (eq (bytes_get source (+ index 1)) expected)
+    (eq (epsilon_source_byte source (+ index 1)) expected)
     0))
 
-(def scan_identifier ((source Bytes) (index Int) (length Int)) EpsilonLexicalOutcome
+(def scan_identifier ((source EpsilonSourceView) (index Int) (length Int)) EpsilonLexicalOutcome
   (if (eq index length)
     (scan_tokens source index length)
-    (if (is_ident_continue (bytes_get source index))
+    (if (is_ident_continue (epsilon_source_byte source index))
       (scan_identifier source (+ index 1) length)
       (scan_tokens source index length))))
 
-(def scan_number ((source Bytes) (start Int) (index Int) (length Int) (value Int)) EpsilonLexicalOutcome
+(def scan_number ((source EpsilonSourceView) (start Int) (index Int) (length Int) (value Int)) EpsilonLexicalOutcome
   (if (eq index length)
     (scan_tokens source index length)
-    (let c Int (bytes_get source index)
+    (let c Int (epsilon_source_byte source index)
       (if (is_digit c)
         (let digit Int (- c 48)
           (if (lt value 214748364)
@@ -70,36 +70,36 @@
               (LexicallyRejected IntegerLiteralOutOfRange start))))
         (scan_tokens source index length)))))
 
-(def scan_line_comment ((source Bytes) (index Int) (length Int)) EpsilonLexicalOutcome
+(def scan_line_comment ((source EpsilonSourceView) (index Int) (length Int)) EpsilonLexicalOutcome
   (if (eq index length)
     LexicallyValid
-    (let c Int (bytes_get source index)
+    (let c Int (epsilon_source_byte source index)
       (if (eq c 10)
         (scan_tokens source index length)
         (if (eq c 13)
           (scan_tokens source index length)
           (scan_line_comment source (+ index 1) length))))))
 
-(def scan_string_escape ((source Bytes) (opening Int) (slash Int) (length Int)) EpsilonLexicalOutcome
+(def scan_string_escape ((source EpsilonSourceView) (opening Int) (slash Int) (length Int)) EpsilonLexicalOutcome
   (if (eq (+ slash 1) length)
     (LexicallyRejected InvalidEscape slash)
-    (let c Int (bytes_get source (+ slash 1))
+    (let c Int (epsilon_source_byte source (+ slash 1))
       (if (is_simple_escape c)
         (scan_string source opening (+ slash 2) length)
         (if (eq c 120)
           (if (lt (+ slash 3) length)
-            (if (is_hex_digit (bytes_get source (+ slash 2)))
-              (if (is_hex_digit (bytes_get source (+ slash 3)))
+            (if (is_hex_digit (epsilon_source_byte source (+ slash 2)))
+              (if (is_hex_digit (epsilon_source_byte source (+ slash 3)))
                 (scan_string source opening (+ slash 4) length)
                 (LexicallyRejected InvalidEscape slash))
               (LexicallyRejected InvalidEscape slash))
             (LexicallyRejected InvalidEscape slash))
           (LexicallyRejected InvalidEscape slash))))))
 
-(def scan_string ((source Bytes) (opening Int) (index Int) (length Int)) EpsilonLexicalOutcome
+(def scan_string ((source EpsilonSourceView) (opening Int) (index Int) (length Int)) EpsilonLexicalOutcome
   (if (eq index length)
     (LexicallyRejected UnterminatedString opening)
-    (let c Int (bytes_get source index)
+    (let c Int (epsilon_source_byte source index)
       (if (eq c 34)
         (scan_tokens source (+ index 1) length)
         (if (eq c 92)
@@ -108,33 +108,33 @@
             (scan_string source opening (+ index 1) length)
             (LexicallyRejected UnterminatedString opening)))))))
 
-(def finish_character ((source Bytes) (opening Int) (close_index Int) (length Int)) EpsilonLexicalOutcome
+(def finish_character ((source EpsilonSourceView) (opening Int) (close_index Int) (length Int)) EpsilonLexicalOutcome
   (if (lt close_index length)
-    (if (eq (bytes_get source close_index) 39)
+    (if (eq (epsilon_source_byte source close_index) 39)
       (scan_tokens source (+ close_index 1) length)
       (LexicallyRejected InvalidCharacterLiteral opening))
     (LexicallyRejected InvalidCharacterLiteral opening)))
 
-(def scan_character_escape ((source Bytes) (opening Int) (slash Int) (length Int)) EpsilonLexicalOutcome
+(def scan_character_escape ((source EpsilonSourceView) (opening Int) (slash Int) (length Int)) EpsilonLexicalOutcome
   (if (eq (+ slash 1) length)
     (LexicallyRejected InvalidEscape slash)
-    (let c Int (bytes_get source (+ slash 1))
+    (let c Int (epsilon_source_byte source (+ slash 1))
       (if (is_simple_escape c)
         (finish_character source opening (+ slash 2) length)
         (if (eq c 120)
           (if (lt (+ slash 3) length)
-            (if (is_hex_digit (bytes_get source (+ slash 2)))
-              (if (is_hex_digit (bytes_get source (+ slash 3)))
+            (if (is_hex_digit (epsilon_source_byte source (+ slash 2)))
+              (if (is_hex_digit (epsilon_source_byte source (+ slash 3)))
                 (finish_character source opening (+ slash 4) length)
                 (LexicallyRejected InvalidEscape slash))
               (LexicallyRejected InvalidEscape slash))
             (LexicallyRejected InvalidEscape slash))
           (LexicallyRejected InvalidEscape slash))))))
 
-(def scan_character ((source Bytes) (opening Int) (index Int) (length Int)) EpsilonLexicalOutcome
+(def scan_character ((source EpsilonSourceView) (opening Int) (index Int) (length Int)) EpsilonLexicalOutcome
   (if (eq index length)
     (LexicallyRejected InvalidCharacterLiteral opening)
-    (let c Int (bytes_get source index)
+    (let c Int (epsilon_source_byte source index)
       (if (eq c 92)
         (scan_character_escape source opening index length)
         (if (eq c 39)
@@ -156,7 +156,7 @@
                     (if (eq c 42) 1
                       (if (eq c 37) 1 (eq c 94)))))))))))))
 
-(def scan_operator ((source Bytes) (index Int) (length Int) (c Int)) EpsilonLexicalOutcome
+(def scan_operator ((source EpsilonSourceView) (index Int) (length Int) (c Int)) EpsilonLexicalOutcome
   (if (is_plain_punctuation c)
     (scan_tokens source (+ index 1) length)
     (if (eq c 58)
@@ -205,10 +205,10 @@
                           (scan_tokens source (+ index 1) length))
                         (LexicallyRejected InvalidToken index)))))))))))))
 
-(def scan_tokens ((source Bytes) (index Int) (length Int)) EpsilonLexicalOutcome
+(def scan_tokens ((source EpsilonSourceView) (index Int) (length Int)) EpsilonLexicalOutcome
   (if (eq index length)
     LexicallyValid
-    (let c Int (bytes_get source index)
+    (let c Int (epsilon_source_byte source index)
       (if (is_space c)
         (scan_tokens source (+ index 1) length)
         (if (is_ident_start c)
@@ -221,12 +221,12 @@
                 (scan_character source index (+ index 1) length)
                 (scan_operator source index length c)))))))))
 
-(def check_source_bytes ((source Bytes) (index Int) (length Int)) EpsilonLexicalOutcome
+(def check_source_bytes ((source EpsilonSourceView) (index Int) (length Int)) EpsilonLexicalOutcome
   (if (eq index length)
     (scan_tokens source 0 length)
-    (if (source_byte_allowed (bytes_get source index))
+    (if (source_byte_allowed (epsilon_source_byte source index))
       (check_source_bytes source (+ index 1) length)
       (LexicallyRejected InvalidSourceByte index))))
 
-(def check_lexical ((source Bytes)) EpsilonLexicalOutcome
-  (check_source_bytes source 0 (bytes_length source)))
+(def check_lexical ((source EpsilonSourceView)) EpsilonLexicalOutcome
+  (check_source_bytes source 0 (epsilon_source_length source)))

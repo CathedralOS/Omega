@@ -16,8 +16,10 @@ Delta-written Epsilon evaluator + exact Epsilon-written Omega D
 The gate requires the Omega product build to bind exactly one
 `alpha_bootstrap::ProgramEntry`, requires Omega D to retain its Alpha tape
 construction, and rejects any `EpsilonAlpha`/`epsilon_alpha_` backend residue in
-the Delta-written Epsilon implementation. The evaluator is currently 11,698
-lines / 591,857 bytes, authored in 82 explicitly manifested members.
+the Delta-written Epsilon implementation. The evaluator is currently 11,743
+lines / 598,608 bytes, authored in 84 explicitly manifested members.
+Receipt pins identify the reconstructed source-view implementation. The complete
+gate passes 139 ordinary fixtures, five D customers, and seven framing controls.
 
 The executable slice runs the current checking pipeline, locates `Main::main`,
 and executes an empty entry, scalar `let` and local/parameter assignment,
@@ -67,11 +69,11 @@ Views and all four Console operations execute with the controls below.
 Any retained `Unsupported` staging outcome is not an Epsilon observation and
 cannot survive in the final evaluator.
 
-The gate compiles the exact evaluator plus the 54-line / 2,505-byte
+The gate compiles the exact evaluator plus the 56-line / 2,621-byte
 `execution_driver.delta` (SHA-256
-`68c21b984122cad9d47ddde5b9681da6cadf80aa1ead2da41cf7bb8817dc372e`) through the
-selected Delta route and pins the 698,433-byte Gamma receipt, SHA-256
-`f2aab4bea94f7ebec90d6e8a9b6baa067f02fa93836f79309b347a22edf92d18`.
+`d2b2ce68e4c8afa71f3d096d9069f4c7258a98140d7c828311239de39b85a0f5`) through the
+selected Delta route and pins the measured 701,840-byte receipt, SHA-256
+`9dba93c3baf85f24037fc7689c9cc82089989b4b6b6d9cc949cbb6d19d866f1a`.
 The ordinary controls cover
 success, local, receiver-field, and fixed-array values, repeated mutation,
 output, comparisons, bitwise/shift/division behavior, short-circuiting, bounds
@@ -120,7 +122,8 @@ of this source-program execution gate.
 The development driver receives a four-byte little-endian source length,
 exactly that many Epsilon source bytes, and all remaining bytes as sealed stdin.
 The host only frames bytes; ordinary Delta code separates the two inputs.
-The split builds balanced byte trees. The host diagnostic timeout is 300 seconds
+Source bytes remain in a validated bounded view over the request; only sealed
+stdin is rebuilt into balanced byte trees. The host diagnostic timeout is 300 seconds
 per compilation or execution, not an Epsilon observation or resource verdict.
 Gamma's published resource profile is unchanged.
 This is private test framing, not the final evaluator request/observation
@@ -228,11 +231,13 @@ keyword/punctuation/base metadata, escaped-string length, nested comments,
 whole-view completion, UTF-8 priority, trailing out-of-profile rejection,
 unterminated comments, unsupported escapes, and recovery after a previous
 failure. The required observation is tagged `Exit(0)` with stdout `A`.
-The current receipt produced that exact observation in 293.095 seconds through
-the selected-customer gate, within the unchanged 300-second watchdog. Other
-execution fixtures ran concurrently for part of that measurement. This is gate
-completion evidence, not an isolated benchmark, an Epsilon execution bound, or
-a portable speed claim. The timing margin remains narrow.
+The source-view implementation produced that exact observation in 179.631
+seconds in the complete gate, with no other bootstrap evaluator job running
+during this customer. Checkpoint `3d3c033f8d` took 293.095 seconds through the
+selected-customer gate, with other fixtures running concurrently for part of
+that earlier measurement. Both used the unchanged 300-second watchdog. This
+pair provides gate completion and local timing evidence, not a controlled
+benchmark series, an Epsilon execution bound, or a portable speed claim.
 No scanner function is extracted, rewritten, or replaced; this contract is not
 evidence of complete Omega parsing or compilation.
 
@@ -255,9 +260,10 @@ places, ordinary calls/returns, recursion, state transfers, and retained views
 of binder-owned arrays. A separate staging control,
 `sum_byte_order_unsettled.epsilon`, requires private `Unsupported` tag `04` with no
 Epsilon observation when a nonfinal byte payload fails before another argument.
-The relationship between that store failure and later argument effects awaits
-the [payload-establishment ruling](../../../OWNER_QUESTIONS.md#epsilon-constructor-payload-establishment-order).
-This control does not bless `Unsupported` as language behavior.
+The settled [payload-establishment rule](../../../bootstrap/epsilon/LANGUAGE.md#epsilon-constructor-payload-establishment-order)
+requires `ByteRange` before later arguments run. This staging control must be
+replaced when that path is implemented; it does not bless `Unsupported` as
+language behavior.
 
 The inventory specifies 144 diagnostic results: 143 language/customer judgments
 (138 ordinary fixtures and five whole-member D customers), plus one explicit

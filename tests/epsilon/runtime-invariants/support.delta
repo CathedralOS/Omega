@@ -6,7 +6,7 @@
 (def invariant_output () Bytes (bytes_single 65))
 
 (def invariant_context () EpsilonEvaluatorInvocation
-  (EpsilonEvaluatorInvocationContext (bytes_single 120)
+  (EpsilonEvaluatorInvocationContext (epsilon_source_whole (bytes_single 120))
     (EpsilonMachineDeclaration 0 1
       (EpsilonUnqualifiedName 0 1 (EpsilonNameSpan 0 1))
       (NoEpsilonMachineInputs 0 1) NoEpsilonType

@@ -1,5 +1,5 @@
 
-(def epsilon_find_data_declaration ((source Bytes) (owner EpsilonName)
+(def epsilon_find_data_declaration ((source EpsilonSourceView) (owner EpsilonName)
   (declarations EpsilonDeclarationList)) EpsilonDataDeclarationLookup
   (match declarations
     (NoEpsilonDeclarations NoEpsilonDataDeclaration)
@@ -14,7 +14,7 @@
         ((EpsilonMachineDeclaration start end name inputs returnType bodyValue)
           (epsilon_find_data_declaration source owner rest))))))
 
-(def epsilon_catalog_machine_owner ((source Bytes)
+(def epsilon_catalog_machine_owner ((source EpsilonSourceView)
   (nameValue EpsilonQualifiedName) (declarations EpsilonDeclarationList))
   EpsilonCatalogMachineOwner
   (match nameValue
@@ -35,7 +35,7 @@
       (epsilon_reverse_catalog_declarations rest
         (MoreEpsilonCatalogDeclarations item output)))))
 
-(def epsilon_catalog_declarations_acc ((source Bytes)
+(def epsilon_catalog_declarations_acc ((source EpsilonSourceView)
   (declarations EpsilonDeclarationList)
   (allDeclarations EpsilonDeclarationList)
   (accumulator EpsilonCatalogDeclarationList)) EpsilonCatalogDeclarationList
@@ -79,7 +79,7 @@
         (epsilon_final_candidate_merge current
           (epsilon_catalog_unknown_machine_owner_candidate rest))))))
 
-(def epsilon_catalog_find_owner ((source Bytes) (target EpsilonName)
+(def epsilon_catalog_find_owner ((source EpsilonSourceView) (target EpsilonName)
   (rows EpsilonCatalogDeclarationList)) EpsilonCatalogOwnerLookup
   (match rows
     (NoEpsilonCatalogDeclarations NoEpsilonCatalogOwner)
@@ -108,7 +108,7 @@
         ((EpsilonCatalogMachineDeclaration declarationValue owner)
           (epsilon_catalog_find_owner source target rest))))))
 
-(def epsilon_catalog_find_unqualified_machine ((source Bytes)
+(def epsilon_catalog_find_unqualified_machine ((source EpsilonSourceView)
   (target EpsilonName) (rows EpsilonCatalogDeclarationList))
   EpsilonCatalogMachineLookup
   (match rows
@@ -140,7 +140,7 @@
 ; Semantic qualified application lookup excludes unresolved owner spellings.
 ; D36 application identity requires the exact resolved data owner as custody,
 ; so there is one qualified-machine walk rather than a raw spelling-only twin.
-(def epsilon_catalog_find_qualified_data_machine ((source Bytes)
+(def epsilon_catalog_find_qualified_data_machine ((source EpsilonSourceView)
   (targetOwner EpsilonName) (targetName EpsilonName)
   (rows EpsilonCatalogDeclarationList)) EpsilonCatalogDataMachineLookup
   (match rows
@@ -186,7 +186,7 @@
                         (epsilon_catalog_find_qualified_data_machine source
                           targetOwner targetName rest)))))))))))))
 
-(def epsilon_catalog_find_boundary_machine ((source Bytes)
+(def epsilon_catalog_find_boundary_machine ((source EpsilonSourceView)
   (target EpsilonName) (machines EpsilonBoundaryMachineList))
   EpsilonCatalogBoundaryMemberLookup
   (match machines
@@ -198,7 +198,7 @@
             (OneEpsilonCatalogBoundaryMember item)
             (epsilon_catalog_find_boundary_machine source target rest)))))))
 
-(def epsilon_catalog_find_boundary_member ((source Bytes)
+(def epsilon_catalog_find_boundary_member ((source EpsilonSourceView)
   (owner EpsilonName) (member EpsilonName)
   (rows EpsilonCatalogDeclarationList)) EpsilonCatalogBoundaryMemberLookup
   (match (epsilon_catalog_find_owner source owner rows)
@@ -214,7 +214,7 @@
         ((EpsilonMachineDeclaration start end name inputs returnType bodyValue)
           NoEpsilonCatalogBoundaryMember)))))
 
-(def epsilon_catalog_find_member_in_data ((source Bytes)
+(def epsilon_catalog_find_member_in_data ((source EpsilonSourceView)
   (target EpsilonName) (ownerValue EpsilonDeclaration)
   (members EpsilonDataMemberList))
   EpsilonCatalogDataMemberLookup
@@ -233,7 +233,7 @@
             (epsilon_catalog_find_member_in_data source target ownerValue
               rest)))))))
 
-(def epsilon_catalog_find_data_member ((source Bytes) (owner EpsilonName)
+(def epsilon_catalog_find_data_member ((source EpsilonSourceView) (owner EpsilonName)
   (member EpsilonName) (rows EpsilonCatalogDeclarationList))
   EpsilonCatalogDataMemberLookup
   (match (epsilon_catalog_find_owner source owner rows)
@@ -250,7 +250,7 @@
         ((EpsilonMachineDeclaration start end name inputs returnType bodyValue)
           NoEpsilonCatalogDataMember)))))
 
-(def epsilon_catalog_find_sum_case_in_data ((source Bytes)
+(def epsilon_catalog_find_sum_case_in_data ((source EpsilonSourceView)
   (target EpsilonName) (ownerValue EpsilonDeclaration)
   (members EpsilonDataMemberList)) EpsilonCatalogSumCaseLookup
   (match members
@@ -267,7 +267,7 @@
             (epsilon_catalog_find_sum_case_in_data source target ownerValue
               rest)))))))
 
-(def epsilon_catalog_find_sum_case ((source Bytes) (owner EpsilonName)
+(def epsilon_catalog_find_sum_case ((source EpsilonSourceView) (owner EpsilonName)
   (caseName EpsilonName) (rows EpsilonCatalogDeclarationList))
   EpsilonCatalogSumCaseLookup
   (match (epsilon_catalog_find_owner source owner rows)
@@ -288,7 +288,7 @@
               bodyValue)
               NoEpsilonCatalogSumCase)))))))
 
-(def epsilon_catalog_find_state_in_list ((source Bytes) (target EpsilonName)
+(def epsilon_catalog_find_state_in_list ((source EpsilonSourceView) (target EpsilonName)
   (states EpsilonStateList)) EpsilonCatalogStateLookup
   (match states
     (NoEpsilonStates NoEpsilonCatalogState)
@@ -299,7 +299,7 @@
             (OneEpsilonCatalogState item)
             (epsilon_catalog_find_state_in_list source target rest)))))))
 
-(def epsilon_catalog_find_state ((source Bytes)
+(def epsilon_catalog_find_state ((source EpsilonSourceView)
   (machineValue EpsilonDeclaration) (target EpsilonName)) EpsilonCatalogStateLookup
   (match machineValue
     ((EpsilonBoundaryDeclaration start end name machines)
@@ -340,7 +340,7 @@
   (match caseValue
     ((EpsilonResolvedSumCaseSyntax start end name parameters) parameters)))
 
-(def epsilon_catalog_formed_program ((source Bytes)
+(def epsilon_catalog_formed_program ((source EpsilonSourceView)
   (formed EpsilonFormedProgram))
   EpsilonCatalogedProgram
   (match formed
@@ -358,7 +358,7 @@
                     (epsilon_catalog_unknown_machine_owner_candidate
                       rows)))))))))))
 
-(def epsilon_parse_collect_form_and_catalog ((source Bytes))
+(def epsilon_parse_collect_form_and_catalog ((source EpsilonSourceView))
   EpsilonCatalogOutcome
   (match (epsilon_parse_collect_and_form_types source)
     ((EpsilonTypeFormationRejected reasonValue errorOffset)

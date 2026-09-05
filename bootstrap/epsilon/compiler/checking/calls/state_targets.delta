@@ -2,7 +2,7 @@
 ; Explicit transition applications join the current machine's state namespace
 ; with the global unqualified-machine namespace before either identity is
 ; admitted. Arity and expected result never disambiguate the collision.
-(def epsilon_local_scan_transition_unqualified_application ((source Bytes)
+(def epsilon_local_scan_transition_unqualified_application ((source EpsilonSourceView)
   (expressionValue EpsilonExpression) (callBase EpsilonExpression)
   (arguments EpsilonExpressionList) (active EpsilonLocalBindingList)
   (pending EpsilonLocalBindingList) (machineValue EpsilonDeclaration)
@@ -66,7 +66,7 @@
 ; known but unapplied control target, and genuine namespace absence may fall
 ; back to a local value judgment without inventing a target. A bare state never
 ; enters stateApplications because no application was authored.
-(def epsilon_local_scan_transition_bare_name ((source Bytes)
+(def epsilon_local_scan_transition_bare_name ((source EpsilonSourceView)
   (expressionValue EpsilonExpression) (name EpsilonName)
   (active EpsilonLocalBindingList) (pending EpsilonLocalBindingList)
   (machineValue EpsilonDeclaration) (continuationStart Int)

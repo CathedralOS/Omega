@@ -3,7 +3,7 @@
 ; local fallback even when its authored argument list is missing. Retain the
 ; known identity and reject the bare spelling at the carried outer statement
 ; anchor; only genuine machine absence permits ordinary local resolution.
-(def epsilon_resolve_local_postfix_statement_name ((source Bytes)
+(def epsilon_resolve_local_postfix_statement_name ((source EpsilonSourceView)
   (expressionValue EpsilonExpression) (name EpsilonName)
   (statementStart Int) (active EpsilonLocalBindingList)
   (pending EpsilonLocalBindingList) (scan EpsilonLocalResolutionScan))
@@ -37,7 +37,7 @@
       (SomeEpsilonPlaceType typeValue))
     ((EpsilonNeverType start end) NoEpsilonPlaceType)))
 
-(def epsilon_resolve_local_value_name ((source Bytes)
+(def epsilon_resolve_local_value_name ((source EpsilonSourceView)
   (expressionValue EpsilonExpression) (name EpsilonName)
   (active EpsilonLocalBindingList) (pending EpsilonLocalBindingList)
   (scan EpsilonLocalResolutionScan)) EpsilonLocalResolutionScan
@@ -61,7 +61,7 @@
           (epsilon_local_scan_add_candidate UnknownName
             (epsilon_expression_start expressionValue) scan))))))
 
-(def epsilon_resolve_local_expression_list ((source Bytes)
+(def epsilon_resolve_local_expression_list ((source EpsilonSourceView)
   (expressions EpsilonExpressionList) (active EpsilonLocalBindingList)
   (pending EpsilonLocalBindingList) (scan EpsilonLocalResolutionScan))
   EpsilonLocalResolutionScan
@@ -71,7 +71,7 @@
       (epsilon_resolve_local_expression_list source rest active pending
         (epsilon_resolve_local_expression source item active pending scan)))))
 
-(def epsilon_resolve_local_optional_expression ((source Bytes)
+(def epsilon_resolve_local_optional_expression ((source EpsilonSourceView)
   (expressionValue EpsilonOptionalExpression)
   (active EpsilonLocalBindingList) (pending EpsilonLocalBindingList)
   (scan EpsilonLocalResolutionScan)) EpsilonLocalResolutionScan

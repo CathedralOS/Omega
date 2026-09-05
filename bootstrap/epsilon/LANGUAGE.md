@@ -436,6 +436,16 @@ Records and sum payloads establish fields in declaration order. Constructor
 arguments, call arguments, assignments, and ordinary operands evaluate exactly
 once from left to right. Arrays are fixed in length and never allocate.
 
+<a id="epsilon-constructor-payload-establishment-order"></a>
+
+Sum construction evaluates each argument exactly once and immediately
+establishes its corresponding payload field before evaluating the next
+argument. If argument evaluation or field establishment traps or exits,
+construction stops and later arguments do not run. Effects already performed
+remain observable. In particular, a `u8` payload value outside `0..255` traps as
+`ByteRange` before any later argument's effects, trap, or exit. The completed
+sum value becomes available only after every payload field is established.
+
 An array or view access evaluates its base and then its index. An index outside
 `0..length-1` traps as `Bounds` before any access. A slice `a[lo..hi]` requires
 `0 <= lo <= hi <= length`; otherwise it traps as `Bounds`. `.len` returns an

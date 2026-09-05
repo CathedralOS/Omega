@@ -14,6 +14,7 @@ normative Epsilon request or observation envelope.
 
 | Area | Entrance and ownership |
 | --- | --- |
+| Compiler source | [`source.delta`](source.delta) validates byte windows and owns source-relative reads. [`representations/source.delta`](representations/source.delta) defines their private representation; runtime views and Console bytes are separate. |
 | Checking | [`checking/check.delta`](checking/check.delta) sequences parsing and checking. Its subfolders own declarations, types, catalogs, resolution, calls, expressions, and control judgments. |
 | Lexical validation | [`lexical/validation.delta`](lexical/validation.delta) validates source bytes and lexical forms; [`tokens.delta`](lexical/tokens.delta) provides syntax-token lookahead. |
 | Parsing | [`parsing/machine_declarations.delta`](parsing/machine_declarations.delta) assembles the program from declarations. Sibling files own expressions, transitions, statements, blocks, and data declarations. |
@@ -29,7 +30,7 @@ normative Epsilon request or observation envelope.
 | Runtime operations | [`execution/statements.delta`](execution/statements.delta) applies statements. `scalars/` and `control/` own scalar operations and block/state control. |
 | Shared representations | [`representations/`](representations/) groups syntax, parsing outcomes, checked facts, diagnostics, and execution values by concept. |
 
-The 82 authoring members have at most 450 lines each; the root entrance has 22.
+The 84 authoring members have at most 450 lines each; the root entrance has 26.
 Files end at complete top-level Delta forms. They are not independent Delta
 modules: they share one translation unit and the language gains no imports.
 
@@ -47,11 +48,27 @@ source inventory, then concatenates bytes without separators. It does not parse
 or lower Delta. Bootstrap callers use `OMEGA_PATH_EPSILON_COMPILER_SOURCES`
 from the shared role registry rather than reading the entrance as the full source.
 
-The packed evaluator is 11,698 lines / 591,857 bytes, SHA-256
-`81e4cfd3255d849f2821bd8ab8b1024640e29ab73ff35ef9cfb4c8cc5c5a6ac5`.
+The packed evaluator is 11,743 lines / 598,608 bytes, SHA-256
+`026ac4692589fb05feb06929a1b53c7ff4495c5a9be122d85f2bd32b94188004`.
 When editing a member, update its manifest length and digest; change membership
 explicitly when adding or removing source. Update exact test identities only
 after reviewing the semantic change and its generated receipt.
+
+Compiler source is a bounded view over existing Delta `Bytes`, not a newly
+constructed byte tree. `epsilon_source_view` admits the origin before subtracting
+it from the backing length, then checks the window extent. `epsilon_source_byte`
+requires a factory-established view and checks its relative index before adding
+the origin. Invalid reads retain ordinary Delta `Bytes` failure; they never
+substitute a dummy byte or expose the private header or sealed stdin. No new
+Delta or Gamma primitive is involved.
+
+Raw-source checking and evaluation entrances wrap the complete byte sequence;
+their view-taking counterparts share the same checking and execution judgments.
+The framed driver selects only its source window. Syntax, checked facts, and
+diagnostics keep source-relative offsets, independent of the backing origin.
+Invocation contexts retain that view for name lookup and string decoding, while
+Console input, output, decoded literals, and Epsilon runtime view backing remain
+ordinary `Bytes`. The driver still constructs its sealed stdin separately.
 
 Runtime reference lookup uses a derivative index, not a replacement checked
 program. Entry builds an immutable interval tree over source-start coordinates.
@@ -98,13 +115,17 @@ Console operations execute in this staging path. Sparse typed zero homes avoid
 eager array allocation; they do not establish the final application's physical
 storage profile. Sum constructors, first-case zero defaults, checked case
 transitions, and copied payload binders have staging execution paths. A failing
-`u8` payload argument followed by another argument remains `Unsupported` until
-[Epsilon constructor payload establishment order](../../../OWNER_QUESTIONS.md#epsilon-constructor-payload-establishment-order)
-is settled; final-argument `ByteRange` already has an execution path. This is
+`u8` payload argument followed by another argument still returns `Unsupported`;
+implementing the settled [immediate payload establishment rule](../LANGUAGE.md#epsilon-constructor-payload-establishment-order)
+must replace that staging refusal with `ByteRange` before later arguments run.
+Final-argument `ByteRange` already has an execution path. This is
 not full sum or evaluator completion. Remaining conformance obligations and
 final composition with D remain open.
 The [runtime-invariant controls](../../../tests/epsilon/runtime-invariants/README.md)
 exercise internal-failure defenses with synthetic state that bypasses checking;
 they do not claim additional admitted Epsilon behavior or final publication.
+The [source-window controls](../../../tests/epsilon/source-views/README.md) compare
+raw and bounded source routes, source-relative diagnostics, validated extents,
+and failure before publication for invalid internal source indexes.
 [LANGUAGE.md](../LANGUAGE.md) governs semantics;
 [TASKS_BOOTSTRAP.md](../../../TASKS_BOOTSTRAP.md) owns remaining work.

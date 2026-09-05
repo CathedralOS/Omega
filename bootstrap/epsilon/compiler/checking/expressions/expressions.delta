@@ -79,7 +79,7 @@
 ; Every nested operand, argument, receiver, index, and bound is an ordinary
 ; value position. Only the exact outer name/selector retains the grammar-
 ; selected call, statement, or continuation namespace.
-(def epsilon_resolve_local_expression_context ((source Bytes)
+(def epsilon_resolve_local_expression_context ((source EpsilonSourceView)
   (expressionValue EpsilonExpression) (active EpsilonLocalBindingList)
   (pending EpsilonLocalBindingList) (scan EpsilonLocalResolutionScan)
   (useValue EpsilonExpressionUse))
@@ -189,7 +189,7 @@
         (epsilon_resolve_local_expression source right active pending
           (epsilon_resolve_local_expression source left active pending scan))))))
 
-(def epsilon_resolve_local_expression ((source Bytes)
+(def epsilon_resolve_local_expression ((source EpsilonSourceView)
   (expressionValue EpsilonExpression) (active EpsilonLocalBindingList)
   (pending EpsilonLocalBindingList) (scan EpsilonLocalResolutionScan))
   EpsilonLocalResolutionScan
@@ -263,7 +263,7 @@
                 (EpsilonResultlessExpressionResult scan)
                 (EpsilonNeverExpressionResult scan)))))))))
 
-(def epsilon_resolve_local_postfix_statement_expression ((source Bytes)
+(def epsilon_resolve_local_postfix_statement_expression ((source EpsilonSourceView)
   (expressionValue EpsilonExpression) (active EpsilonLocalBindingList)
   (pending EpsilonLocalBindingList) (scan EpsilonLocalResolutionScan))
   EpsilonLocalResolutionScan
@@ -273,7 +273,7 @@
         (EpsilonPostfixStatementExpressionUse
           (epsilon_expression_start expressionValue)))))
 
-(def epsilon_resolve_local_transition_continuation_expression ((source Bytes)
+(def epsilon_resolve_local_transition_continuation_expression ((source EpsilonSourceView)
   (expressionValue EpsilonExpression) (active EpsilonLocalBindingList)
   (machineValue EpsilonDeclaration) (continuationStart Int)
   (scan EpsilonLocalResolutionScan)) EpsilonLocalResolutionScan

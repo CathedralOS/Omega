@@ -12,31 +12,31 @@
     ((MoreEpsilonParameters item rest)
       (epsilon_reverse_parameters rest (MoreEpsilonParameters item output)))))
 
-(def epsilon_parameter_reject_at ((source Bytes) (cursor Int)) EpsilonParameterParseOutcome
+(def epsilon_parameter_reject_at ((source EpsilonSourceView) (cursor Int)) EpsilonParameterParseOutcome
   (let start Int (epsilon_token_start source cursor)
-    (if (eq start (bytes_length source))
+    (if (eq start (epsilon_source_length source))
       (EpsilonParameterParseRejected UnexpectedEnd start)
       (EpsilonParameterParseRejected UnexpectedToken start))))
 
-(def epsilon_parameter_list_reject_at ((source Bytes) (cursor Int)) EpsilonParameterListParseOutcome
+(def epsilon_parameter_list_reject_at ((source EpsilonSourceView) (cursor Int)) EpsilonParameterListParseOutcome
   (let start Int (epsilon_token_start source cursor)
-    (if (eq start (bytes_length source))
+    (if (eq start (epsilon_source_length source))
       (EpsilonParameterListParseRejected UnexpectedEnd start)
       (EpsilonParameterListParseRejected UnexpectedToken start))))
 
-(def epsilon_statement_reject_at ((source Bytes) (cursor Int)) EpsilonStatementParseOutcome
+(def epsilon_statement_reject_at ((source EpsilonSourceView) (cursor Int)) EpsilonStatementParseOutcome
   (let start Int (epsilon_token_start source cursor)
-    (if (eq start (bytes_length source))
+    (if (eq start (epsilon_source_length source))
       (EpsilonStatementParseRejected UnexpectedEnd start)
       (EpsilonStatementParseRejected UnexpectedToken start))))
 
-(def epsilon_terminal_reject_at ((source Bytes) (cursor Int)) EpsilonTerminalParseOutcome
+(def epsilon_terminal_reject_at ((source EpsilonSourceView) (cursor Int)) EpsilonTerminalParseOutcome
   (let start Int (epsilon_token_start source cursor)
-    (if (eq start (bytes_length source))
+    (if (eq start (epsilon_source_length source))
       (EpsilonTerminalParseRejected UnexpectedEnd start)
       (EpsilonTerminalParseRejected UnexpectedToken start))))
 
-(def epsilon_parse_parameter ((source Bytes) (cursor Int)) EpsilonParameterParseOutcome
+(def epsilon_parse_parameter ((source EpsilonSourceView) (cursor Int)) EpsilonParameterParseOutcome
   (let nameStart Int (epsilon_token_start source cursor)
     (if (eq (epsilon_token_code source nameStart) 1)
       (let nameEnd Int (epsilon_token_end source nameStart)
@@ -55,7 +55,7 @@
             (epsilon_parameter_reject_at source nameEnd))))
       (epsilon_parameter_reject_at source cursor))))
 
-(def epsilon_parse_parameters_acc ((source Bytes) (cursor Int) (closeCode Int)
+(def epsilon_parse_parameters_acc ((source EpsilonSourceView) (cursor Int) (closeCode Int)
   (accumulator EpsilonParameterList)) EpsilonParameterListParseOutcome
   (let start Int (epsilon_token_start source cursor)
     (if (eq (epsilon_token_code source start) closeCode)
@@ -83,7 +83,7 @@
                             (MoreEpsilonParameters parameterValue accumulator)))))
                     (epsilon_parameter_list_reject_at source followingStart)))))))))))
 
-(def epsilon_finish_let_statement ((source Bytes) (statementStart Int)
+(def epsilon_finish_let_statement ((source EpsilonSourceView) (statementStart Int)
   (nameStart Int) (nameEnd Int) (typeValue EpsilonType) (cursor Int)) EpsilonStatementParseOutcome
   (let assignStart Int (epsilon_token_start source cursor)
     (if (eq (epsilon_token_code source assignStart) 41)
@@ -104,7 +104,7 @@
                   (epsilon_expression_end expressionValue)))))))
       (epsilon_statement_reject_at source cursor))))
 
-(def epsilon_parse_let_statement ((source Bytes) (cursor Int)) EpsilonStatementParseOutcome
+(def epsilon_parse_let_statement ((source EpsilonSourceView) (cursor Int)) EpsilonStatementParseOutcome
   (let statementStart Int (epsilon_token_start source cursor)
     (let nameStart Int (epsilon_token_start source
       (epsilon_token_end source statementStart))
@@ -124,7 +124,7 @@
         (epsilon_statement_reject_at source
           (epsilon_token_end source statementStart))))))
 
-(def epsilon_parse_assert_statement ((source Bytes) (cursor Int)) EpsilonStatementParseOutcome
+(def epsilon_parse_assert_statement ((source EpsilonSourceView) (cursor Int)) EpsilonStatementParseOutcome
   (let statementStart Int (epsilon_token_start source cursor)
     (let expressionOutcome EpsilonExpressionParseOutcome
       (epsilon_parse_expression source (epsilon_token_end source statementStart))
@@ -140,7 +140,7 @@
               (epsilon_statement_reject_at source
                 (epsilon_expression_end expressionValue)))))))))
 
-(def epsilon_finish_assignment ((source Bytes) (left EpsilonExpression)
+(def epsilon_finish_assignment ((source EpsilonSourceView) (left EpsilonExpression)
   (cursor Int)) EpsilonStatementParseOutcome
   (let rightOutcome EpsilonExpressionParseOutcome (epsilon_parse_expression source cursor)
     (match rightOutcome
@@ -155,7 +155,7 @@
                   statementEnd left right)))
             (epsilon_statement_reject_at source (epsilon_expression_end right))))))))
 
-(def epsilon_parse_postfix_statement ((source Bytes) (cursor Int)) EpsilonStatementParseOutcome
+(def epsilon_parse_postfix_statement ((source EpsilonSourceView) (cursor Int)) EpsilonStatementParseOutcome
   (let leftOutcome EpsilonExpressionParseOutcome (epsilon_parse_postfix source cursor)
     (match leftOutcome
       ((EpsilonExpressionParseRejected reasonValue errorOffset)
@@ -173,7 +173,7 @@
                       statementEnd left)))
                 (epsilon_statement_reject_at source followingStart)))))))))
 
-(def epsilon_parse_statement ((source Bytes) (cursor Int)) EpsilonStatementParseOutcome
+(def epsilon_parse_statement ((source EpsilonSourceView) (cursor Int)) EpsilonStatementParseOutcome
   (let start Int (epsilon_token_start source cursor)
     (let code Int (epsilon_token_code source start)
       (if (eq code 17)
@@ -182,7 +182,7 @@
           (epsilon_parse_assert_statement source start)
           (epsilon_parse_postfix_statement source start))))))
 
-(def epsilon_parse_return_terminal ((source Bytes) (cursor Int)) EpsilonTerminalParseOutcome
+(def epsilon_parse_return_terminal ((source EpsilonSourceView) (cursor Int)) EpsilonTerminalParseOutcome
   (let returnStart Int (epsilon_token_start source cursor)
     (if (eq (epsilon_token_code source returnStart) 18)
       (let afterReturn Int (epsilon_token_end source returnStart)

@@ -52,7 +52,7 @@
     ((EpsilonEvaluatorInternal offset) (EpsilonEvaluatorSliceInternal offset))
     (EpsilonEvaluatorUnsupported EpsilonEvaluatorSliceUnsupported)))
 
-(def epsilon_evaluator_start_entry ((source Bytes) (machineValue EpsilonDeclaration)
+(def epsilon_evaluator_start_entry ((source EpsilonSourceView) (machineValue EpsilonDeclaration)
   (references EpsilonResolvedLocalReferenceList)
   (fieldReferences EpsilonResolvedFieldReferenceList)
   (callables EpsilonResolvedCallableReferenceList)
@@ -67,14 +67,14 @@
         (epsilon_evaluator_finish_entry
           (epsilon_evaluate_invocation
             (EpsilonEvaluatorInvocationContext source machineValue
-              (epsilon_runtime_index_references (bytes_length source)
+              (epsilon_runtime_index_references (epsilon_source_length source)
                 references fieldReferences callables control)
               (SomeEpsilonRuntimePlace
                 (EpsilonRuntimePlaceAt identifier NoEpsilonRuntimePath typeValue))
               (epsilon_runtime_next_identifier store))
             NoEpsilonEvaluatorBindings store (bytes_empty)))))))
 
-(def epsilon_evaluate_entry_declarations ((source Bytes)
+(def epsilon_evaluate_entry_declarations ((source EpsilonSourceView)
   (declarations EpsilonDeclarationList)
   (references EpsilonResolvedLocalReferenceList)
   (fieldReferences EpsilonResolvedFieldReferenceList)

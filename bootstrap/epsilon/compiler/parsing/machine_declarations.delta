@@ -23,21 +23,21 @@
     ((MoreEpsilonDeclarations item rest)
       (epsilon_reverse_declarations rest (MoreEpsilonDeclarations item output)))))
 
-(def epsilon_qualified_name_reject_at ((source Bytes)
+(def epsilon_qualified_name_reject_at ((source EpsilonSourceView)
   (cursor Int)) EpsilonQualifiedNameParseOutcome
   (let start Int (epsilon_token_start source cursor)
-    (if (eq start (bytes_length source))
+    (if (eq start (epsilon_source_length source))
       (EpsilonQualifiedNameParseRejected UnexpectedEnd start)
       (EpsilonQualifiedNameParseRejected UnexpectedToken start))))
 
-(def epsilon_machine_inputs_reject_at ((source Bytes)
+(def epsilon_machine_inputs_reject_at ((source EpsilonSourceView)
   (cursor Int)) EpsilonMachineInputsParseOutcome
   (let start Int (epsilon_token_start source cursor)
-    (if (eq start (bytes_length source))
+    (if (eq start (epsilon_source_length source))
       (EpsilonMachineInputsParseRejected UnexpectedEnd start)
       (EpsilonMachineInputsParseRejected UnexpectedToken start))))
 
-(def epsilon_parse_qualified_name ((source Bytes)
+(def epsilon_parse_qualified_name ((source EpsilonSourceView)
   (cursor Int)) EpsilonQualifiedNameParseOutcome
   (let firstStart Int (epsilon_token_start source cursor)
     (if (eq (epsilon_token_code source firstStart) 1)
@@ -59,7 +59,7 @@
                 (EpsilonNameSpan firstStart firstEnd))))))
       (epsilon_qualified_name_reject_at source cursor))))
 
-(def epsilon_parse_receiver_parameters ((source Bytes) (openStart Int)
+(def epsilon_parse_receiver_parameters ((source EpsilonSourceView) (openStart Int)
   (selfName EpsilonName) (cursor Int)) EpsilonMachineInputsParseOutcome
   (let parameterStart Int (epsilon_token_start source cursor)
     (if (eq (epsilon_token_code source parameterStart) 33)
@@ -75,7 +75,7 @@
                 (epsilon_token_end source closeStart) selfName parameters)
               closeStart)))))))
 
-(def epsilon_finish_receiver_inputs ((source Bytes) (openStart Int)
+(def epsilon_finish_receiver_inputs ((source EpsilonSourceView) (openStart Int)
   (selfName EpsilonName) (cursor Int)) EpsilonMachineInputsParseOutcome
   (let followingStart Int (epsilon_token_start source cursor)
     (let followingCode Int (epsilon_token_code source followingStart)
@@ -90,7 +90,7 @@
             (epsilon_token_end source followingStart))
           (epsilon_machine_inputs_reject_at source cursor))))))
 
-(def epsilon_parse_receiver_inputs ((source Bytes) (openStart Int)
+(def epsilon_parse_receiver_inputs ((source EpsilonSourceView) (openStart Int)
   (cursor Int)) EpsilonMachineInputsParseOutcome
   (let receiverStart Int (epsilon_token_start source cursor)
     (let mutStart Int (epsilon_token_start source (epsilon_token_end source receiverStart))
@@ -105,7 +105,7 @@
         (epsilon_machine_inputs_reject_at source
           (epsilon_token_end source receiverStart))))))
 
-(def epsilon_parse_plain_machine_inputs ((source Bytes) (openStart Int)
+(def epsilon_parse_plain_machine_inputs ((source EpsilonSourceView) (openStart Int)
   (cursor Int)) EpsilonMachineInputsParseOutcome
   (let start Int (epsilon_token_start source cursor)
     (let code Int (epsilon_token_code source start)
@@ -125,14 +125,14 @@
                     (epsilon_token_end source closeStart) parameters)
                   closeStart)))))))))
 
-(def epsilon_parse_qualified_machine_inputs ((source Bytes) (openStart Int)
+(def epsilon_parse_qualified_machine_inputs ((source EpsilonSourceView) (openStart Int)
   (cursor Int)) EpsilonMachineInputsParseOutcome
   (let start Int (epsilon_token_start source cursor)
     (if (eq (epsilon_token_code source start) 40)
       (epsilon_parse_receiver_inputs source openStart start)
       (epsilon_machine_inputs_reject_at source start))))
 
-(def epsilon_parse_machine_inputs_for_name ((source Bytes)
+(def epsilon_parse_machine_inputs_for_name ((source EpsilonSourceView)
   (nameValue EpsilonQualifiedName) (openStart Int)
   (cursor Int)) EpsilonMachineInputsParseOutcome
   (match nameValue
@@ -141,7 +141,7 @@
     ((EpsilonQualifiedNameSyntax start end owner name)
       (epsilon_parse_qualified_machine_inputs source openStart cursor))))
 
-(def epsilon_finish_machine_declaration ((source Bytes) (machineStart Int)
+(def epsilon_finish_machine_declaration ((source EpsilonSourceView) (machineStart Int)
   (nameValue EpsilonQualifiedName) (inputs EpsilonMachineInputs)
   (cursor Int)) EpsilonDeclarationParseOutcome
   (let returnOutcome EpsilonReturnTypeParseOutcome (epsilon_parse_optional_return_type source cursor)
@@ -159,7 +159,7 @@
                   (epsilon_machine_body_end bodyValue) nameValue inputs
                   returnType bodyValue)))))))))
 
-(def epsilon_parse_machine_declaration ((source Bytes)
+(def epsilon_parse_machine_declaration ((source EpsilonSourceView)
   (cursor Int)) EpsilonDeclarationParseOutcome
   (let machineStart Int (epsilon_token_start source cursor)
     (let nameOutcome EpsilonQualifiedNameParseOutcome (epsilon_parse_qualified_name source
@@ -182,7 +182,7 @@
               (epsilon_declaration_reject_at source
                 (epsilon_qualified_name_end nameValue)))))))))
 
-(def epsilon_parse_declaration ((source Bytes)
+(def epsilon_parse_declaration ((source EpsilonSourceView)
   (cursor Int)) EpsilonDeclarationParseOutcome
   (let start Int (epsilon_token_start source cursor)
     (let code Int (epsilon_token_code source start)
@@ -194,7 +194,7 @@
             (epsilon_parse_machine_declaration source start)
             (epsilon_declaration_reject_at source cursor)))))))
 
-(def epsilon_parse_program_declarations ((source Bytes) (programStart Int)
+(def epsilon_parse_program_declarations ((source EpsilonSourceView) (programStart Int)
   (cursor Int) (lastEnd Int) (accumulator EpsilonDeclarationList)) EpsilonProgramParseOutcome
   (let start Int (epsilon_token_start source cursor)
     (if (eq (epsilon_token_code source start) 0)
@@ -211,12 +211,12 @@
                 declarationEnd
                 (MoreEpsilonDeclarations declarationValue accumulator)))))))))
 
-(def epsilon_parse_program_syntax ((source Bytes)) EpsilonProgramParseOutcome
+(def epsilon_parse_program_syntax ((source EpsilonSourceView)) EpsilonProgramParseOutcome
   (let lexicalOutcome EpsilonLexicalOutcome (check_lexical source)
     (match lexicalOutcome
       (LexicallyValid
         (let programStart Int (epsilon_token_start source 0)
-          (if (eq programStart (bytes_length source))
+          (if (eq programStart (epsilon_source_length source))
             (EpsilonProgramParseRejected UnexpectedEnd programStart)
             (epsilon_parse_program_declarations source programStart programStart
               programStart NoEpsilonDeclarations))))

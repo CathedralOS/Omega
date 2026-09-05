@@ -145,7 +145,7 @@
 
 ; The block-root floor is fixed after machine-parameter homes are installed.
 (data EpsilonEvaluatorInvocation
-  (EpsilonEvaluatorInvocationContext Bytes EpsilonDeclaration
+  (EpsilonEvaluatorInvocationContext EpsilonSourceView EpsilonDeclaration
     EpsilonRuntimeReferences EpsilonRuntimeOptionalPlace Int))
 
 (data EpsilonEvaluatorBlockOutcome

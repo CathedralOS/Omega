@@ -1,5 +1,5 @@
 
-(def epsilon_resolve_suppressed_continuation_call_base ((source Bytes)
+(def epsilon_resolve_suppressed_continuation_call_base ((source EpsilonSourceView)
   (base EpsilonExpression) (active EpsilonLocalBindingList)
   (scan EpsilonLocalResolutionScan)) EpsilonLocalResolutionScan
   (match base
@@ -49,7 +49,7 @@
       (epsilon_resolve_local_expression source base active
         NoEpsilonLocalBindings scan))))
 
-(def epsilon_resolve_suppressed_continuation_expression ((source Bytes)
+(def epsilon_resolve_suppressed_continuation_expression ((source EpsilonSourceView)
   (expressionValue EpsilonExpression) (active EpsilonLocalBindingList)
   (scan EpsilonLocalResolutionScan)) EpsilonLocalResolutionScan
   (match expressionValue
@@ -102,7 +102,7 @@
       (epsilon_resolve_local_expression source expressionValue active
         NoEpsilonLocalBindings scan))))
 
-(def epsilon_resolve_local_continuation ((source Bytes)
+(def epsilon_resolve_local_continuation ((source EpsilonSourceView)
   (continuation EpsilonContinuation) (active EpsilonLocalBindingList)
   (machineValue EpsilonDeclaration) (returnType EpsilonOptionalType)
   (flow EpsilonStatementSequenceFlow)
@@ -130,7 +130,7 @@
           (EpsilonStatementSequenceEndedByNever expressionScan)
           (EpsilonStatementSequenceInvalidAfterNever expressionScan))))))
 
-(def epsilon_resolve_local_arms ((source Bytes) (terminalValue EpsilonTerminal)
+(def epsilon_resolve_local_arms ((source EpsilonSourceView) (terminalValue EpsilonTerminal)
   (arms EpsilonArmList) (active EpsilonLocalBindingList)
   (machineValue EpsilonDeclaration) (returnType EpsilonOptionalType)
   (flow EpsilonStatementSequenceFlow)
@@ -151,7 +151,7 @@
 
 ; D53 retains child checking after never, but subject admission and sum coverage
 ; cannot contribute transition-parent judgments once block flow has ended.
-(def epsilon_resolve_local_terminal ((source Bytes)
+(def epsilon_resolve_local_terminal ((source EpsilonSourceView)
   (terminalValue EpsilonOptionalTerminal) (active EpsilonLocalBindingList)
   (machineValue EpsilonDeclaration) (returnType EpsilonOptionalType)
   (flow EpsilonStatementSequenceFlow) (scan EpsilonLocalResolutionScan))

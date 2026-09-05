@@ -86,8 +86,11 @@ returns stable `-1` at EOF. Root allocation and reclamation preserve that cursor
 `write_line` evaluates its view argument before reading the exact view bytes
 and appending LF; argument traps retain the preceding output without emitting
 the line. `write_byte` and `exit_process` retain their existing effect ordering.
-The diagnostic driver accepts a private source-length/source/stdin frame and
-splits it in ordinary Delta using balanced byte trees. This test transport is
+The diagnostic driver accepts a private source-length/source/stdin frame. A
+validated source view references the source window in the existing Delta byte
+sequence; only stdin is reconstructed as a balanced byte tree. Source-relative
+reads preserve packed coordinates and cannot cross into the header or stdin.
+This test transport is
 not the final evaluator request or observation profile. Its result has an
 explicit private tag: exit carries the full signed `i32` code and stdout;
 trap carries the closed trap kind and exact output prefix; rejection carries
@@ -143,11 +146,11 @@ ordinary root-liveness rule; unused binder roots are reclaimed normally.
 Constructor byte-range failures have one explicit staging gap. A final payload
 argument outside `0..255` traps as `ByteRange` after all preceding argument
 effects. A failing nonfinal byte payload returns private `Unsupported`, without
-publishing an Epsilon observation or evaluating later arguments. The relative
-order between field establishment and later argument effects awaits
-[Epsilon constructor payload establishment order](../../../OWNER_QUESTIONS.md#epsilon-constructor-payload-establishment-order).
-Valid payloads and final-argument failures do not require that choice; this is
-not a claim of full sum execution.
+publishing an Epsilon observation or evaluating later arguments. The settled
+[constructor payload establishment rule](../LANGUAGE.md#epsilon-constructor-payload-establishment-order)
+requires `ByteRange` here, preserving preceding output and suppressing later
+argument effects, traps, and exits. Updating this path and its competing-effect
+controls remains implementation work, not an owner blocker.
 
 Impossible checked states produce internal failure, not `Unsupported`: a
 non-call control target, a missing ordinary field reference, a view represented
@@ -156,7 +159,7 @@ scalar helper. Control failures identify the normalized core's start; missing
 field facts identify the complete projection's start; malformed aggregate views
 identify their type's start. The pure scalar helper has no source coordinate
 and uses the existing internal-offset fallback of zero. These failures carry no
-buffered stdout into the private observation. Only the unsettled nonfinal byte
+buffered stdout into the private observation. Only the unimplemented nonfinal byte
 payload path creates `Unsupported`; other occurrences propagate it unchanged.
 
 These storage, view, sum, and call operations also do not establish that the

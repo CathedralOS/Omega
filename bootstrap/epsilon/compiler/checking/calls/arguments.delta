@@ -42,7 +42,7 @@
     ((SomeEpsilonArguments openStart closeEnd values)
       (epsilon_expression_list_count values))))
 
-(def epsilon_argument_value_type_compatible ((source Bytes)
+(def epsilon_argument_value_type_compatible ((source EpsilonSourceView)
   (actual EpsilonType) (expected EpsilonType) (storedEstablishment Int)) Int
   (if storedEstablishment
     (match expected
@@ -68,7 +68,7 @@
         (EpsilonArgumentsTypeMismatch EpsilonArgumentsTypeMismatch)))
     (EpsilonArgumentsCompatible right)))
 
-(def epsilon_argument_types_join ((source Bytes)
+(def epsilon_argument_types_join ((source EpsilonSourceView)
   (arguments EpsilonExpressionList) (parameters EpsilonParameterList)
   (types EpsilonTypedExpressionList) (storedEstablishment Int))
   EpsilonArgumentTypeJoin
@@ -102,7 +102,7 @@
                   (epsilon_argument_types_join source argumentRest parameterRest
                     types storedEstablishment))))))))))
 
-(def epsilon_optional_argument_types_join ((source Bytes)
+(def epsilon_optional_argument_types_join ((source EpsilonSourceView)
   (arguments EpsilonOptionalArguments) (parameters EpsilonParameterList)
   (types EpsilonTypedExpressionList) (storedEstablishment Int))
   EpsilonArgumentTypeJoin
@@ -177,7 +177,7 @@
 ; resolution. Arity depends on the signature plus authored argument count; the
 ; sibling argument-type join additionally waits for every complete value fact.
 ; A receiver is implicit and therefore never appears in either list.
-(def epsilon_local_scan_admitted_signature_application ((source Bytes)
+(def epsilon_local_scan_admitted_signature_application ((source EpsilonSourceView)
   (expressionValue EpsilonExpression) (arguments EpsilonExpressionList)
   (parameters EpsilonParameterList) (returnType EpsilonOptionalType)
   (scan EpsilonLocalResolutionScan))
@@ -199,7 +199,7 @@
     (epsilon_local_scan_add_candidate ArityMismatch
       (epsilon_expression_start expressionValue) scan)))
 
-(def epsilon_local_scan_admitted_machine_application ((source Bytes)
+(def epsilon_local_scan_admitted_machine_application ((source EpsilonSourceView)
   (expressionValue EpsilonExpression) (arguments EpsilonExpressionList)
   (machineDeclaration EpsilonDeclaration) (scan EpsilonLocalResolutionScan))
   EpsilonLocalResolutionScan
@@ -217,7 +217,7 @@
 ; State identity is retained before arity and argument typing, but only the
 ; stronger complete row authorizes lowering a transfer. A state is not an
 ; expression result and never enters the callable ledger.
-(def epsilon_local_scan_admitted_state_application ((source Bytes)
+(def epsilon_local_scan_admitted_state_application ((source EpsilonSourceView)
   (expressionValue EpsilonExpression) (arguments EpsilonExpressionList)
   (machineValue EpsilonDeclaration) (stateValue EpsilonState)
   (scan EpsilonLocalResolutionScan)) EpsilonLocalResolutionScan

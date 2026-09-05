@@ -1,19 +1,19 @@
 
 ; Lexical checking has already admitted every byte and escape in this span.
 ; Decode the exact byte sequence without Unicode or newline normalization.
-(def epsilon_runtime_decode_string ((source Bytes) (cursor Int) (end Int)
+(def epsilon_runtime_decode_string ((source EpsilonSourceView) (cursor Int) (end Int)
   (decoded Bytes)) Bytes
   (if (eq cursor end)
     decoded
-    (let character Int (bytes_get source cursor)
+    (let character Int (epsilon_source_byte source cursor)
       (if (eq character 92)
-        (let escaped Int (bytes_get source (+ cursor 1))
+        (let escaped Int (epsilon_source_byte source (+ cursor 1))
           (if (eq escaped 120)
             (epsilon_runtime_decode_string source (+ cursor 4) end
               (bytes_concat decoded
                 (bytes_single
-                  (+ (* (epsilon_hex_value (bytes_get source (+ cursor 2))) 16)
-                    (epsilon_hex_value (bytes_get source (+ cursor 3)))))))
+                  (+ (* (epsilon_hex_value (epsilon_source_byte source (+ cursor 2))) 16)
+                    (epsilon_hex_value (epsilon_source_byte source (+ cursor 3)))))))
             (epsilon_runtime_decode_string source (+ cursor 2) end
               (bytes_concat decoded (bytes_single (epsilon_escape_value escaped))))))
         (epsilon_runtime_decode_string source (+ cursor 1) end

@@ -30,7 +30,7 @@
 ; contributes no by-value graph edge here.  The complete immutable edge list
 ; is retained for later layout; cycle classification performs one visited-set
 ; graph walk per edge, avoiding path-exponential expansion through diamonds.
-(def epsilon_name_is_data_owner ((source Bytes) (target EpsilonName)
+(def epsilon_name_is_data_owner ((source EpsilonSourceView) (target EpsilonName)
   (declarations EpsilonDeclarationList)) Int
   (match declarations
     (NoEpsilonDeclarations 0)
@@ -45,7 +45,7 @@
         ((EpsilonMachineDeclaration start end name inputs returnType bodyValue)
           (epsilon_name_is_data_owner source target rest))))))
 
-(def epsilon_collect_type_value_edges ((source Bytes) (ownerStart Int)
+(def epsilon_collect_type_value_edges ((source EpsilonSourceView) (ownerStart Int)
   (owner EpsilonName) (typeValue EpsilonType)
   (declarations EpsilonDeclarationList) (accumulator EpsilonValueEdgeList))
   EpsilonValueEdgeList
@@ -65,7 +65,7 @@
         declarations accumulator))
     ((EpsilonViewType start end elementType) accumulator)))
 
-(def epsilon_collect_parameter_value_edges ((source Bytes) (ownerStart Int)
+(def epsilon_collect_parameter_value_edges ((source EpsilonSourceView) (ownerStart Int)
   (owner EpsilonName) (parameters EpsilonParameterList)
   (declarations EpsilonDeclarationList) (accumulator EpsilonValueEdgeList))
   EpsilonValueEdgeList
@@ -79,7 +79,7 @@
             (epsilon_collect_type_value_edges source ownerStart owner typeValue
               declarations accumulator)))))))
 
-(def epsilon_collect_payload_value_edges ((source Bytes) (ownerStart Int)
+(def epsilon_collect_payload_value_edges ((source EpsilonSourceView) (ownerStart Int)
   (owner EpsilonName) (payload EpsilonOptionalPayload)
   (declarations EpsilonDeclarationList) (accumulator EpsilonValueEdgeList))
   EpsilonValueEdgeList
@@ -89,7 +89,7 @@
       (epsilon_collect_parameter_value_edges source ownerStart owner parameters
         declarations accumulator))))
 
-(def epsilon_collect_member_value_edges ((source Bytes) (ownerStart Int)
+(def epsilon_collect_member_value_edges ((source EpsilonSourceView) (ownerStart Int)
   (owner EpsilonName) (members EpsilonDataMemberList)
   (declarations EpsilonDeclarationList) (accumulator EpsilonValueEdgeList))
   EpsilonValueEdgeList
@@ -116,7 +116,7 @@
     ((MoreEpsilonValueEdges item rest)
       (epsilon_reverse_value_edges rest (MoreEpsilonValueEdges item output)))))
 
-(def epsilon_collect_value_edges_acc ((source Bytes)
+(def epsilon_collect_value_edges_acc ((source EpsilonSourceView)
   (declarations EpsilonDeclarationList)
   (allDeclarations EpsilonDeclarationList)
   (accumulator EpsilonValueEdgeList)) EpsilonValueEdgeList
@@ -136,7 +136,7 @@
           (epsilon_collect_value_edges_acc source rest allDeclarations
             accumulator))))))
 
-(def epsilon_value_graph_scan_edges ((source Bytes) (current EpsilonName)
+(def epsilon_value_graph_scan_edges ((source EpsilonSourceView) (current EpsilonName)
   (goal EpsilonName) (search EpsilonValueEdgeList) (allEdges EpsilonValueEdgeList)
   (visited EpsilonNameList)) EpsilonReachabilityScan
   (match search
@@ -155,7 +155,7 @@
             (epsilon_value_graph_scan_edges source current goal rest allEdges
               visited)))))))
 
-(def epsilon_value_graph_reaches ((source Bytes) (current EpsilonName)
+(def epsilon_value_graph_reaches ((source EpsilonSourceView) (current EpsilonName)
   (goal EpsilonName) (edges EpsilonValueEdgeList) (visited EpsilonNameList))
   EpsilonReachabilityScan
   (if (epsilon_names_equal source current goal)
@@ -165,7 +165,7 @@
       (epsilon_value_graph_scan_edges source current goal edges edges
         (MoreEpsilonNames current visited)))))
 
-(def epsilon_recursive_edge_candidate ((source Bytes) (edge EpsilonValueEdge)
+(def epsilon_recursive_edge_candidate ((source EpsilonSourceView) (edge EpsilonValueEdge)
   (edges EpsilonValueEdgeList)) EpsilonTypeFormationCandidate
   (match edge
     ((EpsilonValueEdgeSyntax ownerStart edgeSource edgeTarget typeOffset)
@@ -176,7 +176,7 @@
             (EpsilonTypeFormationCandidateAt RecursiveValueType typeOffset)
             NoEpsilonTypeFormationCandidate))))))
 
-(def epsilon_validate_recursive_edges ((source Bytes)
+(def epsilon_validate_recursive_edges ((source EpsilonSourceView)
   (search EpsilonValueEdgeList) (allEdges EpsilonValueEdgeList))
   EpsilonTypeFormationCandidate
   (match search
@@ -186,7 +186,7 @@
         (epsilon_recursive_edge_candidate source item allEdges)
         (epsilon_validate_recursive_edges source rest allEdges)))))
 
-(def epsilon_form_collected_types ((source Bytes)
+(def epsilon_form_collected_types ((source EpsilonSourceView)
   (collected EpsilonCollectedProgram)) EpsilonTypeFormationOutcome
   (match collected
     ((EpsilonCollectedProgramSyntax program owners machines)
@@ -217,7 +217,7 @@
                 ((EpsilonTypeFormationConflict errorOffset)
                   (EpsilonTypeFormationInternal errorOffset))))))))))
 
-(def epsilon_parse_collect_and_form_types ((source Bytes))
+(def epsilon_parse_collect_and_form_types ((source EpsilonSourceView))
   EpsilonTypeFormationOutcome
   (match (epsilon_parse_and_collect_program source)
     ((EpsilonCensusRejected reasonValue errorOffset)

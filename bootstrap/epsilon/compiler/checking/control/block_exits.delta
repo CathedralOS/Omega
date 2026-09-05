@@ -5,7 +5,7 @@
 ; either kind's absent value is anchored at `return`. When a value is present,
 ; the ordinary D37 value-use branch retains resultless/never category failures
 ; independently before the type join.
-(def epsilon_local_scan_return_relation ((source Bytes) (returnStart Int)
+(def epsilon_local_scan_return_relation ((source EpsilonSourceView) (returnStart Int)
   (expressionValue EpsilonOptionalExpression) (returnType EpsilonOptionalType)
   (scan EpsilonLocalResolutionScan)) EpsilonLocalResolutionScan
   (match returnType
@@ -52,7 +52,7 @@
                       (EpsilonResultlessExpressionResult categoryScan)
                       (EpsilonNeverExpressionResult categoryScan))))))))))))
 
-(def epsilon_block_exit_compatible ((source Bytes) (effect EpsilonBlockExit)
+(def epsilon_block_exit_compatible ((source EpsilonSourceView) (effect EpsilonBlockExit)
   (returnType EpsilonOptionalType)) Int
   (match effect
     (EpsilonFalloff
@@ -71,7 +71,7 @@
     (EpsilonNoNormalReturn 1)
     ((EpsilonStateTransfer stateValue) 1)))
 
-(def epsilon_local_scan_block_exit ((source Bytes) (effect EpsilonBlockExit)
+(def epsilon_local_scan_block_exit ((source EpsilonSourceView) (effect EpsilonBlockExit)
   (returnType EpsilonOptionalType) (failureOffset Int)
   (scan EpsilonLocalResolutionScan)) EpsilonLocalResolutionScan
   (if (epsilon_block_exit_compatible source effect returnType)
@@ -131,7 +131,7 @@
                     (epsilon_expression_result_block_exit expressionValue types)
                     NoEpsilonBlockExit))))))))))
 
-(def epsilon_local_scan_continuation_block_exit ((source Bytes)
+(def epsilon_local_scan_continuation_block_exit ((source EpsilonSourceView)
   (continuation EpsilonContinuation) (bodyEnd Int)
   (returnType EpsilonOptionalType) (scan EpsilonLocalResolutionScan))
   EpsilonLocalResolutionScan
@@ -152,7 +152,7 @@
             (EpsilonNoNormalReturn scan)
             ((EpsilonStateTransfer stateValue) scan)))))))
 
-(def epsilon_local_scan_arm_block_exits ((source Bytes) (arms EpsilonArmList)
+(def epsilon_local_scan_arm_block_exits ((source EpsilonSourceView) (arms EpsilonArmList)
   (bodyEnd Int) (returnType EpsilonOptionalType)
   (scan EpsilonLocalResolutionScan)) EpsilonLocalResolutionScan
   (match arms
@@ -164,7 +164,7 @@
             (epsilon_local_scan_continuation_block_exit source continuation
               bodyEnd returnType scan)))))))
 
-(def epsilon_local_scan_terminal_block_exits ((source Bytes)
+(def epsilon_local_scan_terminal_block_exits ((source EpsilonSourceView)
   (terminalValue EpsilonOptionalTerminal) (bodyEnd Int)
   (returnType EpsilonOptionalType) (flow EpsilonStatementSequenceFlow)
   (scan EpsilonLocalResolutionScan)) EpsilonLocalResolutionScan

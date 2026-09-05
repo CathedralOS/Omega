@@ -15,17 +15,17 @@
   (EpsilonViewType (epsilon_expression_start expressionValue)
     (epsilon_expression_end expressionValue) elementType))
 
-(def epsilon_name_is_len ((source Bytes) (nameValue EpsilonName)) Int
+(def epsilon_name_is_len ((source EpsilonSourceView) (nameValue EpsilonName)) Int
   (match nameValue
     ((EpsilonNameSpan start end)
       (epsilon_span_is_3 source start end 108 101 110))))
 
-(def epsilon_name_is_as_slice ((source Bytes) (nameValue EpsilonName)) Int
+(def epsilon_name_is_as_slice ((source EpsilonSourceView) (nameValue EpsilonName)) Int
   (match nameValue
     ((EpsilonNameSpan start end)
       (epsilon_span_is_8 source start end 97 115 95 115 108 105 99 101))))
 
-(def epsilon_name_is_contextual_field ((source Bytes) (nameValue EpsilonName)) Int
+(def epsilon_name_is_contextual_field ((source EpsilonSourceView) (nameValue EpsilonName)) Int
   (if (epsilon_name_is_len source nameValue)
     1
     (epsilon_name_is_as_slice source nameValue)))
@@ -37,7 +37,7 @@
     ((SomeEpsilonPlaceType baseStorage)
       (SomeEpsilonPlaceType storageType))))
 
-(def epsilon_local_scan_absent_field_candidate ((source Bytes)
+(def epsilon_local_scan_absent_field_candidate ((source EpsilonSourceView)
   (expressionValue EpsilonExpression) (member EpsilonName)
   (scan EpsilonLocalResolutionScan)) EpsilonLocalResolutionScan
   (if (epsilon_name_is_contextual_field source member)
@@ -63,7 +63,7 @@
       (epsilon_local_scan_add_candidate TypeMismatch
         statementStart scan))))
 
-(def epsilon_local_scan_field_fact ((source Bytes)
+(def epsilon_local_scan_field_fact ((source EpsilonSourceView)
   (expressionValue EpsilonExpression) (base EpsilonExpression)
   (member EpsilonName) (useValue EpsilonExpressionUse)
   (scan EpsilonLocalResolutionScan))
@@ -192,7 +192,7 @@
 ; use the one ordinary field classifier immediately; a positive field result
 ; is carried through authored groups so the following `()` remains a separate
 ; call suffix. Named no-machine branches fall back through the same classifier.
-(def epsilon_local_scan_non_named_call_head_field_fact ((source Bytes)
+(def epsilon_local_scan_non_named_call_head_field_fact ((source EpsilonSourceView)
   (callBase EpsilonExpression) (useValue EpsilonExpressionUse)
   (scan EpsilonLocalResolutionScan))
   EpsilonLocalResolutionScan

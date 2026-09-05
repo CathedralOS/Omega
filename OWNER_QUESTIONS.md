@@ -31,7 +31,7 @@ trust must be deleted or delegated to that owner rather than dressed as an
 Omega guarantee. If the boundary or enforceable claim is genuinely ambiguous,
 promote that narrow ambiguity here before adding machinery.
 
-Last pruned: 2026-08-31.
+Last pruned: 2026-09-05.
 
 ## Q1 — Compiler-inserted spill-access fault semantics
 
@@ -199,45 +199,9 @@ receipt pair. It does not block flat Mach-O emission, the ad-hoc code signature,
 the sealed-container and installation-replay custody the flat receipt already
 exercises, or any non-Darwin target.
 
-<a id="epsilon-constructor-payload-establishment-order"></a>
-
-## Q6 — Epsilon constructor payload establishment order
-
-Epsilon already admits stored `u8` fields in sum payloads and ordinary effectful
-constructor arguments. A compiler-host use case is a tagged decoded-byte token
-that carries both a checked byte and a position obtained by advancing a source
-cursor. Failure while establishing the byte must have one deterministic
-relationship to that later cursor or Console effect. The current D closure
-uses nullary cases; this question does not block those customers.
-
-`bootstrap/epsilon/LANGUAGE.md` section 6 requires constructor arguments to
-evaluate once from left to right and payload fields to establish in declaration
-order. It does not specify how those two orders interleave. For a case
-`Item(byte: u8, position: i32)`, consider
-`Token::Item(256, self.advance_and_write())`: the first payload cannot be stored,
-but the second argument can mutate storage, write output, exit, or trap.
-
-Choose the construction rule:
-
-- evaluate all constructor arguments left to right into value snapshots, then
-  establish payload fields in declaration order; or
-- evaluate each argument and immediately establish its corresponding payload
-  field before starting the next argument.
-
-These rules preserve different stdout prefixes and can select different traps
-or an exit instead of `ByteRange`. Choosing one is therefore a language ruling,
-not a storage-layout or evaluator-performance decision.
-
-This blocks only execution where a nonfinal payload argument fails its `u8`
-storage check. The staging evaluator must publish no Epsilon observation for
-that unsettled path. Nullary cases, in-range payloads, final-argument byte-range
-failures, sum copies/defaults, and case transitions can proceed under either
-rule. The final evaluator edge stays open until the rule and its competing-effect
-controls are settled.
-
 <a id="anonymous-integer-division-and-remainder"></a>
 
-## Q7 — Anonymous integer division and remainder
+## Q6 — Anonymous integer division and remainder
 
 Systems code uses compile-time arithmetic to size buffers and partition capacity.
 For an odd capacity, `let half: u32 = 4097 / 2;` needs one language-defined

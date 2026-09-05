@@ -5,7 +5,7 @@
   (match literal
     ((EpsilonIntegerSpan start end value) value)))
 
-(def epsilon_types_equal ((source Bytes) (left EpsilonType)
+(def epsilon_types_equal ((source EpsilonSourceView) (left EpsilonType)
   (right EpsilonType)) Int
   (match left
     ((EpsilonI32Type leftStart leftEnd)
@@ -63,7 +63,7 @@
         ((EpsilonViewType rightStart rightEnd rightElement)
           (epsilon_types_equal source leftElement rightElement))))))
 
-(def epsilon_optional_types_equal ((source Bytes) (left EpsilonOptionalType)
+(def epsilon_optional_types_equal ((source EpsilonSourceView) (left EpsilonOptionalType)
   (right EpsilonOptionalType)) Int
   (match left
     (NoEpsilonType
@@ -76,7 +76,7 @@
         ((SomeEpsilonType rightStart rightEnd rightType)
           (epsilon_types_equal source leftType rightType))))))
 
-(def epsilon_parameter_types_equal ((source Bytes)
+(def epsilon_parameter_types_equal ((source EpsilonSourceView)
   (left EpsilonParameterList) (right EpsilonParameterList)) Int
   (match left
     (NoEpsilonParameters

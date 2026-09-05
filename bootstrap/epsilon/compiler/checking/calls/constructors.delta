@@ -8,7 +8,7 @@
     ((EpsilonTransitionContinuationExpressionUse machineValue continuationStart)
       continuationStart)))
 
-(def epsilon_local_scan_constructor_value_application ((source Bytes)
+(def epsilon_local_scan_constructor_value_application ((source EpsilonSourceView)
   (expressionValue EpsilonExpression) (ownerName EpsilonName)
   (arguments EpsilonOptionalArguments) (caseValue EpsilonDataMember)
   (scan EpsilonLocalResolutionScan)) EpsilonLocalResolutionScan
@@ -32,7 +32,7 @@
       (epsilon_local_scan_add_candidate ArityMismatch
         (epsilon_expression_start expressionValue) scan))))
 
-(def epsilon_local_scan_constructor_application ((source Bytes)
+(def epsilon_local_scan_constructor_application ((source EpsilonSourceView)
   (expressionValue EpsilonExpression) (ownerName EpsilonName)
   (arguments EpsilonOptionalArguments) (ownerDeclaration EpsilonDeclaration)
   (caseValue EpsilonDataMember) (useValue EpsilonExpressionUse)
@@ -71,7 +71,7 @@
       (epsilon_local_scan_add_candidate InvalidControlTarget continuationStart
         scan))))
 
-(def epsilon_local_scan_qualified_callable_fact ((source Bytes)
+(def epsilon_local_scan_qualified_callable_fact ((source EpsilonSourceView)
   (expressionValue EpsilonExpression) (ownerName EpsilonName) (memberName EpsilonName)
   (arguments EpsilonOptionalArguments) (useValue EpsilonExpressionUse)
   (scan EpsilonLocalResolutionScan)) EpsilonLocalResolutionScan

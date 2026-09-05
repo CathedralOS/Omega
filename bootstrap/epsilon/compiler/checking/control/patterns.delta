@@ -1,5 +1,5 @@
 
-(def epsilon_local_scan_named_transition_subject ((source Bytes)
+(def epsilon_local_scan_named_transition_subject ((source EpsilonSourceView)
   (terminalValue EpsilonTerminal) (subject EpsilonExpression) (name EpsilonName)
   (scan EpsilonLocalResolutionScan)) EpsilonLocalResolutionScan
   (match scan
@@ -21,7 +21,7 @@
                   (epsilon_local_scan_add_transition_subject terminalValue
                     (EpsilonSumTransitionSubject ownerValue) scan))))))))))
 
-(def epsilon_local_scan_transition_subject ((source Bytes)
+(def epsilon_local_scan_transition_subject ((source EpsilonSourceView)
   (terminalValue EpsilonTerminal) (subject EpsilonExpression)
   (scan EpsilonLocalResolutionScan)) EpsilonLocalResolutionScan
   (let categoryScan EpsilonLocalResolutionScan
@@ -162,7 +162,7 @@
                     (epsilon_local_scan_add_candidate TypeMismatch
                       (epsilon_pattern_start patternValue) namedScan)))))))))))
 
-(def epsilon_local_scan_case_transition_pattern ((source Bytes)
+(def epsilon_local_scan_case_transition_pattern ((source EpsilonSourceView)
   (terminalValue EpsilonTerminal) (patternValue EpsilonPattern)
   (owner EpsilonName) (name EpsilonName) (binder EpsilonOptionalBinder)
   (scan EpsilonLocalResolutionScan)) EpsilonLocalResolutionScan
@@ -193,7 +193,7 @@
                         terminalValue patternValue binder caseOwner caseValue
                         scan))))))))))))
 
-(def epsilon_local_scan_transition_pattern ((source Bytes)
+(def epsilon_local_scan_transition_pattern ((source EpsilonSourceView)
   (terminalValue EpsilonTerminal) (patternValue EpsilonPattern)
   (scan EpsilonLocalResolutionScan)) EpsilonLocalResolutionScan
   (match patternValue

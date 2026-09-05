@@ -1,5 +1,5 @@
 
-(def epsilon_local_scan_boundary_receiver_application ((source Bytes)
+(def epsilon_local_scan_boundary_receiver_application ((source EpsilonSourceView)
   (expressionValue EpsilonExpression) (callBase EpsilonExpression)
   (receiver EpsilonExpression)
   (memberName EpsilonName) (arguments EpsilonExpressionList)
@@ -35,7 +35,7 @@
     ((EpsilonMachineDeclaration start end name inputs returnType bodyValue)
       scan)))
 
-(def epsilon_local_scan_data_receiver_application ((source Bytes)
+(def epsilon_local_scan_data_receiver_application ((source EpsilonSourceView)
   (expressionValue EpsilonExpression) (callBase EpsilonExpression)
   (receiver EpsilonExpression) (ownerName EpsilonName) (memberName EpsilonName)
   (arguments EpsilonExpressionList)
@@ -68,7 +68,7 @@
           (epsilon_call_head_core callBase) receiver memberName useValue
           scan)))))
 
-(def epsilon_local_scan_receiver_application ((source Bytes)
+(def epsilon_local_scan_receiver_application ((source EpsilonSourceView)
   (expressionValue EpsilonExpression) (callBase EpsilonExpression)
   (arguments EpsilonExpressionList) (useValue EpsilonExpressionUse)
   (scan EpsilonLocalResolutionScan)) EpsilonLocalResolutionScan
@@ -146,7 +146,7 @@
     ((EpsilonTransitionContinuationExpressionUse machineValue continuationStart)
       0)))
 
-(def epsilon_local_scan_unqualified_machine_application ((source Bytes)
+(def epsilon_local_scan_unqualified_machine_application ((source EpsilonSourceView)
   (expressionValue EpsilonExpression) (callBase EpsilonExpression)
   (arguments EpsilonExpressionList) (active EpsilonLocalBindingList)
   (pending EpsilonLocalBindingList) (useValue EpsilonExpressionUse)
