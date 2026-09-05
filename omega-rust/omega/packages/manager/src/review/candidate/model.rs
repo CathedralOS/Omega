@@ -161,6 +161,22 @@ pub enum PackageSourceVerificationPhase {
 }
 
 impl CompilerIssuedPackageReviewSet {
+    /// Move complete normalized policies after operation-owned source, proof,
+    /// and decision checks. This helper itself grants no acceptance authority.
+    pub(crate) fn into_policies_by_key(
+        mut self,
+    ) -> Result<
+        Vec<omega_package_evidence::record::PackagePolicyBaseline>,
+        std::collections::TryReserveError,
+    > {
+        let mut policies = Vec::new();
+        policies.try_reserve_exact(self.reviews.len())?;
+        self.reviews
+            .sort_unstable_by(|left, right| left.key.cmp(&right.key));
+        policies.extend(self.reviews.into_iter().map(|review| review.policy));
+        Ok(policies)
+    }
+
     pub fn reviews(&self) -> &[CompilerIssuedPackageReview] {
         &self.reviews
     }

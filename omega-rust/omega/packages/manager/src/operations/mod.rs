@@ -11,6 +11,7 @@
 mod check_locked_sources;
 mod compile_project;
 pub mod inspect_source;
+mod prepare_candidate_lock;
 mod prepare_project;
 mod recover_locked_sources;
 
@@ -25,6 +26,9 @@ pub use inspect_source::{
     PackageSourceInspection, PackageSourceInspectionError, PackageSourceRequest,
     PackageSourceRequestParseError, SourceAdapter, inspect_package_source,
     inspect_package_source_locator,
+};
+pub use prepare_candidate_lock::{
+    PrepareCandidateLockError, PrepareCandidateLockLimits, prepare_candidate_lock_target,
 };
 pub use prepare_project::{PrepareLocalProjectError, PreparedLocalProject, prepare_local_project};
 pub use recover_locked_sources::{

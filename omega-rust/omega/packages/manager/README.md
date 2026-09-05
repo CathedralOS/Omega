@@ -201,8 +201,26 @@ budget. It is not historical lock policy and cannot authorize another update.
 Historical capture is a distinct consumer: it records those choices in the
 source-scoped lock decision section without claiming that an audit occurred.
 Removed-package and directional role decisions remain representable after the
-old checkout disappears. Transactional publication and independent fresh
-compiler/source checks remain operation work.
+old checkout disappears.
+
+`operations::prepare_candidate_lock_target` consumes final compiler reviews and
+returns the concrete target record. It recomputes the exact comparison, rejoins
+the complete current decision resolution, and requires every blocking change to
+be accepted. Independently, it checks the retained compiler obligation/result
+associations and rejects open contract entailments. Project policy may accept a
+disclosed assumption; it cannot discharge a missing proof. Already checked
+certificate results are not reconstructed through another acceptance wrapper.
+
+Preparation verifies every current source snapshot and selection before and
+after assembling the record. Complete candidate policies move into canonical
+source order, including generated-source findings, beside version 2 decision
+history. It neither fetches old source nor emits a native artifact. Each owner
+retains its existing resource ceilings; historical construction additionally
+has an explicit shared owned-storage allowance.
+
+The returned target is not a filesystem transaction. Install/update must still
+guard project-file versions, revalidate the candidate at the immediate commit
+boundary, and publish `build.omg` and `omega.lock` recoverably as one change.
 
 Return to the [package subsystem map](../README.md), or consult:
 
