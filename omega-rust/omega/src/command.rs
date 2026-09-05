@@ -172,26 +172,53 @@ fn dispatch() {
                     std::process::exit(1);
                 })
         }
-        prepared_project => {
+        Some(prepared) => {
             if arguments.package_root_policy.is_some() {
                 eprintln!(
                     "--package-root-policy requires native production from a build.omg project"
                 );
                 std::process::exit(1);
             }
-            let package_inputs = prepared_project.map(|prepared| {
-                let (entry_path, package_inputs) = prepared.into_parts();
-                options.root_path = entry_path;
-                package_inputs
-            });
-            let mut request = CompileRequest::new(options)
+            if !arguments.optimization_rollback.is_empty() {
+                let names = arguments
+                    .optimization_rollback
+                    .requested_disabled()
+                    .as_slice()
+                    .iter()
+                    .map(|optimization| format!("`{}`", optimization.build_case_name()))
+                    .collect::<Vec<_>>()
+                    .join(", ");
+                eprintln!(
+                    "optimization rollback {names} requires NativeArtifact production; Check does not enter native optimizer realization"
+                );
+                std::process::exit(1);
+            }
+            let request = package_manager::operations::PreparedLocalProjectCheckRequest::new(
+                prepared,
+                &build_dir,
+                target_profile,
+            )
+            .with_artifact_policy(artifact_policy)
+            .with_accepted_trust_admissions(accepted_admissions);
+            package_manager::operations::check_prepared_local_project(request).unwrap_or_else(
+                |error| {
+                    eprintln!("{error}");
+                    std::process::exit(1);
+                },
+            )
+        }
+        None => {
+            if arguments.package_root_policy.is_some() {
+                eprintln!(
+                    "--package-root-policy requires native production from a build.omg project"
+                );
+                std::process::exit(1);
+            }
+            let request = CompileRequest::new(options)
                 .with_requested_product(requested_product)
                 .with_artifact_policy(artifact_policy)
                 .with_optimization_rollback(arguments.optimization_rollback)
                 .with_accepted_trust_admissions(accepted_admissions);
-            if let Some(package_inputs) = package_inputs {
-                request = request.with_package_inputs(package_inputs);
-            }
             compile(request).unwrap_or_else(|diagnostics| {
                 for diagnostic in diagnostics {
                     eprintln!("{diagnostic}");

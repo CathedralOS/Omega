@@ -4,7 +4,10 @@
 //! dependency-first loop compiles and projects each package; the adjacent
 //! `session_accounting` leaf independently reconciles aggregate sponsor use.
 
+mod checked_root;
 mod session_accounting;
+
+pub(crate) use checked_root::compile_resolved_package_candidate_for_check;
 
 use session_accounting::verify_build_session_accounting;
 
@@ -115,36 +118,18 @@ pub fn compile_resolved_package_candidate_for_production_with_semantic_bindings(
             },
         );
     }
-    let semantic_bindings_by_consumer =
-        semantic_bindings_by_consumer(closure, semantic_binding_inputs)?;
-    let build_session = ReviewBuildSession::create(build_root)?;
-    let result = compile_resolved_package_reviews_in_session(
-        target_closure,
-        build_session.root(),
-        build_session.filesystem_sponsor(),
-        build_session.evaluation_sponsor(),
-        &semantic_bindings_by_consumer,
-        true,
-    );
-    let compiled = build_session.dispose(result)?;
     let root_path = closure
         .source_root(&root)
         .expect("validated source closure retains its root custody")
         .join("main.omg");
-    let checked_root = compiled.checked_root.ok_or_else(|| {
-        CompileResolvedPackageReviewsError::IdentityMismatch {
-            package: root.clone(),
-        }
-    })?;
-    let checked_subject = checked_root.package_compilation_subject();
-    if checked_subject.map(|subject| subject.root()) != Some(root.identity())
-        || checked_subject.map(|subject| subject.root_role()) != Some(closure.root_role())
-        || checked_root.selected_target_profile() != Some(target_closure.target_profile())
-    {
-        return Err(CompileResolvedPackageReviewsError::IdentityMismatch { package: root });
-    }
+    let (reviews, checked_root) = checked_root::compile_with_semantic_bindings(
+        target_closure,
+        build_root,
+        &root_path,
+        semantic_binding_inputs,
+    )?;
     Ok(ReviewedPackageProductionCandidate {
-        reviews: compiled.reviews,
+        reviews,
         root,
         root_path,
         root_role: closure.root_role(),
@@ -174,7 +159,7 @@ pub fn compile_resolved_package_reviews_with_semantic_bindings(
         build_session.filesystem_sponsor(),
         build_session.evaluation_sponsor(),
         &semantic_bindings_by_consumer,
-        false,
+        None,
     );
     build_session
         .dispose(result)
@@ -192,7 +177,7 @@ fn compile_resolved_package_reviews_in_session(
     filesystem_sponsor: &FilesystemSponsor,
     evaluation_sponsor: &BuildEvaluationSponsor,
     semantic_bindings_by_consumer: &BTreeMap<PackageKey, Vec<AcceptedSemanticBinding>>,
-    retain_checked_root: bool,
+    retained_root_entry: Option<&Path>,
 ) -> Result<CompiledPackageReviews, CompileResolvedPackageReviewsError> {
     let closure = target_closure.source_closure();
     let target = target_closure.target_profile().target_name();
@@ -272,8 +257,14 @@ fn compile_resolved_package_reviews_in_session(
                     errors,
                 },
             )?;
+        let default_entry = custody.snapshot_root().join("main.omg");
+        let entry = if &key == closure.graph().root() {
+            retained_root_entry.unwrap_or(&default_entry)
+        } else {
+            &default_entry
+        };
         let checked = compile_to_checked_with_packages_in_sponsored_build_session(
-            &custody.snapshot_root().join("main.omg"),
+            entry,
             &package_build_root(build_session_root, &key, custody.resolution()),
             Some(target),
             inputs,
@@ -427,7 +418,7 @@ fn compile_resolved_package_reviews_in_session(
             obligation_results,
             comparison_rows,
         });
-        if retain_checked_root && &key == closure.graph().root() {
+        if retained_root_entry.is_some() && &key == closure.graph().root() {
             checked_root = Some(checked);
         }
     }

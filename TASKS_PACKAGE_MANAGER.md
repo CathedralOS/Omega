@@ -31,15 +31,14 @@ host credentials, and organizational review policy have separate owners.
   the existing compiler facets; do not invent broader build services to finish
   this task. Detect relevant source/build drift before publication.
 
-- [ ] **SOURCE-DIFF-INTEGRATION.** Connect the existing source-diff renderer to
-  `manager/src/operations/package_commands/`. Obtain exact old source when
-  available; otherwise retain lock-based policy comparison and explain that
-  only standalone candidate audit is available. Keep hostile source separate
-  from compiler-rendered capability findings.
-  Acceptance: install/update reports the available diff or why it is absent;
-  initial dangerous authority requires a decision, and retained dangerous
-  authority on upgrades recommends audit even without a capability change.
-  No model service, review receipt, or proof-of-review requirement.
+- [ ] **LOCAL-BASELINE-SOURCE-RECOVERY.** In source acquisition and command
+  old-source recovery, recover an accepted local snapshot from cache when its
+  live source has changed. Git old-source recovery is not this task. Bind cache
+  selection to the known local source and recorded content, then validate the
+  snapshot; do not interpret arbitrary lock bytes as filesystem authority.
+  Acceptance: a cached old local revision yields an exact source diff; missing
+  or corrupt snapshots retain accepted policy comparison and explicit
+  standalone-candidate fallback. No second baseline archive or audit receipt.
 
 - [ ] **OMEGA-AUDIT-PACKAGES.** Expose graph and authority inspection through the
   CLI using the existing manager report. Show exact pins, accepted policy,
@@ -48,11 +47,12 @@ host credentials, and organizational review policy have separate owners.
   unavailable analysis and historical acceptance are not presented as fresh
   compiler findings or proof of an audit.
 
-- [ ] **PACKAGE-MANAGER-RELEASE-AUDIT.** Exercise the actual commands with pure,
-  dangerous, capability-changing, same-name/different-source, transitive, and
-  generated-source fixtures. Refresh remote fixtures/pins with retired target
-  syntax. Prove remote root/named-member install, selected update, and default
-  alias import. Test HTTPS and SSH independently where credentials permit.
+- [ ] **PACKAGE-MANAGER-RELEASE-AUDIT.** Complete real-command/network coverage
+  for dangerous initial installs, capability changes/removals, retained
+  dangerous authority, same-name/different-source, transitive authority, and
+  generated authority. Refresh the remaining remote mirrors/pins with retired
+  target syntax or sibling paths that cannot resolve in standalone Git trees.
+  Test HTTPS and SSH independently where credentials permit.
   Cover missing baselines/old source, invalid proofs, spoofed boundaries,
   concurrent edits, and interruption recovery. Run relevant package, resolver,
   compiler-handoff, and architecture checks; report unavailable platforms or

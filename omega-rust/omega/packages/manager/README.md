@@ -75,6 +75,13 @@ must retain their accepted content. Declaration or dependency changes require
 an explicit update. This mutable-root preparation is distinct from strict
 whole-closure recovery. Local root identity remains tied to its canonical path.
 
+`check_prepared_local_project` checks either project role through the same
+scoped candidate pipeline. It honors the requested source entry, includes
+dependency-generated bundles, and repeats checking with final semantic bindings
+when discovery requires them. Reporting uses the retained checked root after
+staging disposal; it does not run the build again or enter native promotion.
+Ordinary trust settlement and requested compiler observations remain intact.
+
 Candidate checking executes the existing scoped build evaluator, so it is not
 side-effect-free: package-input reads, disposable-output writes, and compiler
 logging can occur even when later checking fails. Runtime boundary services are
@@ -199,8 +206,10 @@ Recovery borrows the accepted lock, so unavailable source or content drift does
 not destroy the readable policy baseline. Its result is a source closure usable
 by ordinary compiler inputs, not a fresh analysis or renewed acceptance of old
 decisions. Commands treat a missing baseline as fresh graph review. Old source
-is not needed to compare retained policy; source-code diff acquisition and
-optional audit-service integration remain separate work.
+is not needed to compare retained policy. Command source diffs use exact old
+Git acquisition, matching current custody, or the unchanged live root. Changed
+local baselines still need cache-only recovery; missing old bytes produce
+explicit standalone-candidate output. Optional model wiring is separate.
 
 `operations::check_locked_sources` follows exact recovery with fresh checking of
 the complete graph through the ordinary candidate-review entrance. It preserves

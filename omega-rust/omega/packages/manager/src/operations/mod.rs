@@ -11,6 +11,7 @@
 //! these operations rather than in the command-line binary.
 
 mod check_locked_sources;
+mod check_project;
 mod compile_project;
 pub mod inspect_source;
 mod package_change;
@@ -22,6 +23,9 @@ mod stage_build_edit;
 
 pub use check_locked_sources::{
     CheckLockedSourcesError, CheckedLockedSources, check_locked_sources,
+};
+pub use check_project::{
+    CheckPreparedLocalProjectError, PreparedLocalProjectCheckRequest, check_prepared_local_project,
 };
 pub use compile_project::{
     CompilePreparedLocalProjectNativeError, LocalProjectRootPolicy,

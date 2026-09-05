@@ -14,6 +14,7 @@ mod session;
 pub(crate) mod validation;
 
 pub(crate) use commitments::{build_observation_commitment, whole_review_commitment};
+pub(crate) use compilation::compile_resolved_package_candidate_for_check;
 pub use compilation::{
     compile_resolved_package_candidate_for_production,
     compile_resolved_package_candidate_for_production_with_semantic_bindings,
