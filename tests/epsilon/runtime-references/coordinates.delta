@@ -1,0 +1,113 @@
+; Coordinate controls remain synthetic derivative facts, not source admissions.
+; An odd extent separates both sides of the cached split and both endpoints.
+(def reference_test_coordinate_rows () EpsilonResolvedLocalReferenceList
+  (MoreEpsilonResolvedLocalReferences
+    (reference_test_local_row (EpsilonTrueExpression 0 1) 10)
+    (MoreEpsilonResolvedLocalReferences
+      (reference_test_local_row (EpsilonTrueExpression 7 8) 17)
+      (MoreEpsilonResolvedLocalReferences
+        (reference_test_local_row (EpsilonTrueExpression 8 9) 18)
+        (MoreEpsilonResolvedLocalReferences
+          (reference_test_local_row (EpsilonTrueExpression 16 17) 26)
+          NoEpsilonResolvedLocalReferences)))))
+
+(def reference_test_coordinate_index ((extent Int)
+  (rows EpsilonResolvedLocalReferenceList)) EpsilonRuntimeReferences
+  (epsilon_runtime_index_references extent rows NoEpsilonResolvedFieldReferences
+    NoEpsilonResolvedCallableReferences
+    (reference_test_control NoEpsilonStateApplicationReferences
+      NoEpsilonTransitionSubjectReferences NoEpsilonTransitionPatternReferences)))
+
+(def reference_test_coordinate_query ((start Int)
+  (rows EpsilonResolvedLocalReferenceList) (references EpsilonRuntimeReferences)) Bytes
+  (let target EpsilonExpression (EpsilonTrueExpression start (+ start 1))
+    (bytes_concat
+      (reference_test_local_tag (epsilon_find_resolved_local_reference target rows))
+      (reference_test_local_tag (epsilon_runtime_find_local_reference target references)))))
+
+; Probe the bucket directly with a valid retained fact, so an invalid requested
+; span cannot pass merely because later exact-identity checking misses it.
+(def reference_test_coordinate_bucket_tag ((start Int) (end Int) (probeStart Int)
+  (references EpsilonRuntimeReferences)) Bytes
+  (match (epsilon_runtime_reference_bucket start end references)
+    ((EpsilonRuntimeReferenceBucketAt locals fields callables control)
+      (reference_test_local_tag
+        (epsilon_find_resolved_local_reference
+          (EpsilonTrueExpression probeStart (+ probeStart 1)) locals)))))
+
+(def reference_test_insertion_tag ((result EpsilonRuntimeReferenceInsertion)) Bytes
+  (bytes_single
+    (match result
+      (InvalidEpsilonRuntimeReferenceInsertion 0)
+      ((InsertedEpsilonRuntimeReference tree) 1))))
+
+(def reference_test_coordinate_insert ((extent Int)
+  (tree EpsilonRuntimeReferenceTree)) Bytes
+  (reference_test_insertion_tag
+    (epsilon_runtime_insert_reference
+      (EpsilonRuntimeLocalReference
+        (reference_test_local_row (EpsilonTrueExpression 0 1) 31))
+      0 1 extent tree)))
+
+; With an endpoint split, an unchecked descent would enter the populated child
+; with the original interval. Insertion and lookup must both reject that shape.
+(def reference_test_endpoint_split ((middle Int) (extent Int)
+  (populated EpsilonRuntimeReferenceTree)) Bytes
+  (let malformed EpsilonRuntimeReferenceTree
+    (BranchEpsilonRuntimeReferenceTree middle populated populated)
+    (bytes_concat (reference_test_coordinate_insert extent malformed)
+      (reference_test_coordinate_bucket_tag 0 1 0
+        (IndexedEpsilonRuntimeReferences extent malformed)))))
+
+(def reference_test_coordinate_splits ((references EpsilonRuntimeReferences)) Bytes
+  (match references
+    ((LinearEpsilonRuntimeReferences original) (bytes_single 255))
+    ((IndexedEpsilonRuntimeReferences extent tree)
+      (bytes_concat (reference_test_endpoint_split 0 extent tree)
+        (bytes_concat (reference_test_endpoint_split 17 extent tree)
+          ; Interior split seven is safe for lookup, but is not this interval's
+          ; canonical split eight. Insertion must not rebuild using that split.
+          (reference_test_coordinate_insert extent
+            (BranchEpsilonRuntimeReferenceTree 7 tree tree)))))))
+
+(def reference_test_coordinate_queries ((rows EpsilonResolvedLocalReferenceList)
+  (references EpsilonRuntimeReferences)) Bytes
+  (bytes_concat (reference_test_index_tag references)
+    (bytes_concat (reference_test_coordinate_query 0 rows references)
+      (bytes_concat (reference_test_coordinate_query 7 rows references)
+        (bytes_concat (reference_test_coordinate_query 8 rows references)
+          (bytes_concat (reference_test_coordinate_query 16 rows references)
+            (bytes_concat (reference_test_coordinate_query 6 rows references)
+              (bytes_concat (reference_test_coordinate_bucket_tag -1 1 0 references)
+                (bytes_concat (reference_test_coordinate_bucket_tag 17 17 16 references)
+                  (bytes_concat (reference_test_coordinate_bucket_tag 0 18 0 references)
+                    (reference_test_coordinate_bucket_tag 0 -1 0 references)))))))))))
+
+(def reference_test_unit_coordinates () Bytes
+  (let rows EpsilonResolvedLocalReferenceList
+    (MoreEpsilonResolvedLocalReferences
+      (reference_test_local_row (EpsilonTrueExpression 0 1) 21)
+      NoEpsilonResolvedLocalReferences)
+    (let references EpsilonRuntimeReferences (reference_test_coordinate_index 1 rows)
+      (bytes_concat (reference_test_index_tag references)
+        (bytes_concat (reference_test_coordinate_query 0 rows references)
+          (bytes_concat (reference_test_coordinate_query 1 rows references)
+            (match references
+              ((LinearEpsilonRuntimeReferences original) (bytes_single 255))
+              ((IndexedEpsilonRuntimeReferences extent tree)
+                (reference_test_endpoint_split 0 extent tree)))))))))
+
+(def reference_test_empty_coordinates ((extent Int)) Bytes
+  (let references EpsilonRuntimeReferences
+    (reference_test_coordinate_index extent NoEpsilonResolvedLocalReferences)
+    (bytes_concat (reference_test_index_tag references)
+      (reference_test_coordinate_query 0 NoEpsilonResolvedLocalReferences references))))
+
+(def reference_test_coordinates () Bytes
+  (let rows EpsilonResolvedLocalReferenceList (reference_test_coordinate_rows)
+    (let references EpsilonRuntimeReferences (reference_test_coordinate_index 17 rows)
+      (bytes_concat (reference_test_coordinate_queries rows references)
+        (bytes_concat (reference_test_coordinate_splits references)
+          (bytes_concat (reference_test_unit_coordinates)
+            (bytes_concat (reference_test_empty_coordinates 0)
+              (reference_test_empty_coordinates 17))))))))

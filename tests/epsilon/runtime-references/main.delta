@@ -4,4 +4,5 @@
 (def main ((input Bytes)) Bytes
   (bytes_concat (reference_test_states)
     (bytes_concat (reference_test_subjects)
-      (bytes_concat (reference_test_patterns) (reference_test_expressions)))))
+      (bytes_concat (reference_test_patterns)
+        (bytes_concat (reference_test_expressions) (reference_test_coordinates))))))

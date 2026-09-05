@@ -55,8 +55,8 @@ earlier child errors, and after-`never` suppression keep their exact precedence.
 The checker searches only the current terminal's contiguous prepended pattern
 facts for duplicates. It retains the complete program ledger for later consumers.
 
-`receipt.tsv` records the measured 694,560-byte checker receipt with SHA-256
-`74699dae6cea1e68e482208f78d22e5576c99c0b65c8e7178494374c665d567c`.
+`receipt.tsv` records the measured 694,605-byte checker receipt with SHA-256
+`3d049666c285129bfa027afd414a982a3062e5853194d04bfb283631f2ca4a69`.
 Every gate run reconstructs this exact receipt before comparing the 48 complete
 judgments. These controls establish the listed checking relations, not full
 Epsilon conformance, runtime execution, or closure of the Omega bootstrap edge.

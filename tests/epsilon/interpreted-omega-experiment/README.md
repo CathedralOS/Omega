@@ -16,8 +16,8 @@ Delta-written Epsilon evaluator + exact Epsilon-written Omega D
 The gate requires the Omega product build to bind exactly one
 `alpha_bootstrap::ProgramEntry`, requires Omega D to retain its Alpha tape
 construction, and rejects any `EpsilonAlpha`/`epsilon_alpha_` backend residue in
-the Delta-written Epsilon implementation. The evaluator is currently 11,688
-lines / 591,132 bytes, authored in 82 explicitly manifested members.
+the Delta-written Epsilon implementation. The evaluator is currently 11,693
+lines / 591,380 bytes, authored in 82 explicitly manifested members.
 
 The executable slice runs the current checking pipeline, locates `Main::main`,
 and executes an empty entry, scalar `let` and local/parameter assignment,
@@ -70,8 +70,8 @@ cannot survive in the final evaluator.
 The gate compiles the exact evaluator plus the 54-line / 2,505-byte
 `execution_driver.delta` (SHA-256
 `68c21b984122cad9d47ddde5b9681da6cadf80aa1ead2da41cf7bb8817dc372e`) through the
-selected Delta route and pins the 698,283-byte Gamma receipt, SHA-256
-`a75a079ad24bdf097ddce56e5816d84108b62c8a676c1c570a619a78423e84c3`.
+selected Delta route and pins the 698,328-byte Gamma receipt, SHA-256
+`fc82a9b7f69b93a8ceefab7487b5f11802215f54c54ba90ed4359a741bb2e563`.
 The ordinary controls cover
 success, local, receiver-field, and fixed-array values, repeated mutation,
 output, comparisons, bitwise/shift/division behavior, short-circuiting, bounds
@@ -121,8 +121,9 @@ The development driver receives a four-byte little-endian source length,
 exactly that many Epsilon source bytes, and all remaining bytes as sealed stdin.
 The host only frames bytes; ordinary Delta code separates the two inputs.
 The split builds balanced byte trees. The host diagnostic timeout is 300 seconds
-per compilation or execution, not an Epsilon observation or resource verdict;
-the whole D Alpha-tape customer takes about 141 seconds on the measured host.
+per compilation or execution, not an Epsilon observation or resource verdict.
+The current receipt measured the whole D Alpha-tape customer at 140.552 seconds
+on the measured host.
 Gamma's published resource profile is unchanged.
 This is private test framing, not the final evaluator request/observation
 envelope. Six malformed-frame controls expect the single tag byte `05`,
@@ -229,9 +230,11 @@ keyword/punctuation/base metadata, escaped-string length, nested comments,
 whole-view completion, UTF-8 priority, trailing out-of-profile rejection,
 unterminated comments, unsupported escapes, and recovery after a previous
 failure. The required observation is tagged `Exit(0)` with stdout `A`.
-The complete default gate produced that exact observation in 282.011 seconds
-on the measured host, within the unchanged 300-second watchdog. This remains
-a narrow timing margin, not an Epsilon execution bound or a portable speed claim.
+The current receipt produced that exact observation in 279.174 seconds in the
+complete default gate, within the unchanged 300-second watchdog. Checkpoint
+`8944655e20`, before cached tree splits, measured 282.011 seconds. These isolated
+runs establish gate completion, not a reliable speedup, an Epsilon execution
+bound, or a portable speed claim. The timing margin remains narrow.
 No scanner function is extracted, rewritten, or replaced; this contract is not
 evidence of complete Omega parsing or compilation.
 

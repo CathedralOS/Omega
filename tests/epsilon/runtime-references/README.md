@@ -15,6 +15,13 @@ the expected bytes require an actual index on valid inputs as well as equal
 lookup results. [`expressions.delta`](expressions.delta) covers expression facts
 and cross-ledger fallback.
 
+[`coordinates.delta`](coordinates.delta) adds populated siblings across an odd
+extent, both endpoints, empty and unit extents, and invalid query spans. Malformed
+cached splits distinguish canonical insertion validation from interval-safe
+lookup. Invalid-span probes inspect a populated bucket directly so an exact
+identity miss cannot hide a missing range guard. These controls append 33 bytes
+to the original 97-byte observation, for 130 exact bytes in total.
+
 These are synthetic checked-fact records, not admitted Epsilon programs. They
 test derivative lookup behavior that well-formed source alone cannot exercise,
 including duplicate facts and invalid index premises. They do not establish

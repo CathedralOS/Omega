@@ -1,6 +1,6 @@
 # Delta abstraction-boundary experiment
 
-This experiment asks whether the 11,688-line Delta-authored Epsilon evaluator is
+This experiment asks whether the 11,693-line Delta-authored Epsilon evaluator is
 large because Delta is missing reusable mechanisms, or because Epsilon owns a
 large amount of irreducible language and diagnostic policy.
 
