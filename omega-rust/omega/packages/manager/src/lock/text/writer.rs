@@ -54,6 +54,7 @@ impl PackageLock {
                 .canonical_text(&target.source, HistoricalPackagePolicyLimits::default())
                 .map_err(Error::Decisions)?;
             drop(budget.decisions(&decisions, &target.source)?);
+            budget.target_membership(target)?;
             writer.section("decisions", &decisions)?;
             writer.append("end_target\n")?;
         }

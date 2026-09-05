@@ -94,7 +94,10 @@ the same immutable source graph to its complete package-ordered baselines and
 source-bound historical decisions. Its deterministic text embeds readable child
 sections with byte-length framing. Recovery shares aggregate storage and record
 budgets across all sections, rejects graph/package/target mismatches, and works
-without the old checkout. It does not publish files or authorize a changed
+without the old checkout. Complete policy owners must belong to the exact
+transitive source graph, including owners inside canonical type identities;
+foreign symbolic boundary demands join their retained declaration owner.
+It does not publish files or authorize a changed
 candidate; locked acquisition and the install/update transaction are separate.
 
 Design and security references:

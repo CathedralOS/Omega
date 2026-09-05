@@ -156,6 +156,7 @@ pub(super) fn assert_complete_lock(
     assert_eq!(recovered.canonical_text().unwrap(), text);
     super::lock_framing::assert_canonical_framing(&text);
     super::lock_framing::assert_aggregate_owned_boundary(&lock, &text);
+    super::lock_membership_budget::assert_aggregate_identity_boundary(&lock, &text);
     for limits in [
         PackageLockRecoveryLimits {
             maximum_targets: 1,

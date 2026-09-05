@@ -11,7 +11,7 @@ mod source;
 mod support;
 
 use omega_package_evidence::encoding::{
-    PackagePolicyRecoveryLimits, PackagePolicyTextRecoveryLimits,
+    PackagePolicyMembershipLimits, PackagePolicyRecoveryLimits, PackagePolicyTextRecoveryLimits,
 };
 use omega_package_evidence::record::*;
 use omega_package_evidence::{
@@ -29,6 +29,9 @@ fn project(fixture: &Fixture) -> PackagePolicyBaseline {
             .expect("complete checked package policy");
     assert_eq!(policy.package(), package_identity());
     assert_eq!(policy.target(), fixture.target);
+    let membership = policy
+        .validate_package_membership(|_| true, PackagePolicyMembershipLimits::default())
+        .expect("all compiler-issued semantic identity families have supported owner grammar");
     let bytes = policy.canonical_bytes().expect("canonical full baseline");
     let recovered =
         PackagePolicyBaseline::recover_canonical(&bytes, PackagePolicyRecoveryLimits::default())
@@ -44,6 +47,12 @@ fn project(fixture: &Fixture) -> PackagePolicyBaseline {
     assert_eq!(text_policy, policy);
     assert_eq!(text_policy.canonical_bytes().unwrap(), bytes);
     assert_eq!(text_policy.canonical_text().unwrap(), text);
+    assert_eq!(
+        text_policy
+            .validate_package_membership(|_| true, PackagePolicyMembershipLimits::default())
+            .unwrap(),
+        membership,
+    );
     policy
 }
 

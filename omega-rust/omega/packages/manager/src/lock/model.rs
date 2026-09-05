@@ -17,6 +17,7 @@ pub struct PackageLockTarget {
 impl PackageLockTarget {
     /// Compose already constructed source and policy values without compiler,
     /// proof, or native replay. Baselines must follow exact source-package order.
+    /// Every concrete policy owner must belong to the transitive source graph.
     pub fn from_parts(
         source: CanonicalSourceClosureSubject,
         baselines: Vec<PackagePolicyBaseline>,
@@ -28,6 +29,12 @@ impl PackageLockTarget {
             decisions,
         };
         value.validate()?;
+        let limits = PackageLockRecoveryLimits::default();
+        super::validation::policy_source_membership(
+            &value,
+            limits.maximum_owned_bytes,
+            limits.maximum_identity_nodes,
+        )?;
         Ok(value)
     }
 
@@ -44,6 +51,8 @@ impl PackageLockTarget {
         self.source.target_profile()
     }
 
+    // Cheap joins only. The public constructor and budgeted text reader also
+    // establish complete policy membership before exposing an immutable target.
     pub(super) fn validate(&self) -> Result<(), Error> {
         if self.baselines.len() != self.source.packages().len()
             || self

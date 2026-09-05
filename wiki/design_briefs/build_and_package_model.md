@@ -3041,7 +3041,14 @@ target-bound source subject. Target sections must retain the same immutable
 source graph. Child text remains verbatim under byte-length delimiters, so
 ordinary source and policy changes remain diffable. Recovery validates the
 outer grammar and all child associations with aggregate limits for requested
-owned storage, target/package/request rows, policy elements, and decisions.
+owned storage, target/package/request rows, policy elements, semantic identity
+traversal nodes, and decisions. Evidence enumerates concrete package owners
+through the complete policy, including canonical type/callable identities;
+the manager checks their membership in the exact transitive source graph.
+Foreign symbolic boundary demands join the owning baseline's exact boundary
+operator and Type-only telescope. These consistency checks neither require
+direct dependency edges for carried types nor certify arbitrary foreign
+declaration availability or fresh audit truth.
 Recovering these inert records requires no source checkout or compiler run;
 it is separate from acquiring pinned content and publishing a transaction.
 

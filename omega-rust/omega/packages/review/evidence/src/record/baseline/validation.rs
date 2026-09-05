@@ -148,33 +148,7 @@ impl PackagePolicyBaseline {
             if demand.operator_coordinate.identity.owner
                 == PackageReviewNominalOwner::Package(self.package)
             {
-                let operator = self
-                    .public_api
-                    .operators
-                    .iter()
-                    .find(|operator| operator.coordinate == demand.operator_coordinate)
-                    .ok_or("symbolic demand has no exact retained local operator")?;
-                if !operator.is_boundary || operator.type_parameters.len() != demand.arguments.len()
-                {
-                    return Err("symbolic demand differs from its boundary operator telescope");
-                }
-                for argument in &demand.arguments {
-                    let PackageReviewSymbolicBoundaryApplicationArgument::TypeBinder {
-                        requirement_binder_ordinal,
-                        ..
-                    } = argument;
-                    if !operator
-                        .type_parameters
-                        .get(*requirement_binder_ordinal as usize)
-                        .is_some_and(|parameter| {
-                            matches!(parameter.kind, PackagePolicyTypeParameterKind::Type)
-                        })
-                    {
-                        return Err(
-                            "symbolic demand requirement binder is not an exact retained type parameter",
-                        );
-                    }
-                }
+                super::boundary_owners::validate_demand(demand, self)?;
             }
         }
         Ok(())

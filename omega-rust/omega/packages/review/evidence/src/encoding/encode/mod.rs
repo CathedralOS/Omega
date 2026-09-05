@@ -9,6 +9,7 @@ mod callable_policy;
 pub(super) mod calling;
 pub(super) mod declarations;
 pub(super) mod encoder;
+pub(super) mod membership;
 mod public_api;
 pub(super) mod quotients;
 mod representation;

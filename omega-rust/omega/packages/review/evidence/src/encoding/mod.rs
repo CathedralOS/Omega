@@ -10,6 +10,9 @@ use crate::record::{
 mod encode;
 mod recovery;
 pub use encode::encoder::text::PACKAGE_POLICY_TEXT_VERSION;
+pub use encode::membership::{
+    PackagePolicyMembershipError, PackagePolicyMembershipLimits, PackagePolicyMembershipUsage,
+};
 pub use recovery::PackagePolicyTextRecoveryLimits;
 
 #[cfg(test)]
