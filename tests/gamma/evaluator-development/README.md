@@ -47,6 +47,15 @@ invalid/trap outcomes. Exact and adjacent gates pin the 4,096-function census,
 255-list syntax depth, and 256-context ordinary-call limits without inflating
 the routine gate with multi-megabyte output or heap witnesses.
 
+`function_lookup.py` supplies 16 additional authored-source controls. Distinct
+function results are called in one fixed order while declaration and `main`
+placement vary. Missing exact names cover shorter prefixes, extensions, and
+equal-length neighbors. Marker controls distinguish first-declaration
+application ownership from a later declaration with the same spelling. Reverse
+declaration order reaches all 4,096 rows, then distinguishes a duplicate name
+from a fresh 4,097th function before provision. The fixtures construct source
+bytes and expected observations; they do not model evaluator lookup.
+
 ## Limitations
 
 The remaining admission work is outside evaluator semantics:

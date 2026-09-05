@@ -24,7 +24,7 @@ RECURSIVE="$OMEGA_REPO_ROOT/tests/delta/functional-compiler-experiment/scalar_re
 stamp_seed "$TAPE" "$OMEGA_PATH_ALPHA/$ALPHA_SEED" \
     "$TMP/evaluator" >/dev/null
 
-BETA="$BETA" TAPE="$TAPE" EVALUATOR="$TMP/evaluator" \
+PYTHONPATH="$GATE_DIR" BETA="$BETA" TAPE="$TAPE" EVALUATOR="$TMP/evaluator" \
     AUGMENTER="$AUGMENTER" AUGMENTED="$AUGMENTED" EXPANDED="$EXPANDED" \
     RECURSIVE="$RECURSIVE" python3 - <<'PY'
 import hashlib
@@ -34,6 +34,7 @@ import signal
 import struct
 import subprocess
 from pathlib import Path
+from function_lookup import fixtures as function_lookup_fixtures
 
 artifacts = (
     ("BETA", 42776, "95e8771385a3f8779abcc8aed116327e5de1b350e3aeb93398db913dc3459a33"),
@@ -237,6 +238,12 @@ if run(function_census(4096)) != (0, b"\x00"):
     raise SystemExit("exact function-census capacity did not complete")
 if run(function_census(4097)) != (3, b""):
     raise SystemExit("adjacent function-census capacity was not incomplete")
+
+lookup_cases = function_lookup_fixtures()
+for name, source, expected in lookup_cases:
+    if run(source) != expected:
+        raise SystemExit(f"{name} changed function lookup or failure ownership")
+print(f"Direct Beta Gamma evaluator: {len(lookup_cases)} exact function-lookup controls passed")
 
 def nested_add(depth):
     return b"(def main () Int " + b"(+ 0 " * depth + b"0" + b")" * depth + b")\n"
