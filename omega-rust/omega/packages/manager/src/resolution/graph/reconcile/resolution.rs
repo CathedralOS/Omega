@@ -67,6 +67,29 @@ pub(crate) fn resolve_package_source_closure_with_limits<E, F>(
 where
     F: FnMut(&PackageSourceCustody, &DependencySourceRequest) -> Result<PackageSourceCustody, E>,
 {
+    resolve_package_source_closure_with_indexed_limits(
+        root_request,
+        root,
+        limits,
+        |requester, _, request| resolve_dependency(requester, request),
+    )
+}
+
+/// The same custody traversal with the exact requester-owned authored ordinal.
+/// Locked recovery uses this coordinate to join distinct request occurrences.
+pub(crate) fn resolve_package_source_closure_with_indexed_limits<E, F>(
+    root_request: PackageRootSourceRequest,
+    root: PackageSourceCustody,
+    limits: PackageSourceClosureLimits,
+    mut resolve_dependency: F,
+) -> Result<ResolvedPackageSourceClosure, PackageSourceClosureResolutionError<E>>
+where
+    F: FnMut(
+        &PackageSourceCustody,
+        usize,
+        &DependencySourceRequest,
+    ) -> Result<PackageSourceCustody, E>,
+{
     if limits.max_packages == 0 {
         return Err(PackageSourceClosureResolutionError::LimitExceeded {
             kind: PackageSourceClosureLimitKind::Packages,
@@ -115,14 +138,15 @@ where
                     limit: limits.max_depth,
                 });
             }
-            let dependency = resolve_dependency(&requester, request).map_err(|error| {
-                PackageSourceClosureResolutionError::Adapter {
-                    requester: requester_key.clone(),
-                    dependency_index,
-                    request: request.clone(),
-                    error,
-                }
-            })?;
+            let dependency =
+                resolve_dependency(&requester, dependency_index, request).map_err(|error| {
+                    PackageSourceClosureResolutionError::Adapter {
+                        requester: requester_key.clone(),
+                        dependency_index,
+                        request: request.clone(),
+                        error,
+                    }
+                })?;
             if dependency.role() != BuildDeclarationKind::Package {
                 return Err(PackageSourceClosureResolutionError::InvalidDependencyRole {
                     requester: requester_key.clone(),

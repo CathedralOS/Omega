@@ -148,7 +148,7 @@ fn requester_workspace(
     }
 }
 
-fn normalize_member_path(
+pub(in super::super) fn normalize_member_path(
     requester_member: Option<&str>,
     location: &str,
 ) -> Result<WorkspaceMemberPath, ResolveDependencySourceError> {
@@ -192,7 +192,10 @@ fn normalize_member_path(
         .map_err(|error| invalid_path(location, &error.to_string()))
 }
 
-fn workspace_path_escapes(requester_member: Option<&str>, location: &str) -> bool {
+pub(in super::super) fn workspace_path_escapes(
+    requester_member: Option<&str>,
+    location: &str,
+) -> bool {
     if Path::new(location).is_absolute() {
         return true;
     }

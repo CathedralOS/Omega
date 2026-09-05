@@ -7,6 +7,7 @@ mod path;
 
 pub(super) use context::WorkspaceContext;
 pub(super) use git::register_git_repository;
+pub(super) use path::{normalize_member_path, workspace_path_escapes};
 
 use super::super::reconcile::{
     PackageRootSourceRequest, PackageSourceClosureLimits, PackageSourceClosureResolutionError,

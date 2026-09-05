@@ -39,6 +39,9 @@ pub use resolve::{
     resolve_workspace_project_closure_in_context_with_storage,
     resolve_workspace_project_closure_with_storage,
 };
+pub use resolve::{
+    ResolveLockedPackageClosureError, resolve_locked_package_source_closure_with_storage,
+};
 pub use root_request::PackageRootSourceRequest;
 pub use subject::{
     CanonicalDependencySourceRequest, CanonicalDependencySourceSelection,

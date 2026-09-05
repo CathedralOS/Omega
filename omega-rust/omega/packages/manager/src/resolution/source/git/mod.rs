@@ -6,10 +6,15 @@
 //! selected immutable snapshot to package identity and dependency rows.
 
 mod binding;
+mod recorded;
 mod request;
 mod resolution;
 pub(crate) mod workspace;
 
+pub(crate) use recorded::{
+    resolve_selected_git_package_source_at_revision_in_lanes,
+    resolve_selected_git_project_source_at_revision_in_lanes,
+};
 pub use request::GitPackageSourceRequest;
 #[cfg(test)]
 pub(crate) use resolution::resolve_git_package_source;

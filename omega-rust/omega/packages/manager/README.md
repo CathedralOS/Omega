@@ -121,11 +121,29 @@ selected dependency requests, policy sequence elements, semantic identity
 traversal nodes, and decisions. Child
 usage is deducted from the same aggregate limits rather than reset per target.
 Allocator overhead and already borrowed input are not part of owned-storage
-accounting. Locked resolution and atomic install/update publication remain open.
+accounting. Atomic install/update publication remains open.
 Serialization uses the same recovery accounting one child at a time, discarding
 that scratch before the next child. It therefore refuses an output that exceeds
 the chosen recovery ceilings even when its text fits. This is a resource check,
 not a second compiler review or a certificate that project choices are correct.
+
+`operations::recover_locked_sources` selects one recorded target before storage
+verification or source acquisition. It accepts a typed caller root request and
+requires its exact spelling to match the retained request; encoded lock path
+bytes are never decoded into filesystem authority. It rebuilds the closure from
+fresh source custody and declaration projections, matching each dependency by
+requester and authored ordinal, then compares the complete canonical subject.
+Git acquisition is offline by default. Explicit fetch permission acquires only
+the recorded commit and root tree, including named workspace members, without
+refreshing the authored selector. Local and workspace sources are recaptured
+and must still match their recorded identity and content; a missing live local
+source currently fails even if its snapshot remains cached.
+
+Recovery borrows the accepted lock, so unavailable source or content drift does
+not destroy the readable policy baseline. Its result is a source closure usable
+by ordinary compiler inputs, not a fresh analysis or renewed acceptance of old
+decisions. Fresh checking, stale-analysis handling, standalone candidate audit,
+and transactional publication remain separate integration work.
 
 Return to the [package subsystem map](../README.md), or consult:
 

@@ -27,6 +27,10 @@ pub use git::{
     resolve_selected_git_package_source_with_storage,
     resolve_selected_git_project_source_with_storage,
 };
+pub(crate) use git::{
+    resolve_selected_git_package_source_at_revision_in_lanes,
+    resolve_selected_git_project_source_at_revision_in_lanes,
+};
 #[cfg(test)]
 pub(crate) use local::resolve_external_local_package_source;
 pub(crate) use local::{

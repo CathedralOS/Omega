@@ -93,3 +93,12 @@ lock or compare compiler results. `canonical_text` selects the default ceilings.
 This resource check does not turn a historical rejection into acceptance or
 replace fresh review. Locked source acquisition and atomic install/update
 publication belong to the separate operation owners.
+
+`operations::recover_locked_sources` consumes this record only as exact source
+expectations. It selects an explicitly recorded target before touching resolver
+storage, reacquires and verifies sources under current limits, and requires the
+entire freshly projected graph to match. Offline Git cache use never resolves a
+mutable selector; allowed fetching requests the recorded commit only. Local
+recovery still requires the live source for recapture. Failure leaves this
+borrowed baseline readable, and success does not turn historical decisions into
+fresh compiler findings or transaction authorization.
