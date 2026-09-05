@@ -490,9 +490,9 @@ fn dependency_data_members_and_collection_length_finalize_exactly() {
         r#"use dep::observation;
 data Inspector { items: [u8; 4]; }
 machine Inspector::inspect(&self, observation: Observation, bytes: &[u8]) -> u64 {
-    transition { _ -> nested() }
+    transition { _ -> nested(observation, bytes) }
 
-    state nested() -> u64 {
+    state nested(&self, observation: Observation, bytes: &[u8]) -> u64 {
         let tag: u8 = observation.tag;
         let direct_length: u64 = bytes.len;
         (self.items[1..3]).len
@@ -618,9 +618,9 @@ machine bit_is_clear(value: u32) -> bool {
     (value & 128) == 0
 }
 
-machine captured_parameter_is_zero(value: u32) -> bool {
-    transition { _ -> check() }
-    state check() -> bool { value == 0 }
+machine transferred_parameter_is_zero(value: u32) -> bool {
+    transition { _ -> check(value) }
+    state check(value: u32) -> bool { value == 0 }
 }
 
 machine scale_remainder(value: u64) -> u64 {
