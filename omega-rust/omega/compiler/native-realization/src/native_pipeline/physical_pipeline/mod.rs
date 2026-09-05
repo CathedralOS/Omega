@@ -22,10 +22,10 @@ pub use input::stage_optimized_verified_physical_pipeline_with_provider_executio
 pub use model::StagedOptimizedVerifiedPhysicalPipeline;
 use optimization_core::PostTerminalOptimizationSelections;
 pub(crate) use phase_selections::PhysicalOptimizationPhaseSelections;
+use register_environment::baseline_target_register_environment;
 use selected_instructions_to_register_homes::{
     stage_optimized_live_ranges, stage_optimized_liveness,
 };
-use target_to_register_environment::baseline_target_register_environment;
 
 pub(crate) use routes::{
     ResolvedPhysicalPhaseComposition, ResolvedRealizationPlan, resolve_physical_phase_composition,

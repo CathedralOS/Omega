@@ -11,7 +11,7 @@ path = "src/lib.rs"
 [dependencies]
 physical-instructions = { path = "../../representations/physical-instructions" }
 selected-instructions-to-register-homes = { path = "../selected-instructions-to-register-homes" }
-target-to-register-environment = { path = "../target-to-register-environment" }
+register-environment = { path = "../../backend/register-environment" }
 optimization-core = { path = "../../representations/optimization-core" }
 register-model = { path = "../../representations/register-model" }
 selected-instructions = { path = "../../representations/selected-instructions" }

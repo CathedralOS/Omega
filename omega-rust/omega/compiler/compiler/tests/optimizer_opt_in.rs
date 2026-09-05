@@ -281,9 +281,7 @@ fn return_only_selected_lowering_build_rejoins_native_artifact_production() {
         .expect("selected-lowering native artifact should replay");
     assert!(matches!(
         artifact.physical_evidence_scope(),
-        terminal_psi_to_native_artifact::NativePhysicalEvidenceScope::ValidatedOptimizedProjection(
-            _
-        )
+        native_realization::NativePhysicalEvidenceScope::ValidatedOptimizedProjection(_)
     ));
     let physical = artifact
         .physical_evidence()
@@ -365,9 +363,7 @@ fn return_only_exact_subtract_rejoins_native_artifact_production() {
         .expect("selected-lowering native artifact should replay");
     assert!(matches!(
         artifact.physical_evidence_scope(),
-        terminal_psi_to_native_artifact::NativePhysicalEvidenceScope::ValidatedOptimizedProjection(
-            _
-        )
+        native_realization::NativePhysicalEvidenceScope::ValidatedOptimizedProjection(_)
     ));
     assert!(
         artifact

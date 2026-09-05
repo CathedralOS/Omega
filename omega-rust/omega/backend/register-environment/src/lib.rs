@@ -1,9 +1,10 @@
 #![forbid(unsafe_code)]
 
-//! Optimizer module role: executable entrance. Native target to validated register environment.
+//! Optimizer module role: executable entrance. Backend-owned register environment setup.
 //!
-//! This crate is the visible join between exact target declarations,
-//! reservation policy, and the independently validated allocator environment.
+//! Joins exact ISA/ABI declarations and reservation policy into an independently
+//! validated allocator environment. This is shared target setup, not a program
+//! transformation or a successor in the representation pipeline.
 
 mod abi_preservation;
 mod catalog;

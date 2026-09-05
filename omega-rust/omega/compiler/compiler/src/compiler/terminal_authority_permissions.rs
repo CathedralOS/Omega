@@ -9,7 +9,7 @@ use std::collections::BTreeSet;
 /// Unlike the receiving policy, this set admits no unrelated extra rows.
 pub(super) fn validate_retained_package_terminal_authority_permissions(
     retained: &[ServiceTerminalAuthorityPermission],
-    accepted: &terminal_psi_to_native_artifact::TerminalAuthorityPermissionPolicy,
+    accepted: &native_realization::TerminalAuthorityPermissionPolicy,
 ) -> Result<(), Vec<Diagnostic>> {
     if retained == accepted.rows() {
         Ok(())
@@ -25,7 +25,7 @@ pub(super) fn validate_retained_package_terminal_authority_permissions(
 /// artifacts, but it may neither omit nor alter an approved row.
 pub(super) fn validate_package_terminal_authority_permissions<'a>(
     permissions: impl Iterator<Item = &'a ServiceTerminalAuthorityPermission>,
-    policy: &terminal_psi_to_native_artifact::TerminalAuthorityPermissionPolicy,
+    policy: &native_realization::TerminalAuthorityPermissionPolicy,
 ) -> Result<(), Vec<Diagnostic>> {
     let mut seen = BTreeSet::new();
     let mut diagnostics = Vec::new();

@@ -16,8 +16,7 @@ impl PreparedTerminalNativeArtifact {
 
 pub(super) fn validate_terminal_authority_permissions(
     checked: &crate::pipeline::CheckedCompilation,
-    terminal_authority_permission_policy:
-        &terminal_psi_to_native_artifact::TerminalAuthorityPermissionPolicy,
+    terminal_authority_permission_policy: &native_realization::TerminalAuthorityPermissionPolicy,
 ) -> Result<(), Vec<Diagnostic>> {
     super::super::terminal_authority_permissions::validate_package_terminal_authority_permissions(
         checked
@@ -72,12 +71,11 @@ pub(super) fn realize(
     checked: &crate::pipeline::CheckedCompilation,
     admission: &super::admission::NativeOptimizationAdmission,
     profile: &proof_admission::AdmissionProfile,
-    terminal_authority_permission_policy:
-        terminal_psi_to_native_artifact::TerminalAuthorityPermissionPolicy,
+    terminal_authority_permission_policy: native_realization::TerminalAuthorityPermissionPolicy,
     optimization_selections: &PostTerminalOptimizationSelections,
     prepared_terminal: PreparedTerminalNativeArtifact,
-    prepared_input: &terminal_psi_to_native_artifact::PreparedNativeRealizationInput,
-) -> Result<terminal_psi_to_native_artifact::NativeArtifact, Vec<Diagnostic>> {
+    prepared_input: &native_realization::PreparedNativeRealizationInput,
+) -> Result<native_realization::NativeArtifact, Vec<Diagnostic>> {
     let PreparedTerminalNativeArtifact {
         artifact,
         checked_program_entry,
@@ -107,7 +105,7 @@ pub(super) fn realize(
     let compiler_builtins = intrinsic_proposals
         .iter()
         .map(
-            |proposal| terminal_psi_to_native_artifact::NativeCompilerBuiltinSettlement {
+            |proposal| native_realization::NativeCompilerBuiltinSettlement {
                 requirement_identity: &proposal.requirement_identity,
                 provider_plan: &selected_plans[proposal.plan_index],
                 execution: proposal.execution,
@@ -118,29 +116,28 @@ pub(super) fn realize(
         .program_entry
         .calling_plans()
         .map(|plans| (&plans.semantic_boundary_entry_plan, &plans.storage_entry));
-    let program_entry = terminal_psi_to_native_artifact::NativeProgramEntrySettlement::new(
+    let program_entry = native_realization::NativeProgramEntrySettlement::new(
         admission.program_entry.source_signature(),
         calling_plans,
         admission.program_entry.fused_service_establishments(),
     );
-    let _validated_program_entry =
-        terminal_psi_to_native_artifact::validate_native_program_entry_settlement(
-            &artifact,
-            &checked_program_entry,
-            program_entry,
-            admission.target,
-        )
-        .map_err(|error| {
-            vec![Diagnostic::error(format!(
-                "native-artifact checked ProgramEntry settlement failed: {error}"
-            ))]
-        })?;
-    let request = terminal_psi_to_native_artifact::NativeRealizationRequest {
+    let _validated_program_entry = native_realization::validate_native_program_entry_settlement(
+        &artifact,
+        &checked_program_entry,
+        program_entry,
+        admission.target,
+    )
+    .map_err(|error| {
+        vec![Diagnostic::error(format!(
+            "native-artifact checked ProgramEntry settlement failed: {error}"
+        ))]
+    })?;
+    let request = native_realization::NativeRealizationRequest {
         target: admission.target,
         subsystem: checked.subsystem(),
         profile,
         terminal_authority_policy:
-            terminal_psi_to_native_artifact::current_compiler_intrinsic_terminal_authority_policy(),
+            native_realization::current_compiler_intrinsic_terminal_authority_policy(),
         terminal_authority_permission_policy,
         program_entry,
         optimization_selections,
@@ -153,7 +150,7 @@ pub(super) fn realize(
         native_callbacks: &[],
         callback_thunks: &[],
     };
-    terminal_psi_to_native_artifact::realize_native_artifact_with_checked_boundary_operator_scope_and_prepared_input(
+    native_realization::realize_native_artifact_with_checked_boundary_operator_scope_and_prepared_input(
         artifact,
         &checked_boundary_operator_scope,
         request,
@@ -193,9 +190,9 @@ mod tests {
 
     fn policy(
         permitted: TerminalAuthorityDisposition,
-    ) -> terminal_psi_to_native_artifact::TerminalAuthorityPermissionPolicy {
-        terminal_psi_to_native_artifact::terminal_authority_permission_policy_with_rows(vec![
-            terminal_psi_to_native_artifact::TerminalAuthorityPermissionPolicyRow::new(
+    ) -> native_realization::TerminalAuthorityPermissionPolicy {
+        native_realization::terminal_authority_permission_policy_with_rows(vec![
+            native_realization::TerminalAuthorityPermissionPolicyRow::new(
                 ServiceSchemaDigest::from_digest([41; 32]),
                 "Console::exit_process#exact",
                 permitted,
@@ -228,8 +225,7 @@ mod tests {
         .expect_err("changed classes must reject");
         assert!(diagnostics[0].message.contains("substitutes"));
 
-        let missing =
-            terminal_psi_to_native_artifact::current_terminal_authority_permission_policy();
+        let missing = native_realization::current_terminal_authority_permission_policy();
         let diagnostics = validate_package_terminal_authority_permissions(
             binding.terminal_authority_permissions().iter(),
             &missing,

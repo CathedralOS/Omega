@@ -89,7 +89,7 @@ no later physical authority follows from this selection boundary.
   leaves; its independent validator descends through separate source and target
   replay.
 - `pipeline/target-operations-to-selected-instructions/src/optimized/mod.rs` owns the opaque
-  cross-stage carrier. The preceding `pipeline/target-to-register-environment`
+  cross-stage carrier. The preceding `backend/register-environment`
   stage injects exact ISA/ABI constraints and binds the physical
   model, constraint catalog, active reservation profile, and selected keys into
   one environment identity.

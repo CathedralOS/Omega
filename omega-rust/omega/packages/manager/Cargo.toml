@@ -20,7 +20,7 @@ package-compilation = { path = "../../build/package-compilation" }
 optimization-core = { path = "../../representations/optimization-core" }
 platform-custody = { path = "../../tooling/platform-custody" }
 target = { path = "../../representations/target" }
-terminal-psi-to-native-artifact = { path = "../../pipeline/terminal-psi-to-native-artifact" }
+native-realization = { path = "../../compiler/native-realization" }
 arena = { path = "../../../psi/foundation/arena" }
 semantic-vocabulary = { path = "../../../psi/foundation/semantic-vocabulary" }
 language-semantics = { path = "../../../psi/foundation/language-semantics" }

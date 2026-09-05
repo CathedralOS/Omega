@@ -278,7 +278,7 @@ pub(crate) const LADDERS: &[SemanticLadder] = &[
     SemanticLadder {
         family: "allocation-visible callee-saved requirements",
         paths: &[
-            "omega-rust/omega/pipeline/target-to-register-environment/src/abi_preservation.rs",
+            "omega-rust/omega/backend/register-environment/src/abi_preservation.rs",
             "omega-rust/omega/pipeline/selected-instructions-to-register-homes/src/preservation/mod.rs",
             "omega-rust/omega/pipeline/selected-instructions-to-register-homes/src/preservation/model.rs",
             "omega-rust/omega/pipeline/selected-instructions-to-register-homes/src/preservation/error.rs",
@@ -608,7 +608,7 @@ pub(crate) const LADDERS: &[SemanticLadder] = &[
             "omega-rust/omega/pipeline/target-operations-to-selected-instructions/src/tests/legalization/scalar_call_unit.rs",
             "omega-rust/omega/pipeline/target-operations-to-selected-instructions/src/selection/construction/scalar_call_unit.rs",
             "omega-rust/omega/pipeline/target-operations-to-selected-instructions/src/selection/validation/scalar_call_unit.rs",
-            "omega-rust/omega/pipeline/target-to-register-environment/src/catalog.rs",
+            "omega-rust/omega/backend/register-environment/src/catalog.rs",
             "tests/native-differential/tests/pipeline_ownership/fixtures/scalar_call_unit.rs",
             "tests/native-differential/tests/pipeline_ownership/stages/allocation/register_allocation/runtime_scalar_call_chain/mod.rs",
             "tests/native-differential/tests/pipeline_ownership/stages/allocation/register_allocation/runtime_scalar_call_chain/fixture.rs",

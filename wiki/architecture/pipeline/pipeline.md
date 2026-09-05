@@ -403,7 +403,7 @@ Current deliberate gaps:
 - [Typed Trees To Checked Trees](stages/typed_trees_to_checked_trees.md)
 - [Abstract Operations Optimization](stages/abstract_operations_optimization.md)
 - [Abstract Operations To Target Operations](stages/abstract_operations_to_target_operations.md)
-- [Target To Register Environment](stages/target_to_register_environment.md)
+- [Target To Register Environment](stages/register_environment.md)
 - [Target Operations To Selected Instructions](stages/target_operations_to_selected_instructions.md)
 - [Selected Instructions To Register Homes](stages/selected_instructions_to_register_homes.md)
 - [Target Operations To Assigned Target Operations](stages/target_operations_to_assigned_target_operations.md)

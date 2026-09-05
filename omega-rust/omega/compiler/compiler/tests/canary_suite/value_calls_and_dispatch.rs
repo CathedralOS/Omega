@@ -1083,29 +1083,33 @@ fn runtime_local_named_dyn_pass_through_exit_canary_runs() {
     for target in ["linux_x86_64", "linux_arm64"] {
         let checked = compile_to_checked(&canary.join("main.omg"), Some(target))
             .expect("forwarded fixture should reach checked provider custody");
-        let permission_policy =
-            terminal_psi_to_native_artifact::terminal_authority_permission_policy_with_rows(
-                checked
-                    .selected_provider_plans()
-                    .plans()
-                    .iter()
-                    .flat_map(|plan| {
-                        plan.rows.iter().filter(|&row| matches!(
+        let permission_policy = native_realization::terminal_authority_permission_policy_with_rows(
+            checked
+                .selected_provider_plans()
+                .plans()
+                .iter()
+                .flat_map(|plan| {
+                    plan.rows
+                        .iter()
+                        .filter(|&row| {
+                            matches!(
                                 row.binding,
-                                effects::provider_plan::ProviderBinding::CompilerIntrinsic {
-                                    ..
-                                }
-                            )).map(|row| terminal_psi_to_native_artifact::TerminalAuthorityPermissionPolicyRow::new(
-                                    plan.schema.identity_digest(),
-                                    row.requirement_identity.clone(),
-                                    effects::TerminalAuthorityDisposition::from_classes([
-                                        effects::TerminalAuthorityClass::ProcessTermination,
-                                    ]),
-                                ))
-                    })
-                    .collect(),
-            )
-            .expect("exact Console exit permission policy");
+                                effects::provider_plan::ProviderBinding::CompilerIntrinsic { .. }
+                            )
+                        })
+                        .map(|row| {
+                            native_realization::TerminalAuthorityPermissionPolicyRow::new(
+                                plan.schema.identity_digest(),
+                                row.requirement_identity.clone(),
+                                effects::TerminalAuthorityDisposition::from_classes([
+                                    effects::TerminalAuthorityClass::ProcessTermination,
+                                ]),
+                            )
+                        })
+                })
+                .collect(),
+        )
+        .expect("exact Console exit permission policy");
         compile_rooted_backend_canary_without_output_for_target_and_permission_policy(
             &canary,
             target,
@@ -1184,29 +1188,33 @@ fn assert_forwarded_dynamic_result_canary(
                 .len(),
             1
         );
-        let permission_policy =
-            terminal_psi_to_native_artifact::terminal_authority_permission_policy_with_rows(
-                checked
-                    .selected_provider_plans()
-                    .plans()
-                    .iter()
-                    .flat_map(|plan| {
-                        plan.rows.iter().filter(|&row| matches!(
+        let permission_policy = native_realization::terminal_authority_permission_policy_with_rows(
+            checked
+                .selected_provider_plans()
+                .plans()
+                .iter()
+                .flat_map(|plan| {
+                    plan.rows
+                        .iter()
+                        .filter(|&row| {
+                            matches!(
                                 row.binding,
-                                effects::provider_plan::ProviderBinding::CompilerIntrinsic {
-                                    ..
-                                }
-                            )).map(|row| terminal_psi_to_native_artifact::TerminalAuthorityPermissionPolicyRow::new(
-                                    plan.schema.identity_digest(),
-                                    row.requirement_identity.clone(),
-                                    effects::TerminalAuthorityDisposition::from_classes([
-                                        effects::TerminalAuthorityClass::ProcessTermination,
-                                    ]),
-                                ))
-                    })
-                    .collect(),
-            )
-            .expect("exact Console exit permission policy");
+                                effects::provider_plan::ProviderBinding::CompilerIntrinsic { .. }
+                            )
+                        })
+                        .map(|row| {
+                            native_realization::TerminalAuthorityPermissionPolicyRow::new(
+                                plan.schema.identity_digest(),
+                                row.requirement_identity.clone(),
+                                effects::TerminalAuthorityDisposition::from_classes([
+                                    effects::TerminalAuthorityClass::ProcessTermination,
+                                ]),
+                            )
+                        })
+                })
+                .collect(),
+        )
+        .expect("exact Console exit permission policy");
         let report = compile_rooted_backend_canary_without_output_for_target_and_permission_policy(
             &canary,
             target,
@@ -1560,29 +1568,33 @@ fn runtime_local_named_dyn_rebound_direct_exit_canary_runs() {
     for target in ["linux_x86_64", "linux_arm64"] {
         let checked = compile_to_checked(&canary.join("main.omg"), Some(target))
             .expect("rebound fixture should reach checked provider custody");
-        let permission_policy =
-            terminal_psi_to_native_artifact::terminal_authority_permission_policy_with_rows(
-                checked
-                    .selected_provider_plans()
-                    .plans()
-                    .iter()
-                    .flat_map(|plan| {
-                        plan.rows.iter().filter(|&row| matches!(
+        let permission_policy = native_realization::terminal_authority_permission_policy_with_rows(
+            checked
+                .selected_provider_plans()
+                .plans()
+                .iter()
+                .flat_map(|plan| {
+                    plan.rows
+                        .iter()
+                        .filter(|&row| {
+                            matches!(
                                 row.binding,
-                                effects::provider_plan::ProviderBinding::CompilerIntrinsic {
-                                    ..
-                                }
-                            )).map(|row| terminal_psi_to_native_artifact::TerminalAuthorityPermissionPolicyRow::new(
-                                    plan.schema.identity_digest(),
-                                    row.requirement_identity.clone(),
-                                    effects::TerminalAuthorityDisposition::from_classes([
-                                        effects::TerminalAuthorityClass::ProcessTermination,
-                                    ]),
-                                ))
-                    })
-                    .collect(),
-            )
-            .expect("exact Console exit permission policy");
+                                effects::provider_plan::ProviderBinding::CompilerIntrinsic { .. }
+                            )
+                        })
+                        .map(|row| {
+                            native_realization::TerminalAuthorityPermissionPolicyRow::new(
+                                plan.schema.identity_digest(),
+                                row.requirement_identity.clone(),
+                                effects::TerminalAuthorityDisposition::from_classes([
+                                    effects::TerminalAuthorityClass::ProcessTermination,
+                                ]),
+                            )
+                        })
+                })
+                .collect(),
+        )
+        .expect("exact Console exit permission policy");
         compile_rooted_backend_canary_without_output_for_target_and_permission_policy(
             &canary,
             target,

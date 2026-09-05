@@ -11,7 +11,7 @@ use optimization_core::OptimizationWorkBudget;
 
 use crate::AllocationOutput;
 use crate::ValidatedSelectedAnalysis;
-use target_to_register_environment::selected_abi_preservation;
+use register_environment::selected_abi_preservation;
 
 use super::{
     AllocatedCalleeSavedRequirementError, AllocatedCalleeSavedRequirementPlan,

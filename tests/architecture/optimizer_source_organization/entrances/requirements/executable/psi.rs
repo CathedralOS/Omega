@@ -6,7 +6,7 @@ pub(crate) const ENTRANCES: &[RequiredCoordinationEntrance] = &[
         coordination_marker: "pub fn run_psi_optimization",
     },
     RequiredCoordinationEntrance {
-        path: "omega-rust/omega/pipeline/terminal-psi-to-native-artifact/src/native_pipeline/abstract_operation_optimization/mod.rs",
+        path: "omega-rust/omega/compiler/native-realization/src/native_pipeline/abstract_operation_optimization/mod.rs",
         coordination_marker: "pub fn optimize_artifact_sections",
     },
     RequiredCoordinationEntrance {

@@ -3,7 +3,7 @@
 use super::*;
 
 /// Test-only composition probe. Production target custody belongs to
-/// `terminal-psi-to-native-artifact`; these projection tests merely confirm
+/// `native-realization`; these projection tests merely confirm
 /// that the emitted abstract plan remains accepted by the next stage.
 pub(super) struct TestLoweredOptimizedTargetOperations {
     optimized: ValidatedOptimizedAbstractPlan,

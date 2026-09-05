@@ -48,8 +48,8 @@ const GOVERNED_ROOTS: &[&str] = &[
     "omega-rust/omega/pipeline/register-homes-to-post-allocation-machine",
     "omega-rust/omega/pipeline/target-operations-to-assigned-target-operations",
     "omega-rust/omega/pipeline/target-operations-to-selected-instructions",
-    "omega-rust/omega/pipeline/target-to-register-environment",
-    "omega-rust/omega/pipeline/terminal-psi-to-native-artifact",
+    "omega-rust/omega/backend/register-environment",
+    "omega-rust/omega/compiler/native-realization",
 ];
 
 /// One rule-owning stage's complete navigation contract. Keeping these fields

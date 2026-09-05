@@ -34,7 +34,7 @@ pub struct CompileRequest {
     pub(crate) artifact_policy: ArtifactEmissionPolicy,
     pub(crate) terminal_admission_profile: proof_admission::AdmissionProfile,
     pub(crate) terminal_authority_permission_policy:
-        terminal_psi_to_native_artifact::TerminalAuthorityPermissionPolicy,
+        native_realization::TerminalAuthorityPermissionPolicy,
     pub(crate) accepted_trust_admissions: Vec<trust_model::TrustAdmission>,
     pub(crate) package_inputs: Option<PackageCompilationInputs>,
     pub(crate) optimization_rollback: OptimizationRollback,
@@ -55,7 +55,7 @@ impl CompileRequest {
             artifact_policy: ArtifactEmissionPolicy::Full,
             terminal_admission_profile: proof_admission::AdmissionProfile::default(),
             terminal_authority_permission_policy:
-                terminal_psi_to_native_artifact::current_terminal_authority_permission_policy(),
+                native_realization::current_terminal_authority_permission_policy(),
             accepted_trust_admissions: Vec::new(),
             package_inputs: None,
             optimization_rollback: OptimizationRollback::default(),
@@ -84,7 +84,7 @@ impl CompileRequest {
     /// permissions for native realization. The default is deny-by-absence.
     pub fn with_terminal_authority_permission_policy(
         mut self,
-        policy: terminal_psi_to_native_artifact::TerminalAuthorityPermissionPolicy,
+        policy: native_realization::TerminalAuthorityPermissionPolicy,
     ) -> Self {
         self.terminal_authority_permission_policy = policy;
         self

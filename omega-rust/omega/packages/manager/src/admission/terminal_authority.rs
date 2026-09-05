@@ -2,7 +2,7 @@
 
 use super::AcceptedOrdinaryClosureEvidence;
 use diagnostics::Diagnostic;
-use terminal_psi_to_native_artifact::{
+use native_realization::{
     TerminalAuthorityPermissionPolicy, TerminalAuthorityPermissionPolicyBuildError,
     TerminalAuthorityPermissionPolicyRow, TerminalAuthorityPolicy,
     terminal_authority_permission_policy_with_rows,

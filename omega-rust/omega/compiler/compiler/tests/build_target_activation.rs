@@ -521,14 +521,12 @@ machine Main::main(&mut self) {
     assert!(physical.children().iter().all(|child| {
         matches!(
             child.parent(),
-            terminal_psi_to_native_artifact::PhysicalChildParent::OperatorApplicationCoverage(
-                _
-            )
+            native_realization::PhysicalChildParent::OperatorApplicationCoverage(_)
         ) && matches!(
             child.occurrence(),
-            terminal_psi_to_native_artifact::NativePhysicalOccurrence::Operator(_)
+            native_realization::NativePhysicalOccurrence::Operator(_)
         ) && child.relocation()
-            == terminal_psi_to_native_artifact::PhysicalRelocationDisposition::DirectInstructionBytes
+            == native_realization::PhysicalRelocationDisposition::DirectInstructionBytes
     }));
     let fma_functions = native
         .object()
@@ -587,11 +585,9 @@ machine Main::main(&mut self) {
         .expect("FMA occurrence rejoins one selected native plan");
     let mut substituted_digest = *selected.plan_digest().as_bytes();
     substituted_digest[0] ^= 1;
-    *selected = terminal_psi_to_native_artifact::NativeSelectedProviderPlan::new(
+    *selected = native_realization::NativeSelectedProviderPlan::new(
         selected.report_identity(),
-        terminal_psi_to_native_artifact::NativeSelectedProviderPlanDigest::from_digest(
-            substituted_digest,
-        ),
+        native_realization::NativeSelectedProviderPlanDigest::from_digest(substituted_digest),
         selected.requirement_identities().to_vec(),
     );
     let error = compilation_report::RetainedNativeArtifact::from_replayed_parts(parts)

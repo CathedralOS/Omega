@@ -4792,7 +4792,7 @@ linux_x86_64 machine ConsoleNativeProvider::exit_process(return_code: i32)
 
     let permission_policy = |classes: &[effects::TerminalAuthorityClass], include_unrelated| {
         let mut rows = vec![
-            terminal_psi_to_native_artifact::TerminalAuthorityPermissionPolicyRow::new(
+            native_realization::TerminalAuthorityPermissionPolicyRow::new(
                 schema_digest,
                 exit_requirement.clone(),
                 effects::TerminalAuthorityDisposition::from_classes(classes.iter().copied()),
@@ -4800,14 +4800,14 @@ linux_x86_64 machine ConsoleNativeProvider::exit_process(return_code: i32)
         ];
         if include_unrelated {
             rows.push(
-                terminal_psi_to_native_artifact::TerminalAuthorityPermissionPolicyRow::new(
+                native_realization::TerminalAuthorityPermissionPolicyRow::new(
                     effects::provider_plan::ServiceSchemaDigest::from_digest([93; 32]),
                     "Unrelated::operation#exact",
                     effects::TerminalAuthorityDisposition::from_classes([]),
                 ),
             );
         }
-        terminal_psi_to_native_artifact::terminal_authority_permission_policy_with_rows(rows)
+        native_realization::terminal_authority_permission_policy_with_rows(rows)
             .expect("exact receiving permission policy")
     };
     let profile = proof_admission::AdmissionProfile::default();
@@ -4853,7 +4853,7 @@ linux_x86_64 machine ConsoleNativeProvider::exit_process(return_code: i32)
         reconstruct_with_permissions("retained-omitted-proposal", vec![]),
         &profile,
         &optimizations,
-        terminal_psi_to_native_artifact::current_terminal_authority_policy(),
+        native_realization::current_terminal_authority_policy(),
         accepted_permission_policy(),
         accepted_permission_policy(),
         &[],
@@ -4878,7 +4878,7 @@ linux_x86_64 machine ConsoleNativeProvider::exit_process(return_code: i32)
         reconstruct_with_permissions("retained-widened-proposal", vec![widened_permission]),
         &profile,
         &optimizations,
-        terminal_psi_to_native_artifact::current_terminal_authority_policy(),
+        native_realization::current_terminal_authority_policy(),
         accepted_permission_policy(),
         permission_policy(
             &[
@@ -4901,9 +4901,9 @@ linux_x86_64 machine ConsoleNativeProvider::exit_process(return_code: i32)
         compile_retained("retained-missing"),
         &profile,
         &optimizations,
-        terminal_psi_to_native_artifact::current_terminal_authority_policy(),
+        native_realization::current_terminal_authority_policy(),
         accepted_permission_policy(),
-        terminal_psi_to_native_artifact::current_terminal_authority_permission_policy(),
+        native_realization::current_terminal_authority_permission_policy(),
         &[],
     )
     .expect_err("retained re-entry must reject a missing accepted package permission");
@@ -4918,7 +4918,7 @@ linux_x86_64 machine ConsoleNativeProvider::exit_process(return_code: i32)
         compile_retained("retained-substituted"),
         &profile,
         &optimizations,
-        terminal_psi_to_native_artifact::current_terminal_authority_policy(),
+        native_realization::current_terminal_authority_policy(),
         accepted_permission_policy(),
         permission_policy(&[effects::TerminalAuthorityClass::ProcessOutput], false),
         &[],
@@ -4939,7 +4939,7 @@ linux_x86_64 machine ConsoleNativeProvider::exit_process(return_code: i32)
             retained,
             &profile,
             &optimizations,
-            terminal_psi_to_native_artifact::current_terminal_authority_policy(),
+            native_realization::current_terminal_authority_policy(),
             accepted_permission_policy(),
             retained_policy,
             &[],
@@ -5481,8 +5481,8 @@ machine Main::main(&mut self) {
     .with_terminal_authority_permissions(vec![console_permission.clone()])
     .expect("accepted Console binding carries its exact terminal permission");
     let console_permission_policy =
-        terminal_psi_to_native_artifact::terminal_authority_permission_policy_with_rows(vec![
-            terminal_psi_to_native_artifact::TerminalAuthorityPermissionPolicyRow::new(
+        native_realization::terminal_authority_permission_policy_with_rows(vec![
+            native_realization::TerminalAuthorityPermissionPolicyRow::new(
                 console_schema,
                 console_exit_requirement,
                 console_permission.permitted().clone(),

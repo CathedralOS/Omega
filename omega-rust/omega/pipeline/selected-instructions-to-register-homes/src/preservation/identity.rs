@@ -88,12 +88,12 @@ fn target(hasher: &mut Sha256, target: target::NativeTarget) {
     hasher.update((target.pointer_alignment as u64).to_le_bytes());
 }
 
-fn abi_tag(abi: target_to_register_environment::FrameAbiPreservationConvention) -> u8 {
+fn abi_tag(abi: register_environment::FrameAbiPreservationConvention) -> u8 {
     match abi {
-        target_to_register_environment::FrameAbiPreservationConvention::SystemVAMD64 => 0,
-        target_to_register_environment::FrameAbiPreservationConvention::MicrosoftX64 => 1,
-        target_to_register_environment::FrameAbiPreservationConvention::Aapcs64 => 2,
-        target_to_register_environment::FrameAbiPreservationConvention::DarwinAapcs64 => 3,
+        register_environment::FrameAbiPreservationConvention::SystemVAMD64 => 0,
+        register_environment::FrameAbiPreservationConvention::MicrosoftX64 => 1,
+        register_environment::FrameAbiPreservationConvention::Aapcs64 => 2,
+        register_environment::FrameAbiPreservationConvention::DarwinAapcs64 => 3,
     }
 }
 

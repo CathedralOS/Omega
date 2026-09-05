@@ -38,7 +38,7 @@ pub fn stage_non_authoritative_spill_frame_requirements(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use target_to_register_environment::FrameAbiPreservationConvention;
+    use register_environment::FrameAbiPreservationConvention;
 
     #[test]
     fn independent_zero_access_rows_retain_neutral_alignment_without_inventing_a_frame() {

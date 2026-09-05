@@ -21,7 +21,7 @@ pub use validation::validate_target_frame_protocol_encoding;
 use post_allocation_machine_to_frame_layout::{
     ReturnAddressFrameCustody, TargetFrameLayoutIdentity, ValidatedTargetFrameLayout,
 };
-use target_to_register_environment::ValidatedTargetRegisterEnvironment;
+use register_environment::ValidatedTargetRegisterEnvironment;
 
 pub fn stage_target_frame_protocol_encoding(
     frame: &ValidatedTargetFrameLayout,

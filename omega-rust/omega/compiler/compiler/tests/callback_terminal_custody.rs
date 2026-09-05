@@ -774,9 +774,9 @@ fn direct_callback_relocation_resolves_to_its_private_function() {
     let [(locator, boundary_entry_plan)] = policy_rows.as_slice() else {
         panic!("one exact callback registrar authority row expected");
     };
-    let policy = terminal_psi_to_native_artifact::terminal_authority_policy_with_rows(vec![
-        terminal_psi_to_native_artifact::TerminalAuthorityPolicyRow::new(
-            terminal_psi_to_native_artifact::normalized_foreign_terminal_mechanism_with_callback_materializations(
+    let policy = native_realization::terminal_authority_policy_with_rows(vec![
+        native_realization::TerminalAuthorityPolicyRow::new(
+            native_realization::normalized_foreign_terminal_mechanism_with_callback_materializations(
                 locator,
                 boundary_entry_plan,
                 &callback_materialization.context,
@@ -787,8 +787,8 @@ fn direct_callback_relocation_resolves_to_its_private_function() {
     ])
     .expect("callback registrar receiving policy");
     let permission_policy =
-        terminal_psi_to_native_artifact::terminal_authority_permission_policy_with_rows(vec![
-            terminal_psi_to_native_artifact::TerminalAuthorityPermissionPolicyRow::new(
+        native_realization::terminal_authority_permission_policy_with_rows(vec![
+            native_realization::TerminalAuthorityPermissionPolicyRow::new(
                 provider_plan.schema.identity_digest(),
                 provider_requirement.clone(),
                 effects::TerminalAuthorityDisposition::from_classes([]),
@@ -800,7 +800,7 @@ fn direct_callback_relocation_resolves_to_its_private_function() {
         &proof_admission::AdmissionProfile::default(),
         &optimization_core::PostTerminalOptimizationSelections::default(),
         policy,
-        terminal_psi_to_native_artifact::current_terminal_authority_permission_policy(),
+        native_realization::current_terminal_authority_permission_policy(),
         permission_policy,
         &[SourceEvaluatedImportSettlement::new(
             &execution,
@@ -878,20 +878,22 @@ fn direct_callback_relocation_resolves_to_its_private_function() {
         .children()
         .iter()
         .filter_map(|child| {
-            let terminal_psi_to_native_artifact::PhysicalRelocationDisposition::UnresolvedNormalizedForeignCall(
+            let native_realization::PhysicalRelocationDisposition::UnresolvedNormalizedForeignCall(
                 foreign,
             ) = child.relocation()
             else {
                 return None;
             };
-            foreign.callback().map(|callback| (child, foreign, callback))
+            foreign
+                .callback()
+                .map(|callback| (child, foreign, callback))
         })
         .collect::<Vec<_>>();
     let [(physical_child, physical_foreign, physical_callback)] = callback_children.as_slice()
     else {
         panic!("one direct callback registrar D32 child expected")
     };
-    let terminal_psi_to_native_artifact::NormalizedForeignCallbackRelocations::X86_64Relative32 {
+    let native_realization::NormalizedForeignCallbackRelocations::X86_64Relative32 {
         callback_function,
         relocation: physical_callback_relocation,
     } = physical_callback

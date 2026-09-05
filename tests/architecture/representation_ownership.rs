@@ -15,6 +15,39 @@ fn repository() -> PathBuf {
 }
 
 #[test]
+fn native_coordination_and_target_setup_are_not_program_stages() {
+    let root = repository();
+    let pipeline = root.join("omega-rust/omega/pipeline");
+    for retired in [
+        "terminal-psi-to-native-artifact",
+        "native-realization",
+        "target-to-register-environment",
+        "register-environment",
+    ] {
+        assert!(!pipeline.join(retired).join("Cargo.toml").exists());
+    }
+    let entrances = std::fs::read_dir(&pipeline)
+        .unwrap()
+        .map(|entry| entry.unwrap().file_name().to_string_lossy().into_owned())
+        .filter(|name| name.starts_with("terminal-psi-to-"))
+        .collect::<Vec<_>>();
+    assert_eq!(entrances, ["terminal-psi-to-abstract-operations"]);
+    let coordinator = std::fs::read_to_string(
+        root.join("omega-rust/omega/compiler/native-realization/Cargo.toml"),
+    )
+    .unwrap();
+    assert!(coordinator.contains("../../pipeline/terminal-psi-to-abstract-operations"));
+    assert!(coordinator.contains("../../backend/register-environment"));
+    let setup = std::fs::read_to_string(
+        root.join("omega-rust/omega/backend/register-environment/Cargo.toml"),
+    )
+    .unwrap();
+    assert!(setup.contains("isa-aarch64"));
+    assert!(setup.contains("isa-x86_64"));
+    assert!(!setup.contains("/pipeline/"));
+}
+
+#[test]
 fn optimization_phase_directories_name_both_identical_endpoints() {
     let root = repository();
     let pipeline = root.join("omega-rust/omega/pipeline");
@@ -202,7 +235,7 @@ fn text_publication_records_and_codec_belong_to_the_representation() {
     let codec = rust_source(&representation.with_extension(""));
     assert!(codec.contains("const MANIFEST_VERSION: u32 = 11;"));
     for forbidden in [
-        "terminal_psi_to_native_artifact::",
+        "native_realization::",
         "machine_emission::",
         "post_allocation_machine_to_post_allocation_machine::",
         "object_file::",
@@ -400,11 +433,7 @@ fn allocation_algorithms_and_staging_have_one_transform_owner() {
     // interval algorithms consume explicit selected facts and register data.
     for analysis in ["liveness", "live_ranges"] {
         let source = rust_source(&owner.join("analyses").join(analysis));
-        for forbidden in [
-            "omega_isa_",
-            "machine_emission",
-            "terminal_psi_to_native_artifact",
-        ] {
+        for forbidden in ["omega_isa_", "machine_emission", "native_realization"] {
             assert!(
                 !source.contains(forbidden),
                 "{analysis} depends on {forbidden}"
@@ -673,7 +702,7 @@ fn exit_contract_records_and_identities_are_representation_owned() {
     assert!(machine.contains("omega.terminal.whole-function-exit-contract.v9"));
     assert!(!pipeline.contains("omega.terminal.whole-function-exit-contract.v9"));
     assert!(!machine.contains("post_allocation_machine_to_post_allocation_machine::"));
-    assert!(!machine.contains("terminal_psi_to_native_artifact::"));
+    assert!(!machine.contains("native_realization::"));
     assert!(
         emission
             .contains("pub fn shared_contract(&self) -> std::sync::Arc<WholeFunctionExitContract>")
@@ -709,11 +738,10 @@ fn exit_replay_checks_claimed_records_without_reentering_the_producer() {
         );
         assert!(!entrance.contains("let replayed = compute"));
     }
-    let coordinator =
-        rust_source(&root.join("omega-rust/omega/pipeline/terminal-psi-to-native-artifact/src"));
+    let coordinator = rust_source(&root.join("omega-rust/omega/compiler/native-realization/src"));
     assert!(!coordinator.contains("pub fn stage_whole_function_exit_contract"));
     assert!(!coordinator.contains("pub fn validate_whole_function_exit_contract"));
-    assert!(!replay.contains("terminal_psi_to_native_artifact::"));
+    assert!(!replay.contains("native_realization::"));
 }
 
 #[test]
@@ -736,7 +764,7 @@ fn fragment_projection_is_backend_owned_and_replay_does_not_emit() {
         );
     }
     let source = rust_source(&backend);
-    assert!(!source.contains("terminal_psi_to_native_artifact::"));
+    assert!(!source.contains("native_realization::"));
     assert!(!source.contains("source.replay()"));
     let coordinator = root.join("omega-rust/omega/backend/machine-emission/src/fragment_emission");
     let compute = rust_source(&coordinator.join("compute"));
@@ -785,7 +813,7 @@ fn fragment_publication_data_and_codec_do_not_depend_on_admission() {
     for forbidden in [
         "ValidatedFunctionFragmentEmissionManifest",
         "StagedOptimizedFunctionFragmentEmission",
-        "terminal_psi_to_native_artifact",
+        "native_realization",
     ] {
         assert!(!data.contains(forbidden));
         assert!(!codec.contains(forbidden));
@@ -803,8 +831,7 @@ fn fragment_publication_data_and_codec_do_not_depend_on_admission() {
 fn applied_frame_data_and_target_mechanics_have_separate_owners() {
     let root = repository();
     let data = rust_source(&root.join("omega-rust/omega/representations/machine-code/src"));
-    let pipeline =
-        rust_source(&root.join("omega-rust/omega/pipeline/terminal-psi-to-native-artifact/src"));
+    let pipeline = rust_source(&root.join("omega-rust/omega/compiler/native-realization/src"));
     for name in [
         "FunctionFragmentFrameApplicationIdentity",
         "FunctionAppliedFrameEpilogue",
@@ -836,7 +863,7 @@ fn applied_frame_data_and_target_mechanics_have_separate_owners() {
     }
     let backend =
         rust_source(&root.join("omega-rust/omega/backend/machine-emission/src/frame_application"));
-    assert!(!backend.contains("terminal_psi_to_native_artifact::"));
+    assert!(!backend.contains("native_realization::"));
     assert!(!backend.contains("StagedFunctionFragmentFrameApplication"));
     assert!(!data.contains("pub struct StagedFunctionFragmentFrameApplication"));
 }
@@ -845,7 +872,7 @@ fn applied_frame_data_and_target_mechanics_have_separate_owners() {
 fn resolved_layout_transformation_is_owned_outside_the_coordinator() {
     let root = repository();
     let owner = root.join("omega-rust/omega/pipeline/selected-form-encoding-to-resolved-layout");
-    let coordinator = root.join("omega-rust/omega/pipeline/terminal-psi-to-native-artifact/src");
+    let coordinator = root.join("omega-rust/omega/compiler/native-realization/src");
     let algorithms = rust_source(&owner.join("src"));
     let orchestration = rust_source(&coordinator);
     for definition in [
@@ -865,9 +892,9 @@ fn resolved_layout_transformation_is_owned_outside_the_coordinator() {
     }
     assert!(algorithms.contains("pub(crate) fn with_replayed_functions("));
     assert!(!algorithms.contains("pub fn with_replayed_functions("));
-    assert!(!algorithms.contains("terminal_psi_to_native_artifact::"));
+    assert!(!algorithms.contains("native_realization::"));
     let manifest = std::fs::read_to_string(owner.join("Cargo.toml")).unwrap();
-    assert!(!manifest.contains("terminal-psi-to-native-artifact"));
+    assert!(!manifest.contains("native-realization"));
     let representation =
         rust_source(&root.join("omega-rust/omega/representations/machine-code/src"));
     assert!(representation.contains("pub struct ResolvedMachineLayout {"));
@@ -1135,7 +1162,7 @@ fn realization_and_emission_replay_do_not_recover_programs_from_history() {
 
 #[test]
 fn unit_realization_and_identity_routing_consume_current_allocation() {
-    let root = repository().join("omega-rust/omega/pipeline/terminal-psi-to-native-artifact/src");
+    let root = repository().join("omega-rust/omega/compiler/native-realization/src");
     let realization =
         repository().join("omega-rust/omega/backend/machine-emission/src/function_realization");
     for family in ["unit", "structural_unit"] {
@@ -1232,9 +1259,8 @@ fn rematerialization_uses_the_common_encoding_and_layout_stages() {
 
 #[test]
 fn physical_coordination_shares_selection_and_does_not_fork_machine_rules_by_history() {
-    let root = repository().join(
-        "omega-rust/omega/pipeline/terminal-psi-to-native-artifact/src/native_pipeline/physical_pipeline",
-    );
+    let root = repository()
+        .join("omega-rust/omega/compiler/native-realization/src/native_pipeline/physical_pipeline");
     let composition = std::fs::read_to_string(root.join("routes/composition/model.rs")).unwrap();
     assert!(!composition.contains("after_selected_lowering"));
     assert!(!composition.contains("SelectedLoweringWithFunctionRelativeLayout"));
@@ -1278,7 +1304,7 @@ fn physical_coordination_shares_selection_and_does_not_fork_machine_rules_by_his
 
 #[test]
 fn completed_physical_results_and_emission_do_not_fork_by_history() {
-    let root = repository().join("omega-rust/omega/pipeline/terminal-psi-to-native-artifact/src");
+    let root = repository().join("omega-rust/omega/compiler/native-realization/src");
     let model =
         std::fs::read_to_string(root.join("native_pipeline/physical_pipeline/model.rs")).unwrap();
     assert!(model.contains("pub struct StagedOptimizedVerifiedPhysicalPipeline"));

@@ -10,11 +10,11 @@ pub(crate) const ENTRANCES: &[RequiredCoordinationEntrance] = &[
         coordination_marker: "pub fn plan_optimized_program_storage_semantic_wrapper",
     },
     RequiredCoordinationEntrance {
-        path: "omega-rust/omega/pipeline/terminal-psi-to-native-artifact/src/realization/providers/settlements/mod.rs",
+        path: "omega-rust/omega/compiler/native-realization/src/realization/providers/settlements/mod.rs",
         coordination_marker: "pub(crate) fn settle_provider_executions",
     },
     RequiredCoordinationEntrance {
-        path: "omega-rust/omega/pipeline/target-to-register-environment/src/lib.rs",
+        path: "omega-rust/omega/backend/register-environment/src/lib.rs",
         coordination_marker: "pub fn baseline_target_register_environment",
     },
     RequiredCoordinationEntrance {
@@ -166,11 +166,11 @@ pub(crate) const ENTRANCES: &[RequiredCoordinationEntrance] = &[
         coordination_marker: "pub fn stage_allocation_recovery_function_relative_realization",
     },
     RequiredCoordinationEntrance {
-        path: "omega-rust/omega/pipeline/terminal-psi-to-native-artifact/src/native_pipeline/physical_pipeline/routes/allocation_recovery/mod.rs",
+        path: "omega-rust/omega/compiler/native-realization/src/native_pipeline/physical_pipeline/routes/allocation_recovery/mod.rs",
         coordination_marker: "fn stage_allocation_recovery_pipeline",
     },
     RequiredCoordinationEntrance {
-        path: "omega-rust/omega/pipeline/terminal-psi-to-native-artifact/src/native_pipeline/physical_pipeline/routes/composition/mod.rs",
+        path: "omega-rust/omega/compiler/native-realization/src/native_pipeline/physical_pipeline/routes/composition/mod.rs",
         coordination_marker: "fn resolve_physical_phase_composition",
     },
     RequiredCoordinationEntrance {
@@ -178,43 +178,43 @@ pub(crate) const ENTRANCES: &[RequiredCoordinationEntrance] = &[
         coordination_marker: "pub fn stage_optimized_unit_function_relative_realization",
     },
     RequiredCoordinationEntrance {
-        path: "omega-rust/omega/pipeline/terminal-psi-to-native-artifact/src/entry_settlement/mod.rs",
+        path: "omega-rust/omega/compiler/native-realization/src/entry_settlement/mod.rs",
         coordination_marker: "pub fn validate_native_program_entry_settlement",
     },
     RequiredCoordinationEntrance {
-        path: "omega-rust/omega/pipeline/terminal-psi-to-native-artifact/src/realization/mod.rs",
+        path: "omega-rust/omega/compiler/native-realization/src/realization/mod.rs",
         coordination_marker: "pub fn realize_native_artifact",
     },
     RequiredCoordinationEntrance {
-        path: "omega-rust/omega/pipeline/terminal-psi-to-native-artifact/src/realization/terminal_authority_review.rs",
+        path: "omega-rust/omega/compiler/native-realization/src/realization/terminal_authority_review.rs",
         coordination_marker: "pub(crate) fn review_terminal_authority_closure",
     },
     RequiredCoordinationEntrance {
-        path: "omega-rust/omega/pipeline/terminal-psi-to-native-artifact/src/realization/terminal_authority_policy/mod.rs",
+        path: "omega-rust/omega/compiler/native-realization/src/realization/terminal_authority_policy/mod.rs",
         coordination_marker: "pub fn terminal_authority_policy_with_rows",
     },
     RequiredCoordinationEntrance {
-        path: "omega-rust/omega/pipeline/terminal-psi-to-native-artifact/src/realization/providers/mod.rs",
+        path: "omega-rust/omega/compiler/native-realization/src/realization/providers/mod.rs",
         coordination_marker: "pub(crate) fn admit_native_providers",
     },
     RequiredCoordinationEntrance {
-        path: "omega-rust/omega/pipeline/terminal-psi-to-native-artifact/src/optimized_semantic_wrapper_encoding/mod.rs",
+        path: "omega-rust/omega/compiler/native-realization/src/optimized_semantic_wrapper_encoding/mod.rs",
         coordination_marker: "pub fn select_optimized_program_storage_semantic_wrapper_encoding",
     },
     RequiredCoordinationEntrance {
-        path: "omega-rust/omega/pipeline/terminal-psi-to-native-artifact/src/optimized_semantic_wrapper_object/mod.rs",
+        path: "omega-rust/omega/compiler/native-realization/src/optimized_semantic_wrapper_object/mod.rs",
         coordination_marker: "pub fn stage_validated_optimized_program_storage_semantic_wrapper_object",
     },
     RequiredCoordinationEntrance {
-        path: "omega-rust/omega/pipeline/terminal-psi-to-native-artifact/src/optimized_semantic_wrapper_object/validation/mod.rs",
+        path: "omega-rust/omega/compiler/native-realization/src/optimized_semantic_wrapper_object/validation/mod.rs",
         coordination_marker: "pub fn validate_optimized_program_storage_semantic_wrapper_object",
     },
     RequiredCoordinationEntrance {
-        path: "omega-rust/omega/pipeline/terminal-psi-to-native-artifact/src/optimized_semantic_wrapper_object/object/mod.rs",
+        path: "omega-rust/omega/compiler/native-realization/src/optimized_semantic_wrapper_object/object/mod.rs",
         coordination_marker: "pub(crate) fn construct_object",
     },
     RequiredCoordinationEntrance {
-        path: "omega-rust/omega/pipeline/terminal-psi-to-native-artifact/src/native_pipeline/physical_pipeline/mod.rs",
+        path: "omega-rust/omega/compiler/native-realization/src/native_pipeline/physical_pipeline/mod.rs",
         coordination_marker: "pub fn stage_optimized_verified_physical_pipeline",
     },
     RequiredCoordinationEntrance {

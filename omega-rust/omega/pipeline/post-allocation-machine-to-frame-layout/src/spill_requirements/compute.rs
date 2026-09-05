@@ -2,8 +2,8 @@
 
 use crate::ValidatedTargetRegisterEnvironment;
 use optimization_core::{OptimizationWorkBudget, OptimizationWorkUsage};
+use register_environment::selected_abi_preservation;
 use selected_instructions_to_register_homes::ValidatedAbstractSpillAccessConstraints;
-use target_to_register_environment::selected_abi_preservation;
 
 use super::{
     FrameAbiPreservationConvention, FunctionSpillFrameRequirements,

@@ -91,7 +91,7 @@ fn compile_native_targets(
 
     let mut reusable_inputs = Vec::<(
         super::optimization::NativeInputReuseKey,
-        Result<terminal_psi_to_native_artifact::PreparedNativeRealizationInput, Vec<Diagnostic>>,
+        Result<native_realization::PreparedNativeRealizationInput, Vec<Diagnostic>>,
     )>::new();
     for (prepared, _) in staged.iter().filter_map(|result| result.as_ref().ok()) {
         let key = prepared.reuse_key();

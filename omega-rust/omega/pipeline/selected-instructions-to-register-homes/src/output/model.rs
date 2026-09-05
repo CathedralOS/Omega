@@ -3,7 +3,7 @@ use crate::{
     ValidatedPostAllocationOptimizationManifest, ValidatedRegisterHomes,
 };
 use optimization_core::{OptimizationSelections, OptimizationWorkBudget};
-use target_to_register_environment::ValidatedTargetRegisterEnvironment;
+use register_environment::ValidatedTargetRegisterEnvironment;
 
 use crate::{
     OptimizedActiveResidentRematerializationError, OptimizedPostCopyRegisterHomeCustodyError,

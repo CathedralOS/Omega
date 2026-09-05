@@ -4,7 +4,7 @@ use selected_instructions_to_register_homes::AbstractSpillAccessConstraintPlanId
 use semantic_vocabulary::MachineId;
 use target::NativeTarget;
 
-pub use target_to_register_environment::FrameAbiPreservationConvention;
+pub use register_environment::FrameAbiPreservationConvention;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct NonAuthoritativeSpillFrameRequirementIdentity([u8; 32]);

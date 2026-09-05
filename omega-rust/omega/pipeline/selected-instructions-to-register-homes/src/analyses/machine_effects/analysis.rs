@@ -3,7 +3,7 @@ use crate::{
     validate_pre_allocation_machine_effects,
 };
 
-use target_to_register_environment::ValidatedTargetRegisterEnvironment;
+use register_environment::ValidatedTargetRegisterEnvironment;
 
 use super::MachineEffectStageError;
 use super::catalog::validated_catalog;

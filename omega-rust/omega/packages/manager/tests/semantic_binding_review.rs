@@ -432,7 +432,7 @@ invokes console;
             &evidence,
             &proof_admission::AdmissionProfile::default(),
             &optimization_core::PostTerminalOptimizationSelections::default(),
-            terminal_psi_to_native_artifact::current_terminal_authority_policy(),
+            native_realization::current_terminal_authority_policy(),
             accepted_permission_policy.clone(),
             &[],
         )
@@ -512,7 +512,7 @@ invokes console;
             &evidence,
             &proof_admission::AdmissionProfile::default(),
             &optimization_core::PostTerminalOptimizationSelections::default(),
-            terminal_psi_to_native_artifact::current_terminal_authority_policy(),
+            native_realization::current_terminal_authority_policy(),
             accepted_permission_policy.clone(),
             &[],
         )
@@ -621,7 +621,7 @@ invokes console;
             &evidence,
             &proof_admission::AdmissionProfile::default(),
             &optimization_core::PostTerminalOptimizationSelections::default(),
-            terminal_psi_to_native_artifact::current_terminal_authority_policy(),
+            native_realization::current_terminal_authority_policy(),
             accepted_permission_policy.clone(),
             &[],
         )
@@ -652,8 +652,8 @@ invokes console;
     let widened_report =
         compile_terminal_report("proposal-substitution-build", vec![widened_binding]);
     let widened_receiving_policy =
-        terminal_psi_to_native_artifact::terminal_authority_permission_policy_with_rows(vec![
-            terminal_psi_to_native_artifact::TerminalAuthorityPermissionPolicyRow::new(
+        native_realization::terminal_authority_permission_policy_with_rows(vec![
+            native_realization::TerminalAuthorityPermissionPolicyRow::new(
                 provider.schema().identity_digest(),
                 exit_requirement.clone(),
                 TerminalAuthorityDisposition::from_classes([
@@ -669,7 +669,7 @@ invokes console;
             &evidence,
             &proof_admission::AdmissionProfile::default(),
             &optimization_core::PostTerminalOptimizationSelections::default(),
-            terminal_psi_to_native_artifact::current_terminal_authority_policy(),
+            native_realization::current_terminal_authority_policy(),
             widened_receiving_policy,
             &[],
         )

@@ -4,7 +4,7 @@ use crate::{
     ValidatedLegalizedOperations, ValidatedSelectedInstructions, legalize_target_operations,
     select_instructions,
 };
-use target_to_register_environment::ValidatedTargetRegisterEnvironment;
+use register_environment::ValidatedTargetRegisterEnvironment;
 
 use super::constraints::selection_constraints;
 use super::model::OptimizedSelectionPipelineError;

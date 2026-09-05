@@ -23,12 +23,12 @@ pub use save_storage::*;
 pub use spill_requirements::*;
 pub use validation::validate_target_frame_layout;
 
+use register_environment::ValidatedTargetRegisterEnvironment;
 use register_homes_to_post_allocation_machine::StagedOptimizedPostAllocationMachinePlan;
 use selected_instructions_to_register_homes::{
     AllocatedCalleeSavedFunctionKind, AllocatedCalleeSavedRequirementIdentity,
     ValidatedAllocatedCalleeSavedRequirements,
 };
-use target_to_register_environment::ValidatedTargetRegisterEnvironment;
 
 pub fn stage_target_frame_layout(
     machine: &StagedOptimizedPostAllocationMachinePlan,

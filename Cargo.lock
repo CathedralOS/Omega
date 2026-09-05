@@ -435,6 +435,7 @@ dependencies = [
  "layout-plans",
  "machine-code",
  "machine-emission",
+ "native-realization",
  "numerics",
  "object-file",
  "optimization-core",
@@ -463,7 +464,6 @@ dependencies = [
  "terminal-interpreter",
  "terminal-psi",
  "terminal-psi-to-abstract-operations",
- "terminal-psi-to-native-artifact",
  "terminal-verifier",
  "tokens",
  "tokens-to-syntax-trees",
@@ -987,6 +987,7 @@ dependencies = [
  "post-allocation-machine-to-post-allocation-machine",
  "post-allocation-machine-to-selected-form-encoding",
  "proof-admission",
+ "register-environment",
  "register-homes-to-post-allocation-machine",
  "register-model",
  "selected-form-encoding-to-resolved-layout",
@@ -1000,7 +1001,6 @@ dependencies = [
  "target",
  "target-operations",
  "target-operations-to-assigned-target-operations",
- "target-to-register-environment",
  "task-plans",
  "terminal-codec",
  "terminal-fuel",
@@ -1049,6 +1049,66 @@ dependencies = [
  "target-operations",
  "terminal-codec",
  "terminal-psi",
+]
+
+[[package]]
+name = "native-realization"
+version = "0.1.0"
+dependencies = [
+ "abstract-operations",
+ "abstract-operations-to-abstract-operations",
+ "abstract-operations-to-target-operations",
+ "assigned-target-operations",
+ "boundary-applications",
+ "calling-conventions",
+ "checked-trees",
+ "checked-trees-to-terminal-psi",
+ "diagnostics",
+ "effects",
+ "function-identity",
+ "image-emission",
+ "installation-evidence",
+ "isa-aarch64",
+ "isa-x86_64",
+ "language-semantics",
+ "machine-code",
+ "machine-emission",
+ "native-artifact",
+ "numerics",
+ "object-file",
+ "optimization",
+ "optimization-core",
+ "optimization-validation",
+ "post-allocation-machine-to-frame-layout",
+ "post-allocation-machine-to-post-allocation-machine",
+ "program-entry-plan",
+ "proof-admission",
+ "provider-planning",
+ "register-environment",
+ "register-homes-to-post-allocation-machine",
+ "selected-dispatch",
+ "selected-form-encoding-to-resolved-layout",
+ "selected-instructions",
+ "selected-instructions-to-register-homes",
+ "semantic-vocabulary",
+ "sha2",
+ "source-files-to-tokens",
+ "symbol-resolved-trees-to-typed-trees",
+ "symbols",
+ "syntax-trees-to-symbol-resolved-trees",
+ "target",
+ "target-operations",
+ "target-operations-to-assigned-target-operations",
+ "target-operations-to-selected-instructions",
+ "task-plans",
+ "terminal-codec",
+ "terminal-fuel",
+ "terminal-interpreter",
+ "terminal-psi",
+ "terminal-psi-to-abstract-operations",
+ "terminal-verifier",
+ "tokens-to-syntax-trees",
+ "typed-trees-to-checked-trees",
 ]
 
 [[package]]
@@ -1167,6 +1227,7 @@ dependencies = [
  "machine-code",
  "machine-emission",
  "native-artifact",
+ "native-realization",
  "numerics",
  "object-file",
  "optimization-core",
@@ -1179,6 +1240,7 @@ dependencies = [
  "program-entry-plan",
  "proof-admission",
  "provider-planning",
+ "register-environment",
  "register-homes-to-post-allocation-machine",
  "register-model",
  "selected-form-encoding-to-resolved-layout",
@@ -1194,14 +1256,12 @@ dependencies = [
  "target-operations",
  "target-operations-to-assigned-target-operations",
  "target-operations-to-selected-instructions",
- "target-to-register-environment",
  "terminal-codec",
  "terminal-fixed-fuel",
  "terminal-fuel",
  "terminal-interpreter",
  "terminal-psi",
  "terminal-psi-to-abstract-operations",
- "terminal-psi-to-native-artifact",
  "terminal-verifier",
  "tokens-to-syntax-trees",
  "typed-trees",
@@ -1347,6 +1407,7 @@ dependencies = [
  "diagnostics",
  "effects",
  "language-semantics",
+ "native-realization",
  "optimization-core",
  "package-compilation",
  "package-evidence",
@@ -1359,7 +1420,6 @@ dependencies = [
  "source-files-to-tokens",
  "syntax-trees",
  "target",
- "terminal-psi-to-native-artifact",
  "tokens",
  "tokens-to-syntax-trees",
 ]
@@ -1409,6 +1469,7 @@ dependencies = [
  "machine-code",
  "optimization-core",
  "physical-instructions",
+ "register-environment",
  "register-homes-to-post-allocation-machine",
  "register-model",
  "selected-instructions",
@@ -1416,7 +1477,6 @@ dependencies = [
  "semantic-vocabulary",
  "sha2",
  "target",
- "target-to-register-environment",
 ]
 
 [[package]]
@@ -1561,6 +1621,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "register-environment"
+version = "0.1.0"
+dependencies = [
+ "isa-aarch64",
+ "isa-x86_64",
+ "register-model",
+ "selected-instructions",
+ "target",
+ "target-operations",
+]
+
+[[package]]
 name = "register-homes"
 version = "0.1.0"
 dependencies = [
@@ -1577,11 +1649,11 @@ dependencies = [
  "isa-x86_64",
  "optimization-core",
  "physical-instructions",
+ "register-environment",
  "register-model",
  "selected-instructions",
  "selected-instructions-to-register-homes",
  "semantic-vocabulary",
- "target-to-register-environment",
 ]
 
 [[package]]
@@ -1734,6 +1806,7 @@ dependencies = [
  "legalized-operations",
  "optimization-core",
  "optimization-unit",
+ "register-environment",
  "register-homes",
  "register-model",
  "selected-instructions",
@@ -1742,7 +1815,6 @@ dependencies = [
  "target",
  "target-operations",
  "target-operations-to-selected-instructions",
- "target-to-register-environment",
  "terminal-codec",
  "terminal-psi",
 ]
@@ -1983,25 +2055,13 @@ dependencies = [
  "optimization-core",
  "optimization-unit",
  "optimization-validation",
+ "register-environment",
  "register-model",
  "selected-instructions",
  "semantic-vocabulary",
  "target",
  "target-operations",
- "target-to-register-environment",
  "terminal-psi",
-]
-
-[[package]]
-name = "target-to-register-environment"
-version = "0.1.0"
-dependencies = [
- "isa-aarch64",
- "isa-x86_64",
- "register-model",
- "selected-instructions",
- "target",
- "target-operations",
 ]
 
 [[package]]
@@ -2091,66 +2151,6 @@ dependencies = [
  "terminal-fuel",
  "terminal-interpreter",
  "terminal-psi",
- "terminal-verifier",
- "tokens-to-syntax-trees",
- "typed-trees-to-checked-trees",
-]
-
-[[package]]
-name = "terminal-psi-to-native-artifact"
-version = "0.1.0"
-dependencies = [
- "abstract-operations",
- "abstract-operations-to-abstract-operations",
- "abstract-operations-to-target-operations",
- "assigned-target-operations",
- "boundary-applications",
- "calling-conventions",
- "checked-trees",
- "checked-trees-to-terminal-psi",
- "diagnostics",
- "effects",
- "function-identity",
- "image-emission",
- "installation-evidence",
- "isa-aarch64",
- "isa-x86_64",
- "language-semantics",
- "machine-code",
- "machine-emission",
- "native-artifact",
- "numerics",
- "object-file",
- "optimization",
- "optimization-core",
- "optimization-validation",
- "post-allocation-machine-to-frame-layout",
- "post-allocation-machine-to-post-allocation-machine",
- "program-entry-plan",
- "proof-admission",
- "provider-planning",
- "register-homes-to-post-allocation-machine",
- "selected-dispatch",
- "selected-form-encoding-to-resolved-layout",
- "selected-instructions",
- "selected-instructions-to-register-homes",
- "semantic-vocabulary",
- "sha2",
- "source-files-to-tokens",
- "symbol-resolved-trees-to-typed-trees",
- "symbols",
- "syntax-trees-to-symbol-resolved-trees",
- "target",
- "target-operations",
- "target-operations-to-assigned-target-operations",
- "target-operations-to-selected-instructions",
- "target-to-register-environment",
- "task-plans",
- "terminal-codec",
- "terminal-fuel",
- "terminal-interpreter",
- "terminal-psi",
- "terminal-psi-to-abstract-operations",
  "terminal-verifier",
  "tokens-to-syntax-trees",
  "typed-trees-to-checked-trees",

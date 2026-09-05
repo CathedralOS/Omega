@@ -68,8 +68,8 @@ The build/compiler hooks and two top-level optimizer-pipeline routes are:
 | Injected exact-name vocabulary | `compiler/src/pipeline/optimization/build_vocabulary/mod.rs` | sole `fragments.rs` mapping used by both prelude variants |
 | Checked selection custody | `compiler/src/pipeline/optimization/checked_handoff/mod.rs` | retained selection, identity, and report request |
 | Native compiler realization | `compiler/src/compiler/optimization/mod.rs` | `admission.rs`, `rollback/`, `native_realization.rs` |
-| Verified abstract-operation optimization | `pipeline/terminal-psi-to-native-artifact/src/native_pipeline/abstract_operation_optimization/mod.rs` | `request.rs`, selected compatibility catalog, independent abstract projection |
-| Native physical continuation | `pipeline/terminal-psi-to-native-artifact/src/native_pipeline/physical_pipeline/mod.rs` | `routes/composition/`, then one named route |
+| Verified abstract-operation optimization | `compiler/native-realization/src/native_pipeline/abstract_operation_optimization/mod.rs` | `request.rs`, selected compatibility catalog, independent abstract projection |
+| Native physical continuation | `compiler/native-realization/src/native_pipeline/physical_pipeline/mod.rs` | `routes/composition/`, then one named route |
 | Attached Unit abstract-to-target lowering | `abstract-operations-to-target-operations/src/lowering/unit.rs` | `unit/setup.rs`, `unit/body.rs`, then named call, return, scalar, and structural leaves |
 
 The ordinary empty-selection compiler path does not enter the explicit Psi
@@ -534,7 +534,7 @@ Allocation-visible callee-save discovery belongs to
 `preservation/mod.rs` entrance visibly
 joins `compute::derive` to `validate_allocated_callee_saved_requirements` and
 does no hidden traversal. Shared immutable target convention selection lives in
-`target-to-register-environment`; the requirement carrier, identity, custody,
+`register-environment`; the requirement carrier, identity, custody,
 errors, and validator remain named top-level leaves. Positional production
 descends through `compute/{ordinary,structural,state,work}`, while independent
 keyed reconstruction descends through
