@@ -75,6 +75,16 @@ concepts, not a mandatory identical directory template for every representation.
 
 ## Goal-ready scope
 
+Discussion index for a later goal:
+
+| Question | Decision or work reference |
+| --- | --- |
+| Is X-to-Y achievable? | Yes at public phase boundaries; genuine target and authority cases stay inside transforms. See B. |
+| What still makes the pipeline confusing? | Current data versus historical stage objects (A), selection-dependent outer outputs (B), and algorithms inside the coordinator (C). |
+| Where should repeated work be shared? | Classify its invariant and consumers using Sharing rules; use the existing representation, semantics, transform, backend, or foundation owner. See C. |
+| What remains on the Psi side? | Audit every representation entrance, separate reusable pre-Terminal data, and implement selected passes before publication. These are distinct acceptance checks in D. |
+| What counts as finished? | All completion checks below, including standalone Psi and separately authorized lowering; renamed folders and passing identity-only paths are insufficient. |
+
 Use this document as the cross-reference for the pipeline discussion, not as
 authorization to begin implementation. A subsequent goal can be stated as:
 
@@ -194,9 +204,19 @@ corruption controls still reject stale, substituted, and mismatched evidence.
 
 `omega-terminal-psi-to-native-artifact/src/realization/target_stage.rs` retains
 `NativeTargetStageResult::{IdentityOrdinary, IdentityRanked, Optimized}` and
-different lowering entrances. `realization/model.rs` also retains identity
-versus selected optimization continuations. Giving both branches a stage name
-has not completed convergence.
+different lowering entrances. Giving both branches a stage name has not
+completed convergence.
+
+The earlier native input now retains one current verified abstract program,
+with native authority bound by complete-plan equality rather than only matching
+Terminal and entry IDs. Ordinary authority does not retain a duplicate program;
+ranked authority retains the countdown evidence it must recheck. The abstract
+optimization phase runs through one call and returns the same program-result
+struct for empty and selected execution. The redundant identity/selected input
+wrapper is gone. Prepared input still binds the exact selection value, and
+unsupported ranked, callback, and FMA selections still reject. Target lowering
+and physical assignment still choose transitional implementations from the
+request's selections, so this does not close the outer convergence requirement.
 
 Next: converge current target and physical program outputs regardless of empty
 or nonempty optimization selections. Keep ranked-program, provider, callback,

@@ -34,112 +34,65 @@ builtin_native_realization_conversion!(omega_target_operations::LinuxExitGroupI3
 builtin_native_realization_conversion!(omega_target_operations::LinuxReadByteRealization);
 builtin_native_realization_conversion!(omega_target_operations::ClaimCompletionOnlyRealization);
 
-/// Explicit continuation selected after the unconditional Terminal-to-abstract
-/// native stage.
-///
-/// An empty post-Terminal selection is the identity continuation, not absence
-/// of a stage. Both variants retain the verifier context needed to execute and
-/// validate the abstract-operation phase; the selected variant additionally
-/// authorizes its exact later phase projections.
+/// Native authority is independent of optimization selection.
+/// The ranked role retains its checked countdown evidence; ordinary authority
+/// does not duplicate the current abstract-operation plan.
 #[derive(Debug, Clone)]
-pub(crate) enum PostTerminalOptimizationContinuation {
-    Identity(omega_psi_to_abstract_operations::VerifiedPsiOptimizationInput),
-    Selected(omega_psi_to_abstract_operations::VerifiedPsiOptimizationInput),
+pub(crate) enum NativeRealizationAuthority {
+    Ordinary,
+    RankedU32Countdown(omega_abstract_operations::RankedNativeAbstractOperationPlan),
 }
 
-impl PostTerminalOptimizationContinuation {
-    pub(crate) const fn input(
-        &self,
-    ) -> &omega_psi_to_abstract_operations::VerifiedPsiOptimizationInput {
-        match self {
-            Self::Identity(input) | Self::Selected(input) => input,
-        }
-    }
-
-    pub(crate) const fn selected(
-        &self,
-    ) -> Option<&omega_psi_to_abstract_operations::VerifiedPsiOptimizationInput> {
-        match self {
-            Self::Identity(_) => None,
-            Self::Selected(input) => Some(input),
-        }
-    }
-}
-
-/// One unconditional Terminal-to-abstract native stage result.
-///
-/// `native` retains the role-specific ordinary or ranked native authority for
-/// every request. A nonempty later-phase selection may additionally retain the
-/// optimizer context needed by the transitional physical pipeline; it never
-/// replaces or chooses the Terminal-to-abstract entrance.
+/// One current verified abstract input and its separately admitted native role.
 #[derive(Debug, Clone)]
 pub(crate) struct NativeRealizationInput {
-    native: omega_psi_to_abstract_operations::NativeArtifactOperationPlan,
-    optimization_continuation: PostTerminalOptimizationContinuation,
+    authority: NativeRealizationAuthority,
+    optimization_input: omega_psi_to_abstract_operations::VerifiedPsiOptimizationInput,
 }
 
 impl NativeRealizationInput {
     pub(crate) fn new(
         native: omega_psi_to_abstract_operations::NativeArtifactOperationPlan,
-        optimization_continuation: PostTerminalOptimizationContinuation,
+        optimization_input: omega_psi_to_abstract_operations::VerifiedPsiOptimizationInput,
     ) -> Result<Self, &'static str> {
-        let optimization_plan = optimization_continuation.input().plan();
-        if optimization_plan.psi != native.plan().psi
-            || optimization_plan.entry != native.plan().entry
-        {
+        if optimization_input.plan() != native.plan() {
             return Err(
-                "native authority and abstract-optimization context disagree on the Terminal program root",
+                "native authority and abstract-optimization context disagree on the complete abstract program",
             );
         }
+        let authority = match native {
+            omega_psi_to_abstract_operations::NativeArtifactOperationPlan::Ordinary(_) => {
+                NativeRealizationAuthority::Ordinary
+            }
+            omega_psi_to_abstract_operations::NativeArtifactOperationPlan::RankedU32Countdown(
+                ranked,
+            ) => NativeRealizationAuthority::RankedU32Countdown(ranked),
+        };
         Ok(Self {
-            native,
-            optimization_continuation,
+            authority,
+            optimization_input,
         })
     }
 
     pub(crate) fn plan(&self) -> &omega_abstract_operations::AbstractOperationPlan {
-        match &self.optimization_continuation {
-            PostTerminalOptimizationContinuation::Identity(_) => self.native.plan(),
-            PostTerminalOptimizationContinuation::Selected(input) => input.plan(),
-        }
+        self.optimization_input.plan()
     }
 
-    pub(crate) const fn native(
-        &self,
-    ) -> &omega_psi_to_abstract_operations::NativeArtifactOperationPlan {
-        &self.native
-    }
-
-    pub(crate) const fn optimization_continuation(&self) -> &PostTerminalOptimizationContinuation {
-        &self.optimization_continuation
+    pub(crate) const fn authority(&self) -> &NativeRealizationAuthority {
+        &self.authority
     }
 
     pub(crate) fn into_parts(
         self,
     ) -> (
-        omega_psi_to_abstract_operations::NativeArtifactOperationPlan,
-        PostTerminalOptimizationContinuation,
+        NativeRealizationAuthority,
+        omega_psi_to_abstract_operations::VerifiedPsiOptimizationInput,
     ) {
-        (self.native, self.optimization_continuation)
-    }
-
-    pub(crate) fn physical_evidence_scope(
-        &self,
-        checked_scope: Option<
-            &psi_checked_trees_to_terminal::CheckedBoundaryOperatorApplicationScope,
-        >,
-    ) -> omega_native_artifact::NativePhysicalEvidenceScope {
-        physical_evidence_scope(
-            matches!(
-                self.optimization_continuation,
-                PostTerminalOptimizationContinuation::Identity(_)
-            ),
-            checked_scope,
-        )
+        (self.authority, self.optimization_input)
     }
 }
 
-fn physical_evidence_scope(
+pub(crate) fn physical_evidence_scope(
     identity_physical_path: bool,
     checked_scope: Option<&psi_checked_trees_to_terminal::CheckedBoundaryOperatorApplicationScope>,
 ) -> omega_native_artifact::NativePhysicalEvidenceScope {

@@ -1,7 +1,5 @@
 use crate::realization::diagnostics::realization_error;
-use crate::realization::model::{
-    NativeRealizationCoreRequest, NativeRealizationInput, PostTerminalOptimizationContinuation,
-};
+use crate::realization::model::{NativeRealizationCoreRequest, NativeRealizationInput};
 use psi_diagnostics::Diagnostic;
 
 /// Reusable target-neutral lowering of one exact canonical Terminal artifact.
@@ -14,7 +12,7 @@ use psi_diagnostics::Diagnostic;
 pub struct PreparedNativeRealizationInput {
     terminal_artifact_identity: psi_terminal_codec::TerminalArtifactIdentity,
     profile: psi_proof_admission::AdmissionProfile,
-    optimization_selection: omega_optimization_core::OptimizationSelectionIdentity,
+    optimization_selections: omega_optimization_core::PostTerminalOptimizationSelections,
     input: NativeRealizationInput,
 }
 
@@ -28,7 +26,7 @@ impl PreparedNativeRealizationInput {
     }
 
     pub fn is_optimized(&self) -> bool {
-        self.input.optimization_continuation().selected().is_some()
+        !self.optimization_selections.is_empty()
     }
 
     pub fn matches(
@@ -39,7 +37,7 @@ impl PreparedNativeRealizationInput {
     ) -> bool {
         self.terminal_artifact_identity == terminal_artifact_identity
             && self.profile == *profile
-            && self.optimization_selection == optimization_selections.identity()
+            && self.optimization_selections == *optimization_selections
     }
 
     fn reopen(
@@ -71,16 +69,12 @@ pub fn prepare_native_realization_input(
     artifact
         .validate()
         .map_err(|error| realization_error("canonical artifact replay", error))?;
-    let input = lower_realization_input(
-        artifact.semantic_bytes(),
-        artifact.proof_bytes(),
-        profile,
-        optimization_selections,
-    )?;
+    let input =
+        lower_realization_input(artifact.semantic_bytes(), artifact.proof_bytes(), profile)?;
     Ok(PreparedNativeRealizationInput {
         terminal_artifact_identity: artifact.manifest().identity(),
         profile: profile.clone(),
-        optimization_selection: optimization_selections.identity(),
+        optimization_selections: optimization_selections.clone(),
         input,
     })
 }
@@ -89,7 +83,6 @@ pub(crate) fn lower_realization_input(
     semantic_bytes: &[u8],
     proof_bytes: &[u8],
     profile: &psi_proof_admission::AdmissionProfile,
-    optimization_selections: &omega_optimization_core::PostTerminalOptimizationSelections,
 ) -> Result<NativeRealizationInput, Vec<Diagnostic>> {
     let native = omega_psi_to_abstract_operations::lower_artifact_sections_for_native_realization(
         semantic_bytes,
@@ -104,12 +97,7 @@ pub(crate) fn lower_realization_input(
             profile,
         )
         .map_err(|error| realization_error("verified optimizer artifact lowering", error))?;
-    let optimization_continuation = if optimization_selections.is_empty() {
-        PostTerminalOptimizationContinuation::Identity(optimization_input)
-    } else {
-        PostTerminalOptimizationContinuation::Selected(optimization_input)
-    };
-    NativeRealizationInput::new(native, optimization_continuation)
+    NativeRealizationInput::new(native, optimization_input)
         .map_err(|error| realization_error("native abstract-stage join", error))
 }
 
@@ -170,10 +158,7 @@ mod tests {
         let empty = omega_optimization_core::PostTerminalOptimizationSelections::default();
         let prepared = prepare_native_realization_input(&artifact, &profile, &empty)
             .expect("prepare target-neutral input");
-        assert!(matches!(
-            prepared.input.optimization_continuation(),
-            PostTerminalOptimizationContinuation::Identity(_)
-        ));
+        assert!(!prepared.is_optimized());
         assert!(prepared.matches(artifact.manifest().identity(), &profile, &empty));
         assert!(!prepared.matches(
             alternate_artifact_fixture().manifest().identity(),
@@ -192,32 +177,28 @@ mod tests {
     }
 
     #[test]
-    fn identity_continuation_rejects_a_substituted_terminal_root() {
+    fn native_input_rejects_a_substituted_terminal_root() {
         let profile = AdmissionProfile::default();
-        let selections = omega_optimization_core::PostTerminalOptimizationSelections::default();
         let artifact = artifact_fixture();
-        let first = lower_realization_input(
-            artifact.semantic_bytes(),
-            artifact.proof_bytes(),
-            &profile,
-            &selections,
-        )
-        .expect("first native input");
+        let first =
+            lower_realization_input(artifact.semantic_bytes(), artifact.proof_bytes(), &profile)
+                .expect("first native input");
         let alternate_artifact = alternate_artifact_fixture();
         let alternate = lower_realization_input(
             alternate_artifact.semantic_bytes(),
             alternate_artifact.proof_bytes(),
             &profile,
-            &selections,
         )
         .expect("alternate native input");
-        let (native, _) = first.into_parts();
+        let native = omega_psi_to_abstract_operations::NativeArtifactOperationPlan::Ordinary(
+            first.plan().clone(),
+        );
         let (_, substituted_continuation) = alternate.into_parts();
 
         assert!(matches!(
             NativeRealizationInput::new(native, substituted_continuation),
             Err(
-                "native authority and abstract-optimization context disagree on the Terminal program root"
+                "native authority and abstract-optimization context disagree on the complete abstract program"
             )
         ));
     }
@@ -234,6 +215,57 @@ mod tests {
             error.0,
             omega_optimization_core::Optimization::ControlFlowCleanup
         );
+    }
+
+    #[test]
+    fn native_input_rejects_changed_program_under_the_same_terminal_root() {
+        let profile = AdmissionProfile::default();
+        let artifact = artifact_fixture();
+        let input =
+            lower_realization_input(artifact.semantic_bytes(), artifact.proof_bytes(), &profile)
+                .expect("native input");
+        let mut substituted = input.plan().clone();
+        let original_root = (substituted.psi, substituted.entry);
+        substituted.functions.clear();
+        assert_eq!((substituted.psi, substituted.entry), original_root);
+        let (_, optimization_input) = input.into_parts();
+        assert!(matches!(
+            NativeRealizationInput::new(
+                omega_psi_to_abstract_operations::NativeArtifactOperationPlan::Ordinary(
+                    substituted
+                ),
+                optimization_input,
+            ),
+            Err(
+                "native authority and abstract-optimization context disagree on the complete abstract program"
+            )
+        ));
+    }
+
+    #[test]
+    fn empty_and_selected_preparation_retain_the_same_current_program_and_authority() {
+        let artifact = artifact_fixture();
+        let profile = AdmissionProfile::default();
+        let empty = omega_optimization_core::PostTerminalOptimizationSelections::default();
+        let selected = omega_optimization_core::PostTerminalOptimizationSelections::new(
+            omega_optimization_core::OptimizationSelections::new([
+                omega_optimization_core::Optimization::SelectedIncomingU12ExactAddImmediate,
+            ])
+            .unwrap(),
+        )
+        .unwrap();
+        let ordinary = prepare_native_realization_input(&artifact, &profile, &empty).unwrap();
+        let selected_input =
+            prepare_native_realization_input(&artifact, &profile, &selected).unwrap();
+        assert_eq!(ordinary.input.plan(), selected_input.input.plan());
+        for prepared in [&ordinary, &selected_input] {
+            assert!(matches!(
+                prepared.input.authority(),
+                crate::realization::model::NativeRealizationAuthority::Ordinary
+            ));
+        }
+        assert!(!ordinary.is_optimized());
+        assert!(selected_input.is_optimized());
     }
 
     #[test]
@@ -258,13 +290,10 @@ mod tests {
             .expect("prepare the unconditional native stage plus selected physical context");
 
         assert!(matches!(
-            prepared.input.native(),
-            omega_psi_to_abstract_operations::NativeArtifactOperationPlan::Ordinary(_)
+            prepared.input.authority(),
+            crate::realization::model::NativeRealizationAuthority::Ordinary
         ));
-        assert!(matches!(
-            prepared.input.optimization_continuation(),
-            PostTerminalOptimizationContinuation::Selected(_)
-        ));
+        assert!(prepared.is_optimized());
         assert!(prepared.matches(artifact.manifest().identity(), &profile, &selected));
         assert!(!prepared.matches(artifact.manifest().identity(), &profile, &substituted,));
     }
