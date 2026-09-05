@@ -10,6 +10,7 @@ use psi_typed_trees::expression::ExpressionHandle;
 mod evaluation;
 mod expression;
 mod snapshots;
+pub(crate) use evaluation::BoundScalarValues;
 pub(crate) use evaluation::evaluate as evaluate_checked_scalar;
 pub(crate) use snapshots::{literal_at_place, scalar_value_at_place};
 mod scalar;

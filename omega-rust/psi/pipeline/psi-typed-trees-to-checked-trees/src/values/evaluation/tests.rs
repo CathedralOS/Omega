@@ -32,6 +32,47 @@ fn expected(value: i64) -> Option<ScalarValue> {
 }
 
 #[test]
+fn storage_reads_require_exact_current_symbol_values_and_selected_carriers() {
+    let symbol = psi_symbols::SymbolHandle::from_arena_index(1);
+    let stale =
+        psi_symbols::SymbolHandle::from_parts(symbol.arena_index(), symbol.generation() + 1);
+    let read = |symbol| CheckedScalarExpression::StorageRead {
+        symbol,
+        primitive_type: PrimitiveType::U8,
+    };
+    assert_eq!(
+        evaluate(&read(symbol), &mut |_| expected(7)),
+        None,
+        "a positional binding resolver supplies no storage authority"
+    );
+    for (value, result) in [
+        (ScalarValue::Integer(BigInt::from_i64(7)), expected(7)),
+        (ScalarValue::Integer(BigInt::from_i64(256)), None),
+        (ScalarValue::Boolean(true), None),
+        (ScalarValue::Unknown, None),
+    ] {
+        let mut source = BoundScalarValues {
+            symbols: &[],
+            value_at_symbol: |candidate| (candidate == symbol).then(|| value.clone()),
+        };
+        assert_eq!(evaluate(&read(symbol), &mut source), result);
+        assert_eq!(evaluate(&read(stale), &mut source), None);
+        assert_eq!(evaluate(&read(Default::default()), &mut source), None);
+    }
+    let read = CheckedScalarExpression::Boolean(Box::new(CheckedBooleanExpression::StorageRead {
+        symbol,
+    }));
+    let mut source = BoundScalarValues {
+        symbols: &[],
+        value_at_symbol: |candidate| (candidate == symbol).then_some(ScalarValue::Boolean(false)),
+    };
+    assert_eq!(
+        evaluate(&read, &mut source),
+        Some(ScalarValue::Boolean(false))
+    );
+}
+
+#[test]
 fn checked_integer_operations_use_selected_width_and_policy() {
     use CheckedIntegerBinaryKind::*;
     for (kind, left, right, value) in [

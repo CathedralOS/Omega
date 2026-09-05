@@ -11,11 +11,20 @@ use psi_typed_trees::types::PrimitiveType;
 
 use psi_facts::ScalarValue;
 
+mod sources;
+pub(crate) use sources::{BoundScalarValues, ScalarValueSource};
+
 pub(crate) fn evaluate(
     expression: &CheckedScalarExpression,
-    resolve_binding: &mut impl FnMut(usize) -> Option<ScalarValue>,
+    resolve_binding: &mut impl ScalarValueSource,
 ) -> Option<ScalarValue> {
     match expression {
+        CheckedScalarExpression::StorageRead {
+            symbol,
+            primitive_type: PrimitiveType::Bool,
+        } => resolve_binding
+            .storage(*symbol)
+            .filter(|value| matches!(value, ScalarValue::Boolean(_))),
         CheckedScalarExpression::Boolean(expression) => {
             boolean(expression, resolve_binding).map(ScalarValue::Boolean)
         }
@@ -34,9 +43,19 @@ pub(crate) fn evaluate(
 
 fn integer(
     expression: &CheckedScalarExpression,
-    resolve_binding: &mut impl FnMut(usize) -> Option<ScalarValue>,
+    resolve_binding: &mut impl ScalarValueSource,
 ) -> Option<(IntegerType, IntegerValue)> {
     match expression {
+        CheckedScalarExpression::StorageRead {
+            symbol,
+            primitive_type,
+        } => {
+            let scalar_type = integer_type(*primitive_type)?;
+            let ScalarValue::Integer(value) = resolve_binding.storage(*symbol)? else {
+                return None;
+            };
+            Some((scalar_type, admitted_integer(scalar_type, &value)?))
+        }
         CheckedScalarExpression::Parameter {
             position,
             primitive_type,
@@ -46,7 +65,7 @@ fn integer(
             primitive_type,
         } => {
             let scalar_type = integer_type(*primitive_type)?;
-            let ScalarValue::Integer(value) = resolve_binding(*position)? else {
+            let ScalarValue::Integer(value) = resolve_binding.binding(*position)? else {
                 return None;
             };
             Some((scalar_type, admitted_integer(scalar_type, &value)?))
@@ -180,9 +199,15 @@ fn binary(
 
 fn boolean(
     expression: &CheckedBooleanExpression,
-    resolve_binding: &mut impl FnMut(usize) -> Option<ScalarValue>,
+    resolve_binding: &mut impl ScalarValueSource,
 ) -> Option<bool> {
     match expression {
+        CheckedBooleanExpression::StorageRead { symbol } => {
+            match resolve_binding.storage(*symbol)? {
+                ScalarValue::Boolean(value) => Some(value),
+                _ => None,
+            }
+        }
         CheckedBooleanExpression::Constant(value) => Some(*value),
         CheckedBooleanExpression::Parameter { position }
         | CheckedBooleanExpression::Local { position } => {
@@ -227,11 +252,8 @@ fn boolean(
     }
 }
 
-fn binding_boolean(
-    position: usize,
-    resolve_binding: &mut impl FnMut(usize) -> Option<ScalarValue>,
-) -> Option<bool> {
-    match resolve_binding(position)? {
+fn binding_boolean(position: usize, resolve_binding: &mut impl ScalarValueSource) -> Option<bool> {
+    match resolve_binding.binding(position)? {
         ScalarValue::Boolean(value) => Some(value),
         ScalarValue::Integer(_) | ScalarValue::Unknown => None,
     }

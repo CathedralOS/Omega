@@ -19,6 +19,7 @@ use psi_typed_trees::{
 
 #[derive(Debug, Clone)]
 struct ScalarLocal {
+    is_mutable: bool,
     symbol: psi_symbols::SymbolHandle,
     name: String,
     primitive_type: PrimitiveType,
@@ -69,7 +70,13 @@ pub(crate) fn build_checked_scalar_expression_plans(
                         else {
                             continue;
                         };
-                        let binding_ordinal = u32::try_from(locals.len()).ok();
+                        let binding_ordinal = u32::try_from(
+                            locals
+                                .iter()
+                                .filter(|local: &&ScalarLocal| !local.is_mutable)
+                                .count(),
+                        )
+                        .ok();
                         if let Some(binding_ordinal) = binding_ordinal {
                             let role = if local.is_mutable {
                                 CheckedScalarExpressionRole::StorageInitializer
@@ -144,6 +151,7 @@ pub(crate) fn build_checked_scalar_expression_plans(
                                 .flatten()
                             }) {
                                 source_bindings.append(CheckedScalarExpressionBindings {
+                                    destination: local.symbol,
                                     state: state.symbol,
                                     statement_ordinal,
                                     role,
@@ -152,7 +160,12 @@ pub(crate) fn build_checked_scalar_expression_plans(
                                         scalar_parameters
                                             .iter()
                                             .map(|parameter| parameter.symbol)
-                                            .chain(locals.iter().map(|local| local.symbol)),
+                                            .chain(
+                                                locals
+                                                    .iter()
+                                                    .filter(|local| !local.is_mutable)
+                                                    .map(|local| local.symbol),
+                                            ),
                                     ),
                                 });
                                 expressions.push(CheckedLocatedScalarExpression {
@@ -163,15 +176,14 @@ pub(crate) fn build_checked_scalar_expression_plans(
                                 });
                             }
                         }
-                        if !local.is_mutable {
-                            locals.push(ScalarLocal {
-                                symbol: local.symbol,
-                                name: local.name.as_str().to_owned(),
-                                primitive_type,
-                                arithmetic_domain: program
-                                    .arithmetic_domain_for_type_reference(local.type_reference),
-                            });
-                        }
+                        locals.push(ScalarLocal {
+                            is_mutable: local.is_mutable,
+                            symbol: local.symbol,
+                            name: local.name.as_str().to_owned(),
+                            primitive_type,
+                            arithmetic_domain: program
+                                .arithmetic_domain_for_type_reference(local.type_reference),
+                        });
                     }
                     StatementNode::Expression(expression) => {
                         if let ExpressionNode::Call(call) =
@@ -208,6 +220,7 @@ pub(crate) fn build_checked_scalar_expression_plans(
                             )
                         {
                             source_bindings.append(CheckedScalarExpressionBindings {
+                                destination: psi_symbols::SymbolHandle::invalid(),
                                 state: state.symbol,
                                 statement_ordinal,
                                 role: CheckedScalarExpressionRole::Return,
@@ -216,7 +229,12 @@ pub(crate) fn build_checked_scalar_expression_plans(
                                     scalar_parameters
                                         .iter()
                                         .map(|parameter| parameter.symbol)
-                                        .chain(locals.iter().map(|local| local.symbol)),
+                                        .chain(
+                                            locals
+                                                .iter()
+                                                .filter(|local| !local.is_mutable)
+                                                .map(|local| local.symbol),
+                                        ),
                                 ),
                             });
                             expressions.push(CheckedLocatedScalarExpression {
@@ -258,6 +276,13 @@ pub(crate) fn build_checked_scalar_expression_plans(
                             continue;
                         };
                         source_bindings.append(CheckedScalarExpressionBindings {
+                            destination: match program
+                                .expression_table
+                                .expression(assignment.target)
+                            {
+                                ExpressionNode::Name(path) => path.symbol,
+                                _ => psi_symbols::SymbolHandle::invalid(),
+                            },
                             state: state.symbol,
                             statement_ordinal,
                             role: CheckedScalarExpressionRole::AssignmentValue,
@@ -266,7 +291,12 @@ pub(crate) fn build_checked_scalar_expression_plans(
                                 scalar_parameters
                                     .iter()
                                     .map(|parameter| parameter.symbol)
-                                    .chain(locals.iter().map(|local| local.symbol)),
+                                    .chain(
+                                        locals
+                                            .iter()
+                                            .filter(|local| !local.is_mutable)
+                                            .map(|local| local.symbol),
+                                    ),
                             ),
                         });
                         expressions.push(CheckedLocatedScalarExpression {
@@ -333,6 +363,7 @@ pub(crate) fn build_checked_scalar_expression_plans(
                             )
                         {
                             source_bindings.append(CheckedScalarExpressionBindings {
+                                destination: psi_symbols::SymbolHandle::invalid(),
                                 state: state.symbol,
                                 statement_ordinal,
                                 role: CheckedScalarExpressionRole::Return,
@@ -341,7 +372,12 @@ pub(crate) fn build_checked_scalar_expression_plans(
                                     scalar_parameters
                                         .iter()
                                         .map(|parameter| parameter.symbol)
-                                        .chain(locals.iter().map(|local| local.symbol)),
+                                        .chain(
+                                            locals
+                                                .iter()
+                                                .filter(|local| !local.is_mutable)
+                                                .map(|local| local.symbol),
+                                        ),
                                 ),
                             });
                             expressions.push(CheckedLocatedScalarExpression {
@@ -1969,6 +2005,7 @@ pub(crate) fn lower_state_scalar_expression(
         }
         let primitive_type = program.primitive_type_reference(local.type_reference)?;
         locals.push(ScalarLocal {
+            is_mutable: false,
             symbol: local.symbol,
             name: local.name.as_str().to_owned(),
             primitive_type,
@@ -2024,6 +2061,7 @@ pub(crate) fn lower_unit_scalar_argument(
         }
         let primitive_type = program.primitive_type_reference(local.type_reference)?;
         locals.push(ScalarLocal {
+            is_mutable: false,
             symbol: local.symbol,
             name: local.name.as_str().to_owned(),
             primitive_type,
@@ -2127,7 +2165,22 @@ fn lower_scalar_expression(
                 ));
             }
             let local_position = local_position(program, expression, path, locals)?;
-            let position = parameters.len().checked_add(local_position)?;
+            let local = &locals[local_position];
+            if local.is_mutable {
+                return Some((
+                    CheckedScalarExpression::StorageRead {
+                        symbol: local.symbol,
+                        primitive_type: local.primitive_type,
+                    },
+                    local.arithmetic_domain,
+                ));
+            }
+            let position = parameters.len().checked_add(
+                locals[..local_position]
+                    .iter()
+                    .filter(|local| !local.is_mutable)
+                    .count(),
+            )?;
             Some((
                 CheckedScalarExpression::Local {
                     position,
@@ -2491,7 +2544,20 @@ fn lower_boolean_expression(
                     .then_some(CheckedBooleanExpression::Parameter { position });
             }
             let local_position = local_position(program, expression, path, locals)?;
-            let position = parameters.len().checked_add(local_position)?;
+            let local = &locals[local_position];
+            if local.is_mutable {
+                return (local.primitive_type == PrimitiveType::Bool).then_some(
+                    CheckedBooleanExpression::StorageRead {
+                        symbol: local.symbol,
+                    },
+                );
+            }
+            let position = parameters.len().checked_add(
+                locals[..local_position]
+                    .iter()
+                    .filter(|local| !local.is_mutable)
+                    .count(),
+            )?;
             (locals[local_position].primitive_type == PrimitiveType::Bool)
                 .then_some(CheckedBooleanExpression::Local { position })
         }
@@ -2718,12 +2784,19 @@ fn parameter_position(
     parameters: &[StateParameter],
 ) -> Option<usize> {
     let members = program.expression_table.name_path_members(path.members);
+    if path.symbol.is_valid() && path.head_symbol.is_valid() && path.symbol != path.head_symbol {
+        return None;
+    }
     (members.len() == 1)
         .then(|| {
             parameters.iter().position(|parameter| {
-                parameter.symbol == path.symbol
-                    || parameter.symbol == path.head_symbol
-                    || parameter.name.as_str() == members[0].as_str()
+                if path.symbol.is_valid() {
+                    parameter.symbol == path.symbol
+                } else if path.head_symbol.is_valid() {
+                    parameter.symbol == path.head_symbol
+                } else {
+                    parameter.name.as_str() == members[0].as_str()
+                }
             })
         })
         .flatten()
@@ -2735,6 +2808,9 @@ fn local_position(
     path: &psi_typed_trees::expression::TableNamePath,
     locals: &[ScalarLocal],
 ) -> Option<usize> {
+    if path.symbol.is_valid() && path.head_symbol.is_valid() && path.symbol != path.head_symbol {
+        return None;
+    }
     (program
         .expression_table
         .name_path_members(path.members)
@@ -2742,9 +2818,19 @@ fn local_position(
         == 1)
         .then(|| {
             locals.iter().rposition(|local| {
-                (path.symbol.is_valid() && local.symbol == path.symbol)
-                    || (path.head_symbol.is_valid() && local.symbol == path.head_symbol)
-                    || local.name == program.expression_table.display_name(expression)
+                if local.is_mutable {
+                    // Bare storage reads require both retained resolved identities.
+                    // Spelling cannot repair a missing or stale storage handle.
+                    local.symbol.is_valid()
+                        && local.symbol == path.symbol
+                        && local.symbol == path.head_symbol
+                } else if path.symbol.is_valid() {
+                    local.symbol == path.symbol
+                } else if path.head_symbol.is_valid() {
+                    local.symbol == path.head_symbol
+                } else {
+                    local.name == program.expression_table.display_name(expression)
+                }
             })
         })
         .flatten()
@@ -2755,6 +2841,7 @@ pub(crate) fn scalar_expression_type(
 ) -> Option<PrimitiveType> {
     match expression {
         CheckedScalarExpression::Parameter { primitive_type, .. }
+        | CheckedScalarExpression::StorageRead { primitive_type, .. }
         | CheckedScalarExpression::Local { primitive_type, .. }
         | CheckedScalarExpression::StructuralParameterField { primitive_type, .. }
         | CheckedScalarExpression::IntegerBinary { primitive_type, .. }
@@ -2909,6 +2996,7 @@ fn checked_integer_binary_kind(
 
 fn contains_short_circuit(expression: &CheckedBooleanExpression) -> bool {
     match expression {
+        CheckedBooleanExpression::StorageRead { .. } => false,
         CheckedBooleanExpression::Constant(_)
         | CheckedBooleanExpression::Parameter { .. }
         | CheckedBooleanExpression::Local { .. }

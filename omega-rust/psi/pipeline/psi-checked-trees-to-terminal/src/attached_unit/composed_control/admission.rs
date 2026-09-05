@@ -99,6 +99,8 @@ fn validate_bindings(
             if entry.scalar_parameters.is_empty()
                 && binding.statement_ordinal == 0
                 && binding.primitive_type == PrimitiveType::U64
+                && binding.destination
+                    == psi_checked_trees::CheckedScalarBindingDestination::Immutable
                 && binding.value == CheckedScalarBindingValue::Expression =>
         {
             let fact_initializer = checked
@@ -425,6 +427,8 @@ pub(super) fn validate_guard(
         ([], [binding], CheckedBooleanExpression::IntegerComparison { left, right, .. })
             if binding.statement_ordinal == 0
                 && binding.primitive_type == PrimitiveType::U64
+                && binding.destination
+                    == psi_checked_trees::CheckedScalarBindingDestination::Immutable
                 && binding.value == CheckedScalarBindingValue::Expression =>
         {
             local_and_literal(left, right) || local_and_literal(right, left)

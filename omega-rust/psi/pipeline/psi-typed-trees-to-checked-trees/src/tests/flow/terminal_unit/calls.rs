@@ -415,6 +415,7 @@ fn composes_one_compile_known_u64_binding_with_exact_boundary_leaves() {
     assert!(matches!(
         entry.bindings.as_slice(),
         [CheckedScalarBinding {
+            destination: psi_checked_trees::CheckedScalarBindingDestination::Immutable,
             statement_ordinal: 0,
             primitive_type: PrimitiveType::U64,
             value: CheckedScalarBindingValue::Expression,

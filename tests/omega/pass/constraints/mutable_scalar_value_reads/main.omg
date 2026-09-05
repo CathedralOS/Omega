@@ -1,0 +1,18 @@
+machine produce() -> u8
+ensures result == 7
+{
+    let increment: u8 = 4;
+    let mut current: u8 = 3;
+    current = ((current as u8 in Wrapping) + (increment as u8 in Wrapping)) as u8;
+    let saved: u8 = current;
+    current = ((current as u8 in Wrapping) + 1) as u8;
+    saved
+}
+
+machine boolean_value() -> bool
+ensures result == true
+{
+    let mut current: bool = false;
+    current = !current;
+    current
+}

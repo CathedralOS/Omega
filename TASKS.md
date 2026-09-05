@@ -468,11 +468,10 @@ Owners include
 
 - **STATE-LOCAL-VALUE-FRONTIER.** Complete live contract/value-fact transport
   across explicit state arguments, including directly computed arguments and
-  dynamic projections. Give selected scalar expressions explicit mutable-storage
-  operands, shared by proof and executable lowering without changing immutable
-  binding identities; materialize effectful returns and earlier call
-  arguments at their exact evaluation points and activate staged loans at their
-  evaluation points.
+  dynamic projections. Extend storage-value operands and their executable
+  paths to borrowed/projected places and the remaining scalar carriers;
+  materialize effectful returns and earlier call arguments at their exact
+  evaluation points and activate staged loans at their evaluation points.
   Complete anonymous integer landing for guarded returns, argument and
   aggregate-element destinations, and the remaining numeric operator/policy
   surface, so proof and execution consume the same values without rereading

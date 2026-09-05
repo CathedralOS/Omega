@@ -846,6 +846,8 @@ pub(super) fn lower_nominal_structural_scalar_return_machine(
             let binding = &plan.bindings[binding_index];
             let statement_ordinal = u32::try_from(binding_index).ok()?;
             if binding.statement_ordinal != statement_ordinal
+                || binding.destination
+                    != psi_checked_trees::CheckedScalarBindingDestination::Immutable
                 || binding.value != CheckedScalarBindingValue::Expression
                 || binding.primitive_type != PrimitiveType::Bool
             {
@@ -935,6 +937,8 @@ pub(super) fn lower_nominal_structural_scalar_return_machine(
                         let index = short_circuit_index + offset;
                         u32::try_from(index)
                             .is_ok_and(|ordinal| binding.statement_ordinal == ordinal)
+                            && binding.destination
+                                == psi_checked_trees::CheckedScalarBindingDestination::Immutable
                             && binding.value == CheckedScalarBindingValue::Expression
                             && binding.primitive_type == PrimitiveType::Bool
                     },
@@ -1015,6 +1019,7 @@ pub(super) fn lower_nominal_structural_scalar_return_machine(
             LoweringError::Unsupported("nominal scalar return binding index exceeds u32")
         })?;
         if binding.statement_ordinal != statement_ordinal
+            || binding.destination != psi_checked_trees::CheckedScalarBindingDestination::Immutable
             || binding.value != CheckedScalarBindingValue::Expression
         {
             return unsupported(

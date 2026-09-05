@@ -89,14 +89,22 @@ pub struct CheckedScalarStateGraph {
     pub terminator: CheckedScalarStateTerminator,
 }
 
-/// One immutable primitive local evaluated in source order before the state
-/// terminator. Its ordinal is its stable state-local identity; source symbols
-/// and expression handles do not cross the checked plan boundary.
+/// One primitive computation evaluated in source order before the terminator.
+/// Mutable storage identity stays checked-local and is resolved to the current
+/// emitted value before Terminal publication.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CheckedScalarBinding {
     pub statement_ordinal: u32,
+    pub destination: CheckedScalarBindingDestination,
     pub primitive_type: PrimitiveType,
     pub value: CheckedScalarBindingValue,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CheckedScalarBindingDestination {
+    Immutable,
+    StorageInitialize { symbol: SymbolHandle },
+    StorageAssign { symbol: SymbolHandle },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

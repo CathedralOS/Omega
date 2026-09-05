@@ -2080,6 +2080,7 @@ pub(super) fn build_structural_scalar_return_machine(
                     ));
             (branch_free || short_circuit_boolean).then_some((
                 CheckedScalarBinding {
+                    destination: psi_checked_trees::CheckedScalarBindingDestination::Immutable,
                     statement_ordinal,
                     primitive_type,
                     value: CheckedScalarBindingValue::Expression,
@@ -2514,6 +2515,7 @@ pub(super) fn checked_boolean_contains_short_circuit(
     expression: &psi_checked_trees::CheckedBooleanExpression,
 ) -> bool {
     match expression {
+        psi_checked_trees::CheckedBooleanExpression::StorageRead { .. } => false,
         psi_checked_trees::CheckedBooleanExpression::And { .. }
         | psi_checked_trees::CheckedBooleanExpression::Or { .. } => true,
         psi_checked_trees::CheckedBooleanExpression::Not(operand) => {
@@ -2552,6 +2554,7 @@ pub(super) fn checked_boolean_local_reference_count(
     local: usize,
 ) -> usize {
     match expression {
+        psi_checked_trees::CheckedBooleanExpression::StorageRead { .. } => 0,
         psi_checked_trees::CheckedBooleanExpression::Local { position } => {
             usize::from(*position == local)
         }
@@ -2598,6 +2601,7 @@ pub(super) fn is_structural_boolean_return_expression(
     available_locals: usize,
 ) -> bool {
     match expression {
+        psi_checked_trees::CheckedBooleanExpression::StorageRead { .. } => false,
         psi_checked_trees::CheckedBooleanExpression::Constant(_) => true,
         psi_checked_trees::CheckedBooleanExpression::Not(operand) => {
             is_structural_boolean_return_expression(operand, scalar_parameters, available_locals)
@@ -2643,6 +2647,7 @@ pub(super) fn is_branch_free_structural_integer_expression(
     available_locals: usize,
 ) -> bool {
     match expression {
+        CheckedScalarExpression::StorageRead { .. } => false,
         CheckedScalarExpression::IntegerLiteral { .. } => true,
         CheckedScalarExpression::IntegerBinary { left, right, .. } => {
             is_branch_free_structural_integer_expression(left, scalar_parameters, available_locals)
@@ -2699,6 +2704,7 @@ pub(super) fn is_branch_free_structural_boolean_expression(
     available_locals: usize,
 ) -> bool {
     match expression {
+        psi_checked_trees::CheckedBooleanExpression::StorageRead { .. } => false,
         psi_checked_trees::CheckedBooleanExpression::Constant(_) => true,
         psi_checked_trees::CheckedBooleanExpression::Not(operand) => {
             is_branch_free_structural_boolean_expression(
