@@ -1,6 +1,9 @@
 use super::fixture::{Fixture, assert_status};
 use package_source::ImmutableSourceResolution;
 
+#[path = "generated/build_scope.rs"]
+mod build_scope;
+
 const REVISION: &str = "cc5fc1addda6aa565f254ad2e002d9e0be189fd4";
 const BUILD: &str = include_str!("../../../../tests/fixtures/packages/generated-table/build.omg");
 const SOURCE: &str = include_str!("../../../../tests/fixtures/packages/generated-table/main.omg");
@@ -68,7 +71,13 @@ fn generated_output_cannot_escape_its_supplied_root() {
         &BUILD.replace("table.generated.omg", "../escaped.omg"),
     );
     let before = fixture.accepted_files();
-    assert_status(&fixture.omega(&["install", "../dependency"]), 1);
+    let output = fixture.omega(&["install", "../dependency"]);
+    assert_status(&output, 1);
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        stderr.contains("build-root path must use canonical relative components"),
+        "{stderr}"
+    );
     assert_eq!(fixture.accepted_files(), before);
     assert!(!fixture.path("escaped.omg").exists());
     assert!(!fixture.path("root/escaped.omg").exists());
