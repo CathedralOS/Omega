@@ -3,6 +3,7 @@ use diagnostics::Diagnostic;
 
 use crate::labels::symbol_name;
 
+mod destinations;
 mod requires;
 
 pub(crate) fn check_operator_resolution(
@@ -25,6 +26,7 @@ pub(crate) fn check_operator_resolution(
     diagnostics.extend(requires::selected_binary_requires_diagnostics(
         program, facts,
     ));
+    diagnostics.extend(destinations::check(program, facts));
 
     if diagnostics.is_empty() {
         Ok(())

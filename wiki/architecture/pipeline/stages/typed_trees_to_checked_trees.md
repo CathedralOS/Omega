@@ -232,8 +232,11 @@ Must own:
   parameters, storage, and returns. Named values, field/index projections,
   resolved call results, and explicit cast outputs cannot implicitly change
   between `f32` and `f64`. Binary expressions require the selected operator's
-  result type, not an inference from operand formats; their remaining
-  destination check belongs to checked operator selection. Integer narrowing
+  result type, not an inference from operand formats. The destination checker
+  consumes finalized root/domain/trait selection and only derives a builtin
+  result from operands when that builtin meaning remains selected. Exact call
+  parameters, storage fields/elements, and returned values supply destinations;
+  named conversion outputs keep their own declared format. Integer narrowing
   and direct literal suffix checks retain their separate obligations.
 - Borrow facts, accesses, loans, activations, weakenings, and overlap failures.
 - The two-ledger borrow join: resource facts retain owner lineage, polarity,

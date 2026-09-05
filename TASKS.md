@@ -150,22 +150,6 @@ the [Rust Compiler Completion Contract](wiki/releases/rust_compiler_completion_c
   own breakage from the standing state. Acceptance: every remaining red canary
   is attributed to a named entry on a board, and this entry is replaced by those.
 
-- **FLOAT-OPERATOR-RESULT-DESTINATIONS.** Check scalar destination compatibility
-  for binary float expressions from the exact selected operator result in
-  `typed-trees-to-checked-trees/src/operators.rs` and its selection owner.
-  `machine take(value: f32) {}` currently accepts
-  `take(1.0f64 + 2.0f64)` without a conversion. The early `validation`
-  destination guard cannot infer a binary result from its operands: authored
-  heterogeneous operators may return another format, and domain participation
-  requires the checked selection context.
-
-  Acceptance: checked arguments, storage, and returns reject an incompatible
-  selected `f32`/`f64` result in both directions while accepting explicit
-  conversions, anonymous destination landing, and authored heterogeneous
-  operators whose result matches. Exercise active and inactive domain
-  candidates through the existing selection owner, not a candidate-presence
-  exemption or a second operator resolver.
-
 - **TERMINATION-RANKING-CHECKS.** Complete the documented joint-ranking and
   rank-range checks in `validation/src/call_cycles.rs` and
   `typed-trees-to-checked-trees/src/checks/termination/ranking/`.
