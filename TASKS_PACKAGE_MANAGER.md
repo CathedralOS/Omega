@@ -59,6 +59,16 @@ adding machinery; do not invent proof-of-review or host-security requirements.
 
 ## 3. Record pins and accepted policy
 
+- [ ] **ACCEPTED-LOCK-SCHEMA.** Validate foreign package-owner references in
+  complete retained policies against the lock's exact transitive source graph.
+  Evidence owns reference enumeration, including owners inside canonical type
+  and callable identities; the manager supplies exact package-key membership.
+  Acceptance: absent concrete foreign owners reject without old source or
+  compiler replay; included transitive owners, toolchain identities, absent
+  optional owners, and symbolic binder coordinates remain valid. Do not require
+  a direct dependency edge or certify foreign declaration availability merely
+  to establish graph consistency.
+
 - [ ] **LOCK-BASELINE-RECOVERY.** Integrate lock loading with resolution and
   checking. Locked use preserves exact pins and never silently updates a
   selector. Verify acquired content against the recorded resolution.
