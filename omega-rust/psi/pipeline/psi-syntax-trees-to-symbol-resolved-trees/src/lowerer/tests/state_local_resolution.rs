@@ -263,7 +263,9 @@ fn nested_states_bind_entry_block_locals_to_the_entry_symbol() {
             }
         }
     "#;
-    let tokens = Lexer::new(source).tokenize().expect("tokenize captured local");
+    let tokens = Lexer::new(source)
+        .tokenize()
+        .expect("tokenize captured local");
     let syntax = parse_syntax_trees(&tokens).expect("parse captured local");
     let program = lower_syntax_trees(&syntax).expect("resolve captured local");
     let machine = program
