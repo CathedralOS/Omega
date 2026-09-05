@@ -1,0 +1,31 @@
+; Generic publication metadata: no authored name or particular primitive match.
+; Encode the low 1..7 bytes and their length in a nonzero scalar below 2^59.
+; Unsupported shapes retain zero and use ordinary call publication.
+(def emission_unary_word ((kind Int) (payload Int)) Int
+  (if (eq kind 7)
+    (if (eq (first (second payload)) 1)
+      (let head Int (first payload)
+        (if (eq (gamma_kind head) 6)
+          (let word Int (gamma_payload head)
+            (let length Int (second word)
+              (if (if (lt length 1) 1 (lt 7 length))
+                0
+                (if (lt (first word) 0)
+                  0
+                  (+ (* (% (first word) (emission_word_modulus length 1)) 8)
+                    length)))))
+          0))
+      0)
+    0))
+
+(def emission_word_modulus ((remaining Int) (value Int)) Int
+  (if (eq remaining 0)
+    value
+    (emission_word_modulus (- remaining 1) (* value 256))))
+
+(def emission_write_unary_word ((encoded Int) (written Int)) Int
+  (let length Int (% encoded 8)
+    (let open Int (write '(')
+      (let word Int (emit_ascii_bytes (/ encoded 8) length)
+        (let separator Int (write '\s')
+          (+ written (+ length 2)))))))

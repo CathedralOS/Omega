@@ -1,13 +1,15 @@
-; Nodes retain kind, expanded height, canonical byte extent, and payload.
-; Extents are computed once from shared formatting and child summaries, before
-; a node can be reused. No pair-reference provenance is inspected.
+; Nodes retain kind, expanded height, serialization summaries, and payload.
+; Summaries are computed once before a node can be reused. No pair-reference
+; provenance is inspected; reconstruction refreshes the summaries.
 (def gamma_node ((kind Int) (height Int) (payload Int)) Int
   (let extent Int (emission_node_extent kind payload)
-    (pair kind (pair height (pair extent payload)))))
+    (let unary_word Int (emission_unary_word kind payload)
+      (pair kind (pair height (pair (pair extent unary_word) payload))))))
 
 (def gamma_kind ((node Int)) Int (first node))
 (def gamma_height ((node Int)) Int (first (second node)))
-(def gamma_extent ((node Int)) Int (first (second (second node))))
+(def gamma_extent ((node Int)) Int (first (first (second (second node)))))
+(def gamma_unary_word ((node Int)) Int (second (first (second (second node)))))
 (def gamma_payload ((node Int)) Int (second (second (second node))))
 
 (def gamma_maximum ((left Int) (right Int)) Int

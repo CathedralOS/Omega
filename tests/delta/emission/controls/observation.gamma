@@ -1,0 +1,14 @@
+; Both counts start at 11, but these private framing bytes are not counted.
+; Any accidental count-only write therefore changes the exact observation.
+(def emission_test_observe ((node Int)) Int
+  (let extent Int (gamma_extent node)
+    (let measured Int (emit_expression node 0 11)
+      (let extent_bytes Int (write_unsigned_little_endian extent 4)
+        (let count_bytes Int (write_unsigned_little_endian measured 4)
+          (let cache_tag Int (write (if (gamma_unary_word node) 1 0))
+            (let published Int (emit_expression node 1 11)
+              (let published_bytes Int (write_unsigned_little_endian published 4)
+                0))))))))
+
+(def emission_test_unary ((head Int) (argument Int)) Int
+  (gamma_call head 1 (pair argument 0)))

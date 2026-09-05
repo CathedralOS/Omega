@@ -13,10 +13,10 @@ integer constants, and fixed words.
 [gamma/primitives.gamma](gamma/primitives.gamma) builds ordinary Gamma primitive
 applications from those nodes; it does not write a textual template.
 
-An expression retains its kind, expanded expression-list height, canonical
-serialization byte extent, and kind-specific payload. Atoms have height zero. A call adds one to the maximum
-height of its arguments; a let adds one to the maximum of its initializer and
-body. This counts generated Gamma lists, including lowering wrappers, not
+An expression retains its kind, expanded expression-list height, serialization
+summaries, and kind-specific payload. Atoms have height zero. A call adds one
+to the maximum height of its arguments; a let adds one to the maximum of its
+initializer and body. This counts generated Gamma lists, including lowering wrappers, not
 Delta expression levels or compiler continuation frames. Reused nodes remain
 immutable snapshots; height describes their expansion at each occurrence.
 
@@ -26,10 +26,18 @@ unique DAG storage. Construction derives it once from the
 constructed child extents. Those count-only calls write no bytes and make no
 Delta lowering decisions. Rebuilding a node after capture renaming or helper
 extraction refreshes the extent automatically. Checked addition prevents wrapped
-summaries. This costs one pair per node and keeps payload preflight from
-repeatedly unfolding shared projection tails. Function spelling includes the
+summaries. The extent keeps payload preflight from repeatedly unfolding shared
+projection tails. Function spelling includes the
 selected compilation profile; definition framing, fixed runtime text, and the
 entry-owned final LF remain outside expression extents.
+
+The other serialization summary is an optional compact prefix for unary calls
+with short fixed-word heads. [Its emission owner](../emission/unary_words.gamma)
+derives it from the call shape and exact visible word bytes; no primitive is
+special-cased. Zero selects the ordinary serializer. The two summaries together
+cost two immutable pairs per node beyond kind, height, and payload. Accessors
+keep that private layout out of lowering and normalization. Reconstruction
+refreshes both summaries, while reused nodes retain their immutable values.
 
 Admitted source atom payloads retain exact source spans through retained-node
 accessors. A serializer may copy those bytes; it does not traverse Delta

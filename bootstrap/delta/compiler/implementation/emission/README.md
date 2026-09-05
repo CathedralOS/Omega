@@ -11,9 +11,9 @@ The pipeline finishes the complete frontend, selected-profile schema check,
 and [lowering](../lowering/README.md) and
 [normalization](../normalization/README.md) of every authored body before
 writing the first receipt byte. A count-only serialization then measures the
-complete payload using cached expression extents. Emission does not classify Delta expressions,
-resolve locals,
-expand constructors or patterns, or choose checked-arithmetic guards. Those
+complete payload using cached expression extents. Emission does not classify
+Delta expressions, resolve locals, expand constructors or patterns, or choose
+checked-arithmetic guards. Those
 decisions are already explicit Gamma structure.
 
 ## Atom and expression custody
@@ -63,15 +63,37 @@ Preflight accumulation and node summaries use checked nonnegative addition, neve
 saturation. An arithmetic contradiction fails before any wrapped count can be
 admitted or published; it does not invent a resource-12 requested witness.
 Canonical internal-failure publication remains separate unfinished work.
-The cache costs one additional immutable pair per Gamma node. This trades
-bounded retained metadata for repeated traversal of shared projection tails;
-full Epsilon recompilation remains a storage regression check.
+Serialization summaries cost two additional immutable pairs per Gamma node:
+one for the extent and one for the optional unary-word prefix described below.
+Full Epsilon recompilation remains a storage regression check.
+
+### Unary fixed-word prefixes
+
+[unary_words.gamma](unary_words.gamma) caches a compact publication prefix for
+one-argument calls whose head is a fixed word of one through seven bytes. The
+cache does not select a particular primitive or inspect authored source names.
+It encodes the visible low bytes and their length in one nonzero scalar below
+2^59; ignored high bytes are masked before encoding. All other call shapes use
+ordinary call publication. Zero means no cached prefix, not an empty spelling.
+
+The expression visitor writes a cached prefix and tail-enters the sole argument
+with one more pending close. This skips repeated atom dispatch and argument
+dispatch when immutable call nodes occur many times in the expanded output.
+The same byte writer emits fixed words on both paths. Counts continue to come
+from canonical extents, and the final publication total must still agree.
+Every reconstructed node refreshes both summaries; no cache is keyed by pair
+address, compiler identity, or source pattern.
 
 No source-dependent lowering template remains in this directory. Calls,
 constructors, bindings, arithmetic, and matches belong under `lowering/`;
 durable Gamma plan nodes belong under `representation/`.
 
 ## Validation and remaining boundaries
+
+The [emission gate](../../../../../tests/delta/emission/README.md) exercises
+count/publication agreement, prefix eligibility and fallback, continuation
+ordering, and capture reconstruction on private Gamma-plan controls. These
+controls do not claim source admission or executable program semantics.
 
 The staged gate compares exact receipts, executes generated programs, and
 exercises nested expressions and wide payloads. Exact Epsilon checking and

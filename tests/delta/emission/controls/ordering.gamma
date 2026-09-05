@@ -1,0 +1,16 @@
+(def emission_test_let () Int
+  (let binder Int (gamma_generated 'z' 7)
+    (gamma_let binder (gamma_first (gamma_integer 1))
+      (emission_test_unary (gamma_word 120 1) (gamma_second binder)))))
+
+; Cached final children must preserve all pending outer closes. Nonfinal calls
+; and lets resume their saved sibling or body before the surrounding suffix.
+(def emission_test_ordering ((mode Int)) Int
+  (if (eq mode 12)
+    (emission_test_unary (gamma_word 120 1)
+      (gamma_first (gamma_second (gamma_integer 9))))
+    (if (eq mode 13)
+      (gamma_pair (gamma_first (gamma_integer 1)) (gamma_second (gamma_integer 2)))
+      (if (eq mode 14)
+        (emission_test_let)
+        (gamma_pair (emission_test_let) (gamma_first (gamma_integer 2)))))))

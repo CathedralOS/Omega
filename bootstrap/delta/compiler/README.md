@@ -81,7 +81,7 @@ per-projection continuation during publication. Gamma nodes also retain exact
 serialization extents built from shared formatting helpers and child summaries;
 preflight sums those cached extents without unfolding shared children again.
 
-`implementation/implementation.gamma.sources` selects all 63 shared members
+`implementation/implementation.gamma.sources` selects all 64 shared members
 with exact lengths, digests, and ordered identities. The byte-only source
 materializer validates that closed inventory and prefixes the explicitly
 selected entry. For the canonical entry, its application marker is therefore
@@ -364,7 +364,7 @@ The downgraded full compiler remains separate under
 ## Measurements
 
 ```text
-3,343-line / 152,949-byte canonical entry plus shared Gamma implementation
+3,381-line / 154,591-byte canonical entry plus shared Gamma implementation
 7-line / 195-byte nullary-ADT Delta fixture
   -> 3-line / 165-byte Gamma receipt
   -> selected Gamma evaluation produces byte 9

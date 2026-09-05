@@ -1,0 +1,21 @@
+; Explicit lengths exercise the generic cache, not a primitive-name allowlist.
+; Empty/NUL/high-byte heads are private representation controls only.
+(def emission_test_words ((mode Int)) Int
+  (if (eq mode 0) (gamma_integer 17)
+    (let head Int
+      (if (eq mode 1) (gamma_word 120 1)
+        (if (eq mode 2) (gamma_word 29104508263162465 7)
+          (if (eq mode 3) (gamma_word 7523094288207667809 8)
+            (if (eq mode 4) (gamma_word 0 0)
+              (if (eq mode 5) (gamma_word 10872 1)
+                (if (eq mode 6) (gamma_word 0 1)
+                  (gamma_word 9223372036854775807 7)))))))
+      (let call Int (emission_test_unary head (gamma_integer 9))
+        (if (eq mode 7)
+          (if (eq (gamma_unary_word call) 576460752303423487) call (fail))
+          call)))))
+
+; Negative packed text is not sent to publication. Its metadata must fall back.
+(def emission_test_negative_word () Int
+  (let head Int (gamma_word -1 1)
+    (emission_unary_word 7 (pair head (pair 1 (pair (gamma_integer 9) 0))))))
