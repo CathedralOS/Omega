@@ -24,6 +24,7 @@ mod call_targets;
 mod call_trees;
 mod caller_aliases;
 mod demand;
+mod inference;
 mod isolated_initializers;
 mod isolation;
 mod local_aliases;
@@ -46,8 +47,8 @@ use assignment_targets::{
     assignment_target_type, expression_is_effectful_indexed_place,
     transparent_assignment_target_effect_is_structural,
 };
+pub(crate) use boundary_calls::boundary_trait_signature;
 use boundary_calls::known_boundary_call_written_paths_for_parts;
-pub(crate) use boundary_calls::{boundary_trait_signature, known_boundary_call_written_paths};
 use call_targets::discarded_primitive_internal_call_is_relationally_neutral;
 pub(crate) use call_targets::free_machine_entry_state;
 pub(super) use call_targets::machine_state_by_symbol;
@@ -59,6 +60,7 @@ pub use caller_aliases::{AssignmentWriteTarget, LocalWriteOrigin};
 pub(crate) use demand::statement_value_expression_roots;
 pub use demand::{CallFrameResolver, frame_paths_overlap};
 use demand::{collect_expression_call_written_paths, syntactic_call_written_paths};
+use inference::FrameInference;
 use isolated_initializers::isolated_local_initializer_preserves_transparent_result;
 use isolation::type_is_caller_isolated_local;
 use local_aliases::{
@@ -110,6 +112,7 @@ fn known_call_written_paths_with_summaries(
     machine_symbols: &MachineSymbols<'_>,
     symbols: &TopLevelSymbols<'_>,
     complete_state_summaries: &mut Vec<(SymbolHandle, Vec<String>)>,
+    inference: &mut FrameInference,
 ) -> Option<Vec<String>> {
     let receiver_members = program
         .statement_table
@@ -127,7 +130,7 @@ fn known_call_written_paths_with_summaries(
         current_machine,
         machine_symbols,
         symbols,
-        &mut Vec::new(),
+        inference,
         None,
         complete_state_summaries,
     )
@@ -144,7 +147,7 @@ fn known_call_written_paths_for_parts(
     current_machine: &Machine,
     machine_symbols: &MachineSymbols<'_>,
     symbols: &TopLevelSymbols<'_>,
-    active_states: &mut Vec<SymbolHandle>,
+    inference: &mut FrameInference,
 ) -> Option<Vec<String>> {
     let mut complete_state_summaries = Vec::new();
     known_call_written_paths_for_parts_with_origins(
@@ -157,7 +160,7 @@ fn known_call_written_paths_for_parts(
         current_machine,
         machine_symbols,
         symbols,
-        active_states,
+        inference,
         None,
         &mut complete_state_summaries,
     )
@@ -174,7 +177,7 @@ fn known_call_written_paths_for_parts_with_origins(
     current_machine: &Machine,
     machine_symbols: &MachineSymbols<'_>,
     symbols: &TopLevelSymbols<'_>,
-    active_states: &mut Vec<SymbolHandle>,
+    inference: &mut FrameInference,
     argument_origins: Option<&[Option<FramePlaceOrigin>]>,
     complete_state_summaries: &mut Vec<(SymbolHandle, Vec<String>)>,
 ) -> Option<Vec<String>> {
@@ -237,7 +240,7 @@ fn known_call_written_paths_for_parts_with_origins(
             Some((machine, state))
         })?;
 
-    if active_states.contains(&callee_state.symbol) {
+    if inference.active_states.contains(&callee_state.symbol) {
         return None;
     }
     summarize_resolved_call(
@@ -249,7 +252,7 @@ fn known_call_written_paths_for_parts_with_origins(
         receiver_members,
         receiver_origin,
         symbols,
-        active_states,
+        inference,
         argument_origins,
         complete_state_summaries,
     )
@@ -265,7 +268,7 @@ fn summarize_resolved_call(
     receiver_members: &[String],
     receiver_origin: Option<&FramePlaceOrigin>,
     symbols: &TopLevelSymbols<'_>,
-    active_states: &mut Vec<SymbolHandle>,
+    inference: &mut FrameInference,
     argument_origins: Option<&[Option<FramePlaceOrigin>]>,
     complete_state_summaries: &mut Vec<(SymbolHandle, Vec<String>)>,
 ) -> Option<Vec<String>> {
@@ -287,13 +290,13 @@ fn summarize_resolved_call(
     let parameters = program.state_parameters(callee_state);
     let mut written = Vec::new();
 
-    active_states.push(callee_state.symbol);
+    inference.active_states.push(callee_state.symbol);
     let relative_paths = summarize_state_written_paths(
         program,
         callee_machine,
         callee_state,
         symbols,
-        active_states,
+        inference,
         complete_state_summaries,
     )
     .or_else(|| {
@@ -302,10 +305,10 @@ fn summarize_resolved_call(
             callee_machine,
             callee_state,
             symbols,
-            active_states,
+            inference,
         )
     });
-    active_states.pop();
+    inference.active_states.pop();
     // Actual expressions run in the caller, not recursively inside this
     // callee body. A producer may call this same consumer in a finite tree;
     // only enclosing body guards belong to that actual's origin proof.
@@ -319,7 +322,7 @@ fn summarize_resolved_call(
             arguments,
             &[],
             symbols,
-            active_states,
+            inference,
             argument_origins,
         )? {
             if !written.contains(&instantiated) {
@@ -336,7 +339,7 @@ fn summarize_state_written_paths(
     machine: &Machine,
     state: &State,
     symbols: &TopLevelSymbols<'_>,
-    active_states: &mut Vec<SymbolHandle>,
+    inference: &mut FrameInference,
     complete_state_summaries: &mut Vec<(SymbolHandle, Vec<String>)>,
 ) -> Option<Vec<String>> {
     if let Some((_, paths)) = complete_state_summaries
@@ -350,7 +353,7 @@ fn summarize_state_written_paths(
         machine,
         state,
         symbols,
-        active_states,
+        inference,
         complete_state_summaries,
         None,
     )?;
@@ -378,7 +381,29 @@ fn walk_state_write_prefix(
     machine: &Machine,
     state: &State,
     symbols: &TopLevelSymbols<'_>,
-    active_states: &mut Vec<SymbolHandle>,
+    inference: &mut FrameInference,
+    complete_state_summaries: &mut Vec<(SymbolHandle, Vec<String>)>,
+    query: Option<StateWriteQuery<'_>>,
+) -> Option<StateWritePrefix> {
+    inference.with_local_scope(|inference| {
+        walk_state_write_prefix_inner(
+            program,
+            machine,
+            state,
+            symbols,
+            inference,
+            complete_state_summaries,
+            query,
+        )
+    })
+}
+
+fn walk_state_write_prefix_inner(
+    program: &TypedTrees,
+    machine: &Machine,
+    state: &State,
+    symbols: &TopLevelSymbols<'_>,
+    inference: &mut FrameInference,
     complete_state_summaries: &mut Vec<(SymbolHandle, Vec<String>)>,
     query: Option<StateWriteQuery<'_>>,
 ) -> Option<StateWritePrefix> {
@@ -416,7 +441,7 @@ fn walk_state_write_prefix(
                     program,
                     machine,
                     &machine_symbols,
-                    active_states,
+                    inference,
                     local,
                     parameters,
                     &isolated_local_roots,
@@ -442,7 +467,7 @@ fn walk_state_write_prefix(
                                 program,
                                 machine,
                                 &machine_symbols,
-                                active_states,
+                                inference,
                                 assignment.value,
                                 parameters,
                                 &isolated_local_roots,
@@ -469,17 +494,17 @@ fn walk_state_write_prefix(
                     &local_alias_origins,
                     &stored,
                     symbols,
-                    active_states,
+                    inference,
                 )
             }
             _ => None,
         };
+        if stored_origins::statement_exposes_frozen_binding(
+            program, machine, state, statement, &stored,
+        ) {
+            return None;
+        }
         for expression in statement_value_expression_roots(program, statement) {
-            if stored_origins::expression_borrows_carrier_binding(
-                program, machine, state, expression, &stored,
-            ) {
-                return None;
-            }
             if expression_reborrows_local_alias_binding(program, expression, &local_alias_origins)
                 && declared_local_alias_origin.is_none()
                 && !representable_alias_rebinding
@@ -493,7 +518,7 @@ fn walk_state_write_prefix(
                 machine,
                 &machine_symbols,
                 symbols,
-                active_states,
+                inference,
                 &mut expression_writes,
             )?;
             for relative in expression_writes
@@ -510,13 +535,15 @@ fn walk_state_write_prefix(
         match statement {
             StatementNode::AssemblyFact(_) => {}
             StatementNode::Assignment(assignment) => {
-                if alias_bindings::assignment_replaces_untracked_reference(
-                    program,
-                    machine,
-                    state,
-                    assignment,
-                    &local_alias_origins,
-                ) {
+                if stored_origins::assignment_replaces_case_binding(program, assignment, &stored)
+                    || alias_bindings::assignment_replaces_untracked_reference(
+                        program,
+                        machine,
+                        state,
+                        assignment,
+                        &local_alias_origins,
+                    )
+                {
                     return None;
                 }
                 let direct_target = coarse_place_path(program, assignment.target);
@@ -533,7 +560,7 @@ fn walk_state_write_prefix(
                                 program,
                                 machine,
                                 &machine_symbols,
-                                active_states,
+                                inference,
                                 assignment.value,
                                 parameters,
                                 &isolated_local_roots,
@@ -561,7 +588,7 @@ fn walk_state_write_prefix(
                     program,
                     machine,
                     &machine_symbols,
-                    active_states,
+                    inference,
                     assignment.target,
                     parameters,
                     &isolated_local_roots,
@@ -598,7 +625,7 @@ fn walk_state_write_prefix(
                             program,
                             machine,
                             &machine_symbols,
-                            active_states,
+                            inference,
                             *argument,
                             parameters,
                             &isolated_local_roots,
@@ -619,7 +646,7 @@ fn walk_state_write_prefix(
                     machine,
                     &machine_symbols,
                     symbols,
-                    active_states,
+                    inference,
                     Some(&argument_origins),
                     complete_state_summaries,
                 )
@@ -636,7 +663,7 @@ fn walk_state_write_prefix(
                             &nested_receiver_members,
                             nested_call.target.as_str(),
                             arguments,
-                            active_states,
+                            inference,
                         )
                     })
                     .flatten()
@@ -682,7 +709,7 @@ fn walk_state_write_prefix(
                         state,
                         target,
                         symbols,
-                        active_states,
+                        inference,
                         complete_state_summaries,
                         &locals,
                     )?
@@ -705,8 +732,26 @@ fn walk_state_write_prefix(
                     if let Some(origin) = declared_local_alias_origin {
                         local_alias_origins.push((local.name.as_str().to_owned(), origin));
                     } else {
-                        stored.push(declared_stored_origins?);
+                        let origins = declared_stored_origins?;
+                        inference.record_local(&origins);
+                        stored.push(origins);
                     }
+                } else if stored_origins::has_aggregate_case_shape(program, local.type_reference)
+                    && let Some(origins) = stored_origins::declaration_origins(
+                        program,
+                        machine,
+                        local,
+                        &local_alias_origins,
+                        &stored,
+                        symbols,
+                        inference,
+                    )
+                {
+                    // Failure to recover a no-write value's cases does not
+                    // invalidate its writes. A later payload projection still
+                    // requires positive case evidence from this same transfer.
+                    inference.record_local(&origins);
+                    stored.push(origins);
                 }
                 if type_is_caller_isolated_local(program, local.type_reference) {
                     isolated_local_roots.push(local.name.as_str().to_owned());
@@ -741,7 +786,7 @@ fn stable_local_mutable_alias_origin(
     program: &TypedTrees,
     current_machine: &Machine,
     machine_symbols: &MachineSymbols<'_>,
-    active_states: &mut Vec<SymbolHandle>,
+    inference: &mut FrameInference,
     local: &psi_typed_trees::statement::TableLocalData,
     parameters: &[StateParameter],
     isolated_local_roots: &[String],
@@ -762,7 +807,7 @@ fn stable_local_mutable_alias_origin(
         program,
         current_machine,
         machine_symbols,
-        active_states,
+        inference,
         local.initial_value,
         parameters,
         isolated_local_roots,
@@ -778,7 +823,7 @@ fn stable_alias_initializer_origin(
     program: &TypedTrees,
     current_machine: &Machine,
     machine_symbols: &MachineSymbols<'_>,
-    active_states: &mut Vec<SymbolHandle>,
+    inference: &mut FrameInference,
     expression: ExpressionHandle,
     parameters: &[StateParameter],
     isolated_local_roots: &[String],
@@ -792,7 +837,7 @@ fn stable_alias_initializer_origin(
             program,
             current_machine,
             machine_symbols,
-            active_states,
+            inference,
             inner.target,
             parameters,
             isolated_local_roots,
@@ -807,7 +852,7 @@ fn stable_alias_initializer_origin(
                     program,
                     current_machine,
                     machine_symbols,
-                    active_states,
+                    inference,
                     call.receiver,
                     parameters,
                     isolated_local_roots,
@@ -821,13 +866,13 @@ fn stable_alias_initializer_origin(
                 program,
                 call,
                 symbols,
-                active_states,
-                |_, _, actual, active_states| {
+                inference,
+                |_, _, actual, inference| {
                     stable_alias_initializer_origin(
                         program,
                         current_machine,
                         machine_symbols,
-                        active_states,
+                        inference,
                         actual,
                         parameters,
                         isolated_local_roots,
@@ -847,7 +892,7 @@ fn stable_alias_initializer_origin(
                     indexed.index,
                     machine_symbols,
                     symbols,
-                    active_states,
+                    inference,
                     parameters,
                     aliases,
                 )
@@ -858,7 +903,7 @@ fn stable_alias_initializer_origin(
                 program,
                 current_machine,
                 machine_symbols,
-                active_states,
+                inference,
                 indexed.collection,
                 parameters,
                 isolated_local_roots,
@@ -879,7 +924,7 @@ fn stable_alias_initializer_origin(
                 program,
                 current_machine,
                 machine_symbols,
-                active_states,
+                inference,
                 member.receiver,
                 parameters,
                 isolated_local_roots,
@@ -908,7 +953,7 @@ fn stable_alias_initializer_origin(
                 program,
                 current_machine,
                 machine_symbols,
-                active_states,
+                inference,
                 cast.value,
                 parameters,
                 isolated_local_roots,
@@ -976,7 +1021,7 @@ fn stable_alias_expression_origin(
                 program,
                 call,
                 symbols,
-                &mut Vec::new(),
+                &mut FrameInference::default(),
                 |_, _, actual, _| {
                     stable_alias_expression_origin(
                         program,
@@ -1066,7 +1111,7 @@ fn stable_assignment_target_path(
     program: &TypedTrees,
     current_machine: &Machine,
     machine_symbols: &MachineSymbols<'_>,
-    active_states: &mut Vec<SymbolHandle>,
+    inference: &mut FrameInference,
     target: ExpressionHandle,
     parameters: &[StateParameter],
     isolated_local_roots: &[String],
@@ -1081,7 +1126,7 @@ fn stable_assignment_target_path(
             program,
             current_machine,
             machine_symbols,
-            active_states,
+            inference,
             target,
             parameters,
             isolated_local_roots,
@@ -1115,12 +1160,12 @@ fn transparent_call_result_origin(
     program: &TypedTrees,
     call: &TableCallExpression,
     symbols: &TopLevelSymbols<'_>,
-    active_states: &mut Vec<SymbolHandle>,
+    inference: &mut FrameInference,
     resolve_actual_origin: impl FnOnce(
         &Machine,
         &StateParameter,
         ExpressionHandle,
-        &mut Vec<SymbolHandle>,
+        &mut FrameInference,
     ) -> Option<FramePlaceOrigin>,
 ) -> Option<FramePlaceOrigin> {
     let (callee_machine, callee_state) = machine_state_by_symbol(program, call.target_symbol)
@@ -1138,7 +1183,7 @@ fn transparent_call_result_origin(
         callee_machine,
         callee_state,
         symbols,
-        active_states,
+        inference,
     )?;
     let parameters = program.state_parameters(callee_state);
     let result_parameter = parameters
@@ -1162,7 +1207,7 @@ fn transparent_call_result_origin(
             .get(argument_index)?
     };
     let argument_origin =
-        resolve_actual_origin(callee_machine, result_parameter, actual, active_states)?;
+        resolve_actual_origin(callee_machine, result_parameter, actual, inference)?;
     let source = argument_origin
         .source
         .append_relative(&result_origin.place.source);
@@ -1189,11 +1234,11 @@ fn transparent_place_expression_origin(
     program: &TypedTrees,
     expression: ExpressionHandle,
     symbols: &TopLevelSymbols<'_>,
-    active_states: &mut Vec<SymbolHandle>,
+    inference: &mut FrameInference,
 ) -> Option<FramePlaceOrigin> {
     match program.expression_table.expression(expression) {
         ExpressionNode::Borrow(inner) => {
-            transparent_place_expression_origin(program, inner.target, symbols, active_states)
+            transparent_place_expression_origin(program, inner.target, symbols, inference)
         }
         ExpressionNode::Indexed(indexed) => {
             if expression_is_effectful_for_transparent_result(program, indexed.index) {
@@ -1203,7 +1248,7 @@ fn transparent_place_expression_origin(
                 program,
                 indexed.collection,
                 symbols,
-                active_states,
+                inference,
             )?;
             origin.source = origin
                 .source
@@ -1212,12 +1257,8 @@ fn transparent_place_expression_origin(
             Some(origin)
         }
         ExpressionNode::Member(member) => {
-            let origin = transparent_place_expression_origin(
-                program,
-                member.receiver,
-                symbols,
-                active_states,
-            )?;
+            let origin =
+                transparent_place_expression_origin(program, member.receiver, symbols, inference)?;
             let source = origin
                 .source
                 .projected(program, expression, member.receiver);
@@ -1236,16 +1277,16 @@ fn transparent_place_expression_origin(
                     program,
                     call.receiver,
                     symbols,
-                    active_states,
+                    inference,
                 );
             }
             transparent_call_result_origin(
                 program,
                 call,
                 symbols,
-                active_states,
-                |_, _, actual, active_states| {
-                    transparent_place_expression_origin(program, actual, symbols, active_states)
+                inference,
+                |_, _, actual, inference| {
+                    transparent_place_expression_origin(program, actual, symbols, inference)
                 },
             )
         }
@@ -1258,9 +1299,9 @@ fn transparent_callee_result_origin(
     callee_machine: &Machine,
     callee_state: &State,
     symbols: &TopLevelSymbols<'_>,
-    active_states: &mut Vec<SymbolHandle>,
+    inference: &mut FrameInference,
 ) -> Option<ParameterRelativeFrameOrigin> {
-    if active_states.contains(&callee_state.symbol)
+    if inference.active_states.contains(&callee_state.symbol)
         || !matches!(
             program
                 .type_reference_table
@@ -1271,7 +1312,7 @@ fn transparent_callee_result_origin(
     {
         return None;
     }
-    active_states.push(callee_state.symbol);
+    inference.active_states.push(callee_state.symbol);
     let result = (|| {
         let statements = program
             .statement_table
@@ -1306,7 +1347,7 @@ fn transparent_callee_result_origin(
                             local.initial_value,
                             Some(local.type_reference),
                             symbols,
-                            active_states,
+                            inference,
                             parameters,
                             &local_aliases,
                         ) {
@@ -1325,7 +1366,7 @@ fn transparent_callee_result_origin(
                                     callee_machine,
                                     machine_symbols,
                                     symbols,
-                                    active_states,
+                                    inference,
                                     written,
                                 )
                             },
@@ -1351,7 +1392,7 @@ fn transparent_callee_result_origin(
                         parameters,
                         &local_aliases,
                         symbols,
-                        active_states,
+                        inference,
                     )
                     .or_else(|| {
                         let mut diagnostics = Vec::new();
@@ -1364,7 +1405,7 @@ fn transparent_callee_result_origin(
                             program,
                             callee_machine,
                             &machine_symbols,
-                            active_states,
+                            inference,
                             local.initial_value,
                             parameters,
                             &isolated_local_roots,
@@ -1396,7 +1437,7 @@ fn transparent_callee_result_origin(
                             parameters,
                             &local_aliases,
                             symbols,
-                            active_states,
+                            inference,
                         )
                         .is_none())
                     {
@@ -1413,7 +1454,7 @@ fn transparent_callee_result_origin(
                             assignment.target,
                         ),
                         symbols,
-                        active_states,
+                        inference,
                         parameters,
                         &local_aliases,
                     ) {
@@ -1437,7 +1478,7 @@ fn transparent_callee_result_origin(
                             parameters,
                             &local_aliases,
                             symbols,
-                            active_states,
+                            inference,
                         )?;
                         local_aliases[position].2 = replacement;
                     } else if expression_is_effectful_for_transparent_result(
@@ -1455,7 +1496,7 @@ fn transparent_callee_result_origin(
                         callee_machine,
                         call,
                         symbols,
-                        active_states,
+                        inference,
                         parameters,
                         &local_aliases,
                     ) => {}
@@ -1469,11 +1510,11 @@ fn transparent_callee_result_origin(
             parameters,
             &local_aliases,
             symbols,
-            active_states,
+            inference,
         )
         .filter(|origin| origin.parameter_symbol.is_valid())
     })();
-    active_states.pop();
+    inference.active_states.pop();
     result
 }
 
@@ -1491,7 +1532,7 @@ fn statement_call_preserves_transparent_result(
     current_machine: &Machine,
     call: &TableCall,
     symbols: &TopLevelSymbols<'_>,
-    active_states: &mut Vec<SymbolHandle>,
+    inference: &mut FrameInference,
     parameters: &[StateParameter],
     aliases: &[(String, SymbolHandle, ParameterRelativeFrameOrigin)],
 ) -> bool {
@@ -1529,7 +1570,7 @@ fn statement_call_preserves_transparent_result(
             ValuePosition::CallArgument(argument_types.get(index).copied().unwrap_or_default()),
             &machine_symbols,
             symbols,
-            active_states,
+            inference,
             parameters,
             aliases,
         )
@@ -1547,7 +1588,7 @@ fn statement_call_preserves_transparent_result(
                 parameters,
                 aliases,
                 symbols,
-                active_states,
+                inference,
             )
             .map(|origin| origin.place)
         })
@@ -1562,7 +1603,7 @@ fn statement_call_preserves_transparent_result(
         current_machine,
         &machine_symbols,
         symbols,
-        active_states,
+        inference,
         Some(&argument_origins),
         &mut Vec::new(),
     )
@@ -1579,7 +1620,7 @@ fn statement_call_preserves_transparent_result(
                 &receiver_members,
                 call.target.as_str(),
                 arguments,
-                active_states,
+                inference,
             )
         })
         .flatten()
@@ -1594,7 +1635,7 @@ fn parameter_relative_place_origin(
     parameters: &[StateParameter],
     aliases: &[(String, SymbolHandle, ParameterRelativeFrameOrigin)],
     symbols: &TopLevelSymbols<'_>,
-    active_states: &mut Vec<SymbolHandle>,
+    inference: &mut FrameInference,
 ) -> Option<ParameterRelativeFrameOrigin> {
     match program.expression_table.expression(expression) {
         ExpressionNode::Borrow(inner) => parameter_relative_place_origin(
@@ -1604,7 +1645,7 @@ fn parameter_relative_place_origin(
             parameters,
             aliases,
             symbols,
-            active_states,
+            inference,
         ),
         ExpressionNode::Indexed(indexed) => {
             if expression_is_effectful_for_transparent_result(program, indexed.index) {
@@ -1619,7 +1660,7 @@ fn parameter_relative_place_origin(
                         ValuePosition::IndexOperand,
                         &machine_symbols,
                         symbols,
-                        active_states,
+                        inference,
                         parameters,
                         aliases,
                     )
@@ -1634,7 +1675,7 @@ fn parameter_relative_place_origin(
                 parameters,
                 aliases,
                 symbols,
-                active_states,
+                inference,
             )?;
             origin.place.source =
                 origin
@@ -1652,7 +1693,7 @@ fn parameter_relative_place_origin(
                 parameters,
                 aliases,
                 symbols,
-                active_states,
+                inference,
             )?;
             if origin.place.precision == FramePathPrecision::Exact {
                 origin.place.path = format!("{}.{}", origin.place.path, member.member.as_str());
@@ -1715,7 +1756,7 @@ fn parameter_relative_place_origin(
                     parameters,
                     aliases,
                     symbols,
-                    active_states,
+                    inference,
                 );
             }
             parameter_relative_call_result_origin(
@@ -1725,7 +1766,7 @@ fn parameter_relative_place_origin(
                 parameters,
                 aliases,
                 symbols,
-                active_states,
+                inference,
             )
         }
         ExpressionNode::Cast(cast)
@@ -1739,7 +1780,7 @@ fn parameter_relative_place_origin(
                 parameters,
                 aliases,
                 symbols,
-                active_states,
+                inference,
             )
         }
         _ => None,
@@ -1753,7 +1794,7 @@ fn parameter_relative_call_result_origin(
     caller_parameters: &[StateParameter],
     caller_aliases: &[(String, SymbolHandle, ParameterRelativeFrameOrigin)],
     symbols: &TopLevelSymbols<'_>,
-    active_states: &mut Vec<SymbolHandle>,
+    inference: &mut FrameInference,
 ) -> Option<ParameterRelativeFrameOrigin> {
     let (callee_machine, callee_state) = machine_state_by_symbol(program, call.target_symbol)
         .or_else(|| {
@@ -1769,7 +1810,7 @@ fn parameter_relative_call_result_origin(
         callee_machine,
         callee_state,
         symbols,
-        active_states,
+        inference,
     )?;
     let callee_parameters = program.state_parameters(callee_state);
     let callee_parameter = callee_parameters
@@ -1798,7 +1839,7 @@ fn parameter_relative_call_result_origin(
         caller_parameters,
         caller_aliases,
         symbols,
-        active_states,
+        inference,
     )?;
     let (_, suffix) = split_place_root(&callee_origin.place.path);
     let source = actual_origin
@@ -1842,7 +1883,7 @@ fn summarize_state_written_paths_with_permuted_cycles<'program>(
     machine: &'program Machine,
     entry: &'program State,
     symbols: &TopLevelSymbols<'program>,
-    outer_active_states: &[SymbolHandle],
+    outer_inference: &FrameInference,
 ) -> Option<Vec<String>> {
     let mut diagnostics = Vec::new();
     let machine_symbols = MachineSymbols::build(program, machine, &mut diagnostics);
@@ -1869,7 +1910,7 @@ fn summarize_state_written_paths_with_permuted_cycles<'program>(
             state,
             symbols,
             &machine_symbols,
-            outer_active_states,
+            outer_inference,
         )?;
         pending.extend(equation.edges.iter().map(|edge| edge.target));
         equations.push(equation);
@@ -1884,7 +1925,7 @@ fn summarize_state_written_paths_with_permuted_cycles<'program>(
                     .iter()
                     .find(|candidate| candidate.state.symbol == edge.target)?
                     .state;
-                let mut active_states = outer_active_states.to_vec();
+                let mut inference = outer_inference.clone();
                 if !transition_is_exact_write_parameter_permutation(
                     program,
                     equation.state,
@@ -1892,7 +1933,7 @@ fn summarize_state_written_paths_with_permuted_cycles<'program>(
                     &edge.arguments,
                     &equation.local_alias_origins,
                     symbols,
-                    &mut active_states,
+                    &mut inference,
                 ) {
                     return None;
                 }
@@ -1910,6 +1951,10 @@ fn summarize_state_written_paths_with_permuted_cycles<'program>(
     loop {
         let mut changed = false;
         for equation in &equations {
+            let mut inference = outer_inference.clone();
+            for local in &equation.stored {
+                inference.record_local(local);
+            }
             for edge in &equation.edges {
                 let target = equations
                     .iter()
@@ -1929,7 +1974,7 @@ fn summarize_state_written_paths_with_permuted_cycles<'program>(
                         &edge.arguments,
                         &equation.locals,
                         symbols,
-                        &mut outer_active_states.to_vec(),
+                        &mut inference,
                     )?
                     .iter()
                     .flat_map(|path| {
@@ -1969,7 +2014,7 @@ fn build_permuted_cycle_frame_equation<'program>(
     state: &'program State,
     symbols: &TopLevelSymbols<'program>,
     machine_symbols: &MachineSymbols<'program>,
-    outer_active_states: &[SymbolHandle],
+    outer_inference: &FrameInference,
 ) -> Option<PermutedCycleFrameEquation<'program>> {
     let parameters = program.state_parameters(state);
     let mut locals = Vec::new();
@@ -1978,9 +2023,9 @@ fn build_permuted_cycle_frame_equation<'program>(
     let mut stored = Vec::new();
     let mut direct_writes = Vec::new();
     let mut edges = Vec::new();
-    let mut active_states = outer_active_states.to_vec();
-    if !active_states.contains(&state.symbol) {
-        active_states.push(state.symbol);
+    let mut inference = outer_inference.clone();
+    if !inference.active_states.contains(&state.symbol) {
+        inference.active_states.push(state.symbol);
     }
 
     for statement in program.statement_table.statements(state.statement_nodes) {
@@ -1993,7 +2038,7 @@ fn build_permuted_cycle_frame_equation<'program>(
                     program,
                     machine,
                     machine_symbols,
-                    &mut active_states,
+                    &mut inference,
                     local,
                     parameters,
                     &isolated_local_roots,
@@ -2019,7 +2064,7 @@ fn build_permuted_cycle_frame_equation<'program>(
                                 program,
                                 machine,
                                 machine_symbols,
-                                &mut active_states,
+                                &mut inference,
                                 assignment.value,
                                 parameters,
                                 &isolated_local_roots,
@@ -2033,12 +2078,12 @@ fn build_permuted_cycle_frame_equation<'program>(
                 }),
             _ => false,
         };
+        if stored_origins::statement_exposes_frozen_binding(
+            program, machine, state, statement, &stored,
+        ) {
+            return None;
+        }
         for expression in statement_value_expression_roots(program, statement) {
-            if stored_origins::expression_borrows_carrier_binding(
-                program, machine, state, expression, &stored,
-            ) {
-                return None;
-            }
             if expression_reborrows_local_alias_binding(program, expression, &local_alias_origins)
                 && declared_local_alias_origin.is_none()
                 && !representable_alias_rebinding
@@ -2052,7 +2097,7 @@ fn build_permuted_cycle_frame_equation<'program>(
                 machine,
                 machine_symbols,
                 symbols,
-                &mut active_states,
+                &mut inference,
                 &mut expression_writes,
             )?;
             for relative in expression_writes
@@ -2065,13 +2110,15 @@ fn build_permuted_cycle_frame_equation<'program>(
         match statement {
             StatementNode::AssemblyFact(_) | StatementNode::Expression(_) => {}
             StatementNode::Assignment(assignment) => {
-                if alias_bindings::assignment_replaces_untracked_reference(
-                    program,
-                    machine,
-                    state,
-                    assignment,
-                    &local_alias_origins,
-                ) {
+                if stored_origins::assignment_replaces_case_binding(program, assignment, &stored)
+                    || alias_bindings::assignment_replaces_untracked_reference(
+                        program,
+                        machine,
+                        state,
+                        assignment,
+                        &local_alias_origins,
+                    )
+                {
                     return None;
                 }
                 let direct_target = coarse_place_path(program, assignment.target);
@@ -2088,7 +2135,7 @@ fn build_permuted_cycle_frame_equation<'program>(
                                 program,
                                 machine,
                                 machine_symbols,
-                                &mut active_states,
+                                &mut inference,
                                 assignment.value,
                                 parameters,
                                 &isolated_local_roots,
@@ -2106,7 +2153,7 @@ fn build_permuted_cycle_frame_equation<'program>(
                     program,
                     machine,
                     machine_symbols,
-                    &mut active_states,
+                    &mut inference,
                     assignment.target,
                     parameters,
                     &isolated_local_roots,
@@ -2132,7 +2179,7 @@ fn build_permuted_cycle_frame_equation<'program>(
                             program,
                             machine,
                             machine_symbols,
-                            &mut active_states,
+                            &mut inference,
                             *argument,
                             parameters,
                             &isolated_local_roots,
@@ -2153,7 +2200,7 @@ fn build_permuted_cycle_frame_equation<'program>(
                     machine,
                     machine_symbols,
                     symbols,
-                    &mut active_states,
+                    &mut inference,
                     Some(&argument_origins),
                     &mut Vec::new(),
                 )
@@ -2170,7 +2217,7 @@ fn build_permuted_cycle_frame_equation<'program>(
                             &receiver_members,
                             call.target.as_str(),
                             arguments,
-                            &mut active_states,
+                            &mut inference,
                         )
                     })
                     .flatten()
@@ -2203,16 +2250,31 @@ fn build_permuted_cycle_frame_equation<'program>(
                     if let Some(origin) = declared_local_alias_origin {
                         local_alias_origins.push((local.name.as_str().to_owned(), origin));
                     } else {
-                        stored.push(stored_origins::declaration_origins(
+                        let origins = stored_origins::declaration_origins(
                             program,
                             machine,
                             local,
                             &local_alias_origins,
                             &stored,
                             symbols,
-                            &mut active_states,
-                        )?);
+                            &mut inference,
+                        )?;
+                        inference.record_local(&origins);
+                        stored.push(origins);
                     }
+                } else if stored_origins::has_aggregate_case_shape(program, local.type_reference)
+                    && let Some(origins) = stored_origins::declaration_origins(
+                        program,
+                        machine,
+                        local,
+                        &local_alias_origins,
+                        &stored,
+                        symbols,
+                        &mut inference,
+                    )
+                {
+                    inference.record_local(&origins);
+                    stored.push(origins);
                 }
                 if type_is_caller_isolated_local(program, local.type_reference) {
                     isolated_local_roots.push(local.name.as_str().to_owned());
@@ -2239,7 +2301,7 @@ fn transition_is_exact_write_parameter_permutation(
     arguments: &[ExpressionHandle],
     aliases: &[(String, FramePlaceOrigin)],
     symbols: &TopLevelSymbols<'_>,
-    active_states: &mut Vec<SymbolHandle>,
+    inference: &mut FrameInference,
 ) -> bool {
     let source_write_parameters = program
         .state_parameters(source)
@@ -2271,7 +2333,7 @@ fn transition_is_exact_write_parameter_permutation(
                 parameter,
                 aliases,
                 symbols,
-                active_states,
+                inference,
             )
         }) else {
             return false;
@@ -2290,12 +2352,12 @@ fn expression_forwards_exact_write_parameter(
     parameter: &StateParameter,
     aliases: &[(String, FramePlaceOrigin)],
     symbols: &TopLevelSymbols<'_>,
-    active_states: &mut Vec<SymbolHandle>,
+    inference: &mut FrameInference,
 ) -> bool {
     if expression_forwards_exact_symbol(program, expression, parameter.symbol) {
         return true;
     }
-    if transparent_place_expression_origin(program, expression, symbols, active_states).is_some_and(
+    if transparent_place_expression_origin(program, expression, symbols, inference).is_some_and(
         |origin| {
             origin.precision == FramePathPrecision::Exact && origin.path == parameter.name.as_str()
         },
@@ -2326,7 +2388,7 @@ fn summarize_transition_target_written_paths(
     source_state: &State,
     target: psi_typed_trees::statement::TransitionTargetHandle,
     symbols: &TopLevelSymbols<'_>,
-    active_states: &mut Vec<SymbolHandle>,
+    inference: &mut FrameInference,
     complete_state_summaries: &mut Vec<(SymbolHandle, Vec<String>)>,
     source_locals: &[String],
 ) -> Option<Vec<String>> {
@@ -2347,7 +2409,7 @@ fn summarize_transition_target_written_paths(
             let arguments = program.statement_table.expression_handles(*arguments);
             let target_state =
                 named_transition_target_state(program, machine, source_state, target)?;
-            if active_states.contains(&target_state.symbol) {
+            if inference.active_states.contains(&target_state.symbol) {
                 return named_transition_preserves_state_namespace(
                     program,
                     source_state,
@@ -2356,16 +2418,16 @@ fn summarize_transition_target_written_paths(
                 )
                 .then(Vec::new);
             }
-            active_states.push(target_state.symbol);
+            inference.active_states.push(target_state.symbol);
             let target_writes = summarize_state_written_paths(
                 program,
                 machine,
                 target_state,
                 symbols,
-                active_states,
+                inference,
                 complete_state_summaries,
             );
-            active_states.pop();
+            inference.active_states.pop();
             let target_writes = target_writes?;
             let parameters = program.state_parameters(target_state);
             let mut instantiated = Vec::new();
@@ -2379,7 +2441,7 @@ fn summarize_transition_target_written_paths(
                     arguments,
                     source_locals,
                     symbols,
-                    active_states,
+                    inference,
                 )? {
                     if !instantiated.contains(&path) {
                         instantiated.push(path);

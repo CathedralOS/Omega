@@ -31,7 +31,15 @@ pub(super) fn moved_reference_leaves(
             matches!(statement, StatementNode::LocalData(local)
             if std::ptr::eq(local, destination))
         })?;
-    reference_leaves_before_statement(program, state, before, expression, expected, Some(stored))
+    reference_leaves_before_statement(
+        program,
+        state,
+        before,
+        expression,
+        expected,
+        Some(stored),
+        None,
+    )
 }
 
 /// Raw call instantiation retains symbolic binding paths. The existing caller
@@ -41,13 +49,22 @@ pub(in crate::calls::write_frames) fn symbolic_reference_leaves(
     machine: &Machine,
     expression: ExpressionHandle,
     expected: TypeReferenceHandle,
+    inference: &super::super::FrameInference,
 ) -> Option<AggregateOrigins> {
     let (state, before, _) = super::super::caller_aliases::caller_statement_at_site(
         program,
         machine,
         super::super::caller_aliases::CallerWriteSite::Expression(expression),
     )?;
-    reference_leaves_before_statement(program, state, before, expression, expected, None)
+    reference_leaves_before_statement(
+        program,
+        state,
+        before,
+        expression,
+        expected,
+        None,
+        Some(inference),
+    )
 }
 
 pub(in crate::calls::write_frames) fn reference_leaves_before_statement(
@@ -57,6 +74,7 @@ pub(in crate::calls::write_frames) fn reference_leaves_before_statement(
     expression: ExpressionHandle,
     expected: TypeReferenceHandle,
     stored: Option<&[StoredLocalOrigins]>,
+    inference: Option<&super::super::FrameInference>,
 ) -> Option<AggregateOrigins> {
     let mut root_expression = expression;
     let root_name = loop {
@@ -123,12 +141,14 @@ pub(in crate::calls::write_frames) fn reference_leaves_before_statement(
         return None;
     }
     let declared_origins = if parameter.is_some() || stored.is_none() {
-        Some(super::type_origins::declared_origins(
-            program,
-            root,
-            source_name,
-            source_reference,
-        )?)
+        let mut origins =
+            super::type_origins::declared_origins(program, root, source_name, source_reference)?;
+        if parameter.is_none()
+            && let Some(cases) = inference.and_then(|inference| inference.local_cases(root))
+        {
+            origins.cases = cases.to_vec();
+        }
+        Some(origins)
     } else {
         None
     };
@@ -201,7 +221,7 @@ pub(in crate::calls::write_frames) fn reference_leaves_before_statement(
     Some(leaves)
 }
 
-fn prefix_matches(selected: &[PlaceSegment], candidate: &[PlaceSegment]) -> bool {
+pub(super) fn prefix_matches(selected: &[PlaceSegment], candidate: &[PlaceSegment]) -> bool {
     selected.len() <= candidate.len()
         && selected.iter().zip(candidate).all(|(selected, candidate)| {
             selected == candidate

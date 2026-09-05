@@ -6,8 +6,8 @@
 
 use super::isolation::type_is_caller_isolated_local;
 use super::reference_origins::{exclusive_reference_origin, referent_has_only_owned_storage};
+use crate::calls::write_frames::FrameInference;
 use crate::symbols::{MachineSymbols, TopLevelSymbols};
-use psi_symbols::SymbolHandle;
 use psi_typed_trees::TypedTrees;
 use psi_typed_trees::expression::ExpressionHandle;
 use psi_typed_trees::machine::Machine;
@@ -87,31 +87,6 @@ pub(super) fn boundary_trait_signature_for_parts<'program>(
 /// fields. A direct exclusive borrow or a verified caller reference binding
 /// supplies that argument's path. Checked helpers can transport that origin
 /// through their proven result relation. Untracked reference reach stays opaque.
-pub(crate) fn known_boundary_call_written_paths(
-    program: &TypedTrees,
-    current_machine: &Machine,
-    machine_symbols: &MachineSymbols<'_>,
-    symbols: &TopLevelSymbols<'_>,
-    call: &TableCall,
-) -> Option<Vec<String>> {
-    let receiver = program
-        .statement_table
-        .name_path_members(call.receiver)
-        .iter()
-        .map(|member| member.as_str().to_owned())
-        .collect::<Vec<_>>();
-    known_boundary_call_written_paths_for_parts(
-        program,
-        current_machine,
-        machine_symbols,
-        symbols,
-        &receiver,
-        call.target.as_str(),
-        program.statement_table.expression_handles(call.arguments),
-        &mut Vec::new(),
-    )
-}
-
 pub(super) fn known_boundary_call_written_paths_for_parts(
     program: &TypedTrees,
     current_machine: &Machine,
@@ -120,7 +95,7 @@ pub(super) fn known_boundary_call_written_paths_for_parts(
     receiver: &[String],
     target: &str,
     arguments: &[ExpressionHandle],
-    active_states: &mut Vec<SymbolHandle>,
+    inference: &mut FrameInference,
 ) -> Option<Vec<String>> {
     let signature =
         boundary_trait_signature_for_parts(program, machine_symbols, symbols, receiver, target)?;
@@ -166,14 +141,9 @@ pub(super) fn known_boundary_call_written_paths_for_parts(
         if !referent_has_only_owned_storage(program, *referee) {
             return None;
         }
-        let path = exclusive_reference_origin(
-            program,
-            current_machine,
-            *argument,
-            symbols,
-            active_states,
-        )?
-        .path;
+        let path =
+            exclusive_reference_origin(program, current_machine, *argument, symbols, inference)?
+                .path;
         if !written.contains(&path) {
             written.push(path);
         }

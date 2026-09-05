@@ -8,12 +8,27 @@ use super::place_paths::{
     FramePathPrecision, FramePlaceOrigin, append_place_suffix, split_place_root,
 };
 use super::{Machine, SymbolHandle, TopLevelSymbols, TypedTrees};
+use crate::calls::write_frames::FrameInference;
 use psi_facts::PlaceSegment;
 use psi_typed_trees::statement::TableLocalData;
 
+mod frozen_cases;
 mod projections;
 mod reference_values;
 mod type_origins;
+
+/// Case evidence also matters for payloads with no exclusive references. It
+/// cannot be discovered by asking whether a local contributes writes.
+pub(super) fn has_aggregate_case_shape(
+    program: &TypedTrees,
+    reference: super::TypeReferenceHandle,
+) -> bool {
+    declared_origins(program, SymbolHandle::invalid(), "", reference)
+        .is_some_and(|origins| !origins.cases.is_empty())
+}
+
+pub(super) use frozen_cases::assignment_replaces_case_binding;
+pub(super) use frozen_cases::statement_exposes_frozen_binding;
 
 pub(super) use projections::reference_leaves_before_statement;
 pub(super) use projections::symbolic_reference_leaves;
@@ -44,7 +59,7 @@ pub(super) fn declaration_origins(
     aliases: &[(String, FramePlaceOrigin)],
     stored: &[StoredLocalOrigins],
     symbols: &TopLevelSymbols<'_>,
-    active_states: &mut Vec<SymbolHandle>,
+    inference: &mut FrameInference,
 ) -> Option<StoredLocalOrigins> {
     if super::type_reference_is_reference(program, local.type_reference) || !local.symbol.is_valid()
     {
@@ -75,8 +90,8 @@ pub(super) fn declaration_origins(
         local.type_reference,
         "",
         symbols,
-        active_states,
-        &|expression, reference| {
+        inference,
+        &|expression, reference, _| {
             projections::moved_reference_leaves(
                 program, state, local, expression, reference, stored,
             )
@@ -111,6 +126,9 @@ pub(super) fn expression_borrows_carrier_binding(
     stored: &[StoredLocalOrigins],
 ) -> bool {
     super::local_aliases::expression_has_exclusive_borrow(program, expression, &|target| {
+        if frozen_cases::target_replaces_case_binding(program, target, stored) {
+            return true;
+        }
         let Some(path) = super::frame_place_path(program, target) else {
             return false;
         };

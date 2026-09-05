@@ -6,8 +6,8 @@
 
 use super::stored_origins::{StoredLocalOrigins, expand_write_path, place_suffix};
 use super::{
-    ExpressionHandle, ExpressionNode, FramePathPrecision, FramePlaceOrigin, Machine,
-    StateWriteQuery, StatementNode, SymbolHandle, TableCall, TopLevelSymbols, TypedTrees,
+    ExpressionHandle, ExpressionNode, FrameInference, FramePathPrecision, FramePlaceOrigin,
+    Machine, StateWriteQuery, StatementNode, SymbolHandle, TableCall, TopLevelSymbols, TypedTrees,
     append_place_suffix, statement_value_expression_roots, type_is_caller_isolated_local,
     type_may_carry_write, walk_state_write_prefix,
 };
@@ -147,7 +147,7 @@ pub(super) fn assignment_write_target(
         machine,
         state,
         symbols,
-        &mut Vec::new(),
+        &mut FrameInference::default(),
         &mut Vec::new(),
         Some(StateWriteQuery::Assignment(statement)),
     )?
@@ -231,9 +231,35 @@ pub(super) fn close_caller_aliases(
         return Some(written);
     }
     let (aliases, stored) = caller_aliases_at_site(program, machine, symbols, site)?;
+    Some(close_over_origins(written, &aliases, &stored))
+}
+
+/// Freeze the caller prefix once before resolving a demand, then use exactly
+/// that evidence for both contextual case selection and storage closure.
+pub(super) fn with_caller_origins(
+    program: &TypedTrees,
+    machine: &Machine,
+    symbols: &TopLevelSymbols<'_>,
+    site: CallerWriteSite<'_>,
+    resolve: impl FnOnce(&mut FrameInference) -> Option<Vec<String>>,
+) -> Option<Vec<String>> {
+    let (aliases, stored) = caller_aliases_at_site(program, machine, symbols, site)?;
+    let mut inference = FrameInference::default();
+    for local in &stored {
+        inference.record_local(local);
+    }
+    let written = resolve(&mut inference)?;
+    Some(close_over_origins(written, &aliases, &stored))
+}
+
+fn close_over_origins(
+    written: Vec<String>,
+    aliases: &[(String, FramePlaceOrigin)],
+    stored: &[StoredLocalOrigins],
+) -> Vec<String> {
     let canonical = written
         .iter()
-        .flat_map(|path| expand_write_path(path, &aliases, &stored))
+        .flat_map(|path| expand_write_path(path, aliases, stored))
         .collect::<Vec<_>>();
     let mut closed = written;
     for path in canonical {
@@ -277,7 +303,7 @@ pub(super) fn close_caller_aliases(
             }
         }
     }
-    Some(closed)
+    closed
 }
 
 fn caller_aliases_at_site(
@@ -286,10 +312,11 @@ fn caller_aliases_at_site(
     symbols: &TopLevelSymbols<'_>,
     site: CallerWriteSite<'_>,
 ) -> Option<(Vec<(String, FramePlaceOrigin)>, Vec<StoredLocalOrigins>)> {
-    let may_declare_alias = |statement: &StatementNode| {
+    let may_declare_origins = |statement: &StatementNode| {
         matches!(statement, StatementNode::LocalData(local)
-            if type_may_carry_write(program, local.type_reference)
-                && !type_is_caller_isolated_local(program, local.type_reference))
+            if super::stored_origins::has_aggregate_case_shape(program, local.type_reference)
+                || (type_may_carry_write(program, local.type_reference)
+                    && !type_is_caller_isolated_local(program, local.type_reference)))
     };
     let has_incoming_carrier = |state: &psi_typed_trees::state::State| {
         program.state_parameters(state).iter().any(|parameter| {
@@ -304,7 +331,7 @@ fn caller_aliases_at_site(
                 .statement_table
                 .statements(state.statement_nodes)
                 .iter()
-                .any(may_declare_alias)
+                .any(may_declare_origins)
     }) {
         return Some((Vec::new(), Vec::new()));
     }
@@ -312,7 +339,7 @@ fn caller_aliases_at_site(
     if !has_incoming_carrier(state)
         && !program.statement_table.statements(state.statement_nodes)[..index]
             .iter()
-            .any(may_declare_alias)
+            .any(may_declare_origins)
     {
         return Some((Vec::new(), Vec::new()));
     }
@@ -321,22 +348,17 @@ fn caller_aliases_at_site(
         machine,
         state,
         symbols,
-        &mut Vec::new(),
+        &mut FrameInference::default(),
         &mut Vec::new(),
         Some(StateWriteQuery::Before(statement)),
     )?;
-    if statement_value_expression_roots(program, statement)
-        .into_iter()
-        .any(|expression| {
-            super::stored_origins::expression_borrows_carrier_binding(
-                program,
-                machine,
-                state,
-                expression,
-                &prefix.stored,
-            )
-        })
-    {
+    if super::stored_origins::statement_exposes_frozen_binding(
+        program,
+        machine,
+        state,
+        statement,
+        &prefix.stored,
+    ) {
         return None;
     }
     Some((prefix.aliases, prefix.stored))
@@ -383,9 +405,26 @@ fn contains_expression(
     root: ExpressionHandle,
     target: ExpressionHandle,
 ) -> bool {
+    expression_any(program, root, |expression| expression == target)
+}
+
+pub(super) fn expression_has_calls(program: &TypedTrees, root: ExpressionHandle) -> bool {
+    expression_any(program, root, |expression| {
+        matches!(
+            program.expression_table.expression(expression),
+            ExpressionNode::Call(_)
+        )
+    })
+}
+
+pub(super) fn expression_any(
+    program: &TypedTrees,
+    root: ExpressionHandle,
+    mut predicate: impl FnMut(ExpressionHandle) -> bool,
+) -> bool {
     let mut pending = vec![root];
     while let Some(expression) = pending.pop() {
-        if expression == target {
+        if predicate(expression) {
             return true;
         }
         match program.expression_table.expression(expression) {

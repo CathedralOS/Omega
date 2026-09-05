@@ -9,9 +9,9 @@ use super::super::reference_origins::{
 use super::super::stored_origins::{declared_origins, place_suffix, source_reaches_leaf};
 use super::super::{
     ExpressionHandle, FramePathPrecision, FramePlaceOrigin, FrameSourcePlace, Machine,
-    StateParameter, SymbolHandle, TopLevelSymbols, TypedTrees, append_place_suffix,
-    split_place_root,
+    StateParameter, TopLevelSymbols, TypedTrees, append_place_suffix, split_place_root,
 };
+use crate::calls::write_frames::FrameInference;
 
 #[allow(clippy::too_many_arguments)]
 pub(super) fn instantiate_source(
@@ -22,7 +22,7 @@ pub(super) fn instantiate_source(
     actual: ExpressionHandle,
     relative: &FramePlaceOrigin,
     symbols: &TopLevelSymbols<'_>,
-    active_states: &mut Vec<SymbolHandle>,
+    inference: &mut FrameInference,
 ) -> Option<Vec<FramePlaceOrigin>> {
     if let Some(referee) = exclusive_reference_referee(program, parameter.type_reference) {
         let origin = if parameter.is_self {
@@ -34,12 +34,12 @@ pub(super) fn instantiate_source(
             {
                 return None;
             }
-            owned_receiver_origin(program, caller_machine, actual, symbols, active_states)?
+            owned_receiver_origin(program, caller_machine, actual, symbols, inference)?
         } else {
             if !referent_has_only_owned_storage(program, referee) {
                 return None;
             }
-            exclusive_reference_origin(program, caller_machine, actual, symbols, active_states)?
+            exclusive_reference_origin(program, caller_machine, actual, symbols, inference)?
         };
         let (_, suffix) = split_place_root(&relative.path);
         return Some(vec![compose_source(
@@ -75,7 +75,7 @@ pub(super) fn instantiate_source(
         parameter.type_reference,
         "",
         symbols,
-        active_states,
+        inference,
     )?;
     let mut sources = Vec::new();
     for leaf in actual_leaves.references {
