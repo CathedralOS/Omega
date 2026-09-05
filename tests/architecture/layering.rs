@@ -2184,9 +2184,12 @@ fn terminal_component_staging_consumes_only_the_psi_owned_artifact() {
             && !target_stage.contains("optimize_verified_abstract_input(")
             && !target_stage.contains("PostTerminalOptimizationContinuation")
             && target_stage
-                .contains("lower_optimized_to_target_operations_with_provider_executions")
+                .contains("lower_validated_abstract_to_target_operations")
+            && !target_stage.contains("optimization_selections")
+            && !target_output.contains("Optimized(Box<")
             && physical_stage.contains("enum NativePhysicalStageResult")
-            && physical_stage.contains("NativeTargetStageEvidence::Ordinary | NativeTargetStageEvidence::Ranked")
+            && physical_stage.contains("NativeTargetStageEvidence::Ranked => assign_current_target")
+            && physical_stage.contains("NativeTargetStageEvidence::Ordinary(optimized_target)")
             && physical_stage.contains("Assigned(omega_assigned_target_operations::AssignedOperationPlanWithNativeCallbacks)")
             && !physical_stage.contains("IdentityRanked")
             && !machine_code.contains("IdentityRanked")
@@ -2228,15 +2231,15 @@ fn terminal_component_staging_consumes_only_the_psi_owned_artifact() {
     let (_, target_conveyor) = target_stage
         .split_once("match authority {")
         .expect("target realization consumes the completed optimization stage");
-    let (identity_target_conveyor, selected_target_conveyor) = target_conveyor
+    let (ranked_target_conveyor, ordinary_target_conveyor) = target_conveyor
         .split_once("NativeRealizationAuthority::Ordinary =>")
-        .expect("target realization retains an explicit optimized-ordinary arm");
-    let selected_target_stage = selected_target_conveyor
-        .find("let optimized_target = match provider_installation")
-        .expect("optimized realization visibly constructs its validated target-stage result");
-    let selected_target_result = selected_target_conveyor
-        .find("Ok(NativeTargetStageResult::optimized(optimized_target))")
-        .expect("optimized realization publishes its validated target-stage result");
+        .expect("target realization distinguishes native authority, not optimization history");
+    let ordinary_target_stage = ordinary_target_conveyor
+        .find("lower_validated_abstract_to_target_operations(")
+        .expect("identity and selected execution use one target producer");
+    let ordinary_target_result = ordinary_target_conveyor
+        .find("Ok(NativeTargetStageResult::ordinary(target))")
+        .expect("the target stage retains the validated current program");
     let optimization_stage_entrance = machine_code
         .find("let optimization_stage =")
         .expect("machine realization enters post-Terminal optimization once");
@@ -2258,12 +2261,12 @@ fn terminal_component_staging_consumes_only_the_psi_owned_artifact() {
     let transitional_assignment =
         "omega_target_operations_to_assigned_target_operations::assign_registers";
     assert!(
-        !identity_target_conveyor.contains(transitional_assignment)
-            && !selected_target_conveyor.contains(transitional_assignment)
+        !ranked_target_conveyor.contains(transitional_assignment)
+            && !ordinary_target_conveyor.contains(transitional_assignment)
             && !target_stage.contains("if psi_only {")
             && physical_stage.contains(transitional_assignment)
             && !machine_code.contains(transitional_assignment)
-            && selected_target_stage < selected_target_result
+            && ordinary_target_stage < ordinary_target_result
             && physical_target_consumption < selected_physical_stage
             && optimization_stage_entrance < target_stage_entrance
             && target_stage_entrance < physical_stage_entrance
@@ -4509,9 +4512,17 @@ fn abstract_to_target_translation_validation_cannot_reenter_its_producer() {
     ))
     .expect("read optimized target-operation entrance");
     assert!(
-        optimized_entrance.contains(
-            "validate_abstract_to_target_translation(optimized.plan(), target, &target_operations)?",
-        ),
+        optimized_entrance
+            .contains("validate_abstract_to_target_translation_with_ieee_float_fma_settlements(")
+            && optimized_entrance.contains("&program.plan,")
+            && optimized_entrance
+                .matches("let translation_validation =")
+                .count()
+                == 1
+            && optimized_entrance
+                .matches("Ok(ValidatedOptimizedTargetOperations {")
+                .count()
+                == 1,
         "the optimized target-operation entrance must join lowering to independent translation validation before carrier construction",
     );
 }

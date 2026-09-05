@@ -23,9 +23,13 @@ fn optimized_target(
         omega_optimization_pipeline::compiler_baseline_request_v1(&selections),
     )
     .expect("complete abstract optimization");
-    omega_abstract_operations_to_target_operations::lower_optimized_to_target_operations(
+    omega_abstract_operations_to_target_operations::lower_validated_abstract_to_target_operations(
         abstract_program,
         target,
+        &[],
+        None,
+        &[],
+        &[],
     )
     .expect("independently validated target lowering")
 }
@@ -41,7 +45,7 @@ fn empty_and_selected_target_results_share_the_original_current_program() {
             let evidence = optimized_target(target, selections);
             let original = evidence.shared_program();
             assert!(std::ptr::eq(&original.plan, evidence.target_operations()));
-            let stage = NativeTargetStageResult::optimized(evidence);
+            let stage = NativeTargetStageResult::ordinary(evidence);
             assert!(Arc::ptr_eq(&stage.program, &original));
             let (program, evidence) = stage.into_parts().expect("exact current/evidence join");
             assert!(Arc::ptr_eq(&program, &original));
@@ -59,7 +63,7 @@ fn empty_and_selected_target_results_share_the_original_current_program() {
 fn changed_target_contents_reject_even_with_unchanged_root_ids() {
     let evidence = optimized_target(NativeTarget::linux_x64(), OptimizationSelections::default());
     let original = evidence.shared_program();
-    let mut stage = NativeTargetStageResult::optimized(evidence);
+    let mut stage = NativeTargetStageResult::ordinary(evidence);
     Arc::make_mut(&mut stage.program).plan.functions.clear();
     assert_eq!(stage.program.plan.psi, original.plan.psi);
     assert_eq!(stage.program.plan.entry, original.plan.entry);
@@ -79,7 +83,7 @@ fn changed_target_contents_reject_even_with_unchanged_root_ids() {
 fn substituted_target_profile_rejects_without_rewriting_retained_evidence() {
     let evidence = optimized_target(NativeTarget::linux_x64(), OptimizationSelections::default());
     let original = evidence.shared_program();
-    let mut stage = NativeTargetStageResult::optimized(evidence);
+    let mut stage = NativeTargetStageResult::ordinary(evidence);
     Arc::make_mut(&mut stage.program).plan.target = NativeTarget::linux_arm64();
     assert_eq!(original.plan.target, NativeTarget::linux_x64());
     assert!(matches!(
@@ -127,10 +131,7 @@ fn ordinary_and_ranked_outputs_own_the_same_representation() {
             .unwrap();
         let ranked_stage = NativeTargetStageResult::ranked(ranked_plan);
         let ordinary = optimized_target(target, OptimizationSelections::default());
-        let ordinary_program = ordinary.shared_program();
-        drop(ordinary);
-        let ordinary_plan = Arc::try_unwrap(ordinary_program).expect("move original program");
-        let ordinary_stage = NativeTargetStageResult::ordinary(ordinary_plan);
+        let ordinary_stage = NativeTargetStageResult::ordinary(ordinary);
         let mut programs = Vec::new();
         for (stage, is_ranked) in [(ordinary_stage, false), (ranked_stage, true)] {
             let (program, evidence) = stage.into_parts().expect("current target output");

@@ -4,14 +4,12 @@ use omega_abstract_operations_to_target_operations::ValidatedOptimizedTargetOper
 use omega_target_operations::{TargetOperationPlan, TargetOperationPlanWithNativeCallbacks};
 use std::sync::Arc;
 
-/// These inputs still select transitional physical implementations. They do
-/// not own or select the current target representation. Removing that remaining
-/// physical split requires preserving the ordinary callback and ranked forms.
+/// Native authority roles, not optimization-history roles. Physical convergence
+/// must preserve callback admissions and independently checked ranked evidence.
 #[derive(Debug)]
 pub(crate) enum NativeTargetStageEvidence {
-    Ordinary,
+    Ordinary(Box<ValidatedOptimizedTargetOperations>),
     Ranked,
-    Optimized(Box<ValidatedOptimizedTargetOperations>),
 }
 
 /// Every completed target stage owns the same current representation.
@@ -24,13 +22,6 @@ pub(crate) struct NativeTargetStageResult {
 }
 
 impl NativeTargetStageResult {
-    pub(super) fn ordinary(program: TargetOperationPlanWithNativeCallbacks) -> Self {
-        Self {
-            program: Arc::new(program),
-            evidence: NativeTargetStageEvidence::Ordinary,
-        }
-    }
-
     pub(super) fn ranked(plan: TargetOperationPlan) -> Self {
         Self {
             program: Arc::new(TargetOperationPlanWithNativeCallbacks {
@@ -41,10 +32,10 @@ impl NativeTargetStageResult {
         }
     }
 
-    pub(super) fn optimized(evidence: ValidatedOptimizedTargetOperations) -> Self {
+    pub(super) fn ordinary(evidence: ValidatedOptimizedTargetOperations) -> Self {
         Self {
             program: evidence.shared_program(),
-            evidence: NativeTargetStageEvidence::Optimized(Box::new(evidence)),
+            evidence: NativeTargetStageEvidence::Ordinary(Box::new(evidence)),
         }
     }
 
@@ -60,7 +51,7 @@ impl NativeTargetStageResult {
         &'static str,
     > {
         match &self.evidence {
-            NativeTargetStageEvidence::Optimized(evidence) => {
+            NativeTargetStageEvidence::Ordinary(evidence) => {
                 if self.program != evidence.shared_program() {
                     return Err(
                         "current target program differs from its retained translation evidence",
@@ -72,7 +63,6 @@ impl NativeTargetStageResult {
                     return Err("ranked target authority cannot carry native callback arguments");
                 }
             }
-            NativeTargetStageEvidence::Ordinary => {}
         }
         Ok((self.program, self.evidence))
     }
