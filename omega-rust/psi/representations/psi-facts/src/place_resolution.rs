@@ -1,6 +1,7 @@
 use psi_symbols::SymbolHandle;
 use psi_typed_trees::TypedTrees;
 use psi_typed_trees::expression::{ExpressionHandle, ExpressionNode, TableMemberExpression};
+use psi_typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 
 use crate::{FactPlan, Place, PlaceHandle, PlaceRoot, PlaceSegment};
 
@@ -235,6 +236,8 @@ fn expression_type_symbol(
             let symbol = effective_member_symbol(program, member.receiver, member);
             symbol_type_symbol(program, symbol)
         }
+        ExpressionNode::Indexed(_) => expression_type_reference(program, expression)
+            .map(|reference| type_reference_base_symbol(program, reference)),
         _ => None,
     }
 }
@@ -254,19 +257,42 @@ fn symbol_type_symbol(program: &TypedTrees, symbol: SymbolHandle) -> Option<Symb
         {
             return Some(data.symbol);
         }
+    }
+    symbol_type_reference(program, symbol)
+        .map(|reference| type_reference_base_symbol(program, reference))
+}
+
+fn symbol_type_reference(
+    program: &TypedTrees,
+    symbol: SymbolHandle,
+) -> Option<TypeReferenceHandle> {
+    if !symbol.is_valid() {
+        return None;
+    }
+    for machine in program.machines() {
         for state in program.machine_states(machine) {
             for parameter in program.state_parameters(state) {
                 if parameter.symbol == symbol {
-                    return Some(type_reference_base_symbol(
-                        program,
-                        parameter.type_reference,
-                    ));
+                    return Some(parameter.type_reference);
+                }
+            }
+            let declaration = program.symbols.get(symbol);
+            if declaration.kind == psi_symbols::SymbolKind::Local
+                && declaration.parent == state.symbol
+            {
+                for statement in program.statement_table.statements(state.statement_nodes) {
+                    if let psi_typed_trees::statement::StatementNode::LocalData(local) = statement
+                        && local.symbol == symbol
+                        && program.symbols.name(symbol) == local.name.as_str()
+                    {
+                        return Some(local.type_reference);
+                    }
                 }
             }
         }
         for owned in program.machine_owned_data(machine) {
             if owned.symbol == symbol {
-                return Some(type_reference_base_symbol(program, owned.type_reference));
+                return Some(owned.type_reference);
             }
         }
     }
@@ -275,7 +301,7 @@ fn symbol_type_symbol(program: &TypedTrees, symbol: SymbolHandle) -> Option<Symb
         for member in program.data_members(data) {
             match member {
                 psi_typed_trees::data::DataMember::Field(field) if field.symbol == symbol => {
-                    return Some(type_reference_base_symbol(program, field.type_reference));
+                    return Some(field.type_reference);
                 }
                 psi_typed_trees::data::DataMember::Variant(variant) => {
                     if let Some(field) = program
@@ -283,7 +309,7 @@ fn symbol_type_symbol(program: &TypedTrees, symbol: SymbolHandle) -> Option<Symb
                         .iter()
                         .find(|field| field.symbol == symbol)
                     {
-                        return Some(type_reference_base_symbol(program, field.type_reference));
+                        return Some(field.type_reference);
                     }
                 }
                 _ => {}
@@ -292,6 +318,54 @@ fn symbol_type_symbol(program: &TypedTrees, symbol: SymbolHandle) -> Option<Symb
     }
 
     None
+}
+
+fn expression_type_reference(
+    program: &TypedTrees,
+    expression: ExpressionHandle,
+) -> Option<TypeReferenceHandle> {
+    match program.expression_table.expression(expression) {
+        ExpressionNode::Borrow(borrow) => expression_type_reference(program, borrow.target),
+        ExpressionNode::Name(name) => symbol_type_reference(
+            program,
+            if name.head_symbol.is_valid() {
+                name.head_symbol
+            } else {
+                name.symbol
+            },
+        ),
+        ExpressionNode::Member(member) => symbol_type_reference(
+            program,
+            effective_member_symbol(program, member.receiver, member),
+        ),
+        ExpressionNode::Indexed(indexed)
+            if !matches!(
+                program.expression_table.expression(indexed.index),
+                ExpressionNode::Range(_)
+            ) =>
+        {
+            collection_element_type(
+                program,
+                expression_type_reference(program, indexed.collection)?,
+            )
+        }
+        _ => None,
+    }
+}
+
+fn collection_element_type(
+    program: &TypedTrees,
+    mut reference: TypeReferenceHandle,
+) -> Option<TypeReferenceHandle> {
+    loop {
+        match program.type_reference_table.type_reference(reference) {
+            TypeReferenceNode::Constrained { base_type, .. } => reference = *base_type,
+            TypeReferenceNode::Reference { referee, .. } => reference = *referee,
+            TypeReferenceNode::FixedArray { element_type, .. }
+            | TypeReferenceNode::Slice { element_type } => return Some(*element_type),
+            _ => return None,
+        }
+    }
 }
 
 fn type_reference_base_symbol(
@@ -387,21 +461,39 @@ fn fact_place_type_symbol(
     facts: &FactPlan,
     place: &Place,
 ) -> Option<SymbolHandle> {
-    let mut current = match place.root {
-        PlaceRoot::Symbol(symbol) => symbol_type_symbol(program, symbol)?,
-        PlaceRoot::Expression(expression) => expression_type_symbol(program, expression)?,
+    let (mut current, mut reference) = match place.root {
+        PlaceRoot::Symbol(symbol) => (
+            symbol_type_symbol(program, symbol)?,
+            symbol_type_reference(program, symbol).unwrap_or_default(),
+        ),
+        PlaceRoot::Expression(expression) => (
+            expression_type_symbol(program, expression)?,
+            expression_type_reference(program, expression).unwrap_or_default(),
+        ),
         PlaceRoot::Unknown | PlaceRoot::TypeReference(_) => return None,
     };
 
     for segment in facts.place_segments.span_or_empty(place.segments) {
         match segment {
             PlaceSegment::Field { symbol } => {
-                current = symbol_type_symbol(program, *symbol)?;
+                reference = symbol_type_reference(program, *symbol)?;
+                current = type_reference_base_symbol(program, reference);
             }
             PlaceSegment::Case { .. } => {}
-            PlaceSegment::FixedIndex { .. }
-            | PlaceSegment::FixedRange { .. }
-            | PlaceSegment::Index { .. } => return None,
+            PlaceSegment::Index { expression }
+                if matches!(
+                    program.expression_table.expression(*expression),
+                    ExpressionNode::Range(_)
+                ) =>
+            {
+                return None;
+            }
+            PlaceSegment::FixedIndex { .. } | PlaceSegment::Index { .. } => {
+                reference = collection_element_type(program, reference)?;
+                current = type_reference_base_symbol(program, reference);
+            }
+            // A window remains a collection, not an element receiver.
+            PlaceSegment::FixedRange { .. } => return None,
         }
     }
 

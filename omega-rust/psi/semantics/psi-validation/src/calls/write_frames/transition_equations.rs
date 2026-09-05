@@ -23,7 +23,7 @@ pub(super) struct PermutedCycleFrameEquation<'program> {
     pub(super) state: &'program State,
     pub(super) locals: Vec<String>,
     pub(super) local_alias_origins: Vec<(String, FramePlaceOrigin)>,
-    pub(super) stored: Vec<super::StoredWriteOrigin>,
+    pub(super) stored: Vec<super::StoredLocalOrigins>,
     pub(super) direct_writes: Vec<String>,
     pub(super) edges: Vec<PermutedCycleFrameEdge>,
 }

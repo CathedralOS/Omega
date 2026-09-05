@@ -3,13 +3,22 @@
 //! The literal walker is shared with call instantiation. State transfer stores
 //! canonical origins now, not expressions to replay after an alias is rebound.
 
-use super::path_instantiation::aggregate_arguments::reference_leaves;
+use super::path_instantiation::aggregate_arguments::reference_leaves_with_stored_origins;
 use super::place_paths::{
     FramePathPrecision, FramePlaceOrigin, append_place_suffix, split_place_root,
 };
 use super::{Machine, SymbolHandle, TopLevelSymbols, TypedTrees};
 use psi_facts::PlaceSegment;
 use psi_typed_trees::statement::TableLocalData;
+
+mod projections;
+
+#[derive(Debug, Clone)]
+pub(super) struct StoredLocalOrigins {
+    pub local_symbol: SymbolHandle,
+    pub references: Vec<StoredWriteOrigin>,
+    pub cases: Vec<Vec<PlaceSegment>>,
+}
 
 #[derive(Debug, Clone)]
 pub(super) struct StoredWriteOrigin {
@@ -24,10 +33,10 @@ pub(super) fn declaration_origins(
     machine: &Machine,
     local: &TableLocalData,
     aliases: &[(String, FramePlaceOrigin)],
-    stored: &[StoredWriteOrigin],
+    stored: &[StoredLocalOrigins],
     symbols: &TopLevelSymbols<'_>,
     active_states: &mut Vec<SymbolHandle>,
-) -> Option<Vec<StoredWriteOrigin>> {
+) -> Option<StoredLocalOrigins> {
     if super::type_reference_is_reference(program, local.type_reference) || !local.symbol.is_valid()
     {
         return None;
@@ -50,7 +59,7 @@ pub(super) fn declaration_origins(
     {
         return None;
     }
-    let leaves = reference_leaves(
+    let leaves = reference_leaves_with_stored_origins(
         program,
         machine,
         local.initial_value,
@@ -58,9 +67,14 @@ pub(super) fn declaration_origins(
         "",
         symbols,
         active_states,
+        &|expression, reference| {
+            projections::moved_reference_leaves(
+                program, state, local, expression, reference, stored,
+            )
+        },
     )?;
     let mut origins = Vec::new();
-    for leaf in leaves {
+    for leaf in leaves.references {
         for origin in canonical_origins(&leaf.origin, aliases, stored) {
             origins.push(StoredWriteOrigin {
                 local_symbol: local.symbol,
@@ -70,7 +84,11 @@ pub(super) fn declaration_origins(
             });
         }
     }
-    Some(origins)
+    Some(StoredLocalOrigins {
+        local_symbol: local.symbol,
+        references: origins,
+        cases: leaves.cases,
+    })
 }
 
 /// A call must not acquire replacement access to an established reference
@@ -81,7 +99,7 @@ pub(super) fn expression_borrows_stored_binding(
     machine: &Machine,
     state: &psi_typed_trees::state::State,
     expression: psi_typed_trees::expression::ExpressionHandle,
-    stored: &[StoredWriteOrigin],
+    stored: &[StoredLocalOrigins],
 ) -> bool {
     !stored.is_empty()
         && super::local_aliases::expression_has_exclusive_borrow(program, expression, &|target| {
@@ -91,7 +109,7 @@ pub(super) fn expression_borrows_stored_binding(
             let (root, _) = split_place_root(&path.path);
             stored
                 .iter()
-                .any(|leaf| split_place_root(&leaf.local_path).0 == root)
+                .any(|local| program.symbols.name(local.local_symbol) == root)
                 && crate::places::declared_place_type_raw(program, machine, Some(state), target)
                     .is_none_or(|reference| {
                         super::type_may_carry_write(program, reference)
@@ -103,7 +121,7 @@ pub(super) fn expression_borrows_stored_binding(
 fn canonical_origins(
     origin: &FramePlaceOrigin,
     aliases: &[(String, FramePlaceOrigin)],
-    stored: &[StoredWriteOrigin],
+    stored: &[StoredLocalOrigins],
 ) -> Vec<FramePlaceOrigin> {
     let (root, suffix) = split_place_root(&origin.path);
     let origin = aliases.iter().find(|(name, _)| name == root).map_or_else(
@@ -112,7 +130,7 @@ fn canonical_origins(
     );
     let mut origins = Vec::new();
     let mut includes_private = true;
-    for leaf in stored {
+    for leaf in stored.iter().flat_map(|local| &local.references) {
         let source = if let Some(suffix) = place_suffix(&leaf.local_path, &origin.path) {
             includes_private = false;
             let precision = if leaf
@@ -170,7 +188,7 @@ pub(super) fn place_suffix<'path>(root: &str, path: &'path str) -> Option<&'path
 pub(super) fn expand_write_path(
     path: &str,
     aliases: &[(String, FramePlaceOrigin)],
-    stored: &[StoredWriteOrigin],
+    stored: &[StoredLocalOrigins],
 ) -> Vec<String> {
     let mut paths = vec![super::rebase_local_alias_path(path, aliases)];
     for origin in canonical_origins(

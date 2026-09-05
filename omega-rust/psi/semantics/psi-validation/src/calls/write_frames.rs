@@ -78,7 +78,7 @@ use state_paths::{
     expression_forwards_exact_symbol, normalize_state_relative_path, push_visible_frame_path,
     relative_state_path_is_visible,
 };
-use stored_origins::{StoredWriteOrigin, expand_write_path};
+use stored_origins::{StoredLocalOrigins, expand_write_path};
 use transition_equations::{
     PermutedCycleFrameEquation, append_permuted_cycle_frame_edge, transition_state_reaches,
 };
@@ -357,7 +357,7 @@ fn summarize_state_written_paths(
 struct StateWritePrefix {
     written: Vec<String>,
     aliases: Vec<(String, FramePlaceOrigin)>,
-    stored: Vec<StoredWriteOrigin>,
+    stored: Vec<StoredLocalOrigins>,
     assignment: Option<AssignmentWriteTarget>,
 }
 
@@ -697,7 +697,7 @@ fn walk_state_write_prefix(
                     if let Some(origin) = declared_local_alias_origin {
                         local_alias_origins.push((local.name.as_str().to_owned(), origin));
                     } else {
-                        stored.extend(declared_stored_origins?);
+                        stored.push(declared_stored_origins?);
                     }
                 }
                 if type_is_caller_isolated_local(program, local.type_reference) {
@@ -2097,7 +2097,7 @@ fn build_permuted_cycle_frame_equation<'program>(
                     if let Some(origin) = declared_local_alias_origin {
                         local_alias_origins.push((local.name.as_str().to_owned(), origin));
                     } else {
-                        stored.extend(stored_origins::declaration_origins(
+                        stored.push(stored_origins::declaration_origins(
                             program,
                             machine,
                             local,

@@ -334,9 +334,9 @@ Owners include
 
 - **R5.** Finish exact inferred may-write summaries and relational candidates
   for unresolved receivers, boundary-result origins,
-  moved and call-result reference-bearing aggregate origins, computed reference
-  arguments outside proven helper-result relations, and other unsupported
-  expression shapes.
+  parameter-rooted aggregate moves, moved carriers in immediate call literals,
+  aggregate call-result origins, computed reference arguments outside proven
+  helper-result relations, and other unsupported expression shapes.
   Prefer shared fixpoint and alias reasoning over syntax-shape exceptions.
   Acceptance: all supported finite source shapes converge without widening
   permissions, and unsupported recursion fails explicitly.
