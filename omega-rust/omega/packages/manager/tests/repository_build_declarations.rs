@@ -554,8 +554,8 @@ fn collection_canaries_declare_only_their_consumed_standard_library_edges() {
 fn arithmetic_canaries_declare_only_their_consumed_standard_library_edges() {
     assert_mixed_canary_category_standard_library_edges(
         &repository_root().join("tests/omega/pass/arithmetic"),
-        133,
-        129,
+        135,
+        131,
         &[
             "runtime_float_min_max_abs_clamp_exit",
             "runtime_float_running_min_max_fold_exit",
@@ -657,7 +657,7 @@ fn ownership_and_reference_runtime_canaries_declare_ordinary_standard_library_ed
 fn small_mixed_runtime_categories_declare_only_their_required_standard_library_edges() {
     for (category, expected_roots, expected_standard_library_consumers) in [
         ("ranges", 2, 2),
-        ("targets", 23, 2),
+        ("targets", 22, 2),
         ("versioning", 3, 3),
         ("termination", 4, 4),
         ("range", 6, 6),

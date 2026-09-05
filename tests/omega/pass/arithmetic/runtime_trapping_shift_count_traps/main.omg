@@ -1,6 +1,6 @@
 // RUN CANARY (must trap). A Trapping shift checks the count before executing
 // the operation, including when the left value is zero.
-use omega::language::std::console;
+use omega_language_std::console;
 use omega::language::core::numeric_conversion;
 data Main { console: Console; count: u32; }
 machine Main::main(&mut self) {
