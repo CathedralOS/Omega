@@ -3,6 +3,7 @@
 pub mod model;
 pub(crate) mod observation;
 pub mod operations;
+mod recovery;
 pub(crate) mod snapshot;
 pub mod staging;
 

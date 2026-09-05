@@ -77,10 +77,12 @@ Ignored `build/package-manager/` contains:
 Resume fetches only the proposed exact pins if needed, recompiles, and rejects
 source, graph, accepted-file, or finding drift. Missing old source does not
 prevent comparison with accepted policy. Source diagnostics recover recorded
-Git commits and named members without refreshing selectors. Unchanged candidate
-custody or an exact live local root can also supply the baseline. Changed local
-dependencies have no cache-only old-source recovery entrance and receive
-standalone candidate output. The report names missing old source, binary content,
+Git commits and named members without refreshing selectors. Changed local
+sources use verified historical snapshots from the existing cache; lookup binds
+the known local origin to the accepted content pin. Unchanged candidate custody
+or an exact live local root can also supply the baseline. Missing or corrupt old
+snapshots receive standalone candidate output while policy comparison continues.
+The report names unavailable old source, binary content,
 and rendering limits explicitly. Source patches share an 8 MiB output ceiling
 and the renderer's independent per-package limits; they never enter capability
 review or decision recovery.

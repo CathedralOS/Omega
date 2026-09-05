@@ -59,7 +59,7 @@ fn hostile_source_is_separate_and_editing_it_cannot_supply_decisions() {
 }
 
 #[test]
-fn changed_local_source_keeps_policy_comparison_and_reports_standalone_content() {
+fn changed_local_source_recovers_cached_baseline_and_keeps_policy_comparison() {
     let tree = fixture(ASSUMPTION);
     let pending = pending_install(&tree);
     accept(&pending);
@@ -73,16 +73,16 @@ fn changed_local_source_keeps_policy_comparison_and_reports_standalone_content()
     let updated = execute(&tree, update(), Vec::new()).unwrap();
     assert_eq!(updated.status, PackageCommandStatus::Published);
     assert!(
-        updated.report.contains("local source changed"),
+        updated.report.contains("Source diff: command-dependency"),
         "{}",
         updated.report
     );
     assert!(
-        updated
+        !updated
             .report
             .contains("Source diff unavailable: command-dependency")
     );
-    assert!(updated.report.contains("standalone candidate audit only"));
+    assert!(source_document(&tree).contains("mode update\n"));
     assert!(
         updated
             .report
@@ -134,6 +134,134 @@ fn accepted_live_root_diff_and_binary_candidate_are_reported() {
     assert!(source.contains("mode update\n"));
     assert!(source.contains("content_review unavailable_binary_or_non_utf8"));
     assert!(source.contains("depend_as"));
+}
+
+#[test]
+fn missing_old_local_cache_keeps_policy_and_standalone_candidate_output() {
+    let tree = fixture(ASSUMPTION);
+    let pending = pending_install(&tree);
+    accept(&pending);
+    resume(&tree, PackageCommandKind::Install).unwrap();
+    let accepted = lock(&tree);
+    fs::rename(tree.path("command-cache"), tree.path("old-command-cache")).unwrap();
+    fs::write(
+        tree.path("sources/dependency/main.omg"),
+        format!("{ASSUMPTION}// changed without old cache\n"),
+    )
+    .unwrap();
+    let updated = execute(&tree, update(), Vec::new()).unwrap();
+    assert_eq!(updated.status, PackageCommandStatus::Published);
+    assert!(
+        updated
+            .report
+            .contains("Source diff unavailable: command-dependency"),
+        "{}",
+        updated.report
+    );
+    assert!(
+        updated
+            .report
+            .contains("accepted local snapshot is missing")
+    );
+    assert!(updated.report.contains("standalone candidate audit only"));
+    assert!(
+        updated
+            .report
+            .contains("Capability comparison uses accepted lock policy")
+    );
+    assert_eq!(
+        lock(&tree).target(TARGET).unwrap().baselines(),
+        accepted.target(TARGET).unwrap().baselines()
+    );
+    let source = source_document(&tree);
+    let dependency = source.split("package command-dependency\n").nth(1).unwrap();
+    assert!(dependency.starts_with("baseline_key none\n"));
+    assert!(source.contains("changed without old cache"));
+}
+
+#[test]
+#[cfg_attr(not(unix), allow(clippy::permissions_set_readonly_false))]
+fn corrupt_old_local_cache_keeps_policy_without_presenting_unverified_source() {
+    let tree = fixture(ASSUMPTION);
+    let pending = pending_install(&tree);
+    accept(&pending);
+    resume(&tree, PackageCommandKind::Install).unwrap();
+    let accepted = lock(&tree);
+    let storage = tree.storage("command-cache");
+    let collection = storage
+        .external_local_sources()
+        .path()
+        .join("local-snapshots");
+    let snapshot = fs::read_dir(collection)
+        .unwrap()
+        .map(|entry| entry.unwrap().path().join("source/main.omg"))
+        .find(|path| fs::read_to_string(path).is_ok_and(|source| source == ASSUMPTION))
+        .expect("accepted dependency snapshot");
+    let original_permissions = fs::metadata(&snapshot).unwrap().permissions();
+    let mut writable = original_permissions.clone();
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        writable.set_mode(writable.mode() | 0o200);
+    }
+    #[cfg(not(unix))]
+    writable.set_readonly(false);
+    fs::set_permissions(&snapshot, writable).unwrap();
+    fs::write(&snapshot, "unverified-old-source").unwrap();
+    fs::set_permissions(&snapshot, original_permissions).unwrap();
+    fs::write(
+        tree.path("sources/dependency/main.omg"),
+        format!("{ASSUMPTION}// valid candidate after cache corruption\n"),
+    )
+    .unwrap();
+    let updated = execute(&tree, update(), Vec::new()).unwrap();
+    assert_eq!(updated.status, PackageCommandStatus::Published);
+    assert!(
+        updated
+            .report
+            .contains("cached old local source could not be recovered or verified"),
+        "{}",
+        updated.report
+    );
+    assert!(updated.report.contains("standalone candidate audit only"));
+    assert!(
+        updated
+            .report
+            .contains("Capability comparison uses accepted lock policy")
+    );
+    assert_eq!(
+        lock(&tree).target(TARGET).unwrap().baselines(),
+        accepted.target(TARGET).unwrap().baselines()
+    );
+    let source = source_document(&tree);
+    let dependency = source.split("package command-dependency\n").nth(1).unwrap();
+    assert!(dependency.starts_with("baseline_key none\n"));
+    assert!(source.contains("valid candidate after cache corruption"));
+    assert!(!source.contains("unverified-old-source"));
+    assert_eq!(
+        fs::read_to_string(snapshot).unwrap(),
+        "unverified-old-source"
+    );
+}
+
+#[test]
+fn edited_project_root_recovers_its_accepted_cached_source() {
+    let tree = fixture(PURE);
+    execute(&tree, install(), vec![TARGET]).unwrap();
+    fs::write(
+        tree.path("sources/root/main.omg"),
+        format!("{PURE}// project changed after acceptance\n"),
+    )
+    .unwrap();
+    let updated = execute(&tree, update(), Vec::new()).unwrap();
+    assert_eq!(updated.status, PackageCommandStatus::Published);
+    assert!(updated.report.contains("Source diff: policy-fixture"));
+    assert!(
+        !updated.report.contains("Source diff unavailable"),
+        "{}",
+        updated.report
+    );
+    assert!(source_document(&tree).contains("project changed after acceptance"));
 }
 
 #[test]

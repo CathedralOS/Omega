@@ -18,6 +18,7 @@ src/
 ├── custody/        locks, retained-tree validation, and cache publication
 ├── storage.rs      retained private storage and explicit acquisition lanes
 ├── local/          local-source adapter and issued local observations
+│   ├── recovery.rs     verified historical bytes from the existing snapshot cache
 │   ├── staging.rs      proposed file edits with original live-source identity
 │   └── snapshot/       shared captured-tree materialization
 ├── git/            Git transport adapter, object verification, and resolution
@@ -54,6 +55,15 @@ already hold one retained lane use the responsibility paths directly:
 for exact snapshot work, and `storage::RetainedStorageLane` for lane custody.
 These are deliberate public seams; cache machinery, native process assembly,
 object verification, and publication internals remain private.
+
+`local::operations::recover_cached_local_source_in_lane` finds historical bytes
+for a caller-known canonical local origin and accepted content digest. It scans
+bounded existing metadata, then verifies the matching snapshot under its entry
+lock. The origin is not opened; the result is historical source, not an
+observation that the live source still matches. Missing snapshots return no
+source, invalid matching trees reject, and neither creates an archive, index,
+or replacement baseline. The manager owns diagnostic fallback and policy
+comparison when old source is unavailable.
 
 `local::staging` replaces one existing regular file in a proposed snapshot after
 checking its expected raw-byte SHA-256. It leaves the live tree untouched and

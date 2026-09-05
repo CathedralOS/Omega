@@ -207,9 +207,12 @@ not destroy the readable policy baseline. Its result is a source closure usable
 by ordinary compiler inputs, not a fresh analysis or renewed acceptance of old
 decisions. Commands treat a missing baseline as fresh graph review. Old source
 is not needed to compare retained policy. Command source diffs use exact old
-Git acquisition, matching current custody, or the unchanged live root. Changed
-local baselines still need cache-only recovery; missing old bytes produce
-explicit standalone-candidate output. Optional model wiring is separate.
+Git acquisition, verified cached local snapshots, matching current custody, or
+the unchanged live root. Historical local lookup uses the current resolver-known
+origin and accepted content pin, not a filesystem path decoded from the lock.
+Missing or corrupt old bytes produce explicit standalone-candidate output.
+This diagnostic recovery does not relax live-source checks for compilation.
+Optional model wiring is separate.
 
 `operations::check_locked_sources` follows exact recovery with fresh checking of
 the complete graph through the ordinary candidate-review entrance. It preserves
