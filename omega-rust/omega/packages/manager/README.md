@@ -181,9 +181,28 @@ the versioned comparison fingerprints; historical policy is never adapted into
 a fabricated compiler review or execution receipt. Both graphs share resource
 ceilings rather than receiving a fresh budget per package.
 
-This report does not resolve decisions, extend historical decision storage to
-removed packages, or publish project files. Fresh compiler obligations and
-transactional candidate/project-file rechecks remain independently required.
+The comparison report itself does not resolve decisions or publish project
+files. Fresh compiler obligations and transactional candidate/project-file
+rechecks remain independently required.
+
+`review::resolve_package_policy_decisions` consumes the complete normalized
+change report directly. Its obligations are exactly the blocking policy rows
+and same-root directional role changes; audit recommendations and source status
+do not invent additional decisions. Each explicit accept/reject choice binds
+the complete comparison and exact obligation. Resolution requires a bijection:
+missing, duplicate, stale, foreign, or nonblocking choices reject. A complete
+rejection remains a negative result, while no blockers and no choices produce
+an explicit empty resolution. Neither result discharges compiler obligations.
+
+The separately versioned restart record recovers only against the current
+comparison. It rejoins every package and obligation, reruns that complete
+decision validation, and checks canonical text against borrowed input under one
+budget. It is not historical lock policy and cannot authorize another update.
+Historical capture is a distinct consumer: it records those choices in the
+source-scoped lock decision section without claiming that an audit occurred.
+Removed-package and directional role decisions remain representable after the
+old checkout disappears. Transactional publication and independent fresh
+compiler/source checks remain operation work.
 
 Return to the [package subsystem map](../README.md), or consult:
 

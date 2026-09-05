@@ -71,7 +71,7 @@ pub(super) fn assert_historical_policy(
     assert_eq!(historical.decisions().len(), 2);
     for decision in historical.decisions() {
         assert_eq!(
-            subject.packages()[decision.package_index()].key(),
+            subject.packages()[decision.package_index().expect("V1 candidate index")].key(),
             scenario.candidate_sources.graph().root()
         );
         assert!(

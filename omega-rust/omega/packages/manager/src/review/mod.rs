@@ -5,6 +5,7 @@ pub(crate) mod baseline;
 mod candidate;
 mod compare;
 mod decision;
+mod policy_decisions;
 pub(crate) mod reconstruction;
 mod symbolic_boundary_applications;
 
@@ -53,6 +54,13 @@ pub use decision::{
     ReviewOnlyRootPolicyResolution, ReviewOnlyRootPolicyResolutionCommitment,
     ReviewOnlyRootPolicyResolutionError, recover_review_only_root_policy_resolution,
     resolve_review_only_root_policy_decisions,
+};
+pub use policy_decisions::{
+    PackagePolicyDecision, PackagePolicyDecisionError, PackagePolicyDecisionLimits,
+    PackagePolicyDecisionObligation, PackagePolicyDecisionResolution,
+    PackagePolicyDecisionResolutionFingerprint, PackagePolicyDecisionSubject,
+    PackagePolicyObligationFingerprint, recover_package_policy_decisions,
+    resolve_package_policy_decisions,
 };
 pub use reconstruction::{
     CanonicalPackageReconstructionEntry, CanonicalPackageReconstructionQuestion,

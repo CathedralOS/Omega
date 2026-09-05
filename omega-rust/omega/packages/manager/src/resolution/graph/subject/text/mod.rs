@@ -16,10 +16,13 @@
 //! existing identity/request/count limits apply before semantic construction.
 
 mod framing;
+mod keys;
 mod record;
 mod requests;
 mod source;
 mod values;
+
+pub(crate) use keys::{recover_package_key_text, write_package_key_text};
 
 use super::{
     CanonicalSourceClosureSubjectError as Error, CanonicalSourceClosureSubjectLimits as Limits,
