@@ -134,7 +134,7 @@ impl<Contains: FnMut(PackageKeyIdentity) -> bool> Visitor<Contains> {
             return Err(Error::MalformedIdentity);
         }
         let mut bytes = [0; 32];
-        for (slot, pair) in bytes.iter_mut().zip(digest.as_bytes().chunks_exact(2)) {
+        for (slot, pair) in bytes.iter_mut().zip(digest.as_bytes().as_chunks::<2>().0) {
             let digit = |byte| match byte {
                 b'0'..=b'9' => Ok(byte - b'0'),
                 b'a'..=b'f' => Ok(byte - b'a' + 10),
