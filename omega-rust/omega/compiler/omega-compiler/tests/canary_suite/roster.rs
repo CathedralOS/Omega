@@ -3,6 +3,8 @@ use super::*;
 
 #[path = "../fixture_rosters/concurrency_carry.rs"]
 mod concurrency_carry;
+#[path = "../fixture_rosters/recast_views.rs"]
+mod recast_views;
 
 fn pass_roster() -> Vec<&'static str> {
     CHECKED_ONLY_PASS_CANARIES
@@ -10,6 +12,7 @@ fn pass_roster() -> Vec<&'static str> {
         .chain(ACTIVE_PASS_CANARIES)
         .chain(WINDOWS_HOST_PASS_CANARIES)
         .chain(concurrency_carry::PASS_CANARIES)
+        .chain(recast_views::PASS_CANARIES)
         .copied()
         .chain(CROSS_TARGET_PASS_CANARIES.iter().map(|entry| entry.0))
         .chain(
@@ -20,12 +23,20 @@ fn pass_roster() -> Vec<&'static str> {
         .collect()
 }
 
-fn fail_roster() -> Vec<&'static str> {
+fn file_expectation_fail_roster() -> Vec<&'static str> {
     // Cross-target rows only annotate compilation scheduled by these arrays.
     CHECKED_ONLY_FAIL_CANARIES
         .iter()
         .chain(ACTIVE_FAIL_CANARIES)
         .copied()
+        .collect()
+}
+
+fn fail_roster() -> Vec<&'static str> {
+    file_expectation_fail_roster()
+        .into_iter()
+        .chain(concurrency_carry::FAIL_CANARIES.iter().map(|entry| entry.0))
+        .chain(recast_views::FAIL_CANARIES.iter().copied())
         .collect()
 }
 
@@ -136,13 +147,9 @@ fn registered_pass_canaries_have_source_on_every_host() {
 #[test]
 fn registered_fail_canaries_have_source_and_their_owned_expectations() {
     let root = repo_root().join("tests/omega/fail");
-    assert_registered_fixtures(&root, &fail_roster(), true);
-    let dedicated = concurrency_carry::FAIL_CANARIES
-        .iter()
-        .map(|entry| entry.0)
-        .collect::<Vec<_>>();
-    // This owner reads inline diagnostics, not expected.txt.
-    assert_registered_fixtures(&root, &dedicated, false);
+    // Every owner needs source; only file-based owners require expected.txt.
+    assert_registered_fixtures(&root, &fail_roster(), false);
+    assert_registered_fixtures(&root, &file_expectation_fail_roster(), true);
     for (canary, _) in CROSS_TARGET_FAIL_CANARIES {
         assert!(
             ACTIVE_FAIL_CANARIES.contains(canary),
