@@ -785,7 +785,13 @@ pub(super) fn build_static_boundary_requirements(
                     break;
                 };
                 abi_position += 1;
-                if parameter.is_const || parameter.is_mutable {
+                // `is_mutable` is set by a `mut` binding and by an exclusive
+                // borrow alike. An exclusive borrow is already carried exactly
+                // by the parameter's structural access below, so only an owned
+                // mutable binding stays outside this requirement surface.
+                if parameter.is_const
+                    || (parameter.is_mutable && !is_reference(program, parameter.type_reference))
+                {
                     supported = false;
                     break;
                 }
