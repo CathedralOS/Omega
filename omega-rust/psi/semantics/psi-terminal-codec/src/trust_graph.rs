@@ -65,10 +65,10 @@ const PROOF_ADMISSION_INTEGER_FORBIDDEN_ROOT_SOURCE: &[u8] =
 const PROOF_CODEC_SOURCE: &[u8] = include_bytes!("proof_bundle.rs");
 const OBLIGATION_LEDGER_CODEC_SOURCE: &[u8] = include_bytes!("obligation_ledger.rs");
 const PROPOSITION_SOURCE: &[u8] = include_bytes!("../../../foundation/psi-core/src/proposition.rs");
-const TERMINAL_MODEL_SOURCE: &[u8] =
-    include_bytes!("../../../representations/psi-terminal/src/module.rs");
-const TERMINAL_DYNAMIC_DISPATCH_SOURCE: &[u8] =
-    include_bytes!("../../../representations/psi-terminal/src/dynamic_dispatch.rs");
+const TERMINAL_REPRESENTATION_SOURCE_CLOSURE: &[u8] = include_bytes!(concat!(
+    env!("OUT_DIR"),
+    "/psi-terminal-representation-source-closure.bin"
+));
 const TERMINAL_SEMANTICS_SOURCE: &[u8] = include_bytes!("../../psi-terminal-semantics/src/lib.rs");
 const TERMINAL_PROOF_BEARING_SCALAR_SOURCE: &[u8] =
     include_bytes!("../../psi-terminal-semantics/src/proof_bearing_scalar.rs");
@@ -380,6 +380,55 @@ fn write_hex(formatter: &mut std::fmt::Formatter<'_>, bytes: &[u8; 32]) -> std::
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn representation_source_closure_retains_every_concept_file_exactly() {
+        use std::path::Path;
+
+        fn collect(root: &Path, directory: &Path, rows: &mut Vec<(String, Vec<u8>)>) {
+            for entry in std::fs::read_dir(directory).unwrap() {
+                let path = entry.unwrap().path();
+                if path.is_dir() {
+                    collect(root, &path, rows);
+                } else if path.extension().is_some_and(|extension| extension == "rs") {
+                    rows.push((
+                        path.strip_prefix(root)
+                            .unwrap()
+                            .to_str()
+                            .unwrap()
+                            .replace('\\', "/"),
+                        std::fs::read(path).unwrap(),
+                    ));
+                }
+            }
+        }
+
+        fn field<'bytes>(bytes: &mut &'bytes [u8]) -> &'bytes [u8] {
+            let (length, remaining) = bytes.split_at(8);
+            let length = usize::try_from(u64::from_le_bytes(length.try_into().unwrap())).unwrap();
+            let (value, remaining) = remaining.split_at(length);
+            *bytes = remaining;
+            value
+        }
+
+        let root =
+            Path::new(env!("CARGO_MANIFEST_DIR")).join("../../representations/psi-terminal/src");
+        let mut expected = Vec::new();
+        collect(&root, &root, &mut expected);
+        expected.sort_by(|left, right| left.0.cmp(&right.0));
+        let mut remaining = TERMINAL_REPRESENTATION_SOURCE_CLOSURE
+            .strip_prefix(b"PSI-TERMINAL-REPRESENTATION-SOURCE-CLOSURE-v1\0")
+            .unwrap();
+        for (path, bytes) in expected {
+            assert_eq!(field(&mut remaining), path.as_bytes());
+            assert_eq!(
+                field(&mut remaining),
+                bytes,
+                "source omitted or stale: {path}"
+            );
+        }
+        assert!(remaining.is_empty(), "unexpected source rows");
+    }
 
     #[test]
     fn current_graph_is_closed_canonical_and_explicitly_not_fully_derived() {

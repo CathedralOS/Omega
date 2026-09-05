@@ -106,17 +106,20 @@ not implementation of the selected target-neutral optimizations. Its
 In `omega-rust/psi/representations/`:
 
 - `psi-typed-trees/src/typed_trees.rs` already supplies a recognizable root.
-- `psi-checked-trees/src/trees.rs` places assorted fact definitions before the
-  `CheckedTrees` root.
-- `psi-terminal/src/module.rs` combines the module root with types, boundary
-  declarations, contracts, machines, operations, terminators, and ownership
-  records. A root exists, but does not serve as a concise structural entrance.
+- `psi-checked-trees/src/checked_trees.rs` owns only the `CheckedTrees` root
+  and its concept map. Fact definitions live below `checked_trees/facts/`.
+- `psi-terminal/src/terminal_module.rs` owns only the `TerminalModule` root
+  and its concept map. Structural types, control flow, boundary declarations,
+  ownership, proof, observation, and identity have separate subordinate owners.
+  The codec binds the complete representation source closure rather than one
+  formerly monolithic file. Architecture controls protect these two entrances.
 
 Next: distinguish the reusable pre-Terminal program/product from ephemeral
 lowering joins and phase results; place reusable representation data with its
-owner. Give each Psi representation a readable root and appropriate subordinate
-concept areas. Port applicable target-neutral passes and independent validators
-to the pre-Terminal phase as a separately visible implementation step.
+owner. Audit the remaining Psi representations against the same root rule;
+the two protected entrances do not establish completion for all Psi. Port
+applicable target-neutral passes and independent validators to the pre-Terminal
+phase as a separately visible implementation step.
 
 Do not replace `CheckedTrees { typed, facts }` merely because it contains typed
 trees: checking adds facts to the same trees, so this is meaningful composition,
@@ -170,6 +173,6 @@ do not silently reinterpret old evidence.
 
 Completion is behavioral and structural, not a lower package count. Unsupported
 language or target forms must still fail closed rather than use another backend.
-This note creates no active goal; a later goal can reference sections A-D and
-their acceptance checks directly. Keep the task board as the execution index,
+Execution can reference sections A-D and their acceptance checks directly.
+Keep the task board as the execution index,
 not a second copy of this audit or a log of completed checkpoints.

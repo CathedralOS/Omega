@@ -277,7 +277,7 @@ fn every_u64_fingerprint_accessor_requires_explicit_classification() {
 fn checked_machine_contract_compact_coordinates_are_reports_beside_strong_authority() {
     let root = workspace_root();
     let plans_path =
-        root.join("omega-rust/psi/representations/psi-checked-trees/src/facts/contract_plans.rs");
+        root.join("omega-rust/psi/representations/psi-checked-trees/src/checked_trees/facts/contract_plans.rs");
     let plans = fs::read_to_string(&plans_path)
         .unwrap_or_else(|error| panic!("failed to read {}: {error}", plans_path.display()));
     assert!(
@@ -291,8 +291,9 @@ fn checked_machine_contract_compact_coordinates_are_reports_beside_strong_author
         "checked contract plans must label compact coordinates as reports and reject empty strong commitments",
     );
 
-    let terminal_path =
-        root.join("omega-rust/psi/representations/psi-checked-trees/src/flow/terminal.rs");
+    let terminal_path = root.join(
+        "omega-rust/psi/representations/psi-checked-trees/src/checked_trees/flow/terminal.rs",
+    );
     let terminal = fs::read_to_string(&terminal_path)
         .unwrap_or_else(|error| panic!("failed to read {}: {error}", terminal_path.display()));
     for required in [
@@ -413,7 +414,7 @@ fn private_authority_carriers_retain_strong_subject_commitments() {
     );
 
     let checked_path = root
-        .join("omega-rust/psi/representations/psi-checked-trees/src/facts/nominal_machine_uses.rs");
+        .join("omega-rust/psi/representations/psi-checked-trees/src/checked_trees/facts/nominal_machine_uses.rs");
     let checked = fs::read_to_string(&checked_path)
         .unwrap_or_else(|error| panic!("failed to read {}: {error}", checked_path.display()));
     assert!(
@@ -446,7 +447,7 @@ fn private_authority_carriers_retain_strong_subject_commitments() {
 fn checked_nominal_machine_use_reports_retain_strong_contract_and_plan_authority() {
     let root = workspace_root();
     let checked_path = root
-        .join("omega-rust/psi/representations/psi-checked-trees/src/facts/nominal_machine_uses.rs");
+        .join("omega-rust/psi/representations/psi-checked-trees/src/checked_trees/facts/nominal_machine_uses.rs");
     let checked = fs::read_to_string(&checked_path)
         .unwrap_or_else(|error| panic!("failed to read {}: {error}", checked_path.display()));
     assert!(
@@ -479,8 +480,8 @@ fn checked_nominal_machine_use_reports_retain_strong_contract_and_plan_authority
 #[test]
 fn checked_operator_provider_reports_retain_strong_plan_authority() {
     let root = workspace_root();
-    let checked_path =
-        root.join("omega-rust/psi/representations/psi-checked-trees/src/operators.rs");
+    let checked_path = root
+        .join("omega-rust/psi/representations/psi-checked-trees/src/checked_trees/operators.rs");
     let checked = fs::read_to_string(&checked_path)
         .unwrap_or_else(|error| panic!("failed to read {}: {error}", checked_path.display()));
     assert!(

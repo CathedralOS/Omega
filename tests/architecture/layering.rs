@@ -1665,22 +1665,18 @@ fn checked_semantics_are_psi_owned_without_provider_realization() {
     );
 
     let checked_root = root.join("omega-rust/psi/representations/psi-checked-trees/src");
-    for relative in ["lib.rs", "trees.rs"] {
-        let path = checked_root.join(relative);
-        let source = std::fs::read_to_string(&path)
-            .unwrap_or_else(|error| panic!("failed to read {}: {error}", path.display()));
-        for forbidden in [
-            "SelectedProviderPlanFacts",
-            "selected_provider_plans",
-            "retain_selected_provider_plans",
-            "TaskActivationPlanFact",
-            "task_activations",
-        ] {
-            assert!(
-                !source.contains(forbidden),
-                "checked semantic root retained Omega provider realization {forbidden}"
-            );
-        }
+    let source = recursive_production_rust_source(&checked_root);
+    for forbidden in [
+        "SelectedProviderPlanFacts",
+        "selected_provider_plans",
+        "retain_selected_provider_plans",
+        "TaskActivationPlanFact",
+        "task_activations",
+    ] {
+        assert!(
+            !source.contains(forbidden),
+            "checked semantics retained Omega provider realization {forbidden}"
+        );
     }
 
     let omega_provider_carrier =
@@ -4895,9 +4891,15 @@ fn psi_content_compact_fingerprints_are_report_only_beside_exact_replay() {
         "content projection/conservation compact values must remain explicitly report-only",
     );
 
-    let terminal_path = root.join("omega-rust/psi/representations/psi-terminal/src/module.rs");
-    let terminal = std::fs::read_to_string(&terminal_path)
-        .unwrap_or_else(|error| panic!("failed to read {}: {error}", terminal_path.display()));
+    let terminal = ["boundary/declarations.rs", "proof/content.rs"]
+        .map(|area| {
+            let path = root
+                .join("omega-rust/psi/representations/psi-terminal/src/terminal_module")
+                .join(area);
+            std::fs::read_to_string(&path)
+                .unwrap_or_else(|error| panic!("failed to read {}: {error}", path.display()))
+        })
+        .join("\n");
     assert!(
         terminal.contains("pub report_fingerprint: u64")
             && terminal.contains("pub source_report_fingerprint: u64")

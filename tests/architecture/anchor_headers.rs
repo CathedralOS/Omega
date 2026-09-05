@@ -83,10 +83,6 @@ const ANCHOR_HEADER_EXCEPTIONS: &[(&str, usize)] = &[
         "omega-rust/psi/pipeline/psi-typed-trees-to-checked-trees/src/lib.rs",
         0,
     ),
-    (
-        "omega-rust/psi/representations/psi-checked-trees/src/lib.rs",
-        0,
-    ),
     ("omega-rust/psi/representations/psi-effects/src/lib.rs", 1),
     ("omega-rust/psi/representations/psi-facts/src/lib.rs", 1),
     (
