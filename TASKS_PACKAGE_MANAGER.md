@@ -10,15 +10,13 @@ records selected sources and accepted capabilities/assumptions, not proof of an
 audit. Use the existing compiler to check code; native artifact verification,
 host credentials, and organizational review policy have separate owners.
 
-## Optional conveniences
+## Remaining work
 
-These do not block the supported online install/update workflow.
-
-- [ ] **OPTIONAL-AUDIT-ADVICE.** If connecting the existing `review/advisory/`
-  adapter, keep provider configuration with CLI/tooling. It may recommend a
-  closer audit, never suppress compiler findings or accept decisions.
-  Acceptance: the complete core workflow works with no model configured and
-  when advisory invocation fails. No built-in auditing infrastructure is needed.
+No implementation items are currently scheduled. Optional model integration
+is not an install/update prerequisite; its existing adapter and future
+integration constraints belong in the
+[advisory documentation](omega-rust/omega/packages/review/advisory/README.md),
+not an open-ended execution task.
 
 ## Ownership and limits
 
