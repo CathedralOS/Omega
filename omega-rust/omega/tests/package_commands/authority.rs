@@ -315,21 +315,44 @@ fn false_filesystem_ceiling(installed: bool) {
 
 #[test]
 fn generated_process_authority_requires_review_before_install_publication() {
+    generated_authority(PROCESS_SOURCE, "terminate", &["Console"]);
+}
+
+#[test]
+fn generated_combined_authority_requires_both_service_decisions_before_install() {
+    let source = r#"
+use host_services::console;
+use host_services::filesystem_host;
+use omega::language::core::service;
+
+pub machine write_and_exit(console: Service<Console> in Bound, files: FilesystemHost, descriptor: i32, line: &[u8])
+reaches FilesystemHost + Console
+invokes console;
+invokes files;
+{
+    let bytes_written: i64 = files.write(descriptor, line);
+    console.exit_process(0);
+}
+"#;
+    generated_authority(source, "write_and_exit", &["FilesystemHost", "Console"]);
+}
+
+fn generated_authority(source: &str, callable: &str, services: &[&str]) {
     const GENERATED_BUILD: &str =
         include_str!("../../../../tests/fixtures/packages/generated-table/build.omg");
-    let generated_source = PROCESS_SOURCE
+    let generated_source = source
         .replace('\\', "\\\\")
         .replace('"', "\\\"")
         .replace('\n', "\\n");
     let build = GENERATED_BUILD
         .replace("builder.package(\"generated-table\");", "builder.package(\"generated-table\");\n    builder.depend(Source::Path { location: \"../host-services\" });\n    builder.select_provider<Console, ConsoleNativeProvider>();")
         .replace("pub machine table_size() -> u64 {\\n    3\\n}\\n", &generated_source);
-    assert!(build.contains("terminate(console:"));
+    assert!(build.contains(callable));
     // Imports belong to the pre-build source closure; generation adds the
     // callable using those retained declarations, not new dependency discovery.
     let fixture = authority_fixture(
         &build,
-        "use host_services::console;\nuse omega::language::core::service;\n",
+        "use host_services::console;\nuse host_services::filesystem_host;\nuse omega::language::core::service;\n",
     );
     fs::create_dir(fixture.path("dependency/inputs")).unwrap();
     fixture.write(
@@ -342,8 +365,10 @@ fn generated_process_authority_requires_review_before_install_publication() {
     assert_status(&output, 3);
     let (path, document) = review(&fixture, &output);
     let section = package_section(&document, "generated-table");
-    authority_decision(section, "added", "Console");
-    assert!(section.contains("terminate"), "{section}");
+    for service in services {
+        authority_decision(section, "added", service);
+    }
+    assert!(section.contains(callable), "{section}");
     assert_status(&fixture.omega(&["install", "--resume"]), 3);
     assert_eq!(fixture.accepted_files(), before);
     accept_document(&path, &document);

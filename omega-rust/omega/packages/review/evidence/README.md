@@ -200,8 +200,9 @@ The whole baseline uses one byte, element, allocation, and nesting budget,
 without nested envelopes or budget resets. Recovery checks component
 package/target agreement, declaration scopes, canonical ordering and retained
 cross-component associations, then exact re-encoding. It needs no old checkout.
-This is not a lock or a policy decision: source graph/pin and historical-decision
-integration remain manager work. Source locations, proof certificates,
+This is not a lock or a policy decision: the manager's
+[lock format](../../manager/src/lock/README.md) joins it to source pins, the graph,
+and historical decisions. Source locations, proof certificates,
 stand-down/discharge records and replay receipts are excluded. Fresh compiler
 stand-down and discharge validation remains independently required at admission.
 

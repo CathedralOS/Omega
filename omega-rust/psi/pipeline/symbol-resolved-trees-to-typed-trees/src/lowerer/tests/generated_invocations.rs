@@ -113,14 +113,71 @@ fn seeded_invocations_without_reaches_reuse_normalized_service_rows() {
 }
 
 #[test]
-fn seeded_invocations_reject_new_normalized_service_sets_transactionally() {
+fn seeded_invocations_append_new_normalized_service_sets_without_rebinding_base_rows() {
     let (base, extension) = seeded_plain_data_inputs(
+        "boundary trait Console { machine write() reaches Console; } boundary trait FilesystemHost { machine write() reaches FilesystemHost; }",
+        "pub machine generated() reaches Console + FilesystemHost invokes Console; {}\n\
+         pub machine reordered() reaches FilesystemHost + Console invokes FilesystemHost; {}",
+    );
+    let retained = base.typed().clone();
+    let typed = lower_seeded_extension(extension, base).expect("append a normalized service set");
+    assert!(retained_typed_base_is_exact_prefix(&retained, &typed));
+    assert_eq!(typed.service_reaches, retained.service_reaches);
+    assert_ne!(typed.service_reach_rows, retained.service_reach_rows);
+    let console = typed.service_reaches.id_for_name("Console").unwrap();
+    let filesystem = typed.service_reaches.id_for_name("FilesystemHost").unwrap();
+    let generated = typed
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "generated")
+        .unwrap();
+    let reordered = typed
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "reordered")
+        .unwrap();
+    assert_eq!(generated.service_reach_row, reordered.service_reach_row);
+    assert_eq!(
+        typed
+            .service_reach_rows
+            .services(generated.service_reach_row),
+        &[console, filesystem]
+    );
+    assert!(
+        retained
+            .service_reach_rows
+            .services(generated.service_reach_row)
+            .is_empty()
+    );
+
+    let mut changed = typed.clone();
+    changed.service_reach_rows = language_semantics::ServiceReachRowTable::default();
+    changed.service_reach_rows.intern(vec![filesystem]);
+    changed.service_reach_rows.intern(vec![console]);
+    changed.service_reach_rows.intern(vec![console, filesystem]);
+    assert!(!retained_typed_base_is_exact_prefix(&retained, &changed));
+    changed.service_reach_rows = language_semantics::ServiceReachRowTable::default();
+    assert!(!retained_typed_base_is_exact_prefix(&retained, &changed));
+}
+
+#[test]
+fn seeded_invocations_reject_incompatible_typed_service_rows_transactionally() {
+    let (mut base, extension) = seeded_plain_data_inputs(
         "boundary trait Console { machine write() reaches Console; } boundary trait FilesystemHost { machine write() reaches FilesystemHost; }",
         "pub machine generated() reaches Console + FilesystemHost invokes Console; {}",
     );
+    let filesystem = base
+        .typed()
+        .service_reaches
+        .id_for_name("FilesystemHost")
+        .unwrap();
+    let console = base.typed().service_reaches.id_for_name("Console").unwrap();
+    base.typed_mut().service_reach_rows = language_semantics::ServiceReachRowTable::default();
+    base.typed_mut().service_reach_rows.intern(vec![filesystem]);
+    base.typed_mut().service_reach_rows.intern(vec![console]);
     let retained = base.typed().clone();
     let (returned, error) = lower_seeded_extension(extension, base)
-        .expect_err("new service-row combinations remain outside the retained-table cohort");
+        .expect_err("resolved row IDs cannot overwrite changed typed meanings");
     assert_eq!(
         error,
         SeededContinuationError::ResolvedSemanticTablesChanged

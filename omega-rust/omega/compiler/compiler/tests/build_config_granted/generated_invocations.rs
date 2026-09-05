@@ -9,10 +9,13 @@ fn compile_generated_invocation(
         "main.omg",
         "boundary trait Console { machine write(value: i32) reaches Console; }\n\
          boundary trait FilesystemHost { machine touch() reaches FilesystemHost; }\n\
+         boundary trait Network { machine connect() reaches Network; }\n\
          machine touch_files() { FilesystemHost::touch(); }\n\
          machine middle() { touch_files(); }\n\
          machine declared_files() reaches FilesystemHost {}\n\
-         machine reach_helper() { declared_files(); }\n",
+         machine reach_helper() { declared_files(); }\n\
+         machine declared_network() reaches Network {}\n\
+         machine network_helper() { declared_network(); }\n",
     );
     let escaped = generated_source
         .replace('\\', "\\\\")
@@ -86,6 +89,58 @@ fn generated_invocation_reaches_final_effect_checking() {
     assert_eq!(
         invocation.target,
         typed_trees::signature::AuthoredInvocationTarget::Service(filesystem.symbol)
+    );
+}
+
+#[test]
+fn generated_invocations_combine_retained_services_in_final_checking() {
+    let checked = compile_generated_invocation(
+        "generated-invocation-combined",
+        "pub machine generated() reaches Console + FilesystemHost invokes Console; invokes FilesystemHost; { Console::write(7); middle(); }\n",
+    )
+    .expect("new reach combination receives ordinary final checking");
+    let machine = checked
+        .typed
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "generated")
+        .unwrap();
+    let console = checked
+        .typed
+        .service_reaches
+        .id_for_name("Console")
+        .unwrap();
+    let filesystem = checked
+        .typed
+        .service_reaches
+        .id_for_name("FilesystemHost")
+        .unwrap();
+    assert_eq!(
+        checked
+            .typed
+            .service_reach_rows
+            .services(machine.service_reach_row),
+        &[console, filesystem]
+    );
+    assert_eq!(checked.typed.machine_invokes(machine).len(), 2);
+}
+
+#[test]
+fn generated_combined_ceiling_still_rejects_an_undeclared_transitive_service() {
+    let diagnostics = compile_generated_invocation(
+        "generated-invocation-combined-false-reach",
+        "pub machine generated() reaches Console + FilesystemHost invokes Console; invokes FilesystemHost; { Console::write(7); middle(); network_helper(); }\n",
+    )
+    .expect_err("new combined row cannot hide a third reachable service");
+    let messages = diagnostics
+        .iter()
+        .map(|diagnostic| diagnostic.message.as_str())
+        .collect::<Vec<_>>()
+        .join("\n");
+    assert!(messages.contains("machine `generated`"), "{messages}");
+    assert!(
+        messages.contains("reaches undeclared service `Network`"),
+        "{messages}"
     );
 }
 
