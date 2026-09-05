@@ -7,6 +7,7 @@ mod error;
 mod evidence;
 mod ledger;
 mod model;
+mod policy;
 mod rows;
 mod semantic_bindings;
 mod session;

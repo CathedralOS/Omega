@@ -30,6 +30,7 @@ pub struct CompilerIssuedPackageReview {
     pub(super) semantic_binding_candidates: Vec<SemanticBindingReviewCandidate>,
     pub(super) generated_source_bundle: PackageGeneratedSourceBundle,
     pub(super) projection: CheckedPackageReviewProjection,
+    pub(super) policy: omega_package_evidence::record::PackagePolicyBaseline,
     pub(super) canonical_review_bytes: Vec<u8>,
     pub(super) canonical_rows: Vec<PackageReviewCanonicalRow>,
     pub(super) obligations: OrdinaryPackageObligationLedger,
@@ -92,6 +93,13 @@ impl CompilerIssuedPackageReview {
 
     pub fn projection(&self) -> &CheckedPackageReviewProjection {
         &self.projection
+    }
+
+    /// Complete normalized comparison meaning from this same checked package,
+    /// target, and consumed source. This is not an accepted lock or a new
+    /// authorization; legacy comparison and obligation evidence remain separate.
+    pub const fn policy(&self) -> &omega_package_evidence::record::PackagePolicyBaseline {
+        &self.policy
     }
 
     pub fn canonical_review_bytes(&self) -> &[u8] {

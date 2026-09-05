@@ -107,6 +107,37 @@ fn dependency_generated_source_enters_consumer_without_rerunning_the_dependency_
         b"pub machine table_size() -> u64 {\n    3\n}\n"
     );
     assert!(consumer.generated_source_bundle().sources().is_empty());
+    for review in [producer, consumer] {
+        let policy = review.policy();
+        assert_eq!(policy.package(), review.key().identity());
+        assert_eq!(policy.target(), omega_target::TargetProfile::WindowsX64);
+        let bytes = policy
+            .canonical_bytes()
+            .expect("encode generated-source policy");
+        let recovered = omega_package_evidence::record::PackagePolicyBaseline::recover_canonical(
+            &bytes,
+            omega_package_evidence::encoding::PackagePolicyRecoveryLimits::default(),
+        )
+        .expect("recover generated-source policy without build replay");
+        assert_eq!(&recovered, policy);
+        assert_eq!(
+            policy
+                .callables()
+                .callables()
+                .iter()
+                .filter(|callable| callable.role()
+                    == omega_package_evidence::record::PackagePolicyCallableRole::Public)
+                .count(),
+            review
+                .projection()
+                .callables()
+                .iter()
+                .filter(|callable| callable.role()
+                    == omega_package_evidence::record::PackageReviewCallableRole::Public)
+                .count(),
+            "normalized policy includes the same checked generated public callables",
+        );
+    }
     assert_eq!(
         producer
             .build_observation_summary()
