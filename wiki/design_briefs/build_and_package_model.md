@@ -3980,6 +3980,29 @@ Command-owned review-file persistence and final transaction integration remain
 downstream work. The older review-only decision codec and file layer below are
 implementation facilities, not additional install/update acceptance gates.
 
+`operations::review_package_change` joins candidate compilation and comparison
+for one exact target. It checks the resolved graph through the existing compiler
+candidate entrance and rejects any remaining ordinary contract-entailment
+obligation in any package. Locally rechecked assumption discharges have already
+been applied by the compiler; explicit accepted assumptions still appear as
+policy findings. The operation reads the current per-package results directly,
+without assembling a second reconstruction question or promoting review into
+certified trust.
+
+Its proposed-lock method accepts only a complete accepting resolution for that
+comparison, rechecks retained source snapshots and selections, and constructs
+the target section from full candidate policy and direct decision history.
+No old checkout, native artifact, or file write is required to construct that
+proposal. The file transaction must still check concurrent project edits,
+immediate source/build consistency, and all selected targets before publication.
+
+Review compilation may execute compiler-scoped build code: package-input reads,
+disposable-output writes, and compiler logging are permitted before package
+runtime policy decisions. Runtime boundary-service reach from the build machine
+is rejected before authored build execution. This does not grant dependencies
+resolver credentials or expand their output roots. Later checking failure may
+follow permitted build I/O, but does not modify accepted project files.
+
 The first file-custody layer is now concrete. Trusted command orchestration
 supplies an already-open root-owned policy-directory capability and one bounded
 lowercase portable canonical filename; nested paths are unrepresentable and

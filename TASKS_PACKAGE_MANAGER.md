@@ -74,9 +74,9 @@ adding machinery; do not invent proof-of-review or host-security requirements.
 
 ## 4. Review and publish the change
 
-- [ ] **CAPABILITY-CONFLICT-TRANSACTION.** Join candidate review, baseline
-  comparison, and project decisions into one recoverable install/update
-  transaction. Capability changes block pending decisions for the exact changed
+- [ ] **CAPABILITY-CONFLICT-TRANSACTION.** Connect `review_package_change`
+  and its proposed lock section to a recoverable install/update file transaction.
+  Capability changes block pending decisions for the exact changed
   rows, including removals; package-name/source replacement is explicit.
   Initial dangerous authority and accepted assumptions require review.
   Ordinary initial API rows have no previous compatibility contract.

@@ -35,6 +35,8 @@ mod graph;
 mod history;
 #[path = "package_policy_changes/initial.rs"]
 mod initial;
+#[path = "package_policy_changes/operation.rs"]
+mod operation;
 #[path = "package_policy_changes/replacements.rs"]
 mod replacements;
 #[path = "locked_source_recovery/support.rs"]

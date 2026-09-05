@@ -8,6 +8,8 @@ mod decision;
 pub(crate) mod reconstruction;
 mod symbolic_boundary_applications;
 
+pub(crate) use candidate::verify_transitive_source_custody;
+
 pub use audit::{
     CompilerReviewTriage, PackageSourcePatch, PackageSourcePatchError, PackageSourcePatchLimits,
     PackageSourcePatchSide, PackageSourceReviewCustodyRole, PackageSourceReviewError,
