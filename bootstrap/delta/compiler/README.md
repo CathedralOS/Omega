@@ -19,7 +19,7 @@ and emission. Concept-owned members are grouped below it:
 - `implementation/emission/`: program structure, matches, value representation,
   checked arithmetic, byte helpers/adapters, and textual output.
 
-`implementation/implementation.gamma.sources` selects all 15 shared members
+`implementation/implementation.gamma.sources` selects all 16 shared members
 with exact lengths, digests, and ordered identities. The byte-only source
 materializer validates that closed inventory and prefixes the explicitly
 selected entry. For the canonical entry, its application marker is therefore
@@ -57,8 +57,13 @@ alphabet but inside Gamma's, so generated binders cannot capture or be captured
 by an authored Delta name.
 
 Before tokenization or emission, the stage rejects every source byte except HT,
-LF, CR, and printable ASCII, exactly matching Delta's textual envelope. It then
-scans the complete declaration sequence. Collection records every type,
+LF, CR, and printable ASCII, exactly matching Delta's textual envelope. A
+complete lexical pass then admits identifiers, parentheses, arithmetic operator
+tokens, and signed decimal literals. It checks an entire numeric spelling
+before its range, so an overflowing prefix with a nondigit suffix is invalid
+syntax, not an out-of-range literal. Comments retain CR, LF, and EOF boundaries.
+Only after all tokens pass does it scan the declaration sequence. Collection
+records every type,
 constructor, and function identity, constructor counts, representation shape,
 and source coordinates before resolving any declaration type. Duplicate
 identities therefore precede declaration-type and body failures. Resolution
@@ -81,8 +86,10 @@ call-context headroom, while the Epsilon customer currently tops out at 56.
 The frontend validates identifier spelling at declarations, types, parameters,
 local binders, constructor patterns, atoms, and application heads.
 Keywords, `Int`, `Bytes`, and the five closed `bytes_*` builtin names cannot be
-redeclared. Decimal literals are scanned without overflow and admit exactly
-`INT64_MIN..INT64_MAX`. Declaration resolution also rejects repeated parameter
+redeclared. Lexical admission scans decimal literals without overflow and admits
+exactly `INT64_MIN..INT64_MAX`. Atom typing consumes that completed check;
+bare `-` is a valid operator token but remains invalid as an expression atom.
+Declaration resolution also rejects repeated parameter
 names within a function before body checking begins.
 
 A type-checking pass begins each function from the typed parameter environment
@@ -100,6 +107,7 @@ grammar-distinguished namespaces.
 The complete type-check pass finishes before the first output byte. Emission
 therefore consumes that established preflight instead of revalidating data
 declarations, parameter annotations, function results, or `let` annotations.
+It copies admitted numeric spans without repeating their spelling/range checks.
 It still parses every source coordinate needed to construct canonical Gamma.
 The raw-source development gate requires every rejected program to leave output
 empty, including defects after otherwise emit-capable declarations. The
@@ -151,10 +159,12 @@ owns empty/nonempty publication plus authored-trap, input-extent, and
 output-extent statuses. Strict request admission publishes canonical DCOUT for
 malformed framing, unknown profiles, and source-length refusal; see
 [`implementation/boundary/README.md`](implementation/boundary/README.md).
-Owned source failures now include forbidden source byte (code 3), duplicate
-type/constructor/function identity (6/7/8), missing `main` (19), and application
+Owned source failures now include forbidden source byte (code 3), invalid token
+spelling (the lexical subset of syntax code 4), out-of-range integer literal
+(5), duplicate type/constructor/function identity (6/7/8), missing `main` (19),
+and application
 schema mismatch (20). Missing `main` has no source coordinate; a schema mismatch
-anchors at the entry name. Other syntax, declaration-type, and body failures
+anchors at the entry name. Structural syntax, declaration-type, and body failures
 still exit through evaluator-owned Gamma status 249 without publication, not
 DCOUT. Completing those paths, later resource accounting, internal failures,
 and final edge closure remains open.
@@ -173,7 +183,7 @@ The downgraded full compiler remains separate under
 ## Measurements
 
 ```text
-2,326-line / 96,148-byte canonical entry plus shared Gamma implementation
+2,378-line / 98,630-byte canonical entry plus shared Gamma implementation
 7-line / 195-byte nullary-ADT Delta fixture
   -> 3-line / 165-byte Gamma receipt
   -> selected Gamma evaluation produces byte 9
@@ -209,5 +219,5 @@ The downgraded full compiler remains separate under
 3,001-function / 66,266-byte scale fixture
   -> 78,271-byte Gamma receipt
   -> selected Gamma evaluation produces byte 199
-  -> measured transformation 25.9 seconds on the development host
+  -> transforms within the staged gate's unchanged 30-second watchdog
 ```

@@ -1,0 +1,91 @@
+; Token admission precedes declaration collection. Source-envelope validation
+; has already completed; grammar positions and balanced forms are a later phase.
+; Reuse the one closed operator alphabet in operator_arity_plus_one.
+; skip/token_end retain exact source spans and CR/LF/EOF comment behavior.
+; EOF is tested before reading a token; scanning resumes only after acceptance.
+(def validate_source_tokens ((index Int)) Int
+  (let start Int (skip index)
+    (if (eq start (source_length))
+      (compiler_complete 0)
+      (let token Int (validate_source_token start (token_end start))
+        (if (eq (first token) 0)
+          (validate_source_tokens (second token))
+          token)))))
+
+(def lexical_decimal_digits_valid ((index Int) (end Int)) Int
+  (if (eq index end)
+    1
+    (if (is_digit (source_read index))
+      (lexical_decimal_digits_valid (+ index 1) end)
+      0)))
+
+; Validate the entire spelling before checking range: an overflowing decimal
+; prefix followed by a nondigit is malformed syntax, not a range rejection.
+(def lexical_integer_spelling_valid ((start Int) (end Int)) Int
+  (if (eq start end)
+    0
+    (if (eq (source_read start) 45)
+      (if (eq (+ start 1) end)
+        0
+        (lexical_decimal_digits_valid (+ start 1) end))
+      (lexical_decimal_digits_valid start end))))
+
+; A complete token is an identifier, parenthesis, arithmetic operator, or
+; signed decimal. Reserved words are identifiers here; only grammar positions
+; can prohibit their use as authored names. Bare '-' is an operator token.
+(def validate_source_token ((start Int) (end Int)) Int
+  (let byte Int (source_read start)
+    (if (is_identifier_start byte)
+      (if (identifier_tail_valid (+ start 1) end)
+        (compiler_complete end)
+        (compiler_source_rejection 4 start))
+      (if (if (eq byte 40) 1 (eq byte 41))
+        (compiler_complete end)
+        (if (operator_arity_plus_one start end)
+          (compiler_complete end)
+          (if (lexical_integer_spelling_valid start end)
+            (if (integer_literal_valid start end)
+              (compiler_complete end)
+              (compiler_source_rejection 5 start))
+            (compiler_source_rejection 4 start)))))))
+
+; One alphabet and binary arity classification shared by checking and emission.
+(def operator_arity_plus_one ((start Int) (end Int)) Int
+  (if (eq (- end start) 1)
+    (let byte Int (source_read start)
+      (if (eq byte 43) 3
+        (if (eq byte 45) 3
+          (if (eq byte 42) 3
+            (if (eq byte 47) 3
+              (if (eq byte 37) 3 0))))))
+    0))
+
+; Negative accumulation admits INT64_MIN without overflowing the compiler.
+(def integer_digits_valid
+  ((index Int) (end Int) (value Int) (negative Int)) Int
+  (if (eq index end)
+    (if negative
+      1
+      (if (eq value -9223372036854775808) 0 1))
+    (let byte Int (source_read index)
+      (if (is_digit byte)
+        (let digit Int (- byte 48)
+          (if (lt value -922337203685477580)
+            0
+            (if (eq value -922337203685477580)
+              (if (lt 8 digit)
+                0
+                (integer_digits_valid
+                  (+ index 1) end (- (* value 10) digit) negative))
+              (integer_digits_valid
+                (+ index 1) end (- (* value 10) digit) negative))))
+        0))))
+
+(def integer_literal_valid ((start Int) (end Int)) Int
+  (if (eq start end)
+    0
+    (if (eq (source_read start) 45)
+      (if (eq (+ start 1) end)
+        0
+        (integer_digits_valid (+ start 1) end 0 1))
+      (integer_digits_valid start end 0 0))))

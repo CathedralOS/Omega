@@ -2,12 +2,15 @@
 (def compile_admitted_source ((profile Int)) Int
   (let envelope Int (validate_source_envelope 0)
     (if (eq (first envelope) 0)
-      (let collected Int
-        (collect_global_identities 0 0 0
-          (empty_name_trie) (empty_name_trie) (empty_name_trie))
-        (if (eq (first collected) 0)
-          (compile_collected_source profile (second collected))
-          collected))
+      (let tokens Int (validate_source_tokens 0)
+        (if (eq (first tokens) 0)
+          (let collected Int
+            (collect_global_identities 0 0 0
+              (empty_name_trie) (empty_name_trie) (empty_name_trie))
+            (if (eq (first collected) 0)
+              (compile_collected_source profile (second collected))
+              collected))
+          tokens))
       envelope)))
 
 (def compile_collected_source ((profile Int) (collected Int)) Int

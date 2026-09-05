@@ -30,17 +30,29 @@ bytes, little-endian u32 code at byte 12, and little-endian u64 coordinate,
 limit, and requested fields at bytes 16, 24, and 32. Tag equals process status.
 This is a projection of embedded compiler constants, not a runtime host table.
 
-The source envelope, complete global identity census, and post-frontend entry
-schema additionally own these Reject results (tag 1, zero limit/requested):
+The source envelope, lexical tokens, complete global identity census, and
+post-frontend entry schema additionally own these Reject results (tag 1, zero
+limit/requested):
 
 | Code | Meaning | Coordinate space | Coordinate |
 | --- | --- | --- | --- |
 | 3 | invalid_source_byte | 1 Delta source | first forbidden byte |
+| 4 | invalid_syntax (lexical token coverage) | 1 Delta source | malformed token start |
+| 5 | integer_literal_out_of_range | 1 Delta source | out-of-range decimal token start |
 | 6 | duplicate_type | 1 Delta source | later type name |
 | 7 | duplicate_constructor | 1 Delta source | later constructor name |
 | 8 | duplicate_function | 1 Delta source | later function name |
 | 19 | missing_entry | 0 none | zero |
 | 20 | entry_schema_mismatch | 1 Delta source | present `main` declaration name |
+
+Whole-source byte validation precedes token validation. Token validation skips
+comments and accepts only parentheses, ASCII identifiers, single-byte arithmetic
+operators, and signed decimal integers. A complete decimal spelling is checked
+before its range: an oversized digit prefix followed by a nondigit is malformed
+syntax, not an out-of-range integer. The first failing token wins before any
+global collection, but a forbidden source byte anywhere wins in the earlier
+envelope phase. Reserved-word positions and balanced forms still belong to the
+structural frontend; a bare minus is a valid operator token, not an integer atom.
 
 Collection visits globals in authored order across their distinct namespaces,
 without resolving a declaration type. The complete type/constructor catalogs
@@ -61,7 +73,7 @@ detached table participates in execution. D125 removes profile 2, not the
 request-failure identities.
 
 This is partial frontend-boundary coverage, not full DCOUT closure. Remaining
-syntax, local-name, type, arity, and match failures still reach the shared
+structural syntax, local-name, type, arity, and match failures still reach the shared
 evaluator trap, and later resource/internal outcomes do not yet carry
 compiler-owned evidence. Those empty-output evaluator
 statuses must not be decoded as DCOUT or synthesized into frames by a runner.

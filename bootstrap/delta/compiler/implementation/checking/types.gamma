@@ -98,6 +98,8 @@
               globals locals)
             (fail)))))))
 
+; Lexical admission established every numeric token's spelling and range.
+; A bare minus remains an operator token, not a valid expression atom.
 (def check_type_atom ((start Int) (globals Int) (locals Int)) Int
   (let end Int (token_end start)
     (let first Int (source_read start)
@@ -107,11 +109,9 @@
             (pair end (constructor_metadata_owner metadata))
             (fail)))
         (if (is_digit first)
-          (if (integer_literal_valid start end)
-            (pair end (int_type))
-            (fail))
+          (pair end (int_type))
           (if (eq first 45)
-            (if (integer_literal_valid start end)
+            (if (lt (+ start 1) end)
               (pair end (int_type))
               (fail))
             (if (value_name_valid start end)

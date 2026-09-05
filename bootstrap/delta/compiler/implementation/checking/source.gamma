@@ -277,35 +277,6 @@
   (let checked_name Int (require_value_name name name_end)
     (if (field_type_valid type_name type_end type_rows) 0 (fail))))
 
-(def integer_digits_valid
-  ((index Int) (end Int) (value Int) (negative Int)) Int
-  (if (eq index end)
-    (if negative
-      1
-      (if (eq value -9223372036854775808) 0 1))
-    (let byte Int (source_read index)
-      (if (is_digit byte)
-        (let digit Int (- byte 48)
-          (if (lt value -922337203685477580)
-            0
-            (if (eq value -922337203685477580)
-              (if (lt 8 digit)
-                0
-                (integer_digits_valid
-                  (+ index 1) end (- (* value 10) digit) negative))
-              (integer_digits_valid
-                (+ index 1) end (- (* value 10) digit) negative))))
-        0))))
-
-(def integer_literal_valid ((start Int) (end Int)) Int
-  (if (eq start end)
-    0
-    (if (eq (source_read start) 45)
-      (if (eq (+ start 1) end)
-        0
-        (integer_digits_valid (+ start 1) end 0 1))
-      (integer_digits_valid start end 0 0))))
-
 (def skip_expression ((index Int)) Int
   (let start Int (skip index)
     (if (eq (source_read start) 40)
