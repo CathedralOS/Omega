@@ -1,4 +1,5 @@
 use super::*;
+use crate::encoding::encode::text_test_support::{Component, component};
 
 pub(super) fn nominal_fixture(path: &str) -> PackageReviewNominalIdentity {
     PackageReviewNominalIdentity {
@@ -96,6 +97,7 @@ pub(super) fn unchecked_bytes(policy: &PackagePolicyCallables) -> Vec<u8> {
 #[test]
 fn callable_meaning_recovers_without_old_source_or_derivation_coordinates() {
     let policy = fixture();
+    component(Component::Callables(&policy));
     let bytes = policy.canonical_bytes().unwrap();
     assert_eq!(recover(&bytes).unwrap(), policy);
     assert_eq!(policy.callables[0].capability_flows.len(), 5);
@@ -103,6 +105,7 @@ fn callable_meaning_recovers_without_old_source_or_derivation_coordinates() {
         let mut empty = policy.clone();
         empty.target = target;
         empty.callables.clear();
+        component(Component::Callables(&empty));
         assert_eq!(recover(&empty.canonical_bytes().unwrap()).unwrap(), empty);
     }
 }
@@ -163,8 +166,53 @@ fn policy_preserves_empty_absent_opaque_and_lifetime_selection_distinctions() {
     cases.push(changed);
     for changed in cases {
         let changed_bytes = changed.canonical_bytes().unwrap();
+        component(Component::Callables(&changed));
         assert_ne!(changed_bytes, bytes);
         assert_eq!(recover(&changed_bytes).unwrap(), changed);
+    }
+}
+
+#[test]
+fn named_callable_text_retains_progress_subjects_routes_and_authority_payloads() {
+    for subject in [
+        PackageReviewProgressSubject::Declaration(nominal_fixture("Queue")),
+        PackageReviewProgressSubject::Receiver,
+        PackageReviewProgressSubject::Parameter(0),
+    ] {
+        let mut policy = fixture();
+        let callable = &mut policy.callables[0];
+        // Installation-bound authority belongs to the boundary declaration,
+        // not an ordinary public implementation.
+        callable.role = PackagePolicyCallableRole::Boundary;
+        callable.supply = PackageReviewCallableSupply::Boundary;
+        callable.parameters[0].is_self = matches!(subject, PackageReviewProgressSubject::Receiver);
+        callable.unresolved_installation_reaches = vec![PackageReviewInstallationReach {
+            requirement: nominal_fixture("Installation::run"),
+            upper_bound: vec![nominal_fixture("Service")],
+        }];
+        let mut invocations = vec![
+            PackageReviewSynchronousInvocation::Parameter(0),
+            PackageReviewSynchronousInvocation::Service(nominal_fixture("Service")),
+        ];
+        invocations.sort();
+        callable.declared_synchronous_invocations = Some(invocations.clone());
+        callable.realized_synchronous_invocations = invocations;
+        let PackagePolicyTermination::Terminates { premises } = &mut callable.checked_termination
+        else {
+            unreachable!()
+        };
+        premises[0].subject = subject;
+        premises[0].projections = vec![nominal_fixture("Queue::progress")];
+        premises[0].establishment_routes[0].kind =
+            omega_effects::provider_plan::ServiceProgressEstablishmentRouteKind::BoundaryRequirement;
+        callable.declared_termination = Some(callable.checked_termination.clone());
+        callable.checked_crash.published = vec![PackagePolicyCrashRoute {
+            cause: PackageReviewCrashCause::Abort,
+            alternative_guards: vec![PackagePolicyCrashGuard::Truth],
+        }];
+        let bytes = policy.canonical_bytes().unwrap();
+        assert_eq!(recover(&bytes).unwrap(), policy);
+        component(Component::Callables(&policy));
     }
 }
 

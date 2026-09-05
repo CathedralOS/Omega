@@ -16,6 +16,8 @@ pub(super) mod review;
 pub(super) mod rows;
 mod selected_providers;
 mod terminal_permissions;
+#[cfg(test)]
+pub(in crate::encoding) mod text_test_support;
 mod values;
 
 #[cfg(test)]

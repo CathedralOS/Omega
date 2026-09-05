@@ -10,6 +10,9 @@ fn complete_provider_policy_round_trips_without_nested_receipt_envelopes() {
     for policy in [fixtures::empty(), fixtures::complete()] {
         let bytes = policy.canonical_bytes().unwrap();
         assert_eq!(recover(&bytes).unwrap(), policy);
+        crate::encoding::encode::text_test_support::component(
+            crate::encoding::encode::text_test_support::Component::SelectedProviders(&policy),
+        );
         assert_eq!(recover(&bytes).unwrap().canonical_bytes().unwrap(), bytes);
         for magic in [
             crate::encoding::CALLING_POLICY_MAGIC,

@@ -118,6 +118,9 @@ fn every_binding_kind_and_all_four_locator_forms_round_trip() {
     for policy in cases {
         let bytes = policy.canonical_bytes().unwrap();
         assert_eq!(recover(&bytes).unwrap(), policy);
+        crate::encoding::encode::text_test_support::component(
+            crate::encoding::encode::text_test_support::Component::SelectedProviders(&policy),
+        );
     }
 }
 

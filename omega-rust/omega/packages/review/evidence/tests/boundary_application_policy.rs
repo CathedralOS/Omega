@@ -31,12 +31,27 @@ fn project_source(source: &str) -> PackagePolicyBoundaryApplications {
 }
 
 fn project(checked: &CheckedCompilation) -> PackagePolicyBoundaryApplications {
-    project_checked_boundary_application_policy(
+    let applications = project_checked_boundary_application_policy(
         checked,
         TargetProfile::WindowsX64,
         package_identity(),
     )
-    .expect("exact receipt-free D29 policy")
+    .expect("exact receipt-free D29 policy");
+    let baseline = omega_package_evidence::project_checked_package_policy(
+        checked,
+        TargetProfile::WindowsX64,
+        package_identity(),
+    )
+    .expect("complete baseline retains actual D29 source meaning");
+    let text = baseline.canonical_text().expect("named D29 baseline");
+    let recovered = PackagePolicyBaseline::recover_text(
+        &text,
+        omega_package_evidence::encoding::PackagePolicyTextRecoveryLimits::default(),
+    )
+    .expect("recover named symbolic and closed D29 applications");
+    assert_eq!(recovered, baseline);
+    assert_eq!(recovered.boundary_applications(), &applications);
+    applications
 }
 
 #[test]
