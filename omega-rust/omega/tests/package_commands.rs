@@ -16,6 +16,8 @@ mod remote;
 mod remote_authority;
 #[path = "package_commands/remote_review.rs"]
 mod remote_review;
+#[path = "package_commands/source_replacement.rs"]
+mod source_replacement;
 #[path = "package_commands/workspace.rs"]
 mod workspace;
 
