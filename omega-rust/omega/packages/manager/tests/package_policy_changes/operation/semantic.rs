@@ -1,0 +1,136 @@
+use super::*;
+
+// Existing package_reconstruction_question fixture: ordinary exit checking
+// preserves this assumption, but polynomial entailment cannot represent min.
+const OPEN_CONTRACT: &str = "pub machine unchecked_claim(left: u64, right: u64)\nrequires min(left, right) >= 1\nensures min(left, right) >= 1\n{}\n";
+
+#[test]
+fn unresolved_contracts_reject_for_the_root_and_transitive_packages() {
+    for transitive in [false, true] {
+        let tree = Tree::new();
+        if transitive {
+            source(
+                &tree,
+                PURE,
+                " builder.depend(Source::Path { location: \"../middle\" });\n",
+            );
+            package(
+                &tree.path("sources/middle"),
+                "middle",
+                " builder.depend(Source::Path { location: \"../leaf\" });\n",
+            );
+            package(&tree.path("sources/leaf"), "unresolved-leaf", "");
+            fs::write(tree.path("sources/leaf/main.omg"), OPEN_CONTRACT).unwrap();
+        } else {
+            source(&tree, OPEN_CONTRACT, "");
+        }
+        let closure = resolve(&tree, "open-contract");
+        let owner = if transitive {
+            closure
+                .custodies()
+                .iter()
+                .find(|custody| custody.key().name().as_str() == "unresolved-leaf")
+                .unwrap()
+                .key()
+                .clone()
+        } else {
+            closure.graph().root().clone()
+        };
+        let error = review_package_change(closure, TARGET, None, &tree.path("build")).unwrap_err();
+        assert!(
+            matches!(error, PackageChangeError::UndischargedContract { package, count } if *package == owner && count == 1)
+        );
+    }
+}
+
+#[test]
+fn invalid_proof_and_service_reach_remain_compiler_failures() {
+    let corpus = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../../tests/omega/fail");
+    for case in [
+        "domains/exit_ensures_unproven",
+        "capabilities/effect_ceiling_exceeded",
+    ] {
+        let tree = Tree::new();
+        let fixture = corpus.join(case);
+        source(
+            &tree,
+            &fs::read_to_string(fixture.join("main.omg")).unwrap(),
+            "",
+        );
+        let expected = fs::read_to_string(fixture.join("expected.txt")).unwrap();
+        let closure = resolve(&tree, "invalid");
+        let owner = closure.graph().root().clone();
+        let error = review_package_change(closure, TARGET, None, &tree.path("build")).unwrap_err();
+        let PackageChangeError::Compilation(CompileResolvedPackageReviewsError::Compilation {
+            package,
+            diagnostics,
+        }) = error
+        else {
+            panic!("expected compiler failure for {case}, got {error:?}");
+        };
+        assert_eq!(package, owner);
+        let rendered = diagnostics
+            .iter()
+            .map(|diagnostic| diagnostic.message.as_str())
+            .collect::<Vec<_>>()
+            .join("\n");
+        assert!(rendered.contains(expected.trim()), "{case}: {rendered}");
+        assert!(!tree.path("sources/root/omega.lock").exists());
+    }
+}
+
+#[test]
+fn scoped_build_generated_sources_reach_the_proposed_policy() {
+    let tree = Tree::new();
+    source(
+        &tree,
+        PURE,
+        r#"
+    let generated: BuildPath = builder.output.resolve("generated.omg");
+    let descriptor: i32 = builder.output.create(generated, 438);
+    let count: i64 = builder.output.write(descriptor, "pub data Generated { value: u64; }\n");
+    let closed: i32 = builder.output.close(descriptor);
+    builder.output.include_source(generated);
+"#,
+    );
+    let checked = review(&tree, "generated", None);
+    let proposed = propose(&checked);
+    let root = checked.source_closure().graph().root();
+    let rows = checked
+        .changes()
+        .packages()
+        .iter()
+        .find(|package| package.key() == root)
+        .unwrap()
+        .rows();
+    assert!(rows.iter().any(|row| {
+        row.kind() == PackagePolicyRowKind::PublicData
+            && row
+                .candidate()
+                .unwrap()
+                .canonical_text()
+                .contains("Generated")
+    }));
+    assert!(
+        checked
+            .reviews()
+            .review(root)
+            .unwrap()
+            .build_observation_summary()
+            .is_some()
+    );
+    assert!(
+        !checked
+            .source_closure()
+            .source_root(root)
+            .unwrap()
+            .join("generated.omg")
+            .exists()
+    );
+    assert_eq!(
+        fs::read_dir(tree.path("generated-build")).unwrap().count(),
+        0
+    );
+    assert_round_trip(&checked, proposed);
+    assert!(!tree.path("sources/root/omega.lock").exists());
+}

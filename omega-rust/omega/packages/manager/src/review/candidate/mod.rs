@@ -20,6 +20,7 @@ pub use compilation::{
     compile_resolved_package_candidate_reviews, compile_resolved_package_reviews,
     compile_resolved_package_reviews_with_semantic_bindings,
 };
+pub(crate) use custody::verify_transitive_source_custody;
 pub use error::CompileResolvedPackageReviewsError;
 pub(crate) use evidence::PackageReviewEvidence;
 pub use model::{

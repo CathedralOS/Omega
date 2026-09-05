@@ -28,6 +28,30 @@ manager/
 ```
 
 `operations` is the only owner of complete user or compiler workflows.
+`operations::review_package_change` checks an already-resolved candidate for an
+exact target, rejects outstanding ordinary contract obligations in any package,
+and compares its full policy against an optional accepted lock section. Missing
+baseline means fresh review; unavailable old source is not needed for comparison.
+The resulting `PackageChangeReview` exposes compiler findings and the ordinary
+editable review document's input, without a reconstruction question, native
+artifact, or evidence-promotion prerequisite.
+
+After resolving the exact comparison, `propose_lock_target` requires all choices
+to accept, rechecks retained source snapshots and selections, and constructs the
+proposed target from complete candidate policy and direct decision history.
+Rejected, foreign, or stale choices cannot produce a proposal through this
+operation. The result remains an unwritten `PackageLockTarget`, not permission
+to publish. Command-owned review files, concurrent project edits, immediate
+source/build rechecks, multi-target reconciliation, and atomic file publication
+still belong to the transaction.
+
+Candidate checking executes the existing scoped build evaluator, so it is not
+side-effect-free: package-input reads, disposable-output writes, and compiler
+logging can occur even when later checking fails. Runtime boundary services are
+rejected before authored build execution. Package runtime capability decisions
+do not grant additional build or resolver authority. Accepted project files are
+not modified by this operation.
+
 Its package-aware native operation consumes a `PreparedLocalProject`, selects
 one exact target child, compiles the final production review, reconstructs its
 current initial conflict set, and recovers a caller-selected root-policy record

@@ -7,7 +7,7 @@ use omega_package_source::local::operations::verify_package_source_snapshot;
 use std::collections::BTreeSet;
 use std::path::{Path, PathBuf};
 
-pub(super) fn verify_transitive_source_custody(
+pub(crate) fn verify_transitive_source_custody(
     closure: &ResolvedPackageSourceClosure,
     compiling_package: &PackageKey,
     phase: PackageSourceVerificationPhase,
