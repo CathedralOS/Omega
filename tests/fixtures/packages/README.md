@@ -12,7 +12,7 @@ mechanically map kebab-case to snake_case.
 The first package-manager tests use these directories through local path
 resolution. Remote mirrors under `CathedralOS` are pinned in `REMOTE_PINS.md`;
 acceptance tests use only those immutable commits.
-Filesystem and process mirrors use the exact pinned Git declarations in
+Mirrors with dependencies use the exact pinned Git declarations in
 [package-remotes](../package-remotes/README.md); local copies retain sibling
 Path dependencies. Their other files match, and `host-services` has no override.
 The integration canary resolves each local closure into immutable source

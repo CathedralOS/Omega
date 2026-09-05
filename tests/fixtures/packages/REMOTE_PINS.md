@@ -18,13 +18,13 @@ mbx test -p package-manager --test remote_fixtures -- --ignored --test-threads=1
 | `host-services` | `https://github.com/CathedralOS/host-services` | `25c18b37f4891aa31b83e1434562fb2ab0994450` |
 | `file-journal` | `https://github.com/CathedralOS/file-journal` | `ae37f95cf856d85c05fd4f113a0d32fe6f7229fa` |
 | `process-exit` | `https://github.com/CathedralOS/process-exit` | `15beea1a49aecce2362e4700e791a46d48bab598` |
-| `network-overreach` | `https://github.com/CathedralOS/network-overreach` | `d0fe2b00c2485700ace9242114bfa8c8e4a6c526` |
-| `remote-journal` | `https://github.com/CathedralOS/remote-journal` | `11a2c6e3825a4a9221fe536164417846f88cd63c` |
-| `axiom-ledger` | `https://github.com/CathedralOS/axiom-ledger` | `9f274c21386ea3cd7d7cce5b8d20bcb935f06f58` |
-| `opaque-carrier` | `https://github.com/CathedralOS/opaque-carrier` | `4db835ee361b24281ce8be139c5247e6256400a8` |
-| `provider-switchboard` | `https://github.com/CathedralOS/provider-switchboard` | `bd0d679da697af139bf3f9dd43d0d84935c7705b` |
-| `capability-vault` | `https://github.com/CathedralOS/capability-vault` | `7ee14134ff4756f58f9f1386258066ff794fff5b` |
-| `graph-workbench` | `https://github.com/CathedralOS/graph-workbench` | `5d72ed263b69248b3be021f32c71754f27d5f293` |
+| `network-overreach` | `https://github.com/CathedralOS/network-overreach` | `63657208908572fc8e090f07392682a22d77a518` |
+| `remote-journal` | `https://github.com/CathedralOS/remote-journal` | `e8fad1025c0e95df29f44a297aa18a75718f8e95` |
+| `axiom-ledger` | `https://github.com/CathedralOS/axiom-ledger` | `8f5bd07f166bcad08842e6bab1ba8b031e3afcb9` |
+| `opaque-carrier` | `https://github.com/CathedralOS/opaque-carrier` | `6a29daa655b2aaee0bdb8d85e4a651845e165896` |
+| `provider-switchboard` | `https://github.com/CathedralOS/provider-switchboard` | `7011d4e7af9ee06afe5289f880ee37353713aacc` |
+| `capability-vault` | `https://github.com/CathedralOS/capability-vault` | `06d9b6688b309ed916eb62d4f3095f9f53c907ff` |
+| `graph-workbench` | `https://github.com/CathedralOS/graph-workbench` | `85e962bf5120f84d5f2d8c18c14a6d96d1ec5c64` |
 
 The arithmetic upgrade starts at
 `998dac4a03109f67b8c2e87d53ff017007526669` and updates to the table's pin.
@@ -40,9 +40,10 @@ mbx test -p omega --test package_commands remote::pinned_https -- --ignored --te
 ```
 
 These tests install the baseline, update to the candidate, repeat that exact
-update, and compile an import through the default alias. The remaining remote
-mirrors still need their own syntax/content refresh; refreshing selected fixtures does
-not establish that the full remote-fixture matrix passes.
+update, and compile an import through the default alias. The full remote-fixture
+matrix checks exact content and complete dependency closures for all table rows,
+including `graph-workbench`; no package is skipped for sibling-path dependencies.
+It checks the Windows x86-64 compiler target without native emission or execution.
 
 ## Filesystem and process authority
 
@@ -62,6 +63,22 @@ mbx test -p omega --test package_commands remote_authority::pinned_ssh -- --igno
 These are SSH-closure tests, not independent HTTPS coverage. HTTPS checks above
 use the dependency-free arithmetic fixture. Host Git HTTPS credentials and SSH
 credentials are independent; neither test silently substitutes the other.
+
+## Transitive authority, assumptions, and opaque data
+
+`graph-workbench` pins the table's arithmetic and filesystem revisions; the
+latter contributes `host-services` transitively. `axiom-ledger` exposes an
+explicit trust-bearing boundary claim. `opaque-carrier` exposes claim-free
+opaque data without a source layout or a fabricated semantic guarantee.
+
+```text
+mbx test -p omega --test package_commands remote_review:: -- --ignored --test-threads=1
+```
+
+These SSH canaries exercise install and `omega audit packages` using recorded
+pins. Audit output reports current findings and does not approve changes or
+certify earlier project decisions. The nominal NetworkHost fixtures disclose
+reach and invocation but do not contain a concrete network provider.
 
 ## Named workspace
 

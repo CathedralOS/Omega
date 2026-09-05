@@ -1,8 +1,10 @@
 # remote-journal
 
-Retained-authority fixture. Its public API combines the exact toolchain-owned
-filesystem boundary with a package-local network boundary. A canonical network-
-danger fixture still depends on a toolchain-owned network surface.
+Retained-authority fixture. Its public API combines the filesystem boundary
+from the ordinary `host-services` dependency with a package-local network
+boundary. It tests reach and invocation disclosure, not a concrete network
+provider or executable network mechanism. Filesystem danger is classified from
+the exact accepted service binding, not from the fixture's name.
 
 Expected package evidence:
 

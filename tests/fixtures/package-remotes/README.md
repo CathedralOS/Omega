@@ -7,7 +7,9 @@ their exact build declarations with pinned Git dependencies:
 ```text
 package-remotes/
 ├── file-journal/build.omg    filesystem fixture -> pinned host-services
-└── process-exit/build.omg    process fixture -> pinned host-services
+├── process-exit/build.omg    process fixture -> pinned host-services
+├── remote-journal/build.omg  combined reach -> pinned host-services
+└── graph-workbench/build.omg graph -> pinned arithmetic-kernels and file-journal
 ```
 
 The corresponding local fixture supplies `README.md` and `main.omg` unchanged.

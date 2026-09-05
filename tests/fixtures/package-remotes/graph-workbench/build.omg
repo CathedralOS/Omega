@@ -1,0 +1,13 @@
+// package-manager fixture root.
+
+machine build(builder: &mut Build) {
+    builder.package("graph-workbench");
+    builder.depend(Source::Git {
+        repository: "git@github.com:CathedralOS/arithmetic-kernels.git",
+        revision: "b65cc9b062f69ef02a586c82cd260d51bf28945c"
+    });
+    builder.depend(Source::Git {
+        repository: "git@github.com:CathedralOS/file-journal.git",
+        revision: "ae37f95cf856d85c05fd4f113a0d32fe6f7229fa"
+    });
+}

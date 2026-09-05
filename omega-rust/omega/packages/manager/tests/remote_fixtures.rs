@@ -120,15 +120,19 @@ fn remote_fixture_pins_resolve_to_local_fixture_contents() {
 }
 
 #[test]
-fn remote_authority_builds_pin_the_recorded_host_services_without_sibling_paths() {
+fn remote_builds_pin_recorded_dependencies_without_sibling_paths() {
     use package_manager::declarations::{DependencySourceRequest, PackageSelection};
     let fixture = fixture::Fixture::new();
     let pins = remote_pins();
-    let host = pins
-        .iter()
-        .find(|pin| pin.package == "host-services")
-        .unwrap();
-    for name in ["file-journal", "process-exit"] {
+    for (name, dependencies) in [
+        ("file-journal", &["host-services"][..]),
+        ("process-exit", &["host-services"][..]),
+        ("remote-journal", &["host-services"][..]),
+        (
+            "graph-workbench",
+            &["arithmetic-kernels", "file-journal"][..],
+        ),
+    ] {
         let expected = fixture.expected_package(name);
         assert_eq!(
             extract_package_declaration(&expected)
@@ -138,25 +142,28 @@ fn remote_authority_builds_pin_the_recorded_host_services_without_sibling_paths(
             name
         );
         let requests = extract_dependency_projection(&expected).unwrap();
-        let [
-            DependencySourceRequest::Git {
+        assert_eq!(requests.len(), dependencies.len());
+        let local = extract_dependency_projection(local_package_root(name)).unwrap();
+        assert_eq!(local.len(), dependencies.len());
+        for ((request, local), dependency) in requests.iter().zip(&local).zip(dependencies) {
+            let pin = pins.iter().find(|pin| &pin.package == dependency).unwrap();
+            let DependencySourceRequest::Git {
                 explicit_alias,
                 repository,
                 revision,
                 selection,
-            },
-        ] = requests.as_slice()
-        else {
-            panic!("remote fixture must have one direct pinned Git dependency");
-        };
-        assert!(explicit_alias.is_none());
-        assert_eq!(repository, &ssh_url(host));
-        assert_eq!(revision, &host.commit);
-        assert_eq!(selection, &PackageSelection::Root);
-        let local = extract_dependency_projection(local_package_root(name)).unwrap();
-        assert!(
-            matches!(local.as_slice(), [DependencySourceRequest::Path { location, .. }] if location == "../host-services")
-        );
+            } = request
+            else {
+                panic!("remote fixture must have pinned Git dependencies");
+            };
+            assert!(explicit_alias.is_none());
+            assert_eq!(repository, &ssh_url(pin));
+            assert_eq!(revision, &pin.commit);
+            assert_eq!(selection, &PackageSelection::Root);
+            assert!(
+                matches!(local, DependencySourceRequest::Path { location, .. } if location == &format!("../{dependency}"))
+            );
+        }
     }
 }
 
@@ -255,12 +262,6 @@ fn verify_remote_pins(pins: Vec<RemotePin>, target: target::TargetProfile) {
             "{} declared-source content drift",
             pin.package
         );
-
-        if pin.package == "graph-workbench" && !declared.dependency_requests().is_empty() {
-            // This unrefreshed remote still has sibling paths; its closure is
-            // not claimed covered by this content comparison.
-            continue;
-        }
 
         let closure = resolve_git_package_closure_with_storage(
             &request,

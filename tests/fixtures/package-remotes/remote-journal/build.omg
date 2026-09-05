@@ -1,0 +1,9 @@
+// package-manager fixture: no build-host reach; runtime API retains filesystem and network authority.
+
+machine build(builder: &mut Build) {
+    builder.package("remote-journal");
+    builder.depend(Source::Git {
+        repository: "git@github.com:CathedralOS/host-services.git",
+        revision: "25c18b37f4891aa31b83e1434562fb2ab0994450"
+    });
+}
