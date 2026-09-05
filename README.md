@@ -34,10 +34,10 @@ The long-term pitch is ambitious on purpose: write programs as explicit state ev
 
 The repository pins its Rust compiler, formatter, and linter in
 `rust-toolchain.toml`; `rustup` selects that toolchain automatically. Use
-`mbx` 1.7.0 or newer for every Cargo command that can compile code. Keep
+`mbx` in place of Cargo when available. Keep
 `cargo fmt` and `cargo clean` direct: they do not compile, and `mbx clean` has
-different semantics. If `mbx` is missing or older than 1.7.0, stop; do not
-silently substitute Cargo.
+different semantics. If `mbx` is unavailable, use Cargo without asking for
+permission, as specified in [AGENTS.md](AGENTS.md).
 
 The baseline gates for a fresh checkout are:
 

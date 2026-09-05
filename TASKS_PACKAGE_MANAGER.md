@@ -32,7 +32,7 @@ host credentials, and organizational review policy have separate owners.
   this task. Detect relevant source/build drift before publication.
 
 - [ ] **PACKAGE-MANAGER-RELEASE-AUDIT.** Extend real-command/network coverage to
-  capability changes/removals, same-name/different-source replacement,
+  same-name/different-source replacement,
   transitive helper authority, and dangerous generated authority.
   Test HTTPS and SSH independently where credentials permit.
   Cover missing baselines/old source, invalid proofs, spoofed boundaries,

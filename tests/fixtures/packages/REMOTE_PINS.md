@@ -17,7 +17,7 @@ mbx test -p package-manager --test remote_fixtures -- --ignored --test-threads=1
 | `generated-table` | `https://github.com/CathedralOS/generated-table` | `cc5fc1addda6aa565f254ad2e002d9e0be189fd4` |
 | `host-services` | `https://github.com/CathedralOS/host-services` | `25c18b37f4891aa31b83e1434562fb2ab0994450` |
 | `file-journal` | `https://github.com/CathedralOS/file-journal` | `ae37f95cf856d85c05fd4f113a0d32fe6f7229fa` |
-| `process-exit` | `https://github.com/CathedralOS/process-exit` | `15beea1a49aecce2362e4700e791a46d48bab598` |
+| `process-exit` | `https://github.com/CathedralOS/process-exit` | `7926228b0918574dd532dda0008a6aa80881bce9` |
 | `network-overreach` | `https://github.com/CathedralOS/network-overreach` | `63657208908572fc8e090f07392682a22d77a518` |
 | `remote-journal` | `https://github.com/CathedralOS/remote-journal` | `e8fad1025c0e95df29f44a297aa18a75718f8e95` |
 | `axiom-ledger` | `https://github.com/CathedralOS/axiom-ledger` | `8f5bd07f166bcad08842e6bab1ba8b031e3afcb9` |
@@ -47,6 +47,13 @@ It checks the Windows x86-64 compiler target without native emission or executio
 
 ## Filesystem and process authority
 
+`process-exit` starts at `15beea1a49aecce2362e4700e791a46d48bab598`,
+removes its process call/reach/invocation at
+`13e4afd9c907503cb674d4450fdd3b1a19033d5d`, and restores the original
+source at the table's pin. Its repository identity, callable signature, and
+host dependency stay fixed. The transition canary requires a separate decision
+for both removal and reintroduction; stale or substituted choices do not publish.
+
 `file-journal` upgrades from `3f1e20615b1226aef011b5cfe651a179daca59ad`
 to the table's candidate. Only a temporary result binding is removed; its API
 and filesystem authority stay unchanged. Both it and `process-exit` pin the
@@ -58,6 +65,7 @@ tests. Exact remote build overrides live in
 ```text
 mbx test -p package-manager --test remote_fixtures refreshed_authority_pins -- --ignored --test-threads=1
 mbx test -p omega --test package_commands remote_authority::pinned_ssh -- --ignored --test-threads=1
+mbx test -p omega --test package_commands remote_authority::transitions:: -- --ignored --test-threads=1
 ```
 
 These are SSH-closure tests, not independent HTTPS coverage. HTTPS checks above
