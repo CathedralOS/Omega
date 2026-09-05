@@ -24,6 +24,7 @@ for required in \
   "$OMEGA_PATH_EPSILON" \
   "$OMEGA_PATH_EPSILON_COMPILER" \
   "$OMEGA_PATH_OMEGA" \
+  "$OMEGA_PATH_OMEGA_D" \
   "$OMEGA_PATH_OMEGA_COMPILER" \
   "$OMEGA_REPO_ROOT/tools/bootstrap/epsilon"
 do
@@ -84,7 +85,7 @@ done
 
 for retired in \
   "$OMEGA_REPO_ROOT/tools/alpha" \
-  "$OMEGA_REPO_ROOT/source/alpha/checker" \
+  "$OMEGA_REPO_ROOT/bootstrap/alpha/checker" \
   "$OMEGA_REPO_ROOT/tests/proof-checker" \
   "$OMEGA_REPO_ROOT/tools/bootstrap/proof-checker"
 do
@@ -93,54 +94,60 @@ done
 
 tracked_source_roots=$(find "$OMEGA_REPO_ROOT/source" -mindepth 1 -maxdepth 1 \
   -type d -exec basename {} \; | sort)
-expected_source_roots='alpha
+expected_source_roots='library
+omega
+psi'
+[ "$tracked_source_roots" = "$expected_source_roots" ] ||
+  fail "tracked final-source owners differ from library, Psi, and Omega"
+
+tracked_bootstrap_roots=$(find "$OMEGA_PATH_BOOTSTRAP" -mindepth 1 -maxdepth 1 \
+  -type d -exec basename {} \; | sort)
+expected_bootstrap_roots='alpha
 beta
 delta
 epsilon
 gamma
-library
-omega
-psi'
-[ "$tracked_source_roots" = "$expected_source_roots" ] ||
-  fail "tracked source owners differ from the selected source-root set"
+omega'
+[ "$tracked_bootstrap_roots" = "$expected_bootstrap_roots" ] ||
+  fail "tracked bootstrap owners differ from the selected rung set"
 
 tracked_compiler_sources=$(find \
-  "$OMEGA_PATH_BETA" "$OMEGA_PATH_GAMMA" "$OMEGA_PATH_DELTA" \
-  "$OMEGA_PATH_EPSILON" "$OMEGA_PATH_OMEGA" \
-  -path '*/bootstrap/*' -prune -o -type f -name '*compiler.*' -print | \
+  "$OMEGA_PATH_BETA_COMPILER" "$OMEGA_PATH_DELTA_COMPILER" \
+  "$OMEGA_PATH_EPSILON_COMPILER" \
+  -type f -name '*compiler.*' -print | \
   sed "s#^$OMEGA_REPO_ROOT/##" | \
   grep -E '/[^/]*compiler\.(beta|gamma|delta|epsilon|omg)$' | sort || true)
-expected_compiler_sources='source/beta/compiler/beta_compiler.beta
-source/delta/compiler/delta_compiler.gamma
-source/epsilon/compiler/epsilon_compiler.delta'
+expected_compiler_sources='bootstrap/beta/compiler/beta_compiler.beta
+bootstrap/delta/compiler/delta_compiler.gamma
+bootstrap/epsilon/compiler/epsilon_compiler.delta'
 [ "$tracked_compiler_sources" = "$expected_compiler_sources" ] ||
   fail "compiler source exists outside selected edges"
 
 tracked_omega_d_sources=$(find "$OMEGA_PATH_OMEGA_COMPILER" -type f \
   -name '*.epsilon' -print | sed "s#^$OMEGA_REPO_ROOT/##" | sort)
-expected_omega_d_sources='source/omega/compiler/alpha_tape.epsilon
-source/omega/compiler/lexer.epsilon
-source/omega/compiler/lexical_classification.epsilon
-source/omega/compiler/parser.epsilon
-source/omega/compiler/representations.epsilon
-source/omega/compiler/request_and_utf8.epsilon'
+expected_omega_d_sources='bootstrap/omega/compiler/alpha_tape.epsilon
+bootstrap/omega/compiler/lexer.epsilon
+bootstrap/omega/compiler/lexical_classification.epsilon
+bootstrap/omega/compiler/parser.epsilon
+bootstrap/omega/compiler/representations.epsilon
+bootstrap/omega/compiler/request_and_utf8.epsilon'
 [ "$tracked_omega_d_sources" = "$expected_omega_d_sources" ] ||
   fail "Omega D source members differ from the selected closure"
 
 tracked_compiler_tapes=$(find \
-  "$OMEGA_PATH_BETA" "$OMEGA_PATH_GAMMA" "$OMEGA_PATH_DELTA" \
-  "$OMEGA_PATH_EPSILON" "$OMEGA_PATH_OMEGA" \
-  -path '*/bootstrap/*' -prune -o -type f -name '*compiler*.tape' -print | \
+  "$OMEGA_PATH_BETA_COMPILER" "$OMEGA_PATH_DELTA_COMPILER" \
+  "$OMEGA_PATH_EPSILON_COMPILER" \
+  -type f -name '*compiler*.tape' -print | \
   sed "s#^$OMEGA_REPO_ROOT/##" | sort || true)
-expected_compiler_tapes='source/beta/compiler/beta_compiler_bytecode.tape'
+expected_compiler_tapes='bootstrap/beta/compiler/beta_compiler_bytecode.tape'
 [ "$tracked_compiler_tapes" = "$expected_compiler_tapes" ] ||
   fail "compiler tapes differ from selected edges or declared experiments"
 
 stale_paths=$(grep -RInE \
   --exclude-dir=target --exclude-dir=build \
   --exclude=decisions.md --exclude=check-chain-hygiene.sh \
-  'tools/alpha(/|$)|tools/bootstrap/proof-checker(/|$)|source/alpha/checker|tests/proof-checker|omega_compiler\.delta|\.alphaasm|alpha_tape_assembler|Alpha Tape Assembly|beta_evaluator|BETAREQ|OMEGA_PATH_ALPHA_TAPE|OMEGA_PATH_BETA_EVALUATOR' \
-  "$OMEGA_REPO_ROOT/source" "$OMEGA_REPO_ROOT/tests" \
+  'tools/alpha(/|$)|tools/bootstrap/proof-checker(/|$)|bootstrap/alpha/checker|tests/proof-checker|omega_compiler\.delta|\.alphaasm|alpha_tape_assembler|Alpha Tape Assembly|beta_evaluator|BETAREQ|OMEGA_PATH_ALPHA_TAPE|OMEGA_PATH_BETA_EVALUATOR' \
+  "$OMEGA_PATH_BOOTSTRAP" "$OMEGA_REPO_ROOT/source" "$OMEGA_REPO_ROOT/tests" \
   "$OMEGA_REPO_ROOT/tools" "$OMEGA_REPO_ROOT/wiki" \
   "$OMEGA_REPO_ROOT/README.md" "$OMEGA_REPO_ROOT/TASKS_BOOTSTRAP.md" || true)
 [ -z "$stale_paths" ] || fail "retired live path or identity remains: $stale_paths"

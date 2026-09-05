@@ -178,12 +178,14 @@ there, not at `cargo check`.
   language rung, and it grants no authority.
 - `source/psi/` + `source/omega/` — the Omega-written product compiler, split
   along the same firewall. This is the destination.
-- `source/{alpha,beta,gamma,delta,epsilon}/` — the trust-minimizing bootstrap
+- `bootstrap/{alpha,beta,gamma,delta,epsilon}/` — the trust-minimizing bootstrap
   chain Alpha → Beta → Gamma → Delta → Epsilon → Omega. Alpha is raw tape
   execution; Beta is the trusted imperative tape-assembly language; Gamma is
   the small typed functional evaluator; Delta authors the Epsilon compiler;
   Epsilon authors the first Omega compiler. Intermediate self-hosting is not a
   goal.
+- `bootstrap/omega/` — the Epsilon-written first Omega compiler D. It is a
+  bootstrap implementation, not the final Omega-owned product source.
 - `source/library/` — bundled Omega packages; `omega::` imports resolve here,
   as either `name.omg` or `name/mod.omg`.
 

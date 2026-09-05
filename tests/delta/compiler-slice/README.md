@@ -1,7 +1,7 @@
 # Delta compiler scalar slice
 
 This gate exercises the downgraded compiler at
-`source/delta/bootstrap/concatenative-compiler/delta_compiler.gamma` and preserves the earlier
+`bootstrap/delta/bootstrap/concatenative-compiler/delta_compiler.gamma` and preserves the earlier
 `schema_elaborator.gamma` proof as supporting evidence. The selected compiler
 is now open; this retained compiler emits former concatenative Gamma source.
 

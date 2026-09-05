@@ -3,7 +3,7 @@
 [Chain overview](bootstrap_chain.md) | [Standing decisions](decisions.md)
 
 ```text
-source/
+bootstrap/
   alpha/                         Alpha semantics and audited native VM seeds
   beta/                          trusted imperative tape-assembly language
     compiler/
@@ -22,13 +22,17 @@ source/
   epsilon/                       fixed-storage compiler-host language
     compiler/
       epsilon_compiler.delta     incomplete Delta-written Epsilon evaluator
-  psi/                           target-neutral Omega product phases
   omega/
     compiler/*.epsilon           incomplete Epsilon-written Omega compiler D
     omega_compiler.epsilon.sources canonical D member manifest
+
+source/
+  psi/                           target-neutral Omega product phases
+  omega/
     build.omg, main.omg          Omega-written compiler C roots
   library/                       Omega libraries
-  omega-rust/                    maintained comparator, never bootstrap authority
+
+omega-rust/                      maintained comparator, never bootstrap authority
 
 tools/
   bootstrap/alpha/               seed selection and tape stamping
@@ -44,10 +48,10 @@ tests/
   omega/                         Omega product language cases
 ```
 
-The Gamma evaluator belongs under `source/gamma/evaluator/` because it
+The Gamma evaluator belongs under `bootstrap/gamma/evaluator/` because it
 implements Gamma meaning and is written in Beta. Downgraded implementations
-remain nested beneath the language whose transition they document; there is no
-generic source/bootstrap owner. The selected Delta compiler path remains open.
+remain nested beneath the bootstrap language whose transition they document.
+The selected Delta compiler path remains open.
 
 ## Naming
 
@@ -59,14 +63,14 @@ its source suffix names the language implementing it:
 
 | Owner | Current source |
 | --- | --- |
-| Beta compiler | `source/beta/compiler/beta_compiler.beta` |
-| Gamma evaluator | `source/gamma/evaluator/gamma_evaluator.beta` |
-| Delta compiler | `source/delta/compiler/delta_compiler.gamma` (selected staged implementation) |
-| Epsilon evaluator | `source/epsilon/compiler/epsilon_compiler.delta` |
-| Omega `D` | `source/omega/omega_compiler.epsilon.sources` and `source/omega/compiler/*.epsilon` |
+| Beta compiler | `bootstrap/beta/compiler/beta_compiler.beta` |
+| Gamma evaluator | `bootstrap/gamma/evaluator/gamma_evaluator.beta` |
+| Delta compiler | `bootstrap/delta/compiler/delta_compiler.gamma` (selected staged implementation) |
+| Epsilon evaluator | `bootstrap/epsilon/compiler/epsilon_compiler.delta` |
+| Omega `D` | `bootstrap/omega/omega_compiler.epsilon.sources` and `bootstrap/omega/compiler/*.epsilon` |
 | Omega `C` | `source/omega/build.omg`, `source/omega/main.omg` |
 
-There is no intermediate self-host owner or generic bootstrap source bucket.
+There is no intermediate self-host owner.
 Language-owned bootstrap subdirectories are explicitly nonselected and excluded
 from edge inventories. Cross-owner paths are checked by
 `tools/bootstrap/check-chain-hygiene.sh`.

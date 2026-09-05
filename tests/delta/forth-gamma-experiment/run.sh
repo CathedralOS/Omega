@@ -18,7 +18,7 @@ SYMBOLIC="$GATE_DIR/forth_gamma_evaluator.sbeta"
 COMPILER="$GATE_DIR/delta_compiler.fgamma"
 RESOLVER="$OMEGA_REPO_ROOT/tests/gamma/evaluator-development/resolve.py"
 LEGACY_EVALUATOR="$OMEGA_PATH_CONCATENATIVE_GAMMA_EVALUATOR_SOURCE"
-LEGACY_COMPILER="$OMEGA_REPO_ROOT/source/delta/bootstrap/concatenative-compiler/delta_compiler.gamma"
+LEGACY_COMPILER="$OMEGA_REPO_ROOT/bootstrap/delta/bootstrap/concatenative-compiler/delta_compiler.gamma"
 
 materialize_beta_compiler "$TMP/beta" >/dev/null
 python3 "$GATE_DIR/import_legacy.py" "$LEGACY_EVALUATOR" "$TMP/legacy.sbeta"
@@ -37,7 +37,7 @@ stamp_seed "$TMP/evaluator.tape" "$OMEGA_PATH_ALPHA/$ALPHA_SEED" \
 METRICS=$(python3 "$GATE_DIR/measure.py" \
     "$SYMBOLIC" "$COMPILER" \
     "$OMEGA_PATH_GAMMA_EVALUATOR_SOURCE" \
-    "$OMEGA_REPO_ROOT/source/delta/compiler/delta_compiler.gamma")
+    "$OMEGA_REPO_ROOT/bootstrap/delta/compiler/delta_compiler.gamma")
 EXPECTED_METRICS='forth_beta=890,723,122,312,203,87
 forth_compiler_lines=1451
 forth_compiler_definitions=555

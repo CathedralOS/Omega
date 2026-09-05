@@ -3,7 +3,7 @@
 [Chain overview](../bootstrap_chain.md) | Next: [Beta](beta.md)
 
 Alpha is the unchanged deterministic tape executor and the only per-platform
-native rung. [`source/alpha/SEMANTICS.md`](../../../../source/alpha/SEMANTICS.md)
+native rung. [`bootstrap/alpha/SEMANTICS.md`](../../../../bootstrap/alpha/SEMANTICS.md)
 defines its 21 instructions, bounded flat memory, byte I/O, calls, halt, and
 trap.
 

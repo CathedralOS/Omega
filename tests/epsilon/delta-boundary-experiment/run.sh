@@ -14,8 +14,8 @@ command -v python3 >/dev/null 2>&1 || {
 
 TMP=$(mktemp -d)
 trap 'rm -rf -- "$TMP"' EXIT HUP INT TERM
-EPSILON="$OMEGA_REPO_ROOT/source/epsilon/compiler/epsilon_compiler.delta"
-DELTA="$OMEGA_REPO_ROOT/source/delta/compiler/delta_compiler.gamma"
+EPSILON="$OMEGA_REPO_ROOT/bootstrap/epsilon/compiler/epsilon_compiler.delta"
+DELTA="$OMEGA_REPO_ROOT/bootstrap/delta/compiler/delta_compiler.gamma"
 ANALYSIS=$(python3 "$GATE_DIR/analyze.py" "$EPSILON")
 
 expect_metric() {

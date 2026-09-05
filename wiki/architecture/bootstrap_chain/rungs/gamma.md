@@ -12,7 +12,7 @@ byte output, and immutable pairs. It excludes source-declared algebraic data, pa
 functions, polymorphism, modules, and ambient host access.
 
 Its exact contract is
-[`source/gamma/LANGUAGE.md`](../../../../source/gamma/LANGUAGE.md). Its customers
+[`bootstrap/gamma/LANGUAGE.md`](../../../../bootstrap/gamma/LANGUAGE.md). Its customers
 are the staged Delta compiler and explicitly justified small bootstrap tools.
 The selected 1,509-line Beta evaluator assembles to a 7,835-byte tape and runs
 the scalar/effect plus self-augmentation gates. It executes the unchanged
@@ -24,4 +24,4 @@ pair-reference provenance, and profile-owned arithmetic traps are complete.
 Its exact resource outcomes are closed. Beta-root audit and the Gamma derivation
 checker remain separate admission obligations. The former
 concatenative Gamma implementation is retained only under
-`source/gamma/bootstrap/concatenative/`.
+`bootstrap/gamma/bootstrap/concatenative/`.

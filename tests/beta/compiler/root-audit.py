@@ -9,8 +9,8 @@ import beta_ref
 
 
 ROOT = Path(__file__).resolve().parents[3]
-SOURCE = ROOT / "source/beta/compiler/beta_compiler.beta"
-TAPE = ROOT / "source/beta/compiler/beta_compiler_bytecode.tape"
+SOURCE = ROOT / "bootstrap/beta/compiler/beta_compiler.beta"
+TAPE = ROOT / "bootstrap/beta/compiler/beta_compiler_bytecode.tape"
 
 SOURCE_SIZE = 12_640
 SOURCE_SHA256 = "3ea0b6d4d8651bddf2aaeb2176009706a0119942c8c2a072e03f6f8876eef53a"

@@ -198,21 +198,22 @@ Omega/
 |       |-- tooling/                                     # Auxiliary artifacts, profiles, visualizations, and host custody.
 |       |-- src/                                         # Tiny `omega` product command.
 |       `-- tests/                                       # Cargo integration tests for that product command.
-|-- source/
+|-- bootstrap/
 |   |-- alpha/                                             # Alpha semantics and native VM seeds.
 |   |-- beta/                                              # Trusted tape-assembly language and compiler.
-|   |-- gamma/                                             # Concatenative compiler machine and Beta-written evaluator.
+|   |-- gamma/                                             # Typed scalar/effect language and Beta-written evaluator.
 |   |-- delta/                                             # Typed pure functional compiler language.
-|   |-- epsilon/                                           # Fixed-storage compiler-host language.
-|   |   `-- compiler/                                      # Incomplete Delta-written Epsilon compiler.
+|   |-- epsilon/                                           # Fixed-storage compiler-host language and evaluator.
+|   `-- omega/                                             # Epsilon-written first Omega compiler D.
+|       |-- compiler/                                      # D source members.
+|       `-- omega_compiler.epsilon.sources                 # Canonical D source-member manifest.
+|-- source/
 |   |-- library/                                           # Core, allocation, and standard library source.
 |   |   |-- core/                                          # Always-available language package.
 |   |   |-- alloc/                                         # Allocation facilities.
 |   |   `-- std/                                           # Higher-level standard package surface.
 |   |-- psi/                                               # Omega-written target-neutral phases through terminal Psi.
-|   |-- omega/                                             # Epsilon- and Omega-written product compiler implementations.
-|   |   |-- compiler/                                      # Epsilon-written full Omega compiler D members.
-|   |   |-- omega_compiler.epsilon.sources                 # Canonical D source-member manifest.
+|   |-- omega/                                             # Omega-written product compiler implementation C.
 |   |   |-- build.omg                                      # Product build/composition entrypoint.
 |   |   |-- main.omg                                       # Product machine entrypoint.
 |
@@ -245,7 +246,8 @@ The displayed tree is the canonical ownership shape. The unblocked relocation
 steps are complete:
 
 ```text
-source/{alpha,beta,gamma,delta,epsilon}/ canonical language rungs
+bootstrap/{alpha,beta,gamma,delta,epsilon}/ canonical language rungs
+bootstrap/omega/                       Epsilon-written first Omega compiler D
 source/library/                        core, allocation, and standard libraries
 source/psi/                            Omega-written target-neutral phases through terminal Psi
 source/omega/                          Terminal-Psi consumer and product root
@@ -259,9 +261,10 @@ tools/                                 other repository maintenance scripts
 Each rung remains the semantic owner of its language and chain-built
 artifacts. A Rust producer nested beneath that rung is tooling for the same
 concept, not a second semantic owner. The derivation checker belongs to Gamma.
-Canonical compiler sources, tapes, and closed wire tables remain together under
-`source/`; executable validation is grouped by subject under `tests/` and names
-the canonical source/artifact explicitly. Host materialization and deliberate
+Bootstrap compiler sources, tapes, and closed wire tables remain together under
+`bootstrap/`; final Omega-written source remains under `source/`. Executable
+validation is grouped by subject under `tests/` and names the canonical
+source/artifact explicitly. Host materialization and deliberate
 artifact replacement live under `tools/bootstrap/`. The removed
 Epsilon-to-Delta/native-publication tree is not a validation precedent.
 

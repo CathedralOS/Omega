@@ -24,7 +24,7 @@ Conformance and the independent reference VM live under `tests/alpha/`.
 `tests/bootstrap/alpha-beta-edge.sh` checks behavior and optional native-source
 provenance.
 
-Trusted Beta lives under `source/beta/`. Its readable compiler source
+Trusted Beta lives under `bootstrap/beta/`. Its readable compiler source
 reconstructs the admitted tape byte-identically and supplies the next language
 edge to the Gamma evaluator.
 
