@@ -4,11 +4,26 @@ use std::fmt;
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CanonicalSourceClosureSubjectError {
     message: &'static str,
+    allocation_limit_exceeded: bool,
 }
 
 impl CanonicalSourceClosureSubjectError {
     pub(in super::super) fn new(message: &'static str) -> Self {
-        Self { message }
+        Self {
+            message,
+            allocation_limit_exceeded: false,
+        }
+    }
+
+    pub(in super::super) fn allocation_limit(message: &'static str) -> Self {
+        Self {
+            message,
+            allocation_limit_exceeded: true,
+        }
+    }
+
+    pub(crate) const fn is_allocation_limit_exceeded(&self) -> bool {
+        self.allocation_limit_exceeded
     }
 
     pub const fn message(&self) -> &'static str {

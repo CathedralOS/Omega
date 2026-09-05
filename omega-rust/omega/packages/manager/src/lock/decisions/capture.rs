@@ -1,6 +1,7 @@
 use super::model::{
-    HistoricalPackagePolicyDecision, HistoricalPackagePolicyDecisions,
-    HistoricalPackagePolicyError as Error, HistoricalPackagePolicyLimits,
+    HistoricalPackagePolicyDecision, HistoricalPackagePolicyDecisionSubject,
+    HistoricalPackagePolicyDecisions, HistoricalPackagePolicyError as Error,
+    HistoricalPackagePolicyLimits,
 };
 use crate::resolution::graph::CanonicalSourceClosureSubject;
 use crate::review::{ReviewOnlyCapabilityConflictSet, ReviewOnlyRootPolicyResolution};
@@ -56,7 +57,9 @@ impl HistoricalPackagePolicyDecisions {
                     return Err(Error::ResolutionMismatch);
                 }
                 decisions.push(HistoricalPackagePolicyDecision {
-                    package_index,
+                    subject: HistoricalPackagePolicyDecisionSubject::CandidatePackage {
+                        package_index,
+                    },
                     conflict: decision.conflict().digest(),
                     disposition: decision.disposition(),
                 });
@@ -65,10 +68,11 @@ impl HistoricalPackagePolicyDecisions {
         if decisions.len() != supplied.len() {
             return Err(Error::ResolutionMismatch);
         }
-        decisions.sort_unstable_by_key(|decision| (decision.package_index, decision.conflict));
+        decisions.sort_unstable_by_key(|decision| (decision.package_index(), decision.conflict));
         let historical = Self {
             source_subject: subject.fingerprint().clone(),
             decisions,
+            comparison: None,
         };
         // Apply the same byte ceiling at capture as at persistence.
         historical.canonical_text(subject, limits)?;

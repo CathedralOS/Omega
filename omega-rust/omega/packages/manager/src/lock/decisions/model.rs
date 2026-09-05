@@ -1,11 +1,13 @@
+use crate::declarations::{AliasName, BuildDeclarationKind, PackageKey};
 use crate::resolution::graph::CanonicalSourceClosureSubjectFingerprint;
 use crate::review::ReviewOnlyRootPolicyDisposition;
+use crate::review::ReviewOnlyRootRoleContract;
 use std::fmt;
 
 /// One recorded project choice, not a fresh candidate-bound authorization.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct HistoricalPackagePolicyDecision {
-    pub(super) package_index: usize,
+    pub(super) subject: HistoricalPackagePolicyDecisionSubject,
     pub(super) conflict: [u8; 32],
     pub(super) disposition: ReviewOnlyRootPolicyDisposition,
 }
@@ -13,8 +15,24 @@ pub struct HistoricalPackagePolicyDecision {
 impl HistoricalPackagePolicyDecision {
     /// Document reference into the associated source subject's sorted packages.
     /// This is not a compiler handle or an index into a later updated graph.
-    pub const fn package_index(&self) -> usize {
-        self.package_index
+    pub const fn package_index(&self) -> Option<usize> {
+        match &self.subject {
+            HistoricalPackagePolicyDecisionSubject::CandidatePackage { package_index }
+            | HistoricalPackagePolicyDecisionSubject::RootRole { package_index, .. }
+            | HistoricalPackagePolicyDecisionSubject::SourceReplacement { package_index, .. } => {
+                Some(*package_index)
+            }
+            HistoricalPackagePolicyDecisionSubject::RemovedPackage { .. } => None,
+        }
+    }
+
+    pub const fn subject(&self) -> &HistoricalPackagePolicyDecisionSubject {
+        &self.subject
+    }
+
+    /// V1 conflict fingerprint or V2 normalized obligation fingerprint.
+    pub const fn obligation(&self) -> [u8; 32] {
+        self.conflict
     }
 
     pub const fn conflict(&self) -> [u8; 32] {
@@ -24,6 +42,38 @@ impl HistoricalPackagePolicyDecision {
     pub const fn disposition(&self) -> ReviewOnlyRootPolicyDisposition {
         self.disposition
     }
+}
+
+/// Exact history subject. A removed key is not an index into the candidate.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum HistoricalPackagePolicyDecisionSubject {
+    CandidatePackage {
+        package_index: usize,
+    },
+    RemovedPackage {
+        key: PackageKey,
+    },
+    RootRole {
+        package_index: usize,
+        baseline_role: BuildDeclarationKind,
+        candidate_role: BuildDeclarationKind,
+        broken_contract: ReviewOnlyRootRoleContract,
+    },
+    SourceReplacement {
+        baseline: PackageKey,
+        package_index: usize,
+        site: HistoricalPackagePolicyReplacementSite,
+    },
+}
+
+/// One exact root or requester-local binding, never an inferred name pairing.
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+pub enum HistoricalPackagePolicyReplacementSite {
+    Root,
+    Dependency {
+        requester_index: usize,
+        alias: AliasName,
+    },
 }
 
 /// Inert policy history for one exact source subject, including its target.
@@ -36,6 +86,8 @@ impl HistoricalPackagePolicyDecision {
 pub struct HistoricalPackagePolicyDecisions {
     pub(super) source_subject: CanonicalSourceClosureSubjectFingerprint,
     pub(super) decisions: Vec<HistoricalPackagePolicyDecision>,
+    /// None is the original V1 review-conflict history, never inferred V2.
+    pub(super) comparison: Option<[u8; 32]>,
 }
 
 impl HistoricalPackagePolicyDecisions {
@@ -45,6 +97,13 @@ impl HistoricalPackagePolicyDecisions {
 
     pub fn decisions(&self) -> &[HistoricalPackagePolicyDecision] {
         &self.decisions
+    }
+
+    pub const fn version(&self) -> u16 {
+        if self.comparison.is_some() { 2 } else { 1 }
+    }
+    pub const fn comparison(&self) -> Option<[u8; 32]> {
+        self.comparison
     }
 }
 
@@ -78,6 +137,19 @@ impl HistoricalPackagePolicyRecoveryUsage {
             owned_bytes,
             decisions,
         })
+    }
+
+    pub(super) fn charge(
+        &mut self,
+        bytes: usize,
+        maximum: usize,
+    ) -> Result<(), HistoricalPackagePolicyError> {
+        self.owned_bytes = self
+            .owned_bytes
+            .checked_add(bytes)
+            .filter(|bytes| *bytes <= maximum)
+            .ok_or(HistoricalPackagePolicyError::AllocationLimitExceeded)?;
+        Ok(())
     }
 }
 
@@ -123,6 +195,8 @@ pub enum HistoricalPackagePolicyError {
     UnknownPackage,
     NonCanonicalDecisions,
     ResolutionMismatch,
+    InvalidSubject,
+    SourceKey,
 }
 
 impl fmt::Display for HistoricalPackagePolicyError {
@@ -138,6 +212,8 @@ impl fmt::Display for HistoricalPackagePolicyError {
             Self::UnknownPackage => "historical policy references a package outside its source graph",
             Self::NonCanonicalDecisions => "historical policy repeats or misorders decisions",
             Self::ResolutionMismatch => "historical policy capture requires the exact complete current resolution",
+            Self::InvalidSubject => "historical policy subject contradicts its candidate graph or directional root role",
+            Self::SourceKey => "historical policy has an invalid source-qualified package key",
         })
     }
 }

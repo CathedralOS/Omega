@@ -56,6 +56,39 @@ owner validates its own canonical format and typed meaning. The manager checks
 the joins and outer framing. Unknown versions fail with recovery guidance;
 loading never upgrades pins or treats unknown policy as empty.
 
+## Historical decision subjects
+
+Historical decision text has an independent version. Version 1 retains its
+original candidate-package-index grammar and byte-identical rendering. Version
+2 additionally binds the normalized comparison and distinguishes decisions
+about a current package, a removed package, a source replacement, and a
+directional root-role change.
+The outer lock format remains version 1; its existing byte lengths delimit
+either supported historical child version.
+
+A current package refers to the retained source subject's sorted package index.
+A removed package retains its full name and source lineage and must be absent
+from that subject. Its identity is not relabeled as the current root or another
+same-named dependency. Root-role history records the exact candidate root and
+both roles with their directional compatibility contract. The public subject
+getter exposes all variants; a removed package has no current package index.
+Source replacements retain the complete baseline key, candidate package index,
+and exact root or requester-index/local-alias site. The selected candidate must
+match that site. The baseline and candidate keys differ, but the baseline may
+remain selected elsewhere in the graph. Recovery rejects duplicate replacement
+sites and contradictory root-replacement/root-role subjects.
+
+Removed keys reuse the source owner's canonical `name`/`lineage` text and
+bounded recovery. Lexical path recovery establishes identity only: it neither
+opens that path nor reacquires source. Reading history requires no old graph,
+checkout, compiler review, or reconstructed conflict. Accept and reject remain
+project history, not current authorization. Fresh normalized decision records,
+in contrast, must rejoin the exact current comparison before use.
+
+Historical serialization and recovery charge retained-key and alias construction,
+temporary fragments, row storage, and duplicate-validation scratch to the same
+enclosing budget. No per-key or per-target reset hides those allocations.
+
 ## Resource accounting
 
 `PackageLockRecoveryLimits` can lower, but not raise, these aggregate ceilings:
@@ -90,6 +123,8 @@ baselines and targets, with an additional per-identity nesting ceiling of 128.
 not emit a record that exceeds the chosen recovery ceilings. It drops each
 reconstructed child before checking the next; it does not retain a second whole
 lock or compare compiler results. `canonical_text` selects the default ceilings.
+Historical decision writing also charges temporary fragments, output text, and
+pre-emission validation, so its minimum allowance can exceed the reader's.
 This resource check does not turn a historical rejection into acceptance or
 replace fresh review. Locked source acquisition and atomic install/update
 publication belong to the separate operation owners.

@@ -114,6 +114,26 @@ impl Budget {
         count(&mut self.remaining.maximum_decisions, usage.decisions())?;
         Ok(decisions)
     }
+
+    pub(super) fn decision_text(
+        &mut self,
+        decisions: &HistoricalPackagePolicyDecisions,
+        source: &CanonicalSourceClosureSubject,
+    ) -> Result<String, Error> {
+        let (text, usage) = decisions
+            .canonical_text_with_usage(
+                source,
+                HistoricalPackagePolicyLimits::new(
+                    MAXIMUM_DECISION_BYTES,
+                    self.remaining.maximum_decisions,
+                ),
+                self.remaining.maximum_owned_bytes,
+            )
+            .map_err(Error::Decisions)?;
+        self.owned(usage.owned_bytes())?;
+        count(&mut self.remaining.maximum_decisions, usage.decisions())?;
+        Ok(text)
+    }
 }
 
 fn count(remaining: &mut usize, used: usize) -> Result<(), Error> {

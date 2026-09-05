@@ -95,7 +95,13 @@ package entries and binds the exact root, role, graph, and target. Recovery
 needs only the retained source subject, not the old checkout or a recreated
 compiler conflict. It preserves both acceptance and rejection without making
 either a fresh authorization. Fresh capture still requires the complete exact
-current resolution.
+current resolution. Version 2 history consumes the existing normalized
+`PackagePolicyResolution` directly. Removed-row subjects retain their full
+package key instead of a candidate index; replacement subjects retain the old
+key and exact root or requester/alias binding selecting the candidate. A
+replacement's old package may still be present elsewhere in the graph.
+Directional root-role choices retain both roles and the broken contract.
+Version 1 history remains byte-identical and the outer lock version is unchanged.
 
 `lock::PackageLock` composes that history with the immutable source graph and
 one complete typed `PackagePolicyBaseline` for every source package. Exact target
@@ -220,7 +226,7 @@ certificate, reviewer receipt, or authentication of the project author.
 
 `all_required_changes_accepted` describes only the represented choices, not
 permission to publish. Explicit command intent, review-file handling,
-removed-package history in the lock, fresh compiler obligations, and
+fresh compiler obligations, and
 transactional candidate/project-file rechecks remain integration work.
 
 Return to the [package subsystem map](../README.md), or consult:
