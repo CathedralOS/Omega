@@ -95,6 +95,23 @@ the [Rust Compiler Completion Contract](wiki/releases/rust_compiler_completion_c
   evidence and proved replacement byte, not through a weakened field
   declaration. The `stdin_*` and `gui` cohorts pass.
 
+  `samples_with_documented_exit_run_correctly` is separately red for every
+  documented-exit sample, `cli/basics/cli_mvp` included: each reaches checked
+  trees and then fails native Terminal production at one
+  `psi-checked-trees-to-terminal` fence in `src/attached_unit/call_closure.rs`,
+  `attached Unit closure is missing a checked transitive machine plan`. The
+  fence is accurate. The producer is
+  `psi-typed-trees-to-checked-trees/src/flow/terminal_unit/`, which mints no
+  `CheckedUnitEffectMachinePlan` for an attached `Main::main` that calls
+  `Console::read_line(&mut self.pause)`. Two admissions there remain open:
+  `build_call_operation` rejects a static boundary-requirement argument that
+  projects a caller parameter instead of naming the whole parameter
+  (`calls.rs`, the `!place.segments.is_empty()` fence), and a projected owned
+  `[u8; N] in D` carrier has no admitted presentation as the requirement's
+  borrowed `&[u8]` view. The `CallUnit` lane in the same file already owns
+  field-path and fixed-index projection; share that owner rather than copying
+  it.
+
   Acceptance: both tests pass, with every maintained sample reaching checked
   trees and every documented exit oracle observed on its matching host.
 
