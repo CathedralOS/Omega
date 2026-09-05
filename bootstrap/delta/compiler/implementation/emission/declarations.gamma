@@ -1,28 +1,31 @@
-(def emit_definition ((definition Int)) Int
-  (let prefix Int (emit_ascii 139156874280 5)
-    (let name Int (emit_gamma_atom (gamma_definition_name definition))
-      (let separator Int (write '\s')
-        (let open Int (write '(')
+(def emit_definition ((definition Int) (publish Int) (written Int)) Int
+  (let prefix Int (emit_ascii 139156874280 5 publish written)
+    (let name Int (emit_gamma_atom (gamma_definition_name definition) publish prefix)
+      (let separator Int (emit_character '\s' publish name)
+        (let open Int (emit_character '(' publish separator)
           (let parameters Int
             (emit_parameters (gamma_definition_parameter_count definition)
-              (gamma_definition_parameters definition))
-            (let close Int (write ')')
-              (let result_space Int (write '\s')
-                (let result_type Int (emit_int_word)
-                  (let body_space Int (write '\s')
+              (gamma_definition_parameters definition) publish open)
+            (let close Int (emit_character ')' publish parameters)
+              (let result_space Int (emit_character '\s' publish close)
+                (let result_type Int (emit_int_word publish result_space)
+                  (let body_space Int (emit_character '\s' publish result_type)
                     (let body Int
-                      (emission_visit (gamma_definition_body definition) 0 0)
-                      (write ')'))))))))))))
+                      (emit_expression (gamma_definition_body definition)
+                        publish body_space)
+                      (emit_character ')' publish body))))))))))))
 
-(def emit_parameters ((count Int) (parameters Int)) Int
+(def emit_parameters
+  ((count Int) (parameters Int) (publish Int) (written Int)) Int
   (if (eq count 0)
-    0
-    (let open Int (write '(')
-      (let name Int (emit_gamma_atom (first parameters))
-        (let separator Int (write '\s')
-          (let annotation Int (emit_int_word)
-            (let close Int (write ')')
+    written
+    (let open Int (emit_character '(' publish written)
+      (let name Int (emit_gamma_atom (first parameters) publish open)
+        (let separator Int (emit_character '\s' publish name)
+          (let annotation Int (emit_int_word publish separator)
+            (let close Int (emit_character ')' publish annotation)
               (if (eq count 1)
-                0
-                (let next_space Int (write '\s')
-                  (emit_parameters (- count 1) (second parameters)))))))))))
+                close
+                (let next_space Int (emit_character '\s' publish close)
+                  (emit_parameters (- count 1) (second parameters)
+                    publish next_space))))))))))

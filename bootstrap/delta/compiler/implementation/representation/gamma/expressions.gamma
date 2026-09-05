@@ -1,11 +1,14 @@
-; Node = (pair kind (pair expanded-list-height payload)). Atoms have height0;
-; calls and lets add one to their tallest expression child, not their spelling.
+; Nodes retain kind, expanded height, canonical byte extent, and payload.
+; Extents are computed once from shared formatting and child summaries, before
+; a node can be reused. No pair-reference provenance is inspected.
 (def gamma_node ((kind Int) (height Int) (payload Int)) Int
-  (pair kind (pair height payload)))
+  (let extent Int (emission_node_extent kind payload)
+    (pair kind (pair height (pair extent payload)))))
 
 (def gamma_kind ((node Int)) Int (first node))
 (def gamma_height ((node Int)) Int (first (second node)))
-(def gamma_payload ((node Int)) Int (second (second node)))
+(def gamma_extent ((node Int)) Int (first (second (second node))))
+(def gamma_payload ((node Int)) Int (second (second (second node))))
 
 (def gamma_maximum ((left Int) (right Int)) Int
   (if (lt left right) right left))

@@ -50,7 +50,8 @@ supplies checked representation and tags.
 
 Calls, lets, products, and guards are ordinary Gamma plan nodes. Their
 constructors compute expanded expression-list heights, including generated
-wrappers. The later serializer does not need Delta constructor, pattern,
+wrappers, and cache exact serialization extents through the serializer's
+count-only formatting helpers. The later serializer does not need Delta constructor, pattern,
 arithmetic, or lexical-environment knowledge.
 
 ## Remaining boundaries

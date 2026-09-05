@@ -1,52 +1,63 @@
-; Gamma-only serialization: frames retain arguments, a let body, or one close.
+; Publication consumes Gamma-only nodes with cached byte extents. Frames retain
+; pending sibling arguments or a let body; final-child closes are scalar state.
 ; No source classification, constructor lookup, or lowering rule runs here.
+(def emit_expression ((node Int) (publish Int) (written Int)) Int
+  (if publish
+    (emission_visit node 0 0 0 written)
+    (emit_advance written (gamma_extent node))))
+
 (def emission_frame ((kind Int) (payload Int) (previous Int)) Int
   (pair kind (pair payload previous)))
 
-(def emission_visit ((node Int) (depth Int) (frames Int)) Int
+(def emission_visit
+  ((node Int) (depth Int) (frames Int) (closes Int) (written Int)) Int
   (let kind Int (gamma_kind node)
     (let payload Int (gamma_payload node)
       (if (eq kind 7)
-        (let open Int (write '(')
-          (let head Int (emit_gamma_atom (first payload))
-            (emission_arguments (first (second payload)) (second (second payload))
-              depth frames)))
+        (let head Int (emission_call_prefix (first payload) 1 written)
+          (emission_arguments (first (second payload)) (second (second payload))
+            depth frames closes head))
         (if (eq kind 8)
-          (let prefix Int (emit_ascii 139391757352 5)
-            (let binder Int (emit_gamma_atom (first payload))
-              (let separator Int (write '\s')
-                (let annotation Int (emit_int_word)
-                  (let initializer_space Int (write '\s')
-                    (emission_visit (first (second payload)) (+ depth 1)
-                      (emission_frame 2 (second (second payload)) frames)))))))
-          (let atom Int (emit_gamma_atom node)
-            (emission_resume depth frames)))))))
+          (let initializer_space Int (emission_let_prefix (first payload) 1 written)
+            (emission_visit (first (second payload)) (+ depth 1)
+              (emission_frame 2 (pair (second (second payload)) closes) frames)
+              0 initializer_space))
+          (let atom Int (emit_gamma_atom node 1 written)
+            (let closed Int (emit_closes closes 1 atom)
+              (emission_resume depth frames closed))))))))
 
+; Nonfinal arguments suspend their siblings and outer closes. A final argument
+; needs no frame: after it finishes, the current call and outer suffix close.
 (def emission_arguments
-  ((count Int) (arguments Int) (depth Int) (frames Int)) Int
+  ((count Int) (arguments Int) (depth Int) (frames Int) (closes Int)
+   (written Int)) Int
   (if (eq count 0)
-    (let close Int (write ')')
-      (emission_resume depth frames))
-    (let separator Int (write '\s')
-      (emission_visit (first arguments) (+ depth 1)
-        (emission_frame 1 (pair (- count 1) (second arguments)) frames)))))
+    (let closed Int (emit_closes (+ closes 1) 1 written)
+      (emission_resume depth frames closed))
+    (let separator Int (emit_character '\s' 1 written)
+      (if (eq count 1)
+        (emission_visit (first arguments) depth frames (+ closes 1) separator)
+        (emission_visit (first arguments) (+ depth 1)
+          (emission_frame 1
+            (pair (- count 1) (pair (second arguments) closes)) frames)
+          0 separator)))))
 
-(def emission_resume ((depth Int) (frames Int)) Int
+; Frame 1 payload: remaining argument count, argument spine, outer closes.
+; Frame 2 payload: let body, outer closes. Resume receives a fully closed child.
+(def emission_resume
+  ((depth Int) (frames Int) (written Int)) Int
   (if (eq depth 0)
-    0
+    written
     (let kind Int (first frames)
       (let retained Int (second frames)
         (let payload Int (first retained)
           (let previous Int (second retained)
             (let next_depth Int (- depth 1)
               (if (eq kind 1)
-                (emission_arguments (first payload) (second payload)
-                  next_depth previous)
+                (emission_arguments (first payload) (first (second payload))
+                  next_depth previous (second (second payload)) written)
                 (if (eq kind 2)
-                  (let separator Int (write '\s')
-                    (emission_visit payload (+ next_depth 1)
-                      (emission_frame 3 0 previous)))
-                  (if (eq kind 3)
-                    (let close Int (write ')')
-                      (emission_resume next_depth previous))
-                    (fail)))))))))))
+                  (let separator Int (emit_character '\s' 1 written)
+                    (emission_visit (first payload) next_depth previous
+                      (+ (second payload) 1) separator))
+                  (fail))))))))))

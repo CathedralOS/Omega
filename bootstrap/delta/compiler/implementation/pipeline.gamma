@@ -3,7 +3,7 @@
   (let prepared Int (prepare_admitted_source profile)
     (if (eq (first prepared) 0)
       (let normalized Int (normalize_program (second prepared))
-        (compiler_complete (emit_checked_program profile normalized)))
+        (publish_checked_program profile normalized))
       prepared)))
 
 (def prepare_admitted_source ((profile Int)) Int
@@ -42,13 +42,24 @@
             bodies)))
       resolution)))
 
-(def emit_checked_program ((profile Int) (program Int)) Int
+(def publish_checked_program ((profile Int) (program Int)) Int
+  ; Both entries own the final LF: canonical main writes Complete's byte;
+  ; the development transformer returns it through Gamma's scalar convention.
+  (let requested Int (emit_advance (emit_checked_program profile program 0) 1)
+    (if (lt 16777212 requested)
+      (compiler_failure 2 2 12 16777212 16777212 requested)
+      (let published Int (+ (emit_checked_program profile program 1) 1)
+        (if (eq published requested)
+          (compiler_complete 10)
+          (fail))))))
+
+(def emit_checked_program ((profile Int) (program Int) (publish Int)) Int
   (let marker Int
-    (if (eq profile 0) 0 (emit_application_marker))
+    (if (eq profile 0) 0 (emit_application_marker publish 0))
     (let runtime Int
       (if (if (eq profile 1) 1 (source_uses_bytes_builtin 0))
-        (emit_bytes_runtime)
-        0)
+        (emit_bytes_runtime publish marker)
+        marker)
       (let profile_runtime Int
-        (if (eq profile 1) (emit_conformance_runtime) 0)
-        (emit_program program)))))
+        (if (eq profile 1) (emit_conformance_runtime publish runtime) runtime)
+        (emit_program program publish profile_runtime)))))

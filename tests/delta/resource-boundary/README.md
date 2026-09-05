@@ -1,9 +1,15 @@
 # Delta resource-boundary gate
 
 Run `sh tests/delta/resource-boundary/run.sh` from the repository root. The gate
-materializes and pins the complete canonical compiler, then compiles 37 full
+materializes and pins the complete canonical compiler, then compiles 39 full
 authored Delta sources through `DCREQ` profile 1 and the selected Gamma evaluator.
 The host neither parses declarations nor injects counters or compiler rows.
+Thirty-eight observations are exact DCOUT frames; the remaining source must
+publish an exact-limit receipt which is then executed.
+
+`sh tests/delta/resource-boundary/run.sh --payload` selects only the two payload
+controls for focused iteration. It uses the same full sources, compiler pins,
+evaluator, expected observations, and 300-second allowance as the full gate.
 
 [`function_rows.py`](function_rows.py) retains the three function-row controls
 at D30's selected limit of 32,768:
@@ -183,6 +189,32 @@ this syntax provision: the largest full-match variant uses 102,240,760 bytes,
 and adjacent full-type controls use 91,752,200 bytes. No prior boundary is
 reduced or relabeled to make room for these controls.
 
+## Payload bytes
+
+`payload_bytes.py` authors one 120-field constructor, 246 functions that bind
+its fields, an unused padding-name function, and a `Bytes` identity main.
+Each match body has expanded height 242, so the normalizer needs no helper
+extraction. Repeated field projections expand the roughly 174-KiB source into
+the full selected payload extent without exceeding the generated function
+count or body-height bounds. The padding name follows every match; changing
+its length cannot shift any generated match-coordinate spelling.
+
+The 174,136-byte source must compile to exactly 16,777,212 bytes and that actual
+receipt must execute with empty input and empty successful output. One more
+padding-name byte must return only the 40-byte DCOUT `Incomplete` resource-12
+frame: payload coordinate space 2, coordinate and limit 16,777,212, requested
+16,777,213. This counts fixed runtime text, all separators, and the entry-owned
+final LF. The host constructs authored source and compares observations; it
+does not serialize the expected Gamma artifact. Successful receipt identities
+are measured from the actual source-owned compilation. The exact-limit receipt
+is pinned at SHA256
+`d20cd2be86566d9d5dd78410eb0ef9fb691fef795546f56de9394313e1514f21`.
+
+The exact-limit receipt plus its four-byte source frame fills Gamma's complete
+request. Its execution therefore uses empty sealed input; adding application
+input would test the evaluator's request extent instead of Delta's payload
+provision.
+
 Each evaluation uses the existing full-customer diagnostic allowance of 300
 seconds. The gate prints elapsed time for each exact observation and reports a
 raw evaluator failure or timeout without relabeling it as compiler
@@ -190,8 +222,8 @@ raw evaluator failure or timeout without relabeling it as compiler
 boundary is not reduced to accommodate it.
 
 These controls test the type-, function-, constructor-, and
-active-environment-row boundaries, cumulative syntax storage, and full
-per-match coverage behavior.
+active-environment-row boundaries, cumulative syntax storage, full per-match
+coverage behavior, and exact/adjacent payload publication.
 They do not establish all D30 capacities, acceptance or emission of every
 in-bound program, or closure of the Delta edge. Other frontend and request
 behavior remains in the

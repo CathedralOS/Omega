@@ -1,18 +1,26 @@
 ; Only admitted atom spans reach source bytes. All expression structure and
 ; binding/function identity have already been selected by lowering.
-(def emit_gamma_atom ((node Int)) Int
-  (let kind Int (gamma_kind node)
-    (let payload Int (gamma_payload node)
-      (if (if (eq kind 1) 1 (eq kind 2))
-        (emit_span (syntax_start payload) (syntax_after payload))
-        (if (eq kind 3)
-          (emit_function_name (syntax_start payload) (syntax_after payload))
-          (if (eq kind 4)
-            (let prefix Int (write '$')
-              (let marker Int (write (first payload))
-                (emit_decimal (second payload))))
-            (if (eq kind 5)
-              (emit_decimal payload)
-              (if (eq kind 6)
-                (emit_ascii (first payload) (second payload))
-                (fail)))))))))
+(def emit_gamma_atom ((node Int) (publish Int) (written Int)) Int
+  (if publish
+    (emit_gamma_atom_fields (gamma_kind node) (gamma_payload node) publish written)
+    (emit_advance written (gamma_extent node))))
+
+; Node construction measures an atom through this same spelling owner before
+; retaining its extent. Publication receives the already selected fields.
+; Fixed primitive words dominate call heads, so their branch is first.
+(def emit_gamma_atom_fields
+  ((kind Int) (payload Int) (publish Int) (written Int)) Int
+  (if (eq kind 6)
+    (emit_ascii (first payload) (second payload) publish written)
+    (if (if (eq kind 1) 1 (eq kind 2))
+      (emit_span (syntax_start payload) (syntax_after payload) publish written)
+      (if (eq kind 3)
+        (emit_function_name (syntax_start payload) (syntax_after payload)
+          publish written)
+        (if (eq kind 4)
+          (let prefix Int (emit_character '$' publish written)
+            (let marker Int (emit_character (first payload) publish prefix)
+              (emit_decimal (second payload) publish marker)))
+          (if (eq kind 5)
+            (emit_decimal payload publish written)
+            (fail)))))))

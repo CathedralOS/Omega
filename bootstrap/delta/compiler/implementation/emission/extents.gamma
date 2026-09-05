@@ -1,0 +1,39 @@
+; Canonical formatting summaries belong to serialization, not Delta lowering.
+; Gamma node construction retains one summary per immutable node. Both prefix
+; spellings below are also used by publication; shared children are not unfolded
+; again just to measure their bytes. Checked addition never invents a saturated
+; resource request. Arithmetic contradiction remains an internal failure.
+(def emission_node_extent ((kind Int) (payload Int)) Int
+  (if (eq kind 7)
+    (let prefix Int (emission_call_prefix (first payload) 0 0)
+      (let arguments Int
+        (emission_arguments_extent (first (second payload))
+          (second (second payload)) prefix)
+        (emit_character ')' 0 arguments)))
+    (if (eq kind 8)
+      (let prefix Int (emission_let_prefix (first payload) 0 0)
+        (let initializer Int
+          (emit_advance prefix (gamma_extent (first (second payload))))
+          (let separator Int (emit_character '\s' 0 initializer)
+            (let body Int
+              (emit_advance separator (gamma_extent (second (second payload))))
+              (emit_character ')' 0 body)))))
+      (emit_gamma_atom_fields kind payload 0 0))))
+
+(def emission_arguments_extent ((count Int) (arguments Int) (written Int)) Int
+  (if (eq count 0)
+    written
+    (let separator Int (emit_character '\s' 0 written)
+      (let argument Int (emit_advance separator (gamma_extent (first arguments)))
+        (emission_arguments_extent (- count 1) (second arguments) argument)))))
+
+(def emission_call_prefix ((head Int) (publish Int) (written Int)) Int
+  (let open Int (emit_character '(' publish written)
+    (emit_gamma_atom head publish open)))
+
+(def emission_let_prefix ((binder Int) (publish Int) (written Int)) Int
+  (let prefix Int (emit_ascii 139391757352 5 publish written)
+    (let name Int (emit_gamma_atom binder publish prefix)
+      (let separator Int (emit_character '\s' publish name)
+        (let annotation Int (emit_int_word publish separator)
+          (emit_character '\s' publish annotation))))))

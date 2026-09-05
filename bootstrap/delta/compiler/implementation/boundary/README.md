@@ -291,6 +291,15 @@ candidate offsets, select the published failure.
 
 ## Remaining boundary work
 
+After normalization, the shared serializer counts the complete Gamma payload
+before publishing its first byte. Above 16,777,212 bytes it returns tag 2,
+resource 12, payload coordinate space 2, coordinate and limit 16,777,212, and
+the exact full requested count. Fixed runtime/profile text, declaration
+separators, and the entry-owned final LF all participate. Count mode writes
+nothing; successful publication follows the same formatting decisions.
+This closes payload-size refusal, not later internal replay failure or every
+generated Gamma admission limit.
+
 The common layout and IDs follow the D13/D30/D33 contract. Their retained
 historical table is recoverable at
 `78d8f51053^:source/delta/compiler/dcout-v1.tsv`; the shared field layout is at
@@ -299,7 +308,7 @@ detached table participates in execution. D125 removes profile 2, not the
 request-failure identities.
 
 Canonical frontend rejection and the owned source-byte, syntax-arena, global-row,
-active-environment, and parse-depth refusals
+active-environment, parse-depth, and payload-byte refusals
 are not full DCOUT or Delta-edge closure. Other resource/internal outcomes do
 not yet carry compiler-owned evidence. Lowering constructs a complete expanded
 Gamma plan before publication, and records the height of every generated
