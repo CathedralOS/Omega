@@ -1,0 +1,49 @@
+; Continuation payloads retain lowered child values and the lexical scope for
+; the next child. All source-dependent traversal is a proper-tail transition.
+(def lowering_frame ((kind Int) (payload Int) (previous Int)) Int
+  (pair kind (pair payload previous)))
+
+(def lowering_visit
+  ((node Int) (locals Int) (depth Int) (frames Int) (globals Int)) Int
+  (if (eq (syntax_count node) -1)
+    (let start Int (syntax_start node)
+      (let byte Int (source_read start)
+        (let value Int
+          (if (is_upper byte)
+            (lowering_constructor node 0 0 globals)
+            (if (if (is_digit byte) 1 (eq byte 45))
+              (gamma_literal node)
+              (lowering_local node (first locals) (second locals))))
+          (lowering_resume value depth frames globals))))
+    (let head Int (syntax_child node 0)
+      (let start Int (syntax_start head)
+        (let after Int (syntax_after head)
+          (if (token_let start after)
+            (lowering_let node locals depth frames globals)
+            (if (token_match start after)
+              (lowering_match node locals depth frames globals)
+              (lowering_arguments node (- (syntax_count node) 1)
+                (second (syntax_children node)) 0 locals depth frames globals))))))))
+
+; 1 application argument, 2 let initializer, 3 let body, 5 match subject,
+; 6 match arm body. Handlers receive the already-popped depth and stack.
+(def lowering_resume
+  ((value Int) (depth Int) (frames Int) (globals Int)) Int
+  (if (eq depth 0)
+    value
+    (let kind Int (first frames)
+      (let retained Int (second frames)
+        (let payload Int (first retained)
+          (let previous Int (second retained)
+            (let next_depth Int (- depth 1)
+              (if (eq kind 1)
+                (lowering_argument_done value payload next_depth previous globals)
+                (if (eq kind 2)
+                  (lowering_initializer_done value payload next_depth previous globals)
+                  (if (eq kind 3)
+                    (lowering_let_done value payload next_depth previous globals)
+                    (if (eq kind 5)
+                      (lowering_match_subject_done value payload next_depth previous globals)
+                      (if (eq kind 6)
+                        (lowering_match_arm_done value payload next_depth previous globals)
+                        (fail)))))))))))))

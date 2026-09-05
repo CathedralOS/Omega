@@ -1,96 +1,62 @@
-# Retained-node Gamma emission
+# Expanded Gamma serialization
 
-Start at [program.gamma](program.gamma). It walks checked declarations in
-authored order, skips data declarations, emits function separators, and selects
-the existing profile adapter at program end.
-[declarations.gamma](declarations.gamma) emits each signature from retained
-parameter nodes and enters [expressions.gamma](expressions.gamma) for its body.
-The compiler pipeline calls this entrance only after grammar, global and local
-resolution, complete body typing, and selected-profile schema validation.
+Start at [program.gamma](program.gamma). It serializes the counted, ordered
+definitions in a completed [Gamma plan](../representation/README.md), emits
+their separators, and selects the existing profile adapter at program end.
+[declarations.gamma](declarations.gamma) writes each definition's name,
+parameters, and body. [expressions.gamma](expressions.gamma) prints the plan's
+ordinary Gamma calls and lets; [atoms.gamma](atoms.gamma) prints its atoms.
 
-Emission consumes those judgments. It does not repeat syntax, annotation,
-arity, or type checking. Retained children supply structure; exact source spans
-still supply authored names, admitted numeric spellings, and hygienic generated
-name coordinates. Constructor metadata supplies nominal representation and
-declaration tags. Output order and lowering rules preserve the existing Gamma
-receipts rather than selecting a new runtime representation.
+The pipeline finishes the complete frontend, selected-profile schema check,
+and [lowering](../lowering/README.md) of every authored body before writing the first
+receipt byte. Emission does not classify Delta expressions, resolve locals,
+expand constructors or patterns, or choose checked-arithmetic guards. Those
+decisions are already explicit Gamma structure.
 
-## Expression control
+## Atom and expression custody
 
-The expression dispatcher owns two mutually tail-calling operations:
+Source atoms retain exact admitted source spans through retained-node
+accessors. Serialization may copy those bytes without interpreting their
+Delta expression structure. Source binding references reuse the established
+binding atom; generated names retain their marker and coordinate. Function
+atoms receive the existing injective naming treatment, and fixed words and
+integer atoms have dedicated textual encodings.
 
-```text
-emission_visit(node, depth, frames, globals)
-emission_resume(depth, frames, globals)
-frame = (pair kind (pair payload previous))
-```
+Expression serialization uses explicit continuations for pending arguments,
+let bodies, and closes. This traversal is over Gamma plan nodes, not retained
+Delta expression children. Counts govern list projections; continuation depth
+is neither source expression depth nor generated Gamma expression-list height.
+The plan's height summaries do not change serialization or silently select a
+different representation.
 
-Depth is the count of live emission continuations, not source expression depth
-and not generated Gamma nesting. A function body starts with depth zero and
-frames zero. Visiting a child with pending work pushes one frame and increases
-depth by one. Completion resumes that stack; depth zero completes the body.
-Counts govern every projection, never the provenance or numeric value of a
-pair reference.
+## Fixed publication text
 
-`emission_resume` pops exactly one frame before dispatch. Every handler receives
-the decreased depth and previous stack, not the frame it is handling. The
-handler must not pop again. It may push a new continuation for subsequent
-children or resume the already-popped stack. This contract keeps nested matches,
-arithmetic, constructors, and bindings on the same expression machine.
+[text.gamma](text.gamma) owns textual primitives. [bytes.gamma](bytes.gamma)
+retains the existing fixed byte-runtime and application-adapter text. The
+pipeline's existing runtime selection remains separate from generic expression
+serialization. These helpers, definition order, whitespace, hygienic spellings,
+and the final publication byte retain the established receipt format.
 
-| Kind | Payload | Owner and remaining work |
-| --- | --- | --- |
-| 1 | `(pair remaining-count nodes)` | [calls.gamma](calls.gamma): emit remaining arguments and the call close |
-| 2 | closing-delimiter count | [text.gamma](text.gamma): emit pending closes, then resume |
-| 3 | body node | [bindings.gamma](bindings.gamma): separate initializer/body, visit body, then close the let |
-| 4 | arithmetic node | [arithmetic.gamma](arithmetic.gamma): separate operands, open the right binding, and visit the right operand |
-| 5 | arithmetic node | [arithmetic.gamma](arithmetic.gamma): emit the checked operation, overflow guard, and wrappers |
-| 6 | match node | [matches.gamma](matches.gamma): unpack the completed subject and begin authored-order arms |
-| 7 | `(pair remaining-count (pair arms match-start))` | [matches/arms.gamma](matches/arms.gamma): separate the completed arm from remaining arms |
-| 8 | `(pair remaining-count nodes)` | [constructors.gamma](constructors.gamma): separate the completed field and emit remaining product fields |
-
-Calls and constructor fields advance left to right. A constructor's product
-closes share a bottom closing frame instead of accumulating recursive emitter
-calls. Checked arithmetic binds each operand once before its guard. Ordinary
-`if` retains its Gamma form; let bodies and final exhaustive match arms remain
-in their established generated tail positions.
-
-## Match ownership
-
-[matches.gamma](matches.gamma) coordinates subject completion and arm entry.
-Its subordinate files separate:
-
-- [wrappers.gamma](matches/wrappers.gamma): hygienic subject, tag, and payload
-  bindings and conditional prefixes;
-- [arms.gamma](matches/arms.gamma): authored arm order, tag comparisons, the
-  final exhaustive fallback, and continuation payloads;
-- [payloads.gamma](matches/payloads.gamma): retained pattern binders and ordered
-  product projections before each arm body.
-
-The subject is emitted once. One closing frame owns the match wrappers and
-remaining conditional closes; pattern-binding closes have their own counted
-frame. Arm bodies enter the shared expression machine, so a nested match cannot
-overwrite an outer arm continuation. Helpers consume already-checked
-constructor identity and payload counts, not a new semantic decision.
+No source-dependent lowering template remains in this directory. Calls,
+constructors, bindings, arithmetic, and matches belong under `lowering/`;
+durable Gamma plan nodes belong under `representation/`.
 
 ## Validation and remaining boundaries
 
-The staged Delta gate compares existing source/receipt pairs, executes generated
-programs, and exercises former compiler-stack failures with nested expressions
-and wide payloads. Exact Epsilon checking and execution receipts are separate
-full-customer reconstruction gates. A changed receipt must be explained, not
-accepted merely because a traversal was reorganized.
+The staged gate compares exact receipts, executes generated programs, and
+exercises nested expressions and wide payloads. Exact Epsilon checking and
+execution receipts remain separate full-customer reconstruction gates. A
+changed receipt requires explanation, not a relaxed expectation.
 
-The emitter no longer needs one Gamma call context per source expression level.
-Its continuation pairs still consume the selected evaluator's finite immutable
-arena. This does not establish every compiler resource preflight or canonical
-`InternalFailure` publication.
+The [lowering-plan gate](../../../../../tests/delta/lowering-plan/README.md)
+checks authored expectations against the plan's expanded body heights before
+serialization. Recording those heights does not normalize or lift over-height
+bodies. The [selected Gamma profile](../../../../gamma/EVALUATOR_PROFILE.md#exact-capacities)
+still admits at most 255 nested expression lists per generated function body.
+Generated wrappers can exceed that bound within Delta's admitted 1,024-level
+expression profile.
 
-Compiler traversal and generated-program acceptance are different bounds. The
-[selected Gamma profile](../../../../gamma/EVALUATOR_PROFILE.md#exact-capacities)
-admits at most 255 nested expression lists in each emitted function body.
-Inline checked arithmetic, nested lets, constructor products, and match
-wrappers can increase generated nesting. D30's 1,024-level Delta `parse_depth`
-profile therefore does not establish successful generated Gamma admission or
-execution throughout that depth. Stack-safe compiler traversal does not close
-that lowering/profile obligation or the full Delta bootstrap edge.
+Plan and continuation pairs consume the selected evaluator's finite immutable
+arena. Stack-safe compiler traversal, complete-before-write planning, and exact
+receipt preservation do not close compiler-owned resource/internal outcomes,
+generated-profile admission, or the full Delta bootstrap edge.

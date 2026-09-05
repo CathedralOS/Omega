@@ -1,0 +1,46 @@
+; Subject and arm bodies use the shared lowering machine. The result is the
+; complete expanded Gamma match, with one shared atom per generated binding.
+(def lowering_match
+  ((node Int) (locals Int) (depth Int) (frames Int) (globals Int)) Int
+  (lowering_visit (syntax_child node 1) locals (+ depth 1)
+    (lowering_frame 5 (pair node locals) frames) globals))
+
+; Kind 5 payload is (pair match-node outer-locals).
+(def lowering_match_subject_done
+  ((value Int) (payload Int) (depth Int) (frames Int) (globals Int)) Int
+  (let node Int (first payload)
+    (let constructor Int
+      (lowering_match_constructor (syntax_child (syntax_child node 2) 0))
+      (let metadata Int
+        (require_constructor_metadata
+          (syntax_start constructor) (syntax_after constructor) globals)
+        (let context Int
+          (lowering_match_context value (syntax_start node)
+            (type_metadata_has_payload (constructor_metadata_type metadata)))
+          (let count Int (- (syntax_count node) 2)
+            (lowering_match_arms context count
+              (second (second (syntax_children node))) (second payload)
+              count 0 depth frames globals)))))))
+
+(def lowering_match_constructor ((pattern Int)) Int
+  (if (eq (syntax_count pattern) -1) pattern (syntax_child pattern 0)))
+
+; Context is subject, tag atom, payload atom, complete-value atom, payload flag.
+; Unused payload atoms are zero only for an all-nullary nominal representation.
+(def lowering_match_context
+  ((subject Int) (coordinate Int) (has_payload Int)) Int
+  (pair subject
+    (pair (gamma_generated 109 coordinate)
+      (pair (if has_payload (gamma_generated 112 coordinate) 0)
+        (pair (if has_payload (gamma_generated 118 coordinate) 0) has_payload)))))
+
+(def lowering_match_wrap ((context Int) (body Int)) Int
+  (let bindings Int (second context)
+    (let payload_and_value Int (second bindings)
+      (let complete Int (second payload_and_value)
+        (if (second complete)
+          (gamma_let (first complete) (first context)
+            (gamma_let (first bindings) (gamma_first (first complete))
+              (gamma_let (first payload_and_value)
+                (gamma_second (first complete)) body)))
+          (gamma_let (first bindings) (first context) body))))))

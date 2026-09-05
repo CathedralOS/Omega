@@ -1,17 +1,12 @@
-; Only complete frontend custody enters emission. Concept owners consume its
-; retained nodes; no emission phase reparses or revalidates authored structure.
-(def emit_program ((program Int) (globals Int)) Int
-  (emit_program_nodes (first program) (second program) globals))
+; Publication consumes the complete expanded Gamma plan in declaration order.
+(def emit_program ((program Int)) Int
+  (emit_program_definitions (first program) (second program)))
 
-(def emit_program_nodes ((count Int) (forms Int) (globals Int)) Int
+(def emit_program_definitions ((count Int) (definitions Int)) Int
   (if (eq count 0)
     (if (eq (compilation_profile) 0)
       10
       (if (eq (compilation_profile) 1) (emit_conformance_adapter) (fail)))
-    (let form Int (first forms)
-      (let head Int (syntax_child form 0)
-        (if (token_data (syntax_start head) (syntax_after head))
-          (emit_program_nodes (- count 1) (second forms) globals)
-          (let definition Int (emit_definition form globals)
-            (let newline Int (write '\n')
-              (emit_program_nodes (- count 1) (second forms) globals))))))))
+    (let definition Int (emit_definition (first definitions))
+      (let newline Int (write '\n')
+        (emit_program_definitions (- count 1) (second definitions))))))

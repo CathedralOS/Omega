@@ -1,0 +1,20 @@
+; The lowering/publication boundary is a counted program of Gamma definitions.
+; Each definition retains its name, ordered binding atoms, and expanded body.
+(def gamma_program ((count Int) (definitions Int)) Int
+  (pair count definitions))
+
+(def gamma_definition
+  ((name Int) (count Int) (parameters Int) (body Int)) Int
+  (pair name (pair count (pair parameters body))))
+
+(def gamma_definition_name ((definition Int)) Int
+  (first definition))
+
+(def gamma_definition_parameter_count ((definition Int)) Int
+  (first (second definition)))
+
+(def gamma_definition_parameters ((definition Int)) Int
+  (first (second (second definition))))
+
+(def gamma_definition_body ((definition Int)) Int
+  (second (second (second definition))))

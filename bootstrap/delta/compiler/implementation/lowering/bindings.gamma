@@ -1,0 +1,33 @@
+; A counted lexical spine contains already-established source binding atoms.
+; This phase recovers binding custody for the Gamma plan; it does not validate
+; names/types or choose among conflicting declarations after static checking.
+(def lowering_bind ((locals Int) (binding Int)) Int
+  (pair (+ (first locals) 1) (pair binding (second locals))))
+
+(def lowering_local ((node Int) (count Int) (bindings Int)) Int
+  (if (eq count 0)
+    (fail)
+    (let binding Int (first bindings)
+      (let declaration Int (gamma_payload binding)
+        (if (same_span (syntax_start node) (syntax_after node)
+              (syntax_start declaration) (syntax_after declaration))
+          binding
+          (lowering_local node (- count 1) (second bindings)))))))
+
+(def lowering_let
+  ((node Int) (locals Int) (depth Int) (frames Int) (globals Int)) Int
+  (let binder Int (gamma_binding (syntax_child node 1))
+    (lowering_visit (syntax_child node 3) locals (+ depth 1)
+      (lowering_frame 2
+        (pair binder (pair (syntax_child node 4) (lowering_bind locals binder)))
+        frames) globals)))
+
+(def lowering_initializer_done
+  ((value Int) (payload Int) (depth Int) (frames Int) (globals Int)) Int
+  (lowering_visit (first (second payload)) (second (second payload)) (+ depth 1)
+    (lowering_frame 3 (pair (first payload) value) frames) globals))
+
+(def lowering_let_done
+  ((value Int) (payload Int) (depth Int) (frames Int) (globals Int)) Int
+  (lowering_resume (gamma_let (first payload) (second payload) value)
+    depth frames globals))

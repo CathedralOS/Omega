@@ -1,0 +1,28 @@
+; Node = (pair kind (pair expanded-list-height payload)). Atoms have height0;
+; calls and lets add one to their tallest expression child, not their spelling.
+(def gamma_node ((kind Int) (height Int) (payload Int)) Int
+  (pair kind (pair height payload)))
+
+(def gamma_kind ((node Int)) Int (first node))
+(def gamma_height ((node Int)) Int (first (second node)))
+(def gamma_payload ((node Int)) Int (second (second node)))
+
+(def gamma_maximum ((left Int) (right Int)) Int
+  (if (lt left right) right left))
+
+(def gamma_arguments_height ((count Int) (nodes Int) (height Int)) Int
+  (if (eq count 0)
+    height
+    (gamma_arguments_height (- count 1) (second nodes)
+      (gamma_maximum height (gamma_height (first nodes))))))
+
+; Call payload = (pair head (pair argument-count arguments)).
+(def gamma_call ((head Int) (count Int) (arguments Int)) Int
+  (gamma_node 7 (+ 1 (gamma_arguments_height count arguments 0))
+    (pair head (pair count arguments))))
+
+; Let payload = (pair binder (pair initializer body)). Binding and reference
+; atoms share their explicit source or generated-name identity, not a spelling.
+(def gamma_let ((binder Int) (initializer Int) (body Int)) Int
+  (gamma_node 8 (+ 1 (gamma_maximum (gamma_height initializer) (gamma_height body)))
+    (pair binder (pair initializer body))))
