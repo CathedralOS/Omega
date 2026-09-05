@@ -199,7 +199,7 @@ mod tests {
         };
         LiveRangePlan {
             selected: SelectedInstructionPlanIdentity::from_canonical_bytes(b"selected"),
-            liveness: LivenessIdentity([7; 32]),
+            liveness: LivenessIdentity::from_bytes([7; 32]),
             optimization_unit: OptimizationUnitIdentity::from_canonical_bytes(b"unit"),
             fuel_schedule: FuelScheduleIdentity::new(1).unwrap(),
             target: NativeTarget::linux_x64(),
@@ -320,7 +320,7 @@ mod tests {
         changed.selected = SelectedInstructionPlanIdentity::from_canonical_bytes(b"other-selected");
         mutations.push(changed);
         let mut changed = original.clone();
-        changed.liveness = LivenessIdentity([8; 32]);
+        changed.liveness = LivenessIdentity::from_bytes([8; 32]);
         mutations.push(changed);
         let mut changed = original.clone();
         changed.optimization_unit = OptimizationUnitIdentity::from_canonical_bytes(b"other-unit");

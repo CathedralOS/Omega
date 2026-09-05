@@ -11,8 +11,7 @@ use crate::{
 use super::custody::{literal_fold_home_custody_receipt, selected_lowering_home_custody_receipt};
 use super::model::{
     OptimizedPostLiteralFoldHomeCustodyError, OptimizedPostSelectedLoweringHomeCustodyError,
-    StagedOptimizedPostLiteralFoldHomeCustodyReceipt,
-    StagedOptimizedPostSelectedLoweringHomeCustodyReceipt,
+    PostLiteralFoldHomeCustodyReceipt, PostSelectedLoweringHomeCustodyReceipt,
     StagedOptimizedRegisterHomesAfterLiteralFolds,
     StagedOptimizedRegisterHomesAfterSelectedLowering,
 };
@@ -23,10 +22,7 @@ use super::projection::{
 
 pub fn validate_optimized_register_home_after_literal_fold_custody(
     staged: &StagedOptimizedRegisterHomesAfterLiteralFolds,
-) -> Result<
-    StagedOptimizedPostLiteralFoldHomeCustodyReceipt,
-    OptimizedPostLiteralFoldHomeCustodyError,
-> {
+) -> Result<PostLiteralFoldHomeCustodyReceipt, OptimizedPostLiteralFoldHomeCustodyError> {
     let source = validate_optimized_literal_fold_custody(&staged.folds)
         .map_err(OptimizedPostLiteralFoldHomeCustodyError::UpstreamFolds)?;
     let final_step = staged.folds.final_step();
@@ -70,10 +66,7 @@ pub fn validate_optimized_register_home_after_literal_fold_custody(
 
 pub fn validate_optimized_register_home_after_selected_lowering_custody(
     staged: &StagedOptimizedRegisterHomesAfterSelectedLowering,
-) -> Result<
-    StagedOptimizedPostSelectedLoweringHomeCustodyReceipt,
-    OptimizedPostSelectedLoweringHomeCustodyError,
-> {
+) -> Result<PostSelectedLoweringHomeCustodyReceipt, OptimizedPostSelectedLoweringHomeCustodyError> {
     let source = validate_selected_lowering_optimization_custody(&staged.run)
         .map_err(OptimizedPostSelectedLoweringHomeCustodyError::UpstreamSelectedLowering)?;
     let (ranges, legality) = selected_lowering_final_analysis(&staged.run);

@@ -3,10 +3,9 @@ use crate::{
     require_post_allocation_machine_rule, validate_aarch64_cbnz_fusion,
 };
 use optimization_core::{
-    Optimization, OptimizationExecutionPhase, OptimizationSelectionIdentity,
-    OptimizationSelections, OptimizationWorkBudget,
+    Optimization, OptimizationExecutionPhase, OptimizationSelections, OptimizationWorkBudget,
 };
-use physical_instructions::Aarch64CbnzFusionIdentity;
+use physical_instructions::Aarch64CbnzFusionCustodyReceipt;
 use register_model::ValidatedPhysicalRegisterModel;
 use selected_instructions_to_register_homes::{ValidatedLiveness, ValidatedSelectedAnalysis};
 
@@ -17,7 +16,7 @@ use super::OptimizedPostAllocationMachineOptimizationError;
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct StagedOptimizedAarch64CbnzFusion {
     fusion: ValidatedAarch64CbnzFusion,
-    custody: StagedOptimizedAarch64CbnzFusionCustodyReceipt,
+    custody: Aarch64CbnzFusionCustodyReceipt,
 }
 
 impl StagedOptimizedAarch64CbnzFusion {
@@ -25,35 +24,8 @@ impl StagedOptimizedAarch64CbnzFusion {
         &self.fusion
     }
 
-    pub const fn custody(&self) -> StagedOptimizedAarch64CbnzFusionCustodyReceipt {
+    pub const fn custody(&self) -> Aarch64CbnzFusionCustodyReceipt {
         self.custody
-    }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct StagedOptimizedAarch64CbnzFusionCustodyReceipt {
-    selections: OptimizationSelectionIdentity,
-    post_allocation_machine_selections: OptimizationSelectionIdentity,
-    source: physical_instructions::PostAllocationMachineIdentity,
-    fusion: Aarch64CbnzFusionIdentity,
-    action_count: usize,
-}
-
-impl StagedOptimizedAarch64CbnzFusionCustodyReceipt {
-    pub const fn selections(self) -> OptimizationSelectionIdentity {
-        self.selections
-    }
-    pub const fn post_allocation_machine_selections(self) -> OptimizationSelectionIdentity {
-        self.post_allocation_machine_selections
-    }
-    pub const fn source(self) -> physical_instructions::PostAllocationMachineIdentity {
-        self.source
-    }
-    pub const fn fusion(self) -> Aarch64CbnzFusionIdentity {
-        self.fusion
-    }
-    pub const fn action_count(self) -> usize {
-        self.action_count
     }
 }
 
@@ -76,10 +48,7 @@ pub fn validate_optimized_aarch64_cbnz_fusion_custody(
     source: &impl crate::AllocationSource,
     machine: &StagedOptimizedPostAllocationMachinePlan,
     staged: &StagedOptimizedAarch64CbnzFusion,
-) -> Result<
-    StagedOptimizedAarch64CbnzFusionCustodyReceipt,
-    OptimizedPostAllocationMachineOptimizationError,
-> {
+) -> Result<Aarch64CbnzFusionCustodyReceipt, OptimizedPostAllocationMachineOptimizationError> {
     let allocation = crate::replay_machine_source(source, machine)?;
     validate_with_inputs(
         allocation.selected(),
@@ -128,10 +97,7 @@ fn validate_with_inputs<S: ValidatedSelectedAnalysis>(
     selections: &OptimizationSelections,
     budget: OptimizationWorkBudget,
     staged: &StagedOptimizedAarch64CbnzFusion,
-) -> Result<
-    StagedOptimizedAarch64CbnzFusionCustodyReceipt,
-    OptimizedPostAllocationMachineOptimizationError,
-> {
+) -> Result<Aarch64CbnzFusionCustodyReceipt, OptimizedPostAllocationMachineOptimizationError> {
     let phase_selections =
         selections.project_phase(OptimizationExecutionPhase::PostAllocationMachine);
     let phase = require_post_allocation_machine_rule(
@@ -164,13 +130,13 @@ fn custody_receipt(
     selections: &OptimizationSelections,
     phase: &OptimizationSelections,
     fusion: &ValidatedAarch64CbnzFusion,
-) -> StagedOptimizedAarch64CbnzFusionCustodyReceipt {
+) -> Aarch64CbnzFusionCustodyReceipt {
     let receipt = fusion.receipt();
-    StagedOptimizedAarch64CbnzFusionCustodyReceipt {
-        selections: selections.identity(),
-        post_allocation_machine_selections: phase.identity(),
-        source: receipt.source(),
-        fusion: receipt.identity(),
-        action_count: receipt.action_count(),
-    }
+    Aarch64CbnzFusionCustodyReceipt::from_parts(
+        selections.identity(),
+        phase.identity(),
+        receipt.source(),
+        receipt.identity(),
+        receipt.action_count(),
+    )
 }

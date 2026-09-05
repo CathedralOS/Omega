@@ -15,19 +15,19 @@ use post_allocation_machine_to_post_allocation_machine::{
     StagedOptimizedPostAllocationMachineOptimization,
     validate_optimized_post_allocation_machine_optimization_custody,
 };
-use post_allocation_machine_to_selected_form_encoding::{
+use post_allocation_machine_to_resolved_layout::selected_form_encoding::{
     StagedOptimizedSelectedFormEncoding,
     stage_optimized_layout_independent_selected_form_encoding_with_post_allocation_machine_optimization,
     validate_optimized_layout_independent_selected_form_encoding_with_post_allocation_machine_optimization,
 };
-use register_homes_to_post_allocation_machine::{
-    StagedOptimizedPostAllocationMachinePlan,
-    validate_optimized_post_allocation_machine_plan_custody,
-};
-use selected_form_encoding_to_resolved_layout::{
+use post_allocation_machine_to_resolved_layout::{
     StagedOptimizedResolvedSelectedFormLayout,
     stage_optimized_resolved_selected_form_layout_with_post_allocation_machine_optimization,
     validate_optimized_resolved_selected_form_layout_with_post_allocation_machine_optimization,
+};
+use register_homes_to_post_allocation_machine::{
+    StagedOptimizedPostAllocationMachinePlan,
+    validate_optimized_post_allocation_machine_plan_custody,
 };
 
 pub fn stage_post_allocation_machine_function_relative_realization<Source>(

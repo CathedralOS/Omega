@@ -186,6 +186,11 @@ Concepts stay visible across stages without being forced into one mega-IR: each
 stage uses the form matching its resolution level while keeping stable links
 back to the shared semantic spine. Coordinators stay boring — sequence typed
 phases and stop. Do not add a crate until a module boundary has stopped moving.
+A stage document defines a contract, not a request for another crate. Keep a
+calculation inside its owning transform unless an independent consumer or a
+stable representation boundary justifies the crate. The architecture inventory
+rejects unlisted Omega pipeline directories; document that justification when
+changing its roster.
 
 Each program representation has one named root file beside `lib.rs`; the root
 defines the current program and leads into subordinate concept-owned areas.

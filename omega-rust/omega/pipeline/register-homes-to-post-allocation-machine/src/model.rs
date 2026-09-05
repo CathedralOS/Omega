@@ -1,8 +1,8 @@
 use crate::{PostAllocationMachineError, ValidatedPostAllocationMachinePlan};
-use physical_instructions::PostAllocationMachineIdentity;
+pub use physical_instructions::PostAllocationMachineCustodyReceipt;
+use selected_instructions_to_register_homes::AllocationReplayError;
 use selected_instructions_to_register_homes::MachineEffectStageError;
 use selected_instructions_to_register_homes::ValidatedPreAllocationMachineEffects;
-use selected_instructions_to_register_homes::{AllocationEvidence, AllocationReplayError};
 
 /// Home-aware machine facts joined only through independently replayed source
 /// custody. This remains non-emission and non-publication authority.
@@ -10,7 +10,7 @@ use selected_instructions_to_register_homes::{AllocationEvidence, AllocationRepl
 pub struct StagedOptimizedPostAllocationMachinePlan {
     pub(super) effects: ValidatedPreAllocationMachineEffects,
     pub(super) machine: ValidatedPostAllocationMachinePlan,
-    pub(super) custody: StagedOptimizedPostAllocationMachineCustodyReceipt,
+    pub(super) custody: PostAllocationMachineCustodyReceipt,
 }
 
 impl StagedOptimizedPostAllocationMachinePlan {
@@ -22,47 +22,8 @@ impl StagedOptimizedPostAllocationMachinePlan {
         &self.machine
     }
 
-    pub const fn custody(&self) -> &StagedOptimizedPostAllocationMachineCustodyReceipt {
+    pub const fn custody(&self) -> &PostAllocationMachineCustodyReceipt {
         &self.custody
-    }
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct StagedOptimizedPostAllocationMachineCustodyReceipt {
-    pub(super) source: AllocationEvidence,
-    pub(super) effects: selected_instructions::PreAllocationMachineEffectIdentity,
-    pub(super) machine: PostAllocationMachineIdentity,
-    pub(super) function_count: usize,
-    pub(super) structural_unit_function_count: usize,
-    pub(super) instruction_count: usize,
-    pub(super) operand_count: usize,
-    pub(super) unit_action_count: usize,
-}
-
-impl StagedOptimizedPostAllocationMachineCustodyReceipt {
-    pub const fn source(&self) -> &AllocationEvidence {
-        &self.source
-    }
-    pub const fn effects(&self) -> selected_instructions::PreAllocationMachineEffectIdentity {
-        self.effects
-    }
-    pub const fn machine(&self) -> PostAllocationMachineIdentity {
-        self.machine
-    }
-    pub const fn function_count(&self) -> usize {
-        self.function_count
-    }
-    pub const fn structural_unit_function_count(&self) -> usize {
-        self.structural_unit_function_count
-    }
-    pub const fn instruction_count(&self) -> usize {
-        self.instruction_count
-    }
-    pub const fn operand_count(&self) -> usize {
-        self.operand_count
-    }
-    pub const fn unit_action_count(&self) -> usize {
-        self.unit_action_count
     }
 }
 

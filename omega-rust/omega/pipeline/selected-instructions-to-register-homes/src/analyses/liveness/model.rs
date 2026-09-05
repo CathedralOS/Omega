@@ -9,18 +9,7 @@ use target::NativeTarget;
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct LivenessPosition(pub u32);
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub struct LivenessIdentity(pub(crate) [u8; 32]);
-
-impl LivenessIdentity {
-    pub const fn from_bytes(bytes: [u8; 32]) -> Self {
-        Self(bytes)
-    }
-
-    pub const fn bytes(self) -> [u8; 32] {
-        self.0
-    }
-}
+pub use register_homes::LivenessIdentity;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct LivenessPlan {

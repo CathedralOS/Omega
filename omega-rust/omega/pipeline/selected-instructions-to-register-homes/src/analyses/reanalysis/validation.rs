@@ -4,22 +4,20 @@ use crate::{
 };
 
 use crate::{
-    StagedOptimizedFixedViewCopies, StagedOptimizedFixedViewCopyCustodyReceipt,
+    FixedViewCopyCustodyReceipt, StagedOptimizedFixedViewCopies,
     validate_optimized_fixed_view_copy_custody,
 };
 
 use super::custody::selected_reanalysis_custody_receipt;
 use super::invariants::require_no_transitions;
-use super::model::{
-    OptimizedSelectedReanalysisError, StagedOptimizedSelectedReanalysisCustodyReceipt,
-};
+use super::model::{OptimizedSelectedReanalysisError, SelectedReanalysisCustodyReceipt};
 
 pub fn validate_optimized_selected_reanalysis_custody(
     transformation: &StagedOptimizedFixedViewCopies,
     liveness: &ValidatedLiveness,
     ranges: &ValidatedLiveRanges,
     legality: &ValidatedAllocationLegality,
-) -> Result<StagedOptimizedSelectedReanalysisCustodyReceipt, OptimizedSelectedReanalysisError> {
+) -> Result<SelectedReanalysisCustodyReceipt, OptimizedSelectedReanalysisError> {
     let source = validate_source(transformation)?;
     let replayed_liveness = validate_liveness(transformation.copies(), liveness.plan().clone())
         .map_err(OptimizedSelectedReanalysisError::LivenessRevalidation)?;
@@ -66,7 +64,7 @@ pub fn validate_optimized_selected_reanalysis_custody(
 
 pub(super) fn validate_source(
     transformation: &StagedOptimizedFixedViewCopies,
-) -> Result<StagedOptimizedFixedViewCopyCustodyReceipt, OptimizedSelectedReanalysisError> {
+) -> Result<FixedViewCopyCustodyReceipt, OptimizedSelectedReanalysisError> {
     validate_optimized_fixed_view_copy_custody(
         transformation.source_segment_home_stage(),
         transformation.copies(),

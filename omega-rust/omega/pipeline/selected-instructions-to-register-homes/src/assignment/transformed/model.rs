@@ -1,12 +1,10 @@
 use crate::{
-    PostAllocationOptimizationManifestError, RegisterHomeError, RegisterHomeIdentity,
+    PostAllocationOptimizationManifestError, RegisterHomeError,
     ValidatedPostAllocationOptimizationManifest, ValidatedRegisterHomes,
 };
-use optimization_core::PostAllocationOptimizationManifestIdentity;
 
 use crate::{
-    OptimizedLiteralFoldCustodyError, StagedOptimizedLiteralFoldCustodyReceipt,
-    StagedOptimizedLiteralFolds, StagedSelectedLoweringOptimizationCustodyReceipt,
+    OptimizedLiteralFoldCustodyError, StagedOptimizedLiteralFolds,
     StagedSelectedLoweringOptimizationRun,
 };
 
@@ -18,7 +16,7 @@ pub struct StagedOptimizedRegisterHomesAfterLiteralFolds {
     pub(super) folds: StagedOptimizedLiteralFolds,
     pub(super) homes: ValidatedRegisterHomes,
     pub(super) manifest: ValidatedPostAllocationOptimizationManifest,
-    pub(super) custody: StagedOptimizedPostLiteralFoldHomeCustodyReceipt,
+    pub(super) custody: PostLiteralFoldHomeCustodyReceipt,
 }
 
 impl StagedOptimizedRegisterHomesAfterLiteralFolds {
@@ -31,37 +29,12 @@ impl StagedOptimizedRegisterHomesAfterLiteralFolds {
     pub const fn post_allocation_manifest(&self) -> &ValidatedPostAllocationOptimizationManifest {
         &self.manifest
     }
-    pub const fn custody(&self) -> &StagedOptimizedPostLiteralFoldHomeCustodyReceipt {
+    pub const fn custody(&self) -> &PostLiteralFoldHomeCustodyReceipt {
         &self.custody
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct StagedOptimizedPostLiteralFoldHomeCustodyReceipt {
-    pub(super) source: StagedOptimizedLiteralFoldCustodyReceipt,
-    pub(super) homes: RegisterHomeIdentity,
-    pub(super) post_allocation_manifest: PostAllocationOptimizationManifestIdentity,
-    pub(super) function_count: usize,
-    pub(super) assignment_count: usize,
-}
-
-impl StagedOptimizedPostLiteralFoldHomeCustodyReceipt {
-    pub const fn source(&self) -> &StagedOptimizedLiteralFoldCustodyReceipt {
-        &self.source
-    }
-    pub const fn homes(&self) -> RegisterHomeIdentity {
-        self.homes
-    }
-    pub const fn post_allocation_manifest(&self) -> PostAllocationOptimizationManifestIdentity {
-        self.post_allocation_manifest
-    }
-    pub const fn function_count(&self) -> usize {
-        self.function_count
-    }
-    pub const fn assignment_count(&self) -> usize {
-        self.assignment_count
-    }
-}
+pub use register_homes::PostLiteralFoldHomeCustodyReceipt;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum OptimizedPostLiteralFoldHomeCustodyError {
@@ -90,7 +63,7 @@ pub struct StagedOptimizedRegisterHomesAfterSelectedLowering {
     pub(super) run: StagedSelectedLoweringOptimizationRun,
     pub(super) homes: ValidatedRegisterHomes,
     pub(super) manifest: ValidatedPostAllocationOptimizationManifest,
-    pub(super) custody: StagedOptimizedPostSelectedLoweringHomeCustodyReceipt,
+    pub(super) custody: PostSelectedLoweringHomeCustodyReceipt,
 }
 
 impl StagedOptimizedRegisterHomesAfterSelectedLowering {
@@ -103,37 +76,12 @@ impl StagedOptimizedRegisterHomesAfterSelectedLowering {
     pub const fn post_allocation_manifest(&self) -> &ValidatedPostAllocationOptimizationManifest {
         &self.manifest
     }
-    pub const fn custody(&self) -> &StagedOptimizedPostSelectedLoweringHomeCustodyReceipt {
+    pub const fn custody(&self) -> &PostSelectedLoweringHomeCustodyReceipt {
         &self.custody
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct StagedOptimizedPostSelectedLoweringHomeCustodyReceipt {
-    pub(super) source: StagedSelectedLoweringOptimizationCustodyReceipt,
-    pub(super) homes: RegisterHomeIdentity,
-    pub(super) post_allocation_manifest: PostAllocationOptimizationManifestIdentity,
-    pub(super) function_count: usize,
-    pub(super) assignment_count: usize,
-}
-
-impl StagedOptimizedPostSelectedLoweringHomeCustodyReceipt {
-    pub const fn source(&self) -> &StagedSelectedLoweringOptimizationCustodyReceipt {
-        &self.source
-    }
-    pub const fn homes(&self) -> RegisterHomeIdentity {
-        self.homes
-    }
-    pub const fn post_allocation_manifest(&self) -> PostAllocationOptimizationManifestIdentity {
-        self.post_allocation_manifest
-    }
-    pub const fn function_count(&self) -> usize {
-        self.function_count
-    }
-    pub const fn assignment_count(&self) -> usize {
-        self.assignment_count
-    }
-}
+pub use register_homes::PostSelectedLoweringHomeCustodyReceipt;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum OptimizedPostSelectedLoweringHomeCustodyError {

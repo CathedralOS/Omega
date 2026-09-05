@@ -2,7 +2,7 @@ use register_model::RegisterUnitId;
 use selected_instructions::{SelectedBlockId, SelectedInstructionId};
 use semantic_vocabulary::MachineId;
 
-use selected_form_encoding_to_resolved_layout::{
+use post_allocation_machine_to_resolved_layout::{
     OptimizedResolvedSelectedFormLayoutError, OptimizedX86BranchRelaxationError,
 };
 

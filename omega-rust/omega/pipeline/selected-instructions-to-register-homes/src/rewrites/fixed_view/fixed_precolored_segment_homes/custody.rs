@@ -3,17 +3,17 @@ use crate::{
     FixedPrecoloredSplitRequirementValidationReceipt,
 };
 
-use crate::StagedOptimizedAllocationLegalityCustodyReceipt;
+use crate::AllocationLegalityCustodyReceipt;
 
-use super::StagedOptimizedFixedPrecoloredSegmentHomeCustodyReceipt;
+use super::FixedPrecoloredSegmentHomeCustodyReceipt;
 
 pub(super) const fn seal(
-    upstream: StagedOptimizedAllocationLegalityCustodyReceipt,
+    upstream: AllocationLegalityCustodyReceipt,
     fixed: FixedPrecoloredIntervalValidationReceipt,
     requirements: FixedPrecoloredSplitRequirementValidationReceipt,
     homes: FixedPrecoloredSegmentHomeValidationReceipt,
-) -> StagedOptimizedFixedPrecoloredSegmentHomeCustodyReceipt {
-    StagedOptimizedFixedPrecoloredSegmentHomeCustodyReceipt {
+) -> FixedPrecoloredSegmentHomeCustodyReceipt {
+    FixedPrecoloredSegmentHomeCustodyReceipt {
         upstream,
         fixed,
         requirements,

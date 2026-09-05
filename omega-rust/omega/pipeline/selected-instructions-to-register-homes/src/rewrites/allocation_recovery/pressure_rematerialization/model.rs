@@ -15,26 +15,9 @@ use crate::{
 const MAGIC: &[u8; 8] = b"OMGREM\0\0";
 const VERSION: u32 = 2;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub struct PressureRematerializationIdentity(pub(crate) [u8; 32]);
+pub use register_homes::PressureRematerializationIdentity;
 
-impl PressureRematerializationIdentity {
-    pub const fn from_bytes(bytes: [u8; 32]) -> Self {
-        Self(bytes)
-    }
-    pub const fn bytes(self) -> [u8; 32] {
-        self.0
-    }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum PressureRematerializationPolicy {
-    /// One reconstructed suffix value serves the sole future flexible Use.
-    SelectedActiveResidentImmediateU64BeforeSingleFutureFlexibleUseV1,
-    /// One reconstructed suffix value is inserted before the first of two or
-    /// more canonical future flexible Uses and serves the complete suffix.
-    SelectedActiveResidentImmediateU64BeforeFirstOfMultipleFutureFlexibleUsesV1,
-}
+pub use register_homes::PressureRematerializationPolicy;
 
 /// Canonical recipe and output commitment. Decoding never grants validation
 /// authority; the selected CFG is reconstructed independently from the roots.

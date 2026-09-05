@@ -16,12 +16,12 @@ use register_model::ValidatedPhysicalRegisterModel;
 use selected_instructions_to_register_homes::ValidatedSelectedAnalysis;
 
 use post_allocation_machine_to_post_allocation_machine::StagedOptimizedPostAllocationMachineOptimization;
-use post_allocation_machine_to_selected_form_encoding::StagedOptimizedSelectedFormEncoding;
-use register_homes_to_post_allocation_machine::StagedOptimizedPostAllocationMachinePlan;
-use selected_form_encoding_to_resolved_layout::{
+use post_allocation_machine_to_resolved_layout::selected_form_encoding::StagedOptimizedSelectedFormEncoding;
+use post_allocation_machine_to_resolved_layout::{
     StagedOptimizedResolvedSelectedFormLayout,
     validate_optimized_resolved_selected_form_layout_with_post_allocation_machine_optimization,
 };
+use register_homes_to_post_allocation_machine::StagedOptimizedPostAllocationMachinePlan;
 
 /// Establish the canonical whole-function exit contract for one owning typed
 /// post-allocation result. The join independently replays resolved layout and

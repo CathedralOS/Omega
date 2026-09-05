@@ -3,6 +3,9 @@
 //! An identity names retained bytes and rows. It does not grant encoding,
 //! optimization, layout, or publication authority.
 
+mod selected_form;
+pub use selected_form::*;
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct SelectedFormEncodingIdentity([u8; 32]);
 

@@ -26,7 +26,7 @@ pub fn fixed_precolored_interval_plan_identity(
     bytes.extend_from_slice(&plan.usage.encode());
     encode_family(&mut bytes, &plan.functions);
     encode_family(&mut bytes, &plan.structural_unit_functions);
-    FixedPrecoloredIntervalPlanIdentity(Sha256::digest(bytes).into())
+    FixedPrecoloredIntervalPlanIdentity::from_bytes(Sha256::digest(bytes).into())
 }
 
 fn encode_family(bytes: &mut Vec<u8>, functions: &[crate::FunctionFixedPrecoloredIntervals]) {

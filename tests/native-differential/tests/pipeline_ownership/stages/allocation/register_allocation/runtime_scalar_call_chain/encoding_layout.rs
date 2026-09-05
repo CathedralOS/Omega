@@ -686,5 +686,18 @@ fn selected_call_template_and_layout_corruption_fail_independent_replay() {
             validate_target_frame_protocol_encoding(&frame, &environment, changed),
             Err(TargetFrameProtocolEncodingError::RootMismatch)
         );
+        let retained_frame = frame.shared_plan();
+        assert!(std::ptr::eq(retained_frame.as_ref(), frame.plan()));
+        drop(frame);
+        assert!(!retained_frame.functions.is_empty());
+        let readmitted = validate_target_frame_layout(
+            &post,
+            &requirements,
+            &storage,
+            &environment,
+            retained_frame.as_ref().clone(),
+        )
+        .unwrap();
+        assert_eq!(readmitted.plan(), retained_frame.as_ref());
     }
 }

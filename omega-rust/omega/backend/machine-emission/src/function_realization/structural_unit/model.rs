@@ -1,4 +1,6 @@
 use optimization_core::FunctionRelativeOptimizationRealizationManifestIdentity;
+use physical_instructions::PostAllocationMachineCustodyReceipt;
+use register_homes::RegisterHomeCustodyReceipt;
 use selected_instructions_to_register_homes::{AllocationReplayError, RetainedAllocation};
 
 use crate::{
@@ -6,13 +8,11 @@ use crate::{
     ValidatedFunctionRelativeOptimizationRealizationManifest, ValidatedWholeFunctionExitContract,
 };
 use machine_code::WholeFunctionExitContractIdentity;
-use post_allocation_machine_to_selected_form_encoding::StagedOptimizedSelectedFormEncoding;
+use post_allocation_machine_to_resolved_layout::StagedOptimizedResolvedSelectedFormLayout;
+use post_allocation_machine_to_resolved_layout::selected_form_encoding::StagedOptimizedSelectedFormEncoding;
 use register_homes_to_post_allocation_machine::{
-    OptimizedPostAllocationMachinePipelineError,
-    StagedOptimizedPostAllocationMachineCustodyReceipt, StagedOptimizedPostAllocationMachinePlan,
+    OptimizedPostAllocationMachinePipelineError, StagedOptimizedPostAllocationMachinePlan,
 };
-use selected_form_encoding_to_resolved_layout::StagedOptimizedResolvedSelectedFormLayout;
-use selected_instructions_to_register_homes::StagedOptimizedRegisterHomeCustodyReceipt;
 
 /// Owning function-relative custody for the bounded structural-signature Unit
 /// route. The internal call remains a typed unresolved MachineId fixup; this
@@ -85,18 +85,18 @@ impl StagedOptimizedStructuralUnitFunctionRelativeRealization {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct StagedOptimizedStructuralUnitFunctionRelativeRealizationCustodyReceipt {
-    pub(super) source: StagedOptimizedRegisterHomeCustodyReceipt,
-    pub(super) machine: StagedOptimizedPostAllocationMachineCustodyReceipt,
+    pub(super) source: RegisterHomeCustodyReceipt,
+    pub(super) machine: PostAllocationMachineCustodyReceipt,
     pub(super) exit_contract: WholeFunctionExitContractIdentity,
     pub(super) realization: FunctionRelativeOptimizationRealizationManifestIdentity,
 }
 
 impl StagedOptimizedStructuralUnitFunctionRelativeRealizationCustodyReceipt {
-    pub const fn source(&self) -> StagedOptimizedRegisterHomeCustodyReceipt {
+    pub const fn source(&self) -> RegisterHomeCustodyReceipt {
         self.source
     }
 
-    pub const fn machine(&self) -> &StagedOptimizedPostAllocationMachineCustodyReceipt {
+    pub const fn machine(&self) -> &PostAllocationMachineCustodyReceipt {
         &self.machine
     }
 
@@ -113,8 +113,8 @@ impl StagedOptimizedStructuralUnitFunctionRelativeRealizationCustodyReceipt {
 pub enum OptimizedStructuralUnitFunctionRelativeRealizationError {
     Allocation(AllocationReplayError),
     Machine(OptimizedPostAllocationMachinePipelineError),
-    Encoding(post_allocation_machine_to_selected_form_encoding::OptimizedSelectedFormEncodingError),
-    Layout(selected_form_encoding_to_resolved_layout::OptimizedResolvedSelectedFormLayoutError),
+    Encoding(post_allocation_machine_to_resolved_layout::selected_form_encoding::OptimizedSelectedFormEncodingError),
+    Layout(post_allocation_machine_to_resolved_layout::OptimizedResolvedSelectedFormLayoutError),
     Exit(crate::WholeFunctionExitContractError),
     UnsupportedSelectionPhase,
     UnsupportedStructuralUnitShape,

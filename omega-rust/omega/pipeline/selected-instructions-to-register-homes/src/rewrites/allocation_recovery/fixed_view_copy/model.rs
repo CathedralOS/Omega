@@ -8,47 +8,15 @@ use selected_instructions::{
 use semantic_vocabulary::{MachineId, ValueId};
 
 use crate::{
-    AllocationLegalityIdentity, AllocatorAvailabilityIdentity, FixedPrecoloredIntervalPlanIdentity,
-    FixedPrecoloredSegmentHomePlanIdentity, FixedPrecoloredSplitRequirementPlanIdentity,
-    LiveRangeIdentity, VirtualFixedConstraintSite,
+    AllocationLegalityIdentity, AllocatorAvailabilityIdentity, LiveRangeIdentity,
+    VirtualFixedConstraintSite,
 };
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub struct FixedViewCopyIdentity(pub(crate) [u8; 32]);
+pub use register_homes::FixedViewCopyIdentity;
 
-impl FixedViewCopyIdentity {
-    pub const fn from_bytes(bytes: [u8; 32]) -> Self {
-        Self(bytes)
-    }
+pub use register_homes::FixedViewCopyPolicy;
 
-    pub const fn bytes(self) -> [u8; 32] {
-        self.0
-    }
-}
-
-/// Exact, deliberately narrow policy for materializing entry-to-fixed-use
-/// transitions. This is a stable named transformation, not an allocator mode.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum FixedViewCopyPolicy {
-    /// One copy immediately before each fixed leaf use.
-    LeafLocalBeforeFixedUseV1,
-    /// One flag-transparent copy after the entry compare and immediately
-    /// before its conditional branch, shared by both return leaves.
-    SharedEntryAfterCompareBeforeBranchV1,
-}
-
-/// Authenticated authority used to discover the exact fixed-view boundaries
-/// consumed by this transformation. Legacy wire generations remain decodable,
-/// but current production and validation require segment-home evidence.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum FixedViewCopySourceEvidence {
-    LegacyLegalityTransitionsV1,
-    FixedPrecoloredSegmentHomesV1 {
-        fixed_intervals: FixedPrecoloredIntervalPlanIdentity,
-        split_requirements: FixedPrecoloredSplitRequirementPlanIdentity,
-        segment_homes: FixedPrecoloredSegmentHomePlanIdentity,
-    },
-}
+pub use register_homes::FixedViewCopySourceEvidence;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct FixedViewCopyPlan {

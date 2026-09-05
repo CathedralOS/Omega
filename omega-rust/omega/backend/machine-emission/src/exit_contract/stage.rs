@@ -4,14 +4,14 @@ use selected_instructions_to_register_homes::ValidatedSelectedAnalysis;
 use crate::ValidatedTargetFrameProtocolEncoding;
 use crate::frame_layout::ValidatedTargetFrameLayout;
 use post_allocation_machine_to_post_allocation_machine::StagedOptimizedAarch64CbnzFusion;
-use post_allocation_machine_to_selected_form_encoding::StagedOptimizedSelectedFormEncoding;
-use register_homes_to_post_allocation_machine::StagedOptimizedPostAllocationMachinePlan;
-use selected_form_encoding_to_resolved_layout::{
+use post_allocation_machine_to_resolved_layout::selected_form_encoding::StagedOptimizedSelectedFormEncoding;
+use post_allocation_machine_to_resolved_layout::{
     StagedOptimizedResolvedSelectedFormLayout, StagedOptimizedX86BranchRelaxation,
     validate_optimized_resolved_selected_form_layout,
     validate_optimized_resolved_selected_form_layout_after_aarch64_cbnz_fusion,
     validate_optimized_x86_branch_relaxation,
 };
+use register_homes_to_post_allocation_machine::StagedOptimizedPostAllocationMachinePlan;
 
 use super::{
     compute::{compute, compute_with_frame},

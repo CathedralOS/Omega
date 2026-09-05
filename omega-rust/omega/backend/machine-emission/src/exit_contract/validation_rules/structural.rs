@@ -13,8 +13,8 @@ use selected_instructions::{SelectedInstructionId, SelectedInstructionKind};
 use semantic_vocabulary::MachineId;
 use target::NativeTarget;
 
-use post_allocation_machine_to_selected_form_encoding::StagedOptimizedSelectedFormEncoding;
-use selected_form_encoding_to_resolved_layout::StagedOptimizedResolvedSelectedFormLayout;
+use post_allocation_machine_to_resolved_layout::StagedOptimizedResolvedSelectedFormLayout;
+use post_allocation_machine_to_resolved_layout::selected_form_encoding::StagedOptimizedSelectedFormEncoding;
 
 use super::{
     super::{

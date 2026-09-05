@@ -9,11 +9,11 @@ pub(super) struct CurrentFunctionFragmentInput {
     pub(super) machine:
         register_homes_to_post_allocation_machine::StagedOptimizedPostAllocationMachinePlan,
     pub(super) layout:
-        selected_form_encoding_to_resolved_layout::StagedOptimizedResolvedSelectedFormLayout,
+        post_allocation_machine_to_resolved_layout::StagedOptimizedResolvedSelectedFormLayout,
     pub(super) homes: selected_instructions_to_register_homes::ValidatedRegisterHomes,
     pub(super) environment: register_environment::ValidatedTargetRegisterEnvironment,
     pub(super) encoding:
-        post_allocation_machine_to_selected_form_encoding::StagedOptimizedSelectedFormEncoding,
+        post_allocation_machine_to_resolved_layout::selected_form_encoding::StagedOptimizedSelectedFormEncoding,
     pub(super) frame_protocol: Option<crate::ValidatedTargetFrameProtocolEncoding>,
     pub(super) frame_layout: Option<crate::frame_layout::ValidatedTargetFrameLayout>,
     pub(super) exit: crate::ValidatedWholeFunctionExitContract,

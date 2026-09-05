@@ -1,4 +1,5 @@
 use optimization_core::{OptimizationExecutionPhase, OptimizationSelections};
+use register_homes::AllocationEvidence;
 use selected_instructions_to_register_homes::PostAllocationSelectedTransformation;
 
 use crate::function_realization::{function_relative_statistics, seal_function_relative_manifest};
@@ -9,13 +10,13 @@ use crate::{
     ValidatedFunctionRelativeOptimizationRealizationManifest, ValidatedWholeFunctionExitContract,
 };
 use machine_code::WholeFunctionExitLayoutCustody;
-use post_allocation_machine_to_selected_form_encoding::StagedOptimizedSelectedFormEncoding;
+use post_allocation_machine_to_resolved_layout::StagedOptimizedResolvedSelectedFormLayout;
+use post_allocation_machine_to_resolved_layout::selected_form_encoding::StagedOptimizedSelectedFormEncoding;
 use register_homes_to_post_allocation_machine::StagedOptimizedPostAllocationMachinePlan;
-use selected_form_encoding_to_resolved_layout::StagedOptimizedResolvedSelectedFormLayout;
 
 use super::model::AllocationRecoveryFunctionRelativeRealizationError;
+use selected_instructions_to_register_homes::AllocationOutput;
 use selected_instructions_to_register_homes::ValidatedSelectedAnalysis;
-use selected_instructions_to_register_homes::{AllocationEvidence, AllocationOutput};
 
 pub(super) fn expected_manifest(
     source: &AllocationOutput<'_>,

@@ -1,7 +1,6 @@
 use super::{
-    OptimizedPostAllocationMachinePipelineError,
-    StagedOptimizedPostAllocationMachineCustodyReceipt, StagedOptimizedPostAllocationMachinePlan,
-    post_allocation_machine_custody,
+    OptimizedPostAllocationMachinePipelineError, PostAllocationMachineCustodyReceipt,
+    StagedOptimizedPostAllocationMachinePlan, post_allocation_machine_custody,
 };
 use crate::validate_post_allocation_machine_plan;
 use selected_instructions_to_register_homes::AllocationSource;
@@ -10,10 +9,7 @@ use selected_instructions_to_register_homes::validate_machine_effects;
 pub fn validate_optimized_post_allocation_machine_plan_custody(
     source: &impl AllocationSource,
     staged: &StagedOptimizedPostAllocationMachinePlan,
-) -> Result<
-    StagedOptimizedPostAllocationMachineCustodyReceipt,
-    OptimizedPostAllocationMachinePipelineError,
-> {
+) -> Result<PostAllocationMachineCustodyReceipt, OptimizedPostAllocationMachinePipelineError> {
     let allocation = source
         .replay_allocation()
         .map_err(OptimizedPostAllocationMachinePipelineError::Allocation)?;

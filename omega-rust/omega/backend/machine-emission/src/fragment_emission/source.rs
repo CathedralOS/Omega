@@ -32,7 +32,8 @@ impl StagedOptimizedFunctionFragmentEmissionSource {
     }
     pub fn resolved_layout(
         &self,
-    ) -> &selected_form_encoding_to_resolved_layout::StagedOptimizedResolvedSelectedFormLayout {
+    ) -> &post_allocation_machine_to_resolved_layout::StagedOptimizedResolvedSelectedFormLayout
+    {
         &self.current.layout
     }
     pub fn selected_plan(&self) -> &selected_instructions::SelectedInstructionPlan {
@@ -50,8 +51,8 @@ impl StagedOptimizedFunctionFragmentEmissionSource {
     }
     pub fn encoding(
         &self,
-    ) -> &post_allocation_machine_to_selected_form_encoding::StagedOptimizedSelectedFormEncoding
-    {
+    ) -> &post_allocation_machine_to_resolved_layout::selected_form_encoding::StagedOptimizedSelectedFormEncoding
+{
         &self.current.encoding
     }
     pub fn frame_protocol(&self) -> Option<&crate::ValidatedTargetFrameProtocolEncoding> {

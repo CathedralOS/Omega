@@ -3,11 +3,11 @@
 use super::*;
 
 pub(super) fn custody_receipt(
-    source: StagedOptimizedAllocationLegalityCustodyReceipt,
+    source: AllocationLegalityCustodyReceipt,
     steps: &[StagedOptimizedLiteralFoldStep],
-) -> StagedOptimizedLiteralFoldCustodyReceipt {
+) -> LiteralFoldCustodyReceipt {
     let final_step = steps.last().expect("literal-fold custody is nonempty");
-    StagedOptimizedLiteralFoldCustodyReceipt {
+    LiteralFoldCustodyReceipt {
         source,
         iterations: steps.iter().map(iteration_receipt).collect(),
         transformations: steps
@@ -25,8 +25,8 @@ pub(super) fn custody_receipt(
 
 pub(super) fn iteration_receipt(
     step: &StagedOptimizedLiteralFoldStep,
-) -> StagedOptimizedLiteralFoldIterationReceipt {
-    StagedOptimizedLiteralFoldIterationReceipt {
+) -> LiteralFoldIterationReceipt {
+    LiteralFoldIterationReceipt {
         source_selected: step.fold.plan().source_selected,
         source_ranges: step.fold.plan().ranges,
         source_legality: step.fold.plan().legality,
@@ -48,7 +48,7 @@ pub(super) fn iteration_receipt(
 
 #[allow(clippy::too_many_arguments)]
 pub(super) fn selected_lowering_custody_receipt(
-    source_receipt: StagedOptimizedAllocationLegalityCustodyReceipt,
+    source_receipt: AllocationLegalityCustodyReceipt,
     selections: &OptimizationSelections,
     selected_lowering_selections: &OptimizationSelections,
     source: &StagedOptimizedAllocationLegality,
@@ -58,7 +58,7 @@ pub(super) fn selected_lowering_custody_receipt(
     usage: OptimizationWorkUsage,
     iteration_bound: usize,
     action_count: usize,
-) -> StagedSelectedLoweringOptimizationCustodyReceipt {
+) -> SelectedLoweringOptimizationCustodyReceipt {
     let (final_selected, final_liveness, final_ranges, final_legality) = match steps.last() {
         Some(step) => (
             step.fold.receipt().transformed_selected(),
@@ -84,7 +84,7 @@ pub(super) fn selected_lowering_custody_receipt(
             source.legality().receipt().identity(),
         ),
     };
-    let mut receipt = StagedSelectedLoweringOptimizationCustodyReceipt {
+    let mut receipt = SelectedLoweringOptimizationCustodyReceipt {
         identity: SelectedLoweringOptimizationCompletionIdentity::from_canonical_bytes(b"pending"),
         source: source_receipt,
         selections: selections.identity(),
@@ -110,7 +110,7 @@ pub(super) fn selected_lowering_custody_receipt(
 }
 
 pub(super) fn selected_lowering_completion_identity(
-    receipt: &StagedSelectedLoweringOptimizationCustodyReceipt,
+    receipt: &SelectedLoweringOptimizationCustodyReceipt,
 ) -> SelectedLoweringOptimizationCompletionIdentity {
     let mut canonical = Vec::new();
     canonical.extend_from_slice(b"omega.selected-lowering-optimization-completion.v3\0");
@@ -153,7 +153,7 @@ pub(super) fn selected_lowering_completion_identity(
 
 pub(super) fn encode_iteration_receipt(
     canonical: &mut Vec<u8>,
-    iteration: StagedOptimizedLiteralFoldIterationReceipt,
+    iteration: LiteralFoldIterationReceipt,
 ) {
     canonical.extend_from_slice(&iteration.source_selected().bytes());
     canonical.extend_from_slice(&iteration.source_ranges().bytes());
@@ -173,10 +173,7 @@ pub(super) fn encode_iteration_receipt(
     canonical.extend_from_slice(&iteration.fresh_legality().bytes());
 }
 
-pub(super) fn encode_attempt_receipt(
-    canonical: &mut Vec<u8>,
-    attempt: StagedOptimizedLiteralFoldAttemptReceipt,
-) {
+pub(super) fn encode_attempt_receipt(canonical: &mut Vec<u8>, attempt: LiteralFoldAttemptReceipt) {
     canonical.extend_from_slice(&attempt.source_selected().bytes());
     canonical.extend_from_slice(&attempt.source_ranges().bytes());
     canonical.extend_from_slice(&attempt.source_legality().bytes());
@@ -219,8 +216,8 @@ pub(super) fn encode_count(canonical: &mut Vec<u8>, count: usize) {
 
 pub(super) fn attempt_receipt(
     attempt: &StagedOptimizedLiteralFoldAttempt,
-) -> StagedOptimizedLiteralFoldAttemptReceipt {
-    StagedOptimizedLiteralFoldAttemptReceipt {
+) -> LiteralFoldAttemptReceipt {
+    LiteralFoldAttemptReceipt {
         source_selected: attempt.fold.receipt().source_selected(),
         source_ranges: attempt.fold.receipt().ranges(),
         source_legality: attempt.fold.receipt().legality(),

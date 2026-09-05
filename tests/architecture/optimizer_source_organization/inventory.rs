@@ -6,6 +6,8 @@ use std::path::{Path, PathBuf};
 
 use crate::Audit;
 
+const PIPELINE_ROOT: &str = "omega-rust/omega/pipeline";
+
 /// The optimizer surfaces whose source organization is architecture-governed.
 /// Keep these roots explicit: silently losing a moved or renamed tree must
 /// fail this test rather than shrinking its jurisdiction.
@@ -43,8 +45,7 @@ const GOVERNED_ROOTS: &[&str] = &[
     "omega-rust/omega/pipeline/terminal-psi-to-abstract-operations",
     "omega-rust/omega/pipeline/post-allocation-machine-to-post-allocation-machine",
     "omega-rust/omega/backend/machine-emission/src/frame_layout",
-    "omega-rust/omega/pipeline/post-allocation-machine-to-selected-form-encoding",
-    "omega-rust/omega/pipeline/selected-form-encoding-to-resolved-layout",
+    "omega-rust/omega/pipeline/post-allocation-machine-to-resolved-layout",
     "omega-rust/omega/pipeline/register-homes-to-post-allocation-machine",
     "omega-rust/omega/pipeline/target-operations-to-assigned-target-operations",
     "omega-rust/omega/pipeline/target-operations-to-selected-instructions",
@@ -124,13 +125,13 @@ pub(super) const RULE_STAGES: &[RuleStageDescriptor] = &[
         ],
     },
     RuleStageDescriptor {
-        entrance: "omega-rust/omega/pipeline/selected-form-encoding-to-resolved-layout/src/x86_branch_relaxation/mod.rs",
-        catalog: "omega-rust/omega/pipeline/selected-form-encoding-to-resolved-layout/src/x86_branch_relaxation/catalog.rs",
+        entrance: "omega-rust/omega/pipeline/post-allocation-machine-to-resolved-layout/src/x86_branch_relaxation/mod.rs",
+        catalog: "omega-rust/omega/pipeline/post-allocation-machine-to-resolved-layout/src/x86_branch_relaxation/catalog.rs",
         coordination_marker: "pub fn stage_optimized_x86_branch_relaxation",
         catalog_marker: "FUNCTION_RELATIVE_LAYOUT_RULE_CATALOG",
         next_rungs: &[
-            "omega-rust/omega/pipeline/selected-form-encoding-to-resolved-layout/src/x86_branch_relaxation/compute.rs",
-            "omega-rust/omega/pipeline/selected-form-encoding-to-resolved-layout/src/x86_branch_relaxation/validation.rs",
+            "omega-rust/omega/pipeline/post-allocation-machine-to-resolved-layout/src/x86_branch_relaxation/compute.rs",
+            "omega-rust/omega/pipeline/post-allocation-machine-to-resolved-layout/src/x86_branch_relaxation/validation.rs",
         ],
     },
 ];
@@ -184,6 +185,31 @@ pub(crate) fn collect() -> Audit {
     let repository = repository_root();
     let mut violations = BTreeSet::new();
     let mut source_lines = BTreeMap::<String, usize>::new();
+
+    match fs::read_dir(repository.join(PIPELINE_ROOT)) {
+        Ok(entries) => {
+            for entry in entries {
+                match entry {
+                    Ok(entry) if entry.path().is_dir() => {
+                        let relative =
+                            format!("{PIPELINE_ROOT}/{}", entry.file_name().to_string_lossy());
+                        if !GOVERNED_ROOTS.contains(&relative.as_str()) {
+                            violations.insert(format!(
+                                "pipeline directory outside the governed roster: {relative}; fold it into its owning transform or justify an independent consumer and update the roster"
+                            ));
+                        }
+                    }
+                    Ok(_) => {}
+                    Err(error) => {
+                        violations.insert(format!("cannot enumerate pipeline: {error}"));
+                    }
+                }
+            }
+        }
+        Err(error) => {
+            violations.insert(format!("cannot read pipeline: {error}"));
+        }
+    }
 
     for governed_root in GOVERNED_ROOTS {
         let absolute_root = repository.join(governed_root);

@@ -7,20 +7,20 @@ use crate::{
 };
 
 use crate::{
-    StagedOptimizedAllocationLegality, StagedOptimizedAllocationLegalityCustodyReceipt,
+    AllocationLegalityCustodyReceipt, StagedOptimizedAllocationLegality,
     validate_optimized_allocation_legality_custody,
 };
 
 use super::custody::custody_receipt;
 use super::model::{
-    OptimizedActiveResidentRematerializationError, StagedOptimizedActiveResidentRematerialization,
-    StagedOptimizedActiveResidentRematerializationCustodyReceipt,
+    ActiveResidentRematerializationCustodyReceipt, OptimizedActiveResidentRematerializationError,
+    StagedOptimizedActiveResidentRematerialization,
 };
 
 pub fn validate_optimized_active_resident_rematerialization(
     staged: &StagedOptimizedActiveResidentRematerialization,
 ) -> Result<
-    StagedOptimizedActiveResidentRematerializationCustodyReceipt,
+    ActiveResidentRematerializationCustodyReceipt,
     OptimizedActiveResidentRematerializationError,
 > {
     let source_receipt = validate_source(&staged.source)?;
@@ -158,10 +158,7 @@ pub fn validate_optimized_active_resident_rematerialization(
 }
 pub(super) fn validate_source(
     source: &StagedOptimizedAllocationLegality,
-) -> Result<
-    StagedOptimizedAllocationLegalityCustodyReceipt,
-    OptimizedActiveResidentRematerializationError,
-> {
+) -> Result<AllocationLegalityCustodyReceipt, OptimizedActiveResidentRematerializationError> {
     validate_optimized_allocation_legality_custody(
         source.live_range_stage(),
         source.allocator_availability(),

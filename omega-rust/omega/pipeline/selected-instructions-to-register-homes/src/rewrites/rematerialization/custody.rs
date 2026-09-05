@@ -4,13 +4,13 @@ use crate::{
     ValidatedRecoveryClassifications, ValidatedRegisterHomes, ValidatedSpillChoices,
 };
 
-use crate::StagedOptimizedAllocationLegalityCustodyReceipt;
+use crate::AllocationLegalityCustodyReceipt;
 
-use super::model::StagedOptimizedActiveResidentRematerializationCustodyReceipt;
+use super::model::ActiveResidentRematerializationCustodyReceipt;
 
 #[allow(clippy::too_many_arguments)]
 pub(super) fn custody_receipt(
-    source: StagedOptimizedAllocationLegalityCustodyReceipt,
+    source: AllocationLegalityCustodyReceipt,
     choices: &ValidatedSpillChoices,
     classifications: &ValidatedRecoveryClassifications,
     rematerialization: &ValidatedPressureRematerialization,
@@ -19,8 +19,8 @@ pub(super) fn custody_receipt(
     legality: &ValidatedAllocationLegality,
     homes: &ValidatedRegisterHomes,
     manifest: &ValidatedPostAllocationOptimizationManifest,
-) -> StagedOptimizedActiveResidentRematerializationCustodyReceipt {
-    StagedOptimizedActiveResidentRematerializationCustodyReceipt {
+) -> ActiveResidentRematerializationCustodyReceipt {
+    ActiveResidentRematerializationCustodyReceipt {
         source,
         choices: choices.receipt().identity(),
         choice_policy: choices.receipt().policy(),

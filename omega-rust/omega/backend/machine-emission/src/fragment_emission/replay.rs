@@ -71,7 +71,8 @@ impl FunctionFragmentReplayInputs {
 
     pub fn resolved_layout(
         &self,
-    ) -> &selected_form_encoding_to_resolved_layout::StagedOptimizedResolvedSelectedFormLayout {
+    ) -> &post_allocation_machine_to_resolved_layout::StagedOptimizedResolvedSelectedFormLayout
+    {
         match self {
             Self::UnitBaseline(realization) => realization.layout(),
             Self::StructuralUnit(realization) => realization.layout(),
@@ -177,8 +178,8 @@ impl FunctionFragmentReplayInputs {
 
     pub fn encoding(
         &self,
-    ) -> &post_allocation_machine_to_selected_form_encoding::StagedOptimizedSelectedFormEncoding
-    {
+    ) -> &post_allocation_machine_to_resolved_layout::selected_form_encoding::StagedOptimizedSelectedFormEncoding
+{
         match self {
             Self::X86Rel8Direct(realization) => realization.encoding(),
             Self::SelectedLowering(realization) => realization.encoding(),

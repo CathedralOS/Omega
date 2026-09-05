@@ -5,8 +5,12 @@
 
 use optimization_core::{Optimization, OptimizationSelectionIdentity};
 
+mod allocation;
+pub use allocation::PostAllocationMachineCustodyReceipt;
 mod identities;
+mod rules;
 pub use identities::*;
+pub use rules::*;
 
 /// Rule-independent evidence retained by later physical stages.
 ///

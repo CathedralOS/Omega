@@ -86,11 +86,11 @@ pub(crate) const ENTRANCES: &[RequiredCoordinationEntrance] = &[
         coordination_marker: "pub fn stage_optimized_register_homes_after_literal_folds",
     },
     RequiredCoordinationEntrance {
-        path: "omega-rust/omega/pipeline/post-allocation-machine-to-selected-form-encoding/src/lib.rs",
+        path: "omega-rust/omega/pipeline/post-allocation-machine-to-resolved-layout/src/selected_form_encoding/mod.rs",
         coordination_marker: "stage_optimized_layout_independent_selected_form_encoding_with_post_allocation_machine_optimization",
     },
     RequiredCoordinationEntrance {
-        path: "omega-rust/omega/pipeline/selected-form-encoding-to-resolved-layout/src/resolved_selected_form_layout/mod.rs",
+        path: "omega-rust/omega/pipeline/post-allocation-machine-to-resolved-layout/src/resolved_selected_form_layout/mod.rs",
         coordination_marker: "stage_optimized_resolved_selected_form_layout_with_post_allocation_machine_optimization",
     },
     RequiredCoordinationEntrance {
@@ -218,15 +218,15 @@ pub(crate) const ENTRANCES: &[RequiredCoordinationEntrance] = &[
         coordination_marker: "pub fn stage_optimized_verified_physical_pipeline",
     },
     RequiredCoordinationEntrance {
-        path: "omega-rust/omega/pipeline/post-allocation-machine-to-selected-form-encoding/src/validation/mod.rs",
+        path: "omega-rust/omega/pipeline/post-allocation-machine-to-resolved-layout/src/selected_form_encoding/validation/mod.rs",
         coordination_marker: "pub(super) fn validate",
     },
     RequiredCoordinationEntrance {
-        path: "omega-rust/omega/pipeline/selected-form-encoding-to-resolved-layout/src/resolved_selected_form_layout/validation/mod.rs",
+        path: "omega-rust/omega/pipeline/post-allocation-machine-to-resolved-layout/src/resolved_selected_form_layout/validation/mod.rs",
         coordination_marker: "pub(super) fn validate",
     },
     RequiredCoordinationEntrance {
-        path: "omega-rust/omega/pipeline/selected-form-encoding-to-resolved-layout/src/resolved_selected_form_layout/validation/ordinary/mod.rs",
+        path: "omega-rust/omega/pipeline/post-allocation-machine-to-resolved-layout/src/resolved_selected_form_layout/validation/ordinary/mod.rs",
         coordination_marker: "pub(super) fn validate",
     },
     RequiredCoordinationEntrance {

@@ -22,6 +22,7 @@
 set -u
 
 REPO=${OMEGA_EVAL_REPO:-$(git rev-parse --show-toplevel)}
+CHECKER=$(cd "$(dirname "$0")/../scripts" && pwd)/verify.sh
 _local=$(cygpath -u "${LOCALAPPDATA:-}" 2>/dev/null || echo "/c/Users/${USERNAME:-User}/AppData/Local")
 WORK=${OMEGA_EVAL_ROOT:-$_local/Temp/omega-eval}
 MARKER="Stage eval skill"
@@ -61,7 +62,8 @@ require_mbx() {
 cmd_setup() {
   require_mbx
   skill_a=$1; skill_b=$2
-  rm -rf "$WORK"; mkdir -p "$WORK"
+  [ ! -e "$WORK" ] || { echo "work root already exists: $WORK" >&2; return 1; }
+  mkdir -p "$WORK"
   for side in a b; do
     git clone --bare --quiet "$REPO" "$WORK/o$side.git"
     git -C "$WORK/o$side.git" remote remove origin 2>/dev/null
@@ -78,8 +80,10 @@ cmd_setup() {
   echo "--- remotes (must contain no forge URL) ---"
   git -C "$WORK/a" remote -v; git -C "$WORK/b" remote -v
   echo "--- prewarming mbx in both clones (cold; expect several minutes) ---"
-  for side in a b; do (_prewarm "$side" > "$WORK/prewarm-$side.log" 2>&1 &) ; done
-  echo "prewarm running; watch $WORK/prewarm-{a,b}.log for 'prewarm done'"
+  for side in a b; do
+    _prewarm "$side" > "$WORK/prewarm-$side.log" 2>&1 || return 1
+  done
+  echo "prewarm done; both command sequences returned zero"
   echo "then run: sh harness.sh baseline"
 }
 
@@ -102,13 +106,15 @@ _stage() {
 }
 
 _prewarm() {
+  (
   cd "$WORK/$1" || exit 1
   echo "=== $1 prewarm start $(date) ==="
-  mbx clippy --workspace --all-targets 2>&1 | tail -2
-  mbx check  --workspace --all-targets 2>&1 | tail -2
-  mbx test   --workspace --lib --no-run 2>&1 | tail -2
-  mbx test -p omega-architecture-test --all-targets --no-run 2>&1 | tail -2
+  mbx clippy --workspace --all-targets || exit $?
+  mbx check --workspace --all-targets || exit $?
+  mbx test --workspace --lib --no-run || exit $?
+  mbx test -p omega-architecture-test --all-targets --no-run || exit $?
   echo "=== $1 prewarm done $(date) ==="
+  )
 }
 
 # ------------------------------------------------------- baseline reference
@@ -120,11 +126,6 @@ _prewarm() {
 cmd_baseline() {
   out="$WORK/baseline"; mkdir -p "$out"
   _regate b "$out"
-  echo "--- enumerating ALL failures (fail-fast otherwise hides later ones) ---"
-  ( cd "$WORK/b" && mbx test --workspace --lib --no-fail-fast 2>&1 ) > "$out/_nofailfast.txt"
-  grep -A20 '^failures:$' "$out/_nofailfast.txt" | grep -E '^ +[a-z_]+::' | sort -u \
-    | tee "$out/_known_failures.txt"
-  echo "saved to $out/"
 }
 
 # ---------------------------------------------------------------- prompts
@@ -210,22 +211,12 @@ cmd_collect() {
 # otherwise idle and one side at a time.
 cmd_regate() { _regate "$1" "$2"; }
 _regate() {
-  require_mbx
   side=$1; out=$2; mkdir -p "$out"
-  cd "$WORK/$side" || exit 1
-  {
-    echo "### regate on $(git rev-parse --short HEAD) at $(date)"
-    for g in "cargo fmt --all -- --check" \
-             "mbx clippy --workspace --all-targets -- -D warnings" \
-             "mbx test -p omega-architecture-test --all-targets" \
-             "mbx check --workspace --all-targets" \
-             "mbx test --workspace --lib --no-fail-fast"; do
-      echo "--- GATE: $g"
-      o=$(eval "$g" 2>&1); echo "EXIT=$?"; echo "$o" | tail -15
-    done
-    echo "REGATE_COMPLETE"     # sentinel: `pgrep` does not exist in git-bash,
-  } > "$out/_regate.txt" 2>&1  # so never wait on a process, wait on this line.
-  grep '^--- GATE\|^EXIT=' "$out/_regate.txt" | sed 's/--- GATE: //' | paste -d' ' - -
+  out=$(cd "$out" && pwd)
+  status=0
+  sh "$CHECKER" gates "$WORK/$side" "$out/gates" > "$out/_regate.txt" 2>&1 || status=$?
+  cat "$out/_regate.txt"
+  return "$status"
 }
 
 # ---------------------------------------------------------------- reset/clean

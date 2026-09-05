@@ -167,6 +167,10 @@ pub(super) fn make_owner_writable(path: &Path) {
         permissions.set_mode(permissions.mode() | if metadata.is_dir() { 0o700 } else { 0o600 });
     }
     #[cfg(not(unix))]
+    #[allow(
+        clippy::permissions_set_readonly_false,
+        reason = "Windows read-only attributes do not change Unix permission bits"
+    )]
     permissions.set_readonly(false);
     std::fs::set_permissions(path, permissions).unwrap();
 }

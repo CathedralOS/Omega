@@ -10,14 +10,14 @@ use crate::{StagedOptimizedSelectedReanalysis, validate_optimized_selected_reana
 use super::custody::{custody_receipt, post_copy_custody_receipt};
 use super::model::{
     OptimizedPostCopyRegisterHomeCustodyError, OptimizedRegisterHomeCustodyError,
-    StagedOptimizedPostCopyRegisterHomeCustodyReceipt, StagedOptimizedRegisterHomeCustodyReceipt,
+    PostCopyRegisterHomeCustodyReceipt, RegisterHomeCustodyReceipt,
 };
 
 pub fn validate_optimized_register_home_custody(
     legality: &StagedOptimizedAllocationLegality,
     homes: &ValidatedRegisterHomes,
     manifest: &ValidatedPostAllocationOptimizationManifest,
-) -> Result<StagedOptimizedRegisterHomeCustodyReceipt, OptimizedRegisterHomeCustodyError> {
+) -> Result<RegisterHomeCustodyReceipt, OptimizedRegisterHomeCustodyError> {
     let upstream = validate_optimized_allocation_legality_custody(
         legality.live_range_stage(),
         legality.allocator_availability(),
@@ -63,10 +63,7 @@ pub fn validate_optimized_register_home_after_fixed_view_copy_custody(
     reanalysis: &StagedOptimizedSelectedReanalysis,
     homes: &ValidatedRegisterHomes,
     manifest: &ValidatedPostAllocationOptimizationManifest,
-) -> Result<
-    StagedOptimizedPostCopyRegisterHomeCustodyReceipt,
-    OptimizedPostCopyRegisterHomeCustodyError,
-> {
+) -> Result<PostCopyRegisterHomeCustodyReceipt, OptimizedPostCopyRegisterHomeCustodyError> {
     let source = validate_optimized_selected_reanalysis_custody(
         reanalysis.transformation_stage(),
         reanalysis.liveness(),

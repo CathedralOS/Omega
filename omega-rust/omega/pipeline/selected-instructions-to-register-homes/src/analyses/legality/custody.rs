@@ -1,15 +1,15 @@
 use crate::{AllocationLegalityValidationReceipt, AllocatorAvailabilityIdentity};
 
-use crate::StagedOptimizedLiveRangeCustodyReceipt;
+use crate::LiveRangeCustodyReceipt;
 
-use super::model::StagedOptimizedAllocationLegalityCustodyReceipt;
+use super::model::AllocationLegalityCustodyReceipt;
 
 pub(super) fn custody_receipt(
-    upstream: StagedOptimizedLiveRangeCustodyReceipt,
+    upstream: LiveRangeCustodyReceipt,
     allocator_availability: AllocatorAvailabilityIdentity,
     legality: AllocationLegalityValidationReceipt,
-) -> StagedOptimizedAllocationLegalityCustodyReceipt {
-    StagedOptimizedAllocationLegalityCustodyReceipt {
+) -> AllocationLegalityCustodyReceipt {
+    AllocationLegalityCustodyReceipt {
         psi: upstream.psi(),
         target: upstream.target(),
         entry: upstream.entry(),

@@ -42,7 +42,7 @@ pub enum OptimizedVerifiedPhysicalPipelineError {
         selected_instructions_to_register_homes::AllocationRecoveryRuleCatalogError,
     ),
     FunctionRelativeLayoutRuleCatalog(
-        selected_form_encoding_to_resolved_layout::FunctionRelativeLayoutCatalogError,
+        post_allocation_machine_to_resolved_layout::FunctionRelativeLayoutCatalogError,
     ),
     AllocationRecoveryFunctionRelative(Box<AllocationRecoveryFunctionRelativeRealizationError>),
     UnitFunctionRelativeRealization(OptimizedUnitFunctionRelativeRealizationError),

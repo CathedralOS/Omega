@@ -2,7 +2,7 @@ use super::super::prelude::*;
 use super::super::{carriers::*, model::*};
 
 pub(in crate::function_realization) fn custody_receipt(
-    source: &StagedOptimizedPostSelectedLoweringHomeCustodyReceipt,
+    source: &PostSelectedLoweringHomeCustodyReceipt,
     machine: &StagedOptimizedPostAllocationMachinePlan,
     exit_contract: &ValidatedWholeFunctionExitContract,
     manifest: &ValidatedFunctionRelativeOptimizationRealizationManifest,
@@ -16,7 +16,7 @@ pub(in crate::function_realization) fn custody_receipt(
 }
 
 pub(in crate::function_realization) fn direct_custody_receipt(
-    source: StagedOptimizedRegisterHomeCustodyReceipt,
+    source: RegisterHomeCustodyReceipt,
     machine: &StagedOptimizedPostAllocationMachinePlan,
     relaxation: &StagedOptimizedX86BranchRelaxation,
     exit_contract: &ValidatedWholeFunctionExitContract,

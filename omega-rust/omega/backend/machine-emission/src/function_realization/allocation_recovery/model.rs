@@ -1,23 +1,22 @@
 use optimization_core::FunctionRelativeOptimizationRealizationManifestIdentity;
+use register_homes::AllocationEvidence;
 
 use crate::{
     FunctionRelativeOptimizationRealizationError,
     ValidatedFunctionRelativeOptimizationRealizationManifest, ValidatedWholeFunctionExitContract,
     WholeFunctionExitContractError,
 };
-use post_allocation_machine_to_selected_form_encoding::{
+use post_allocation_machine_to_resolved_layout::selected_form_encoding::{
     OptimizedSelectedFormEncodingError, StagedOptimizedSelectedFormEncoding,
+};
+use post_allocation_machine_to_resolved_layout::{
+    OptimizedResolvedSelectedFormLayoutError, StagedOptimizedResolvedSelectedFormLayout,
 };
 use register_homes_to_post_allocation_machine::{
     OptimizedPostAllocationMachinePipelineError, StagedOptimizedPostAllocationMachinePlan,
 };
-use selected_form_encoding_to_resolved_layout::{
-    OptimizedResolvedSelectedFormLayoutError, StagedOptimizedResolvedSelectedFormLayout,
-};
 
-use selected_instructions_to_register_homes::{
-    AllocationEvidence, AllocationReplayError, RetainedAllocation,
-};
+use selected_instructions_to_register_homes::{AllocationReplayError, RetainedAllocation};
 
 /// Final frameless, function-relative custody for one allocation-recovery
 /// transformation. It grants no section, object, installation, or publication

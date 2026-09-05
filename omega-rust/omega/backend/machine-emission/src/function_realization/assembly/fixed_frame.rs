@@ -104,7 +104,7 @@ pub(in crate::function_realization) fn expected_fixed_frame_manifest(
 
 #[allow(clippy::too_many_arguments)]
 pub(in crate::function_realization) fn fixed_frame_custody(
-    source: StagedOptimizedRegisterHomeCustodyReceipt,
+    source: RegisterHomeCustodyReceipt,
     machine: &StagedOptimizedPostAllocationMachinePlan,
     requirements: &ValidatedAllocatedCalleeSavedRequirements,
     storage: &ValidatedNonAuthoritativeCalleeSaveStorage,

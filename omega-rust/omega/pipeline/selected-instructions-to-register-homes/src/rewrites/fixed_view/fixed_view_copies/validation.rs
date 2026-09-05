@@ -1,20 +1,17 @@
 use crate::{FixedViewCopyError, ValidatedFixedViewCopies, validate_fixed_view_copies};
 
 use crate::{
-    StagedOptimizedFixedPrecoloredSegmentHomeCustodyReceipt,
-    StagedOptimizedFixedPrecoloredSegmentHomes,
+    FixedPrecoloredSegmentHomeCustodyReceipt, StagedOptimizedFixedPrecoloredSegmentHomes,
     validate_optimized_fixed_precolored_segment_home_custody,
 };
 
 use super::custody::fixed_view_copy_custody_receipt;
-use super::model::{
-    OptimizedFixedViewCopyCustodyError, StagedOptimizedFixedViewCopyCustodyReceipt,
-};
+use super::model::{FixedViewCopyCustodyReceipt, OptimizedFixedViewCopyCustodyError};
 
 pub fn validate_optimized_fixed_view_copy_custody(
     source: &StagedOptimizedFixedPrecoloredSegmentHomes,
     copies: &ValidatedFixedViewCopies,
-) -> Result<StagedOptimizedFixedViewCopyCustodyReceipt, OptimizedFixedViewCopyCustodyError> {
+) -> Result<FixedViewCopyCustodyReceipt, OptimizedFixedViewCopyCustodyError> {
     let upstream = validate_source(source)?;
     let replayed =
         revalidate(source, copies).map_err(OptimizedFixedViewCopyCustodyError::Revalidation)?;
@@ -55,10 +52,7 @@ fn revalidate(
 
 pub(super) fn validate_source(
     source: &StagedOptimizedFixedPrecoloredSegmentHomes,
-) -> Result<
-    StagedOptimizedFixedPrecoloredSegmentHomeCustodyReceipt,
-    OptimizedFixedViewCopyCustodyError,
-> {
+) -> Result<FixedPrecoloredSegmentHomeCustodyReceipt, OptimizedFixedViewCopyCustodyError> {
     validate_optimized_fixed_precolored_segment_home_custody(
         source.source_legality_stage(),
         source.fixed_intervals(),

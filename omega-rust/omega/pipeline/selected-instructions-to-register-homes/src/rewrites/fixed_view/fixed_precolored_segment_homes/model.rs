@@ -1,15 +1,10 @@
 use crate::{
-    FixedPrecoloredIntervalError, FixedPrecoloredIntervalValidationReceipt,
-    FixedPrecoloredSegmentHomeError, FixedPrecoloredSegmentHomeValidationReceipt,
-    FixedPrecoloredSplitRequirementError, FixedPrecoloredSplitRequirementValidationReceipt,
-    ValidatedFixedPrecoloredIntervals, ValidatedFixedPrecoloredSegmentHomes,
-    ValidatedFixedPrecoloredSplitRequirements,
+    FixedPrecoloredIntervalError, FixedPrecoloredSegmentHomeError,
+    FixedPrecoloredSplitRequirementError, ValidatedFixedPrecoloredIntervals,
+    ValidatedFixedPrecoloredSegmentHomes, ValidatedFixedPrecoloredSplitRequirements,
 };
 
-use crate::{
-    OptimizedAllocationLegalityCustodyError, StagedOptimizedAllocationLegality,
-    StagedOptimizedAllocationLegalityCustodyReceipt,
-};
+use crate::{OptimizedAllocationLegalityCustodyError, StagedOptimizedAllocationLegality};
 
 #[derive(Debug)]
 pub struct StagedOptimizedFixedPrecoloredSegmentHomes {
@@ -17,7 +12,7 @@ pub struct StagedOptimizedFixedPrecoloredSegmentHomes {
     pub(super) fixed: ValidatedFixedPrecoloredIntervals,
     pub(super) requirements: ValidatedFixedPrecoloredSplitRequirements,
     pub(super) homes: ValidatedFixedPrecoloredSegmentHomes,
-    pub(super) custody: StagedOptimizedFixedPrecoloredSegmentHomeCustodyReceipt,
+    pub(super) custody: FixedPrecoloredSegmentHomeCustodyReceipt,
 }
 
 impl StagedOptimizedFixedPrecoloredSegmentHomes {
@@ -33,33 +28,12 @@ impl StagedOptimizedFixedPrecoloredSegmentHomes {
     pub const fn segment_homes(&self) -> &ValidatedFixedPrecoloredSegmentHomes {
         &self.homes
     }
-    pub const fn custody(&self) -> StagedOptimizedFixedPrecoloredSegmentHomeCustodyReceipt {
+    pub const fn custody(&self) -> FixedPrecoloredSegmentHomeCustodyReceipt {
         self.custody
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct StagedOptimizedFixedPrecoloredSegmentHomeCustodyReceipt {
-    pub(super) upstream: StagedOptimizedAllocationLegalityCustodyReceipt,
-    pub(super) fixed: FixedPrecoloredIntervalValidationReceipt,
-    pub(super) requirements: FixedPrecoloredSplitRequirementValidationReceipt,
-    pub(super) homes: FixedPrecoloredSegmentHomeValidationReceipt,
-}
-
-impl StagedOptimizedFixedPrecoloredSegmentHomeCustodyReceipt {
-    pub const fn upstream(self) -> StagedOptimizedAllocationLegalityCustodyReceipt {
-        self.upstream
-    }
-    pub const fn fixed(self) -> FixedPrecoloredIntervalValidationReceipt {
-        self.fixed
-    }
-    pub const fn requirements(self) -> FixedPrecoloredSplitRequirementValidationReceipt {
-        self.requirements
-    }
-    pub const fn homes(self) -> FixedPrecoloredSegmentHomeValidationReceipt {
-        self.homes
-    }
-}
+pub use register_homes::FixedPrecoloredSegmentHomeCustodyReceipt;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum OptimizedFixedPrecoloredSegmentHomeCustodyError {

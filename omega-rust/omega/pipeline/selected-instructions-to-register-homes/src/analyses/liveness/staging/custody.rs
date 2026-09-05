@@ -1,14 +1,14 @@
 use crate::LivenessValidationReceipt;
 
-use target_operations_to_selected_instructions::StagedOptimizedSelectionCustodyReceipt;
+use selected_instructions::SelectionCustodyReceipt;
 
-use super::model::StagedOptimizedLivenessCustodyReceipt;
+use super::model::LivenessCustodyReceipt;
 
 pub(super) fn liveness_custody_receipt(
-    upstream: StagedOptimizedSelectionCustodyReceipt,
+    upstream: SelectionCustodyReceipt,
     validation: LivenessValidationReceipt,
-) -> StagedOptimizedLivenessCustodyReceipt {
-    StagedOptimizedLivenessCustodyReceipt {
+) -> LivenessCustodyReceipt {
+    LivenessCustodyReceipt {
         psi: upstream.psi(),
         target: upstream.target(),
         entry: upstream.entry(),

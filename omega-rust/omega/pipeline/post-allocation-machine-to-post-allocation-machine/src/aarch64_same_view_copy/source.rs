@@ -1,16 +1,13 @@
 //! Pipeline staging from current allocation and machine-plan facts.
 
 use optimization_core::Optimization;
+use physical_instructions::Aarch64SameViewCopyElisionCustodyReceipt;
 
 use crate::{
     OptimizedPostAllocationMachineOptimizationError, StagedOptimizedPostAllocationMachinePlan,
 };
 
-use super::{
-    StagedOptimizedAarch64SameViewCopyElision,
-    StagedOptimizedAarch64SameViewCopyElisionCustodyReceipt, stage_with_inputs,
-    validate_with_inputs,
-};
+use super::{StagedOptimizedAarch64SameViewCopyElision, stage_with_inputs, validate_with_inputs};
 
 pub fn stage_optimized_aarch64_same_view_copy_elision(
     source: &impl crate::AllocationSource,
@@ -72,10 +69,8 @@ pub fn validate_optimized_aarch64_same_view_copy_elision_custody(
     source: &impl crate::AllocationSource,
     machine: &StagedOptimizedPostAllocationMachinePlan,
     staged: &StagedOptimizedAarch64SameViewCopyElision,
-) -> Result<
-    StagedOptimizedAarch64SameViewCopyElisionCustodyReceipt,
-    OptimizedPostAllocationMachineOptimizationError,
-> {
+) -> Result<Aarch64SameViewCopyElisionCustodyReceipt, OptimizedPostAllocationMachineOptimizationError>
+{
     let allocation = crate::replay_machine_source(source, machine)?;
     validate_with_inputs(
         allocation.selected(),

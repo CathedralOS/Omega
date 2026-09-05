@@ -14,7 +14,7 @@ pub fn recovery_classification_identity(
     let mut bytes = Vec::new();
     bytes.extend_from_slice(b"omega.terminal-recovery-classification.v3\0");
     bytes.extend_from_slice(&encode_terminal_recovery_classification_content(plan));
-    RecoveryClassificationIdentity(Sha256::digest(bytes).into())
+    RecoveryClassificationIdentity::from_bytes(Sha256::digest(bytes).into())
 }
 
 pub(crate) fn encode_terminal_recovery_classification_content(

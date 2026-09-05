@@ -5,9 +5,8 @@ use crate::{
 };
 
 use crate::{
-    StagedOptimizedLiteralFoldCustodyReceipt, StagedOptimizedLiteralFolds,
-    StagedSelectedLoweringOptimizationRun, validate_optimized_literal_fold_custody,
-    validate_selected_lowering_optimization_custody,
+    LiteralFoldCustodyReceipt, StagedOptimizedLiteralFolds, StagedSelectedLoweringOptimizationRun,
+    validate_optimized_literal_fold_custody, validate_selected_lowering_optimization_custody,
 };
 
 use super::custody::{literal_fold_home_custody_receipt, selected_lowering_home_custody_receipt};
@@ -39,7 +38,7 @@ pub(super) fn construct_register_homes_after_literal_folds(
 
 fn build_homes_and_manifest(
     folds: &StagedOptimizedLiteralFolds,
-    source: &StagedOptimizedLiteralFoldCustodyReceipt,
+    source: &LiteralFoldCustodyReceipt,
 ) -> Result<
     (
         ValidatedRegisterHomes,

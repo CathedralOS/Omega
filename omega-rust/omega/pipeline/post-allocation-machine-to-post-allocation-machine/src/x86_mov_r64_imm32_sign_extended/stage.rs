@@ -6,16 +6,14 @@ use crate::{
 use optimization_core::{
     Optimization, OptimizationExecutionPhase, OptimizationSelections, OptimizationWorkBudget,
 };
+use physical_instructions::X86MovR64Imm32SignExtendedMaterializationCustodyReceipt;
 use register_model::ValidatedPhysicalRegisterModel;
 use selected_instructions_to_register_homes::ValidatedSelectedAnalysis;
 
 use crate::StagedOptimizedPostAllocationMachinePlan;
 
 use super::super::OptimizedPostAllocationMachineOptimizationError;
-use super::{
-    StagedOptimizedX86MovR64Imm32SignExtendedMaterialization,
-    StagedOptimizedX86MovR64Imm32SignExtendedMaterializationCustodyReceipt,
-};
+use super::StagedOptimizedX86MovR64Imm32SignExtendedMaterialization;
 
 pub fn stage_optimized_x86_mov_r64_imm32_sign_extended_materialization(
     source: &impl crate::AllocationSource,
@@ -39,7 +37,7 @@ pub fn validate_optimized_x86_mov_r64_imm32_sign_extended_materialization_custod
     machine: &StagedOptimizedPostAllocationMachinePlan,
     staged: &StagedOptimizedX86MovR64Imm32SignExtendedMaterialization,
 ) -> Result<
-    StagedOptimizedX86MovR64Imm32SignExtendedMaterializationCustodyReceipt,
+    X86MovR64Imm32SignExtendedMaterializationCustodyReceipt,
     OptimizedPostAllocationMachineOptimizationError,
 > {
     let allocation = crate::replay_machine_source(source, machine)?;
@@ -95,7 +93,7 @@ fn validate_with_inputs<S: ValidatedSelectedAnalysis>(
     budget: OptimizationWorkBudget,
     staged: &StagedOptimizedX86MovR64Imm32SignExtendedMaterialization,
 ) -> Result<
-    StagedOptimizedX86MovR64Imm32SignExtendedMaterializationCustodyReceipt,
+    X86MovR64Imm32SignExtendedMaterializationCustodyReceipt,
     OptimizedPostAllocationMachineOptimizationError,
 > {
     let phase_selections =
@@ -131,15 +129,15 @@ fn custody_receipt(
     selections: &OptimizationSelections,
     phase: &OptimizationSelections,
     materialization: &ValidatedX86MovR64Imm32SignExtendedMaterialization,
-) -> StagedOptimizedX86MovR64Imm32SignExtendedMaterializationCustodyReceipt {
+) -> X86MovR64Imm32SignExtendedMaterializationCustodyReceipt {
     let receipt = materialization.receipt();
-    StagedOptimizedX86MovR64Imm32SignExtendedMaterializationCustodyReceipt {
-        selections: selections.identity(),
-        post_allocation_machine_selections: phase.identity(),
-        source: receipt.source(),
-        materialization: receipt.identity(),
-        action_count: receipt.action_count(),
-        baseline_bytes: receipt.baseline_bytes(),
-        selected_bytes: receipt.selected_bytes(),
-    }
+    X86MovR64Imm32SignExtendedMaterializationCustodyReceipt::from_parts(
+        selections.identity(),
+        phase.identity(),
+        receipt.source(),
+        receipt.identity(),
+        receipt.action_count(),
+        receipt.baseline_bytes(),
+        receipt.selected_bytes(),
+    )
 }

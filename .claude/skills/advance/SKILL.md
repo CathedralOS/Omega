@@ -12,11 +12,11 @@ ownership firewall. Do not restate them — this skill is the loop that runs on 
 
 Composes with `/loop` for unattended sessions. One invocation is one iteration.
 
-No orchestration script lives in this repository. This repository is Rust,
-Omega, and `sh`; it carries no JavaScript or Python, and the loop is not a
-reason to add either. The session runs the loop with the harness's own agent
-and workflow tools, and any script those tools need is authored for that run
-and stays outside the tree.
+This repository is Rust, Omega, and `sh`; the loop is not a reason to add
+JavaScript or Python. The session schedules work with the available harness
+tools. The small [admission checker](scripts/verify.sh) only validates lanes,
+commit paths, and gate exits; it cannot spawn, switch branches, or publish.
+Session manifests, logs, and scratch scripts stay outside the source tree.
 
 Whatever runs the loop must enforce four checks mechanically, not by asking an
 agent whether it complied: lanes are pairwise disjoint by path prefix before
@@ -24,6 +24,9 @@ anything is spawned; a commit that touched a file outside its lane is refused;
 two commits that touched the same file are not both integrated; and a commit
 whose gates were not every one literally green is refused. A commit that fails
 any of these never reaches `main`.
+
+Use the commands in [the admission procedure](references/admission.md), before
+dispatch and before integration. These checks apply to a solo iteration too.
 
 ## What done looks like
 
@@ -72,8 +75,13 @@ Orient first, always:
 2. **Rank before you read prose.** Board entries say what is unfinished, not what
    is expensive. Get the actual distribution:
 
-   ```bash
-   mbx test -p compiler --test canary_suite 2>&1 | tee /tmp/canary.txt
+   Use a recent, revision-labelled distribution when one exists. Refresh the
+   full measurement only when needed to rank the work; preserve its exit code:
+
+   ```sh
+   corpus_status=0
+   mbx test -p compiler --test canary_suite > /tmp/canary.txt 2>&1 || corpus_status=$?
+   printf 'canary exit=%s\n' "$corpus_status"
    grep -oE 'message: "[^"]{0,90}' /tmp/canary.txt | sed 's/^message: "//' \
      | sed -E 's/`[^`]*`/X/g; s/[0-9]+/N/g; s/: .*$//' | sort | uniq -c | sort -rn | head
    ```
@@ -111,9 +119,26 @@ this repository. In the shared tree, HEAD moves under you, files you have read
 change on disk, and gate output mixes your breakage with three other sessions'
 half-finished code so that nothing is attributable.
 
-Spawn each unit of work as an agent with `isolation: "worktree"`. The harness
-places these at `.claude/worktrees/agent-<id>`, which `.gitignore` already covers,
-so they never appear in `git status`.
+Prefer a short, fixed worktree path per active worker and keep its `target/`
+between iterations. Before reusing a slot, inspect `git worktree list`, verify
+its repository and branch, and require a clean tracked and untracked state.
+Keep the previous result reachable by branch or full SHA before switching to a
+new branch at the fetched base. Never force-switch, reset, clean, or unlock a
+slot containing another session's work. If ownership is uncertain, use a new
+short path. Never share one writable target directory between active slots.
+
+The [measured reuse experiment](evals/fixed-worktree-2026-09-05.md) reduced the
+library-test compiler phase from 102 seconds to 10.76 seconds across one source
+revision in the same path. This is local artifact reuse, not an mbx action-cache
+hit rate or a claim that the full test suite became green.
+
+Delegate only substantial independent tasks. In Claude Code, use an existing
+slot through an explicit working directory when supported; otherwise use
+`isolation: "worktree"` and verify the returned path. In Codex, create/select
+the Git worktree explicitly and pass its absolute path to the worker; context
+isolation alone does not isolate files. The assigner checks lanes before
+spawning and gives every worker its own scratch path. A solo session uses the
+same worktree and admission checks without spawning an agent.
 
 Give each agent: its one task, the acceptance condition to probe, the gates to
 run, and the instruction to **commit in its own worktree and neither push nor
@@ -132,7 +157,8 @@ with `LNK1104: cannot open file` — for a file that exists. Never put a worktre
 under the scratchpad. If a link fails, measure the path length before blaming a
 tool.
 
-The orchestrator stays in the main checkout and does not edit there.
+The assigner can inspect main but integrates in its own clean worktree. Shared
+main remains untouched until the checked result can be fast-forwarded.
 
 Two worker-prompt rules, each from a measured failure in the first live
 iteration:
@@ -163,10 +189,13 @@ Priorities specific to this codebase, in the order they bite:
 - **Arena-backed packed allocation over fragmented `Vec`s.** `Handle<T>` and
   `HandleSpan<T>` for repeated child lists in lowered representations.
 
-Do not add a crate until a module boundary has stopped moving. **Once a boundary
-has earned a stage doc, it has earned a crate.** A stage doc under
-`wiki/architecture/pipeline/stages/` with no matching `X-to-Y` crate is drift.
-Put a board line on it.
+Do not add a crate until a module boundary has stopped moving. A crate needs an
+independent consumer or a stable dependency; otherwise it is a module inside
+its owning transform. A stage doc is a contract, not a crate request. Preserve
+the connected X-to-Y, Y-to-Y, Y-to-Z program route when placing a calculation.
+The architecture test keeps a closed roster of Omega pipeline directories;
+an addition needs its ownership justification and roster update in the same
+commit.
 
 A new fixture under `tests/omega/{pass,fail}` is inert until a roster in
 `omega-rust/omega/compiler/compiler/tests/canary_suite.rs` names it. Add
@@ -190,10 +219,13 @@ plus the filtered canary for what you are changing — see the filter variables
 under "Running one test" in `AGENTS.md`. Never run the unfiltered suite to
 attribute one change.
 
-Then the full baseline gate list in `AGENTS.md` — fmt, clippy, the architecture
-test, check, and `mbx test --workspace --lib --no-fail-fast` — **on the tree you
-are about to commit**. In a worktree that tree is exactly your change, which is
-the point. The list is not conditional on which files you touched: fmt and clippy
+Then checkpoint the complete change in the worker's branch and run
+`scripts/verify.sh gates` as described in the admission procedure. This runs
+the full baseline list from `AGENTS.md` on a clean commit and records every
+actual exit against its full SHA. A checkpoint is not permission to integrate:
+all five results must be zero, and any amendment invalidates those results.
+In a worktree that tree is exactly your change, which is the point.
+The list is not conditional on which files you touched: fmt and clippy
 read every file, the architecture test reads crate layout, and library tests read
 checked-in fixtures, so a commit with no `.rs` file in it can still move all
 three. The architecture test is the only thing that catches a wrong-direction
@@ -210,16 +242,18 @@ commit and push there. Worktrees are isolation, not a branching strategy: the
 work still arrives on `main` in this iteration. A loop that leaves work on side
 branches never lands anything.
 
-Integrate each agent commit from the main checkout:
+Validate each worker with `commit` and `green` in the admission procedure,
+then cherry-pick accepted commits in sequence into a clean integration worktree
+at the fetched main revision. Retain each accepted path list so the next
+admission rejects overlap. A red baseline explains a failure; it never counts
+as green or authorizes skipping a gate.
 
-```bash
-git fetch && git cherry-pick <sha>
-```
-
-Cherry-pick agents in sequence, re-run the gate list once on the integrated
-result, then `git pull --rebase && git push`. If the rebase refuses because
-another session has the tree dirty, stop and report it; do not autostash their
-work, and do not rewrite an unpushed commit that is not yours.
+Run the checker gates once on the integrated result. Fetch again before
+landing; if main advanced, rebase the integration branch and gate the new SHA
+again. Verify shared main is clean and at the expected base before
+fast-forwarding it and pushing. If another session changed it, keep the checked
+branch and report the conflict; do not autostash or overwrite their work. The
+user's explicit delivery scope takes precedence over this default landing step.
 
 Commit on coherent milestones — a working improvement, not a finished epic.
 Small checkpoint commits are correct; a single giant commit at the end is not.

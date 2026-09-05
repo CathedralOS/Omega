@@ -1,14 +1,7 @@
 use crate::{
-    AllocationLegalityError, AllocationLegalityIdentity, AllocatorAvailabilityError,
-    AllocatorAvailabilityIdentity, ValidatedAllocationLegality, ValidatedAllocatorAvailability,
+    AllocationLegalityError, AllocatorAvailabilityError, ValidatedAllocationLegality,
+    ValidatedAllocatorAvailability,
 };
-use optimization_core::{
-    OptimizationIdentityBundleIdentity, OptimizationUnitIdentity,
-    OptimizedAbstractPlanProjectionIdentity, PrePhysicalOptimizationManifestIdentity,
-};
-use selected_instructions::SelectedInstructionPlanIdentity;
-use semantic_vocabulary::{FuelScheduleIdentity, MachineId};
-use terminal_psi::TerminalPsiIdentity;
 
 use crate::{OptimizedLiveRangeCustodyError, StagedOptimizedLiveRanges};
 
@@ -20,7 +13,7 @@ pub struct StagedOptimizedAllocationLegality {
     pub(super) ranges: StagedOptimizedLiveRanges,
     pub(super) availability: ValidatedAllocatorAvailability,
     pub(super) legality: ValidatedAllocationLegality,
-    pub(super) custody: StagedOptimizedAllocationLegalityCustodyReceipt,
+    pub(super) custody: AllocationLegalityCustodyReceipt,
 }
 
 impl StagedOptimizedAllocationLegality {
@@ -33,97 +26,12 @@ impl StagedOptimizedAllocationLegality {
     pub const fn allocator_availability(&self) -> &ValidatedAllocatorAvailability {
         &self.availability
     }
-    pub const fn custody(&self) -> StagedOptimizedAllocationLegalityCustodyReceipt {
+    pub const fn custody(&self) -> AllocationLegalityCustodyReceipt {
         self.custody
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct StagedOptimizedAllocationLegalityCustodyReceipt {
-    pub(super) psi: TerminalPsiIdentity,
-    pub(super) target: target::NativeTarget,
-    pub(super) entry: MachineId,
-    pub(super) optimization: OptimizationIdentityBundleIdentity,
-    pub(super) projection: OptimizedAbstractPlanProjectionIdentity,
-    pub(super) manifest: PrePhysicalOptimizationManifestIdentity,
-    pub(super) optimization_unit: OptimizationUnitIdentity,
-    pub(super) fuel_schedule: FuelScheduleIdentity,
-    pub(super) register_environment: register_model::TargetRegisterEnvironmentIdentity,
-    pub(super) allocator_availability: AllocatorAvailabilityIdentity,
-    pub(super) selected: SelectedInstructionPlanIdentity,
-    pub(super) liveness: crate::LivenessIdentity,
-    pub(super) ranges: crate::LiveRangeIdentity,
-    pub(super) legality: AllocationLegalityIdentity,
-    pub(super) function_count: usize,
-    pub(super) structural_unit_function_count: usize,
-    pub(super) virtual_register_count: usize,
-    pub(super) point_count: usize,
-    pub(super) candidate_count: usize,
-    pub(super) entry_transition_count: usize,
-}
-
-impl StagedOptimizedAllocationLegalityCustodyReceipt {
-    pub const fn psi(self) -> TerminalPsiIdentity {
-        self.psi
-    }
-    pub const fn target(self) -> target::NativeTarget {
-        self.target
-    }
-    pub const fn entry(self) -> MachineId {
-        self.entry
-    }
-    pub const fn optimization(self) -> OptimizationIdentityBundleIdentity {
-        self.optimization
-    }
-    pub const fn projection(self) -> OptimizedAbstractPlanProjectionIdentity {
-        self.projection
-    }
-    pub const fn manifest(self) -> PrePhysicalOptimizationManifestIdentity {
-        self.manifest
-    }
-    pub const fn optimization_unit(self) -> OptimizationUnitIdentity {
-        self.optimization_unit
-    }
-    pub const fn fuel_schedule(self) -> FuelScheduleIdentity {
-        self.fuel_schedule
-    }
-    pub const fn register_environment(self) -> register_model::TargetRegisterEnvironmentIdentity {
-        self.register_environment
-    }
-    pub const fn allocator_availability(self) -> AllocatorAvailabilityIdentity {
-        self.allocator_availability
-    }
-    pub const fn selected(self) -> SelectedInstructionPlanIdentity {
-        self.selected
-    }
-    pub const fn liveness(self) -> crate::LivenessIdentity {
-        self.liveness
-    }
-    pub const fn ranges(self) -> crate::LiveRangeIdentity {
-        self.ranges
-    }
-    pub const fn legality(self) -> AllocationLegalityIdentity {
-        self.legality
-    }
-    pub const fn function_count(self) -> usize {
-        self.function_count
-    }
-    pub const fn structural_unit_function_count(self) -> usize {
-        self.structural_unit_function_count
-    }
-    pub const fn virtual_register_count(self) -> usize {
-        self.virtual_register_count
-    }
-    pub const fn point_count(self) -> usize {
-        self.point_count
-    }
-    pub const fn candidate_count(self) -> usize {
-        self.candidate_count
-    }
-    pub const fn entry_transition_count(self) -> usize {
-        self.entry_transition_count
-    }
-}
+pub use register_homes::AllocationLegalityCustodyReceipt;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum OptimizedAllocationLegalityCustodyError {

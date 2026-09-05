@@ -1,6 +1,7 @@
 use super::AllocationRecoveryFunctionRelativeRealizationError;
 use optimization_core::OptimizationExecutionPhase;
-use selected_instructions_to_register_homes::{AllocationEvidence, AllocationOutput};
+use register_homes::AllocationEvidence;
+use selected_instructions_to_register_homes::AllocationOutput;
 
 pub(super) fn validate_phase_selection(
     current: &AllocationOutput<'_>,

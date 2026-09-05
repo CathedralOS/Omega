@@ -1,20 +1,15 @@
 use crate::{ValidatedPostAllocationOptimizationManifest, ValidatedRegisterHomes};
 
-use crate::{
-    StagedOptimizedLiteralFoldCustodyReceipt, StagedSelectedLoweringOptimizationCustodyReceipt,
-};
+use crate::{LiteralFoldCustodyReceipt, SelectedLoweringOptimizationCustodyReceipt};
 
-use super::model::{
-    StagedOptimizedPostLiteralFoldHomeCustodyReceipt,
-    StagedOptimizedPostSelectedLoweringHomeCustodyReceipt,
-};
+use super::model::{PostLiteralFoldHomeCustodyReceipt, PostSelectedLoweringHomeCustodyReceipt};
 
 pub(super) fn literal_fold_home_custody_receipt(
-    source: StagedOptimizedLiteralFoldCustodyReceipt,
+    source: LiteralFoldCustodyReceipt,
     homes: &ValidatedRegisterHomes,
     manifest: &ValidatedPostAllocationOptimizationManifest,
-) -> StagedOptimizedPostLiteralFoldHomeCustodyReceipt {
-    StagedOptimizedPostLiteralFoldHomeCustodyReceipt {
+) -> PostLiteralFoldHomeCustodyReceipt {
+    PostLiteralFoldHomeCustodyReceipt {
         source,
         homes: homes.receipt().identity(),
         post_allocation_manifest: manifest.record().identity,
@@ -24,11 +19,11 @@ pub(super) fn literal_fold_home_custody_receipt(
 }
 
 pub(super) fn selected_lowering_home_custody_receipt(
-    source: StagedSelectedLoweringOptimizationCustodyReceipt,
+    source: SelectedLoweringOptimizationCustodyReceipt,
     homes: &ValidatedRegisterHomes,
     manifest: &ValidatedPostAllocationOptimizationManifest,
-) -> StagedOptimizedPostSelectedLoweringHomeCustodyReceipt {
-    StagedOptimizedPostSelectedLoweringHomeCustodyReceipt {
+) -> PostSelectedLoweringHomeCustodyReceipt {
+    PostSelectedLoweringHomeCustodyReceipt {
         source,
         homes: homes.receipt().identity(),
         post_allocation_manifest: manifest.record().identity,

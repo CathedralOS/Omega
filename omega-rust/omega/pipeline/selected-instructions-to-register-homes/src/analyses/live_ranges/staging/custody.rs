@@ -1,14 +1,14 @@
 use crate::LiveRangeValidationReceipt;
 
-use crate::StagedOptimizedLivenessCustodyReceipt;
+use crate::LivenessCustodyReceipt;
 
-use super::model::StagedOptimizedLiveRangeCustodyReceipt;
+use super::model::LiveRangeCustodyReceipt;
 
 pub(super) fn live_range_custody_receipt(
-    upstream: StagedOptimizedLivenessCustodyReceipt,
+    upstream: LivenessCustodyReceipt,
     ranges: LiveRangeValidationReceipt,
-) -> StagedOptimizedLiveRangeCustodyReceipt {
-    StagedOptimizedLiveRangeCustodyReceipt {
+) -> LiveRangeCustodyReceipt {
+    LiveRangeCustodyReceipt {
         psi: upstream.psi(),
         target: upstream.target(),
         entry: upstream.entry(),

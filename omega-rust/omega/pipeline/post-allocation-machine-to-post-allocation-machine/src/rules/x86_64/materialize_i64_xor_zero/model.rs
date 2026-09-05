@@ -15,18 +15,7 @@ use physical_instructions::PostAllocationMachineIdentity;
 pub const X86_MOVABS_I64_BYTE_COUNT: u8 = 10;
 pub const X86_XOR_R64_SELF_BYTE_COUNT: u8 = 3;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub struct X86XorZeroMaterializationIdentity([u8; 32]);
-
-impl X86XorZeroMaterializationIdentity {
-    pub const fn from_bytes(bytes: [u8; 32]) -> Self {
-        Self(bytes)
-    }
-
-    pub const fn bytes(self) -> [u8; 32] {
-        self.0
-    }
-}
+pub use physical_instructions::X86XorZeroMaterializationIdentity;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct X86XorZeroMaterializationRevisionIdentity([u8; 32]);
