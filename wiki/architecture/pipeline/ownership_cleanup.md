@@ -7,7 +7,7 @@ Status: unfinished implementation plan, reorganized 2026-09-05.
 This replaces the extraction-by-extraction breakdown. Published milestones
 belong in Git; this document names the remaining architectural outcomes.
 
-## Goal-ready scope
+## The big moves
 
 Make the actual pipeline understandable: one public stage sequence, transforms
 with clear owners, independently usable current representations, and real
@@ -15,9 +15,18 @@ selected Psi optimization before Terminal publication.
 
 There are four work packages. Findings become requirements inside these
 packages, not more top-level migrations. Finish whole ownership boundaries,
-including removal of their old routes and adapters. The previous A-D scope is
-preserved: current-data ownership is covered by 1-3, outer convergence by 1,
-crate/coordinator ownership by 2, and Psi roots and passes by 3-4.
+including removal of their old routes and adapters.
+
+| Big move | Visible finish line |
+| --- | --- |
+| Consolidate owners (package 2, first) | Unhomed and umbrella crates disappear; pipeline directories contain actual transforms. |
+| Unify physical execution (package 1) | One implementation replaces the ordinary/optimized route split without losing supported programs. |
+| Clean representation roots (package 3) | Each representation has an obvious starting file and owns current data, not a chain of previous stages. |
+| Implement Psi optimization (package 4) | Selected passes actually run before Terminal publication; the phase is not an identity-only placeholder. |
+
+Measure progress by those outcomes, not helper extractions, test counts, or new
+documents. The numbered packages below are stable references, not a requirement
+to finish every physical feature before deleting misplaced owners.
 
 ## 1. Replace competing physical pipelines with one pipeline
 
@@ -68,6 +77,12 @@ package, not new top-level tasks.
 Any exception needs a concrete independent consumer and invariant, not an
 appeal to the existing layout. Extracting another manifest or counter is a
 substep, not an architectural milestone.
+
+This replaces the former `REGALLOC-STAGE-CRATES` instruction to create six
+crates merely because six stage documents exist. Liveness, live ranges,
+legality and recovery may remain named module-level steps within allocation.
+Update their stage documents to the actual owner; retain independent checking
+and dependency discipline without requiring a Cargo boundary per calculation.
 
 **Done when:** every disposition is implemented; umbrella/catch-all ownership
 is gone; coordinators sequence typed phases; remaining crates have clear
@@ -134,14 +149,25 @@ own authority; original frontend state must not become a hidden requirement.
 
 ## Execution order and anti-drift rule
 
-1. Complete package 1, doing only the ownership changes from 2-3 needed to
-   remove the competing physical routes.
-2. Finish package 2's consolidations and deletion of old owners.
-3. Finish the all-representation audit and real Psi phase work in 3-4.
+1. Start with package 2's owner map and implement a whole consolidation at a
+   time. Move current representation roots with their owners where needed.
+   Do not postpone all visible crate cleanup until physical feature parity.
+2. Complete package 1 against those owners. Missing selected-control, ABI or
+   encoding support is subordinate to deleting the alternate physical route,
+   not a new general compiler project.
+3. Finish package 3 across both halves, then package 4's real Psi passes.
 
 Before each implementation milestone, name the old route, owner or adapter that
 will disappear, or the required behavior that will become real. If neither
 changes, justify the work as a bounded prerequisite, not completion.
+
+Keep only one active consolidation or convergence slice. Its working notes
+name the destination, obsolete code to remove, required behavior and acceptance
+check. A prerequisite that expands beyond that slice requires reprioritization;
+do not recursively turn every discovery into another cleanup task. If an owner
+cannot be consolidated until a concrete missing behavior exists, name that
+dependency and continue an independent big move rather than narrowing the whole
+project to that blocker.
 
 The taskboard keeps one integration item linking here. Discoveries stay within
 these four packages unless they require an independently needed product feature.
