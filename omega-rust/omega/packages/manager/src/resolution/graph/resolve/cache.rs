@@ -1,7 +1,10 @@
+use super::git_pins::{GitDependencyPins, pin_error};
 use crate::resolution::source::{
     GitPackageSourceRequest, ResolvePackageSourceError, ResolvedPackageSource,
     resolve_external_local_package_source_in_lane, resolve_external_local_project_source_in_lane,
+    resolve_selected_git_package_source_at_revision_in_lanes,
     resolve_selected_git_package_source_from_pin_in_lanes,
+    resolve_selected_git_project_source_at_revision_in_lanes,
     resolve_selected_git_project_source_from_pin_in_lanes,
     resolve_workspace_member_package_source_in_lane,
     resolve_workspace_member_project_source_in_lane,
@@ -20,7 +23,8 @@ pub(super) enum SourceCacheLane<'a> {
 }
 
 #[derive(Default)]
-pub(super) struct GitAcquisitionCache {
+pub(super) struct GitAcquisitionCache<'a> {
+    preserved: Option<GitDependencyPins<'a>>,
     pins: Vec<(GitSourceRequest, GitAcquisitionPin)>,
     selected: Vec<(
         GitPackageSourceRequest,
@@ -28,7 +32,14 @@ pub(super) struct GitAcquisitionCache {
     )>,
 }
 
-impl GitAcquisitionCache {
+impl<'a> GitAcquisitionCache<'a> {
+    pub(super) fn preserving(pins: GitDependencyPins<'a>) -> Self {
+        Self {
+            preserved: Some(pins),
+            ..Self::default()
+        }
+    }
+
     pub(super) fn resolve_selected(
         &mut self,
         request: &GitPackageSourceRequest,
@@ -74,7 +85,55 @@ impl GitAcquisitionCache {
             .map(|(_, pin)| pin);
         let SourceCacheLane::Retained(git_lane) = git_cache;
         let SourceCacheLane::Retained(member_lane) = member_cache;
-        let resolved = if application_root_allowed {
+        let recorded = self
+            .preserved
+            .as_ref()
+            .map(|policy| policy.resolution(request.acquisition()))
+            .transpose()?
+            .flatten();
+        let resolved = if let Some(expected) = recorded {
+            let omega_package_source::ImmutableSourceResolution::Git { commit, tree, .. } =
+                expected
+            else {
+                return Err(pin_error(
+                    request.acquisition(),
+                    "recorded resolution is not Git",
+                ));
+            };
+            let acquisition = self
+                .preserved
+                .as_ref()
+                .expect("recorded pin has a policy")
+                .acquisition();
+            let resolved = if application_root_allowed {
+                resolve_selected_git_project_source_at_revision_in_lanes(
+                    request,
+                    commit,
+                    tree,
+                    acquisition,
+                    git_lane,
+                    member_lane,
+                    limits,
+                )
+            } else {
+                resolve_selected_git_package_source_at_revision_in_lanes(
+                    request,
+                    commit,
+                    tree,
+                    acquisition,
+                    git_lane,
+                    member_lane,
+                    limits,
+                )
+            }?;
+            if resolved.resolution() != expected {
+                return Err(pin_error(
+                    request.acquisition(),
+                    "fresh source content differs from the accepted resolution",
+                ));
+            }
+            Ok(resolved)
+        } else if application_root_allowed {
             resolve_selected_git_project_source_from_pin_in_lanes(
                 request,
                 pin,

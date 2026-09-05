@@ -3136,6 +3136,24 @@ relation. Multiple simultaneous instances per key are unsupported. Supporting
 them would require nominal types, conformances, provider selections, and evidence
 rows to use package-instance identity, not merely another alias.
 
+Selective candidate resolution preserves accepted pins for unchanged Git
+locator/revision requests. Alias changes and selecting another member do not
+refresh the repository. New or changed requests resolve normally; they must
+still reconcile with the complete graph. Selecting an accepted package for
+update refreshes its Git repository lineage, not unrelated transitive
+repositories. Workspace members share one immutable repository revision, so
+their reachable members and relative Path edges move together and receive the
+same complete-graph review. This does not add unused workspace members.
+
+`GitDependencyPins` borrows the accepted source subject and exact selected keys,
+rejecting unknown or duplicate selections before acquisition. Empty selection
+preserves existing requests during installation; ordinary unpinned resolution
+updates all selectors. A missing preserved revision either fails offline or is
+fetched at the exact recorded commit, according to caller options. That option
+controls preserved pins only, not network access for explicitly refreshed or new
+requests. Freshly acquired content must match the recorded resolution. There
+is no fallback from an unavailable old pin to a newer selector result.
+
 ## Package reach boundary
 
 The package is the dependency-reach boundary:
@@ -4019,8 +4037,9 @@ The resulting closure enters ordinary candidate review and lock proposal.
 Landing the reviewed declaration bytes yields the same root source pin; neither
 staging nor review writes accepted project files. The caller retains the plan
 and stage to detect intervening edits. Manual declaration patches still need
-author placement. Preserving unaffected Git pins during selective updates and
-command-owned review-file resume remain integration work.
+author placement. The pin-aware staged resolver preserves unaffected Git
+requests against the accepted graph and requires the same original root request.
+Command-level update selection and review-file resume remain integration work.
 
 `publish_reviewed_package_change` joins the staged build edit with all reviewed
 target sections and their exact decisions. It checks original file bytes,

@@ -25,6 +25,11 @@ pub enum ResolvePackageSourceError {
         workspace_root: PathBuf,
     },
     GitWorkspaceSelection(GitWorkspaceSelectionError),
+    RecordedGitPin {
+        locator: String,
+        revision: String,
+        message: String,
+    },
     GitWorkspaceMemberNavigation {
         member_path: SourceRelativePath,
         message: String,
@@ -69,6 +74,14 @@ impl fmt::Display for ResolvePackageSourceError {
                     "cannot select package from Git workspace: {error}"
                 )
             }
+            Self::RecordedGitPin {
+                locator,
+                revision,
+                message,
+            } => write!(
+                formatter,
+                "cannot retain Git pin for `{locator}` at `{revision}`: {message}"
+            ),
             Self::GitWorkspaceMemberNavigation {
                 member_path,
                 message,

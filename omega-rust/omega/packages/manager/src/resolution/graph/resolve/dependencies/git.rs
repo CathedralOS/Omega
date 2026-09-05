@@ -79,7 +79,17 @@ pub(in super::super) fn register_git_repository(
         }),
     };
     if let Some(existing) = workspaces.get(&identity) {
-        if existing != &context {
+        // Authored selectors may differ while selecting one immutable tree.
+        // Keep the first request: Path members reuse its acquisition pin.
+        let same_repository = matches!(
+            (&existing.kind, &context.kind),
+            (WorkspaceContextKind::Git(existing), WorkspaceContextKind::Git(candidate))
+                if existing.resolution == candidate.resolution
+                    && existing.declared_members == candidate.declared_members
+                    && existing.workspace_evidence == candidate.workspace_evidence
+                    && existing.source_limits == candidate.source_limits
+        );
+        if existing.root_source != context.root_source || !same_repository {
             return Err(ResolveDependencySourceError::ConflictingWorkspaceRoot { identity });
         }
     } else {

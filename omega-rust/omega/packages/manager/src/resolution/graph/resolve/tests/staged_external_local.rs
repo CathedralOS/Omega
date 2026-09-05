@@ -1,9 +1,11 @@
 use super::*;
 use crate::declarations::BuildDeclarationKind;
 use crate::resolution::graph::{
-    CanonicalSourceClosureSubject, CanonicalSourceClosureSubjectLimits,
+    CanonicalSourceClosureSubject, CanonicalSourceClosureSubjectLimits, GitDependencyPins,
+    resolve_staged_external_local_project_closure_with_git_pins,
 };
 use crate::resolution::source::ResolvePackageSourceError;
+use omega_package_source::git::resolution::GitExactRevisionAcquisition;
 use omega_package_source::local::staging::{
     StagedLocalSnapshot, stage_local_source_replacement_in_lane,
 };
@@ -252,4 +254,86 @@ fn staged_project_preserves_closure_limits_and_package_only_dependencies() {
             }
         )
     ));
+}
+
+#[test]
+fn staged_pin_policy_keeps_local_lookup_and_rejects_another_root_request() {
+    let fixture = Fixture::new("staged-pin-policy");
+    write_application(&fixture.path("root"), "staged-app", None);
+    write_package(&fixture.path("dependency"), "dependency", None);
+    let storage = SourceResolverStorage::for_hardened_base(fixture.path("cache")).unwrap();
+    let proposed = "machine build(builder: &mut Build) { builder.application(\"staged-app\"); builder.depend(Source::Path { location: \"../dependency\" }); }\n";
+    let stage = fixture.stage(&storage, proposed);
+    let context = ExternalSourceContext::derive(b"staged-pin-policy");
+    let original = resolve_external_local_project_closure_with_storage(
+        stage.requested_root(),
+        context.clone(),
+        &storage,
+        LocalSourceLimits::default(),
+        PackageSourceClosureLimits::default(),
+    )
+    .unwrap();
+    let subject = CanonicalSourceClosureSubject::from_resolved(
+        &original.for_exact_target(omega_target::TargetProfile::WindowsX64),
+        CanonicalSourceClosureSubjectLimits::default(),
+    )
+    .unwrap();
+    let pins = GitDependencyPins::new(&subject, &[], GitExactRevisionAcquisition::Offline).unwrap();
+    let candidate = resolve_staged_external_local_project_closure_with_git_pins(
+        &stage,
+        context,
+        &storage,
+        LocalSourceLimits::default(),
+        PackageSourceClosureLimits::default(),
+        pins,
+    )
+    .expect("pin-aware staged resolver still follows relative Path dependencies");
+    assert_eq!(candidate.custodies().len(), 2);
+    assert_eq!(candidate.graph().root(), original.graph().root());
+    assert_eq!(
+        candidate
+            .custody(candidate.graph().root())
+            .unwrap()
+            .snapshot_root(),
+        stage.snapshot_root()
+    );
+    let error = resolve_staged_external_local_project_closure_with_git_pins(
+        &stage,
+        ExternalSourceContext::derive(b"another-context"),
+        &storage,
+        LocalSourceLimits::default(),
+        PackageSourceClosureLimits::default(),
+        pins,
+    )
+    .expect_err("another consuming context cannot supply accepted pins");
+    assert!(matches!(
+        error,
+        ResolveExternalLocalPackageClosureError::RootRequestMismatch
+    ));
+    write_application(&fixture.path("another"), "staged-app", None);
+    let original_build = std::fs::read(fixture.path("another/build.omg")).unwrap();
+    let another_stage = stage_local_source_replacement_in_lane(
+        &fixture.path("another"),
+        &SourceRelativePath::parse("build.omg").unwrap(),
+        &Sha256::digest(&original_build).into(),
+        proposed.as_bytes(),
+        storage.external_local_sources(),
+        LocalSourceLimits::default(),
+    )
+    .unwrap();
+    let error = resolve_staged_external_local_project_closure_with_git_pins(
+        &another_stage,
+        ExternalSourceContext::derive(b"staged-pin-policy"),
+        &storage,
+        LocalSourceLimits::default(),
+        PackageSourceClosureLimits::default(),
+        pins,
+    )
+    .expect_err("identical declaration in another project is not the accepted root request");
+    assert!(matches!(
+        error,
+        ResolveExternalLocalPackageClosureError::RootRequestMismatch
+    ));
+    stage.verify_live_source_unchanged().unwrap();
+    another_stage.verify_live_source_unchanged().unwrap();
 }

@@ -1,108 +1,55 @@
 # Omega Package Subsystem
 
 Start in [`manager/src/operations/`](manager/src/operations/) to follow a
-complete package operation. The other two directories are subordinate security
-boundaries used by those operations:
+complete package operation.
 
 ```text
 packages/
-├── README.md             this subsystem map
-├── manager/              complete compiler and user package workflows
-├── sources/              hostile source acquisition and bounded resolvers
-└── review/               compiler-issued facts and optional audit advice
+├── README.md             subsystem map
+├── manager/              package workflows, declarations, graph, and lock
+├── sources/              repository acquisition and immutable source snapshots
+└── review/               compiler-derived findings and optional audit advice
 ```
 
-The ratified install/update model is ordinary repository acquisition and graph
-resolution, with compiler-derived reachability, unsafe API, and assumption
-review. `omega.lock` records exact pins, the graph, accepted review baselines,
-and decisions. The project trusts whoever lands that file. Installation does
-not require a sealed or certified `PackageInstance`, or certificates proving
-lock acceptance. Compiler proof/reach checks and native artifact checks remain
-independent of installation.
+The goal is Cargo-like repository install/update with compiler-derived
+reachability, unsafe API, and assumption review. Packages declare their names
+and dependencies in `build.omg`; the compiler derives their capabilities.
+`omega.lock` records exact pins, the graph, accepted policy, and decisions.
+The project trusts whoever lands it. It is not an audit certificate.
 
-The current implementation flow is:
+Follow the supported source-change flow through:
 
-```text
-build.omg declaration
-    -> manager resolves the exact dependency closure
-    -> sources acquires immutable source custody
-    -> compiler checks the selected closure
-    -> review records and compares compiler-issued facts
-    -> manager admission rechecks custody, evidence, and root-owned policy
-    -> operations return review results or continue retained native compilation
-```
+1. `manager/src/declarations/`: read checked declarations and plan a dependency edit.
+2. `manager/src/operations/stage_build_edit.rs`: stage proposed build bytes
+   while retaining the original live project identity.
+3. `manager/src/resolution/`: acquire and reconcile the complete source graph.
+   Pin-aware resolution preserves unchanged Git requests during installs and
+   selective updates; repository workspace members move together.
+4. `manager/src/operations/package_change.rs`: check the candidate and compare
+   compiler findings with accepted policy.
+5. `manager/src/review/`: render exact findings and recover per-change project
+   decisions from the editable review document.
+6. `manager/src/operations/publication/`: recheck the reviewed candidate and
+   project files, then publish a recoverable `build.omg`/`omega.lock` pair.
 
-The manager's additional evidence-promotion and policy-replay machinery exists
-today, but is redundant machinery to simplify, not a required future stage of
-install/update. Source verification and compiler checks retain their own
-purposes. Review evidence does not prove acceptance or that an audit occurred,
-and advisory output cannot alter policy. Complete operations belong only to
-`manager/`; the `omega` binary delegates to those operations.
+Install/update command wiring, package/alias selection, and review-file resume
+remain unfinished. The [task board](../../../TASKS_PACKAGE_MANAGER.md) names the
+remaining acceptance conditions; the [manager README](manager/README.md) maps
+the available operations.
 
-Within one admission operation, question construction, result composition, and
-payload assembly share the same source-ordered borrowed reviews. They do not
-rebuild package-key associations or compare copies of the same immutable
-compiler results. Live source custody, requested target, result metadata,
-generated-source identity, and exact project decisions retain their distinct
-checks. This does not replace the remaining install/update transaction work.
+The lock codec stores readable, receipt-free policy baselines and historical
+decisions beside exact source graphs. Old source is not required to read or
+compare those baselines. Locked recovery acquires the recorded commit rather
+than refreshing selectors; fresh checking reports changes in compiler findings
+without claiming to certify prior acceptance.
 
-Fresh review compilation constructs each ledger and result set without then
-reconstructing it solely to compare that output with itself. Result construction
-still rejoins and rechecks compiler contract-assumption certificates. Public
-validators continue to reconstruct independently for supplied or recovered
-evidence.
+Native compilation uses a separate manager admission and compiler handoff
+path. Its proof, reachability, ABI, and artifact checks are not an additional
+install/update certification requirement. Invalid or unsupported source still
+rejects during candidate checking.
 
-`CanonicalSourceClosureSubject` has binary and line-oriented text encodings of
-the same resolved graph. The text names the exact target, root role and request,
-source-qualified packages and immutable revisions/content, workspace navigation,
-authored dependency requests, and selected alias edges. Recovery applies the
-same graph checks and requires neither the source checkout nor a compiler run.
-The source record alone is not an accepted lock. Manager lock composition adds
-complete policy baselines and historical decisions; locked resolution and
-transaction publication remain separate work.
+Design and acquisition references:
 
-An accepted policy baseline must not embed the existing review capsule. That
-capsule includes compiler proof and build-replay data. Selected provider plans,
-terminal permissions, external supplies, calling applications, and representation
-declarations, availability, selections, and demands have receipt-free structural
-projections and bounded component encodings. Provider policy retains exact service
-signatures, complete calling applications, binding producers, grants, and
-family links. Terminal permissions retain complete service schemas and generic
-telescopes independently of provider demand. Callable policy retains complete
-signatures, contracts and lifetime bindings, published promises and checked
-summaries, entry mutation, and separately normalized reachable capability flows.
-Its typed crash guards preserve foreign owners without private derivation
-coordinates. `PackagePolicyBaseline` composes these meanings with all public
-declaration families, external supplies, dangerous authority and slack,
-source-semantic dependencies, and boundary applications under one bounded
-recovery envelope. Manager candidates retain this typed baseline from their exact
-checked package and target. The baseline also has a bounded named text form
-whose fields, variants and sequence structure are verified by exact canonical
-rerender after typed recovery. It is readable without the old source or compiler
-execution. The manager's lock envelope composes it with exact source pins and
-historical choices. Normalized comparison remains open.
-Dropping audit-relevant families or retaining their reconstruction
-receipts would both be incorrect.
-
-Historical project decisions have a separate bounded text section under
-`manager/src/lock/decisions`. It is scoped to the retained source subject and
-loads without old source or old compiler conflicts. It cannot stand in for
-fresh root-policy resolution or the full normalized accepted baseline.
-
-`manager::lock::PackageLock` stores sorted exact-target sections, each joining
-the same immutable source graph to its complete package-ordered baselines and
-source-bound historical decisions. Its deterministic text embeds readable child
-sections with byte-length framing. Recovery shares aggregate storage and record
-budgets across all sections, rejects graph/package/target mismatches, and works
-without the old checkout. Complete policy owners must belong to the exact
-transitive source graph, including owners inside canonical type identities;
-foreign symbolic boundary demands join their retained declaration owner.
-It does not publish files or authorize a changed
-candidate; locked acquisition and the install/update transaction are separate.
-
-Design and security references:
-
-- [`package_manager_first_draft.md`](../../../wiki/design_briefs/package_manager_first_draft.md)
-- [`build_and_package_model.md`](../../../wiki/design_briefs/build_and_package_model.md)
-- [`SOURCE_RESOLVER_SECURITY.md`](sources/acquisition/SOURCE_RESOLVER_SECURITY.md)
-- [`TASKS_PACKAGE_MANAGER.md`](../../../TASKS_PACKAGE_MANAGER.md)
+- [Build And Package Model](../../../wiki/design_briefs/build_and_package_model.md)
+- [Package Manager First Draft](../../../wiki/design_briefs/package_manager_first_draft.md)
+- [Source Resolver Security](sources/acquisition/SOURCE_RESOLVER_SECURITY.md)
