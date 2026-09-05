@@ -134,6 +134,12 @@ fn schedule_children<'proof>(
             pending.push(Action::Enter(premise));
             pending.push(Action::Enter(implication));
         }
+        ProofRule::EqualitySymmetry { equality } => {
+            pending.push(Action::Enter(equality));
+        }
+        ProofRule::IntegerOrderWeakening { relation } => {
+            pending.push(Action::Enter(relation));
+        }
         ProofRule::EqualityTransitivity {
             left_equals_middle,
             middle_equals_right,

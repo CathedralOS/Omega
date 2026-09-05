@@ -251,12 +251,7 @@ pub(super) fn lower_scalar_call_closure(
         .collect::<Result<Vec<_>, LoweringError>>()?;
     let requirement_counts = prepared
         .iter()
-        .map(|machine| {
-            (
-                machine.source_machine,
-                usize::from(machine.contract_value.is_some()),
-            )
-        })
+        .map(|machine| (machine.source_machine, machine.contract.requirement_count()))
         .collect::<Vec<_>>();
     let mut machines = Vec::with_capacity(prepared.len());
     let mut evidence = Vec::new();
@@ -273,8 +268,7 @@ pub(super) fn lower_scalar_call_closure(
         let mut lowered = build_scalar_graph_module(
             &machine.states,
             machine.result_type,
-            machine.contract_value,
-            machine.result_predicate,
+            machine.contract,
             machine.crash_routes,
             machine.identity_reshuffles,
             machine.partition_compositions,

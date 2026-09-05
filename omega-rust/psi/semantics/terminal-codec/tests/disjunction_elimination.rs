@@ -68,7 +68,7 @@ fn decoded_proof(bytes: &[u8]) -> ProofNode {
 fn case_analysis_roundtrips_with_explicit_ordered_branches() {
     let bundle = bundle(proof());
     let bytes = encode_proof_bundle(&bundle).expect("case analysis encodes");
-    assert_eq!(&bytes[8..10], &24_u16.to_le_bytes());
+    assert_eq!(&bytes[8..10], &25_u16.to_le_bytes());
     assert_eq!(bytes[34], 16, "appended disjunction elimination rule tag");
     assert_eq!(decode_proof_bundle(&bytes), Ok(bundle));
     let proof = decoded_proof(&bytes);
@@ -92,10 +92,10 @@ fn case_analysis_roundtrips_with_explicit_ordered_branches() {
         Err(ProofCodecError::UnsupportedFormatMarker(23))
     );
     let mut unknown = bytes.clone();
-    unknown[34] = 17;
+    unknown[34] = 19;
     assert_eq!(
         decode_proof_bundle(&unknown),
-        Err(ProofCodecError::InvalidTag("ProofRule", 17))
+        Err(ProofCodecError::InvalidTag("ProofRule", 19))
     );
     let mut excessive_count = bytes.clone();
     assert_eq!(&excessive_count[50..54], &2_u32.to_le_bytes());

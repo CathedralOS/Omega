@@ -44,14 +44,106 @@ fn divide_by_nonzero_never_grows_magnitude() {
     assert_eq!(iv(10, 50).divide(iv(3, 3)), iv(3, 16));
     assert_eq!(iv(-50, -10).divide(iv(3, 3)), iv(-16, -3));
     assert_eq!(iv(0, 99).divide(iv(10, 10)), iv(0, 9));
-    // A RANGED nonzero divisor keeps the magnitude-preserving
-    // over-approximation, widened to include 0.
-    assert_eq!(iv(10, 50).divide(iv(2, 3)), iv(0, 50));
-    assert_eq!(iv(-50, -10).divide(iv(2, 3)), iv(-50, 0));
+    // Ranged divisors use all four endpoint quotients.
+    assert_eq!(iv(10, 50).divide(iv(2, 3)), iv(3, 25));
+    assert_eq!(iv(-50, -10).divide(iv(2, 3)), iv(-25, -3));
     // unbounded dividend cannot be bounded by division
     assert_eq!(Interval::UNBOUNDED.divide(iv(2, 2)), Interval::UNBOUNDED);
     // maybe-zero divisor: cannot assume magnitude >= 1
     assert_eq!(iv(10, 50).divide(iv(0, 5)), Interval::UNBOUNDED);
+}
+
+#[test]
+fn signed_division_tracks_divisor_sign_and_cross_zero_dividends() {
+    assert_eq!(iv(10, 50).divide(iv(-3, -2)), iv(-25, -3));
+    assert_eq!(iv(-50, -10).divide(iv(-3, -2)), iv(3, 25));
+    assert_eq!(iv(-50, 10).divide(iv(-3, -2)), iv(-5, 25));
+    assert_eq!(iv(-50, 10).divide(iv(2, 3)), iv(-25, 5));
+    assert_eq!(iv(-50, 10).divide(iv(-2, -2)), iv(-5, 25));
+    assert_eq!(
+        iv(i64::MIN, i64::MIN).divide(iv(i64::MIN, i64::MIN)),
+        iv(1, 1)
+    );
+    assert_eq!(iv(1, i64::MAX).divide(iv(i64::MIN, i64::MIN)), iv(0, 0));
+}
+
+#[test]
+fn signed_division_refuses_zero_and_overflowing_corners() {
+    for divisor in [iv(0, 0), iv(-2, 0), iv(-2, 3), Interval::UNBOUNDED] {
+        assert_eq!(iv(-50, 10).divide(divisor), Interval::UNBOUNDED);
+    }
+    assert_eq!(iv(i64::MIN, 0).divide(iv(-2, -1)), Interval::UNBOUNDED);
+    assert_eq!(
+        iv(i64::MIN, i64::MIN).divide(iv(-1, -1)),
+        Interval::UNBOUNDED
+    );
+}
+
+#[test]
+fn signed_division_preserves_one_sided_nonzero_divisor_bounds() {
+    let positive = Interval {
+        low: Some(2),
+        high: None,
+    };
+    let negative = Interval {
+        low: None,
+        high: Some(-2),
+    };
+    assert_eq!(iv(10, 50).divide(positive), iv(0, 25));
+    assert_eq!(iv(-50, -10).divide(positive), iv(-25, 0));
+    assert_eq!(iv(10, 50).divide(negative), iv(-25, 0));
+    assert_eq!(iv(-50, -10).divide(negative), iv(0, 25));
+    assert_eq!(iv(-50, 10).divide(negative), iv(-5, 25));
+    assert_eq!(
+        iv(i64::MIN, 0).divide(Interval {
+            low: None,
+            high: Some(-1)
+        }),
+        Interval::UNBOUNDED
+    );
+    for divisor in [
+        Interval {
+            low: Some(0),
+            high: None,
+        },
+        Interval {
+            low: Some(-1),
+            high: None,
+        },
+        Interval {
+            low: None,
+            high: Some(0),
+        },
+        Interval {
+            low: None,
+            high: Some(1),
+        },
+    ] {
+        assert_eq!(iv(-50, 10).divide(divisor), Interval::UNBOUNDED);
+    }
+}
+
+#[test]
+fn signed_division_bounds_cover_every_small_interval_value() {
+    for low in -4_i64..=4 {
+        for high in low..=4 {
+            for divisor_low in -4_i64..=4 {
+                for divisor_high in divisor_low..=4 {
+                    if divisor_low <= 0 && divisor_high >= 0 {
+                        continue;
+                    }
+                    let quotient = iv(low, high).divide(iv(divisor_low, divisor_high));
+                    for value in low..=high {
+                        for divisor in divisor_low..=divisor_high {
+                            let result = value / divisor;
+                            assert!(quotient.low.unwrap() <= result);
+                            assert!(quotient.high.unwrap() >= result);
+                        }
+                    }
+                }
+            }
+        }
+    }
 }
 
 #[test]

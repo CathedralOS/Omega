@@ -1,36 +1,53 @@
-//! Integer result contracts in the machine-result value namespace.
+//! Integer contracts over entry parameters and the normal-return result.
 
 use super::*;
+
+pub(super) fn clauses(
+    clauses: &[Option<ClosedScalarContractValue>],
+    namespace: &[ValueDeclaration],
+) -> Result<Option<Proposition>, LoweringError> {
+    let mut combined = None;
+    for clause in clauses {
+        let proposition = match clause {
+            Some(ClosedScalarContractValue::Predicate(predicate)) => {
+                proposition(predicate, namespace)?
+            }
+            // The checked selection gate established builtin reflexivity.
+            Some(ClosedScalarContractValue::Boolean(_) | ClosedScalarContractValue::Integer(_)) => {
+                Proposition::Truth
+            }
+            None => return unsupported("scalar contract clause has no checked predicate"),
+        };
+        combined = Some(if let Some(previous) = combined {
+            connective(previous, proposition, true)?
+        } else {
+            proposition
+        });
+    }
+    Ok(combined)
+}
 
 /// Preserve integer contract relations as propositions, not executable Boolean
 /// comparisons equated with true. Call composition can then cite the exact
 /// relation in ordinary fixed-integer proof rules.
 pub(super) fn proposition(
     predicate: &CheckedBooleanExpression,
-    result: ValueDeclaration,
+    namespace: &[ValueDeclaration],
 ) -> Result<Proposition, LoweringError> {
     match predicate {
         CheckedBooleanExpression::IntegerComparison { kind, left, right } => {
-            let left = crate::crash_routes::checked_scalar_term(left, &[result])?;
-            let right = crate::crash_routes::checked_scalar_term(right, &[result])?;
+            let left = crate::crash_routes::checked_scalar_term(left, namespace)?;
+            let right = crate::crash_routes::checked_scalar_term(right, namespace)?;
             Ok(match kind {
-                // Equality is symmetric in the source. Keep the result on
-                // the left so its emitted defining equations compose in the
-                // same direction, without inventing reversed proof citations.
-                CheckedIntegerComparisonKind::Equal
-                    if matches!(left, ScalarTerm::Integer { .. }) =>
-                {
-                    Proposition::Equal(right, left)
-                }
-                CheckedIntegerComparisonKind::Equal => Proposition::Equal(left, right),
+                CheckedIntegerComparisonKind::Equal => canonical_equality(left, right)?,
                 CheckedIntegerComparisonKind::LessThan => strict_result_bound(left, right),
                 CheckedIntegerComparisonKind::LessOrEqual => Proposition::LessOrEqual(left, right),
             })
         }
         CheckedBooleanExpression::And { left, right }
         | CheckedBooleanExpression::Or { left, right } => {
-            let left = proposition(left, result)?;
-            let right = proposition(right, result)?;
+            let left = proposition(left, namespace)?;
+            let right = proposition(right, namespace)?;
             connective(
                 left,
                 right,
@@ -46,8 +63,8 @@ pub(super) fn proposition(
             else {
                 return unsupported("result predicate negation is not integer inequality");
             };
-            let left = crate::crash_routes::checked_scalar_term(left, &[result])?;
-            let right = crate::crash_routes::checked_scalar_term(right, &[result])?;
+            let left = crate::crash_routes::checked_scalar_term(left, namespace)?;
+            let right = crate::crash_routes::checked_scalar_term(right, namespace)?;
             connective(
                 strict_result_bound(left.clone(), right.clone()),
                 strict_result_bound(right, left),
@@ -58,11 +75,31 @@ pub(super) fn proposition(
     }
 }
 
+fn canonical_equality(left: ScalarTerm, right: ScalarTerm) -> Result<Proposition, LoweringError> {
+    let left_key = terminal_codec::canonical_scalar_term_order_key(&left)
+        .map_err(LoweringError::DebugSemanticCodec)?;
+    let right_key = terminal_codec::canonical_scalar_term_order_key(&right)
+        .map_err(LoweringError::DebugSemanticCodec)?;
+    Ok(if left_key <= right_key {
+        Proposition::Equal(left, right)
+    } else {
+        Proposition::Equal(right, left)
+    })
+}
+
 fn connective(
     left: Proposition,
     right: Proposition,
     conjunction: bool,
 ) -> Result<Proposition, LoweringError> {
+    match (&left, &right, conjunction) {
+        (Proposition::Truth, _, true) => return Ok(right),
+        (_, Proposition::Truth, true) => return Ok(left),
+        (Proposition::Truth, _, false) | (_, Proposition::Truth, false) => {
+            return Ok(Proposition::Truth);
+        }
+        _ => {}
+    }
     let mut parts = Vec::new();
     for proposition in [left, right] {
         match proposition {
@@ -130,6 +167,8 @@ fn strict_result_bound(left: ScalarTerm, right: ScalarTerm) -> Proposition {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    mod parameter_namespace;
 
     #[test]
     fn strict_integer_endpoints_never_wrap() {

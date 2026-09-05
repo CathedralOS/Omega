@@ -46,7 +46,7 @@ pub use canonical_artifact::{
     CanonicalTerminalArtifact, CanonicalTerminalArtifactEnvelopeError,
     CanonicalTerminalArtifactError,
 };
-pub use canonical_order::canonical_proposition_order_key;
+pub use canonical_order::{canonical_proposition_order_key, canonical_scalar_term_order_key};
 pub use debug_map::{
     DebugFileId, DebugMapError, DebugSite, DebugSourceDigest, DebugSourceFile, DebugSourceOrigin,
     DebugSourceSpan, DebugSubject, TerminalDebugMap, decode_debug_map, encode_debug_map,

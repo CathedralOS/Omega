@@ -44,6 +44,7 @@ pub(super) fn prove(
         })
         .or_else(|| shift::prove(context, goal, assumptions, semantic_axioms))
         .or_else(|| range::prove(context, goal, assumptions, semantic_axioms))
+        .or_else(|| order::prove_equal_integer_bound(goal, assumptions, semantic_axioms))
 }
 
 pub(super) fn prove_candidate_endpoint(
@@ -84,4 +85,5 @@ pub(super) fn prove_candidate_endpoint(
         })
         .or_else(|| shift::prove(context, goal, assumptions, semantic_axioms))
         .or_else(|| range::prove(context, goal, assumptions, semantic_axioms))
+        .or_else(|| order::prove_equal_integer_bound(goal, assumptions, semantic_axioms))
 }

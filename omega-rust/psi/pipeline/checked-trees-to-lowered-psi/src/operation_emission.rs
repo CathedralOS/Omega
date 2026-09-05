@@ -58,6 +58,7 @@ pub(super) fn finalize_operation_proofs(lowered: &mut LoweredPsi) -> Result<(), 
                 || matches!(
                     site.owner,
                     terminal_verifier::ReconstructedTerminalObligationOwner::ContractEnsures { .. }
+                        | terminal_verifier::ReconstructedTerminalObligationOwner::CallRequires { .. }
                 )) {
             let context = if let Some(validated) = interpretation_validated {
                 validated.value_context(machine)

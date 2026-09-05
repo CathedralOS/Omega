@@ -35,6 +35,17 @@ pub(super) fn prove(
                     return Some(proof);
                 }
             }
+            Proposition::LessThan(left, right) => {
+                let weakened = ProofNode {
+                    conclusion: Proposition::LessOrEqual(left.clone(), right.clone()),
+                    rule: ProofRule::IntegerOrderWeakening {
+                        relation: Box::new(proof),
+                    },
+                };
+                if let Some(proof) = complete(goal, weakened, assumptions, semantic_axioms) {
+                    return Some(proof);
+                }
+            }
             Proposition::Equal(left, right) => {
                 // A closed endpoint is useful only after a separately cited
                 // equality chain connects it to this obligation's subject.

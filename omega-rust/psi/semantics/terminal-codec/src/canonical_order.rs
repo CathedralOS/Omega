@@ -903,6 +903,13 @@ pub fn canonical_proposition_order_key(proposition: &Proposition) -> Result<Vec<
     canonical_proposition_bytes(proposition)
 }
 
+/// Canonical bytewise ordering key for one scalar term. Equality producers
+/// use the same operand order as canonical validation, not Rust enum order or
+/// numeric ordering of identities embedded in the term.
+pub fn canonical_scalar_term_order_key(term: &ScalarTerm) -> Result<Vec<u8>, CodecError> {
+    canonical_scalar_term_bytes(term)
+}
+
 fn canonical_scalar_term_bytes(term: &ScalarTerm) -> Result<Vec<u8>, CodecError> {
     let mut writer = Writer::default();
     encode_scalar_term(&mut writer, term, 0)?;

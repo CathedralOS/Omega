@@ -1199,15 +1199,14 @@ fn build_closed_scalar_value_contract_plan(
         else {
             return None;
         };
-        if contract.kind == SignatureContractKind::Ensures
-            && let Some(predicate) = crate::values::lower_integer_result_predicate(
-                program,
-                operators,
-                machine,
-                *expression,
-            )
-        {
-            return Some(checked_trees::ClosedScalarContractValue::ResultPredicate(
+        if let Some(predicate) = crate::values::lower_integer_contract_predicate(
+            program,
+            operators,
+            machine,
+            *expression,
+            contract.kind == SignatureContractKind::Ensures,
+        ) {
+            return Some(checked_trees::ClosedScalarContractValue::Predicate(
                 predicate,
             ));
         }
@@ -1284,6 +1283,11 @@ fn build_closed_scalar_value_contract_plan(
             SignatureContractKind::Crashes { .. } => has_crash_clauses = true,
         }
     }
+    requires.extend(
+        crate::values::lower_integer_parameter_range_requirements(program, operators, machine)
+            .into_iter()
+            .map(|predicate| predicate.map(checked_trees::ClosedScalarContractValue::Predicate)),
+    );
     checked_trees::ClosedScalarValueContractPlan::new(
         requires,
         ensures,

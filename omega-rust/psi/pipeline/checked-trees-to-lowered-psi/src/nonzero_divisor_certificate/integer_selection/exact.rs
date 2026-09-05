@@ -16,9 +16,9 @@ pub(super) fn prove(
         .or_else(|| equality_chain(goal, assumptions, semantic_axioms))
 }
 
-/// Follow directed, explicitly cited equalities. In particular a machine
+/// Follow explicitly cited equalities, proving every reversed edge. A machine
 /// result aliases its returned value, whose defining operation supplies the
-/// literal equation. No equality direction or missing equation is assumed.
+/// literal equation. No missing equation or implicit symmetry is assumed.
 fn equality_chain(
     goal: &Proposition,
     assumptions: &[Proposition],
@@ -63,7 +63,22 @@ fn equality_chain(
             let Proposition::Equal(source, destination) = &next.conclusion else {
                 continue;
             };
-            if source != &current || pending.iter().any(|(value, _)| value == destination) {
+            let (destination, next) = if source == &current {
+                (destination, next.clone())
+            } else if destination == &current {
+                (
+                    source,
+                    ProofNode {
+                        conclusion: Proposition::Equal(destination.clone(), source.clone()),
+                        rule: ProofRule::EqualitySymmetry {
+                            equality: Box::new(next.clone()),
+                        },
+                    },
+                )
+            } else {
+                continue;
+            };
+            if pending.iter().any(|(value, _)| value == destination) {
                 continue;
             }
             let proof = if let Some(prefix) = prefix.clone() {
@@ -75,7 +90,7 @@ fn equality_chain(
                     },
                 }
             } else {
-                next.clone()
+                next
             };
             if destination == right {
                 return Some(proof);
@@ -138,18 +153,32 @@ mod tests {
     }
 
     #[test]
-    fn missing_or_reversed_equality_edges_are_not_invented() {
+    fn missing_equality_edges_are_not_invented() {
         let goal = equality(1, 4);
         for semantic_axioms in [
             vec![equality(1, 2), equality(3, 4)],
-            vec![equality(2, 1), equality(2, 3), equality(3, 4)],
-            vec![equality(1, 2), equality(3, 2), equality(3, 4)],
+            vec![equality(2, 1), equality(3, 4)],
+            vec![equality(1, 2), equality(3, 2)],
         ] {
             assert!(
                 prove(&goal, &[], &semantic_axioms).is_none(),
                 "{semantic_axioms:?}"
             );
         }
+    }
+
+    #[test]
+    fn reversed_edges_have_explicit_symmetry_certificates() {
+        let goal = equality(1, 4);
+        let axioms = [equality(2, 1), equality(2, 3), equality(4, 3)];
+        let proof = prove(&goal, &[], &axioms).expect("two reversed edges");
+        check_certificate(&context(), &goal, &[], &axioms, &proof).unwrap();
+        let mut changed = axioms.clone();
+        changed[0] = equality(1, 2);
+        assert!(
+            check_certificate(&context(), &goal, &[], &changed, &proof).is_err(),
+            "a symmetric proposition does not replace the cited proof node"
+        );
     }
 
     #[test]
