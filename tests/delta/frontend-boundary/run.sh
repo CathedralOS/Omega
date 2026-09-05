@@ -27,12 +27,13 @@ import struct
 import subprocess
 from pathlib import Path
 from depth_fixtures import fixtures as depth_fixtures
+from name_fixtures import fixtures as name_fixtures
 
 directory = Path(os.environ["FRONTEND_BOUNDARY_TMP"])
 compiler = (directory / "compiler.gamma").read_bytes()
 identity = (len(compiler.splitlines()), len(compiler), hashlib.sha256(compiler).hexdigest())
 if identity != (
-    2591, 109334, "e17ce65012a29d720ccfce51d70e569f0e86fa0b829a02367fc641442425d25f"
+    2620, 110660, "bd66cd03ba81f7332217c5d5fab63c15d3486e7a43b819430f39152e5e213a79"
 ):
     raise SystemExit(f"Delta compiler identity changed: {identity}")
 
@@ -456,6 +457,8 @@ cases.append(("wide mixed constructor last field mismatch",
               wide_field_prefix + b"0))\n", rejection(15, len(wide_field_prefix))))
 
 cases.extend(depth_fixtures(rejection))
+name_rejections, name_accepted = name_fixtures(rejection)
+cases.extend(name_rejections)
 
 for name, source, expected in cases:
     actual = evaluate(compiler, request(source))
@@ -552,6 +555,7 @@ accepted += (("mixed wide payload and nullary case",
               b"(def main ((source Bytes)) Bytes "
               b"(bytes_concat (unwrap (Wide " + wide_value_arguments + b")) "
               b"(unwrap Empty)))\n"),)
+accepted += name_accepted
 payload = b"\x00A\x80\xff"
 for name, source in accepted:
     status, receipt = evaluate(compiler, request(source))
