@@ -1,7 +1,7 @@
 //! Comparison identities bind both inert policy and fresh issuer provenance.
 use super::{
     PackagePolicyChangeFingerprint, PackagePolicyChangeKind, PackagePolicyDependencyPath,
-    PackagePolicyPackageChange,
+    PackagePolicyPackageChange, PackagePolicyReplacementSite,
 };
 use crate::declarations::PackageKey;
 use crate::lock::PackageLockTarget;
@@ -19,7 +19,7 @@ pub(super) fn context(
 ) -> Sha256 {
     let mut hash = Sha256::new();
     field(&mut hash, b"OMEGA-PACKAGE-POLICY-COMPARISON-CONTEXT\0");
-    hash.update(1_u16.to_le_bytes());
+    hash.update(2_u16.to_le_bytes());
     hash.update(PACKAGE_POLICY_ROW_VERSION.to_le_bytes());
     hash.update([u8::from(accepted.is_some())]);
     if let Some(accepted) = accepted {
@@ -104,6 +104,29 @@ fn row_set(hash: &mut Sha256, rows: &[PackagePolicyRow]) {
     for value in rows {
         row(hash, value);
     }
+}
+
+pub(super) fn source_replacement(
+    context: PackagePolicyChangeFingerprint,
+    site: &PackagePolicyReplacementSite,
+    baseline: &PackageKey,
+    candidate: &PackageKey,
+) -> PackagePolicyChangeFingerprint {
+    let mut hash = Sha256::new();
+    field(&mut hash, b"OMEGA-PACKAGE-POLICY-SOURCE-REPLACEMENT\0");
+    hash.update(1_u16.to_le_bytes());
+    field(&mut hash, &context.digest());
+    match site {
+        PackagePolicyReplacementSite::Root => hash.update([0]),
+        PackagePolicyReplacementSite::Dependency { requester, alias } => {
+            hash.update([1]);
+            field(&mut hash, &requester.identity().digest());
+            field(&mut hash, alias.as_str().as_bytes());
+        }
+    }
+    field(&mut hash, &baseline.identity().digest());
+    field(&mut hash, &candidate.identity().digest());
+    PackagePolicyChangeFingerprint(hash.finalize().into())
 }
 fn row(hash: &mut Sha256, value: &PackagePolicyRow) {
     hash.update([value.kind().canonical_tag()]);

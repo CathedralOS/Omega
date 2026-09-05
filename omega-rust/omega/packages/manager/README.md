@@ -169,8 +169,21 @@ packages from different source lineages do not merge.
 Root role changes retain their directional compatibility finding: package to
 application breaks dependency compatibility, while application to package
 breaks application activation. Both require a decision for the same exact root.
-Changing root identity remains explicit source context rather than inventing a
-new kind of trust claim; the actual added and removed policy rows still apply.
+Changing root identity requires a separate source-replacement decision.
+Dependency replacements pair the exact requester key and resolved local alias,
+then report different old/new selected keys. Each occurrence remains distinct,
+including transitive and diamond uses; added/removed policy rows still apply.
+These are source-selection decisions, not proof claims or new capabilities.
+
+`source_replacements()` orders the root first, followed by requester/alias
+bindings in canonical order. Full old/new keys and the complete comparison
+context identify each finding. A revision change preserving the key is not a
+replacement. Reordering declarations or renaming an alias while keeping its
+package does not manufacture a replacement either. Different aliases remain
+separate graph additions/removals: a command changing both alias and source
+must retain that explicit intent, rather than pair unrelated packages by name
+or authored row position. Replacement findings share the changed-row count
+ceiling; their retained keys and binding scratch use the context-byte ceiling.
 
 The report retains added, removed, and changed rows with full old/new readable
 meaning, decision requirements, and audit recommendations. Unchanged candidate
@@ -182,8 +195,8 @@ a fabricated compiler review or execution receipt. Both graphs share resource
 ceilings rather than receiving a fresh budget per package.
 
 `review::resolve_package_policy_decisions` consumes that report and the digest
-retained with the project's choices. Each required row and root-role change
-needs exactly one accept/reject choice. Choices for removed-package rows do not
+retained with the project's choices. Each required row, root-role change, and
+source replacement needs exactly one accept/reject choice. Removed-package rows do not
 need the old checkout or a candidate-graph package index. Missing, duplicate,
 unknown, advisory-only, and wrong-comparison choices reject. The result stores
 choices in canonical subject order and preserves rejection; a comparison with
@@ -192,9 +205,7 @@ This uses the checked report directly, with no compiler reconstruction or
 evidence-promotion step. It records decisions, not whether an audit happened.
 
 `all_required_changes_accepted` describes only the represented choices, not
-permission to publish. Source-lineage replacement still needs its own explicit
-comparison finding: source/path drift currently recommends audit and must not
-be mistaken for a blocking replacement decision. Decision text/file handling,
+permission to publish. Explicit command intent, decision text/file handling,
 removed-package history in the lock, fresh compiler obligations, and
 transactional candidate/project-file rechecks remain integration work.
 

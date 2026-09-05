@@ -35,8 +35,8 @@ pub use model::{
 pub use policy::{
     PackagePolicyChangeError, PackagePolicyChangeFingerprint, PackagePolicyChangeKind,
     PackagePolicyChangeLimits, PackagePolicyChangeSet, PackagePolicyDependencyPath,
-    PackagePolicyDependencyPathStep, PackagePolicyPackageChange, PackagePolicyRowChange,
-    compare_package_policy_changes,
+    PackagePolicyDependencyPathStep, PackagePolicyPackageChange, PackagePolicyReplacementSite,
+    PackagePolicyRowChange, PackagePolicySourceReplacement, compare_package_policy_changes,
 };
 pub use render_error::ReviewOnlyCapabilityConflictRenderError;
 pub(crate) use risk::changed_review_risk;

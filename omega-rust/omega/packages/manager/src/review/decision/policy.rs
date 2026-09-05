@@ -8,12 +8,13 @@ use super::ReviewOnlyRootPolicyDisposition;
 use crate::review::{PackagePolicyChangeFingerprint, PackagePolicyChangeSet};
 use std::fmt;
 
-/// An exact row change, or the separately reported root-role compatibility
-/// change. Digests come from the comparison presented for review; they are
+/// An exact row or source-replacement change, or the separately reported
+/// root-role compatibility change. Digests come from the comparison; they are
 /// identifiers, not authorization until checked against that comparison.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub enum PackagePolicyDecisionSubject {
     RootRole,
+    SourceReplacement([u8; 32]),
     Row([u8; 32]),
 }
 
@@ -43,7 +44,7 @@ impl PackagePolicyResolution {
     }
 
     /// All represented required choices accept their changes. This alone is
-    /// not permission to publish: compiler obligations, source replacements,
+    /// not permission to publish: compiler obligations, explicit command intent,
     /// and source/project-file consistency need their own transaction checks.
     pub fn all_required_changes_accepted(&self) -> bool {
         self.decisions.iter().all(|decision| {
@@ -107,7 +108,8 @@ impl fmt::Display for PackagePolicyDecisionError {
 
 impl std::error::Error for PackagePolicyDecisionError {}
 
-/// Bind exactly one choice to every required change in this comparison.
+/// Bind exactly one choice to every required row, source replacement, and
+/// root-role change in this comparison.
 ///
 /// `comparison` is the digest retained with the user's decisions, not a digest
 /// substituted from the current report at resume time. It covers both source
@@ -137,6 +139,7 @@ pub fn resolve_package_policy_decisions(
         })?;
     let count = row_count
         .checked_add(usize::from(changes.root_role_change().is_some()))
+        .and_then(|count| count.checked_add(changes.source_replacements().len()))
         .ok_or(Error::AllocationFailed)?;
     let mut subjects = Vec::new();
     subjects
@@ -145,6 +148,12 @@ pub fn resolve_package_policy_decisions(
     if changes.root_role_change().is_some() {
         subjects.push((Subject::RootRole, true));
     }
+    subjects.extend(changes.source_replacements().iter().map(|replacement| {
+        (
+            Subject::SourceReplacement(replacement.fingerprint().digest()),
+            true,
+        )
+    }));
     for package in changes.packages() {
         subjects.extend(package.rows().iter().map(|row| {
             (
