@@ -1,0 +1,12 @@
+data Main {}
+
+machine Main::main(&mut self, value: u32 [0..=4]) -> u32 [0..=4] {
+    transition value < 4 {
+        true -> append(value)
+        false -> (value)
+    }
+
+    state append(&mut self, delivered: u32 [0..=4]) -> u32 [0..=4] {
+        delivered + 1
+    }
+}

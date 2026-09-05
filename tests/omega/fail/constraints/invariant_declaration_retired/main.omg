@@ -1,0 +1,1 @@
+invariant speed_range = [finite];

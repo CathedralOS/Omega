@@ -150,21 +150,6 @@ the [Rust Compiler Completion Contract](wiki/releases/rust_compiler_completion_c
   own breakage from the standing state. Acceptance: every remaining red canary
   is attributed to a named entry on a board, and this entry is replaced by those.
 
-- **CANARY-ROSTER-DERIVATION.** Complete reverse negative-corpus reconciliation in
-  `omega-rust/omega/compiler/compiler/tests/canary_suite/roster.rs`:
-  nonempty negative `unregistered` differences must fail once every dedicated
-  owner is represented. Move remaining dedicated execution tables into shared
-  `tests/fixture_rosters/` leaves consumed by both their executing tests and
-  the inventory. Preserve each owner's checked/native stage, target, and
-  inline/file diagnostic contract; target-routing annotations alone are not
-  execution coverage. Reconcile incomplete and retired fixtures at their
-  owners, not by registering every directory in the checked-only arrays.
-
-  Acceptance: the suite compares executing rosters against a `read_dir` of
-  `tests/omega/{pass,fail}` in both directions and fails on either difference,
-  so a fixture with no executing owner and an entry with no fixture are both
-  loud, independently of host eligibility and compile filters.
-
 - **FLOAT-OPERATOR-RESULT-DESTINATIONS.** Check scalar destination compatibility
   for binary float expressions from the exact selected operator result in
   `typed-trees-to-checked-trees/src/operators.rs` and its selection owner.
@@ -207,13 +192,16 @@ the [Rust Compiler Completion Contract](wiki/releases/rust_compiler_completion_c
   unresolved or substituted operator selections still reject. Do not bypass
   the authored-selection guard or infer authority from the operator's spelling.
 
-- **BOUNDED-RETURN-ARRIVAL-FACTS.** Preserve established state requirements and
-  incoming guards in bounded-return obligations in
-  `psi/semantics/proof/src/obligations.rs` and `checker.rs`.
-  `arithmetic/bounded_guarded_increment` rejects `exit_count + 1` because the
-  return interval uses the declared `[0..=4]` operand range without the checked
-  arrival requirement `exit_count < 4`. Acceptance: the checked fixture proves
-  its `[0..=4]` result, while removing the arrival premise still rejects.
+- **BOUNDED-RETURN-ARRIVAL-FACTS.** Join incoming guards for bounded returns in
+  `psi/semantics/validation/src/arithmetic_domains/` and
+  `psi/semantics/proof/src/obligations.rs` and `checker.rs`, preserving exact
+  source/target parameter bindings and every entry path. Guard-only arrivals
+  cannot rely on an explicitly restated state requirement. Acceptance:
+  `arithmetic/bounded_guard_only_increment` proves its `[0..=4]` result with
+  differently named source and target parameters; an unguarded predecessor,
+  changed argument, or intervening overlapping write still rejects. Calls,
+  continuations, and loops must contribute their actual arrival facts rather
+  than being omitted from the join or matched by parameter spelling.
 
 - **EXACT-CALL-RESULT-RELATIONS.** Carry exact call-result comparisons through
   state arrivals and arithmetic validation in

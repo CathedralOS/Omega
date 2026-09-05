@@ -1,6 +1,0 @@
-data Main {
-    count: i32;
-}
-
-machine Main::main(&mut self) {
-}

@@ -682,14 +682,19 @@ pub(super) fn parse_type_constraint_handles<'tokens, 'source>(
 
     if !input.at_punctuation(PunctuationKind::RightBracket) {
         loop {
-            let constraint = if input.at_contextual("range") {
+            // An identifier may start an ordinary range bound. Parse that
+            // expression before distinguishing a range from retired proof sugar.
+            // Data and generic-parameter properties use parse_property_brackets.
+            let starts_with_name = input.at_name_like();
+            let constraint = if input.at_contextual("range")
+                && input
+                    .take_identifier()?
+                    .1
+                    .at_punctuation(PunctuationKind::Less)
+            {
                 return Err(input.error_here(
                     "the `range<a, b>` constraint syntax is removed; use `a..=b` (inclusive) or `a..b` (exclusive)",
                 ));
-            } else if input.at_name_like() {
-                let (name, rest) = input.take_identifier()?;
-                input = rest;
-                TypeConstraintNode::Named(name)
             } else {
                 // Range refinement: `min..=max` (inclusive) or `min..max` (exclusive).
                 // The node stores an INCLUSIVE maximum, so an exclusive bound is
@@ -736,6 +741,10 @@ pub(super) fn parse_type_constraint_handles<'tokens, 'source>(
                         }
                     };
                     TypeConstraintNode::Range { minimum, maximum }
+                } else if starts_with_name {
+                    return Err(rest.error_here(
+                        "named proof constraints in type brackets are retired; use `in Domain` for a declared value domain or express the fact in contracts",
+                    ));
                 } else {
                     return Err(
                         rest.error_here("range constraint requires `..` or `..=` between bounds")

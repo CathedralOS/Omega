@@ -194,9 +194,11 @@ The likely durable homes are:
 Some static laws are about the TYPE itself, not any particular value: "copies
 are sound", "values impose this carry floor while live", and "established
 values must be consumed exactly once". These are
-PROPERTIES -- declared as a lowercase list in brackets on the data declaration,
-the same bracket syntax invariant parameters use in type positions
-(`&[u8, [non_empty]]`):
+PROPERTIES -- declared as a lowercase list in brackets on the data declaration
+or a generic type parameter. These property lists are distinct from value-range
+constraints. Named proof constraints such as `T[finite]` or
+`&[u8, [non_empty]]` are retired: use a value domain such as `f32 in Finite`, a
+declared byte-sequence domain, or a contract on the sequence's length instead.
 
 ```omega
 data Point [copy] {
