@@ -12,8 +12,8 @@ use crate::resolution::graph::PackageRootSourceRequest;
 use crate::review::{
     PackagePolicyChangeLimits, PackagePolicyResolution, compare_package_policy_changes,
 };
-use omega_package_source::local::staging::StagedLocalSnapshot;
-use omega_package_source::{SourceContentDigest, SourceLineage};
+use package_source::local::staging::StagedLocalSnapshot;
+use package_source::{SourceContentDigest, SourceLineage};
 use sha2::{Digest, Sha256};
 
 /// Publish the exact reviewed declaration and all retained target sections.
@@ -128,16 +128,14 @@ fn verify_live_dependencies(review: &PackageChangeReview) -> Result<(), Error> {
             continue;
         };
         let path = lineage.canonical_absolute_path();
-        let current = omega_package_source::local::operations::resolve_local_source(
-            path,
-            custody.source_limits(),
-        )
-        .map_err(Error::Source)?;
+        let current =
+            package_source::local::operations::resolve_local_source(path, custody.source_limits())
+                .map_err(Error::Source)?;
         if custody.materialization().content()
             != &SourceContentDigest::derive(current.content_identity.as_bytes())
         {
             return Err(Error::Source(
-                omega_package_source::SourceResolveError::LocalSourceChanged {
+                package_source::SourceResolveError::LocalSourceChanged {
                     path: path.to_path_buf(),
                 },
             ));

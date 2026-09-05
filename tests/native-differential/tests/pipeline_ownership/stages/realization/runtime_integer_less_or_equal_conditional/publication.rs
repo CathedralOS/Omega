@@ -4,7 +4,7 @@ use super::fixture::staged_object_artifact;
 
 #[test]
 fn runtime_u64_parameter_less_or_equal_reaches_object_and_callable_on_both_isas() {
-    use omega_calling_conventions::{CallingPolicy, MachineRegister};
+    use calling_conventions::{CallingPolicy, MachineRegister};
 
     for (target, policy, parameters, result) in [
         (
@@ -26,7 +26,7 @@ fn runtime_u64_parameter_less_or_equal_reaches_object_and_callable_on_both_isas(
         assert_eq!(artifact.source().object().symbols.len(), 1);
         let text = &artifact.source().object().text_section.bytes;
         match target.architecture {
-            omega_target::Architecture::X86_64 => {
+            target::Architecture::X86_64 => {
                 assert!(
                     text.windows(3).any(|bytes| bytes == [0x48, 0x39, 0xfe]),
                     "x86 object must contain reversed `cmp rsi, rdi`"
@@ -36,7 +36,7 @@ fn runtime_u64_parameter_less_or_equal_reaches_object_and_callable_on_both_isas(
                     "x86 object must branch to the false arm with JB"
                 );
             }
-            omega_target::Architecture::Aarch64 => {
+            target::Architecture::Aarch64 => {
                 assert!(
                     text.windows(4)
                         .any(|bytes| bytes == [0x3f, 0x00, 0x00, 0xeb]),

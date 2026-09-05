@@ -2,10 +2,10 @@
 
 use crate::capture::contracts::facts::ContractProjectionContext;
 use crate::capture::semantics::facts::exactly_one;
-use omega_compiler::CheckedCompilation;
-use psi_checked_trees::{ContractProofFactKind, ContractProofFactOwner};
-use psi_diagnostics::Diagnostic;
-use psi_facts::{FactOrigin, ProgramPoint};
+use checked_trees::{ContractProofFactKind, ContractProofFactOwner};
+use compiler::CheckedCompilation;
+use diagnostics::Diagnostic;
+use facts::{FactOrigin, ProgramPoint};
 
 /// The source keyword selects a self formal, never a same-spelled nominal.
 /// A resolved attachment root must be the exact containing machine whose
@@ -13,8 +13,8 @@ use psi_facts::{FactOrigin, ProgramPoint};
 pub(crate) fn checked_self_parameter_symbol(
     compilation: &CheckedCompilation,
     context: &ContractProjectionContext<'_>,
-    path: &psi_typed_trees::expression::TableNamePath,
-) -> Option<psi_symbols::SymbolHandle> {
+    path: &typed_trees::expression::TableNamePath,
+) -> Option<symbols::SymbolHandle> {
     if context.domain_symbol.is_some()
         || context.data_symbol.is_some()
         || !compilation
@@ -82,7 +82,7 @@ pub(crate) fn checked_self_parameter_symbol(
 pub(super) fn contract_point(
     compilation: &CheckedCompilation,
     context: &ContractProjectionContext<'_>,
-    fact: psi_arena::Handle<psi_typed_trees::domain::ProofFact>,
+    fact: arena::Handle<typed_trees::domain::ProofFact>,
 ) -> Result<(ProgramPoint, Option<FactOrigin>), Vec<Diagnostic>> {
     let ContractProofFactOwner::Machine { machine_symbol } = context.owner else {
         return Ok((context.point, None));

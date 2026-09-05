@@ -290,11 +290,11 @@ machine FloatProvider::square_root(value: f32) -> f32
     for (requirement, expected_builtin, expected_alias) in [
         (
             "minimum",
-            psi_symbols::BuiltinFunction::Min,
+            symbols::BuiltinFunction::Min,
             Some("MinimumSupply"),
         ),
-        ("maximum", psi_symbols::BuiltinFunction::Max, None),
-        ("square_root", psi_symbols::BuiltinFunction::Sqrt, None),
+        ("maximum", symbols::BuiltinFunction::Max, None),
+        ("square_root", symbols::BuiltinFunction::Sqrt, None),
     ] {
         let callable_path = format!("FloatProvider::{requirement}");
         let declaration = review
@@ -342,7 +342,7 @@ machine FloatProvider::square_root(value: f32) -> f32
         );
         assert!(matches!(
             selected.rows()[0].binding,
-            omega_effects::provider_plan::ProviderBinding::CompilerIntrinsic { .. }
+            effects::provider_plan::ProviderBinding::CompilerIntrinsic { .. }
         ));
     }
 

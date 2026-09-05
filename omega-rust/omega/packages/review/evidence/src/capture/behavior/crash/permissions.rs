@@ -4,11 +4,11 @@ use super::super::super::semantics::declarations::nominal_identity;
 use crate::record::{
     PackageReviewCrashPredicate, PackageReviewPermissionClaim, PackageReviewPermissionSource,
 };
-use omega_compiler::CheckedCompilation;
-use psi_diagnostics::Diagnostic;
+use compiler::CheckedCompilation;
+use diagnostics::Diagnostic;
 
 pub(super) fn project_crash_predicates(
-    predicates: &[psi_checked_trees::CrashPredicateIdentity],
+    predicates: &[checked_trees::CrashPredicateIdentity],
 ) -> Vec<PackageReviewCrashPredicate> {
     let mut projected = predicates
         .iter()
@@ -20,7 +20,7 @@ pub(super) fn project_crash_predicates(
 }
 
 pub(super) fn project_crash_predicate(
-    predicate: &psi_checked_trees::CrashPredicateIdentity,
+    predicate: &checked_trees::CrashPredicateIdentity,
 ) -> PackageReviewCrashPredicate {
     PackageReviewCrashPredicate {
         canonical_bytes: predicate.canonical_bytes().to_vec(),
@@ -29,9 +29,9 @@ pub(super) fn project_crash_predicate(
 
 pub(super) fn project_permission_claim(
     compilation: &CheckedCompilation,
-    claim: psi_language_semantics::PermissionClaimIdentity,
+    claim: language_semantics::PermissionClaimIdentity,
 ) -> Result<PackageReviewPermissionClaim, Vec<Diagnostic>> {
-    let psi_language_semantics::PermissionClaimIdentity::Established {
+    let language_semantics::PermissionClaimIdentity::Established {
         machine_symbol,
         state_symbol,
         source,
@@ -43,15 +43,15 @@ pub(super) fn project_permission_claim(
         )]);
     };
     let source = match source {
-        psi_language_semantics::PermissionEventSource::StateEntry => {
+        language_semantics::PermissionEventSource::StateEntry => {
             PackageReviewPermissionSource::StateEntry
         }
-        psi_language_semantics::PermissionEventSource::Statement { statement_index } => {
+        language_semantics::PermissionEventSource::Statement { statement_index } => {
             PackageReviewPermissionSource::Statement {
                 statement_ordinal: portable_ordinal(statement_index)?,
             }
         }
-        psi_language_semantics::PermissionEventSource::Call {
+        language_semantics::PermissionEventSource::Call {
             statement_index,
             call_ordinal,
             target_symbol,
@@ -60,7 +60,7 @@ pub(super) fn project_permission_claim(
             call_ordinal: portable_ordinal(call_ordinal)?,
             target: nominal_identity(compilation, target_symbol)?,
         },
-        psi_language_semantics::PermissionEventSource::StateExit => {
+        language_semantics::PermissionEventSource::StateExit => {
             PackageReviewPermissionSource::StateExit
         }
     };

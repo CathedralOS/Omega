@@ -6,8 +6,8 @@ use crate::capture::semantics::declarations::{
 };
 use crate::capture::semantics::facts::exactly_one;
 use crate::record::*;
-use omega_compiler::CheckedCompilation;
-use psi_diagnostics::Diagnostic;
+use compiler::CheckedCompilation;
+use diagnostics::Diagnostic;
 
 pub(crate) fn crashes(
     routes: Vec<PackageReviewCrashRoute>,
@@ -40,16 +40,16 @@ pub(crate) fn crashes(
 /// the full establishment routes absent from the old review record.
 pub(crate) fn termination(
     compilation: &CheckedCompilation,
-    guarantee: &psi_language_semantics::TerminationGuarantee,
+    guarantee: &language_semantics::TerminationGuarantee,
     projected: PackageReviewTermination,
 ) -> Result<PackagePolicyTermination, Vec<Diagnostic>> {
     match (guarantee, projected) {
         (
-            psi_language_semantics::TerminationGuarantee::NoGuarantee,
+            language_semantics::TerminationGuarantee::NoGuarantee,
             PackageReviewTermination::NoGuarantee,
         ) => Ok(PackagePolicyTermination::NoGuarantee),
         (
-            psi_language_semantics::TerminationGuarantee::Terminates { premises },
+            language_semantics::TerminationGuarantee::Terminates { premises },
             PackageReviewTermination::Terminates {
                 premises: projected,
             },
@@ -74,8 +74,8 @@ pub(crate) fn termination(
                 let mut establishment_routes = profile.establishment_routes.iter().map(|route| {
                     Ok(PackagePolicyServiceProgressRoute {
                         kind: match route {
-                            psi_language_semantics::DomainEstablishmentRoute::CheckedRequirement { .. } => omega_effects::provider_plan::ServiceProgressEstablishmentRouteKind::CheckedRequirement,
-                            psi_language_semantics::DomainEstablishmentRoute::BoundaryRequirement { .. } => omega_effects::provider_plan::ServiceProgressEstablishmentRouteKind::BoundaryRequirement,
+                            language_semantics::DomainEstablishmentRoute::CheckedRequirement { .. } => effects::provider_plan::ServiceProgressEstablishmentRouteKind::CheckedRequirement,
+                            language_semantics::DomainEstablishmentRoute::BoundaryRequirement { .. } => effects::provider_plan::ServiceProgressEstablishmentRouteKind::BoundaryRequirement,
                         },
                         requirement_owner: nominal_identity(compilation, route.source_symbol())?,
                         requirement: trait_requirement_identity_from_symbols(compilation, route.source_symbol(), route.requirement_symbol(), "public policy progress establishment")?,

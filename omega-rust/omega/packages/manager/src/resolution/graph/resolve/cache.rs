@@ -9,9 +9,9 @@ use crate::resolution::source::{
     resolve_workspace_member_package_source_in_lane,
     resolve_workspace_member_project_source_in_lane,
 };
-use omega_package_source::storage::RetainedStorageLane;
-use omega_package_source::{ExternalSourceContext, SourceLineage, SourceRelativePath};
-use omega_package_source::{
+use package_source::storage::RetainedStorageLane;
+use package_source::{ExternalSourceContext, SourceLineage, SourceRelativePath};
+use package_source::{
     GitAcquisitionPin, GitSourceRequest, LocalSourceLimits, ResolvedGitSource,
     ResolvedLocalSnapshot,
 };
@@ -92,8 +92,7 @@ impl<'a> GitAcquisitionCache<'a> {
             .transpose()?
             .flatten();
         let resolved = if let Some(expected) = recorded {
-            let omega_package_source::ImmutableSourceResolution::Git { commit, tree, .. } =
-                expected
+            let package_source::ImmutableSourceResolution::Git { commit, tree, .. } = expected
             else {
                 return Err(pin_error(
                     request.acquisition(),

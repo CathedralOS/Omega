@@ -1,6 +1,6 @@
 use crate::support::*;
 
-fn compile_selected_reach_fixture() -> omega_compiler::CheckedCompilation {
+fn compile_selected_reach_fixture() -> compiler::CheckedCompilation {
     let target =
         host_target_name().expect("package evidence tests require a supported host target");
     let package = TempPackage::new();

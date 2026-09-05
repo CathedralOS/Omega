@@ -139,7 +139,7 @@ ensures
     assert_eq!(stand_down.fact_index, 0);
     assert_eq!(
         stand_down.reason,
-        psi_validation::ContractEntailmentStandDownReason::OutsideEntailmentLanguage
+        validation::ContractEntailmentStandDownReason::OutsideEntailmentLanguage
     );
 
     let projection = project_checked_package_review(&checked)
@@ -335,10 +335,8 @@ ensures
 
     let results = reconstruct_ordinary_package_obligation_results(&checked)
         .expect("package evidence independently rechecks the compiler certificate");
-    omega_package_evidence::ledger::validate_ordinary_package_obligation_results(
-        &results, &checked,
-    )
-    .expect("public result validation accepts the exact checked discharge");
+    package_evidence::ledger::validate_ordinary_package_obligation_results(&results, &checked)
+        .expect("public result validation accepts the exact checked discharge");
     assert!(results.open_contract_entailment_obligations().is_empty());
     let [discharge] = results.contract_entailment_assumption_discharges() else {
         panic!("one exact assumption discharge")
@@ -387,12 +385,11 @@ ensures
         1
     );
     for (candidate, compilation) in [(&results, &missing), (&missing_results, &checked)] {
-        let diagnostics =
-            omega_package_evidence::ledger::validate_ordinary_package_obligation_results(
-                candidate,
-                compilation,
-            )
-            .expect_err("public result validation must reject stale discharge status");
+        let diagnostics = package_evidence::ledger::validate_ordinary_package_obligation_results(
+            candidate,
+            compilation,
+        )
+        .expect_err("public result validation must reject stale discharge status");
         assert!(diagnostics.iter().any(|diagnostic| {
             diagnostic
                 .message
@@ -410,13 +407,13 @@ ensures
         .facts
         .proof
         .contract_entailment_assumption_discharges[0];
-    let changed = psi_checked_trees::CheckedContractEntailmentAssumptionDischarge::new(
+    let changed = checked_trees::CheckedContractEntailmentAssumptionDischarge::new(
         original.machine_symbol(),
         original.contract_position(),
         original.fact_position(),
         original.machine_contract_commitment(),
         original.assumptions().to_vec(),
-        psi_core::Proposition::Falsehood,
+        semantic_vocabulary::Proposition::Falsehood,
         original.selected_assumption_position(),
     )
     .expect("well-formed tamper fixture");
@@ -441,7 +438,7 @@ ensures
         .facts
         .proof
         .contract_entailment_assumption_discharges[0] =
-        psi_checked_trees::CheckedContractEntailmentAssumptionDischarge::new(
+        checked_trees::CheckedContractEntailmentAssumptionDischarge::new(
             original.machine_symbol(),
             original.contract_position(),
             original.fact_position(),

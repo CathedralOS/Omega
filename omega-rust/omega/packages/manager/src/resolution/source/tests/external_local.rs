@@ -1,6 +1,6 @@
 use super::{make_tree_owner_writable, temp_root, write_package};
 use crate::resolution::source::resolve_external_local_package_source;
-use omega_package_source::{
+use package_source::{
     ExternalSourceContext, ImmutableSourceResolution, LocalSourceLimits, SourceLineage,
 };
 

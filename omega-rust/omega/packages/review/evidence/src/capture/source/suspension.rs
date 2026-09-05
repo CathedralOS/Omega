@@ -2,13 +2,13 @@ use crate::capture::semantics::facts::exactly_one;
 use crate::capture::source::ProjectedNestedSourceLocation;
 use crate::capture::source::locations::canonical_source_span_location;
 use crate::record::PackageReviewSourceLocationRole;
-use omega_compiler::CheckedCompilation;
-use psi_diagnostics::Diagnostic;
-use psi_symbols::SymbolHandle;
+use compiler::CheckedCompilation;
+use diagnostics::Diagnostic;
+use symbols::SymbolHandle;
 
 pub(crate) fn project_machine_operational_source_locations(
     compilation: &CheckedCompilation,
-    machine: &psi_typed_trees::machine::Machine,
+    machine: &typed_trees::machine::Machine,
 ) -> Result<Vec<ProjectedNestedSourceLocation>, Vec<Diagnostic>> {
     let mut locations = project_operational_keyword_locations(
         compilation,
@@ -33,7 +33,7 @@ pub(crate) fn project_machine_operational_source_locations(
 
 pub(crate) fn validate_machine_operational(
     compilation: &CheckedCompilation,
-    machine: &psi_typed_trees::machine::Machine,
+    machine: &typed_trees::machine::Machine,
 ) -> Result<(), Vec<Diagnostic>> {
     validate_operational_keyword_custody(
         compilation,
@@ -56,7 +56,7 @@ pub(crate) fn validate_machine_operational(
 
 fn validate_machine_operational_interfaces(
     compilation: &CheckedCompilation,
-    machine: &psi_typed_trees::machine::Machine,
+    machine: &typed_trees::machine::Machine,
 ) -> Result<(), Vec<Diagnostic>> {
     let suspension = compilation
         .facts
@@ -79,16 +79,16 @@ fn validate_machine_operational_interfaces(
             ))]
         })?;
     let publishes = machine.is_public
-        || machine.supply_mode != psi_language_semantics::MachineSupplyMode::CheckedBody;
+        || machine.supply_mode != language_semantics::MachineSupplyMode::CheckedBody;
     let expected_suspension = if publishes || machine.suspends {
-        psi_language_semantics::SuspensionInterface::PublishedMaySuspend(machine.suspends)
+        language_semantics::SuspensionInterface::PublishedMaySuspend(machine.suspends)
     } else {
-        psi_language_semantics::SuspensionInterface::InternalInferred
+        language_semantics::SuspensionInterface::InternalInferred
     };
     let expected_blocking = if publishes || machine.blocks {
-        psi_language_semantics::BlockingInterface::PublishedMayBlock(machine.blocks)
+        language_semantics::BlockingInterface::PublishedMayBlock(machine.blocks)
     } else {
-        psi_language_semantics::BlockingInterface::InternalInferred
+        language_semantics::BlockingInterface::InternalInferred
     };
     if suspension.interface != expected_suspension || blocking.interface != expected_blocking {
         return Err(vec![Diagnostic::error(format!(
@@ -102,7 +102,7 @@ fn validate_machine_operational_interfaces(
 pub(crate) fn project_signature_operational_source_locations(
     compilation: &CheckedCompilation,
     owner: SymbolHandle,
-    signature: &psi_typed_trees::signature::StateSignature,
+    signature: &typed_trees::signature::StateSignature,
 ) -> Result<Vec<ProjectedNestedSourceLocation>, Vec<Diagnostic>> {
     let mut locations = project_operational_keyword_locations(
         compilation,
@@ -148,7 +148,7 @@ fn project_operational_keyword_locations(
     owner_name: &str,
     clause: &str,
     authored: bool,
-    source_spans: &[psi_source::SourceSpan],
+    source_spans: &[source::SourceSpan],
     role: PackageReviewSourceLocationRole,
 ) -> Result<Vec<ProjectedNestedSourceLocation>, Vec<Diagnostic>> {
     validate_operational_keyword_custody(
@@ -171,7 +171,7 @@ fn validate_operational_keyword_custody(
     owner_name: &str,
     clause: &str,
     authored: bool,
-    source_spans: &[psi_source::SourceSpan],
+    source_spans: &[source::SourceSpan],
     role: PackageReviewSourceLocationRole,
 ) -> Result<(), Vec<Diagnostic>> {
     if authored == source_spans.is_empty() {

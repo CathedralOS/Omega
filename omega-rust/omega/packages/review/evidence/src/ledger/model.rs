@@ -1,8 +1,8 @@
 use super::limits::ORDINARY_PACKAGE_OBLIGATION_SCHEMA_VERSION;
 use crate::record::{PackageReviewCanonicalRowKind, PackageReviewCanonicalRowRisk};
-use omega_package_compilation::PackageDependencyClosure;
-use omega_target::TargetProfile;
-use psi_core::PackageKeyIdentity;
+use package_compilation::PackageDependencyClosure;
+use semantic_vocabulary::PackageKeyIdentity;
+use target::TargetProfile;
 
 /// Exact semantic vocabulary under which the ordinary obligation question was
 /// reconstructed. This is intentionally distinct from both the outer ledger

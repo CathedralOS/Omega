@@ -7,7 +7,7 @@ use super::{
 use crate::declarations::PackageKey;
 use crate::resolution::graph::ExactTargetPackageSourceClosure;
 use crate::review::{CompilerIssuedPackageReview, CompilerIssuedPackageReviewSet};
-use omega_package_evidence::ledger::{
+use package_evidence::ledger::{
     OrdinaryPackageAcceptedClaimObligation, OrdinaryPackageContractEntailmentAssumptionDischarge,
     OrdinaryPackageContractEntailmentOpenObligation, OrdinaryPackageDangerousAuthorityObligation,
     OrdinaryPackageExternalExecutableSupplyObligation, OrdinaryPackageObligationResultSet,

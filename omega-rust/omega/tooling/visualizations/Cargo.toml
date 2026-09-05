@@ -1,0 +1,25 @@
+[package]
+name = "visualizations"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[lib]
+name = "visualizations"
+path = "src/lib.rs"
+
+[dependencies]
+arena = { path = "../../../psi/foundation/arena" }
+symbols = { path = "../../../psi/foundation/symbols" }
+effects = { path = "../../representations/effects" }
+task-plans = { path = "../../representations/task-plans" }
+checked-trees = { path = "../../../psi/representations/checked-trees" }
+semantic-vocabulary = { path = "../../../psi/foundation/semantic-vocabulary" }
+flow-effects = { path = "../../../psi/representations/flow-effects" }
+facts = { path = "../../../psi/representations/facts" }
+language-semantics = { path = "../../../psi/foundation/language-semantics" }
+typed-trees = { path = "../../../psi/representations/typed-trees" }
+
+[dev-dependencies]
+target = { path = "../../representations/target" }
+numerics = { path = "../../../psi/foundation/numerics" }

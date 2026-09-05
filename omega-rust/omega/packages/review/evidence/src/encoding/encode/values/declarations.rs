@@ -135,41 +135,41 @@ pub(crate) fn encode_operator_shape(
     })
 }
 
-pub(crate) const fn operator_spelling_tag(spelling: psi_language_core::OperatorSpelling) -> u8 {
+pub(crate) const fn operator_spelling_tag(spelling: language_core::OperatorSpelling) -> u8 {
     match spelling {
-        psi_language_core::OperatorSpelling::Add => 0,
-        psi_language_core::OperatorSpelling::Subtract => 1,
-        psi_language_core::OperatorSpelling::Multiply => 2,
-        psi_language_core::OperatorSpelling::Divide => 3,
-        psi_language_core::OperatorSpelling::Modulo => 4,
-        psi_language_core::OperatorSpelling::Equal => 5,
-        psi_language_core::OperatorSpelling::NotEqual => 6,
-        psi_language_core::OperatorSpelling::Less => 7,
-        psi_language_core::OperatorSpelling::LessEqual => 8,
-        psi_language_core::OperatorSpelling::Greater => 9,
-        psi_language_core::OperatorSpelling::GreaterEqual => 10,
-        psi_language_core::OperatorSpelling::Index => 11,
-        psi_language_core::OperatorSpelling::Range => 12,
+        language_core::OperatorSpelling::Add => 0,
+        language_core::OperatorSpelling::Subtract => 1,
+        language_core::OperatorSpelling::Multiply => 2,
+        language_core::OperatorSpelling::Divide => 3,
+        language_core::OperatorSpelling::Modulo => 4,
+        language_core::OperatorSpelling::Equal => 5,
+        language_core::OperatorSpelling::NotEqual => 6,
+        language_core::OperatorSpelling::Less => 7,
+        language_core::OperatorSpelling::LessEqual => 8,
+        language_core::OperatorSpelling::Greater => 9,
+        language_core::OperatorSpelling::GreaterEqual => 10,
+        language_core::OperatorSpelling::Index => 11,
+        language_core::OperatorSpelling::Range => 12,
     }
 }
 
 pub(crate) const fn operator_spelling_name(
-    spelling: psi_language_core::OperatorSpelling,
+    spelling: language_core::OperatorSpelling,
 ) -> &'static str {
     match spelling {
-        psi_language_core::OperatorSpelling::Add => "add",
-        psi_language_core::OperatorSpelling::Subtract => "subtract",
-        psi_language_core::OperatorSpelling::Multiply => "multiply",
-        psi_language_core::OperatorSpelling::Divide => "divide",
-        psi_language_core::OperatorSpelling::Modulo => "modulo",
-        psi_language_core::OperatorSpelling::Equal => "equal",
-        psi_language_core::OperatorSpelling::NotEqual => "not_equal",
-        psi_language_core::OperatorSpelling::Less => "less",
-        psi_language_core::OperatorSpelling::LessEqual => "less_equal",
-        psi_language_core::OperatorSpelling::Greater => "greater",
-        psi_language_core::OperatorSpelling::GreaterEqual => "greater_equal",
-        psi_language_core::OperatorSpelling::Index => "index",
-        psi_language_core::OperatorSpelling::Range => "range",
+        language_core::OperatorSpelling::Add => "add",
+        language_core::OperatorSpelling::Subtract => "subtract",
+        language_core::OperatorSpelling::Multiply => "multiply",
+        language_core::OperatorSpelling::Divide => "divide",
+        language_core::OperatorSpelling::Modulo => "modulo",
+        language_core::OperatorSpelling::Equal => "equal",
+        language_core::OperatorSpelling::NotEqual => "not_equal",
+        language_core::OperatorSpelling::Less => "less",
+        language_core::OperatorSpelling::LessEqual => "less_equal",
+        language_core::OperatorSpelling::Greater => "greater",
+        language_core::OperatorSpelling::GreaterEqual => "greater_equal",
+        language_core::OperatorSpelling::Index => "index",
+        language_core::OperatorSpelling::Range => "range",
     }
 }
 

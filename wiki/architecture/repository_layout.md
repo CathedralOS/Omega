@@ -31,7 +31,7 @@ is retained in [Bootstrap chain alternatives](../design_briefs/bootstrap_chain_a
 
 A program representation has one named root file beside `lib.rs`. That file
 defines the root program struct and maps its subordinate concepts. For example,
-`omega-selected-instructions/src/selected_instructions.rs` owns
+`selected-instructions/src/selected_instructions.rs` owns
 `SelectedInstructionPlan`; `selected_instructions/` contains control flow,
 virtual values, instructions, structural calls, constraints, provenance, and
 effects. Effect catalogs describe target mechanisms; effect program rows
@@ -103,87 +103,94 @@ Omega/
 |-- omega-rust/
 |   |-- psi/                                         # Psi owns target-neutral semantics through terminal Psi.
 |   |   |-- foundation/
-|   |   |   |-- [CRATE] psi-access-plans/               # Normalized placed-view access semantics.
-|   |   |   |-- [CRATE] psi-arena/                      # Generic typed arena storage for Psi source representations.
-|   |   |   |-- [CRATE] psi-diagnostics/                # Source diagnostics and phase-snapshot contracts.
-|   |   |   |-- [CRATE] psi-extents/                    # Extent geometry, lineage, rights, and provider identity.
-|   |   |   |-- [CRATE] psi-language-core/              # Target-neutral source-language vocabulary.
-|   |   |   |-- [CRATE] psi-language-semantics/         # Resolved identities, content/value domains, tables, and plans.
-|   |   |   |-- [CRATE] psi-layout-plans/                # Normalized layout geometry and materialization plans.
-|   |   |   |-- [CRATE] psi-numerics/                   # Exact numerics, float semantics, and literal payloads.
-|   |   |   |-- [CRATE] psi-source/                     # Loaded-source data and coordinates owned by the Psi frontend.
-|   |   |   |-- [CRATE] psi-symbols/                    # Stable symbol identities and hierarchy storage.
-|   |   |   `-- [CRATE] psi-core/                       # Stable semantic/fuel ids and typed proposition vocabulary.
+|   |   |   |-- [CRATE] access-plans/               # Normalized placed-view access semantics.
+|   |   |   |-- [CRATE] arena/                      # Generic typed arena storage for Psi source representations.
+|   |   |   |-- [CRATE] diagnostics/                # Source diagnostics and phase-snapshot contracts.
+|   |   |   |-- [CRATE] extents/                    # Extent geometry, lineage, rights, and provider identity.
+|   |   |   |-- [CRATE] language-core/              # Target-neutral source-language vocabulary.
+|   |   |   |-- [CRATE] language-semantics/         # Resolved identities, content/value domains, tables, and plans.
+|   |   |   |-- [CRATE] layout-plans/                # Normalized layout geometry and materialization plans.
+|   |   |   |-- [CRATE] numerics/                   # Exact numerics, float semantics, and literal payloads.
+|   |   |   |-- [CRATE] source/                     # Loaded-source data and coordinates owned by the Psi frontend.
+|   |   |   |-- [CRATE] symbols/                    # Stable symbol identities and hierarchy storage.
+|   |   |   `-- [CRATE] semantic-vocabulary/                       # Stable semantic/fuel ids and typed proposition vocabulary.
 |   |   |-- representations/
-|   |   |   |-- [CRATE] psi-tokens/                     # Omega spelling-level token streams.
-|   |   |   |-- [CRATE] psi-syntax-trees/               # Parsed source shape before symbol resolution.
-|   |   |   |-- [CRATE] psi-symbol-resolved-trees/      # Source trees with resolved symbol identity.
-|   |   |   |-- [CRATE] psi-typed-trees/                # Typed source semantics without target realization state.
-|   |   |   |-- [CRATE] psi-facts/                      # Durable checked places, contexts, and semantic fact plans.
-|   |   |   |-- [CRATE] psi-effects/                    # Target-neutral operational, reach, invocation, and capability-flow facts.
-|   |   |   |-- [CRATE] psi-checked-trees/              # Checked proof, borrow, flow, reach, value, and admissibility evidence.
-|   |   |   |-- [CRATE] psi-optimization/               # Closed pre-Terminal pass names, selections, encoding, and identity.
-|   |   |   `-- [CRATE] psi-terminal/                   # Self-contained terminal module and closed operation vocabulary.
+|   |   |   |-- [CRATE] tokens/                     # Omega spelling-level token streams.
+|   |   |   |-- [CRATE] syntax-trees/               # Parsed source shape before symbol resolution.
+|   |   |   |-- [CRATE] symbol-resolved-trees/      # Source trees with resolved symbol identity.
+|   |   |   |-- [CRATE] typed-trees/                # Typed source semantics without target realization state.
+|   |   |   |-- [CRATE] facts/                      # Durable checked places, contexts, and semantic fact plans.
+|   |   |   |-- [CRATE] flow-effects/                    # Target-neutral operational, reach, invocation, and capability-flow facts.
+|   |   |   |-- [CRATE] checked-trees/              # Checked proof, borrow, flow, reach, value, and admissibility evidence.
+|   |   |   |-- [CRATE] optimization/               # Closed pre-Terminal pass names, selections, encoding, and identity.
+|   |   |   `-- [CRATE] terminal-psi/               # Self-contained Terminal Psi module and closed operation vocabulary.
 |   |   |-- pipeline/
-|   |   |   |-- [CRATE] psi-source-files-to-tokens/     # Psi-owned Omega source lexer.
-|   |   |   |-- [CRATE] psi-tokens-to-syntax-trees/     # Psi-owned unresolved Omega parser.
-|   |   |   |-- [CRATE] psi-syntax-trees-to-symbol-resolved-trees/ # Psi-owned name and symbol resolution.
-|   |   |   |-- [CRATE] psi-symbol-resolved-trees-to-typed-trees/ # Psi-owned type/signature normalization.
-|   |   |   |-- [CRATE] psi-typed-trees-to-checked-trees/ # Psi-owned semantic checking and checked-fact construction.
-|   |   |   `-- [CRATE] psi-checked-trees-to-terminal/   # Fail-closed executable slice plus checked content-evidence production.
+|   |   |   |-- [CRATE] source-files-to-tokens/     # Psi-owned Omega source lexer.
+|   |   |   |-- [CRATE] tokens-to-syntax-trees/     # Psi-owned unresolved Omega parser.
+|   |   |   |-- [CRATE] syntax-trees-to-symbol-resolved-trees/ # Psi-owned name and symbol resolution.
+|   |   |   |-- [CRATE] symbol-resolved-trees-to-typed-trees/ # Psi-owned type/signature normalization.
+|   |   |   |-- [CRATE] typed-trees-to-checked-trees/ # Psi-owned semantic checking and checked-fact construction.
+|   |   |   `-- [CRATE] checked-trees-to-terminal-psi/   # Fail-closed executable slice plus checked content-evidence production.
 |   |   `-- semantics/
-|   |       |-- [CRATE] psi-validation/                 # Cross-semantic source validation and diagnostics.
-|   |       |-- [CRATE] psi-proof/                      # Source proof obligations, planning, and checking.
-|   |       |-- [CRATE] psi-proof-admission/            # Product-local Psi judgment and admission checking.
-|   |       |-- [CRATE] psi-checked-interpreter/        # Checked-tree build-time and transitional reference execution.
-|   |       |-- [CRATE] psi-build-time-evaluation/      # Const/domain evaluation and programmable plan normalization.
-|   |       |-- [CRATE] psi-terminal-semantics/         # Closed scalar, structural/effect, and call-composition policy rows.
-|   |       |-- [CRATE] psi-terminal-verifier/          # Module validation and reconstructed-obligation checking.
-|   |       `-- [CRATE] psi-terminal-interpreter/       # Fuel-bounded reference execution of verified terminal artifacts.
+|   |       |-- [CRATE] validation/                 # Cross-semantic source validation and diagnostics.
+|   |       |-- [CRATE] proof/                      # Source proof obligations, planning, and checking.
+|   |       |-- [CRATE] proof-admission/            # Product-local Psi judgment and admission checking.
+|   |       |-- [CRATE] checked-interpreter/        # Checked-tree build-time and transitional reference execution.
+|   |       |-- [CRATE] build-time-evaluation/      # Const/domain evaluation and programmable plan normalization.
+|   |       |-- [CRATE] terminal-semantics/         # Closed scalar, structural/effect, and call-composition policy rows.
+|   |       |-- [CRATE] terminal-verifier/          # Module validation and reconstructed-obligation checking.
+|   |       `-- [CRATE] terminal-interpreter/       # Fuel-bounded reference execution of verified terminal artifacts.
 |   |
 |   `-- [CRATE] omega/                                   # Current Rust `omega` product command.
 |       |-- representations/                             # Durable, target-independent carriers and evidence.
-|       |   |-- [CRATE] omega-core/
-|       |   |-- [CRATE] omega-target/
-|       |   |-- [CRATE] omega-calling-conventions/
-|       |   |-- [CRATE] omega-{abstract,target,legalized,selected,assigned}-operations/
-|       |   |-- [CRATE] omega-machine-code/
-|       |   |-- [CRATE] omega-{register-model,optimization-core,optimization-unit}/
-|       |   |-- [CRATE] omega-{effects,installation-evidence,task-plans}/
-|       |   `-- [CRATE] omega-{function-identity,backend-report-types}/
+|       |   |-- [CRATE] core/
+|       |   |-- [CRATE] target/
+|       |   |-- [CRATE] calling-conventions/
+|       |   |-- [CRATE] {abstract,target,legalized,assigned-target}-operations/
+|       |   |-- [CRATE] selected-instructions/
+|       |   |-- [CRATE] machine-code/
+|       |   |-- [CRATE] {register-model,optimization-core,optimization-unit}/
+|       |   |-- [CRATE] {effects,installation-evidence,task-plans}/
+|       |   `-- [CRATE] function-identity/
 |       |
 |       |-- pipeline/                                    # Every checked representation-to-representation transform.
-|       |   |-- [CRATE] omega-psi-to-abstract-operations/
-|       |   |-- [CRATE] omega-abstract-operations-to-target-operations/
-|       |   |-- [CRATE] omega-target-operations-to-{selected-instructions,assigned-target-operations}/
-|       |   |-- [CRATE] omega-terminal-psi-to-native-artifact/
-|       |   |-- [CRATE] omega-abstract-operations-optimizer/
-|       |   |-- [CRATE] omega-selected-instructions-to-register-homes/
-|       |   |-- [CRATE] omega-post-allocation-machine-to-optimized-machine/
-|       |   `-- [CRATE] omega-{optimization-policy,optimization-validation}/
+|       |   |-- [CRATE] terminal-psi-to-abstract-operations/
+|       |   |-- [CRATE] abstract-operations-to-abstract-operations/
+|       |   |-- [CRATE] abstract-operations-to-target-operations/
+|       |   |-- [CRATE] target-operations-to-selected-instructions/
+|       |   |-- [CRATE] selected-instructions-to-register-homes/
+|       |   |-- [CRATE] register-homes-to-post-allocation-machine/
+|       |   |-- [CRATE] post-allocation-machine-to-post-allocation-machine/
+|       |   |-- [CRATE] post-allocation-machine-to-frame-layout/
+|       |   |-- [CRATE] post-allocation-machine-to-selected-form-encoding/
+|       |   |-- [CRATE] selected-form-encoding-to-resolved-layout/
+|       |   |-- [CRATE] target-to-register-environment/   # Target setup, not a program successor.
+|       |   |-- [CRATE] terminal-psi-to-native-artifact/  # Coordinator; still to leave pipeline/.
+|       |   |-- [CRATE] target-operations-to-assigned-target-operations/ # Alternate route still to delete.
+|       |   `-- [CRATE] optimization-validation/          # Catch-all still to dissolve.
 |       |
 |       |-- backend/                                     # Target/runtime primitives and backend-owned artifacts.
-|       |   |-- [CRATE] omega-{layout,machine-emission}/
+|       |   |-- [CRATE] {layout,machine-emission}/
 |       |   |-- instruction_set_architectures/
-|       |   |   |-- [CRATE] omega-isa-{aarch64,x86_64}/
-|       |   |   `-- [CRATE] omega-x86-encoding/
+|       |   |   |-- [CRATE] isa-{aarch64,x86_64}/
+|       |   |   `-- [CRATE] x86-encoding/
 |       |   |-- object/                                  # Object-file ownership.
 |       |   |-- images/                                  # Image models, emission, and formats.
 |       |   |-- artifacts/
-|       |   |   |-- [CRATE] omega-native-artifact/
-|       |   |   `-- [CRATE] omega-component-candidate/
+|       |   |   |-- [CRATE] native-artifact/
+|       |   |   `-- [CRATE] component-candidate/
 |       |   |-- plans/
-|       |   |   |-- [CRATE] omega-backend-plan/
-|       |   |   `-- [CRATE] omega-program-entry-plan/
+|       |   |   |-- [CRATE] backend-plan/
+|       |   |   `-- [CRATE] program-entry-plan/
 |       |   `-- runtime/
-|       |       |-- [CRATE] omega-{runtime-abi,executable-installation,external-roots}/
-|       |       `-- [CRATE] omega-component-publication/
+|       |       |-- [CRATE] {runtime-abi,executable-installation,external-roots}/
+|       |       `-- [CRATE] component-publication/
 |       |
 |       |-- build/                                       # Build evaluation, composition, policy, and trust decisions.
-|       |   |-- [CRATE] omega-build-{declarations,evaluation,output,provenance}/
-|       |   |-- [CRATE] omega-{package-compilation,provider-planning,selected-dispatch}/
-|       |   |-- [CRATE] omega-component-deployment/
-|       |   `-- [CRATE] omega-trust-ledger/
+|       |   |-- [CRATE] build-{declarations,evaluation,output}/
+|       |   |-- [CRATE] {package-compilation,provider-planning,selected-dispatch}/
+|       |   |-- [CRATE] component-deployment/
+|       |   `-- [CRATE] trust-ledger/
 |       |-- compiler/                                    # Thin product coordinator and result surface.
 |       |-- packages/                                    # Registry-free package service and trust boundaries.
 |       |   |-- README.md                                # Human entrance and dependency-direction map.
@@ -205,7 +212,7 @@ Omega/
 |   |-- epsilon/                                           # Fixed-storage compiler-host language and evaluator.
 |   `-- omega/                                             # Epsilon-written first Omega compiler D.
 |       |-- compiler/                                      # D source members.
-|       `-- omega_compiler.epsilon.sources                 # Canonical D source-member manifest.
+|       `-- compiler.epsilon.sources                 # Canonical D source-member manifest.
 |-- source/
 |   |-- library/                                           # Core, allocation, and standard library source.
 |   |   |-- core/                                          # Always-available language package.
@@ -282,7 +289,7 @@ keeps the compiler-owned build protocol independent of whether std exists.
   hosted product entrypoint; the current Rust product package and command are
   rooted directly at `omega-rust/omega/`. The language-server and
   docs-generator are not separate products.
-- `compiler/omega-compiler` owns the top-level typed check/build coordinator.
+- `compiler/compiler` owns the top-level typed check/build coordinator.
   Its coordinator forwards one stage result into the next; it does not own
   package loading, build evaluation, stage logic, artifact formatting, or
   visualization semantics.
@@ -334,27 +341,27 @@ keeps the compiler-owned build protocol independent of whether std exists.
   it does not recombine semantic verification cases in its test root.
 - `semantics/` owns language meaning: names, types, effects, proofs, facts,
   invariants, and validation. Resolved and checked type reasoning belongs to
-  the typed/checked pipeline and `psi-validation`; durable facts and proof
-  obligations belong to `psi-facts` and `psi-proof`.
-- `psi-facts` carries checked facts, invariants, and refinement data: what
+  the typed/checked pipeline and `validation`; durable facts and proof
+  obligations belong to `facts` and `proof`.
+- `facts` carries checked facts, invariants, and refinement data: what
   remains true. Transitional backend consumers depend on the Psi owner directly
   until terminal-Psi slices replace them.
-- `psi-checked-trees` owns the durable checked semantic representation and its
+- `checked-trees` owns the durable checked semantic representation and its
   proof, borrow, flow, reach, value-origin, and admissibility evidence. Terminal
   lowering consumes it once; Omega backend crates consume Terminal Psi rather
   than checked trees.
-- `psi-effects` carries target-neutral operational ceilings, service reach,
+- `flow-effects` carries target-neutral operational ceilings, service reach,
   synchronous invocation summaries, and capability-flow facts; target-neutral
-  consumers depend on it directly. `omega-effects` retains provider
+  consumers depend on it directly. `effects` retains provider
   declarations, target/provider bindings, approval, and installation-facing
   records—including the exact selected-plan carrier—but no longer re-exports
   the Psi vocabulary. Checked semantic trees do not retain that Omega
   realization sidecar.
-- `psi-validation` answers target-neutral cross-semantic obligations, including
+- `validation` answers target-neutral cross-semantic obligations, including
   who may read or mutate and what a callable requires or promises. Provider
   installation and approval remain in Omega.
-- `psi-proof` plans and discharges source-level obligations.
-- `omega-compiler` invokes the Psi-owned frontend and canonical terminal-Psi
+- `proof` plans and discharges source-level obligations.
+- `compiler` invokes the Psi-owned frontend and canonical terminal-Psi
   producer directly. Production native realization begins from that immutable
   artifact. There is no StateGraph/control-flow fallback route.
 
@@ -375,32 +382,32 @@ keeps the compiler-owned build protocol independent of whether std exists.
 
 ### Backend
 
-- Production backend lowering begins at `omega-psi-to-abstract-operations`,
+- Production backend lowering begins at `terminal-psi-to-abstract-operations`,
   then proceeds through ordinary `omega-*` operation, selection, allocation,
   machine-code, object, and image owners.
-- The bounded `omega-target-operations-to-assigned-target-operations` route is
+- The bounded `target-operations-to-assigned-target-operations` route is
   a temporary continuation for unsupported physical slices. It must converge
   into the selected-instruction continuation rather than become a second
   pipeline.
 - The retired StateGraph/control-flow backend has been deleted. Reintroducing a
   source-shaped backend fallback is an architecture violation.
-- `omega-machine-emission` produces production machine code, and
+- `machine-emission` produces production machine code, and
   `backend/object/*` owns sections, symbols, and relocations.
-- `omega-selected-instructions-to-register-homes` owns selected analyses,
-  allocation, recovery and their independent replay as internal transform steps.
-  `omega-selected-instructions-to-machine-effects` owns effect analysis;
-  `omega-register-homes-to-post-allocation-machine` constructs the machine plan;
-  `omega-post-allocation-machine-to-optimized-machine` owns its opt-in rewrites.
+- `selected-instructions-to-register-homes` owns selected analyses,
+  allocation, recovery, machine-effect analysis and their independent replay as
+  internal transform steps. Effect facts are not another program output;
+  `register-homes-to-post-allocation-machine` constructs the machine plan;
+  `post-allocation-machine-to-post-allocation-machine` owns its opt-in rewrites.
   No construction stage depends on a later optimizer. The bounded target-to-assigned
   publication adapter is not a substitute for either owner and must disappear
   once the selected physical conveyor has complete operation coverage.
 - `backend/instruction_set_architectures/*` owns ISA definitions and encodings.
   Only AArch64 and x86_64 exist today. Shared lowering policy belongs in shared
   backend crates.
-- `omega-runtime-abi` owns backend-ABI carrier shapes (fat descriptors, slices,
-  text windows) and their accessors. `omega-layout` and instruction selection
+- `runtime-abi` owns backend-ABI carrier shapes (fat descriptors, slices,
+  text windows) and their accessors. `layout` and instruction selection
   consume those shapes rather than re-deriving them.
-- `omega-calling-conventions` owns ABI value passing rules.
+- `calling-conventions` owns ABI value passing rules.
 - Calling plans and selected provider settlements own ABI-facing host/platform
   surfaces; no parallel platform-interface backend exists.
 - `backend/object/*` and `backend/images/*` should stay separate. Object writing

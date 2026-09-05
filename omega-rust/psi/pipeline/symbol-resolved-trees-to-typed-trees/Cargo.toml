@@ -1,0 +1,27 @@
+[package]
+name = "symbol-resolved-trees-to-typed-trees"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[lib]
+name = "symbol_resolved_trees_to_typed_trees"
+path = "src/lib.rs"
+
+[dependencies]
+arena = { path = "../../foundation/arena" }
+diagnostics = { path = "../../foundation/diagnostics" }
+language-semantics = { path = "../../foundation/language-semantics" }
+numerics = { path = "../../foundation/numerics" }
+source = { path = "../../foundation/source" }
+symbols = { path = "../../foundation/symbols" }
+symbol-resolved-trees = { path = "../../representations/symbol-resolved-trees" }
+syntax-trees-to-symbol-resolved-trees = { path = "../syntax-trees-to-symbol-resolved-trees" }
+typed-trees = { path = "../../representations/typed-trees" }
+
+[dev-dependencies]
+checked-trees = { path = "../../representations/checked-trees" }
+language-core = { path = "../../foundation/language-core" }
+source = { path = "../../foundation/source" }
+source-files-to-tokens = { path = "../source-files-to-tokens" }
+tokens-to-syntax-trees = { path = "../tokens-to-syntax-trees" }

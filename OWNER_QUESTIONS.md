@@ -159,10 +159,10 @@ report root and flat output, and swapping two otherwise matching receipts
 rejects.
 
 The validator for that contract is implemented and runs on every native
-compilation: `omega-compiler/src/compiler/native_checked.rs:23` calls
+compilation: `compiler/src/compiler/native_checked.rs:23` calls
 `has_consistent_executable_publication_custody`, which reaches
 `executable_publication_pair_matches` at
-`omega-compilation-report/src/lib.rs:116`. Nothing produces the receipt it
+`compilation-report/src/lib.rs:116`. Nothing produces the receipt it
 validates. `ExecutablePublicationDestination::MacOsAppBundle` is constructed
 exactly once outside its own declaration, at `lib.rs:1088`, inside the
 `#[cfg(test)]` module opening at `lib.rs:958`; the production producer was

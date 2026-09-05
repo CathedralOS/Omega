@@ -120,7 +120,7 @@ fn trait_and_operator_requirement_coordinates_survive_recovery() {
 
 #[test]
 fn normalized_bindings_round_trip_every_canonical_target_profile() {
-    for profile in omega_target::TargetProfile::ALL {
+    for profile in target::TargetProfile::ALL {
         let mut normalized_import = import(locators().remove(0));
         normalized_import.target = profile.identity().as_str().to_owned();
         assert_round_trip(
@@ -214,7 +214,7 @@ fn structural_contract(depth: usize) -> PackagePolicyMachineParameterContract {
         type_parameters: vec![PackagePolicyTypeParameter {
             kind: PackagePolicyTypeParameterKind::Machine(structural_contract(depth - 1)),
             bounds: PackageReviewDataProperties {
-                multiplicity: psi_language_semantics::Multiplicity::Affine,
+                multiplicity: language_semantics::Multiplicity::Affine,
                 carry: None,
             },
         }],

@@ -7,10 +7,10 @@ use crate::capture::semantics::types::review_signature_type_identity_with_binder
 use crate::record::{
     PackageReviewContractExpression, PackageReviewFloatLiteral, PackageReviewReferenceAccess,
 };
-use omega_compiler::CheckedCompilation;
-use psi_diagnostics::Diagnostic;
-use psi_symbols::SymbolHandle;
-use psi_typed_trees::expression::{ExpressionHandle, ExpressionNode};
+use compiler::CheckedCompilation;
+use diagnostics::Diagnostic;
+use symbols::SymbolHandle;
+use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 
 pub(super) fn project_value_form(
     compilation: &CheckedCompilation,
@@ -27,12 +27,12 @@ pub(super) fn project_value_form(
             value.text().to_owned(),
         ))),
         ExpressionNode::Float(value) => Some(match value.landing() {
-            Some(psi_numerics::literals::FloatFormat::F32) => {
+            Some(numerics::literals::FloatFormat::F32) => {
                 Ok(PackageReviewContractExpression::Float(
                     PackageReviewFloatLiteral::F32(value.f32_bits()),
                 ))
             }
-            Some(psi_numerics::literals::FloatFormat::F64) => {
+            Some(numerics::literals::FloatFormat::F64) => {
                 Ok(PackageReviewContractExpression::Float(
                     PackageReviewFloatLiteral::F64(value.landed_f64().to_bits()),
                 ))
@@ -94,13 +94,11 @@ pub(super) fn project_value_form(
         ExpressionNode::Borrow(reference) => Some((|| {
             Ok(PackageReviewContractExpression::Reference {
                 access: match reference.access {
-                    psi_language_core::ReferenceAccess::Shared => {
-                        PackageReviewReferenceAccess::Shared
-                    }
-                    psi_language_core::ReferenceAccess::Mutable => {
+                    language_core::ReferenceAccess::Shared => PackageReviewReferenceAccess::Shared,
+                    language_core::ReferenceAccess::Mutable => {
                         PackageReviewReferenceAccess::Mutable
                     }
-                    psi_language_core::ReferenceAccess::WriteOnly => {
+                    language_core::ReferenceAccess::WriteOnly => {
                         PackageReviewReferenceAccess::WriteOnly
                     }
                 },

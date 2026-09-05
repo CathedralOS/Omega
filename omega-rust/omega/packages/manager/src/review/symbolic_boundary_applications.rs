@@ -16,16 +16,16 @@ mod closure;
 
 use closure::close_one;
 
-use omega_boundary_applications::{
+use boundary_applications::{
     BoundaryApplication, BoundaryNominalIdentity, BoundaryOperatorRequirement,
 };
-use omega_package_evidence::record::{
+use package_evidence::record::{
     CheckedPackageBoundaryApplicationDemandReview,
     CheckedPackageBoundaryApplicationRealizationReview, CheckedPackageReviewProjection,
     PackageReviewNominalIdentity, PackageReviewSymbolicBoundaryApplicationArgument,
     PackageReviewTypeIdentity,
 };
-use psi_core::PackageKeyIdentity;
+use semantic_vocabulary::PackageKeyIdentity;
 use std::fmt;
 
 /// One compiler-reviewed concrete type assigned to an exact producer binder.

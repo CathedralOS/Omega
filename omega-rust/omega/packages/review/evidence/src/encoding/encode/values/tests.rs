@@ -13,12 +13,12 @@ use crate::record::{
     PackageReviewMachineParameterContract, PackageReviewNominalIdentity, PackageReviewNominalOwner,
     PackageReviewOperatorCoordinate, PackageReviewSyntheticSourceKind, PackageReviewTypeIdentity,
 };
-use omega_effects::provider_plan::{
+use effects::provider_plan::{
     EvaluatedBindingEvaluationDigest, EvaluatedBindingMaterializationDigest,
     EvaluatedBindingProducerClosureDigest, EvaluatedBindingReceipt, EvaluatedBindingUsage,
     EvaluatedForeignImport, ProviderBinding,
 };
-use psi_core::PackageKeyIdentity;
+use semantic_vocabulary::PackageKeyIdentity;
 
 use super::callables::{encode_external_callable_signature, encode_external_executable_supply_key};
 use super::expressions::encode_contract_expression;
@@ -172,7 +172,7 @@ fn external_supply_key_retains_exact_return_carrier_and_static_telescope() {
     changed_telescope.signature.static_parameters.push(
         PackageReviewExternalStaticParameter::Type {
             properties: PackageReviewDataProperties {
-                multiplicity: psi_language_semantics::Multiplicity::Affine,
+                multiplicity: language_semantics::Multiplicity::Affine,
                 carry: None,
             },
         },
@@ -187,7 +187,7 @@ fn external_supply_key_retains_exact_return_carrier_and_static_telescope() {
         else {
             unreachable!("type static parameter fixture")
         };
-        properties.multiplicity = psi_language_semantics::Multiplicity::Unrestricted;
+        properties.multiplicity = language_semantics::Multiplicity::Unrestricted;
     }
     let multiplicity_key = encode_key(&changed_bounds);
     assert_ne!(telescope_key, multiplicity_key);
@@ -198,8 +198,8 @@ fn external_supply_key_retains_exact_return_carrier_and_static_telescope() {
         else {
             unreachable!("type static parameter fixture")
         };
-        properties.multiplicity = psi_language_semantics::Multiplicity::Affine;
-        properties.carry = Some(psi_language_semantics::CarryPolicy::PERMISSIVE);
+        properties.multiplicity = language_semantics::Multiplicity::Affine;
+        properties.carry = Some(language_semantics::CarryPolicy::PERMISSIVE);
     }
     let carry_key = encode_key(&changed_bounds);
     assert_ne!(telescope_key, carry_key);
@@ -214,7 +214,7 @@ fn external_supply_key_retains_exact_return_carrier_and_static_telescope() {
         .static_parameters
         .push(PackageReviewExternalStaticParameter::Type {
             properties: PackageReviewDataProperties {
-                multiplicity: psi_language_semantics::Multiplicity::Unrestricted,
+                multiplicity: language_semantics::Multiplicity::Unrestricted,
                 carry: None,
             },
         });
@@ -270,18 +270,16 @@ fn external_supply_key_retains_exact_return_carrier_and_static_telescope() {
     assert_ne!(conformance_key, encode_key(&changed_machine_telescope));
 }
 
-pub(crate) fn normalized_import_row(
-    export: &[u8],
-) -> omega_effects::provider_plan::ProviderPlanRow {
-    let locator = omega_effects::normalize_foreign_locator(
-        omega_effects::ForeignLocatorCandidate::PeByName {
+pub(crate) fn normalized_import_row(export: &[u8]) -> effects::provider_plan::ProviderPlanRow {
+    let locator = effects::normalize_foreign_locator(
+        effects::ForeignLocatorCandidate::PeByName {
             library: b"kernel32.dll".to_vec(),
             export: export.to_vec(),
         },
-        omega_target::TargetProfile::WindowsX64,
+        target::TargetProfile::WindowsX64,
     )
     .expect("normalized import fixture");
-    omega_effects::provider_plan::ProviderPlanRow {
+    effects::provider_plan::ProviderPlanRow {
         method: "write".to_owned(),
         requirement_identity: "Console::write#exact".to_owned(),
         requirement_lifetime_partition: Vec::new(),
@@ -307,7 +305,7 @@ fn provider_row_encoding_distinguishes_requirement_lifetime_partitions() {
 }
 
 fn evaluated_import(
-    locator: omega_effects::NormalizedForeignLocator,
+    locator: effects::NormalizedForeignLocator,
     seed: u8,
 ) -> EvaluatedForeignImport {
     let usage = EvaluatedBindingUsage::from_evaluator(7, 1, 10, 1_000, 0, 0, 4, 12, 3, 0)
@@ -382,18 +380,18 @@ pub(crate) fn normalized_import_review_encoding_retains_exact_atomic_locator() {
 #[test]
 fn macho_import_review_encoding_retains_raw_atomic_coordinates() {
     fn encoded(install_name: &[u8], symbol: &[u8]) -> Vec<u8> {
-        let row = omega_effects::provider_plan::ProviderPlanRow {
+        let row = effects::provider_plan::ProviderPlanRow {
             method: "write".to_owned(),
             requirement_identity: "Console::write#exact".to_owned(),
             requirement_lifetime_partition: Vec::new(),
             binding: ProviderBinding::Import {
                 evaluated: evaluated_import(
-                    omega_effects::normalize_foreign_locator(
-                        omega_effects::ForeignLocatorCandidate::MachODylibSymbol {
+                    effects::normalize_foreign_locator(
+                        effects::ForeignLocatorCandidate::MachODylibSymbol {
                             install_name: install_name.to_vec(),
                             symbol: symbol.to_vec(),
                         },
-                        omega_target::TargetProfile::MacosArm64,
+                        target::TargetProfile::MacosArm64,
                     )
                     .expect("normalized Mach-O import fixture"),
                     21,
@@ -422,7 +420,7 @@ fn macho_import_review_encoding_retains_raw_atomic_coordinates() {
 
 #[test]
 fn compiler_intrinsic_execution_encoding_is_closed_and_format_sensitive() {
-    use omega_provider_planning::plans::CompilerPrimitiveFloatBinaryOperation;
+    use provider_planning::plans::CompilerPrimitiveFloatBinaryOperation;
 
     fn encoded(execution: PackageReviewCompilerIntrinsicExecution) -> Vec<u8> {
         let mut encoder = Encoder::bounded(16);
@@ -432,38 +430,38 @@ fn compiler_intrinsic_execution_encoding_is_closed_and_format_sensitive() {
     }
 
     let builtin = encoded(PackageReviewCompilerIntrinsicExecution::BuiltinFunction(
-        psi_symbols::BuiltinFunction::Min,
+        symbols::BuiltinFunction::Min,
     ));
     let linux_exit = encoded(PackageReviewCompilerIntrinsicExecution::LinuxExitGroupI32);
     let negate_f32 = encoded(PackageReviewCompilerIntrinsicExecution::NamedFloatNegation(
-        psi_numerics::literals::FloatFormat::F32,
+        numerics::literals::FloatFormat::F32,
     ));
     let negate_f64 = encoded(PackageReviewCompilerIntrinsicExecution::NamedFloatNegation(
-        psi_numerics::literals::FloatFormat::F64,
+        numerics::literals::FloatFormat::F64,
     ));
     let primitive_add_f32 = encoded(
         PackageReviewCompilerIntrinsicExecution::PrimitiveFloatBinary {
             operation: CompilerPrimitiveFloatBinaryOperation::Add,
-            format: psi_numerics::literals::FloatFormat::F32,
+            format: numerics::literals::FloatFormat::F32,
         },
     );
     let primitive_subtract_f32 = encoded(
         PackageReviewCompilerIntrinsicExecution::PrimitiveFloatBinary {
             operation: CompilerPrimitiveFloatBinaryOperation::Subtract,
-            format: psi_numerics::literals::FloatFormat::F32,
+            format: numerics::literals::FloatFormat::F32,
         },
     );
     let primitive_add_f64 = encoded(
         PackageReviewCompilerIntrinsicExecution::PrimitiveFloatBinary {
             operation: CompilerPrimitiveFloatBinaryOperation::Add,
-            format: psi_numerics::literals::FloatFormat::F64,
+            format: numerics::literals::FloatFormat::F64,
         },
     );
     let conversion = encoded(
         PackageReviewCompilerIntrinsicExecution::NamedFloatConversion {
-            source: omega_provider_planning::plans::CompilerNumericType::F64,
-            target: omega_provider_planning::plans::CompilerNumericType::F32,
-            domain: psi_numerics::arithmetic::ArithmeticDomain::Exact,
+            source: provider_planning::plans::CompilerNumericType::F64,
+            target: provider_planning::plans::CompilerNumericType::F32,
+            domain: numerics::arithmetic::ArithmeticDomain::Exact,
         },
     );
     assert_ne!(builtin, negate_f32);
@@ -482,7 +480,7 @@ fn compiler_intrinsic_execution_encoding_is_closed_and_format_sensitive() {
 
 #[test]
 fn primitive_float_binary_encoding_has_explicit_operation_tags() {
-    use omega_provider_planning::plans::CompilerPrimitiveFloatBinaryOperation;
+    use provider_planning::plans::CompilerPrimitiveFloatBinaryOperation;
 
     let operations = [
         CompilerPrimitiveFloatBinaryOperation::Add,
@@ -502,7 +500,7 @@ fn primitive_float_binary_encoding_has_explicit_operation_tags() {
             &mut encoder,
             &PackageReviewCompilerIntrinsicExecution::PrimitiveFloatBinary {
                 operation,
-                format: psi_numerics::literals::FloatFormat::F32,
+                format: numerics::literals::FloatFormat::F32,
             },
         )
         .expect("encode primitive float binary execution");
@@ -515,8 +513,8 @@ fn primitive_float_binary_encoding_has_explicit_operation_tags() {
 
 #[test]
 fn compiler_conversion_encoding_has_explicit_numeric_and_domain_tags() {
-    use omega_provider_planning::plans::CompilerNumericType;
-    use psi_numerics::arithmetic::ArithmeticDomain;
+    use numerics::arithmetic::ArithmeticDomain;
+    use provider_planning::plans::CompilerNumericType;
 
     fn encoded(execution: PackageReviewCompilerIntrinsicExecution) -> Vec<u8> {
         let mut encoder = Encoder::bounded(16);
@@ -575,7 +573,7 @@ fn compiler_conversion_encoding_has_explicit_numeric_and_domain_tags() {
 pub(crate) fn empty_review() -> CheckedPackageReviewProjection {
     CheckedPackageReviewProjection {
         package: PackageKeyIdentity::from_digest([1; 32]).expect("nonzero package identity"),
-        target: omega_target::TargetProfile::WindowsX64,
+        target: target::TargetProfile::WindowsX64,
         public_traits: Vec::new(),
         public_conformances: Vec::new(),
         public_domains: Vec::new(),

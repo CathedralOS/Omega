@@ -104,14 +104,14 @@ fn mutate_program_fingerprint(
     manifest: &mut PrePhysicalOptimizationManifest,
     _: &ValidatedOptimizedAbstractPlan,
 ) {
-    manifest.psi.program_fingerprint = psi_terminal::SemanticFingerprint::from_bytes([0x51; 32]);
+    manifest.psi.program_fingerprint = terminal_psi::SemanticFingerprint::from_bytes([0x51; 32]);
 }
 
 fn mutate_fuel_schedule(
     manifest: &mut PrePhysicalOptimizationManifest,
     _: &ValidatedOptimizedAbstractPlan,
 ) {
-    manifest.fuel_schedule = psi_core::FuelScheduleIdentity::new(99_960).unwrap();
+    manifest.fuel_schedule = semantic_vocabulary::FuelScheduleIdentity::new(99_960).unwrap();
 }
 
 fn mutate_initial_unit(
@@ -119,7 +119,7 @@ fn mutate_initial_unit(
     _: &ValidatedOptimizedAbstractPlan,
 ) {
     manifest.initial_unit =
-        omega_optimization_core::OptimizationUnitIdentity::from_canonical_bytes(b"mutated initial");
+        optimization_core::OptimizationUnitIdentity::from_canonical_bytes(b"mutated initial");
 }
 
 fn mutate_final_unit(
@@ -127,7 +127,7 @@ fn mutate_final_unit(
     _: &ValidatedOptimizedAbstractPlan,
 ) {
     manifest.final_unit =
-        omega_optimization_core::OptimizationUnitIdentity::from_canonical_bytes(b"mutated final");
+        optimization_core::OptimizationUnitIdentity::from_canonical_bytes(b"mutated final");
 }
 
 fn mutate_projection(
@@ -135,7 +135,7 @@ fn mutate_projection(
     _: &ValidatedOptimizedAbstractPlan,
 ) {
     manifest.projection =
-        omega_optimization_core::OptimizedAbstractPlanProjectionIdentity::from_canonical_bytes(
+        optimization_core::OptimizedAbstractPlanProjectionIdentity::from_canonical_bytes(
             b"mutated projection",
         );
 }

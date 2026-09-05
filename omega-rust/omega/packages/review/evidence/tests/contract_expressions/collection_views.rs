@@ -63,7 +63,7 @@ fn projected_collection_view(
 
 fn collection_view_expression(
     checked: &CheckedCompilation,
-) -> psi_typed_trees::expression::ExpressionHandle {
+) -> typed_trees::expression::ExpressionHandle {
     let matching = checked
         .facts
         .intrinsic_calls
@@ -71,7 +71,7 @@ fn collection_view_expression(
         .filter_map(|fact| {
             matches!(
                 fact.intrinsic,
-                psi_language_semantics::declaration_selection::AuthoredDeclarationSelectionIntrinsic::CollectionView(_)
+                language_semantics::declaration_selection::AuthoredDeclarationSelectionIntrinsic::CollectionView(_)
             )
             .then_some(fact.expression)
         })
@@ -165,8 +165,8 @@ fn collection_view_review_rejects_checked_identity_and_custody_tamper() {
         .iter_mut()
         .find(|fact| fact.expression == expression)
         .expect("collection-view fact")
-        .intrinsic = psi_language_semantics::declaration_selection::AuthoredDeclarationSelectionIntrinsic::CollectionView(
-        psi_language_semantics::declaration_selection::CollectionViewOperation::MutableSlice,
+        .intrinsic = language_semantics::declaration_selection::AuthoredDeclarationSelectionIntrinsic::CollectionView(
+        language_semantics::declaration_selection::CollectionViewOperation::MutableSlice,
     );
     assert_rejects(
         &redirected,
@@ -175,12 +175,12 @@ fn collection_view_review_rejects_checked_identity_and_custody_tamper() {
 
     let mut stale_call = compile_collection_view("items.as_slice()");
     let expression = collection_view_expression(&stale_call);
-    let psi_typed_trees::expression::ExpressionNode::Call(call) =
+    let typed_trees::expression::ExpressionNode::Call(call) =
         stale_call.typed.expression_table.expression_mut(expression)
     else {
         panic!("collection-view call expression")
     };
-    call.target = psi_typed_trees::name::Identifier::generated_static("as_mut_slice");
+    call.target = typed_trees::name::Identifier::generated_static("as_mut_slice");
     assert_rejects(
         &stale_call,
         "disagrees with its exact checked intrinsic identity",
@@ -193,7 +193,7 @@ fn collection_view_review_rejects_checked_identity_and_custody_tamper() {
         .expression_table
         .iter_expressions()
         .find_map(|(candidate, node)| {
-            let psi_typed_trees::expression::ExpressionNode::Call(call) = node else {
+            let typed_trees::expression::ExpressionNode::Call(call) = node else {
                 return None;
             };
             (call.target.as_str() == "valid_utf8")

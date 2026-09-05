@@ -63,7 +63,7 @@ fn public_quotient_identity_binds_carrier_and_relation_but_not_proof_implementat
     let different_relation = compile("Representative", "same_bucket", "FirstEvidence", false);
     let different_relation_body = compile("Representative", "equivalent", "FirstEvidence", true);
 
-    let quotient = |review: &omega_package_evidence::record::CheckedPackageReviewProjection| {
+    let quotient = |review: &package_evidence::record::CheckedPackageReviewProjection| {
         review
             .public_data()
             .iter()
@@ -131,12 +131,12 @@ fn public_quotient_review_rederives_formation_instead_of_trusting_typed_metadata
         .expect("selected quotient evidence conformance");
     assert!(checked.authored_declaration_selections().iter().any(|selection| {
         selection.kind()
-            == psi_language_semantics::declaration_selection::AuthoredDeclarationSelectionKind::Conformance
+            == language_semantics::declaration_selection::AuthoredDeclarationSelectionKind::Conformance
             && selection.exposure()
-                == psi_language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure::PrivateImplementation
+                == language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure::PrivateImplementation
             && matches!(
                 selection.target(),
-                psi_language_semantics::declaration_selection::AuthoredDeclarationSelectionTarget::Resolved(target)
+                language_semantics::declaration_selection::AuthoredDeclarationSelectionTarget::Resolved(target)
                     if target.selected_symbol() == evidence_symbol
             )
     }));
@@ -150,7 +150,7 @@ fn public_quotient_review_rederives_formation_instead_of_trusting_typed_metadata
                     .quotient
                     .as_mut()
                     .expect("quotient metadata")
-                    .relation_symbol = psi_symbols::SymbolHandle::invalid();
+                    .relation_symbol = symbols::SymbolHandle::invalid();
             }
         });
 

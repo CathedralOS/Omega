@@ -3,14 +3,14 @@
 use super::*;
 use crate::capture::semantics::declarations::trait_requirement_identity_from_symbols;
 use crate::record::{PackagePolicyServiceProgressPremise, PackagePolicyServiceProgressRoute};
-use omega_effects::provider_plan::{ServiceProgressEstablishmentRouteKind, ServiceProgressSubject};
+use effects::provider_plan::{ServiceProgressEstablishmentRouteKind, ServiceProgressSubject};
 
 pub(super) fn project(
     compilation: &CheckedCompilation,
-    guarantee: &psi_language_semantics::TerminationGuarantee,
-    parameters: &[psi_typed_trees::signature::StateParameter],
+    guarantee: &language_semantics::TerminationGuarantee,
+    parameters: &[typed_trees::signature::StateParameter],
 ) -> Result<Vec<PackagePolicyServiceProgressPremise>, Vec<Diagnostic>> {
-    let psi_language_semantics::TerminationGuarantee::Terminates { premises } = guarantee else {
+    let language_semantics::TerminationGuarantee::Terminates { premises } = guarantee else {
         return Ok(Vec::new());
     };
     let mut projected = Vec::new();
@@ -25,8 +25,7 @@ pub(super) fn project(
                 "progress premise has no unique exact profile declaration",
             ));
         };
-        if profile.classification
-            != Some(psi_language_semantics::DomainClassification::ProgressProfile)
+        if profile.classification != Some(language_semantics::DomainClassification::ProgressProfile)
         {
             return Err(rejected(
                 "progress premise names another domain classification",
@@ -57,10 +56,10 @@ pub(super) fn project(
             .map(|route| {
                 Ok(PackagePolicyServiceProgressRoute {
                     kind: match route {
-                        psi_language_semantics::DomainEstablishmentRoute::CheckedRequirement {
+                        language_semantics::DomainEstablishmentRoute::CheckedRequirement {
                             ..
                         } => ServiceProgressEstablishmentRouteKind::CheckedRequirement,
-                        psi_language_semantics::DomainEstablishmentRoute::BoundaryRequirement {
+                        language_semantics::DomainEstablishmentRoute::BoundaryRequirement {
                             ..
                         } => ServiceProgressEstablishmentRouteKind::BoundaryRequirement,
                     },

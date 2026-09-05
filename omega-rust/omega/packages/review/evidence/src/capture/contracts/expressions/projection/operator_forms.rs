@@ -6,9 +6,9 @@ use super::super::operators::{
 };
 use crate::capture::contracts::facts::ContractProjectionContext;
 use crate::record::{PackageReviewContractExpression, PackageReviewContractOperatorMeaning};
-use omega_compiler::CheckedCompilation;
-use psi_diagnostics::Diagnostic;
-use psi_typed_trees::expression::{ExpressionHandle, ExpressionNode};
+use compiler::CheckedCompilation;
+use diagnostics::Diagnostic;
+use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 
 pub(super) fn project_operator_form(
     compilation: &CheckedCompilation,

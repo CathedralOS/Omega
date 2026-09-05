@@ -15,10 +15,10 @@ use crate::record::{
     CheckedPackageReviewProjection, PackageReviewSourceLocationRole,
     PackageReviewSyntheticSourceKind, PackageReviewTerminalAuthorityPermission,
 };
-use omega_compiler::CheckedCompilation;
-use omega_target::TargetProfile;
-use psi_core::PackageKeyIdentity;
-use psi_diagnostics::Diagnostic;
+use compiler::CheckedCompilation;
+use diagnostics::Diagnostic;
+use semantic_vocabulary::PackageKeyIdentity;
+use target::TargetProfile;
 
 pub(super) struct PendingPackageReview {
     pub(super) package: PackageKeyIdentity,

@@ -1,0 +1,22 @@
+[package]
+name = "terminal-codec"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[lib]
+name = "terminal_codec"
+path = "src/lib.rs"
+
+[dependencies]
+semantic-vocabulary = { path = "../../foundation/semantic-vocabulary" }
+language-semantics = { path = "../../foundation/language-semantics" }
+optimization = { path = "../../representations/optimization" }
+proof-admission = { path = "../proof-admission" }
+terminal-psi = { path = "../../representations/terminal-psi" }
+terminal-semantics = { path = "../terminal-semantics" }
+terminal-verifier = { path = "../terminal-verifier" }
+sha2 = "0.10"
+
+[dev-dependencies]
+numerics = { path = "../../foundation/numerics" }

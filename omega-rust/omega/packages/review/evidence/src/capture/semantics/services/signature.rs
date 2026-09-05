@@ -137,7 +137,7 @@ pub(super) fn project(
                     machine.symbol == symbol
                         && symbol == requirement
                         && machine.supply_mode
-                            == psi_language_semantics::MachineSupplyMode::TopLevelRequirement
+                            == language_semantics::MachineSupplyMode::TopLevelRequirement
                 })
                 .collect::<Vec<_>>();
             let [machine] = matches.as_slice() else {
@@ -195,7 +195,7 @@ pub(super) fn project(
         &[],
         &scopes,
         false,
-        psi_language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure::PublicInterface,
+        language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure::PublicInterface,
     )?;
     let parameters = values
         .iter()

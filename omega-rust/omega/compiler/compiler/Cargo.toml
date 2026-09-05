@@ -1,0 +1,99 @@
+[package]
+name = "compiler"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[lib]
+name = "compiler"
+path = "src/lib.rs"
+
+[features]
+experimental-external-optimization-policy = [
+    "dep:bounded-process",
+]
+
+[dependencies]
+build-declarations = { path = "../../build/build-declarations" }
+build-evaluation = { path = "../../build/build-evaluation" }
+build-output = { path = "../../build/build-output" }
+compilation-report = { path = "../compilation-report" }
+package-compilation = { path = "../../build/package-compilation" }
+provider-planning = { path = "../../build/provider-planning" }
+representation-planning = { path = "../../build/representation-planning" }
+trust-model = { path = "../../build/trust-model" }
+core = { path = "../../representations/core" }
+boundary-applications = { path = "../../representations/boundary-applications" }
+optimization-core = { path = "../../representations/optimization-core" }
+abstract-operations-to-target-operations = { path = "../../pipeline/abstract-operations-to-target-operations" }
+semantic-vocabulary = { path = "../../../psi/foundation/semantic-vocabulary" }
+arena = { path = "../../../psi/foundation/arena" }
+symbols = { path = "../../../psi/foundation/symbols" }
+syntax-trees = { path = "../../../psi/representations/syntax-trees" }
+syntax-trees-to-symbol-resolved-trees = { path = "../../../psi/pipeline/syntax-trees-to-symbol-resolved-trees" }
+calling-conventions = { path = "../../representations/calling-conventions" }
+access-plans = { path = "../../../psi/foundation/access-plans" }
+diagnostics = { path = "../../../psi/foundation/diagnostics" }
+language-core = { path = "../../../psi/foundation/language-core" }
+language-semantics = { path = "../../../psi/foundation/language-semantics" }
+extents = { path = "../../../psi/foundation/extents" }
+layout-plans = { path = "../../../psi/foundation/layout-plans" }
+numerics = { path = "../../../psi/foundation/numerics" }
+task-plans = { path = "../../representations/task-plans" }
+source = { path = "../../../psi/foundation/source" }
+source-files-to-tokens = { path = "../../../psi/pipeline/source-files-to-tokens" }
+tokens = { path = "../../../psi/representations/tokens" }
+backend-plan = { path = "../../backend/plans/backend-plan" }
+program-entry-plan = { path = "../../backend/plans/program-entry-plan" }
+artifacts = { path = "../../tooling/artifacts" }
+bounded-process = { path = "../../tooling/bounded-process", optional = true }
+checked-trees = { path = "../../../psi/representations/checked-trees" }
+checked-interpreter = { path = "../../../psi/semantics/checked-interpreter" }
+build-time-evaluation = { path = "../../../psi/semantics/build-time-evaluation" }
+validation = { path = "../../../psi/semantics/validation" }
+effects = { path = "../../representations/effects" }
+installation-evidence = { path = "../../representations/installation-evidence" }
+target-operations = { path = "../../representations/target-operations" }
+flow-effects = { path = "../../../psi/representations/flow-effects" }
+symbol-resolved-trees = { path = "../../../psi/representations/symbol-resolved-trees" }
+symbol-resolved-trees-to-typed-trees = { path = "../../../psi/pipeline/symbol-resolved-trees-to-typed-trees" }
+tokens-to-syntax-trees = { path = "../../../psi/pipeline/tokens-to-syntax-trees" }
+typed-trees-to-checked-trees = { path = "../../../psi/pipeline/typed-trees-to-checked-trees" }
+facts = { path = "../../../psi/representations/facts" }
+target = { path = "../../representations/target" }
+typed-trees = { path = "../../../psi/representations/typed-trees" }
+terminal-psi = { path = "../../../psi/representations/terminal-psi" }
+visualizations = { path = "../../tooling/visualizations" }
+checked-trees-to-terminal-psi = { path = "../../../psi/pipeline/checked-trees-to-terminal-psi" }
+terminal-codec = { path = "../../../psi/semantics/terminal-codec" }
+terminal-verifier = { path = "../../../psi/semantics/terminal-verifier" }
+proof-admission = { path = "../../../psi/semantics/proof-admission" }
+terminal-psi-to-native-artifact = { path = "../../pipeline/terminal-psi-to-native-artifact" }
+selected-dispatch = { path = "../../build/selected-dispatch" }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+[dev-dependencies]
+sha2 = "0.10.9"
+
+terminal-interpreter = { path = "../../../psi/semantics/terminal-interpreter" }
+bounded-process = { path = "../../tooling/bounded-process" }
+image-emission = { path = "../../backend/images/image-emission" }
+machine-code = { path = "../../representations/machine-code" }
+machine-emission = { path = "../../backend/machine-emission" }
+terminal-psi-to-abstract-operations = { path = "../../pipeline/terminal-psi-to-abstract-operations" }
+target-operations-to-assigned-target-operations = { path = "../../pipeline/target-operations-to-assigned-target-operations" }
+executable-installation = { path = "../../backend/runtime/executable-installation" }
+external-roots = { path = "../../backend/runtime/external-roots" }
+provider-planning = { path = "../../build/provider-planning", features = ["installed-writer"] }
+layout = { path = "../../backend/layout" }
+object-file = { path = "../../backend/object/object-file" }
+program-entry-plan = { path = "../../backend/plans/program-entry-plan" }
+package-compilation = { path = "../../build/package-compilation", features = ["test-support"] }
+installation-evidence = { path = "../../representations/installation-evidence" }
+facts = { path = "../../../psi/representations/facts" }
+terminal-psi = { path = "../../../psi/representations/terminal-psi" }
+
+[[test]]
+name = "generic_data"
+path = "../../../../tests/omega/generic_data.rs"

@@ -1,22 +1,22 @@
-pub(crate) use omega_build_evaluation::BuildObservationClass;
-pub(crate) use omega_compiler::{CheckedCompilation, compile_to_checked_with_packages};
-pub(crate) use omega_package_compilation::{
+pub(crate) use build_evaluation::BuildObservationClass;
+pub(crate) use compiler::{CheckedCompilation, compile_to_checked_with_packages};
+pub(crate) use package_compilation::{
     AcceptedSemanticBindingRole, BuildDeclarationKind, PackageCompilationInputs,
     PackageDependencyBinding, PackageSourceBinding,
 };
-pub(crate) use omega_package_evidence::encoding::{
+pub(crate) use package_evidence::encoding::{
     PACKAGE_REVIEW_ENCODING_VERSION, PACKAGE_REVIEW_ROW_ENCODING_VERSION,
     decode_package_review_canonical_row, encode_package_review_canonical_row,
 };
-pub(crate) use omega_package_evidence::ledger::{
+pub(crate) use package_evidence::ledger::{
     OrdinaryPackageObligationStatus, decode_ordinary_package_obligation_ledger,
     encode_ordinary_package_obligation_ledger, ordinary_package_obligation_ledger_fingerprint,
     ordinary_package_obligation_ledger_from_compiler_rows,
     reconstruct_ordinary_package_obligation_results, recover_ordinary_package_obligation_ledger,
     validate_ordinary_package_obligation_ledger,
 };
-pub(crate) use omega_package_evidence::project_checked_package_review;
-pub(crate) use omega_package_evidence::record::{
+pub(crate) use package_evidence::project_checked_package_review;
+pub(crate) use package_evidence::record::{
     CheckedPackageReviewProjection, PackageReviewArithmeticDomain, PackageReviewAtomicLoadOrdering,
     PackageReviewBoundaryApplication, PackageReviewBoundaryApplicationArgument,
     PackageReviewBoundaryApplicationRealization, PackageReviewBoundaryApplicationRealizationRole,
@@ -48,7 +48,7 @@ pub(crate) use omega_package_evidence::record::{
     PackageReviewSynchronousInvocation, PackageReviewSyntheticSourceKind,
     PackageReviewTypeParameterKind,
 };
-pub(crate) use psi_core::PackageKeyIdentity;
+pub(crate) use semantic_vocabulary::PackageKeyIdentity;
 pub(crate) use std::fs;
 pub(crate) use std::path::{Path, PathBuf};
 pub(crate) use std::sync::atomic::{AtomicU64, Ordering};

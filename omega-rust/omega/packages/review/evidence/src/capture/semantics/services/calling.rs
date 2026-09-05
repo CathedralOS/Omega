@@ -73,7 +73,7 @@ pub(super) fn boundary_arguments(
     compilation: &CheckedCompilation,
     schema: ProviderSchemaDeclaration,
     provider_type: Option<SymbolHandle>,
-) -> Result<&[psi_typed_trees::types::TypeReferenceHandle], Vec<Diagnostic>> {
+) -> Result<&[typed_trees::types::TypeReferenceHandle], Vec<Diagnostic>> {
     let ProviderSchemaDeclaration::BoundaryTrait(schema_symbol) = schema else {
         return Ok(&[]);
     };

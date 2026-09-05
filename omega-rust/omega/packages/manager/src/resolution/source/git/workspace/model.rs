@@ -1,6 +1,6 @@
 use super::{BuildDeclarationCommitment, GitWorkspaceSelectionError};
-use omega_build_declarations::BuildDeclarationKind;
-use omega_build_declarations::{ProjectName, WorkspaceMemberPath};
+use build_declarations::BuildDeclarationKind;
+use build_declarations::{ProjectName, WorkspaceMemberPath};
 
 /// Authenticated declaration bytes associated with one declared member path.
 ///

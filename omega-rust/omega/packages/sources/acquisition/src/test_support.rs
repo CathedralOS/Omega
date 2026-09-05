@@ -217,7 +217,7 @@ pub(crate) fn package_fixtures_root() -> PathBuf {
         .ancestors()
         .map(|ancestor| ancestor.join("tests/fixtures/packages"))
         .find(|fixtures| fixtures.is_dir())
-        .expect("omega-package-source should live beneath the Omega workspace")
+        .expect("package-source should live beneath the Omega workspace")
 }
 
 pub(crate) fn git_cache_entry_root(cache: &Path, request: &GitSourceRequest) -> PathBuf {
@@ -280,8 +280,8 @@ pub(crate) fn first_regular_descendant(root: &Path) -> PathBuf {
 }
 
 #[cfg(unix)]
-pub(crate) fn shell_command(script: &str) -> omega_resolver_execution::ResolverPreparedExecution {
-    use omega_resolver_execution::{ResolverExecutionBackend, ResolverExecutionPhase};
+pub(crate) fn shell_command(script: &str) -> resolver_execution::ResolverPreparedExecution {
+    use resolver_execution::{ResolverExecutionBackend, ResolverExecutionPhase};
 
     let temporary_root = std::env::temp_dir()
         .canonicalize()

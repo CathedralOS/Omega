@@ -1,8 +1,8 @@
 //! Exact checked occurrence join for closed conformance static arguments.
 
-use omega_compiler::CheckedCompilation;
-use psi_diagnostics::Diagnostic;
-use psi_symbols::SymbolHandle;
+use compiler::CheckedCompilation;
+use diagnostics::Diagnostic;
+use symbols::SymbolHandle;
 
 use super::ContractCallStaticParameterKind;
 use crate::capture::contracts::facts::ContractProjectionContext;
@@ -12,10 +12,10 @@ use crate::record::PackageReviewContractStaticArgument;
 pub(crate) fn require_exact_conformance_static_argument_selections(
     compilation: &CheckedCompilation,
     context: &ContractProjectionContext<'_>,
-    expression: psi_typed_trees::expression::ExpressionHandle,
-    arguments: &[psi_typed_trees::expression::StaticMachineArgument],
+    expression: typed_trees::expression::ExpressionHandle,
+    arguments: &[typed_trees::expression::StaticMachineArgument],
 ) -> Result<(), Vec<Diagnostic>> {
-    use psi_language_semantics::declaration_selection::{
+    use language_semantics::declaration_selection::{
         AuthoredDeclarationSelectionKind, AuthoredDeclarationSelectionTarget,
     };
 
@@ -24,7 +24,7 @@ pub(crate) fn require_exact_conformance_static_argument_selections(
         .filter(|argument| {
             argument.symbol.is_valid()
                 && compilation.typed.symbols.get(argument.symbol).kind
-                    == psi_symbols::SymbolKind::Conformance
+                    == symbols::SymbolKind::Conformance
         })
         .map(|argument| argument.symbol)
         .collect::<Vec<_>>();
@@ -49,7 +49,7 @@ pub(crate) fn require_exact_conformance_static_argument_selections(
             continue;
         };
         if compilation.typed.symbols.get(target.selected_symbol()).kind
-            != psi_symbols::SymbolKind::Conformance
+            != symbols::SymbolKind::Conformance
         {
             continue;
         }
@@ -75,10 +75,10 @@ pub(super) fn project_contract_conformance_application(
     compilation: &CheckedCompilation,
     context: &ContractProjectionContext<'_>,
     binders: &[(SymbolHandle, String)],
-    checked_fact: Option<psi_arena::Handle<psi_typed_trees::domain::ProofFact>>,
-    expression: psi_typed_trees::expression::ExpressionHandle,
+    checked_fact: Option<arena::Handle<typed_trees::domain::ProofFact>>,
+    expression: typed_trees::expression::ExpressionHandle,
     static_argument_position: usize,
-    argument: &psi_typed_trees::expression::StaticMachineArgument,
+    argument: &typed_trees::expression::StaticMachineArgument,
     parameter_kind: ContractCallStaticParameterKind,
     depth: usize,
 ) -> Result<PackageReviewContractStaticArgument, Vec<Diagnostic>> {
@@ -113,11 +113,9 @@ pub(super) fn project_contract_conformance_application(
             matching.len()
         )));
     };
-    let closed = psi_typed_trees_to_checked_trees::close_conformance_application(
-        &compilation.typed,
-        argument,
-    )
-    .map_err(|diagnostic| vec![diagnostic])?;
+    let closed =
+        typed_trees_to_checked_trees::close_conformance_application(&compilation.typed, argument)
+            .map_err(|diagnostic| vec![diagnostic])?;
     if checked.application != closed {
         return Err(rejected(
             "whose retained checked occurrence disagrees with the authored application",
@@ -144,7 +142,7 @@ pub(super) fn project_contract_conformance_application(
         .filter(|parameter| {
             matches!(
                 parameter.kind,
-                psi_typed_trees::data::TypeParameterKind::Const { .. }
+                typed_trees::data::TypeParameterKind::Const { .. }
             )
         })
         .count();
@@ -154,20 +152,20 @@ pub(super) fn project_contract_conformance_application(
             .iter()
             .zip(supplied)
             .any(|(parameter, argument)| match parameter.kind {
-                psi_typed_trees::data::TypeParameterKind::Type => false,
-                psi_typed_trees::data::TypeParameterKind::Const { .. } => {
+                typed_trees::data::TypeParameterKind::Type => false,
+                typed_trees::data::TypeParameterKind::Const { .. } => {
                     argument.const_literal.is_none()
                         && !binders.iter().any(|(symbol, _)| {
                             *symbol == argument.symbol
                                 && compilation.typed.symbols.get(*symbol).kind
-                                    == psi_symbols::SymbolKind::TypeParameter
+                                    == symbols::SymbolKind::TypeParameter
                         })
                         && (!argument.symbol.is_valid()
                             || compilation.typed.symbols.get(argument.symbol).kind
-                                != psi_symbols::SymbolKind::Const)
+                                != symbols::SymbolKind::Const)
                 }
-                psi_typed_trees::data::TypeParameterKind::Machine { .. }
-                | psi_typed_trees::data::TypeParameterKind::Proposition { .. } => true,
+                typed_trees::data::TypeParameterKind::Machine { .. }
+                | typed_trees::data::TypeParameterKind::Proposition { .. } => true,
             })
         || !closed.lifetime_arguments.is_empty()
         || closed.const_arguments.len() != const_parameter_count
@@ -208,12 +206,9 @@ pub(super) fn project_contract_conformance_application(
     }
     let trait_parameters = compilation.trait_type_parameters(trait_definition);
     if trait_parameters.len() != projected.trait_arguments.len()
-        || trait_parameters.iter().any(|parameter| {
-            !matches!(
-                parameter.kind,
-                psi_typed_trees::data::TypeParameterKind::Type
-            )
-        })
+        || trait_parameters
+            .iter()
+            .any(|parameter| !matches!(parameter.kind, typed_trees::data::TypeParameterKind::Type))
     {
         return Err(rejected(
             "whose target trait is outside the type-only closed cohort",

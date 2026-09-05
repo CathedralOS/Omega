@@ -3,10 +3,10 @@
 use crate::capture::callables::project_checked_external_supply_policy;
 use crate::capture::semantics::declarations::{nominal_identity, reviewed_package_owns};
 use crate::record::PackagePolicyExternalExecutableSupply;
-use omega_compiler::CheckedCompilation;
-use psi_core::PackageKeyIdentity;
-use psi_diagnostics::Diagnostic;
-use psi_language_semantics::MachineSupplyMode;
+use compiler::CheckedCompilation;
+use diagnostics::Diagnostic;
+use language_semantics::MachineSupplyMode;
+use semantic_vocabulary::PackageKeyIdentity;
 
 pub(super) fn project(
     compilation: &CheckedCompilation,

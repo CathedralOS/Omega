@@ -19,8 +19,8 @@ fn staged_realization() -> StagedPostAllocationMachineFunctionRelativeRealizatio
         [u128::from(i32::MAX as u32), u128::from(u64::MAX)],
     );
     let module = conditional_immediate_module(machine_fixture.id, vec![machine_fixture]);
-    let semantic = psi_terminal_codec::encode_module(&module).unwrap();
-    let proof = psi_terminal_codec::encode_proof_bundle(&ProofBundle {
+    let semantic = terminal_codec::encode_module(&module).unwrap();
+    let proof = terminal_codec::encode_proof_bundle(&ProofBundle {
         recursive_components: Vec::new(),
         evidence_producers: Vec::new(),
         evidence: Vec::new(),

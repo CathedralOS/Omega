@@ -161,8 +161,8 @@ pub(in crate::encoding::encode) fn domain_shape(
     })?;
     encoder.field("predicate_body", |encoder| {
         match shape.predicate_body {
-            psi_language_semantics::DomainPredicateBody::Bodyless => encoder.tag("bodyless", 0),
-            psi_language_semantics::DomainPredicateBody::Present => encoder.tag("present", 1),
+            language_semantics::DomainPredicateBody::Bodyless => encoder.tag("bodyless", 0),
+            language_semantics::DomainPredicateBody::Present => encoder.tag("present", 1),
         };
         Ok(())
     })?;
@@ -272,10 +272,8 @@ pub(in crate::encoding::encode) fn data_shape(
     })?;
     encoder.field("supply", |encoder| {
         match shape.supply {
-            psi_language_semantics::DataSupplyMode::CheckedShape => encoder.tag("checked_shape", 0),
-            psi_language_semantics::DataSupplyMode::BoundaryOpaque => {
-                encoder.tag("boundary_opaque", 1)
-            }
+            language_semantics::DataSupplyMode::CheckedShape => encoder.tag("checked_shape", 0),
+            language_semantics::DataSupplyMode::BoundaryOpaque => encoder.tag("boundary_opaque", 1),
         };
         Ok(())
     })?;
@@ -312,7 +310,7 @@ pub(in crate::encoding::encode) fn data_shape(
 
 fn spelling(
     encoder: &mut Encoder,
-    value: &psi_language_core::OperatorSpelling,
+    value: &language_core::OperatorSpelling,
 ) -> Result<(), PackageReviewEncodingError> {
     encoder.tag(
         operator_spelling_name(*value),

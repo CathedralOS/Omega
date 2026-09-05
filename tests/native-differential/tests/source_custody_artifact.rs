@@ -5,8 +5,8 @@
 //! the current product frontend and checked interpreter. Agreement is
 //! differential evidence, not bootstrap authority.
 
-use omega_compiler::compile_to_checked;
-use psi_checked_interpreter::interpret_entry;
+use checked_interpreter::interpret_entry;
+use compiler::compile_to_checked;
 use std::path::Path;
 
 #[test]

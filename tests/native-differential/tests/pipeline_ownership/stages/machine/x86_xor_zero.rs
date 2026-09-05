@@ -1,7 +1,7 @@
 //! Direct publication canary plus the exact rule's named custody-corruption rung.
 
 use crate::FunctionFragmentReplayInputs;
-use omega_isa_x86_64::encode_x86_64_xor_zero_i64_materialization;
+use isa_x86_64::encode_x86_64_xor_zero_i64_materialization;
 
 use crate::tests::*;
 
@@ -12,8 +12,8 @@ fn x86_xor_zero_reaches_direct_whole_function_exit_with_exact_custody() {
     let integer_type = IntegerType::new(IntegerSign::Unsigned, 64).unwrap();
     let machine_fixture = conditional_immediate_machine(18_000, integer_type, [0, 1]);
     let module = conditional_immediate_module(machine_fixture.id, vec![machine_fixture]);
-    let semantic = psi_terminal_codec::encode_module(&module).unwrap();
-    let proof = psi_terminal_codec::encode_proof_bundle(&ProofBundle {
+    let semantic = terminal_codec::encode_module(&module).unwrap();
+    let proof = terminal_codec::encode_proof_bundle(&ProofBundle {
         recursive_components: Vec::new(),
         evidence_producers: Vec::new(),
         evidence: Vec::new(),

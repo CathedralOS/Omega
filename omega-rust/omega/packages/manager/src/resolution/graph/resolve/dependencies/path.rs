@@ -12,8 +12,8 @@ use crate::resolution::source::{
     GitPackageSourceRequest, PackageSourceCustody, PackageSourceNavigation,
     ResolvePackageSourceError,
 };
-use omega_build_declarations::WorkspaceMemberPath;
-use omega_package_source::{
+use build_declarations::WorkspaceMemberPath;
+use package_source::{
     ExternalSourceContext, LocalSourceLimits, SourceLineage, WorkspaceLineageIdentity,
 };
 use std::collections::BTreeMap;

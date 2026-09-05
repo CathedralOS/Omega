@@ -1,6 +1,6 @@
 use crate::declarations::PackageKey;
 use crate::resolution::graph::CanonicalSourceClosureSubjectError;
-use omega_package_evidence::encoding::PackageReviewEncodingError;
+use package_evidence::encoding::PackageReviewEncodingError;
 use std::fmt;
 
 #[derive(Debug)]

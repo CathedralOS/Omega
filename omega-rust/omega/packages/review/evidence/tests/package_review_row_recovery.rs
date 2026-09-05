@@ -1,15 +1,13 @@
-use omega_compiler::compile_to_checked_with_packages;
-use omega_package_compilation::{PackageCompilationInputs, PackageSourceBinding};
-use omega_package_evidence::encoding::{
+use compiler::compile_to_checked_with_packages;
+use package_compilation::{PackageCompilationInputs, PackageSourceBinding};
+use package_evidence::encoding::{
     PACKAGE_REVIEW_CANONICAL_ROW_RECOVERY_VERSION, PackageReviewCanonicalRowRecoveryLimits,
     decode_package_review_canonical_row, decode_package_review_canonical_row_with_limits,
     encode_package_review_canonical_row,
 };
-use omega_package_evidence::project_checked_package_review;
-use omega_package_evidence::record::{
-    PackageReviewCanonicalRowKind, PackageReviewSourceLocationRole,
-};
-use psi_core::PackageKeyIdentity;
+use package_evidence::project_checked_package_review;
+use package_evidence::record::{PackageReviewCanonicalRowKind, PackageReviewSourceLocationRole};
+use semantic_vocabulary::PackageKeyIdentity;
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -48,8 +46,8 @@ fn package_identity() -> PackageKeyIdentity {
 }
 
 fn fixture_rows() -> Option<(
-    omega_target::TargetProfile,
-    Vec<omega_package_evidence::record::PackageReviewCanonicalRow>,
+    target::TargetProfile,
+    Vec<package_evidence::record::PackageReviewCanonicalRow>,
 )> {
     let target_name = host_target_name()?;
     let package = TempPackage::new();
@@ -351,7 +349,7 @@ fn decoder_rejects_malformed_noncanonical_and_over_limit_recovery_rows() {
         usize::MAX,
     );
     assert!(
-        omega_package_evidence::encoding::encode_package_review_canonical_row_with_limits(
+        package_evidence::encoding::encode_package_review_canonical_row_with_limits(
             authored,
             tiny_envelope
         )

@@ -1,6 +1,6 @@
 // FAIL CANARY (rung-A fence): a recast binds to a reference-typed let;
 // inline re-views (guard operands, call arguments, nested expressions)
-// land with the byte-view rung. The position sweep in psi-validation
+// land with the byte-view rung. The position sweep in validation
 // recasts.rs mirrors the D14 literal gate: blessed roots first, then a
 // whole-table sweep refuses strays.
 use omega::language::std::console;

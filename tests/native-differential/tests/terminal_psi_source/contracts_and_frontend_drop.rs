@@ -26,7 +26,7 @@ fn checked_source_survives_frontend_drop_as_verified_psi() {
     assert_eq!(relation.binders.len(), 3);
     assert!(matches!(
         relation.evidence,
-        psi_terminal::PropositionEvidence::FactOnly
+        terminal_psi::PropositionEvidence::FactOnly
     ));
     let witness = lowered
         .semantic_module
@@ -36,7 +36,7 @@ fn checked_source_survives_frontend_drop_as_verified_psi() {
         .expect("witness-bearing proposition should retain terminal identity");
     assert!(matches!(
         &witness.evidence,
-        psi_terminal::PropositionEvidence::Witness { evidence_type }
+        terminal_psi::PropositionEvidence::Witness { evidence_type }
             if evidence_type == "TerminalEvidence"
     ));
     let application = &lowered.semantic_module.proposition_applications[0];
@@ -60,7 +60,7 @@ fn checked_source_survives_frontend_drop_as_verified_psi() {
             .expect("the source producer should retain its debug map"),
     )
     .expect("source-produced debug map should encode canonically");
-    let optimization = psi_terminal_codec::build_identity_optimization_execution_record(
+    let optimization = terminal_codec::build_identity_optimization_execution_record(
         &lowered.semantic_module,
         &lowered.proof_bundle,
     )
@@ -183,8 +183,8 @@ fn checked_source_survives_frontend_drop_as_verified_psi() {
                 entry: BlockId::new(1).expect("entry block"),
                 parameters: Vec::new(),
                 structural_parameters: Vec::new(),
-                result: omega_abstract_operations::AbstractFunctionResult::Scalar(
-                    omega_abstract_operations::AbstractResult {
+                result: abstract_operations::AbstractFunctionResult::Scalar(
+                    abstract_operations::AbstractResult {
                         value: ValueId::new(4).expect("machine result"),
                         scalar_type: ScalarType::Integer(i32_type),
                     },
@@ -280,7 +280,7 @@ fn terminal_scalar_contract_consumes_the_source_independent_checked_plan() {
                     .span_or_empty(contract.facts)
             })
             .filter_map(|fact| match fact {
-                psi_typed_trees::domain::ProofFact::Expression(expression) => Some(*expression),
+                typed_trees::domain::ProofFact::Expression(expression) => Some(*expression),
                 _ => None,
             })
             .collect::<Vec<_>>()
@@ -289,8 +289,7 @@ fn terminal_scalar_contract_consumes_the_source_independent_checked_plan() {
         *without_contract_expressions
             .typed
             .expression_table
-            .expression_mut(expression) =
-            psi_checked_trees::expression::ExpressionNode::Boolean(false);
+            .expression_mut(expression) = checked_trees::expression::ExpressionNode::Boolean(false);
     }
 
     let actual = lower_machine(&without_contract_expressions, "terminal_constant")
@@ -351,7 +350,7 @@ fn terminal_scalar_body_consumes_the_source_independent_checked_plan() {
                     .iter()
             })
             .find_map(|statement| match statement {
-                psi_checked_trees::statement::StatementNode::Expression(expression) => {
+                checked_trees::statement::StatementNode::Expression(expression) => {
                     Some(*expression)
                 }
                 _ => None,
@@ -363,7 +362,7 @@ fn terminal_scalar_body_consumes_the_source_independent_checked_plan() {
         .typed
         .expression_table
         .expression_mut(return_expression) =
-        psi_checked_trees::expression::ExpressionNode::Boolean(false);
+        checked_trees::expression::ExpressionNode::Boolean(false);
 
     let actual = lower_machine(&without_typed_return, "terminal_constant")
         .expect("terminal production must not reopen the checked return expression");
@@ -414,7 +413,7 @@ fn terminal_scalar_control_consumes_the_source_independent_checked_plan() {
             .find(|statement| {
                 matches!(
                     statement,
-                    psi_checked_trees::statement::StatementNode::Transition(_)
+                    checked_trees::statement::StatementNode::Transition(_)
                 )
             })
             .expect("a valid replacement transition")
@@ -486,7 +485,7 @@ fn terminal_machine_selection_consumes_the_source_independent_checked_plan() {
         .find(|machine| machine.name.as_str() == "terminal_constant")
         .expect("terminal constant machine");
     source_machine.name = replacement_name;
-    source_machine.supply_mode = psi_language_semantics::MachineSupplyMode::Boundary;
+    source_machine.supply_mode = language_semantics::MachineSupplyMode::Boundary;
 
     let actual = lower_machine(&without_typed_selection, "terminal_constant")
         .expect("terminal production must not reopen typed machine selection or eligibility");

@@ -1,7 +1,7 @@
 //! Exact active-resident recovery followed by x86 MOV-r32 realization.
 
 use crate::FunctionFragmentReplayInputs;
-use omega_isa_x86_64::encode_x86_64_mov_r32_imm32_i64_materialization;
+use isa_x86_64::encode_x86_64_mov_r32_imm32_i64_materialization;
 
 use crate::tests::*;
 
@@ -32,7 +32,7 @@ fn active_resident_rematerialization_composes_with_mov_r32_through_publication()
             panic!("the admitted pair must reach the generic post-allocation realization")
         });
     let allocation = realization.allocation().current();
-    let omega_selected_instructions_to_register_homes::AllocationEvidence::ActiveResidentRematerialization(recovery_custody) = allocation.evidence() else {
+    let selected_instructions_to_register_homes::AllocationEvidence::ActiveResidentRematerialization(recovery_custody) = allocation.evidence() else {
         panic!("allocation must retain independently replayed rematerialization evidence")
     };
     let rematerialization = realization
@@ -217,11 +217,11 @@ fn active_resident_mov_r32_pair_rejects_the_wrong_target() {
         ),
         Err(
             OptimizedVerifiedPhysicalPipelineError::PostAllocationMachineRuleCatalog(
-                omega_post_allocation_machine_to_optimized_machine::PostAllocationMachineRuleCatalogError::UnsupportedTarget {
+                post_allocation_machine_to_post_allocation_machine::PostAllocationMachineRuleCatalogError::UnsupportedTarget {
                     optimization:
                         Optimization::X86SelectMovR32Imm32ZeroExtendedI64MaterializationV1,
-                    required: omega_target::Architecture::X86_64,
-                    actual: omega_target::Architecture::Aarch64,
+                    required: target::Architecture::X86_64,
+                    actual: target::Architecture::Aarch64,
                 }
             )
         )

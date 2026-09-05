@@ -1,12 +1,10 @@
-use psi_source_files_to_tokens::Lexer;
-use psi_symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
-use psi_syntax_trees_to_symbol_resolved_trees::lower_syntax_trees;
-use psi_tokens_to_syntax_trees::parse_syntax_trees;
-use psi_validation::{
-    validate_behavior_plan, validate_program, validate_static_machine_selections,
-};
+use source_files_to_tokens::Lexer;
+use symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
+use syntax_trees_to_symbol_resolved_trees::lower_syntax_trees;
+use tokens_to_syntax_trees::parse_syntax_trees;
+use validation::{validate_behavior_plan, validate_program, validate_static_machine_selections};
 
-fn typed_program_from_source(source: &str) -> psi_typed_trees::TypedTrees {
+fn typed_program_from_source(source: &str) -> typed_trees::TypedTrees {
     let source = format!("data Main {{}} machine Main::run(&mut self) {{}} {source}");
     let tokens = Lexer::new(&source)
         .tokenize()
@@ -97,7 +95,7 @@ fn provider_progress_schema_retains_the_exact_authorized_establishment_route() {
     let grant_identity = typed
         .normalized_trait_requirement_overload_identity(admission, grant)
         .identity();
-    let schema = omega_effects::provider_plan::ServiceSchema::from_typed(&typed, runtime)
+    let schema = effects::provider_plan::ServiceSchema::from_typed(&typed, runtime)
         .expect("runtime provider schema");
     let premise = &schema.methods[0].termination_premises[0];
 
@@ -105,7 +103,7 @@ fn provider_progress_schema_retains_the_exact_authorized_establishment_route() {
     assert_eq!(premise.establishment_routes.len(), 1);
     assert_eq!(
         premise.establishment_routes[0].kind,
-        omega_effects::provider_plan::ServiceProgressEstablishmentRouteKind::BoundaryRequirement
+        effects::provider_plan::ServiceProgressEstablishmentRouteKind::BoundaryRequirement
     );
     assert_eq!(
         premise.establishment_routes[0].requirement_identity,
@@ -201,7 +199,7 @@ fn progress_profile_termination_premise_normalizes_subject_and_profile() {
     let [scheduler] = typed.state_signature_parameters(wait) else {
         panic!("wait should have one parameter")
     };
-    let psi_language_semantics::TerminationGuarantee::Terminates { premises } =
+    let language_semantics::TerminationGuarantee::Terminates { premises } =
         &wait.termination_guarantee
     else {
         panic!("wait should publish termination")
@@ -269,7 +267,7 @@ fn checked_progress_call_instantiates_and_covers_the_exact_public_subject() {
         "#,
     );
 
-    let checked = psi_typed_trees_to_checked_trees::lower_typed_trees(typed)
+    let checked = typed_trees_to_checked_trees::lower_typed_trees(typed)
         .expect("the selected call premise should match the authored public schema");
     let process = checked
         .machines()
@@ -281,8 +279,7 @@ fn checked_progress_call_instantiates_and_covers_the_exact_public_subject() {
         .termination
         .for_machine(process.symbol)
         .expect("checked termination plan");
-    let psi_language_semantics::TerminationGuarantee::Terminates { premises } =
-        &plan.checked_summary
+    let language_semantics::TerminationGuarantee::Terminates { premises } = &plan.checked_summary
     else {
         panic!("process should retain a checked termination summary")
     };
@@ -316,7 +313,7 @@ fn checked_progress_retains_provider_receiver_as_build_bound_demand() {
         "#,
     );
 
-    let checked = psi_typed_trees_to_checked_trees::lower_typed_trees(typed)
+    let checked = typed_trees_to_checked_trees::lower_typed_trees(typed)
         .expect("provider-receiver progress must remain a composition demand");
     let process = checked
         .machines()
@@ -375,7 +372,7 @@ fn admitted_provider_receiver_receipt_removes_build_bound_demand() {
         "#,
     );
 
-    let checked = psi_typed_trees_to_checked_trees::lower_typed_trees(typed)
+    let checked = typed_trees_to_checked_trees::lower_typed_trees(typed)
         .expect("the exact local receipt should discharge provider progress");
     let process = checked
         .machines()
@@ -420,7 +417,7 @@ fn checked_progress_call_rejects_an_unpublished_subject_dependency() {
         "#,
     );
 
-    let diagnostics = psi_typed_trees_to_checked_trees::lower_typed_trees(typed)
+    let diagnostics = typed_trees_to_checked_trees::lower_typed_trees(typed)
         .expect_err("a parameter qualification must not silently become a public progress schema");
     assert!(diagnostics.iter().any(|diagnostic| {
         diagnostic
@@ -466,7 +463,7 @@ fn private_progress_dependencies_substitute_through_the_exact_helper_call() {
         "#,
     );
 
-    psi_typed_trees_to_checked_trees::lower_typed_trees(typed)
+    typed_trees_to_checked_trees::lower_typed_trees(typed)
         .expect("a private helper should forward its exact derived premise by position");
 }
 
@@ -490,7 +487,7 @@ fn measured_entry_back_edge_retains_its_checked_termination_summary() {
         "#,
     );
 
-    let checked = psi_typed_trees_to_checked_trees::lower_typed_trees(typed)
+    let checked = typed_trees_to_checked_trees::lower_typed_trees(typed)
         .expect("the measured entry back-edge should validate");
     let countdown = checked
         .machines()
@@ -504,7 +501,7 @@ fn measured_entry_back_edge_retains_its_checked_termination_summary() {
         .expect("checked termination plan");
     assert_eq!(
         plan.checked_summary,
-        psi_language_semantics::TerminationGuarantee::Terminates {
+        language_semantics::TerminationGuarantee::Terminates {
             premises: Vec::new(),
         }
     );
@@ -527,7 +524,7 @@ fn measured_entry_back_edge_retains_its_checked_termination_summary() {
             .for_machine(run.symbol)
             .expect("wrapper termination plan")
             .checked_summary,
-        psi_language_semantics::TerminationGuarantee::Terminates {
+        language_semantics::TerminationGuarantee::Terminates {
             premises: Vec::new(),
         }
     );
@@ -589,7 +586,7 @@ fn measured_entry_back_edge_retains_exact_progress_subject_lineage() {
         .expect("weak-fair progress profile")
         .semantic_id;
 
-    let checked = psi_typed_trees_to_checked_trees::lower_typed_trees(typed)
+    let checked = typed_trees_to_checked_trees::lower_typed_trees(typed)
         .expect("the measured entry back-edge should preserve its exact progress subject");
     let countdown = checked
         .machines()
@@ -601,8 +598,7 @@ fn measured_entry_back_edge_retains_exact_progress_subject_lineage() {
         .termination
         .for_machine(countdown.symbol)
         .expect("checked termination plan");
-    let psi_language_semantics::TerminationGuarantee::Terminates { premises } =
-        &plan.checked_summary
+    let language_semantics::TerminationGuarantee::Terminates { premises } = &plan.checked_summary
     else {
         panic!("countdown should retain a checked termination summary")
     };
@@ -645,7 +641,7 @@ fn admitted_local_progress_receipt_discharges_the_selected_call_premise() {
         "#,
     );
 
-    let checked = psi_typed_trees_to_checked_trees::lower_typed_trees(typed)
+    let checked = typed_trees_to_checked_trees::lower_typed_trees(typed)
         .expect("the exact locally admitted receipt should discharge the wait premise");
     let process = checked
         .machines()
@@ -659,7 +655,7 @@ fn admitted_local_progress_receipt_discharges_the_selected_call_premise() {
         .expect("checked termination plan");
     assert_eq!(
         plan.checked_summary,
-        psi_language_semantics::TerminationGuarantee::Terminates {
+        language_semantics::TerminationGuarantee::Terminates {
             premises: Vec::new(),
         }
     );
@@ -702,7 +698,7 @@ fn progress_subject_identity_threads_through_named_state_transitions() {
         "#,
     );
 
-    let checked = psi_typed_trees_to_checked_trees::lower_typed_trees(typed)
+    let checked = typed_trees_to_checked_trees::lower_typed_trees(typed)
         .expect("the transition should preserve the exact public progress subject");
     let process = checked
         .machines()
@@ -714,8 +710,7 @@ fn progress_subject_identity_threads_through_named_state_transitions() {
         .termination
         .for_machine(process.symbol)
         .expect("checked termination plan");
-    let psi_language_semantics::TerminationGuarantee::Terminates { premises } =
-        &plan.checked_summary
+    let language_semantics::TerminationGuarantee::Terminates { premises } = &plan.checked_summary
     else {
         panic!("process should retain a checked termination summary")
     };
@@ -765,7 +760,7 @@ fn progress_subject_alternatives_across_state_predecessors_remain_explicit() {
         "#,
     );
 
-    let checked = psi_typed_trees_to_checked_trees::lower_typed_trees(typed)
+    let checked = typed_trees_to_checked_trees::lower_typed_trees(typed)
         .expect("both exact predecessor subjects are covered by the public contract");
     let process = checked
         .machines()
@@ -777,8 +772,7 @@ fn progress_subject_alternatives_across_state_predecessors_remain_explicit() {
         .termination
         .for_machine(process.symbol)
         .expect("checked termination plan");
-    let psi_language_semantics::TerminationGuarantee::Terminates { premises } =
-        &plan.checked_summary
+    let language_semantics::TerminationGuarantee::Terminates { premises } = &plan.checked_summary
     else {
         panic!("process should retain a checked termination summary")
     };
@@ -822,8 +816,8 @@ fn inherited_progress_schema_substitutes_implementation_parameter_identity() {
     else {
         panic!("implementation should have one parameter")
     };
-    let psi_language_semantics::TerminationInterface::Published(
-        psi_language_semantics::TerminationGuarantee::Terminates { premises },
+    let language_semantics::TerminationInterface::Published(
+        language_semantics::TerminationGuarantee::Terminates { premises },
     ) = &machine.termination_plan.interface
     else {
         panic!("implementation should inherit termination")
@@ -1126,7 +1120,7 @@ fn proposition_contract_requires_exact_normalized_application() {
         "#,
     );
 
-    psi_typed_trees_to_checked_trees::lower_typed_trees(typed)
+    typed_trees_to_checked_trees::lower_typed_trees(typed)
         .expect("a transparent alias must establish its normalized expansion");
 }
 
@@ -1149,7 +1143,7 @@ fn proposition_contract_rejects_different_application() {
         "#,
     );
 
-    let diagnostics = psi_typed_trees_to_checked_trees::lower_typed_trees(typed)
+    let diagnostics = typed_trees_to_checked_trees::lower_typed_trees(typed)
         .expect_err("a different proposition argument tuple must not be accepted");
     assert!(diagnostics.iter().any(|diagnostic| {
         (diagnostic
@@ -1181,7 +1175,7 @@ fn transparent_boolean_proposition_normalizes_to_boolean_fact() {
         "#,
     );
 
-    psi_typed_trees_to_checked_trees::lower_typed_trees(typed)
+    typed_trees_to_checked_trees::lower_typed_trees(typed)
         .expect("a transparent Boolean proposition must normalize to its Boolean fact");
 }
 
@@ -1952,7 +1946,7 @@ fn local_dynamic_coercion_retains_one_complete_nominal_conformance() {
     );
 
     validate_program(&typed).expect("one complete conformance is selected uniquely");
-    let checked = psi_typed_trees_to_checked_trees::lower_typed_trees(typed)
+    let checked = typed_trees_to_checked_trees::lower_typed_trees(typed)
         .expect("checked lowering retains the exact selection");
     let [selection] = checked.facts.dynamic_conformances.selections.as_slice() else {
         panic!("one dynamic conformance selection");
@@ -1989,7 +1983,7 @@ fn local_dynamic_coercion_retains_closed_conformance_rows() {
     );
 
     validate_program(&typed).expect("the closed conformance should license local dyn selection");
-    let checked = psi_typed_trees_to_checked_trees::lower_typed_trees(typed)
+    let checked = typed_trees_to_checked_trees::lower_typed_trees(typed)
         .expect("checked lowering should retain the selected row map");
     let [selection] = checked.facts.dynamic_conformances.selections.as_slice() else {
         panic!("one dynamic conformance selection");
@@ -2023,7 +2017,7 @@ fn local_dynamic_coercion_retains_an_instantiated_trait_default_row() {
     );
 
     validate_program(&typed).expect("the instantiated default row should validate");
-    let checked = psi_typed_trees_to_checked_trees::lower_typed_trees(typed)
+    let checked = typed_trees_to_checked_trees::lower_typed_trees(typed)
         .expect("checked dyn facts should retain the instantiated default row");
     let [selection] = checked.facts.dynamic_conformances.selections.as_slice() else {
         panic!("one dynamic conformance selection");
@@ -2057,7 +2051,7 @@ fn local_dynamic_coercion_retains_each_result_overload_row() {
     );
 
     validate_program(&typed).expect("both exact overload rows should license dyn selection");
-    let checked = psi_typed_trees_to_checked_trees::lower_typed_trees(typed)
+    let checked = typed_trees_to_checked_trees::lower_typed_trees(typed)
         .expect("checked dyn facts should retain both exact overload rows");
     let [selection] = checked.facts.dynamic_conformances.selections.as_slice() else {
         panic!("one dynamic conformance selection");
@@ -2258,15 +2252,15 @@ fn named_local_dynamic_coercion_selects_one_exact_conformance() {
         .iter()
         .flat_map(|state| typed.statement_table.statements(state.statement_nodes))
         .find_map(|statement| {
-            let psi_typed_trees::statement::StatementNode::LocalData(local) = statement else {
+            let typed_trees::statement::StatementNode::LocalData(local) = statement else {
                 return None;
             };
-            let psi_typed_trees::expression::ExpressionNode::Borrow(borrow) =
+            let typed_trees::expression::ExpressionNode::Borrow(borrow) =
                 typed.expression_table.expression(local.initial_value)
             else {
                 return None;
             };
-            let psi_typed_trees::expression::ExpressionNode::Cast(cast) =
+            let typed_trees::expression::ExpressionNode::Cast(cast) =
                 typed.expression_table.expression(borrow.target)
             else {
                 return None;
@@ -2281,7 +2275,7 @@ fn named_local_dynamic_coercion_selects_one_exact_conformance() {
     );
 
     validate_program(&typed).expect("an exact named conformance resolves ambiguity");
-    let checked = psi_typed_trees_to_checked_trees::lower_typed_trees(typed)
+    let checked = typed_trees_to_checked_trees::lower_typed_trees(typed)
         .expect("checked lowering retains the exact named selection");
     let [selection] = checked.facts.dynamic_conformances.selections.as_slice() else {
         panic!("one named dynamic conformance selection");
@@ -2314,7 +2308,7 @@ fn dynamic_statement_call_retains_exact_inherited_requirement_symbol() {
         "#,
     );
 
-    let checked = psi_typed_trees_to_checked_trees::lower_typed_trees(typed)
+    let checked = typed_trees_to_checked_trees::lower_typed_trees(typed)
         .expect("an inherited dynamic requirement should resolve exactly");
     let [selection] = checked.facts.dynamic_conformances.selections.as_slice() else {
         panic!("one selected conformance");
@@ -2334,7 +2328,7 @@ fn dynamic_statement_call_retains_exact_inherited_requirement_symbol() {
         .iter()
         .flat_map(|state| checked.statement_table.statements(state.statement_nodes))
         .find_map(|statement| {
-            let psi_typed_trees::statement::StatementNode::Call(call) = statement else {
+            let typed_trees::statement::StatementNode::Call(call) = statement else {
                 return None;
             };
             (call.target.as_str() == "ping").then_some(call)
@@ -2391,7 +2385,7 @@ fn dynamic_call_rejects_ambiguous_inherited_requirement_spelling() {
         .statements_mut(run_statements)
         .iter_mut()
         .find_map(|statement| {
-            let psi_typed_trees::statement::StatementNode::Call(call) = statement else {
+            let typed_trees::statement::StatementNode::Call(call) = statement else {
                 return None;
             };
             (call.target.as_str() == "ping").then_some(call)
@@ -2399,7 +2393,7 @@ fn dynamic_call_rejects_ambiguous_inherited_requirement_spelling() {
         .expect("dynamic statement call");
     call.target_symbol = left_ping;
 
-    let diagnostics = psi_typed_trees_to_checked_trees::lower_typed_trees(typed)
+    let diagnostics = typed_trees_to_checked_trees::lower_typed_trees(typed)
         .expect_err("a provisional inherited symbol cannot resolve an ambiguous leaf spelling");
     assert!(diagnostics.iter().any(|diagnostic| {
         diagnostic.message.contains(
@@ -2531,7 +2525,7 @@ fn same_conformance_local_dynamic_rebind_retains_both_exact_selections() {
     );
 
     validate_program(&typed).expect("same-conformance dynamic rebind");
-    let selections = psi_validation::collect_dynamic_conformance_selections(&typed)
+    let selections = validation::collect_dynamic_conformance_selections(&typed)
         .expect("exact rebind selections");
     assert_eq!(selections.len(), 2);
     assert_eq!(selections[0].binding, selections[1].binding);
@@ -2610,7 +2604,7 @@ fn different_conformance_local_dynamic_rebind_retains_both_exact_selections() {
     );
 
     validate_program(&typed).expect("changed-conformance dynamic rebind");
-    let selections = psi_validation::collect_dynamic_conformance_selections(&typed)
+    let selections = validation::collect_dynamic_conformance_selections(&typed)
         .expect("exact changed-conformance selections");
     assert_eq!(selections.len(), 2);
     assert_eq!(selections[0].binding, selections[1].binding);
@@ -2645,7 +2639,7 @@ fn named_whole_trait_conformance_survives_typing() {
     assert!(conformance.symbol.is_valid());
     assert_eq!(
         typed.symbols.get(conformance.symbol).kind,
-        psi_symbols::SymbolKind::Conformance
+        symbols::SymbolKind::Conformance
     );
     assert_eq!(typed.symbols.name(conformance.symbol), "Primary");
     assert_eq!(
@@ -2713,7 +2707,7 @@ fn generic_conformance_bounds_survive_typing_and_resolve_exact_selection() {
     assert_eq!(typed.symbols.name(selected), "Primary");
     assert_eq!(
         typed.symbols.get(selected).kind,
-        psi_symbols::SymbolKind::Conformance
+        symbols::SymbolKind::Conformance
     );
     validate_program(&typed).expect("resolved conformance bounds should validate");
 }
@@ -3501,7 +3495,7 @@ fn explicit_lifetime_arguments_survive_typed_lowering_and_validate() {
         .expect("consume");
     let entry = &typed.machine_states(consume)[0];
     let parameter = &typed.state_parameters(entry)[0];
-    let psi_typed_trees::types::TypeReferenceNode::Generic {
+    let typed_trees::types::TypeReferenceNode::Generic {
         base_name,
         lifetime_arguments,
         arguments,
@@ -3587,7 +3581,7 @@ fn carry_policy_survives_lowering_and_derives_through_transparent_data() {
         .expect("Outer");
     assert_eq!(
         outer.properties.carry,
-        Some(psi_language_semantics::CarryPolicy::PERMISSIVE)
+        Some(language_semantics::CarryPolicy::PERMISSIVE)
     );
     validate_program(&typed).expect("transparent scalar aggregate should derive permissive carry");
 }
@@ -3616,7 +3610,7 @@ fn compiler_carry_permissions_are_subject_polymorphic_and_portable_is_canonical(
         .data_members(carrier)
         .iter()
         .filter_map(|member| match member {
-            psi_typed_trees::data::DataMember::Field(field) => Some(field),
+            typed_trees::data::DataMember::Field(field) => Some(field),
             _ => None,
         })
         .collect::<Vec<_>>();
@@ -3672,7 +3666,7 @@ fn transparent_domain_alias_may_expand_compiler_carry_portable() {
         .iter()
         .find(|parameter| parameter.name.as_str() == "token")
         .expect("token parameter");
-    let psi_typed_trees::types::TypeReferenceNode::Constrained { constraints, .. } = typed
+    let typed_trees::types::TypeReferenceNode::Constrained { constraints, .. } = typed
         .type_reference_table
         .type_reference(token.type_reference)
     else {
@@ -3683,7 +3677,7 @@ fn transparent_domain_alias_may_expand_compiler_carry_portable() {
         .constraints(*constraints)
         .iter()
         .map(|constraint| match constraint {
-            psi_typed_trees::types::TypeConstraintNode::Domain(domain) => {
+            typed_trees::types::TypeConstraintNode::Domain(domain) => {
                 domain.name.as_str().to_owned()
             }
             other => panic!("portable alias atom became {other:?}"),
@@ -3691,7 +3685,7 @@ fn transparent_domain_alias_may_expand_compiler_carry_portable() {
         .collect::<Vec<_>>();
     assert_eq!(
         names,
-        psi_language_semantics::CarryPermission::ALL.map(|permission| permission.name().to_owned())
+        language_semantics::CarryPermission::ALL.map(|permission| permission.name().to_owned())
     );
 }
 
@@ -4202,7 +4196,7 @@ fn recursive_private_operational_inference_reaches_independent_fixed_points() {
         }
         "#,
     );
-    let operations = psi_effects::infer_operational_may(&typed);
+    let operations = flow_effects::infer_operational_may(&typed);
 
     for name in ["A::step", "B::step"] {
         let symbol = typed
@@ -4237,7 +4231,7 @@ fn published_operational_omission_is_a_negative_ceiling() {
         }
         "#,
     );
-    let operations = psi_effects::infer_operational_may(&typed);
+    let operations = flow_effects::infer_operational_may(&typed);
     let diagnostics = validate_behavior_plan(&typed, &operations)
         .expect_err("published omission must reject inferred operational behavior");
 
@@ -4264,7 +4258,7 @@ fn ordinary_public_machine_reach_omission_is_a_negative_ceiling() {
         }
         "#,
     );
-    let operations = psi_effects::infer_operational_may(&typed);
+    let operations = flow_effects::infer_operational_may(&typed);
     let diagnostics = validate_behavior_plan(&typed, &operations)
         .expect_err("ordinary public omission must reject inferred service reach");
 
@@ -4390,7 +4384,7 @@ fn checked_provider_infers_declared_invocation_through_local_helper() {
 
     validate_program(&typed)
         .expect("the declared callback ceiling admits the helper-forwarded direct edge");
-    let plan = psi_effects::infer_synchronous_invocations(&typed);
+    let plan = flow_effects::infer_synchronous_invocations(&typed);
     let provider = typed
         .machines()
         .iter()
@@ -4400,7 +4394,7 @@ fn checked_provider_infers_declared_invocation_through_local_helper() {
         plan.for_machine(provider.symbol)
             .expect("provider invocation summary")
             .inferred_transitive,
-        vec![psi_effects::InvocationTarget::Parameter(0)]
+        vec![flow_effects::InvocationTarget::Parameter(0)]
     );
 }
 
@@ -4434,7 +4428,7 @@ fn checked_provider_normalizes_self_forwarded_receiver_before_refinement() {
     validate_program(&typed).expect(
         "composition removes the forwarded provider receiver and shifts the callback to requirement parameter 0",
     );
-    let plan = psi_effects::infer_synchronous_invocations(&typed);
+    let plan = flow_effects::infer_synchronous_invocations(&typed);
     let provider = typed
         .machines()
         .iter()
@@ -4444,7 +4438,7 @@ fn checked_provider_normalizes_self_forwarded_receiver_before_refinement() {
         plan.for_machine(provider.symbol)
             .expect("provider invocation summary")
             .inferred_transitive,
-        vec![psi_effects::InvocationTarget::Parameter(1)]
+        vec![flow_effects::InvocationTarget::Parameter(1)]
     );
 }
 
@@ -4468,7 +4462,7 @@ fn checked_provider_infers_attached_boundary_field_as_direct_target() {
         }
         "#,
     );
-    let plan = psi_effects::infer_synchronous_invocations(&typed);
+    let plan = flow_effects::infer_synchronous_invocations(&typed);
     let labels = |name: &str| {
         let machine = typed
             .machines()
@@ -4479,7 +4473,7 @@ fn checked_provider_infers_attached_boundary_field_as_direct_target() {
             .expect("invocation summary")
             .inferred_direct
             .iter()
-            .map(|target| psi_effects::invocation_target_label(&typed, machine, *target))
+            .map(|target| flow_effects::invocation_target_label(&typed, machine, *target))
             .collect::<Vec<_>>()
     };
     assert_eq!(labels("AlphaProvider::alpha_checked"), ["Beta"]);
@@ -4503,7 +4497,7 @@ fn invocation_inference_does_not_alias_same_named_foreign_fields_to_self() {
         }
         "#,
     );
-    let plan = psi_effects::infer_synchronous_invocations(&typed);
+    let plan = flow_effects::infer_synchronous_invocations(&typed);
     let machine = typed
         .machines()
         .iter()
@@ -4514,7 +4508,7 @@ fn invocation_inference_does_not_alias_same_named_foreign_fields_to_self() {
         .expect("invocation summary")
         .inferred_direct
         .iter()
-        .map(|target| psi_effects::invocation_target_label(&typed, machine, *target))
+        .map(|target| flow_effects::invocation_target_label(&typed, machine, *target))
         .collect::<Vec<_>>();
     assert_eq!(labels, ["Beta"]);
 }
@@ -4540,15 +4534,15 @@ fn invocation_and_operational_inference_visit_transition_arguments() {
         .iter()
         .find(|machine| machine.name.as_str() == "run")
         .expect("run machine");
-    let invocations = psi_effects::infer_synchronous_invocations(&typed);
+    let invocations = flow_effects::infer_synchronous_invocations(&typed);
     assert_eq!(
         invocations
             .for_machine(machine.symbol)
             .expect("run invocation summary")
             .inferred_transitive,
-        vec![psi_effects::InvocationTarget::Parameter(0)]
+        vec![flow_effects::InvocationTarget::Parameter(0)]
     );
-    let operations = psi_effects::infer_operational_may(&typed);
+    let operations = flow_effects::infer_operational_may(&typed);
     let operational = operations
         .machines()
         .iter()
@@ -4698,7 +4692,7 @@ fn higher_order_machine_parameter_refines_and_forwards_distinct_schema() {
         .expression_table
         .iter_expressions()
         .find_map(|(_, expression)| match expression {
-            psi_typed_trees::expression::ExpressionNode::Call(call)
+            typed_trees::expression::ExpressionNode::Call(call)
                 if call.target.as_str() == "Schema" =>
             {
                 Some(call)
@@ -4889,9 +4883,9 @@ fn validates_local_state_call_arguments_from_source_pipeline() {
         .statements(entry.statement_nodes)
         .iter()
         .find_map(|statement| match statement {
-            psi_typed_trees::statement::StatementNode::Call(call) => Some(call.arguments.len()),
-            psi_typed_trees::statement::StatementNode::Expression(expression) => {
-                let psi_typed_trees::expression::ExpressionNode::Call(call) =
+            typed_trees::statement::StatementNode::Call(call) => Some(call.arguments.len()),
+            typed_trees::statement::StatementNode::Expression(expression) => {
+                let typed_trees::expression::ExpressionNode::Call(call) =
                     typed.expression_table.expression(*expression)
                 else {
                     return None;
@@ -5040,7 +5034,7 @@ fn declared_domain_constraint_with_missing_normalized_identity_fails_closed() {
                 .any(|constraint| {
                     matches!(
                         constraint,
-                        psi_typed_trees::types::TypeConstraintNode::Domain(_)
+                        typed_trees::types::TypeConstraintNode::Domain(_)
                     )
                 })
         })
@@ -5050,11 +5044,11 @@ fn declared_domain_constraint_with_missing_normalized_identity_fails_closed() {
         .constraints_mut(constraints)
         .iter_mut()
         .find_map(|constraint| match constraint {
-            psi_typed_trees::types::TypeConstraintNode::Domain(domain) => Some(domain),
+            typed_trees::types::TypeConstraintNode::Domain(domain) => Some(domain),
             _ => None,
         })
         .expect("domain constraint");
-    domain.symbol = psi_symbols::SymbolHandle::invalid();
+    domain.symbol = symbols::SymbolHandle::invalid();
 
     let diagnostics = validate_program(&typed)
         .expect_err("a declared-domain constraint cannot fall back to global name lookup");
@@ -5123,7 +5117,7 @@ fn duplicate_denotation_role_contributions_are_rejected() {
     }));
 }
 
-fn validate_contract_source(source: &str) -> Result<(), Vec<psi_diagnostics::Diagnostic>> {
+fn validate_contract_source(source: &str) -> Result<(), Vec<diagnostics::Diagnostic>> {
     let tokens = Lexer::new(source)
         .tokenize()
         .expect("tokenize should succeed");
@@ -5871,7 +5865,7 @@ fn stands_down_on_out_of_language_contracts() {
     "#,
     );
     validate_program(&typed).expect("contracts outside the engine's language stand down");
-    let stand_downs = psi_validation::collect_contract_entailment_stand_downs(&typed);
+    let stand_downs = validation::collect_contract_entailment_stand_downs(&typed);
     let [stand_down] = stand_downs.as_slice() else {
         panic!("one exact stand-down row")
     };
@@ -5885,7 +5879,7 @@ fn stands_down_on_out_of_language_contracts() {
     assert_eq!(stand_down.fact_index, 0);
     assert_eq!(
         stand_down.reason,
-        psi_validation::ContractEntailmentStandDownReason::OutsideEntailmentLanguage
+        validation::ContractEntailmentStandDownReason::OutsideEntailmentLanguage
     );
 }
 
@@ -5899,7 +5893,7 @@ fn accepted_boundary_claim_is_trust_not_a_proof_stand_down() {
     "#,
     );
     validate_program(&typed).expect("accepted claim remains in the trust lane");
-    assert!(psi_validation::collect_contract_entailment_stand_downs(&typed).is_empty());
+    assert!(validation::collect_contract_entailment_stand_downs(&typed).is_empty());
 }
 
 #[test]
@@ -5915,13 +5909,13 @@ fn unrecognized_bodied_contract_is_an_admission_stand_down() {
     "#,
     );
     validate_program(&typed).expect("ordinary validation preserves its historical stand-down");
-    let stand_downs = psi_validation::collect_contract_entailment_stand_downs(&typed);
+    let stand_downs = validation::collect_contract_entailment_stand_downs(&typed);
     let [stand_down] = stand_downs.as_slice() else {
         panic!("one exact body-shape stand-down row")
     };
     assert_eq!(
         stand_down.reason,
-        psi_validation::ContractEntailmentStandDownReason::UnrecognizedInductiveBody
+        validation::ContractEntailmentStandDownReason::UnrecognizedInductiveBody
     );
 }
 
@@ -5938,13 +5932,13 @@ fn bodyful_boundary_contract_is_checked_not_accepted_supply() {
     "#,
     );
     validate_program(&typed).expect("ordinary boundary validation should succeed");
-    let stand_downs = psi_validation::collect_contract_entailment_stand_downs(&typed);
+    let stand_downs = validation::collect_contract_entailment_stand_downs(&typed);
     let [stand_down] = stand_downs.as_slice() else {
         panic!("one exact bodyful-boundary stand-down row")
     };
     assert_eq!(
         stand_down.reason,
-        psi_validation::ContractEntailmentStandDownReason::UnrecognizedInductiveBody
+        validation::ContractEntailmentStandDownReason::UnrecognizedInductiveBody
     );
 }
 
@@ -6648,7 +6642,7 @@ fn rejects_published_service_ceiling_below_reached_services() {
     let resolved = lower_syntax_trees(&syntax_trees).expect("resolve should succeed");
     let typed = lower_symbol_resolved_trees(&resolved).expect("typed lowering should succeed");
 
-    let operations = psi_effects::infer_operational_may(&typed);
+    let operations = flow_effects::infer_operational_may(&typed);
     let diagnostics =
         validate_behavior_plan(&typed, &operations).expect_err("service ceiling should fail");
 
@@ -6665,25 +6659,25 @@ fn rejects_published_service_ceiling_below_reached_services() {
     );
 }
 
-/// Tests relocated from `omega-effects` when that crate moved into the
+/// Tests relocated from `effects` when that crate moved into the
 /// `representations` layer. They exercise the effect/capability *analysis*
 /// passes, which require building a `TypedTrees` through the front-of-pipeline
 /// lowering crates. Those pipeline crates are dev-dependencies here (a
 /// semantics crate may depend up into pipeline for tests), but must not be
-/// dev-dependencies of `omega-effects` itself, since that would re-introduce a
+/// dev-dependencies of `effects` itself, since that would re-introduce a
 /// `representations -> pipeline` upward edge.
 mod effects_analysis {
-    use omega_effects::{
+    use effects::{
         BoundaryCallCoordinate, BoundaryProviderApproval, BoundaryProviderApprovalRegistry,
         audit_boundary_provider_calls, build_boundary_provider_approval_registry,
     };
-    use psi_effects::{infer_operational_may, infer_service_reaches};
-    use psi_typed_trees::TypedTrees;
+    use flow_effects::{infer_operational_may, infer_service_reaches};
+    use typed_trees::TypedTrees;
 
-    use psi_source_files_to_tokens::Lexer;
-    use psi_symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
-    use psi_syntax_trees_to_symbol_resolved_trees::lower_syntax_trees;
-    use psi_tokens_to_syntax_trees::parse_syntax_trees;
+    use source_files_to_tokens::Lexer;
+    use symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
+    use syntax_trees_to_symbol_resolved_trees::lower_syntax_trees;
+    use tokens_to_syntax_trees::parse_syntax_trees;
 
     fn lower(source: &str) -> TypedTrees {
         let tokens = Lexer::new(source).tokenize().expect("tokenize");
@@ -6693,7 +6687,7 @@ mod effects_analysis {
     }
 
     fn lower_checked_calls(source: &str) -> (TypedTrees, Vec<BoundaryCallCoordinate>) {
-        let checked = psi_typed_trees_to_checked_trees::lower_typed_trees(lower(source))
+        let checked = typed_trees_to_checked_trees::lower_typed_trees(lower(source))
             .expect("checked lowering");
         let flow = &checked.facts.flow.control;
         let mut calls = Vec::new();
@@ -6815,15 +6809,15 @@ mod effects_analysis {
             )
             .is_empty()
         );
-        let unknown = psi_symbols::SymbolHandle::from_arena_index(3);
+        let unknown = symbols::SymbolHandle::from_arena_index(3);
         let unapproved = audit_boundary_provider_calls(
             &program,
             [BoundaryCallCoordinate {
-                machine_symbol: psi_symbols::SymbolHandle::from_arena_index(1),
-                state_symbol: psi_symbols::SymbolHandle::from_arena_index(2),
+                machine_symbol: symbols::SymbolHandle::from_arena_index(1),
+                state_symbol: symbols::SymbolHandle::from_arena_index(2),
                 target_state_symbol: unknown,
                 boundary_trait_symbol: unknown,
-                boundary_signature_symbol: psi_symbols::SymbolHandle::from_arena_index(4),
+                boundary_signature_symbol: symbols::SymbolHandle::from_arena_index(4),
                 statement_index: 5,
                 call_ordinal: 6,
             }],
@@ -6835,12 +6829,12 @@ mod effects_analysis {
 
     #[test]
     fn provider_approval_audits_each_same_site_boundary_edge_by_exact_trait() {
-        let approved = psi_symbols::SymbolHandle::from_arena_index(1);
-        let denied = psi_symbols::SymbolHandle::from_arena_index(2);
-        let signature = psi_symbols::SymbolHandle::from_arena_index(3);
-        let machine = psi_symbols::SymbolHandle::from_arena_index(4);
-        let state = psi_symbols::SymbolHandle::from_arena_index(5);
-        let target = psi_symbols::SymbolHandle::from_arena_index(6);
+        let approved = symbols::SymbolHandle::from_arena_index(1);
+        let denied = symbols::SymbolHandle::from_arena_index(2);
+        let signature = symbols::SymbolHandle::from_arena_index(3);
+        let machine = symbols::SymbolHandle::from_arena_index(4);
+        let state = symbols::SymbolHandle::from_arena_index(5);
+        let target = symbols::SymbolHandle::from_arena_index(6);
         let registry = BoundaryProviderApprovalRegistry::with_providers(vec![
             BoundaryProviderApproval::new(approved, true),
             BoundaryProviderApproval::new(denied, false),
@@ -6869,16 +6863,16 @@ mod effects_analysis {
     #[test]
     fn duplicate_boundary_registry_identity_is_denied_without_or_laundering() {
         for (second_symbol, second_name) in [
-            (psi_symbols::SymbolHandle::from_arena_index(1), "Console"),
-            (psi_symbols::SymbolHandle::from_arena_index(2), "Console"),
+            (symbols::SymbolHandle::from_arena_index(1), "Console"),
+            (symbols::SymbolHandle::from_arena_index(2), "Console"),
         ] {
-            let first_symbol = psi_symbols::SymbolHandle::from_arena_index(1);
+            let first_symbol = symbols::SymbolHandle::from_arena_index(1);
             let mut program = TypedTrees::default();
             for (symbol, name) in [(first_symbol, "Console"), (second_symbol, second_name)] {
-                program.push_trait_definition(psi_typed_trees::trait_definition::TraitDefinition {
+                program.push_trait_definition(typed_trees::trait_definition::TraitDefinition {
                     symbol,
                     is_boundary: true,
-                    name: psi_typed_trees::name::Identifier::generated(name),
+                    name: typed_trees::name::Identifier::generated(name),
                     ..Default::default()
                 });
             }
@@ -6893,7 +6887,7 @@ mod effects_analysis {
             );
             assert_eq!(
                 registry.authorize_boundary_call(first_symbol),
-                omega_effects::BoundaryCallApproval::Unapproved,
+                effects::BoundaryCallApproval::Unapproved,
             );
         }
     }
@@ -7074,11 +7068,11 @@ mod effects_analysis {
 }
 
 mod structural_entailment {
-    use psi_source_files_to_tokens::Lexer;
-    use psi_symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
-    use psi_syntax_trees_to_symbol_resolved_trees::lower_syntax_trees;
-    use psi_tokens_to_syntax_trees::parse_syntax_trees;
-    use psi_validation::validate_program;
+    use source_files_to_tokens::Lexer;
+    use symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
+    use syntax_trees_to_symbol_resolved_trees::lower_syntax_trees;
+    use tokens_to_syntax_trees::parse_syntax_trees;
+    use validation::validate_program;
 
     /// Run source through parse -> resolve -> typed -> validate. `Nat` is
     /// declared inline (the judge is parametric over any recursive proof
@@ -7602,16 +7596,14 @@ mod structural_entailment {
 }
 
 mod provider_plan {
-    use omega_effects::build_boundary_provider_approval_registry;
-    use omega_effects::provider_plan::{
-        ProviderBinding, ProviderPlan, ProviderPlanRow, ServiceSchema,
-    };
-    use psi_source_files_to_tokens::Lexer;
-    use psi_symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
-    use psi_syntax_trees_to_symbol_resolved_trees::lower_syntax_trees;
-    use psi_tokens_to_syntax_trees::parse_syntax_trees;
+    use effects::build_boundary_provider_approval_registry;
+    use effects::provider_plan::{ProviderBinding, ProviderPlan, ProviderPlanRow, ServiceSchema};
+    use source_files_to_tokens::Lexer;
+    use symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
+    use syntax_trees_to_symbol_resolved_trees::lower_syntax_trees;
+    use tokens_to_syntax_trees::parse_syntax_trees;
 
-    fn typed(source: &str) -> psi_typed_trees::TypedTrees {
+    fn typed(source: &str) -> typed_trees::TypedTrees {
         let tokens = Lexer::new(source).tokenize().expect("tokenize");
         let syntax = parse_syntax_trees(&tokens).expect("parse");
         let resolved = lower_syntax_trees(&syntax).expect("resolve");
@@ -7684,11 +7676,11 @@ mod provider_plan {
         assert_eq!(parents.len(), 2);
         assert_eq!(
             program.trait_composition_kind(&parents[0]),
-            Some(psi_typed_trees::trait_definition::TraitCompositionKind::ServiceReach)
+            Some(typed_trees::trait_definition::TraitCompositionKind::ServiceReach)
         );
         assert_eq!(
             program.trait_composition_kind(&parents[1]),
-            Some(psi_typed_trees::trait_definition::TraitCompositionKind::Policy)
+            Some(typed_trees::trait_definition::TraitCompositionKind::Policy)
         );
 
         let schema = ServiceSchema::from_typed(&program, timer).expect("boundary schema");

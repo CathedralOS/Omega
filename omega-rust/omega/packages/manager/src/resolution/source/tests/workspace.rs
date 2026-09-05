@@ -4,8 +4,8 @@ use crate::resolution::source::{
     ResolvePackageSourceError, resolve_workspace_member_package_source,
 };
 #[cfg(unix)]
-use omega_package_source::SourceResolveError;
-use omega_package_source::{
+use package_source::SourceResolveError;
+use package_source::{
     IdentityError, ImmutableSourceResolution, LocalSourceLimits, SourceLineage, SourceRelativePath,
     WorkspaceLineageIdentity, WorkspaceMemberLineage,
 };
@@ -103,7 +103,7 @@ fn workspace_member_resolution_rejects_member_path_symlink_escape() {
     let member = workspace.join("packages/escaped");
     symlink(&outside, &member).expect("create escaping member symlink");
 
-    let storage = omega_package_source::SourceResolverStorage::for_hardened_base(&cache)
+    let storage = package_source::SourceResolverStorage::for_hardened_base(&cache)
         .expect("create retained workspace storage");
     let error = crate::resolution::source::resolve_workspace_member_package_source_with_storage(
         &SourceLineage::git("https://github.com/CathedralOS/workspace.git")

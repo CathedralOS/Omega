@@ -8,7 +8,7 @@ use super::{
         PackageReviewCallableParameter, PackageReviewTypeIdentity, PackageReviewTypeParameter,
     },
 };
-use psi_symbols::BuiltinFunction;
+use symbols::BuiltinFunction;
 
 mod callable_contracts;
 mod declarations;

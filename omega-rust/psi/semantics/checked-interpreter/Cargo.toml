@@ -1,0 +1,27 @@
+[package]
+name = "checked-interpreter"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[lib]
+name = "checked_interpreter"
+path = "src/lib.rs"
+
+[dependencies]
+arena = { path = "../../foundation/arena" }
+symbols = { path = "../../foundation/symbols" }
+language-core = { path = "../../foundation/language-core" }
+language-semantics = { path = "../../foundation/language-semantics" }
+numerics = { path = "../../foundation/numerics" }
+source = { path = "../../foundation/source" }
+layout-plans = { path = "../../foundation/layout-plans" }
+typed-trees = { path = "../../representations/typed-trees" }
+checked-trees = { path = "../../representations/checked-trees" }
+
+[dev-dependencies]
+source-files-to-tokens = { path = "../../pipeline/source-files-to-tokens" }
+symbol-resolved-trees-to-typed-trees = { path = "../../pipeline/symbol-resolved-trees-to-typed-trees" }
+syntax-trees-to-symbol-resolved-trees = { path = "../../pipeline/syntax-trees-to-symbol-resolved-trees" }
+tokens-to-syntax-trees = { path = "../../pipeline/tokens-to-syntax-trees" }
+typed-trees-to-checked-trees = { path = "../../pipeline/typed-trees-to-checked-trees" }

@@ -1,17 +1,15 @@
-use omega_package_manager::resolution::graph::{
+use package_manager::resolution::graph::{
     PackageSourceClosureLimits, ResolveWorkspacePackageClosureError, ResolvedPackageSourceClosure,
     resolve_workspace_package_closure_with_storage,
 };
-use omega_package_manager::resolution::source::ResolvePackageSourceError;
-use omega_package_manager::review::{
+use package_manager::resolution::source::ResolvePackageSourceError;
+use package_manager::review::{
     CanonicalPackageReconstructionQuestionLimits, CompileResolvedPackageReviewsError,
     ReviewOnlyCapabilityConflictLimits, ReviewOnlyRootPolicyDisposition,
     compare_review_only_initial_capabilities, compile_resolved_package_candidate_for_production,
     compile_resolved_package_reviews, resolve_review_only_root_policy_decisions,
 };
-use omega_package_source::{
-    LocalSourceLimits, SourceLineage, SourceRelativePath, SourceResolverStorage,
-};
+use package_source::{LocalSourceLimits, SourceLineage, SourceRelativePath, SourceResolverStorage};
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
 
@@ -21,7 +19,7 @@ fn workspace_root() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR"))
         .ancestors()
         .find(|ancestor| ancestor.join("tests/fixtures/packages").is_dir())
-        .expect("omega-package-manager should live beneath the Omega workspace")
+        .expect("package-manager should live beneath the Omega workspace")
         .to_path_buf()
 }
 
@@ -71,19 +69,19 @@ fn dependency_generated_source_enters_consumer_without_rerunning_the_dependency_
 
     assert!(matches!(
         compile_resolved_package_candidate_for_production(
-            &closure.for_exact_target(omega_target::TargetProfile::WindowsX64),
+            &closure.for_exact_target(target::TargetProfile::WindowsX64),
             &temporary.join("invalid-native-production"),
         ),
         Err(
             CompileResolvedPackageReviewsError::InvalidProductionRootRole {
-                role: omega_package_compilation::BuildDeclarationKind::Package,
+                role: package_compilation::BuildDeclarationKind::Package,
                 ..
             }
         )
     ));
 
     let reviews = compile_resolved_package_reviews(
-        &closure.for_exact_target(omega_target::TargetProfile::WindowsX64),
+        &closure.for_exact_target(target::TargetProfile::WindowsX64),
         &temporary.join("compiler-build"),
     )
     .expect("dependency generated source should enter consumer compilation");
@@ -110,13 +108,13 @@ fn dependency_generated_source_enters_consumer_without_rerunning_the_dependency_
     for review in [producer, consumer] {
         let policy = review.policy();
         assert_eq!(policy.package(), review.key().identity());
-        assert_eq!(policy.target(), omega_target::TargetProfile::WindowsX64);
+        assert_eq!(policy.target(), target::TargetProfile::WindowsX64);
         let bytes = policy
             .canonical_bytes()
             .expect("encode generated-source policy");
-        let recovered = omega_package_evidence::record::PackagePolicyBaseline::recover_canonical(
+        let recovered = package_evidence::record::PackagePolicyBaseline::recover_canonical(
             &bytes,
-            omega_package_evidence::encoding::PackagePolicyRecoveryLimits::default(),
+            package_evidence::encoding::PackagePolicyRecoveryLimits::default(),
         )
         .expect("recover generated-source policy without build replay");
         assert_eq!(&recovered, policy);
@@ -126,14 +124,14 @@ fn dependency_generated_source_enters_consumer_without_rerunning_the_dependency_
                 .callables()
                 .iter()
                 .filter(|callable| callable.role()
-                    == omega_package_evidence::record::PackagePolicyCallableRole::Public)
+                    == package_evidence::record::PackagePolicyCallableRole::Public)
                 .count(),
             review
                 .projection()
                 .callables()
                 .iter()
                 .filter(|callable| callable.role()
-                    == omega_package_evidence::record::PackageReviewCallableRole::Public)
+                    == package_evidence::record::PackageReviewCallableRole::Public)
                 .count(),
             "normalized policy includes the same checked generated public callables",
         );
@@ -164,7 +162,7 @@ fn dependency_generated_source_enters_consumer_without_rerunning_the_dependency_
             .any(|callable| { callable.identity().path() == "consume_generated_table" })
     );
 
-    let target = closure.for_exact_target(omega_target::TargetProfile::WindowsX64);
+    let target = closure.for_exact_target(target::TargetProfile::WindowsX64);
     let conflict_limits = ReviewOnlyCapabilityConflictLimits::default();
     let conflicts = compare_review_only_initial_capabilities(&reviews, &target, conflict_limits)
         .expect("derive exact generated-source review decisions");
@@ -222,4 +220,4 @@ fn dependency_generated_source_enters_consumer_without_rerunning_the_dependency_
 
     let _ = std::fs::remove_dir_all(temporary);
 }
-use omega_package_manager::admission::accept_ordinary_closure_evidence;
+use package_manager::admission::accept_ordinary_closure_evidence;

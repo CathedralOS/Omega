@@ -37,13 +37,13 @@ reject explicitly and is not silently counted as accepted.
 | Gate | Capability that must be true | Automated invocation |
 | --- | --- | --- |
 | `RC-REPOSITORY` | The pinned toolchain formats, lints, type-checks, and preserves architectural dependency boundaries. | The baseline command block below. |
-| `RC-SOURCE-SEMANTICS` | Every accepted positive fixture reaches its promised checked or product stage; every negative fixture rejects; individual semantic integration tests pass. | `mbx test -p omega-compiler --all-targets` |
-| `RC-PCC-REPLAY` | Canonical semantics and proof bytes round-trip, hostile or substituted evidence rejects, and independent verification precedes interpretation or Omega lowering. | `mbx test -p psi-checked-trees-to-terminal -p psi-terminal-codec -p psi-terminal-verifier -p psi-terminal-interpreter -p omega-psi-to-abstract-operations` |
-| `RC-PORTABLE-PSI` | One process publishes a complete source-free Terminal Psi envelope and exits; a second process reconstructs, verifies, and interprets it using newly supplied authority. | `mbx test -p omega-compiler --test canary_suite portable_terminal_reload::portable_terminal_product_reloads_across_process_boundary -- --exact` |
+| `RC-SOURCE-SEMANTICS` | Every accepted positive fixture reaches its promised checked or product stage; every negative fixture rejects; individual semantic integration tests pass. | `mbx test -p compiler --all-targets` |
+| `RC-PCC-REPLAY` | Canonical semantics and proof bytes round-trip, hostile or substituted evidence rejects, and independent verification precedes interpretation or Omega lowering. | `mbx test -p checked-trees-to-terminal-psi -p terminal-codec -p terminal-verifier -p terminal-interpreter -p terminal-psi-to-abstract-operations` |
+| `RC-PORTABLE-PSI` | One process publishes a complete source-free Terminal Psi envelope and exits; a second process reconstructs, verifies, and interprets it using newly supplied authority. | `mbx test -p compiler --test canary_suite portable_terminal_reload::portable_terminal_product_reloads_across_process_boundary -- --exact` |
 | `RC-BUILD-AND-PACKAGES` | Build declarations, immutable inputs, package identities, reviewed evidence, resolution, and compilation handoff agree without path/name inference or hidden ambient mutation. | The package/build command block below. |
 | `RC-NATIVE-MATRIX` | Each hosted target produces independently validated machine code, object/image bytes, ABI behavior, provider settlement, and observable execution on its matching host. | `mbx test -p omega-native-differential-test --all-targets`, plus `RC-SOURCE-SEMANTICS`, on every required host in the platform table below. |
-| `RC-DIAGNOSTICS` | Rejected source and failed product admission report stable, actionable diagnostics rather than panics, silent fallback, or accidental acceptance. | `mbx test -p omega-compiler --test canary_suite proof_and_float_suites::fail_canaries_reject_with_expected_diagnostic_fragment -- --exact` and the negative cases included by `RC-SOURCE-SEMANTICS`. |
-| `RC-REPRESENTATIVE-PROGRAMS` | Every maintained sample reaches checked semantics; every sample with an authored host entry reaches its native product; every documented deterministic exit/output oracle passes. | `mbx test -p omega-compiler --test samples_compile` on every required host. |
+| `RC-DIAGNOSTICS` | Rejected source and failed product admission report stable, actionable diagnostics rather than panics, silent fallback, or accidental acceptance. | `mbx test -p compiler --test canary_suite proof_and_float_suites::fail_canaries_reject_with_expected_diagnostic_fragment -- --exact` and the negative cases included by `RC-SOURCE-SEMANTICS`. |
+| `RC-REPRESENTATIVE-PROGRAMS` | Every maintained sample reaches checked semantics; every sample with an authored host entry reaches its native product; every documented deterministic exit/output oracle passes. | `mbx test -p compiler --test samples_compile` on every required host. |
 
 `RC-REPOSITORY` is:
 
@@ -59,15 +59,15 @@ mbx test --workspace --lib --no-fail-fast
 
 ```bash
 mbx test \
-  -p omega-build-declarations \
-  -p omega-build-evaluation \
-  -p omega-package-compilation \
-  -p omega-package-source \
-  -p omega-resolver-execution \
-  -p omega-package-evidence \
-  -p omega-package-advisory \
-  -p omega-package-manager
-mbx test -p omega-compiler \
+  -p build-declarations \
+  -p build-evaluation \
+  -p package-compilation \
+  -p package-source \
+  -p resolver-execution \
+  -p package-evidence \
+  -p package-advisory \
+  -p package-manager
+mbx test -p compiler \
   --test build_config_granted \
   --test build_log_facet \
   --test build_target_activation \

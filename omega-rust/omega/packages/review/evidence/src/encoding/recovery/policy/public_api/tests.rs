@@ -23,7 +23,7 @@ fn value_type() -> PackageReviewTypeIdentity {
 
 fn properties() -> PackageReviewDataProperties {
     PackageReviewDataProperties {
-        multiplicity: psi_language_semantics::Multiplicity::Affine,
+        multiplicity: language_semantics::Multiplicity::Affine,
         carry: None,
     }
 }
@@ -38,7 +38,7 @@ fn routes() -> Vec<PackagePolicyCrashRoute> {
 }
 
 fn termination() -> PackagePolicyTermination {
-    use omega_effects::provider_plan::ServiceProgressEstablishmentRouteKind as Kind;
+    use effects::provider_plan::ServiceProgressEstablishmentRouteKind as Kind;
     PackagePolicyTermination::Terminates {
         premises: vec![PackagePolicyProgressPremise {
             profile: identity("Progress"),
@@ -122,7 +122,7 @@ pub(in crate::encoding::recovery::policy) fn fixture() -> PackagePolicyPublicApi
             parents: vec![],
             requirements: vec![PackagePolicyTraitRequirement {
                 identity: identity("Trait::run"),
-                spelling: Some(psi_language_core::OperatorSpelling::Index),
+                spelling: Some(language_core::OperatorSpelling::Index),
                 has_default_realization: true,
                 lifetime_parameter_count: 1,
                 type_parameters: parameters(),
@@ -157,12 +157,12 @@ pub(in crate::encoding::recovery::policy) fn fixture() -> PackagePolicyPublicApi
             type_parameters: parameters(),
             target_type: value_type(),
             index_arguments: vec![],
-            predicate_body: psi_language_semantics::DomainPredicateBody::Present,
+            predicate_body: language_semantics::DomainPredicateBody::Present,
             predicate_facts: vec![PackageReviewContractFact::Expression(
                 PackageReviewContractExpression::Boolean(true),
             )],
             alias_expansion: Some(vec![PackageReviewDomainAliasAtom::Carry(
-                psi_language_semantics::CarryPermission::AcrossSuspend,
+                language_semantics::CarryPermission::AcrossSuspend,
             )]),
             classification: Some(PackageReviewDomainClassification::ProgressProfile),
             semantic_roles: vec![PackageReviewDomainSemanticRole::ArithmeticPolicy],
@@ -186,7 +186,7 @@ pub(in crate::encoding::recovery::policy) fn fixture() -> PackagePolicyPublicApi
                 result_dispatch: String::new(),
             },
             is_boundary: false,
-            spelling: Some(psi_language_core::OperatorSpelling::Add),
+            spelling: Some(language_core::OperatorSpelling::Add),
             lifetime_parameter_count: 1,
             type_parameters: parameters(),
             parameters: vec![],
@@ -197,7 +197,7 @@ pub(in crate::encoding::recovery::policy) fn fixture() -> PackagePolicyPublicApi
         data: vec![PackagePolicyDataShape {
             identity: identity("Data"),
             kind: PackageReviewDataKind::Ordinary,
-            supply: psi_language_semantics::DataSupplyMode::CheckedShape,
+            supply: language_semantics::DataSupplyMode::CheckedShape,
             lifetime_parameter_count: 1,
             type_parameters: parameters(),
             properties: properties(),
@@ -248,17 +248,17 @@ fn complete_public_api_text_retains_all_declaration_families() {
             arguments: vec![value_type()],
         });
     for carry in [
-        psi_language_semantics::CarryPolicy {
-            suspension: psi_language_semantics::CarrySuspension::Forbidden,
-            cpu: psi_language_semantics::CarryCpu::Origin,
-            host_thread: psi_language_semantics::CarryHostThread::Origin,
-            address: psi_language_semantics::CarryAddress::Stable,
+        language_semantics::CarryPolicy {
+            suspension: language_semantics::CarrySuspension::Forbidden,
+            cpu: language_semantics::CarryCpu::Origin,
+            host_thread: language_semantics::CarryHostThread::Origin,
+            address: language_semantics::CarryAddress::Stable,
         },
-        psi_language_semantics::CarryPolicy {
-            suspension: psi_language_semantics::CarrySuspension::Allowed,
-            cpu: psi_language_semantics::CarryCpu::Any,
-            host_thread: psi_language_semantics::CarryHostThread::Any,
-            address: psi_language_semantics::CarryAddress::Movable,
+        language_semantics::CarryPolicy {
+            suspension: language_semantics::CarrySuspension::Allowed,
+            cpu: language_semantics::CarryCpu::Any,
+            host_thread: language_semantics::CarryHostThread::Any,
+            address: language_semantics::CarryAddress::Movable,
         },
     ] {
         api.data[0].properties.carry = Some(carry);

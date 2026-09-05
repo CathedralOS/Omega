@@ -1,0 +1,21 @@
+[package]
+name = "legalized-operations"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[lib]
+name = "legalized_operations"
+path = "src/lib.rs"
+
+[dependencies]
+calling-conventions = { path = "../calling-conventions" }
+optimization-core = { path = "../optimization-core" }
+optimization-unit = { path = "../optimization-unit" }
+target = { path = "../target" }
+abstract-operations = { path = "../abstract-operations" }
+target-operations = { path = "../target-operations" }
+semantic-vocabulary = { path = "../../../psi/foundation/semantic-vocabulary" }
+terminal-psi = { path = "../../../psi/representations/terminal-psi" }
+terminal-codec = { path = "../../../psi/semantics/terminal-codec" }
+sha2 = "0.10.9"

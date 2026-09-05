@@ -2,9 +2,9 @@
 
 mod support;
 
-use omega_package_evidence::encoding::PackagePolicyRecoveryLimits;
-use omega_package_evidence::project_checked_external_supply_policy;
-use omega_package_evidence::record::*;
+use package_evidence::encoding::PackagePolicyRecoveryLimits;
+use package_evidence::project_checked_external_supply_policy;
+use package_evidence::record::*;
 use support::*;
 
 fn project(source: &str) -> PackagePolicyExternalExecutableSupply {
@@ -45,7 +45,7 @@ fn project_with_foreign(
     };
     let checked = compile_to_checked_with_packages(
         &package.0.join("main.omg"),
-        Some(omega_target::TargetProfile::WindowsX64.target_name()),
+        Some(target::TargetProfile::WindowsX64.target_name()),
         inputs,
     )
     .unwrap_or_else(|diagnostics| panic!("lossless external source checks: {diagnostics:#?}"));

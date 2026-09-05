@@ -67,9 +67,9 @@ pub(super) fn policy(reader: &mut Reader<'_>) -> Result<PackagePolicySelectedPro
     })
 }
 
-pub(super) fn target(reader: &mut Reader<'_>) -> Result<omega_target::TargetProfile, Error> {
+pub(super) fn target(reader: &mut Reader<'_>) -> Result<target::TargetProfile, Error> {
     let identity = reader.string()?;
-    omega_target::TargetProfile::ALL
+    target::TargetProfile::ALL
         .into_iter()
         .find(|profile| profile.identity().as_str() == identity)
         .ok_or(Error::InvalidValue)

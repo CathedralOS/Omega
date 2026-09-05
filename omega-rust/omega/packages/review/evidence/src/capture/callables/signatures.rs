@@ -7,26 +7,26 @@ use crate::record::{
     PackageReviewExternalCallableParameter, PackageReviewExternalCallableSignature,
     PackageReviewExternalStaticParameter,
 };
-use omega_compiler::CheckedCompilation;
-use psi_diagnostics::Diagnostic;
+use compiler::CheckedCompilation;
+use diagnostics::Diagnostic;
 
 pub(super) fn project_external_callable_signature(
     compilation: &CheckedCompilation,
-    machine: &psi_typed_trees::machine::Machine,
-    binders: &[(psi_symbols::SymbolHandle, String)],
+    machine: &typed_trees::machine::Machine,
+    binders: &[(symbols::SymbolHandle, String)],
 ) -> Result<PackageReviewExternalCallableSignature, Vec<Diagnostic>> {
     let subject = machine.name.as_str();
     let type_parameters = compilation.machine_type_parameters(machine);
     let static_parameters = type_parameters
         .iter()
         .map(|parameter| match &parameter.kind {
-            psi_typed_trees::data::TypeParameterKind::Type => {
+            typed_trees::data::TypeParameterKind::Type => {
                 Ok(PackageReviewExternalStaticParameter::Type {
                     properties: project_data_properties(parameter.bounds),
                 })
             }
-            psi_typed_trees::data::TypeParameterKind::Const { type_reference } => {
-                if parameter.bounds != psi_typed_trees::data::DataProperties::default() {
+            typed_trees::data::TypeParameterKind::Const { type_reference } => {
+                if parameter.bounds != typed_trees::data::DataProperties::default() {
                     return Err(vec![Diagnostic::error(format!(
                         "reviewed callable `{subject}` gives a const parameter inapplicable type-property bounds"
                     ))]);
@@ -40,8 +40,8 @@ pub(super) fn project_external_callable_signature(
                     )?,
                 })
             }
-            psi_typed_trees::data::TypeParameterKind::Machine { contract } => {
-                if parameter.bounds != psi_typed_trees::data::DataProperties::default() {
+            typed_trees::data::TypeParameterKind::Machine { contract } => {
+                if parameter.bounds != typed_trees::data::DataProperties::default() {
                     return Err(vec![Diagnostic::error(format!(
                         "reviewed callable `{subject}` gives a machine parameter inapplicable type-property bounds"
                     ))]);
@@ -60,7 +60,7 @@ pub(super) fn project_external_callable_signature(
                     )?,
                 })
             }
-            psi_typed_trees::data::TypeParameterKind::Proposition { .. } => {
+            typed_trees::data::TypeParameterKind::Proposition { .. } => {
                 Err(vec![Diagnostic::error(format!(
                     "reviewed callable `{subject}` uses a static parameter kind not yet represented by its executable-supply signature"
                 ))])

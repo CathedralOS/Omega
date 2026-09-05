@@ -1,0 +1,17 @@
+[package]
+name = "optimization-policy-offline"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[lib]
+name = "optimization_policy_offline"
+path = "src/lib.rs"
+
+[[bin]]
+name = "optimization-policy-offline"
+path = "src/bin/optimization-policy-offline/main.rs"
+
+[dependencies]
+optimization-core = { path = "../../representations/optimization-core" }
+sha2 = "0.10.9"

@@ -1,6 +1,6 @@
 use super::*;
-use omega_compiler::compile_to_checked_with_packages;
-use omega_package_compilation::{PackageCompilationInputs, PackageSourceBinding};
+use compiler::compile_to_checked_with_packages;
+use package_compilation::{PackageCompilationInputs, PackageSourceBinding};
 use std::path::PathBuf;
 
 struct Source(PathBuf);
@@ -36,7 +36,7 @@ pub machine Other::check(&self) {}
         "machine build(builder: &mut Build) { builder.package(\"review-fixture\"); }\n",
     )
     .unwrap();
-    let package = psi_core::PackageKeyIdentity::from_digest([41; 32]).unwrap();
+    let package = semantic_vocabulary::PackageKeyIdentity::from_digest([41; 32]).unwrap();
     let inputs = PackageCompilationInputs::new_package(
         package,
         vec![PackageSourceBinding::new(
@@ -62,10 +62,10 @@ pub machine Other::check(&self) {}
     let context = ContractProjectionContext {
         subject_kind: "alias test", subject_name: "Owner::check",
         owner: ContractProofFactOwner::Machine { machine_symbol: machine.symbol },
-        point: psi_facts::ProgramPoint::Machine { machine_symbol: machine.symbol },
+        point: facts::ProgramPoint::Machine { machine_symbol: machine.symbol },
         parameters: checked.state_parameters(entry), domain_symbol: None, data_symbol: None,
         lifetime_binders: &[], lifetime_substitutions: &[],
-        selection_exposure: psi_language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure::PublicInterface,
+        selection_exposure: language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure::PublicInterface,
     };
     let symbol = |path: &str| {
         checked

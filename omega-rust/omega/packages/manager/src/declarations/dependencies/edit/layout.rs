@@ -2,10 +2,10 @@ use crate::declarations::dependencies::edit::{
     BUILD_MACHINE_NAME, BUILDER_PARAMETER_NAME, BuildDependencyEditError,
 };
 use crate::declarations::dependencies::read::DependencyProjectionError;
-use psi_source_files_to_tokens::Lexer;
-use psi_syntax_trees::item::Item;
-use psi_tokens::TokenStream;
-use psi_tokens_to_syntax_trees::parse_syntax_trees;
+use source_files_to_tokens::Lexer;
+use syntax_trees::item::Item;
+use tokens::TokenStream;
+use tokens_to_syntax_trees::parse_syntax_trees;
 
 #[derive(Debug)]
 pub(super) struct BuildLayout {

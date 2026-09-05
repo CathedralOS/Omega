@@ -1,6 +1,6 @@
 use super::{Error, fixtures, tests::recover};
-use omega_effects::provider_plan::{ServiceProgressSubject, ServiceResultClaim};
-use psi_language_semantics::{
+use effects::provider_plan::{ServiceProgressSubject, ServiceResultClaim};
+use language_semantics::{
     CarryAddress, CarryCpu, CarryHostThread, CarrySuspension, DomainPredicateBody,
 };
 

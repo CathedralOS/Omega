@@ -137,7 +137,7 @@ The Psi product role owns this stage and its hosted source belongs under
 `source/psi/`. The current Rust implementation stays split by identity
 task:
 
-- `omega-rust/psi/pipeline/psi-syntax-trees-to-symbol-resolved-trees` contains the
+- `omega-rust/psi/pipeline/syntax-trees-to-symbol-resolved-trees` contains the
   stage implementation. All workspace consumers invoke it directly.
 
 - The stage's `src/generic_data/` owns pre-resolution closed-instance and
@@ -152,7 +152,7 @@ task:
   ownership does not move normalization across source-unit or evaluation
   boundaries. Cross-stage controls live in `tests/omega/generic_data.rs`.
 
-- `omega-rust/psi/semantics/psi-build-time-evaluation` owns the
+- `omega-rust/psi/semantics/build-time-evaluation` owns the
   cross-stage evaluation continuation. Pre-resolution returns target-filterable
   syntax beside one opaque, non-cloneable `PreCheckEvaluation` retaining the
   matching plan-laid rows, placed-view rows, and optional package-selection
@@ -162,10 +162,10 @@ task:
   plan-laid, placed-view, and wire-plan work remains in its Psi-defined
   fail-fast order.
 
-- `omega-rust/psi/representations/psi-symbol-resolved-trees` contains the stage
+- `omega-rust/psi/representations/symbol-resolved-trees` contains the stage
   output.
 
-- `omega-rust/psi/foundation/psi-language-semantics` contains the resolved
+- `omega-rust/psi/foundation/language-semantics` contains the resolved
   semantic identities, service/domain tables, machine supply/termination
   plans, establishment routes, and byte-sequence predicate vocabulary carried
   by this stage.

@@ -5,7 +5,7 @@ use super::{
     validation::{nominal, same_target},
 };
 use crate::record::PackageReviewNominalIdentity;
-use omega_target::TargetProfile;
+use target::TargetProfile;
 
 impl PackagePolicyServiceMethod {
     pub(crate) fn validate_service_structure(
@@ -51,7 +51,7 @@ impl PackagePolicyServiceMethod {
         }
         for premise in &self.termination_premises {
             if premise.profile.is_empty()
-                || matches!(premise.subject, omega_effects::provider_plan::ServiceProgressSubject::Parameter(ordinal) if ordinal >= self.parameter_count)
+                || matches!(premise.subject, effects::provider_plan::ServiceProgressSubject::Parameter(ordinal) if ordinal >= self.parameter_count)
                 || premise
                     .establishment_routes
                     .iter()

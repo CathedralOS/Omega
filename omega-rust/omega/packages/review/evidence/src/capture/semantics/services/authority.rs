@@ -34,7 +34,7 @@ pub(super) fn project(
             (
                 signature.service_reach_row,
                 owner.is_boundary.then_some(symbol),
-                psi_effects::declared_signature_invocations(&compilation.typed, signature),
+                flow_effects::declared_signature_invocations(&compilation.typed, signature),
                 compilation.state_signature_parameters(signature),
                 &signature.termination_guarantee,
             )
@@ -64,7 +64,7 @@ pub(super) fn project(
             (
                 machine.service_reach_row,
                 None,
-                psi_effects::declared_machine_invocations(&compilation.typed, machine),
+                flow_effects::declared_machine_invocations(&compilation.typed, machine),
                 compilation.state_parameters(entry),
                 guarantee,
             )

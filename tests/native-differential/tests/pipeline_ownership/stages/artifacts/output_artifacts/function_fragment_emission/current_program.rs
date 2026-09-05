@@ -114,7 +114,7 @@ fn emission_rejects_reauthenticated_layout_without_mutating_replay_data() {
     let mut candidate = source(NativeTarget::linux_x64(), OptimizationSelections::default());
     let original = candidate.program().clone();
     let layout = Arc::make_mut(&mut candidate.program_mut().layout);
-    layout.policy = omega_machine_code::SelectedFunctionLayoutPolicy::SingleEntryBlockV1;
+    layout.policy = machine_code::SelectedFunctionLayoutPolicy::SingleEntryBlockV1;
     layout.identity = layout.recomputed_identity();
     assert_ne!(layout.identity, original.layout.identity);
     assert_eq!(

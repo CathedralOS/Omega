@@ -4,10 +4,8 @@ use crate::resolution::source::{
     ResolvePackageSourceError, bind_staged_external_local_project_source,
     resolve_external_local_project_source_with_storage,
 };
-use omega_package_source::local::staging::{
-    StagedLocalSnapshot, stage_local_source_replacement_in_lane,
-};
-use omega_package_source::{
+use package_source::local::staging::{StagedLocalSnapshot, stage_local_source_replacement_in_lane};
+use package_source::{
     ExternalSourceContext, LocalSourceLimits, SourceContentDigest, SourceRelativePath,
     SourceResolveError, SourceResolverStorage,
 };

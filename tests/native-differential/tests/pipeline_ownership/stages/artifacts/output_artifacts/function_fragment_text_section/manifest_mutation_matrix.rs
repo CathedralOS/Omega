@@ -2,14 +2,14 @@
 
 use crate::FunctionFragmentReplayInputs;
 use crate::tests::*;
-use omega_optimization_core::{
+use optimization_core::{
     FunctionFragmentEmissionIdentity, FunctionFragmentEmissionManifestIdentity,
     FunctionRelativeOptimizationRealizationManifestIdentity, OptimizationSelectionIdentity,
     PostAllocationOptimizationManifestIdentity, TerminalRelocationFreeTextSectionIdentity,
 };
-use omega_target::{Architecture, ObjectFormat};
-use psi_core::FuelScheduleIdentity;
-use psi_terminal::SemanticFingerprint;
+use semantic_vocabulary::FuelScheduleIdentity;
+use target::{Architecture, ObjectFormat};
+use terminal_psi::SemanticFingerprint;
 
 type ManifestMutation = fn(&mut FunctionFragmentTextSectionManifest);
 
@@ -89,7 +89,7 @@ fn every_representable_text_manifest_field_rejects_after_reauthentication() {
         }),
         ("selected", |record| {
             record.selected =
-                omega_selected_instructions::SelectedInstructionPlanIdentity::from_bytes([0x83; 32])
+                selected_instructions::SelectedInstructionPlanIdentity::from_bytes([0x83; 32])
         }),
         ("post_allocation_manifest", |record| {
             record.post_allocation_manifest =
@@ -99,7 +99,7 @@ fn every_representable_text_manifest_field_rejects_after_reauthentication() {
         }),
         ("post_allocation_machine", |record| {
             record.post_allocation_machine =
-                omega_physical_instructions::PostAllocationMachineIdentity::from_bytes([0x84; 32])
+                physical_instructions::PostAllocationMachineIdentity::from_bytes([0x84; 32])
         }),
         ("final_pre_layout", |record| {
             record.final_pre_layout = SelectedFormEncodingIdentity::from_bytes([0x85; 32])
@@ -208,9 +208,7 @@ fn every_representable_text_manifest_field_rejects_after_reauthentication() {
 
     *staged.manifest_mut().record_mut() = baseline;
     staged.manifest_mut().record_mut().identity =
-        omega_optimization_core::FunctionFragmentTextSectionManifestIdentity::from_bytes(
-            [0x88; 32],
-        );
+        optimization_core::FunctionFragmentTextSectionManifestIdentity::from_bytes([0x88; 32]);
     assert_eq!(
         validate_optimized_relocation_free_text_section(&staged),
         Err(RelocationFreeTextSectionPlacementError::ManifestMismatch),

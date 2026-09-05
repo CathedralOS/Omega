@@ -7,17 +7,17 @@ use super::{
 use crate::capture::source::ProjectedNestedSourceLocation;
 use crate::capture::source::locations::project_nested_declaration_source_location;
 use crate::record::PackageReviewSourceLocationRole;
-use omega_compiler::CheckedCompilation;
-use psi_diagnostics::Diagnostic;
+use compiler::CheckedCompilation;
+use diagnostics::Diagnostic;
 
 pub(crate) fn collect_type_parameter_source_locations(
     compilation: &CheckedCompilation,
-    parameters: &[psi_typed_trees::data::TypeParameter],
+    parameters: &[typed_trees::data::TypeParameter],
     locations: &mut Vec<ProjectedNestedSourceLocation>,
 ) -> Result<(), Vec<Diagnostic>> {
     for parameter in parameters {
-        let psi_typed_trees::data::TypeParameterKind::Machine {
-            contract: psi_typed_trees::data::MachineParameterContract::Structural(signature),
+        let typed_trees::data::TypeParameterKind::Machine {
+            contract: typed_trees::data::MachineParameterContract::Structural(signature),
         } = &parameter.kind
         else {
             continue;
@@ -57,7 +57,7 @@ pub(crate) fn collect_type_parameter_source_locations(
 
 pub(crate) fn collect_callable_parameter_source_locations(
     compilation: &CheckedCompilation,
-    parameters: &[psi_typed_trees::signature::StateParameter],
+    parameters: &[typed_trees::signature::StateParameter],
     subject: &str,
     locations: &mut Vec<ProjectedNestedSourceLocation>,
 ) -> Result<(), Vec<Diagnostic>> {

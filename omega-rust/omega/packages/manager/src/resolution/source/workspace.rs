@@ -1,13 +1,13 @@
 use super::projection::project_package_build;
 use super::{ResolvePackageSourceError, ResolvedPackageSource};
 use crate::declarations::PackageKey;
-use omega_package_source::local::operations::resolve_local_source_snapshot_in_lane;
-use omega_package_source::storage::RetainedStorageLane;
-use omega_package_source::{
+use package_source::local::operations::resolve_local_source_snapshot_in_lane;
+use package_source::storage::RetainedStorageLane;
+use package_source::{
     ImmutableSourceResolution, SourceContentDigest, SourceLineage, SourceRelativePath,
     WorkspaceLineageIdentity, WorkspaceMemberLineage,
 };
-use omega_package_source::{LocalSourceLimits, ResolvedLocalSnapshot, SourceResolverStorage};
+use package_source::{LocalSourceLimits, ResolvedLocalSnapshot, SourceResolverStorage};
 use std::path::{Path, PathBuf};
 
 /// Snapshot one workspace member and bind it to the workspace root's source

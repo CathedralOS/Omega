@@ -1,8 +1,8 @@
 //! Exact transitive source membership, with meaning interpreted by evidence.
 
 use super::{PackageLockError as Error, PackageLockTarget};
-use omega_package_evidence::encoding::PackagePolicyMembershipLimits;
-use psi_core::PackageKeyIdentity;
+use package_evidence::encoding::PackagePolicyMembershipLimits;
+use semantic_vocabulary::PackageKeyIdentity;
 
 pub(super) struct Usage {
     pub(super) owned_bytes: usize,

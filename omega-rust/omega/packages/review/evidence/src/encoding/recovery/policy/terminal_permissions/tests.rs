@@ -24,7 +24,7 @@ pub(in crate::encoding::recovery::policy) fn fixture() -> PackagePolicyTerminalP
     sibling.calling = None;
     PackagePolicyTerminalPermissions {
         package,
-        target: omega_target::TargetProfile::LinuxX64,
+        target: target::TargetProfile::LinuxX64,
         services: vec![PackagePolicyTerminalService {
             service,
             static_parameters: Vec::new(),
@@ -60,7 +60,7 @@ fn complete_schema_and_nested_calling_survive_without_nested_envelopes() {
     );
     assert_eq!(policy.services[0].methods[0].name, "unpermitted");
     assert!(policy.services[0].methods[1].calling.is_some());
-    for target in omega_target::TargetProfile::ALL {
+    for target in target::TargetProfile::ALL {
         let mut empty = policy.clone();
         empty.services.clear();
         empty.target = target;
@@ -177,7 +177,7 @@ fn permission_membership_identity_target_and_canonical_sets_reject_drift() {
     changed.services[0].service.path = "Other".into();
     cases.push(changed);
     let mut changed = original.clone();
-    changed.target = omega_target::TargetProfile::WindowsX64;
+    changed.target = target::TargetProfile::WindowsX64;
     cases.push(changed);
     let mut changed = original.clone();
     changed.services[0].methods[1].requirement_owner.path = "Other".into();

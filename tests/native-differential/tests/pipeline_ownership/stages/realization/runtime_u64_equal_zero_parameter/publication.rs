@@ -4,7 +4,7 @@ use super::fixture::staged_object_artifact;
 
 #[test]
 fn u64_parameter_equal_zero_reaches_linux_object_and_callable_on_both_isas() {
-    use omega_calling_conventions::{CallingPolicy, MachineRegister};
+    use calling_conventions::{CallingPolicy, MachineRegister};
 
     for (target, policy, parameter, result) in [
         (
@@ -27,7 +27,7 @@ fn u64_parameter_equal_zero_reaches_linux_object_and_callable_on_both_isas() {
         let text = &artifact.source().object().text_section.bytes;
         assert!(!text.is_empty());
         match target.architecture {
-            omega_target::Architecture::X86_64 => {
+            target::Architecture::X86_64 => {
                 assert!(
                     text.windows(3).any(|bytes| bytes == [0x48, 0x85, 0xff]),
                     "x86 object must compare the sole parameter with zero using TEST"
@@ -37,7 +37,7 @@ fn u64_parameter_equal_zero_reaches_linux_object_and_callable_on_both_isas() {
                     "x86 object must use the selected short JNE branch"
                 );
             }
-            omega_target::Architecture::Aarch64 => {
+            target::Architecture::Aarch64 => {
                 assert!(
                     text.windows(4).any(|bytes| {
                         let word = u32::from_le_bytes(bytes.try_into().unwrap());
@@ -58,7 +58,7 @@ fn u64_parameter_equal_zero_reaches_linux_object_and_callable_on_both_isas() {
                     .flat_map(|block| &block.instructions)
                     .find(|span| {
                         span.alternative.family
-                            == omega_selected_instructions::MachineAlternativeFamily::CompareI64Zero
+                            == selected_instructions::MachineAlternativeFamily::CompareI64Zero
                     })
                     .unwrap();
                 assert!(compare.bytes.is_empty());

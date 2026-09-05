@@ -34,7 +34,7 @@ invokes Host;
     let review = project_checked_package_review(&checked)
         .expect("authored invocation spans should join exact checked targets");
     let rows = review.canonical_rows().expect("invocation source rows");
-    let invocation_text = |row: &omega_package_evidence::record::PackageReviewCanonicalRow| {
+    let invocation_text = |row: &package_evidence::record::PackageReviewCanonicalRow| {
         let mut text = row
             .source()
             .authored_locations()
@@ -159,8 +159,8 @@ where machine Work()
         .expect("private sealed checked service-reach fact");
     assert_eq!(
         sealed_fact.interface,
-        psi_language_semantics::ServiceReachInterface::PublishedCeiling(
-            psi_language_semantics::ServiceReachRowTable::EMPTY_ROW,
+        language_semantics::ServiceReachInterface::PublishedCeiling(
+            language_semantics::ServiceReachRowTable::EMPTY_ROW,
         ),
         "an authored empty private body ceiling must not collapse into inference",
     );
@@ -176,13 +176,13 @@ where machine Work()
             .for_machine(inferred.symbol)
             .expect("inferred checked service-reach fact")
             .interface,
-        psi_language_semantics::ServiceReachInterface::InternalInferred,
+        language_semantics::ServiceReachInterface::InternalInferred,
     );
 
     let review = project_checked_package_review(&checked)
         .expect("authored service-reach spans should join exact checked rows");
     let rows = review.canonical_rows().expect("service-reach source rows");
-    let reach_text = |row: &omega_package_evidence::record::PackageReviewCanonicalRow| {
+    let reach_text = |row: &package_evidence::record::PackageReviewCanonicalRow| {
         let mut text = row
             .source()
             .authored_locations()
@@ -310,7 +310,7 @@ invokes Host;
         .find(|row| row.owner == dispatch.symbol)
         .expect("dispatch authored reach")
         .targets[0]
-        .source_span = psi_source::SourceSpan::default();
+        .source_span = source::SourceSpan::default();
     let diagnostics = project_checked_package_review(&source_tamper)
         .expect_err("missing service-reach source custody must reject review");
     assert!(

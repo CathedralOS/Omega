@@ -4,15 +4,15 @@ use crate::record::{
     PackageReviewContractEvidenceArgument, PackageReviewContractEvidenceTerm,
     PackageReviewContractKind,
 };
-use omega_compiler::CheckedCompilation;
-use psi_diagnostics::Diagnostic;
-use psi_symbols::SymbolHandle;
+use compiler::CheckedCompilation;
+use diagnostics::Diagnostic;
+use symbols::SymbolHandle;
 
 pub(crate) fn project_contract_call_evidence_arguments(
     compilation: &CheckedCompilation,
     context: &ContractProjectionContext<'_>,
-    fact: Option<psi_arena::Handle<psi_typed_trees::domain::ProofFact>>,
-    expression: psi_typed_trees::expression::ExpressionHandle,
+    fact: Option<arena::Handle<typed_trees::domain::ProofFact>>,
+    expression: typed_trees::expression::ExpressionHandle,
     target_state_symbol: SymbolHandle,
     authored_count: usize,
 ) -> Result<Vec<PackageReviewContractEvidenceArgument>, Vec<Diagnostic>> {
@@ -53,7 +53,7 @@ pub(crate) fn project_contract_call_evidence_arguments(
         ))]);
     };
     let parameters =
-        psi_typed_trees_to_checked_trees::derive_checked_contract_expression_evidence_parameters(
+        typed_trees_to_checked_trees::derive_checked_contract_expression_evidence_parameters(
             &compilation.facts,
             target_machine,
             target_state,
@@ -92,7 +92,7 @@ pub(crate) fn project_contract_call_evidence_arguments(
                 .proof
                 .evidence_terms
                 .get(binding.parameter);
-            let current_instantiation = psi_typed_trees_to_checked_trees::
+            let current_instantiation = typed_trees_to_checked_trees::
                 derive_checked_contract_expression_evidence_instantiation(
                     &compilation.typed,
                     &compilation.facts,
@@ -100,11 +100,11 @@ pub(crate) fn project_contract_call_evidence_arguments(
                     target_state,
                     binding.parameter,
                 );
-            if source.kind != psi_checked_trees::ContractProofFactKind::Requires
+            if source.kind != checked_trees::ContractProofFactKind::Requires
                 || !evidence_owner_visible_from(source.owner, context.owner)
                 || source.proposition != binding.instantiated_proposition
                 || current_instantiation.as_ref() != Some(&binding.instantiated_proposition)
-                || parameter.kind != psi_checked_trees::ContractProofFactKind::Requires
+                || parameter.kind != checked_trees::ContractProofFactKind::Requires
                 || !evidence_owner_belongs_to_target(
                     parameter.owner,
                     target_machine,
@@ -126,7 +126,7 @@ pub(crate) fn project_contract_call_evidence_arguments(
 }
 
 fn exact_contract_target(
-    program: &psi_typed_trees::TypedTrees,
+    program: &typed_trees::TypedTrees,
     target: SymbolHandle,
 ) -> Option<(SymbolHandle, SymbolHandle)> {
     if let Some(machine) = program.machines().iter().find(|machine| {
@@ -147,17 +147,17 @@ fn exact_contract_target(
 }
 
 fn evidence_owner_visible_from(
-    term_owner: psi_checked_trees::ContractProofFactOwner,
-    fact_owner: psi_checked_trees::ContractProofFactOwner,
+    term_owner: checked_trees::ContractProofFactOwner,
+    fact_owner: checked_trees::ContractProofFactOwner,
 ) -> bool {
     term_owner == fact_owner
         || matches!(
             (term_owner, fact_owner),
             (
-                psi_checked_trees::ContractProofFactOwner::Machine {
+                checked_trees::ContractProofFactOwner::Machine {
                     machine_symbol: term_machine,
                 },
-                psi_checked_trees::ContractProofFactOwner::MachineState {
+                checked_trees::ContractProofFactOwner::MachineState {
                     machine_symbol: fact_machine,
                     ..
                 },
@@ -166,23 +166,23 @@ fn evidence_owner_visible_from(
 }
 
 fn evidence_owner_belongs_to_target(
-    owner: psi_checked_trees::ContractProofFactOwner,
+    owner: checked_trees::ContractProofFactOwner,
     target_machine: SymbolHandle,
     target_state: SymbolHandle,
 ) -> bool {
     matches!(
         owner,
-        psi_checked_trees::ContractProofFactOwner::Machine { machine_symbol }
+        checked_trees::ContractProofFactOwner::Machine { machine_symbol }
             if machine_symbol == target_machine
     ) || matches!(
         owner,
-        psi_checked_trees::ContractProofFactOwner::MachineState {
+        checked_trees::ContractProofFactOwner::MachineState {
             machine_symbol,
             state_symbol,
         } if machine_symbol == target_machine && state_symbol == target_state
     ) || matches!(
         owner,
-        psi_checked_trees::ContractProofFactOwner::StateSignature {
+        checked_trees::ContractProofFactOwner::StateSignature {
             owner_symbol,
             state_symbol,
         } if owner_symbol == target_machine && state_symbol == target_state
@@ -191,19 +191,19 @@ fn evidence_owner_belongs_to_target(
 
 fn project_term(
     compilation: &CheckedCompilation,
-    term: &psi_checked_trees::CheckedEvidenceTerm,
+    term: &checked_trees::CheckedEvidenceTerm,
 ) -> Result<PackageReviewContractEvidenceTerm, Vec<Diagnostic>> {
     let owner = match term.owner {
-        psi_checked_trees::ContractProofFactOwner::Machine { machine_symbol } => machine_symbol,
-        psi_checked_trees::ContractProofFactOwner::MachineState { state_symbol, .. }
-        | psi_checked_trees::ContractProofFactOwner::StateSignature { state_symbol, .. } => {
+        checked_trees::ContractProofFactOwner::Machine { machine_symbol } => machine_symbol,
+        checked_trees::ContractProofFactOwner::MachineState { state_symbol, .. }
+        | checked_trees::ContractProofFactOwner::StateSignature { state_symbol, .. } => {
             state_symbol
         }
-        psi_checked_trees::ContractProofFactOwner::OperatorDeclaration { operator_symbol }
-        | psi_checked_trees::ContractProofFactOwner::OperatorUse {
+        checked_trees::ContractProofFactOwner::OperatorDeclaration { operator_symbol }
+        | checked_trees::ContractProofFactOwner::OperatorUse {
             operator_symbol, ..
         } => operator_symbol,
-        psi_checked_trees::ContractProofFactOwner::Unknown => {
+        checked_trees::ContractProofFactOwner::Unknown => {
             return Err(vec![Diagnostic::error(
                 "checked evidence term has no stable semantic owner",
             )]);
@@ -212,10 +212,8 @@ fn project_term(
     Ok(PackageReviewContractEvidenceTerm {
         owner: nominal_identity(compilation, owner)?,
         kind: match term.kind {
-            psi_checked_trees::ContractProofFactKind::Requires => {
-                PackageReviewContractKind::Requires
-            }
-            psi_checked_trees::ContractProofFactKind::Ensures => PackageReviewContractKind::Ensures,
+            checked_trees::ContractProofFactKind::Requires => PackageReviewContractKind::Requires,
+            checked_trees::ContractProofFactKind::Ensures => PackageReviewContractKind::Ensures,
         },
         lane_position: portable_lane(term.lane_position)?,
     })

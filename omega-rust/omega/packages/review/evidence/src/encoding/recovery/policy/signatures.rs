@@ -111,7 +111,7 @@ pub(super) fn conformance_bound(
 pub(super) fn data_properties(
     reader: &mut Reader<'_>,
 ) -> Result<PackageReviewDataProperties, Error> {
-    use psi_language_semantics::{
+    use language_semantics::{
         CarryAddress, CarryCpu, CarryHostThread, CarryPolicy, CarrySuspension, Multiplicity,
     };
     let multiplicity = match reader.byte()? {

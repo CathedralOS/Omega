@@ -20,7 +20,7 @@ use crate::git::executable::executor::GitExecutor;
 use crate::git::objects::identity::{git_object_algorithm, git_object_invalid};
 use crate::limits::GIT_STDERR_LIMIT;
 use crate::tree::filesystem::io_error;
-use omega_resolver_execution::ResolverExecutionPhase;
+use resolver_execution::ResolverExecutionPhase;
 use std::fs::File;
 use std::io::{Seek, SeekFrom, Write};
 

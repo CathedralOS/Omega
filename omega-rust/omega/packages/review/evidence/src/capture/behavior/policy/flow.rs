@@ -2,9 +2,9 @@ use super::rejected;
 use crate::capture::semantics::declarations::nominal_identity;
 use crate::capture::semantics::facts::exactly_one;
 use crate::record::PackagePolicyCapabilityFlow;
-use omega_compiler::CheckedCompilation;
-use psi_checked_trees::RealizedMachineContractEnvelope;
-use psi_diagnostics::Diagnostic;
+use checked_trees::RealizedMachineContractEnvelope;
+use compiler::CheckedCompilation;
+use diagnostics::Diagnostic;
 
 /// Disclose the authority exercised anywhere in this checked machine call
 /// closure, independently of whether an acquired value escapes to its caller.

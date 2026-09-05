@@ -4,7 +4,7 @@ use crate::encoding::encode::text_test_support::{Component, component};
 pub(super) fn nominal_fixture(path: &str) -> PackageReviewNominalIdentity {
     PackageReviewNominalIdentity {
         owner: PackageReviewNominalOwner::Package(
-            psi_core::PackageKeyIdentity::from_digest([17; 32]).unwrap(),
+            semantic_vocabulary::PackageKeyIdentity::from_digest([17; 32]).unwrap(),
         ),
         path: path.into(),
     }
@@ -38,7 +38,7 @@ pub(in crate::encoding::recovery::policy) fn fixture() -> PackagePolicyCallables
         checked_termination: PackagePolicyTermination::Terminates { premises: vec![PackagePolicyProgressPremise {
             profile: nominal_fixture("Progress"), subject: PackageReviewProgressSubject::Parameter(0), projections: Vec::new(),
             establishment_routes: vec![PackagePolicyServiceProgressRoute {
-                kind: omega_effects::provider_plan::ServiceProgressEstablishmentRouteKind::CheckedRequirement,
+                kind: effects::provider_plan::ServiceProgressEstablishmentRouteKind::CheckedRequirement,
                 requirement_owner: nominal_fixture("ProgressSource"), requirement: nominal_fixture("ProgressSource::establish"),
             }],
         }] },
@@ -55,11 +55,11 @@ pub(in crate::encoding::recovery::policy) fn fixture() -> PackagePolicyCallables
         mutation: PackagePolicyMutation { completeness: PackageReviewWriteFrameCompleteness::Complete, paths: vec!["$P0.field".into()] },
     };
     callable.capability_flows = [
-        psi_effects::CapabilityFlowKind::Uses,
-        psi_effects::CapabilityFlowKind::Returns,
-        psi_effects::CapabilityFlowKind::Acquires,
-        psi_effects::CapabilityFlowKind::Stores,
-        psi_effects::CapabilityFlowKind::Derives,
+        flow_effects::CapabilityFlowKind::Uses,
+        flow_effects::CapabilityFlowKind::Returns,
+        flow_effects::CapabilityFlowKind::Acquires,
+        flow_effects::CapabilityFlowKind::Stores,
+        flow_effects::CapabilityFlowKind::Derives,
     ]
     .into_iter()
     .map(|kind| PackagePolicyCapabilityFlow {
@@ -70,7 +70,7 @@ pub(in crate::encoding::recovery::policy) fn fixture() -> PackagePolicyCallables
     callable.reachable_capability_flows = callable.capability_flows.clone();
     PackagePolicyCallables {
         package,
-        target: omega_target::TargetProfile::LinuxX64,
+        target: target::TargetProfile::LinuxX64,
         callables: vec![callable],
     }
 }
@@ -101,7 +101,7 @@ fn callable_meaning_recovers_without_old_source_or_derivation_coordinates() {
     let bytes = policy.canonical_bytes().unwrap();
     assert_eq!(recover(&bytes).unwrap(), policy);
     assert_eq!(policy.callables[0].capability_flows.len(), 5);
-    for target in omega_target::TargetProfile::ALL {
+    for target in target::TargetProfile::ALL {
         let mut empty = policy.clone();
         empty.target = target;
         empty.callables.clear();
@@ -204,7 +204,7 @@ fn named_callable_text_retains_progress_subjects_routes_and_authority_payloads()
         premises[0].subject = subject;
         premises[0].projections = vec![nominal_fixture("Queue::progress")];
         premises[0].establishment_routes[0].kind =
-            omega_effects::provider_plan::ServiceProgressEstablishmentRouteKind::BoundaryRequirement;
+            effects::provider_plan::ServiceProgressEstablishmentRouteKind::BoundaryRequirement;
         callable.declared_termination = Some(callable.checked_termination.clone());
         callable.checked_crash.published = vec![PackagePolicyCrashRoute {
             cause: PackageReviewCrashCause::Abort,
@@ -225,7 +225,7 @@ fn policy_rejects_detached_roles_owners_coordinates_and_noncanonical_sets() {
     cases.push(changed);
     let mut changed = original.clone();
     changed.callables[0].identity.owner = PackageReviewNominalOwner::Package(
-        psi_core::PackageKeyIdentity::from_digest([18; 32]).unwrap(),
+        semantic_vocabulary::PackageKeyIdentity::from_digest([18; 32]).unwrap(),
     );
     cases.push(changed);
     let mut changed = original.clone();

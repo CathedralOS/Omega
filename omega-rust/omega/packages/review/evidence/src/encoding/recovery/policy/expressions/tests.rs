@@ -11,7 +11,7 @@ use crate::record::{
 fn identity(path: &str) -> PackageReviewNominalIdentity {
     PackageReviewNominalIdentity {
         owner: PackageReviewNominalOwner::Package(
-            psi_core::PackageKeyIdentity::from_digest([1; 32]).unwrap(),
+            semantic_vocabulary::PackageKeyIdentity::from_digest([1; 32]).unwrap(),
         ),
         path: path.to_owned(),
     }

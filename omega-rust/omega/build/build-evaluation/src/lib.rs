@@ -1,0 +1,5790 @@
+//! THE BUILD CONFIG (build_and_package_model.md + its 2026-07-04 addendum):
+//! image facts come from `build.omg`'s augmenting machine, never from an
+//! invented config grammar. When the program (build.omg is ordinary source,
+//! auto-included next to main.omg) defines the conventionally-named free
+//! machine `build(build: &mut Build)`, the compiler evaluates it at build time
+//! (purity-gated, the L0 engine) with a ZII `Build` and reads the augmented
+//! value back:
+//!
+//! ```omega
+//! data Subsystem { case Console; case Gui; case EfiApplication; case Unspecified(value: u16); }
+//! data Optimization { case ControlFlowCleanup; /* ... */ }
+//! data Optimizations { control_flow_cleanup: u8 in Trapping; /* ... */ }
+//! data Build { subsystem: Subsystem; freestanding: bool; optimizations: Optimizations; }
+//! machine build(build: &mut Build) {
+//!     build.subsystem = Subsystem::EfiApplication;
+//!     build.freestanding = true;
+//!     build.optimizations.enable(Optimization::ControlFlowCleanup);
+//! }
+//! ```
+//!
+//! - `subsystem` is loader METADATA (a PE header u16 the compiler copies; it
+//!   does not select the emitter). The ZII zero case is `Console` -- the
+//!   correct default falls out of the type. `Unspecified(value)` is the
+//!   escape hatch: any loader value a platform invents, with no compiler
+//!   release.
+//! - `freestanding` ("trust no host packages") is stated as itself --
+//!   previously fused into the `efi_application` name.
+//! - Absent build.omg == an empty `build` machine == the zero `Build`: the
+//!   hosted console default.
+//! - `optimizations` is an exact set of individually named transformations.
+//!   It is empty by default; duplicates reject rather than acting like levels.
+//! - `builder.roots.bind(target::ProgramEntry, Exact::machine);` is a static
+//!   declaration harvested from the same authoritative build machine. It
+//!   selects the exact source entry and performs no name-based discovery.
+
+mod observation_identity;
+mod optimization;
+mod replay_record;
+#[cfg(any(test, feature = "test-support"))]
+pub mod test_support;
+
+pub use observation_identity::BuildObservationIdentity;
+
+pub use replay_record::{
+    BuildFilesystemReplayRecordError, BuildFilesystemReplayRecordLimits,
+    ReviewOnlyBuildFilesystemReplayRecord, capture_verified_build_filesystem_replay_record,
+    recover_review_only_build_filesystem_replay_record,
+    rehydrate_review_only_build_filesystem_replay_record,
+};
+
+use build_time_evaluation::{
+    BuildEvaluationSponsor, BuildMachineExecutionMode, BuildMachineFilesystemAccess,
+    BuildMachineFilesystemGrantRoot, BuildMachineFilesystemGrantRootIdentity,
+    BuildMachineFilesystemGrants, BuildMachineFilesystemMetadataLayout,
+    BuildMachineFilesystemSponsor, BuildTimeValue, PreparedBuildMachineEntry,
+    PreparedBuildMachineProgram,
+};
+use checked_interpreter::FilesystemSponsorEntry;
+use diagnostics::Diagnostic;
+use std::path::{Path, PathBuf};
+use symbols::{SymbolHandle, SymbolKind};
+use typed_trees::TypedTrees;
+
+use optimization_core::OptimizationSelections;
+use provider_planning::{ProviderSelection, ProviderSelectionIdentity};
+use representation_planning::OpaqueRepresentationSelection;
+
+use build_output::{
+    BuildStagedOutputTree, PackageGeneratedSource, ReplayedBuildOutputEntry, capture, empty,
+    replayed_output_tree, select_included_sources,
+};
+
+const BUILD_MACHINE: &str = "build";
+pub const BUILD_SOURCE_ROOT_IDENTITY: BuildMachineFilesystemGrantRootIdentity =
+    match BuildMachineFilesystemGrantRootIdentity::new(1) {
+        Some(identity) => identity,
+        None => panic!("build source root identity must be nonzero"),
+    };
+pub const BUILD_OUTPUT_ROOT_IDENTITY: BuildMachineFilesystemGrantRootIdentity =
+    match BuildMachineFilesystemGrantRootIdentity::new(2) {
+        Some(identity) => identity,
+        None => panic!("build output root identity must be nonzero"),
+    };
+
+/// Host filesystem authority granted to an admitted `build.omg` machine.
+///
+/// Source roots are read-only. The build directory is the only write root and
+/// also permits read-back through the checked interpreter's `RealScoped`
+/// contract.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct BuildMachineFilesystemScope {
+    source_root: PathBuf,
+    canonical_source_metadata: Option<checked_interpreter::CanonicalFilesystemMetadataIndex>,
+    canonical_source_metadata_required: bool,
+    build_dir: PathBuf,
+    sponsor: Option<BuildMachineFilesystemSponsor>,
+    replay: Option<checked_interpreter::FilesystemReplay>,
+}
+
+impl BuildMachineFilesystemScope {
+    pub fn for_root(
+        root_path: &Path,
+        build_dir: PathBuf,
+        sponsor: Option<BuildMachineFilesystemSponsor>,
+    ) -> Self {
+        let source_root = root_path
+            .parent()
+            .filter(|parent| !parent.as_os_str().is_empty())
+            .map(Path::to_path_buf)
+            .unwrap_or_else(|| PathBuf::from("."));
+        Self {
+            source_root,
+            canonical_source_metadata: None,
+            canonical_source_metadata_required: false,
+            build_dir,
+            sponsor,
+            replay: None,
+        }
+    }
+
+    #[doc(hidden)]
+    pub fn for_package_root(
+        source_root: PathBuf,
+        build_dir: PathBuf,
+        sponsor: Option<BuildMachineFilesystemSponsor>,
+        metadata: Option<checked_interpreter::CanonicalFilesystemMetadataIndex>,
+    ) -> Self {
+        Self {
+            source_root,
+            canonical_source_metadata: metadata,
+            canonical_source_metadata_required: true,
+            build_dir,
+            sponsor,
+            replay: None,
+        }
+    }
+
+    pub fn with_replay(mut self, replay: checked_interpreter::FilesystemReplay) -> Self {
+        self.replay = Some(replay);
+        self
+    }
+
+    const fn is_replay(&self) -> bool {
+        self.replay.is_some()
+    }
+
+    fn filesystem_access(&self) -> BuildMachineFilesystemAccess {
+        if let Some(replay) = &self.replay {
+            return BuildMachineFilesystemAccess::ReplayFilesystem(replay.clone());
+        }
+        let mut source_root = BuildMachineFilesystemGrantRoot::new(
+            BUILD_SOURCE_ROOT_IDENTITY,
+            self.source_root.clone(),
+        );
+        if let Some(metadata) = &self.canonical_source_metadata {
+            source_root = source_root.with_canonical_metadata(metadata.clone());
+        }
+        let grants = BuildMachineFilesystemGrants {
+            read_roots: vec![source_root],
+            write_roots: vec![BuildMachineFilesystemGrantRoot::new(
+                BUILD_OUTPUT_ROOT_IDENTITY,
+                self.build_dir.clone(),
+            )],
+        };
+        match &self.sponsor {
+            Some(sponsor) => BuildMachineFilesystemAccess::RealScopedSponsored {
+                grants,
+                sponsor: sponsor.clone(),
+            },
+            None => BuildMachineFilesystemAccess::RealScoped(grants),
+        }
+    }
+
+    fn ensure_write_roots(&self) -> Result<(), Vec<Diagnostic>> {
+        if self.replay.is_some() {
+            return Ok(());
+        }
+        if let Some(sponsor) = &self.sponsor {
+            let path = sponsor
+                .bind_path(&self.build_dir)
+                .map_err(|error| self.sponsor_diagnostic(error))?;
+            match sponsor
+                .entry(&path)
+                .map_err(|error| self.sponsor_diagnostic(error))?
+            {
+                Some(FilesystemSponsorEntry::Directory) => return Ok(()),
+                Some(_) => {
+                    return Err(vec![Diagnostic::error(format!(
+                        "sponsored build machine write root `{}` is not a directory",
+                        self.build_dir.display()
+                    ))]);
+                }
+                None => {}
+            }
+            let prepared = sponsor
+                .prepare_create_directory(&path)
+                .map_err(|error| self.sponsor_diagnostic(error))?;
+            if let Err(error) = std::fs::create_dir(&self.build_dir) {
+                prepared.abort();
+                return Err(vec![Diagnostic::error(format!(
+                    "failed to create sponsored build machine filesystem write root `{}`: {error}",
+                    self.build_dir.display()
+                ))]);
+            }
+            if let Err(error) = prepared.commit() {
+                let _ = std::fs::remove_dir(&self.build_dir);
+                return Err(self.sponsor_diagnostic(error));
+            }
+            return Ok(());
+        }
+        std::fs::create_dir_all(&self.build_dir).map_err(|error| {
+            vec![Diagnostic::error(format!(
+                "failed to create build machine filesystem write root `{}`: {error}",
+                self.build_dir.display()
+            ))]
+        })
+    }
+
+    fn ensure_canonical_source_metadata(&self) -> Result<(), Vec<Diagnostic>> {
+        if self.canonical_source_metadata_required && self.canonical_source_metadata.is_none() {
+            return Err(vec![Diagnostic::error(
+                "package-aware build filesystem access requires compiler-validated canonical Source metadata",
+            )]);
+        }
+        Ok(())
+    }
+
+    const fn canonical_source_metadata_identity(
+        &self,
+    ) -> Option<BuildCanonicalSourceMetadataIdentity> {
+        match &self.canonical_source_metadata {
+            Some(metadata) => Some(BuildCanonicalSourceMetadataIdentity {
+                policy_version: metadata.policy_version(),
+                source_content_commitment: *metadata.source_content_commitment(),
+            }),
+            None => None,
+        }
+    }
+
+    fn sponsor_diagnostic(
+        &self,
+        error: checked_interpreter::FilesystemSponsorError,
+    ) -> Vec<Diagnostic> {
+        vec![Diagnostic::error(format!(
+            "build machine staging sponsor rejected `{}`: {error}",
+            self.build_dir.display()
+        ))]
+    }
+
+    fn staged_output_tree(
+        &self,
+        filesystem_reachable: bool,
+    ) -> Result<Option<BuildStagedOutputTree>, Vec<Diagnostic>> {
+        if self.replay.is_some() {
+            return Ok(None);
+        }
+        // When the selected build machine cannot reach the filesystem, the
+        // Output namespace is exactly empty without needing a physical
+        // staging sponsor. Canonicalize that semantic fact so sponsored
+        // review and ordinary production retain the same observation.
+        if !filesystem_reachable {
+            return Ok(Some(empty()));
+        }
+        let Some(sponsor) = &self.sponsor else {
+            return Ok(None);
+        };
+        capture(&self.build_dir, sponsor).map(Some)
+    }
+}
+
+/// The image facts the pipeline consumes, extracted from the augmented
+/// `Build`. ZII: the default IS the zero value's meaning.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct BuildConfig {
+    /// PE optional-header Subsystem word (console 3 when unstated).
+    pub subsystem: u16,
+    /// Freestanding image: no ambient host packages or import thunks.
+    pub freestanding: bool,
+    /// Exact root-build optimization selections. Empty is the ordinary
+    /// compiler path and constructs no optimizer machinery.
+    pub optimizations: OptimizationSelections,
+    /// Explicit x86 deployment-feature opt-in admitted for the exact selected
+    /// profile. `None` is the generic SSE2 baseline and grants no FMA route.
+    /// This carrier retains the canonical semantic cancellation-vector
+    /// admission only; it is not a native differential execution receipt.
+    pub x86_scalar_fma_provider: Option<target::AdmittedX86ScalarFmaProvider>,
+    /// CH10 ROOT GRANTS (GR3): the symbol paths the final build accepted
+    /// via `b.accept_boundary<pkg::symbol>();` -- harvested STATICALLY
+    /// from the build machine's marker calls (grants are declarations,
+    /// not runtime effects; the evaluator serves the marker as a no-op).
+    pub grants: Vec<trust_model::AuthoredRootGrant>,
+    /// PRV4c: explicit provider-type choices for boundary slots. These are
+    /// declarations harvested from the authoritative build machine; they are
+    /// validated against derived candidates before selection grants anything.
+    pub provider_selections: Vec<ProviderSelection>,
+    /// Exact named conformances activated as physical carriers for
+    /// boundary-opaque values. The compiler derives shape from each carrier.
+    pub opaque_representation_selections: Vec<OpaqueRepresentationSelection>,
+    /// Chapter 21 channel/store compatibility demands. Each marker names the
+    /// edge, format lineage, local and peer schemas, and the directional facts
+    /// the final build requires.
+    pub wire_compatibility_demands: Vec<WireCompatibilityDemand>,
+    /// Target-owned inbound root slots bound by the authoritative build
+    /// machine. The binding names an exact source machine; no entry discovery
+    /// or naming convention participates once a binding is present.
+    pub root_bindings: Vec<RootBinding>,
+}
+
+/// Accounting-only projection of the transitional typed-tree build evaluator.
+/// This is not terminal-Psi fuel and does not participate in `BuildConfig` or
+/// program identity.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct BuildEvaluationUsage {
+    pub usage_schema_version: u32,
+    pub step_schedule_marker: u32,
+    /// Deterministic per-invocation ceiling applied independently to the
+    /// initial evaluation and an exact replay. This is not a CPU limit.
+    pub invocation_fuel_ceiling: u64,
+    /// Shared sponsor-limit schema for package review. Standalone compilation
+    /// has no aggregate sponsor.
+    pub sponsor_schema_version: Option<u32>,
+    /// Aggregate deterministic fuel available to the complete sponsored
+    /// review session. Dependencies cannot alter this value.
+    pub session_fuel_ceiling: Option<u64>,
+    /// Aggregate compiler-owned BuildLog bytes available to the complete
+    /// sponsored review session.
+    pub session_build_log_byte_ceiling: Option<u64>,
+    /// Aggregate canonical filesystem operation attempts available to the
+    /// complete sponsored review session.
+    pub session_filesystem_attempt_ceiling: Option<u64>,
+    /// Compiler-owned filesystem resources that may be reserved concurrently
+    /// across the sponsored review session.
+    pub session_live_filesystem_handle_ceiling: Option<u64>,
+    /// Semantic interpreter cells that may be live concurrently across the
+    /// sponsored review session. This is not a memory-byte ceiling.
+    pub session_live_cell_ceiling: Option<u64>,
+    /// Logical bytes in concurrently live interpreter Text backing buffers.
+    /// This does not represent Vec capacity or process memory.
+    pub session_live_text_byte_ceiling: Option<u64>,
+    /// Aggregate recursive result cells admitted across the sponsored session.
+    pub session_result_cell_ceiling: Option<u64>,
+    /// Aggregate Text payload bytes admitted across the sponsored session.
+    pub session_result_text_byte_ceiling: Option<u64>,
+    /// Highest concurrent reservation count observed in the shared session at
+    /// the point this build result was issued.
+    pub session_peak_live_filesystem_handles: u64,
+    /// Highest concurrent semantic-cell reservation count observed in the
+    /// shared session when this result was issued.
+    pub session_peak_live_cells: u64,
+    /// Highest live interpreter Text payload-byte count observed in the shared
+    /// sponsored session when this result was issued.
+    pub session_peak_live_text_bytes: u64,
+    /// Fuel consumed by the initial build-machine evaluation.
+    pub fuel_units: u64,
+    /// Fuel consumed by exact provider-free replay, or zero when no replay ran.
+    pub replay_fuel_units: u64,
+    /// BuildLog bytes emitted by initial evaluation.
+    pub build_log_bytes: u64,
+    /// BuildLog bytes emitted by exact replay, or zero when no replay ran.
+    pub replay_build_log_bytes: u64,
+    /// Filesystem operation attempts retained by initial evaluation.
+    pub filesystem_operation_attempts: u64,
+    /// Filesystem operation attempts retained by replay, or zero when absent.
+    pub replay_filesystem_operation_attempts: u64,
+    /// Maximum semantic interpreter cells live concurrently in the initial
+    /// evaluation.
+    pub peak_live_cells: u64,
+    /// Maximum semantic interpreter cells live concurrently in replay, or zero
+    /// when no replay ran.
+    pub replay_peak_live_cells: u64,
+    /// Maximum logical bytes in live Text backing buffers during initial
+    /// evaluation and exact replay.
+    pub peak_live_text_bytes: u64,
+    pub replay_peak_live_text_bytes: u64,
+    pub result_cells: u64,
+    pub replay_result_cells: u64,
+    pub result_text_bytes: u64,
+    pub replay_result_text_bytes: u64,
+}
+
+impl BuildEvaluationUsage {
+    /// Compare the deterministic accounting owned by one build-machine
+    /// invocation and its exact replay, excluding aggregate sponsor/session
+    /// context.
+    ///
+    /// A package review may run inside a shared sponsored session while the
+    /// later production compile runs independently. Session ceilings and
+    /// session-wide peaks therefore identify the review orchestration, not the
+    /// individual build whose source and observation are being rejoined.
+    pub const fn has_same_invocation_usage(self, other: Self) -> bool {
+        self.usage_schema_version == other.usage_schema_version
+            && self.step_schedule_marker == other.step_schedule_marker
+            && self.invocation_fuel_ceiling == other.invocation_fuel_ceiling
+            && self.fuel_units == other.fuel_units
+            && self.replay_fuel_units == other.replay_fuel_units
+            && self.build_log_bytes == other.build_log_bytes
+            && self.replay_build_log_bytes == other.replay_build_log_bytes
+            && self.filesystem_operation_attempts == other.filesystem_operation_attempts
+            && self.replay_filesystem_operation_attempts
+                == other.replay_filesystem_operation_attempts
+            && self.peak_live_cells == other.peak_live_cells
+            && self.replay_peak_live_cells == other.replay_peak_live_cells
+            && self.peak_live_text_bytes == other.peak_live_text_bytes
+            && self.replay_peak_live_text_bytes == other.replay_peak_live_text_bytes
+            && self.result_cells == other.result_cells
+            && self.replay_result_cells == other.replay_result_cells
+            && self.result_text_bytes == other.result_text_bytes
+            && self.replay_result_text_bytes == other.replay_result_text_bytes
+    }
+}
+
+pub const BUILD_OBSERVATION_SCHEMA_VERSION: u32 = 75;
+pub const BUILD_FILESYSTEM_REPLAY_VERDICT_SCHEMA_VERSION: u32 = 1;
+
+/// Normalized build-host observation class for one selected build machine.
+///
+/// The static ceiling remains conservative. A realized run becomes receipted
+/// only when a bounded no-host replay reproduces its complete admitted Output
+/// mutation and that tree matches independent sponsored custody.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub enum BuildObservationClass {
+    Hermetic,
+    Receipted,
+    Volatile,
+}
+
+/// Exact replay disposition for one exercised filesystem operation.
+///
+/// An exercised operation cannot be `Hermetic`: it was either reproduced by
+/// the compiler-owned replay provider or it remains a volatile host
+/// observation. This row does not claim containment of the host provider.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum BuildFilesystemOperationObservationClass {
+    Receipted,
+    Volatile,
+}
+
+/// Compiler-issued observation facts for one completed build-machine run.
+///
+/// This is execution evidence, not capability/API comparison identity. A
+/// volatile row carries no replay receipt and makes no rebuildability claim.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum BuildFilesystemProvider {
+    /// Deterministic in-memory provider.
+    Virtual,
+    /// Real process filesystem without path grants; never selected by admitted
+    /// build execution.
+    RealUnscoped,
+    /// Real filesystem constrained by compiler-supplied path grants.
+    RealScoped,
+}
+
+/// Exact immutable-source coordinate governing canonical build-visible
+/// metadata. This is compiler sponsorship, not package admission evidence.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct BuildCanonicalSourceMetadataIdentity {
+    policy_version: u32,
+    source_content_commitment: [u8; 32],
+}
+
+impl BuildCanonicalSourceMetadataIdentity {
+    #[doc(hidden)]
+    pub const fn new(policy_version: u32, source_content_commitment: [u8; 32]) -> Self {
+        Self {
+            policy_version,
+            source_content_commitment,
+        }
+    }
+
+    pub const fn policy_version(self) -> u32 {
+        self.policy_version
+    }
+
+    pub const fn source_content_commitment(self) -> [u8; 32] {
+        self.source_content_commitment
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum BuildFilesystemGrantAccess {
+    Read,
+    Write,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum BuildFilesystemGrantRefusalReason {
+    Unresolvable,
+    OutsideGrantedRoots,
+    UnrepresentableRootedPath,
+    ObservationEvidenceLimitExceeded,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct BuildFilesystemGrantRefusal {
+    operand_ordinal: u8,
+    access: BuildFilesystemGrantAccess,
+    reason: BuildFilesystemGrantRefusalReason,
+}
+
+impl BuildFilesystemGrantRefusal {
+    pub const fn operand_ordinal(self) -> u8 {
+        self.operand_ordinal
+    }
+
+    pub const fn access(self) -> BuildFilesystemGrantAccess {
+        self.access
+    }
+
+    pub const fn reason(self) -> BuildFilesystemGrantRefusalReason {
+        self.reason
+    }
+}
+
+/// Stable build-evaluation identity for a package filesystem root.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum BuildFilesystemRoot {
+    Source,
+    Output,
+}
+
+/// One path operand or descriptor-derived path that passed the scoped grant
+/// gate. The path is canonical and relative to `root`; it contains no host
+/// absolute prefix.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct BuildFilesystemAuthorizedPath {
+    operand_ordinal: u8,
+    access: BuildFilesystemGrantAccess,
+    root: BuildFilesystemRoot,
+    relative_path: Vec<u8>,
+}
+
+impl BuildFilesystemAuthorizedPath {
+    pub const fn operand_ordinal(&self) -> u8 {
+        self.operand_ordinal
+    }
+
+    pub const fn access(&self) -> BuildFilesystemGrantAccess {
+        self.access
+    }
+
+    pub const fn root(&self) -> BuildFilesystemRoot {
+        self.root
+    }
+
+    pub fn relative_path(&self) -> &[u8] {
+        &self.relative_path
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum BuildFilesystemScalarOperandValue {
+    I32(i32),
+    U32(u32),
+    I64(i64),
+    U64(u64),
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct BuildFilesystemScalarOperand {
+    operand_ordinal: u8,
+    value: BuildFilesystemScalarOperandValue,
+}
+
+impl BuildFilesystemScalarOperand {
+    pub const fn operand_ordinal(self) -> u8 {
+        self.operand_ordinal
+    }
+
+    pub const fn value(self) -> BuildFilesystemScalarOperandValue {
+        self.value
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct BuildFilesystemByteOperand {
+    operand_ordinal: u8,
+    bytes: Vec<u8>,
+}
+
+impl BuildFilesystemByteOperand {
+    pub const fn operand_ordinal(&self) -> u8 {
+        self.operand_ordinal
+    }
+
+    pub fn bytes(&self) -> &[u8] {
+        &self.bytes
+    }
+}
+
+/// Exact path-like bytes consumed by an operation but not interpreted as one
+/// rooted grant path. This includes directory-entry names, search patterns,
+/// and symlink target spellings; keeping it distinct from payload bytes and
+/// authorized paths preserves the operation's argument semantics.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct BuildFilesystemPathLikeOperand {
+    operand_ordinal: u8,
+    bytes: Vec<u8>,
+}
+
+impl BuildFilesystemPathLikeOperand {
+    pub const fn operand_ordinal(&self) -> u8 {
+        self.operand_ordinal
+    }
+
+    pub fn bytes(&self) -> &[u8] {
+        &self.bytes
+    }
+}
+
+/// Portable compiler-rooted path retained when its authored operand resolves,
+/// before lowering to provider-specific path bytes. This does not claim that
+/// the later grant check authorized the same rooted location.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct BuildFilesystemRootedPathOperandResolution {
+    operand_ordinal: u8,
+    root: BuildFilesystemRoot,
+    relative_path: Vec<u8>,
+}
+
+impl BuildFilesystemRootedPathOperandResolution {
+    pub const fn operand_ordinal(&self) -> u8 {
+        self.operand_ordinal
+    }
+
+    pub const fn root(&self) -> BuildFilesystemRoot {
+        self.root
+    }
+
+    pub fn relative_path(&self) -> &[u8] {
+        &self.relative_path
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum BuildFilesystemReturnedPathKind {
+    ReadLinkPayload,
+    CanonicalPath,
+    FinalPath,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum BuildFilesystemReturnedPathCompleteness {
+    Complete,
+    LimitReached,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct BuildFilesystemReturnedPath {
+    operand_ordinal: u8,
+    kind: BuildFilesystemReturnedPathKind,
+    completeness: BuildFilesystemReturnedPathCompleteness,
+    bytes: Vec<u8>,
+}
+
+impl BuildFilesystemReturnedPath {
+    pub const fn operand_ordinal(&self) -> u8 {
+        self.operand_ordinal
+    }
+
+    pub const fn kind(&self) -> BuildFilesystemReturnedPathKind {
+        self.kind
+    }
+
+    pub const fn completeness(&self) -> BuildFilesystemReturnedPathCompleteness {
+        self.completeness
+    }
+
+    pub fn bytes(&self) -> &[u8] {
+        &self.bytes
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum BuildFilesystemObservedByteRegionKind {
+    SequentialFileRead,
+    PositionedFileRead,
+    DirectoryRecords,
+    FindEntry,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct BuildFilesystemObservedByteRegion {
+    output_operand_ordinal: u8,
+    kind: BuildFilesystemObservedByteRegionKind,
+    offset: u64,
+    length: u64,
+}
+
+impl BuildFilesystemObservedByteRegion {
+    pub const fn output_operand_ordinal(self) -> u8 {
+        self.output_operand_ordinal
+    }
+
+    pub const fn kind(self) -> BuildFilesystemObservedByteRegionKind {
+        self.kind
+    }
+
+    pub const fn offset(self) -> u64 {
+        self.offset
+    }
+
+    pub const fn length(self) -> u64 {
+        self.length
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum BuildFilesystemMetadataObservationKind {
+    FollowedPath,
+    OpenDescriptor,
+    UnfollowedFinalPath,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct BuildFilesystemMetadataObservation {
+    output_operand_ordinal: u8,
+    kind: BuildFilesystemMetadataObservationKind,
+    device: u64,
+    mode: u32,
+    link_count: u64,
+    inode: u64,
+    user: u32,
+    group: u32,
+    referenced_device: u64,
+    access_time: i64,
+    modification_time: i64,
+    change_time: i64,
+    birth_time: i64,
+    size: i64,
+    blocks_512: u64,
+    preferred_block_size: u64,
+}
+
+impl BuildFilesystemMetadataObservation {
+    pub const fn output_operand_ordinal(self) -> u8 {
+        self.output_operand_ordinal
+    }
+    pub const fn kind(self) -> BuildFilesystemMetadataObservationKind {
+        self.kind
+    }
+    pub const fn device(self) -> u64 {
+        self.device
+    }
+    pub const fn mode(self) -> u32 {
+        self.mode
+    }
+    pub const fn link_count(self) -> u64 {
+        self.link_count
+    }
+    pub const fn inode(self) -> u64 {
+        self.inode
+    }
+    pub const fn user(self) -> u32 {
+        self.user
+    }
+    pub const fn group(self) -> u32 {
+        self.group
+    }
+    pub const fn referenced_device(self) -> u64 {
+        self.referenced_device
+    }
+    pub const fn access_time(self) -> i64 {
+        self.access_time
+    }
+    pub const fn modification_time(self) -> i64 {
+        self.modification_time
+    }
+    pub const fn change_time(self) -> i64 {
+        self.change_time
+    }
+    pub const fn birth_time(self) -> i64 {
+        self.birth_time
+    }
+    pub const fn size(self) -> i64 {
+        self.size
+    }
+    pub const fn blocks_512(self) -> u64 {
+        self.blocks_512
+    }
+    pub const fn preferred_block_size(self) -> u64 {
+        self.preferred_block_size
+    }
+}
+
+/// Complete mutable-byte carrier contents at the moment the authored operand
+/// resolves. This is distinct from provider-visible pre/post state because
+/// evaluation of a later argument may legally alias and mutate the carrier.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct BuildFilesystemMutableByteOperandResolution {
+    operand_ordinal: u8,
+    bytes: Vec<u8>,
+}
+
+impl BuildFilesystemMutableByteOperandResolution {
+    pub const fn operand_ordinal(&self) -> u8 {
+        self.operand_ordinal
+    }
+
+    pub fn bytes(&self) -> &[u8] {
+        &self.bytes
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct BuildFilesystemMutableI64OperandResolution {
+    operand_ordinal: u8,
+    value: i64,
+}
+
+impl BuildFilesystemMutableI64OperandResolution {
+    pub const fn operand_ordinal(self) -> u8 {
+        self.operand_ordinal
+    }
+
+    pub const fn value(self) -> i64 {
+        self.value
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct BuildFilesystemMutableByteOperand {
+    operand_ordinal: u8,
+    pre_bytes: Vec<u8>,
+    post_bytes: Vec<u8>,
+}
+
+impl BuildFilesystemMutableByteOperand {
+    pub const fn operand_ordinal(&self) -> u8 {
+        self.operand_ordinal
+    }
+
+    pub fn pre_bytes(&self) -> &[u8] {
+        &self.pre_bytes
+    }
+
+    pub fn post_bytes(&self) -> &[u8] {
+        &self.post_bytes
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct BuildFilesystemMutableI64Operand {
+    operand_ordinal: u8,
+    pre_value: i64,
+    post_value: i64,
+}
+
+impl BuildFilesystemMutableI64Operand {
+    pub const fn operand_ordinal(self) -> u8 {
+        self.operand_ordinal
+    }
+
+    pub const fn pre_value(self) -> i64 {
+        self.pre_value
+    }
+
+    pub const fn post_value(self) -> i64 {
+        self.post_value
+    }
+}
+
+const fn project_scalar_operand_value(
+    value: checked_interpreter::FilesystemScalarOperandValue,
+) -> BuildFilesystemScalarOperandValue {
+    match value {
+        checked_interpreter::FilesystemScalarOperandValue::I32(value) => {
+            BuildFilesystemScalarOperandValue::I32(value)
+        }
+        checked_interpreter::FilesystemScalarOperandValue::U32(value) => {
+            BuildFilesystemScalarOperandValue::U32(value)
+        }
+        checked_interpreter::FilesystemScalarOperandValue::I64(value) => {
+            BuildFilesystemScalarOperandValue::I64(value)
+        }
+        checked_interpreter::FilesystemScalarOperandValue::U64(value) => {
+            BuildFilesystemScalarOperandValue::U64(value)
+        }
+    }
+}
+
+/// Stable build-evaluation identity for one descriptor/handle lifetime in a
+/// package build evaluation. Provider token values never define this identity.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct BuildFilesystemLogicalHandleIdentity(u64);
+
+impl BuildFilesystemLogicalHandleIdentity {
+    const fn new(value: u64) -> Option<Self> {
+        if value == 0 { None } else { Some(Self(value)) }
+    }
+
+    pub const fn get(self) -> u64 {
+        self.0
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum BuildFilesystemLogicalHandleKind {
+    Descriptor,
+    Native,
+    Find,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum BuildFilesystemLogicalHandleInputResolution {
+    Resolved(BuildFilesystemLogicalHandleIdentity),
+    Null,
+    Unknown,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct BuildFilesystemLogicalHandleInput {
+    operand_ordinal: u8,
+    kind: BuildFilesystemLogicalHandleKind,
+    resolution: BuildFilesystemLogicalHandleInputResolution,
+}
+
+impl BuildFilesystemLogicalHandleInput {
+    pub const fn operand_ordinal(self) -> u8 {
+        self.operand_ordinal
+    }
+
+    pub const fn kind(self) -> BuildFilesystemLogicalHandleKind {
+        self.kind
+    }
+
+    pub const fn resolution(self) -> BuildFilesystemLogicalHandleInputResolution {
+        self.resolution
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum BuildFilesystemLogicalHandleOutputSource {
+    Created,
+    Duplicated(BuildFilesystemLogicalHandleIdentity),
+    Borrowed(BuildFilesystemLogicalHandleIdentity),
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct BuildFilesystemLogicalHandleOutput {
+    kind: BuildFilesystemLogicalHandleKind,
+    identity: BuildFilesystemLogicalHandleIdentity,
+    source: BuildFilesystemLogicalHandleOutputSource,
+}
+
+impl BuildFilesystemLogicalHandleOutput {
+    pub const fn kind(self) -> BuildFilesystemLogicalHandleKind {
+        self.kind
+    }
+
+    pub const fn identity(self) -> BuildFilesystemLogicalHandleIdentity {
+        self.identity
+    }
+
+    pub const fn source(self) -> BuildFilesystemLogicalHandleOutputSource {
+        self.source
+    }
+}
+
+const fn project_logical_handle_identity(
+    identity: checked_interpreter::FilesystemLogicalHandleIdentity,
+) -> BuildFilesystemLogicalHandleIdentity {
+    match BuildFilesystemLogicalHandleIdentity::new(identity.get()) {
+        Some(identity) => identity,
+        None => panic!("checked-interpreter logical handle identity must be nonzero"),
+    }
+}
+
+const fn project_logical_handle_kind(
+    kind: checked_interpreter::FilesystemLogicalHandleKind,
+) -> BuildFilesystemLogicalHandleKind {
+    match kind {
+        checked_interpreter::FilesystemLogicalHandleKind::Descriptor => {
+            BuildFilesystemLogicalHandleKind::Descriptor
+        }
+        checked_interpreter::FilesystemLogicalHandleKind::Native => {
+            BuildFilesystemLogicalHandleKind::Native
+        }
+        checked_interpreter::FilesystemLogicalHandleKind::Find => {
+            BuildFilesystemLogicalHandleKind::Find
+        }
+    }
+}
+
+const fn project_logical_handle_input_resolution(
+    resolution: checked_interpreter::FilesystemLogicalHandleInputResolution,
+) -> BuildFilesystemLogicalHandleInputResolution {
+    match resolution {
+        checked_interpreter::FilesystemLogicalHandleInputResolution::Resolved(identity) => {
+            BuildFilesystemLogicalHandleInputResolution::Resolved(project_logical_handle_identity(
+                identity,
+            ))
+        }
+        checked_interpreter::FilesystemLogicalHandleInputResolution::Null => {
+            BuildFilesystemLogicalHandleInputResolution::Null
+        }
+        checked_interpreter::FilesystemLogicalHandleInputResolution::Unknown => {
+            BuildFilesystemLogicalHandleInputResolution::Unknown
+        }
+    }
+}
+
+const fn project_logical_handle_output_source(
+    source: checked_interpreter::FilesystemLogicalHandleOutputSource,
+) -> BuildFilesystemLogicalHandleOutputSource {
+    match source {
+        checked_interpreter::FilesystemLogicalHandleOutputSource::Created => {
+            BuildFilesystemLogicalHandleOutputSource::Created
+        }
+        checked_interpreter::FilesystemLogicalHandleOutputSource::Duplicated(identity) => {
+            BuildFilesystemLogicalHandleOutputSource::Duplicated(project_logical_handle_identity(
+                identity,
+            ))
+        }
+        checked_interpreter::FilesystemLogicalHandleOutputSource::Borrowed(identity) => {
+            BuildFilesystemLogicalHandleOutputSource::Borrowed(project_logical_handle_identity(
+                identity,
+            ))
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum BuildFilesystemOperationResult {
+    Scalar(i64),
+    LogicalHandle(BuildFilesystemLogicalHandleIdentity),
+}
+
+const fn project_operation_result(
+    result: checked_interpreter::FilesystemOperationResult,
+) -> BuildFilesystemOperationResult {
+    match result {
+        checked_interpreter::FilesystemOperationResult::Scalar(value) => {
+            BuildFilesystemOperationResult::Scalar(value)
+        }
+        checked_interpreter::FilesystemOperationResult::LogicalHandle(identity) => {
+            BuildFilesystemOperationResult::LogicalHandle(project_logical_handle_identity(identity))
+        }
+    }
+}
+
+/// One completed call from a successful build evaluation. This partial row is
+/// execution evidence, not a replay event or receipt.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct BuildFilesystemOperationAttempt {
+    operation_tag: u16,
+    provider: BuildFilesystemProvider,
+    observation_class: BuildFilesystemOperationObservationClass,
+    result: BuildFilesystemOperationResult,
+    post_error: i32,
+    scalar_operands: Vec<BuildFilesystemScalarOperand>,
+    byte_operands: Vec<BuildFilesystemByteOperand>,
+    path_like_operands: Vec<BuildFilesystemPathLikeOperand>,
+    rooted_path_operand_resolutions: Vec<BuildFilesystemRootedPathOperandResolution>,
+    returned_paths: Vec<BuildFilesystemReturnedPath>,
+    observed_byte_regions: Vec<BuildFilesystemObservedByteRegion>,
+    metadata_observations: Vec<BuildFilesystemMetadataObservation>,
+    mutable_byte_operand_resolutions: Vec<BuildFilesystemMutableByteOperandResolution>,
+    mutable_i64_operand_resolutions: Vec<BuildFilesystemMutableI64OperandResolution>,
+    mutable_byte_operands: Vec<BuildFilesystemMutableByteOperand>,
+    mutable_i64_operands: Vec<BuildFilesystemMutableI64Operand>,
+    authorized_paths: Vec<BuildFilesystemAuthorizedPath>,
+    logical_handle_inputs: Vec<BuildFilesystemLogicalHandleInput>,
+    logical_handle_output: Option<BuildFilesystemLogicalHandleOutput>,
+    retired_logical_handles: Vec<BuildFilesystemLogicalHandleIdentity>,
+    grant_refusals: Vec<BuildFilesystemGrantRefusal>,
+}
+
+impl BuildFilesystemOperationAttempt {
+    pub const fn operation_tag(&self) -> u16 {
+        self.operation_tag
+    }
+
+    pub const fn provider(&self) -> BuildFilesystemProvider {
+        self.provider
+    }
+
+    pub const fn observation_class(&self) -> BuildFilesystemOperationObservationClass {
+        self.observation_class
+    }
+
+    pub const fn result(&self) -> BuildFilesystemOperationResult {
+        self.result
+    }
+
+    pub const fn post_error(&self) -> i32 {
+        self.post_error
+    }
+
+    pub fn scalar_operands(&self) -> &[BuildFilesystemScalarOperand] {
+        &self.scalar_operands
+    }
+
+    pub fn byte_operands(&self) -> &[BuildFilesystemByteOperand] {
+        &self.byte_operands
+    }
+
+    pub fn path_like_operands(&self) -> &[BuildFilesystemPathLikeOperand] {
+        &self.path_like_operands
+    }
+
+    pub fn rooted_path_operand_resolutions(&self) -> &[BuildFilesystemRootedPathOperandResolution] {
+        &self.rooted_path_operand_resolutions
+    }
+
+    pub fn returned_paths(&self) -> &[BuildFilesystemReturnedPath] {
+        &self.returned_paths
+    }
+
+    pub fn observed_byte_regions(&self) -> &[BuildFilesystemObservedByteRegion] {
+        &self.observed_byte_regions
+    }
+
+    pub fn metadata_observations(&self) -> &[BuildFilesystemMetadataObservation] {
+        &self.metadata_observations
+    }
+
+    pub fn observed_bytes(&self, region: &BuildFilesystemObservedByteRegion) -> Option<&[u8]> {
+        let output = self
+            .mutable_byte_operands
+            .iter()
+            .find(|output| output.operand_ordinal == region.output_operand_ordinal)?;
+        let offset = usize::try_from(region.offset).ok()?;
+        let length = usize::try_from(region.length).ok()?;
+        let end = offset.checked_add(length)?;
+        output.post_bytes.get(offset..end)
+    }
+
+    pub fn mutable_byte_operand_resolutions(
+        &self,
+    ) -> &[BuildFilesystemMutableByteOperandResolution] {
+        &self.mutable_byte_operand_resolutions
+    }
+
+    pub fn mutable_i64_operand_resolutions(&self) -> &[BuildFilesystemMutableI64OperandResolution] {
+        &self.mutable_i64_operand_resolutions
+    }
+
+    pub fn mutable_byte_operands(&self) -> &[BuildFilesystemMutableByteOperand] {
+        &self.mutable_byte_operands
+    }
+
+    pub fn mutable_i64_operands(&self) -> &[BuildFilesystemMutableI64Operand] {
+        &self.mutable_i64_operands
+    }
+
+    pub fn authorized_paths(&self) -> &[BuildFilesystemAuthorizedPath] {
+        &self.authorized_paths
+    }
+
+    pub fn logical_handle_inputs(&self) -> &[BuildFilesystemLogicalHandleInput] {
+        &self.logical_handle_inputs
+    }
+
+    pub const fn logical_handle_output(&self) -> Option<BuildFilesystemLogicalHandleOutput> {
+        self.logical_handle_output
+    }
+
+    pub fn retired_logical_handles(&self) -> &[BuildFilesystemLogicalHandleIdentity] {
+        &self.retired_logical_handles
+    }
+
+    pub fn grant_refusals(&self) -> &[BuildFilesystemGrantRefusal] {
+        &self.grant_refusals
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum BuildFilesystemReplayDisposition {
+    NotReplayed,
+    SourceInputsOnly,
+    Complete,
+}
+
+/// Closed compiler verdict for one build's filesystem replay.
+///
+/// `Complete` is meaningful only as part of its owning
+/// [`BuildObservationSummary`]: the summary retains the exact operation
+/// sequence, staged Output commitment, and generated-source handoffs that the
+/// compiler compared while issuing the verdict.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct BuildFilesystemReplayVerdict {
+    schema_version: u32,
+    disposition: BuildFilesystemReplayDisposition,
+}
+
+impl BuildFilesystemReplayVerdict {
+    const fn new(disposition: BuildFilesystemReplayDisposition) -> Self {
+        Self {
+            schema_version: BUILD_FILESYSTEM_REPLAY_VERDICT_SCHEMA_VERSION,
+            disposition,
+        }
+    }
+
+    pub const fn schema_version(self) -> u32 {
+        self.schema_version
+    }
+
+    pub const fn disposition(self) -> BuildFilesystemReplayDisposition {
+        self.disposition
+    }
+
+    pub const fn replays_source_inputs(self) -> bool {
+        matches!(
+            self.disposition,
+            BuildFilesystemReplayDisposition::SourceInputsOnly
+                | BuildFilesystemReplayDisposition::Complete
+        )
+    }
+
+    pub const fn is_complete(self) -> bool {
+        matches!(self.disposition, BuildFilesystemReplayDisposition::Complete)
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct BuildObservationSummary {
+    schema_version: u32,
+    ceiling: BuildObservationClass,
+    realized: BuildObservationClass,
+    filesystem_operation_schema_version: u32,
+    filesystem_operation_attempts: Vec<BuildFilesystemOperationAttempt>,
+    canonical_source_metadata_identity: Option<BuildCanonicalSourceMetadataIdentity>,
+    filesystem_replay_verdict: BuildFilesystemReplayVerdict,
+    included_source_handoffs: Vec<BuildIncludedSourceHandoff>,
+    staged_output_tree: Option<BuildStagedOutputTree>,
+    build_log: Vec<u8>,
+}
+
+/// Exact explicit publication of one retained Output file as generated Omega
+/// source. Ordering is authored call order; the ordinal is the number of
+/// completed filesystem attempts when the handoff occurred.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct BuildIncludedSourceHandoff {
+    relative_path: Vec<u8>,
+    filesystem_attempt_ordinal: u64,
+}
+
+impl BuildIncludedSourceHandoff {
+    pub fn relative_path(&self) -> &[u8] {
+        &self.relative_path
+    }
+
+    pub const fn filesystem_attempt_ordinal(&self) -> u64 {
+        self.filesystem_attempt_ordinal
+    }
+}
+
+impl BuildObservationSummary {
+    pub const fn schema_version(&self) -> u32 {
+        self.schema_version
+    }
+
+    pub const fn ceiling(&self) -> BuildObservationClass {
+        self.ceiling
+    }
+
+    pub const fn realized(&self) -> BuildObservationClass {
+        self.realized
+    }
+
+    pub const fn filesystem_operation_schema_version(&self) -> u32 {
+        self.filesystem_operation_schema_version
+    }
+
+    pub const fn canonical_source_metadata_identity(
+        &self,
+    ) -> Option<BuildCanonicalSourceMetadataIdentity> {
+        self.canonical_source_metadata_identity
+    }
+
+    pub const fn staged_output_tree(&self) -> Option<&BuildStagedOutputTree> {
+        self.staged_output_tree.as_ref()
+    }
+
+    /// Exact bytes emitted through the compiler-owned `Build.log` facet.
+    pub fn build_log(&self) -> &[u8] {
+        &self.build_log
+    }
+
+    /// Exact ordered Output-relative generated-source handoffs. Ordinary
+    /// retained output files are absent.
+    pub fn included_source_handoffs(&self) -> &[BuildIncludedSourceHandoff] {
+        &self.included_source_handoffs
+    }
+
+    /// One versioned disposition over the compiler's replay of this summary.
+    /// `SourceInputsOnly` proves only provider-free consumption of the exact
+    /// Source prefix. `Complete` additionally proves exact build-result and
+    /// attempted-operation equality, generated-source handoffs, replay
+    /// teardown, reconstructed Output namespace, and staged-output custody.
+    pub const fn filesystem_replay_verdict(&self) -> BuildFilesystemReplayVerdict {
+        self.filesystem_replay_verdict
+    }
+
+    /// Ordered operation/result/error evidence from the successful evaluator
+    /// run. Direct scoped path authorizations are compiler-rooted, but this is
+    /// intentionally broader than the currently admitted replay grammar. Exact
+    /// path results, file and directory regions, and canonical metadata
+    /// observations are retained even when no complete replay claim is made.
+    pub fn filesystem_operation_attempts(&self) -> &[BuildFilesystemOperationAttempt] {
+        &self.filesystem_operation_attempts
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ComputedBuildConfig {
+    pub config: BuildConfig,
+    pub optimization_report_request: optimization_core::OptimizationReportRequest,
+    pub evaluation_usage: Option<BuildEvaluationUsage>,
+    pub observation_summary: Option<BuildObservationSummary>,
+    pub selected_build_machine_symbol: Option<symbols::SymbolHandle>,
+    pub generated_sources: Vec<PackageGeneratedSource>,
+}
+
+/// Whether one admitted build activation has an executable build machine.
+///
+/// The selected entry itself is deliberately absent from this public
+/// projection. It remains coupled to the prepared program inside
+/// [`AdmittedBuildProgram`].
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum AdmittedBuildProgramDisposition {
+    NoBuildMachine,
+    SelectedBuildMachine,
+}
+
+/// Compiler-owned authority decision retained by an admitted build program.
+///
+/// This is an audit projection of the exact interpreter mode held by the
+/// checkpoint. It cannot be used to construct or replace that mode.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum AdmittedBuildAuthorityVerdict {
+    NoBuildMachine,
+    Pure,
+    Granted,
+}
+
+/// Exact target vocabulary admitted for one selected build activation.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct AdmittedBuildTargetInputs {
+    profile: target::TargetProfile,
+    build_symbol: SymbolHandle,
+    target_field_symbol: SymbolHandle,
+    x86_deployment_features_field_symbol: SymbolHandle,
+}
+
+impl AdmittedBuildTargetInputs {
+    pub const fn profile(self) -> target::TargetProfile {
+        self.profile
+    }
+
+    pub const fn build_symbol(self) -> SymbolHandle {
+        self.build_symbol
+    }
+
+    pub const fn target_field_symbol(self) -> SymbolHandle {
+        self.target_field_symbol
+    }
+
+    pub const fn x86_deployment_features_field_symbol(self) -> SymbolHandle {
+        self.x86_deployment_features_field_symbol
+    }
+}
+
+struct SelectedAdmittedBuildMachine {
+    entry: PreparedBuildMachineEntry,
+    symbol: SymbolHandle,
+    name: String,
+    normalized_callable_identity: String,
+    optimization_admission: optimization::BuildOptimizationAdmission,
+    target_vocabulary: Option<TargetBuildVocabulary>,
+    filesystem_reachable: bool,
+    execution_mode: BuildMachineExecutionMode,
+    initial_build: BuildTimeValue,
+}
+
+enum AdmittedBuildMachine {
+    None,
+    Selected(SelectedAdmittedBuildMachine),
+}
+
+/// Opaque activation-local checkpoint for build-machine execution.
+///
+/// Preparation, exact entry selection, reach inference, target admission, and
+/// authority validation all finish before this value is issued. The prepared
+/// program and its entry token never leave the carrier independently, so a
+/// caller cannot replace either half before primary or replay execution.
+///
+/// The custody boundary is enforced by privacy, not a convention:
+///
+/// ```compile_fail
+/// use build_evaluation::AdmittedBuildProgram;
+/// use build_time_evaluation::PreparedBuildMachineProgram;
+///
+/// fn substitute_program(
+///     admitted: &mut AdmittedBuildProgram,
+///     foreign: PreparedBuildMachineProgram,
+/// ) {
+///     admitted.prepared = foreign;
+/// }
+/// ```
+#[must_use = "an admitted build program must be consumed by execute"]
+pub struct AdmittedBuildProgram {
+    prepared: PreparedBuildMachineProgram,
+    machine: AdmittedBuildMachine,
+    operational_plan: flow_effects::OperationalPlan,
+    service_reach_plan: flow_effects::ServiceReachInferencePlan,
+    filesystem_scope: BuildMachineFilesystemScope,
+    evaluation_sponsor: Option<BuildEvaluationSponsor>,
+    selected_target_profile: Option<target::TargetProfile>,
+}
+
+impl AdmittedBuildProgram {
+    pub fn disposition(&self) -> AdmittedBuildProgramDisposition {
+        match &self.machine {
+            AdmittedBuildMachine::None => AdmittedBuildProgramDisposition::NoBuildMachine,
+            AdmittedBuildMachine::Selected(_) => {
+                AdmittedBuildProgramDisposition::SelectedBuildMachine
+            }
+        }
+    }
+
+    pub fn authority_verdict(&self) -> AdmittedBuildAuthorityVerdict {
+        match &self.machine {
+            AdmittedBuildMachine::None => AdmittedBuildAuthorityVerdict::NoBuildMachine,
+            AdmittedBuildMachine::Selected(selected) => match &selected.execution_mode {
+                BuildMachineExecutionMode::Pure => AdmittedBuildAuthorityVerdict::Pure,
+                BuildMachineExecutionMode::Granted { .. } => AdmittedBuildAuthorityVerdict::Granted,
+            },
+        }
+    }
+
+    pub const fn selected_build_machine_symbol(&self) -> Option<SymbolHandle> {
+        match &self.machine {
+            AdmittedBuildMachine::None => None,
+            AdmittedBuildMachine::Selected(selected) => Some(selected.symbol),
+        }
+    }
+
+    pub fn selected_build_machine_callable_identity(&self) -> Option<&str> {
+        match &self.machine {
+            AdmittedBuildMachine::None => None,
+            AdmittedBuildMachine::Selected(selected) => {
+                Some(&selected.normalized_callable_identity)
+            }
+        }
+    }
+
+    pub const fn selected_target_profile(&self) -> Option<target::TargetProfile> {
+        self.selected_target_profile
+    }
+
+    pub fn selected_target_inputs(&self) -> Option<AdmittedBuildTargetInputs> {
+        let AdmittedBuildMachine::Selected(selected) = &self.machine else {
+            return None;
+        };
+        let vocabulary = selected.target_vocabulary?;
+        let profile = self.selected_target_profile?;
+        Some(AdmittedBuildTargetInputs {
+            profile,
+            build_symbol: vocabulary.build_symbol,
+            target_field_symbol: vocabulary.target_field_symbol,
+            x86_deployment_features_field_symbol: vocabulary.x86_deployment_features_field_symbol,
+        })
+    }
+
+    pub const fn initial_build_snapshot(&self) -> Option<&BuildTimeValue> {
+        match &self.machine {
+            AdmittedBuildMachine::None => None,
+            AdmittedBuildMachine::Selected(selected) => Some(&selected.initial_build),
+        }
+    }
+
+    pub const fn operational_plan(&self) -> &flow_effects::OperationalPlan {
+        &self.operational_plan
+    }
+
+    pub const fn service_reach_plan(&self) -> &flow_effects::ServiceReachInferencePlan {
+        &self.service_reach_plan
+    }
+
+    /// Consume the exact admitted program through primary evaluation and any
+    /// verifier-owned replay.
+    pub fn execute(self) -> Result<ComputedBuildConfig, Vec<Diagnostic>> {
+        execute_admitted_build_program(self)
+    }
+}
+
+pub fn reject_uncompiled_generated_sources(
+    computed: &ComputedBuildConfig,
+) -> Result<(), Vec<Diagnostic>> {
+    let Some(first) = computed.generated_sources.first() else {
+        return Ok(());
+    };
+    let digest = first.digest();
+    Err(vec![Diagnostic::error(format!(
+        "build handed off {} captured generated source(s), beginning with `{}` ({} bytes, sha256 {:02x}{:02x}{:02x}{:02x}), but the frozen final compilation pass is not implemented yet",
+        computed.generated_sources.len(),
+        String::from_utf8_lossy(first.relative_path()),
+        first.bytes().len(),
+        digest[0],
+        digest[1],
+        digest[2],
+        digest[3],
+    ))])
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct RootBinding {
+    pub slot: String,
+    pub implementation: String,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct SelectedProgramEntry<'config> {
+    pub machine_name: &'config str,
+    pub slot: target::ProgramEntrySlotDeclaration,
+}
+
+/// Resolve the selected target's `ProgramEntry` binding. This is the first
+/// implemented target-root slot; other root-slot kinds reject rather than
+/// being accepted and then ignored. A build file may describe a target matrix:
+/// well-formed slots owned by other known profiles are validated and left for
+/// those profiles, while this selection consumes only the chosen profile's
+/// exact row. With no root declarations at all the caller may still enter the
+/// explicit migration fallback for the remaining corpus.
+pub fn selected_program_entry_machine<'config>(
+    config: &'config BuildConfig,
+    selected_profile: Option<target::TargetProfile>,
+) -> Result<Option<SelectedProgramEntry<'config>>, Vec<Diagnostic>> {
+    let Some(selected_profile) = selected_profile else {
+        return Ok(None);
+    };
+    if config.root_bindings.is_empty() {
+        return Ok(None);
+    }
+    let mut diagnostics = Vec::new();
+    let mut selected_bindings = Vec::new();
+    for binding in &config.root_bindings {
+        let Some((profile, slot_name)) = binding.slot.rsplit_once("::") else {
+            diagnostics.push(Diagnostic::error(format!(
+                "root slot `{}` is not target-qualified; expected `target::ProgramEntry`",
+                binding.slot
+            )));
+            continue;
+        };
+        let profile = match target::TargetProfile::from_root_slot_owner(profile) {
+            Ok(profile) => profile,
+            Err(_) => {
+                diagnostics.push(Diagnostic::error(format!(
+                    "root slot `{}` belongs to unknown target profile `{profile}`",
+                    binding.slot
+                )));
+                continue;
+            }
+        };
+        let Some(required_slot) = profile.required_root_slot(slot_name) else {
+            diagnostics.push(Diagnostic::error(format!(
+                "target profile `{}` declares no required root slot `{}`",
+                profile.target_name(),
+                binding.slot
+            )));
+            continue;
+        };
+        if profile != selected_profile {
+            continue;
+        }
+        selected_bindings.push((required_slot, binding));
+    }
+    if !diagnostics.is_empty() {
+        return Err(diagnostics);
+    }
+
+    let mut program_entries = Vec::new();
+    for required_slot in selected_profile.required_root_slots() {
+        let matches = selected_bindings
+            .iter()
+            .filter(|(selected, _)| selected == &required_slot)
+            .collect::<Vec<_>>();
+        let binding = match matches.as_slice() {
+            [(_, binding)] => *binding,
+            [] => {
+                diagnostics.push(Diagnostic::error(format!(
+                    "selected target `{}` has no bound required root slot `{}::{}`",
+                    selected_profile.target_name(),
+                    required_slot.owner().root_slot_owner_name(),
+                    required_slot.slot_name()
+                )));
+                continue;
+            }
+            _ => {
+                diagnostics.push(Diagnostic::error(format!(
+                    "selected target `{}` has more than one bound required root slot `{}::{}`",
+                    selected_profile.target_name(),
+                    required_slot.owner().root_slot_owner_name(),
+                    required_slot.slot_name()
+                )));
+                continue;
+            }
+        };
+        let Some(program_entry) = required_slot.program_entry() else {
+            diagnostics.push(Diagnostic::error(format!(
+                "root slot `{}::{}` uses a target-required schema that the ProgramEntry source-lowering path does not implement",
+                required_slot.owner().root_slot_owner_name(),
+                required_slot.slot_name()
+            )));
+            continue;
+        };
+        program_entries.push((program_entry, binding));
+    }
+    if !diagnostics.is_empty() {
+        return Err(diagnostics);
+    }
+
+    match program_entries.as_slice() {
+        [(slot, binding)] => Ok(Some(SelectedProgramEntry {
+            machine_name: binding.implementation.as_str(),
+            slot: *slot,
+        })),
+        [] => Err(vec![Diagnostic::error(format!(
+            "selected target `{}` has no supported ProgramEntry root schema",
+            selected_profile.target_name()
+        ))]),
+        _ => Err(vec![Diagnostic::error(format!(
+            "selected target `{}` declares more than one ProgramEntry root schema",
+            selected_profile.target_name()
+        ))]),
+    }
+}
+
+/// Validate the source half of the currently implemented `ProgramEntry`
+/// schema. Hosted targets expose no arrival parameters: the selected machine
+/// is either free or has exactly one mutable `self` receiver for later bridge
+/// provisioning. Freestanding parameters must exactly match the canonical
+/// typed positions on the target-selected arrival requirement.
+pub fn validate_selected_program_entry_shape(
+    typed: &TypedTrees,
+    selected: SelectedProgramEntry<'_>,
+) -> Result<program_entry_plan::SelectedProgramEntrySourceSignature, Vec<Diagnostic>> {
+    let machine_name = selected.machine_name;
+    let Some(machine) = typed
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == machine_name)
+    else {
+        return Err(vec![Diagnostic::error(format!(
+            "build root slot names unknown entry machine `{machine_name}`"
+        ))]);
+    };
+    let Some(entry) = typed.machine_states(machine).first() else {
+        return Err(vec![Diagnostic::error(format!(
+            "entry machine `{machine_name}` has no executable entry state"
+        ))]);
+    };
+
+    let mut diagnostics = Vec::new();
+    if !typed.machine_type_parameters(machine).is_empty() {
+        diagnostics.push(Diagnostic::error(format!(
+            "entry machine `{machine_name}` is generic; a root slot must bind one exact machine"
+        )));
+    }
+    if entry.return_type.is_valid() {
+        diagnostics.push(Diagnostic::error(format!(
+            "entry machine `{machine_name}` returns a value, but `ProgramEntry` has no result"
+        )));
+    }
+
+    let parameters = typed.state_parameters(entry);
+    let self_parameters = parameters
+        .iter()
+        .filter(|parameter| parameter.is_self)
+        .collect::<Vec<_>>();
+    if self_parameters.len() > 1 {
+        diagnostics.push(Diagnostic::error(format!(
+            "entry machine `{machine_name}` has more than one `self` receiver"
+        )));
+    }
+    if let Some(receiver) = self_parameters.first()
+        && !receiver.is_mutable
+    {
+        diagnostics.push(Diagnostic::error(format!(
+            "entry machine `{machine_name}` has a receiver, but `ProgramEntry` provisions it as an exclusive `&mut self` loan"
+        )));
+    }
+    if !self_parameters.is_empty()
+        && let Some(attached_data) = machine.attached_data.as_ref()
+        && let Some(definition) = typed
+            .data_definitions()
+            .iter()
+            .find(|definition| definition.name.as_str() == attached_data.as_str())
+        && typed_trees_to_checked_trees::data_requires_establishment(typed, definition)
+    {
+        diagnostics.push(Diagnostic::error(format!(
+            "entry machine `{machine_name}` requests a provisioned `{}` receiver, but its all-zero image is not a valid value; use a free entry and construct the state explicitly",
+            attached_data.as_str()
+        )));
+    }
+
+    let visible = parameters
+        .iter()
+        .filter(|parameter| !parameter.is_self)
+        .collect::<Vec<_>>();
+    match selected.slot.visible_parameters {
+        target::ProgramEntryVisibleParameters::None if !visible.is_empty() => {
+            diagnostics.push(Diagnostic::error(format!(
+                "hosted `ProgramEntry` exposes no arrival parameters, but `{machine_name}` declares `{}`",
+                visible
+                    .iter()
+                    .map(|parameter| parameter.name.as_str())
+                    .collect::<Vec<_>>()
+                    .join("`, `")
+            )));
+        }
+        target::ProgramEntryVisibleParameters::ImageAndInitialStorage if visible.len() != 2 => {
+            diagnostics.push(Diagnostic::error(format!(
+                "target schema `{:?}` exposes exactly image and initial-storage roots, but `{machine_name}` declares {} visible parameter{}",
+                selected.slot.schema,
+                visible.len(),
+                if visible.len() == 1 { "" } else { "s" },
+            )));
+        }
+        _ => {}
+    }
+
+    if selected.slot.visible_parameters
+        == target::ProgramEntryVisibleParameters::ImageAndInitialStorage
+        && visible.len() == 2
+    {
+        match arrival_requirement_contract(typed, selected.slot.semantic_arrival_requirement) {
+            Ok(required) if required.parameters.len() == visible.len() => {
+                for (index, (actual, required)) in
+                    visible.iter().zip(required.parameters.iter()).enumerate()
+                {
+                    if typed.normalized_type_identity(actual.type_reference) != required.identity
+                        || actual.is_const != required.is_const
+                        || actual.is_mutable != required.is_mutable
+                    {
+                        diagnostics.push(Diagnostic::error(format!(
+                            "target root slot `{}::{}` requires visible parameter {index} ({}) to have exact type `{}`, but entry machine `{machine_name}` declares `{}`",
+                            selected.slot.owner.root_slot_owner_name(),
+                            selected.slot.slot_name,
+                            ["image", "initial storage"][index],
+                            required.display,
+                            typed.display_type_reference_with_constraints(actual.type_reference),
+                        )));
+                    }
+                }
+            }
+            Ok(required) => diagnostics.push(Diagnostic::error(format!(
+                "target root slot `{}::{}` selects arrival requirement `{}` with {} visible parameters, but its target schema declares {}",
+                selected.slot.owner.root_slot_owner_name(),
+                selected.slot.slot_name,
+                selected.slot.semantic_arrival_requirement,
+                required.parameters.len(),
+                visible.len(),
+            ))),
+            Err(diagnostic) => diagnostics.push(diagnostic),
+        }
+    }
+
+    if !diagnostics.is_empty() {
+        return Err(diagnostics);
+    }
+    let receiver = self_parameters.first().map_or(
+        program_entry_plan::ProgramEntrySourceReceiverSignature::Free,
+        |receiver| program_entry_plan::ProgramEntrySourceReceiverSignature::ProvisionedMutable {
+            normalized_type_identity: typed
+                .normalized_type_identity(receiver.type_reference)
+                .into_string(),
+        },
+    );
+    let visible_parameters = visible
+        .iter()
+        .enumerate()
+        .map(|(index, parameter)| -> Result<_, Diagnostic> {
+            let role = match index {
+                0 => program_entry_plan::ProgramStorageEntryRootRole::Image,
+                1 => program_entry_plan::ProgramStorageEntryRootRole::InitialStorage,
+                _ => unreachable!("selected source shape validation fixed visible arity"),
+            };
+            let extent_value_layout =
+                provider_planning::calling_policy_plans::selected_program_storage_source_extent_value_layout(
+                    typed,
+                    selected.slot,
+                    parameter.type_reference,
+                )
+            .map_err(|diagnostic| {
+                Diagnostic::error(format!(
+                    "selected entry machine `{machine_name}` visible parameter {index} has no exact Extent value layout: {diagnostic}"
+                ))
+            })?;
+            let value_shape = extent_value_layout.shape();
+            Ok(program_entry_plan::SelectedProgramEntrySourceSignature::visible_parameter(
+                role,
+                index,
+                typed
+                    .normalized_type_identity(parameter.type_reference)
+                    .into_string(),
+                value_shape,
+                extent_value_layout,
+                parameter.is_const,
+                parameter.is_mutable,
+            ))
+        })
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(|diagnostic| vec![diagnostic])?;
+    program_entry_plan::SelectedProgramEntrySourceSignature::from_checked_typed_entry(
+        selected.slot,
+        machine.symbol,
+        entry.symbol,
+        machine.name.as_str().to_owned(),
+        entry.name.as_str().to_owned(),
+        typed
+            .normalized_machine_overload_identity(machine)
+            .expect("selected entry has one checked executable state")
+            .identity(),
+        receiver,
+        visible_parameters,
+    )
+    .map_err(|diagnostic| vec![Diagnostic::error(diagnostic)])
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SelectedProgramEntryCallingPlans {
+    pub semantic_boundary_entry_plan: calling_conventions::BoundaryEntryPlan,
+    pub storage_entry: program_entry_plan::SelectedProgramStorageEntryPlan,
+}
+
+/// Complete build-owned settlement for one target-selected `ProgramEntry`.
+///
+/// The source signature and optional two-surface calling plans are validated
+/// while typed declarations are still available, then travel together instead
+/// of becoming independent driver couriers. A test-harness entry-name override
+/// is deliberately absent: it cannot acquire source, calling-plan, or storage
+/// authority through this carrier.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SelectedCompilerProgramEntry {
+    source_signature: program_entry_plan::SelectedProgramEntrySourceSignature,
+    calling_plans: Option<SelectedProgramEntryCallingPlans>,
+    fused_service_establishments: Vec<program_entry_plan::ProgramEntryFusedServiceEstablishment>,
+}
+
+impl SelectedCompilerProgramEntry {
+    fn new(
+        source_signature: program_entry_plan::SelectedProgramEntrySourceSignature,
+        calling_plans: Option<SelectedProgramEntryCallingPlans>,
+    ) -> Self {
+        Self {
+            source_signature,
+            calling_plans,
+            fused_service_establishments: Vec::new(),
+        }
+    }
+
+    pub fn machine_name(&self) -> &str {
+        self.source_signature.machine_name()
+    }
+
+    pub const fn source_signature(
+        &self,
+    ) -> &program_entry_plan::SelectedProgramEntrySourceSignature {
+        &self.source_signature
+    }
+
+    pub const fn calling_plans(&self) -> Option<&SelectedProgramEntryCallingPlans> {
+        self.calling_plans.as_ref()
+    }
+
+    pub fn fused_service_establishments(
+        &self,
+    ) -> &[program_entry_plan::ProgramEntryFusedServiceEstablishment] {
+        &self.fused_service_establishments
+    }
+
+    pub fn bind_fused_service_establishments(
+        &mut self,
+        mut establishments: Vec<program_entry_plan::ProgramEntryFusedServiceEstablishment>,
+    ) -> Result<(), &'static str> {
+        if establishments.is_empty() {
+            self.fused_service_establishments.clear();
+            return Ok(());
+        }
+        let source_identity = self.source_signature.identity();
+        let target_slot = self.source_signature.target_slot();
+        let receiver_identity = self
+            .source_signature
+            .receiver()
+            .normalized_type_identity()
+            .ok_or("a free ProgramEntry cannot establish receiver fields")?;
+        establishments.sort_by(|left, right| left.field_identity().cmp(right.field_identity()));
+        if establishments
+            .windows(2)
+            .any(|pair| pair[0].field_identity() == pair[1].field_identity())
+            || establishments.iter().any(|establishment| {
+                establishment.source_signature_identity() != source_identity
+                    || establishment.target_slot() != target_slot
+                    || establishment.receiver_type_identity() != receiver_identity
+            })
+        {
+            return Err("Fused root establishments drifted from their selected ProgramEntry");
+        }
+        self.fused_service_establishments = establishments;
+        Ok(())
+    }
+
+    pub fn into_parts(
+        self,
+    ) -> (
+        program_entry_plan::SelectedProgramEntrySourceSignature,
+        Option<SelectedProgramEntryCallingPlans>,
+        Vec<program_entry_plan::ProgramEntryFusedServiceEstablishment>,
+    ) {
+        (
+            self.source_signature,
+            self.calling_plans,
+            self.fused_service_establishments,
+        )
+    }
+}
+
+/// Resolve and validate the complete build-owned `ProgramEntry` input.
+/// Diagnostic order is intentional: exact target-slot selection precedes
+/// source-shape validation, which precedes optional physical/semantic calling-
+/// plan validation.
+pub fn select_compiler_program_entry(
+    typed: &TypedTrees,
+    config: &BuildConfig,
+    selected_profile: Option<target::TargetProfile>,
+    realizations: &[provider_planning::calling_policy_plans::BoundaryCallingPlanRealization],
+    accepted_uefi_binding: Option<&package_compilation::AcceptedSemanticBinding>,
+) -> Result<Option<SelectedCompilerProgramEntry>, Vec<Diagnostic>> {
+    let Some(selected) = selected_program_entry_machine(config, selected_profile)? else {
+        return Ok(None);
+    };
+    let source_signature = validate_selected_program_entry_shape(typed, selected)?;
+    let calling_plans = validate_selected_program_entry_calling_plan(
+        typed,
+        selected,
+        realizations,
+        accepted_uefi_binding,
+    )?;
+    Ok(Some(SelectedCompilerProgramEntry::new(
+        source_signature,
+        calling_plans,
+    )))
+}
+
+pub fn validate_selected_program_entry_calling_plan(
+    typed: &TypedTrees,
+    selected: SelectedProgramEntry<'_>,
+    realizations: &[provider_planning::calling_policy_plans::BoundaryCallingPlanRealization],
+    accepted_uefi_binding: Option<&package_compilation::AcceptedSemanticBinding>,
+) -> Result<Option<SelectedProgramEntryCallingPlans>, Vec<Diagnostic>> {
+    let (
+        Some(schema_name),
+        Some(physical_requirement),
+        Some(physical_convention),
+        Some(semantic_convention),
+    ) = (
+        selected.slot.boundary_schema,
+        selected.slot.physical_arrival_requirement,
+        selected.slot.physical_calling_convention,
+        selected.slot.semantic_calling_convention,
+    )
+    else {
+        if selected.slot.boundary_schema.is_some()
+            || selected.slot.physical_arrival_requirement.is_some()
+            || selected.slot.physical_calling_convention.is_some()
+            || selected.slot.semantic_calling_convention.is_some()
+        {
+            return Err(vec![Diagnostic::error(format!(
+                "target root slot `{}::{}` has an incomplete two-surface entry declaration",
+                selected.slot.owner.root_slot_owner_name(),
+                selected.slot.slot_name,
+            ))]);
+        }
+        return Ok(None);
+    };
+    let schemas = typed
+        .traits()
+        .iter()
+        .filter(|definition| definition.is_boundary && definition.name.as_str() == schema_name)
+        .collect::<Vec<_>>();
+    let [schema] = schemas.as_slice() else {
+        return Err(vec![Diagnostic::error(format!(
+            "target root slot `{}::{}` requires exactly one loaded `{schema_name}` boundary schema, but found {}",
+            selected.slot.owner.root_slot_owner_name(),
+            selected.slot.slot_name,
+            schemas.len(),
+        ))]);
+    };
+    let semantic = arrival_requirement_contract(typed, selected.slot.semantic_arrival_requirement)
+        .map_err(|diagnostic| vec![diagnostic])?;
+    let physical = arrival_requirement_contract(typed, physical_requirement)
+        .map_err(|diagnostic| vec![diagnostic])?;
+    if semantic.signature == physical.signature
+        || semantic.requirement_identity == physical.requirement_identity
+    {
+        return Err(vec![Diagnostic::error(format!(
+            "target root slot `{}::{}` conflates physical requirement `{physical_requirement}` with semantic requirement `{}`",
+            selected.slot.owner.root_slot_owner_name(),
+            selected.slot.slot_name,
+            selected.slot.semantic_arrival_requirement,
+        ))]);
+    }
+    let semantic_matching = realizations
+        .iter()
+        .filter(|realization| {
+            realization.boundary_trait == schema.symbol
+                && realization.requirement_machine == semantic.signature
+        })
+        .collect::<Vec<_>>();
+    let [semantic_realization] = semantic_matching.as_slice() else {
+        return Err(vec![Diagnostic::error(format!(
+            "target boundary schema `{schema_name}` retains {} evaluated calling plans for semantic requirement `{}` instead of exactly one",
+            semantic_matching.len(),
+            selected.slot.semantic_arrival_requirement,
+        ))]);
+    };
+    let physical_matching = realizations
+        .iter()
+        .filter(|realization| {
+            realization.boundary_trait == schema.symbol
+                && realization.requirement_machine == physical.signature
+        })
+        .collect::<Vec<_>>();
+    let [physical_realization] = physical_matching.as_slice() else {
+        return Err(vec![Diagnostic::error(format!(
+            "target boundary schema `{schema_name}` retains {} evaluated calling plans for physical requirement `{physical_requirement}` instead of exactly one",
+            physical_matching.len(),
+        ))]);
+    };
+    for (role, realization) in [
+        ("semantic", *semantic_realization),
+        ("physical", *physical_realization),
+    ] {
+        let (validated, application_report_fingerprint, application_commitment) = realization
+            .replayed_validated_application()
+            .map_err(|error| {
+            vec![Diagnostic::error(format!(
+                "target boundary schema `{schema_name}` retains an invalid {role} calling plan: {error}"
+            ))]
+        })?;
+        if realization.exact_boundary_entry_plan() != validated.plan()
+            || realization.report_fingerprint != application_report_fingerprint
+            || realization.commitment != application_commitment
+        {
+            return Err(vec![Diagnostic::error(format!(
+                "target boundary schema `{schema_name}` does not retain exact {role} calling-plan identity and custody"
+            ))]);
+        }
+    }
+    let (validated_physical_plan, _, _) = physical_realization
+        .replayed_validated_application()
+        .map_err(|error| {
+            vec![Diagnostic::error(format!(
+                "target boundary schema `{schema_name}` lost its validated physical calling plan: {error}"
+            ))]
+        })?;
+    let expected_physical = match physical_convention {
+        target::ProgramEntryCallingConvention::MicrosoftX64 => {
+            calling_conventions::CallingPolicy::MicrosoftX64
+        }
+    };
+    if physical_realization.boundary_entry_plan.call.policy != expected_physical {
+        return Err(vec![Diagnostic::error(format!(
+            "target boundary schema `{schema_name}` evaluates physical requirement `{physical_requirement}` with {:?}, but `{}::{}` requires {:?}",
+            physical_realization.boundary_entry_plan.call.policy,
+            selected.slot.owner.root_slot_owner_name(),
+            selected.slot.slot_name,
+            expected_physical,
+        ))]);
+    }
+    let expected_semantic = match semantic_convention {
+        target::ProgramEntryCallingConvention::MicrosoftX64 => {
+            calling_conventions::CallingPolicy::MicrosoftX64
+        }
+    };
+    if semantic_realization.boundary_entry_plan.call.policy != expected_semantic {
+        return Err(vec![Diagnostic::error(format!(
+            "target boundary schema `{schema_name}` evaluates semantic requirement `{}` with {:?}, but `{}::{}` requires {:?}",
+            selected.slot.semantic_arrival_requirement,
+            semantic_realization.boundary_entry_plan.call.policy,
+            selected.slot.owner.root_slot_owner_name(),
+            selected.slot.slot_name,
+            expected_semantic,
+        ))]);
+    }
+    let service_schema = effects::provider_plan::ServiceSchema::from_typed(typed, schema)
+        .ok_or_else(|| {
+            vec![Diagnostic::error(format!(
+                "target entry schema `{schema_name}` is not a boundary service schema"
+            ))]
+        })?;
+    let physical_source = target_owned_physical_contract_source(
+        typed,
+        selected.slot,
+        schema.symbol,
+        &service_schema,
+        &physical,
+        accepted_uefi_binding,
+    )
+    .map_err(|diagnostic| vec![diagnostic])?;
+    let storage_entry = program_entry_plan::SelectedProgramStorageEntryPlan::from_target_slot(
+        selected.slot,
+        service_schema,
+        semantic.requirement_identity,
+    )
+    .map_err(|diagnostic| vec![Diagnostic::error(diagnostic.to_string())])?;
+    let result_type_identity = physical.result_type_identity.ok_or_else(|| {
+        vec![Diagnostic::error(format!(
+            "physical entry requirement `{physical_requirement}` has no result"
+        ))]
+    })?;
+    let physical_contract = program_entry_plan::ProgramEntryPhysicalContractPlan::new(
+        selected.slot,
+        physical.requirement_identity,
+        physical_source.package,
+        physical_source.package_source_digest,
+        physical_source.non_authoritative_package_source_report_fingerprint,
+        physical
+            .parameters
+            .into_iter()
+            .map(|parameter| parameter.identity.into_string())
+            .collect(),
+        result_type_identity.into_string(),
+        validated_physical_plan.contract_report_fingerprint(),
+        physical_realization.boundary_entry_plan.clone(),
+    )
+    .map_err(|diagnostic| vec![Diagnostic::error(diagnostic)])?;
+    let storage_entry = storage_entry
+        .with_physical_contract(physical_contract.clone())
+        .map_err(|diagnostic| vec![Diagnostic::error(diagnostic.to_string())])?;
+    Ok(Some(SelectedProgramEntryCallingPlans {
+        semantic_boundary_entry_plan: semantic_realization.boundary_entry_plan.clone(),
+        storage_entry,
+    }))
+}
+
+struct TargetOwnedPhysicalContractSource {
+    package: target::ProgramEntryPhysicalContractPackage,
+    package_source_digest: program_entry_plan::ProgramEntryPhysicalContractPackageSourceDigest,
+    non_authoritative_package_source_report_fingerprint: u64,
+}
+
+fn target_owned_physical_contract_source(
+    typed: &TypedTrees,
+    slot: target::ProgramEntrySlotDeclaration,
+    schema: symbols::SymbolHandle,
+    service_schema: &effects::provider_plan::ServiceSchema,
+    contract: &ArrivalRequirementContract,
+    accepted_binding: Option<&package_compilation::AcceptedSemanticBinding>,
+) -> Result<TargetOwnedPhysicalContractSource, Diagnostic> {
+    let expected_package = slot.physical_contract_package.ok_or_else(|| {
+        Diagnostic::error("target physical entry requirement has no owning package identity")
+    })?;
+    let source_span = typed
+        .symbols
+        .symbol_source_span(contract.signature)
+        .ok_or_else(|| {
+            Diagnostic::error(format!(
+                "target physical entry requirement `{}` has no authored source provenance",
+                contract.requirement_identity
+            ))
+        })?;
+    let source_file = typed.symbols.source_file(source_span).ok_or_else(|| {
+        Diagnostic::error("target physical entry requirement lost its source-file provenance")
+    })?;
+    let schema_source_span = typed.symbols.symbol_source_span(schema).ok_or_else(|| {
+        Diagnostic::error("target physical entry schema has no authored source provenance")
+    })?;
+    let schema_source_file = typed
+        .symbols
+        .source_file(schema_source_span)
+        .ok_or_else(|| {
+            Diagnostic::error("target physical entry schema lost its source-file provenance")
+        })?;
+    let package_relative_source = source_file
+        .path
+        .strip_prefix(&source_file.package_root)
+        .ok();
+    let package_source_digest =
+        program_entry_plan::ProgramEntryPhysicalContractPackageSourceDigest::from_package_source(
+            expected_package,
+            source_file.source.as_bytes(),
+        );
+    if schema_source_file.source_id != source_file.source_id {
+        return Err(Diagnostic::error(format!(
+            "target physical entry requirement `{}` and its selected schema must come from one exact source unit",
+            contract.requirement_identity,
+        )));
+    }
+    match accepted_binding {
+        Some(binding) => {
+            let exact_package_binding = binding.role()
+                == package_compilation::AcceptedSemanticBindingRole::UefiX64ProgramEntry
+                && binding.selected_provider_plan_digest().is_none()
+                && source_file.package_identity == Some(binding.package())
+                && schema_source_file.package_identity == Some(binding.package())
+                && typed.symbols.symbol_package_identity(schema) == Some(binding.package())
+                && typed.symbols.display_path(schema, "::") == binding.declaration_path()
+                && service_schema.trait_package_identity == Some(binding.package())
+                && package_compilation::accepted_service_schema_digest(
+                    binding.role(),
+                    service_schema,
+                ) == binding.normalized_schema_digest();
+            if !exact_package_binding {
+                return Err(Diagnostic::error(format!(
+                    "target physical entry schema `{}` does not match the exact accepted UEFI package binding",
+                    typed.symbols.display_path(schema, "::"),
+                )));
+            }
+        }
+        None => {
+            let exact_bundled_source = source_file.package_identity.is_none()
+                && schema_source_file.package_identity.is_none()
+                && package_relative_source
+                    == Some(std::path::Path::new(
+                        expected_package.package_relative_source(),
+                    ))
+                && package_source_digest
+                    == program_entry_plan::exact_uefi_x64_physical_contract_package_source_digest();
+            if !exact_bundled_source {
+                return Err(Diagnostic::error(format!(
+                    "target physical entry requirement and schema `{}` require either the exact bundled UEFI contract or one accepted package-owned UEFI binding, not `{}`",
+                    contract.requirement_identity,
+                    source_file.path.display(),
+                )));
+            }
+        }
+    }
+    let package_source_report_fingerprint = physical_contract_package_source_report_fingerprint(
+        expected_package.manifest_identity().as_bytes(),
+        source_file.source.as_bytes(),
+    );
+    Ok(TargetOwnedPhysicalContractSource {
+        package: expected_package,
+        package_source_digest,
+        non_authoritative_package_source_report_fingerprint: package_source_report_fingerprint,
+    })
+}
+
+fn physical_contract_package_source_report_fingerprint(identity: &[u8], source: &[u8]) -> u64 {
+    let mut hash = 0xcbf29ce484222325u64;
+    for bytes in [
+        b"omega.uefi-physical-package.v1".as_slice(),
+        identity,
+        source,
+    ] {
+        for byte in bytes {
+            hash ^= u64::from(*byte);
+            hash = hash.wrapping_mul(0x100000001b3);
+        }
+    }
+    hash
+}
+
+struct ArrivalRequirementParameterType {
+    identity: typed_trees::type_identity::NormalizedTypeIdentity,
+    display: String,
+    is_const: bool,
+    is_mutable: bool,
+}
+
+struct ArrivalRequirementContract {
+    signature: symbols::SymbolHandle,
+    requirement_identity: String,
+    parameters: Vec<ArrivalRequirementParameterType>,
+    result_type_identity: Option<typed_trees::type_identity::NormalizedTypeIdentity>,
+}
+
+/// Resolve the target declaration back to its core-owned typed requirement.
+/// The result is deliberately taken from Psi's normalized identities rather
+/// than reconstructed from display strings in the Omega orchestrator.
+fn arrival_requirement_contract(
+    typed: &TypedTrees,
+    requirement: &str,
+) -> Result<ArrivalRequirementContract, Diagnostic> {
+    let Some((owner, method)) = requirement.split_once("::") else {
+        return Err(Diagnostic::error(format!(
+            "target entry arrival requirement `{requirement}` is not an exact `Trait::machine` identity"
+        )));
+    };
+    let definitions = typed
+        .traits()
+        .iter()
+        .filter(|definition| definition.is_boundary && definition.name.as_str() == owner)
+        .collect::<Vec<_>>();
+    let [definition] = definitions.as_slice() else {
+        return Err(Diagnostic::error(format!(
+            "target entry arrival requirement `{requirement}` resolves to {} boundary trait declarations instead of exactly one",
+            definitions.len()
+        )));
+    };
+    let signatures = typed
+        .trait_machine_signatures(definition)
+        .iter()
+        .filter(|signature| signature.name.as_str() == method)
+        .collect::<Vec<_>>();
+    let [signature] = signatures.as_slice() else {
+        return Err(Diagnostic::error(format!(
+            "target entry arrival requirement `{requirement}` resolves to {} machine declarations instead of exactly one",
+            signatures.len()
+        )));
+    };
+    Ok(ArrivalRequirementContract {
+        signature: signature.symbol,
+        requirement_identity: typed
+            .normalized_trait_requirement_overload_identity(definition, signature)
+            .identity(),
+        parameters: typed
+            .state_signature_parameters(signature)
+            .iter()
+            .filter(|parameter| !parameter.is_self)
+            .map(|parameter| ArrivalRequirementParameterType {
+                identity: typed.normalized_type_identity(parameter.type_reference),
+                display: typed.display_type_reference_with_constraints(parameter.type_reference),
+                is_const: parameter.is_const,
+                is_mutable: parameter.is_mutable,
+            })
+            .collect(),
+        result_type_identity: signature
+            .return_type
+            .is_valid()
+            .then(|| typed.normalized_type_identity(signature.return_type)),
+    })
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct WireCompatibilityDemand {
+    pub edge: String,
+    pub lineage: String,
+    pub local_schema: String,
+    pub peer_schema: String,
+    pub require_readable: bool,
+    pub require_writable: bool,
+    pub require_unknown_preservation: bool,
+    pub require_canonical: bool,
+    pub require_complete_migration: bool,
+}
+
+impl Default for BuildConfig {
+    fn default() -> Self {
+        Self {
+            subsystem: 3, // IMAGE_SUBSYSTEM_WINDOWS_CUI -- the Console case's meaning
+            freestanding: false,
+            optimizations: OptimizationSelections::default(),
+            x86_scalar_fma_provider: None,
+            grants: Vec::new(),
+            provider_selections: Vec::new(),
+            opaque_representation_selections: Vec::new(),
+            wire_compatibility_demands: Vec::new(),
+            root_bindings: Vec::new(),
+        }
+    }
+}
+
+/// Whether a machine is the program's canonical free build machine, declared
+/// in the exact companion `build.omg` selected by project
+/// discovery. Typed symbols retain authored source identity, so neither a
+/// filename scan nor a machine-name handoff is authority.
+/// A wrong-arity build machine still refuses at evaluation with the arity
+/// error (pinned by fail/build/build_machine_wrong_arity).
+pub fn is_build_machine(
+    typed: &TypedTrees,
+    machine: &typed_trees::machine::Machine,
+    build_source_id: Option<source::SourceId>,
+) -> bool {
+    if machine.name.as_str() != BUILD_MACHINE {
+        return false;
+    }
+    let Some(build_source_id) = build_source_id else {
+        return false;
+    };
+    typed
+        .symbols
+        .symbol_source_span(machine.symbol)
+        .is_some_and(|span| span.source_id == build_source_id)
+}
+
+fn has_exact_toolchain_build_facet(typed: &TypedTrees, name: &str) -> bool {
+    typed.data_definitions().iter().any(|definition| {
+        definition.name.as_str() == name
+            && typed
+                .symbols
+                .symbol_source_span(definition.symbol)
+                .and_then(|span| typed.symbols.source_file(span))
+                .is_some_and(|file| {
+                    file.origin == source::SourceOrigin::Toolchain
+                        && file.path == std::path::Path::new("<build-prelude>")
+                })
+    })
+}
+
+fn is_exact_toolchain_build_filesystem_facet_call(
+    typed: &TypedTrees,
+    target_machine: SymbolHandle,
+    target_state: SymbolHandle,
+) -> bool {
+    typed.machines().iter().any(|machine| {
+        if machine.symbol != target_machine
+            || !machine
+                .attached_data
+                .as_ref()
+                .is_some_and(|attached| matches!(attached.as_str(), "BuildSource" | "BuildOutput"))
+            || !typed
+                .symbols
+                .symbol_source_span(machine.symbol)
+                .and_then(|span| typed.symbols.source_file(span))
+                .is_some_and(|file| {
+                    file.origin == source::SourceOrigin::Toolchain
+                        && file.path == std::path::Path::new("<build-prelude>")
+                })
+        {
+            return false;
+        }
+        typed.machine_states(machine).iter().any(|state| {
+            state.symbol == target_state
+                && matches!(
+                    (
+                        machine.attached_data.as_ref().map(|name| name.as_str()),
+                        state.name.as_str(),
+                    ),
+                    (Some("BuildSource"), "open" | "read" | "close")
+                        | (
+                            Some("BuildOutput"),
+                            "create" | "write" | "close" | "include_source"
+                        )
+                )
+        })
+    })
+}
+
+fn build_reaches_filesystem_facet(
+    typed: &TypedTrees,
+    operational: &flow_effects::OperationalPlan,
+    root: SymbolHandle,
+) -> bool {
+    let mut pending = vec![root];
+    let mut visited = Vec::new();
+    while let Some(symbol) = pending.pop() {
+        if visited.contains(&symbol) {
+            continue;
+        }
+        visited.push(symbol);
+        let Some(machine) = operational
+            .machines()
+            .iter()
+            .find(|machine| machine.symbol == symbol)
+        else {
+            continue;
+        };
+        for state in operational.states.span_or_empty(machine.states) {
+            for call in operational.calls.span_or_empty(state.calls) {
+                // Attached calls through the compiler-created private facet
+                // value are intentionally unresolved at this typed prepass;
+                // the evaluator below still admits only the exact prelude
+                // declaration and private activation marker. A same-named
+                // ordinary call can at most provision an unused sponsor: it
+                // cannot obtain either rooted facet value.
+                if is_exact_toolchain_build_filesystem_facet_call(
+                    typed,
+                    call.target_machine_symbol,
+                    call.target_state_symbol,
+                ) || (!call.target_state_symbol.is_valid()
+                    && matches!(
+                        call.target_name.as_str(),
+                        "open" | "read" | "close" | "create" | "write" | "include_source"
+                    ))
+                {
+                    return true;
+                }
+                if call.target_machine_symbol.is_valid() {
+                    pending.push(call.target_machine_symbol);
+                }
+            }
+        }
+    }
+    false
+}
+
+fn is_exact_toolchain_build_prelude_data(
+    typed: &TypedTrees,
+    symbol: SymbolHandle,
+    expected_name: &str,
+) -> bool {
+    typed.data_definitions().iter().any(|definition| {
+        definition.symbol == symbol
+            && definition.name.as_str() == expected_name
+            && typed
+                .symbols
+                .symbol_source_span(symbol)
+                .and_then(|span| typed.symbols.source_file(span))
+                .is_some_and(|file| {
+                    file.origin == source::SourceOrigin::Toolchain
+                        && file.path == Path::new("<build-prelude>")
+                })
+    })
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct TargetBuildVocabulary {
+    build_symbol: SymbolHandle,
+    target_field_symbol: SymbolHandle,
+    x86_deployment_features_field_symbol: SymbolHandle,
+}
+
+fn type_reference_names_exact_data(
+    typed: &TypedTrees,
+    type_reference: typed_trees::types::TypeReferenceHandle,
+    expected: SymbolHandle,
+) -> bool {
+    match typed.type_reference_table.type_reference(type_reference) {
+        typed_trees::types::TypeReferenceNode::Reference { referee, .. } => {
+            type_reference_names_exact_data(typed, *referee, expected)
+        }
+        typed_trees::types::TypeReferenceNode::Constrained { base_type, .. } => {
+            type_reference_names_exact_data(typed, *base_type, expected)
+        }
+        typed_trees::types::TypeReferenceNode::Named { symbol, .. } => *symbol == expected,
+        _ => false,
+    }
+}
+
+/// Admit `Build.target` and its deployment-feature companion only when every
+/// field and closed enum type comes from the exact toolchain virtual source.
+/// `BuildTimeValue` is structurally named, so this nominal check must precede
+/// argument construction.
+fn target_build_vocabulary(
+    typed: &TypedTrees,
+    selected_target: Option<target::TargetProfile>,
+) -> Result<Option<TargetBuildVocabulary>, Vec<Diagnostic>> {
+    let Some(_selected_target) = selected_target else {
+        return Ok(None);
+    };
+    let exact_builds = typed
+        .data_definitions()
+        .iter()
+        .filter(|definition| {
+            is_exact_toolchain_build_prelude_data(typed, definition.symbol, "Build")
+        })
+        .collect::<Vec<_>>();
+    let [build] = exact_builds.as_slice() else {
+        return Err(vec![Diagnostic::error(
+            "exact-target build activation requires the toolchain-provided Build.target vocabulary; an authored legacy Build cannot receive a hidden target field",
+        )]);
+    };
+    let target_fields = typed
+        .data_members(build)
+        .iter()
+        .filter_map(|member| match member {
+            typed_trees::data::DataMember::Field(field) if field.name.as_str() == "target" => {
+                Some(field)
+            }
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+    let [target_field] = target_fields.as_slice() else {
+        return Err(vec![Diagnostic::error(format!(
+            "toolchain Build declares {} `target` fields; exact-target activation requires exactly one",
+            target_fields.len()
+        ))]);
+    };
+    let typed_trees::types::TypeReferenceNode::Named { symbol, .. } = typed
+        .type_reference_table
+        .type_reference(target_field.type_reference)
+    else {
+        return Err(vec![Diagnostic::error(
+            "toolchain Build.target must have the exact toolchain TargetProfile type",
+        )]);
+    };
+    if !is_exact_toolchain_build_prelude_data(typed, *symbol, "TargetProfile") {
+        return Err(vec![Diagnostic::error(
+            "toolchain Build.target must have the exact toolchain TargetProfile type",
+        )]);
+    }
+    let x86_feature_fields = typed
+        .data_members(build)
+        .iter()
+        .filter_map(|member| match member {
+            typed_trees::data::DataMember::Field(field)
+                if field.name.as_str() == "x86_deployment_features" =>
+            {
+                Some(field)
+            }
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+    let [x86_feature_field] = x86_feature_fields.as_slice() else {
+        return Err(vec![Diagnostic::error(format!(
+            "toolchain Build declares {} `x86_deployment_features` fields; exact-target activation requires exactly one",
+            x86_feature_fields.len()
+        ))]);
+    };
+    let typed_trees::types::TypeReferenceNode::Named { symbol, .. } = typed
+        .type_reference_table
+        .type_reference(x86_feature_field.type_reference)
+    else {
+        return Err(vec![Diagnostic::error(
+            "toolchain Build.x86_deployment_features must have the exact toolchain X86DeploymentFeatures type",
+        )]);
+    };
+    if !is_exact_toolchain_build_prelude_data(typed, *symbol, "X86DeploymentFeatures") {
+        return Err(vec![Diagnostic::error(
+            "toolchain Build.x86_deployment_features must have the exact toolchain X86DeploymentFeatures type",
+        )]);
+    }
+    Ok(Some(TargetBuildVocabulary {
+        build_symbol: build.symbol,
+        target_field_symbol: target_field.symbol,
+        x86_deployment_features_field_symbol: x86_feature_field.symbol,
+    }))
+}
+
+fn expression_mentions_exact_field(
+    typed: &TypedTrees,
+    expression: typed_trees::expression::ExpressionHandle,
+    field: SymbolHandle,
+    build_value_symbols: &[SymbolHandle],
+) -> bool {
+    use typed_trees::expression::ExpressionNode;
+    match typed.expression_table.expression(expression) {
+        ExpressionNode::Borrow(borrow) => {
+            expression_mentions_exact_field(typed, borrow.target, field, build_value_symbols)
+        }
+        ExpressionNode::Indexed(indexed) => {
+            expression_mentions_exact_field(typed, indexed.collection, field, build_value_symbols)
+        }
+        ExpressionNode::Member(member) => {
+            member.member_symbol == field
+                || (member.member.as_str() == "target"
+                    && expression_denotes_exact_build(typed, member.receiver, build_value_symbols))
+                || expression_mentions_exact_field(
+                    typed,
+                    member.receiver,
+                    field,
+                    build_value_symbols,
+                )
+        }
+        _ => false,
+    }
+}
+
+fn expression_denotes_exact_build(
+    typed: &TypedTrees,
+    expression: typed_trees::expression::ExpressionHandle,
+    build_symbols: &[SymbolHandle],
+) -> bool {
+    use typed_trees::expression::ExpressionNode;
+    match typed.expression_table.expression(expression) {
+        ExpressionNode::Borrow(borrow) => {
+            expression_denotes_exact_build(typed, borrow.target, build_symbols)
+        }
+        ExpressionNode::Name(path) => {
+            build_symbols.contains(&path.head_symbol) || build_symbols.contains(&path.symbol)
+        }
+        _ => false,
+    }
+}
+
+/// Prove source cannot transiently overwrite, replace, or lend exclusive
+/// access to the compiler-issued target occurrence. Final-value equality is
+/// retained as corruption defense, but is not used as the immutability proof.
+fn validate_immutable_build_target(
+    typed: &TypedTrees,
+    vocabulary: TargetBuildVocabulary,
+) -> Result<(), Vec<Diagnostic>> {
+    use typed_trees::{data::DataMember, expression::ExpressionNode, statement::StatementNode};
+
+    let mut build_value_symbols = Vec::new();
+    let mut diagnostics = Vec::new();
+    for definition in typed.data_definitions() {
+        for member in typed.data_members(definition) {
+            let DataMember::Field(field) = member else {
+                continue;
+            };
+            if type_reference_names_exact_data(typed, field.type_reference, vocabulary.build_symbol)
+            {
+                diagnostics.push(Diagnostic::error(format!(
+                    "compiler-owned Build.target forbids storing the exact toolchain Build in field `{}`",
+                    field.name.as_str()
+                )));
+                build_value_symbols.push(field.symbol);
+            }
+        }
+    }
+    for machine in typed.machines() {
+        if !machine.body_is_present
+            && typed.machine_states(machine).iter().any(|state| {
+                typed.state_parameters(state).iter().any(|parameter| {
+                    type_reference_names_exact_data(
+                        typed,
+                        parameter.type_reference,
+                        vocabulary.build_symbol,
+                    )
+                })
+            })
+        {
+            diagnostics.push(Diagnostic::error(format!(
+                "bodyless machine `{}` cannot receive the compiler-owned Build activation",
+                machine.name.as_str()
+            )));
+        }
+        for owned in typed.machine_owned_data(machine) {
+            if type_reference_names_exact_data(typed, owned.type_reference, vocabulary.build_symbol)
+            {
+                diagnostics.push(Diagnostic::error(format!(
+                    "compiler-owned Build.target forbids storing the exact toolchain Build in machine field `{}`",
+                    owned.name.as_str()
+                )));
+                build_value_symbols.push(owned.symbol);
+            }
+        }
+        for state in typed.machine_states(machine) {
+            for parameter in typed.state_parameters(state) {
+                if type_reference_names_exact_data(
+                    typed,
+                    parameter.type_reference,
+                    vocabulary.build_symbol,
+                ) {
+                    build_value_symbols.push(parameter.symbol);
+                }
+            }
+            for statement in typed.statement_table.statements(state.statement_nodes) {
+                match statement {
+                    StatementNode::Assignment(assignment) => {
+                        if expression_mentions_exact_field(
+                            typed,
+                            assignment.target,
+                            vocabulary.target_field_symbol,
+                            &build_value_symbols,
+                        ) {
+                            diagnostics.push(Diagnostic::error(
+                                "Build.target is compiler-owned and cannot be assigned",
+                            ));
+                        } else if expression_denotes_exact_build(
+                            typed,
+                            assignment.target,
+                            &build_value_symbols,
+                        ) {
+                            diagnostics.push(Diagnostic::error(
+                                "the compiler-owned Build activation cannot be replaced as a whole value",
+                            ));
+                        }
+                    }
+                    StatementNode::LocalData(local)
+                        if type_reference_names_exact_data(
+                            typed,
+                            local.type_reference,
+                            vocabulary.build_symbol,
+                        ) =>
+                    {
+                        diagnostics.push(Diagnostic::error(format!(
+                            "compiler-owned Build.target forbids copying the Build activation into local `{}`",
+                            local.name.as_str()
+                        )));
+                        build_value_symbols.push(local.symbol);
+                    }
+                    _ => {}
+                }
+            }
+        }
+    }
+    for (_, expression) in typed.expression_table.iter_expressions() {
+        match expression {
+            ExpressionNode::Borrow(borrow)
+                if borrow.access.is_exclusive()
+                    && (expression_mentions_exact_field(
+                        typed,
+                        borrow.target,
+                        vocabulary.target_field_symbol,
+                        &build_value_symbols,
+                    ) || expression_denotes_exact_build(
+                        typed,
+                        borrow.target,
+                        &build_value_symbols,
+                    )) =>
+            {
+                diagnostics.push(Diagnostic::error(
+                    "Build.target is compiler-owned and cannot enter a mutable or write-only borrow",
+                ));
+            }
+            ExpressionNode::StructLiteral(literal)
+                if literal.type_symbol == vocabulary.build_symbol =>
+            {
+                diagnostics.push(Diagnostic::error(
+                    "source cannot construct the compiler-owned Build activation",
+                ));
+            }
+            ExpressionNode::ZeroValue(type_reference)
+                if type_reference_names_exact_data(
+                    typed,
+                    *type_reference,
+                    vocabulary.build_symbol,
+                ) =>
+            {
+                diagnostics.push(Diagnostic::error(
+                    "source cannot construct a zero value of the compiler-owned Build activation",
+                ));
+            }
+            _ => {}
+        }
+    }
+    if diagnostics.is_empty() {
+        Ok(())
+    } else {
+        Err(diagnostics)
+    }
+}
+
+fn is_source_input_replay_record(
+    observations: &checked_interpreter::EvaluationObservations,
+) -> bool {
+    let attempts = observations.filesystem_operation_attempts();
+    source_input_replay_prefix_end(attempts) == Some(attempts.len())
+}
+
+const fn operand_free_unknown_descriptor_operation_tag(operation_tag: u16) -> bool {
+    matches!(operation_tag, 8 | 43 | 44 | 45)
+}
+
+const fn unknown_descriptor_write_operation_tag(operation_tag: u16) -> bool {
+    matches!(operation_tag, 17 | 41 | 46 | 49)
+}
+
+const fn unknown_descriptor_set_file_times_tag(operation_tag: u16) -> bool {
+    operation_tag == 42
+}
+
+const fn unknown_descriptor_read_operation_tag(operation_tag: u16) -> bool {
+    matches!(operation_tag, 4 | 6)
+}
+
+const fn unknown_descriptor_open_at_tag(operation_tag: u16) -> bool {
+    operation_tag == 14
+}
+
+const fn unknown_descriptor_unlink_at_tag(operation_tag: u16) -> bool {
+    operation_tag == 15
+}
+
+const fn unknown_descriptor_read_dir_tag(operation_tag: u16) -> bool {
+    operation_tag == 23
+}
+
+const fn unknown_descriptor_write_payload_operation_tag(operation_tag: u16) -> bool {
+    matches!(operation_tag, 5 | 7)
+}
+
+const fn unknown_descriptor_read_file_metadata_tag(operation_tag: u16) -> bool {
+    operation_tag == 39
+}
+
+const fn unknown_descriptor_get_osfhandle_tag(operation_tag: u16) -> bool {
+    operation_tag == 30
+}
+
+const fn unknown_native_handle_close_tag(operation_tag: u16) -> bool {
+    operation_tag == 29
+}
+
+const fn unknown_native_handle_final_path_tag(operation_tag: u16) -> bool {
+    operation_tag == 31
+}
+
+const fn unknown_native_handle_mutation_tag(operation_tag: u16) -> bool {
+    matches!(operation_tag, 32..=34)
+}
+
+const fn get_last_error_tag(operation_tag: u16) -> bool {
+    operation_tag == 35
+}
+
+const fn errno_tag(operation_tag: u16) -> bool {
+    operation_tag == 50
+}
+
+const fn unknown_descriptor_bad_descriptor_failure_tag(operation_tag: u16) -> bool {
+    operand_free_unknown_descriptor_operation_tag(operation_tag)
+        || operation_tag == 10
+        || unknown_descriptor_open_at_tag(operation_tag)
+        || unknown_descriptor_unlink_at_tag(operation_tag)
+        || unknown_descriptor_read_dir_tag(operation_tag)
+        || unknown_descriptor_write_operation_tag(operation_tag)
+        || unknown_descriptor_set_file_times_tag(operation_tag)
+        || unknown_descriptor_read_operation_tag(operation_tag)
+        || unknown_descriptor_write_payload_operation_tag(operation_tag)
+        || unknown_descriptor_read_file_metadata_tag(operation_tag)
+}
+
+fn exact_source_write_refusal(attempt: &checked_interpreter::FilesystemOperationAttempt) -> bool {
+    let operation_is_exact = match attempt.operation_tag() {
+        1 => {
+            let [mode] = attempt.scalar_operands() else {
+                return false;
+            };
+            mode.operand_ordinal() == 1
+                && mode.value()
+                    == checked_interpreter::FilesystemScalarOperandValue::I32(
+                        checked_interpreter::FILESYSTEM_REPLAY_OUTPUT_CREATE_MODE,
+                    )
+        }
+        9 => attempt.scalar_operands().is_empty(),
+        _ => false,
+    };
+    let [rooted] = attempt.rooted_path_operand_resolutions() else {
+        return false;
+    };
+    let [refusal] = attempt.grant_refusals() else {
+        return false;
+    };
+    operation_is_exact
+        && attempt.provider() == checked_interpreter::FilesystemObservationProvider::RealScoped
+        && attempt.result() == Some(checked_interpreter::FilesystemOperationResult::Scalar(-1))
+        && attempt.post_error() == Some(13)
+        && rooted.operand_ordinal() == 0
+        && rooted.root() == BUILD_SOURCE_ROOT_IDENTITY
+        && refusal.operand_ordinal() == 0
+        && refusal.access() == checked_interpreter::FilesystemGrantAccess::Write
+        && refusal.reason()
+            == checked_interpreter::FilesystemGrantRefusalReason::OutsideGrantedRoots
+        && attempt.byte_operands().is_empty()
+        && attempt.path_like_operands().is_empty()
+        && attempt.returned_paths().is_empty()
+        && attempt.observed_byte_regions().is_empty()
+        && attempt.metadata_observations().is_empty()
+        && attempt.mutable_byte_operand_resolutions().is_empty()
+        && attempt.mutable_i64_operand_resolutions().is_empty()
+        && attempt.mutable_byte_operands().is_empty()
+        && attempt.mutable_i64_operands().is_empty()
+        && attempt.authorized_paths().is_empty()
+        && attempt.logical_handle_inputs().is_empty()
+        && attempt.logical_handle_output().is_none()
+        && attempt.retired_logical_handles().is_empty()
+}
+
+fn complete_no_output_failure_suffix_is_recognized(
+    attempts: &[checked_interpreter::FilesystemOperationAttempt],
+    suffix_start: usize,
+) -> bool {
+    match &attempts[suffix_start..] {
+        [failure] => {
+            exact_source_write_refusal(failure)
+                || operand_free_unknown_descriptor_operation_tag(failure.operation_tag())
+                || failure.operation_tag() == 10
+                || unknown_descriptor_open_at_tag(failure.operation_tag())
+                || unknown_descriptor_unlink_at_tag(failure.operation_tag())
+                || unknown_descriptor_read_dir_tag(failure.operation_tag())
+                || unknown_descriptor_write_operation_tag(failure.operation_tag())
+                || unknown_descriptor_set_file_times_tag(failure.operation_tag())
+                || unknown_descriptor_read_operation_tag(failure.operation_tag())
+                || unknown_descriptor_write_payload_operation_tag(failure.operation_tag())
+                || unknown_descriptor_read_file_metadata_tag(failure.operation_tag())
+                || unknown_descriptor_get_osfhandle_tag(failure.operation_tag())
+                || unknown_native_handle_close_tag(failure.operation_tag())
+                || unknown_native_handle_final_path_tag(failure.operation_tag())
+                || unknown_native_handle_mutation_tag(failure.operation_tag())
+        }
+        [failure, error_read] => {
+            ((unknown_native_handle_close_tag(failure.operation_tag())
+                || unknown_native_handle_final_path_tag(failure.operation_tag())
+                || unknown_native_handle_mutation_tag(failure.operation_tag()))
+                && get_last_error_tag(error_read.operation_tag()))
+                || (unknown_descriptor_bad_descriptor_failure_tag(failure.operation_tag())
+                    && errno_tag(error_read.operation_tag()))
+        }
+        _ => false,
+    }
+}
+
+fn source_input_replay_prefix_end(
+    attempts: &[checked_interpreter::FilesystemOperationAttempt],
+) -> Option<usize> {
+    let mut cursor = 0;
+    let mut identities = Vec::new();
+    let mut event_count = 0;
+    while cursor < attempts.len() {
+        if matches!(
+            attempts[cursor].operation_tag(),
+            1 | 4
+                | 5
+                | 6
+                | 7
+                | 8
+                | 9
+                | 10
+                | 11
+                | 12
+                | 14
+                | 15
+                | 17
+                | 19
+                | 20
+                | 23
+                | 27
+                | 29
+                | 30
+                | 31
+                | 32
+                | 33
+                | 34
+                | 39
+                | 41
+                | 42
+                | 43
+                | 44
+                | 45
+                | 46
+                | 49
+        ) {
+            break;
+        }
+        if attempts[cursor].operation_tag() == 21 {
+            if !source_read_link_is_exact(&attempts[cursor]) {
+                return None;
+            }
+            cursor += 1;
+            event_count += 1;
+            continue;
+        }
+        if matches!(attempts[cursor].operation_tag(), 38 | 40) {
+            if !source_path_metadata_is_exact(&attempts[cursor]) {
+                return None;
+            }
+            cursor += 1;
+            event_count += 1;
+            continue;
+        }
+        let identity = source_read_chain_open_identity(&attempts[cursor])?;
+        if identities.contains(&identity) {
+            return None;
+        }
+        identities.push(identity);
+        cursor += 1;
+
+        if cursor < attempts.len() && attempts[cursor].operation_tag() == 39 {
+            if !source_descriptor_metadata_is_exact(&attempts[cursor], identity) {
+                return None;
+            }
+            cursor += 1;
+            if cursor == attempts.len()
+                || !source_read_chain_close_is_exact(&attempts[cursor], identity)
+            {
+                return None;
+            }
+            cursor += 1;
+            event_count += 1;
+            continue;
+        }
+
+        if cursor < attempts.len() && attempts[cursor].operation_tag() == 23 {
+            let reads_start = cursor;
+            while cursor < attempts.len() && attempts[cursor].operation_tag() == 23 {
+                if !source_directory_read_is_exact(&attempts[cursor], identity) {
+                    return None;
+                }
+                cursor += 1;
+            }
+            if cursor == reads_start
+                || cursor == attempts.len()
+                || !source_read_chain_close_is_exact(&attempts[cursor], identity)
+            {
+                return None;
+            }
+            cursor += 1;
+            event_count += 1;
+            continue;
+        }
+
+        let reads_start = cursor;
+        while cursor < attempts.len() && matches!(attempts[cursor].operation_tag(), 4 | 6) {
+            if !source_read_chain_read_is_exact(&attempts[cursor], identity) {
+                return None;
+            }
+            cursor += 1;
+        }
+        if cursor == reads_start
+            || cursor == attempts.len()
+            || !source_read_chain_close_is_exact(&attempts[cursor], identity)
+        {
+            return None;
+        }
+        cursor += 1;
+        event_count += 1;
+    }
+    (event_count != 0
+        || (cursor == 0
+            && attempts.first().is_some_and(|attempt| {
+                matches!(
+                    attempt.operation_tag(),
+                    1 | 4
+                        | 5
+                        | 6
+                        | 7
+                        | 8
+                        | 9
+                        | 10
+                        | 11
+                        | 12
+                        | 14
+                        | 15
+                        | 17
+                        | 19
+                        | 20
+                        | 23
+                        | 27
+                        | 29
+                        | 30
+                        | 31
+                        | 32
+                        | 33
+                        | 34
+                        | 39
+                        | 41
+                        | 42
+                        | 43
+                        | 44
+                        | 45
+                        | 46
+                        | 49
+                )
+            })))
+    .then_some(cursor)
+}
+
+fn source_read_link_is_exact(attempt: &checked_interpreter::FilesystemOperationAttempt) -> bool {
+    use checked_interpreter::{
+        FilesystemGrantAccess as Access, FilesystemObservationProvider as Provider,
+        FilesystemOperationResult as ResultValue,
+        FilesystemReturnedPathCompleteness as Completeness,
+        FilesystemReturnedPathKind as ReturnedKind, FilesystemScalarOperandValue as ScalarValue,
+    };
+    let Some(ResultValue::Scalar(result)) = attempt.result() else {
+        return false;
+    };
+    let Ok(result_length) = usize::try_from(result) else {
+        return false;
+    };
+    let Ok(result_length_u64) = u64::try_from(result) else {
+        return false;
+    };
+    let [count] = attempt.scalar_operands() else {
+        return false;
+    };
+    let ScalarValue::U64(requested_count) = count.value() else {
+        return false;
+    };
+    let Ok(requested_capacity) = usize::try_from(requested_count) else {
+        return false;
+    };
+    let [rooted] = attempt.rooted_path_operand_resolutions() else {
+        return false;
+    };
+    let [returned] = attempt.returned_paths() else {
+        return false;
+    };
+    let [mutable_resolution] = attempt.mutable_byte_operand_resolutions() else {
+        return false;
+    };
+    let [mutable] = attempt.mutable_byte_operands() else {
+        return false;
+    };
+    let [authorized] = attempt.authorized_paths() else {
+        return false;
+    };
+    let post_prefix_matches = mutable
+        .post_bytes()
+        .get(..result_length)
+        .is_some_and(|prefix| prefix == returned.bytes());
+    let unchanged_tail = mutable
+        .pre_bytes()
+        .get(result_length..)
+        .zip(mutable.post_bytes().get(result_length..))
+        .is_some_and(|(pre, post)| pre == post);
+    let completeness_is_consistent = match returned.completeness() {
+        Completeness::Complete => result_length_u64 <= requested_count,
+        Completeness::LimitReached => result_length_u64 == requested_count,
+    };
+    attempt.operation_tag() == 21
+        && attempt.provider() == Provider::RealScoped
+        && count.operand_ordinal() == 2
+        && result_length_u64 <= requested_count
+        && requested_capacity <= mutable.pre_bytes().len()
+        && result_length <= mutable.post_bytes().len()
+        && attempt.byte_operands().is_empty()
+        && attempt.path_like_operands().is_empty()
+        && rooted.operand_ordinal() == 0
+        && rooted.root() == BUILD_SOURCE_ROOT_IDENTITY
+        && checked_interpreter::filesystem_root_relative_path_is_canonical(
+            rooted.relative_path(),
+            false,
+        )
+        && returned.operand_ordinal() == 1
+        && returned.kind() == ReturnedKind::ReadLinkPayload
+        && returned.bytes().len() == result_length
+        && completeness_is_consistent
+        && attempt.observed_byte_regions().is_empty()
+        && attempt.metadata_observations().is_empty()
+        && mutable_resolution.operand_ordinal() == 1
+        && mutable.operand_ordinal() == 1
+        && mutable_resolution.bytes() == mutable.pre_bytes()
+        && mutable.pre_bytes().len() == mutable.post_bytes().len()
+        && post_prefix_matches
+        && unchanged_tail
+        && attempt.mutable_i64_operand_resolutions().is_empty()
+        && attempt.mutable_i64_operands().is_empty()
+        && authorized.operand_ordinal() == 0
+        && authorized.access() == Access::Read
+        && authorized.root() == BUILD_SOURCE_ROOT_IDENTITY
+        && checked_interpreter::filesystem_root_relative_path_is_canonical(
+            authorized.relative_path(),
+            true,
+        )
+        && attempt.logical_handle_inputs().is_empty()
+        && attempt.logical_handle_output().is_none()
+        && attempt.retired_logical_handles().is_empty()
+        && attempt.grant_refusals().is_empty()
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct ReceiptedOutputFile {
+    relative_path: Vec<u8>,
+    bytes: Vec<u8>,
+    executable: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+enum ReceiptedOutputEntry {
+    Directory {
+        relative_path: Vec<u8>,
+    },
+    File(ReceiptedOutputFile),
+    HardLink {
+        existing_relative_path: Vec<u8>,
+        relative_path: Vec<u8>,
+    },
+    Symlink {
+        relative_path: Vec<u8>,
+        target_spelling: Vec<u8>,
+    },
+}
+
+fn receipted_output_entries(
+    replay: &checked_interpreter::FilesystemReplay,
+) -> Option<Vec<ReceiptedOutputEntry>> {
+    let entries = replay.output_entries();
+    if entries.is_empty() {
+        return replay.has_output_attempts().then(Vec::new);
+    }
+    entries
+        .into_iter()
+        .map(|entry| match entry {
+            checked_interpreter::FilesystemOutputTreeEntryReplayRecord::Directory(directory) => {
+                (directory.output_root() == BUILD_OUTPUT_ROOT_IDENTITY
+                    && directory.mode()
+                        == checked_interpreter::FILESYSTEM_REPLAY_OUTPUT_DIRECTORY_MODE
+                    && directory.result() == 0
+                    && directory.post_error() == 0)
+                    .then(|| ReceiptedOutputEntry::Directory {
+                        relative_path: directory.output_relative_path().to_vec(),
+                    })
+            }
+            checked_interpreter::FilesystemOutputTreeEntryReplayRecord::File(output) => {
+                if output.output_root() != BUILD_OUTPUT_ROOT_IDENTITY
+                    || output.create_post_error() != 0
+                    || output.close_post_error() != 0
+                {
+                    return None;
+                }
+                let bytes = output.replayed_bytes().ok()?;
+                Some(ReceiptedOutputEntry::File(ReceiptedOutputFile {
+                    relative_path: output.output_relative_path().to_vec(),
+                    bytes,
+                    executable: output.replayed_executable(),
+                }))
+            }
+            checked_interpreter::FilesystemOutputTreeEntryReplayRecord::HardLink(hard_link) => {
+                (hard_link.output_root() == BUILD_OUTPUT_ROOT_IDENTITY
+                    && hard_link.post_error() == 0
+                    && matches!(hard_link.result(), 0 | 1))
+                .then(|| ReceiptedOutputEntry::HardLink {
+                    existing_relative_path: hard_link.existing_relative_path().to_vec(),
+                    relative_path: hard_link.output_relative_path().to_vec(),
+                })
+            }
+            checked_interpreter::FilesystemOutputTreeEntryReplayRecord::Symlink(symlink) => {
+                (symlink.output_root() == BUILD_OUTPUT_ROOT_IDENTITY
+                    && symlink.result() == 0
+                    && symlink.post_error() == 0)
+                    .then(|| ReceiptedOutputEntry::Symlink {
+                        relative_path: symlink.output_relative_path().to_vec(),
+                        target_spelling: symlink.target_spelling().to_vec(),
+                    })
+            }
+        })
+        .collect()
+}
+
+fn source_path_metadata_is_exact(
+    attempt: &checked_interpreter::FilesystemOperationAttempt,
+) -> bool {
+    use checked_interpreter::{
+        FilesystemGrantAccess as Access, FilesystemMetadataObservationKind as MetadataKind,
+        FilesystemObservationProvider as Provider, FilesystemOperationResult as ResultValue,
+    };
+    let expected_kind = match attempt.operation_tag() {
+        38 => MetadataKind::FollowedPath,
+        40 => MetadataKind::UnfollowedFinalPath,
+        _ => return false,
+    };
+    let [rooted] = attempt.rooted_path_operand_resolutions() else {
+        return false;
+    };
+    let [authorized] = attempt.authorized_paths() else {
+        return false;
+    };
+    let [metadata] = attempt.metadata_observations() else {
+        return false;
+    };
+    let [mutable_resolution] = attempt.mutable_byte_operand_resolutions() else {
+        return false;
+    };
+    let [mutable] = attempt.mutable_byte_operands() else {
+        return false;
+    };
+    attempt.provider() == Provider::RealScoped
+        && attempt.result() == Some(ResultValue::Scalar(0))
+        && attempt.scalar_operands().is_empty()
+        && attempt.byte_operands().is_empty()
+        && attempt.path_like_operands().is_empty()
+        && rooted.operand_ordinal() == 0
+        && rooted.root() == BUILD_SOURCE_ROOT_IDENTITY
+        && checked_interpreter::filesystem_root_relative_path_is_canonical(
+            rooted.relative_path(),
+            false,
+        )
+        && attempt.returned_paths().is_empty()
+        && attempt.observed_byte_regions().is_empty()
+        && authorized.operand_ordinal() == 0
+        && authorized.access() == Access::Read
+        && authorized.root() == BUILD_SOURCE_ROOT_IDENTITY
+        && checked_interpreter::filesystem_root_relative_path_is_canonical(
+            authorized.relative_path(),
+            true,
+        )
+        && metadata.output_operand_ordinal() == 1
+        && metadata.kind() == expected_kind
+        && mutable_resolution.operand_ordinal() == 1
+        && mutable.operand_ordinal() == 1
+        && mutable_resolution.bytes() == mutable.pre_bytes()
+        && mutable.pre_bytes().len() == mutable.post_bytes().len()
+        && mutable.post_bytes().len() >= checked_interpreter::FILESYSTEM_METADATA_API_CARRIER_BYTES
+        && attempt.mutable_i64_operand_resolutions().is_empty()
+        && attempt.mutable_i64_operands().is_empty()
+        && attempt.logical_handle_inputs().is_empty()
+        && attempt.logical_handle_output().is_none()
+        && attempt.retired_logical_handles().is_empty()
+        && attempt.grant_refusals().is_empty()
+}
+
+fn source_read_chain_open_identity(
+    open: &checked_interpreter::FilesystemOperationAttempt,
+) -> Option<checked_interpreter::FilesystemLogicalHandleIdentity> {
+    use checked_interpreter::{
+        FilesystemLogicalHandleKind as HandleKind,
+        FilesystemLogicalHandleOutputSource as OutputSource,
+        FilesystemOperationResult as ResultValue, FilesystemScalarOperandValue as ScalarValue,
+    };
+    let [rooted] = open.rooted_path_operand_resolutions() else {
+        return None;
+    };
+    let [flags] = open.scalar_operands() else {
+        return None;
+    };
+    let output = open.logical_handle_output()?;
+    let identity = output.identity();
+    (open.operation_tag() == 2
+        && open.provider() == checked_interpreter::FilesystemObservationProvider::RealScoped
+        && rooted.operand_ordinal() == 0
+        && rooted.root() == BUILD_SOURCE_ROOT_IDENTITY
+        && flags.operand_ordinal() == 1
+        && flags.value() == ScalarValue::I32(0)
+        && output.kind() == HandleKind::Descriptor
+        && output.source() == OutputSource::Created
+        && open.result() == Some(ResultValue::LogicalHandle(identity)))
+    .then_some(identity)
+}
+
+fn source_read_chain_read_is_exact(
+    read: &checked_interpreter::FilesystemOperationAttempt,
+    identity: checked_interpreter::FilesystemLogicalHandleIdentity,
+) -> bool {
+    use checked_interpreter::{
+        FilesystemLogicalHandleInputResolution as InputResolution,
+        FilesystemLogicalHandleKind as HandleKind, FilesystemOperationResult as ResultValue,
+        FilesystemScalarOperandValue as ScalarValue,
+    };
+    let [read_input] = read.logical_handle_inputs() else {
+        return false;
+    };
+    let Some(ResultValue::Scalar(read_result)) = read.result() else {
+        return false;
+    };
+    let Ok(read_length) = usize::try_from(read_result) else {
+        return false;
+    };
+    let Ok(read_length_u64) = u64::try_from(read_result) else {
+        return false;
+    };
+    let expected_region_kind = match (read.operation_tag(), read.scalar_operands()) {
+        (4, [count])
+            if count.operand_ordinal() == 2
+                && matches!(count.value(), ScalarValue::U64(requested) if requested >= read_length_u64) =>
+        {
+            checked_interpreter::FilesystemObservedByteRegionKind::SequentialFileRead
+        }
+        (6, [count, offset])
+            if count.operand_ordinal() == 2
+                && matches!(count.value(), ScalarValue::U64(requested) if requested >= read_length_u64)
+                && offset.operand_ordinal() == 3
+                && matches!(offset.value(), ScalarValue::I64(value) if value >= 0) =>
+        {
+            checked_interpreter::FilesystemObservedByteRegionKind::PositionedFileRead
+        }
+        _ => return false,
+    };
+    let [region] = read.observed_byte_regions() else {
+        return false;
+    };
+    read.provider() == checked_interpreter::FilesystemObservationProvider::RealScoped
+        && read_input.operand_ordinal() == 0
+        && read_input.kind() == HandleKind::Descriptor
+        && read_input.resolution() == InputResolution::Resolved(identity)
+        && region.output_operand_ordinal() == 1
+        && region.kind() == expected_region_kind
+        && region.offset() == 0
+        && region.length() == read_length
+}
+
+fn source_directory_read_is_exact(
+    read: &checked_interpreter::FilesystemOperationAttempt,
+    identity: checked_interpreter::FilesystemLogicalHandleIdentity,
+) -> bool {
+    use checked_interpreter::{
+        FilesystemLogicalHandleInputResolution as InputResolution,
+        FilesystemLogicalHandleKind as HandleKind, FilesystemObservationProvider as Provider,
+        FilesystemObservedByteRegionKind as RegionKind, FilesystemOperationResult as ResultValue,
+        FilesystemScalarOperandValue as ScalarValue,
+    };
+    let Some(ResultValue::Scalar(result)) = read.result() else {
+        return false;
+    };
+    let Ok(result_length) = usize::try_from(result) else {
+        return false;
+    };
+    let [count] = read.scalar_operands() else {
+        return false;
+    };
+    let ScalarValue::U64(requested_count) = count.value() else {
+        return false;
+    };
+    let Ok(requested_capacity) = usize::try_from(requested_count) else {
+        return false;
+    };
+    let [region] = read.observed_byte_regions() else {
+        return false;
+    };
+    let [resolution] = read.mutable_byte_operand_resolutions() else {
+        return false;
+    };
+    let [mutable] = read.mutable_byte_operands() else {
+        return false;
+    };
+    let [position_resolution] = read.mutable_i64_operand_resolutions() else {
+        return false;
+    };
+    let [position] = read.mutable_i64_operands() else {
+        return false;
+    };
+    let [handle] = read.logical_handle_inputs() else {
+        return false;
+    };
+    read.operation_tag() == 23
+        && read.provider() == Provider::RealScoped
+        && count.operand_ordinal() == 2
+        && result_length <= requested_capacity
+        && region.output_operand_ordinal() == 1
+        && region.kind() == RegionKind::DirectoryRecords
+        && region.offset() == 0
+        && region.length() == result_length
+        && resolution.operand_ordinal() == 1
+        && mutable.operand_ordinal() == 1
+        && resolution.bytes().len() == mutable.pre_bytes().len()
+        && mutable.pre_bytes().len() == mutable.post_bytes().len()
+        && requested_capacity <= mutable.post_bytes().len()
+        && mutable.pre_bytes()[result_length..] == mutable.post_bytes()[result_length..]
+        && position_resolution.operand_ordinal() == 3
+        && position.operand_ordinal() == 3
+        && handle.operand_ordinal() == 0
+        && handle.kind() == HandleKind::Descriptor
+        && handle.resolution() == InputResolution::Resolved(identity)
+        && read.byte_operands().is_empty()
+        && read.path_like_operands().is_empty()
+        && read.rooted_path_operand_resolutions().is_empty()
+        && read.returned_paths().is_empty()
+        && read.metadata_observations().is_empty()
+        && read.authorized_paths().is_empty()
+        && read.logical_handle_output().is_none()
+        && read.retired_logical_handles().is_empty()
+        && read.grant_refusals().is_empty()
+}
+
+fn source_descriptor_metadata_is_exact(
+    attempt: &checked_interpreter::FilesystemOperationAttempt,
+    identity: checked_interpreter::FilesystemLogicalHandleIdentity,
+) -> bool {
+    use checked_interpreter::{
+        FilesystemLogicalHandleInputResolution as InputResolution,
+        FilesystemLogicalHandleKind as HandleKind,
+        FilesystemMetadataObservationKind as MetadataKind,
+        FilesystemObservationProvider as Provider, FilesystemOperationResult as ResultValue,
+    };
+    let [descriptor] = attempt.logical_handle_inputs() else {
+        return false;
+    };
+    let [metadata] = attempt.metadata_observations() else {
+        return false;
+    };
+    let [mutable_resolution] = attempt.mutable_byte_operand_resolutions() else {
+        return false;
+    };
+    let [mutable] = attempt.mutable_byte_operands() else {
+        return false;
+    };
+    attempt.operation_tag() == 39
+        && attempt.provider() == Provider::RealScoped
+        && attempt.result() == Some(ResultValue::Scalar(0))
+        && descriptor.operand_ordinal() == 0
+        && descriptor.kind() == HandleKind::Descriptor
+        && descriptor.resolution() == InputResolution::Resolved(identity)
+        && metadata.output_operand_ordinal() == 1
+        && metadata.kind() == MetadataKind::OpenDescriptor
+        && mutable_resolution.operand_ordinal() == 1
+        && mutable.operand_ordinal() == 1
+        && mutable_resolution.bytes() == mutable.pre_bytes()
+        && mutable.pre_bytes().len() == mutable.post_bytes().len()
+        && mutable.post_bytes().len() >= checked_interpreter::FILESYSTEM_METADATA_API_CARRIER_BYTES
+        && attempt.scalar_operands().is_empty()
+        && attempt.byte_operands().is_empty()
+        && attempt.path_like_operands().is_empty()
+        && attempt.rooted_path_operand_resolutions().is_empty()
+        && attempt.returned_paths().is_empty()
+        && attempt.observed_byte_regions().is_empty()
+        && attempt.mutable_i64_operand_resolutions().is_empty()
+        && attempt.mutable_i64_operands().is_empty()
+        && attempt.authorized_paths().is_empty()
+        && attempt.logical_handle_output().is_none()
+        && attempt.retired_logical_handles().is_empty()
+        && attempt.grant_refusals().is_empty()
+}
+
+fn source_read_chain_close_is_exact(
+    close: &checked_interpreter::FilesystemOperationAttempt,
+    identity: checked_interpreter::FilesystemLogicalHandleIdentity,
+) -> bool {
+    use checked_interpreter::{
+        FilesystemLogicalHandleInputResolution as InputResolution,
+        FilesystemLogicalHandleKind as HandleKind, FilesystemOperationResult as ResultValue,
+    };
+    let [close_input] = close.logical_handle_inputs() else {
+        return false;
+    };
+    close.operation_tag() == 8
+        && close.provider() == checked_interpreter::FilesystemObservationProvider::RealScoped
+        && close_input.operand_ordinal() == 0
+        && close_input.kind() == HandleKind::Descriptor
+        && close_input.resolution() == InputResolution::Resolved(identity)
+        && close.result() == Some(ResultValue::Scalar(0))
+        && close.retired_logical_handles() == [identity]
+}
+
+/// Prepare and admit the program's exact build-machine activation.
+///
+/// This stage performs every selection and authority decision but executes no
+/// authored code. The returned carrier owns the only entry token accepted by
+/// its prepared program.
+pub fn admit_build_program(
+    typed: &TypedTrees,
+    build_source_id: Option<source::SourceId>,
+    filesystem_scope: &BuildMachineFilesystemScope,
+    evaluation_sponsor: Option<&BuildEvaluationSponsor>,
+    selected_target_profile: Option<target::TargetProfile>,
+) -> Result<AdmittedBuildProgram, Vec<Diagnostic>> {
+    let prepared = PreparedBuildMachineProgram::prepare(typed)?;
+    let typed = prepared.typed();
+    let operational_plan = flow_effects::infer_operational_may(typed);
+    let service_reach_plan = flow_effects::infer_service_reaches(typed, &operational_plan);
+
+    let mut build_machines = typed
+        .machines()
+        .iter()
+        .filter(|machine| is_build_machine(typed, machine, build_source_id));
+    let Some(machine) = build_machines.next() else {
+        return Ok(AdmittedBuildProgram {
+            prepared,
+            machine: AdmittedBuildMachine::None,
+            operational_plan,
+            service_reach_plan,
+            filesystem_scope: filesystem_scope.clone(),
+            evaluation_sponsor: evaluation_sponsor.cloned(),
+            selected_target_profile,
+        });
+    };
+    if let Some(second) = build_machines.next() {
+        return Err(vec![Diagnostic::error(format!(
+            "two build machines exist (`{}` and `{}`); a program declares at most one",
+            machine.name.as_str(),
+            second.name.as_str(),
+        ))]);
+    }
+    let machine_symbol = machine.symbol;
+    let machine_name = machine.name.as_str().to_owned();
+    let machine_entry = prepared.entry(machine_symbol).map_err(|reason| {
+        vec![Diagnostic::error(format!(
+            "could not bind the selected build machine to its prepared program: {reason}"
+        ))]
+    })?;
+    let normalized_callable_identity = typed
+        .normalized_machine_overload_identity(machine)
+        .map(|identity| identity.identity().to_owned())
+        .ok_or_else(|| {
+            vec![Diagnostic::error(
+                "selected build machine has no canonical callable identity",
+            )]
+        })?;
+    let optimization_admission = optimization::BuildOptimizationAdmission::admit(typed)?;
+    let target_vocabulary = target_build_vocabulary(typed, selected_target_profile)?;
+    if let Some(target_vocabulary) = target_vocabulary {
+        validate_immutable_build_target(typed, target_vocabulary)?;
+    }
+
+    // Build authority comes only from compiler-owned Build facets. Runtime
+    // boundary services remain ordinary program authority and are never
+    // admitted merely because a build machine reaches them.
+    let transitive = service_reach_plan
+        .for_machine(machine.symbol)
+        .map(|entry| service_reach_plan.services(entry.inferred_transitive))
+        .unwrap_or(&[]);
+    let transitive_names = transitive
+        .iter()
+        .map(|service| {
+            typed
+                .service_reaches
+                .definition(*service)
+                .map(|definition| definition.name.as_str())
+                .unwrap_or("<unknown canonical service>")
+        })
+        .collect::<Vec<_>>();
+    if std::env::var_os("OMEGA_DEBUG_BUILD_CONFIG").is_some() {
+        eprintln!(
+            "BUILDCFG: machine `{}` found, inferred transitive service reach [{}]",
+            machine.name.as_str(),
+            transitive_names.join(", "),
+        );
+    }
+    if !transitive_names.is_empty() {
+        return Err(vec![Diagnostic::error(format!(
+            "`{machine_name}` reaches boundary service{} `{}` -- build.omg may not reach \
+             runtime boundary services; use the compiler-owned Build facets",
+            if transitive_names.len() == 1 { "" } else { "s" },
+            transitive_names.join(", "),
+        ))]);
+    }
+    let filesystem_reachable =
+        build_reaches_filesystem_facet(typed, &operational_plan, machine.symbol);
+
+    let mut build_fields = Vec::new();
+    if let (Some(profile), Some(_)) = (selected_target_profile, target_vocabulary) {
+        build_fields.push((
+            "target".to_owned(),
+            BuildTimeValue::Case {
+                variant: profile.build_case_name().to_owned(),
+                payload: Vec::new(),
+            },
+        ));
+        build_fields.push((
+            "x86_deployment_features".to_owned(),
+            BuildTimeValue::Case {
+                variant: "Baseline".to_owned(),
+                payload: Vec::new(),
+            },
+        ));
+    }
+    build_fields.extend([
+        (
+            "subsystem".to_owned(),
+            BuildTimeValue::Case {
+                variant: "Console".to_owned(),
+                payload: Vec::new(),
+            },
+        ),
+        ("freestanding".to_owned(), BuildTimeValue::Bool(false)),
+    ]);
+    if let Some(field) = optimization_admission.zero_build_field() {
+        build_fields.push(field);
+    }
+    if has_exact_toolchain_build_facet(typed, "BuildLog") {
+        build_fields.push((
+            "log".to_owned(),
+            BuildTimeValue::Struct {
+                type_name: "$OmegaBuildLogFacet".to_owned(),
+                fields: Vec::new(),
+            },
+        ));
+    }
+    if has_exact_toolchain_build_facet(typed, "BuildSource")
+        && has_exact_toolchain_build_facet(typed, "BuildOutput")
+    {
+        let root_facet = |type_name: &str, root: BuildMachineFilesystemGrantRootIdentity| {
+            BuildTimeValue::Struct {
+                type_name: type_name.to_owned(),
+                fields: vec![(
+                    "root".to_owned(),
+                    BuildTimeValue::Int(i64::from(root.get())),
+                )],
+            }
+        };
+        build_fields.extend([
+            (
+                "source".to_owned(),
+                root_facet("$OmegaBuildSourceRoot", BUILD_SOURCE_ROOT_IDENTITY),
+            ),
+            (
+                "output".to_owned(),
+                root_facet("$OmegaBuildOutputRoot", BUILD_OUTPUT_ROOT_IDENTITY),
+            ),
+        ]);
+    }
+    let zero_build = BuildTimeValue::Struct {
+        type_name: "Build".to_owned(),
+        fields: build_fields,
+    };
+
+    // Omega owns the grant decision. Psi owns the target-neutral interpreter
+    // entry selected by that explicit mode. BuildLog remains available in
+    // either mode without granting a runtime boundary service.
+    let execution_mode = if !filesystem_reachable {
+        BuildMachineExecutionMode::Pure
+    } else {
+        let filesystem = if filesystem_reachable {
+            filesystem_scope.ensure_write_roots()?;
+            filesystem_scope.ensure_canonical_source_metadata()?;
+            filesystem_scope.filesystem_access()
+        } else {
+            BuildMachineFilesystemAccess::Virtual
+        };
+        BuildMachineExecutionMode::Granted {
+            filesystem,
+            filesystem_metadata_layout: BuildMachineFilesystemMetadataLayout::default(),
+        }
+    };
+    Ok(AdmittedBuildProgram {
+        prepared,
+        machine: AdmittedBuildMachine::Selected(SelectedAdmittedBuildMachine {
+            entry: machine_entry,
+            symbol: machine_symbol,
+            name: machine_name,
+            normalized_callable_identity,
+            optimization_admission,
+            target_vocabulary,
+            filesystem_reachable,
+            execution_mode,
+            initial_build: zero_build,
+        }),
+        operational_plan,
+        service_reach_plan,
+        filesystem_scope: filesystem_scope.clone(),
+        evaluation_sponsor: evaluation_sponsor.cloned(),
+        selected_target_profile,
+    })
+}
+
+/// Consume one admitted build activation and extract its durable configuration
+/// and evaluation evidence.
+pub fn execute_admitted_build_program(
+    admitted: AdmittedBuildProgram,
+) -> Result<ComputedBuildConfig, Vec<Diagnostic>> {
+    let AdmittedBuildProgram {
+        prepared,
+        machine,
+        operational_plan: _,
+        service_reach_plan: _,
+        filesystem_scope,
+        evaluation_sponsor,
+        selected_target_profile,
+    } = admitted;
+    let AdmittedBuildMachine::Selected(selected) = machine else {
+        return Ok(ComputedBuildConfig {
+            config: BuildConfig::default(),
+            optimization_report_request: optimization_core::OptimizationReportRequest::Suppressed,
+            evaluation_usage: None,
+            observation_summary: None,
+            selected_build_machine_symbol: None,
+            generated_sources: Vec::new(),
+        });
+    };
+    let SelectedAdmittedBuildMachine {
+        entry: machine_entry,
+        symbol: machine_symbol,
+        name: machine_name,
+        normalized_callable_identity: _,
+        optimization_admission,
+        target_vocabulary,
+        filesystem_reachable,
+        execution_mode,
+        initial_build,
+    } = selected;
+    let typed = prepared.typed();
+    let machine = typed
+        .machines()
+        .iter()
+        .find(|machine| machine.symbol == machine_symbol)
+        .expect("admitted build entry remains in its owned prepared program");
+    let initial_arguments = vec![initial_build];
+    let evaluation_sponsor = evaluation_sponsor.as_ref();
+    let measured = match evaluation_sponsor {
+        Some(sponsor) => {
+            build_time_evaluation::evaluate_build_machine_entry_arguments_measured_with_sponsor(
+                &prepared,
+                &machine_entry,
+                initial_arguments.clone(),
+                execution_mode.clone(),
+                sponsor,
+            )
+        }
+        None => build_time_evaluation::evaluate_build_machine_entry_arguments_measured(
+            &prepared,
+            &machine_entry,
+            initial_arguments.clone(),
+            execution_mode,
+        ),
+    }
+    .map_err(|reason| {
+        let partial_evidence = reason
+            .observations()
+            .filter(|observations| !observations.filesystem_operation_attempts().is_empty())
+            .map(|observations| {
+                let attempts = observations.filesystem_operation_attempts();
+                let halted = attempts
+                    .iter()
+                    .filter(|attempt| {
+                        matches!(
+                            attempt.outcome(),
+                            Some(checked_interpreter::FilesystemOperationAttemptOutcome::EvaluationHalted(_))
+                        )
+                    })
+                    .count();
+                let grant_refusals = attempts
+                    .iter()
+                    .map(|attempt| attempt.grant_refusals().len())
+                    .sum::<usize>();
+                let scalar_operands = attempts
+                    .iter()
+                    .map(|attempt| attempt.scalar_operands().len())
+                    .sum::<usize>();
+                let byte_operands = attempts
+                    .iter()
+                    .map(|attempt| attempt.byte_operands().len())
+                    .sum::<usize>();
+                let path_like_operands = attempts
+                    .iter()
+                    .map(|attempt| attempt.path_like_operands().len())
+                    .sum::<usize>();
+                let logical_handle_operands = attempts
+                    .iter()
+                    .map(|attempt| attempt.logical_handle_inputs().len())
+                    .sum::<usize>();
+                let mutable_carrier_operands = attempts
+                    .iter()
+                    .map(|attempt| {
+                        attempt.mutable_byte_operand_resolutions().len()
+                            + attempt.mutable_i64_operand_resolutions().len()
+                    })
+                    .sum::<usize>();
+                let rooted_path_operands = attempts
+                    .iter()
+                    .map(|attempt| attempt.rooted_path_operand_resolutions().len())
+                    .sum::<usize>();
+                format!(
+                    "; partial non-admission filesystem evidence: {} call(s), {halted} evaluator-halted, {grant_refusals} grant refusal(s), {scalar_operands} scalar operand(s), {byte_operands} immutable byte operand(s), {path_like_operands} path-like operand(s), {rooted_path_operands} rooted-path operand(s), {logical_handle_operands} logical-handle operand(s), {mutable_carrier_operands} mutable-carrier operand(s)",
+                    attempts.len()
+                )
+            })
+            .unwrap_or_default();
+        vec![Diagnostic::error(format!(
+            "build-time evaluation of `{machine_name}` failed: {reason}{partial_evidence}"
+        ))]
+    })?;
+    let usage = measured.usage();
+    let replay = if filesystem_reachable {
+        let attempts = measured.observations().filesystem_operation_attempts();
+        if let Some(operation_suffix_start) =
+            source_input_replay_prefix_end(attempts).filter(|end| *end < attempts.len())
+        {
+            if operation_suffix_start == 0
+                && attempts.len() == 1
+                && exact_source_write_refusal(&attempts[0])
+            {
+                checked_interpreter::FilesystemReplay::from_source_write_refusal_observations(
+                    measured.observations(),
+                )
+                .ok()
+            } else if attempts.len() - operation_suffix_start == 2
+                && unknown_descriptor_bad_descriptor_failure_tag(
+                    attempts[operation_suffix_start].operation_tag(),
+                )
+                && errno_tag(attempts[operation_suffix_start + 1].operation_tag())
+            {
+                checked_interpreter::FilesystemReplay::from_input_unknown_descriptor_failure_with_errno_observations(
+                    measured.observations(),
+                )
+                .ok()
+            } else if attempts.len() - operation_suffix_start == 1
+                && operand_free_unknown_descriptor_operation_tag(
+                    attempts[operation_suffix_start].operation_tag(),
+                )
+            {
+                checked_interpreter::FilesystemReplay::from_input_unknown_descriptor_operation_observations(
+                    measured.observations(),
+                )
+                .ok()
+            } else if attempts.len() - operation_suffix_start == 1
+                && attempts[operation_suffix_start].operation_tag() == 10
+            {
+                checked_interpreter::FilesystemReplay::from_input_unknown_descriptor_seek_observations(
+                    measured.observations(),
+                )
+                .ok()
+            } else if attempts.len() - operation_suffix_start == 1
+                && unknown_descriptor_open_at_tag(attempts[operation_suffix_start].operation_tag())
+            {
+                checked_interpreter::FilesystemReplay::from_input_unknown_descriptor_open_at_observations(
+                    measured.observations(),
+                )
+                .ok()
+            } else if attempts.len() - operation_suffix_start == 1
+                && unknown_descriptor_unlink_at_tag(
+                    attempts[operation_suffix_start].operation_tag(),
+                )
+            {
+                checked_interpreter::FilesystemReplay::from_input_unknown_descriptor_unlink_at_observations(
+                    measured.observations(),
+                )
+                .ok()
+            } else if attempts.len() - operation_suffix_start == 1
+                && unknown_descriptor_read_dir_tag(attempts[operation_suffix_start].operation_tag())
+            {
+                checked_interpreter::FilesystemReplay::from_input_unknown_descriptor_read_dir_observations(
+                    measured.observations(),
+                )
+                .ok()
+            } else if attempts.len() - operation_suffix_start == 1
+                && unknown_descriptor_write_operation_tag(
+                    attempts[operation_suffix_start].operation_tag(),
+                )
+            {
+                checked_interpreter::FilesystemReplay::from_input_unknown_descriptor_write_operation_observations(
+                    measured.observations(),
+                )
+                .ok()
+            } else if attempts.len() - operation_suffix_start == 1
+                && unknown_descriptor_set_file_times_tag(
+                    attempts[operation_suffix_start].operation_tag(),
+                )
+            {
+                checked_interpreter::FilesystemReplay::from_input_unknown_descriptor_set_file_times_observations(
+                    measured.observations(),
+                )
+                .ok()
+            } else if attempts.len() - operation_suffix_start == 1
+                && unknown_descriptor_read_operation_tag(
+                    attempts[operation_suffix_start].operation_tag(),
+                )
+            {
+                checked_interpreter::FilesystemReplay::from_input_unknown_descriptor_read_observations(
+                    measured.observations(),
+                )
+                .ok()
+            } else if attempts.len() - operation_suffix_start == 1
+                && unknown_descriptor_write_payload_operation_tag(
+                    attempts[operation_suffix_start].operation_tag(),
+                )
+            {
+                checked_interpreter::FilesystemReplay::from_input_unknown_descriptor_write_observations(
+                    measured.observations(),
+                )
+                .ok()
+            } else if attempts.len() - operation_suffix_start == 1
+                && unknown_descriptor_read_file_metadata_tag(
+                    attempts[operation_suffix_start].operation_tag(),
+                )
+            {
+                checked_interpreter::FilesystemReplay::from_input_unknown_descriptor_read_file_metadata_observations(
+                    measured.observations(),
+                )
+                .ok()
+            } else if attempts.len() - operation_suffix_start == 1
+                && unknown_descriptor_get_osfhandle_tag(
+                    attempts[operation_suffix_start].operation_tag(),
+                )
+            {
+                checked_interpreter::FilesystemReplay::from_input_unknown_descriptor_get_osfhandle_observations(
+                    measured.observations(),
+                )
+                .ok()
+            } else if attempts.len() - operation_suffix_start == 1
+                && unknown_native_handle_close_tag(attempts[operation_suffix_start].operation_tag())
+            {
+                checked_interpreter::FilesystemReplay::from_input_unknown_native_handle_close_handle_observations(
+                    measured.observations(),
+                )
+                .ok()
+            } else if attempts.len() - operation_suffix_start == 1
+                && unknown_native_handle_final_path_tag(
+                    attempts[operation_suffix_start].operation_tag(),
+                )
+            {
+                checked_interpreter::FilesystemReplay::from_input_unknown_native_handle_final_path_name_by_handle_observations(
+                    measured.observations(),
+                )
+                .ok()
+            } else if attempts.len() - operation_suffix_start == 1
+                && unknown_native_handle_mutation_tag(
+                    attempts[operation_suffix_start].operation_tag(),
+                )
+            {
+                checked_interpreter::FilesystemReplay::from_input_unknown_native_handle_mutation_observations(
+                    measured.observations(),
+                )
+                .ok()
+            } else if attempts.len() - operation_suffix_start == 2
+                && (unknown_native_handle_close_tag(
+                    attempts[operation_suffix_start].operation_tag(),
+                ) || unknown_native_handle_final_path_tag(
+                    attempts[operation_suffix_start].operation_tag(),
+                ) || unknown_native_handle_mutation_tag(
+                    attempts[operation_suffix_start].operation_tag(),
+                ))
+                && get_last_error_tag(attempts[operation_suffix_start + 1].operation_tag())
+            {
+                checked_interpreter::FilesystemReplay::from_input_unknown_native_handle_failure_with_last_error_observations(
+                    measured.observations(),
+                )
+                .ok()
+            } else {
+                checked_interpreter::FilesystemReplay::from_input_output_observations(
+                    measured.observations(),
+                )
+                .ok()
+            }
+        } else {
+            is_source_input_replay_record(measured.observations())
+                .then(|| {
+                    checked_interpreter::FilesystemReplay::from_source_input_observations(
+                        measured.observations(),
+                    )
+                })
+                .and_then(Result::ok)
+        }
+    } else {
+        None
+    };
+    let replay_has_no_output_attempts = replay
+        .as_ref()
+        .is_some_and(|replay| !replay.has_output_attempts());
+    let replay_includes_complete_no_output_failure = replay.is_some()
+        && source_input_replay_prefix_end(measured.observations().filesystem_operation_attempts())
+            .is_some_and(|suffix_start| {
+                complete_no_output_failure_suffix_is_recognized(
+                    measured.observations().filesystem_operation_attempts(),
+                    suffix_start,
+                )
+            });
+    let receipted_output_entries = replay.as_ref().and_then(receipted_output_entries);
+    let replay_usage = if let Some(replay) = replay {
+        let replay_mode = BuildMachineExecutionMode::Granted {
+            filesystem: BuildMachineFilesystemAccess::ReplayFilesystem(replay),
+            filesystem_metadata_layout: BuildMachineFilesystemMetadataLayout::default(),
+        };
+        let replayed = match evaluation_sponsor {
+            Some(sponsor) => {
+                build_time_evaluation::evaluate_build_machine_entry_arguments_measured_with_sponsor(
+                    &prepared,
+                    &machine_entry,
+                    initial_arguments,
+                    replay_mode,
+                    sponsor,
+                )
+            }
+            None => build_time_evaluation::evaluate_build_machine_entry_arguments_measured(
+                &prepared,
+                &machine_entry,
+                initial_arguments,
+                replay_mode,
+            ),
+        }
+        .map_err(|reason| {
+            vec![Diagnostic::error(format!(
+                "build-time replay of `{machine_name}` failed: {reason}"
+            ))]
+        })?;
+        if replayed.value() != measured.value()
+            || replayed.observations() != measured.observations()
+        {
+            return Err(vec![Diagnostic::error(format!(
+                "build-time replay of `{machine_name}` changed its result or operation record"
+            ))]);
+        }
+        Some(replayed.usage())
+    } else {
+        None
+    };
+    let source_inputs_replayed = replay_usage.is_some();
+    let replayed_output_tree = if replay_has_no_output_attempts {
+        Some(empty())
+    } else {
+        receipted_output_entries
+            .as_ref()
+            .map(|entries| {
+                let mut regular_files = std::collections::BTreeMap::new();
+                let mut normalized_entries = Vec::with_capacity(entries.len());
+                for entry in entries {
+                    let normalized = match entry {
+                        ReceiptedOutputEntry::Directory { .. }
+                        | ReceiptedOutputEntry::Symlink { .. } => entry.clone(),
+                        ReceiptedOutputEntry::File(file) => {
+                            regular_files.insert(
+                                file.relative_path.clone(),
+                                (file.bytes.clone(), file.executable),
+                            );
+                            entry.clone()
+                        }
+                        ReceiptedOutputEntry::HardLink {
+                            existing_relative_path,
+                            relative_path,
+                        } => {
+                            let (bytes, executable) = regular_files
+                                .get(existing_relative_path)
+                                .expect("validated hard link follows a regular-file name")
+                                .clone();
+                            regular_files
+                                .insert(relative_path.clone(), (bytes.clone(), executable));
+                            ReceiptedOutputEntry::File(ReceiptedOutputFile {
+                                relative_path: relative_path.clone(),
+                                bytes,
+                                executable,
+                            })
+                        }
+                    };
+                    normalized_entries.push(normalized);
+                }
+                let replayed_entries = normalized_entries
+                    .iter()
+                    .map(|entry| match entry {
+                        ReceiptedOutputEntry::Directory { relative_path } => {
+                            ReplayedBuildOutputEntry::directory(relative_path)
+                        }
+                        ReceiptedOutputEntry::File(file) => ReplayedBuildOutputEntry::regular_file(
+                            &file.relative_path,
+                            &file.bytes,
+                            file.executable,
+                        ),
+                        ReceiptedOutputEntry::Symlink {
+                            relative_path,
+                            target_spelling,
+                        } => {
+                            ReplayedBuildOutputEntry::symbolic_link(relative_path, target_spelling)
+                        }
+                        ReceiptedOutputEntry::HardLink { .. } => {
+                            unreachable!("hard links are normalized before staged commitment")
+                        }
+                    })
+                    .collect::<Vec<_>>();
+                replayed_output_tree(&replayed_entries)
+            })
+            .transpose()?
+    };
+    let observation_ceiling = if filesystem_reachable {
+        BuildObservationClass::Volatile
+    } else {
+        BuildObservationClass::Hermetic
+    };
+    let filesystem_operation_schema_version = measured
+        .observations()
+        .filesystem_operation_schema_version();
+    let filesystem_operation_attempts = measured
+        .observations()
+        .filesystem_operation_attempts()
+        .iter()
+        .map(|attempt| {
+            let authorized_paths = attempt
+                .authorized_paths()
+                .iter()
+                .map(|path| {
+                    let root = if path.root() == BUILD_SOURCE_ROOT_IDENTITY {
+                        BuildFilesystemRoot::Source
+                    } else if path.root() == BUILD_OUTPUT_ROOT_IDENTITY {
+                        BuildFilesystemRoot::Output
+                    } else {
+                        return Err(Diagnostic::error(format!(
+                            "build-time evaluation of `{machine_name}` returned unknown filesystem grant-root identity `{}`",
+                            path.root().get()
+                        )));
+                    };
+                    Ok(BuildFilesystemAuthorizedPath {
+                        operand_ordinal: path.operand_ordinal(),
+                        access: match path.access() {
+                            checked_interpreter::FilesystemGrantAccess::Read => {
+                                BuildFilesystemGrantAccess::Read
+                            }
+                            checked_interpreter::FilesystemGrantAccess::Write => {
+                                BuildFilesystemGrantAccess::Write
+                            }
+                        },
+                        root,
+                        relative_path: path.relative_path().to_vec(),
+                    })
+                })
+                .collect::<Result<Vec<_>, Diagnostic>>()?;
+            let logical_handle_inputs = attempt
+                .logical_handle_inputs()
+                .iter()
+                .map(|input| BuildFilesystemLogicalHandleInput {
+                    operand_ordinal: input.operand_ordinal(),
+                    kind: project_logical_handle_kind(input.kind()),
+                    resolution: project_logical_handle_input_resolution(input.resolution()),
+                })
+                .collect();
+            let scalar_operands = attempt
+                .scalar_operands()
+                .iter()
+                .map(|operand| BuildFilesystemScalarOperand {
+                    operand_ordinal: operand.operand_ordinal(),
+                    value: project_scalar_operand_value(operand.value()),
+                })
+                .collect();
+            let byte_operands = attempt
+                .byte_operands()
+                .iter()
+                .map(|operand| BuildFilesystemByteOperand {
+                    operand_ordinal: operand.operand_ordinal(),
+                    bytes: operand.bytes().to_vec(),
+                })
+                .collect();
+            let path_like_operands = attempt
+                .path_like_operands()
+                .iter()
+                .map(|operand| BuildFilesystemPathLikeOperand {
+                    operand_ordinal: operand.operand_ordinal(),
+                    bytes: operand.bytes().to_vec(),
+                })
+                .collect();
+            let rooted_path_operand_resolutions = attempt
+                .rooted_path_operand_resolutions()
+                .iter()
+                .map(|operand| {
+                    let root = if operand.root() == BUILD_SOURCE_ROOT_IDENTITY {
+                        BuildFilesystemRoot::Source
+                    } else if operand.root() == BUILD_OUTPUT_ROOT_IDENTITY {
+                        BuildFilesystemRoot::Output
+                    } else {
+                        return Err(Diagnostic::error(format!(
+                            "build-time evaluation of `{machine_name}` returned unknown rooted-path operand identity `{}`",
+                            operand.root().get()
+                        )));
+                    };
+                    Ok(BuildFilesystemRootedPathOperandResolution {
+                        operand_ordinal: operand.operand_ordinal(),
+                        root,
+                        relative_path: operand.relative_path().to_vec(),
+                    })
+                })
+                .collect::<Result<Vec<_>, Diagnostic>>()?;
+            let returned_paths = attempt
+                .returned_paths()
+                .iter()
+                .map(|returned| BuildFilesystemReturnedPath {
+                    operand_ordinal: returned.operand_ordinal(),
+                    kind: match returned.kind() {
+                        checked_interpreter::FilesystemReturnedPathKind::ReadLinkPayload => {
+                            BuildFilesystemReturnedPathKind::ReadLinkPayload
+                        }
+                        checked_interpreter::FilesystemReturnedPathKind::CanonicalPath => {
+                            BuildFilesystemReturnedPathKind::CanonicalPath
+                        }
+                        checked_interpreter::FilesystemReturnedPathKind::FinalPath => {
+                            BuildFilesystemReturnedPathKind::FinalPath
+                        }
+                    },
+                    completeness: match returned.completeness() {
+                        checked_interpreter::FilesystemReturnedPathCompleteness::Complete => {
+                            BuildFilesystemReturnedPathCompleteness::Complete
+                        }
+                        checked_interpreter::FilesystemReturnedPathCompleteness::LimitReached => {
+                            BuildFilesystemReturnedPathCompleteness::LimitReached
+                        }
+                    },
+                    bytes: returned.bytes().to_vec(),
+                })
+                .collect();
+            let observed_byte_regions = attempt
+                .observed_byte_regions()
+                .iter()
+                .map(|region| {
+                    Ok(BuildFilesystemObservedByteRegion {
+                        output_operand_ordinal: region.output_operand_ordinal(),
+                        kind: match region.kind() {
+                            checked_interpreter::FilesystemObservedByteRegionKind::SequentialFileRead => {
+                                BuildFilesystemObservedByteRegionKind::SequentialFileRead
+                            }
+                            checked_interpreter::FilesystemObservedByteRegionKind::PositionedFileRead => {
+                                BuildFilesystemObservedByteRegionKind::PositionedFileRead
+                            }
+                            checked_interpreter::FilesystemObservedByteRegionKind::DirectoryRecords => {
+                                BuildFilesystemObservedByteRegionKind::DirectoryRecords
+                            }
+                            checked_interpreter::FilesystemObservedByteRegionKind::FindEntry => {
+                                BuildFilesystemObservedByteRegionKind::FindEntry
+                            }
+                        },
+                        offset: u64::try_from(region.offset()).map_err(|_| {
+                            Diagnostic::error(
+                                "build observation byte-region offset is not canonically representable",
+                            )
+                        })?,
+                        length: u64::try_from(region.length()).map_err(|_| {
+                            Diagnostic::error(
+                                "build observation byte-region length is not canonically representable",
+                            )
+                        })?,
+                    })
+                })
+                .collect::<Result<Vec<_>, Diagnostic>>()?;
+            let metadata_observations = attempt
+                .metadata_observations()
+                .iter()
+                .map(|observation| BuildFilesystemMetadataObservation {
+                    output_operand_ordinal: observation.output_operand_ordinal(),
+                    kind: match observation.kind() {
+                        checked_interpreter::FilesystemMetadataObservationKind::FollowedPath => {
+                            BuildFilesystemMetadataObservationKind::FollowedPath
+                        }
+                        checked_interpreter::FilesystemMetadataObservationKind::OpenDescriptor => {
+                            BuildFilesystemMetadataObservationKind::OpenDescriptor
+                        }
+                        checked_interpreter::FilesystemMetadataObservationKind::UnfollowedFinalPath => {
+                            BuildFilesystemMetadataObservationKind::UnfollowedFinalPath
+                        }
+                    },
+                    device: observation.device(),
+                    mode: observation.mode(),
+                    link_count: observation.link_count(),
+                    inode: observation.inode(),
+                    user: observation.user(),
+                    group: observation.group(),
+                    referenced_device: observation.referenced_device(),
+                    access_time: observation.access_time(),
+                    modification_time: observation.modification_time(),
+                    change_time: observation.change_time(),
+                    birth_time: observation.birth_time(),
+                    size: observation.size(),
+                    blocks_512: observation.blocks_512(),
+                    preferred_block_size: observation.preferred_block_size(),
+                })
+                .collect();
+            let mutable_byte_operand_resolutions = attempt
+                .mutable_byte_operand_resolutions()
+                .iter()
+                .map(|operand| BuildFilesystemMutableByteOperandResolution {
+                    operand_ordinal: operand.operand_ordinal(),
+                    bytes: operand.bytes().to_vec(),
+                })
+                .collect();
+            let mutable_i64_operand_resolutions = attempt
+                .mutable_i64_operand_resolutions()
+                .iter()
+                .map(|operand| BuildFilesystemMutableI64OperandResolution {
+                    operand_ordinal: operand.operand_ordinal(),
+                    value: operand.value(),
+                })
+                .collect();
+            let mutable_byte_operands = attempt
+                .mutable_byte_operands()
+                .iter()
+                .map(|operand| BuildFilesystemMutableByteOperand {
+                    operand_ordinal: operand.operand_ordinal(),
+                    pre_bytes: operand.pre_bytes().to_vec(),
+                    post_bytes: operand.post_bytes().to_vec(),
+                })
+                .collect();
+            let mutable_i64_operands = attempt
+                .mutable_i64_operands()
+                .iter()
+                .map(|operand| BuildFilesystemMutableI64Operand {
+                    operand_ordinal: operand.operand_ordinal(),
+                    pre_value: operand.pre_value(),
+                    post_value: operand.post_value(),
+                })
+                .collect();
+            let logical_handle_output = attempt.logical_handle_output().map(|output| {
+                BuildFilesystemLogicalHandleOutput {
+                    kind: project_logical_handle_kind(output.kind()),
+                    identity: project_logical_handle_identity(output.identity()),
+                    source: project_logical_handle_output_source(output.source()),
+                }
+            });
+            let retired_logical_handles = attempt
+                .retired_logical_handles()
+                .iter()
+                .copied()
+                .map(project_logical_handle_identity)
+                .collect();
+            Ok(BuildFilesystemOperationAttempt {
+                operation_tag: attempt.operation_tag(),
+                provider: match attempt.provider() {
+                checked_interpreter::FilesystemObservationProvider::Virtual => {
+                    BuildFilesystemProvider::Virtual
+                }
+                checked_interpreter::FilesystemObservationProvider::RealUnscoped => {
+                    BuildFilesystemProvider::RealUnscoped
+                }
+                checked_interpreter::FilesystemObservationProvider::RealScoped => {
+                    BuildFilesystemProvider::RealScoped
+                }
+            },
+                observation_class: if source_inputs_replayed {
+                    BuildFilesystemOperationObservationClass::Receipted
+                } else {
+                    BuildFilesystemOperationObservationClass::Volatile
+                },
+                result: project_operation_result(
+                    attempt
+                        .result()
+                        .expect("successful build evaluation cannot retain a halted filesystem call"),
+                ),
+                post_error: attempt
+                    .post_error()
+                    .expect("successful build evaluation cannot retain a halted filesystem call"),
+                scalar_operands,
+                byte_operands,
+                path_like_operands,
+                rooted_path_operand_resolutions,
+                returned_paths,
+                observed_byte_regions,
+                metadata_observations,
+                mutable_byte_operand_resolutions,
+                mutable_i64_operand_resolutions,
+                mutable_byte_operands,
+                mutable_i64_operands,
+                authorized_paths,
+                logical_handle_inputs,
+                logical_handle_output,
+                retired_logical_handles,
+                grant_refusals: attempt
+                    .grant_refusals()
+                    .iter()
+                    .map(|refusal| BuildFilesystemGrantRefusal {
+                        operand_ordinal: refusal.operand_ordinal(),
+                        access: match refusal.access() {
+                            checked_interpreter::FilesystemGrantAccess::Read => {
+                                BuildFilesystemGrantAccess::Read
+                            }
+                            checked_interpreter::FilesystemGrantAccess::Write => {
+                                BuildFilesystemGrantAccess::Write
+                            }
+                        },
+                        reason: match refusal.reason() {
+                            checked_interpreter::FilesystemGrantRefusalReason::Unresolvable => {
+                                BuildFilesystemGrantRefusalReason::Unresolvable
+                            }
+                            checked_interpreter::FilesystemGrantRefusalReason::OutsideGrantedRoots => {
+                                BuildFilesystemGrantRefusalReason::OutsideGrantedRoots
+                            }
+                            checked_interpreter::FilesystemGrantRefusalReason::UnrepresentableRootedPath => {
+                                BuildFilesystemGrantRefusalReason::UnrepresentableRootedPath
+                            }
+                            checked_interpreter::FilesystemGrantRefusalReason::ObservationEvidenceLimitExceeded => {
+                                BuildFilesystemGrantRefusalReason::ObservationEvidenceLimitExceeded
+                            }
+                        },
+                    })
+                    .collect(),
+            })
+        })
+        .collect::<Result<Vec<_>, Diagnostic>>()
+        .map_err(|diagnostic| vec![diagnostic])?;
+    let included_source_handoffs = measured
+        .observations()
+        .build_included_sources()
+        .iter()
+        .map(|source| {
+            if source.root() != BUILD_OUTPUT_ROOT_IDENTITY {
+                return Err(Diagnostic::error(format!(
+                    "build-time evaluation of `{machine_name}` handed off a generated source outside the compiler-issued Output root"
+                )));
+            }
+            Ok(BuildIncludedSourceHandoff {
+                relative_path: source.relative_path().to_vec(),
+                filesystem_attempt_ordinal: u64::try_from(
+                    source.filesystem_attempt_ordinal(),
+                )
+                .map_err(|_| {
+                    Diagnostic::error(format!(
+                        "build-time evaluation of `{machine_name}` produced an included-source ordinal that exceeds canonical u64"
+                    ))
+                })?,
+            })
+        })
+        .collect::<Result<Vec<_>, Diagnostic>>()
+        .map_err(|diagnostic| vec![diagnostic])?;
+    let filesystem_host_observed = measured.observations().filesystem_host_observed();
+    let build_log = measured.observations().build_log().to_vec();
+    let mut arguments = measured.into_value();
+    let augmented = arguments.pop().ok_or_else(|| {
+        vec![Diagnostic::error(format!(
+            "`{machine_name}` returned no argument values (expected the augmented Build)"
+        ))]
+    })?;
+
+    let (mut config, optimization_report) = extract_build_config(
+        &augmented,
+        optimization_admission,
+        selected_target_profile,
+        target_vocabulary.is_some(),
+    )
+    .map_err(|reason| {
+        vec![Diagnostic::error(format!(
+            "`{machine_name}` produced an invalid Build: {reason}"
+        ))]
+    })?;
+    config.grants = harvest_root_grants(typed, machine).map_err(|diagnostic| vec![diagnostic])?;
+    config.provider_selections = harvest_provider_selections(typed, machine)?;
+    config.opaque_representation_selections =
+        representation_planning::harvest_opaque_representation_selections(typed, machine)?;
+    config.wire_compatibility_demands = harvest_wire_compatibility_demands(typed, machine)?;
+    config.root_bindings = harvest_root_bindings(typed, machine)?;
+    let captured_output_tree = filesystem_scope.staged_output_tree(filesystem_reachable)?;
+    let (staged_output_tree, complete_replay_verified) = match (
+        replayed_output_tree,
+        captured_output_tree,
+        filesystem_scope.is_replay(),
+    ) {
+        (Some(replayed), Some(captured), false) => {
+            if replayed != captured {
+                return Err(vec![Diagnostic::error(format!(
+                    "build-time replay of `{machine_name}` reproduced an Output tree that differs from sponsored staged-output custody"
+                ))]);
+            }
+            (Some(captured), true)
+        }
+        (Some(replayed), None, true) => (Some(replayed), true),
+        (Some(replayed), None, false) if replay_includes_complete_no_output_failure => {
+            (Some(replayed), true)
+        }
+        (Some(_), None, false) => (None, false),
+        (Some(_), Some(_), true) => {
+            unreachable!("replay scope cannot capture a physical staged-output tree")
+        }
+        (None, captured, _) => (captured, false),
+    };
+    if complete_replay_verified && !source_inputs_replayed {
+        return Err(vec![Diagnostic::error(format!(
+            "build-time replay of `{machine_name}` completed without exact source-input replay"
+        ))]);
+    }
+    if complete_replay_verified && staged_output_tree.is_none() {
+        return Err(vec![Diagnostic::error(format!(
+            "build-time replay of `{machine_name}` completed without staged-output custody"
+        ))]);
+    }
+    let filesystem_replay_verdict =
+        BuildFilesystemReplayVerdict::new(if complete_replay_verified {
+            BuildFilesystemReplayDisposition::Complete
+        } else if source_inputs_replayed {
+            BuildFilesystemReplayDisposition::SourceInputsOnly
+        } else {
+            BuildFilesystemReplayDisposition::NotReplayed
+        });
+    let realized_observation = if filesystem_replay_verdict.is_complete() {
+        BuildObservationClass::Receipted
+    } else if filesystem_host_observed {
+        BuildObservationClass::Volatile
+    } else {
+        BuildObservationClass::Hermetic
+    };
+    if realized_observation > observation_ceiling {
+        return Err(vec![Diagnostic::error(format!(
+            "build-time evaluation of `{machine_name}` observed filesystem host state outside its static observation ceiling"
+        ))]);
+    }
+    let generated_sources = match staged_output_tree.as_ref() {
+        Some(tree) => {
+            let included_source_paths = included_source_handoffs
+                .iter()
+                .map(|handoff| handoff.relative_path.clone())
+                .collect::<Vec<_>>();
+            select_included_sources(tree, &included_source_paths)?
+        }
+        None if included_source_handoffs.is_empty() => Vec::new(),
+        None => {
+            return Err(vec![Diagnostic::error(format!(
+                "build-time evaluation of `{machine_name}` handed off generated source without sponsored staged-output custody"
+            ))]);
+        }
+    };
+    Ok(ComputedBuildConfig {
+        config,
+        optimization_report_request: optimization_report,
+        evaluation_usage: Some(BuildEvaluationUsage {
+            usage_schema_version: usage.schema().schema_version(),
+            step_schedule_marker: usage.schedule().marker(),
+            invocation_fuel_ceiling: usage.fuel_ceiling(),
+            sponsor_schema_version: evaluation_sponsor
+                .map(|sponsor| sponsor.limits().schema_version()),
+            session_fuel_ceiling: evaluation_sponsor
+                .map(|sponsor| sponsor.limits().maximum_fuel_units()),
+            session_build_log_byte_ceiling: evaluation_sponsor
+                .map(|sponsor| sponsor.limits().maximum_build_log_bytes()),
+            session_filesystem_attempt_ceiling: evaluation_sponsor
+                .map(|sponsor| sponsor.limits().maximum_filesystem_operation_attempts()),
+            session_live_filesystem_handle_ceiling: evaluation_sponsor
+                .map(|sponsor| sponsor.limits().maximum_live_filesystem_handles()),
+            session_live_cell_ceiling: evaluation_sponsor
+                .map(|sponsor| sponsor.limits().maximum_live_cells()),
+            session_live_text_byte_ceiling: evaluation_sponsor
+                .map(|sponsor| sponsor.limits().maximum_live_text_bytes()),
+            session_result_cell_ceiling: evaluation_sponsor
+                .map(|sponsor| sponsor.limits().maximum_result_cells()),
+            session_result_text_byte_ceiling: evaluation_sponsor
+                .map(|sponsor| sponsor.limits().maximum_result_text_bytes()),
+            session_peak_live_filesystem_handles: evaluation_sponsor
+                .map_or(0, BuildEvaluationSponsor::peak_live_filesystem_handles),
+            session_peak_live_cells: evaluation_sponsor
+                .map_or(0, BuildEvaluationSponsor::peak_live_cells),
+            session_peak_live_text_bytes: evaluation_sponsor
+                .map_or(0, BuildEvaluationSponsor::peak_live_text_bytes),
+            fuel_units: usage.fuel_units(),
+            replay_fuel_units: replay_usage.map_or(0, |usage| usage.fuel_units()),
+            build_log_bytes: usage.build_log_bytes(),
+            replay_build_log_bytes: replay_usage.map_or(0, |usage| usage.build_log_bytes()),
+            filesystem_operation_attempts: usage.filesystem_operation_attempts(),
+            replay_filesystem_operation_attempts: replay_usage
+                .map_or(0, |usage| usage.filesystem_operation_attempts()),
+            peak_live_cells: usage.peak_live_cells(),
+            replay_peak_live_cells: replay_usage.map_or(0, |usage| usage.peak_live_cells()),
+            peak_live_text_bytes: usage.peak_live_text_bytes(),
+            replay_peak_live_text_bytes: replay_usage
+                .map_or(0, |usage| usage.peak_live_text_bytes()),
+            result_cells: usage.result_cells(),
+            replay_result_cells: replay_usage.map_or(0, |usage| usage.result_cells()),
+            result_text_bytes: usage.result_text_bytes(),
+            replay_result_text_bytes: replay_usage.map_or(0, |usage| usage.result_text_bytes()),
+        }),
+        observation_summary: Some(BuildObservationSummary {
+            schema_version: BUILD_OBSERVATION_SCHEMA_VERSION,
+            ceiling: observation_ceiling,
+            realized: realized_observation,
+            filesystem_operation_schema_version,
+            filesystem_operation_attempts,
+            canonical_source_metadata_identity: filesystem_scope
+                .canonical_source_metadata_identity(),
+            filesystem_replay_verdict,
+            included_source_handoffs,
+            staged_output_tree,
+            build_log,
+        }),
+        selected_build_machine_symbol: Some(machine.symbol),
+        generated_sources,
+    })
+}
+
+/// Compatibility entry point for callers that do not yet retain the admitted
+/// checkpoint beyond build evaluation.
+pub fn compute_build_config(
+    typed: &TypedTrees,
+    build_source_id: Option<source::SourceId>,
+    filesystem_scope: &BuildMachineFilesystemScope,
+    evaluation_sponsor: Option<&BuildEvaluationSponsor>,
+    selected_target_profile: Option<target::TargetProfile>,
+) -> Result<ComputedBuildConfig, Vec<Diagnostic>> {
+    admit_build_program(
+        typed,
+        build_source_id,
+        filesystem_scope,
+        evaluation_sponsor,
+        selected_target_profile,
+    )?
+    .execute()
+}
+
+/// Collect `builder.roots.bind(Target::Slot, Machine::entry);` declarations
+/// from the one authoritative build machine. Slot membership and schema
+/// checking belong to the selected target profile; this stage establishes the
+/// closed, duplicate-free binding map and preserves the exact machine name.
+fn harvest_root_bindings(
+    typed: &TypedTrees,
+    machine: &typed_trees::machine::Machine,
+) -> Result<Vec<RootBinding>, Vec<Diagnostic>> {
+    let mut bindings: Vec<RootBinding> = Vec::new();
+    let mut diagnostics = Vec::new();
+    let mut record = |target: &str| {
+        let Some(encoded) = target.strip_prefix("bind_root#") else {
+            return;
+        };
+        let Some((slot, implementation)) = encoded.split_once('#') else {
+            diagnostics.push(Diagnostic::error(format!(
+                "malformed root-slot binding declaration `{target}`"
+            )));
+            return;
+        };
+        if let Some(existing) = bindings.iter().find(|binding| binding.slot == slot) {
+            diagnostics.push(Diagnostic::error(format!(
+                "root slot `{slot}` is already bound to `{}`; it cannot also bind `{implementation}`",
+                existing.implementation
+            )));
+            return;
+        }
+        bindings.push(RootBinding {
+            slot: slot.to_owned(),
+            implementation: implementation.to_owned(),
+        });
+    };
+
+    for state in typed.machine_states(machine) {
+        for statement in typed.statement_table.statements(state.statement_nodes) {
+            match statement {
+                typed_trees::statement::StatementNode::Expression(expression) => {
+                    if let typed_trees::expression::ExpressionNode::Call(call) =
+                        typed.expression_table.expression(*expression)
+                    {
+                        record(call.target.as_str());
+                    }
+                }
+                typed_trees::statement::StatementNode::Call(call) => {
+                    record(call.target.as_str());
+                }
+                _ => {}
+            }
+        }
+    }
+
+    if diagnostics.is_empty() {
+        Ok(bindings)
+    } else {
+        Err(diagnostics)
+    }
+}
+
+/// Chapter 21: collect the edge-specific wire facts requested by the one
+/// authoritative build machine. The parser has already validated the closed
+/// fact vocabulary; this pass validates the marker encoding and duplicate
+/// declarations before compatibility evaluation consumes it.
+fn harvest_wire_compatibility_demands(
+    typed: &TypedTrees,
+    machine: &typed_trees::machine::Machine,
+) -> Result<Vec<WireCompatibilityDemand>, Vec<Diagnostic>> {
+    let mut demands = Vec::new();
+    let mut diagnostics = Vec::new();
+    let mut record = |target: &str| {
+        let Some(encoded) = target.strip_prefix("wire_compatibility#") else {
+            return;
+        };
+        let parts = encoded.split('#').collect::<Vec<_>>();
+        if parts.len() < 5 {
+            diagnostics.push(Diagnostic::error(format!(
+                "malformed wire compatibility declaration `{target}`"
+            )));
+            return;
+        }
+        let mut demand = WireCompatibilityDemand {
+            edge: parts[0].to_owned(),
+            lineage: parts[1].to_owned(),
+            local_schema: parts[2].to_owned(),
+            peer_schema: parts[3].to_owned(),
+            require_readable: false,
+            require_writable: false,
+            require_unknown_preservation: false,
+            require_canonical: false,
+            require_complete_migration: false,
+        };
+        for fact in &parts[4..] {
+            match *fact {
+                "Readable" => demand.require_readable = true,
+                "Writable" => demand.require_writable = true,
+                "PreserveUnknown" => demand.require_unknown_preservation = true,
+                "Canonical" => demand.require_canonical = true,
+                "CompleteMigration" => demand.require_complete_migration = true,
+                other => diagnostics.push(Diagnostic::error(format!(
+                    "malformed wire compatibility declaration `{target}`: unknown fact `{other}`"
+                ))),
+            }
+        }
+        if demands.iter().any(|existing: &WireCompatibilityDemand| {
+            existing.edge == demand.edge
+                && existing.lineage == demand.lineage
+                && existing.local_schema == demand.local_schema
+                && existing.peer_schema == demand.peer_schema
+        }) {
+            diagnostics.push(Diagnostic::error(format!(
+                "wire compatibility demand for edge `{}`, lineage `{}`, local schema `{}`, \
+                 and peer schema `{}` is declared twice",
+                demand.edge, demand.lineage, demand.local_schema, demand.peer_schema
+            )));
+            return;
+        }
+        demands.push(demand);
+    };
+
+    for state in typed.machine_states(machine) {
+        for statement in typed.statement_table.statements(state.statement_nodes) {
+            match statement {
+                typed_trees::statement::StatementNode::Expression(expression) => {
+                    if let typed_trees::expression::ExpressionNode::Call(call) =
+                        typed.expression_table.expression(*expression)
+                    {
+                        record(call.target.as_str());
+                    }
+                }
+                typed_trees::statement::StatementNode::Call(call) => {
+                    record(call.target.as_str());
+                }
+                _ => {}
+            }
+        }
+    }
+    if diagnostics.is_empty() {
+        Ok(demands)
+    } else {
+        Err(diagnostics)
+    }
+}
+
+/// PRV4c: collect `builder.select_provider<Subject, ProviderType>();` from the
+/// one authoritative build machine. `Subject` is either one exact boundary
+/// trait, one exact explicit top-level boundary requirement, or one exact
+/// package-qualified boundary-operator family. Merely spelling a declaration
+/// elsewhere grants nothing; selection authority comes from this file-scoped
+/// root.
+pub fn harvest_provider_selections(
+    typed: &TypedTrees,
+    machine: &typed_trees::machine::Machine,
+) -> Result<Vec<ProviderSelection>, Vec<Diagnostic>> {
+    let mut selections: Vec<ProviderSelection> = Vec::new();
+    let mut diagnostics = Vec::new();
+    let mut record = |target: &str,
+                      arguments: &[typed_trees::expression::StaticMachineArgument],
+                      value_arguments: &[typed_trees::expression::ExpressionHandle],
+                      source_span: source::SourceSpan| {
+        if target != "select_provider" {
+            return;
+        }
+        let [boundary_argument, provider_argument] = arguments else {
+            diagnostics.push(Diagnostic::error(
+                "provider selection must retain exactly two resolved type paths",
+            ));
+            return;
+        };
+        let project_identity = |argument: &typed_trees::expression::StaticMachineArgument| {
+            let authored_path = argument
+                .path
+                .iter()
+                .map(|member| member.as_str())
+                .collect::<Vec<_>>()
+                .join("::");
+            ProviderSelectionIdentity {
+                symbol: argument.symbol,
+                package: typed.symbols.symbol_package_identity(argument.symbol),
+                canonical_path: typed.symbols.display_path(argument.symbol, "::"),
+                authored_path,
+            }
+        };
+        let boundary_identity = project_identity(boundary_argument);
+        let provider_type = project_identity(provider_argument);
+        let composition_mode = match provider_selection_composition_mode(typed, value_arguments) {
+            Ok(mode) => mode,
+            Err(diagnostic) => {
+                diagnostics.push(diagnostic);
+                return;
+            }
+        };
+        let subject = if boundary_identity.symbol.is_valid()
+            && typed.symbols.get(boundary_identity.symbol).kind == SymbolKind::Trait
+            && typed.traits().iter().any(|definition| {
+                definition.symbol == boundary_identity.symbol && definition.is_boundary
+            }) {
+            provider_planning::ProviderSelectionSubject::BoundaryTrait(boundary_identity)
+        } else if boundary_identity.symbol.is_valid()
+            && typed.symbols.get(boundary_identity.symbol).kind == SymbolKind::Machine
+            && typed.machines().iter().any(|requirement| {
+                requirement.symbol == boundary_identity.symbol
+                    && requirement.is_public
+                    && requirement.supply_mode
+                        == language_semantics::MachineSupplyMode::TopLevelRequirement
+            })
+        {
+            provider_planning::ProviderSelectionSubject::BoundaryRequirement(boundary_identity)
+        } else if boundary_identity.symbol.is_valid()
+            && typed.symbols.get(boundary_identity.symbol).kind == SymbolKind::Operator
+        {
+            let Some(representative) =
+                typed_trees::operator::declaration_by_symbol(typed, boundary_identity.symbol)
+            else {
+                diagnostics.push(Diagnostic::error(format!(
+                    "provider selection subject `{}` has no exact retained operator declaration",
+                    boundary_identity.authored_path
+                )));
+                return;
+            };
+            let canonical_path = typed
+                .operator_path_members(representative.name)
+                .iter()
+                .map(|member| member.as_str())
+                .collect::<Vec<_>>()
+                .join("::");
+            let family_package = typed.symbols.symbol_package_identity(representative.symbol);
+            let mut coordinates = typed
+                .operators()
+                .iter()
+                .chain(
+                    typed
+                        .domain_definitions()
+                        .iter()
+                        .flat_map(|domain| typed.domain_operators(domain)),
+                )
+                .filter(|operator| {
+                    operator.is_boundary
+                        && typed.symbols.symbol_package_identity(operator.symbol) == family_package
+                        && typed
+                            .operator_path_members(operator.name)
+                            .iter()
+                            .map(|member| member.as_str())
+                            .collect::<Vec<_>>()
+                            .join("::")
+                            == canonical_path
+                })
+                .map(
+                    |operator| provider_planning::ProviderOperatorFamilyCoordinate {
+                        symbol: operator.symbol,
+                        requirement_identity:
+                            typed_trees::operator::boundary_operator_requirement_identity(
+                                typed, operator,
+                            ),
+                        static_parameter_count: operator.lifetime_parameters.len()
+                            + typed.operator_type_parameters(operator).len(),
+                    },
+                )
+                .collect::<Vec<_>>();
+            match provider_planning::ProviderOperatorFamilySelection::new(
+                family_package,
+                canonical_path,
+                boundary_identity.authored_path,
+                std::mem::take(&mut coordinates),
+            ) {
+                Ok(family) => {
+                    provider_planning::ProviderSelectionSubject::BoundaryOperatorFamily(family)
+                }
+                Err(reason) => {
+                    diagnostics.push(Diagnostic::error(reason));
+                    return;
+                }
+            }
+        } else {
+            diagnostics.push(Diagnostic::error(format!(
+                "provider selection subject `{}` does not resolve to an exact boundary trait, top-level boundary requirement, or boundary-operator family",
+                boundary_identity.authored_path
+            )));
+            return;
+        };
+        if !provider_type.symbol.is_valid()
+            || typed.symbols.get(provider_type.symbol).kind != SymbolKind::Data
+        {
+            diagnostics.push(Diagnostic::error(format!(
+                "provider selection type `{}` does not resolve to an exact data declaration",
+                provider_type.authored_path
+            )));
+            return;
+        }
+        if let Some(existing) = selections
+            .iter()
+            .find(|selection| selection.subject.same_declaration_as(&subject))
+        {
+            if existing.provider_type.symbol != provider_type.symbol {
+                diagnostics.push(Diagnostic::error(format!(
+                    "build selects two provider types for slot `{}`: `{}` and `{}`",
+                    subject.canonical_path(),
+                    existing.provider_type.canonical_path,
+                    provider_type.canonical_path,
+                )));
+                return;
+            }
+            if existing.composition_mode != composition_mode {
+                diagnostics.push(Diagnostic::error(format!(
+                    "build selects provider `{}` for slot `{}` with conflicting composition modes {:?} and {:?}",
+                    provider_type.canonical_path,
+                    subject.canonical_path(),
+                    existing.composition_mode,
+                    composition_mode,
+                )));
+                return;
+            }
+        }
+        selections.push(ProviderSelection {
+            subject,
+            provider_type,
+            composition_mode,
+            selecting_machine: machine.symbol,
+            source_span,
+        });
+    };
+    for state in typed.machine_states(machine) {
+        for statement in typed.statement_table.statements(state.statement_nodes) {
+            match statement {
+                typed_trees::statement::StatementNode::Expression(expression) => {
+                    if let typed_trees::expression::ExpressionNode::Call(call) =
+                        typed.expression_table.expression(*expression)
+                    {
+                        record(
+                            call.target.as_str(),
+                            &call.machine_arguments,
+                            typed.expression_table.expression_handles(call.arguments),
+                            typed.expression_table.source_span(*expression),
+                        );
+                    }
+                }
+                typed_trees::statement::StatementNode::Call(call) => {
+                    record(
+                        call.target.as_str(),
+                        &call.machine_arguments,
+                        typed.statement_table.expression_handles(call.arguments),
+                        call.source_span,
+                    );
+                }
+                _ => {}
+            }
+        }
+    }
+    if diagnostics.is_empty() {
+        Ok(selections)
+    } else {
+        Err(diagnostics)
+    }
+}
+
+fn provider_selection_composition_mode(
+    typed: &TypedTrees,
+    arguments: &[typed_trees::expression::ExpressionHandle],
+) -> Result<provider_planning::CompositionMode, Diagnostic> {
+    let [] = arguments else {
+        let [argument] = arguments else {
+            return Err(Diagnostic::error(
+                "provider selection must retain zero arguments for fused composition or one exact compiler-owned CompositionMode value",
+            ));
+        };
+        let typed_trees::expression::ExpressionNode::Name(path) =
+            typed.expression_table.expression(*argument)
+        else {
+            return Err(Diagnostic::error(
+                "provider selection composition mode must be the exact compiler-owned CompositionMode::Fused or CompositionMode::Independent case",
+            ));
+        };
+        let exact_modes = typed
+            .data_definitions()
+            .iter()
+            .filter(|definition| {
+                is_exact_toolchain_build_prelude_data(typed, definition.symbol, "CompositionMode")
+            })
+            .collect::<Vec<_>>();
+        let [modes] = exact_modes.as_slice() else {
+            return Err(Diagnostic::error(
+                "explicit provider composition mode requires exactly one compiler-owned CompositionMode declaration",
+            ));
+        };
+        let selected = typed
+            .data_members(modes)
+            .iter()
+            .filter_map(|member| match member {
+                typed_trees::data::DataMember::Variant(variant)
+                    if variant.symbol == path.symbol
+                        && typed.symbols.get(variant.symbol).parent == modes.symbol =>
+                {
+                    Some(variant)
+                }
+                _ => None,
+            })
+            .collect::<Vec<_>>();
+        let [selected] = selected.as_slice() else {
+            return Err(Diagnostic::error(
+                "provider selection composition mode does not name an exact compiler-owned CompositionMode case",
+            ));
+        };
+        if !typed.data_payload_fields(selected).is_empty() {
+            return Err(Diagnostic::error(
+                "provider selection composition mode case unexpectedly carries a payload",
+            ));
+        }
+        return match selected.name.as_str() {
+            "Fused" => Ok(provider_planning::CompositionMode::Fused),
+            "Independent" => Ok(provider_planning::CompositionMode::Independent),
+            other => Err(Diagnostic::error(format!(
+                "compiler-owned CompositionMode contains unsupported case `{other}`"
+            ))),
+        };
+    };
+    Ok(provider_planning::CompositionMode::Fused)
+}
+
+/// The static grant harvest: every `accept_boundary#<path>` marker call in
+/// the build machine's states (the postfix carve's desugar of
+/// `b.accept_boundary<path>();`). Order-preserving, deduplicated.
+pub fn harvest_root_grants(
+    typed: &TypedTrees,
+    machine: &typed_trees::machine::Machine,
+) -> Result<Vec<trust_model::AuthoredRootGrant>, Diagnostic> {
+    let mut grants = Vec::new();
+    let mut record = |selector: &str, source_span: source::SourceSpan| {
+        if !grants
+            .iter()
+            .any(|grant: &trust_model::AuthoredRootGrant| grant.selector == selector)
+        {
+            grants.push(trust_model::AuthoredRootGrant {
+                selector: selector.to_owned(),
+                selecting_machine: machine.symbol,
+                source_span,
+            });
+        }
+    };
+    for state in typed.machine_states(machine) {
+        for statement in typed.statement_table.statements(state.statement_nodes) {
+            let handles: Vec<typed_trees::expression::ExpressionHandle> = match statement {
+                typed_trees::statement::StatementNode::Expression(expression) => {
+                    vec![*expression]
+                }
+                typed_trees::statement::StatementNode::Call(call) => {
+                    // A statement-level call keeps the marker in its target.
+                    if let Some(path) = call.target.as_str().strip_prefix("accept_boundary#") {
+                        record(path, authored_root_grant_statement_span(typed, call)?);
+                    }
+                    Vec::new()
+                }
+                _ => Vec::new(),
+            };
+            for handle in handles {
+                if let typed_trees::expression::ExpressionNode::Call(call) =
+                    typed.expression_table.expression(handle)
+                    && let Some(path) = call.target.as_str().strip_prefix("accept_boundary#")
+                {
+                    record(path, authored_root_grant_expression_span(typed, handle)?);
+                }
+            }
+        }
+    }
+    Ok(grants)
+}
+
+fn authored_root_grant_statement_span(
+    typed: &TypedTrees,
+    call: &typed_trees::statement::TableCall,
+) -> Result<source::SourceSpan, Diagnostic> {
+    let Some(occurrence) = call.authored_call_selection else {
+        return Err(Diagnostic::error(
+            "build boundary grant has no authored selection occurrence",
+        ));
+    };
+    authored_root_grant_selection_span(typed, occurrence)
+}
+
+fn authored_root_grant_expression_span(
+    typed: &TypedTrees,
+    expression: typed_trees::expression::ExpressionHandle,
+) -> Result<source::SourceSpan, Diagnostic> {
+    let occurrences = typed
+        .expression_table
+        .authored_selection_occurrences(expression)
+        .filter_map(|occurrence| {
+            typed
+                .authored_declaration_selections()
+                .get(occurrence)
+                .filter(|selection| authored_root_grant_selection(**selection))
+                .map(|_| occurrence)
+        })
+        .collect::<Vec<_>>();
+    let [occurrence] = occurrences.as_slice() else {
+        return Err(Diagnostic::error(format!(
+            "build boundary grant expression has {} exact authored selection occurrences",
+            occurrences.len(),
+        )));
+    };
+    authored_root_grant_selection_span(typed, *occurrence)
+}
+
+fn authored_root_grant_selection_span(
+    typed: &TypedTrees,
+    occurrence: language_semantics::declaration_selection::AuthoredDeclarationSelectionOccurrenceId,
+) -> Result<source::SourceSpan, Diagnostic> {
+    let selection = typed
+        .authored_declaration_selections()
+        .get(occurrence)
+        .filter(|selection| authored_root_grant_selection(**selection))
+        .ok_or_else(|| {
+            Diagnostic::error("build boundary grant has no exact authored selection evidence")
+        })?;
+    let span = selection.source_span();
+    if span.span.start >= span.span.end {
+        return Err(Diagnostic::error(
+            "build boundary grant has an empty authored source span",
+        ));
+    }
+    Ok(span)
+}
+
+fn authored_root_grant_selection(
+    selection: language_semantics::declaration_selection::AuthoredDeclarationSelection,
+) -> bool {
+    use language_semantics::declaration_selection::{
+        AuthoredDeclarationSelectionIntrinsic as Intrinsic,
+        AuthoredDeclarationSelectionKind as Kind,
+        AuthoredDeclarationSelectionLateBinding as LateBinding,
+        AuthoredDeclarationSelectionTarget as Target,
+    };
+    selection.kind() == Kind::Call
+        && matches!(
+            selection.target(),
+            Target::LateBound(LateBinding::CheckedCall)
+                | Target::Intrinsic(Intrinsic::BuildBoundaryAcceptance)
+        )
+}
+
+fn extract_build_config(
+    build: &BuildTimeValue,
+    optimization_admission: optimization::BuildOptimizationAdmission,
+    selected_target_profile: Option<target::TargetProfile>,
+    has_target_vocabulary: bool,
+) -> Result<(BuildConfig, optimization_core::OptimizationReportRequest), String> {
+    let BuildTimeValue::Struct { fields, .. } = build else {
+        return Err(format!("expected a Build struct, got {build:?}"));
+    };
+    let field = |name: &str| -> Result<&BuildTimeValue, String> {
+        fields
+            .iter()
+            .find(|(field, _)| field == name)
+            .map(|(_, value)| value)
+            .ok_or_else(|| format!("the Build carries no `{name}` field"))
+    };
+
+    if has_target_vocabulary {
+        let expected = selected_target_profile.ok_or_else(|| {
+            "toolchain Build.target exists without an exact invocation target".to_owned()
+        })?;
+        let BuildTimeValue::Case { variant, payload } = field("target")? else {
+            return Err("Build.target is not a TargetProfile case".to_owned());
+        };
+        if !payload.is_empty() {
+            return Err(format!(
+                "Build.target case `{variant}` unexpectedly carries a payload"
+            ));
+        }
+        let case = variant.rsplit("::").next().unwrap_or(variant);
+        let actual = target::TargetProfile::from_build_case_name(case)
+            .ok_or_else(|| format!("Build.target has unknown TargetProfile case `{case}`"))?;
+        if actual != expected {
+            return Err(format!(
+                "Build.target is compiler-owned and immutable: invocation supplied `{}`, but build evaluation returned `{}`",
+                expected.build_case_name(),
+                actual.build_case_name(),
+            ));
+        }
+    } else if selected_target_profile.is_some() {
+        return Err(
+            "exact invocation target has no admitted toolchain Build.target vocabulary".to_owned(),
+        );
+    }
+
+    let x86_scalar_fma_provider = if has_target_vocabulary {
+        let profile = selected_target_profile.ok_or_else(|| {
+            "toolchain Build.x86_deployment_features exists without an exact invocation target"
+                .to_owned()
+        })?;
+        let BuildTimeValue::Case { variant, payload } = field("x86_deployment_features")? else {
+            return Err(
+                "Build.x86_deployment_features is not an X86DeploymentFeatures case".to_owned(),
+            );
+        };
+        if !payload.is_empty() {
+            return Err(format!(
+                "Build.x86_deployment_features case `{variant}` unexpectedly carries a payload"
+            ));
+        }
+        match variant.rsplit("::").next().unwrap_or(variant) {
+            "Baseline" => None,
+            "AvxFma3" => Some(
+                target::AdmittedX86ScalarFmaProvider::from_deployment_claim(
+                    profile,
+                    &target::X86_SCALAR_FMA_REQUIRED_FEATURES,
+                )
+                .map_err(|error| {
+                    format!(
+                        "Build.x86_deployment_features cannot admit AVX+FMA3 for exact profile `{}`: {error:?}",
+                        profile.target_name()
+                    )
+                })?,
+            ),
+            other => {
+                return Err(format!(
+                    "Build.x86_deployment_features has unknown X86DeploymentFeatures case `{other}`"
+                ));
+            }
+        }
+    } else {
+        None
+    };
+
+    let subsystem = match field("subsystem")? {
+        BuildTimeValue::Case { variant, payload } => {
+            match variant.rsplit("::").next().unwrap_or(variant) {
+                "Console" => 3u16,
+                "Gui" => 2,
+                "EfiApplication" => 10,
+                "Unspecified" => match payload.iter().find(|(name, _)| name == "value") {
+                    Some((_, BuildTimeValue::Int(value))) => {
+                        u16::try_from(*value).map_err(|_| {
+                            format!("Unspecified subsystem value {value} exceeds a u16")
+                        })?
+                    }
+                    other => {
+                        return Err(format!(
+                            "Unspecified subsystem carries no integer value: {other:?}"
+                        ));
+                    }
+                },
+                other => return Err(format!("unknown Subsystem case `{other}`")),
+            }
+        }
+        other => {
+            return Err(format!(
+                "Build.subsystem is not a Subsystem case: {other:?}"
+            ));
+        }
+    };
+
+    let freestanding = match field("freestanding")? {
+        BuildTimeValue::Bool(value) => *value,
+        other => return Err(format!("Build.freestanding is not a bool: {other:?}")),
+    };
+
+    let (optimizations, optimization_report) = optimization_admission.extract(build)?;
+
+    Ok((
+        BuildConfig {
+            subsystem,
+            freestanding,
+            optimizations,
+            x86_scalar_fma_provider,
+            grants: Vec::new(),
+            provider_selections: Vec::new(),
+            opaque_representation_selections: Vec::new(),
+            wire_compatibility_demands: Vec::new(),
+            root_bindings: Vec::new(),
+        },
+        optimization_report,
+    ))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{
+        AdmittedBuildAuthorityVerdict, AdmittedBuildProgramDisposition, BuildConfig,
+        BuildMachineFilesystemScope, RootBinding, SelectedCompilerProgramEntry,
+        admit_build_program, compute_build_config, select_compiler_program_entry,
+        selected_program_entry_machine,
+    };
+    use build_time_evaluation::BuildMachineFilesystemAccess;
+    use checked_interpreter::{FilesystemSponsor, FilesystemSponsorLimits};
+    use std::{
+        fs,
+        path::PathBuf,
+        sync::atomic::{AtomicU64, Ordering},
+    };
+
+    static STAGING_TEST_SEQUENCE: AtomicU64 = AtomicU64::new(0);
+
+    fn temporary_staging_root(label: &str) -> std::path::PathBuf {
+        std::env::temp_dir().join(format!(
+            "omega-build-staging-{label}-{}-{}",
+            std::process::id(),
+            STAGING_TEST_SEQUENCE.fetch_add(1, Ordering::Relaxed)
+        ))
+    }
+
+    fn config_with_root_bindings(bindings: &[(&str, &str)]) -> BuildConfig {
+        BuildConfig {
+            root_bindings: bindings
+                .iter()
+                .map(|(slot, implementation)| RootBinding {
+                    slot: (*slot).to_owned(),
+                    implementation: (*implementation).to_owned(),
+                })
+                .collect(),
+            ..BuildConfig::default()
+        }
+    }
+
+    #[test]
+    fn admitted_no_build_checkpoint_preserves_default_configuration_and_evidence() {
+        let typed = typed_trees::TypedTrees::default();
+        let scope = BuildMachineFilesystemScope::for_root(
+            std::path::Path::new("main.omg"),
+            PathBuf::from("build"),
+            None,
+        );
+        let admitted = admit_build_program(&typed, None, &scope, None, None)
+            .expect("the empty program has an explicit no-build disposition");
+
+        assert_eq!(
+            admitted.disposition(),
+            AdmittedBuildProgramDisposition::NoBuildMachine
+        );
+        assert_eq!(
+            admitted.authority_verdict(),
+            AdmittedBuildAuthorityVerdict::NoBuildMachine
+        );
+        assert_eq!(admitted.selected_build_machine_symbol(), None);
+        assert_eq!(admitted.selected_build_machine_callable_identity(), None);
+        assert_eq!(admitted.initial_build_snapshot(), None);
+        assert!(admitted.operational_plan().machines().is_empty());
+        assert!(admitted.service_reach_plan().machines().is_empty());
+
+        let executed = admitted.execute().expect("consume no-build checkpoint");
+        let compatibility = compute_build_config(&typed, None, &scope, None, None)
+            .expect("compatibility wrapper executes the same checkpoint");
+        assert_eq!(executed, compatibility);
+        assert_eq!(executed.config, BuildConfig::default());
+        assert_eq!(executed.evaluation_usage, None);
+        assert_eq!(executed.observation_summary, None);
+        assert_eq!(executed.selected_build_machine_symbol, None);
+        assert!(executed.generated_sources.is_empty());
+    }
+
+    fn source_only_program_entry_settlement() -> SelectedCompilerProgramEntry {
+        let source_signature =
+            program_entry_plan::SelectedProgramEntrySourceSignature::from_checked_typed_entry(
+                target::TargetProfile::WindowsX64.program_entry_slot(),
+                symbols::SymbolHandle::from_arena_index(1),
+                symbols::SymbolHandle::from_arena_index(2),
+                "Application::start".into(),
+                "entry".into(),
+                "Application::start::entry() -> Unit".into(),
+                program_entry_plan::ProgramEntrySourceReceiverSignature::Free,
+                Vec::new(),
+            )
+            .expect("exact source-only ProgramEntry fixture");
+        SelectedCompilerProgramEntry::new(source_signature, None)
+    }
+
+    fn provisioned_program_entry_settlement() -> SelectedCompilerProgramEntry {
+        let source_signature =
+            program_entry_plan::SelectedProgramEntrySourceSignature::from_checked_typed_entry(
+                target::TargetProfile::WindowsX64.program_entry_slot(),
+                symbols::SymbolHandle::from_arena_index(1),
+                symbols::SymbolHandle::from_arena_index(2),
+                "Application::start".into(),
+                "entry".into(),
+                "Application::start::entry(&mut self) -> Unit".into(),
+                program_entry_plan::ProgramEntrySourceReceiverSignature::ProvisionedMutable {
+                    normalized_type_identity: "ref-mut(named(name(Application)))".into(),
+                },
+                Vec::new(),
+            )
+            .expect("exact provisioned ProgramEntry fixture");
+        SelectedCompilerProgramEntry::new(source_signature, None)
+    }
+
+    fn fused_root_row(
+        selected: &SelectedCompilerProgramEntry,
+        field: &str,
+    ) -> program_entry_plan::ProgramEntryFusedServiceEstablishment {
+        program_entry_plan::ProgramEntryFusedServiceEstablishment::new(
+            selected.source_signature().identity(),
+            selected.source_signature().target_slot(),
+            "ref-mut(named(name(Application)))".into(),
+            "named(name(Application))".into(),
+            field.into(),
+            "qualified(named(name(Service<Console>)), declared-domain(name(Bound)))".into(),
+            "named(name(Service<Console>))".into(),
+            "Bound".into(),
+            "Console".into(),
+            effects::provider_plan::ServiceSchemaDigest::from_digest([1; 32]),
+            effects::provider_plan::ProviderPlanDigest::from_digest([2; 32]),
+        )
+        .expect("exact Fused root fixture")
+    }
+
+    #[test]
+    fn compiler_program_entry_absence_needs_no_typed_or_calling_plan_facts() {
+        let selected = select_compiler_program_entry(
+            &typed_trees::TypedTrees::default(),
+            &BuildConfig::default(),
+            None,
+            &[],
+            None,
+        )
+        .expect("an absent ProgramEntry is a complete settlement");
+
+        assert!(selected.is_none());
+    }
+
+    #[test]
+    fn compiler_program_entry_consuming_split_preserves_source_only_custody() {
+        let selected = source_only_program_entry_settlement();
+        let expected_source = selected.source_signature().clone();
+
+        assert_eq!(selected.machine_name(), "Application::start");
+        assert!(selected.calling_plans().is_none());
+        let (source_signature, calling_plans, establishments) = selected.into_parts();
+
+        assert_eq!(source_signature, expected_source);
+        assert!(calling_plans.is_none());
+        assert!(establishments.is_empty());
+    }
+
+    #[test]
+    fn compiler_program_entry_binds_exact_sorted_fused_root_establishments() {
+        let mut selected = provisioned_program_entry_settlement();
+        let second = fused_root_row(&selected, "#2");
+        let first = fused_root_row(&selected, "#1");
+        selected
+            .bind_fused_service_establishments(vec![second, first.clone()])
+            .expect("exact provisioned roots should bind");
+        assert_eq!(
+            selected
+                .fused_service_establishments()
+                .iter()
+                .map(|row| row.field_identity())
+                .collect::<Vec<_>>(),
+            ["#1", "#2"],
+        );
+
+        assert!(
+            selected
+                .bind_fused_service_establishments(vec![first.clone(), first])
+                .is_err(),
+            "duplicate direct receiver fields must reject"
+        );
+        let mut free = source_only_program_entry_settlement();
+        assert!(
+            free.bind_fused_service_establishments(vec![fused_root_row(&selected, "#3")])
+                .is_err(),
+            "a free ProgramEntry cannot acquire receiver establishment"
+        );
+    }
+
+    #[test]
+    fn compiler_program_entry_validates_source_before_calling_plans() {
+        let config = config_with_root_bindings(&[(
+            "windows_x86_64::ProgramEntry",
+            "MissingApplication::start",
+        )]);
+        let result = select_compiler_program_entry(
+            &typed_trees::TypedTrees::default(),
+            &config,
+            Some(target::TargetProfile::WindowsX64),
+            &[],
+            None,
+        );
+        let Err(diagnostics) = result else {
+            panic!("missing source entry must reject before calling-plan selection")
+        };
+
+        assert_eq!(diagnostics.len(), 1);
+        assert_eq!(
+            diagnostics[0].to_string(),
+            "error: build root slot names unknown entry machine `MissingApplication::start`"
+        );
+    }
+
+    #[test]
+    fn sponsored_build_roots_share_one_session_entry_ceiling() {
+        let session_root = temporary_staging_root("shared-account");
+        fs::create_dir(&session_root).expect("create session root");
+        let sponsor = FilesystemSponsor::with_limits(
+            &session_root,
+            FilesystemSponsorLimits {
+                maximum_entries: 1,
+                maximum_total_logical_bytes: 64,
+                maximum_object_extent: 64,
+            },
+        )
+        .expect("create filesystem sponsor");
+
+        let first_build_dir = session_root.join("first-package");
+        BuildMachineFilesystemScope::for_root(
+            &session_root.join("first-source/main.omg"),
+            first_build_dir.clone(),
+            Some(sponsor.clone()),
+        )
+        .ensure_write_roots()
+        .expect("first package consumes the one available entry");
+
+        let second_build_dir = session_root.join("second-package");
+        let diagnostics = BuildMachineFilesystemScope::for_root(
+            &session_root.join("second-source/main.omg"),
+            second_build_dir.clone(),
+            Some(sponsor.clone()),
+        )
+        .ensure_write_roots()
+        .expect_err("the second package must share the exhausted session ceiling");
+
+        assert_eq!(sponsor.snapshot().unwrap().entries, 1);
+        assert!(first_build_dir.is_dir());
+        assert!(!second_build_dir.exists());
+        assert!(diagnostics[0].to_string().contains("entry limit 1"));
+
+        fs::remove_dir_all(session_root).expect("remove session root");
+    }
+
+    #[test]
+    fn build_scope_attaches_canonical_metadata_only_to_source() {
+        let metadata = checked_interpreter::CanonicalFilesystemMetadataIndex::version_1(
+            [0x5a; 32],
+            [checked_interpreter::CanonicalFilesystemMetadataRow::new(
+                Vec::new(),
+                checked_interpreter::CanonicalFilesystemMetadataRowKind::Directory,
+            )],
+        )
+        .expect("construct canonical source metadata");
+        let scope = BuildMachineFilesystemScope::for_package_root(
+            PathBuf::from("source"),
+            PathBuf::from("build"),
+            None,
+            Some(metadata.clone()),
+        );
+
+        let BuildMachineFilesystemAccess::RealScoped(grants) = scope.filesystem_access() else {
+            panic!("unsponsored build scope must use scoped real filesystem grants")
+        };
+        assert_eq!(grants.read_roots.len(), 1);
+        assert_eq!(grants.write_roots.len(), 1);
+        assert_eq!(grants.read_roots[0].canonical_metadata(), Some(&metadata));
+        assert!(grants.write_roots[0].canonical_metadata().is_none());
+    }
+
+    #[test]
+    fn package_build_scope_rejects_filesystem_authority_without_canonical_source_metadata() {
+        let scope = BuildMachineFilesystemScope::for_package_root(
+            PathBuf::from("package-root"),
+            PathBuf::from("build"),
+            None,
+            None,
+        );
+
+        let diagnostics = scope
+            .ensure_canonical_source_metadata()
+            .expect_err("package filesystem access must not fall back to physical metadata");
+        assert_eq!(diagnostics.len(), 1);
+        assert!(diagnostics[0].message.contains("canonical Source metadata"));
+        assert_eq!(scope.source_root, PathBuf::from("package-root"));
+    }
+
+    #[test]
+    fn targetless_check_does_not_select_a_program_entry_from_retained_bindings() {
+        let config =
+            config_with_root_bindings(&[("windows_x86_64::ProgramEntry", "Application::start")]);
+
+        assert_eq!(
+            selected_program_entry_machine(&config, None)
+                .expect("targetless checking is entry-agnostic"),
+            None
+        );
+    }
+
+    #[test]
+    fn selected_target_ignores_valid_foreign_program_entry_slot_after_its_own() {
+        let config = config_with_root_bindings(&[
+            ("windows_x86_64::ProgramEntry", "Application::start"),
+            ("linux_x86_64::ProgramEntry", "Diagnostics::start"),
+        ]);
+
+        let selected =
+            selected_program_entry_machine(&config, Some(target::TargetProfile::WindowsX64))
+                .expect("known foreign target roots remain available to their own profiles")
+                .expect("selected target has one exact root");
+
+        assert_eq!(selected.machine_name, "Application::start");
+        assert_eq!(selected.slot.owner, target::TargetProfile::WindowsX64);
+    }
+
+    #[test]
+    fn selected_target_ignores_valid_foreign_program_entry_slot_before_its_own() {
+        let config = config_with_root_bindings(&[
+            ("linux_x86_64::ProgramEntry", "Diagnostics::start"),
+            ("windows_x86_64::ProgramEntry", "Application::start"),
+        ]);
+
+        let selected =
+            selected_program_entry_machine(&config, Some(target::TargetProfile::WindowsX64))
+                .expect("binding order cannot change target-scoped selection")
+                .expect("selected target has one exact root");
+
+        assert_eq!(selected.machine_name, "Application::start");
+        assert_eq!(selected.slot.owner, target::TargetProfile::WindowsX64);
+    }
+
+    #[test]
+    fn selected_entry_retains_the_target_owned_slot_schema() {
+        let config =
+            config_with_root_bindings(&[("uefi_x86_64::ProgramEntry", "Application::start")]);
+
+        let selected =
+            selected_program_entry_machine(&config, Some(target::TargetProfile::UefiX64))
+                .expect("typed root slot selection")
+                .expect("one selected entry");
+
+        assert_eq!(selected.machine_name, "Application::start");
+        assert_eq!(selected.slot.owner, target::TargetProfile::UefiX64);
+        assert_eq!(
+            selected.slot.visible_parameters,
+            target::ProgramEntryVisibleParameters::ImageAndInitialStorage
+        );
+    }
+
+    #[test]
+    fn root_slot_owner_rejects_legacy_cli_aliases() {
+        let config =
+            config_with_root_bindings(&[("windows_x64::ProgramEntry", "Application::start")]);
+
+        let diagnostics =
+            selected_program_entry_machine(&config, Some(target::TargetProfile::WindowsX64))
+                .expect_err("a noncanonical target owner must reject");
+
+        assert_eq!(diagnostics.len(), 1);
+        assert!(diagnostics[0].to_string().contains(
+            "root slot `windows_x64::ProgramEntry` belongs to unknown target profile `windows_x64`"
+        ));
+    }
+
+    #[test]
+    fn root_selection_rejects_names_absent_from_the_target_catalog() {
+        let config =
+            config_with_root_bindings(&[("windows_x86_64::UndeclaredEntry", "Application::start")]);
+
+        let diagnostics =
+            selected_program_entry_machine(&config, Some(target::TargetProfile::WindowsX64))
+                .expect_err("an undeclared target root cannot enter ProgramEntry lowering");
+
+        assert_eq!(diagnostics.len(), 1);
+        assert!(diagnostics[0].to_string().contains(
+            "target profile `windows_x86_64` declares no required root slot `windows_x86_64::UndeclaredEntry`"
+        ));
+    }
+
+    #[test]
+    fn selected_target_requires_every_member_of_its_catalog() {
+        let config =
+            config_with_root_bindings(&[("linux_x86_64::ProgramEntry", "Diagnostics::start")]);
+
+        let diagnostics =
+            selected_program_entry_machine(&config, Some(target::TargetProfile::WindowsX64))
+                .expect_err("a foreign target row cannot satisfy the selected catalog");
+
+        assert_eq!(diagnostics.len(), 1);
+        assert!(diagnostics[0].to_string().contains(
+            "selected target `windows_x86_64` has no bound required root slot `windows_x86_64::ProgramEntry`"
+        ));
+    }
+
+    #[test]
+    fn selected_target_rejects_duplicate_catalog_members() {
+        let config = config_with_root_bindings(&[
+            ("windows_x86_64::ProgramEntry", "Application::start"),
+            ("windows_x86_64::ProgramEntry", "Diagnostics::start"),
+        ]);
+
+        let diagnostics =
+            selected_program_entry_machine(&config, Some(target::TargetProfile::WindowsX64))
+                .expect_err("one required catalog member cannot be bound twice");
+
+        assert_eq!(diagnostics.len(), 1);
+        assert!(diagnostics[0].to_string().contains(
+            "selected target `windows_x86_64` has more than one bound required root slot `windows_x86_64::ProgramEntry`"
+        ));
+    }
+}

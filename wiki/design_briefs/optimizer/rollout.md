@@ -20,7 +20,7 @@ it does not construct a verified optimization input, optimization unit, pass
 manager, ledger, or optimized-plan projection. Provider-installation replay
 has distinct ordinary and explicit-optimizer entrances for the same reason.
 
-`omega-compiler/tests/no_selection_golden.rs` is the executable firewall. Its
+`compiler/tests/no_selection_golden.rs` is the executable firewall. Its
 small entrance descends into acceptance/diagnostic and native-artifact leaves.
 On every supported host it evaluates all four hosted native targets
 (`linux_x86_64`, `linux_arm64`, `macos_arm64`, and `windows_x86_64`), compiles each
@@ -130,7 +130,7 @@ commands ensure verification cannot update the expected baseline. Meaningful
 measured objectives, external models, and sandboxed compiler-side policy
 execution remain experimental work and are not part of ordinary builds.
 
-The neutral `omega-bounded-process` tooling boundary is only a prerequisite for
+The neutral `bounded-process` tooling boundary is only a prerequisite for
 external execution. It centralizes structured command preparation, concrete
 resource limits, bounded capture, deadlines, and process-container cleanup,
 and is already shared by resolver execution and Git acquisition. Unix process

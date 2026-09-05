@@ -6,8 +6,8 @@ mod getters;
 mod validation;
 
 use super::*;
-use omega_target::TargetProfile;
-use psi_core::PackageKeyIdentity;
+use semantic_vocabulary::PackageKeyIdentity;
+use target::TargetProfile;
 
 /// One reviewed package in one exact target activation. This record carries
 /// comparison meaning, not an acceptance decision or a compiler certificate.

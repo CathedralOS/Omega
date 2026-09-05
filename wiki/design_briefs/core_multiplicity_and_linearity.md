@@ -800,7 +800,7 @@ Arena-backed task-pool leases reuse the conservation discipline without
 conflating allocation permission with range authority. General owned `LinBuf` splitting and
 quantitative effect members come later.
 
-The compiler foundation now has an executable `psi-extents` conservation
+The compiler foundation now has an executable `extents` conservation
 model: roots come only from one-shot admitted grants; split is exact; merge is
 restricted to compatible children of the same split; attenuation only removes
 normalized rights; and consuming failures return their authority inputs. This

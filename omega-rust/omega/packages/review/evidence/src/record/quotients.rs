@@ -1,7 +1,7 @@
 use super::PackageReviewCanonicalRowSource;
-use omega_target::TargetProfile;
-use psi_core::PackageKeyIdentity;
-use psi_language_semantics::quotient_correspondence::CanonicalQuotientCorrespondence;
+use language_semantics::quotient_correspondence::CanonicalQuotientCorrespondence;
+use semantic_vocabulary::PackageKeyIdentity;
+use target::TargetProfile;
 
 /// Proof-only package-review projection of the bounded direct quotient
 /// correspondence batch: total faithful `define` and position-preserving

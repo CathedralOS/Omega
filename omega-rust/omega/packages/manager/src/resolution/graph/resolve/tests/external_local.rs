@@ -104,7 +104,7 @@ fn project_resolution_retains_an_application_root_role() {
     );
 
     let subject = crate::resolution::graph::CanonicalSourceClosureSubject::from_resolved(
-        &closure.for_exact_target(omega_target::TargetProfile::CrossPlatformCli),
+        &closure.for_exact_target(target::TargetProfile::CrossPlatformCli),
         crate::resolution::graph::CanonicalSourceClosureSubjectLimits::default(),
     )
     .expect("encode source closure");

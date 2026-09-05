@@ -19,7 +19,7 @@ fn replay_rejects_every_root_usage_roster_function_unit_and_witness_corruption()
 
     let mut selected = canonical.clone();
     selected.selected =
-        omega_selected_instructions::SelectedInstructionPlanIdentity::from_bytes([0x31; 32]);
+        selected_instructions::SelectedInstructionPlanIdentity::from_bytes([0x31; 32]);
     assert_eq!(
         validate_allocated_callee_saved_requirements(&source, selected),
         Err(AllocatedCalleeSavedRequirementError::RootMismatch)
@@ -27,7 +27,7 @@ fn replay_rejects_every_root_usage_roster_function_unit_and_witness_corruption()
 
     let mut homes = canonical.clone();
     homes.homes =
-        omega_selected_instructions_to_register_homes::RegisterHomeIdentity::from_bytes([0x32; 32]);
+        selected_instructions_to_register_homes::RegisterHomeIdentity::from_bytes([0x32; 32]);
     assert_eq!(
         validate_allocated_callee_saved_requirements(&source, homes),
         Err(AllocatedCalleeSavedRequirementError::RootMismatch)
@@ -35,7 +35,7 @@ fn replay_rejects_every_root_usage_roster_function_unit_and_witness_corruption()
 
     let mut manifest = canonical.clone();
     manifest.post_allocation_manifest =
-        omega_optimization_core::PostAllocationOptimizationManifestIdentity::from_bytes([0x33; 32]);
+        optimization_core::PostAllocationOptimizationManifestIdentity::from_bytes([0x33; 32]);
     assert_eq!(
         validate_allocated_callee_saved_requirements(&source, manifest),
         Err(AllocatedCalleeSavedRequirementError::RootMismatch)
@@ -43,7 +43,7 @@ fn replay_rejects_every_root_usage_roster_function_unit_and_witness_corruption()
 
     let mut environment = canonical.clone();
     environment.register_environment =
-        omega_register_model::TargetRegisterEnvironmentIdentity::from_bytes([0x34; 32]);
+        register_model::TargetRegisterEnvironmentIdentity::from_bytes([0x34; 32]);
     assert_eq!(
         validate_allocated_callee_saved_requirements(&source, environment),
         Err(AllocatedCalleeSavedRequirementError::RootMismatch)
@@ -51,7 +51,7 @@ fn replay_rejects_every_root_usage_roster_function_unit_and_witness_corruption()
 
     let mut physical = canonical.clone();
     physical.physical_register_model =
-        omega_register_model::PhysicalRegisterModelIdentity::from_bytes([0x35; 32]);
+        register_model::PhysicalRegisterModelIdentity::from_bytes([0x35; 32]);
     assert_eq!(
         validate_allocated_callee_saved_requirements(&source, physical),
         Err(AllocatedCalleeSavedRequirementError::RootMismatch)
@@ -95,13 +95,13 @@ fn replay_rejects_every_root_usage_roster_function_unit_and_witness_corruption()
 
     let mut unit = canonical.clone();
     unit.functions[modified_function].modified_units[0].unit =
-        omega_register_model::RegisterUnitId(u16::MAX);
+        register_model::RegisterUnitId(u16::MAX);
     rejects_noncanonical(&source, unit);
 
     let mut witness = canonical.clone();
     witness.functions[modified_function].modified_units[0].witnesses[0] =
         CalleeSavedModificationWitness::ImplicitClobber {
-            block: omega_selected_instructions::SelectedBlockId(999),
+            block: selected_instructions::SelectedBlockId(999),
             instruction: SelectedInstructionId(999),
         };
     rejects_noncanonical(&source, witness);

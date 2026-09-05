@@ -360,7 +360,7 @@ machine build(builder: &mut Build) {
         "packages/right"
     );
     let canonical = crate::resolution::graph::CanonicalSourceClosureSubject::from_resolved(
-        &closure.for_exact_target(omega_target::TargetProfile::CrossPlatformCli),
+        &closure.for_exact_target(target::TargetProfile::CrossPlatformCli),
         crate::resolution::graph::CanonicalSourceClosureSubjectLimits::default(),
     )
     .expect("canonicalize member-relative Git closure");

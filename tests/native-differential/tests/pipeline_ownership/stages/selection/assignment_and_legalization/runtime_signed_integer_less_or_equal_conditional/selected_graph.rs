@@ -29,7 +29,7 @@ fn runtime_i64_parameter_less_or_equal_selects_reversed_signed_compare_on_both_i
             legalized.recipe,
             LegalizationRecipe::ReturnU64I64LessOrEqualParametersConditionalV1
         );
-        let omega_legalized_operations::LegalizedCondition::I64LessOrEqualParametersV1 {
+        let legalized_operations::LegalizedCondition::I64LessOrEqualParametersV1 {
             operation,
             left: legalized_left,
             right: legalized_right,
@@ -79,14 +79,11 @@ fn runtime_i64_parameter_less_or_equal_selects_reversed_signed_compare_on_both_i
         );
         assert_eq!(instruction.provenance.values, [condition]);
         assert_eq!(when_less.psi_edge, false_edge);
-        assert_eq!(
-            when_less.block,
-            omega_selected_instructions::SelectedBlockId(2)
-        );
+        assert_eq!(when_less.block, selected_instructions::SelectedBlockId(2));
         assert_eq!(when_not_less.psi_edge, true_edge);
         assert_eq!(
             when_not_less.block,
-            omega_selected_instructions::SelectedBlockId(1)
+            selected_instructions::SelectedBlockId(1)
         );
         assert_eq!(when_less.fuel[0].site, PsiProvenance::Edge(false_edge));
         assert_eq!(when_not_less.fuel[0].site, PsiProvenance::Edge(true_edge));

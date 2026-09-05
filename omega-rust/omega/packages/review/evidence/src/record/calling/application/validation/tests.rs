@@ -1,13 +1,13 @@
 use super::*;
 use crate::record::*;
-use omega_calling_conventions::{
+use calling_conventions::{
     CallSignature, CallingPolicy, ValueShape, evaluate_ordinary_boundary_entry_plan,
 };
 
 fn nominal(path: &str) -> PackageReviewNominalIdentity {
     PackageReviewNominalIdentity {
         owner: PackageReviewNominalOwner::Package(
-            psi_core::PackageKeyIdentity::from_digest([0x73; 32]).unwrap(),
+            semantic_vocabulary::PackageKeyIdentity::from_digest([0x73; 32]).unwrap(),
         ),
         path: path.to_owned(),
     }

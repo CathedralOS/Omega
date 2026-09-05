@@ -1,6 +1,6 @@
 # Omega Package Manager
 
-This is the operation-owning `omega-package-manager` crate. Start at
+This is the operation-owning `package-manager` crate. Start at
 [`src/lib.rs`](src/lib.rs), then enter the operation you are following.
 
 The ratified destination is Cargo-like repository install/update with

@@ -1,5 +1,5 @@
 use super::{PackageReviewNominalIdentity, PackageReviewNominalOwner};
-use omega_effects::{TerminalAuthorityDisposition, provider_plan::ServiceSchemaDigest};
+use effects::{TerminalAuthorityDisposition, provider_plan::ServiceSchemaDigest};
 
 /// One explicit consumer permission for an exact requirement in one complete
 /// normalized service schema.

@@ -23,31 +23,31 @@ struct RequiredExactRuleFolder {
 /// `rule.rs` catch-all one rung below the catalog.
 const REQUIRED_EXACT_RULE_FOLDERS: &[RequiredExactRuleFolder] = &[
     RequiredExactRuleFolder {
-        directory: "omega-rust/omega/pipeline/omega-abstract-operations-optimizer/src/rules/passes/global_value_numbering/identities/wrapping_neutral",
+        directory: "omega-rust/omega/pipeline/abstract-operations-to-abstract-operations/src/rules/passes/global_value_numbering/identities/wrapping_neutral",
         rule_marker: "pub struct WrappingNeutralArithmeticIdentityRule",
     },
     RequiredExactRuleFolder {
-        directory: "omega-rust/omega/pipeline/omega-abstract-operations-optimizer/src/rules/passes/global_value_numbering/identities/wrapping_shift_zero_count",
+        directory: "omega-rust/omega/pipeline/abstract-operations-to-abstract-operations/src/rules/passes/global_value_numbering/identities/wrapping_shift_zero_count",
         rule_marker: "pub struct WrappingShiftZeroCountIdentityRule",
     },
     RequiredExactRuleFolder {
-        directory: "omega-rust/omega/pipeline/omega-abstract-operations-optimizer/src/rules/passes/global_value_numbering/identities/wrapping_multiply_zero",
+        directory: "omega-rust/omega/pipeline/abstract-operations-to-abstract-operations/src/rules/passes/global_value_numbering/identities/wrapping_multiply_zero",
         rule_marker: "pub struct WrappingMultiplyZeroAnnihilationRule",
     },
     RequiredExactRuleFolder {
-        directory: "omega-rust/omega/pipeline/omega-abstract-operations-optimizer/src/rules/passes/global_value_numbering/identities/saturating_neutral",
+        directory: "omega-rust/omega/pipeline/abstract-operations-to-abstract-operations/src/rules/passes/global_value_numbering/identities/saturating_neutral",
         rule_marker: "pub struct SaturatingNeutralArithmeticIdentityRule",
     },
     RequiredExactRuleFolder {
-        directory: "omega-rust/omega/pipeline/omega-abstract-operations-optimizer/src/rules/passes/global_value_numbering/identities/saturating_multiply_zero",
+        directory: "omega-rust/omega/pipeline/abstract-operations-to-abstract-operations/src/rules/passes/global_value_numbering/identities/saturating_multiply_zero",
         rule_marker: "pub struct SaturatingMultiplyZeroAnnihilationRule",
     },
     RequiredExactRuleFolder {
-        directory: "omega-rust/omega/pipeline/omega-abstract-operations-optimizer/src/rules/passes/global_value_numbering/identities/bitwise_neutral",
+        directory: "omega-rust/omega/pipeline/abstract-operations-to-abstract-operations/src/rules/passes/global_value_numbering/identities/bitwise_neutral",
         rule_marker: "pub struct BitwiseNeutralLiteralIdentityRule",
     },
     RequiredExactRuleFolder {
-        directory: "omega-rust/omega/pipeline/omega-abstract-operations-optimizer/src/rules/passes/global_value_numbering/identities/bitwise_absorbing",
+        directory: "omega-rust/omega/pipeline/abstract-operations-to-abstract-operations/src/rules/passes/global_value_numbering/identities/bitwise_absorbing",
         rule_marker: "pub struct BitwiseAbsorbingLiteralIdentityRule",
     },
 ];
@@ -56,11 +56,11 @@ const REQUIRED_EXACT_RULE_FOLDERS: &[RequiredExactRuleFolder] = &[
 /// stages but still own one closed ordered family inventory.
 const REQUIRED_RULE_CATALOGS: &[RequiredRuleCatalog] = &[
     RequiredRuleCatalog {
-        path: "omega-rust/omega/pipeline/omega-abstract-operations-to-target-operations/src/validation/catalog/enabled_families.rs",
+        path: "omega-rust/omega/pipeline/abstract-operations-to-target-operations/src/validation/catalog/enabled_families.rs",
         order_marker: "ENABLED_TRANSLATION_FAMILIES",
     },
     RequiredRuleCatalog {
-        path: "omega-rust/omega/pipeline/omega-target-operations-to-selected-instructions/src/selection/construction/scalar/catalog.rs",
+        path: "omega-rust/omega/pipeline/target-operations-to-selected-instructions/src/selection/construction/scalar/catalog.rs",
         order_marker: "SCALAR_FAMILIES",
     },
 ];
@@ -272,7 +272,7 @@ pub(crate) fn check(audit: &mut Audit) {
     }
 
     let legalization_root = repository.join(
-        "omega-rust/omega/pipeline/omega-target-operations-to-selected-instructions/src/legalization",
+        "omega-rust/omega/pipeline/target-operations-to-selected-instructions/src/legalization",
     );
     let mut legalization_files = Vec::new();
     match collect_rust_files(&legalization_root, &mut legalization_files) {
@@ -304,7 +304,7 @@ pub(crate) fn check(audit: &mut Audit) {
                     }
                 }
             }
-            let expected = ["omega-rust/omega/pipeline/omega-target-operations-to-selected-instructions/src/legalization/catalog.rs".to_string()];
+            let expected = ["omega-rust/omega/pipeline/target-operations-to-selected-instructions/src/legalization/catalog.rs".to_string()];
             if catalog_declarations != expected {
                 violations.insert(format!(
                     "legalization must declare exactly one `LEGALIZATION_FORMS` catalog in catalog.rs; found {catalog_declarations:?}"

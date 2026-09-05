@@ -1,0 +1,12 @@
+[package]
+name = "source"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[lib]
+name = "source"
+path = "src/lib.rs"
+
+[dependencies]
+semantic-vocabulary = { path = "../semantic-vocabulary" }

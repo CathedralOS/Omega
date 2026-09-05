@@ -1,12 +1,12 @@
-use omega_package_manager::declarations::PackageName;
-use omega_package_manager::declarations::{
+use package_manager::declarations::PackageName;
+use package_manager::declarations::{
     BuildDeclaration, BuildDeclarationError, DependencySourceRequest, WorkspaceMemberPath,
     extract_build_declaration, extract_build_dependency_projection,
 };
-use omega_package_manager::resolution::graph::{
+use package_manager::resolution::graph::{
     PackageSourceClosureLimits, resolve_external_local_project_closure_with_storage,
 };
-use omega_package_source::{ExternalSourceContext, LocalSourceLimits, SourceResolverStorage};
+use package_source::{ExternalSourceContext, LocalSourceLimits, SourceResolverStorage};
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -37,7 +37,7 @@ fn repository_root() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR"))
         .ancestors()
         .find(|ancestor| ancestor.join("TASKS_PACKAGE_MANAGER.md").is_file())
-        .expect("omega-package-manager should live beneath the Omega repository")
+        .expect("package-manager should live beneath the Omega repository")
         .to_path_buf()
 }
 
@@ -109,7 +109,7 @@ fn repository_workspace_declares_its_members_in_authored_order() {
     let declaration = extract_build_declaration(repository_root()).unwrap();
     assert_eq!(
         declaration,
-        BuildDeclaration::Workspace(omega_package_manager::declarations::WorkspaceDeclaration {
+        BuildDeclaration::Workspace(package_manager::declarations::WorkspaceDeclaration {
             members: vec![
                 WorkspaceMemberPath::parse("source/library/std").unwrap(),
                 WorkspaceMemberPath::parse("source/psi").unwrap(),
@@ -124,21 +124,19 @@ fn compiler_application_and_standard_library_declare_their_kinds() {
     let root = repository_root();
     assert_eq!(
         extract_build_declaration(root.join("source/omega")).unwrap(),
-        BuildDeclaration::Application(
-            omega_package_manager::declarations::ApplicationDeclaration {
-                name: PackageName::parse("omega-compiler").unwrap(),
-            }
-        )
+        BuildDeclaration::Application(package_manager::declarations::ApplicationDeclaration {
+            name: PackageName::parse("omega-compiler").unwrap(),
+        })
     );
     assert_eq!(
         extract_build_declaration(root.join("source/psi")).unwrap(),
-        BuildDeclaration::Package(omega_package_manager::declarations::PackageDeclaration {
+        BuildDeclaration::Package(package_manager::declarations::PackageDeclaration {
             name: PackageName::parse("psi").unwrap(),
         })
     );
     assert_eq!(
         extract_build_declaration(root.join("source/library/std")).unwrap(),
-        BuildDeclaration::Package(omega_package_manager::declarations::PackageDeclaration {
+        BuildDeclaration::Package(package_manager::declarations::PackageDeclaration {
             name: PackageName::parse("omega-language-std").unwrap(),
         })
     );
@@ -233,11 +231,9 @@ fn executable_samples_declare_canonical_roles_and_ordinary_standard_library_edge
         });
         assert_eq!(
             projection.declaration(),
-            &BuildDeclaration::Application(
-                omega_package_manager::declarations::ApplicationDeclaration {
-                    name: PackageName::parse(&expected_name).unwrap(),
-                }
-            ),
+            &BuildDeclaration::Application(package_manager::declarations::ApplicationDeclaration {
+                name: PackageName::parse(&expected_name).unwrap(),
+            }),
             "unexpected sample application declaration in {}",
             root.display()
         );
@@ -721,11 +717,9 @@ fn ordinary_omega_case_projects_declare_canonical_application_roles() {
                     root.display()
                 )
             }),
-            BuildDeclaration::Application(
-                omega_package_manager::declarations::ApplicationDeclaration {
-                    name: PackageName::parse(&expected_name).unwrap(),
-                }
-            ),
+            BuildDeclaration::Application(package_manager::declarations::ApplicationDeclaration {
+                name: PackageName::parse(&expected_name).unwrap(),
+            }),
             "unexpected Omega case application declaration in {}",
             root.display()
         );

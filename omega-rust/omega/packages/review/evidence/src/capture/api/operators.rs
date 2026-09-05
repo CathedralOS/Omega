@@ -13,14 +13,14 @@ use crate::record::{
     PackageReviewCallableParameter, PackageReviewCrashRoute, PackageReviewCrashRouteGuard,
     PackageReviewOperatorCoordinate, PackageReviewOperatorShape,
 };
-use omega_compiler::CheckedCompilation;
-use psi_core::PackageKeyIdentity;
-use psi_diagnostics::Diagnostic;
-use psi_symbols::SymbolHandle;
+use compiler::CheckedCompilation;
+use diagnostics::Diagnostic;
+use semantic_vocabulary::PackageKeyIdentity;
+use symbols::SymbolHandle;
 
 pub(crate) fn project_operator_coordinate(
     compilation: &CheckedCompilation,
-    declaration: &psi_typed_trees::operator::OperatorDefinition,
+    declaration: &typed_trees::operator::OperatorDefinition,
 ) -> Result<PackageReviewOperatorCoordinate, Vec<Diagnostic>> {
     let identity = nominal_identity(compilation, declaration.symbol)?;
     let overload = compilation.normalized_operator_overload_identity(declaration);
@@ -43,9 +43,8 @@ pub(crate) fn project_public_operators(
     compilation: &CheckedCompilation,
     package: PackageKeyIdentity,
 ) -> Result<Vec<ProjectedReviewRow<PackageReviewOperatorShape>>, Vec<Diagnostic>> {
-    let derived = psi_typed_trees_to_checked_trees::derive_checked_operator_crash_contracts(
-        &compilation.typed,
-    );
+    let derived =
+        typed_trees_to_checked_trees::derive_checked_operator_crash_contracts(&compilation.typed);
     if derived != compilation.facts.operators.operator_crash_contracts {
         return Err(vec![Diagnostic::error(format!(
             "retained checked operator-crash evidence does not equal compiler rederivation (retained {} rows, derived {} rows)",
@@ -95,10 +94,10 @@ pub(crate) fn project_public_operators(
         let context = ContractProjectionContext {
             subject_kind: "public operator",
             subject_name: declaration_path,
-            owner: psi_checked_trees::ContractProofFactOwner::OperatorDeclaration {
+            owner: checked_trees::ContractProofFactOwner::OperatorDeclaration {
                 operator_symbol: declaration.symbol,
             },
-            point: psi_facts::ProgramPoint::Definition {
+            point: facts::ProgramPoint::Definition {
                 symbol: declaration.symbol,
             },
             parameters: compilation.operator_parameters(declaration),
@@ -106,7 +105,7 @@ pub(crate) fn project_public_operators(
             data_symbol: None,
             lifetime_binders: &declaration.lifetime_parameters,
             lifetime_substitutions: &[],
-            selection_exposure: psi_language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure::PublicInterface,
+            selection_exposure: language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure::PublicInterface,
         };
         let contracts = project_contracts(
             compilation,
@@ -179,11 +178,11 @@ pub(crate) fn project_public_operators(
 
 pub(crate) fn project_operator_crash_routes(
     compilation: &CheckedCompilation,
-    checked: &psi_checked_trees::CheckedOperatorCrashContract,
+    checked: &checked_trees::CheckedOperatorCrashContract,
     context: &ContractProjectionContext<'_>,
     binders: &[(SymbolHandle, String)],
 ) -> Result<Vec<PackageReviewCrashRoute>, Vec<Diagnostic>> {
-    use psi_typed_trees::domain::ProofFact;
+    use typed_trees::domain::ProofFact;
 
     checked
         .buckets()

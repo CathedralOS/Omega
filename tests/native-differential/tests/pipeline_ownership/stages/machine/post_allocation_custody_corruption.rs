@@ -1,6 +1,6 @@
 //! Shared authenticated corruption harness for generic post-allocation custody.
 
-use omega_optimization_core::OptimizationSelectionIdentity;
+use optimization_core::OptimizationSelectionIdentity;
 
 use crate::tests::*;
 
@@ -98,9 +98,8 @@ impl CustodyField {
                 phase_selections = OptimizationSelectionIdentity::from_bytes([0xa2; 32]);
             }
             Self::Source => {
-                source = omega_physical_instructions::PostAllocationMachineIdentity::from_bytes(
-                    [0xa3; 32],
-                );
+                source =
+                    physical_instructions::PostAllocationMachineIdentity::from_bytes([0xa3; 32]);
             }
             Self::ActionCount => action_count = action_count.checked_add(1).unwrap(),
             Self::BaselineBytes => baseline_bytes = baseline_bytes.checked_add(1).unwrap(),

@@ -8,9 +8,9 @@ use crate::capture::representation::physical_contract::{
     project_boundary_shape_graph, project_representation_target,
 };
 use crate::record::{PackagePolicyCallingPlan, PackagePolicyPhysicalCallingContract};
-use omega_compiler::CheckedCompilation;
-use omega_provider_planning::calling_policy_plans::BoundaryCallingPlanRealization;
-use psi_diagnostics::Diagnostic;
+use compiler::CheckedCompilation;
+use diagnostics::Diagnostic;
+use provider_planning::calling_policy_plans::BoundaryCallingPlanRealization;
 
 /// Capture the complete published calling application. This is inert policy,
 /// not a validator certificate and not a replacement for fresh compilation.

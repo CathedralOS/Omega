@@ -9,19 +9,19 @@ use crate::capture::semantics::types::{
     review_signature_type_identity_with_binders_and_substitutions_and_lifetimes,
 };
 use crate::record::PackageReviewContractStaticArgument;
-use omega_compiler::CheckedCompilation;
-use psi_diagnostics::Diagnostic;
-use psi_symbols::SymbolHandle;
+use compiler::CheckedCompilation;
+use diagnostics::Diagnostic;
+use symbols::SymbolHandle;
 
 fn selected_conformance_application_type_reference(
     compilation: &mut CheckedCompilation,
-    argument: &psi_typed_trees::expression::StaticMachineArgument,
+    argument: &typed_trees::expression::StaticMachineArgument,
     parameter_kind: ContractCallStaticParameterKind,
     subject_kind: &str,
     subject_name: &str,
     depth: usize,
-) -> Result<psi_typed_trees::types::TypeReferenceHandle, Vec<Diagnostic>> {
-    use psi_typed_trees::types::TypeReferenceNode;
+) -> Result<typed_trees::types::TypeReferenceHandle, Vec<Diagnostic>> {
+    use typed_trees::types::TypeReferenceNode;
 
     let rejected = |reason: &str| {
         vec![Diagnostic::error(format!(
@@ -49,13 +49,13 @@ fn selected_conformance_application_type_reference(
             .type_reference_table
             .insert(TypeReferenceNode::Named {
                 symbol: SymbolHandle::invalid(),
-                name: psi_typed_trees::name::Identifier::generated(literal.text()),
+                name: typed_trees::name::Identifier::generated(literal.text()),
             }));
     }
     if let Some(application) = argument.application.as_ref() {
         if parameter_kind != ContractCallStaticParameterKind::Type
             || !argument.symbol.is_valid()
-            || compilation.typed.symbols.get(argument.symbol).kind != psi_symbols::SymbolKind::Data
+            || compilation.typed.symbols.get(argument.symbol).kind != symbols::SymbolKind::Data
         {
             return Err(rejected(
                 "a nested non-data application in its declaration telescope",
@@ -107,9 +107,7 @@ fn selected_conformance_application_type_reference(
         return Err(rejected("an unresolved declaration argument"));
     }
     let name = argument.path.last().cloned().unwrap_or_else(|| {
-        psi_typed_trees::name::Identifier::generated(
-            compilation.typed.symbols.name(argument.symbol),
-        )
+        typed_trees::name::Identifier::generated(compilation.typed.symbols.name(argument.symbol))
     });
     Ok(compilation
         .typed
@@ -122,23 +120,21 @@ fn selected_conformance_application_type_reference(
 
 pub(crate) fn project_selected_conformance_application(
     compilation: &CheckedCompilation,
-    selected: &psi_typed_trees::expression::StaticMachineArgument,
+    selected: &typed_trees::expression::StaticMachineArgument,
     binders: &[(SymbolHandle, String)],
-    lifetime_binders: &[psi_typed_trees::name::Identifier],
+    lifetime_binders: &[typed_trees::name::Identifier],
     scoped_lifetime_substitutions: &[(
-        psi_typed_trees::name::Identifier,
-        psi_typed_trees::name::Identifier,
+        typed_trees::name::Identifier,
+        typed_trees::name::Identifier,
     )],
     declaration_kind: &str,
     declaration_path: &str,
 ) -> Result<ProjectedSelectedConformanceApplication, Vec<Diagnostic>> {
-    use psi_typed_trees::trait_definition::ConformanceSubject;
+    use typed_trees::trait_definition::ConformanceSubject;
 
-    let closed = psi_typed_trees_to_checked_trees::close_conformance_application(
-        &compilation.typed,
-        selected,
-    )
-    .map_err(|diagnostic| vec![diagnostic])?;
+    let closed =
+        typed_trees_to_checked_trees::close_conformance_application(&compilation.typed, selected)
+            .map_err(|diagnostic| vec![diagnostic])?;
     let declarations = compilation
         .conformances()
         .iter()
@@ -250,7 +246,7 @@ pub(crate) fn project_selected_conformance_application(
                 }
                 let carrier_name = carrier.name.clone();
                 let carrier = projected.typed.type_reference_table.insert(
-                    psi_typed_trees::types::TypeReferenceNode::Named {
+                    typed_trees::types::TypeReferenceNode::Named {
                         symbol: declaration.carrier_symbol,
                         name: carrier_name,
                     },

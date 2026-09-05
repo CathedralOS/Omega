@@ -85,18 +85,18 @@ pub proposition reviewed(left: Token, right: Token) = Token::ordered(left, right
         .find_map(|(expression, node)| {
             matches!(
                 node,
-                psi_typed_trees::expression::ExpressionNode::Call(call)
+                typed_trees::expression::ExpressionNode::Call(call)
                     if call.target.as_str() == "ordered"
             )
             .then_some(expression)
         })
         .expect("ordered named operator call");
-    let psi_typed_trees::expression::ExpressionNode::Call(call) =
+    let typed_trees::expression::ExpressionNode::Call(call) =
         checked.typed.expression_table.expression_mut(call)
     else {
         unreachable!()
     };
-    call.target = psi_typed_trees::name::Identifier::generated_static("reversed");
+    call.target = typed_trees::name::Identifier::generated_static("reversed");
 
     let diagnostics = project_checked_package_review(&checked)
         .expect_err("post-check named operator target drift must reject");

@@ -1,0 +1,23 @@
+[package]
+name = "checked-trees"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[lib]
+name = "checked_trees"
+path = "src/lib.rs"
+
+[dependencies]
+arena = { path = "../../foundation/arena" }
+access-plans = { path = "../../foundation/access-plans" }
+semantic-vocabulary = { path = "../../foundation/semantic-vocabulary" }
+flow-effects = { path = "../flow-effects" }
+facts = { path = "../facts" }
+language-core = { path = "../../foundation/language-core" }
+language-semantics = { path = "../../foundation/language-semantics" }
+numerics = { path = "../../foundation/numerics" }
+source = { path = "../../foundation/source" }
+symbols = { path = "../../foundation/symbols" }
+typed-trees = { path = "../typed-trees" }
+sha2 = "0.10"

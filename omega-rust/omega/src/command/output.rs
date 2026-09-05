@@ -6,9 +6,9 @@
 use std::path::{Path, PathBuf};
 
 pub(super) fn publish_native_artifact(
-    report: omega_compiler::CompileReport,
+    report: compiler::CompileReport,
     build_dir: &Path,
-) -> Result<(omega_compiler::CompileReport, PathBuf), String> {
+) -> Result<(compiler::CompileReport, PathBuf), String> {
     let published = report.publish_retained_native_artifact(build_dir)?;
     let path = published
         .checked_native_executable_path()

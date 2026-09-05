@@ -1,0 +1,38 @@
+//! Direct two-citation affine completion for production.
+
+use proof_admission::ProofNode;
+use semantic_vocabulary::{Proposition, PropositionContext, ScalarTerm};
+
+use super::super::super::affine_custody::{self, DefinitionIndex};
+use super::super::bounds;
+
+mod bound;
+
+#[allow(clippy::too_many_arguments)]
+pub(super) fn prove(
+    context: &PropositionContext,
+    goal: &Proposition,
+    assumptions: &[Proposition],
+    semantic_axioms: &[Proposition],
+    definitions: &mut DefinitionIndex,
+    left: &ScalarTerm,
+    right: &ScalarTerm,
+    left_proof: ProofNode,
+    right_proof: ProofNode,
+) -> Option<ProofNode> {
+    let root_bound = bound::prove(left, right, left_proof, right_proof);
+    for root in bounds::value_endpoints(left, right) {
+        if let Some(proof) = affine_custody::prove_from_root(
+            context,
+            goal,
+            assumptions,
+            semantic_axioms,
+            definitions,
+            root,
+            root_bound.clone(),
+        ) {
+            return Some(proof);
+        }
+    }
+    None
+}

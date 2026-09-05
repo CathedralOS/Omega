@@ -9,60 +9,58 @@ use crate::record::{
     PackageReviewCallableContract, PackageReviewContractFact, PackageReviewContractKind,
     PackageReviewResultCaseIdentity,
 };
-use omega_compiler::CheckedCompilation;
-use psi_diagnostics::Diagnostic;
-use psi_symbols::SymbolHandle;
+use compiler::CheckedCompilation;
+use diagnostics::Diagnostic;
+use symbols::SymbolHandle;
 
 pub(crate) struct ContractProjectionContext<'a> {
     pub(crate) subject_kind: &'static str,
     pub(crate) subject_name: &'a str,
-    pub(crate) owner: psi_checked_trees::ContractProofFactOwner,
-    pub(crate) point: psi_facts::ProgramPoint,
-    pub(crate) parameters: &'a [psi_typed_trees::signature::StateParameter],
+    pub(crate) owner: checked_trees::ContractProofFactOwner,
+    pub(crate) point: facts::ProgramPoint,
+    pub(crate) parameters: &'a [typed_trees::signature::StateParameter],
     pub(crate) domain_symbol: Option<SymbolHandle>,
     pub(crate) data_symbol: Option<SymbolHandle>,
-    pub(crate) lifetime_binders: &'a [psi_typed_trees::name::Identifier],
+    pub(crate) lifetime_binders: &'a [typed_trees::name::Identifier],
     /// Source names map to the normalized containing telescope. Later mappings
     /// shadow earlier ones; checked expression and evidence handles stay intact.
-    pub(crate) lifetime_substitutions: &'a [(
-        psi_typed_trees::name::Identifier,
-        psi_typed_trees::name::Identifier,
-    )],
+    pub(crate) lifetime_substitutions:
+        &'a [(typed_trees::name::Identifier, typed_trees::name::Identifier)],
     pub(crate) selection_exposure:
-        psi_language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure,
+        language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure,
 }
 
 impl ContractProjectionContext<'_> {
     pub(crate) fn requires_public_nominals(&self) -> bool {
         self.selection_exposure
-            == psi_language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure::PublicInterface
+            == language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure::PublicInterface
     }
 }
 
 pub(crate) fn project_callable_contracts(
     compilation: &CheckedCompilation,
-    machine: &psi_typed_trees::machine::Machine,
-    entry: &psi_typed_trees::state::State,
+    machine: &typed_trees::machine::Machine,
+    entry: &typed_trees::state::State,
     binders: &[(SymbolHandle, String)],
 ) -> Result<Vec<PackageReviewCallableContract>, Vec<Diagnostic>> {
-    project_callable_contracts_with_exposure(compilation, machine, entry, binders, psi_language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure::PublicInterface)
+    project_callable_contracts_with_exposure(compilation, machine, entry, binders, language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure::PublicInterface)
 }
 
 pub(crate) fn project_callable_contracts_with_exposure(
     compilation: &CheckedCompilation,
-    machine: &psi_typed_trees::machine::Machine,
-    entry: &psi_typed_trees::state::State,
+    machine: &typed_trees::machine::Machine,
+    entry: &typed_trees::state::State,
     binders: &[(SymbolHandle, String)],
-    selection_exposure: psi_language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure,
+    selection_exposure: language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure,
 ) -> Result<Vec<PackageReviewCallableContract>, Vec<Diagnostic>> {
     let parameters = compilation.state_parameters(entry);
     let context = ContractProjectionContext {
         subject_kind: "callable",
         subject_name: machine.name.as_str(),
-        owner: psi_checked_trees::ContractProofFactOwner::Machine {
+        owner: checked_trees::ContractProofFactOwner::Machine {
             machine_symbol: machine.symbol,
         },
-        point: psi_facts::ProgramPoint::Machine {
+        point: facts::ProgramPoint::Machine {
             machine_symbol: machine.symbol,
         },
         parameters,
@@ -82,10 +80,10 @@ pub(crate) fn project_callable_contracts_with_exposure(
 
 pub(crate) fn exact_contract_entailment_stand_down_contract(
     compilation: &CheckedCompilation,
-    machine: &psi_typed_trees::machine::Machine,
+    machine: &typed_trees::machine::Machine,
     contract_index: usize,
     fact_index: usize,
-) -> Result<psi_typed_trees::signature::SignatureContract, Vec<Diagnostic>> {
+) -> Result<typed_trees::signature::SignatureContract, Vec<Diagnostic>> {
     let contract = compilation
         .machine_contracts(machine)
         .get(contract_index)
@@ -104,7 +102,7 @@ pub(crate) fn exact_contract_entailment_stand_down_contract(
             "contract-entailment stand-down names a missing contract fact",
         )]);
     }
-    let fact = psi_arena::Handle::from_parts(
+    let fact = arena::Handle::from_parts(
         contract
             .facts
             .start()
@@ -118,14 +116,14 @@ pub(crate) fn exact_contract_entailment_stand_down_contract(
         contract.facts.start().generation(),
     );
     let mut exact = contract.clone();
-    exact.facts = psi_arena::HandleSpan::from_parts(fact, 1);
+    exact.facts = arena::HandleSpan::from_parts(fact, 1);
     Ok(exact)
 }
 
 pub(crate) fn project_callable_contract_entailment_stand_down(
     compilation: &CheckedCompilation,
-    machine: &psi_typed_trees::machine::Machine,
-    entry: &psi_typed_trees::state::State,
+    machine: &typed_trees::machine::Machine,
+    entry: &typed_trees::state::State,
     binders: &[(SymbolHandle, String)],
     contract_index: usize,
     fact_index: usize,
@@ -140,10 +138,10 @@ pub(crate) fn project_callable_contract_entailment_stand_down(
     let context = ContractProjectionContext {
         subject_kind: "callable",
         subject_name: machine.name.as_str(),
-        owner: psi_checked_trees::ContractProofFactOwner::Machine {
+        owner: checked_trees::ContractProofFactOwner::Machine {
             machine_symbol: machine.symbol,
         },
-        point: psi_facts::ProgramPoint::Machine {
+        point: facts::ProgramPoint::Machine {
             machine_symbol: machine.symbol,
         },
         parameters,
@@ -152,9 +150,9 @@ pub(crate) fn project_callable_contract_entailment_stand_down(
         lifetime_binders: &machine.lifetime_parameters,
         lifetime_substitutions: &[],
         selection_exposure: if machine.is_public {
-            psi_language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure::PublicInterface
+            language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure::PublicInterface
         } else {
-            psi_language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure::PrivateImplementation
+            language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure::PrivateImplementation
         },
     };
     let projected =
@@ -169,7 +167,7 @@ pub(crate) fn project_callable_contract_entailment_stand_down(
 
 pub(crate) fn project_trait_requirement_contracts(
     compilation: &CheckedCompilation,
-    requirement: &psi_typed_trees::signature::StateSignature,
+    requirement: &typed_trees::signature::StateSignature,
     context: &ContractProjectionContext<'_>,
     binders: &[(SymbolHandle, String)],
 ) -> Result<Vec<PackageReviewCallableContract>, Vec<Diagnostic>> {
@@ -183,11 +181,11 @@ pub(crate) fn project_trait_requirement_contracts(
 
 pub(crate) fn project_contracts(
     compilation: &CheckedCompilation,
-    contracts: &[psi_typed_trees::signature::SignatureContract],
+    contracts: &[typed_trees::signature::SignatureContract],
     context: &ContractProjectionContext<'_>,
     binders: &[(SymbolHandle, String)],
 ) -> Result<Vec<PackageReviewCallableContract>, Vec<Diagnostic>> {
-    use psi_typed_trees::{domain::ProofFact, signature::SignatureContractKind};
+    use typed_trees::{domain::ProofFact, signature::SignatureContractKind};
 
     let reviewed_package = compilation.package_identity().ok_or_else(|| {
         vec![Diagnostic::error(
@@ -219,7 +217,7 @@ pub(crate) fn project_contracts(
             ))]);
         }
         for offset in 0..contract.facts.count() {
-            let fact_handle = psi_arena::Handle::from_parts(
+            let fact_handle = arena::Handle::from_parts(
                 contract
                     .facts
                     .start()
@@ -297,10 +295,10 @@ pub(crate) fn project_contracts(
                     compilation,
                     context,
                     contract.binding.as_ref(),
-                    psi_checked_trees::ContractProofFactOwner::Machine {
+                    checked_trees::ContractProofFactOwner::Machine {
                         machine_symbol: checked.machine_symbol,
                     },
-                    psi_checked_trees::ContractProofFactKind::Ensures,
+                    checked_trees::ContractProofFactKind::Ensures,
                     checked.evidence_term,
                     &fact,
                 )?

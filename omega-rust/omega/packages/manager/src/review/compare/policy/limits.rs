@@ -3,10 +3,8 @@ use super::{
 };
 use crate::declarations::PackageKey;
 use crate::resolution::graph::CanonicalSourceClosureSubjectLimits;
-use omega_package_evidence::record::{
-    PackagePolicyRow, PackagePolicyRowLimits, PackagePolicyRowUsage,
-};
-use omega_package_source::SourceLineage;
+use package_evidence::record::{PackagePolicyRow, PackagePolicyRowLimits, PackagePolicyRowUsage};
+use package_source::SourceLineage;
 
 /// Aggregate ceilings across both complete inputs, not a reset per package.
 /// Context bytes count canonical source and fresh review inputs and requested

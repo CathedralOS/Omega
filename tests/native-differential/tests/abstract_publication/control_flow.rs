@@ -24,16 +24,16 @@ fn private_machine_pruning_projects_exact_roster_and_ledger_custody() {
             .iter()
             .all(|row| matches!(
                 row.disposition,
-                omega_optimization_unit::ProvenanceDisposition::ProvenUnreachableAt(_)
+                optimization_unit::ProvenanceDisposition::ProvenUnreachableAt(_)
             ))
     );
 
     let mut wrong_ordinal = optimized.unit().clone();
     wrong_ordinal.pruned_machines[0].source_ordinal = 0;
     wrong_ordinal.identity =
-        omega_optimization_unit::recompute_psi_optimization_unit_identity(&wrong_ordinal);
+        optimization_unit::recompute_psi_optimization_unit_identity(&wrong_ordinal);
     assert_eq!(
-        omega_optimization_validation::validate_transformed_psi_optimization_unit(
+        optimization_validation::validate_transformed_psi_optimization_unit(
             optimized.verified_input(),
             &wrong_ordinal,
         ),
@@ -53,8 +53,8 @@ fn adjacent_terminal_jump_fusion_reaches_verified_one_block_projection() {
     assert_eq!(
         optimized.unit().functions[0].blocks[0].nodes[0].provenance,
         [
-            omega_optimization_unit::PsiProvenance::Edge(EdgeId::new(1_055).unwrap()),
-            omega_optimization_unit::PsiProvenance::Edge(EdgeId::new(1_054).unwrap()),
+            optimization_unit::PsiProvenance::Edge(EdgeId::new(1_055).unwrap()),
+            optimization_unit::PsiProvenance::Edge(EdgeId::new(1_054).unwrap()),
         ]
     );
 }
@@ -77,7 +77,7 @@ fn non_adjacent_block_merges_replay_and_lower_in_both_target_families() {
             .collect::<Vec<_>>(),
         [6, 6]
     );
-    let retained_outgoing_edge = omega_optimization_unit::PsiRealizationSite::Edge {
+    let retained_outgoing_edge = optimization_unit::PsiRealizationSite::Edge {
         machine: MachineId::new(1_501).unwrap(),
         edge: EdgeId::new(1_517).unwrap(),
     };
@@ -91,20 +91,18 @@ fn non_adjacent_block_merges_replay_and_lower_in_both_target_families() {
     assert_eq!(outgoing_edge_rewrites.len(), 1);
     assert_eq!(
         outgoing_edge_rewrites[0].sources,
-        [omega_optimization_unit::PsiProvenance::Edge(
+        [optimization_unit::PsiProvenance::Edge(
             EdgeId::new(1_517).unwrap()
         )]
     );
     assert_eq!(
         outgoing_edge_rewrites[0].disposition,
-        omega_optimization_unit::ProvenanceDisposition::RealizedAt(
-            omega_optimization_unit::PsiRealizationSite::Node(
-                omega_optimization_unit::NodeLocation {
-                    machine: MachineId::new(1_501).unwrap(),
-                    block: BlockId::new(1_504).unwrap(),
-                    node: 1,
-                },
-            )
+        optimization_unit::ProvenanceDisposition::RealizedAt(
+            optimization_unit::PsiRealizationSite::Node(optimization_unit::NodeLocation {
+                machine: MachineId::new(1_501).unwrap(),
+                block: BlockId::new(1_504).unwrap(),
+                node: 1,
+            },)
         )
     );
     assert!(
@@ -154,7 +152,7 @@ fn shared_terminal_jump_fusion_replays_to_two_exact_terminal_occurrences() {
     assert_eq!(optimized.commits().len(), 2);
     assert_eq!(optimized.plan().functions[0].block_entries.len(), 3);
     assert_eq!(optimized.unit().functions[0].blocks.len(), 3);
-    let terminal_source = omega_optimization_unit::PsiProvenance::Edge(EdgeId::new(1_075).unwrap());
+    let terminal_source = optimization_unit::PsiProvenance::Edge(EdgeId::new(1_075).unwrap());
     let terminal_nodes = optimized.unit().functions[0]
         .blocks
         .iter()
@@ -168,7 +166,7 @@ fn shared_terminal_jump_fusion_replays_to_two_exact_terminal_occurrences() {
             .all(|node| matches!(node.operation, AbstractOperation::ReturnUnit { .. }))
     );
     let source_site =
-        omega_optimization_unit::PsiRealizationSite::Node(omega_optimization_unit::NodeLocation {
+        optimization_unit::PsiRealizationSite::Node(optimization_unit::NodeLocation {
             machine: MachineId::new(1_061).unwrap(),
             block: BlockId::new(1_065).unwrap(),
             node: 0,

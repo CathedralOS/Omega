@@ -1,25 +1,25 @@
 //! Optimizer module role: stage group. Real source-produced ranked countdown admission through optimizer analyses.
 
-use omega_abstract_operations::AbstractOperation;
-use omega_abstract_operations_optimizer::{
+use abstract_operations::AbstractOperation;
+use abstract_operations_to_abstract_operations::{
     AnalysisManager, AnalysisProduct, VerifiedPsiOptimizationSession,
 };
-use omega_optimization_core::AnalysisKind;
-use omega_optimization_validation::{
+use optimization_core::AnalysisKind;
+use optimization_validation::{
     OptimizationUnitValidationError, OptimizerCycleComponentSnapshot,
     OptimizerRankingCertificateSnapshot, validate_psi_cycle_component_snapshot,
     validate_psi_optimization_unit, validate_psi_ranking_certificate_snapshot,
     validate_transformed_psi_optimization_unit, validate_verified_psi_cycle_components,
 };
-use omega_psi_to_abstract_operations::{
+use source_files_to_tokens::Lexer;
+use symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
+use syntax_trees_to_symbol_resolved_trees::lower_syntax_trees;
+use terminal_psi_to_abstract_operations::{
     VerifiedPsiOptimizationInput, build_verified_psi_optimization_unit,
     lower_artifact_sections_for_optimization,
 };
-use psi_source_files_to_tokens::Lexer;
-use psi_symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
-use psi_syntax_trees_to_symbol_resolved_trees::lower_syntax_trees;
-use psi_tokens_to_syntax_trees::parse_syntax_trees;
-use psi_typed_trees_to_checked_trees::lower_typed_trees;
+use tokens_to_syntax_trees::parse_syntax_trees;
+use typed_trees_to_checked_trees::lower_typed_trees;
 
 const COUNTDOWN_SOURCE: &str = r#"
     data Token { value: i32; }
@@ -42,7 +42,7 @@ mod countdown_invariant_constants;
 mod counted_loop_analysis;
 mod ranking_relocated_invariant_constants;
 
-fn countdown_input() -> (psi_terminal::TerminalModule, VerifiedPsiOptimizationInput) {
+fn countdown_input() -> (terminal_psi::TerminalModule, VerifiedPsiOptimizationInput) {
     let tokens = Lexer::new(COUNTDOWN_SOURCE)
         .tokenize()
         .expect("tokenize countdown");
@@ -50,29 +50,29 @@ fn countdown_input() -> (psi_terminal::TerminalModule, VerifiedPsiOptimizationIn
     let resolved = lower_syntax_trees(&syntax).expect("resolve countdown");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type countdown");
     let checked = lower_typed_trees(typed).expect("check countdown");
-    let lowered = psi_checked_trees_to_terminal::lower_machine(&checked, "Root::countdown")
+    let lowered = checked_trees_to_terminal_psi::lower_machine(&checked, "Root::countdown")
         .expect("lower countdown");
-    let semantic = psi_terminal_codec::encode_module(&lowered.semantic_module)
+    let semantic = terminal_codec::encode_module(&lowered.semantic_module)
         .expect("encode countdown semantics");
-    let proof = psi_terminal_codec::encode_proof_bundle(&lowered.proof_bundle)
-        .expect("encode countdown proof");
+    let proof =
+        terminal_codec::encode_proof_bundle(&lowered.proof_bundle).expect("encode countdown proof");
     let input = lower_artifact_sections_for_optimization(
         &semantic,
         &proof,
-        &psi_proof_admission::AdmissionProfile::default(),
+        &proof_admission::AdmissionProfile::default(),
     )
     .expect("optimizer-only ranked admission");
     (lowered.semantic_module, input)
 }
 
 fn countdown_unit() -> (
-    psi_terminal::TerminalModule,
-    omega_psi_to_abstract_operations::VerifiedPsiOptimizationUnit,
+    terminal_psi::TerminalModule,
+    terminal_psi_to_abstract_operations::VerifiedPsiOptimizationUnit,
 ) {
     let (module, input) = countdown_input();
     let verified = build_verified_psi_optimization_unit(
         input,
-        psi_terminal_fuel::TerminalFuelSchedule::CURRENT.identity(),
+        terminal_fuel::TerminalFuelSchedule::CURRENT.identity(),
     )
     .expect("build ranked optimizer unit");
     (module, verified)
@@ -184,10 +184,11 @@ fn ranked_component_snapshot_replay_rejects_every_topology_axis() {
     let corruptions: Vec<Box<dyn Fn(&mut OptimizerCycleComponentSnapshot)>> = vec![
         Box::new(|snapshot| {
             snapshot.terminal_psi.program_fingerprint =
-                psi_terminal::SemanticFingerprint::from_bytes([0xA5; 32]);
+                terminal_psi::SemanticFingerprint::from_bytes([0xA5; 32]);
         }),
         Box::new(|snapshot| {
-            snapshot.components[0].id.machine = psi_core::MachineId::new(91_001).unwrap();
+            snapshot.components[0].id.machine =
+                semantic_vocabulary::MachineId::new(91_001).unwrap();
         }),
         Box::new(|snapshot| {
             snapshot.components[0].id.internal_edges[0].edge =
@@ -267,7 +268,10 @@ fn ranked_countdown_certificate_replay_rejects_every_evidence_axis() {
         certificate.rank_parameter,
         certificate.descent.target_parameter
     );
-    assert_eq!(certificate.lower_bound, psi_core::IntegerValue::Unsigned(0));
+    assert_eq!(
+        certificate.lower_bound,
+        semantic_vocabulary::IntegerValue::Unsigned(0)
+    );
     assert!(
         certificate
             .component
@@ -283,7 +287,7 @@ fn ranked_countdown_certificate_replay_rejects_every_evidence_axis() {
     let corruptions: Vec<Box<dyn Fn(&mut OptimizerRankingCertificateSnapshot)>> = vec![
         Box::new(|snapshot| {
             snapshot.terminal_psi.program_fingerprint =
-                psi_terminal::SemanticFingerprint::from_bytes([0xC7; 32]);
+                terminal_psi::SemanticFingerprint::from_bytes([0xC7; 32]);
         }),
         Box::new(|snapshot| snapshot.certificates.clear()),
         Box::new(|snapshot| {
@@ -300,14 +304,17 @@ fn ranked_countdown_certificate_replay_rejects_every_evidence_axis() {
             snapshot.certificates[0].rank_parameter = snapshot.certificates[0].guard.zero;
         }),
         Box::new(|snapshot| {
-            snapshot.certificates[0].rank_type =
-                psi_core::IntegerType::new(psi_core::IntegerSign::Unsigned, 64).unwrap();
+            snapshot.certificates[0].rank_type = semantic_vocabulary::IntegerType::new(
+                semantic_vocabulary::IntegerSign::Unsigned,
+                64,
+            )
+            .unwrap();
         }),
         Box::new(|snapshot| {
-            snapshot.certificates[0].lower_bound = psi_core::IntegerValue::Unsigned(1);
+            snapshot.certificates[0].lower_bound = semantic_vocabulary::IntegerValue::Unsigned(1);
         }),
         Box::new(|snapshot| {
-            snapshot.certificates[0].upper_bound = psi_core::IntegerValue::Unsigned(1);
+            snapshot.certificates[0].upper_bound = semantic_vocabulary::IntegerValue::Unsigned(1);
         }),
         Box::new(|snapshot| {
             snapshot.certificates[0].guard.block = snapshot.certificates[0].descent.backedge.source;
@@ -367,7 +374,7 @@ fn ranked_countdown_certificate_replay_rejects_every_evidence_axis() {
         }),
         Box::new(|snapshot| {
             snapshot.certificates[0].descent.subtract_obligation =
-                psi_core::ObligationId::new(99_901).unwrap();
+                semantic_vocabulary::ObligationId::new(99_901).unwrap();
         }),
     ];
     for mutate in corruptions {

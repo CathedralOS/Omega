@@ -1,6 +1,6 @@
 use crate::FunctionFragmentReplayInputs;
 use crate::tests::*;
-use omega_machine_code::FunctionFragmentControlProvenance;
+use machine_code::FunctionFragmentControlProvenance;
 
 #[test]
 fn nonzero_frames_reflow_three_block_returns_through_callable_publication() {
@@ -133,17 +133,15 @@ fn frame_application_rejects_a_non_fixed_fragment_source() {
 
 #[test]
 fn frame_application_data_outlives_its_producer_and_replay_rejects_rehashed_changes() {
-    type Mutation = fn(&mut omega_machine_code::FunctionFragmentFrameApplication);
+    type Mutation = fn(&mut machine_code::FunctionFragmentFrameApplication);
     let mutations: [(&str, Mutation); 13] = [
         ("source manifest", |value| {
             value.source_fragment_manifest =
-                omega_optimization_core::FunctionFragmentEmissionManifestIdentity::from_bytes(
-                    [0x61; 32],
-                )
+                optimization_core::FunctionFragmentEmissionManifestIdentity::from_bytes([0x61; 32])
         }),
         ("source fragments", |value| {
             value.source_fragments =
-                omega_optimization_core::FunctionFragmentEmissionIdentity::from_bytes([0x62; 32])
+                optimization_core::FunctionFragmentEmissionIdentity::from_bytes([0x62; 32])
         }),
         ("protocol", |value| {
             value.frame_protocol = TargetFrameProtocolEncodingIdentity::from_bytes([0x63; 32])
@@ -163,7 +161,7 @@ fn frame_application_data_outlives_its_producer_and_replay_rejects_rehashed_chan
         }),
         ("return edge", |value| {
             value.functions[0].epilogues[0].psi_return_edge =
-                psi_core::EdgeId::new(u64::MAX).unwrap()
+                semantic_vocabulary::EdgeId::new(u64::MAX).unwrap()
         }),
         ("missing epilogue", |value| {
             value.functions[0].epilogues.pop();
@@ -199,7 +197,7 @@ fn frame_application_data_outlives_its_producer_and_replay_rejects_rehashed_chan
             .clone();
         drop(applied);
         assert_eq!(
-            omega_machine_emission::apply_frame_protocol_to_fragments(
+            machine_emission::apply_frame_protocol_to_fragments(
                 &source,
                 source_manifest,
                 &protocol,
@@ -215,18 +213,18 @@ fn frame_application_data_outlives_its_producer_and_replay_rejects_rehashed_chan
             changed.identity = changed.recomputed_identity();
             assert_ne!(changed.identity, original.identity, "{name}");
             assert_eq!(
-                omega_machine_emission::validate_frame_protocol_application(
+                machine_emission::validate_frame_protocol_application(
                     &source,
                     source_manifest,
                     &protocol,
                     &physical,
                     &changed
                 ),
-                Err(omega_machine_emission::FrameApplicationError::ArtifactMismatch),
+                Err(machine_emission::FrameApplicationError::ArtifactMismatch),
                 "{target:?}: {name}"
             );
         }
-        omega_machine_emission::validate_frame_protocol_application(
+        machine_emission::validate_frame_protocol_application(
             &source,
             source_manifest,
             &protocol,
@@ -249,8 +247,8 @@ fn staged_application(
     let selected = staged_exact_add_conditional(target);
     let ranges = stage_optimized_live_ranges(stage_optimized_liveness(selected).unwrap()).unwrap();
     let legality = match target.architecture {
-        omega_target::Architecture::X86_64 => stage_optimized_allocation_legality(ranges).unwrap(),
-        omega_target::Architecture::Aarch64 => {
+        target::Architecture::X86_64 => stage_optimized_allocation_legality(ranges).unwrap(),
+        target::Architecture::Aarch64 => {
             let environment = ranges
                 .liveness_stage()
                 .selected_stage()

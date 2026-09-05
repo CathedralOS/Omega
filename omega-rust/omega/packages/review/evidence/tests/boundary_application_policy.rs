@@ -1,13 +1,13 @@
 //! Receipt-free D29 relationships derived from checked compiler consumers.
 mod support;
 
-use omega_package_evidence::record::*;
-use omega_package_evidence::{
+use package_evidence::record::*;
+use package_evidence::{
     project_checked_boundary_application_policy, project_checked_callable_policy,
     project_checked_selected_provider_policy,
 };
-use omega_target::TargetProfile;
 use support::*;
+use target::TargetProfile;
 
 fn compile(source: &str) -> (TempPackage, CheckedCompilation) {
     let package = TempPackage::new();
@@ -37,7 +37,7 @@ fn project(checked: &CheckedCompilation) -> PackagePolicyBoundaryApplications {
         package_identity(),
     )
     .expect("exact receipt-free D29 policy");
-    let baseline = omega_package_evidence::project_checked_package_policy(
+    let baseline = package_evidence::project_checked_package_policy(
         checked,
         TargetProfile::WindowsX64,
         package_identity(),
@@ -46,7 +46,7 @@ fn project(checked: &CheckedCompilation) -> PackagePolicyBoundaryApplications {
     let membership = baseline
         .validate_package_membership(
             |_| true,
-            omega_package_evidence::encoding::PackagePolicyMembershipLimits::default(),
+            package_evidence::encoding::PackagePolicyMembershipLimits::default(),
         )
         .expect(
             "actual D29 callable/operator and service identities preserve package-owner grammar",
@@ -54,7 +54,7 @@ fn project(checked: &CheckedCompilation) -> PackagePolicyBoundaryApplications {
     let text = baseline.canonical_text().expect("named D29 baseline");
     let recovered = PackagePolicyBaseline::recover_text(
         &text,
-        omega_package_evidence::encoding::PackagePolicyTextRecoveryLimits::default(),
+        package_evidence::encoding::PackagePolicyTextRecoveryLimits::default(),
     )
     .expect("recover named symbolic and closed D29 applications");
     assert_eq!(recovered, baseline);
@@ -63,7 +63,7 @@ fn project(checked: &CheckedCompilation) -> PackagePolicyBoundaryApplications {
         recovered
             .validate_package_membership(
                 |_| true,
-                omega_package_evidence::encoding::PackagePolicyMembershipLimits::default()
+                package_evidence::encoding::PackagePolicyMembershipLimits::default()
             )
             .unwrap(),
         membership,
@@ -113,7 +113,7 @@ pub machine compare<Element>(left: Element, right: Element) -> bool { Math::same
         )
     );
     let mut stale = checked.clone();
-    let psi_checked_trees::CheckedSymbolicBoundaryOperatorApplicationArgument::TypeBinder {
+    let checked_trees::CheckedSymbolicBoundaryOperatorApplicationArgument::TypeBinder {
         machine_binder_ordinal,
         ..
     } = &mut stale.facts.operators.symbolic_boundary_applications[0].arguments[0];
@@ -247,7 +247,7 @@ machine exercise() { let negative: f32 = F32::negate(1.0f32); }
         application.realization(),
         &PackagePolicyBoundaryRealization::ExactCompilerIntrinsic {
             execution: PackageReviewCompilerIntrinsicExecution::NamedFloatNegation(
-                psi_numerics::literals::FloatFormat::F32
+                numerics::literals::FloatFormat::F32
             )
         }
     );

@@ -6,12 +6,12 @@ pub(super) fn staged_object_artifact(
 ) -> StagedValidatedOptimizedObjectArtifact {
     let (semantic, proof) = conditional_u64_not_equal_zero_parameter_artifact();
     let selections = match target.architecture {
-        omega_target::Architecture::X86_64 => OptimizationSelections::new([
+        target::Architecture::X86_64 => OptimizationSelections::new([
             Optimization::CopyPropagation,
             Optimization::X86RelaxConditionalBranchesToRel8V1,
         ])
         .unwrap(),
-        omega_target::Architecture::Aarch64 => OptimizationSelections::new([
+        target::Architecture::Aarch64 => OptimizationSelections::new([
             Optimization::CopyPropagation,
             Optimization::Aarch64FuseCompareI64ZeroBranchNonZeroToCbnzV1,
         ])

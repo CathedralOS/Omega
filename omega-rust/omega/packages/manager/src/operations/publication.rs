@@ -28,14 +28,14 @@ impl Default for PackagePublicationLimits {
 }
 
 impl PackagePublicationLimits {
-    fn files(self) -> omega_platform_custody::record_file::RecordFileLimits {
-        omega_platform_custody::record_file::RecordFileLimits {
+    fn files(self) -> platform_custody::record_file::RecordFileLimits {
+        platform_custody::record_file::RecordFileLimits {
             maximum_bytes: self.maximum_file_bytes,
         }
     }
 
-    fn journal(self) -> omega_platform_custody::record_file::RecordFileLimits {
-        omega_platform_custody::record_file::RecordFileLimits {
+    fn journal(self) -> platform_custody::record_file::RecordFileLimits {
+        platform_custody::record_file::RecordFileLimits {
             maximum_bytes: self.maximum_journal_bytes,
         }
     }

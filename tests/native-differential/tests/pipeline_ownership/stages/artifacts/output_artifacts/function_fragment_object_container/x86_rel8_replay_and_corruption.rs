@@ -3,12 +3,12 @@
 use crate::FunctionFragmentReplayInputs;
 use crate::tests::*;
 
-fn object_local_symbol_count(object: &omega_object_file::RelocationFreeObjectPlan) -> usize {
+fn object_local_symbol_count(object: &object_file::RelocationFreeObjectPlan) -> usize {
     object
         .symbols
         .iter()
         .filter(|symbol| {
-            symbol.linkage == omega_object_file::RelocationFreeObjectSymbolLinkage::ObjectLocalV1
+            symbol.linkage == object_file::RelocationFreeObjectSymbolLinkage::ObjectLocalV1
         })
         .count()
 }
@@ -67,7 +67,7 @@ fn relocation_free_rel8_object_container_reconstructs_replays_and_rejects_corrup
     assert_eq!(entry.section_offset, 0);
     assert_eq!(entry.byte_count, object.text_section.byte_count);
     assert_eq!(
-        omega_object_file::decode_relocation_free_object(&staged.container().bytes),
+        object_file::decode_relocation_free_object(&staged.container().bytes),
         Ok(object.clone())
     );
     let record = staged.manifest().record();
@@ -94,7 +94,7 @@ fn relocation_free_rel8_object_container_reconstructs_replays_and_rejects_corrup
     let original_container = staged.container().clone();
     staged.container_mut().bytes[0] ^= 1;
     let corrupted_container_identity =
-        omega_optimization_core::RelocationFreeObjectContainerIdentity::from_canonical_bytes(
+        optimization_core::RelocationFreeObjectContainerIdentity::from_canonical_bytes(
             &staged.container().bytes,
         );
     staged.container_mut().identity = corrupted_container_identity;

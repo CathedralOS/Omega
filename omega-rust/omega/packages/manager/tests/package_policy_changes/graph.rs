@@ -1,6 +1,6 @@
 use super::*;
-use omega_package_evidence::encoding::PackagePolicyTextRecoveryLimits;
-use omega_package_evidence::record::PackagePolicyBaseline;
+use package_evidence::encoding::PackagePolicyTextRecoveryLimits;
+use package_evidence::record::PackagePolicyBaseline;
 
 #[test]
 fn retained_rows_survive_old_source_loss_and_distinguish_replaced_same_name_packages() {

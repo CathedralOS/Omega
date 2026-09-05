@@ -10,7 +10,7 @@ use crate::git::executable::executor::*;
 use crate::git::request::GitExecutionTransport;
 use crate::limits::*;
 use crate::test_support::*;
-use omega_resolver_execution::ResolverExecutionPhase;
+use resolver_execution::ResolverExecutionPhase;
 
 mod bounded;
 mod configuration;

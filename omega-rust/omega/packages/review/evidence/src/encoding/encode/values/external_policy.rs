@@ -118,7 +118,7 @@ pub(in crate::encoding::encode) fn validated_value(
 }
 
 fn encode_target(encoder: &mut Encoder, target: &str) -> Result<(), PackageReviewEncodingError> {
-    if !omega_target::TargetProfile::ALL
+    if !target::TargetProfile::ALL
         .iter()
         .any(|profile| profile.identity().as_str() == target)
     {

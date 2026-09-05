@@ -16,6 +16,7 @@ mod shift;
 mod terminal;
 mod unary;
 
+pub(crate) use self::terminal::*;
 pub(crate) use arithmetic::*;
 pub(crate) use bitwise::*;
 pub(crate) use boolean_equal_immediate::*;
@@ -26,5 +27,4 @@ pub(crate) use integer_equal_immediate::*;
 pub(crate) use integer_less_or_equal_immediate::*;
 pub(crate) use integer_less_than_immediate::*;
 pub(crate) use shift::*;
-pub(crate) use terminal::*;
 pub(crate) use unary::*;

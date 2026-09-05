@@ -1,11 +1,11 @@
 use super::super::semantics::declarations::nominal_identity;
 use crate::record::PackageReviewCapabilityFlow;
-use omega_compiler::CheckedCompilation;
-use psi_diagnostics::Diagnostic;
+use compiler::CheckedCompilation;
+use diagnostics::Diagnostic;
 
 pub(crate) fn project_capability_flow(
     compilation: &CheckedCompilation,
-    flow: &psi_effects::CapabilityFlowFact,
+    flow: &flow_effects::CapabilityFlowFact,
 ) -> Result<PackageReviewCapabilityFlow, Vec<Diagnostic>> {
     Ok(PackageReviewCapabilityFlow {
         capability: nominal_identity(compilation, flow.capability_symbol)?,

@@ -6,12 +6,12 @@
 //! build authority or scratch state.
 
 use super::{grant_root, omg_path};
-use omega_compiler::{CheckedCompilation, compile_to_checked};
-use psi_checked_interpreter::{
+use checked_interpreter::{
     BuildTimeValue, EvaluationObservations, FilesystemAccess, FilesystemLogicalHandleOutput,
     FsGrants, InterpretOptions, evaluate_build_machine_with_filesystem,
     evaluate_build_machine_with_filesystem_measured,
 };
+use compiler::{CheckedCompilation, compile_to_checked};
 use std::path::Path;
 
 /// The GRANTED BUILD probe (rung 4, interpreter side): one exact free build
@@ -89,9 +89,9 @@ fn logical_handle_lifetimes(
     observations: &EvaluationObservations,
 ) -> Vec<(
     u16,
-    Vec<psi_checked_interpreter::FilesystemLogicalHandleInput>,
+    Vec<checked_interpreter::FilesystemLogicalHandleInput>,
     Option<FilesystemLogicalHandleOutput>,
-    Vec<psi_checked_interpreter::FilesystemLogicalHandleIdentity>,
+    Vec<checked_interpreter::FilesystemLogicalHandleIdentity>,
 )> {
     observations
         .filesystem_operation_attempts()

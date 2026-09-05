@@ -1,7 +1,7 @@
 use super::*;
 use crate::record::*;
-use omega_target::TargetProfile;
-use psi_core::PackageKeyIdentity;
+use semantic_vocabulary::PackageKeyIdentity;
+use target::TargetProfile;
 
 fn package() -> PackageKeyIdentity {
     PackageKeyIdentity::from_digest([7; 32]).unwrap()

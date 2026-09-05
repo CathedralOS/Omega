@@ -18,19 +18,19 @@ use crate::record::{
     PackageReviewExternalRequirement, PackageReviewNominalIdentity,
     PackageReviewOperatorRealization,
 };
-use omega_compiler::CheckedCompilation;
-use psi_diagnostics::Diagnostic;
-use psi_language_semantics::MachineSupplyMode;
-use psi_symbols::SymbolHandle;
+use compiler::CheckedCompilation;
+use diagnostics::Diagnostic;
+use language_semantics::MachineSupplyMode;
+use symbols::SymbolHandle;
 
 enum ExpectedExternalCarrier {
-    Legacy(psi_language_semantics::ExternalBindingId),
+    Legacy(language_semantics::ExternalBindingId),
     Evaluated,
 }
 
 pub(super) fn project_callable_conformances(
     compilation: &CheckedCompilation,
-    machine: &psi_typed_trees::machine::Machine,
+    machine: &typed_trees::machine::Machine,
     callable_identity: &PackageReviewNominalIdentity,
     binders: &[(SymbolHandle, String)],
     external_callable_signature: Option<&PackageReviewExternalCallableSignature>,
@@ -168,9 +168,9 @@ pub(super) fn project_callable_conformances(
                     machine.name
                 ))]);
             };
-            if let Some(psi_typed_trees::machine::SatisfiedDeclaration::TopLevelRequirement(
+            if let Some(typed_trees::machine::SatisfiedDeclaration::TopLevelRequirement(
                 requirement,
-            )) = psi_typed_trees::machine::resolve_satisfied_declaration(
+            )) = typed_trees::machine::resolve_satisfied_declaration(
                 &compilation.typed,
                 machine,
                 conformance,
@@ -207,21 +207,21 @@ pub(super) fn project_callable_conformances(
             }
             let external_operator = expected_external.is_some();
             let operator = if external_operator {
-                psi_typed_trees::operator::resolve_satisfied_boundary_operator(
+                typed_trees::operator::resolve_satisfied_boundary_operator(
                     &compilation.typed,
                     machine,
                     conformance.name.as_str(),
                     requirement_name.as_str(),
                 )
             } else {
-                psi_typed_trees::operator::resolve_satisfied_checked_operator(
+                typed_trees::operator::resolve_satisfied_checked_operator(
                     &compilation.typed,
                     machine,
                     conformance.name.as_str(),
                     requirement_name.as_str(),
                 )
                 .or_else(|| {
-                    psi_typed_trees::operator::resolve_specialized_checked_operator_application(
+                    typed_trees::operator::resolve_specialized_checked_operator_application(
                         &compilation.typed,
                         machine,
                         conformance.name.as_str(),
@@ -264,7 +264,7 @@ pub(super) fn project_callable_conformances(
                 };
                 if operator.spelling.is_some()
                     && (!matches!(binding, PackageReviewExternalBinding::CompilerIntrinsic)
-                        || omega_provider_planning::plans::primitive_float_binary_intrinsic_execution_identity(
+                        || provider_planning::plans::primitive_float_binary_intrinsic_execution_identity(
                             &compilation.typed,
                             operator,
                         )
@@ -361,12 +361,16 @@ pub(super) fn project_callable_conformances(
                     machine.name, conformance.name, requirement_name
                 ))]);
             }
-            if compilation.operator_contracts(operator).iter().any(|contract| {
-                matches!(
-                    contract.kind,
-                    psi_typed_trees::signature::SignatureContractKind::EnsuresForResultCase { .. }
-                )
-            }) {
+            if compilation
+                .operator_contracts(operator)
+                .iter()
+                .any(|contract| {
+                    matches!(
+                        contract.kind,
+                        typed_trees::signature::SignatureContractKind::EnsuresForResultCase { .. }
+                    )
+                })
+            {
                 return Err(vec![Diagnostic::error(format!(
                     "reviewed callable `{}` realizes operator `{}::{}` with outcome-specific contracts outside checked operator refinement",
                     machine.name, conformance.name, requirement_name
@@ -382,7 +386,7 @@ pub(super) fn project_callable_conformances(
                     machine.name
                 ))]);
             };
-            psi_validation::validate_checked_operator_realization_contract(
+            validation::validate_checked_operator_realization_contract(
                 &compilation.typed,
                 machine,
                 operator,
@@ -419,10 +423,10 @@ pub(super) fn project_callable_conformances(
                 machine.name
             ))]);
         };
-        let Some(psi_typed_trees::machine::SatisfiedDeclaration::Trait {
+        let Some(typed_trees::machine::SatisfiedDeclaration::Trait {
             definition: resolved_trait,
             requirement,
-        }) = psi_typed_trees::machine::resolve_satisfied_declaration(
+        }) = typed_trees::machine::resolve_satisfied_declaration(
             &compilation.typed,
             machine,
             conformance,
@@ -449,7 +453,7 @@ pub(super) fn project_callable_conformances(
                 requirement,
             )?,
             requirement_lifetime_partition:
-                psi_typed_trees::machine::normalize_requirement_lifetime_partition(
+                typed_trees::machine::normalize_requirement_lifetime_partition(
                     &conformance.trait_lifetime_arguments,
                 ),
             arguments: compilation

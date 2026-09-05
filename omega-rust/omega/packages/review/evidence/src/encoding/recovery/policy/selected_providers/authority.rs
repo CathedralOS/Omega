@@ -4,7 +4,7 @@ use crate::record::{
     PackagePolicyServiceAuthority, PackagePolicyServiceProgressPremise,
     PackagePolicyServiceProgressRoute,
 };
-use omega_effects::provider_plan::{ServiceProgressEstablishmentRouteKind, ServiceProgressSubject};
+use effects::provider_plan::{ServiceProgressEstablishmentRouteKind, ServiceProgressSubject};
 
 pub(super) fn authority(reader: &mut Reader<'_>) -> Result<PackagePolicyServiceAuthority, Error> {
     Ok(PackagePolicyServiceAuthority {

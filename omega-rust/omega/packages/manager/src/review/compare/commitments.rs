@@ -12,11 +12,11 @@ use crate::resolution::graph::{
     ResolvedPackageClosure,
 };
 use crate::review::candidate::{PackageReviewEvidence, ReviewOnlySourceConsumptionCommitment};
-use omega_package_evidence::record::{
+use package_evidence::record::{
     PackageReviewCanonicalRowKind, PackageReviewCanonicalRowRisk, PackageReviewCanonicalRowSource,
     PackageReviewSourceLocationOwner,
 };
-use omega_package_source::ImmutableSourceResolution;
+use package_source::ImmutableSourceResolution;
 use sha2::{Digest, Sha256};
 
 const CONFLICT_FINGERPRINT_DOMAIN: &[u8] = b"OMEGA-PACKAGE-CAPABILITY-CONFLICT\0";

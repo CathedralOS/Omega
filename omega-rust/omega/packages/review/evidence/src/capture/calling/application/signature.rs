@@ -16,10 +16,10 @@ use crate::record::{
     PackagePolicyTypeParameter, PackageReviewNominalIdentity,
     PackageReviewTraitRequirementParameter, PackageReviewTypeIdentity,
 };
-use omega_compiler::CheckedCompilation;
-use omega_provider_planning::calling_policy_plans::BoundaryCallingPlanRealization;
-use psi_diagnostics::Diagnostic;
-use psi_typed_trees::name::Identifier;
+use compiler::CheckedCompilation;
+use diagnostics::Diagnostic;
+use provider_planning::calling_policy_plans::BoundaryCallingPlanRealization;
+use typed_trees::name::Identifier;
 
 pub(crate) struct CallingSignatureProjection {
     pub boundary_trait: PackageReviewNominalIdentity,
@@ -70,9 +70,9 @@ pub(super) fn project(
 /// Project the semantic application without requiring any physical realization.
 pub(crate) fn project_application(
     compilation: &CheckedCompilation,
-    boundary_trait: psi_symbols::SymbolHandle,
-    boundary_arguments: &[psi_typed_trees::types::TypeReferenceHandle],
-    requirement_machine: psi_symbols::SymbolHandle,
+    boundary_trait: symbols::SymbolHandle,
+    boundary_arguments: &[typed_trees::types::TypeReferenceHandle],
+    requirement_machine: symbols::SymbolHandle,
 ) -> Result<CallingSignatureProjection, Vec<Diagnostic>> {
     project_with_binders(
         compilation,
@@ -85,10 +85,10 @@ pub(crate) fn project_application(
 
 fn project_with_binders(
     compilation: &CheckedCompilation,
-    boundary_trait: psi_symbols::SymbolHandle,
-    boundary_arguments: &[psi_typed_trees::types::TypeReferenceHandle],
-    requirement_machine: psi_symbols::SymbolHandle,
-    root_binders: &[(psi_symbols::SymbolHandle, String)],
+    boundary_trait: symbols::SymbolHandle,
+    boundary_arguments: &[typed_trees::types::TypeReferenceHandle],
+    requirement_machine: symbols::SymbolHandle,
+    root_binders: &[(symbols::SymbolHandle, String)],
 ) -> Result<CallingSignatureProjection, Vec<Diagnostic>> {
     let roots = compilation
         .traits()
@@ -258,7 +258,7 @@ fn project_with_binders(
         &substitutions,
         &contract_scopes,
         false,
-        psi_language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure::PublicInterface,
+        language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure::PublicInterface,
     )?;
     let source_parameters = compilation
         .state_signature_parameters(signature)

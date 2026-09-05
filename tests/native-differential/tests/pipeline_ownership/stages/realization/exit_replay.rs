@@ -28,10 +28,10 @@ fn exit_replay_checks_rosters_and_return_fields_after_reauthentication() {
         ("callee save", |record| {
             record.functions[0]
                 .modified_callee_saved_units
-                .push(omega_register_model::RegisterUnitId(0))
+                .push(register_model::RegisterUnitId(0))
         }),
         ("entry block", |record| {
-            record.functions[0].entry_block = omega_selected_instructions::SelectedBlockId(u32::MAX)
+            record.functions[0].entry_block = selected_instructions::SelectedBlockId(u32::MAX)
         }),
         ("return byte", |record| {
             record.functions[0].returns[0].bytes[0] ^= 1
@@ -41,7 +41,7 @@ fn exit_replay_checks_rosters_and_return_fields_after_reauthentication() {
         }),
         ("return edge", |record| {
             record.functions[0].returns[0].psi_return_edge =
-                psi_core::EdgeId::new(u64::MAX).unwrap()
+                semantic_vocabulary::EdgeId::new(u64::MAX).unwrap()
         }),
         ("return value category", |record| {
             record.functions[0].returns[0].value = WholeFunctionReturnValueEvidence::UnitV1

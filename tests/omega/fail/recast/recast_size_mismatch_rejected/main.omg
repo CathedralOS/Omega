@@ -1,6 +1,6 @@
 // FAIL CANARY: §5b rule 1 -- a recast re-views the SAME bytes, so source
 // and target shapes must agree on total size. `&i64 as &f32` (8 vs 4
-// bytes) refuses at the rung-A scalar judgment (psi-validation
+// bytes) refuses at the rung-A scalar judgment (validation
 // recasts.rs).
 use omega::language::std::console;
 data Main { console: Console; x: i64; }

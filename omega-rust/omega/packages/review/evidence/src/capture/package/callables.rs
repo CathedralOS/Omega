@@ -18,10 +18,10 @@ use crate::record::{
     PackageReviewContractEntailmentOpenObligation, PackageReviewExternalExecutableSupply,
     PackageReviewNominalOwner, PackageReviewSourceLocationRole,
 };
-use omega_compiler::CheckedCompilation;
-use psi_core::PackageKeyIdentity;
-use psi_diagnostics::Diagnostic;
-use psi_language_semantics::MachineSupplyMode;
+use compiler::CheckedCompilation;
+use diagnostics::Diagnostic;
+use language_semantics::MachineSupplyMode;
+use semantic_vocabulary::PackageKeyIdentity;
 
 pub(super) struct ProjectedPackageCallables {
     pub(super) callables: Vec<ProjectedReviewRow<CheckedPackageCallableReview>>,
@@ -101,7 +101,7 @@ pub(super) fn project_package_callables(
             &mut contract_locations,
         )?;
         contract_locations.extend(
-            psi_typed_trees_to_checked_trees::derive_checked_body_call_source_spans(
+            typed_trees_to_checked_trees::derive_checked_body_call_source_spans(
                 &compilation.typed,
                 &compilation.facts,
                 machine.symbol,
@@ -170,7 +170,7 @@ pub(super) fn project_package_callables(
 fn project_private_external_supply(
     compilation: &CheckedCompilation,
     package: PackageKeyIdentity,
-    build_machine: Option<psi_symbols::SymbolHandle>,
+    build_machine: Option<symbols::SymbolHandle>,
     projected: &mut Vec<ProjectedReviewRow<PackageReviewExternalExecutableSupply>>,
 ) -> Result<(), Vec<Diagnostic>> {
     // External executable supply is trust-bearing even when the leaf is a

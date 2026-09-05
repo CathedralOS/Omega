@@ -1,7 +1,7 @@
 //! Segment-home roots are mandatory and independently replayed.
 
 use crate::tests::*;
-use omega_selected_instructions_to_register_homes::{
+use selected_instructions_to_register_homes::{
     FixedPrecoloredIntervalPlanIdentity, FixedPrecoloredSegmentHomePlanIdentity,
     FixedPrecoloredSplitRequirementPlanIdentity, FixedViewCopySourceEvidence,
 };
@@ -14,11 +14,8 @@ fn generous_budget() -> OptimizationWorkBudget {
 
 fn replay(
     staged: &StagedOptimizedFixedViewCopies,
-    plan: omega_selected_instructions_to_register_homes::FixedViewCopyPlan,
-) -> Result<
-    omega_selected_instructions_to_register_homes::ValidatedFixedViewCopies,
-    FixedViewCopyError,
-> {
+    plan: selected_instructions_to_register_homes::FixedViewCopyPlan,
+) -> Result<selected_instructions_to_register_homes::ValidatedFixedViewCopies, FixedViewCopyError> {
     let source = staged.source_segment_home_stage();
     let legality = source.source_legality_stage();
     let selected = legality
@@ -95,7 +92,7 @@ fn shared_entry_copy_consumes_every_authenticated_boundary_and_binds_all_three_r
             forwarded[2].allocation_domain
         );
         assert_eq!(
-            omega_selected_instructions_to_register_homes::FixedViewCopyPlan::decode(
+            selected_instructions_to_register_homes::FixedViewCopyPlan::decode(
                 &staged.copies().plan().encode()
             )
             .unwrap(),

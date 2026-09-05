@@ -1,0 +1,21 @@
+[package]
+name = "register-homes-to-post-allocation-machine"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[lib]
+name = "register_homes_to_post_allocation_machine"
+path = "src/lib.rs"
+
+[dependencies]
+physical-instructions = { path = "../../representations/physical-instructions" }
+selected-instructions-to-register-homes = { path = "../selected-instructions-to-register-homes" }
+target-to-register-environment = { path = "../target-to-register-environment" }
+optimization-core = { path = "../../representations/optimization-core" }
+register-model = { path = "../../representations/register-model" }
+selected-instructions = { path = "../../representations/selected-instructions" }
+semantic-vocabulary = { path = "../../../psi/foundation/semantic-vocabulary" }
+
+[dev-dependencies]
+isa-x86_64 = { path = "../../backend/instruction_set_architectures/isa-x86_64" }

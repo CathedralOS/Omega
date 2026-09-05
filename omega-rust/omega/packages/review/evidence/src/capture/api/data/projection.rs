@@ -16,22 +16,22 @@ use crate::record::{
     PackageReviewContractFact, PackageReviewDataKind, PackageReviewDataMember,
     PackageReviewDataShape, PackageReviewNominalIdentity, PackageReviewSourceLocationRole,
 };
-use omega_compiler::CheckedCompilation;
-use psi_core::PackageKeyIdentity;
-use psi_diagnostics::Diagnostic;
-use psi_symbols::SymbolHandle;
+use compiler::CheckedCompilation;
+use diagnostics::Diagnostic;
+use semantic_vocabulary::PackageKeyIdentity;
+use symbols::SymbolHandle;
 
 pub(crate) fn project_data_invariant_facts(
     compilation: &CheckedCompilation,
-    definition: &psi_typed_trees::data::DataDefinition,
+    definition: &typed_trees::data::DataDefinition,
     identity: &PackageReviewNominalIdentity,
     binders: &[(SymbolHandle, String)],
 ) -> Result<Vec<PackageReviewContractFact>, Vec<Diagnostic>> {
     let context = ContractProjectionContext {
         subject_kind: "public data",
         subject_name: &identity.path,
-        owner: psi_checked_trees::ContractProofFactOwner::Unknown,
-        point: psi_facts::ProgramPoint::Definition {
+        owner: checked_trees::ContractProofFactOwner::Unknown,
+        point: facts::ProgramPoint::Definition {
             symbol: definition.symbol,
         },
         parameters: &[],
@@ -39,7 +39,7 @@ pub(crate) fn project_data_invariant_facts(
         data_symbol: Some(definition.symbol),
         lifetime_binders: &definition.lifetime_parameters,
         lifetime_substitutions: &[],
-        selection_exposure: psi_language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure::PublicInterface,
+        selection_exposure: language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure::PublicInterface,
     };
     let reviewed_package = compilation.package_identity().ok_or_else(|| {
         vec![Diagnostic::error(
@@ -48,7 +48,7 @@ pub(crate) fn project_data_invariant_facts(
     })?;
     let mut projected = Vec::new();
     for offset in 0..definition.where_facts.count() {
-        let fact_handle = psi_arena::Handle::from_parts(
+        let fact_handle = arena::Handle::from_parts(
             definition
                 .where_facts
                 .start()
@@ -73,10 +73,10 @@ pub(crate) fn project_data_invariant_facts(
 pub(crate) fn require_exact_checked_data_fact(
     compilation: &CheckedCompilation,
     data_symbol: SymbolHandle,
-    fact_handle: psi_arena::Handle<psi_typed_trees::domain::ProofFact>,
+    fact_handle: arena::Handle<typed_trees::domain::ProofFact>,
     identity: &PackageReviewNominalIdentity,
 ) -> Result<(), Vec<Diagnostic>> {
-    let point = psi_facts::ProgramPoint::Definition {
+    let point = facts::ProgramPoint::Definition {
         symbol: data_symbol,
     };
     let matching_rows = compilation
@@ -86,8 +86,8 @@ pub(crate) fn require_exact_checked_data_fact(
         .iter()
         .filter_map(|(handle, fact)| {
             (fact.point == point
-                && fact.origin == psi_facts::FactOrigin::DataDefinition { data_symbol }
-                && fact.evidence == psi_facts::QualificationEvidence::default()
+                && fact.origin == facts::FactOrigin::DataDefinition { data_symbol }
+                && fact.evidence == facts::QualificationEvidence::default()
                 && semantic_fact_matches_definition_fact(compilation, fact, fact_handle))
             .then_some(handle)
         })
@@ -126,7 +126,7 @@ pub(crate) fn project_public_data(
     package: PackageKeyIdentity,
 ) -> Result<Vec<ProjectedReviewRow<PackageReviewDataShape>>, Vec<Diagnostic>> {
     require_rederived_data_definition_facts(compilation)?;
-    let quotient_formations = psi_validation::validate_quotient_formations(compilation)?;
+    let quotient_formations = validation::validate_quotient_formations(compilation)?;
     let mut rows = Vec::new();
     for definition in compilation
         .data_definitions()
@@ -196,7 +196,7 @@ pub(crate) fn project_public_data(
             .map(
                 |member| -> Result<PackageReviewDataMember, Vec<Diagnostic>> {
                     Ok(match member {
-                        psi_typed_trees::data::DataMember::Field(field) => {
+                        typed_trees::data::DataMember::Field(field) => {
                             PackageReviewDataMember::Field(project_data_field(
                                 compilation,
                                 field,
@@ -204,7 +204,7 @@ pub(crate) fn project_public_data(
                                 &definition.lifetime_parameters,
                             )?)
                         }
-                        psi_typed_trees::data::DataMember::Variant(variant) => {
+                        typed_trees::data::DataMember::Variant(variant) => {
                             let mut retired_payload_identities =
                                 variant.retired_payload_identities.clone();
                             retired_payload_identities.sort_unstable();
@@ -253,7 +253,7 @@ pub(crate) fn project_public_data(
                 collect_type_parameter_source_locations(compilation, parameters, &mut locations)?;
                 for member in compilation.data_members(definition) {
                     match member {
-                        psi_typed_trees::data::DataMember::Field(field) => {
+                        typed_trees::data::DataMember::Field(field) => {
                             locations.push(project_nested_declaration_source_location(
                                 compilation,
                                 field.symbol,
@@ -261,7 +261,7 @@ pub(crate) fn project_public_data(
                                 "public data field",
                             )?);
                         }
-                        psi_typed_trees::data::DataMember::Variant(variant) => {
+                        typed_trees::data::DataMember::Variant(variant) => {
                             locations.push(project_nested_declaration_source_location(
                                 compilation,
                                 variant.symbol,

@@ -6,7 +6,7 @@
 //! traversal and results, and [`local`] and [`git`] acquire hostile source
 //! under shared snapshot and custody owners. This crate stops at immutable
 //! source custody; package declarations, graph construction, review, and
-//! admission belong to `omega-package-manager`.
+//! admission belong to `package-manager`.
 
 mod custody;
 mod error;

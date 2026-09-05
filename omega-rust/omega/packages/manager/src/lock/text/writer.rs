@@ -4,7 +4,7 @@ use super::super::{
     PackageLockRecoveryLimits,
 };
 use super::{HEADER, budget::Budget, framing::Writer};
-use omega_package_evidence::record::PackagePolicyBaseline;
+use package_evidence::record::PackagePolicyBaseline;
 
 impl PackageLock {
     /// Diffable child texts remain verbatim, with explicit byte lengths to

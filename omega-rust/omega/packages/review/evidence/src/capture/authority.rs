@@ -7,8 +7,8 @@ use crate::record::{
     PackageReviewDangerousAuthorityClass, PackageReviewDangerousAuthoritySlack,
     PackageReviewNominalIdentity, PackageReviewSynchronousInvocation,
 };
-use omega_compiler::CheckedCompilation;
-use psi_diagnostics::Diagnostic;
+use compiler::CheckedCompilation;
+use diagnostics::Diagnostic;
 use std::collections::BTreeSet;
 
 pub(crate) fn project_dangerous_authorities(
@@ -169,11 +169,11 @@ pub(crate) fn callable_exposes_service(
 /// physical authority class.
 pub(crate) fn dangerous_authority_class(
     compilation: &CheckedCompilation,
-    definition: &psi_language_semantics::ServiceReachDefinition,
+    definition: &language_semantics::ServiceReachDefinition,
 ) -> Option<PackageReviewDangerousAuthorityClass> {
     if compilation
         .resolved_semantic_binding(
-            omega_package_compilation::AcceptedSemanticBindingRole::ConsoleExitProcessI32,
+            package_compilation::AcceptedSemanticBindingRole::ConsoleExitProcessI32,
         )
         .is_some_and(|binding| binding.declaration_symbol() == definition.symbol)
     {
@@ -181,7 +181,7 @@ pub(crate) fn dangerous_authority_class(
     }
     if compilation
         .resolved_semantic_binding(
-            omega_package_compilation::AcceptedSemanticBindingRole::FilesystemHostService,
+            package_compilation::AcceptedSemanticBindingRole::FilesystemHostService,
         )
         .is_some_and(|binding| binding.declaration_symbol() == definition.symbol)
     {

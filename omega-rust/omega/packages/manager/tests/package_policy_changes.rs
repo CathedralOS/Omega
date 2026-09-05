@@ -1,25 +1,25 @@
 //! Complete retained policy changes use real, independently compiled candidates.
 
-use omega_package_evidence::record::PackagePolicyRowKind;
-use omega_package_manager::lock::{
+use package_evidence::record::PackagePolicyRowKind;
+use package_manager::lock::{
     HistoricalPackagePolicyDecisions, HistoricalPackagePolicyLimits, PackageLock,
     PackageLockRecoveryLimits, PackageLockTarget,
 };
-use omega_package_manager::resolution::graph::{
+use package_manager::resolution::graph::{
     CanonicalSourceClosureSubject, CanonicalSourceClosureSubjectLimits, PackageRootSourceRequest,
     PackageSourceClosureLimits, ResolvedPackageSourceClosure,
     resolve_external_local_project_closure_with_storage,
 };
-use omega_package_manager::resolution::package_compilation_inputs;
-use omega_package_manager::review::{
+use package_manager::resolution::package_compilation_inputs;
+use package_manager::review::{
     CompilerIssuedPackageReviewSet, PackagePolicyChangeKind, PackagePolicyChangeLimits,
     compare_package_policy_changes, compile_resolved_package_candidate_reviews,
     compile_resolved_package_reviews,
 };
-use omega_package_source::{ExternalSourceContext, LocalSourceLimits, SourceResolverStorage};
-use omega_target::TargetProfile;
+use package_source::{ExternalSourceContext, LocalSourceLimits, SourceResolverStorage};
 use std::fs;
 use std::path::{Path, PathBuf};
+use target::TargetProfile;
 
 #[path = "package_policy_changes/authority.rs"]
 mod authority;

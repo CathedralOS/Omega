@@ -53,9 +53,9 @@ use super::reconcile::{
     PackageRootSourceRequest, PackageSourceClosureLimits, PackageSourceClosureResolutionError,
 };
 #[cfg(test)]
-use omega_package_source::{ExternalSourceContext, SourceLineage, SourceRelativePath};
+use package_source::{ExternalSourceContext, SourceLineage, SourceRelativePath};
 #[cfg(test)]
-use omega_package_source::{GitSourceRequest, LocalSourceLimits, SourceResolverStorage};
+use package_source::{GitSourceRequest, LocalSourceLimits, SourceResolverStorage};
 #[cfg(test)]
 use std::path::{Path, PathBuf};
 

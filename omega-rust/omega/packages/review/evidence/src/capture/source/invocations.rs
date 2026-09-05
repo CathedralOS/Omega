@@ -2,12 +2,12 @@ use crate::capture::behavior::canonical_checked_invocation_targets;
 use crate::capture::semantics::facts::exactly_one;
 use crate::capture::source::ProjectedNestedSourceLocation;
 use crate::record::PackageReviewSourceLocationRole;
-use omega_compiler::CheckedCompilation;
-use psi_diagnostics::Diagnostic;
+use compiler::CheckedCompilation;
+use diagnostics::Diagnostic;
 
 pub(crate) fn project_machine_invocation_source_locations(
     compilation: &CheckedCompilation,
-    machine: &psi_typed_trees::machine::Machine,
+    machine: &typed_trees::machine::Machine,
 ) -> Result<Vec<ProjectedNestedSourceLocation>, Vec<Diagnostic>> {
     validate_machine_invocations(compilation, machine)?;
     let declarations = compilation.machine_invokes(machine);
@@ -22,10 +22,10 @@ pub(crate) fn project_machine_invocation_source_locations(
 
 pub(crate) fn validate_machine_invocations(
     compilation: &CheckedCompilation,
-    machine: &psi_typed_trees::machine::Machine,
+    machine: &typed_trees::machine::Machine,
 ) -> Result<(), Vec<Diagnostic>> {
     let declarations = compilation.machine_invokes(machine);
-    let declared = psi_effects::declared_machine_invocations(compilation, machine);
+    let declared = flow_effects::declared_machine_invocations(compilation, machine);
     if declared.len() != declarations.len() {
         return Err(vec![Diagnostic::error(format!(
             "reviewed callable `{}` has an unresolved, duplicate, or semantically aliased authored invokes target",
@@ -65,10 +65,10 @@ pub(crate) fn validate_machine_invocations(
 
 pub(crate) fn project_signature_invocation_source_locations(
     compilation: &CheckedCompilation,
-    signature: &psi_typed_trees::signature::StateSignature,
+    signature: &typed_trees::signature::StateSignature,
 ) -> Result<Vec<ProjectedNestedSourceLocation>, Vec<Diagnostic>> {
     let declarations = compilation.state_signature_invokes(signature);
-    let targets = psi_effects::declared_signature_invocations(compilation, signature);
+    let targets = flow_effects::declared_signature_invocations(compilation, signature);
     if targets.len() != declarations.len() {
         return Err(vec![Diagnostic::error(format!(
             "reviewed signature `{}` has an unresolved, duplicate, or semantically aliased authored invokes target",

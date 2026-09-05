@@ -1,0 +1,14 @@
+[package]
+name = "terminal-semantics"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[lib]
+name = "terminal_semantics"
+path = "src/lib.rs"
+
+[dependencies]
+semantic-vocabulary = { path = "../../foundation/semantic-vocabulary" }
+numerics = { path = "../../foundation/numerics" }
+terminal-psi = { path = "../../representations/terminal-psi" }

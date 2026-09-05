@@ -94,12 +94,11 @@ fn atomic_load_review_rejects_non_load_orderings_and_result_tamper() {
         .expression_table
         .iter_expressions()
         .find_map(|(expression, node)| {
-            matches!(node, psi_typed_trees::expression::ExpressionNode::Atomic(_))
-                .then_some(expression)
+            matches!(node, typed_trees::expression::ExpressionNode::Atomic(_)).then_some(expression)
         })
         .expect("atomic load expression");
 
-    use psi_language_core::atomic::{AtomicOrderingPlan, MemoryOrdering};
+    use language_core::atomic::{AtomicOrderingPlan, MemoryOrdering};
     for ordering in [
         AtomicOrderingPlan::Store(MemoryOrdering::NoOrdering),
         AtomicOrderingPlan::ReadModifyWrite(MemoryOrdering::NoOrdering),
@@ -115,7 +114,7 @@ fn atomic_load_review_rejects_non_load_orderings_and_result_tamper() {
         AtomicOrderingPlan::Load(MemoryOrdering::Publish),
         AtomicOrderingPlan::Load(MemoryOrdering::ReceivePublish),
     ] {
-        let psi_typed_trees::expression::ExpressionNode::Atomic(atomic) = checked
+        let typed_trees::expression::ExpressionNode::Atomic(atomic) = checked
             .typed
             .expression_table
             .expression_mut(atomic_expression)
@@ -126,7 +125,7 @@ fn atomic_load_review_rejects_non_load_orderings_and_result_tamper() {
         assert!(project_checked_package_review(&checked).is_err());
     }
 
-    let psi_typed_trees::expression::ExpressionNode::Atomic(atomic) = checked
+    let typed_trees::expression::ExpressionNode::Atomic(atomic) = checked
         .typed
         .expression_table
         .expression_mut(atomic_expression)

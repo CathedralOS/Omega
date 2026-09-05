@@ -1,0 +1,25 @@
+[package]
+name = "trust-model"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[lib]
+name = "trust_model"
+path = "src/lib.rs"
+
+[dependencies]
+artifacts = { path = "../../tooling/artifacts" }
+effects = { path = "../../representations/effects" }
+checked-trees = { path = "../../../psi/representations/checked-trees" }
+semantic-vocabulary = { path = "../../../psi/foundation/semantic-vocabulary" }
+diagnostics = { path = "../../../psi/foundation/diagnostics" }
+language-semantics = { path = "../../../psi/foundation/language-semantics" }
+source = { path = "../../../psi/foundation/source" }
+symbols = { path = "../../../psi/foundation/symbols" }
+typed-trees = { path = "../../../psi/representations/typed-trees" }
+typed-trees-to-checked-trees = { path = "../../../psi/pipeline/typed-trees-to-checked-trees" }
+sha2 = "0.10.9"
+
+[dev-dependencies]
+target = { path = "../../representations/target" }

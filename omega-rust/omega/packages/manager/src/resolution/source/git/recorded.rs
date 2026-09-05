@@ -8,12 +8,12 @@ use super::workspace::{
 };
 use crate::declarations::dependencies::read::PackageSelection;
 use crate::resolution::source::{ResolvePackageSourceError, ResolvedPackageSource};
-use omega_package_source::git::resolution::{
+use package_source::git::resolution::{
     GitExactRevisionAcquisition, resolve_git_source_at_revision_in_lane,
     resolve_git_workspace_member_at_revision_in_lanes,
 };
-use omega_package_source::storage::RetainedStorageLane;
-use omega_package_source::{
+use package_source::storage::RetainedStorageLane;
+use package_source::{
     GitCommitId, GitTreeId, GitWorkspaceDeclarationLimits, GitWorkspaceProjectionError,
     LocalSourceLimits, ResolvedGitSource,
 };

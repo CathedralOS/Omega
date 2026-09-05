@@ -1,5 +1,5 @@
-use omega_package_source::SourceLineage;
-use psi_core::PackageKeyIdentity;
+use package_source::SourceLineage;
+use semantic_vocabulary::PackageKeyIdentity;
 use sha2::{Digest, Sha256};
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -8,7 +8,7 @@ pub struct PackageName(String);
 impl PackageName {
     pub fn parse(value: impl Into<String>) -> Result<Self, String> {
         let value = value.into();
-        omega_build_declarations::ProjectName::parse(value.clone())?;
+        build_declarations::ProjectName::parse(value.clone())?;
         Ok(Self(value))
     }
 
@@ -21,8 +21,8 @@ impl PackageName {
     }
 }
 
-impl From<omega_build_declarations::ProjectName> for PackageName {
-    fn from(value: omega_build_declarations::ProjectName) -> Self {
+impl From<build_declarations::ProjectName> for PackageName {
+    fn from(value: build_declarations::ProjectName) -> Self {
         Self(value.into_string())
     }
 }

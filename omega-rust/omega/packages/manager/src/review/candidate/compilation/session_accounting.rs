@@ -1,7 +1,7 @@
 //! Aggregate reconciliation between retained review usage and its sponsor.
 
 use super::super::{CompileResolvedPackageReviewsError, CompilerIssuedPackageReview};
-use psi_checked_interpreter::BuildEvaluationSponsor;
+use checked_interpreter::BuildEvaluationSponsor;
 
 pub(super) fn verify_build_session_accounting(
     reviews: &[CompilerIssuedPackageReview],

@@ -1,13 +1,13 @@
 //! Validate live selected associations before projecting inert policy.
 
 use super::rejected;
-use omega_compiler::CheckedCompilation;
-use omega_provider_planning::plans::{
+use compiler::CheckedCompilation;
+use diagnostics::Diagnostic;
+use provider_planning::plans::{
     DerivedProviderPlan, ProviderSelectionProvenance, SelectedProviderPlanWithProvenance,
 };
-use omega_target::TargetProfile;
-use psi_core::PackageKeyIdentity;
-use psi_diagnostics::Diagnostic;
+use semantic_vocabulary::PackageKeyIdentity;
+use target::TargetProfile;
 
 pub(super) fn validate(
     compilation: &CheckedCompilation,
@@ -45,12 +45,11 @@ pub(super) fn validate(
             selected_by: retained.selected_by.clone(),
         })
         .collect();
-    let (replayed, _) =
-        omega_provider_planning::plans::selected_provider_plan_facts_with_provenance(
-            &compilation.typed,
-            compilation.evaluated_via_bindings(),
-            selected,
-        )?;
+    let (replayed, _) = provider_planning::plans::selected_provider_plan_facts_with_provenance(
+        &compilation.typed,
+        compilation.evaluated_via_bindings(),
+        selected,
+    )?;
     if replayed.plans() != plans {
         return Err(rejected(
             "selected semantic plans differ from exact typed replay",
@@ -84,8 +83,7 @@ fn validate_authored_activation(compilation: &CheckedCompilation) -> Result<(), 
     let [build] = builds.as_slice() else {
         return Err(rejected("selected build machine is missing or ambiguous"));
     };
-    let selections =
-        omega_build_evaluation::harvest_provider_selections(&compilation.typed, build)?;
+    let selections = build_evaluation::harvest_provider_selections(&compilation.typed, build)?;
     for retained in provenance {
         if let ProviderSelectionProvenance::BuildOverride(declarations) = &retained.selected_by
             && declarations.iter().any(|declaration| {
@@ -107,9 +105,9 @@ fn validate_authored_activation(compilation: &CheckedCompilation) -> Result<(), 
             "an authored build selection is absent from the selected closure",
         ));
     }
-    let authored = omega_build_evaluation::harvest_root_grants(&compilation.typed, build)
+    let authored = build_evaluation::harvest_root_grants(&compilation.typed, build)
         .map_err(|diagnostic| vec![diagnostic])?;
-    let grants = omega_trust_model::resolve_authored_selected_provider_grants(
+    let grants = trust_model::resolve_authored_selected_provider_grants(
         compilation.provider_plans(),
         compilation.selected_provider_plans(),
         &authored,
@@ -140,7 +138,7 @@ fn validate_target_defaults(compilation: &CheckedCompilation) -> Result<(), Vec<
                 ));
             };
             let current =
-                omega_build_evaluation::harvest_provider_selections(&compilation.typed, machine)?;
+                build_evaluation::harvest_provider_selections(&compilation.typed, machine)?;
             if !current.contains(declaration) {
                 return Err(rejected(
                     "target default differs from its current authored selection",

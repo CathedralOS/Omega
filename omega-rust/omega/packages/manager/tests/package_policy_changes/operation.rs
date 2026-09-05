@@ -1,9 +1,7 @@
 use super::*;
-use omega_package_manager::lock::HistoricalPackagePolicyError;
-use omega_package_manager::operations::{
-    PackageChangeError, PackageChangeReview, review_package_change,
-};
-use omega_package_manager::review::{
+use package_manager::lock::HistoricalPackagePolicyError;
+use package_manager::operations::{PackageChangeError, PackageChangeReview, review_package_change};
+use package_manager::review::{
     CompileResolvedPackageReviewsError, PackagePolicyChangeError, PackagePolicyResolution,
     PackagePolicyReviewError, recover_package_policy_review, render_package_policy_review,
 };

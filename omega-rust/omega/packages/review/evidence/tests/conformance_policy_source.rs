@@ -1,11 +1,11 @@
 mod support;
 
-use omega_package_evidence::encoding::PackagePolicyRecoveryLimits;
-use omega_package_evidence::project_checked_conformance_policy;
-use omega_package_evidence::record::PackagePolicyClosedConformanceApplication;
-use psi_typed_trees::expression::StaticMachineArgument;
-use psi_typed_trees_to_checked_trees::close_conformance_application;
+use package_evidence::encoding::PackagePolicyRecoveryLimits;
+use package_evidence::project_checked_conformance_policy;
+use package_evidence::record::PackagePolicyClosedConformanceApplication;
 use support::*;
+use typed_trees::expression::StaticMachineArgument;
+use typed_trees_to_checked_trees::close_conformance_application;
 
 fn compile_source(source: &str, digest: u8) -> (TempPackage, CheckedCompilation) {
     let package = TempPackage::new();

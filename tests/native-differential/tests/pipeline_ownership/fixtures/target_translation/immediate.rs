@@ -111,8 +111,8 @@ pub(crate) fn boolean_not_immediate_return_artifact(source_value: bool) -> (Vec<
         }],
     };
     (
-        psi_terminal_codec::encode_module(&module).unwrap(),
-        psi_terminal_codec::encode_proof_bundle(&ProofBundle::default()).unwrap(),
+        terminal_codec::encode_module(&module).unwrap(),
+        terminal_codec::encode_proof_bundle(&ProofBundle::default()).unwrap(),
     )
 }
 
@@ -206,8 +206,8 @@ pub(crate) fn integer_bitwise_not_immediate_return_artifact(
         }],
     };
     (
-        psi_terminal_codec::encode_module(&module).unwrap(),
-        psi_terminal_codec::encode_proof_bundle(&ProofBundle::default()).unwrap(),
+        terminal_codec::encode_module(&module).unwrap(),
+        terminal_codec::encode_proof_bundle(&ProofBundle::default()).unwrap(),
     )
 }
 
@@ -300,8 +300,8 @@ pub(crate) fn integer_widen_immediate_return_artifact() -> (Vec<u8>, Vec<u8>) {
         }],
     };
     (
-        psi_terminal_codec::encode_module(&module).unwrap(),
-        psi_terminal_codec::encode_proof_bundle(&ProofBundle::default()).unwrap(),
+        terminal_codec::encode_module(&module).unwrap(),
+        terminal_codec::encode_proof_bundle(&ProofBundle::default()).unwrap(),
     )
 }
 
@@ -400,14 +400,15 @@ pub(crate) fn integer_exact_cast_immediate_operand_return_artifact() -> (Vec<u8>
     let reconstructed = reconstruct_operation_obligations(&module).unwrap();
     assert_eq!(reconstructed.len(), 1);
     let goal = reconstructed[0].obligation.proposition.clone();
-    let psi_core::Proposition::IntegerMathLessOrEqual(_, upper_bound) = &goal else {
+    let semantic_vocabulary::Proposition::IntegerMathLessOrEqual(_, upper_bound) = &goal else {
         panic!("u16-to-u8 constant exact cast must reconstruct one upper bound")
     };
-    let closed_relation =
-        psi_core::Proposition::IntegerMathLessOrEqual(upper_bound.clone(), upper_bound.clone());
+    let closed_relation = semantic_vocabulary::Proposition::IntegerMathLessOrEqual(
+        upper_bound.clone(),
+        upper_bound.clone(),
+    );
     let constant_axiom =
-        psi_proof_admission::lift_fixed_integer_relation(&reconstructed[0].semantic_axioms[0])
-            .unwrap();
+        proof_admission::lift_fixed_integer_relation(&reconstructed[0].semantic_axioms[0]).unwrap();
     let proof = ProofBundle {
         recursive_components: Vec::new(),
         evidence_producers: Vec::new(),
@@ -422,7 +423,7 @@ pub(crate) fn integer_exact_cast_immediate_operand_return_artifact() -> (Vec<u8>
                         relation: Box::new(ProofNode {
                             conclusion: closed_relation,
                             rule: ProofRule::Primitive(
-                                psi_proof_admission::PrimitiveJudgment::ClosedIntegerRelation,
+                                proof_admission::PrimitiveJudgment::ClosedIntegerRelation,
                             ),
                         }),
                         equality: Box::new(ProofNode {
@@ -436,7 +437,7 @@ pub(crate) fn integer_exact_cast_immediate_operand_return_artifact() -> (Vec<u8>
         }],
     };
     (
-        psi_terminal_codec::encode_module(&module).unwrap(),
-        psi_terminal_codec::encode_proof_bundle(&proof).unwrap(),
+        terminal_codec::encode_module(&module).unwrap(),
+        terminal_codec::encode_proof_bundle(&proof).unwrap(),
     )
 }

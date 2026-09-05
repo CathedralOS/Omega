@@ -11,14 +11,14 @@ use crate::record::{
     PackageReviewOpaqueRepresentationMovementRole, PackageReviewOpaqueRepresentationOccurrence,
     PackageReviewOpaqueRepresentationPathElement,
 };
-use omega_calling_conventions::ValidatedBoundaryEntryPlan;
-use omega_compiler::CheckedCompilation;
-use omega_provider_planning::calling_policy_plans::{
+use calling_conventions::ValidatedBoundaryEntryPlan;
+use compiler::CheckedCompilation;
+use diagnostics::Diagnostic;
+use provider_planning::calling_policy_plans::{
     BoundaryCallingPlanRealization, BoundaryOpaqueRepresentationMovementRole,
     BoundaryOpaqueRepresentationPathElement, BoundaryOpaqueRepresentationUse,
 };
-use omega_representation_planning::OpaqueRepresentationSelection;
-use psi_diagnostics::Diagnostic;
+use representation_planning::OpaqueRepresentationSelection;
 
 pub(super) fn project(
     compilation: &CheckedCompilation,

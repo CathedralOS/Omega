@@ -2,10 +2,10 @@ use super::{
     Observer, PackagePolicyMembershipError as Error, PackagePolicyMembershipLimits as Limits,
     PackagePolicyMembershipUsage as Usage,
 };
-use psi_core::PackageKeyIdentity;
-use psi_language_semantics::type_identity::{
+use language_semantics::type_identity::{
     TypeIdentityPackageOwnerVisitor, TypeIdentityVisitError, visit_type_identity_package_owners,
 };
+use semantic_vocabulary::PackageKeyIdentity;
 
 pub(super) struct Visitor<Contains> {
     contains: Contains,

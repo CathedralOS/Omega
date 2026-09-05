@@ -285,18 +285,18 @@ pub machine make() -> Token { Token { value: 7u64 } }
     let mut altered = checked;
     let row = &mut altered.facts.flow.semantic_dependencies.rows[0];
     row.exposure = match row.exposure {
-        psi_checked_trees::CheckedSemanticDependencyExposure::PrivateImplementation => {
-            psi_checked_trees::CheckedSemanticDependencyExposure::PublicInterface
+        checked_trees::CheckedSemanticDependencyExposure::PrivateImplementation => {
+            checked_trees::CheckedSemanticDependencyExposure::PublicInterface
         }
-        psi_checked_trees::CheckedSemanticDependencyExposure::PublicInterface => {
-            psi_checked_trees::CheckedSemanticDependencyExposure::PrivateImplementation
+        checked_trees::CheckedSemanticDependencyExposure::PublicInterface => {
+            checked_trees::CheckedSemanticDependencyExposure::PrivateImplementation
         }
     };
     assert_semantic_dependency_rederivation_rejects(&altered, "altered row");
 }
 
 fn assert_semantic_dependency_rederivation_rejects(
-    checked: &omega_compiler::CheckedCompilation,
+    checked: &compiler::CheckedCompilation,
     mutation: &str,
 ) {
     let diagnostics = match project_checked_package_review(checked) {
@@ -483,8 +483,8 @@ linux_x86_64 boundary machine ConsoleNativeProvider::exit_process(return_code: i
         .zip(candidate.selected_provider_provenance())
         .find(|(plan, _)| plan.schema.trait_name == "Console")
         .expect("candidate retains its exact Console plan");
-    let accepted = omega_package_compilation::AcceptedSemanticBinding::new(
-        omega_package_compilation::AcceptedSemanticBindingRole::ConsoleExitProcessI32,
+    let accepted = package_compilation::AcceptedSemanticBinding::new(
+        package_compilation::AcceptedSemanticBindingRole::ConsoleExitProcessI32,
         console_package,
         candidate
             .typed
@@ -516,11 +516,11 @@ linux_x86_64 boundary machine ConsoleNativeProvider::exit_process(return_code: i
     };
     let accepted = accepted
         .with_terminal_authority_permissions(vec![
-            omega_effects::ServiceTerminalAuthorityPermission::new(
+            effects::ServiceTerminalAuthorityPermission::new(
                 plan.schema.identity_digest(),
                 exit_method.requirement_identity.clone(),
-                omega_effects::TerminalAuthorityDisposition::from_classes([
-                    omega_effects::TerminalAuthorityClass::ProcessTermination,
+                effects::TerminalAuthorityDisposition::from_classes([
+                    effects::TerminalAuthorityClass::ProcessTermination,
                 ]),
             ),
         ])
@@ -563,7 +563,7 @@ linux_x86_64 boundary machine ConsoleNativeProvider::exit_process(return_code: i
     );
     assert_eq!(
         permission.permitted().classes(),
-        &[omega_effects::TerminalAuthorityClass::ProcessTermination],
+        &[effects::TerminalAuthorityClass::ProcessTermination],
     );
 
     let permission_row = review

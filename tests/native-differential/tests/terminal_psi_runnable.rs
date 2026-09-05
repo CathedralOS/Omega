@@ -1,39 +1,41 @@
-use omega_abstract_operations::AbstractOperation;
-use omega_abstract_operations_to_target_operations::{
+use abstract_operations::AbstractOperation;
+use abstract_operations_to_target_operations::{
     AdmittedBoundaryExecution, AdmittedBoundarySettlement, LoweringError,
     lower_to_target_operations_with_provider_executions,
 };
-use omega_calling_conventions::{CallSignature, ValueShape};
-use omega_image_emission::{
+use calling_conventions::{CallSignature, ValueShape};
+use image_emission::{
     build_installation_record_with_provider_executions, build_object_artifact,
     decode_installation_record, emit_executable_image, encode_installation_record,
     validate_installation_record,
 };
-use omega_machine_emission::emit_machine_code;
+use machine_emission::emit_machine_code;
 use omega_native_differential_test::admit_native_provider;
-use omega_optimization_validation::validate_verified_psi_optimization_unit;
-use omega_psi_to_abstract_operations::{
-    build_verified_psi_optimization_unit, lower_artifact_sections,
-    lower_artifact_sections_for_optimization,
+use optimization_validation::validate_verified_psi_optimization_unit;
+use proof_admission::AdmissionProfile;
+use semantic_vocabulary::{
+    BoundaryMachineId, IntegerValue, ProfileDecisionId, StructuralPlaceKind,
 };
-use omega_target::NativeTarget;
-use omega_target_operations::{LinuxExitGroupI32Realization, LinuxWriteLineRealization};
-use omega_target_operations_to_assigned_target_operations::assign_registers;
-use psi_core::{BoundaryMachineId, IntegerValue, ProfileDecisionId, StructuralPlaceKind};
-use psi_proof_admission::AdmissionProfile;
-use psi_source_files_to_tokens::Lexer;
-use psi_symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
-use psi_syntax_trees_to_symbol_resolved_trees::lower_syntax_trees;
-use psi_terminal::TerminalModule;
-use psi_terminal_codec::{decode_module, encode_proof_bundle, terminal_psi_identity};
-use psi_terminal_fuel::{TerminalFuelMeter, TerminalFuelSchedule};
-use psi_terminal_interpreter::{
+use source_files_to_tokens::Lexer;
+use symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
+use syntax_trees_to_symbol_resolved_trees::lower_syntax_trees;
+use target::NativeTarget;
+use target_operations::{LinuxExitGroupI32Realization, LinuxWriteLineRealization};
+use target_operations_to_assigned_target_operations::assign_registers;
+use terminal_codec::{decode_module, encode_proof_bundle, terminal_psi_identity};
+use terminal_fuel::{TerminalFuelMeter, TerminalFuelSchedule};
+use terminal_interpreter::{
     TerminalEffect, TerminalEffectHandler, TerminalEffectRejection, TerminalExecution,
     TerminalExecutionResult, TerminalExecutionStatus, TerminalScalarValue,
 };
-use psi_terminal_verifier::ProofBundle;
-use psi_tokens_to_syntax_trees::parse_syntax_trees;
-use psi_typed_trees_to_checked_trees::lower_typed_trees;
+use terminal_psi::TerminalModule;
+use terminal_psi_to_abstract_operations::{
+    build_verified_psi_optimization_unit, lower_artifact_sections,
+    lower_artifact_sections_for_optimization,
+};
+use terminal_verifier::ProofBundle;
+use tokens_to_syntax_trees::parse_syntax_trees;
+use typed_trees_to_checked_trees::lower_typed_trees;
 
 const EXPECTED_STDOUT: &[u8] = b"Hello, Omega.\n";
 const EXPECTED_STATUS: i32 = 0;
@@ -124,11 +126,10 @@ fn project_source_entry(source: &str, entry: &str) -> (Vec<u8>, Vec<u8>) {
     let resolved = lower_syntax_trees(&syntax).expect("resolve O1 source");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type O1 source");
     let checked = lower_typed_trees(typed).expect("check O1 source");
-    let lowered = psi_checked_trees_to_terminal::lower_machine(&checked, entry)
+    let lowered = checked_trees_to_terminal_psi::lower_machine(&checked, entry)
         .expect("lower O1 source to terminal Psi");
     (
-        psi_terminal_codec::encode_module(&lowered.semantic_module)
-            .expect("encode O1 terminal Psi"),
+        terminal_codec::encode_module(&lowered.semantic_module).expect("encode O1 terminal Psi"),
         encode_proof_bundle(&lowered.proof_bundle).expect("encode O1 proof bundle"),
     )
 }
@@ -566,7 +567,7 @@ fn canonical_o0_agrees_from_terminal_meaning_through_runnable_linux_image() {
     {
         let bytes = &target_images
             .iter()
-            .find(|(target, _)| target.architecture == omega_target::Architecture::X86_64)
+            .find(|(target, _)| target.architecture == target::Architecture::X86_64)
             .expect("x86-64 image")
             .1;
         std::fs::write(path, bytes).expect("write requested x86-64 O0 image");
@@ -576,7 +577,7 @@ fn canonical_o0_agrees_from_terminal_meaning_through_runnable_linux_image() {
     assert_native_observable(
         &target_images
             .iter()
-            .find(|(target, _)| target.architecture == omega_target::Architecture::X86_64)
+            .find(|(target, _)| target.architecture == target::Architecture::X86_64)
             .expect("x86-64 image")
             .1,
         &meaning.stdout,
@@ -587,7 +588,7 @@ fn canonical_o0_agrees_from_terminal_meaning_through_runnable_linux_image() {
     assert_native_observable(
         &target_images
             .iter()
-            .find(|(target, _)| target.architecture == omega_target::Architecture::Aarch64)
+            .find(|(target, _)| target.architecture == target::Architecture::Aarch64)
             .expect("AArch64 image")
             .1,
         &meaning.stdout,
@@ -703,7 +704,7 @@ fn straight_line_console_o1_agrees_for_zero_one_two_and_sixteen_writes() {
 
         let x64 = target_images
             .iter()
-            .find(|(target, _)| target.architecture == omega_target::Architecture::X86_64)
+            .find(|(target, _)| target.architecture == target::Architecture::X86_64)
             .expect("x86-64 O1 image")
             .1
             .clone();
@@ -715,7 +716,7 @@ fn straight_line_console_o1_agrees_for_zero_one_two_and_sixteen_writes() {
         assert_native_observable(
             &target_images
                 .iter()
-                .find(|(target, _)| target.architecture == omega_target::Architecture::Aarch64)
+                .find(|(target, _)| target.architecture == target::Architecture::Aarch64)
                 .expect("AArch64 O1 image")
                 .1,
             &expected_stdout,
@@ -895,10 +896,10 @@ impl TerminalEffectHandler for O0Meaning {
 }
 
 fn realize_image(
-    plan: &omega_abstract_operations::AbstractOperationPlan,
+    plan: &abstract_operations::AbstractOperationPlan,
     target: NativeTarget,
     settlements: &[AdmittedBoundarySettlement<'_>],
-) -> omega_image_emission::ExecutableImage {
+) -> image_emission::ExecutableImage {
     let target_plan =
         lower_to_target_operations_with_provider_executions(plan, target, settlements)
             .expect("exact admitted O0 providers lower");

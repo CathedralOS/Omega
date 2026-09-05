@@ -69,8 +69,7 @@ fn fixed_view_copy_recovery_reaches_fragments_object_and_callable_on_both_archit
             .flat_map(|function| &function.blocks)
             .flat_map(|block| &block.instructions)
             .filter(|row| {
-                row.alternative.family
-                    == omega_selected_instructions::MachineAlternativeFamily::CopyI64
+                row.alternative.family == selected_instructions::MachineAlternativeFamily::CopyI64
             })
             .collect();
         assert_eq!(copies.len(), 1);

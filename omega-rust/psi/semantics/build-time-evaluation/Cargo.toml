@@ -1,0 +1,33 @@
+[package]
+name = "build-time-evaluation"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[lib]
+name = "build_time_evaluation"
+path = "src/lib.rs"
+
+[dependencies]
+arena = { path = "../../foundation/arena" }
+access-plans = { path = "../../foundation/access-plans" }
+checked-interpreter = { path = "../checked-interpreter" }
+semantic-vocabulary = { path = "../../foundation/semantic-vocabulary" }
+diagnostics = { path = "../../foundation/diagnostics" }
+flow-effects = { path = "../../representations/flow-effects" }
+language-core = { path = "../../foundation/language-core" }
+language-semantics = { path = "../../foundation/language-semantics" }
+layout-plans = { path = "../../foundation/layout-plans" }
+numerics = { path = "../../foundation/numerics" }
+source = { path = "../../foundation/source" }
+symbol-resolved-trees = { path = "../../representations/symbol-resolved-trees" }
+symbols = { path = "../../foundation/symbols" }
+symbol-resolved-trees-to-typed-trees = { path = "../../pipeline/symbol-resolved-trees-to-typed-trees" }
+syntax-trees = { path = "../../representations/syntax-trees" }
+syntax-trees-to-symbol-resolved-trees = { path = "../../pipeline/syntax-trees-to-symbol-resolved-trees" }
+typed-trees = { path = "../../representations/typed-trees" }
+typed-trees-to-checked-trees = { path = "../../pipeline/typed-trees-to-checked-trees" }
+
+[dev-dependencies]
+source-files-to-tokens = { path = "../../pipeline/source-files-to-tokens" }
+tokens-to-syntax-trees = { path = "../../pipeline/tokens-to-syntax-trees" }

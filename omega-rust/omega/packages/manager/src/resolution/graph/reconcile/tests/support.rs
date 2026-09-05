@@ -1,7 +1,7 @@
 use crate::declarations::dependencies::read::DependencySourceRequest;
 use crate::declarations::{AliasName, PackageKey, PackageName};
 use crate::resolution::source::PackageSourceCustody;
-use omega_package_source::{
+use package_source::{
     GitCommitId, GitSourceRequest, GitTreeId, ImmutableSourceResolution, LocalSourceLimits,
     SourceLineage, SourceRelativePath,
 };

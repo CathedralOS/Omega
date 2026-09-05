@@ -1,8 +1,8 @@
 //! Rehashed fragment changes must fail projection checks without producer history.
 
 use crate::tests::*;
-use omega_machine_code::{FunctionFragmentControlProvenance, FunctionFragmentEmissionPlan};
-use omega_machine_emission::{
+use machine_code::{FunctionFragmentControlProvenance, FunctionFragmentEmissionPlan};
+use machine_emission::{
     ResolvedFragmentEmissionError, emit_resolved_function_fragments,
     validate_resolved_function_fragments,
 };

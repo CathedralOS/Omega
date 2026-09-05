@@ -14,7 +14,7 @@ satisfies Host::ping via Binding::CompilerIntrinsic;
         "via Binding::CompilerIntrinsic;",
         "via Binding::CompilerIntrinsic suspends; blocks;",
     ));
-    let quiet_supply = omega_package_evidence::project_checked_external_supply_policy(
+    let quiet_supply = package_evidence::project_checked_external_supply_policy(
         &quiet.checked,
         quiet
             .checked
@@ -25,7 +25,7 @@ satisfies Host::ping via Binding::CompilerIntrinsic;
             .symbol,
     )
     .unwrap();
-    let published_supply = omega_package_evidence::project_checked_external_supply_policy(
+    let published_supply = package_evidence::project_checked_external_supply_policy(
         &published.checked,
         published
             .checked

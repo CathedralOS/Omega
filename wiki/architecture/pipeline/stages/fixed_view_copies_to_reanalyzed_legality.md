@@ -24,7 +24,7 @@ home, emission, or publication authority.
 
 ## Validation Boundary
 
-`omega-selected-instructions-to-register-homes` exposes a sealed selected-analysis interface implemented only
+`selected-instructions-to-register-homes` exposes a sealed selected-analysis interface implemented only
 for the original opaque selector result and the opaque independently validated
 fixed-view-copy result. External code cannot implement it for a raw plan. This
 avoids forging `ValidatedSelectedInstructions` while allowing the same
@@ -42,7 +42,7 @@ direct transition-free path. It still grants no machine-emission authority.
 
 ## Implementation Map
 
-- `omega-selected-instructions-to-register-homes/src/analyses/reanalysis/`
+- `selected-instructions-to-register-homes/src/analyses/reanalysis/`
   owns transformed analysis custody over the sealed selected-analysis input.
 - The same transform's `assignment/transformed/` owns post-copy home assignment
   and its retained evidence. Neither step is a separate allocator crate.

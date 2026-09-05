@@ -8,10 +8,10 @@ use crate::capture::representation::physical_contract::{
 use crate::capture::semantics::conformances::project_checked_conformance_policy;
 use crate::capture::semantics::declarations::{nominal_identity, nominal_owner};
 use crate::record::{PackagePolicyRepresentationSelection, PackageReviewNominalOwner};
-use omega_compiler::CheckedCompilation;
-use omega_representation_planning::OpaqueRepresentationSelection;
-use psi_core::PackageKeyIdentity;
-use psi_diagnostics::Diagnostic;
+use compiler::CheckedCompilation;
+use diagnostics::Diagnostic;
+use representation_planning::OpaqueRepresentationSelection;
+use semantic_vocabulary::PackageKeyIdentity;
 
 pub(crate) fn rederive_selections(
     compilation: &CheckedCompilation,
@@ -38,7 +38,7 @@ pub(crate) fn rederive_selections(
     }
     // Use the independently retained selected build even when the selection
     // collection is empty: otherwise omission of an unused choice is invisible.
-    let derived = omega_representation_planning::rederive_opaque_representation_selections(
+    let derived = representation_planning::rederive_opaque_representation_selections(
         &compilation.typed,
         selected,
         compilation.opaque_representation_selections(),

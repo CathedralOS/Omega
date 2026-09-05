@@ -1,0 +1,18 @@
+[package]
+name = "representation-planning"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[lib]
+name = "representation_planning"
+path = "src/lib.rs"
+
+[dependencies]
+representation-selections = { path = "../../representations/representation-selections" }
+diagnostics = { path = "../../../psi/foundation/diagnostics" }
+language-semantics = { path = "../../../psi/foundation/language-semantics" }
+source = { path = "../../../psi/foundation/source" }
+symbols = { path = "../../../psi/foundation/symbols" }
+typed-trees = { path = "../../../psi/representations/typed-trees" }
+typed-trees-to-checked-trees = { path = "../../../psi/pipeline/typed-trees-to-checked-trees" }

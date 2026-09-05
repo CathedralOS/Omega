@@ -1,29 +1,31 @@
 //! Real-source canaries for exact payloadless structural-call optimizer custody.
 
-use omega_abstract_operations::AbstractOperation;
-use omega_abstract_operations_to_target_operations::{
+use abstract_operations::AbstractOperation;
+use abstract_operations_to_target_operations::{
     LoweringError as TargetLoweringError, lower_to_target_operations,
 };
-use omega_optimization_unit::recompute_psi_optimization_unit_identity;
-use omega_optimization_validation::{
+use checked_trees_to_terminal_psi::lower_machine;
+use optimization_unit::recompute_psi_optimization_unit_identity;
+use optimization_validation::{
     OptimizationUnitValidationError, validate_psi_optimization_unit,
     validate_verified_psi_optimization_unit,
 };
-use omega_psi_to_abstract_operations::{
+use proof_admission::AdmissionProfile;
+use semantic_vocabulary::{
+    EvidenceTermId, ObligationId, PlaceId, Proposition, ScalarTerm, StructuralCaseId,
+};
+use source_files_to_tokens::Lexer;
+use symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
+use syntax_trees_to_symbol_resolved_trees::lower_syntax_trees;
+use target::NativeTarget;
+use terminal_codec::{encode_module, encode_proof_bundle};
+use terminal_fuel::TerminalFuelSchedule;
+use terminal_psi_to_abstract_operations::{
     ArtifactLoweringError, LoweringError, build_verified_psi_optimization_unit,
     lower_artifact_sections, lower_artifact_sections_for_optimization,
 };
-use omega_target::NativeTarget;
-use psi_checked_trees_to_terminal::lower_machine;
-use psi_core::{EvidenceTermId, ObligationId, PlaceId, Proposition, ScalarTerm, StructuralCaseId};
-use psi_proof_admission::AdmissionProfile;
-use psi_source_files_to_tokens::Lexer;
-use psi_symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
-use psi_syntax_trees_to_symbol_resolved_trees::lower_syntax_trees;
-use psi_terminal_codec::{encode_module, encode_proof_bundle};
-use psi_terminal_fuel::TerminalFuelSchedule;
-use psi_tokens_to_syntax_trees::parse_syntax_trees;
-use psi_typed_trees_to_checked_trees::lower_typed_trees;
+use tokens_to_syntax_trees::parse_syntax_trees;
+use typed_trees_to_checked_trees::lower_typed_trees;
 
 const SOURCE: &str = r#"
     data Outcome [copy] {
@@ -61,7 +63,7 @@ const GUARDED_CALL_SOURCE: &str = r#"
 fn lowered_source(
     source: &str,
     machine: &str,
-) -> psi_checked_trees_to_terminal::LoweredTerminalPsi {
+) -> checked_trees_to_terminal_psi::LoweredTerminalPsi {
     let tokens = Lexer::new(source).tokenize().expect("tokenize source");
     let syntax = parse_syntax_trees(&tokens).expect("parse source");
     let resolved = lower_syntax_trees(&syntax).expect("resolve source");
@@ -71,8 +73,8 @@ fn lowered_source(
 }
 
 fn optimizer_unit(
-    lowered: &psi_checked_trees_to_terminal::LoweredTerminalPsi,
-) -> omega_psi_to_abstract_operations::VerifiedPsiOptimizationUnit {
+    lowered: &checked_trees_to_terminal_psi::LoweredTerminalPsi,
+) -> terminal_psi_to_abstract_operations::VerifiedPsiOptimizationUnit {
     let semantic = encode_module(&lowered.semantic_module).expect("encode semantics");
     let proof = encode_proof_bundle(&lowered.proof_bundle).expect("encode proof");
     let input =
@@ -82,11 +84,11 @@ fn optimizer_unit(
         .expect("build verified payloadless optimization unit")
 }
 
-fn refresh(unit: &mut omega_optimization_unit::PsiOptimizationUnit) {
+fn refresh(unit: &mut optimization_unit::PsiOptimizationUnit) {
     unit.identity = recompute_psi_optimization_unit_identity(unit);
 }
 
-fn assert_structural_call_rejects(mut unit: omega_optimization_unit::PsiOptimizationUnit) {
+fn assert_structural_call_rejects(mut unit: optimization_unit::PsiOptimizationUnit) {
     refresh(&mut unit);
     assert!(matches!(
         validate_psi_optimization_unit(&unit),
@@ -201,9 +203,9 @@ fn guarded_source_call_replays_exact_classifier_and_rejects_independent_corrupti
     else {
         panic!("caller begins with its structural call")
     };
-    returned_claim_transfers.push(psi_terminal::StructuralResultClaimTransfer {
-        callee_claim: psi_core::ClaimId::new(99_004).unwrap(),
-        caller_claim: psi_core::ClaimId::new(99_005).unwrap(),
+    returned_claim_transfers.push(terminal_psi::StructuralResultClaimTransfer {
+        callee_claim: semantic_vocabulary::ClaimId::new(99_004).unwrap(),
+        caller_claim: semantic_vocabulary::ClaimId::new(99_005).unwrap(),
     });
     assert_structural_call_rejects(returned_transfer);
 
@@ -215,9 +217,9 @@ fn guarded_source_call_replays_exact_classifier_and_rejects_independent_corrupti
     else {
         panic!("caller begins with its structural call")
     };
-    crash_continuations.push(psi_terminal::CrashRouteBucket {
-        cause: psi_terminal::CrashCause::Trap,
-        alternatives: vec![psi_terminal::CrashRouteGuard::Truth],
+    crash_continuations.push(terminal_psi::CrashRouteBucket {
+        cause: terminal_psi::CrashCause::Trap,
+        alternatives: vec![terminal_psi::CrashRouteGuard::Truth],
     });
     assert_structural_call_rejects(crash_continuation);
 
@@ -226,19 +228,19 @@ fn guarded_source_call_replays_exact_classifier_and_rejects_independent_corrupti
     assert_structural_call_rejects(missing_contract);
 
     for mutate in [
-        |contract: &mut psi_terminal::MachineContract| {
+        |contract: &mut terminal_psi::MachineContract| {
             contract.requires.push(Proposition::Truth);
         },
-        |contract: &mut psi_terminal::MachineContract| {
-            contract.ensures.push(psi_terminal::ContractClause {
+        |contract: &mut terminal_psi::MachineContract| {
+            contract.ensures.push(terminal_psi::ContractClause {
                 obligation: ObligationId::new(99_006).unwrap(),
                 proposition: Proposition::Truth,
             });
         },
-        |contract: &mut psi_terminal::MachineContract| {
-            contract.crash_routes.push(psi_terminal::CrashRouteBucket {
-                cause: psi_terminal::CrashCause::Abort,
-                alternatives: vec![psi_terminal::CrashRouteGuard::Truth],
+        |contract: &mut terminal_psi::MachineContract| {
+            contract.crash_routes.push(terminal_psi::CrashRouteBucket {
+                cause: terminal_psi::CrashCause::Abort,
+                alternatives: vec![terminal_psi::CrashRouteGuard::Truth],
             });
         },
     ] {
@@ -256,9 +258,9 @@ fn guarded_source_call_replays_exact_classifier_and_rejects_independent_corrupti
     let callee = evidence_lane.functions[callee_index].machine;
     evidence_lane.functions[callee_index]
         .evidence_contract_lanes
-        .push(psi_terminal::EvidenceContractLane {
+        .push(terminal_psi::EvidenceContractLane {
             machine: callee,
-            kind: psi_terminal::EvidenceContractLaneKind::Requires,
+            kind: terminal_psi::EvidenceContractLaneKind::Requires,
             position: 0,
             term: EvidenceTermId::new(99_007).unwrap(),
             output_field: None,

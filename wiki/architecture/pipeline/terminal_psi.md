@@ -106,9 +106,9 @@ post-allocation-machine continuation. They fail closed wherever frame/exit,
 object/image, or publication validation remains incomplete; compilation never
 falls back or runs an alternate route.
 
-The ordinary realization graph uses the data-only `omega-program-entry-plan`
+The ordinary realization graph uses the data-only `program-entry-plan`
 for source/target ProgramEntry declarations and
-`omega-terminal-psi-to-native-artifact` for the shared composition edge. No
+`terminal-psi-to-native-artifact` for the shared composition edge. No
 historical storage-wrapper or backend-coordinator route remains.
 
 The Psi reference-interpreter entry and Omega abstract-operation entry accept
@@ -413,8 +413,8 @@ separately bound by its image identity and executable-image replay.
 
 ## The cut
 
-`psi-checked-trees-to-terminal` is the sole executable semantic handoff.
-`omega-psi-to-abstract-operations` consumes the verified artifact; unsupported
+`checked-trees-to-terminal-psi` is the sole executable semantic handoff.
+`terminal-psi-to-abstract-operations` consumes the verified artifact; unsupported
 vocabulary rejects at that boundary. The former checked-tree, StateGraph, and
 control-flow backend route has been deleted.
 
@@ -427,7 +427,7 @@ ordinary scalar/Unit lowering, and the bounded structural-result family.
 Build orchestration may separately retain source-declaration receipts needed to
 prove author intent, ProgramEntry identity, provider selection, and target
 closure. Those receipts rejoin the canonical artifact in
-`omega-terminal-psi-to-native-artifact`; they are not an alternate executable
+`terminal-psi-to-native-artifact`; they are not an alternate executable
 representation and cannot supply operation semantics missing from Terminal Psi.
 ## Terminal requirements
 
@@ -3536,8 +3536,8 @@ image request. No admission, loader-policy, installation, publication, or
 execution authority is created.
 
 The source-free native carrier belongs to the neutral
-`omega-native-artifact` crate. The component-specific wrapper remains
-in `omega-component-candidate`; compiler and deployment depend on
+`native-artifact` crate. The component-specific wrapper remains
+in `component-candidate`; compiler and deployment depend on
 those neutral owners without a cycle. The native carrier labels the retained
 selected-provider `u64` as a compatibility report coordinate and separately
 retains a domain-separated SHA-256 commitment to the complete exact selected
@@ -3934,8 +3934,8 @@ selection and attached evidence do change their own section and container
 identities. One execution verifies and runs the compiler's current Psi
 vocabulary.
 
-`psi-terminal-verifier` is the current Rust implementation of the artifact-aware
-judgment and `psi-proof-admission` applies product-local checking and admission
+`terminal-verifier` is the current Rust implementation of the artifact-aware
+judgment and `proof-admission` applies product-local checking and admission
 policy to its per-artifact proofs. The deployment-
 authoritative endpoint is a **canonical semantic-ledger generator**: one total
 low-rung definition that consumes the canonical terminal-Psi bytes themselves,
@@ -5061,15 +5061,15 @@ Proposition vocabulary, evidence-term identity, contract lanes, proof-output
 invocations, and producer provenance likewise share one evidence-publication
 module behind a single parent-facing installation API.
 native machine emission keeps its byte/width/policy regression corpus
-in the separately compiled `omega-machine-emission/src/tests.rs`;
+in the separately compiled `machine-emission/src/tests.rs`;
 the production root does not embed that second responsibility.
-`omega-machine-emission/src/unit.rs` owns Unit-body and calling-policy
+`machine-emission/src/unit.rs` owns Unit-body and calling-policy
 emission, exact per-target parameter homes, aggregate argument staging/copying,
 and Unit stack/fuel/effect evidence behind the parent-facing Unit emitter and
-cleanup-call helpers. `omega-machine-emission/src/cleanup.rs` owns
+cleanup-call helpers. `machine-emission/src/cleanup.rs` owns
 scalar-return and Boolean-control cleanup emission, nominal-cleanup admission,
 exact residual partitioning, and cleanup stack/fuel/call evidence behind five
-parent-facing contracts. `omega-machine-emission/src/scalar.rs` is a
+parent-facing contracts. `machine-emission/src/scalar.rs` is a
 small orchestration/re-export root over `scalar/x86_64.rs`,
 `scalar/aarch64.rs`, and `scalar/shared.rs`. The architecture modules own their
 scalar control, calls, arithmetic, register/stack mechanics, and exact byte
@@ -5183,7 +5183,7 @@ bridge without hiding the remaining global dependency. Call rows move only
 after their separate coverage, substitution, outcome, crash-route, and evidence-
 lifetime composition obligations are established.
 
-The current Rust migration surface is now exposed by `psi-terminal-codec` in
+The current Rust migration surface is now exposed by `terminal-codec` in
 every verified proof synopsis. Its validated graph binds exact source bytes and
 explicit versions for the decoder, proof kernel, verifier, each sufficient-form
 reducer, the unproved ledger framework, 34 scalar-denotation rows, nine
@@ -5256,7 +5256,7 @@ ledger and therefore supplies no reconstruction assurance.
 
 ## Canonical semantic bytes
 
-`psi-terminal-codec` owns one canonical encoding of the supported in-memory
+`terminal-codec` owns one canonical encoding of the supported in-memory
 vocabulary. `PSITERM\0` bytes currently carry format marker 77 and vocabulary
 marker 80. They use fixed-width little-endian counts, stable nonzero identities,
 full-width integer payloads, and closed sum tags. The format favors auditability
@@ -5343,7 +5343,7 @@ instruction-cost model.
 
 ## Logical fuel
 
-`psi-terminal-fuel` owns accounting identity independently from terminal
+`terminal-fuel` owns accounting identity independently from terminal
 semantic identity. The schedule exhaustively assigns cost to every closed
 operation and terminator variant, so extending the vocabulary requires an
 explicit accounting decision. A schedule change never changes program identity.
@@ -5364,7 +5364,7 @@ not charge it and has no sponsor region, hidden allowance, exhaustion transfer,
 or fuel-induced suspension. Suspension facts describe source/runtime operations
 that can actually suspend; they are not inferred from accounting machinery.
 
-`psi-terminal-fixed-fuel` derives certificates from verified terminal control.
+`terminal-fixed-fuel` derives certificates from verified terminal control.
 For acyclic control and call graphs it computes the greatest entry-to-exit path,
 taking the maximum rather than the sum at exclusive branches and including the
 outcome-specific bound of each reached callee. A callee crash does not acquire

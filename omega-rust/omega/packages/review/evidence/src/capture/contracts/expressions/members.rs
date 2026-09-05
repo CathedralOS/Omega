@@ -1,9 +1,9 @@
 use crate::capture::contracts::facts::ContractProjectionContext;
 use crate::capture::semantics::declarations::nominal_identity;
 use crate::record::PackageReviewContractExpression;
-use omega_compiler::CheckedCompilation;
-use psi_diagnostics::Diagnostic;
-use psi_symbols::SymbolHandle;
+use compiler::CheckedCompilation;
+use diagnostics::Diagnostic;
+use symbols::SymbolHandle;
 
 mod aliases;
 mod points;
@@ -11,9 +11,9 @@ pub(crate) use points::checked_self_parameter_symbol;
 
 pub(crate) fn contract_member_has_exact_collection_length(
     compilation: &CheckedCompilation,
-    expression: psi_typed_trees::expression::ExpressionHandle,
+    expression: typed_trees::expression::ExpressionHandle,
 ) -> bool {
-    use psi_language_semantics::declaration_selection::{
+    use language_semantics::declaration_selection::{
         AuthoredDeclarationSelectionIntrinsic, AuthoredDeclarationSelectionKind,
         AuthoredDeclarationSelectionTarget,
     };
@@ -38,7 +38,7 @@ pub(crate) fn contract_member_has_exact_collection_length(
 pub(crate) fn require_exact_checked_contract_nominal_member(
     compilation: &CheckedCompilation,
     context: &ContractProjectionContext<'_>,
-    expression: psi_typed_trees::expression::ExpressionHandle,
+    expression: typed_trees::expression::ExpressionHandle,
     expected_member: SymbolHandle,
 ) -> Result<(), Vec<Diagnostic>> {
     let selected = exact_checked_contract_nominal_member(compilation, context, expression)?;
@@ -57,9 +57,9 @@ pub(crate) fn require_exact_checked_contract_nominal_member(
 pub(crate) fn exact_checked_contract_nominal_member(
     compilation: &CheckedCompilation,
     context: &ContractProjectionContext<'_>,
-    expression: psi_typed_trees::expression::ExpressionHandle,
+    expression: typed_trees::expression::ExpressionHandle,
 ) -> Result<SymbolHandle, Vec<Diagnostic>> {
-    use psi_language_semantics::declaration_selection::{
+    use language_semantics::declaration_selection::{
         AuthoredDeclarationSelectionKind, AuthoredDeclarationSelectionTarget,
     };
 
@@ -99,10 +99,10 @@ pub(crate) fn exact_checked_contract_nominal_member(
 pub(crate) fn require_exact_checked_contract_collection_length(
     compilation: &CheckedCompilation,
     context: &ContractProjectionContext<'_>,
-    expression: psi_typed_trees::expression::ExpressionHandle,
-    member: &psi_typed_trees::expression::TableMemberExpression,
+    expression: typed_trees::expression::ExpressionHandle,
+    member: &typed_trees::expression::TableMemberExpression,
 ) -> Result<(), Vec<Diagnostic>> {
-    use psi_language_semantics::declaration_selection::{
+    use language_semantics::declaration_selection::{
         AuthoredDeclarationSelectionIntrinsic, AuthoredDeclarationSelectionKind,
         AuthoredDeclarationSelectionTarget,
     };
@@ -172,8 +172,8 @@ pub(crate) fn project_contract_member_expression(
 pub(crate) fn project_computed_contract_member_expression(
     compilation: &CheckedCompilation,
     context: &ContractProjectionContext<'_>,
-    expression: psi_typed_trees::expression::ExpressionHandle,
-    member: &psi_typed_trees::expression::TableMemberExpression,
+    expression: typed_trees::expression::ExpressionHandle,
+    member: &typed_trees::expression::TableMemberExpression,
     receiver: PackageReviewContractExpression,
 ) -> Result<PackageReviewContractExpression, Vec<Diagnostic>> {
     let selected = exact_checked_contract_nominal_member(compilation, context, expression)?;
@@ -185,19 +185,19 @@ pub(crate) fn project_computed_contract_member_expression(
     }
     let selected_parent = compilation.symbols.get(selected).parent;
     let case_variant = (compilation.symbols.get(selected_parent).kind
-        == psi_symbols::SymbolKind::Variant)
+        == symbols::SymbolKind::Variant)
         .then_some(selected_parent);
     project_contract_member_expression(compilation, context, receiver, selected, case_variant)
 }
 
 pub(crate) fn contract_member_path_source(
     compilation: &CheckedCompilation,
-    expression: psi_typed_trees::expression::ExpressionHandle,
+    expression: typed_trees::expression::ExpressionHandle,
 ) -> Option<(
-    psi_typed_trees::expression::ExpressionHandle,
-    Vec<psi_typed_trees::name::Identifier>,
+    typed_trees::expression::ExpressionHandle,
+    Vec<typed_trees::name::Identifier>,
 )> {
-    use psi_typed_trees::expression::ExpressionNode;
+    use typed_trees::expression::ExpressionNode;
 
     match compilation.expression_table.expression(expression) {
         ExpressionNode::Member(member) => {
@@ -221,9 +221,9 @@ pub(crate) fn contract_member_path_source(
 pub(crate) fn contract_member_path_root(
     compilation: &CheckedCompilation,
     context: &ContractProjectionContext<'_>,
-    expression: psi_typed_trees::expression::ExpressionHandle,
-) -> Option<psi_facts::PlaceRoot> {
-    let psi_typed_trees::expression::ExpressionNode::Name(path) =
+    expression: typed_trees::expression::ExpressionHandle,
+) -> Option<facts::PlaceRoot> {
+    let typed_trees::expression::ExpressionNode::Name(path) =
         compilation.expression_table.expression(expression)
     else {
         return None;
@@ -231,7 +231,7 @@ pub(crate) fn contract_member_path_root(
     if context.data_symbol.is_some_and(|data_symbol| {
         is_data_subject_field_expression(compilation, data_symbol, expression)
     }) {
-        return context.data_symbol.map(psi_facts::PlaceRoot::Symbol);
+        return context.data_symbol.map(facts::PlaceRoot::Symbol);
     }
     if context.domain_symbol.is_none()
         && compilation
@@ -241,7 +241,7 @@ pub(crate) fn contract_member_path_root(
             .is_some_and(|name| name.as_str() == "self")
     {
         return checked_self_parameter_symbol(compilation, context, path)
-            .map(psi_facts::PlaceRoot::Symbol);
+            .map(facts::PlaceRoot::Symbol);
     }
     let resolved = path
         .head_symbol
@@ -249,27 +249,27 @@ pub(crate) fn contract_member_path_root(
         .then_some(path.head_symbol)
         .or_else(|| path.symbol.is_valid().then_some(path.symbol));
     if let Some(symbol) = resolved {
-        return Some(psi_facts::PlaceRoot::Symbol(symbol));
+        return Some(facts::PlaceRoot::Symbol(symbol));
     }
     let [name] = compilation.expression_table.name_path_members(path.members) else {
         return None;
     };
     if context.domain_symbol.is_some() && name.as_str() == "self" {
-        return Some(psi_facts::PlaceRoot::Expression(expression));
+        return Some(facts::PlaceRoot::Expression(expression));
     }
     context
         .parameters
         .iter()
         .find(|parameter| parameter.name == *name)
-        .map(|parameter| psi_facts::PlaceRoot::Symbol(parameter.symbol))
+        .map(|parameter| facts::PlaceRoot::Symbol(parameter.symbol))
 }
 
 pub(crate) fn is_data_subject_field_expression(
     compilation: &CheckedCompilation,
     data_symbol: SymbolHandle,
-    expression: psi_typed_trees::expression::ExpressionHandle,
+    expression: typed_trees::expression::ExpressionHandle,
 ) -> bool {
-    let psi_typed_trees::expression::ExpressionNode::Name(path) =
+    let typed_trees::expression::ExpressionNode::Name(path) =
         compilation.expression_table.expression(expression)
     else {
         return false;
@@ -298,7 +298,7 @@ pub(crate) fn is_data_subject_field_expression(
         return false;
     };
     compilation.data_members(data).iter().any(|member| {
-        let psi_typed_trees::data::DataMember::Field(field) = member else {
+        let typed_trees::data::DataMember::Field(field) = member else {
             return false;
         };
         field.symbol == selected && field.name == *name
@@ -308,10 +308,10 @@ pub(crate) fn is_data_subject_field_expression(
 pub(crate) fn data_subject_binder_position(
     compilation: &CheckedCompilation,
     data_symbol: SymbolHandle,
-    expression: psi_typed_trees::expression::ExpressionHandle,
+    expression: typed_trees::expression::ExpressionHandle,
     binders: &[(SymbolHandle, String)],
 ) -> Option<usize> {
-    let psi_typed_trees::expression::ExpressionNode::Name(path) =
+    let typed_trees::expression::ExpressionNode::Name(path) =
         compilation.expression_table.expression(expression)
     else {
         return None;
@@ -348,12 +348,12 @@ pub(crate) fn data_subject_binder_position(
 pub(crate) fn checked_contract_member_path(
     compilation: &CheckedCompilation,
     context: &ContractProjectionContext<'_>,
-    checked_fact: psi_arena::Handle<psi_typed_trees::domain::ProofFact>,
-    expression: psi_typed_trees::expression::ExpressionHandle,
-    root: psi_facts::PlaceRoot,
-    source_members: &[psi_typed_trees::name::Identifier],
+    checked_fact: arena::Handle<typed_trees::domain::ProofFact>,
+    expression: typed_trees::expression::ExpressionHandle,
+    root: facts::PlaceRoot,
+    source_members: &[typed_trees::name::Identifier],
 ) -> Result<Vec<(Option<SymbolHandle>, SymbolHandle)>, Vec<Diagnostic>> {
-    use psi_facts::{FactPayload, FactPlace};
+    use facts::{FactPayload, FactPlace};
 
     if let Some(domain_symbol) = context.domain_symbol {
         let mut candidates = Vec::new();
@@ -488,10 +488,10 @@ pub(crate) fn checked_contract_member_path(
 
 pub(crate) fn checked_member_segments(
     compilation: &CheckedCompilation,
-    segments: psi_arena::HandleSpan<psi_facts::PlaceSegment>,
-    source_members: &[psi_typed_trees::name::Identifier],
+    segments: arena::HandleSpan<facts::PlaceSegment>,
+    source_members: &[typed_trees::name::Identifier],
 ) -> Option<Vec<(Option<SymbolHandle>, SymbolHandle)>> {
-    use psi_facts::PlaceSegment;
+    use facts::PlaceSegment;
 
     let mut selected = Vec::new();
     let mut pending_case = None;

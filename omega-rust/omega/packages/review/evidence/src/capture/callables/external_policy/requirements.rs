@@ -9,10 +9,10 @@ use crate::capture::{
     },
 };
 use crate::record::*;
-use omega_compiler::CheckedCompilation;
-use psi_diagnostics::Diagnostic;
-use psi_symbols::SymbolHandle;
-use psi_typed_trees::machine::{Machine, SatisfiedDeclaration, TraitConformance};
+use compiler::CheckedCompilation;
+use diagnostics::Diagnostic;
+use symbols::SymbolHandle;
+use typed_trees::machine::{Machine, SatisfiedDeclaration, TraitConformance};
 
 pub(super) fn project(
     compilation: &CheckedCompilation,
@@ -21,7 +21,7 @@ pub(super) fn project(
     binders: &[(SymbolHandle, String)],
     binding: &PackageReviewExternalBinding,
 ) -> Result<PackagePolicyExternalRequirement, Vec<Diagnostic>> {
-    let declaration = psi_typed_trees::machine::resolve_satisfied_declaration(
+    let declaration = typed_trees::machine::resolve_satisfied_declaration(
         &compilation.typed,
         machine,
         conformance,
@@ -61,7 +61,7 @@ pub(super) fn project(
                     requirement,
                 )?,
                 requirement_lifetime_partition:
-                    psi_typed_trees::machine::normalize_requirement_lifetime_partition(
+                    typed_trees::machine::normalize_requirement_lifetime_partition(
                         &conformance.trait_lifetime_arguments,
                     ),
                 trait_lifetime_arguments: conformance.trait_lifetime_arguments.clone(),
@@ -92,7 +92,7 @@ pub(super) fn project(
                     "external top-level requirement lacks a public contract or supported closed execution",
                 ));
             }
-            psi_validation::revalidate_top_level_requirement_realization(
+            validation::revalidate_top_level_requirement_realization(
                 &compilation.typed,
                 machine,
                 requirement,
@@ -124,7 +124,7 @@ pub(super) fn project(
             {
                 return Err(rejected("external operator application is not closed"));
             }
-            if operator.spelling.is_some() && (!matches!(binding, PackageReviewExternalBinding::CompilerIntrinsic) || omega_provider_planning::plans::primitive_float_binary_intrinsic_execution_identity(&compilation.typed, operator).is_none()) { return Err(rejected("fixed-token external operator has no closed intrinsic execution")); }
+            if operator.spelling.is_some() && (!matches!(binding, PackageReviewExternalBinding::CompilerIntrinsic) || provider_planning::plans::primitive_float_binary_intrinsic_execution_identity(&compilation.typed, operator).is_none()) { return Err(rejected("fixed-token external operator has no closed intrinsic execution")); }
             super::super::boundary_operators::validate_selected_boundary_operator_external_supply(
                 compilation,
                 machine,

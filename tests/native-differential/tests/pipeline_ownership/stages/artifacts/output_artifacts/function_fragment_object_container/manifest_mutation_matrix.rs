@@ -2,15 +2,15 @@
 
 use crate::FunctionFragmentReplayInputs;
 use crate::tests::*;
-use omega_object_file::ObjectLocalSymbolId;
-use omega_optimization_core::{
+use object_file::ObjectLocalSymbolId;
+use optimization_core::{
     FunctionFragmentTextSectionManifestIdentity, OptimizationSelectionIdentity,
     RelocationFreeObjectContainerIdentity, RelocationFreeObjectPlanIdentity,
     TerminalRelocationFreeTextSectionIdentity,
 };
-use omega_target::{Architecture, ObjectFormat};
-use psi_core::FuelScheduleIdentity;
-use psi_terminal::SemanticFingerprint;
+use semantic_vocabulary::FuelScheduleIdentity;
+use target::{Architecture, ObjectFormat};
+use terminal_psi::SemanticFingerprint;
 
 type ManifestMutation = fn(&mut FunctionFragmentObjectContainerManifest);
 
@@ -61,15 +61,15 @@ fn current_object_data_outlives_custody_and_replay_rejects_rehashed_substitution
     let text = staged.source().text_section().clone();
     let selections = object.selections;
     drop(staged);
-    omega_object_file::validate_relocation_free_object_from_text(&text, selections, &object)
+    object_file::validate_relocation_free_object_from_text(&text, selections, &object)
         .expect("current data remains independently checkable without its producer");
     assert_eq!(
-        omega_object_file::decode_relocation_free_object(&container.bytes).unwrap(),
+        object_file::decode_relocation_free_object(&container.bytes).unwrap(),
         *object,
     );
     assert_eq!(manifest.object, object.identity);
 
-    let mutations: [fn(&mut omega_object_file::RelocationFreeObjectPlan); 5] = [
+    let mutations: [fn(&mut object_file::RelocationFreeObjectPlan); 5] = [
         |object| object.text_section.bytes[0] ^= 1,
         |object| object.psi.program_fingerprint = SemanticFingerprint::from_bytes([77; 32]),
         |object| object.fuel_schedule = FuelScheduleIdentity::new(90_001).unwrap(),
@@ -85,13 +85,11 @@ fn current_object_data_outlives_custody_and_replay_rejects_rehashed_substitution
         let mut changed = (*object).clone();
         mutate(&mut changed);
         changed.identity = changed.recomputed_identity().unwrap();
-        omega_object_file::validate_relocation_free_object(&changed)
+        object_file::validate_relocation_free_object(&changed)
             .expect("mutation is a canonical object, not a stale-hash test");
         assert_eq!(
-            omega_object_file::validate_relocation_free_object_from_text(
-                &text, selections, &changed
-            ),
-            Err(omega_object_file::RelocationFreeObjectFromTextError::SourceMismatch),
+            object_file::validate_relocation_free_object_from_text(&text, selections, &changed),
+            Err(object_file::RelocationFreeObjectFromTextError::SourceMismatch),
         );
     }
 }
@@ -125,7 +123,7 @@ fn every_representable_object_container_manifest_field_rejects_after_reauthentic
         }),
         ("selected", |record| {
             record.selected =
-                omega_selected_instructions::SelectedInstructionPlanIdentity::from_bytes([0x93; 32])
+                selected_instructions::SelectedInstructionPlanIdentity::from_bytes([0x93; 32])
         }),
         ("target.architecture", |record| {
             record.target.architecture = Architecture::X86_64
@@ -189,9 +187,7 @@ fn every_representable_object_container_manifest_field_rejects_after_reauthentic
 
     *staged.manifest_mut().record_mut() = baseline;
     staged.manifest_mut().record_mut().identity =
-        omega_optimization_core::FunctionFragmentObjectContainerManifestIdentity::from_bytes(
-            [0x94; 32],
-        );
+        optimization_core::FunctionFragmentObjectContainerManifestIdentity::from_bytes([0x94; 32]);
     assert_eq!(
         validate_optimized_relocation_free_object_container(&staged),
         Err(RelocationFreeObjectContainerError::ManifestMismatch),

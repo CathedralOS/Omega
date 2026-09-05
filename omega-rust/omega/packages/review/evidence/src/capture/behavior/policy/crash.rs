@@ -7,11 +7,11 @@ use crate::record::{
     PackagePolicyCrash, PackagePolicyCrashGuard, PackagePolicyCrashRoute,
     PackagePolicyInferredCrash, PackageReviewCrashInterface,
 };
-use omega_compiler::CheckedCompilation;
-use psi_checked_trees::RealizedMachineContractEnvelope;
-use psi_diagnostics::Diagnostic;
-use psi_symbols::SymbolHandle;
-use psi_typed_trees::{
+use checked_trees::RealizedMachineContractEnvelope;
+use compiler::CheckedCompilation;
+use diagnostics::Diagnostic;
+use symbols::SymbolHandle;
+use typed_trees::{
     domain::ProofFact,
     expression::ExpressionNode,
     machine::Machine,
@@ -25,7 +25,7 @@ pub(crate) fn crash(
     entry: &State,
     binders: &[(SymbolHandle, String)],
     envelope: &RealizedMachineContractEnvelope,
-    inferred_causes: &[(SymbolHandle, Vec<psi_checked_trees::CrashCause>)],
+    inferred_causes: &[(SymbolHandle, Vec<checked_trees::CrashCause>)],
 ) -> Result<PackagePolicyCrash, Vec<Diagnostic>> {
     let plan = exactly_one(
         compilation
@@ -39,7 +39,7 @@ pub(crate) fn crash(
     )?;
     // Concrete machines own a MachineContractPlan. Separate capsules belong
     // only to trait/static signatures, as in the checked call-target owner.
-    let derived = psi_typed_trees_to_checked_trees::derive_authored_machine_crash_buckets(
+    let derived = typed_trees_to_checked_trees::derive_authored_machine_crash_buckets(
         &compilation.typed,
         machine,
     );
@@ -60,10 +60,10 @@ pub(crate) fn crash(
     let context = ContractProjectionContext {
         subject_kind: "callable",
         subject_name: machine.name.as_str(),
-        owner: psi_checked_trees::ContractProofFactOwner::Machine {
+        owner: checked_trees::ContractProofFactOwner::Machine {
             machine_symbol: machine.symbol,
         },
-        point: psi_facts::ProgramPoint::Machine {
+        point: facts::ProgramPoint::Machine {
             machine_symbol: machine.symbol,
         },
         parameters: compilation.state_parameters(entry),
@@ -72,9 +72,9 @@ pub(crate) fn crash(
         lifetime_binders: &machine.lifetime_parameters,
         lifetime_substitutions: &[],
         selection_exposure: if machine.is_public || machine.supply_mode.is_boundary_declaration() {
-            psi_language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure::PublicInterface
+            language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure::PublicInterface
         } else {
-            psi_language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure::PrivateImplementation
+            language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure::PrivateImplementation
         },
     };
     let published = crash_routes(
@@ -95,10 +95,10 @@ pub(crate) fn crash(
     }
     Ok(PackagePolicyCrash {
         interface: match plan.crash.interface() {
-            psi_checked_trees::CrashInterface::InternalInferred => {
+            checked_trees::CrashInterface::InternalInferred => {
                 PackageReviewCrashInterface::InternalInferred
             }
-            psi_checked_trees::CrashInterface::PublishedCeiling => {
+            checked_trees::CrashInterface::PublishedCeiling => {
                 PackageReviewCrashInterface::PublishedCeiling
             }
         },
@@ -116,10 +116,10 @@ pub(crate) fn crash(
                 causes: causes
                     .iter()
                     .map(|cause| match cause {
-                        psi_checked_trees::CrashCause::Trap => {
+                        checked_trees::CrashCause::Trap => {
                             crate::record::PackageReviewCrashCause::Trap
                         }
-                        psi_checked_trees::CrashCause::Abort => {
+                        checked_trees::CrashCause::Abort => {
                             crate::record::PackageReviewCrashCause::Abort
                         }
                     })
@@ -131,19 +131,19 @@ pub(crate) fn crash(
 
 pub(crate) fn crash_routes(
     compilation: &CheckedCompilation,
-    contracts: &[psi_typed_trees::signature::SignatureContract],
+    contracts: &[typed_trees::signature::SignatureContract],
     context: &ContractProjectionContext<'_>,
     binders: &[(SymbolHandle, String)],
-    buckets: &[psi_checked_trees::CrashRouteBucket],
+    buckets: &[checked_trees::CrashRouteBucket],
 ) -> Result<Vec<PackagePolicyCrashRoute>, Vec<Diagnostic>> {
     let mut published = Vec::new();
     for bucket in buckets {
         let cause = match bucket.cause() {
-            psi_checked_trees::CrashCause::Trap => CrashCause::Trap,
-            psi_checked_trees::CrashCause::Abort => CrashCause::Abort,
+            checked_trees::CrashCause::Trap => CrashCause::Trap,
+            checked_trees::CrashCause::Abort => CrashCause::Abort,
         };
         let mut guards = Vec::new();
-        if bucket.alternative_guards() == [psi_checked_trees::CrashRouteGuard::Truth] {
+        if bucket.alternative_guards() == [checked_trees::CrashRouteGuard::Truth] {
             guards.push(PackagePolicyCrashGuard::Truth);
         } else {
             for contract in contracts
@@ -151,7 +151,7 @@ pub(crate) fn crash_routes(
                 .filter(|contract| contract.kind == SignatureContractKind::Crashes { cause })
             {
                 for offset in 0..contract.facts.count() {
-                    let fact_handle = psi_arena::Handle::from_parts(
+                    let fact_handle = arena::Handle::from_parts(
                         contract.facts.start().arena_index() + offset,
                         contract.facts.start().generation(),
                     );

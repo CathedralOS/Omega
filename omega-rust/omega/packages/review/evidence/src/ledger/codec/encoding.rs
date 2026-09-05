@@ -8,7 +8,7 @@ use super::super::model::{
     OrdinaryPackageObligationLedgerRecoveryError,
 };
 use crate::encoding::{PACKAGE_REVIEW_ENCODING_VERSION, PACKAGE_REVIEW_ROW_ENCODING_VERSION};
-use psi_core::PackageKeyIdentity;
+use semantic_vocabulary::PackageKeyIdentity;
 use sha2::{Digest, Sha256};
 
 /// Encode the complete source-path-free replay question in one bounded,
@@ -28,9 +28,9 @@ pub fn encode_ordinary_package_obligation_ledger(
     encoder.string(ledger.target().target_name())?;
     encoder.package_identity(ledger.dependency_closure().root());
     encoder.byte(match ledger.dependency_closure().root_role() {
-        omega_package_compilation::BuildDeclarationKind::Package => 0,
-        omega_package_compilation::BuildDeclarationKind::Application => 1,
-        omega_package_compilation::BuildDeclarationKind::Workspace => 2,
+        package_compilation::BuildDeclarationKind::Package => 0,
+        package_compilation::BuildDeclarationKind::Application => 1,
+        package_compilation::BuildDeclarationKind::Workspace => 2,
     });
     encoder.usize(ledger.dependency_closure().packages().len())?;
     for package in ledger.dependency_closure().packages() {

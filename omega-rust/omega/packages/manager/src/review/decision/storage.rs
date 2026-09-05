@@ -4,7 +4,7 @@ use super::record::{
 };
 use super::resolution::ReviewOnlyRootPolicyResolution;
 use crate::review::ReviewOnlyCapabilityConflictSet;
-use omega_platform_custody::record_file::{
+use platform_custody::record_file::{
     RecordFileError, RecordFileLimits, RecordFileRoot, is_portable_record_file_name,
 };
 use std::fmt;

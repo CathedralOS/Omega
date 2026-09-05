@@ -1,9 +1,9 @@
 use super::super::reconcile::PackageSourceClosureResolutionError;
 use crate::declarations::PackageKey;
 use crate::resolution::source::ResolvePackageSourceError;
-use omega_build_declarations::WorkspaceMemberPath;
-use omega_package_source::GitSourceRequestError;
-use omega_package_source::WorkspaceLineageIdentity;
+use build_declarations::WorkspaceMemberPath;
+use package_source::GitSourceRequestError;
+use package_source::WorkspaceLineageIdentity;
 use std::fmt;
 
 #[derive(Debug)]

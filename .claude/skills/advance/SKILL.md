@@ -73,7 +73,7 @@ Orient first, always:
    is expensive. Get the actual distribution:
 
    ```bash
-   mbx test -p omega-compiler --test canary_suite 2>&1 | tee /tmp/canary.txt
+   mbx test -p compiler --test canary_suite 2>&1 | tee /tmp/canary.txt
    grep -oE 'message: "[^"]{0,90}' /tmp/canary.txt | sed 's/^message: "//' \
      | sed -E 's/`[^`]*`/X/g; s/[0-9]+/N/g; s/: .*$//' | sort | uniq -c | sort -rn | head
    ```
@@ -147,7 +147,7 @@ iteration:
   Two workers received the wrong shape and had to correct it.
 
 The orchestrator also runs no builds of its own while workers gate.
-`omega-bounded-process` has zero workspace dependencies and its CPU-limit test
+`bounded-process` has zero workspace dependencies and its CPU-limit test
 says in its own comment that a loaded host starves it of user time; it went
 red three times under concurrent builds and passed 7/7 with and without the
 change the moment the machine was idle. A red gate on a crate the change
@@ -169,7 +169,7 @@ has earned a stage doc, it has earned a crate.** A stage doc under
 Put a board line on it.
 
 A new fixture under `tests/omega/{pass,fail}` is inert until a roster in
-`omega-rust/omega/compiler/omega-compiler/tests/canary_suite.rs` names it. Add
+`omega-rust/omega/compiler/compiler/tests/canary_suite.rs` names it. Add
 the roster entry in the same commit, then prove the case runs and fails without
 your change.
 

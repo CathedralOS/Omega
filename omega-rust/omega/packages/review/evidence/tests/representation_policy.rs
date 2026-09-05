@@ -3,17 +3,15 @@ mod support;
 #[path = "representation_policy/source.rs"]
 mod source;
 
-use omega_package_evidence::encoding::PackagePolicyRecoveryLimits;
-use omega_package_evidence::record::{
+use package_evidence::encoding::PackagePolicyRecoveryLimits;
+use package_evidence::record::{
     PackagePolicyRepresentation, PackagePolicyTypeParameterKind, PackageReviewNominalOwner,
     PackageReviewOpaqueRepresentationApplicationOrigin,
     PackageReviewOpaqueRepresentationCopyDisposition,
     PackageReviewOpaqueRepresentationLifecycleDisposition,
     PackageReviewRepresentationTargetProfile,
 };
-use omega_package_evidence::{
-    project_checked_calling_policy, project_checked_representation_policy,
-};
+use package_evidence::{project_checked_calling_policy, project_checked_representation_policy};
 use source::Fixture;
 use support::*;
 

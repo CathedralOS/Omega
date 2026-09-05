@@ -8,7 +8,7 @@ use super::{
 use crate::declarations::dependencies::read::{DependencySourceRequest, ProjectedDependencies};
 use crate::resolution::graph::ResolvedSourceIdentity;
 use crate::resolution::source::PackageSourceNavigation;
-use omega_target::TargetProfile;
+use target::TargetProfile;
 
 impl CanonicalSourceClosureSubject {
     pub(super) fn finish(

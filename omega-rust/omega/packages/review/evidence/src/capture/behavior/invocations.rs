@@ -1,17 +1,17 @@
 use super::super::semantics::declarations::nominal_identity;
 use crate::record::PackageReviewSynchronousInvocation;
-use omega_compiler::CheckedCompilation;
-use psi_diagnostics::Diagnostic;
+use compiler::CheckedCompilation;
+use diagnostics::Diagnostic;
 
 pub(crate) fn canonical_checked_invocation_targets(
     compilation: &CheckedCompilation,
-    targets: &[psi_effects::InvocationTarget],
+    targets: &[flow_effects::InvocationTarget],
 ) -> Result<Vec<String>, Vec<Diagnostic>> {
     let mut canonical = targets
         .iter()
         .map(|target| match target {
-            psi_effects::InvocationTarget::Parameter(index) => Ok(format!("parameter:{index}")),
-            psi_effects::InvocationTarget::Service(symbol) => {
+            flow_effects::InvocationTarget::Parameter(index) => Ok(format!("parameter:{index}")),
+            flow_effects::InvocationTarget::Service(symbol) => {
                 let matching = compilation
                     .traits()
                     .iter()
@@ -41,16 +41,16 @@ pub(crate) fn canonical_checked_invocation_targets(
 
 pub(crate) fn project_synchronous_invocations(
     compilation: &CheckedCompilation,
-    invocations: &[psi_effects::InvocationTarget],
+    invocations: &[flow_effects::InvocationTarget],
 ) -> Result<Vec<PackageReviewSynchronousInvocation>, Vec<Diagnostic>> {
     let mut projected = invocations
         .iter()
         .copied()
         .map(|invocation| match invocation {
-            psi_effects::InvocationTarget::Parameter(position) => {
+            flow_effects::InvocationTarget::Parameter(position) => {
                 Ok(PackageReviewSynchronousInvocation::Parameter(position))
             }
-            psi_effects::InvocationTarget::Service(symbol) => Ok(
+            flow_effects::InvocationTarget::Service(symbol) => Ok(
                 PackageReviewSynchronousInvocation::Service(nominal_identity(compilation, symbol)?),
             ),
         })

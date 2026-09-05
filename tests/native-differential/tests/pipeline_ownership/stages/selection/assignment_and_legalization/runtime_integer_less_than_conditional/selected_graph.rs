@@ -17,7 +17,7 @@ fn runtime_u64_parameter_less_than_selects_ordered_three_block_graph_on_both_isa
             &staged.optimized_target().target_operations().functions[0].operation,
             TargetOperation::ReturnIntegerExpressionConditionalControl {
                 condition_source,
-                condition: omega_target_operations::TargetBooleanExpression::IntegerLessThan {
+                condition: target_operations::TargetBooleanExpression::IntegerLessThan {
                     psi_operation,
                     scalar_type,
                     left: target_left,
@@ -54,7 +54,7 @@ fn runtime_u64_parameter_less_than_selects_ordered_three_block_graph_on_both_isa
             legalized.recipe,
             LegalizationRecipe::ReturnU64IntegerLessThanParametersConditionalV1
         );
-        let omega_legalized_operations::LegalizedCondition::IntegerLessThanParametersV1 {
+        let legalized_operations::LegalizedCondition::IntegerLessThanParametersV1 {
             operation,
             left: legalized_left,
             right: legalized_right,
@@ -105,14 +105,11 @@ fn runtime_u64_parameter_less_than_selects_ordered_three_block_graph_on_both_isa
         );
         assert_eq!(instruction.provenance.values, [condition]);
         assert_eq!(when_less.psi_edge, true_edge);
-        assert_eq!(
-            when_less.block,
-            omega_selected_instructions::SelectedBlockId(1)
-        );
+        assert_eq!(when_less.block, selected_instructions::SelectedBlockId(1));
         assert_eq!(when_not_less.psi_edge, false_edge);
         assert_eq!(
             when_not_less.block,
-            omega_selected_instructions::SelectedBlockId(2)
+            selected_instructions::SelectedBlockId(2)
         );
         assert_eq!(when_less.fuel[0].site, PsiProvenance::Edge(true_edge));
         assert_eq!(when_not_less.fuel[0].site, PsiProvenance::Edge(false_edge));

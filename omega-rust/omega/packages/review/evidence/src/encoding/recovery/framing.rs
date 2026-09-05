@@ -1,5 +1,5 @@
-use omega_target::TargetProfile;
-use psi_core::PackageKeyIdentity;
+use semantic_vocabulary::PackageKeyIdentity;
+use target::TargetProfile;
 
 use super::codec::{RecoveryDecoder, clone_bytes};
 use super::model::{

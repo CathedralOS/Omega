@@ -42,7 +42,7 @@ operator Float::meaning32(value: f32) -> FloatMeaning;
 operator Float::meaning64(value: f64) -> FloatMeaning;
 
 // The executable, representation-free semantic definitions. The compiler's
-// omega-core implementation is the current checked provider for these
+// core implementation is the current checked provider for these
 // proof-only operations; target realizations cite the same identities.
 pub operator FloatSemantics::add(
     format: FloatFormat,

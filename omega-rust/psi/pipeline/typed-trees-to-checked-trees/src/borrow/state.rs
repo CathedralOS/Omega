@@ -1,0 +1,117 @@
+use crate::context::*;
+use checked_trees::BorrowLoanFact;
+
+use super::calls::collect_statement_borrow_calls;
+use super::last_uses::update_state_loan_last_uses;
+use super::loans::statement_borrow_loans;
+use super::roots::{append_state_writable_roots, mutable_parameter_count};
+use super::tracker::StateLoanTracker;
+
+pub(super) struct BorrowFactArenas<'arenas> {
+    pub(super) writable_roots: &'arenas mut arena::Arena<BorrowWritableRootFact>,
+    pub(super) access_segments: &'arenas mut arena::Arena<facts::PlaceSegment>,
+    pub(super) owner_segments: &'arenas mut arena::Arena<checked_trees::BorrowLoanOwnerSegment>,
+    pub(super) argument_accesses: &'arenas mut arena::Arena<BorrowArgumentAccessFact>,
+    pub(super) calls: &'arenas mut arena::Arena<BorrowCallFact>,
+    pub(super) loans: &'arenas mut arena::Arena<BorrowLoanFact>,
+    pub(super) states: &'arenas mut arena::Arena<StateBorrowFact>,
+}
+
+pub(super) fn append_state_borrow_facts(
+    program: &typed_trees::TypedTrees,
+    machine: &typed_trees::machine::Machine,
+    state: &typed_trees::state::State,
+    arenas: &mut BorrowFactArenas<'_>,
+    state_loan_trackers: &mut Vec<StateLoanTracker>,
+) {
+    state_loan_trackers.clear();
+    let mut writable_roots_span = arena::HandleSpan::empty();
+    append_state_writable_roots(
+        program,
+        machine,
+        state,
+        arenas.writable_roots,
+        &mut writable_roots_span,
+    );
+
+    let mut calls_span = arena::HandleSpan::empty();
+    let mut loans_span = arena::HandleSpan::empty();
+    for (statement_index, statement) in program
+        .statement_table
+        .statements(state.statement_nodes)
+        .iter()
+        .enumerate()
+    {
+        for pending in statement_borrow_loans(
+            program,
+            state,
+            statement_index,
+            machine.symbol,
+            statement,
+            state_loan_trackers,
+        ) {
+            let loan_segments = arenas
+                .access_segments
+                .insert_many(pending.place.segments.clone());
+            let owner_path = arenas
+                .owner_segments
+                .insert_many(pending.owner_path.iter().copied());
+            let handle = arenas.loans.append_to_span(
+                &mut loans_span,
+                BorrowLoanFact {
+                    statement_index,
+                    last_use_statement_index: statement_index,
+                    owner_symbol: pending.owner_symbol,
+                    owner_path,
+                    source_owner_symbol: pending.source_owner_symbol,
+                    lineage: pending.lineage.clone(),
+                    root_symbol: pending.place.root_symbol,
+                    segments: loan_segments,
+                    kind: pending.kind.clone(),
+                },
+            );
+            state_loan_trackers.push(StateLoanTracker {
+                handle,
+                owner_symbol: pending.owner_symbol,
+                owner_name: pending.owner_name,
+                kind: pending.kind,
+                lineage: pending.lineage,
+                owner_path: pending.owner_path,
+                place: pending.place,
+            });
+        }
+        let mut call_ordinal = 0usize;
+        collect_statement_borrow_calls(
+            program,
+            machine,
+            state,
+            statement_index,
+            statement,
+            &mut call_ordinal,
+            arenas.access_segments,
+            arenas.argument_accesses,
+            arenas.calls,
+            &mut calls_span,
+        );
+    }
+
+    update_state_loan_last_uses(
+        program,
+        state.symbol,
+        state.statement_nodes,
+        arenas.calls.span_or_empty(calls_span),
+        arenas.access_segments,
+        arenas.argument_accesses,
+        state_loan_trackers,
+        arenas.loans,
+    );
+
+    arenas.states.append(StateBorrowFact {
+        machine_symbol: machine.symbol,
+        state_symbol: state.symbol,
+        writable_roots: writable_roots_span,
+        mutable_parameter_count: mutable_parameter_count(program, state),
+        calls: calls_span,
+        loans: loans_span,
+    });
+}

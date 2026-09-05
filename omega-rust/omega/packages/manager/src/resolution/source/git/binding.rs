@@ -7,7 +7,7 @@ use super::super::{
 };
 use crate::declarations::PackageKey;
 use crate::resolution::source::workspace_path::source_relative_path;
-use omega_package_source::{GitCommitId, GitTreeId, ImmutableSourceResolution, ResolvedGitSource};
+use package_source::{GitCommitId, GitTreeId, ImmutableSourceResolution, ResolvedGitSource};
 
 pub(super) fn bind_projected_git_package_source(
     source: ResolvedGitSource,

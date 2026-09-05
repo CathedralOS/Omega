@@ -6,10 +6,10 @@ use crate::declarations::BuildDeclarationKind;
 use crate::declarations::PackageKey;
 use crate::resolution::graph::{CanonicalSourceClosureSubjectFingerprint, DependencyRequestPath};
 use crate::review::candidate::ReviewOnlySourceConsumptionCommitment;
-use omega_package_evidence::record::{
+use package_evidence::record::{
     PackageReviewCanonicalRowKind, PackageReviewCanonicalRowRisk, PackageReviewCanonicalRowSource,
 };
-use omega_package_source::ImmutableSourceResolution;
+use package_source::ImmutableSourceResolution;
 use std::fmt;
 
 pub use super::error::ReviewOnlyCapabilityConflictError;

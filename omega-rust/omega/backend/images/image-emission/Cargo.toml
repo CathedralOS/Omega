@@ -1,0 +1,59 @@
+[package]
+name = "image-emission"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[lib]
+name = "image_emission"
+path = "src/lib.rs"
+
+[features]
+installed-artifact = ["dep:executable-installation", "dep:layout-plans"]
+
+[dependencies]
+calling-conventions = { path = "../../../representations/calling-conventions" }
+abstract-operations = { path = "../../../representations/abstract-operations" }
+executable-installation = { path = "../../runtime/executable-installation", optional = true }
+diagnostics = { path = "../../../../psi/foundation/diagnostics" }
+layout-plans = { path = "../../../../psi/foundation/layout-plans", optional = true }
+image = { path = "../image" }
+image-elf = { path = "../image-elf" }
+image-macho = { path = "../image-macho" }
+image-pe = { path = "../image-pe" }
+object-file = { path = "../../object/object-file" }
+target = { path = "../../../representations/target" }
+x86-encoding = { path = "../../instruction_set_architectures/x86-encoding" }
+machine-code = { path = "../../../representations/machine-code" }
+function-identity = { path = "../../../representations/function-identity" }
+installation-evidence = { path = "../../../representations/installation-evidence" }
+target-operations = { path = "../../../representations/target-operations" }
+task-plans = { path = "../../../representations/task-plans" }
+isa-aarch64 = { path = "../../instruction_set_architectures/isa-aarch64" }
+isa-x86_64 = { path = "../../instruction_set_architectures/isa-x86_64" }
+semantic-vocabulary = { path = "../../../../psi/foundation/semantic-vocabulary" }
+symbols = { path = "../../../../psi/foundation/symbols" }
+terminal-psi = { path = "../../../../psi/representations/terminal-psi" }
+terminal-codec = { path = "../../../../psi/semantics/terminal-codec" }
+terminal-fixed-fuel = { path = "../../../../psi/semantics/terminal-fixed-fuel" }
+terminal-fuel = { path = "../../../../psi/semantics/terminal-fuel" }
+terminal-verifier = { path = "../../../../psi/semantics/terminal-verifier" }
+proof-admission = { path = "../../../../psi/semantics/proof-admission" }
+sha2 = "0.10"
+iced-x86 = { version = "1.21", default-features = false, features = ["std", "decoder", "instr_info"] }
+
+[dev-dependencies]
+assigned-target-operations = { path = "../../../representations/assigned-target-operations" }
+abstract-operations-to-target-operations = { path = "../../../pipeline/abstract-operations-to-target-operations" }
+terminal-psi-to-abstract-operations = { path = "../../../pipeline/terminal-psi-to-abstract-operations" }
+machine-emission = { path = "../../machine-emission" }
+target-operations-to-assigned-target-operations = { path = "../../../pipeline/target-operations-to-assigned-target-operations" }
+extents = { path = "../../../../psi/foundation/extents" }
+checked-trees-to-terminal-psi = { path = "../../../../psi/pipeline/checked-trees-to-terminal-psi" }
+proof-admission = { path = "../../../../psi/semantics/proof-admission" }
+source-files-to-tokens = { path = "../../../../psi/pipeline/source-files-to-tokens" }
+symbol-resolved-trees-to-typed-trees = { path = "../../../../psi/pipeline/symbol-resolved-trees-to-typed-trees" }
+syntax-trees-to-symbol-resolved-trees = { path = "../../../../psi/pipeline/syntax-trees-to-symbol-resolved-trees" }
+symbols = { path = "../../../../psi/foundation/symbols" }
+tokens-to-syntax-trees = { path = "../../../../psi/pipeline/tokens-to-syntax-trees" }
+typed-trees-to-checked-trees = { path = "../../../../psi/pipeline/typed-trees-to-checked-trees" }

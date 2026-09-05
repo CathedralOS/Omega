@@ -1,0 +1,12 @@
+[package]
+name = "tokens"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[lib]
+name = "tokens"
+path = "src/lib.rs"
+
+[dependencies]
+source = { path = "../../foundation/source" }

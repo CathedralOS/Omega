@@ -3,7 +3,7 @@ use super::super::errors::ResolveDependencySourceError;
 use super::context::{WorkspaceContext, WorkspaceContextKind};
 use crate::declarations::PackageKey;
 use crate::resolution::source::PackageSourceCustody;
-use omega_package_source::{ExternalSourceContext, LocalSourceLimits, SourceLineage};
+use package_source::{ExternalSourceContext, LocalSourceLimits, SourceLineage};
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 

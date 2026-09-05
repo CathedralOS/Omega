@@ -1,0 +1,56 @@
+//! Optimizer module role: executable entrance. Complete machine-effect analysis for one validated selected CFG.
+
+mod compute;
+mod model;
+mod validate;
+
+pub use model::*;
+pub use selected_instructions::{
+    BlockMachineEffects, FunctionMachineEffects, InstructionMachineEffects,
+    PreAllocationMachineEffectDecodeError, PreAllocationMachineEffectIdentity,
+    PreAllocationMachineEffectPlan, StructuralUnitCallMachineEffects,
+    StructuralUnitFunctionMachineEffects, pre_allocation_machine_effect_identity,
+};
+pub use validate::validate_pre_allocation_machine_effects;
+
+use crate::ValidatedSelectedAnalysis;
+use register_model::{
+    TargetRegisterEnvironmentConstraintKeys, TargetRegisterEnvironmentIdentity,
+    ValidatedPhysicalRegisterModel, ValidatedRegisterConstraintCatalog,
+    ValidatedRegisterReservationProfile,
+};
+use selected_instructions::ValidatedMachineEffectCatalog;
+
+/// Compute and independently reconstruct the complete pre-allocation effect
+/// sidecar. This grants no transformation, home, emission, or publication
+/// authority.
+#[allow(clippy::too_many_arguments)]
+pub fn analyze_pre_allocation_machine_effects<S: ValidatedSelectedAnalysis>(
+    selected: &S,
+    register_environment: TargetRegisterEnvironmentIdentity,
+    physical: &ValidatedPhysicalRegisterModel,
+    constraints: &ValidatedRegisterConstraintCatalog,
+    reservations: &ValidatedRegisterReservationProfile,
+    selected_keys: TargetRegisterEnvironmentConstraintKeys,
+    catalog: &ValidatedMachineEffectCatalog,
+) -> Result<ValidatedPreAllocationMachineEffects, MachineEffectError> {
+    let plan = compute::compute_terminal_pre_allocation_machine_effects(
+        selected,
+        register_environment,
+        physical,
+        constraints,
+        reservations,
+        selected_keys,
+        catalog,
+    )?;
+    validate_pre_allocation_machine_effects(
+        selected,
+        register_environment,
+        physical,
+        constraints,
+        reservations,
+        selected_keys,
+        catalog,
+        plan,
+    )
+}

@@ -11,7 +11,7 @@ pub struct PackageReviewConstShape {
 pub struct PackageReviewOperatorShape {
     pub(crate) coordinate: PackageReviewOperatorCoordinate,
     pub(crate) is_boundary: bool,
-    pub(crate) spelling: Option<psi_language_core::OperatorSpelling>,
+    pub(crate) spelling: Option<language_core::OperatorSpelling>,
     pub(crate) lifetime_parameter_count: usize,
     pub(crate) type_parameters: Vec<PackageReviewTypeParameter>,
     pub(crate) parameters: Vec<PackageReviewCallableParameter>,
@@ -29,7 +29,7 @@ impl PackageReviewOperatorShape {
         self.is_boundary
     }
 
-    pub const fn spelling(&self) -> Option<psi_language_core::OperatorSpelling> {
+    pub const fn spelling(&self) -> Option<language_core::OperatorSpelling> {
         self.spelling
     }
 

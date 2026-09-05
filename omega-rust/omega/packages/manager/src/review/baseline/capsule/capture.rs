@@ -10,10 +10,10 @@ use crate::review::candidate::validation::validate_review_only_closure;
 use crate::review::candidate::{
     ReviewOnlyCanonicalRow, build_observation_commitment, whole_review_commitment,
 };
-use omega_build_evaluation::{
+use build_evaluation::{
     BuildFilesystemReplayRecordLimits, capture_verified_build_filesystem_replay_record,
 };
-use omega_package_evidence::encoding::{
+use package_evidence::encoding::{
     decode_package_review_canonical_row_with_limits,
     encode_package_review_canonical_row_with_limits,
 };

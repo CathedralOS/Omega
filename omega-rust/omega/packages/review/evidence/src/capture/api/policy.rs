@@ -10,9 +10,9 @@ use crate::capture::semantics::signatures::policy as signatures;
 use signatures::values;
 
 use crate::record::PackagePolicyPublicApi;
-use omega_compiler::CheckedCompilation;
-use psi_core::PackageKeyIdentity;
-use psi_diagnostics::Diagnostic;
+use compiler::CheckedCompilation;
+use diagnostics::Diagnostic;
+use semantic_vocabulary::PackageKeyIdentity;
 
 pub(crate) fn project(
     compilation: &CheckedCompilation,

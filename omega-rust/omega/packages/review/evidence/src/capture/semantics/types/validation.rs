@@ -1,21 +1,21 @@
-use psi_diagnostics::Diagnostic;
-use psi_symbols::SymbolHandle;
+use diagnostics::Diagnostic;
+use symbols::SymbolHandle;
 
 pub(crate) fn validate_package_type_identity_input(
-    program: &psi_typed_trees::TypedTrees,
-    type_reference: psi_typed_trees::types::TypeReferenceHandle,
+    program: &typed_trees::TypedTrees,
+    type_reference: typed_trees::types::TypeReferenceHandle,
     binders: &[(SymbolHandle, String)],
 ) -> Result<(), Vec<Diagnostic>> {
     validate_package_type_identity_input_inner(program, type_reference, binders, false)
 }
 
 pub(crate) fn validate_package_type_identity_input_inner(
-    program: &psi_typed_trees::TypedTrees,
-    type_reference: psi_typed_trees::types::TypeReferenceHandle,
+    program: &typed_trees::TypedTrees,
+    type_reference: typed_trees::types::TypeReferenceHandle,
     binders: &[(SymbolHandle, String)],
     allow_const_value: bool,
 ) -> Result<(), Vec<Diagnostic>> {
-    use psi_typed_trees::types::{FixedArrayLength, TypeConstraintNode, TypeReferenceNode};
+    use typed_trees::types::{FixedArrayLength, TypeConstraintNode, TypeReferenceNode};
 
     match program.type_reference_table.type_reference(type_reference) {
         TypeReferenceNode::Reference { referee, .. } => {
@@ -33,12 +33,12 @@ pub(crate) fn validate_package_type_identity_input_inner(
                         validate_package_index_expression(program, *maximum, binders)?;
                     }
                     TypeConstraintNode::Domain(domain) => {
-                        use psi_typed_trees::types::DomainConstraintSubject;
+                        use typed_trees::types::DomainConstraintSubject;
 
                         match domain.subject {
                             DomainConstraintSubject::Declared => {
                                 if domain.name.as_str() == "OmegaLayout"
-                                    || psi_typed_trees::wire::is_layout_domain_name(
+                                    || typed_trees::wire::is_layout_domain_name(
                                         domain.name.as_str(),
                                     )
                                 {
@@ -69,7 +69,7 @@ pub(crate) fn validate_package_type_identity_input_inner(
                             }
                         }
                         let declared_parameters = (domain.subject
-                            == psi_typed_trees::types::DomainConstraintSubject::Declared)
+                            == typed_trees::types::DomainConstraintSubject::Declared)
                             .then(|| {
                                 program
                                     .domain_definitions()
@@ -84,7 +84,7 @@ pub(crate) fn validate_package_type_identity_input_inner(
                                 .is_some_and(|parameter| {
                                     matches!(
                                         parameter.kind,
-                                        psi_typed_trees::data::TypeParameterKind::Const { .. }
+                                        typed_trees::data::TypeParameterKind::Const { .. }
                                     )
                                 });
                             validate_package_type_identity_input_inner(
@@ -136,7 +136,7 @@ pub(crate) fn validate_package_type_identity_input_inner(
                     .is_some_and(|parameter| {
                         matches!(
                             parameter.kind,
-                            psi_typed_trees::data::TypeParameterKind::Const { .. }
+                            typed_trees::data::TypeParameterKind::Const { .. }
                         )
                     });
                 validate_package_type_identity_input_inner(program, *argument, binders, is_const)?;
@@ -163,14 +163,14 @@ pub(crate) fn validate_package_type_identity_input_inner(
 }
 
 fn validate_package_named_type_leaf(
-    program: &psi_typed_trees::TypedTrees,
+    program: &typed_trees::TypedTrees,
     symbol: SymbolHandle,
     spelling: &str,
     binders: &[(SymbolHandle, String)],
     allow_const_value: bool,
 ) -> Result<(), Vec<Diagnostic>> {
     if symbol.is_valid() {
-        if program.symbols.get(symbol).kind == psi_symbols::SymbolKind::Const {
+        if program.symbols.get(symbol).kind == symbols::SymbolKind::Const {
             return Err(vec![Diagnostic::error(
                 "package review rejects a residual const declaration in structural type identity",
             )]);
@@ -178,7 +178,7 @@ fn validate_package_named_type_leaf(
         return Ok(());
     }
     if allow_const_value
-        && (psi_language_semantics::const_value::CanonicalConstValue::from_atom(spelling).is_some()
+        && (language_semantics::const_value::CanonicalConstValue::from_atom(spelling).is_some()
             || spelling.parse::<i128>().is_ok())
     {
         return Ok(());
@@ -195,7 +195,7 @@ fn validate_package_named_type_leaf(
 }
 
 fn validate_package_const_binder(
-    program: &psi_typed_trees::TypedTrees,
+    program: &typed_trees::TypedTrees,
     symbol: SymbolHandle,
     spelling: &str,
     binders: &[(SymbolHandle, String)],
@@ -215,11 +215,11 @@ fn validate_package_const_binder(
 }
 
 fn validate_package_index_expression(
-    program: &psi_typed_trees::TypedTrees,
-    expression: psi_typed_trees::expression::ExpressionHandle,
+    program: &typed_trees::TypedTrees,
+    expression: typed_trees::expression::ExpressionHandle,
     binders: &[(SymbolHandle, String)],
 ) -> Result<(), Vec<Diagnostic>> {
-    use psi_typed_trees::expression::ExpressionNode;
+    use typed_trees::expression::ExpressionNode;
 
     match program.expression_table.expression(expression) {
         ExpressionNode::Name(path) => {
@@ -230,7 +230,7 @@ fn validate_package_index_expression(
                 .collect::<Vec<_>>()
                 .join("::");
             if !path.symbol.is_valid()
-                && (psi_language_semantics::const_value::CanonicalConstValue::from_atom(&spelling)
+                && (language_semantics::const_value::CanonicalConstValue::from_atom(&spelling)
                     .is_some()
                     || spelling.parse::<i128>().is_ok())
             {

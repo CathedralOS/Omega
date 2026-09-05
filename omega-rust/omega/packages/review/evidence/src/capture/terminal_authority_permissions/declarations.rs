@@ -2,12 +2,12 @@
 
 use crate::capture::semantics::declarations::{nominal_identity, provider_requirement_identity};
 use crate::record::{PackageReviewNominalIdentity, PackageReviewNominalOwner};
-use omega_compiler::CheckedCompilation;
-use omega_effects::ServiceTerminalAuthorityPermission;
-use omega_effects::provider_plan::ServiceSchema;
-use omega_provider_planning::plans::ProviderSchemaDeclaration;
-use psi_diagnostics::Diagnostic;
-use psi_symbols::SymbolHandle;
+use compiler::CheckedCompilation;
+use diagnostics::Diagnostic;
+use effects::ServiceTerminalAuthorityPermission;
+use effects::provider_plan::ServiceSchema;
+use provider_planning::plans::ProviderSchemaDeclaration;
+use symbols::SymbolHandle;
 
 pub(super) struct ResolvedService<'a> {
     pub symbol: SymbolHandle,
@@ -50,8 +50,7 @@ pub(super) fn resolve_services(
         // Preserve the existing UEFI semantic-only binding exception. The
         // normalized review below is context, never a replacement permission
         // digest or a second source of target-entry ABI authority.
-        let digest =
-            omega_package_compilation::accepted_service_schema_digest(accepted.role(), &schema);
+        let digest = package_compilation::accepted_service_schema_digest(accepted.role(), &schema);
         if digest != accepted.normalized_schema_digest() {
             return Err(rejected(
                 "accepted binding changed its normalized service schema",

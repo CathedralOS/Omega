@@ -1,23 +1,23 @@
-use omega_abstract_operations::AbstractOperation;
-use omega_abstract_operations_to_target_operations::lower_to_target_operations;
-use omega_image_emission::{
+use abstract_operations::AbstractOperation;
+use abstract_operations_to_target_operations::lower_to_target_operations;
+use checked_trees_to_terminal_psi::lower_machine;
+use image_emission::{
     build_installation_record, build_object_artifact, decode_installation_record,
     emit_executable_image, encode_installation_record, validate_installation_record,
 };
-use omega_machine_emission::emit_machine_code;
-use omega_psi_to_abstract_operations::lower_artifact_sections;
-use omega_target::NativeTarget;
-use omega_target_operations_to_assigned_target_operations::assign_registers;
-use psi_checked_trees_to_terminal::lower_machine;
-use psi_core::ProfileDecisionId;
-use psi_proof_admission::AdmissionProfile;
-use psi_source_files_to_tokens::Lexer;
-use psi_symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
-use psi_syntax_trees_to_symbol_resolved_trees::lower_syntax_trees;
-use psi_terminal::TerminalAffineCleanupAction;
-use psi_terminal_codec::{encode_module, encode_proof_bundle};
-use psi_tokens_to_syntax_trees::parse_syntax_trees;
-use psi_typed_trees_to_checked_trees::lower_typed_trees;
+use machine_emission::emit_machine_code;
+use proof_admission::AdmissionProfile;
+use semantic_vocabulary::ProfileDecisionId;
+use source_files_to_tokens::Lexer;
+use symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
+use syntax_trees_to_symbol_resolved_trees::lower_syntax_trees;
+use target::NativeTarget;
+use target_operations_to_assigned_target_operations::assign_registers;
+use terminal_codec::{encode_module, encode_proof_bundle};
+use terminal_psi::TerminalAffineCleanupAction;
+use terminal_psi_to_abstract_operations::lower_artifact_sections;
+use tokens_to_syntax_trees::parse_syntax_trees;
+use typed_trees_to_checked_trees::lower_typed_trees;
 
 const SOURCE: &str = r#"
     data Empty {}
@@ -119,7 +119,7 @@ fn unit_affine_local_cleanup_survives_all_native_artifacts() {
 
         let mut forged_signature = machine.clone();
         forged_signature.functions[0].unit_parameter_homes[0].multiplicity =
-            psi_terminal::StructuralMultiplicity::Unrestricted;
+            terminal_psi::StructuralMultiplicity::Unrestricted;
         assert!(build_object_artifact(&forged_signature).is_err());
 
         let object = build_object_artifact(&machine).expect("object");

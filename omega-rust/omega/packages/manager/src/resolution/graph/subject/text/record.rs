@@ -15,7 +15,7 @@ use super::requests::{
 };
 use super::source::{read_key, read_source, write_key, write_source};
 use crate::declarations::dependencies::read::ProjectedDependencies;
-use omega_target::TargetProfile;
+use target::TargetProfile;
 
 impl CanonicalSourceClosureSubject {
     /// Render the exact source graph as bounded canonical text, without

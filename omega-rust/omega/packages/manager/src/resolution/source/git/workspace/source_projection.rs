@@ -9,7 +9,7 @@ use crate::resolution::source::workspace_path::{
     authored_workspace_member_path, source_relative_path,
 };
 use crate::resolution::source::{GitWorkspaceSelectionDeclarations, GitWorkspaceSelectionEvidence};
-use omega_package_source::{
+use package_source::{
     GitWorkspaceDeclaration, GitWorkspaceProjectionPlanner, GitWorkspaceSelection,
 };
 
@@ -30,7 +30,7 @@ impl GitWorkspaceProjectionPlanner for ManagerGitWorkspacePlanner<'_> {
     fn discover_members(
         &mut self,
         root_declaration: &GitWorkspaceDeclaration,
-    ) -> Result<Vec<omega_package_source::SourceRelativePath>, Self::Error> {
+    ) -> Result<Vec<package_source::SourceRelativePath>, Self::Error> {
         let discovery = discover_git_workspace(root_declaration.bytes())?;
         Ok(discovery
             .member_paths()
@@ -58,7 +58,7 @@ impl GitWorkspaceProjectionPlanner for ManagerGitWorkspacePlanner<'_> {
             .iter()
             .map(|(member_path, bytes)| GitWorkspaceMemberBuild::new(member_path, bytes.as_slice()))
             .collect::<Vec<_>>();
-        let selected = omega_build_declarations::ProjectName::parse(self.selected.as_str())
+        let selected = build_declarations::ProjectName::parse(self.selected.as_str())
             .expect("source and build declaration package names share one grammar");
         let plan = plan_git_workspace_selection(&selected, root_declaration.bytes(), &supplied)?;
         let selected_member = source_relative_path(plan.selected_member_path());

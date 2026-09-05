@@ -5,10 +5,10 @@ use crate::capture::semantics::{
     types::review_signature_type_identity_with_binders,
 };
 use crate::record::*;
-use omega_compiler::CheckedCompilation;
-use psi_diagnostics::Diagnostic;
-use psi_symbols::SymbolHandle;
-use psi_typed_trees::machine::Machine;
+use compiler::CheckedCompilation;
+use diagnostics::Diagnostic;
+use symbols::SymbolHandle;
+use typed_trees::machine::Machine;
 
 pub(super) fn project(
     compilation: &CheckedCompilation,
@@ -39,7 +39,7 @@ pub(super) fn project(
         &mut scopes,
         0,
     )?;
-    use psi_language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure;
+    use language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure;
     let exposure = if machine.is_public || machine.supply_mode.is_boundary_declaration() {
         AuthoredDeclarationSelectionExposure::PublicInterface
     } else {

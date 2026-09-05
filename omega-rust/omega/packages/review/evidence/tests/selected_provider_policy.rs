@@ -16,11 +16,11 @@ mod installation;
 mod signatures;
 
 use fixtures::Fixture;
-use omega_package_evidence::encoding::PackagePolicyRecoveryLimits;
-use omega_package_evidence::project_checked_selected_provider_policy;
-use omega_package_evidence::record::*;
-use omega_target::TargetProfile;
+use package_evidence::encoding::PackagePolicyRecoveryLimits;
+use package_evidence::project_checked_selected_provider_policy;
+use package_evidence::record::*;
 use support::*;
+use target::TargetProfile;
 
 fn project(fixture: &Fixture) -> PackagePolicySelectedProviders {
     let policy = project_checked_selected_provider_policy(

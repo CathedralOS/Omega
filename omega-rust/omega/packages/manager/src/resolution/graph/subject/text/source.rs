@@ -4,7 +4,7 @@ use super::framing::{Reader, Writer};
 use super::{Error, Limits};
 use crate::declarations::PackageKey;
 use crate::resolution::graph::ResolvedSourceIdentity;
-use omega_package_source::{
+use package_source::{
     ExternalLocalLineage, ExternalSourceContext, GitCommitId, GitTransport, GitTreeId,
     ImmutableSourceResolution, SourceContentDigest, SourceLineage, WorkspaceLineageIdentity,
     WorkspaceMemberLineage,
@@ -261,9 +261,9 @@ fn join(reader: &mut Reader<'_>, parts: &[&str]) -> Result<String, Error> {
     Ok(String::from_utf8(bytes).expect("joined UTF-8 locator"))
 }
 
-fn hex_length(algorithm: omega_package_source::GitObjectIdAlgorithm) -> usize {
+fn hex_length(algorithm: package_source::GitObjectIdAlgorithm) -> usize {
     match algorithm {
-        omega_package_source::GitObjectIdAlgorithm::Sha1 => 40,
-        omega_package_source::GitObjectIdAlgorithm::Sha256 => 64,
+        package_source::GitObjectIdAlgorithm::Sha1 => 40,
+        package_source::GitObjectIdAlgorithm::Sha256 => 64,
     }
 }

@@ -8,11 +8,11 @@ use crate::record::{
     PackagePolicyCallable, PackagePolicyCallableRole, PackagePolicyCallables,
     PackageReviewCallableRole, PackageReviewNominalOwner,
 };
-use omega_compiler::CheckedCompilation;
-use omega_target::TargetProfile;
-use psi_core::PackageKeyIdentity;
-use psi_diagnostics::Diagnostic;
-use psi_language_semantics::MachineSupplyMode;
+use compiler::CheckedCompilation;
+use diagnostics::Diagnostic;
+use language_semantics::MachineSupplyMode;
+use semantic_vocabulary::PackageKeyIdentity;
+use target::TargetProfile;
 
 /// Capture semantics only; this neither accepts assumptions nor reconstitutes
 /// compiler certificates, build replay, or native authority.
@@ -31,11 +31,11 @@ pub fn project_checked_callable_policy(
     }
     let build = compilation.selected_build_machine_symbol();
     let source = compilation.pre_selected_dispatch_source_trees()?;
-    let mutation_resolver = psi_validation::CallFrameResolver::new(&source)
+    let mutation_resolver = validation::CallFrameResolver::new(&source)
         .ok_or_else(|| rejected("pre-selected-dispatch source has no exact call resolver"))?;
     let mut projected_build = false;
     let mut callables = Vec::new();
-    let inferred_crash_causes = psi_typed_trees_to_checked_trees::infer_checked_crash_causes(
+    let inferred_crash_causes = typed_trees_to_checked_trees::infer_checked_crash_causes(
         &compilation.typed,
         &compilation.facts,
     );

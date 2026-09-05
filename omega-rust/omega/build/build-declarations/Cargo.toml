@@ -1,0 +1,14 @@
+[package]
+name = "build-declarations"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[lib]
+name = "build_declarations"
+path = "src/lib.rs"
+
+[dependencies]
+source-files-to-tokens = { path = "../../../psi/pipeline/source-files-to-tokens" }
+syntax-trees = { path = "../../../psi/representations/syntax-trees" }
+tokens-to-syntax-trees = { path = "../../../psi/pipeline/tokens-to-syntax-trees" }

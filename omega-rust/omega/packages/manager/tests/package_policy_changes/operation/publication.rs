@@ -1,20 +1,18 @@
 use super::*;
-use omega_package_evidence::encoding::PackagePolicyTextRecoveryLimits;
-use omega_package_evidence::record::PackagePolicyBaseline;
-use omega_package_manager::declarations::{
+use package_evidence::encoding::PackagePolicyTextRecoveryLimits;
+use package_evidence::record::PackagePolicyBaseline;
+use package_manager::declarations::{
     BuildDependencyEditPlan, BuildFileReplacement, DependencySourceRequest,
     plan_dependency_addition,
 };
-use omega_package_manager::operations::{
+use package_manager::operations::{
     LockedSourceRecoveryOptions, PackageFileTransaction, PackagePublicationLimits,
     PublishReviewedPackageChangeError, check_locked_sources, prepare_local_project,
     publish_reviewed_package_change, stage_build_dependency_edit,
 };
-use omega_package_manager::resolution::graph::resolve_staged_external_local_project_closure_with_storage;
-use omega_package_source::SourceRelativePath;
-use omega_package_source::local::staging::{
-    StagedLocalSnapshot, stage_local_source_replacement_in_lane,
-};
+use package_manager::resolution::graph::resolve_staged_external_local_project_closure_with_storage;
+use package_source::SourceRelativePath;
+use package_source::local::staging::{StagedLocalSnapshot, stage_local_source_replacement_in_lane};
 use std::time::SystemTime;
 
 fn addition(root: &Path, location: &str) -> BuildFileReplacement {
@@ -618,7 +616,7 @@ fn preparation_recovers_pending_declarations_before_compiler_input_resolution() 
     let (entry, inputs) = prepared.into_parts();
     assert_ne!(entry, root.join("main.omg"));
     assert_eq!(inputs.packages().count(), 1);
-    omega_compiler::compile_to_checked_with_packages_in_build_dir(
+    compiler::compile_to_checked_with_packages_in_build_dir(
         &entry,
         &tree.path("recovered-compilation"),
         Some(TARGET.target_name()),

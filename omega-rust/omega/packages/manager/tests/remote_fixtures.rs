@@ -1,13 +1,11 @@
-use omega_package_manager::declarations::{PackageKey, PackageName};
-use omega_package_manager::declarations::{
-    extract_dependency_projection, extract_package_declaration,
-};
-use omega_package_manager::resolution::graph::{
+use package_manager::declarations::{PackageKey, PackageName};
+use package_manager::declarations::{extract_dependency_projection, extract_package_declaration};
+use package_manager::resolution::graph::{
     PackageSourceClosureLimits, resolve_git_package_closure_with_storage,
 };
-use omega_package_manager::resolution::source::resolve_git_package_source_with_storage;
-use omega_package_manager::review::compile_resolved_package_reviews;
-use omega_package_source::{
+use package_manager::resolution::source::resolve_git_package_source_with_storage;
+use package_manager::review::compile_resolved_package_reviews;
+use package_source::{
     GitSourceRequest, LocalSourceLimits, SourceLineage, SourceResolverStorage,
     resolve_git_source_with_storage, resolve_local_source,
 };
@@ -30,7 +28,7 @@ fn workspace_root() -> PathBuf {
                 .join("tests/fixtures/packages/REMOTE_PINS.md")
                 .is_file()
         })
-        .expect("omega-package-manager should live beneath the Omega workspace")
+        .expect("package-manager should live beneath the Omega workspace")
         .to_path_buf()
 }
 
@@ -231,7 +229,7 @@ fn remote_fixture_pins_resolve_to_local_fixture_contents() {
 
         let compiler_build = cache.join("compiler-build");
         let reviews = compile_resolved_package_reviews(
-            &closure.for_exact_target(omega_target::TargetProfile::WindowsX64),
+            &closure.for_exact_target(target::TargetProfile::WindowsX64),
             &compiler_build,
         )
         .unwrap_or_else(|error| {

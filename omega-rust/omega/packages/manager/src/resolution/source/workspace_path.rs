@@ -1,7 +1,7 @@
 //! Convert between authored workspace paths and syntax-neutral source paths.
 
-use omega_build_declarations::WorkspaceMemberPath;
-use omega_package_source::SourceRelativePath;
+use build_declarations::WorkspaceMemberPath;
+use package_source::SourceRelativePath;
 
 pub(crate) fn source_relative_path(member_path: &WorkspaceMemberPath) -> SourceRelativePath {
     SourceRelativePath::parse(member_path.as_str())

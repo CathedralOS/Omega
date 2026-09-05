@@ -1,11 +1,11 @@
 use super::*;
 #[path = "history/codec.rs"]
 mod codec;
-use omega_package_manager::lock::{
+use package_manager::lock::{
     HistoricalPackagePolicyDecisionSubject as HistoricalSubject,
     HistoricalPackagePolicyError as Error,
 };
-use omega_package_manager::review::{
+use package_manager::review::{
     PackagePolicyChangeSet, PackagePolicyDecision, PackagePolicyDecisionSubject as Subject,
     PackagePolicyResolution, ReviewOnlyRootPolicyDisposition::*, resolve_package_policy_decisions,
 };

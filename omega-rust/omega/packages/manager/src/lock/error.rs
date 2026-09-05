@@ -1,6 +1,6 @@
 use super::HistoricalPackagePolicyError;
 use crate::resolution::graph::CanonicalSourceClosureSubjectError;
-use omega_package_evidence::encoding::{
+use package_evidence::encoding::{
     PackagePolicyMembershipError, PackagePolicyRecoveryError, PackageReviewEncodingError,
 };
 use std::fmt;

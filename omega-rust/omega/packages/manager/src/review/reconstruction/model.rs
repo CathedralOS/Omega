@@ -2,7 +2,7 @@ use crate::declarations::PackageKey;
 use crate::resolution::graph::{
     CanonicalSourceClosureSubject, CanonicalSourceClosureSubjectLimits,
 };
-use omega_package_evidence::ledger::OrdinaryPackageObligationLedger;
+use package_evidence::ledger::OrdinaryPackageObligationLedger;
 use std::fmt;
 
 const ABSOLUTE_RECORD_BYTE_LIMIT: usize = 128 * 1024 * 1024;

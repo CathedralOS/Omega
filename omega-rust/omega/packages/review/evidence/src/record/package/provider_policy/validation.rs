@@ -173,10 +173,10 @@ impl PackagePolicySelectedProviders {
 
 pub(super) fn same_target(
     profile: crate::record::PackageReviewRepresentationTargetProfile,
-    target: omega_target::TargetProfile,
+    target: target::TargetProfile,
 ) -> bool {
     use crate::record::PackageReviewRepresentationTargetProfile as Profile;
-    use omega_target::TargetProfile as Target;
+    use target::TargetProfile as Target;
     matches!(
         (profile, target),
         (Profile::LinuxArm64, Target::LinuxArm64)

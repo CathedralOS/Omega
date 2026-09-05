@@ -5,11 +5,11 @@
 //! struct and returning a plan-like struct -- the exact call shape the Layout
 //! machinery makes (programmable_layouts.md).
 
-use omega_compiler::compile_to_checked;
-use psi_checked_interpreter::{
+use checked_interpreter::{
     BuildTimeValue, CURRENT_EVALUATION_STEP_SCHEDULE, CURRENT_EVALUATION_USAGE_SCHEMA,
     evaluate_build_time_machine, evaluate_build_time_machine_measured, interpret_entry,
 };
+use compiler::compile_to_checked;
 use std::fs;
 use std::path::PathBuf;
 

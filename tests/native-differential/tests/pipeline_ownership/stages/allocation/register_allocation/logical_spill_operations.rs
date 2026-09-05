@@ -19,21 +19,21 @@ fn logical_spill_operations_replay_the_active_resident_pressure_case_on_both_arc
             selected_lowering_budget(),
         )
         .unwrap();
-        let first = omega_selected_instructions_to_register_homes::plan_logical_spill_operations(
+        let first = selected_instructions_to_register_homes::plan_logical_spill_operations(
             selected.selected(),
             ranges.ranges(),
             legality.legality(),
             &choices,
-            omega_selected_instructions_to_register_homes::LogicalSpillOperationPolicy::SelectedActiveResidentInstructionResultU64StoreBeforePressureReloadBeforeFirstFutureFlexibleUseV1,
+            selected_instructions_to_register_homes::LogicalSpillOperationPolicy::SelectedActiveResidentInstructionResultU64StoreBeforePressureReloadBeforeFirstFutureFlexibleUseV1,
             selected_lowering_budget(),
         )
         .unwrap();
-        let second = omega_selected_instructions_to_register_homes::plan_logical_spill_operations(
+        let second = selected_instructions_to_register_homes::plan_logical_spill_operations(
             selected.selected(),
             ranges.ranges(),
             legality.legality(),
             &choices,
-            omega_selected_instructions_to_register_homes::LogicalSpillOperationPolicy::SelectedActiveResidentInstructionResultU64StoreBeforePressureReloadBeforeFirstFutureFlexibleUseV1,
+            selected_instructions_to_register_homes::LogicalSpillOperationPolicy::SelectedActiveResidentInstructionResultU64StoreBeforePressureReloadBeforeFirstFutureFlexibleUseV1,
             selected_lowering_budget(),
         )
         .unwrap();
@@ -75,7 +75,7 @@ fn logical_spill_operations_replay_the_active_resident_pressure_case_on_both_arc
         assert_eq!(first.receipt().reload_count(), 1);
         assert_eq!(first.receipt().rewritten_use_count(), 2);
         assert_eq!(
-            omega_selected_instructions_to_register_homes::LogicalSpillOperationPlan::decode(
+            selected_instructions_to_register_homes::LogicalSpillOperationPlan::decode(
                 &first.plan().encode()
             )
             .unwrap(),
@@ -85,37 +85,37 @@ fn logical_spill_operations_replay_the_active_resident_pressure_case_on_both_arc
         let mut corrupted = first.plan().clone();
         corrupted.functions[0].action.as_mut().unwrap().rewrites[0].operand += 1;
         assert_eq!(
-            omega_selected_instructions_to_register_homes::validate_logical_spill_operations(
+            selected_instructions_to_register_homes::validate_logical_spill_operations(
                 selected.selected(),
                 ranges.ranges(),
                 legality.legality(),
                 &choices,
                 corrupted,
             ),
-            Err(omega_selected_instructions_to_register_homes::LogicalSpillOperationError::DecisionMismatch { function: 0 })
+            Err(selected_instructions_to_register_homes::LogicalSpillOperationError::DecisionMismatch { function: 0 })
         );
 
         let exact_budget = OptimizationWorkBudget::new(1, 1, 3, 1, 1).unwrap();
-        assert!(omega_selected_instructions_to_register_homes::plan_logical_spill_operations(
+        assert!(selected_instructions_to_register_homes::plan_logical_spill_operations(
             selected.selected(),
             ranges.ranges(),
             legality.legality(),
             &choices,
-            omega_selected_instructions_to_register_homes::LogicalSpillOperationPolicy::SelectedActiveResidentInstructionResultU64StoreBeforePressureReloadBeforeFirstFutureFlexibleUseV1,
+            selected_instructions_to_register_homes::LogicalSpillOperationPolicy::SelectedActiveResidentInstructionResultU64StoreBeforePressureReloadBeforeFirstFutureFlexibleUseV1,
             exact_budget,
         )
         .is_ok());
         let insufficient = OptimizationWorkBudget::new(1, 1, 2, 1, 1).unwrap();
         assert!(matches!(
-            omega_selected_instructions_to_register_homes::plan_logical_spill_operations(
+            selected_instructions_to_register_homes::plan_logical_spill_operations(
                 selected.selected(),
                 ranges.ranges(),
                 legality.legality(),
                 &choices,
-                omega_selected_instructions_to_register_homes::LogicalSpillOperationPolicy::SelectedActiveResidentInstructionResultU64StoreBeforePressureReloadBeforeFirstFutureFlexibleUseV1,
+                selected_instructions_to_register_homes::LogicalSpillOperationPolicy::SelectedActiveResidentInstructionResultU64StoreBeforePressureReloadBeforeFirstFutureFlexibleUseV1,
                 insufficient,
             ),
-            Err(omega_selected_instructions_to_register_homes::LogicalSpillOperationError::BudgetExceeded { .. })
+            Err(selected_instructions_to_register_homes::LogicalSpillOperationError::BudgetExceeded { .. })
         ));
     }
 }
@@ -174,15 +174,15 @@ fn logical_spill_v1_refuses_an_incoming_victim() {
             .incoming
     );
     assert!(matches!(
-        omega_selected_instructions_to_register_homes::plan_logical_spill_operations(
+        selected_instructions_to_register_homes::plan_logical_spill_operations(
             selected.selected(),
             ranges.ranges(),
             legality.legality(),
             &choices,
-            omega_selected_instructions_to_register_homes::LogicalSpillOperationPolicy::SelectedActiveResidentInstructionResultU64StoreBeforePressureReloadBeforeFirstFutureFlexibleUseV1,
+            selected_instructions_to_register_homes::LogicalSpillOperationPolicy::SelectedActiveResidentInstructionResultU64StoreBeforePressureReloadBeforeFirstFutureFlexibleUseV1,
             selected_lowering_budget(),
         ),
-        Err(omega_selected_instructions_to_register_homes::LogicalSpillOperationError::UnsupportedVictimRole { .. })
+        Err(selected_instructions_to_register_homes::LogicalSpillOperationError::UnsupportedVictimRole { .. })
     ));
 }
 
@@ -204,12 +204,12 @@ fn logical_spill_validation_rejects_root_decision_and_namespace_corruption() {
         selected_lowering_budget(),
     )
     .unwrap();
-    let validated = omega_selected_instructions_to_register_homes::plan_logical_spill_operations(
+    let validated = selected_instructions_to_register_homes::plan_logical_spill_operations(
         selected.selected(),
         ranges.ranges(),
         legality.legality(),
         &choices,
-        omega_selected_instructions_to_register_homes::LogicalSpillOperationPolicy::SelectedActiveResidentInstructionResultU64StoreBeforePressureReloadBeforeFirstFutureFlexibleUseV1,
+        selected_instructions_to_register_homes::LogicalSpillOperationPolicy::SelectedActiveResidentInstructionResultU64StoreBeforePressureReloadBeforeFirstFutureFlexibleUseV1,
         selected_lowering_budget(),
     )
     .unwrap();
@@ -217,50 +217,46 @@ fn logical_spill_validation_rejects_root_decision_and_namespace_corruption() {
 
     let mut root_variants = Vec::new();
     let mut changed = baseline.clone();
-    changed.selected =
-        omega_selected_instructions::SelectedInstructionPlanIdentity::from_bytes([91; 32]);
+    changed.selected = selected_instructions::SelectedInstructionPlanIdentity::from_bytes([91; 32]);
     root_variants.push(changed);
     let mut changed = baseline.clone();
     changed.ranges =
-        omega_selected_instructions_to_register_homes::LiveRangeIdentity::from_bytes([92; 32]);
+        selected_instructions_to_register_homes::LiveRangeIdentity::from_bytes([92; 32]);
     root_variants.push(changed);
     let mut changed = baseline.clone();
     changed.legality =
-        omega_selected_instructions_to_register_homes::AllocationLegalityIdentity::from_bytes(
-            [93; 32],
-        );
+        selected_instructions_to_register_homes::AllocationLegalityIdentity::from_bytes([93; 32]);
     root_variants.push(changed);
     let mut changed = baseline.clone();
     changed.spill_choices =
-        omega_selected_instructions_to_register_homes::SpillChoiceIdentity::from_bytes([94; 32]);
+        selected_instructions_to_register_homes::SpillChoiceIdentity::from_bytes([94; 32]);
     root_variants.push(changed);
     let mut changed = baseline.clone();
     changed.register_environment =
-        omega_register_model::TargetRegisterEnvironmentIdentity::from_bytes([95; 32]);
+        register_model::TargetRegisterEnvironmentIdentity::from_bytes([95; 32]);
     root_variants.push(changed);
     let mut changed = baseline.clone();
     changed.allocator_availability =
-        omega_selected_instructions_to_register_homes::AllocatorAvailabilityIdentity::from_bytes(
+        selected_instructions_to_register_homes::AllocatorAvailabilityIdentity::from_bytes(
             [96; 32],
         );
     root_variants.push(changed);
     let mut changed = baseline.clone();
-    changed.optimization_unit =
-        omega_optimization_core::OptimizationUnitIdentity::from_bytes([97; 32]);
+    changed.optimization_unit = optimization_core::OptimizationUnitIdentity::from_bytes([97; 32]);
     root_variants.push(changed);
     let mut changed = baseline.clone();
-    changed.fuel_schedule = psi_core::FuelScheduleIdentity::new(98).unwrap();
+    changed.fuel_schedule = semantic_vocabulary::FuelScheduleIdentity::new(98).unwrap();
     root_variants.push(changed);
     for corrupted in root_variants {
         assert_eq!(
-            omega_selected_instructions_to_register_homes::validate_logical_spill_operations(
+            selected_instructions_to_register_homes::validate_logical_spill_operations(
                 selected.selected(),
                 ranges.ranges(),
                 legality.legality(),
                 &choices,
                 corrupted,
             ),
-            Err(omega_selected_instructions_to_register_homes::LogicalSpillOperationError::RootMismatch)
+            Err(selected_instructions_to_register_homes::LogicalSpillOperationError::RootMismatch)
         );
     }
 
@@ -319,39 +315,39 @@ fn logical_spill_validation_rejects_root_decision_and_namespace_corruption() {
     changed.usage.validation_steps += 1;
     for corrupted in decision_variants {
         assert!(matches!(
-            omega_selected_instructions_to_register_homes::validate_logical_spill_operations(
+            selected_instructions_to_register_homes::validate_logical_spill_operations(
                 selected.selected(),
                 ranges.ranges(),
                 legality.legality(),
                 &choices,
                 corrupted,
             ),
-            Err(omega_selected_instructions_to_register_homes::LogicalSpillOperationError::FunctionMismatch { .. })
-                | Err(omega_selected_instructions_to_register_homes::LogicalSpillOperationError::DecisionMismatch { .. })
+            Err(selected_instructions_to_register_homes::LogicalSpillOperationError::FunctionMismatch { .. })
+                | Err(selected_instructions_to_register_homes::LogicalSpillOperationError::DecisionMismatch { .. })
         ));
     }
     assert_eq!(
-        omega_selected_instructions_to_register_homes::validate_logical_spill_operations(
+        selected_instructions_to_register_homes::validate_logical_spill_operations(
             selected.selected(),
             ranges.ranges(),
             legality.legality(),
             &choices,
             changed,
         ),
-        Err(omega_selected_instructions_to_register_homes::LogicalSpillOperationError::UsageMismatch)
+        Err(selected_instructions_to_register_homes::LogicalSpillOperationError::UsageMismatch)
     );
 
     let mut namespace = baseline;
     namespace.functions[0].action.as_mut().unwrap().storage.id.0 = 1;
     assert_eq!(
-        omega_selected_instructions_to_register_homes::validate_logical_spill_operations(
+        selected_instructions_to_register_homes::validate_logical_spill_operations(
             selected.selected(),
             ranges.ranges(),
             legality.legality(),
             &choices,
             namespace,
         ),
-        Err(omega_selected_instructions_to_register_homes::LogicalSpillOperationError::NonCanonicalStorageIds { function: 0 })
+        Err(selected_instructions_to_register_homes::LogicalSpillOperationError::NonCanonicalStorageIds { function: 0 })
     );
 }
 
@@ -380,12 +376,12 @@ fn logical_spill_plan_is_canonical_when_pressure_is_absent() {
         selected_lowering_budget(),
     )
     .unwrap();
-    let plan = omega_selected_instructions_to_register_homes::plan_logical_spill_operations(
+    let plan = selected_instructions_to_register_homes::plan_logical_spill_operations(
         selected.selected(),
         ranges.ranges(),
         legality.legality(),
         &choices,
-        omega_selected_instructions_to_register_homes::LogicalSpillOperationPolicy::SelectedActiveResidentInstructionResultU64StoreBeforePressureReloadBeforeFirstFutureFlexibleUseV1,
+        selected_instructions_to_register_homes::LogicalSpillOperationPolicy::SelectedActiveResidentInstructionResultU64StoreBeforePressureReloadBeforeFirstFutureFlexibleUseV1,
         selected_lowering_budget(),
     )
     .unwrap();

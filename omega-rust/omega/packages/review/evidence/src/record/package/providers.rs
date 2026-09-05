@@ -1,7 +1,7 @@
 use super::super::contracts::PackageReviewOperatorCoordinate;
 use super::super::identity::PackageReviewNominalIdentity;
 use super::super::signatures::PackageReviewTypeIdentity;
-use psi_core::PackageKeyIdentity;
+use semantic_vocabulary::PackageKeyIdentity;
 
 /// Exact declarations bound to one selected provider realization row.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -9,16 +9,16 @@ pub enum PackageReviewCompilerIntrinsicExecution {
     LinuxExitGroupI32,
     LinuxWriteByteI32,
     LinuxReadByte,
-    BuiltinFunction(psi_symbols::BuiltinFunction),
+    BuiltinFunction(symbols::BuiltinFunction),
     PrimitiveFloatBinary {
-        operation: omega_provider_planning::plans::CompilerPrimitiveFloatBinaryOperation,
-        format: psi_numerics::literals::FloatFormat,
+        operation: provider_planning::plans::CompilerPrimitiveFloatBinaryOperation,
+        format: numerics::literals::FloatFormat,
     },
-    NamedFloatNegation(psi_numerics::literals::FloatFormat),
+    NamedFloatNegation(numerics::literals::FloatFormat),
     NamedFloatConversion {
-        source: omega_provider_planning::plans::CompilerNumericType,
-        target: omega_provider_planning::plans::CompilerNumericType,
-        domain: psi_numerics::arithmetic::ArithmeticDomain,
+        source: provider_planning::plans::CompilerNumericType,
+        target: provider_planning::plans::CompilerNumericType,
+        domain: numerics::arithmetic::ArithmeticDomain,
     },
 }
 
@@ -47,7 +47,7 @@ impl CheckedPackageProviderRowIdentity {
         self.compiler_intrinsic_execution
     }
 
-    pub const fn compiler_intrinsic_builtin(&self) -> Option<psi_symbols::BuiltinFunction> {
+    pub const fn compiler_intrinsic_builtin(&self) -> Option<symbols::BuiltinFunction> {
         match self.compiler_intrinsic_execution {
             Some(PackageReviewCompilerIntrinsicExecution::BuiltinFunction(function)) => {
                 Some(function)
@@ -142,9 +142,9 @@ pub struct CheckedPackageProviderReview {
     pub(crate) provider_type: String,
     pub(crate) provider_type_package: Option<PackageKeyIdentity>,
     pub(crate) provider_type_declaration: Option<PackageReviewNominalIdentity>,
-    pub(crate) schema: omega_effects::provider_plan::ServiceSchema,
+    pub(crate) schema: effects::provider_plan::ServiceSchema,
     pub(crate) target: String,
-    pub(crate) rows: Vec<omega_effects::provider_plan::ProviderPlanRow>,
+    pub(crate) rows: Vec<effects::provider_plan::ProviderPlanRow>,
     pub(crate) row_declarations: Vec<CheckedPackageProviderRowIdentity>,
 }
 
@@ -185,7 +185,7 @@ impl CheckedPackageProviderReview {
         &self.schema.trait_name
     }
 
-    pub fn schema(&self) -> &omega_effects::provider_plan::ServiceSchema {
+    pub fn schema(&self) -> &effects::provider_plan::ServiceSchema {
         &self.schema
     }
 
@@ -193,7 +193,7 @@ impl CheckedPackageProviderReview {
         &self.target
     }
 
-    pub fn rows(&self) -> &[omega_effects::provider_plan::ProviderPlanRow] {
+    pub fn rows(&self) -> &[effects::provider_plan::ProviderPlanRow] {
         &self.rows
     }
 
@@ -202,11 +202,11 @@ impl CheckedPackageProviderReview {
     /// claim that the compiler supports or accepted that realization.
     pub fn compiler_intrinsic_methods(
         &self,
-    ) -> impl Iterator<Item = &omega_effects::provider_plan::ServiceMethod> {
+    ) -> impl Iterator<Item = &effects::provider_plan::ServiceMethod> {
         self.rows.iter().filter_map(|row| {
             if matches!(
                 row.binding,
-                omega_effects::provider_plan::ProviderBinding::CompilerIntrinsic { .. }
+                effects::provider_plan::ProviderBinding::CompilerIntrinsic { .. }
             ) {
                 self.schema.method_for_row(row)
             } else {
@@ -218,8 +218,8 @@ impl CheckedPackageProviderReview {
     /// Collision-resistant identity of the complete selected plan retained by
     /// this review row. The readable origin label is deliberately absent from
     /// provider-plan identity, so reconstruction uses no display substitute.
-    pub fn selected_plan_digest(&self) -> omega_effects::provider_plan::ProviderPlanDigest {
-        omega_effects::provider_plan::ProviderPlan {
+    pub fn selected_plan_digest(&self) -> effects::provider_plan::ProviderPlanDigest {
+        effects::provider_plan::ProviderPlan {
             name: self.plan_name.clone(),
             provider_type: self.provider_type.clone(),
             provider_type_package_identity: self.provider_type_package,
@@ -284,7 +284,7 @@ impl CheckedPackageProviderFamilyCoordinateReview {
 pub struct CheckedPackageProviderFamilyReview {
     pub(crate) family_identity: PackageReviewNominalIdentity,
     pub(crate) provider_type_declaration: PackageReviewNominalIdentity,
-    pub(crate) target: omega_target::TargetProfile,
+    pub(crate) target: target::TargetProfile,
     pub(crate) authority: PackageReviewProviderSelectionAuthority,
     pub(crate) coverage: PackageReviewProviderFamilyCoverage,
     pub(crate) coordinates: Vec<CheckedPackageProviderFamilyCoordinateReview>,
@@ -454,7 +454,7 @@ impl CheckedPackageProviderFamilyReview {
         &self.provider_type_declaration
     }
 
-    pub const fn target(&self) -> omega_target::TargetProfile {
+    pub const fn target(&self) -> target::TargetProfile {
         self.target
     }
 

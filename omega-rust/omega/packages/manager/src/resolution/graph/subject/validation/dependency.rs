@@ -6,7 +6,7 @@ use super::source::{validate_git_selection, validate_request_bytes};
 use crate::declarations::AliasName;
 use crate::resolution::graph::ResolvedSourceIdentity;
 use crate::resolution::source::PackageSourceNavigation;
-use omega_package_source::{ImmutableSourceResolution, SourceLineage};
+use package_source::{ImmutableSourceResolution, SourceLineage};
 
 pub(super) fn validate_dependency_selection_kind(
     selection: &CanonicalDependencySourceSelection,

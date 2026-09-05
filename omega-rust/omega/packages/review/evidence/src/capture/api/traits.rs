@@ -27,10 +27,10 @@ use crate::record::{
     PackageReviewSourceLocationRole, PackageReviewTraitCompositionKind, PackageReviewTraitParent,
     PackageReviewTraitRequirement, PackageReviewTraitRequirementParameter, PackageReviewTraitShape,
 };
-use omega_compiler::CheckedCompilation;
-use psi_core::PackageKeyIdentity;
-use psi_diagnostics::Diagnostic;
-use psi_symbols::SymbolHandle;
+use compiler::CheckedCompilation;
+use diagnostics::Diagnostic;
+use semantic_vocabulary::PackageKeyIdentity;
+use symbols::SymbolHandle;
 
 pub(crate) fn project_public_traits(
     compilation: &CheckedCompilation,
@@ -155,9 +155,9 @@ pub(crate) fn project_public_traits(
 
 pub(crate) fn project_trait_parent(
     compilation: &CheckedCompilation,
-    parent: &psi_typed_trees::trait_definition::TraitRequirement,
+    parent: &typed_trees::trait_definition::TraitRequirement,
     binders: &[(SymbolHandle, String)],
-    lifetime_binders: &[psi_typed_trees::name::Identifier],
+    lifetime_binders: &[typed_trees::name::Identifier],
 ) -> Result<PackageReviewTraitParent, Vec<Diagnostic>> {
     let matches = compilation
         .traits()
@@ -209,10 +209,10 @@ pub(crate) fn project_trait_parent(
 pub(crate) fn project_trait_requirement(
     compilation: &CheckedCompilation,
     trait_symbol: SymbolHandle,
-    requirement: &psi_typed_trees::signature::StateSignature,
+    requirement: &typed_trees::signature::StateSignature,
     trait_binders: &[(SymbolHandle, String)],
     trait_parameter_count: usize,
-    trait_lifetime_parameters: &[psi_typed_trees::name::Identifier],
+    trait_lifetime_parameters: &[typed_trees::name::Identifier],
 ) -> Result<PackageReviewTraitRequirement, Vec<Diagnostic>> {
     let owner = compilation
         .traits()
@@ -244,11 +244,11 @@ pub(crate) fn project_trait_requirement(
     let contract_context = ContractProjectionContext {
         subject_kind: "public trait requirement",
         subject_name: &identity.path,
-        owner: psi_checked_trees::ContractProofFactOwner::StateSignature {
+        owner: checked_trees::ContractProofFactOwner::StateSignature {
             owner_symbol: trait_symbol,
             state_symbol: requirement.symbol,
         },
-        point: psi_facts::ProgramPoint::State {
+        point: facts::ProgramPoint::State {
             machine_symbol: trait_symbol,
             state_symbol: requirement.symbol,
         },
@@ -257,7 +257,7 @@ pub(crate) fn project_trait_requirement(
         data_symbol: None,
         lifetime_binders: &lifetime_binders,
         lifetime_substitutions: &[],
-        selection_exposure: psi_language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure::PublicInterface,
+        selection_exposure: language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure::PublicInterface,
     };
     let contracts =
         project_trait_requirement_contracts(compilation, requirement, &contract_context, &binders)?;
@@ -318,7 +318,7 @@ pub(crate) fn project_trait_requirement(
         service_reach_is_installation_bound: requirement.service_reach_is_installation_bound,
         synchronous_invocations: project_synchronous_invocations(
             compilation,
-            &psi_effects::declared_signature_invocations(compilation, requirement),
+            &flow_effects::declared_signature_invocations(compilation, requirement),
         )?,
         suspends: requirement.suspends,
         blocks: requirement.blocks,

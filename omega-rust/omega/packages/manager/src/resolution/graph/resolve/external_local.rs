@@ -14,9 +14,9 @@ use crate::declarations::PackageKey;
 use crate::resolution::source::{
     PackageSourceCustody, ResolvePackageSourceError, bind_staged_external_local_project_source,
 };
-use omega_package_source::local::staging::StagedLocalSnapshot;
-use omega_package_source::{ExternalSourceContext, SourceLineage};
-use omega_package_source::{LocalSourceLimits, SourceResolverStorage};
+use package_source::local::staging::StagedLocalSnapshot;
+use package_source::{ExternalSourceContext, SourceLineage};
+use package_source::{LocalSourceLimits, SourceResolverStorage};
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 

@@ -2,10 +2,10 @@ use super::error::DependencyProjectionError;
 use super::model::BuildDependencyProjection;
 use super::policy::{reject_authored_toolchain_vocabulary, reject_unprojected_dependency_syntax};
 use crate::declarations::roles::convert_shared_declaration;
-use omega_build_declarations as shared;
-use psi_source_files_to_tokens::Lexer;
-use psi_syntax_trees::SyntaxTrees;
-use psi_tokens_to_syntax_trees::parse_syntax_trees;
+use build_declarations as shared;
+use source_files_to_tokens::Lexer;
+use syntax_trees::SyntaxTrees;
+use tokens_to_syntax_trees::parse_syntax_trees;
 
 mod calls;
 mod declaration;

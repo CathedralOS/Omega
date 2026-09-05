@@ -5,10 +5,10 @@ use crate::declarations::PackageKey;
 use crate::review::baseline::validation::replay_record_limits;
 use crate::review::baseline::{ReviewOnlyBaselineError, ReviewOnlyBaselineLimits};
 use crate::review::candidate::ReviewOnlyCanonicalRow;
-use omega_build_evaluation::{
+use build_evaluation::{
     ReviewOnlyBuildFilesystemReplayRecord, recover_review_only_build_filesystem_replay_record,
 };
-use omega_package_evidence::encoding::{
+use package_evidence::encoding::{
     PackageReviewCanonicalRowRecoveryLimits, decode_package_review_canonical_row_with_limits,
 };
 

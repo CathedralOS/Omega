@@ -1,9 +1,0 @@
-[package]
-name = "omega-core"
-edition.workspace = true
-license.workspace = true
-version.workspace = true
-
-[lib]
-name = "omega_core"
-path = "src/lib.rs"

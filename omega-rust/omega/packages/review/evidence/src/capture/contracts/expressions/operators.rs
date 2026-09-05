@@ -4,15 +4,15 @@ use crate::record::{
     PackageReviewContractBinaryOperator, PackageReviewContractOperatorMeaning,
     PackageReviewContractUnaryOperator,
 };
-use omega_compiler::CheckedCompilation;
-use psi_diagnostics::Diagnostic;
+use compiler::CheckedCompilation;
+use diagnostics::Diagnostic;
 
 pub(crate) fn exact_checked_contract_operator_meaning(
     compilation: &CheckedCompilation,
     context: &ContractProjectionContext<'_>,
-    expression: psi_typed_trees::expression::ExpressionHandle,
+    expression: typed_trees::expression::ExpressionHandle,
 ) -> Result<PackageReviewContractOperatorMeaning, Vec<Diagnostic>> {
-    use psi_language_semantics::declaration_selection::{
+    use language_semantics::declaration_selection::{
         AuthoredDeclarationSelectionIntrinsic, AuthoredDeclarationSelectionKind,
         AuthoredDeclarationSelectionTarget,
     };
@@ -47,7 +47,7 @@ pub(crate) fn exact_checked_contract_operator_meaning(
         ) => Ok(PackageReviewContractOperatorMeaning::Builtin),
         AuthoredDeclarationSelectionTarget::Resolved(target) => {
             let symbol = target.selected_symbol();
-            let declaration = psi_typed_trees::operator::declaration_by_symbol(compilation, symbol)
+            let declaration = typed_trees::operator::declaration_by_symbol(compilation, symbol)
                 .ok_or_else(|| {
                     vec![Diagnostic::error(format!(
                         "reviewed {} `{}` contract selected an operator without one retained declaration",
@@ -70,9 +70,9 @@ pub(crate) fn exact_checked_contract_operator_meaning(
 }
 
 pub(crate) const fn project_contract_binary_operator(
-    operator: psi_typed_trees::expression::BinaryOperator,
+    operator: typed_trees::expression::BinaryOperator,
 ) -> PackageReviewContractBinaryOperator {
-    use psi_typed_trees::expression::BinaryOperator;
+    use typed_trees::expression::BinaryOperator;
     match operator {
         BinaryOperator::Add => PackageReviewContractBinaryOperator::Add,
         BinaryOperator::And => PackageReviewContractBinaryOperator::And,
@@ -96,13 +96,13 @@ pub(crate) const fn project_contract_binary_operator(
 }
 
 pub(crate) const fn project_contract_unary_operator(
-    operator: psi_typed_trees::expression::UnaryOperator,
+    operator: typed_trees::expression::UnaryOperator,
 ) -> PackageReviewContractUnaryOperator {
     match operator {
-        psi_typed_trees::expression::UnaryOperator::BitwiseNot => {
+        typed_trees::expression::UnaryOperator::BitwiseNot => {
             PackageReviewContractUnaryOperator::BitwiseNot
         }
-        psi_typed_trees::expression::UnaryOperator::LogicalNot => {
+        typed_trees::expression::UnaryOperator::LogicalNot => {
             PackageReviewContractUnaryOperator::LogicalNot
         }
     }

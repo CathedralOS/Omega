@@ -21,8 +21,8 @@ fn active_resident_rematerialization_reaches_function_relative_exit_on_both_arch
         };
         let physical = current.register_environment().physical();
         let admitted_names = match target.architecture {
-            omega_target::Architecture::X86_64 => ["rax", "rcx"],
-            omega_target::Architecture::Aarch64 => ["x0", "x1"],
+            target::Architecture::X86_64 => ["rax", "rcx"],
+            target::Architecture::Aarch64 => ["x0", "x1"],
         };
         let admitted_views = admitted_names
             .into_iter()
@@ -57,7 +57,7 @@ fn active_resident_rematerialization_reaches_function_relative_exit_on_both_arch
             .expect("fresh rematerialization must survive function-relative layout");
         assert_eq!(
             fresh_layout_row.alternative.family,
-            omega_selected_instructions::MachineAlternativeFamily::MaterializeI64
+            selected_instructions::MachineAlternativeFamily::MaterializeI64
         );
         assert!(!fresh_layout_row.bytes.is_empty());
 

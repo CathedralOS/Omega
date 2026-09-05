@@ -1,10 +1,10 @@
 //! Resolve schema rows only within the exact inherited declaration closure.
 
 use super::declarations::rejected;
-use omega_compiler::CheckedCompilation;
-use omega_effects::provider_plan::ServiceSchema;
-use psi_diagnostics::Diagnostic;
-use psi_symbols::SymbolHandle;
+use compiler::CheckedCompilation;
+use diagnostics::Diagnostic;
+use effects::provider_plan::ServiceSchema;
+use symbols::SymbolHandle;
 
 pub(super) fn resolve(
     compilation: &CheckedCompilation,

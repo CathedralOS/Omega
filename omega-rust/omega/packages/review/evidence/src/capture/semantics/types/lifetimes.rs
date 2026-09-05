@@ -1,15 +1,15 @@
 use super::super::declarations::nominal_identity;
 use super::super::encoding::{canonical_digest_label, framed_identity};
 use crate::record::PackageReviewNominalOwner;
-use omega_compiler::CheckedCompilation;
-use psi_diagnostics::Diagnostic;
-use psi_symbols::SymbolHandle;
+use compiler::CheckedCompilation;
+use diagnostics::Diagnostic;
+use symbols::SymbolHandle;
 
 pub(crate) fn review_domain_lifetime_label(
     compilation: &CheckedCompilation,
-    domain: &psi_typed_trees::types::DomainConstraint,
+    domain: &typed_trees::types::DomainConstraint,
 ) -> Result<String, Vec<Diagnostic>> {
-    use psi_typed_trees::types::{DomainConstraintSubject, OmegaLayoutGrammar};
+    use typed_trees::types::{DomainConstraintSubject, OmegaLayoutGrammar};
 
     match domain.subject {
         DomainConstraintSubject::Declared => {
@@ -34,10 +34,10 @@ pub(crate) fn review_domain_lifetime_label(
             &[
                 "carry".to_owned(),
                 match permission {
-                    psi_language_semantics::CarryPermission::AcrossSuspend => "across-suspend",
-                    psi_language_semantics::CarryPermission::AnyCpu => "any-cpu",
-                    psi_language_semantics::CarryPermission::AnyThread => "any-thread",
-                    psi_language_semantics::CarryPermission::MovableAddress => "movable-address",
+                    language_semantics::CarryPermission::AcrossSuspend => "across-suspend",
+                    language_semantics::CarryPermission::AnyCpu => "any-cpu",
+                    language_semantics::CarryPermission::AnyThread => "any-thread",
+                    language_semantics::CarryPermission::MovableAddress => "movable-address",
                 }
                 .to_owned(),
             ],
@@ -47,7 +47,7 @@ pub(crate) fn review_domain_lifetime_label(
             &[
                 "value".to_owned(),
                 match value_domain {
-                    psi_language_semantics::value_domain::ValueDomain::Finite => "finite",
+                    language_semantics::value_domain::ValueDomain::Finite => "finite",
                 }
                 .to_owned(),
             ],
@@ -67,16 +67,13 @@ pub(crate) fn review_domain_lifetime_label(
 
 pub(crate) fn review_lifetime_topology_with_substitutions(
     compilation: &CheckedCompilation,
-    type_reference: psi_typed_trees::types::TypeReferenceHandle,
-    lifetime_binders: &[psi_typed_trees::name::Identifier],
-    substitutions: &[(SymbolHandle, psi_typed_trees::types::TypeReferenceHandle)],
-    lifetime_substitutions: &[(
-        psi_typed_trees::name::Identifier,
-        psi_typed_trees::name::Identifier,
-    )],
+    type_reference: typed_trees::types::TypeReferenceHandle,
+    lifetime_binders: &[typed_trees::name::Identifier],
+    substitutions: &[(SymbolHandle, typed_trees::types::TypeReferenceHandle)],
+    lifetime_substitutions: &[(typed_trees::name::Identifier, typed_trees::name::Identifier)],
     active_substitutions: &mut Vec<SymbolHandle>,
 ) -> Result<String, Vec<Diagnostic>> {
-    use psi_typed_trees::types::{TypeConstraintNode, TypeReferenceNode};
+    use typed_trees::types::{TypeConstraintNode, TypeReferenceNode};
 
     let topology = match compilation
         .type_reference_table
@@ -248,12 +245,9 @@ pub(crate) fn review_lifetime_topology_with_substitutions(
 }
 
 pub(crate) fn substituted_lifetime_binder_ordinal(
-    lifetime: &psi_typed_trees::name::Identifier,
-    lifetime_binders: &[psi_typed_trees::name::Identifier],
-    substitutions: &[(
-        psi_typed_trees::name::Identifier,
-        psi_typed_trees::name::Identifier,
-    )],
+    lifetime: &typed_trees::name::Identifier,
+    lifetime_binders: &[typed_trees::name::Identifier],
+    substitutions: &[(typed_trees::name::Identifier, typed_trees::name::Identifier)],
     context: &str,
 ) -> Result<u32, Vec<Diagnostic>> {
     let lifetime = substitutions
@@ -265,8 +259,8 @@ pub(crate) fn substituted_lifetime_binder_ordinal(
 }
 
 pub(crate) fn lifetime_binder_ordinal(
-    lifetime: &psi_typed_trees::name::Identifier,
-    lifetime_binders: &[psi_typed_trees::name::Identifier],
+    lifetime: &typed_trees::name::Identifier,
+    lifetime_binders: &[typed_trees::name::Identifier],
     context: &str,
 ) -> Result<u32, Vec<Diagnostic>> {
     let Some(ordinal) = lifetime_binders

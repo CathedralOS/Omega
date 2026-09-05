@@ -32,10 +32,10 @@ pub machine Board::read(&mut self) -> u64 reaches ClockHost invokes ClockHost; {
         .find(|machine| machine.name.as_str() == "Board::read")
         .unwrap();
     let entry = &fixture.checked.machine_states(machine)[0];
-    let fresh = psi_validation::CallFrameResolver::new(&fixture.checked.typed)
+    let fresh = validation::CallFrameResolver::new(&fixture.checked.typed)
         .unwrap()
         .inferred_state_write_frame(machine, entry);
-    let resolver = psi_validation::CallFrameResolver::new(&fixture.checked.typed).unwrap();
+    let resolver = validation::CallFrameResolver::new(&fixture.checked.typed).unwrap();
     for candidate in fixture.checked.machines() {
         let _ = resolver.inferred_machine_state_write_frames(candidate);
     }
@@ -59,7 +59,7 @@ pub machine Board::read(&mut self) -> u64 reaches ClockHost invokes ClockHost; {
         .expression_table
         .iter_expressions()
         .find_map(|(handle, expression)| {
-            if let psi_typed_trees::expression::ExpressionNode::Call(call) = expression {
+            if let typed_trees::expression::ExpressionNode::Call(call) = expression {
                 (call.target.as_str() == "ticks").then_some((handle, call.clone()))
             } else {
                 None
@@ -72,37 +72,37 @@ pub machine Board::read(&mut self) -> u64 reaches ClockHost invokes ClockHost; {
     drop(source);
     let mut altered = fixture.checked.clone();
     *altered.typed.expression_table.expression_mut(argument) =
-        psi_typed_trees::expression::ExpressionNode::Integer(
-            psi_numerics::literals::IntegerLiteral::from_value(8),
+        typed_trees::expression::ExpressionNode::Integer(
+            numerics::literals::IntegerLiteral::from_value(8),
         );
     assert!(
         altered.pre_selected_dispatch_source_trees().is_err(),
         "settled argument contents must remain exact"
     );
     let mut altered = fixture.checked.clone();
-    let psi_typed_trees::expression::ExpressionNode::Call(call) =
+    let typed_trees::expression::ExpressionNode::Call(call) =
         altered.typed.expression_table.expression_mut(call_handle)
     else {
         panic!("settled adapter call")
     };
-    call.target_symbol = psi_symbols::SymbolHandle::invalid();
+    call.target_symbol = symbols::SymbolHandle::invalid();
     assert!(
         altered.pre_selected_dispatch_source_trees().is_err(),
         "settled target must remain exact"
     );
     let mut altered = fixture.checked.clone();
-    let psi_typed_trees::expression::ExpressionNode::Member(member) =
+    let typed_trees::expression::ExpressionNode::Member(member) =
         altered.expression_table.expression(original_call.receiver)
     else {
         panic!("original receiver member")
     };
     let receiver = member.receiver;
-    let psi_typed_trees::expression::ExpressionNode::Name(path) =
+    let typed_trees::expression::ExpressionNode::Name(path) =
         altered.typed.expression_table.expression_mut(receiver)
     else {
         panic!("original self root")
     };
-    path.head_symbol = psi_symbols::SymbolHandle::invalid();
+    path.head_symbol = symbols::SymbolHandle::invalid();
     assert!(
         altered.pre_selected_dispatch_source_trees().is_err(),
         "dropped source receiver root remains guarded"
@@ -113,7 +113,7 @@ pub machine Board::read(&mut self) -> u64 reaches ClockHost invokes ClockHost; {
         .statements(entry.statement_nodes)
         .iter()
         .find_map(|statement| {
-            if let psi_typed_trees::statement::StatementNode::Assignment(assignment) = statement {
+            if let typed_trees::statement::StatementNode::Assignment(assignment) = statement {
                 Some(assignment.target)
             } else {
                 None
@@ -126,7 +126,7 @@ pub machine Board::read(&mut self) -> u64 reaches ClockHost invokes ClockHost; {
         .find(|definition| definition.name.as_str() == "Board")
         .and_then(|definition| {
             altered.data_members(definition).iter().find_map(|member| {
-                if let psi_typed_trees::data::DataMember::Field(field) = member {
+                if let typed_trees::data::DataMember::Field(field) = member {
                     (field.name.as_str() == "other").then_some(field.symbol)
                 } else {
                     None
@@ -134,12 +134,12 @@ pub machine Board::read(&mut self) -> u64 reaches ClockHost invokes ClockHost; {
             })
         })
         .unwrap();
-    let psi_typed_trees::expression::ExpressionNode::Member(member) =
+    let typed_trees::expression::ExpressionNode::Member(member) =
         altered.typed.expression_table.expression_mut(target)
     else {
         panic!("assignment member")
     };
-    member.member = psi_typed_trees::name::Identifier::generated("other");
+    member.member = typed_trees::name::Identifier::generated("other");
     member.member_symbol = other;
     altered
         .pre_selected_dispatch_source_trees()
@@ -152,7 +152,7 @@ pub machine Board::read(&mut self) -> u64 reaches ClockHost invokes ClockHost; {
 
 #[test]
 fn nested_float_and_boundary_batches_restore_in_reverse_settlement_order() {
-    use psi_typed_trees::expression::ExpressionNode;
+    use typed_trees::expression::ExpressionNode;
 
     let fixture = Fixture::with_build(
         r#"
@@ -208,7 +208,7 @@ pub machine Board::read(&mut self) -> f32 reaches ClockHost invokes ClockHost; {
         panic!("restored named float operator");
     };
     assert_eq!(
-        psi_typed_trees::operator::resolve_named_expression_call(&source, original_negate)
+        typed_trees::operator::resolve_named_expression_call(&source, original_negate)
             .map(|selected| selected.symbol),
         Some(operator.symbol),
     );
@@ -250,8 +250,8 @@ pub machine Board::read(&mut self) -> f32 reaches ClockHost invokes ClockHost; {
 
     let mut altered = fixture.checked.clone();
     *altered.typed.expression_table.expression_mut(literal) = ExpressionNode::Float(
-        psi_numerics::literals::FloatLiteral::from_f64(8.0)
-            .with_landing(psi_numerics::literals::FloatFormat::F32),
+        numerics::literals::FloatLiteral::from_f64(8.0)
+            .with_landing(numerics::literals::FloatFormat::F32),
     );
     assert!(
         altered.pre_selected_dispatch_source_trees().is_err(),

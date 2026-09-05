@@ -29,7 +29,9 @@ fn both_recursive_paths_project_exact_abstract_accesses_on_both_targets() {
             assert_eq!(first.receipt().usage(), EXACT_USAGE);
             assert_eq!(
                 first.receipt().identity(),
-                omega_selected_instructions_to_register_homes::abstract_spill_memory_effect_plan_identity(first.plan()),
+                selected_instructions_to_register_homes::abstract_spill_memory_effect_plan_identity(
+                    first.plan()
+                ),
             );
             assert_eq!(
                 first.receipt().homed_spill_pseudo_instructions(),
@@ -45,12 +47,14 @@ fn both_recursive_paths_project_exact_abstract_accesses_on_both_targets() {
             for (effect, pseudo) in function.effects.iter().zip(&pseudos.instructions) {
                 assert_exact_effect(effect, pseudo, pseudos);
                 let (storage, write) = match effect {
-                    omega_selected_instructions_to_register_homes::AbstractSpillMemoryEffect::Write { storage, .. } => {
-                        (*storage, true)
-                    }
-                    omega_selected_instructions_to_register_homes::AbstractSpillMemoryEffect::Read { storage, .. } => {
-                        (*storage, false)
-                    }
+                    selected_instructions_to_register_homes::AbstractSpillMemoryEffect::Write {
+                        storage,
+                        ..
+                    } => (*storage, true),
+                    selected_instructions_to_register_homes::AbstractSpillMemoryEffect::Read {
+                        storage,
+                        ..
+                    } => (*storage, false),
                 };
                 let counts = access_counts.entry(storage).or_insert((0, 0));
                 if write { counts.0 += 1 } else { counts.1 += 1 }
@@ -60,9 +64,9 @@ fn both_recursive_paths_project_exact_abstract_accesses_on_both_targets() {
             assert!(
                 function.effects.iter().any(|effect| matches!(
                     effect,
-                    omega_selected_instructions_to_register_homes::AbstractSpillMemoryEffect::Write {
-                        source: omega_selected_instructions_to_register_homes::SpillPseudoStoredValue::Original(
-                            omega_selected_instructions::VirtualRegisterId(5)
+                    selected_instructions_to_register_homes::AbstractSpillMemoryEffect::Write {
+                        source: selected_instructions_to_register_homes::SpillPseudoStoredValue::Original(
+                            selected_instructions::VirtualRegisterId(5)
                         ),
                         ..
                     }

@@ -14,7 +14,7 @@ pub struct PackagePolicyTraitShape {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PackagePolicyTraitRequirement {
     pub(crate) identity: PackageReviewNominalIdentity,
-    pub(crate) spelling: Option<psi_language_core::OperatorSpelling>,
+    pub(crate) spelling: Option<language_core::OperatorSpelling>,
     pub(crate) has_default_realization: bool,
     pub(crate) lifetime_parameter_count: usize,
     pub(crate) type_parameters: Vec<PackagePolicyTypeParameter>,
@@ -45,7 +45,7 @@ pub struct PackagePolicyDomainShape {
     pub(crate) type_parameters: Vec<PackagePolicyTypeParameter>,
     pub(crate) target_type: PackageReviewTypeIdentity,
     pub(crate) index_arguments: Vec<PackageReviewTypeIdentity>,
-    pub(crate) predicate_body: psi_language_semantics::DomainPredicateBody,
+    pub(crate) predicate_body: language_semantics::DomainPredicateBody,
     pub(crate) predicate_facts: Vec<PackageReviewContractFact>,
     pub(crate) alias_expansion: Option<Vec<PackageReviewDomainAliasAtom>>,
     pub(crate) classification: Option<PackageReviewDomainClassification>,
@@ -57,7 +57,7 @@ pub struct PackagePolicyDomainShape {
 pub struct PackagePolicyOperatorShape {
     pub(crate) coordinate: PackageReviewOperatorCoordinate,
     pub(crate) is_boundary: bool,
-    pub(crate) spelling: Option<psi_language_core::OperatorSpelling>,
+    pub(crate) spelling: Option<language_core::OperatorSpelling>,
     pub(crate) lifetime_parameter_count: usize,
     pub(crate) type_parameters: Vec<PackagePolicyTypeParameter>,
     pub(crate) parameters: Vec<PackageReviewCallableParameter>,
@@ -70,7 +70,7 @@ pub struct PackagePolicyOperatorShape {
 pub struct PackagePolicyDataShape {
     pub(crate) identity: PackageReviewNominalIdentity,
     pub(crate) kind: PackageReviewDataKind,
-    pub(crate) supply: psi_language_semantics::DataSupplyMode,
+    pub(crate) supply: language_semantics::DataSupplyMode,
     pub(crate) lifetime_parameter_count: usize,
     pub(crate) type_parameters: Vec<PackagePolicyTypeParameter>,
     pub(crate) properties: PackageReviewDataProperties,

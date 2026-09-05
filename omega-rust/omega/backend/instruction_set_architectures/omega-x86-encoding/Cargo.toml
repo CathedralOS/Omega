@@ -1,9 +1,0 @@
-[package]
-name = "omega-x86-encoding"
-edition.workspace = true
-license.workspace = true
-version.workspace = true
-
-[lib]
-name = "omega_x86_encoding"
-path = "src/lib.rs"

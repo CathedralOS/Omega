@@ -1,0 +1,30 @@
+[package]
+name = "layout"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[lib]
+name = "layout"
+path = "src/lib.rs"
+
+[dependencies]
+checked-trees = { path = "../../../psi/representations/checked-trees" }
+typed-trees = { path = "../../../psi/representations/typed-trees" }
+arena = { path = "../../../psi/foundation/arena" }
+symbols = { path = "../../../psi/foundation/symbols" }
+diagnostics = { path = "../../../psi/foundation/diagnostics" }
+language-semantics = { path = "../../../psi/foundation/language-semantics" }
+layout-plans = { path = "../../../psi/foundation/layout-plans" }
+numerics = { path = "../../../psi/foundation/numerics" }
+runtime-abi = { path = "../runtime/runtime-abi" }
+target = { path = "../../representations/target" }
+calling-conventions = { path = "../../representations/calling-conventions" }
+representation-selections = { path = "../../representations/representation-selections" }
+
+[dev-dependencies]
+build-time-evaluation = { path = "../../../psi/semantics/build-time-evaluation" }
+source-files-to-tokens = { path = "../../../psi/pipeline/source-files-to-tokens" }
+symbol-resolved-trees-to-typed-trees = { path = "../../../psi/pipeline/symbol-resolved-trees-to-typed-trees" }
+syntax-trees-to-symbol-resolved-trees = { path = "../../../psi/pipeline/syntax-trees-to-symbol-resolved-trees" }
+tokens-to-syntax-trees = { path = "../../../psi/pipeline/tokens-to-syntax-trees" }

@@ -9,7 +9,7 @@ use crate::record::{
     PackagePolicyMachineState, PackagePolicyMachineStateSet, PackagePolicyPhysicalCallingContract,
     PackagePolicyPreemption, PackagePolicyStatePlan,
 };
-use omega_calling_conventions::{
+use calling_conventions::{
     BoundaryEntryPlan, EntryControl, EntryStack, MachineRegime, MachineState, MachineStateSet,
     Preemption, ValidatedBoundaryEntryPlan,
 };

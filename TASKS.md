@@ -68,7 +68,7 @@ the [Rust Compiler Completion Contract](wiki/releases/rust_compiler_completion_c
   deterministic manifest of every transitive compiler/build input. Bootstrap
   construction of that closure belongs in `TASKS_BOOTSTRAP.md`.
 
-- **SAMPLE-CORPUS.** `mbx test -p omega-compiler --test samples_compile` is red.
+- **SAMPLE-CORPUS.** `mbx test -p compiler --test samples_compile` is red.
   `cli/proofs/math_proofs` needs ordinary core multiset data and slice-to-proof
   extraction machines, then explicit imports and exact declaration selection
   for its `Bag(...)` claims. Chapter 10's Proof Views section makes these
@@ -88,7 +88,7 @@ the [Rust Compiler Completion Contract](wiki/releases/rust_compiler_completion_c
   `caesar_cipher` and `format_number` alone. Both build a `[u8; N] in Utf8`
   carrier out of raw `u8` element stores (`self.out[self.i] = self.ch as u8`,
   `self.buffer[0] = self.tens_byte`), so
-  `psi-typed-trees-to-checked-trees/src/checks/contracts/nominal_inputs.rs`
+  `typed-trees-to-checked-trees/src/checks/contracts/nominal_inputs.rs`
   rejects every later transition with `cannot prove default-domain field
   requirement ... requires [u8; N]::Utf8`. They are the indexed text writers
   `NOMINAL-FIELD-FLOW` already owns. Its whole-buffer half is live: a per-byte
@@ -100,17 +100,17 @@ the [Rust Compiler Completion Contract](wiki/releases/rust_compiler_completion_c
 
   `samples_with_documented_exit_run_correctly` is separately red for all 136
   documented-exit samples; before the borrowed-self retry below, 86 failed
-  native Terminal production in `psi-checked-trees-to-terminal` and the rest
+  native Terminal production in `checked-trees-to-terminal-psi` and the rest
   earlier under `NOMINAL-FIELD-FLOW`, a split not yet re-measured. 119 of the
   136 call `Console::read_line(&mut self.pause)` from an attached
   `Main::main(&mut self)`. That argument now has a root: when the
   ambient attachment cannot plan the body, `build_checked_machine`
-  (`psi-typed-trees-to-checked-trees/src/flow/terminal_unit/control.rs`)
+  (`typed-trees-to-checked-trees/src/flow/terminal_unit/control.rs`)
   retries with the borrowed `self` retained as structural parameter 0 carrying
   the reference's access, beside the provider-specialized fields. The retry is
   transitional; retain a borrowed `self` unconditionally once
   `validate_provider_attachment_specialization`
-  (`omega-optimization-validation`) admits a `self` parameter beside provider
+  (`optimization-validation`) admits a `self` parameter beside provider
   roots and the entry bridge passes the `ProgramEntry` loan as that parameter,
   both under `ENTRY-CONTENT-ROOTS` and
   `INSTALLED-PROGRAM-LOCAL-ROOT-INTRODUCTION` in P1. `cli_mvp` now stops at
@@ -122,7 +122,7 @@ the [Rust Compiler Completion Contract](wiki/releases/rust_compiler_completion_c
   `terminates by bytes -> Slice::Length`. That adapter closure is the next
   slice, and it is independent of `read_line`: the sample without that call
   stops at the same candidate. Behind it, the projected `&mut self.pause`
-  argument lowers to Terminal but `psi-terminal-verifier` rejects it with
+  argument lowers to Terminal but `terminal-verifier` rejects it with
   `InvalidStructuralArgumentPath`: `resolve_structural_path` walks only
   `Structural` fields and `pause` is a `ByteSequence(BoundedOwned)` field; an
   owned `self` stops at the same verifier site. Stores into a borrowed
@@ -134,10 +134,10 @@ the [Rust Compiler Completion Contract](wiki/releases/rust_compiler_completion_c
   Acceptance: both tests pass, with every maintained sample reaching checked
   trees and every documented exit oracle observed on its matching host.
 
-- **CANARY-CORPUS.** `mbx test -p omega-compiler --test canary_suite` is red
+- **CANARY-CORPUS.** `mbx test -p compiler --test canary_suite` is red
   across most of its roster on a clean tree, while the `AGENTS.md` baseline
   gates are green — so the gate list does not measure this bar. The dominant
-  cause is the same `psi-checked-trees-to-terminal` fence `SAMPLE-CORPUS` names
+  cause is the same `checked-trees-to-terminal-psi` fence `SAMPLE-CORPUS` names
   above, `attached Unit closure is missing a checked transitive machine plan`,
   which owns the clear majority of all failing diagnostics; the rest fall behind
   `NOMINAL-FIELD-FLOW`, missing exact selected program entries, and
@@ -151,7 +151,7 @@ the [Rust Compiler Completion Contract](wiki/releases/rust_compiler_completion_c
   is attributed to a named entry on a board, and this entry is replaced by those.
 
 - **CANARY-ROSTER-DERIVATION.** Complete reverse corpus reconciliation in
-  `omega-rust/omega/compiler/omega-compiler/tests/canary_suite/roster.rs`:
+  `omega-rust/omega/compiler/compiler/tests/canary_suite/roster.rs`:
   nonempty `unregistered` differences must fail once every dedicated owner is
   represented. Move remaining dedicated execution tables into shared
   `tests/fixture_rosters/` leaves consumed by both their executing tests and
@@ -167,9 +167,9 @@ the [Rust Compiler Completion Contract](wiki/releases/rust_compiler_completion_c
 
 - **FLOAT-OPERATOR-RESULT-DESTINATIONS.** Check scalar destination compatibility
   for binary float expressions from the exact selected operator result in
-  `psi-typed-trees-to-checked-trees/src/operators.rs` and its selection owner.
+  `typed-trees-to-checked-trees/src/operators.rs` and its selection owner.
   `machine take(value: f32) {}` currently accepts
-  `take(1.0f64 + 2.0f64)` without a conversion. The early `psi-validation`
+  `take(1.0f64 + 2.0f64)` without a conversion. The early `validation`
   destination guard cannot infer a binary result from its operands: authored
   heterogeneous operators may return another format, and domain participation
   requires the checked selection context.
@@ -448,7 +448,7 @@ Owners include
   unresolved index or assume arbitrary incoming storage is zero-initialized.
   Indexed text writers still owe the replacement byte its proof. A per-byte
   carrier class survives `buffer[i] = byte` in
-  `psi-typed-trees-to-checked-trees/src/flow/transfers/byte_sequences.rs`, but
+  `typed-trees-to-checked-trees/src/flow/transfers/byte_sequences.rs`, but
   only for a byte whose value is a live literal. `format_number`'s
   `narrow_i32_to_u8_trapping` result and `print_squares`'s
   `narrow_u32_to_u8_wrapping` result publish no result range, and the checker

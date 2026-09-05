@@ -1,0 +1,24 @@
+//! Fixed one-alias cast completion for production.
+
+use proof_admission::ProofNode;
+use semantic_vocabulary::{Proposition, PropositionContext};
+
+use super::super::super::{alias_transport, cast_custody};
+
+pub(super) fn prove(
+    context: &PropositionContext,
+    goal: &Proposition,
+    assumptions: &[Proposition],
+    semantic_axioms: &[Proposition],
+) -> Option<ProofNode> {
+    alias_transport::prove_one(assumptions, semantic_axioms, |root, root_bound| {
+        cast_custody::prove_from_root(
+            context,
+            goal,
+            assumptions,
+            semantic_axioms,
+            root,
+            root_bound,
+        )
+    })
+}

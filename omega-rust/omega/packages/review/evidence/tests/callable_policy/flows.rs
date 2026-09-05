@@ -1,5 +1,5 @@
 use super::*;
-use psi_effects::CapabilityFlowKind;
+use flow_effects::CapabilityFlowKind;
 
 const SOURCE: &str = r#"
 pub boundary trait Folder { machine touch() reaches Folder; }

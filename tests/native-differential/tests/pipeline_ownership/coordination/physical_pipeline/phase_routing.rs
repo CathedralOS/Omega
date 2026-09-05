@@ -1,8 +1,8 @@
 //! Psi-only and selected-lowering route selection and reporting.
 
 use crate::FunctionFragmentReplayInputs;
-use omega_optimization_core::PostTerminalOptimizationSelections;
-use omega_selected_instructions_to_register_homes::AllocationEvidence;
+use optimization_core::PostTerminalOptimizationSelections;
+use selected_instructions_to_register_homes::AllocationEvidence;
 
 use crate::tests::{
     AdmissionProfile, ExplicitOptimizationRequest, FunctionRelativeOptimizationUnavailableData,

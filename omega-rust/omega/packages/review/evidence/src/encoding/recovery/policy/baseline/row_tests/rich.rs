@@ -193,7 +193,7 @@ fn each_public_family_and_atomic_index_association_mutation_changes_rows() {
             }
             _ => {
                 changed.terminal_permissions.services[0].permissions[0].permitted =
-                    omega_effects::TerminalAuthorityDisposition::from_classes([]);
+                    effects::TerminalAuthorityDisposition::from_classes([]);
                 PackagePolicyRowKind::TerminalPermission
             }
         };

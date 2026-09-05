@@ -5,9 +5,9 @@ use crate::capture::semantics::declarations::{
     nominal_identity, policy_provider_requirement_identity,
 };
 use crate::record::*;
-use omega_compiler::CheckedCompilation;
-use psi_core::PackageKeyIdentity;
-use psi_diagnostics::Diagnostic;
+use compiler::CheckedCompilation;
+use diagnostics::Diagnostic;
+use semantic_vocabulary::PackageKeyIdentity;
 
 pub(super) fn project(
     compilation: &CheckedCompilation,
@@ -48,10 +48,10 @@ pub(super) fn project(
             .iter()
             .enumerate()
             .filter_map(|(index, symbol)| {
-                psi_typed_trees::operator::declaration_by_symbol(&compilation.typed, *symbol)
+                typed_trees::operator::declaration_by_symbol(&compilation.typed, *symbol)
                     .filter(|operator| {
                         operator.is_boundary
-                            && psi_typed_trees::operator::boundary_operator_requirement_identity(
+                            && typed_trees::operator::boundary_operator_requirement_identity(
                                 &compilation.typed,
                                 operator,
                             ) == checked.requirement_identity

@@ -3,7 +3,7 @@ use super::*;
 
 pub(super) fn assert_persistence_and_recovery(
     scenario: &ExactCompilerRowScenario,
-    conflicts: &omega_package_manager::review::ReviewOnlyCapabilityConflictSet,
+    conflicts: &package_manager::review::ReviewOnlyCapabilityConflictSet,
 ) {
     let [package] = conflicts.packages() else {
         panic!("one package has candidate-bound conflicts")
@@ -441,7 +441,7 @@ end_root_policy_resolution\n",
         &scenario.candidate_reviews,
         &scenario
             .candidate_sources
-            .for_exact_target(omega_target::TargetProfile::WindowsX64),
+            .for_exact_target(target::TargetProfile::WindowsX64),
         ReviewOnlyCapabilityConflictLimits::default(),
     )
     .expect("compare same candidate against alternate baseline");

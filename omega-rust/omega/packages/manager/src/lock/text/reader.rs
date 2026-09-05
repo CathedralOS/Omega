@@ -5,8 +5,8 @@ use super::{
     HEADER, MAXIMUM_DECISION_BYTES, MAXIMUM_POLICY_TEXT_BYTES, MAXIMUM_SOURCE_BYTES,
     budget::Budget, framing::Reader,
 };
-use omega_package_evidence::record::PackagePolicyBaseline;
-use omega_target::TargetProfile;
+use package_evidence::record::PackagePolicyBaseline;
+use target::TargetProfile;
 
 impl PackageLock {
     /// Recover project records without filesystem access, source acquisition,

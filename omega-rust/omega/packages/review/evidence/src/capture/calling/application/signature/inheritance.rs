@@ -1,10 +1,10 @@
 use super::{rejected, types};
-use omega_compiler::CheckedCompilation;
-use psi_diagnostics::Diagnostic;
-use psi_symbols::SymbolHandle;
-use psi_typed_trees::name::Identifier;
-use psi_typed_trees::trait_definition::TraitDefinition;
-use psi_typed_trees::types::TypeReferenceHandle;
+use compiler::CheckedCompilation;
+use diagnostics::Diagnostic;
+use symbols::SymbolHandle;
+use typed_trees::name::Identifier;
+use typed_trees::trait_definition::TraitDefinition;
+use typed_trees::types::TypeReferenceHandle;
 
 #[derive(Clone)]
 pub(super) struct Application {

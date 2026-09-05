@@ -1,6 +1,6 @@
 //! Independently replayed rejection of content-authenticated MOVN action corruption.
 
-use omega_post_allocation_machine_to_optimized_machine::{
+use post_allocation_machine_to_post_allocation_machine::{
     Aarch64MovnMaterializationAction, Aarch64MovnMaterializationError,
     aarch64_movn_materialization_identity, validate_aarch64_movn_materialization,
 };
@@ -21,7 +21,7 @@ fn assert_action_corruption_rejects(corrupt: impl FnOnce(&mut Aarch64MovnMateria
     let allocation = realization.allocation().current();
     assert!(matches!(
         allocation.evidence(),
-        omega_selected_instructions_to_register_homes::AllocationEvidence::RegisterHomes(_)
+        selected_instructions_to_register_homes::AllocationEvidence::RegisterHomes(_)
     ));
     let homes = &allocation;
     let StagedOptimizedPostAllocationMachineOptimization::Aarch64Movn(materialization) =

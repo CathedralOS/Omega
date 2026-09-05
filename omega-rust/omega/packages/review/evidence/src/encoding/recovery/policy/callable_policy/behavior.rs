@@ -7,11 +7,11 @@ pub(super) fn capability(reader: &mut Reader<'_>) -> Result<PackagePolicyCapabil
     Ok(PackagePolicyCapabilityFlow {
         capability: nominal(reader)?,
         kind: match reader.byte()? {
-            0 => psi_effects::CapabilityFlowKind::Uses,
-            1 => psi_effects::CapabilityFlowKind::Returns,
-            2 => psi_effects::CapabilityFlowKind::Acquires,
-            3 => psi_effects::CapabilityFlowKind::Stores,
-            4 => psi_effects::CapabilityFlowKind::Derives,
+            0 => flow_effects::CapabilityFlowKind::Uses,
+            1 => flow_effects::CapabilityFlowKind::Returns,
+            2 => flow_effects::CapabilityFlowKind::Acquires,
+            3 => flow_effects::CapabilityFlowKind::Stores,
+            4 => flow_effects::CapabilityFlowKind::Derives,
             _ => return Err(Error::InvalidTag),
         },
     })
@@ -78,24 +78,32 @@ pub(in crate::encoding::recovery::policy) fn termination(
 ) -> Result<PackagePolicyTermination, Error> {
     Ok(match reader.byte()? {
         0 => PackagePolicyTermination::NoGuarantee,
-        1 => PackagePolicyTermination::Terminates { premises: reader.sequence(1, |reader| Ok(PackagePolicyProgressPremise {
-            profile: nominal(reader)?,
-            subject: match reader.byte()? {
-                0 => PackageReviewProgressSubject::Declaration(nominal(reader)?),
-                1 => PackageReviewProgressSubject::Receiver,
-                2 => PackageReviewProgressSubject::Parameter(reader.u32()?),
-                _ => return Err(Error::InvalidTag),
-            },
-            projections: reader.sequence(41, nominal)?,
-            establishment_routes: reader.sequence(83, |reader| {
-                use omega_effects::provider_plan::ServiceProgressEstablishmentRouteKind as Kind;
-                Ok(PackagePolicyServiceProgressRoute {
-                    kind: match reader.byte()? { 0 => Kind::CheckedRequirement, 1 => Kind::BoundaryRequirement, _ => return Err(Error::InvalidTag) },
-                    requirement_owner: nominal(reader)?,
-                    requirement: nominal(reader)?,
+        1 => PackagePolicyTermination::Terminates {
+            premises: reader.sequence(1, |reader| {
+                Ok(PackagePolicyProgressPremise {
+                    profile: nominal(reader)?,
+                    subject: match reader.byte()? {
+                        0 => PackageReviewProgressSubject::Declaration(nominal(reader)?),
+                        1 => PackageReviewProgressSubject::Receiver,
+                        2 => PackageReviewProgressSubject::Parameter(reader.u32()?),
+                        _ => return Err(Error::InvalidTag),
+                    },
+                    projections: reader.sequence(41, nominal)?,
+                    establishment_routes: reader.sequence(83, |reader| {
+                        use effects::provider_plan::ServiceProgressEstablishmentRouteKind as Kind;
+                        Ok(PackagePolicyServiceProgressRoute {
+                            kind: match reader.byte()? {
+                                0 => Kind::CheckedRequirement,
+                                1 => Kind::BoundaryRequirement,
+                                _ => return Err(Error::InvalidTag),
+                            },
+                            requirement_owner: nominal(reader)?,
+                            requirement: nominal(reader)?,
+                        })
+                    })?,
                 })
             })?,
-        }))? },
+        },
         _ => return Err(Error::InvalidTag),
     })
 }

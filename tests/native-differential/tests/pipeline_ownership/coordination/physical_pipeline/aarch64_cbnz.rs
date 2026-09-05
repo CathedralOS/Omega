@@ -46,7 +46,7 @@ fn compiler_facing_physical_pipeline_routes_aarch64_cbnz_through_the_generic_pos
     let allocation = realization.allocation().current();
     assert!(matches!(
         allocation.evidence(),
-        omega_selected_instructions_to_register_homes::AllocationEvidence::RegisterHomes(_)
+        selected_instructions_to_register_homes::AllocationEvidence::RegisterHomes(_)
     ));
     let homes = &allocation;
     let machine = realization.machine();
@@ -321,18 +321,18 @@ fn compiler_facing_physical_pipeline_routes_aarch64_cbnz_through_the_generic_pos
     let mut rehashed_corruption = optimization.fusion().plan().clone();
     rehashed_corruption.actions[0].source_read.view = physical.model().view_named("x2").unwrap().id;
     rehashed_corruption.identity =
-        omega_post_allocation_machine_to_optimized_machine::aarch64_cbnz_fusion_identity(
+        post_allocation_machine_to_post_allocation_machine::aarch64_cbnz_fusion_identity(
             &rehashed_corruption,
         );
     assert_eq!(
-        omega_post_allocation_machine_to_optimized_machine::validate_aarch64_cbnz_fusion(
+        post_allocation_machine_to_post_allocation_machine::validate_aarch64_cbnz_fusion(
             selected_stage.selected(),
             homes.liveness(),
             machine.machine(),
             physical,
             rehashed_corruption,
         ),
-        Err(omega_post_allocation_machine_to_optimized_machine::Aarch64CbnzFusionError::ArtifactMismatch)
+        Err(post_allocation_machine_to_post_allocation_machine::Aarch64CbnzFusionError::ArtifactMismatch)
     );
 
     let realization = (staged)
@@ -395,7 +395,7 @@ fn aarch64_cbnz_fusion_composes_after_exact_selected_lowering() {
     let allocation = realization.allocation().current();
     assert!(matches!(
         allocation.evidence(),
-        omega_selected_instructions_to_register_homes::AllocationEvidence::SelectedLowering(_)
+        selected_instructions_to_register_homes::AllocationEvidence::SelectedLowering(_)
     ));
     let homes = &allocation;
     let machine = realization.machine();

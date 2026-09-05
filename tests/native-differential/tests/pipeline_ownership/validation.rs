@@ -110,8 +110,7 @@ fn selected_cfg_validator_rejects_target_state_path_and_value_corruption() {
         else {
             unreachable!()
         };
-        instruction.operands[0].virtual_register =
-            omega_selected_instructions::VirtualRegisterId(2);
+        instruction.operands[0].virtual_register = selected_instructions::VirtualRegisterId(2);
         assert!(matches!(
             validate_raw_selection(&staged, corrupted),
             Err(SelectedInstructionError::InstructionProjectionMismatch { .. })
@@ -181,7 +180,8 @@ fn selected_content_identity_binds_every_retained_field_class() {
     changed.functions[0].machine = MachineId::new(8_018).unwrap();
     mutations.push(changed);
     let mut changed = original.clone();
-    changed.functions[0].attachment = Some(psi_core::StructuralTypeId::new(8_010).unwrap());
+    changed.functions[0].attachment =
+        Some(semantic_vocabulary::StructuralTypeId::new(8_010).unwrap());
     mutations.push(changed);
     let mut changed = original.clone();
     changed.functions[0]
@@ -209,8 +209,8 @@ fn selected_content_identity_binds_every_retained_field_class() {
     mutations.push(changed);
     let mut changed = original.clone();
     changed.functions[0].virtual_registers[1].origin =
-        omega_selected_instructions::VirtualRegisterOrigin::InstructionResult {
-            instruction: omega_selected_instructions::SelectedInstructionId(4),
+        selected_instructions::VirtualRegisterOrigin::InstructionResult {
+            instruction: selected_instructions::SelectedInstructionId(4),
             source_value: ValueId::new(8_012).unwrap(),
         };
     mutations.push(changed);
@@ -383,7 +383,7 @@ fn staged_selection_custody_rejects_detached_environment_and_selected_plan() {
 
     let mut unit = x86.optimized_target().optimized().unit().clone();
     unit.functions[0].blocks[0].nodes[0].effect.output += 1_000;
-    unit.identity = omega_optimization_unit::recompute_psi_optimization_unit_identity(&unit);
+    unit.identity = optimization_unit::recompute_psi_optimization_unit_identity(&unit);
     assert_eq!(
         validate_legalized_operations(
             x86.optimized_target().target_operations(),

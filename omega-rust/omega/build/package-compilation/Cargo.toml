@@ -1,0 +1,25 @@
+[package]
+name = "package-compilation"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[lib]
+name = "package_compilation"
+path = "src/lib.rs"
+
+[features]
+test-support = []
+
+[dependencies]
+build-declarations = { path = "../build-declarations" }
+build-output = { path = "../build-output" }
+effects = { path = "../../representations/effects" }
+target = { path = "../../representations/target" }
+checked-trees = { path = "../../../psi/representations/checked-trees" }
+build-time-evaluation = { path = "../../../psi/semantics/build-time-evaluation" }
+checked-interpreter = { path = "../../../psi/semantics/checked-interpreter" }
+semantic-vocabulary = { path = "../../../psi/foundation/semantic-vocabulary" }
+diagnostics = { path = "../../../psi/foundation/diagnostics" }
+source = { path = "../../../psi/foundation/source" }
+sha2 = "0.10.9"

@@ -1,7 +1,7 @@
 //! Semantic-owner work is charged across every baseline and target section.
 
-use omega_package_evidence::encoding::PackagePolicyMembershipLimits;
-use omega_package_manager::lock::{PackageLock, PackageLockRecoveryLimits};
+use package_evidence::encoding::PackagePolicyMembershipLimits;
+use package_manager::lock::{PackageLock, PackageLockRecoveryLimits};
 
 pub(super) fn assert_aggregate_identity_boundary(lock: &PackageLock, text: &str) {
     let per_target = lock

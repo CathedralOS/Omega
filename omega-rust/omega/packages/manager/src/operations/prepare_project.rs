@@ -6,8 +6,8 @@ use crate::resolution::graph::{
     ResolvedPackageSourceClosure, resolve_external_local_project_closure_with_storage,
 };
 use crate::resolution::package_compilation_inputs;
-use omega_package_compilation::{PackageCompilationInputError, PackageCompilationInputs};
-use omega_package_source::{
+use package_compilation::{PackageCompilationInputError, PackageCompilationInputs};
+use package_source::{
     ExternalSourceContext, LocalSourceLimits, SourceResolveError, SourceResolverStorage,
 };
 use std::fmt;

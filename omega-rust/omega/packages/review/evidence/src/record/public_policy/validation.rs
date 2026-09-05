@@ -12,7 +12,7 @@ use crate::record::package::callable_policy::validation::{
     signature_contracts as contracts, signature_expressions as expressions,
 };
 use crate::record::*;
-use psi_core::PackageKeyIdentity;
+use semantic_vocabulary::PackageKeyIdentity;
 
 pub(in crate::record) fn validate_conformance_shape(
     value: &PackagePolicyConformanceShape,

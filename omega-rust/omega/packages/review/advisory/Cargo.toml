@@ -1,12 +1,12 @@
 [package]
-name = "omega-package-advisory"
+name = "package-advisory"
 edition.workspace = true
 license.workspace = true
 version.workspace = true
 
 [lib]
-name = "omega_package_advisory"
+name = "package_advisory"
 path = "src/lib.rs"
 
 [dependencies]
-omega-package-manager = { path = "../../manager" }
+package-manager = { path = "../../manager" }

@@ -3,14 +3,14 @@ use super::*;
 
 pub(super) fn assert_comparison_limits_and_risk_classes(
     scenario: &ExactCompilerRowScenario,
-    conflicts: &omega_package_manager::review::ReviewOnlyCapabilityConflictSet,
+    conflicts: &package_manager::review::ReviewOnlyCapabilityConflictSet,
 ) {
     let repeated = compare_review_only_capabilities(
         &scenario.baseline_reviews,
         &scenario.candidate_reviews,
         &scenario
             .candidate_sources
-            .for_exact_target(omega_target::TargetProfile::WindowsX64),
+            .for_exact_target(target::TargetProfile::WindowsX64),
         ReviewOnlyCapabilityConflictLimits::default(),
     )
     .expect("repeat deterministic comparison");
@@ -41,7 +41,7 @@ pub(super) fn assert_comparison_limits_and_risk_classes(
         &scenario.candidate_reviews,
         &scenario
             .candidate_sources
-            .for_exact_target(omega_target::TargetProfile::WindowsX64),
+            .for_exact_target(target::TargetProfile::WindowsX64),
         ReviewOnlyCapabilityConflictLimits::new(
             4_096,
             131_072,
@@ -65,7 +65,7 @@ pub(super) fn assert_comparison_limits_and_risk_classes(
         &scenario.candidate_reviews,
         &scenario
             .candidate_sources
-            .for_exact_target(omega_target::TargetProfile::WindowsX64),
+            .for_exact_target(target::TargetProfile::WindowsX64),
         ReviewOnlyCapabilityConflictLimits::new(
             4_096,
             131_072,
@@ -90,7 +90,7 @@ pub(super) fn assert_comparison_limits_and_risk_classes(
         &scenario.candidate_reviews,
         &scenario
             .baseline_sources
-            .for_exact_target(omega_target::TargetProfile::WindowsX64),
+            .for_exact_target(target::TargetProfile::WindowsX64),
         ReviewOnlyCapabilityConflictLimits::default(),
     )
     .expect_err("candidate evidence cannot detach from candidate custody");
@@ -104,7 +104,7 @@ pub(super) fn assert_comparison_limits_and_risk_classes(
         &scenario.baseline_reviews,
         &scenario
             .baseline_sources
-            .for_exact_target(omega_target::TargetProfile::WindowsX64),
+            .for_exact_target(target::TargetProfile::WindowsX64),
         ReviewOnlyCapabilityConflictLimits::default(),
     )
     .expect("unchanged rows compare cleanly");
@@ -119,7 +119,7 @@ pub(super) fn assert_comparison_limits_and_risk_classes(
         &scenario.baseline_reviews,
         &scenario
             .baseline_sources
-            .for_exact_target(omega_target::TargetProfile::WindowsX64),
+            .for_exact_target(target::TargetProfile::WindowsX64),
         ReviewOnlyCapabilityConflictLimits::default(),
     )
     .expect("compare blocking candidate removals");
@@ -167,14 +167,14 @@ pub machine add_u64(left: u64, right: u64) -> u64 {
     )
     .expect("resolve representation-TCB candidate");
     let representation_reviews = compile_resolved_package_reviews(
-        &representation_sources.for_exact_target(omega_target::TargetProfile::WindowsX64),
+        &representation_sources.for_exact_target(target::TargetProfile::WindowsX64),
         &scenario.build_root,
     )
     .expect("compile representation-TCB review");
     let representation_conflicts = compare_review_only_capabilities(
         &scenario.baseline_reviews,
         &representation_reviews,
-        &representation_sources.for_exact_target(omega_target::TargetProfile::WindowsX64),
+        &representation_sources.for_exact_target(target::TargetProfile::WindowsX64),
         ReviewOnlyCapabilityConflictLimits::default(),
     )
     .expect("compare representation-TCB row");
@@ -250,14 +250,14 @@ reaches FilesystemHost
     )
     .expect("resolve dangerous-slack candidate");
     let dangerous_slack_reviews = compile_resolved_package_candidate_reviews(
-        &dangerous_slack_sources.for_exact_target(omega_target::TargetProfile::WindowsX64),
+        &dangerous_slack_sources.for_exact_target(target::TargetProfile::WindowsX64),
         &scenario.build_root,
     )
     .expect("compile dangerous-slack review");
     let dangerous_slack_conflicts = compare_review_only_capabilities(
         &scenario.baseline_reviews,
         &dangerous_slack_reviews,
-        &dangerous_slack_sources.for_exact_target(omega_target::TargetProfile::WindowsX64),
+        &dangerous_slack_sources.for_exact_target(target::TargetProfile::WindowsX64),
         ReviewOnlyCapabilityConflictLimits::default(),
     )
     .expect("compare dangerous-slack row");
@@ -292,11 +292,11 @@ reaches FilesystemHost
         .expect("dangerous slack has authority and callable provenance");
     assert!(slack_locations.iter().any(|location| {
         location.role()
-            == omega_package_evidence::record::PackageReviewSourceLocationRole::AuthorityDeclaration
+            == package_evidence::record::PackageReviewSourceLocationRole::AuthorityDeclaration
     }));
     assert!(slack_locations.iter().any(|location| {
         location.role()
-            == omega_package_evidence::record::PackageReviewSourceLocationRole::AuthorityExposure
+            == package_evidence::record::PackageReviewSourceLocationRole::AuthorityExposure
             && location.relative_path() == "main.omg"
     }));
     let slack_triage = triage_review_update(
@@ -308,7 +308,7 @@ reaches FilesystemHost
         decision
             .reasons()
             .contains(&PackageTriageReason::DangerousAuthoritySlack(
-                omega_package_evidence::record::PackageReviewDangerousAuthorityClass::Filesystem,
+                package_evidence::record::PackageReviewDangerousAuthorityClass::Filesystem,
             ))
     }));
 }

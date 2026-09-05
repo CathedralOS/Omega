@@ -118,7 +118,7 @@ pub machine SchedulerProvider::wait(context: Context) satisfies SchedulerRuntime
     assert_eq!(premise.profile().owner(), owner);
     assert_eq!(
         premise.subject(),
-        omega_effects::provider_plan::ServiceProgressSubject::Parameter(0)
+        effects::provider_plan::ServiceProgressSubject::Parameter(0)
     );
     let [projection] = premise.subject_projections() else {
         panic!("one retained field projection")
@@ -130,7 +130,7 @@ pub machine SchedulerProvider::wait(context: Context) satisfies SchedulerRuntime
     };
     assert_eq!(
         route.kind(),
-        omega_effects::provider_plan::ServiceProgressEstablishmentRouteKind::BoundaryRequirement
+        effects::provider_plan::ServiceProgressEstablishmentRouteKind::BoundaryRequirement
     );
     assert_eq!(route.requirement_owner().path(), "SchedulerAdmission");
     assert_eq!(route.requirement_owner().owner(), owner);

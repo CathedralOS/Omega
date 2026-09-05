@@ -3,7 +3,7 @@
 use super::{Decoder, Encoder, ensure_bounded_string};
 use crate::declarations::{PackageKey, PackageName};
 use crate::review::baseline::ReviewOnlyBaselineError;
-use omega_package_source::{
+use package_source::{
     ExternalLocalLineage, ExternalSourceContext, GitCommitId, GitTransport, GitTreeId,
     ImmutableSourceResolution, SourceContentDigest, SourceLineage, SourceRelativePath,
     WorkspaceLineageIdentity, WorkspaceMemberLineage,

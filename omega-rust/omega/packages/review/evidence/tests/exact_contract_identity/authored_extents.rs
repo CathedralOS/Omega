@@ -185,18 +185,17 @@ pub domain Reading::Zero requires is_zero(self);
         .expression_table
         .iter_expressions()
         .find_map(|(expression, node)| {
-            matches!(node, psi_typed_trees::expression::ExpressionNode::Call(_))
-                .then_some(expression)
+            matches!(node, typed_trees::expression::ExpressionNode::Call(_)).then_some(expression)
         })
         .expect("domain predicate call expression");
-    let psi_typed_trees::expression::ExpressionNode::Call(call) = checked
+    let typed_trees::expression::ExpressionNode::Call(call) = checked
         .typed
         .expression_table
         .expression_mut(call_expression)
     else {
         panic!("call expression")
     };
-    call.target_symbol = psi_symbols::SymbolHandle::invalid();
+    call.target_symbol = symbols::SymbolHandle::invalid();
 
     let diagnostics = project_checked_package_review(&checked)
         .expect_err("a typed call target cannot diverge from checked selection custody");

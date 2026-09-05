@@ -11,7 +11,7 @@ fn parameter(kind: PackagePolicyTypeParameterKind) -> PackagePolicyTypeParameter
     PackagePolicyTypeParameter {
         kind,
         bounds: PackageReviewDataProperties {
-            multiplicity: psi_language_semantics::Multiplicity::Unrestricted,
+            multiplicity: language_semantics::Multiplicity::Unrestricted,
             carry: None,
         },
     }

@@ -64,13 +64,13 @@ The build/compiler hooks and two top-level optimizer-pipeline routes are:
 
 | Responsibility | Entrance | Next rung |
 |---|---|---|
-| Build-authored exact selection | `omega-build-evaluation/src/optimization/mod.rs` | `vocabulary.rs`, `selection.rs` |
-| Injected exact-name vocabulary | `omega-compiler/src/pipeline/optimization/build_vocabulary/mod.rs` | sole `fragments.rs` mapping used by both prelude variants |
-| Checked selection custody | `omega-compiler/src/pipeline/optimization/checked_handoff/mod.rs` | retained selection, identity, and report request |
-| Native compiler realization | `omega-compiler/src/compiler/optimization/mod.rs` | `admission.rs`, `rollback/`, `native_realization.rs` |
-| Verified abstract-operation optimization | `pipeline/omega-terminal-psi-to-native-artifact/src/native_pipeline/abstract_operation_optimization/mod.rs` | `request.rs`, selected compatibility catalog, independent abstract projection |
-| Native physical continuation | `pipeline/omega-terminal-psi-to-native-artifact/src/native_pipeline/physical_pipeline/mod.rs` | `routes/composition/`, then one named route |
-| Attached Unit abstract-to-target lowering | `omega-abstract-operations-to-target-operations/src/lowering/unit.rs` | `unit/setup.rs`, `unit/body.rs`, then named call, return, scalar, and structural leaves |
+| Build-authored exact selection | `build-evaluation/src/optimization/mod.rs` | `vocabulary.rs`, `selection.rs` |
+| Injected exact-name vocabulary | `compiler/src/pipeline/optimization/build_vocabulary/mod.rs` | sole `fragments.rs` mapping used by both prelude variants |
+| Checked selection custody | `compiler/src/pipeline/optimization/checked_handoff/mod.rs` | retained selection, identity, and report request |
+| Native compiler realization | `compiler/src/compiler/optimization/mod.rs` | `admission.rs`, `rollback/`, `native_realization.rs` |
+| Verified abstract-operation optimization | `pipeline/terminal-psi-to-native-artifact/src/native_pipeline/abstract_operation_optimization/mod.rs` | `request.rs`, selected compatibility catalog, independent abstract projection |
+| Native physical continuation | `pipeline/terminal-psi-to-native-artifact/src/native_pipeline/physical_pipeline/mod.rs` | `routes/composition/`, then one named route |
+| Attached Unit abstract-to-target lowering | `abstract-operations-to-target-operations/src/lowering/unit.rs` | `unit/setup.rs`, `unit/body.rs`, then named call, return, scalar, and structural leaves |
 
 The ordinary empty-selection compiler path does not enter the explicit Psi
 optimizer. Physical routing consumes the exact selected phase set and one
@@ -99,7 +99,7 @@ checked-in V2 corpus identity lives under
 `tests/native-differential/corpora/optimizer/v2/`; it is data custody, not
 a second schedule or rule registry.
 
-`omega-image-emission/ranked_u32_countdown` is deliberately outside this
+`image-emission/ranked_u32_countdown` is deliberately outside this
 guard. It independently replays a language-level ranked execution carrier but
 owns no optimization selection, catalog, proposal, or optimized stage result.
 Image publication needs one coherent publication architecture boundary; one
@@ -132,7 +132,7 @@ Balanced, right-deep, convergent, and call-prefixed shapes do not receive
 sibling routes.
 
 Optimizer-only ranked-cycle admission follows the same visible descent.
-`omega-optimization-validation/src/unit_validation/context/mod.rs` remains the
+`optimization-validation/src/unit_validation/context/mod.rs` remains the
 small executable context-validation entrance. Its `ranked_cycles` stage group
 descends through `graph.rs`, `topology.rs`, and `components.rs` for independent
 Terminal/current reconstruction; `model.rs` owns the structural component ID
@@ -228,12 +228,12 @@ enablement and order.
 
 | Phase | Entrance | Sole catalog | Next rung |
 |---|---|---|---|
-| Mandatory legalization | `omega-target-operations-to-selected-instructions/src/legalization/mod.rs` | `legalization/catalog.rs` | `source/`, `replay/` |
-| Psi | `omega-abstract-operations-optimizer/src/rules/mod.rs` | `rules/catalog.rs` | `passes/<exact-pass>/` |
-| Selected lowering | `omega-selected-instructions-to-register-homes/src/rewrites/selected_lowering/mod.rs` | adjacent `catalog.rs` | `literal_fold/` |
-| Allocation recovery | `omega-selected-instructions-to-register-homes/src/rewrites/allocation_recovery/mod.rs` | adjacent `catalog.rs` | `fixed_view_copy/`, `pressure_rematerialization/` |
-| Post-allocation machine | `omega-post-allocation-machine-to-optimized-machine/src/rules/mod.rs` | `rules/catalog.rs` | `rules/peephole_matching/`, then `rules/<isa>/<exact-rule>/` |
-| Function-relative layout | `omega-selected-form-encoding-to-resolved-layout/src/x86_branch_relaxation/mod.rs` | adjacent `catalog.rs` | compute and independent validation |
+| Mandatory legalization | `target-operations-to-selected-instructions/src/legalization/mod.rs` | `legalization/catalog.rs` | `source/`, `replay/` |
+| Psi | `abstract-operations-to-abstract-operations/src/rules/mod.rs` | `rules/catalog.rs` | `passes/<exact-pass>/` |
+| Selected lowering | `selected-instructions-to-register-homes/src/rewrites/selected_lowering/mod.rs` | adjacent `catalog.rs` | `literal_fold/` |
+| Allocation recovery | `selected-instructions-to-register-homes/src/rewrites/allocation_recovery/mod.rs` | adjacent `catalog.rs` | `fixed_view_copy/`, `pressure_rematerialization/` |
+| Post-allocation machine | `post-allocation-machine-to-post-allocation-machine/src/rules/mod.rs` | `rules/catalog.rs` | `rules/peephole_matching/`, then `rules/<isa>/<exact-rule>/` |
+| Function-relative layout | `selected-form-encoding-to-resolved-layout/src/x86_branch_relaxation/mod.rs` | adjacent `catalog.rs` | compute and independent validation |
 
 Runtime condition legalization follows the same mirrored taxonomy as leaf
 legalization. `source/conditions/mod.rs` is the small producer coordination
@@ -294,7 +294,7 @@ entrance.
 
 Fixed/precolored interval analysis is deliberately absent from the selectable
 rule table. Its 24-line
-`omega-selected-instructions-to-register-homes/src/analyses/fixed_precolored_intervals/mod.rs` entrance joins
+`selected-instructions-to-register-homes/src/analyses/fixed_precolored_intervals/mod.rs` entrance joins
 `compute.rs` to independently keyed `replay.rs` through the sole `validate.rs`
 admission seam; `model.rs` and `identity.rs` own its closed point-interval and
 receipt vocabulary. The mirrored cross-target tests live below
@@ -304,11 +304,11 @@ producer. This is fixed-constraint evidence, not home selection, copy
 insertion, range splitting, or a selectable optimization.
 
 The fixed-use descent continues through two equally explicit entrances.
-`omega-selected-instructions-to-register-homes/src/analyses/fixed_precolored_split_requirements/mod.rs` joins
+`selected-instructions-to-register-homes/src/analyses/fixed_precolored_split_requirements/mod.rs` joins
 the positional `compute/` ladder to the independently keyed `replay/` ladder;
 their named function, topology, cut, partition, and work leaves own factual
 source segmentation. Beside it,
-`omega-selected-instructions-to-register-homes/src/assignment/fixed_precolored_segment_homes/mod.rs` joins a
+`selected-instructions-to-register-homes/src/assignment/fixed_precolored_segment_homes/mod.rs` joins a
 64-line assignment entrance to independent replay. Both sides descend through
 separate domain, conflict, placement, and work leaves, while producer-only root
 and function mechanics and replay-only indexes remain obvious one rung lower.
@@ -332,7 +332,7 @@ transport compatibility only and cannot pass current source admission.
 
 Logical spill planning is deliberately absent from this rule table. It is a
 non-selectable allocation decision below
-`omega-selected-instructions-to-register-homes/src/assignment/logical_spill_operations/mod.rs`. That small
+`selected-instructions-to-register-homes/src/assignment/logical_spill_operations/mod.rs`. That small
 entrance coordinates `compute/` and independent `validate/` rungs; `model.rs`
 and `identity.rs` own vocabulary, while `codec/` owns versioned transport. The
 test taxonomy mirrors those boundaries, and the cross-target pipeline leaf is
@@ -340,7 +340,7 @@ test taxonomy mirrors those boundaries, and the cross-target pipeline leaf is
 catalog or user-visible optimization name is duplicated for this evidence.
 
 Stack-slot coloring follows the same non-selectable allocation taxonomy at
-`omega-selected-instructions-to-register-homes/src/assignment/stack_slot_coloring/mod.rs`. Its small entrance
+`selected-instructions-to-register-homes/src/assignment/stack_slot_coloring/mod.rs`. Its small entrance
 coordinates `compute/` and independently implemented `validate/` rungs;
 `compute/intervals.rs` and `compute/first_fit.rs` expose the lifetime and
 coloring descent, while `model.rs`, `identity.rs`, and `codec/` own the closed
@@ -350,14 +350,14 @@ contract, and the cross-target pipeline leaf is
 name or enter the allocation-recovery catalog.
 
 Abstract spill insertion continues below
-`omega-selected-instructions-to-register-homes/src/assignment/abstract_spill_insertion/mod.rs`. Its entrance
+`selected-instructions-to-register-homes/src/assignment/abstract_spill_insertion/mod.rs`. Its entrance
 joins the validated logical-operation and stack-slot receipts, while `model.rs`
 and `identity.rs` own the schedule vocabulary and `compute.rs` and
 `validate.rs` retain separate production and replay custody. The mirrored
 pipeline leaf is `register_allocation/abstract_spill_insertion.rs`.
 
 Logical reload home assignment lives beside it at
-`omega-selected-instructions-to-register-homes/src/assignment/reload_value_homes/mod.rs`. That executable
+`selected-instructions-to-register-homes/src/assignment/reload_value_homes/mod.rs`. That executable
 entrance joins the source carriers and sends the producer result through
 independent replay. `compute.rs` owns the sorted linear proposal, `replay.rs`
 owns point-indexed reconstruction, `replay/mechanics.rs` owns only replay-local
@@ -367,7 +367,7 @@ pipeline leaf is `register_allocation/reload_value_homes.rs`. Neither stage is
 a selectable optimization rule.
 
 Synthetic reload binding continues at
-`omega-selected-instructions-to-register-homes/src/assignment/synthetic_reload_values/mod.rs`. Its 27-line
+`selected-instructions-to-register-homes/src/assignment/synthetic_reload_values/mod.rs`. Its 27-line
 executable entrance joins validated insertion and home custody; `compute.rs`
 owns direct canonical traversal, `replay.rs` independently owns keyed
 reconstruction and sorting, and `model.rs`, `identity.rs`, and `validate.rs`
@@ -377,7 +377,7 @@ all three spill-related executable entrances explicitly instead of treating
 meaningful joins as generic stage groups.
 
 Epoch-one logical recovery actions continue at
-`omega-selected-instructions-to-register-homes/src/assignment/spill_recovery_actions/mod.rs`. Its 39-line
+`selected-instructions-to-register-homes/src/assignment/spill_recovery_actions/mod.rs`. Its 39-line
 executable entrance joins selected/range/legality, first insertion, worklist,
 and second-victim custody, then routes production through `compute.rs` and
 independent reconstruction through `replay.rs` and `validate.rs`. `model.rs`
@@ -387,7 +387,7 @@ vocabulary. The mirrored pipeline leaf is
 name or real memory/frame authority is introduced.
 
 Generalized epoch-zero/one insertion lives at
-`omega-selected-instructions-to-register-homes/src/assignment/generalized_spill_insertion/mod.rs`. Its 28-line
+`selected-instructions-to-register-homes/src/assignment/generalized_spill_insertion/mod.rs`. Its 28-line
 executable entrance joins the two validated logical-action sources. `compute.rs`
 owns direct first-fit coloring and event construction, while `replay.rs`
 reconstructs the source rows and occupied offsets independently; `model.rs`,
@@ -398,7 +398,7 @@ registers both the entrance and semantic ladder explicitly; no selectable rule
 or real memory/frame authority is introduced.
 
 Generalized reload-home reanalysis continues at
-`omega-selected-instructions-to-register-homes/src/assignment/generalized_reload_value_homes/mod.rs`. Its
+`selected-instructions-to-register-homes/src/assignment/generalized_reload_value_homes/mod.rs`. Its
 65-line executable entrance joins all allocation and generalized-insertion
 roots, then validates the producer plan by independent replay. `compute.rs` and
 `replay.rs` are small group maps: each descends through named `roots`, `sources`,
@@ -411,7 +411,7 @@ This is compiler-private allocation evidence, not a selectable optimization
 rule or real instruction/memory/frame authority.
 
 Epoch-two recovery work begins at
-`omega-selected-instructions-to-register-homes/src/assignment/generalized_spill_recovery_worklist/mod.rs`.
+`selected-instructions-to-register-homes/src/assignment/generalized_spill_recovery_worklist/mod.rs`.
 Its 25-line executable entrance projects validated generalized pressure through
 `compute.rs` and independently keyed `replay.rs`; `model.rs`, `identity.rs`,
 and `validate.rs` own the closed work-item vocabulary and admission receipt.
@@ -422,7 +422,7 @@ calling producer mechanics. This remains compiler-private scheduling custody,
 not a selectable rule or physical spill realization.
 
 Epoch-two victim choice continues at
-`omega-selected-instructions-to-register-homes/src/assignment/generalized_spill_recovery_choice/mod.rs`. Its
+`selected-instructions-to-register-homes/src/assignment/generalized_spill_recovery_choice/mod.rs`. Its
 56-line executable entrance joins direct blocker traversal to independently
 keyed replay. `model.rs`, `identity.rs`, and `validate.rs` retain the closed
 resident/contender/choice vocabulary and admission receipt, while `compute.rs`
@@ -445,7 +445,7 @@ separate original-action leaf owns the following V2 handoff; older recipe tags
 and the choice taxonomy stay unchanged.
 
 Epoch-two logical action planning continues at
-`omega-selected-instructions-to-register-homes/src/assignment/generalized_spill_recovery_actions/mod.rs`.
+`selected-instructions-to-register-homes/src/assignment/generalized_spill_recovery_actions/mod.rs`.
 Its 43-line executable entrance exposes the preserved V1 reload-victim entry
 and a separate V2 guarded-original entry while joining direct traversal to
 independently keyed replay without hiding either lifecycle. `model.rs` owns the
@@ -461,7 +461,7 @@ calling producer mechanics. This stage remains target-neutral logical custody,
 not physical spill insertion or publication authority.
 
 Recursive logical insertion continues at
-`omega-selected-instructions-to-register-homes/src/assignment/recursive_spill_insertion/mod.rs`. Its 26-line
+`selected-instructions-to-register-homes/src/assignment/recursive_spill_insertion/mod.rs`. Its 26-line
 executable entrance visibly joins direct projection to independent keyed
 replay. `model.rs` owns the typed prior/reload/original epoch-two action sources,
 the distinct original-VReg/reload-action stored-value vocabulary, complete
@@ -519,7 +519,7 @@ five budget axes; architecture guards register the complete ladder and prohibit
 executable memory, frame, fault, alias, encoding, or publication claims.
 
 Non-authoritative spill-frame requirements are an internal calculation of
-`omega-post-allocation-machine-to-frame-layout`. Its
+`post-allocation-machine-to-frame-layout`. Its
 `spill_requirements/mod.rs` entrance visibly
 joins authenticated abstract access constraints to the validated register
 environment, delegates direct derivation and independent replay to distinct
@@ -530,11 +530,11 @@ small meaningful entrance without granting frame layout, executable memory,
 fault, unwind, probing, encoding, emission, or publication authority.
 
 Allocation-visible callee-save discovery belongs to
-`omega-selected-instructions-to-register-homes`. Its
+`selected-instructions-to-register-homes`. Its
 `preservation/mod.rs` entrance visibly
 joins `compute::derive` to `validate_allocated_callee_saved_requirements` and
 does no hidden traversal. Shared immutable target convention selection lives in
-`omega-target-to-register-environment`; the requirement carrier, identity, custody,
+`target-to-register-environment`; the requirement carrier, identity, custody,
 errors, and validator remain named top-level leaves. Positional production
 descends through `compute/{ordinary,structural,state,work}`, while independent
 keyed reconstruction descends through
@@ -545,7 +545,7 @@ require exact `write_units` use on both paths, and forbid frame, save/restore,
 unwind, machine, encoding, and publication authority.
 
 Non-authoritative callee-save storage planning belongs to
-`omega-post-allocation-machine-to-frame-layout`. Its
+`post-allocation-machine-to-frame-layout`. Its
 `save_storage/mod.rs` entrance visibly joins
 `compute::derive` to `validate_non_authoritative_callee_save_storage` and
 descends through `compute/{groups,work}`. Independent reconstruction descends
@@ -553,7 +553,7 @@ through `replay/{groups,work}`, builds its own keyed unit-to-group index, and
 cannot import producer mechanics. Named top-level `model`, `error`, `identity`,
 `validation`, and `custody` leaves own the carrier boundary. The generic
 preservation-storage catalog is separately organized under
-`omega-register-model/src/preservation_storage/{model,identity,validation}`;
+`register-model/src/preservation_storage/{model,identity,validation}`;
 the x86-64 and AArch64 ISA crates each expose one exact target catalog leaf.
 The mirrored pipeline test entrance separates fixture, positive matrix,
 corruption, and budget evidence. Architecture guards register the full stage
@@ -599,14 +599,14 @@ entrances preserve exact checked-scope validation and recursive closure review
 without returning to a mixed 920-line implementation-and-test file.
 
 The external-policy execution prerequisite has its own dormant compiler
-entrance at `omega-compiler/src/compiler/optimization/external_policy/mod.rs`.
+entrance at `compiler/src/compiler/optimization/external_policy/mod.rs`.
 That file alone coordinates the opaque sandbox capability, exact transport
 limits, canonical response matching, and explicit fallback settlement; named
 leaves own each concern. The module is absent from ordinary builds and has no
 production capability constructor until a real platform sandbox exists.
 
 Offline policy data enters separately through the 41-line
-`omega-optimization-policy-offline/src/corpus/mod.rs` coordinator. It joins
+`optimization-policy-offline/src/corpus/mod.rs` coordinator. It joins
 canonical V2-log capture to independent corpus validation, then descends
 through named `model`, `identity`, `split`, and `codec` leaves. Mirrored
 admission, codec, and splitting tests sit below `corpus/tests/`; the architecture
@@ -614,7 +614,7 @@ inventory registers the complete ladder and forbids compiler, build, pipeline,
 Psi-optimizer, and process-tooling dependencies. This is corpus custody, not a
 second policy catalog or compiler activation path.
 
-The 51-line `src/bin/omega-optimization-policy-offline/main.rs` command
+The 51-line `src/bin/optimization-policy-offline/main.rs` command
 entrance coordinates the closed artifact vocabulary. Its adjacent `arguments`,
 `capture`, `inputs`, `training`, `evaluation`, `regression_manifest`,
 `publication`, and `error` leaves make positional admission, strict artifact
@@ -674,7 +674,7 @@ matcher mechanics, and independent replay visible without creating a proxy
 rule schedule. Only a catalog row may grant compiler enablement.
 
 Descriptive machine costs are a sibling rung, not a rule catalog.
-`omega-physical-instructions/src/physical_instructions/costs/mod.rs` selects the current model and binds
+`physical-instructions/src/physical_instructions/costs/mod.rs` selects the current model and binds
 it to the exact `NativeTarget`; `model.rs` exposes exact-or-bounded size and
 explicitly unavailable latency, while `identity.rs` owns the domain-separated
 target/model identity. The model neither selects nor validates rules. An
@@ -1205,7 +1205,7 @@ The live tree and architecture guard establish:
 - the governed compiler-hook, optimizer-execution, and rule-owning entrances
   above are small and meaningful;
 - post-allocation construction and replay meet only at
-  `omega-register-homes-to-post-allocation-machine/src/plan/mod.rs`, with separate
+  `register-homes-to-post-allocation-machine/src/plan/mod.rs`, with separate
   semantic subtrees;
 - no governed production file exceeds 600 lines;
 - no governed test or fixture exceeds 800 lines;

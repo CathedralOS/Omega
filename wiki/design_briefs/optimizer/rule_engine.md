@@ -22,7 +22,7 @@ This common shape does not make the optimization core depend on target or
 representation crates.
 
 Target-independent stages say so explicitly in their payloads. Target-specific
-catalogs carry the canonical `omega_target::Architecture` beside each exact
+catalogs carry the canonical `target::Architecture` beside each exact
 name. Selection checks that predicate before dispatch and returns a typed error
 containing the optimization, required architecture, and actual architecture.
 Rule-leaf validation repeats the target check as defense in depth; leaf failure

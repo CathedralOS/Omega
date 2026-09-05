@@ -24,16 +24,16 @@ fn review_projects_collection_length_as_an_exact_compiler_intrinsic() {
         .iter()
         .find(|selection| {
             selection.kind()
-                == psi_language_semantics::declaration_selection::AuthoredDeclarationSelectionKind::MemberAccess
+                == language_semantics::declaration_selection::AuthoredDeclarationSelectionKind::MemberAccess
                 && selection.target()
-                    == psi_language_semantics::declaration_selection::AuthoredDeclarationSelectionTarget::Intrinsic(
-                        psi_language_semantics::declaration_selection::AuthoredDeclarationSelectionIntrinsic::CollectionLength,
+                    == language_semantics::declaration_selection::AuthoredDeclarationSelectionTarget::Intrinsic(
+                        language_semantics::declaration_selection::AuthoredDeclarationSelectionIntrinsic::CollectionLength,
                     )
         })
         .expect("checked contract must retain its exact collection-length selection");
     assert_eq!(
         length_selection.exposure(),
-        psi_language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure::PublicInterface
+        language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure::PublicInterface
     );
 
     let review = project_checked_package_review(&checked)
@@ -84,14 +84,14 @@ fn review_rejoins_unary_contract_operator_to_its_exact_compiler_intrinsic() {
         .iter()
         .find(|proposition| proposition.name.as_str() == "inverted")
         .expect("checked public proposition declaration");
-    let psi_typed_trees::proposition::PropositionBody::Transparent {
+    let typed_trees::proposition::PropositionBody::Transparent {
         proposition:
-            psi_typed_trees::proposition::PropositionFormula::BooleanExpression(root_expression),
+            typed_trees::proposition::PropositionFormula::BooleanExpression(root_expression),
     } = inverted.body
     else {
         panic!("inverted must retain its transparent boolean formula")
     };
-    let psi_typed_trees::expression::ExpressionNode::Binary(binary) =
+    let typed_trees::expression::ExpressionNode::Binary(binary) =
         checked.expression_table.expression(root_expression)
     else {
         panic!("inverted formula must retain its equality root")
@@ -99,7 +99,7 @@ fn review_rejoins_unary_contract_operator_to_its_exact_compiler_intrinsic() {
     let unary_expression = binary.left;
     assert!(matches!(
         checked.expression_table.expression(unary_expression),
-        psi_typed_trees::expression::ExpressionNode::Unary(_)
+        typed_trees::expression::ExpressionNode::Unary(_)
     ));
     let unary_occurrences = checked
         .expression_table
@@ -114,17 +114,17 @@ fn review_rejoins_unary_contract_operator_to_its_exact_compiler_intrinsic() {
         .expect("unary occurrence must rejoin its checked selection");
     assert_eq!(
         unary_selection.kind(),
-        psi_language_semantics::declaration_selection::AuthoredDeclarationSelectionKind::Operator
+        language_semantics::declaration_selection::AuthoredDeclarationSelectionKind::Operator
     );
     assert_eq!(
         unary_selection.target(),
-        psi_language_semantics::declaration_selection::AuthoredDeclarationSelectionTarget::Intrinsic(
-            psi_language_semantics::declaration_selection::AuthoredDeclarationSelectionIntrinsic::BuiltinOperator,
+        language_semantics::declaration_selection::AuthoredDeclarationSelectionTarget::Intrinsic(
+            language_semantics::declaration_selection::AuthoredDeclarationSelectionIntrinsic::BuiltinOperator,
         )
     );
     assert_eq!(
         unary_selection.exposure(),
-        psi_language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure::PublicInterface
+        language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure::PublicInterface
     );
 
     let review = project_checked_package_review(&checked)

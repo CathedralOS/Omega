@@ -1,6 +1,6 @@
 use super::{fixtures, tests::recover};
 use crate::record::*;
-use omega_target::TargetProfile;
+use target::TargetProfile;
 
 fn policy(
     binding: PackagePolicyProviderBinding,

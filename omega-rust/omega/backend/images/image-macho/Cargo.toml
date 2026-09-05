@@ -1,0 +1,18 @@
+[package]
+name = "image-macho"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[lib]
+name = "image_macho"
+path = "src/lib.rs"
+
+[dependencies]
+arena = { path = "../../../../psi/foundation/arena" }
+diagnostics = { path = "../../../../psi/foundation/diagnostics" }
+image = { path = "../image" }
+calling-conventions = { path = "../../../representations/calling-conventions" }
+object-file = { path = "../../object/object-file" }
+target = { path = "../../../representations/target" }
+sha2 = "0.10"

@@ -359,7 +359,7 @@ pub domain u64::Portable = Carry::Portable;
         .expect("portable alias expansion");
     assert_eq!(
         portable_atoms,
-        &psi_language_semantics::CarryPermission::ALL.map(PackageReviewDomainAliasAtom::Carry)
+        &language_semantics::CarryPermission::ALL.map(PackageReviewDomainAliasAtom::Carry)
     );
 
     assert_eq!(

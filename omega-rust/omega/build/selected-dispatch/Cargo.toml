@@ -1,0 +1,33 @@
+[package]
+name = "selected-dispatch"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[lib]
+name = "selected_dispatch"
+path = "src/lib.rs"
+
+[dependencies]
+effects = { path = "../../representations/effects" }
+package-compilation = { path = "../package-compilation" }
+program-entry-plan = { path = "../../backend/plans/program-entry-plan" }
+provider-planning = { path = "../provider-planning" }
+arena = { path = "../../../psi/foundation/arena" }
+checked-trees = { path = "../../../psi/representations/checked-trees" }
+semantic-vocabulary = { path = "../../../psi/foundation/semantic-vocabulary" }
+diagnostics = { path = "../../../psi/foundation/diagnostics" }
+language-core = { path = "../../../psi/foundation/language-core" }
+language-semantics = { path = "../../../psi/foundation/language-semantics" }
+numerics = { path = "../../../psi/foundation/numerics" }
+source = { path = "../../../psi/foundation/source" }
+symbols = { path = "../../../psi/foundation/symbols" }
+typed-trees = { path = "../../../psi/representations/typed-trees" }
+typed-trees-to-checked-trees = { path = "../../../psi/pipeline/typed-trees-to-checked-trees" }
+validation = { path = "../../../psi/semantics/validation" }
+
+[dev-dependencies]
+source-files-to-tokens = { path = "../../../psi/pipeline/source-files-to-tokens" }
+symbol-resolved-trees-to-typed-trees = { path = "../../../psi/pipeline/symbol-resolved-trees-to-typed-trees" }
+syntax-trees-to-symbol-resolved-trees = { path = "../../../psi/pipeline/syntax-trees-to-symbol-resolved-trees" }
+tokens-to-syntax-trees = { path = "../../../psi/pipeline/tokens-to-syntax-trees" }

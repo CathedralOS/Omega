@@ -19,7 +19,7 @@ use crate::limits::{
 use crate::tree::filesystem::{io_error, open_absolute_directory_nofollow};
 use cap_fs_ext::DirExt;
 use cap_std::fs::{Dir as CapabilityDirectory, Metadata as CapabilityMetadata};
-use omega_platform_custody::record_file::{RecordFileLimits, RecordFileRoot};
+use platform_custody::record_file::{RecordFileLimits, RecordFileRoot};
 use std::path::{Path, PathBuf};
 
 #[derive(Debug, Clone, Copy)]

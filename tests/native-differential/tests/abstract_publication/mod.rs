@@ -6,33 +6,33 @@
 
 use std::collections::BTreeSet;
 
-use omega_abstract_operations::AbstractOperation;
-use omega_abstract_operations_optimizer::{
+use abstract_operations::AbstractOperation;
+use abstract_operations_to_abstract_operations::{
     built_in_psi_registry, replay_psi_pipeline, run_psi_pipeline,
 };
-use omega_optimization_core::{Optimization, OptimizationSelections, OptimizationWorkBudget};
-use omega_optimization_validation::{
+use optimization_core::{Optimization, OptimizationSelections, OptimizationWorkBudget};
+use optimization_validation::{
     OptimizationUnitValidationError, OptimizedAbstractPlanProjectionError,
     PhysicalOptimizationDataStatus, PrePhysicalOptimizationManifest,
     PrePhysicalOptimizationManifestDecodeError, PrePhysicalOptimizationManifestError,
     validate_optimized_abstract_plan_projection, validate_pre_physical_optimization_manifest,
 };
-use omega_psi_to_abstract_operations::VerifiedPsiOptimizationUnit;
-use omega_target::NativeTarget;
-use psi_core::{
-    BlockId, ContractId, EdgeId, EvidenceIdentity, IntegerSign, IntegerType, IntegerValue,
-    MachineId, ObligationId, OperationId, Proposition, ScalarTerm, ScalarType, ValueId,
-};
-use psi_proof_admission::{
+use proof_admission::{
     AdmissionProfile, CertificateEnvelope, EvidenceRoute, PrimitiveJudgment, ProofNode, ProofRule,
     ProofSystemMarker,
 };
-use psi_terminal::{
+use semantic_vocabulary::{
+    BlockId, ContractId, EdgeId, EvidenceIdentity, IntegerSign, IntegerType, IntegerValue,
+    MachineId, ObligationId, OperationId, Proposition, ScalarTerm, ScalarType, ValueId,
+};
+use target::NativeTarget;
+use terminal_psi::{
     Block, MachineContract, Operation, OperationKind, OperationResult, SuccessorEdge,
     TerminalMachine, TerminalMachineResult, TerminalModule, Terminator, ValueDeclaration,
     VocabularyMarker,
 };
-use psi_terminal_verifier::{ObligationEvidence, ProofBundle};
+use terminal_psi_to_abstract_operations::VerifiedPsiOptimizationUnit;
+use terminal_verifier::{ObligationEvidence, ProofBundle};
 
 use super::work_usage;
 use super::*;

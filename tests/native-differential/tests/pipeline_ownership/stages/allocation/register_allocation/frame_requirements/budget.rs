@@ -1,5 +1,5 @@
 use crate::tests::*;
-use omega_optimization_core::OptimizationWorkBudget;
+use optimization_core::OptimizationWorkBudget;
 
 use super::fixture::{EXACT_USAGE, exact_budget, spill_source, stage};
 

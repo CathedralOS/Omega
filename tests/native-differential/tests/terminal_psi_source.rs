@@ -2,43 +2,44 @@
 //! trees are dropped before canonical decoding, verification, interpretation,
 //! and Omega lowering.
 
-use omega_abstract_operations::{
+use abstract_operations::{
     AbstractBlockEntry, AbstractFunction, AbstractOperation, AbstractOperationPlan,
     AbstractParameter, ValueBinding,
 };
-use omega_abstract_operations_to_target_operations::lower_to_target_operations;
+use abstract_operations_to_target_operations::lower_to_target_operations;
 #[cfg(unix)]
-use omega_artifacts::external_root_manifest_json;
-use omega_assigned_target_operations::{
+use artifacts::external_root_manifest_json;
+use assigned_target_operations::{
     AssignedBooleanControl, AssignedIntegerControl, AssignedOperation,
 };
-use omega_calling_conventions::CallSignature;
+use calling_conventions::CallSignature;
 #[cfg(unix)]
-use omega_calling_conventions::{
+use calling_conventions::{
     ArrivalContextId, ArrivalContextStackDomain, CallingPolicy, MachineStateSet, RegisterSet,
     StackDomainRef, StateFootprintEvidence, evaluate_ordinary_boundary_entry_plan,
     validate_entry_stack_domain_closure,
 };
-use omega_compiler::{
+use checked_trees_to_terminal_psi::{LoweringError, lower_machine};
+use compiler::{
     ArtifactEmissionPolicy, CheckedCompilation, CompileOptions, CompileRequest,
     RequestedCompileProduct, compile_to_checked,
 };
-use omega_component_candidate::{ComponentCandidate, ComponentCandidateParts};
+use component_candidate::{ComponentCandidate, ComponentCandidateParts};
 #[cfg(unix)]
-use omega_component_deployment::publish_component_flat_output;
-use omega_component_deployment::{
+use component_deployment::publish_component_flat_output;
+use component_deployment::{
     ComponentProgressAttestationBinding, begin_component_deployment,
     begin_component_deployment_with_claimed_registry,
 };
 #[cfg(unix)]
-use omega_component_publication::InstalledRunnableComponent;
-use omega_component_publication::{RunnableComponentEraLedger, bind_installed_runnable_component};
-use omega_effects::{
+use component_publication::InstalledRunnableComponent;
+use component_publication::{RunnableComponentEraLedger, bind_installed_runnable_component};
+use effects::{
     ComponentEraCandidate, ComponentEraEntryLedger, ComponentEraLedgerId,
     ComponentEraPublicationReceipt, ExecutableTcbManifest, ExecutableTcbProfile, ExecutionScope,
     IncompleteScopePolicy, ScopeCompleteness, evaluate_executable_tcb_profile,
 };
-use omega_executable_installation::{
+use executable_installation::{
     AdmissionReceiptId, Artifact, ArtifactAdmissionEvidence, ArtifactEntry, ArtifactId,
     CodePlacementAuthority, CodePlacementId, EntrySetId, FinalValidationCertificate,
     FinalValidationId, InstallAuthority, InstallationAudience, InstallationReceipt,
@@ -47,8 +48,12 @@ use omega_executable_installation::{
     install_validated, materialize_admitted_artifact, materialize_and_freeze,
     validate_final_placement,
 };
+use extents::{
+    AddressSpaceId, ExtentLineageId, ExtentProvenanceId, ExtentRightId, ExtentRights,
+    ExtentRootGrant, MappingEraId,
+};
 #[cfg(unix)]
-use omega_external_roots::{
+use external_roots::{
     AdapterStackRealizationOrigin, ArrivalStackRealizationOrigin, ExternalRootCandidate,
     ExternalRootId, FixedFuelProviderSummary, FuelProvisionId, FuelValidationReceiptId,
     LogicalFuelResourceColumn, MachineStateResourceColumn, NestingRelationId,
@@ -60,70 +65,65 @@ use omega_external_roots::{
     bind_installed_entry_stack, compose_bound_entry_stack_epochs, compose_fixed_fuel,
     validate_external_root, validate_installed_entry_fuel, validate_installed_entry_stack,
 };
-use omega_external_roots::{
+use external_roots::{
     ComponentProgressDemandIdentity, InstalledProviderOccurrenceId, InstalledRootLedger,
     ProgressProfileEstablishmentAttestation, ProgressProfileEstablishmentReceiptId,
     ProgressProfileGrantInvocationId, ProviderOccurrenceInstallationReceipt,
     ProviderOccurrenceInstallationReceiptId, ProviderOccurrencePlanBinding,
 };
-use omega_image_emission::{
+use image_emission::{
     ObjectArtifact, bind_installed_artifact, build_installation_record, build_object_artifact,
     decode_installation_record, derive_stack_demand, emit_executable_image,
     encode_installation_record,
 };
 #[cfg(unix)]
-use omega_image_emission::{
+use image_emission::{
     derive_installation_stack_demand, emit_object_container, installation_fingerprint,
     validate_installation_record,
 };
-use omega_machine_emission::emit_machine_code;
+use layout_plans::{
+    ArtifactInstallationScopeId, EntryStubId, PlacementConstraints, PlacementPhase, PlacementSite,
+};
+use machine_emission::emit_machine_code;
 use omega_native_differential_test::{
     admit_native_provider, admit_native_provider_for_selected_plan,
 };
-use omega_psi_to_abstract_operations::{ArtifactLoweringError, lower_artifact_sections};
-use omega_target::NativeTarget;
-use omega_target_operations::{
-    LinuxExitGroupI32Realization, TargetBooleanControl, TargetBooleanExpression,
-    TargetIntegerControl, TargetIntegerExpression, TargetOperation,
-};
-use omega_target_operations_to_assigned_target_operations::assign_registers;
-use omega_terminal_psi_to_native_artifact::{
-    NativeProviderSettlement as ComponentProviderSettlement, realize_native_artifact,
-};
-use psi_checked_trees_to_terminal::{LoweringError, lower_machine};
-use psi_core::{
+use proof_admission::AdmissionProfile;
+use semantic_vocabulary::{
     BlockId, EdgeId, IntegerSign, IntegerType, IntegerValue, MachineId, OperationId,
     ProfileDecisionId, ScalarType, ValueId,
 };
-use psi_extents::{
-    AddressSpaceId, ExtentLineageId, ExtentProvenanceId, ExtentRightId, ExtentRights,
-    ExtentRootGrant, MappingEraId,
+#[cfg(unix)]
+use std::collections::BTreeSet;
+use std::path::{Path, PathBuf};
+use target::NativeTarget;
+use target_operations::{
+    LinuxExitGroupI32Realization, TargetBooleanControl, TargetBooleanExpression,
+    TargetIntegerControl, TargetIntegerExpression, TargetOperation,
 };
-use psi_layout_plans::{
-    ArtifactInstallationScopeId, EntryStubId, PlacementConstraints, PlacementPhase, PlacementSite,
-};
-use psi_proof_admission::AdmissionProfile;
-use psi_terminal::{
-    CrashCause, CrashRouteGuard, OperationKind, TerminalModule, Terminator, VocabularyMarker,
-};
-use psi_terminal_codec::{
+use target_operations_to_assigned_target_operations::assign_registers;
+use terminal_codec::{
     DebugSubject, build_artifact_manifest, decode_debug_map, decode_module, decode_proof_bundle,
     encode_debug_map, encode_module, encode_proof_bundle, terminal_psi_identity,
     validate_artifact_manifest,
 };
-use psi_terminal_fixed_fuel::{derive_fixed_entry_fuel, validate_fixed_entry_fuel};
+use terminal_fixed_fuel::{derive_fixed_entry_fuel, validate_fixed_entry_fuel};
 #[cfg(unix)]
-use psi_terminal_fuel::FuelExhaustion;
-use psi_terminal_fuel::{FuelChargeSite, TerminalFuelMeter, TerminalFuelSchedule};
-use psi_terminal_interpreter::{
+use terminal_fuel::FuelExhaustion;
+use terminal_fuel::{FuelChargeSite, TerminalFuelMeter, TerminalFuelSchedule};
+use terminal_interpreter::{
     MeasuredTerminalExecution, TerminalArtifactInterpretError, TerminalExecution,
     TerminalExecutionResult, TerminalExecutionStatus, TerminalScalarValue,
     interpret_terminal_artifact_measured,
 };
-use psi_terminal_verifier::{VerifiedTerminalModule, verify_module};
-#[cfg(unix)]
-use std::collections::BTreeSet;
-use std::path::{Path, PathBuf};
+use terminal_psi::{
+    CrashCause, CrashRouteGuard, OperationKind, TerminalModule, Terminator, VocabularyMarker,
+};
+use terminal_psi_to_abstract_operations::{ArtifactLoweringError, lower_artifact_sections};
+use terminal_psi_to_native_artifact::{
+    NativeProviderSettlement as ComponentProviderSettlement, realize_native_artifact,
+};
+use terminal_verifier::{VerifiedTerminalModule, verify_module};
 
 #[cfg(unix)]
 use std::{
@@ -175,41 +175,41 @@ fn stage_terminal_component(
     subsystem: u16,
     profile: &AdmissionProfile,
     settlements: &[ComponentProviderSettlement<'_>],
-) -> Result<ComponentCandidate, Vec<psi_diagnostics::Diagnostic>> {
+) -> Result<ComponentCandidate, Vec<diagnostics::Diagnostic>> {
     let selected_target = checked.selected_native_target().ok_or_else(|| {
-        vec![psi_diagnostics::Diagnostic::error(
+        vec![diagnostics::Diagnostic::error(
             "terminal component staging requires one exact selected native target",
         )]
     })?;
     if selected_target != target {
-        return Err(vec![psi_diagnostics::Diagnostic::error(format!(
+        return Err(vec![diagnostics::Diagnostic::error(format!(
             "terminal component staging target {target:?} does not match checked target {selected_target:?}"
         ))]);
     }
     let selected_program_entry = checked.selected_program_entry().ok_or_else(|| {
-        vec![psi_diagnostics::Diagnostic::error(
+        vec![diagnostics::Diagnostic::error(
             "terminal component staging requires one exact selected program entry",
         )]
     })?;
     let entry_machine = selected_program_entry.machine_name();
-    let artifact = psi_checked_trees_to_terminal::produce_terminal_artifact(checked, entry_machine)
+    let artifact = checked_trees_to_terminal_psi::produce_terminal_artifact(checked, entry_machine)
         .map_err(|error| {
-            vec![psi_diagnostics::Diagnostic::error(format!(
+            vec![diagnostics::Diagnostic::error(format!(
                 "terminal component artifact production failed: {error}"
             ))]
         })?;
     let post_terminal_optimizations = checked.optimization_selections().project_post_terminal();
     let native_artifact = realize_native_artifact(
         artifact,
-        omega_terminal_psi_to_native_artifact::NativeRealizationRequest {
+        terminal_psi_to_native_artifact::NativeRealizationRequest {
             target,
             subsystem,
             profile,
             terminal_authority_policy:
-                omega_terminal_psi_to_native_artifact::current_compiler_intrinsic_terminal_authority_policy(),
+                terminal_psi_to_native_artifact::current_compiler_intrinsic_terminal_authority_policy(),
             terminal_authority_permission_policy:
-                omega_terminal_psi_to_native_artifact::current_terminal_authority_permission_policy(),
-            program_entry: omega_terminal_psi_to_native_artifact::NativeProgramEntrySettlement::new(
+                terminal_psi_to_native_artifact::current_terminal_authority_permission_policy(),
+            program_entry: terminal_psi_to_native_artifact::NativeProgramEntrySettlement::new(
                 selected_program_entry.source_signature(),
                 selected_program_entry
                     .calling_plans()
@@ -227,12 +227,12 @@ fn stage_terminal_component(
             callback_thunks: &[],
         },
     )?;
-    let stack_demand = omega_image_emission::derive_stack_demand(
+    let stack_demand = image_emission::derive_stack_demand(
         native_artifact.object(),
         native_artifact.object().entry(),
     )
     .map_err(|error| {
-        vec![psi_diagnostics::Diagnostic::error(format!(
+        vec![diagnostics::Diagnostic::error(format!(
             "Terminal component stack-demand derivation failed: {error}"
         ))]
     })?;
@@ -247,7 +247,7 @@ fn stage_terminal_component(
         stack_demand,
     })
     .map_err(|error| {
-        vec![psi_diagnostics::Diagnostic::error(format!(
+        vec![diagnostics::Diagnostic::error(format!(
             "Terminal component policy replay failed: {error}"
         ))]
     })
@@ -258,8 +258,8 @@ fn write_finalized_terminal_component_output(
     options: &CompileOptions,
     runnable: InstalledRunnableComponent,
 ) -> Result<
-    omega_component_deployment::PublishedComponentFlatOutput,
-    Box<omega_component_deployment::ComponentFlatOutputPublicationError>,
+    component_deployment::PublishedComponentFlatOutput,
+    Box<component_deployment::ComponentFlatOutputPublicationError>,
 > {
     let output_path = options
         .build_dir()
@@ -321,7 +321,7 @@ fn expected_crash(module: &TerminalModule) -> TerminalExecutionStatus {
                 cause,
                 site_guard,
                 frontier_lower_bound,
-            } => Some(psi_terminal_interpreter::TerminalCrash {
+            } => Some(terminal_interpreter::TerminalCrash {
                 edge: *edge,
                 cause: *cause,
                 site_guard: site_guard.clone(),
@@ -395,8 +395,8 @@ fn assert_guarded_crash_emits(verified: &VerifiedTerminalModule<'_>) {
             assign_registers(&target_operations).expect("guarded crash control should assign");
         let emitted = emit_machine_code(&assigned).expect("guarded crash control should emit");
         let fault = match target.architecture {
-            omega_target::Architecture::X86_64 => &[0x0f, 0x0b][..],
-            omega_target::Architecture::Aarch64 => &[0x00, 0x00, 0x20, 0xd4][..],
+            target::Architecture::X86_64 => &[0x0f, 0x0b][..],
+            target::Architecture::Aarch64 => &[0x00, 0x00, 0x20, 0xd4][..],
         };
         assert!(
             emitted.functions[0]
@@ -435,21 +435,21 @@ fn install_terminal_object(
 ) -> (InstalledCode, EntryStubId) {
     fn installation_id<T>(
         identity: u64,
-        constructor: fn(u64) -> Result<T, omega_executable_installation::InstallationDiagnostic>,
+        constructor: fn(u64) -> Result<T, executable_installation::InstallationDiagnostic>,
     ) -> T {
         constructor(identity).expect("normalized installation identity")
     }
 
     fn extent_id<T>(
         identity: u64,
-        constructor: fn(u64) -> Result<T, psi_extents::ExtentDiagnostic>,
+        constructor: fn(u64) -> Result<T, extents::ExtentDiagnostic>,
     ) -> T {
         constructor(identity).expect("normalized extent identity")
     }
 
-    fn extent_provider_issuance(seed: u64) -> psi_extents::ExtentProviderIssuance {
+    fn extent_provider_issuance(seed: u64) -> extents::ExtentProviderIssuance {
         let base = seed * 16;
-        psi_extents::ExtentProviderIssuance::from_normalized_identities([
+        extents::ExtentProviderIssuance::from_normalized_identities([
             base + 1,
             base + 2,
             base + 3,
@@ -486,7 +486,7 @@ fn install_terminal_object(
         vec![ArtifactEntry::from_canonical_decode(entry, entry_offset)],
         installation_id(0x5316, RelocationSetId::from_normalized_identity),
         Vec::new(),
-        omega_executable_installation::ArtifactAuthorityCommitments::from_canonical_evidence(
+        executable_installation::ArtifactAuthorityCommitments::from_canonical_evidence(
             contracts,
             b"terminal-source-machine-contracts-v1",
             footprint,
@@ -712,7 +712,7 @@ fn selected_progress_free_source_stages_non_visible_terminal_candidate() {
     assert!(!candidate.object().text_bytes().is_empty());
     assert!(!candidate.image().output().bytes.is_empty());
 
-    let direct_report = omega_compiler::compile(
+    let direct_report = compiler::compile(
         CompileRequest::new(CompileOptions {
             root_path: progress_free_selected_source_canary(),
             build_dir: None,
@@ -792,7 +792,7 @@ fn selected_progress_free_source_stages_non_visible_terminal_candidate() {
 
     let roots = InstalledRootLedger::claim(&mut installed)
         .expect("exact installation claims its registry before deployment");
-    let stray_plan = omega_effects::provider_plan::ProviderPlan::default();
+    let stray_plan = effects::provider_plan::ProviderPlan::default();
     let stray_binding = ProviderOccurrencePlanBinding::new(
         stray_plan.report_fingerprint(),
         stray_plan,
@@ -999,7 +999,7 @@ fn selected_source_entry_retains_build_bound_progress_for_terminal_publication()
     assert_eq!(demand.profile_identity, "Scheduler::WeakFair");
     assert_eq!(demand.establishment_routes.len(), 1);
 
-    let direct_native = omega_compiler::compile(
+    let direct_native = compiler::compile(
         CompileRequest::new(CompileOptions {
             root_path: progress_source_canary(),
             build_dir: None,
@@ -1022,7 +1022,7 @@ fn selected_source_entry_retains_build_bound_progress_for_terminal_publication()
         "Scheduler",
         0x5400,
         CallSignature {
-            parameters: vec![omega_calling_conventions::ValueShape::integer(4, 4)],
+            parameters: vec![calling_conventions::ValueShape::integer(4, 4)],
             result: None,
         },
     );
@@ -1046,7 +1046,7 @@ fn selected_source_entry_retains_build_bound_progress_for_terminal_publication()
         &demand.requirement_identity,
         0x5410,
         CallSignature {
-            parameters: vec![omega_calling_conventions::ValueShape::integer(4, 4)],
+            parameters: vec![calling_conventions::ValueShape::integer(4, 4)],
             result: None,
         },
     );

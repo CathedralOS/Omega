@@ -79,16 +79,14 @@ fn float_contract_review_rejects_missing_checked_width_landing() {
         .expression_table
         .iter_expressions()
         .find_map(|(expression, node)| {
-            matches!(node, psi_typed_trees::expression::ExpressionNode::Float(_))
-                .then_some(expression)
+            matches!(node, typed_trees::expression::ExpressionNode::Float(_)).then_some(expression)
         })
         .expect("landed float expression");
     *checked
         .typed
         .expression_table
-        .expression_mut(float_expression) = psi_typed_trees::expression::ExpressionNode::Float(
-        psi_typed_trees::expression::FloatLiteral::parse("1.25")
-            .expect("unlanded exact float literal"),
+        .expression_mut(float_expression) = typed_trees::expression::ExpressionNode::Float(
+        typed_trees::expression::FloatLiteral::parse("1.25").expect("unlanded exact float literal"),
     );
 
     let diagnostics = project_checked_package_review(&checked)
@@ -257,15 +255,9 @@ fn review_projects_exact_compiler_builtin_function_identity() {
 
     let mut encodings = Vec::new();
     for (expression, expected) in [
-        (
-            "min(left, right) == left",
-            psi_symbols::BuiltinFunction::Min,
-        ),
-        (
-            "max(left, right) == right",
-            psi_symbols::BuiltinFunction::Max,
-        ),
-        ("sqrt(left) == right", psi_symbols::BuiltinFunction::Sqrt),
+        ("min(left, right) == left", symbols::BuiltinFunction::Min),
+        ("max(left, right) == right", symbols::BuiltinFunction::Max),
+        ("sqrt(left) == right", symbols::BuiltinFunction::Sqrt),
     ] {
         let review = project(expression);
         let [proposition] = review.public_propositions() else {
@@ -332,18 +324,17 @@ fn builtin_function_review_rejects_checked_target_symbol_tamper() {
         .expression_table
         .iter_expressions()
         .find_map(|(expression, node)| {
-            matches!(node, psi_typed_trees::expression::ExpressionNode::Call(_))
-                .then_some(expression)
+            matches!(node, typed_trees::expression::ExpressionNode::Call(_)).then_some(expression)
         })
         .expect("builtin call expression");
-    let psi_typed_trees::expression::ExpressionNode::Call(call) = checked
+    let typed_trees::expression::ExpressionNode::Call(call) = checked
         .typed
         .expression_table
         .expression_mut(call_expression)
     else {
         panic!("call expression")
     };
-    call.target_symbol = psi_symbols::SymbolHandle::invalid();
+    call.target_symbol = symbols::SymbolHandle::invalid();
 
     let diagnostics = project_checked_package_review(&checked)
         .expect_err("builtin target-symbol tamper must reject");

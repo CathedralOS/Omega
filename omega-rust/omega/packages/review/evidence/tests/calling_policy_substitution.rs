@@ -2,8 +2,8 @@
 
 mod support;
 
-use omega_package_evidence::encoding::PackagePolicyRecoveryLimits;
-use omega_package_evidence::{project_checked_calling_policy, record::PackagePolicyCallingPlan};
+use package_evidence::encoding::PackagePolicyRecoveryLimits;
+use package_evidence::{project_checked_calling_policy, record::PackagePolicyCallingPlan};
 use support::*;
 
 fn policy(declaration: &str) -> PackagePolicyCallingPlan {

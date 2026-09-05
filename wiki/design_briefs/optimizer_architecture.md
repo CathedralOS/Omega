@@ -617,54 +617,54 @@ route:
 
 | Question | Entrance |
 |---|---|
-| How does `build.omg` become one exact selection? | `omega-build-evaluation/src/optimization/mod.rs` -> `vocabulary.rs`, `selection.rs` |
-| Where is the sole injected exact-name mapping used by both build preludes? | `omega-compiler/src/pipeline/optimization/build_vocabulary/mod.rs` -> `fragments.rs` |
-| What checked selection reaches native compilation after release rollback? | `omega-compiler/src/compiler/optimization/mod.rs` -> `rollback/`, `native_realization.rs` |
-| Which post-Terminal abstract-operation optimizations were explicitly requested, and what verified plan leaves? | `pipeline/omega-terminal-psi-to-native-artifact/src/native_pipeline/abstract_operation_optimization/mod.rs` |
-| Which physical phase composition runs next? | `pipeline/omega-terminal-psi-to-native-artifact/src/native_pipeline/physical_pipeline/mod.rs` |
-| Which exact post-Terminal abstract-operation passes and local rules are enabled? | `omega-abstract-operations-optimizer/src/rules/mod.rs` -> `rules/catalog.rs` -> `passes/<exact-pass>/mod.rs` |
-| Which selected-lowering or allocation-recovery rule is enabled? | `omega-selected-instructions-to-register-homes/src/rewrites/<phase>/mod.rs` -> adjacent `catalog.rs` |
-| Which post-allocation machine rule is enabled for the ISA? | `omega-post-allocation-machine-to-optimized-machine/src/rules/mod.rs` -> `rules/catalog.rs` -> `<isa>/<exact-rule>/mod.rs` |
-| How are recorded policy decisions admitted for offline work? | `omega-optimization-policy-offline/src/corpus/mod.rs` -> `capture.rs`, `validate.rs`, `identity.rs`, `split.rs` |
-| Where does the non-authoritative reference policy train and evaluate? | `omega-optimization-policy-offline/src/reference_policy/mod.rs` -> `training/`, `evaluation/`, `codec/` |
+| How does `build.omg` become one exact selection? | `build-evaluation/src/optimization/mod.rs` -> `vocabulary.rs`, `selection.rs` |
+| Where is the sole injected exact-name mapping used by both build preludes? | `compiler/src/pipeline/optimization/build_vocabulary/mod.rs` -> `fragments.rs` |
+| What checked selection reaches native compilation after release rollback? | `compiler/src/compiler/optimization/mod.rs` -> `rollback/`, `native_realization.rs` |
+| Which post-Terminal abstract-operation optimizations were explicitly requested, and what verified plan leaves? | `pipeline/terminal-psi-to-native-artifact/src/native_pipeline/abstract_operation_optimization/mod.rs` |
+| Which physical phase composition runs next? | `pipeline/terminal-psi-to-native-artifact/src/native_pipeline/physical_pipeline/mod.rs` |
+| Which exact post-Terminal abstract-operation passes and local rules are enabled? | `abstract-operations-to-abstract-operations/src/rules/mod.rs` -> `rules/catalog.rs` -> `passes/<exact-pass>/mod.rs` |
+| Which selected-lowering or allocation-recovery rule is enabled? | `selected-instructions-to-register-homes/src/rewrites/<phase>/mod.rs` -> adjacent `catalog.rs` |
+| Which post-allocation machine rule is enabled for the ISA? | `post-allocation-machine-to-post-allocation-machine/src/rules/mod.rs` -> `rules/catalog.rs` -> `<isa>/<exact-rule>/mod.rs` |
+| How are recorded policy decisions admitted for offline work? | `optimization-policy-offline/src/corpus/mod.rs` -> `capture.rs`, `validate.rs`, `identity.rs`, `split.rs` |
+| Where does the non-authoritative reference policy train and evaluate? | `optimization-policy-offline/src/reference_policy/mod.rs` -> `training/`, `evaluation/`, `codec/` |
 
 ```text
 omega-rust/omega/
   backend/plans/
-    omega-program-entry-plan/       # governed optimized semantic entry/wrapper carriers
+    program-entry-plan/       # governed optimized semantic entry/wrapper carriers
   build/
-    omega-build-evaluation/src/optimization/
+    build-evaluation/src/optimization/
                                       # exact vocabulary admission and selection extraction
-  compiler/omega-compiler/src/
+  compiler/compiler/src/
     pipeline/optimization/            # injected vocabulary and checked handoff
     compiler/optimization/            # admission, rollback, native realization
   representations/
-    omega-assigned-target-operations/ # concrete assigned-operation carrier taxonomy
-    omega-optimization-core/       # one exact-name descriptor, selections, identities
-    omega-optimization-unit/       # complete input model, reconstruction, rewrite custody
-    omega-register-model/          # register views, units, aliases, ABI facts
-    omega-selected-instructions/   # pre-allocation plan and admitted machine effects
+    assigned-target-operations/ # concrete assigned-operation carrier taxonomy
+    optimization-core/       # one exact-name descriptor, selections, identities
+    optimization-unit/       # complete input model, reconstruction, rewrite custody
+    register-model/          # register views, units, aliases, ABI facts
+    selected-instructions/   # pre-allocation plan and admitted machine effects
   pipeline/
-    omega-abstract-operations-optimizer/
+    abstract-operations-to-abstract-operations/
                                       # post-Terminal abstract-operation analyses and rewrites
-    omega-post-allocation-machine-to-optimized-machine/        # post-allocation symbolic-machine optimization stage
-    omega-optimization-validation/  # independent optimization-unit validation
-    omega-selected-instructions-to-register-homes/                 # physical analyses, allocation, recovery rules
-    omega-psi-to-abstract-operations/
+    post-allocation-machine-to-post-allocation-machine/        # post-allocation symbolic-machine optimization stage
+    optimization-validation/  # independent optimization-unit validation
+    selected-instructions-to-register-homes/                 # physical analyses, allocation, recovery rules
+    terminal-psi-to-abstract-operations/
                                       # artifact, optimizer-unit, provider, and lowering entrances
-    omega-abstract-operations-to-target-operations/
+    abstract-operations-to-target-operations/
                                       # settlement, per-result, and lowering-family entrances
-    omega-target-operations-to-assigned-target-operations/
+    target-operations-to-assigned-target-operations/
                                       # temporary compatibility assignment families
-    omega-target-operations-to-selected-instructions/
+    target-operations-to-selected-instructions/
                                       # legalization and selection stage entrances
-    omega-terminal-psi-to-native-artifact/
+    terminal-psi-to-native-artifact/
                                       # settlement, realization, providers, wrapper encoding/object
   tooling/
-    omega-optimization-policy-offline/ # corpus admission, source splits, reference training/evaluation
+    optimization-policy-offline/ # corpus admission, source splits, reference training/evaluation
 ```
 
-Within `omega-optimization-unit`, `rewrite/model/mod.rs` is the non-executable
+Within `optimization-unit`, `rewrite/model/mod.rs` is the non-executable
 vocabulary map over source/provenance sites, scalar witnesses and constant
 facts, SCCP snapshots, CFG and scalar patches, and the candidate contract.
 `rewrite/candidate/mod.rs` remains the sole construction and admission
@@ -673,12 +673,12 @@ catalog. Primitive identity writers live in the neutral sibling
 `rewrite/canonical_encoding.rs`, consumed by both fact identities and the
 candidate codec without a model-to-codec dependency cycle.
 
-`omega-optimization-unit/src/construction/mod.rs` is the sole low-level
+`optimization-unit/src/construction/mod.rs` is the sole low-level
 abstract-plan-to-seed projection entrance. It builds functions in source order,
 descends through exact provenance, scalar-dataflow, control-flow, fact, and
 structural-custody projections, then recomputes the complete unit identity.
 Verified optimizer admission remains at
-`omega-psi-to-abstract-operations/src/optimization/mod.rs`; the seed split does
+`terminal-psi-to-abstract-operations/src/optimization/mod.rs`; the seed split does
 not create a second verifier or catalog.
 
 Target-neutral operation projection follows one visible chain:

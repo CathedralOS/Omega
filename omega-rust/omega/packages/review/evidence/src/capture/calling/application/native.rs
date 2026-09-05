@@ -5,11 +5,11 @@ use crate::record::{
     PackagePolicyCallbacks, PackagePolicyCallingParameter, PackagePolicyNativeParameter,
     PackagePolicyNativeParameterOrigin,
 };
-use omega_calling_conventions::nominal_callback_native_parameter_id;
-use omega_provider_planning::calling_policy_plans::{
+use calling_conventions::nominal_callback_native_parameter_id;
+use diagnostics::Diagnostic;
+use provider_planning::calling_policy_plans::{
     BoundaryNativeParameterOrigin, BoundaryNativeParameterShape, MaterializedBoundarySignature,
 };
-use psi_diagnostics::Diagnostic;
 
 pub(super) fn project(
     signature: &MaterializedBoundarySignature,

@@ -4,7 +4,7 @@ use crate::tests::*;
 
 pub(crate) fn projected_structural_call_return_artifact() -> (Vec<u8>, Vec<u8>) {
     let (semantic, proof) = unit_return_artifact();
-    let mut module = psi_terminal_codec::decode_module(&semantic).unwrap();
+    let mut module = terminal_codec::decode_module(&semantic).unwrap();
     let callee = MachineId::new(3_801).unwrap();
     let root = StructuralTypeId::new(3_802).unwrap();
     let leaf = StructuralTypeId::new(3_803).unwrap();
@@ -15,10 +15,10 @@ pub(crate) fn projected_structural_call_return_artifact() -> (Vec<u8>, Vec<u8>) 
     let callee_input = PlaceId::new(3_808).unwrap();
     let callee_result = PlaceId::new(3_809).unwrap();
     let call = OperationId::new(3_810).unwrap();
-    let caller_claim = psi_core::ClaimId::new(1).unwrap();
-    let callee_claim = psi_core::ClaimId::new(1).unwrap();
-    let row = psi_terminal::StructuralPathQualification {
-        path: vec![psi_terminal::StructuralPathSegment::Field("payload".into())],
+    let caller_claim = semantic_vocabulary::ClaimId::new(1).unwrap();
+    let callee_claim = semantic_vocabulary::ClaimId::new(1).unwrap();
+    let row = terminal_psi::StructuralPathQualification {
+        path: vec![terminal_psi::StructuralPathSegment::Field("payload".into())],
         domain,
     };
     let parameter = |place| StructuralParameterDeclaration {
@@ -31,7 +31,7 @@ pub(crate) fn projected_structural_call_return_artifact() -> (Vec<u8>, Vec<u8>) 
         qualifications: Vec::new(),
         projected_qualifications: vec![row.clone()],
     };
-    let result = |place| psi_terminal::StructuralResultDeclaration {
+    let result = |place| terminal_psi::StructuralResultDeclaration {
         place,
         structural_type: root,
         multiplicity: StructuralMultiplicity::Linear,
@@ -93,36 +93,36 @@ pub(crate) fn projected_structural_call_return_artifact() -> (Vec<u8>, Vec<u8>) 
             },
         ),
     ];
-    caller_machine.entry_claims = vec![psi_terminal::EntryClaim {
+    caller_machine.entry_claims = vec![terminal_psi::EntryClaim {
         claim: caller_claim,
         input: caller_input,
         path: Vec::new(),
     }];
     caller_machine.blocks[0].operations = vec![Operation {
         id: call,
-        result: OperationResult::Structural(psi_terminal::StructuralOperationResult {
+        result: OperationResult::Structural(terminal_psi::StructuralOperationResult {
             place: call_result,
             structural_type: root,
             multiplicity: StructuralMultiplicity::Linear,
             qualifications: Vec::new(),
             projected_qualifications: vec![row.clone()],
-            claims: vec![psi_terminal::StructuralResultClaimBinding {
+            claims: vec![terminal_psi::StructuralResultClaimBinding {
                 claim: caller_claim,
                 path: Vec::new(),
             }],
         }),
         kind: OperationKind::CallStructural {
             callee,
-            structural_arguments: vec![psi_terminal::StructuralArgument {
+            structural_arguments: vec![terminal_psi::StructuralArgument {
                 place: caller_input,
                 path: Vec::new(),
                 access: StructuralAccess::Owned,
             }],
-            claim_transfers: vec![psi_terminal::ClaimTransfer {
+            claim_transfers: vec![terminal_psi::ClaimTransfer {
                 claim: caller_claim,
                 argument_index: 0,
             }],
-            returned_claim_transfers: vec![psi_terminal::StructuralResultClaimTransfer {
+            returned_claim_transfers: vec![terminal_psi::StructuralResultClaimTransfer {
                 callee_claim,
                 caller_claim,
             }],
@@ -152,7 +152,7 @@ pub(crate) fn projected_structural_call_return_artifact() -> (Vec<u8>, Vec<u8>) 
         ),
         place(callee_result, StructuralPlaceKind::Result),
     ];
-    callee_machine.entry_claims = vec![psi_terminal::EntryClaim {
+    callee_machine.entry_claims = vec![terminal_psi::EntryClaim {
         claim: callee_claim,
         input: callee_input,
         path: Vec::new(),
@@ -171,7 +171,7 @@ pub(crate) fn projected_structural_call_return_artifact() -> (Vec<u8>, Vec<u8>) 
     }];
     callee_machine.contract.id = ContractId::new(3_818).unwrap();
     module.machines.push(callee_machine);
-    (psi_terminal_codec::encode_module(&module).unwrap(), proof)
+    (terminal_codec::encode_module(&module).unwrap(), proof)
 }
 
 fn place(id: PlaceId, kind: StructuralPlaceKind) -> StructuralPlaceDeclaration {

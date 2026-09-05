@@ -5,7 +5,7 @@ use super::{
 };
 use crate::declarations::dependencies::read::validate_static_dependency_source;
 use crate::declarations::roles::project_build_declaration_source;
-use omega_build_declarations::{
+use build_declarations::{
     BuildDeclaration, BuildDeclarationKind, ProjectName, WorkspaceMemberPath,
 };
 use std::collections::{BTreeMap, BTreeSet};

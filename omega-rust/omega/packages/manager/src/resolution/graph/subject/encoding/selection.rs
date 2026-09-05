@@ -19,8 +19,8 @@ use crate::declarations::dependencies::read::{
 use crate::declarations::{AliasName, PackageName};
 use crate::resolution::graph::ResolvedSourceIdentity;
 use crate::resolution::source::PackageSourceNavigation;
-use omega_package_source::{ExternalSourceContext, SourceRelativePath};
-use omega_target::TargetProfile;
+use package_source::{ExternalSourceContext, SourceRelativePath};
+use target::TargetProfile;
 
 pub(in super::super) fn encode_subject(
     target_profile: TargetProfile,

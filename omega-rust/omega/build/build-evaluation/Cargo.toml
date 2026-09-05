@@ -1,0 +1,35 @@
+[package]
+name = "build-evaluation"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[lib]
+name = "build_evaluation"
+path = "src/lib.rs"
+
+[features]
+test-support = []
+
+[dependencies]
+build-output = { path = "../build-output" }
+calling-conventions = { path = "../../representations/calling-conventions" }
+effects = { path = "../../representations/effects" }
+optimization-core = { path = "../../representations/optimization-core" }
+package-compilation = { path = "../package-compilation" }
+program-entry-plan = { path = "../../backend/plans/program-entry-plan" }
+provider-planning = { path = "../provider-planning" }
+representation-planning = { path = "../representation-planning" }
+target = { path = "../../representations/target" }
+trust-model = { path = "../trust-model" }
+build-time-evaluation = { path = "../../../psi/semantics/build-time-evaluation" }
+checked-interpreter = { path = "../../../psi/semantics/checked-interpreter" }
+diagnostics = { path = "../../../psi/foundation/diagnostics" }
+flow-effects = { path = "../../../psi/representations/flow-effects" }
+language-semantics = { path = "../../../psi/foundation/language-semantics" }
+layout-plans = { path = "../../../psi/foundation/layout-plans" }
+source = { path = "../../../psi/foundation/source" }
+symbols = { path = "../../../psi/foundation/symbols" }
+typed-trees = { path = "../../../psi/representations/typed-trees" }
+typed-trees-to-checked-trees = { path = "../../../psi/pipeline/typed-trees-to-checked-trees" }
+sha2 = "0.10.9"

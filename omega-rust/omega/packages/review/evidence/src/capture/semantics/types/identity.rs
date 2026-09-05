@@ -2,13 +2,13 @@ use super::lifetimes::review_lifetime_topology_with_substitutions;
 use super::validation::{missing_exact_toolchain_type_owner, validate_package_type_identity_input};
 use crate::capture::semantics::encoding::framed_identity;
 use crate::record::PackageReviewTypeIdentity;
-use omega_compiler::CheckedCompilation;
-use psi_diagnostics::Diagnostic;
-use psi_symbols::SymbolHandle;
+use compiler::CheckedCompilation;
+use diagnostics::Diagnostic;
+use symbols::SymbolHandle;
 
 pub(crate) fn review_type_identity_with_binders(
     compilation: &CheckedCompilation,
-    type_reference: psi_typed_trees::types::TypeReferenceHandle,
+    type_reference: typed_trees::types::TypeReferenceHandle,
     binders: &[(SymbolHandle, String)],
 ) -> Result<PackageReviewTypeIdentity, Vec<Diagnostic>> {
     validate_package_type_identity_input(&compilation.typed, type_reference, binders)?;
@@ -26,9 +26,9 @@ pub(crate) fn review_type_identity_with_binders(
 
 pub(crate) fn review_type_identity_with_binders_and_substitutions(
     compilation: &CheckedCompilation,
-    type_reference: psi_typed_trees::types::TypeReferenceHandle,
+    type_reference: typed_trees::types::TypeReferenceHandle,
     binders: &[(SymbolHandle, String)],
-    substitutions: &[(SymbolHandle, psi_typed_trees::types::TypeReferenceHandle)],
+    substitutions: &[(SymbolHandle, typed_trees::types::TypeReferenceHandle)],
 ) -> Result<PackageReviewTypeIdentity, Vec<Diagnostic>> {
     validate_package_type_identity_input(&compilation.typed, type_reference, binders)?;
     let identity = compilation
@@ -51,9 +51,9 @@ pub(crate) fn review_type_identity_with_binders_and_substitutions(
 /// contract without changing layout or monomorphization.
 pub(crate) fn review_signature_type_identity_with_binders(
     compilation: &CheckedCompilation,
-    type_reference: psi_typed_trees::types::TypeReferenceHandle,
+    type_reference: typed_trees::types::TypeReferenceHandle,
     binders: &[(SymbolHandle, String)],
-    lifetime_binders: &[psi_typed_trees::name::Identifier],
+    lifetime_binders: &[typed_trees::name::Identifier],
 ) -> Result<PackageReviewTypeIdentity, Vec<Diagnostic>> {
     review_signature_type_identity_with_binders_and_substitutions(
         compilation,
@@ -66,10 +66,10 @@ pub(crate) fn review_signature_type_identity_with_binders(
 
 fn review_signature_type_identity_with_binders_and_substitutions(
     compilation: &CheckedCompilation,
-    type_reference: psi_typed_trees::types::TypeReferenceHandle,
+    type_reference: typed_trees::types::TypeReferenceHandle,
     binders: &[(SymbolHandle, String)],
-    lifetime_binders: &[psi_typed_trees::name::Identifier],
-    substitutions: &[(SymbolHandle, psi_typed_trees::types::TypeReferenceHandle)],
+    lifetime_binders: &[typed_trees::name::Identifier],
+    substitutions: &[(SymbolHandle, typed_trees::types::TypeReferenceHandle)],
 ) -> Result<PackageReviewTypeIdentity, Vec<Diagnostic>> {
     review_signature_type_identity_with_binders_and_substitutions_and_lifetimes(
         compilation,
@@ -83,14 +83,11 @@ fn review_signature_type_identity_with_binders_and_substitutions(
 
 pub(crate) fn review_signature_type_identity_with_binders_and_substitutions_and_lifetimes(
     compilation: &CheckedCompilation,
-    type_reference: psi_typed_trees::types::TypeReferenceHandle,
+    type_reference: typed_trees::types::TypeReferenceHandle,
     binders: &[(SymbolHandle, String)],
-    lifetime_binders: &[psi_typed_trees::name::Identifier],
-    substitutions: &[(SymbolHandle, psi_typed_trees::types::TypeReferenceHandle)],
-    lifetime_substitutions: &[(
-        psi_typed_trees::name::Identifier,
-        psi_typed_trees::name::Identifier,
-    )],
+    lifetime_binders: &[typed_trees::name::Identifier],
+    substitutions: &[(SymbolHandle, typed_trees::types::TypeReferenceHandle)],
+    lifetime_substitutions: &[(typed_trees::name::Identifier, typed_trees::name::Identifier)],
 ) -> Result<PackageReviewTypeIdentity, Vec<Diagnostic>> {
     signature_type_identity(
         compilation,
@@ -107,10 +104,10 @@ pub(crate) fn review_signature_type_identity_with_binders_and_substitutions_and_
 /// admit the compiler's unnameable value atoms at this root position.
 pub(crate) fn review_signature_const_argument_identity(
     compilation: &CheckedCompilation,
-    type_reference: psi_typed_trees::types::TypeReferenceHandle,
+    type_reference: typed_trees::types::TypeReferenceHandle,
     binders: &[(SymbolHandle, String)],
-    lifetime_binders: &[psi_typed_trees::name::Identifier],
-    substitutions: &[(SymbolHandle, psi_typed_trees::types::TypeReferenceHandle)],
+    lifetime_binders: &[typed_trees::name::Identifier],
+    substitutions: &[(SymbolHandle, typed_trees::types::TypeReferenceHandle)],
 ) -> Result<PackageReviewTypeIdentity, Vec<Diagnostic>> {
     signature_type_identity(
         compilation,
@@ -125,14 +122,11 @@ pub(crate) fn review_signature_const_argument_identity(
 
 fn signature_type_identity(
     compilation: &CheckedCompilation,
-    type_reference: psi_typed_trees::types::TypeReferenceHandle,
+    type_reference: typed_trees::types::TypeReferenceHandle,
     binders: &[(SymbolHandle, String)],
-    lifetime_binders: &[psi_typed_trees::name::Identifier],
-    substitutions: &[(SymbolHandle, psi_typed_trees::types::TypeReferenceHandle)],
-    lifetime_substitutions: &[(
-        psi_typed_trees::name::Identifier,
-        psi_typed_trees::name::Identifier,
-    )],
+    lifetime_binders: &[typed_trees::name::Identifier],
+    substitutions: &[(SymbolHandle, typed_trees::types::TypeReferenceHandle)],
+    lifetime_substitutions: &[(typed_trees::name::Identifier, typed_trees::name::Identifier)],
     const_argument: bool,
 ) -> Result<PackageReviewTypeIdentity, Vec<Diagnostic>> {
     super::validation::validate_package_type_identity_input_inner(

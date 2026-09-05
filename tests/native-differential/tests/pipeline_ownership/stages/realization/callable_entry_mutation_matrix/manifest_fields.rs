@@ -1,13 +1,13 @@
 //! Reauthenticated ordinary-callable manifest field mutations.
 
 use crate::tests::*;
-use omega_object_file::ObjectLocalSymbolId;
-use omega_optimization_core::{
+use object_file::ObjectLocalSymbolId;
+use optimization_core::{
     OptimizationSelectionIdentity, OptimizedObjectArtifactIdentity,
     OptimizedObjectArtifactManifestIdentity, OptimizedTerminalOrdinaryCallableEntryIdentity,
 };
-use omega_target::{Architecture, ObjectFormat};
-use psi_terminal::SemanticFingerprint;
+use target::{Architecture, ObjectFormat};
+use terminal_psi::SemanticFingerprint;
 
 use super::fixture::staged_callable;
 
@@ -78,9 +78,7 @@ fn every_representable_ordinary_callable_manifest_field_rejects_after_reauthenti
 
     *staged.manifest_mut().record_mut() = baseline;
     staged.manifest_mut().record_mut().identity =
-        omega_optimization_core::OptimizedOrdinaryCallableEntryManifestIdentity::from_bytes(
-            [0xd4; 32],
-        );
+        optimization_core::OptimizedOrdinaryCallableEntryManifestIdentity::from_bytes([0xd4; 32]);
     assert_eq!(
         validate_optimized_ordinary_callable_entry(&staged),
         Err(OptimizedOrdinaryCallableEntryError::ManifestMismatch),

@@ -10,14 +10,14 @@ use super::{
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PackagePolicyCapabilityFlow {
     pub(crate) capability: PackageReviewNominalIdentity,
-    pub(crate) kind: psi_effects::CapabilityFlowKind,
+    pub(crate) kind: flow_effects::CapabilityFlowKind,
 }
 
 impl PackagePolicyCapabilityFlow {
     pub fn capability(&self) -> &PackageReviewNominalIdentity {
         &self.capability
     }
-    pub const fn kind(&self) -> psi_effects::CapabilityFlowKind {
+    pub const fn kind(&self) -> flow_effects::CapabilityFlowKind {
         self.kind
     }
     pub(crate) fn compare_canonical(&self, other: &Self) -> std::cmp::Ordering {
@@ -27,11 +27,11 @@ impl PackagePolicyCapabilityFlow {
     }
     fn kind_tag(&self) -> u8 {
         match self.kind {
-            psi_effects::CapabilityFlowKind::Uses => 0,
-            psi_effects::CapabilityFlowKind::Returns => 1,
-            psi_effects::CapabilityFlowKind::Acquires => 2,
-            psi_effects::CapabilityFlowKind::Stores => 3,
-            psi_effects::CapabilityFlowKind::Derives => 4,
+            flow_effects::CapabilityFlowKind::Uses => 0,
+            flow_effects::CapabilityFlowKind::Returns => 1,
+            flow_effects::CapabilityFlowKind::Acquires => 2,
+            flow_effects::CapabilityFlowKind::Stores => 3,
+            flow_effects::CapabilityFlowKind::Derives => 4,
         }
     }
 }

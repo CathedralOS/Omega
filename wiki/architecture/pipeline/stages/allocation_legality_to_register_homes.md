@@ -79,9 +79,9 @@ the admitted graph rather than deferred gaps.
 
 ## Implementation Map
 
-- `omega-selected-instructions-to-register-homes/src/assignment/` owns both
+- `selected-instructions-to-register-homes/src/assignment/` owns both
   assignment algorithms and their direct/post-reanalysis entrances.
   `home_assignment/` keeps independent producer and replay implementations;
   `baseline/` and `transformed/` retain their respective input evidence.
-- `omega-register-homes` owns durable home plans and their codec.
-  `omega-register-model` owns views, aliases, constraints and reservations.
+- `register-homes` owns durable home plans and their codec.
+  `register-model` owns views, aliases, constraints and reservations.

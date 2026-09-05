@@ -6,7 +6,7 @@ fn authority_owners_are_observable_without_changing_legacy_service_names() {
     let original = fixtures::complete();
     let baseline = original.canonical_bytes().unwrap();
     let foreign = PackageReviewNominalOwner::Package(
-        psi_core::PackageKeyIdentity::from_digest([9; 32]).unwrap(),
+        semantic_vocabulary::PackageKeyIdentity::from_digest([9; 32]).unwrap(),
     );
     let mut cases = Vec::new();
     let mut changed = original.clone();

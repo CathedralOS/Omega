@@ -38,10 +38,7 @@ operator Token::hidden(value: Token) -> bool;
         .iter()
         .find(|operator| operator.coordinate().identity().path() == "Token::less")
         .expect("fixed-token overload row");
-    assert_eq!(
-        less.spelling(),
-        Some(psi_language_core::OperatorSpelling::Less)
-    );
+    assert_eq!(less.spelling(), Some(language_core::OperatorSpelling::Less));
     assert_eq!(less.parameters().len(), 2);
     assert!(less.coordinate().result_dispatch().is_empty());
     assert!(less.published_crash().is_empty());
@@ -109,7 +106,7 @@ operator Token::hidden(value: Token) -> bool;
         .find(|operator| operator.is_public && !operator.contracts.is_empty())
         .map(|operator| operator.symbol)
         .expect("checked ordered operator declaration");
-    let owner = psi_checked_trees::ContractProofFactOwner::OperatorDeclaration {
+    let owner = checked_trees::ContractProofFactOwner::OperatorDeclaration {
         operator_symbol: ordered_symbol,
     };
     let (checked_contract_handle, checked_contract) = checked
@@ -155,7 +152,7 @@ operator Token::hidden(value: Token) -> bool;
         .proof
         .contract_facts
         .get_mut(checked_contract_handle)
-        .owner = psi_checked_trees::ContractProofFactOwner::Unknown;
+        .owner = checked_trees::ContractProofFactOwner::Unknown;
     assert_owner_row_rejects(&wrong_owner, 0);
 }
 

@@ -1,10 +1,10 @@
 use super::*;
-use omega_package_manager::resolution::graph::{
+use package_manager::resolution::graph::{
     PackageSourceClosureResolutionError, ResolveLockedPackageClosureError,
     resolve_external_local_project_closure_with_storage,
 };
-use omega_package_manager::resolution::source::ResolvePackageSourceError;
-use omega_package_source::SourceResolveError;
+use package_manager::resolution::source::ResolvePackageSourceError;
+use package_source::SourceResolveError;
 
 fn diamond(tree: &Tree, storage: &SourceResolverStorage) -> ResolvedPackageSourceClosure {
     package(

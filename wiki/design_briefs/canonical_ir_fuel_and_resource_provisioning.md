@@ -143,7 +143,7 @@ semantics and ordinary boundary contracts.
 The target-neutral admission floor, checked zero-argument/fixed-array
 evaluator, ownership-taking const-generic pre-resolution evaluation, and
 machine-backed concrete const-domain fact discharge are Psi services
-(`psi-build-time-evaluation`). Omega orchestration may schedule those services,
+(`build-time-evaluation`). Omega orchestration may schedule those services,
 but it does not own or reinterpret their language semantics. Target-specific
 compilation consumes the resulting syntax/checked values and terminal Psi.
 

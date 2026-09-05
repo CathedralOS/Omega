@@ -10,7 +10,7 @@ use crate::record::PackagePolicyBaseline;
 pub use model::{
     PackagePolicyMembershipError, PackagePolicyMembershipLimits, PackagePolicyMembershipUsage,
 };
-use psi_core::PackageKeyIdentity;
+use semantic_vocabulary::PackageKeyIdentity;
 
 pub(super) trait Observer {
     fn package(&mut self, package: PackageKeyIdentity) -> Result<(), PackagePolicyMembershipError>;

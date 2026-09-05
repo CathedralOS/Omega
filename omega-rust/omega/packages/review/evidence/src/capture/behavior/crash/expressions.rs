@@ -10,9 +10,9 @@ use crate::record::{
 };
 
 pub(in crate::capture::behavior) fn project_boolean_expression(
-    expression: &psi_checked_trees::CheckedBooleanExpression,
+    expression: &checked_trees::CheckedBooleanExpression,
 ) -> PackageReviewBooleanExpression {
-    use psi_checked_trees::CheckedBooleanExpression;
+    use checked_trees::CheckedBooleanExpression;
 
     match expression {
         CheckedBooleanExpression::StorageRead { .. } => {
@@ -57,10 +57,10 @@ pub(in crate::capture::behavior) fn project_boolean_expression(
             right,
         } => PackageReviewBooleanExpression::IeeeFloatComparison {
             kind: match kind {
-                psi_checked_trees::CheckedIeeeFloatComparisonKind::Equal => {
+                checked_trees::CheckedIeeeFloatComparisonKind::Equal => {
                     PackageReviewIeeeFloatComparisonKind::Equal
                 }
-                psi_checked_trees::CheckedIeeeFloatComparisonKind::NotEqual => {
+                checked_trees::CheckedIeeeFloatComparisonKind::NotEqual => {
                     PackageReviewIeeeFloatComparisonKind::NotEqual
                 }
             },
@@ -99,9 +99,9 @@ pub(in crate::capture::behavior) fn project_boolean_expression(
 }
 
 fn project_scalar_expression(
-    expression: &psi_checked_trees::CheckedScalarExpression,
+    expression: &checked_trees::CheckedScalarExpression,
 ) -> PackageReviewScalarExpression {
-    use psi_checked_trees::CheckedScalarExpression;
+    use checked_trees::CheckedScalarExpression;
 
     match expression {
         CheckedScalarExpression::StorageRead { .. } => {
@@ -188,7 +188,7 @@ fn project_scalar_expression(
 }
 
 fn project_structural_field(
-    field: &psi_checked_trees::CheckedStructuralParameterField,
+    field: &checked_trees::CheckedStructuralParameterField,
 ) -> PackageReviewStructuralParameterField {
     PackageReviewStructuralParameterField {
         parameter_position: field.parameter_position,
@@ -197,14 +197,14 @@ fn project_structural_field(
 }
 
 fn project_structural_path(
-    path: &[psi_checked_trees::CheckedStructuralPredicatePathSegment],
+    path: &[checked_trees::CheckedStructuralPredicatePathSegment],
 ) -> Vec<PackageReviewStructuralPredicatePathSegment> {
     path.iter()
         .map(|segment| match segment {
-            psi_checked_trees::CheckedStructuralPredicatePathSegment::Field(field) => {
+            checked_trees::CheckedStructuralPredicatePathSegment::Field(field) => {
                 PackageReviewStructuralPredicatePathSegment::Field(field.clone())
             }
-            psi_checked_trees::CheckedStructuralPredicatePathSegment::Case(case) => {
+            checked_trees::CheckedStructuralPredicatePathSegment::Case(case) => {
                 PackageReviewStructuralPredicatePathSegment::Case(case.clone())
             }
         })
@@ -212,9 +212,9 @@ fn project_structural_path(
 }
 
 const fn project_primitive_type(
-    primitive_type: psi_typed_trees::types::PrimitiveType,
+    primitive_type: typed_trees::types::PrimitiveType,
 ) -> PackageReviewPrimitiveType {
-    use psi_typed_trees::types::PrimitiveType;
+    use typed_trees::types::PrimitiveType;
     match primitive_type {
         PrimitiveType::Bool => PackageReviewPrimitiveType::Bool,
         PrimitiveType::F32 => PackageReviewPrimitiveType::F32,
@@ -232,9 +232,9 @@ const fn project_primitive_type(
 }
 
 const fn project_landed_integer_type(
-    landed_type: psi_numerics::literals::LandedIntegerType,
+    landed_type: numerics::literals::LandedIntegerType,
 ) -> PackageReviewPrimitiveType {
-    use psi_numerics::literals::LandedIntegerType;
+    use numerics::literals::LandedIntegerType;
     match landed_type {
         LandedIntegerType::I8 => PackageReviewPrimitiveType::I8,
         LandedIntegerType::I16 => PackageReviewPrimitiveType::I16,
@@ -249,9 +249,9 @@ const fn project_landed_integer_type(
 }
 
 const fn project_arithmetic_domain(
-    domain: psi_numerics::arithmetic::ArithmeticDomain,
+    domain: numerics::arithmetic::ArithmeticDomain,
 ) -> PackageReviewArithmeticDomain {
-    use psi_numerics::arithmetic::ArithmeticDomain;
+    use numerics::arithmetic::ArithmeticDomain;
     match domain {
         ArithmeticDomain::Exact => PackageReviewArithmeticDomain::Exact,
         ArithmeticDomain::Wrapping => PackageReviewArithmeticDomain::Wrapping,
@@ -261,25 +261,25 @@ const fn project_arithmetic_domain(
 }
 
 const fn project_integer_comparison_kind(
-    kind: psi_checked_trees::CheckedIntegerComparisonKind,
+    kind: checked_trees::CheckedIntegerComparisonKind,
 ) -> PackageReviewIntegerComparisonKind {
     match kind {
-        psi_checked_trees::CheckedIntegerComparisonKind::Equal => {
+        checked_trees::CheckedIntegerComparisonKind::Equal => {
             PackageReviewIntegerComparisonKind::Equal
         }
-        psi_checked_trees::CheckedIntegerComparisonKind::LessThan => {
+        checked_trees::CheckedIntegerComparisonKind::LessThan => {
             PackageReviewIntegerComparisonKind::LessThan
         }
-        psi_checked_trees::CheckedIntegerComparisonKind::LessOrEqual => {
+        checked_trees::CheckedIntegerComparisonKind::LessOrEqual => {
             PackageReviewIntegerComparisonKind::LessOrEqual
         }
     }
 }
 
 const fn project_integer_binary_kind(
-    kind: psi_checked_trees::CheckedIntegerBinaryKind,
+    kind: checked_trees::CheckedIntegerBinaryKind,
 ) -> PackageReviewIntegerBinaryKind {
-    use psi_checked_trees::CheckedIntegerBinaryKind;
+    use checked_trees::CheckedIntegerBinaryKind;
     match kind {
         CheckedIntegerBinaryKind::ExactAdd => PackageReviewIntegerBinaryKind::ExactAdd,
         CheckedIntegerBinaryKind::ExactSubtract => PackageReviewIntegerBinaryKind::ExactSubtract,

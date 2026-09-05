@@ -53,7 +53,7 @@ impl PackageReviewDomainEstablishmentRoute {
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub enum PackageReviewDomainAliasAtom {
     Declared(PackageReviewNominalIdentity),
-    Carry(psi_language_semantics::CarryPermission),
+    Carry(language_semantics::CarryPermission),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -62,7 +62,7 @@ pub struct PackageReviewDomainShape {
     pub(crate) type_parameters: Vec<PackageReviewTypeParameter>,
     pub(crate) target_type: PackageReviewTypeIdentity,
     pub(crate) index_arguments: Vec<PackageReviewTypeIdentity>,
-    pub(crate) predicate_body: psi_language_semantics::DomainPredicateBody,
+    pub(crate) predicate_body: language_semantics::DomainPredicateBody,
     pub(crate) predicate_facts: Vec<PackageReviewContractFact>,
     pub(crate) alias_expansion: Option<Vec<PackageReviewDomainAliasAtom>>,
     pub(crate) classification: Option<PackageReviewDomainClassification>,
@@ -87,7 +87,7 @@ impl PackageReviewDomainShape {
         &self.index_arguments
     }
 
-    pub const fn predicate_body(&self) -> psi_language_semantics::DomainPredicateBody {
+    pub const fn predicate_body(&self) -> language_semantics::DomainPredicateBody {
         self.predicate_body
     }
 

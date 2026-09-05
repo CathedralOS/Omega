@@ -1,6 +1,6 @@
 use crate::record::*;
 
-use omega_effects::provider_plan::{ServiceEntryClaim, ServiceProgressPremise, ServiceResultClaim};
+use effects::provider_plan::{ServiceEntryClaim, ServiceProgressPremise, ServiceResultClaim};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PackagePolicyServiceMethod {

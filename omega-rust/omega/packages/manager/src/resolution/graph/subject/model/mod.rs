@@ -21,7 +21,7 @@ use crate::declarations::BuildDeclarationKind;
 use crate::declarations::PackageKey;
 use crate::declarations::dependencies::read::ProjectedDependencies;
 use crate::resolution::source::PackageSourceNavigation;
-use omega_target::TargetProfile;
+use target::TargetProfile;
 
 #[cfg(test)]
 mod tests;

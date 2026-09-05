@@ -1,15 +1,15 @@
 use super::projection::project_package_build;
 use super::{ResolvePackageSourceError, ResolvedPackageSource};
 use crate::declarations::PackageKey;
-use omega_package_source::local::operations::resolve_local_source_snapshot_in_lane;
-use omega_package_source::local::operations::verify_package_source_snapshot;
-use omega_package_source::local::staging::StagedLocalSnapshot;
-use omega_package_source::storage::RetainedStorageLane;
-use omega_package_source::{
+use package_source::local::operations::resolve_local_source_snapshot_in_lane;
+use package_source::local::operations::verify_package_source_snapshot;
+use package_source::local::staging::StagedLocalSnapshot;
+use package_source::storage::RetainedStorageLane;
+use package_source::{
     ExternalLocalLineage, ExternalSourceContext, ImmutableSourceResolution, SourceContentDigest,
     SourceLineage,
 };
-use omega_package_source::{LocalSourceLimits, ResolvedLocalSnapshot, SourceResolverStorage};
+use package_source::{LocalSourceLimits, ResolvedLocalSnapshot, SourceResolverStorage};
 use std::path::Path;
 
 /// Bind a proposed project tree to its original live path and consuming context.

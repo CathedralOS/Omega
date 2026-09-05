@@ -1,13 +1,13 @@
 use crate::capture::source::ProjectedNestedSourceLocation;
 use crate::record::PackageReviewSourceLocationRole;
-use omega_compiler::CheckedCompilation;
-use psi_diagnostics::Diagnostic;
+use compiler::CheckedCompilation;
+use diagnostics::Diagnostic;
 
 fn proof_fact_handle_at(
-    facts: psi_arena::HandleSpan<psi_typed_trees::domain::ProofFact>,
+    facts: arena::HandleSpan<typed_trees::domain::ProofFact>,
     offset: u32,
-) -> psi_arena::Handle<psi_typed_trees::domain::ProofFact> {
-    psi_arena::Handle::from_parts(
+) -> arena::Handle<typed_trees::domain::ProofFact> {
+    arena::Handle::from_parts(
         facts
             .start()
             .arena_index()
@@ -19,7 +19,7 @@ fn proof_fact_handle_at(
 
 pub(crate) fn project_required_proof_fact_source_locations(
     compilation: &CheckedCompilation,
-    facts: psi_arena::HandleSpan<psi_typed_trees::domain::ProofFact>,
+    facts: arena::HandleSpan<typed_trees::domain::ProofFact>,
     subject: &str,
 ) -> Result<Vec<ProjectedNestedSourceLocation>, Vec<Diagnostic>> {
     let mut locations = Vec::with_capacity(facts.len());
@@ -41,7 +41,7 @@ pub(crate) fn project_required_proof_fact_source_locations(
 
 pub(crate) fn project_contract_source_locations(
     compilation: &CheckedCompilation,
-    contracts: &[psi_typed_trees::signature::SignatureContract],
+    contracts: &[typed_trees::signature::SignatureContract],
 ) -> Result<Vec<ProjectedNestedSourceLocation>, Vec<Diagnostic>> {
     let mut locations = Vec::new();
     for contract in contracts {

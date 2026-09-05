@@ -6,12 +6,12 @@ use crate::review::{
     assemble_update_source_review, compare_review_only_capabilities,
     compile_resolved_package_candidate_reviews, triage_review_update,
 };
-use omega_package_evidence::record::{
+use package_evidence::record::{
     PackageReviewCanonicalRowKind, PackageReviewCanonicalRowRisk,
     PackageReviewDangerousAuthorityClass, PackageReviewNominalOwner,
     PackageReviewSourceLocationRole,
 };
-use omega_package_source::GitTransportProfile;
+use package_source::GitTransportProfile;
 use std::collections::BTreeSet;
 
 mod support;

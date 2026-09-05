@@ -3,7 +3,7 @@ use crate::record::{
     PackageReviewNominalIdentity, PackageReviewNominalOwner, PackageReviewOperatorCoordinate,
     PackageReviewToolchainSourceIdentity, PackageReviewTypeIdentity,
 };
-use psi_core::PackageKeyIdentity;
+use semantic_vocabulary::PackageKeyIdentity;
 
 pub(super) fn package(reader: &mut Reader<'_>) -> Result<PackageKeyIdentity, Error> {
     PackageKeyIdentity::from_digest(reader.digest()?).ok_or(Error::InvalidIdentity)

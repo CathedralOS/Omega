@@ -1,17 +1,17 @@
-use psi_core::{
+use proof_admission::AdmissionProfile;
+use semantic_vocabulary::{
     BlockId, ContractId, EdgeId, IntegerSign, IntegerType, IntegerValue, MachineId, OperationId,
     ScalarType, ValueId,
 };
-use psi_proof_admission::AdmissionProfile;
-use psi_terminal::{
+use terminal_interpreter::{
+    TerminalExecutionResult, TerminalScalarValue, interpret_terminal_artifact_measured,
+};
+use terminal_psi::{
     Block, MachineContract, Operation, OperationKind, OperationResult, SuccessorEdge,
     TerminalMachine, TerminalMachineResult, TerminalModule, Terminator, ValueDeclaration,
     VocabularyMarker,
 };
-use psi_terminal_interpreter::{
-    TerminalExecutionResult, TerminalScalarValue, interpret_terminal_artifact_measured,
-};
-use psi_terminal_verifier::ProofBundle;
+use terminal_verifier::ProofBundle;
 
 use super::generator::LaneInput;
 
@@ -196,8 +196,8 @@ fn build_artifact(ordinal: usize, lane_base: u64, leaf: Leaf) -> CorpusArtifact 
         evidence_producers: Vec::new(),
         evidence: Vec::new(),
     };
-    let semantic = psi_terminal_codec::encode_module(&module).unwrap();
-    let proof = psi_terminal_codec::encode_proof_bundle(&proof).unwrap();
+    let semantic = terminal_codec::encode_module(&module).unwrap();
+    let proof = terminal_codec::encode_proof_bundle(&proof).unwrap();
     for condition in [false, true] {
         let execution = interpret_terminal_artifact_measured(
             &semantic,

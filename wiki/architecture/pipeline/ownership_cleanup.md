@@ -16,19 +16,27 @@ and executable pipeline become simpler, not that more small tasks close.
 | 3. Delete the alternate physical pipeline | Empty and nonempty optimization selections use the same physical stages through native publication. |
 | 4. Deliver optimized portable Psi | Selected target-neutral passes actually execute before Terminal publication. |
 
-Start with whole-owner consolidation. Move representation data with its owner
-as needed; then finish the remaining representation sweep. Do not make every
-visible organizational improvement wait for physical feature parity.
+Use the actual program route to order consolidation: make its entrance,
+successors and explicit X-to-X phases visible before dismantling another
+private helper family. Move representation data with its owner as needed;
+then finish the remaining representation sweep. Directory renaming alone does
+not close a route or establish physical feature parity.
 
 ## 1. Consolidate pipeline owners
 
 Opening `omega/pipeline/` or `psi/pipeline/` should explain what transforms
 the compiler performs. A name containing `to` is not sufficient justification
 for a crate, and a named internal calculation need not be a public stage.
+The folder sequence must be followable as `X-to-Y`, `Y-to-Y`, `Y-to-Z`.
+Optimization uses literal `X-to-X` names, not an `-optimizer` exception.
+Competing Psi entrances, orphan outputs and competing selected-instruction
+successors remain defects until the actual program route is connected;
+renaming their crates does not satisfy this acceptance condition.
 
 | Whole move | What must disappear or change |
 | --- | --- |
-| Dissolve `omega-optimization-validation` | Put durable vocabulary in representations, reusable validity in semantics, and rule-local checks beside the rule. Delete the catch-all crate. |
+| Connect the visible stage sequence | Remove the whole-product `terminal-psi-to-native-artifact` coordinator from `pipeline/`; keep `terminal-psi-to-abstract-operations` as the Omega program entrance. Separate target setup and supporting calculations from program successors. Finish the explicit pre-Terminal and selected-instruction X-to-X seams without introducing alternate downstream representations. |
+| Dissolve `optimization-validation` | Put durable vocabulary in representations, reusable validity in semantics, and rule-local checks beside the rule. Delete the catch-all crate. |
 | Finish the remaining crate disposition | For every other Omega and Psi pipeline crate, decide keep, merge, move or delete and implement that decision. Preserve genuine representation/invariant boundaries, not the existing package count. |
 
 Keep a compact disposition map while executing this move. It is an inventory,
@@ -60,7 +68,7 @@ files without fixing those dependencies does not complete the move.
 
 ## 3. Delete the alternate physical pipeline
 
-Start at `omega-terminal-psi-to-native-artifact/src/realization/physical_stage.rs`:
+Start at `terminal-psi-to-native-artifact/src/realization/physical_stage.rs`:
 `NativePhysicalStageResult::Assigned | Optimized` still selects competing
 assignment/emission implementations.
 
@@ -82,7 +90,7 @@ explicit inside their proper stages.
 ## 4. Deliver optimized portable Psi
 
 Replace the identity-only pre-Terminal optimization implementation in
-`psi-checked-trees-to-terminal/src/preterminal_optimization/mod.rs`.
+`checked-trees-to-terminal-psi/src/preterminal_optimization/mod.rs`.
 
 Move applicable target-neutral rewrites and independent checks before Terminal:
 control-flow cleanup, SCCP, copy propagation, GVN, dead pure scalar elimination

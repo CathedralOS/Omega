@@ -16,17 +16,17 @@ use crate::record::{
     PackageReviewPropositionParameterSignature, PackageReviewPropositionParameterValue,
     PackageReviewTypeParameter, PackageReviewTypeParameterKind,
 };
-use omega_compiler::CheckedCompilation;
-use psi_diagnostics::Diagnostic;
-use psi_language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure;
-use psi_symbols::SymbolHandle;
+use compiler::CheckedCompilation;
+use diagnostics::Diagnostic;
+use language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure;
+use symbols::SymbolHandle;
 
 #[derive(Clone, Copy)]
 struct Projection<'a> {
     public_nominals: bool,
     policy_crash_guards: bool,
     selection_exposure: AuthoredDeclarationSelectionExposure,
-    substitutions: &'a [(SymbolHandle, psi_typed_trees::types::TypeReferenceHandle)],
+    substitutions: &'a [(SymbolHandle, typed_trees::types::TypeReferenceHandle)],
     checked_source: Option<&'a CheckedCompilation>,
     contract_scopes: &'a [CallingContractScope],
 }
@@ -36,21 +36,18 @@ pub(crate) struct CallingContractScope {
     pub parameter_symbol: SymbolHandle,
     pub signature_symbol: SymbolHandle,
     /// Outer-first; the last matching source name is the lexical binder.
-    pub lifetime_substitutions: Vec<(
-        psi_typed_trees::name::Identifier,
-        psi_typed_trees::name::Identifier,
-    )>,
-    pub parameters: Vec<psi_typed_trees::signature::StateParameter>,
-    pub original_signature: psi_typed_trees::signature::StateSignature,
+    pub lifetime_substitutions: Vec<(typed_trees::name::Identifier, typed_trees::name::Identifier)>,
+    pub parameters: Vec<typed_trees::signature::StateParameter>,
+    pub original_signature: typed_trees::signature::StateSignature,
 }
 
 impl Projection<'_> {
     fn value_type(
         self,
         compilation: &CheckedCompilation,
-        reference: psi_typed_trees::types::TypeReferenceHandle,
+        reference: typed_trees::types::TypeReferenceHandle,
         binders: &[(SymbolHandle, String)],
-        lifetimes: &[psi_typed_trees::name::Identifier],
+        lifetimes: &[typed_trees::name::Identifier],
     ) -> Result<crate::record::PackageReviewTypeIdentity, Vec<Diagnostic>> {
         super::super::types::review_signature_type_identity_with_binders_and_substitutions_and_lifetimes(
             compilation, reference, binders, lifetimes, self.substitutions, &[],
@@ -60,10 +57,10 @@ impl Projection<'_> {
 
 pub(crate) fn project_type_parameters(
     compilation: &CheckedCompilation,
-    parameters: &[psi_typed_trees::data::TypeParameter],
+    parameters: &[typed_trees::data::TypeParameter],
     declaration_kind: &str,
     declaration_path: &str,
-    lifetime_binders: &[psi_typed_trees::name::Identifier],
+    lifetime_binders: &[typed_trees::name::Identifier],
 ) -> Result<(Vec<(SymbolHandle, String)>, Vec<PackageReviewTypeParameter>), Vec<Diagnostic>> {
     project_type_parameters_after(
         compilation,
@@ -79,12 +76,12 @@ pub(crate) fn project_type_parameters(
 
 pub(crate) fn project_type_parameters_after(
     compilation: &CheckedCompilation,
-    parameters: &[psi_typed_trees::data::TypeParameter],
+    parameters: &[typed_trees::data::TypeParameter],
     declaration_kind: &str,
     declaration_path: &str,
     preceding_binders: &[(SymbolHandle, String)],
     ordinal_offset: usize,
-    lifetime_binders: &[psi_typed_trees::name::Identifier],
+    lifetime_binders: &[typed_trees::name::Identifier],
     depth: usize,
 ) -> Result<(Vec<(SymbolHandle, String)>, Vec<PackageReviewTypeParameter>), Vec<Diagnostic>> {
     project_type_parameters_inner(
@@ -110,12 +107,12 @@ pub(crate) fn project_type_parameters_after(
 #[allow(clippy::too_many_arguments)]
 fn project_type_parameters_inner(
     compilation: &CheckedCompilation,
-    parameters: &[psi_typed_trees::data::TypeParameter],
+    parameters: &[typed_trees::data::TypeParameter],
     declaration_kind: &str,
     declaration_path: &str,
     preceding_binders: &[(SymbolHandle, String)],
     ordinal_offset: usize,
-    lifetime_binders: &[psi_typed_trees::name::Identifier],
+    lifetime_binders: &[typed_trees::name::Identifier],
     depth: usize,
     projection: Projection<'_>,
 ) -> Result<(Vec<(SymbolHandle, String)>, Vec<PackageReviewTypeParameter>), Vec<Diagnostic>> {
@@ -134,8 +131,8 @@ fn project_type_parameters_inner(
     let mut projected = Vec::with_capacity(parameters.len());
     for parameter in parameters {
         let kind = match &parameter.kind {
-            psi_typed_trees::data::TypeParameterKind::Type => PackageReviewTypeParameterKind::Type,
-            psi_typed_trees::data::TypeParameterKind::Const { type_reference } => {
+            typed_trees::data::TypeParameterKind::Type => PackageReviewTypeParameterKind::Type,
+            typed_trees::data::TypeParameterKind::Const { type_reference } => {
                 PackageReviewTypeParameterKind::Const(projection.value_type(
                     compilation,
                     *type_reference,
@@ -143,7 +140,7 @@ fn project_type_parameters_inner(
                     lifetime_binders,
                 )?)
             }
-            psi_typed_trees::data::TypeParameterKind::Machine { contract } => {
+            typed_trees::data::TypeParameterKind::Machine { contract } => {
                 PackageReviewTypeParameterKind::Machine(project_machine_parameter_contract_inner(
                     compilation,
                     parameter.symbol,
@@ -157,7 +154,7 @@ fn project_type_parameters_inner(
                     projection,
                 )?)
             }
-            psi_typed_trees::data::TypeParameterKind::Proposition { contract } => {
+            typed_trees::data::TypeParameterKind::Proposition { contract } => {
                 let mut projected_parameters = Vec::new();
                 for value_parameter in compilation
                     .typed
@@ -200,12 +197,12 @@ fn project_type_parameters_inner(
 pub(crate) fn project_machine_parameter_contract(
     compilation: &CheckedCompilation,
     parameter_symbol: SymbolHandle,
-    contract: &psi_typed_trees::data::MachineParameterContract,
+    contract: &typed_trees::data::MachineParameterContract,
     declaration_kind: &str,
     declaration_path: &str,
     outer_binders: &[(SymbolHandle, String)],
     nested_ordinal_offset: usize,
-    outer_lifetime_binders: &[psi_typed_trees::name::Identifier],
+    outer_lifetime_binders: &[typed_trees::name::Identifier],
     depth: usize,
 ) -> Result<PackageReviewMachineParameterContract, Vec<Diagnostic>> {
     project_machine_parameter_contract_inner(
@@ -233,20 +230,20 @@ pub(crate) fn project_machine_parameter_contract(
 fn project_machine_parameter_contract_inner(
     compilation: &CheckedCompilation,
     parameter_symbol: SymbolHandle,
-    contract: &psi_typed_trees::data::MachineParameterContract,
+    contract: &typed_trees::data::MachineParameterContract,
     declaration_kind: &str,
     declaration_path: &str,
     outer_binders: &[(SymbolHandle, String)],
     nested_ordinal_offset: usize,
-    outer_lifetime_binders: &[psi_typed_trees::name::Identifier],
+    outer_lifetime_binders: &[typed_trees::name::Identifier],
     depth: usize,
     projection: Projection<'_>,
 ) -> Result<PackageReviewMachineParameterContract, Vec<Diagnostic>> {
     match contract {
-        psi_typed_trees::data::MachineParameterContract::RequirementIdentity => {
+        typed_trees::data::MachineParameterContract::RequirementIdentity => {
             Ok(PackageReviewMachineParameterContract::RequirementIdentity)
         }
-        psi_typed_trees::data::MachineParameterContract::Structural(signature) => {
+        typed_trees::data::MachineParameterContract::Structural(signature) => {
             if signature.spelling.is_some() || signature.is_default {
                 return Err(vec![Diagnostic::error(format!(
                     "public {declaration_kind} `{declaration_path}` has a structural static-machine contract with trait-only requirement metadata",
@@ -280,11 +277,11 @@ fn project_machine_parameter_contract_inner(
             let context = ContractProjectionContext {
                 subject_kind: "public static-machine parameter",
                 subject_name: declaration_path,
-                owner: psi_checked_trees::ContractProofFactOwner::StateSignature {
+                owner: checked_trees::ContractProofFactOwner::StateSignature {
                     owner_symbol: parameter_symbol,
                     state_symbol: signature.symbol,
                 },
-                point: psi_facts::ProgramPoint::State {
+                point: facts::ProgramPoint::State {
                     machine_symbol: parameter_symbol,
                     state_symbol: signature.symbol,
                 },
@@ -353,7 +350,7 @@ fn project_machine_parameter_contract_inner(
                         .service_reach_is_installation_bound,
                     synchronous_invocations: project_synchronous_invocations(
                         compilation,
-                        &psi_effects::declared_signature_invocations(compilation, signature),
+                        &flow_effects::declared_signature_invocations(compilation, signature),
                     )?,
                     suspends: signature.suspends,
                     blocks: signature.blocks,
@@ -365,7 +362,7 @@ fn project_machine_parameter_contract_inner(
                 },
             ))
         }
-        psi_typed_trees::data::MachineParameterContract::Nominal {
+        typed_trees::data::MachineParameterContract::Nominal {
             trait_definition,
             requirement,
         } => {

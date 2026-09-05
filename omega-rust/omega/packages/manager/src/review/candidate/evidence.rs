@@ -2,7 +2,7 @@
 
 use crate::declarations::PackageKey;
 use crate::review::CompilerIssuedPackageReview;
-use omega_package_source::ImmutableSourceResolution;
+use package_source::ImmutableSourceResolution;
 
 use super::rows::{ReviewOnlyCanonicalRow, ReviewOnlySourceConsumptionCommitment};
 use super::{build_observation_commitment, whole_review_commitment};

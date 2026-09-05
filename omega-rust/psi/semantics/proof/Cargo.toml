@@ -1,0 +1,19 @@
+[package]
+name = "proof"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[lib]
+name = "proof"
+path = "src/lib.rs"
+
+[dependencies]
+arena = { path = "../../foundation/arena" }
+diagnostics = { path = "../../foundation/diagnostics" }
+language-semantics = { path = "../../foundation/language-semantics" }
+numerics = { path = "../../foundation/numerics" }
+symbols = { path = "../../foundation/symbols" }
+syntax-trees = { path = "../../representations/syntax-trees" }
+typed-trees = { path = "../../representations/typed-trees" }
+validation = { path = "../validation" }

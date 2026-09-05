@@ -15,7 +15,7 @@ pub(super) fn validate(
     optimized: &ValidatedOptimizedAbstractPlan,
     candidate: &PrePhysicalOptimizationManifest,
 ) -> Result<
-    omega_optimization_validation::ValidatedPrePhysicalOptimizationManifest,
+    optimization_validation::ValidatedPrePhysicalOptimizationManifest,
     PrePhysicalOptimizationManifestError,
 > {
     validate_pre_physical_optimization_manifest(

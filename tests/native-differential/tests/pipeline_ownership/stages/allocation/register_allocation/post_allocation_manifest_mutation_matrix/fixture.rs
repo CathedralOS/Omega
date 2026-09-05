@@ -17,7 +17,7 @@ pub(super) fn validate(
     source: &StagedOptimizedRegisterHomes,
     candidate: &PostAllocationOptimizationManifest,
 ) -> Result<
-    omega_selected_instructions_to_register_homes::ValidatedPostAllocationOptimizationManifest,
+    selected_instructions_to_register_homes::ValidatedPostAllocationOptimizationManifest,
     PostAllocationOptimizationManifestError,
 > {
     let legality = source.legality_stage();

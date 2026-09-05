@@ -1,0 +1,13 @@
+[package]
+name = "optimization-core"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[lib]
+name = "optimization_core"
+path = "src/lib.rs"
+
+[dependencies]
+optimization = { path = "../../../psi/representations/optimization" }
+sha2 = "0.10.9"

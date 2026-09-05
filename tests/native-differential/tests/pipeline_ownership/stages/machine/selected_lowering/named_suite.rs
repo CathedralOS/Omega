@@ -1,5 +1,5 @@
 use crate::tests::*;
-use omega_selected_instructions_to_register_homes::ValidatedSelectedAnalysis;
+use selected_instructions_to_register_homes::ValidatedSelectedAnalysis;
 
 #[test]
 fn named_selected_lowering_suite_reaches_a_verified_fixed_point_on_both_architectures() {
@@ -129,16 +129,14 @@ fn named_selected_lowering_suite_reaches_a_verified_fixed_point_on_both_architec
         assert_eq!(
             manifest.selected_lowering_selections,
             selections
-                .for_phase(omega_optimization_core::OptimizationExecutionPhase::SelectedLowering,)
+                .for_phase(optimization_core::OptimizationExecutionPhase::SelectedLowering,)
                 .identity()
         );
         assert_eq!(manifest.selected_lowering_completion, Some(completion));
         assert_eq!(
             manifest.function_relative_layout_selections,
             selections
-                .for_phase(
-                    omega_optimization_core::OptimizationExecutionPhase::FunctionRelativeLayout,
-                )
+                .for_phase(optimization_core::OptimizationExecutionPhase::FunctionRelativeLayout,)
                 .identity()
         );
         assert_eq!(manifest.selected, final_selected);
@@ -270,7 +268,7 @@ fn named_selected_lowering_suite_retains_verified_no_change_completion() {
             WholeFunctionHardeningPolicy::NoAdditionalEntryExitHardeningV1
         );
         match (target.architecture, target.object_format) {
-            (omega_target::Architecture::X86_64, omega_target::ObjectFormat::Elf) => {
+            (target::Architecture::X86_64, target::ObjectFormat::Elf) => {
                 assert_eq!(
                     exit.policy,
                     WholeFunctionExitPolicy::SystemVAMD64FramelessLeafV1
@@ -288,7 +286,7 @@ fn named_selected_lowering_suite_retains_verified_no_change_completion() {
                     }
                 )));
             }
-            (omega_target::Architecture::X86_64, omega_target::ObjectFormat::Coff) => {
+            (target::Architecture::X86_64, target::ObjectFormat::Coff) => {
                 assert_eq!(
                     exit.policy,
                     WholeFunctionExitPolicy::MicrosoftX64FramelessLeafV1
@@ -298,7 +296,7 @@ fn named_selected_lowering_suite_retains_verified_no_change_completion() {
                     WholeFunctionEntryAssumption::CallerReturnAddressAtStackPointerV1
                 );
             }
-            (omega_target::Architecture::Aarch64, omega_target::ObjectFormat::Elf) => {
+            (target::Architecture::Aarch64, target::ObjectFormat::Elf) => {
                 assert_eq!(exit.policy, WholeFunctionExitPolicy::Aapcs64FramelessLeafV1);
                 assert!(matches!(
                     exit.entry_assumption,
@@ -309,7 +307,7 @@ fn named_selected_lowering_suite_retains_verified_no_change_completion() {
                     WholeFunctionReturnMechanism::Aarch64LinkRegisterReturnV1 { .. }
                 )));
             }
-            (omega_target::Architecture::Aarch64, omega_target::ObjectFormat::MachO) => {
+            (target::Architecture::Aarch64, target::ObjectFormat::MachO) => {
                 assert_eq!(
                     exit.policy,
                     WholeFunctionExitPolicy::DarwinAapcs64FramelessLeafV1
@@ -342,7 +340,7 @@ fn named_selected_lowering_suite_retains_verified_no_change_completion() {
             ),
             Ok(without_selected_lowering)
         );
-        if target.architecture == omega_target::Architecture::X86_64 {
+        if target.architecture == target::Architecture::X86_64 {
             let mut with_no_change_relaxation = manifest.clone();
             with_no_change_relaxation.x86_branch_relaxation =
                 Some(X86BranchRelaxationIdentity::from_bytes([0x4f; 32]));
@@ -484,53 +482,49 @@ fn named_selected_lowering_suite_retains_verified_no_change_completion() {
         }
         assert_manifest_field_is_bound!(
             identity,
-            omega_optimization_core::FunctionRelativeOptimizationRealizationManifestIdentity::from_bytes(
+            optimization_core::FunctionRelativeOptimizationRealizationManifestIdentity::from_bytes(
                 [0x50; 32]
             )
         );
         assert_manifest_field_is_bound!(
             selections,
-            omega_optimization_core::OptimizationSelectionIdentity::from_bytes([0x51; 32])
+            optimization_core::OptimizationSelectionIdentity::from_bytes([0x51; 32])
         );
         assert_manifest_field_is_bound!(
             selected_lowering_selections,
-            omega_optimization_core::OptimizationSelectionIdentity::from_bytes([0x52; 32])
+            optimization_core::OptimizationSelectionIdentity::from_bytes([0x52; 32])
         );
         assert_manifest_field_is_bound!(
             selected_lowering_completion,
             Some(
-                omega_optimization_core::SelectedLoweringOptimizationCompletionIdentity::from_bytes(
+                optimization_core::SelectedLoweringOptimizationCompletionIdentity::from_bytes(
                     [0x53; 32]
                 )
             )
         );
         assert_manifest_field_is_bound!(
             function_relative_layout_selections,
-            omega_optimization_core::OptimizationSelectionIdentity::from_bytes([0x54; 32])
+            optimization_core::OptimizationSelectionIdentity::from_bytes([0x54; 32])
         );
         assert_manifest_field_is_bound!(
             pre_physical_manifest,
-            omega_optimization_core::PrePhysicalOptimizationManifestIdentity::from_bytes(
-                [0x54; 32]
-            )
+            optimization_core::PrePhysicalOptimizationManifestIdentity::from_bytes([0x54; 32])
         );
         assert_manifest_field_is_bound!(
             post_allocation_manifest,
-            omega_optimization_core::PostAllocationOptimizationManifestIdentity::from_bytes(
-                [0x55; 32]
-            )
+            optimization_core::PostAllocationOptimizationManifestIdentity::from_bytes([0x55; 32])
         );
         assert_manifest_field_is_bound!(
             selected,
-            omega_selected_instructions::SelectedInstructionPlanIdentity::from_bytes([0x56; 32])
+            selected_instructions::SelectedInstructionPlanIdentity::from_bytes([0x56; 32])
         );
         assert_manifest_field_is_bound!(
             pre_allocation_machine_effects,
-            omega_selected_instructions::PreAllocationMachineEffectIdentity::from_bytes([0x57; 32])
+            selected_instructions::PreAllocationMachineEffectIdentity::from_bytes([0x57; 32])
         );
         assert_manifest_field_is_bound!(
             post_allocation_machine,
-            omega_physical_instructions::PostAllocationMachineIdentity::from_bytes([0x58; 32])
+            physical_instructions::PostAllocationMachineIdentity::from_bytes([0x58; 32])
         );
         assert_manifest_field_is_bound!(
             pre_layout,

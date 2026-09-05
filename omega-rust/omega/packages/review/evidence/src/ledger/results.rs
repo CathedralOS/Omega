@@ -6,9 +6,9 @@ use crate::record::{
     PackageReviewDangerousAuthority, PackageReviewExternalExecutableSupply,
     PackageReviewTerminalAuthorityPermission,
 };
-use omega_package_compilation::PackageDependencyClosure;
-use omega_target::TargetProfile;
-use psi_core::PackageKeyIdentity;
+use package_compilation::PackageDependencyClosure;
+use semantic_vocabulary::PackageKeyIdentity;
+use target::TargetProfile;
 
 mod reconstruction;
 
@@ -63,8 +63,8 @@ pub struct OrdinaryPackageContractEntailmentAssumptionDischarge {
     obligation: PackageReviewContractEntailmentOpenObligation,
     row: OrdinaryPackageObligationRow,
     evidence_row: OrdinaryPackageObligationRow,
-    assumptions: Vec<psi_core::Proposition>,
-    goal: psi_core::Proposition,
+    assumptions: Vec<semantic_vocabulary::Proposition>,
+    goal: semantic_vocabulary::Proposition,
     selected_assumption_position: u32,
 }
 
@@ -81,11 +81,11 @@ impl OrdinaryPackageContractEntailmentAssumptionDischarge {
         &self.evidence_row
     }
 
-    pub fn assumptions(&self) -> &[psi_core::Proposition] {
+    pub fn assumptions(&self) -> &[semantic_vocabulary::Proposition] {
         &self.assumptions
     }
 
-    pub const fn goal(&self) -> &psi_core::Proposition {
+    pub const fn goal(&self) -> &semantic_vocabulary::Proposition {
         &self.goal
     }
 

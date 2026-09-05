@@ -11,10 +11,8 @@ use crate::resolution::graph::{
 };
 use crate::review::candidate::PackageReviewEvidence;
 use crate::review::{ReviewOnlyCanonicalRow, ReviewOnlySourceConsumptionCommitment};
-use omega_package_evidence::record::{
-    PackageReviewCanonicalRowKind, PackageReviewSourceLocationRole,
-};
-use omega_package_source::{ExternalSourceContext, ImmutableSourceResolution, LocalSourceLimits};
+use package_evidence::record::{PackageReviewCanonicalRowKind, PackageReviewSourceLocationRole};
+use package_source::{ExternalSourceContext, ImmutableSourceResolution, LocalSourceLimits};
 use std::path::{Path, PathBuf};
 use std::time::{SystemTime, UNIX_EPOCH};
 
@@ -153,7 +151,7 @@ fn commitment(
 ) -> ReviewOnlyCandidateClosureCommitment {
     let review_refs = reviews.iter().collect::<Vec<_>>();
     derive_candidate_closure_commitment(
-        &closure.for_exact_target(omega_target::TargetProfile::CrossPlatformCli),
+        &closure.for_exact_target(target::TargetProfile::CrossPlatformCli),
         &review_refs,
     )
     .expect("derive candidate closure commitment")
@@ -238,8 +236,8 @@ fn candidate_closure_binds_the_selected_target_profile() {
         PackageSourceClosureLimits::default(),
     )
     .expect("resolve source closure once");
-    let windows = closure.for_exact_target(omega_target::TargetProfile::WindowsX64);
-    let linux = closure.for_exact_target(omega_target::TargetProfile::LinuxX64);
+    let windows = closure.for_exact_target(target::TargetProfile::WindowsX64);
+    let linux = closure.for_exact_target(target::TargetProfile::LinuxX64);
 
     let reviews = closure
         .graph()

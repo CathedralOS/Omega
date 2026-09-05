@@ -3,7 +3,7 @@ use super::*;
 use crate::encoding::PackagePolicyRecoveryLimits;
 use crate::encoding::encode::declarations::encode_machine_parameter_contract;
 use crate::encoding::encode::encoder::Encoder;
-use psi_language_semantics::{
+use language_semantics::{
     CarryAddress, CarryCpu, CarryHostThread, CarryPolicy, CarrySuspension, Multiplicity,
 };
 

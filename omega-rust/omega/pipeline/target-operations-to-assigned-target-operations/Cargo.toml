@@ -1,0 +1,33 @@
+[package]
+name = "target-operations-to-assigned-target-operations"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[lib]
+name = "target_operations_to_assigned_target_operations"
+path = "src/lib.rs"
+
+[dependencies]
+runtime-abi = { path = "../../backend/runtime/runtime-abi" }
+calling-conventions = { path = "../../representations/calling-conventions" }
+target = { path = "../../representations/target" }
+assigned-target-operations = { path = "../../representations/assigned-target-operations" }
+target-operations = { path = "../../representations/target-operations" }
+semantic-vocabulary = { path = "../../../psi/foundation/semantic-vocabulary" }
+terminal-psi = { path = "../../../psi/representations/terminal-psi" }
+
+[dev-dependencies]
+abstract-operations-to-target-operations = { path = "../abstract-operations-to-target-operations" }
+function-identity = { path = "../../representations/function-identity" }
+terminal-psi-to-abstract-operations = { path = "../terminal-psi-to-abstract-operations" }
+task-plans = { path = "../../representations/task-plans" }
+checked-trees-to-terminal-psi = { path = "../../../psi/pipeline/checked-trees-to-terminal-psi" }
+proof-admission = { path = "../../../psi/semantics/proof-admission" }
+source-files-to-tokens = { path = "../../../psi/pipeline/source-files-to-tokens" }
+symbols = { path = "../../../psi/foundation/symbols" }
+symbol-resolved-trees-to-typed-trees = { path = "../../../psi/pipeline/symbol-resolved-trees-to-typed-trees" }
+syntax-trees-to-symbol-resolved-trees = { path = "../../../psi/pipeline/syntax-trees-to-symbol-resolved-trees" }
+terminal-codec = { path = "../../../psi/semantics/terminal-codec" }
+tokens-to-syntax-trees = { path = "../../../psi/pipeline/tokens-to-syntax-trees" }
+typed-trees-to-checked-trees = { path = "../../../psi/pipeline/typed-trees-to-checked-trees" }

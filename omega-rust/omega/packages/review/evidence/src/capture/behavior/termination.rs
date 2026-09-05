@@ -3,13 +3,13 @@ use super::super::semantics::declarations::nominal_identity;
 use crate::record::{
     PackageReviewProgressPremise, PackageReviewProgressSubject, PackageReviewTermination,
 };
-use omega_compiler::CheckedCompilation;
-use psi_diagnostics::Diagnostic;
-use psi_symbols::SymbolHandle;
+use compiler::CheckedCompilation;
+use diagnostics::Diagnostic;
+use symbols::SymbolHandle;
 
 pub(crate) fn project_termination(
     compilation: &CheckedCompilation,
-    guarantee: &psi_language_semantics::TerminationGuarantee,
+    guarantee: &language_semantics::TerminationGuarantee,
 ) -> Result<PackageReviewTermination, Vec<Diagnostic>> {
     project_termination_with_subject(compilation, guarantee, |root| {
         nominal_identity(compilation, root).map(PackageReviewProgressSubject::Declaration)
@@ -18,10 +18,10 @@ pub(crate) fn project_termination(
 
 pub(crate) fn project_trait_requirement_termination(
     compilation: &CheckedCompilation,
-    requirement: &psi_typed_trees::signature::StateSignature,
+    requirement: &typed_trees::signature::StateSignature,
 ) -> Result<PackageReviewTermination, Vec<Diagnostic>> {
     let parameters = compilation.state_signature_parameters(requirement);
-    if let psi_language_semantics::TerminationGuarantee::Terminates { premises } =
+    if let language_semantics::TerminationGuarantee::Terminates { premises } =
         &requirement.termination_guarantee
     {
         for premise in premises {
@@ -73,11 +73,11 @@ pub(crate) fn project_trait_requirement_termination(
 
 pub(crate) fn project_machine_parameter_termination(
     compilation: &CheckedCompilation,
-    signature: &psi_typed_trees::signature::StateSignature,
+    signature: &typed_trees::signature::StateSignature,
     declaration_path: &str,
 ) -> Result<PackageReviewTermination, Vec<Diagnostic>> {
     let parameters = compilation.state_signature_parameters(signature);
-    if let psi_language_semantics::TerminationGuarantee::Terminates { premises } =
+    if let language_semantics::TerminationGuarantee::Terminates { premises } =
         &signature.termination_guarantee
     {
         for premise in premises {
@@ -123,12 +123,12 @@ pub(crate) fn project_machine_parameter_termination(
 
 fn project_termination_with_subject(
     compilation: &CheckedCompilation,
-    guarantee: &psi_language_semantics::TerminationGuarantee,
+    guarantee: &language_semantics::TerminationGuarantee,
     mut project_subject: impl FnMut(
         SymbolHandle,
     ) -> Result<PackageReviewProgressSubject, Vec<Diagnostic>>,
 ) -> Result<PackageReviewTermination, Vec<Diagnostic>> {
-    let psi_language_semantics::TerminationGuarantee::Terminates { premises } = guarantee else {
+    let language_semantics::TerminationGuarantee::Terminates { premises } = guarantee else {
         return Ok(PackageReviewTermination::NoGuarantee);
     };
     let mut projected = premises
@@ -144,7 +144,7 @@ fn project_termination_with_subject(
                     )]
                 })?;
             if profile.classification
-                != Some(psi_language_semantics::DomainClassification::ProgressProfile)
+                != Some(language_semantics::DomainClassification::ProgressProfile)
             {
                 return Err(vec![Diagnostic::error(
                     "package review termination premise does not name a closed progress-profile domain",

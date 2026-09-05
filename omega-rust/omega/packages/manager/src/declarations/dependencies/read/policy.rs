@@ -4,10 +4,10 @@ use super::projection::{
     DEPEND_WHEN_MACHINE_NAME,
 };
 use super::source_literal::{PACKAGE_SELECTION_TYPE_NAME, SOURCE_TYPE_NAME};
-use psi_syntax_trees::SyntaxTrees;
-use psi_syntax_trees::expression::{ExpressionHandle, ExpressionNode};
-use psi_syntax_trees::item::Item;
-use psi_syntax_trees::statement::{StatementHandle, StatementNode};
+use syntax_trees::SyntaxTrees;
+use syntax_trees::expression::{ExpressionHandle, ExpressionNode};
+use syntax_trees::item::Item;
+use syntax_trees::statement::{StatementHandle, StatementNode};
 
 const BUILD_TYPE_NAME: &str = "Build";
 

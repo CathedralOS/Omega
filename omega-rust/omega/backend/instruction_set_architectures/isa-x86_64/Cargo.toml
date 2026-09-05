@@ -1,0 +1,23 @@
+[package]
+name = "isa-x86_64"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[lib]
+name = "isa_x86_64"
+path = "src/lib.rs"
+
+[dependencies]
+machine-code = { path = "../../../representations/machine-code" }
+calling-conventions = { path = "../../../representations/calling-conventions" }
+register-model = { path = "../../../representations/register-model" }
+target = { path = "../../../representations/target" }
+selected-instructions = { path = "../../../representations/selected-instructions" }
+semantic-vocabulary = { path = "../../../../psi/foundation/semantic-vocabulary" }
+diagnostics = { path = "../../../../psi/foundation/diagnostics" }
+layout-plans = { path = "../../../../psi/foundation/layout-plans" }
+
+[dev-dependencies]
+optimization-core = { path = "../../../representations/optimization-core" }
+optimization-unit = { path = "../../../representations/optimization-unit" }

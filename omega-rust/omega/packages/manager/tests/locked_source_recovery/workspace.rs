@@ -1,9 +1,9 @@
 use super::*;
-use omega_package_manager::resolution::graph::{
+use package_manager::resolution::graph::{
     resolve_workspace_project_closure_in_context_with_storage,
     resolve_workspace_project_closure_with_storage,
 };
-use omega_package_source::{ExternalLocalLineage, SourceLineage, SourceRelativePath};
+use package_source::{ExternalLocalLineage, SourceLineage, SourceRelativePath};
 
 fn workspace(
     tree: &Tree,

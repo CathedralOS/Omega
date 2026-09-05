@@ -10,10 +10,10 @@ use crate::record::{
     PackageReviewContractEntailmentOpenObligation, PackageReviewContractEntailmentOpenReason,
     PackageReviewContractKind,
 };
-use omega_compiler::CheckedCompilation;
-use psi_core::PackageKeyIdentity;
-use psi_diagnostics::Diagnostic;
-use psi_language_semantics::MachineSupplyMode;
+use compiler::CheckedCompilation;
+use diagnostics::Diagnostic;
+use language_semantics::MachineSupplyMode;
+use semantic_vocabulary::PackageKeyIdentity;
 
 pub(in crate::capture) fn project_package_contract_entailment_open_obligations(
     compilation: &CheckedCompilation,
@@ -97,13 +97,13 @@ pub(in crate::capture) fn project_package_contract_entailment_open_obligations(
             std::slice::from_ref(&exact_source_contract),
         )?;
         let reason = match stand_down.reason {
-            psi_validation::ContractEntailmentStandDownReason::UnsupportedEnsuresFact => {
+            validation::ContractEntailmentStandDownReason::UnsupportedEnsuresFact => {
                 PackageReviewContractEntailmentOpenReason::UnsupportedEnsuresFact
             }
-            psi_validation::ContractEntailmentStandDownReason::UnrecognizedInductiveBody => {
+            validation::ContractEntailmentStandDownReason::UnrecognizedInductiveBody => {
                 PackageReviewContractEntailmentOpenReason::UnrecognizedInductiveBody
             }
-            psi_validation::ContractEntailmentStandDownReason::OutsideEntailmentLanguage => {
+            validation::ContractEntailmentStandDownReason::OutsideEntailmentLanguage => {
                 PackageReviewContractEntailmentOpenReason::OutsideEntailmentLanguage
             }
         };
@@ -155,7 +155,7 @@ pub(in crate::capture) fn project_package_contract_entailment_assumption_dischar
         {
             continue;
         }
-        psi_typed_trees_to_checked_trees::recheck_contract_entailment_assumption_discharge(
+        typed_trees_to_checked_trees::recheck_contract_entailment_assumption_discharge(
             &compilation.typed,
             &compilation.facts.contract_plans,
             certificate,

@@ -6,15 +6,15 @@ use crate::record::{
     PackageReviewSemanticDependency, PackageReviewSemanticDependencyExposure,
     PackageReviewSemanticDependencyKind,
 };
-use omega_compiler::CheckedCompilation;
-use psi_core::PackageKeyIdentity;
-use psi_diagnostics::Diagnostic;
+use compiler::CheckedCompilation;
+use diagnostics::Diagnostic;
+use semantic_vocabulary::PackageKeyIdentity;
 
 pub(crate) fn project_semantic_dependencies(
     compilation: &CheckedCompilation,
     package: PackageKeyIdentity,
 ) -> Result<Vec<ProjectedSemanticDependencyRow>, Vec<Diagnostic>> {
-    let derived = psi_typed_trees_to_checked_trees::derive_checked_semantic_dependencies(
+    let derived = typed_trees_to_checked_trees::derive_checked_semantic_dependencies(
         &compilation.typed,
         &compilation.facts,
     );
@@ -36,27 +36,27 @@ pub(crate) fn project_semantic_dependencies(
             consumer,
             dependency: nominal_identity(compilation, checked.dependency)?,
             exposure: match checked.exposure {
-                psi_checked_trees::CheckedSemanticDependencyExposure::PrivateImplementation => {
+                checked_trees::CheckedSemanticDependencyExposure::PrivateImplementation => {
                     PackageReviewSemanticDependencyExposure::PrivateImplementation
                 }
-                psi_checked_trees::CheckedSemanticDependencyExposure::PublicInterface => {
+                checked_trees::CheckedSemanticDependencyExposure::PublicInterface => {
                     PackageReviewSemanticDependencyExposure::PublicInterface
                 }
             },
             kind: match checked.kind {
-                psi_checked_trees::CheckedSemanticDependencyKind::NominalIdentity => {
+                checked_trees::CheckedSemanticDependencyKind::NominalIdentity => {
                     PackageReviewSemanticDependencyKind::NominalIdentity
                 }
-                psi_checked_trees::CheckedSemanticDependencyKind::Layout => {
+                checked_trees::CheckedSemanticDependencyKind::Layout => {
                     PackageReviewSemanticDependencyKind::Layout
                 }
-                psi_checked_trees::CheckedSemanticDependencyKind::OwnershipBehavior => {
+                checked_trees::CheckedSemanticDependencyKind::OwnershipBehavior => {
                     PackageReviewSemanticDependencyKind::OwnershipBehavior
                 }
-                psi_checked_trees::CheckedSemanticDependencyKind::AutomaticCleanup => {
+                checked_trees::CheckedSemanticDependencyKind::AutomaticCleanup => {
                     PackageReviewSemanticDependencyKind::AutomaticCleanup
                 }
-                psi_checked_trees::CheckedSemanticDependencyKind::AutomaticCleanupMachine => {
+                checked_trees::CheckedSemanticDependencyKind::AutomaticCleanupMachine => {
                     PackageReviewSemanticDependencyKind::AutomaticCleanupMachine
                 }
             },

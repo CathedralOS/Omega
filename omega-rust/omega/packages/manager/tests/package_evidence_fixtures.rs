@@ -1,8 +1,8 @@
-use omega_build_evaluation::{BuildFilesystemObservedByteRegionKind, BuildObservationClass};
-use omega_package_evidence::ledger::{
+use build_evaluation::{BuildFilesystemObservedByteRegionKind, BuildObservationClass};
+use package_evidence::ledger::{
     decode_ordinary_package_obligation_ledger, encode_ordinary_package_obligation_ledger,
 };
-use omega_package_evidence::record::{
+use package_evidence::record::{
     CheckedPackageReviewProjection, PackageReviewCallableRole, PackageReviewCanonicalRowKind,
     PackageReviewCanonicalRowRisk, PackageReviewCheckedServiceReach,
     PackageReviewContractExpression, PackageReviewContractFact, PackageReviewContractKind,
@@ -10,14 +10,14 @@ use omega_package_evidence::record::{
     PackageReviewPropositionEvidence, PackageReviewRepresentationTcbKind,
     PackageReviewSourceLocationRole,
 };
-use omega_package_manager::resolution::graph::{
+use package_manager::resolution::graph::{
     PackageSourceClosureLimits, ResolveExternalLocalPackageClosureError,
     ResolveWorkspacePackageClosureError, ResolvedPackageSourceClosure,
     resolve_external_local_project_closure_with_storage,
     resolve_workspace_package_closure_with_storage,
 };
-use omega_package_manager::resolution::source::ResolvePackageSourceError;
-use omega_package_manager::review::{
+use package_manager::resolution::source::ResolvePackageSourceError;
+use package_manager::review::{
     CompileResolvedPackageReviewsError, PackageSourceVerificationPhase, PackageTriageDisposition,
     PackageTriageReason, ReviewOnlyBaselineCapsule, ReviewOnlyBaselineDirectory,
     ReviewOnlyBaselineFileError, ReviewOnlyBaselineLimits, ReviewOnlyBaselineName,
@@ -29,7 +29,7 @@ use omega_package_manager::review::{
     triage_initial_install, triage_review_update, triage_review_update_from_baseline,
     triage_update_without_admission_baseline,
 };
-use omega_package_source::{
+use package_source::{
     ExternalSourceContext, LocalSourceLimits, SourceLineage, SourceRelativePath,
     SourceResolveError, SourceResolverStorage,
 };

@@ -5,10 +5,10 @@ use crate::capture::semantics::services;
 use crate::record::{
     PackagePolicyTerminalPermission, PackagePolicyTerminalPermissions, PackagePolicyTerminalService,
 };
-use omega_compiler::CheckedCompilation;
-use omega_target::TargetProfile;
-use psi_core::PackageKeyIdentity;
-use psi_diagnostics::Diagnostic;
+use compiler::CheckedCompilation;
+use diagnostics::Diagnostic;
+use semantic_vocabulary::PackageKeyIdentity;
+use target::TargetProfile;
 
 /// Capture supplied permissions and their complete checked service context.
 /// This neither accepts permissions nor replaces native permission matching.

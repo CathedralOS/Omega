@@ -1,6 +1,6 @@
-use omega_compiler::CheckedCompilation;
-use psi_diagnostics::Diagnostic;
-use psi_symbols::SymbolHandle;
+use compiler::CheckedCompilation;
+use diagnostics::Diagnostic;
+use symbols::SymbolHandle;
 
 use crate::capture::contracts::expressions::names::portable_parameter_position;
 use crate::capture::contracts::expressions::projection::project_contract_expression_with_substitutions;
@@ -16,13 +16,13 @@ use super::endpoint::project_proposition_endpoint;
 fn require_exact_reference_argument(
     compilation: &CheckedCompilation,
     context: &ContractProjectionContext<'_>,
-    argument: psi_typed_trees::expression::ExpressionHandle,
-    expected_type: psi_typed_trees::types::TypeReferenceHandle,
+    argument: typed_trees::expression::ExpressionHandle,
+    expected_type: typed_trees::types::TypeReferenceHandle,
 ) -> Result<(), Vec<Diagnostic>> {
     if matches!(
         compilation.expression_table.expression(argument),
-        psi_typed_trees::expression::ExpressionNode::Borrow(_)
-    ) && !psi_validation::checked_argument_matches_type_reference(
+        typed_trees::expression::ExpressionNode::Borrow(_)
+    ) && !validation::checked_argument_matches_type_reference(
         &compilation.typed,
         argument,
         expected_type,
@@ -39,14 +39,14 @@ pub(crate) fn project_contract_proposition(
     compilation: &CheckedCompilation,
     context: &ContractProjectionContext<'_>,
     callable_binders: &[(SymbolHandle, String)],
-    application: &psi_typed_trees::proposition::PropositionApplication,
-    checked_fact: Option<psi_arena::Handle<psi_typed_trees::domain::ProofFact>>,
+    application: &typed_trees::proposition::PropositionApplication,
+    checked_fact: Option<arena::Handle<typed_trees::domain::ProofFact>>,
     binder_substitutions: &[(SymbolHandle, PackageReviewPropositionBinderArgument)],
     value_substitutions: &[(SymbolHandle, PackageReviewContractExpression)],
     visiting: &mut Vec<SymbolHandle>,
     depth: usize,
 ) -> Result<PackageReviewContractFact, Vec<Diagnostic>> {
-    use psi_typed_trees::proposition::{PropositionBody, PropositionFormula};
+    use typed_trees::proposition::{PropositionBody, PropositionFormula};
 
     if depth >= 64 {
         return Err(vec![Diagnostic::error(format!(
@@ -62,7 +62,7 @@ pub(crate) fn project_contract_proposition(
     }
     if application.proposition.is_valid()
         && compilation.typed.symbols.get(application.proposition).kind
-            == psi_symbols::SymbolKind::PropositionParameter
+            == symbols::SymbolKind::PropositionParameter
     {
         if !application.binder_arguments.is_empty() {
             return Err(vec![Diagnostic::error(format!(
@@ -85,8 +85,7 @@ pub(crate) fn project_contract_proposition(
                 matching_parameters.len()
             ))]);
         };
-        let psi_typed_trees::data::TypeParameterKind::Proposition { contract } = &parameter.kind
-        else {
+        let typed_trees::data::TypeParameterKind::Proposition { contract } = &parameter.kind else {
             return Err(vec![Diagnostic::error(format!(
                 "reviewed {} `{}` generic proposition endpoint does not rejoin a proposition-family signature",
                 context.subject_kind, context.subject_name
@@ -118,9 +117,9 @@ pub(crate) fn project_contract_proposition(
         for (symbol, _) in callable_binders {
             if matches!(
                 compilation.typed.symbols.get(*symbol).kind,
-                psi_symbols::SymbolKind::TypeParameter
-                    | psi_symbols::SymbolKind::MachineParameter
-                    | psi_symbols::SymbolKind::PropositionParameter
+                symbols::SymbolKind::TypeParameter
+                    | symbols::SymbolKind::MachineParameter
+                    | symbols::SymbolKind::PropositionParameter
             ) {
                 if *symbol == application.proposition {
                     matching_ordinals.push(static_ordinal);
@@ -187,14 +186,14 @@ pub(crate) fn project_contract_proposition(
         .zip(&application.binder_arguments)
         .map(|(binder, argument)| {
             let expected = match binder.kind {
-                psi_typed_trees::proposition::PropositionBinderKind::Type => {
-                    psi_typed_trees::proposition::PropositionBinderArgumentKind::Type
+                typed_trees::proposition::PropositionBinderKind::Type => {
+                    typed_trees::proposition::PropositionBinderArgumentKind::Type
                 }
-                psi_typed_trees::proposition::PropositionBinderKind::Const { .. } => {
-                    psi_typed_trees::proposition::PropositionBinderArgumentKind::Const
+                typed_trees::proposition::PropositionBinderKind::Const { .. } => {
+                    typed_trees::proposition::PropositionBinderArgumentKind::Const
                 }
-                psi_typed_trees::proposition::PropositionBinderKind::Machine => {
-                    psi_typed_trees::proposition::PropositionBinderArgumentKind::Machine
+                typed_trees::proposition::PropositionBinderKind::Machine => {
+                    typed_trees::proposition::PropositionBinderArgumentKind::Machine
                 }
             };
             if argument.kind != expected {

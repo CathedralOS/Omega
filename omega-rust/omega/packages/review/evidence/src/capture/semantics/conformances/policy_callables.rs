@@ -5,9 +5,9 @@ use crate::capture::semantics::declarations::nominal_identity;
 use crate::capture::semantics::encoding::framed_identity;
 use crate::capture::semantics::types::review_signature_type_identity_with_binders;
 use crate::record::PackageReviewNominalIdentity;
-use omega_compiler::CheckedCompilation;
-use psi_diagnostics::Diagnostic;
-use psi_symbols::SymbolHandle;
+use compiler::CheckedCompilation;
+use diagnostics::Diagnostic;
+use symbols::SymbolHandle;
 
 /// Caller binders under overloaded machines need the owning overload and
 /// telescope ordinal. Other declaration kinds may use their nominal path only

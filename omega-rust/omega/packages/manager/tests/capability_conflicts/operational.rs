@@ -31,7 +31,7 @@ invokes {service};
     )
     .expect("resolve invocation baseline");
     let baseline_reviews = compile_resolved_package_reviews(
-        &baseline_sources.for_exact_target(omega_target::TargetProfile::WindowsX64),
+        &baseline_sources.for_exact_target(target::TargetProfile::WindowsX64),
         &build_root,
     )
     .expect("compile invocation baseline");
@@ -46,7 +46,7 @@ invokes {service};
     )
     .expect("resolve invocation candidate");
     let candidate_reviews = compile_resolved_package_reviews(
-        &candidate_sources.for_exact_target(omega_target::TargetProfile::WindowsX64),
+        &candidate_sources.for_exact_target(target::TargetProfile::WindowsX64),
         &build_root,
     )
     .expect("compile invocation candidate");
@@ -54,7 +54,7 @@ invokes {service};
     let conflicts = compare_review_only_capabilities(
         &baseline_reviews,
         &candidate_reviews,
-        &candidate_sources.for_exact_target(omega_target::TargetProfile::WindowsX64),
+        &candidate_sources.for_exact_target(target::TargetProfile::WindowsX64),
         ReviewOnlyCapabilityConflictLimits::default(),
     )
     .expect("compare invocation change");
@@ -109,7 +109,7 @@ reaches {service}
     )
     .expect("resolve service-reach baseline");
     let baseline_reviews = compile_resolved_package_reviews(
-        &baseline_sources.for_exact_target(omega_target::TargetProfile::WindowsX64),
+        &baseline_sources.for_exact_target(target::TargetProfile::WindowsX64),
         &build_root,
     )
     .expect("compile service-reach baseline");
@@ -124,7 +124,7 @@ reaches {service}
     )
     .expect("resolve service-reach candidate");
     let candidate_reviews = compile_resolved_package_reviews(
-        &candidate_sources.for_exact_target(omega_target::TargetProfile::WindowsX64),
+        &candidate_sources.for_exact_target(target::TargetProfile::WindowsX64),
         &build_root,
     )
     .expect("compile service-reach candidate");
@@ -132,7 +132,7 @@ reaches {service}
     let conflicts = compare_review_only_capabilities(
         &baseline_reviews,
         &candidate_reviews,
-        &candidate_sources.for_exact_target(omega_target::TargetProfile::WindowsX64),
+        &candidate_sources.for_exact_target(target::TargetProfile::WindowsX64),
         ReviewOnlyCapabilityConflictLimits::default(),
     )
     .expect("compare service-reach change");
@@ -178,7 +178,7 @@ fn operational_changes_render_exact_authored_clause_locations() {
     )
     .expect("resolve operational baseline");
     let baseline_reviews = compile_resolved_package_reviews(
-        &baseline_sources.for_exact_target(omega_target::TargetProfile::WindowsX64),
+        &baseline_sources.for_exact_target(target::TargetProfile::WindowsX64),
         &build_root,
     )
     .expect("compile operational baseline");
@@ -193,7 +193,7 @@ fn operational_changes_render_exact_authored_clause_locations() {
     )
     .expect("resolve operational candidate");
     let candidate_reviews = compile_resolved_package_reviews(
-        &candidate_sources.for_exact_target(omega_target::TargetProfile::WindowsX64),
+        &candidate_sources.for_exact_target(target::TargetProfile::WindowsX64),
         &build_root,
     )
     .expect("compile operational candidate");
@@ -201,7 +201,7 @@ fn operational_changes_render_exact_authored_clause_locations() {
     let conflicts = compare_review_only_capabilities(
         &baseline_reviews,
         &candidate_reviews,
-        &candidate_sources.for_exact_target(omega_target::TargetProfile::WindowsX64),
+        &candidate_sources.for_exact_target(target::TargetProfile::WindowsX64),
         ReviewOnlyCapabilityConflictLimits::default(),
     )
     .expect("compare operational change");
@@ -257,14 +257,14 @@ pub machine invoke_leaf()
     )
     .expect("resolve external-supply baseline");
     let baseline_reviews = compile_resolved_package_reviews(
-        &baseline_sources.for_exact_target(omega_target::TargetProfile::WindowsX64),
+        &baseline_sources.for_exact_target(target::TargetProfile::WindowsX64),
         &build_root,
     )
     .expect("compile external-supply baseline");
 
     let initial_conflicts = compare_review_only_initial_capabilities(
         &baseline_reviews,
-        &baseline_sources.for_exact_target(omega_target::TargetProfile::WindowsX64),
+        &baseline_sources.for_exact_target(target::TargetProfile::WindowsX64),
         ReviewOnlyCapabilityConflictLimits::default(),
     )
     .expect("compare external executable supply with empty admission baseline");
@@ -330,7 +330,7 @@ pub machine invoke_leaf()
     )
     .expect("resolve external-supply candidate");
     let candidate_reviews = compile_resolved_package_reviews(
-        &candidate_sources.for_exact_target(omega_target::TargetProfile::WindowsX64),
+        &candidate_sources.for_exact_target(target::TargetProfile::WindowsX64),
         &build_root,
     )
     .expect("compile external-supply candidate");
@@ -338,7 +338,7 @@ pub machine invoke_leaf()
     let conflicts = compare_review_only_capabilities(
         &baseline_reviews,
         &candidate_reviews,
-        &candidate_sources.for_exact_target(omega_target::TargetProfile::WindowsX64),
+        &candidate_sources.for_exact_target(target::TargetProfile::WindowsX64),
         ReviewOnlyCapabilityConflictLimits::default(),
     )
     .expect("compare external executable supply");
@@ -399,7 +399,7 @@ fn transparent_proposition_changes_render_exact_formula_custody() {
     )
     .expect("resolve transparent proposition baseline");
     let baseline_reviews = compile_resolved_package_reviews(
-        &baseline_sources.for_exact_target(omega_target::TargetProfile::WindowsX64),
+        &baseline_sources.for_exact_target(target::TargetProfile::WindowsX64),
         &build_root,
     )
     .expect("compile transparent proposition baseline");
@@ -414,7 +414,7 @@ fn transparent_proposition_changes_render_exact_formula_custody() {
     )
     .expect("resolve transparent proposition candidate");
     let candidate_reviews = compile_resolved_package_reviews(
-        &candidate_sources.for_exact_target(omega_target::TargetProfile::WindowsX64),
+        &candidate_sources.for_exact_target(target::TargetProfile::WindowsX64),
         &build_root,
     )
     .expect("compile transparent proposition candidate");
@@ -422,7 +422,7 @@ fn transparent_proposition_changes_render_exact_formula_custody() {
     let conflicts = compare_review_only_capabilities(
         &baseline_reviews,
         &candidate_reviews,
-        &candidate_sources.for_exact_target(omega_target::TargetProfile::WindowsX64),
+        &candidate_sources.for_exact_target(target::TargetProfile::WindowsX64),
         ReviewOnlyCapabilityConflictLimits::default(),
     )
     .expect("compare transparent proposition compatibility");
@@ -482,7 +482,7 @@ fn public_domain_changes_render_exact_proof_fact_custody() {
     )
     .expect("resolve public domain baseline");
     let baseline_reviews = compile_resolved_package_reviews(
-        &baseline_sources.for_exact_target(omega_target::TargetProfile::WindowsX64),
+        &baseline_sources.for_exact_target(target::TargetProfile::WindowsX64),
         &build_root,
     )
     .expect("compile public domain baseline");
@@ -500,7 +500,7 @@ fn public_domain_changes_render_exact_proof_fact_custody() {
     )
     .expect("resolve public domain candidate");
     let candidate_reviews = compile_resolved_package_reviews(
-        &candidate_sources.for_exact_target(omega_target::TargetProfile::WindowsX64),
+        &candidate_sources.for_exact_target(target::TargetProfile::WindowsX64),
         &build_root,
     )
     .expect("compile public domain candidate");
@@ -508,7 +508,7 @@ fn public_domain_changes_render_exact_proof_fact_custody() {
     let conflicts = compare_review_only_capabilities(
         &baseline_reviews,
         &candidate_reviews,
-        &candidate_sources.for_exact_target(omega_target::TargetProfile::WindowsX64),
+        &candidate_sources.for_exact_target(target::TargetProfile::WindowsX64),
         ReviewOnlyCapabilityConflictLimits::default(),
     )
     .expect("compare public domain proof facts");

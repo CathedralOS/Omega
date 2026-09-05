@@ -12,8 +12,8 @@ use crate::resolution::source::{
     GitPackageSourceRequest, bind_staged_external_local_project_source,
     resolve_external_local_project_source_in_lane,
 };
-use omega_package_source::git::resolution::GitExactRevisionAcquisition;
-use omega_package_source::local::staging::stage_local_source_replacement_in_lane;
+use package_source::git::resolution::GitExactRevisionAcquisition;
+use package_source::local::staging::stage_local_source_replacement_in_lane;
 use sha2::{Digest, Sha256};
 
 struct Project {
@@ -188,7 +188,7 @@ fn dependency(name: &str) -> String {
 
 fn subject(closure: &ResolvedPackageSourceClosure) -> CanonicalSourceClosureSubject {
     CanonicalSourceClosureSubject::from_resolved(
-        &closure.for_exact_target(omega_target::TargetProfile::WindowsX64),
+        &closure.for_exact_target(target::TargetProfile::WindowsX64),
         CanonicalSourceClosureSubjectLimits::default(),
     )
     .unwrap()

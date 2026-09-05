@@ -73,7 +73,7 @@ Epsilon evaluator.
 ## P4 - Epsilon to Omega
 
 - **OMEGA-D.** Complete the Epsilon source closure selected by
-  `bootstrap/omega/omega_compiler.epsilon.sources` as the first full Omega
+  `bootstrap/omega/compiler.epsilon.sources` as the first full Omega
   compiler. Conservative and slow interpreted execution is acceptable;
   Epsilon features are justified only by this source. Acceptance: interpreted D
   compiles the exact Omega C closure for its ordinary `alpha_bootstrap` target

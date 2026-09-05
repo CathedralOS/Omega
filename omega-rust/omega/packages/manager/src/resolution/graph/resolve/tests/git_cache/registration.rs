@@ -1,7 +1,7 @@
 use super::*;
 use crate::resolution::graph::resolve::dependencies::resolve_registered_package_closure;
 use crate::resolution::source::{GitPackageSourceRequest, ResolvedPackageSource};
-use omega_package_source::ResolvedGitSource;
+use package_source::ResolvedGitSource;
 
 const LOCATOR: &str = "https://github.com/CathedralOS/registration.git";
 

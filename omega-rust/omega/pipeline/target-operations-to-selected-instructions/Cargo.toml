@@ -1,0 +1,28 @@
+[package]
+name = "target-operations-to-selected-instructions"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[lib]
+name = "target_operations_to_selected_instructions"
+path = "src/lib.rs"
+
+[dependencies]
+calling-conventions = { path = "../../representations/calling-conventions" }
+optimization-core = { path = "../../representations/optimization-core" }
+optimization-validation = { path = "../optimization-validation" }
+optimization-unit = { path = "../../representations/optimization-unit" }
+register-model = { path = "../../representations/register-model" }
+target = { path = "../../representations/target" }
+abstract-operations = { path = "../../representations/abstract-operations" }
+abstract-operations-to-target-operations = { path = "../abstract-operations-to-target-operations" }
+target-to-register-environment = { path = "../target-to-register-environment" }
+legalized-operations = { path = "../../representations/legalized-operations" }
+selected-instructions = { path = "../../representations/selected-instructions" }
+target-operations = { path = "../../representations/target-operations" }
+semantic-vocabulary = { path = "../../../psi/foundation/semantic-vocabulary" }
+terminal-psi = { path = "../../../psi/representations/terminal-psi" }
+
+[dev-dependencies]
+isa-x86_64 = { path = "../../backend/instruction_set_architectures/isa-x86_64" }

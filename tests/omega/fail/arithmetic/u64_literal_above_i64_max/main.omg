@@ -4,7 +4,7 @@
 // tests/omega/pass/arithmetic/runtime_u64_max_literal_exit); every other position
 // -- here an i64 target, whose 8-byte slot would silently reinterpret the bit
 // pattern as negative -- must still reject at the literal-width gate
-// (psi-validation/src/literals.rs), naming the accepted alternative.
+// (validation/src/literals.rs), naming the accepted alternative.
 use omega::language::std::console;
 
 data Main {

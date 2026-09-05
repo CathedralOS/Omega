@@ -1,7 +1,7 @@
 use super::super::*;
 use super::support::*;
 use crate::resolution::source::{ResolvedPackageSource, resolve_workspace_member_package_source};
-use omega_package_source::{LocalSourceLimits, SourceLineage, SourceRelativePath};
+use package_source::{LocalSourceLimits, SourceLineage, SourceRelativePath};
 use std::cell::RefCell;
 use std::collections::{BTreeMap, BTreeSet};
 use std::path::Path;

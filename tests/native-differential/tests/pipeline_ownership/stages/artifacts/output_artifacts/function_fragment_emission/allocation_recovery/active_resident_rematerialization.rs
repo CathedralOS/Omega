@@ -76,7 +76,7 @@ fn active_resident_rematerialization_emits_relocation_free_fragments_on_both_arc
             .expect("the fresh materialization must have an emitted instruction span");
         assert_eq!(
             fresh_span.alternative.family,
-            omega_selected_instructions::MachineAlternativeFamily::MaterializeI64
+            selected_instructions::MachineAlternativeFamily::MaterializeI64
         );
         assert!(!fresh_span.bytes.is_empty());
 
@@ -87,11 +87,11 @@ fn active_resident_rematerialization_emits_relocation_free_fragments_on_both_arc
             .find(|row| row.branch.is_some())
             .expect("the conditional source must retain one resolved branch");
         match target.architecture {
-            omega_target::Architecture::X86_64 => {
+            target::Architecture::X86_64 => {
                 assert_eq!(&branch.bytes[..2], [0x0f, 0x85]);
                 assert_eq!(branch.bytes.len(), 6);
             }
-            omega_target::Architecture::Aarch64 => {
+            target::Architecture::Aarch64 => {
                 let instruction = u32::from_le_bytes(branch.bytes.as_slice().try_into().unwrap());
                 assert_eq!(instruction & 0xff00_001f, 0x5400_0001);
                 assert_eq!(branch.bytes.len(), 4);
@@ -152,7 +152,7 @@ fn active_resident_rematerialization_emits_relocation_free_fragments_on_both_arc
         );
         assert_eq!(
             placed.text_section().relocation_requirements,
-            omega_object_file::TextSectionRelocationRequirements::ProvenNoneForFullyResolvedInternalControlV1
+            object_file::TextSectionRelocationRequirements::ProvenNoneForFullyResolvedInternalControlV1
         );
         assert_eq!(
             placed

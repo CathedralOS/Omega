@@ -9,11 +9,11 @@ use crate::capture::semantics::declarations::{
     provider_requirement_schema,
 };
 use crate::record::PackagePolicyServiceMethod;
-use omega_compiler::CheckedCompilation;
-use omega_effects::provider_plan::ServiceMethod;
-use omega_provider_planning::plans::ProviderSchemaDeclaration;
-use psi_diagnostics::Diagnostic;
-use psi_symbols::SymbolHandle;
+use compiler::CheckedCompilation;
+use diagnostics::Diagnostic;
+use effects::provider_plan::ServiceMethod;
+use provider_planning::plans::ProviderSchemaDeclaration;
+use symbols::SymbolHandle;
 
 pub(crate) use crate::capture::calling::application::signature::declaration_parameters;
 

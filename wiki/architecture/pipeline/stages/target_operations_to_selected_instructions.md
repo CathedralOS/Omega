@@ -72,8 +72,8 @@ no later physical authority follows from this selection boundary.
 
 ## Implementation Map
 
-- `representations/omega-selected-instructions` owns data shapes only.
-- `pipeline/omega-target-operations-to-selected-instructions` owns
+- `representations/selected-instructions` owns data shapes only.
+- `pipeline/target-operations-to-selected-instructions` owns
   production, independent validation, source-custody joins, and content
   identity construction.
 - `selection/construction/mod.rs` owns the complete scalar, plain-Unit, and
@@ -88,12 +88,12 @@ no later physical authority follows from this selection boundary.
   the bounded atomic closure through named projection, constraint, and transfer
   leaves; its independent validator descends through separate source and target
   replay.
-- `pipeline/omega-target-operations-to-selected-instructions/src/optimized/mod.rs` owns the opaque
-  cross-stage carrier. The preceding `pipeline/omega-target-to-register-environment`
+- `pipeline/target-operations-to-selected-instructions/src/optimized/mod.rs` owns the opaque
+  cross-stage carrier. The preceding `pipeline/target-to-register-environment`
   stage injects exact ISA/ABI constraints and binds the physical
   model, constraint catalog, active reservation profile, and selected keys into
   one environment identity.
-- `omega-isa-x86_64` and `omega-isa-aarch64` own the mapping
+- `isa-x86_64` and `isa-aarch64` own the mapping
   from target machine registers to validated physical register views.
 
 ## Known Gaps

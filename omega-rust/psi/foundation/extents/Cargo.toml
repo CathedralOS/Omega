@@ -1,0 +1,9 @@
+[package]
+name = "extents"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[lib]
+name = "extents"
+path = "src/lib.rs"

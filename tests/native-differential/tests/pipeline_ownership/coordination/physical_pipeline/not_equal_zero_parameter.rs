@@ -2,14 +2,14 @@
 
 use crate::FunctionFragmentReplayInputs;
 use crate::tests::*;
-use omega_post_allocation_machine_to_optimized_machine::{
+use post_allocation_machine_to_post_allocation_machine::{
     Aarch64CbnzFusionError, Aarch64CbnzFusionWorkAxis,
 };
 
 fn optimized_source(
     selections: OptimizationSelections,
     budget: OptimizationWorkBudget,
-) -> omega_abstract_operations_optimizer::ValidatedOptimizedAbstractPlan {
+) -> abstract_operations_to_abstract_operations::ValidatedOptimizedAbstractPlan {
     let (semantic, proof) = conditional_u64_not_equal_zero_parameter_artifact();
     optimize_artifact_sections(
         &semantic,
@@ -70,12 +70,12 @@ fn disabled_not_equal_zero_baseline_retains_compare_and_branch_on_both_isas() {
             .iter()
             .find(|row| {
                 row.alternative.family
-                    == omega_selected_instructions::MachineAlternativeFamily::CompareI64Zero
+                    == selected_instructions::MachineAlternativeFamily::CompareI64Zero
             })
             .unwrap();
         assert_eq!(
             compare.bytes.len(),
-            if target.architecture == omega_target::Architecture::X86_64 {
+            if target.architecture == target::Architecture::X86_64 {
                 3
             } else {
                 4
@@ -83,7 +83,7 @@ fn disabled_not_equal_zero_baseline_retains_compare_and_branch_on_both_isas() {
         );
         assert!(rows.iter().any(|row| {
             row.alternative.family
-                == omega_selected_instructions::MachineAlternativeFamily::ConditionalBranchNonZero
+                == selected_instructions::MachineAlternativeFamily::ConditionalBranchNonZero
         }));
     }
 }
@@ -132,7 +132,7 @@ fn explicit_cbnz_fuses_not_equal_zero_and_preserves_both_operation_spans() {
         .iter()
         .find(|span| {
             span.alternative.family
-                == omega_selected_instructions::MachineAlternativeFamily::CompareI64Zero
+                == selected_instructions::MachineAlternativeFamily::CompareI64Zero
         })
         .unwrap();
     assert!(compare.bytes.is_empty());
@@ -148,7 +148,7 @@ fn explicit_cbnz_fuses_not_equal_zero_and_preserves_both_operation_spans() {
         .iter()
         .find(|span| {
             span.alternative.family
-                == omega_selected_instructions::MachineAlternativeFamily::ConditionalBranchNonZero
+                == selected_instructions::MachineAlternativeFamily::ConditionalBranchNonZero
         })
         .unwrap();
     assert_eq!(

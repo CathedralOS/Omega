@@ -1,5 +1,5 @@
 use super::{AliasName, PackageKey, PackageName};
-use omega_package_source::{
+use package_source::{
     SourceLineage, SourceRelativePath, WorkspaceLineageIdentity, WorkspaceMemberLineage,
 };
 

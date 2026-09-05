@@ -16,9 +16,9 @@ use crate::record::{
     PackageReviewCanonicalRowSource, PackageReviewSourceLocation, PackageReviewSourceLocationOwner,
     PackageReviewSourceLocationRole,
 };
-use omega_compiler::CheckedCompilation;
-use psi_core::PackageKeyIdentity;
-use psi_diagnostics::Diagnostic;
+use compiler::CheckedCompilation;
+use diagnostics::Diagnostic;
+use semantic_vocabulary::PackageKeyIdentity;
 
 pub(crate) struct ProjectedBoundaryApplicationRealizations {
     pub(crate) rows: Vec<CheckedPackageBoundaryApplicationRealizationReview>,
@@ -34,17 +34,15 @@ pub(crate) fn project_boundary_application_realizations(
     compilation: &CheckedCompilation,
     package: PackageKeyIdentity,
 ) -> Result<ProjectedBoundaryApplicationRealizations, Vec<Diagnostic>> {
-    let derived =
-        omega_selected_dispatch::derive_checked_nongeneric_operator_application_realizations(
-            compilation,
-            compilation.selected_provider_plans(),
-        )?;
+    let derived = selected_dispatch::derive_checked_nongeneric_operator_application_realizations(
+        compilation,
+        compilation.selected_provider_plans(),
+    )?;
     let mut staged: Vec<StagedRealization> = Vec::new();
 
     for realization in derived {
-        let psi_checked_trees::CheckedBoundaryOperatorApplicationUseSite::Expression {
-            expression,
-            ..
+        let checked_trees::CheckedBoundaryOperatorApplicationUseSite::Expression {
+            expression, ..
         } = realization.application_site
         else {
             return Err(vec![Diagnostic::error(
@@ -127,15 +125,13 @@ fn project_specialized_checked_body_applications(
     package: PackageKeyIdentity,
     staged: &mut Vec<StagedRealization>,
 ) -> Result<(), Vec<Diagnostic>> {
-    let derived =
-        omega_selected_dispatch::derive_checked_specialized_operator_application_realizations(
-            compilation,
-            compilation.selected_provider_plans(),
-        )?;
+    let derived = selected_dispatch::derive_checked_specialized_operator_application_realizations(
+        compilation,
+        compilation.selected_provider_plans(),
+    )?;
     for realization in derived {
-        let psi_checked_trees::CheckedBoundaryOperatorApplicationUseSite::Expression {
-            expression,
-            ..
+        let checked_trees::CheckedBoundaryOperatorApplicationUseSite::Expression {
+            expression, ..
         } = realization.application_site
         else {
             return Err(vec![Diagnostic::error(
@@ -212,8 +208,8 @@ fn project_specialized_checked_body_applications(
 
 fn project_exact_application(
     compilation: &CheckedCompilation,
-    requirement: psi_symbols::SymbolHandle,
-    arguments: &[psi_checked_trees::CheckedBoundaryOperatorApplicationArgument],
+    requirement: symbols::SymbolHandle,
+    arguments: &[checked_trees::CheckedBoundaryOperatorApplicationArgument],
 ) -> Result<PackageReviewBoundaryApplication, Vec<Diagnostic>> {
     if arguments.is_empty() {
         return Err(vec![Diagnostic::error(
@@ -228,7 +224,7 @@ fn project_exact_application(
             )]
         })?;
         match argument {
-            psi_checked_trees::CheckedBoundaryOperatorApplicationArgument::Type {
+            checked_trees::CheckedBoundaryOperatorApplicationArgument::Type {
                 binder_owner,
                 binder_ordinal,
                 type_reference,
@@ -243,14 +239,14 @@ fn project_exact_application(
                     )?,
                 });
             }
-            psi_checked_trees::CheckedBoundaryOperatorApplicationArgument::Const {
+            checked_trees::CheckedBoundaryOperatorApplicationArgument::Const {
                 binder_owner,
                 binder_ordinal,
                 declared_carrier,
                 value,
                 ..
             } if *binder_owner == requirement && *binder_ordinal == expected_ordinal => {
-                psi_validation::validate_exact_const_value_encoding(
+                validation::validate_exact_const_value_encoding(
                     &compilation.typed,
                     *declared_carrier,
                     value.encoding.as_str(),
@@ -283,9 +279,9 @@ fn project_exact_application(
 
 fn expression_is_owned_by_package(
     compilation: &CheckedCompilation,
-    expression: psi_typed_trees::expression::ExpressionHandle,
-    use_kind: omega_selected_dispatch::CheckedOperatorAuthoredUseKind,
-    requirement_operator: psi_symbols::SymbolHandle,
+    expression: typed_trees::expression::ExpressionHandle,
+    use_kind: selected_dispatch::CheckedOperatorAuthoredUseKind,
+    requirement_operator: symbols::SymbolHandle,
     package: PackageKeyIdentity,
 ) -> Result<bool, Vec<Diagnostic>> {
     let span = compilation.typed.expression_table.source_span(expression);
@@ -325,8 +321,8 @@ fn expression_is_owned_by_package(
             ))]
         })?;
     match source.origin {
-        psi_source::SourceOrigin::Toolchain => Ok(false),
-        psi_source::SourceOrigin::User => source
+        source::SourceOrigin::Toolchain => Ok(false),
+        source::SourceOrigin::User => source
             .package_identity
             .map(|owner| owner == package)
             .ok_or_else(|| {
@@ -365,11 +361,11 @@ pub(super) fn stage_realization(
 
 pub(super) fn authored_application_source_span(
     compilation: &CheckedCompilation,
-    expression: psi_typed_trees::expression::ExpressionHandle,
-    use_kind: omega_selected_dispatch::CheckedOperatorAuthoredUseKind,
-    requirement_operator: psi_symbols::SymbolHandle,
-) -> Result<psi_source::SourceSpan, Vec<Diagnostic>> {
-    use psi_language_semantics::declaration_selection::{
+    expression: typed_trees::expression::ExpressionHandle,
+    use_kind: selected_dispatch::CheckedOperatorAuthoredUseKind,
+    requirement_operator: symbols::SymbolHandle,
+) -> Result<source::SourceSpan, Vec<Diagnostic>> {
+    use language_semantics::declaration_selection::{
         AuthoredDeclarationSelectionExposure, AuthoredDeclarationSelectionTarget,
     };
 
@@ -422,15 +418,15 @@ pub(super) fn authored_application_source_span(
 }
 
 fn authored_application_selection_kind(
-    use_kind: omega_selected_dispatch::CheckedOperatorAuthoredUseKind,
-) -> psi_language_semantics::declaration_selection::AuthoredDeclarationSelectionKind {
-    use psi_language_semantics::declaration_selection::AuthoredDeclarationSelectionKind;
+    use_kind: selected_dispatch::CheckedOperatorAuthoredUseKind,
+) -> language_semantics::declaration_selection::AuthoredDeclarationSelectionKind {
+    use language_semantics::declaration_selection::AuthoredDeclarationSelectionKind;
 
     match use_kind {
-        omega_selected_dispatch::CheckedOperatorAuthoredUseKind::Named => {
+        selected_dispatch::CheckedOperatorAuthoredUseKind::Named => {
             AuthoredDeclarationSelectionKind::Call
         }
-        omega_selected_dispatch::CheckedOperatorAuthoredUseKind::FixedToken(_) => {
+        selected_dispatch::CheckedOperatorAuthoredUseKind::FixedToken(_) => {
             AuthoredDeclarationSelectionKind::Operator
         }
     }

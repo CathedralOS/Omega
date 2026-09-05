@@ -116,7 +116,7 @@ pub struct PackageReviewEvaluatedImport {
     pub(crate) locator: PackageReviewForeignLocator,
     pub(crate) locator_identity_digest: [u8; 32],
     pub(crate) producer: PackageReviewNominalIdentity,
-    pub(crate) producer_package: Option<psi_core::PackageKeyIdentity>,
+    pub(crate) producer_package: Option<semantic_vocabulary::PackageKeyIdentity>,
     pub(crate) producer_callable_identity: String,
     pub(crate) producer_closure_digest: [u8; 32],
     pub(crate) evaluator_semantics_marker: u32,
@@ -145,7 +145,7 @@ impl PackageReviewEvaluatedImport {
         &self.producer
     }
 
-    pub const fn producer_package(&self) -> Option<psi_core::PackageKeyIdentity> {
+    pub const fn producer_package(&self) -> Option<semantic_vocabulary::PackageKeyIdentity> {
         self.producer_package
     }
 
@@ -193,7 +193,7 @@ pub struct PackageReviewEvaluatedSyscall {
     pub(crate) number: i64,
     pub(crate) binding_identity_digest: [u8; 32],
     pub(crate) producer: PackageReviewNominalIdentity,
-    pub(crate) producer_package: Option<psi_core::PackageKeyIdentity>,
+    pub(crate) producer_package: Option<semantic_vocabulary::PackageKeyIdentity>,
     pub(crate) producer_callable_identity: String,
     pub(crate) producer_closure_digest: [u8; 32],
     pub(crate) evaluator_semantics_marker: u32,
@@ -222,7 +222,7 @@ impl PackageReviewEvaluatedSyscall {
         &self.producer
     }
 
-    pub const fn producer_package(&self) -> Option<psi_core::PackageKeyIdentity> {
+    pub const fn producer_package(&self) -> Option<semantic_vocabulary::PackageKeyIdentity> {
         self.producer_package
     }
 

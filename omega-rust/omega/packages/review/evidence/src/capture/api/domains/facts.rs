@@ -3,22 +3,22 @@ use crate::capture::contracts::facts::ContractProjectionContext;
 use crate::capture::contracts::propositions::application::project_contract_proposition;
 use crate::capture::semantics::declarations::{nominal_identity, reviewed_package_owns};
 use crate::record::{PackageReviewContractFact, PackageReviewNominalIdentity};
-use omega_compiler::CheckedCompilation;
-use psi_core::PackageKeyIdentity;
-use psi_diagnostics::Diagnostic;
-use psi_symbols::SymbolHandle;
+use compiler::CheckedCompilation;
+use diagnostics::Diagnostic;
+use semantic_vocabulary::PackageKeyIdentity;
+use symbols::SymbolHandle;
 
 pub(crate) fn project_domain_predicate_facts(
     compilation: &CheckedCompilation,
-    definition: &psi_typed_trees::domain::DomainDefinition,
+    definition: &typed_trees::domain::DomainDefinition,
     identity: &PackageReviewNominalIdentity,
     binders: &[(SymbolHandle, String)],
 ) -> Result<Vec<PackageReviewContractFact>, Vec<Diagnostic>> {
     let context = ContractProjectionContext {
         subject_kind: "public domain",
         subject_name: &identity.path,
-        owner: psi_checked_trees::ContractProofFactOwner::Unknown,
-        point: psi_facts::ProgramPoint::Definition {
+        owner: checked_trees::ContractProofFactOwner::Unknown,
+        point: facts::ProgramPoint::Definition {
             symbol: definition.symbol,
         },
         parameters: &[],
@@ -26,7 +26,7 @@ pub(crate) fn project_domain_predicate_facts(
         data_symbol: None,
         lifetime_binders: &[],
         lifetime_substitutions: &[],
-        selection_exposure: psi_language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure::PublicInterface,
+        selection_exposure: language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure::PublicInterface,
     };
     let reviewed_package = compilation.package_identity().ok_or_else(|| {
         vec![Diagnostic::error(
@@ -35,7 +35,7 @@ pub(crate) fn project_domain_predicate_facts(
     })?;
     let mut projected = Vec::new();
     for offset in 0..definition.facts.count() {
-        let fact_handle = psi_arena::Handle::from_parts(
+        let fact_handle = arena::Handle::from_parts(
             definition
                 .facts
                 .start()
@@ -62,10 +62,10 @@ pub(crate) fn project_definition_contract_fact(
     compilation: &CheckedCompilation,
     context: &ContractProjectionContext<'_>,
     binders: &[(SymbolHandle, String)],
-    fact_handle: psi_arena::Handle<psi_typed_trees::domain::ProofFact>,
+    fact_handle: arena::Handle<typed_trees::domain::ProofFact>,
     reviewed_package: PackageKeyIdentity,
 ) -> Result<PackageReviewContractFact, Vec<Diagnostic>> {
-    use psi_typed_trees::domain::ProofFact;
+    use typed_trees::domain::ProofFact;
 
     match compilation.proof_facts.get(fact_handle) {
         ProofFact::Expression(expression) => Ok(PackageReviewContractFact::Expression(
@@ -125,10 +125,10 @@ pub(crate) fn project_definition_contract_fact(
 pub(crate) fn require_exact_checked_domain_fact(
     compilation: &CheckedCompilation,
     domain_symbol: SymbolHandle,
-    fact_handle: psi_arena::Handle<psi_typed_trees::domain::ProofFact>,
+    fact_handle: arena::Handle<typed_trees::domain::ProofFact>,
     identity: &PackageReviewNominalIdentity,
 ) -> Result<(), Vec<Diagnostic>> {
-    let point = psi_facts::ProgramPoint::Definition {
+    let point = facts::ProgramPoint::Definition {
         symbol: domain_symbol,
     };
     let matching_rows = compilation
@@ -138,8 +138,8 @@ pub(crate) fn require_exact_checked_domain_fact(
         .iter()
         .filter_map(|(handle, fact)| {
             (fact.point == point
-                && fact.origin == psi_facts::FactOrigin::DomainDefinition { domain_symbol }
-                && fact.evidence == psi_facts::QualificationEvidence::default()
+                && fact.origin == facts::FactOrigin::DomainDefinition { domain_symbol }
+                && fact.evidence == facts::QualificationEvidence::default()
                 && semantic_fact_matches_definition_fact(compilation, fact, fact_handle))
             .then_some(handle)
         })
@@ -175,11 +175,11 @@ pub(crate) fn require_exact_checked_domain_fact(
 
 pub(crate) fn semantic_fact_matches_definition_fact(
     compilation: &CheckedCompilation,
-    semantic_fact: &psi_facts::Fact,
-    fact_handle: psi_arena::Handle<psi_typed_trees::domain::ProofFact>,
+    semantic_fact: &facts::Fact,
+    fact_handle: arena::Handle<typed_trees::domain::ProofFact>,
 ) -> bool {
-    use psi_facts::FactPayload;
-    use psi_typed_trees::domain::ProofFact;
+    use facts::FactPayload;
+    use typed_trees::domain::ProofFact;
 
     match (
         compilation.proof_facts.get(fact_handle),

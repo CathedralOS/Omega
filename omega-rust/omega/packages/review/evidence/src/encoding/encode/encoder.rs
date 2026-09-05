@@ -1,5 +1,5 @@
 use super::PackageReviewEncodingError;
-use psi_core::PackageKeyIdentity;
+use semantic_vocabulary::PackageKeyIdentity;
 
 mod membership;
 mod policy_rows;

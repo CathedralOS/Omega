@@ -1,5 +1,5 @@
 use super::CompileResolvedPackageReviewsError;
-use psi_checked_interpreter::{
+use checked_interpreter::{
     BuildEvaluationSponsor, BuildEvaluationSponsorLimits, FilesystemSponsor,
 };
 use std::fs;
@@ -188,7 +188,7 @@ mod tests {
     use super::{REVIEW_BUILD_SESSION_SEQUENCE, ReviewBuildSession};
     use crate::declarations::{PackageKey, PackageName};
     use crate::review::candidate::CompileResolvedPackageReviewsError;
-    use omega_package_source::SourceLineage;
+    use package_source::SourceLineage;
     use std::fs;
     use std::path::PathBuf;
     use std::sync::atomic::Ordering;

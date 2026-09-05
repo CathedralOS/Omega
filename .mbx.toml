@@ -18,6 +18,6 @@
 # bytes.
 #
 # Turning this one switch off leaves the rest of mbx working: a cold build of
-# omega-image-pe still reports 10 cache hits. Re-enable it only after mbx fixes
-# the defect and a cold `cargo clean && mbx check -p omega-image-pe` succeeds.
+# image-pe still reports 10 cache hits. Re-enable it only after mbx fixes
+# the defect and a cold `cargo clean && mbx check -p image-pe` succeeds.
 build_script_execution = false

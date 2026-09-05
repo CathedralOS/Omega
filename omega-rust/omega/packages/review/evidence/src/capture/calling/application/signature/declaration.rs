@@ -6,9 +6,9 @@
 //! and scope-normalized signature copies are allocated.
 
 use super::*;
-use psi_symbols::SymbolHandle;
-use psi_typed_trees::trait_definition::TraitDefinition;
-use psi_typed_trees::types::TypeReferenceNode;
+use symbols::SymbolHandle;
+use typed_trees::trait_definition::TraitDefinition;
+use typed_trees::types::TypeReferenceNode;
 
 fn root(
     compilation: &CheckedCompilation,
@@ -62,7 +62,7 @@ pub(crate) fn declaration_parameters(
         &[],
         &scopes,
         false,
-        psi_language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure::PublicInterface,
+        language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure::PublicInterface,
     )?;
     Ok((parameters, count(owner.lifetime_parameters.len())?))
 }

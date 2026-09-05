@@ -3,9 +3,9 @@ use crate::record::{
     CheckedPackageProviderReview, PackageReviewCanonicalRowSource, PackageReviewNominalIdentity,
     PackageReviewNominalOwner, PackageReviewSourceLocationRole, PackageReviewSyntheticSourceKind,
 };
-use omega_compiler::CheckedCompilation;
-use psi_core::PackageKeyIdentity;
-use psi_diagnostics::Diagnostic;
+use compiler::CheckedCompilation;
+use diagnostics::Diagnostic;
+use semantic_vocabulary::PackageKeyIdentity;
 
 pub(crate) fn validate_selected_provider_declaration_owner(
     declaration: &PackageReviewNominalIdentity,
@@ -60,8 +60,8 @@ pub(crate) fn selected_provider_row_source(
         }
 
         match &retained.selected_by {
-            omega_provider_planning::plans::ProviderSelectionProvenance::BuildOverride(declarations)
-            | omega_provider_planning::plans::ProviderSelectionProvenance::TargetDefault(declarations) => {
+            provider_planning::plans::ProviderSelectionProvenance::BuildOverride(declarations)
+            | provider_planning::plans::ProviderSelectionProvenance::TargetDefault(declarations) => {
                 for declaration in declarations {
                     locations.push(canonical_source_span_location(
                         compilation,
@@ -70,7 +70,7 @@ pub(crate) fn selected_provider_row_source(
                     )?);
                 }
             }
-            omega_provider_planning::plans::ProviderSelectionProvenance::UniqueCoveringCandidate => {
+            provider_planning::plans::ProviderSelectionProvenance::UniqueCoveringCandidate => {
                 compiler_derivations
                     .push(PackageReviewSyntheticSourceKind::UniqueCoveringProviderSelection);
             }

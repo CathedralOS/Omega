@@ -67,7 +67,7 @@ fn complete_generic_service_telescope_and_contract_kinds_roundtrip() {
     assert_eq!(recover(&baseline).unwrap(), original);
     let mut changed = original.clone();
     changed.services[0].static_parameters[0].bounds.multiplicity =
-        psi_language_semantics::Multiplicity::Linear;
+        language_semantics::Multiplicity::Linear;
     let bytes = changed.canonical_bytes().unwrap();
     assert_ne!(bytes, baseline);
     assert_eq!(recover(&bytes).unwrap(), changed);

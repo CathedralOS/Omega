@@ -4,8 +4,8 @@ use super::model::{
 };
 use crate::declarations::PackageKey;
 use crate::resolution::graph::CanonicalSourceClosureSubject;
-use omega_package_evidence::ledger::encode_ordinary_package_obligation_ledger;
-use psi_core::PackageKeyIdentity;
+use package_evidence::ledger::encode_ordinary_package_obligation_ledger;
+use semantic_vocabulary::PackageKeyIdentity;
 use std::collections::{BTreeMap, BTreeSet};
 
 pub(super) fn validate_association(

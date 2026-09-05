@@ -95,8 +95,8 @@ fn reference_review_rejects_access_tamper_after_checking() {
         .iter()
         .find(|proposition| proposition.name.as_str() == "reviewed")
         .expect("reviewed proposition");
-    let psi_typed_trees::proposition::PropositionBody::Transparent {
-        proposition: psi_typed_trees::proposition::PropositionFormula::Application(application),
+    let typed_trees::proposition::PropositionBody::Transparent {
+        proposition: typed_trees::proposition::PropositionFormula::Application(application),
     } = &reviewed.body
     else {
         panic!("transparent proposition application")
@@ -108,12 +108,12 @@ fn reference_review_rejects_access_tamper_after_checking() {
         panic!("one reference argument")
     };
     let borrow = *borrow;
-    let psi_typed_trees::expression::ExpressionNode::Borrow(borrow) =
+    let typed_trees::expression::ExpressionNode::Borrow(borrow) =
         checked.typed.expression_table.expression_mut(borrow)
     else {
         unreachable!()
     };
-    borrow.access = psi_language_core::ReferenceAccess::Shared;
+    borrow.access = language_core::ReferenceAccess::Shared;
 
     let diagnostics = project_checked_package_review(&checked)
         .expect_err("review must reject reference access changed after checking");
@@ -147,16 +147,15 @@ fn contract_call_reference_review_rejects_access_tamper_after_checking() {
         .expression_table
         .iter_expressions()
         .find_map(|(expression, node)| {
-            matches!(node, psi_typed_trees::expression::ExpressionNode::Borrow(_))
-                .then_some(expression)
+            matches!(node, typed_trees::expression::ExpressionNode::Borrow(_)).then_some(expression)
         })
         .expect("contract-call borrow expression");
-    let psi_typed_trees::expression::ExpressionNode::Borrow(borrow) =
+    let typed_trees::expression::ExpressionNode::Borrow(borrow) =
         checked.typed.expression_table.expression_mut(borrow)
     else {
         unreachable!()
     };
-    borrow.access = psi_language_core::ReferenceAccess::Shared;
+    borrow.access = language_core::ReferenceAccess::Shared;
 
     let diagnostics = project_checked_package_review(&checked)
         .expect_err("review must reject contract-call reference access changed after checking");

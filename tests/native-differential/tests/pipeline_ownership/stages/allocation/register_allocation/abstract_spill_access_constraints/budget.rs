@@ -1,5 +1,5 @@
 use crate::tests::*;
-use omega_optimization_core::OptimizationWorkBudget;
+use optimization_core::OptimizationWorkBudget;
 
 use super::{
     super::recursive_reload_value_homes::{Bundle, original_bundle, reload_bundle},
@@ -26,7 +26,7 @@ fn exact_budget_all_five_first_under_axes_and_cross_target_custody_fail_closed()
                 assert_eq!(
                     constrain(&source, actual),
                     Err(
-                        omega_selected_instructions_to_register_homes::AbstractSpillAccessConstraintError::BudgetExceeded {
+                        selected_instructions_to_register_homes::AbstractSpillAccessConstraintError::BudgetExceeded {
                             required: EXACT_USAGE,
                             budget: actual,
                         }
@@ -39,7 +39,7 @@ fn exact_budget_all_five_first_under_axes_and_cross_target_custody_fail_closed()
         let arm = build(constructor, NativeTarget::linux_arm64());
         assert_eq!(
             validate(&arm, foreign),
-            Err(omega_selected_instructions_to_register_homes::AbstractSpillAccessConstraintError::RootMismatch),
+            Err(selected_instructions_to_register_homes::AbstractSpillAccessConstraintError::RootMismatch),
         );
     }
 }

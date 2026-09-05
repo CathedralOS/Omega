@@ -8,8 +8,8 @@ use crate::resolution::source::{
     GitPackageSourceRequest, GitWorkspaceSelectionEvidence, PackageSourceCustody,
     PackageSourceSelectionEvidence, ResolvePackageSourceError,
 };
-use omega_build_declarations::WorkspaceMemberPath;
-use omega_package_source::{
+use build_declarations::WorkspaceMemberPath;
+use package_source::{
     GitSourceRequest, ImmutableSourceResolution, LocalSourceLimits, SourceLineage,
     WorkspaceLineageIdentity,
 };

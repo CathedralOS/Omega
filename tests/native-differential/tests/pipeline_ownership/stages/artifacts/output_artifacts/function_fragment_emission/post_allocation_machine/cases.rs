@@ -21,9 +21,9 @@ pub(super) struct HostedCase {
     pub(super) target: NativeTarget,
     pub(super) fixture: FixtureKind,
     pub(super) actions: ExpectedActions,
-    pub(super) object_format: omega_target::ObjectFormat,
+    pub(super) object_format: target::ObjectFormat,
     pub(super) text_section: &'static str,
-    pub(super) calling_policy: omega_calling_conventions::CallingPolicy,
+    pub(super) calling_policy: calling_conventions::CallingPolicy,
     pub(super) exit_policy: WholeFunctionExitPolicy,
 }
 
@@ -95,13 +95,13 @@ fn arm64_case(
     actions: ExpectedActions,
 ) -> HostedCase {
     let (object_format, text_section, exit_policy) = match target.object_format {
-        omega_target::ObjectFormat::Elf => (
-            omega_target::ObjectFormat::Elf,
+        target::ObjectFormat::Elf => (
+            target::ObjectFormat::Elf,
             ".text",
             WholeFunctionExitPolicy::Aapcs64FramelessLeafV1,
         ),
-        omega_target::ObjectFormat::MachO => (
-            omega_target::ObjectFormat::MachO,
+        target::ObjectFormat::MachO => (
+            target::ObjectFormat::MachO,
             "__TEXT,__text",
             WholeFunctionExitPolicy::DarwinAapcs64FramelessLeafV1,
         ),
@@ -114,21 +114,21 @@ fn arm64_case(
         actions,
         object_format,
         text_section,
-        calling_policy: omega_calling_conventions::CallingPolicy::Aapcs64,
+        calling_policy: calling_conventions::CallingPolicy::Aapcs64,
         exit_policy,
     }
 }
 
 fn x64_case(rule: Optimization, target: NativeTarget, fixture: FixtureKind) -> HostedCase {
     let (object_format, calling_policy, exit_policy) = match target.object_format {
-        omega_target::ObjectFormat::Elf => (
-            omega_target::ObjectFormat::Elf,
-            omega_calling_conventions::CallingPolicy::SystemVAMD64,
+        target::ObjectFormat::Elf => (
+            target::ObjectFormat::Elf,
+            calling_conventions::CallingPolicy::SystemVAMD64,
             WholeFunctionExitPolicy::SystemVAMD64FramelessLeafV1,
         ),
-        omega_target::ObjectFormat::Coff => (
-            omega_target::ObjectFormat::Coff,
-            omega_calling_conventions::CallingPolicy::MicrosoftX64,
+        target::ObjectFormat::Coff => (
+            target::ObjectFormat::Coff,
+            calling_conventions::CallingPolicy::MicrosoftX64,
             WholeFunctionExitPolicy::MicrosoftX64FramelessLeafV1,
         ),
         _ => unreachable!(),

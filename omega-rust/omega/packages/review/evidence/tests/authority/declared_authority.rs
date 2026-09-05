@@ -335,7 +335,7 @@ crashes Abort
     );
     assert!(matches!(
         &provider.rows()[0].binding,
-        omega_effects::provider_plan::ProviderBinding::StringBackedImportBootstrap {
+        effects::provider_plan::ProviderBinding::StringBackedImportBootstrap {
             library,
             symbol,
         } if library == "omega-test" && symbol == "host_ping"

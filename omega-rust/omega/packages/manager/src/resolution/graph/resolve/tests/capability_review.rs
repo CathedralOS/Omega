@@ -139,12 +139,12 @@ invokes console;
     }
 
     let baseline_reviews = compile_resolved_package_candidate_reviews(
-        &baseline_sources.for_exact_target(omega_target::TargetProfile::WindowsX64),
+        &baseline_sources.for_exact_target(target::TargetProfile::WindowsX64),
         &compiler_workspace,
     )
     .expect("compile baseline package evidence");
     let candidate_reviews = compile_resolved_package_candidate_reviews(
-        &candidate_sources.for_exact_target(omega_target::TargetProfile::WindowsX64),
+        &candidate_sources.for_exact_target(target::TargetProfile::WindowsX64),
         &compiler_workspace,
     )
     .expect("compile candidate package evidence");
@@ -171,7 +171,7 @@ invokes console;
     let conflicts = compare_review_only_capabilities(
         &baseline_reviews,
         &candidate_reviews,
-        &candidate_sources.for_exact_target(omega_target::TargetProfile::WindowsX64),
+        &candidate_sources.for_exact_target(target::TargetProfile::WindowsX64),
         ReviewOnlyCapabilityConflictLimits::default(),
     )
     .expect("compare compiler-derived authority escalation");

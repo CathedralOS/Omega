@@ -1,0 +1,20 @@
+[package]
+name = "tokens-to-syntax-trees"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[lib]
+name = "tokens_to_syntax_trees"
+path = "src/lib.rs"
+
+[dependencies]
+arena = { path = "../../foundation/arena" }
+language-core = { path = "../../foundation/language-core" }
+numerics = { path = "../../foundation/numerics" }
+source = { path = "../../foundation/source" }
+syntax-trees = { path = "../../representations/syntax-trees" }
+tokens = { path = "../../representations/tokens" }
+
+[dev-dependencies]
+source-files-to-tokens = { path = "../source-files-to-tokens" }

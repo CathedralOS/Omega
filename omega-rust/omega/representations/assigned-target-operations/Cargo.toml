@@ -1,0 +1,16 @@
+[package]
+name = "assigned-target-operations"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[lib]
+name = "assigned_target_operations"
+path = "src/lib.rs"
+
+[dependencies]
+calling-conventions = { path = "../calling-conventions" }
+target = { path = "../target" }
+target-operations = { path = "../target-operations" }
+semantic-vocabulary = { path = "../../../psi/foundation/semantic-vocabulary" }
+terminal-psi = { path = "../../../psi/representations/terminal-psi" }

@@ -9,78 +9,78 @@ representations.
 
 Frontend ownership has migrated completely: Omega consumes Psi-owned source
 and semantic representations directly, and no Omega-named frontend adapter or
-`omega-core` re-export sits between them. Terminal-Psi coverage still grows in
+`core` re-export sits between them. Terminal-Psi coverage still grows in
 vertical slices; constructs outside that vocabulary continue from checked Psi
 semantics into Omega lowering until their terminal form lands.
 
 Current roots:
 
-- `foundation/psi-access-plans`: normalized placed-view access demand and
+- `foundation/access-plans`: normalized placed-view access demand and
   authorization semantics;
-- `foundation/psi-arena`: typed dense, paged, generational, hierarchy, and
+- `foundation/arena`: typed dense, paged, generational, hierarchy, and
   ordered-root arena storage used by Psi-owned source representations;
-- `foundation/psi-diagnostics`: target-neutral diagnostic values and phase
+- `foundation/diagnostics`: target-neutral diagnostic values and phase
   snapshot contracts;
-- `foundation/psi-extents`: target-neutral extent geometry, lineage, rights,
+- `foundation/extents`: target-neutral extent geometry, lineage, rights,
   and admitted-provider identities;
-- `foundation/psi-language-core`: target-neutral grammar semantics plus
+- `foundation/language-core`: target-neutral grammar semantics plus
   atomic-ordering, cast-form, operator-spelling, and source-assembly contract
   vocabulary used by source representations;
-- `foundation/psi-language-semantics`: target-neutral resolved semantic
+- `foundation/language-semantics`: target-neutral resolved semantic
   identities, service/domain tables, termination and supply plans,
   establishment routes, byte-sequence predicates, canonical const-value atoms,
   content algebra/projection plans, built-in value domains, and normalized
   wire scalar ranges;
-- `foundation/psi-layout-plans`: normalized author-selected layout geometry,
+- `foundation/layout-plans`: normalized author-selected layout geometry,
   relocation identity, and materialization plans;
-- `foundation/psi-numerics`: exact integers/rationals, host-independent float
+- `foundation/numerics`: exact integers/rationals, host-independent float
   semantics, arithmetic domains, and source-literal payloads;
-- `foundation/psi-source`: loaded-source records and maps, source identities,
+- `foundation/source`: loaded-source records and maps, source identities,
   coordinates, and source-backed text shared by the Psi frontend and Omega
   orchestration;
-- `foundation/psi-symbols`: stable source symbol identities, names, paths, and
+- `foundation/symbols`: stable source symbol identities, names, paths, and
   hierarchy storage used by resolution and later semantic stages;
-- `foundation/psi-core`: stable terminal semantic identities and the initial
+- `foundation/semantic-vocabulary`: stable terminal semantic identities and the initial
   typed proposition vocabulary;
-- `representations/psi-tokens`: the spelling-level Omega token stream;
-- `representations/psi-syntax-trees`: parsed Omega source shape before name and
+- `representations/tokens`: the spelling-level Omega token stream;
+- `representations/syntax-trees`: parsed Omega source shape before name and
   symbol resolution;
-- `representations/psi-symbol-resolved-trees`: source-shaped trees carrying
+- `representations/symbol-resolved-trees`: source-shaped trees carrying
   resolved symbol identities;
-- `representations/psi-typed-trees`: target-neutral typed source trees and
+- `representations/typed-trees`: target-neutral typed source trees and
   canonical semantic boundary identities;
-- `representations/psi-facts`: durable target-neutral places, contexts,
+- `representations/facts`: durable target-neutral places, contexts,
   propositions, and checked-fact plans;
-- `representations/psi-effects`: target-neutral operational ceilings, service
+- `representations/flow-effects`: target-neutral operational ceilings, service
   reach, synchronous invocation summaries, and capability-flow facts;
-- `representations/psi-checked-trees`: checked proof, borrow, flow, reach,
+- `representations/checked-trees`: checked proof, borrow, flow, reach,
   value-origin, carried semantic-dependency, and admissibility evidence;
-- `representations/psi-terminal`: the self-contained terminal semantic module,
+- `representations/terminal`: the self-contained terminal semantic module,
   closed operation vocabulary, contracts, claims, and proof-facing identities;
-- `pipeline/psi-source-files-to-tokens`: the Psi-owned Omega lexer;
-- `pipeline/psi-tokens-to-syntax-trees`: the Psi-owned unresolved Omega parser;
-- `pipeline/psi-syntax-trees-to-symbol-resolved-trees`: Psi-owned name lookup,
+- `pipeline/source-files-to-tokens`: the Psi-owned Omega lexer;
+- `pipeline/tokens-to-syntax-trees`: the Psi-owned unresolved Omega parser;
+- `pipeline/syntax-trees-to-symbol-resolved-trees`: Psi-owned name lookup,
   source-scope resolution, and stable symbol stamping;
-- `pipeline/psi-symbol-resolved-trees-to-typed-trees`: Psi-owned type identity,
+- `pipeline/symbol-resolved-trees-to-typed-trees`: Psi-owned type identity,
   compatibility, and signature normalization;
-- `pipeline/psi-typed-trees-to-checked-trees`: Psi-owned semantic checking and
+- `pipeline/typed-trees-to-checked-trees`: Psi-owned semantic checking and
   checked-fact construction;
-- `pipeline/psi-checked-trees-to-terminal`: fail-closed vertical-slice
+- `pipeline/checked-trees-to-terminal-psi`: fail-closed vertical-slice
   production from checked semantics into terminal Psi, including current
   scalar/control/call/crash and content-evidence slices;
-- `semantics/psi-validation`: target-neutral cross-semantic source validation;
-- `semantics/psi-proof`: source proof-surface collection, obligation planning,
+- `semantics/validation`: target-neutral cross-semantic source validation;
+- `semantics/proof`: source proof-surface collection, obligation planning,
   and checking;
-- `semantics/psi-proof-admission`: product-local Psi judgment and admission
+- `semantics/proof-admission`: product-local Psi judgment and admission
   checking, explicit proof checking, evidence envelopes, and sealed admission
   validation; it is distinct from the Alpha-owned derivation checker;
-- `semantics/psi-checked-interpreter`: build-time and differential reference
+- `semantics/checked-interpreter`: build-time and differential reference
   execution of checked/source-shaped semantics not yet represented in terminal
   Psi;
-- `semantics/psi-terminal-verifier`: structural module validation,
+- `semantics/terminal-verifier`: structural module validation,
   verifier-reconstructed operation/edge axioms, and exhaustive bodyful-contract
   evidence checking;
-- `semantics/psi-terminal-interpreter`: canonical decoding, verification, and
+- `semantics/terminal-interpreter`: canonical decoding, verification, and
   fuel-bounded reference execution of terminal-Psi artifacts.
 
 Every workspace harness invokes the Psi source-to-checked stages directly.

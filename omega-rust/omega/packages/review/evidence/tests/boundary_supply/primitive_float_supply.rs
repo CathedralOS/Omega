@@ -47,12 +47,12 @@ machine exercise() {
         (
             "F32::negate",
             "FloatProvider::negate_f32",
-            psi_numerics::literals::FloatFormat::F32,
+            numerics::literals::FloatFormat::F32,
         ),
         (
             "F64::negate",
             "FloatProvider::negate_f64",
-            psi_numerics::literals::FloatFormat::F64,
+            numerics::literals::FloatFormat::F64,
         ),
     ] {
         let selected = review
@@ -80,8 +80,8 @@ machine exercise() {
     let applications = review.boundary_application_realizations();
     assert_eq!(applications.len(), 2);
     for (requirement, format) in [
-        ("F32::negate", psi_numerics::literals::FloatFormat::F32),
-        ("F64::negate", psi_numerics::literals::FloatFormat::F64),
+        ("F32::negate", numerics::literals::FloatFormat::F32),
+        ("F64::negate", numerics::literals::FloatFormat::F64),
     ] {
         let application = applications
             .iter()
@@ -175,7 +175,7 @@ machine exercise(value: f32) -> f32 { F32::negate(value) }
         .operators
         .named_uses
         .get_mut(actual_use)
-        .provider_plan_commitment = psi_checked_trees::CheckedProviderPlanCommitment::default();
+        .provider_plan_commitment = checked_trees::CheckedProviderPlanCommitment::default();
 
     let diagnostics = project_checked_package_review(&checked)
         .expect_err("post-check selected-plan substitution must reject");
@@ -229,9 +229,9 @@ pub machine FloatProvider::from_f64(value: f64) -> f32
         row.compiler_intrinsic_execution(),
         Some(
             PackageReviewCompilerIntrinsicExecution::NamedFloatConversion {
-                source: omega_provider_planning::plans::CompilerNumericType::F64,
-                target: omega_provider_planning::plans::CompilerNumericType::F32,
-                domain: psi_numerics::arithmetic::ArithmeticDomain::Exact,
+                source: provider_planning::plans::CompilerNumericType::F64,
+                target: provider_planning::plans::CompilerNumericType::F32,
+                domain: numerics::arithmetic::ArithmeticDomain::Exact,
             }
         ),
     );
@@ -261,8 +261,8 @@ fn review_closes_primitive_float_binary_execution_by_operation_and_format() {
         return;
     };
 
-    use omega_provider_planning::plans::CompilerPrimitiveFloatBinaryOperation as Operation;
-    use psi_numerics::literals::FloatFormat;
+    use numerics::literals::FloatFormat;
+    use provider_planning::plans::CompilerPrimitiveFloatBinaryOperation as Operation;
 
     let operations = [
         ("add", "+", Operation::Add, false),

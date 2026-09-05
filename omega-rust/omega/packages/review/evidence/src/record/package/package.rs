@@ -21,12 +21,12 @@ use super::{
     CheckedPackageProviderFamilyReview, CheckedPackageProviderReview,
     PackageReviewCanonicalRowSources,
 };
-use psi_core::PackageKeyIdentity;
+use semantic_vocabulary::PackageKeyIdentity;
 
 #[derive(Debug, Clone)]
 pub struct CheckedPackageReviewProjection {
     pub(crate) package: PackageKeyIdentity,
-    pub(crate) target: omega_target::TargetProfile,
+    pub(crate) target: target::TargetProfile,
     pub(crate) public_traits: Vec<PackageReviewTraitShape>,
     pub(crate) public_conformances: Vec<PackageReviewConformanceShape>,
     pub(crate) public_domains: Vec<PackageReviewDomainShape>,

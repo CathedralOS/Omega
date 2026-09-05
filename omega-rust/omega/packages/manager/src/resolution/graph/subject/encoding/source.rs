@@ -5,7 +5,7 @@ use super::super::validation::{validate_package_key, validate_source_lineage};
 use super::framing::{Decoder, Encoder, encode_hex};
 use crate::declarations::{PackageKey, PackageName};
 use crate::resolution::graph::ResolvedSourceIdentity;
-use omega_package_source::{
+use package_source::{
     ExternalLocalLineage, ExternalSourceContext, GitCommitId, GitTransport, GitTreeId,
     ImmutableSourceResolution, SourceContentDigest, SourceLineage, SourceRelativePath,
     WorkspaceLineageIdentity, WorkspaceMemberLineage,
@@ -292,10 +292,10 @@ fn decode_resolution(
     }
 }
 
-fn hex_length(algorithm: omega_package_source::GitObjectIdAlgorithm) -> usize {
+fn hex_length(algorithm: package_source::GitObjectIdAlgorithm) -> usize {
     match algorithm {
-        omega_package_source::GitObjectIdAlgorithm::Sha1 => 40,
-        omega_package_source::GitObjectIdAlgorithm::Sha256 => 64,
+        package_source::GitObjectIdAlgorithm::Sha1 => 40,
+        package_source::GitObjectIdAlgorithm::Sha256 => 64,
     }
 }
 

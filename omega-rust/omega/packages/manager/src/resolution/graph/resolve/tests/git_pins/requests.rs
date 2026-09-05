@@ -124,7 +124,7 @@ fn write_dependencies(root: &Fixture, dependencies: &[(&str, &Fixture)]) {
 
 fn subject(closure: &ResolvedPackageSourceClosure) -> CanonicalSourceClosureSubject {
     CanonicalSourceClosureSubject::from_resolved(
-        &closure.for_exact_target(omega_target::TargetProfile::CrossPlatformCli),
+        &closure.for_exact_target(target::TargetProfile::CrossPlatformCli),
         CanonicalSourceClosureSubjectLimits::default(),
     )
     .unwrap()

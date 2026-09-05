@@ -1,6 +1,6 @@
 //! Canonical commitments over compiler review evidence.
 
-use omega_build_evaluation::BuildObservationSummary;
+use build_evaluation::BuildObservationSummary;
 use sha2::{Digest, Sha256};
 
 const WHOLE_REVIEW_COMMITMENT_DOMAIN: &[u8] = b"OMEGA-PACKAGE-REVIEW-COMPARISON\\0";

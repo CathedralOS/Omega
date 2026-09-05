@@ -1,0 +1,13 @@
+[package]
+name = "register-model"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[lib]
+name = "register_model"
+path = "src/lib.rs"
+
+[dependencies]
+target = { path = "../target" }
+sha2 = "0.10.9"

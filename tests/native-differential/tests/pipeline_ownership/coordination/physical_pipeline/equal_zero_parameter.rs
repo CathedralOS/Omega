@@ -2,14 +2,14 @@
 
 use crate::FunctionFragmentReplayInputs;
 use crate::tests::*;
-use omega_post_allocation_machine_to_optimized_machine::{
+use post_allocation_machine_to_post_allocation_machine::{
     Aarch64CbnzFusionError, Aarch64CbnzFusionWorkAxis,
 };
 
 fn optimized_source_with_budget(
     selections: OptimizationSelections,
     budget: OptimizationWorkBudget,
-) -> omega_abstract_operations_optimizer::ValidatedOptimizedAbstractPlan {
+) -> abstract_operations_to_abstract_operations::ValidatedOptimizedAbstractPlan {
     let (semantic, proof) = conditional_u64_equal_zero_parameter_artifact();
     optimize_artifact_sections(
         &semantic,
@@ -22,7 +22,7 @@ fn optimized_source_with_budget(
 
 fn optimized_source(
     selections: OptimizationSelections,
-) -> omega_abstract_operations_optimizer::ValidatedOptimizedAbstractPlan {
+) -> abstract_operations_to_abstract_operations::ValidatedOptimizedAbstractPlan {
     optimized_source_with_budget(selections, selected_lowering_budget())
 }
 
@@ -51,9 +51,7 @@ fn post_allocation_disabled_baseline_retains_compare_zero_and_nonzero_branch_on_
         assert!(
             allocation
                 .selections()
-                .for_phase(
-                    omega_optimization_core::OptimizationExecutionPhase::PostAllocationMachine
-                )
+                .for_phase(optimization_core::OptimizationExecutionPhase::PostAllocationMachine)
                 .is_empty()
         );
         let entry = &allocation.selected_plan().functions[0].blocks[0];
@@ -76,23 +74,23 @@ fn post_allocation_disabled_baseline_retains_compare_zero_and_nonzero_branch_on_
             .iter()
             .find(|row| {
                 row.alternative.family
-                    == omega_selected_instructions::MachineAlternativeFamily::CompareI64Zero
+                    == selected_instructions::MachineAlternativeFamily::CompareI64Zero
             })
             .unwrap();
         let branch = rows
             .iter()
             .find(|row| {
                 row.alternative.family
-                    == omega_selected_instructions::MachineAlternativeFamily::ConditionalBranchNonZero
+                    == selected_instructions::MachineAlternativeFamily::ConditionalBranchNonZero
             })
             .unwrap();
         match target.architecture {
-            omega_target::Architecture::X86_64 => {
+            target::Architecture::X86_64 => {
                 assert_eq!(compare.bytes, [0x48, 0x85, 0xff]);
                 assert_eq!(branch.bytes[0], 0x0f);
                 assert_eq!(branch.bytes[1], 0x85);
             }
-            omega_target::Architecture::Aarch64 => {
+            target::Architecture::Aarch64 => {
                 assert_eq!(
                     u32::from_le_bytes(compare.bytes.as_slice().try_into().unwrap()),
                     0xf100_001f
@@ -125,7 +123,7 @@ fn explicit_aarch64_cbnz_selection_crosses_allocation_and_elides_the_compare() {
     let allocation = realization.allocation().current();
     assert!(matches!(
         allocation.evidence(),
-        omega_selected_instructions_to_register_homes::AllocationEvidence::RegisterHomes(_)
+        selected_instructions_to_register_homes::AllocationEvidence::RegisterHomes(_)
     ));
     let homes = &allocation;
     let StagedOptimizedPostAllocationMachineOptimization::Aarch64Cbnz(optimization) =
@@ -200,7 +198,7 @@ fn explicit_aarch64_cbnz_selection_crosses_allocation_and_elides_the_compare() {
         .iter()
         .find(|span| {
             span.alternative.family
-                == omega_selected_instructions::MachineAlternativeFamily::CompareI64Zero
+                == selected_instructions::MachineAlternativeFamily::CompareI64Zero
         })
         .unwrap();
     assert!(compare.bytes.is_empty());
@@ -236,16 +234,14 @@ fn explicit_aarch64_cbnz_selection_crosses_allocation_and_elides_the_compare() {
         .iter()
         .map(|span| {
             let control_fuel = match &span.control {
-                omega_machine_code::FunctionFragmentControlProvenance::ConditionalBranch {
+                machine_code::FunctionFragmentControlProvenance::ConditionalBranch {
                     when_taken,
                     when_fallthrough,
                     ..
                 } => when_taken.fuel.len() + when_fallthrough.fuel.len(),
-                omega_machine_code::FunctionFragmentControlProvenance::None
-                | omega_machine_code::FunctionFragmentControlProvenance::DirectInternalCall {
-                    ..
-                }
-                | omega_machine_code::FunctionFragmentControlProvenance::Return { .. } => 0,
+                machine_code::FunctionFragmentControlProvenance::None
+                | machine_code::FunctionFragmentControlProvenance::DirectInternalCall { .. }
+                | machine_code::FunctionFragmentControlProvenance::Return { .. } => 0,
             };
             (span.provenance.fuel.len() + control_fuel) as u64
         })

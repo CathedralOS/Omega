@@ -2,7 +2,7 @@
 
 use crate::declarations::PackageKey;
 use crate::resolution::source::{PackageSourceCustody, PackageSourceSelectionEvidenceError};
-use omega_package_source::SourceResolveError;
+use package_source::SourceResolveError;
 use std::collections::BTreeSet;
 use std::fmt;
 

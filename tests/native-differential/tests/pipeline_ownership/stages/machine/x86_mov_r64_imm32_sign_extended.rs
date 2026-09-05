@@ -1,7 +1,7 @@
 //! Direct publication canary plus the exact rule's named custody-corruption rung.
 
 use crate::FunctionFragmentReplayInputs;
-use omega_isa_x86_64::encode_x86_64_mov_r64_imm32_sign_extended_i64_materialization;
+use isa_x86_64::encode_x86_64_mov_r64_imm32_sign_extended_i64_materialization;
 
 use crate::tests::*;
 
@@ -16,8 +16,8 @@ fn x86_mov_r64_imm32_sign_extended_reaches_publication_with_replayable_custody()
         [u128::from(i32::MAX as u32), u128::from(u64::MAX)],
     );
     let module = conditional_immediate_module(machine_fixture.id, vec![machine_fixture]);
-    let semantic = psi_terminal_codec::encode_module(&module).unwrap();
-    let proof = psi_terminal_codec::encode_proof_bundle(&ProofBundle {
+    let semantic = terminal_codec::encode_module(&module).unwrap();
+    let proof = terminal_codec::encode_proof_bundle(&ProofBundle {
         recursive_components: Vec::new(),
         evidence_producers: Vec::new(),
         evidence: Vec::new(),

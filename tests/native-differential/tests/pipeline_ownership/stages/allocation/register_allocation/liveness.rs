@@ -165,23 +165,22 @@ fn selected_liveness_is_deterministic_and_identity_binds_every_domain() {
     let identity = liveness_identity(original);
     let mut mutations = Vec::new();
     let mut changed = original.clone();
-    changed.selected =
-        omega_selected_instructions::SelectedInstructionPlanIdentity::from_canonical_bytes(
-            b"changed-selected",
-        );
+    changed.selected = selected_instructions::SelectedInstructionPlanIdentity::from_canonical_bytes(
+        b"changed-selected",
+    );
     mutations.push(changed);
     let mut changed = original.clone();
     changed.target = NativeTarget::windows_x64();
     mutations.push(changed);
     let mut changed = original.clone();
-    changed.fuel_schedule = psi_core::FuelScheduleIdentity::new(
+    changed.fuel_schedule = semantic_vocabulary::FuelScheduleIdentity::new(
         original.fuel_schedule.marker().checked_add(1).unwrap(),
     )
     .unwrap();
     mutations.push(changed);
     let mut changed = original.clone();
     changed.optimization_unit =
-        omega_optimization_core::OptimizationUnitIdentity::from_canonical_bytes(b"changed");
+        optimization_core::OptimizationUnitIdentity::from_canonical_bytes(b"changed");
     mutations.push(changed);
     let mut changed = original.clone();
     changed.functions[0].machine = MachineId::new(8_101).unwrap();

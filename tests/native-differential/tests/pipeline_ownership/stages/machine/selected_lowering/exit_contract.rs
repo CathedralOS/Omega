@@ -44,9 +44,6 @@ fn frameless_exit_contract_rejects_unpreserved_x86_callee_saved_write() {
     else {
         panic!("unpreserved RBX write must fail at the whole-function exit contract")
     };
-    assert_eq!(
-        instruction,
-        omega_selected_instructions::SelectedInstructionId(3)
-    );
+    assert_eq!(instruction, selected_instructions::SelectedInstructionId(3));
     assert!(rbx_units.contains(&unit));
 }

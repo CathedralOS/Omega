@@ -71,7 +71,7 @@ impl PackageReviewDangerousAuthority {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PackageReviewCapabilityFlow {
     pub(crate) capability: PackageReviewNominalIdentity,
-    pub(crate) kind: psi_effects::CapabilityFlowKind,
+    pub(crate) kind: flow_effects::CapabilityFlowKind,
     pub(crate) state: PackageReviewNominalIdentity,
     pub(crate) statement_index: usize,
     pub(crate) call_ordinal: usize,
@@ -398,7 +398,7 @@ impl PackageReviewCapabilityFlow {
         &self.capability
     }
 
-    pub const fn kind(&self) -> psi_effects::CapabilityFlowKind {
+    pub const fn kind(&self) -> flow_effects::CapabilityFlowKind {
         self.kind
     }
 

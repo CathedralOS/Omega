@@ -115,7 +115,7 @@ fn role(role: crate::declarations::BuildDeclarationKind) -> &'static str {
 fn policy(
     output: &mut Output,
     prefix: &str,
-    row: Option<&omega_package_evidence::record::PackagePolicyRow>,
+    row: Option<&package_evidence::record::PackagePolicyRow>,
 ) -> fmt::Result {
     match row {
         Some(row) => {

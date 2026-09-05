@@ -3,8 +3,8 @@
 use crate::capture::authority::dangerous_authority_class;
 use crate::capture::semantics::declarations::nominal_identity;
 use crate::record::*;
-use omega_compiler::CheckedCompilation;
-use psi_diagnostics::Diagnostic;
+use compiler::CheckedCompilation;
+use diagnostics::Diagnostic;
 
 pub(super) fn project(
     compilation: &CheckedCompilation,

@@ -28,7 +28,7 @@ pub(super) fn ordinary_homes(target: NativeTarget) -> StagedOptimizedRegisterHom
 
 pub(super) fn stage(
     source: &StagedOptimizedRegisterHomes,
-    budget: omega_optimization_core::OptimizationWorkBudget,
+    budget: optimization_core::OptimizationWorkBudget,
 ) -> Result<ValidatedAllocatedCalleeSavedRequirements, AllocatedCalleeSavedRequirementError> {
     stage_allocated_callee_saved_requirements(
         source,
@@ -37,17 +37,17 @@ pub(super) fn stage(
     )
 }
 
-pub(super) fn wide_budget() -> omega_optimization_core::OptimizationWorkBudget {
-    omega_optimization_core::OptimizationWorkBudget::new(
+pub(super) fn wide_budget() -> optimization_core::OptimizationWorkBudget {
+    optimization_core::OptimizationWorkBudget::new(
         1_000_000, 1_000_000, 1_000_000, 1_000_000, 1_000_000,
     )
     .unwrap()
 }
 
 pub(super) fn exact_budget(
-    usage: omega_optimization_core::OptimizationWorkUsage,
-) -> omega_optimization_core::OptimizationWorkBudget {
-    omega_optimization_core::OptimizationWorkBudget::new(
+    usage: optimization_core::OptimizationWorkUsage,
+) -> optimization_core::OptimizationWorkBudget {
+    optimization_core::OptimizationWorkBudget::new(
         usage.rule_evaluations,
         usage.candidates,
         usage.validation_steps,

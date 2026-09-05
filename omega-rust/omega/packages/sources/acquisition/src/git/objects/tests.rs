@@ -10,7 +10,7 @@ use crate::identity::GitObjectIdAlgorithm;
 use crate::limits::*;
 use crate::snapshot::permissions::make_tree_owner_writable;
 use crate::test_support::*;
-use omega_resolver_execution::ResolverExecutionPhase;
+use resolver_execution::ResolverExecutionPhase;
 use sha1_checked::Sha1 as CheckedSha1;
 use sha2::Digest;
 use std::ffi::OsStr;

@@ -2,7 +2,7 @@ use super::super::super::ResolvedSourceIdentity;
 use crate::declarations::BuildDeclarationKind;
 use crate::declarations::dependencies::read::{DependencySourceRequest, PackageSelection};
 use crate::declarations::{AliasName, PackageKey};
-use omega_package_source::{ExternalSourceContext, SourceLineage, SourceRelativePath};
+use package_source::{ExternalSourceContext, SourceLineage, SourceRelativePath};
 
 /// Exact caller request for the root source, before normalized selection.
 #[derive(Debug, Clone, PartialEq, Eq)]

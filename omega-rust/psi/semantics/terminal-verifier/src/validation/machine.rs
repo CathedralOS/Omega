@@ -1,0 +1,956 @@
+//! Registers and validates one terminal machine in canonical source order.
+
+use super::affine_cleanup::{
+    nominal_cleanup_contract_receiver, nominal_cleanups, validate_nominal_affine_cleanup_shape,
+    validate_partial_affine_cleanup_shape,
+};
+use super::crash::{substitute_crash_routes, validate_crash_frontiers};
+use super::structural_operations::{validate_service_reach, validate_unit_operation_static};
+use super::*;
+
+pub(super) fn validate_machine(
+    module: &TerminalModule,
+    machine: &TerminalMachine,
+    machines: &BTreeMap<MachineId, &TerminalMachine>,
+    registry: &mut IdRegistry,
+    policy: ValidationPolicy,
+) -> Result<(), ModuleError> {
+    if machine.blocks.is_empty() {
+        return Err(ModuleError::MachineHasNoBlocks(machine.id));
+    }
+
+    let contract_receiver = nominal_cleanup_contract_receiver(module, machine.id);
+    let mut blocks = BTreeMap::new();
+    let mut value_types = BTreeMap::new();
+    let mut structural_roots = BTreeSet::new();
+    let mut structural_place_kinds = BTreeMap::new();
+    for place in &machine.structural_places {
+        insert_unique(&mut registry.places, place.id, ModuleError::DuplicatePlace)?;
+        if matches!(machine.result, TerminalMachineResult::Unit)
+            && place.kind == semantic_vocabulary::StructuralPlaceKind::Result
+        {
+            return Err(ModuleError::UnitMachineHasResultStructuralPlace {
+                machine: machine.id,
+                place: place.id,
+            });
+        }
+        let root = match place.kind {
+            semantic_vocabulary::StructuralPlaceKind::Parameter { position, .. } => {
+                StructuralRootKey::Parameter(position)
+            }
+            semantic_vocabulary::StructuralPlaceKind::Result => StructuralRootKey::Result,
+            semantic_vocabulary::StructuralPlaceKind::OperationResult { producer, .. } => {
+                StructuralRootKey::OperationResult(producer)
+            }
+            semantic_vocabulary::StructuralPlaceKind::ByteSequenceLiteral {
+                declaration_ordinal,
+                ..
+            } => StructuralRootKey::ByteSequenceLiteral(declaration_ordinal),
+            semantic_vocabulary::StructuralPlaceKind::ProviderAttachment {
+                attachment,
+                field,
+                boundary,
+            } => StructuralRootKey::ProviderAttachment(attachment, field, boundary),
+            semantic_vocabulary::StructuralPlaceKind::TrivialAffineLocal {
+                declaration_ordinal,
+                ..
+            } => StructuralRootKey::TrivialAffineLocal(declaration_ordinal),
+        };
+        if !structural_roots.insert(root) {
+            return Err(ModuleError::DuplicateStructuralPlaceRoot {
+                machine: machine.id,
+                kind: place.kind,
+            });
+        }
+        structural_place_kinds.insert(place.id, place.kind);
+    }
+    for declaration in machine.parameters.iter().chain(machine.result.scalar_ref()) {
+        insert_value(
+            &mut value_types,
+            &mut registry.values,
+            declaration.id,
+            declaration.scalar_type,
+        )?;
+    }
+    for block in &machine.blocks {
+        insert_unique(&mut registry.blocks, block.id, ModuleError::DuplicateBlock)?;
+        if blocks.insert(block.id, block).is_some() {
+            return Err(ModuleError::DuplicateBlock(block.id));
+        }
+        for parameter in &block.parameters {
+            insert_value(
+                &mut value_types,
+                &mut registry.values,
+                parameter.id,
+                parameter.scalar_type,
+            )?;
+        }
+        for operation in &block.operations {
+            insert_unique(
+                &mut registry.operations,
+                operation.id,
+                ModuleError::DuplicateOperation,
+            )?;
+            if let OperationKind::CallDynamicUnit {
+                requirement_obligations,
+                ..
+            }
+            | OperationKind::CallDynamicParameterUnit {
+                requirement_obligations,
+                ..
+            } = &operation.kind
+            {
+                if operation.result != terminal_psi::OperationResult::Unit {
+                    return Err(ModuleError::UnitOperationHasScalarResult(operation.id));
+                }
+                for obligation in requirement_obligations {
+                    insert_unique(
+                        &mut registry.obligations,
+                        *obligation,
+                        ModuleError::DuplicateObligation,
+                    )?;
+                }
+                continue;
+            }
+            if let OperationKind::CallDynamicScalar {
+                requirement_obligations,
+                ..
+            }
+            | OperationKind::CallDynamicParameterScalar {
+                requirement_obligations,
+                ..
+            } = &operation.kind
+            {
+                let Some(result) = operation.result.scalar() else {
+                    return Err(ModuleError::ScalarOperationHasUnitResult(operation.id));
+                };
+                insert_value(
+                    &mut value_types,
+                    &mut registry.values,
+                    result.id,
+                    result.scalar_type,
+                )?;
+                for obligation in requirement_obligations {
+                    insert_unique(
+                        &mut registry.obligations,
+                        *obligation,
+                        ModuleError::DuplicateObligation,
+                    )?;
+                }
+                continue;
+            }
+            if let OperationKind::CallStructuralScalar {
+                requirement_obligations,
+                ..
+            } = &operation.kind
+            {
+                let Some(result) = operation.result.scalar() else {
+                    return Err(ModuleError::ScalarOperationHasUnitResult(operation.id));
+                };
+                insert_value(
+                    &mut value_types,
+                    &mut registry.values,
+                    result.id,
+                    result.scalar_type,
+                )?;
+                validate_unit_operation_static(module, machine, machines, operation)?;
+                for obligation in requirement_obligations {
+                    insert_unique(
+                        &mut registry.obligations,
+                        *obligation,
+                        ModuleError::DuplicateObligation,
+                    )?;
+                }
+                continue;
+            }
+            if let OperationKind::CallStructural {
+                requirement_obligations,
+                ..
+            } = &operation.kind
+            {
+                validate_unit_operation_static(module, machine, machines, operation)?;
+                for obligation in requirement_obligations {
+                    insert_unique(
+                        &mut registry.obligations,
+                        *obligation,
+                        ModuleError::DuplicateObligation,
+                    )?;
+                }
+                continue;
+            }
+            if let OperationKind::CallStructuralWithScalarArguments {
+                requirement_obligations,
+                ..
+            } = &operation.kind
+            {
+                validate_unit_operation_static(module, machine, machines, operation)?;
+                for obligation in requirement_obligations {
+                    insert_unique(
+                        &mut registry.obligations,
+                        *obligation,
+                        ModuleError::DuplicateObligation,
+                    )?;
+                }
+                continue;
+            }
+            if matches!(
+                operation.kind,
+                OperationKind::EstablishPayloadlessCase { .. }
+                    | OperationKind::EstablishAffineScalarRecord { .. }
+            ) {
+                validate_unit_operation_static(module, machine, machines, operation)?;
+                continue;
+            }
+            if matches!(
+                operation.kind,
+                OperationKind::CallUnit { .. }
+                    | OperationKind::WriteOnlyPrimitiveStore { .. }
+                    | OperationKind::StructuralScalarFieldStore { .. }
+                    | OperationKind::PortWrite { .. }
+                    | OperationKind::EstablishByteSequenceLiteral { .. }
+                    | OperationKind::EstablishTrivialAffineLocal { .. }
+                    | OperationKind::StoreDynamicDescriptor { .. }
+            ) {
+                if !matches!(operation.result, terminal_psi::OperationResult::Unit) {
+                    return Err(ModuleError::UnitOperationHasScalarResult(operation.id));
+                }
+                validate_unit_operation_static(module, machine, machines, operation)?;
+                if let OperationKind::CallUnit {
+                    requirement_obligations,
+                    ..
+                } = &operation.kind
+                {
+                    for obligation in requirement_obligations {
+                        insert_unique(
+                            &mut registry.obligations,
+                            *obligation,
+                            ModuleError::DuplicateObligation,
+                        )?;
+                    }
+                }
+                continue;
+            }
+            if let OperationKind::BoundaryCall { boundary, .. } = &operation.kind {
+                let boundary = module
+                    .boundary_machines
+                    .iter()
+                    .find(|candidate| candidate.id == *boundary)
+                    .ok_or(ModuleError::UnknownBoundaryCallTarget {
+                        operation: operation.id,
+                        boundary: *boundary,
+                    })?;
+                let actual = match &operation.result {
+                    OperationResult::Unit => Some(BoundaryMachineResult::Unit),
+                    OperationResult::Scalar(result) => {
+                        Some(BoundaryMachineResult::Scalar(result.scalar_type))
+                    }
+                    OperationResult::Structural(result)
+                        if result.projected_qualifications.is_empty()
+                            && result.claims.is_empty() =>
+                    {
+                        Some(BoundaryMachineResult::Structural(
+                            BoundaryStructuralResultDeclaration {
+                                structural_type: result.structural_type,
+                                multiplicity: result.multiplicity,
+                                qualifications: result.qualifications.clone(),
+                            },
+                        ))
+                    }
+                    OperationResult::Structural(_) => None,
+                };
+                if actual.as_ref() != Some(&boundary.result) {
+                    return Err(ModuleError::BoundaryCallResultMismatch {
+                        operation: operation.id,
+                        expected: boundary.result.clone(),
+                        actual,
+                    });
+                }
+                if let Some(result) = operation.result.scalar() {
+                    insert_value(
+                        &mut value_types,
+                        &mut registry.values,
+                        result.id,
+                        result.scalar_type,
+                    )?;
+                }
+                validate_unit_operation_static(module, machine, machines, operation)?;
+                continue;
+            }
+            let Some(result) = operation.result.scalar() else {
+                return Err(ModuleError::ScalarOperationHasUnitResult(operation.id));
+            };
+            insert_value(
+                &mut value_types,
+                &mut registry.values,
+                result.id,
+                result.scalar_type,
+            )?;
+            match operation.kind.clone() {
+                OperationKind::CallUnit { .. }
+                | OperationKind::WriteOnlyPrimitiveStore { .. }
+                | OperationKind::StructuralScalarFieldStore { .. }
+                | OperationKind::CallStructuralScalar { .. }
+                | OperationKind::CallDynamicScalar { .. }
+                | OperationKind::CallDynamicParameterScalar { .. }
+                | OperationKind::CallDynamicUnit { .. }
+                | OperationKind::CallDynamicParameterUnit { .. }
+                | OperationKind::CallStructural { .. }
+                | OperationKind::CallStructuralWithScalarArguments { .. }
+                | OperationKind::EstablishPayloadlessCase { .. }
+                | OperationKind::EstablishAffineScalarRecord { .. }
+                | OperationKind::StoreDynamicDescriptor { .. }
+                | OperationKind::PortWrite { .. }
+                | OperationKind::EstablishByteSequenceLiteral { .. }
+                | OperationKind::EstablishTrivialAffineLocal { .. } => {
+                    unreachable!("structural/effect operations were validated above")
+                }
+                OperationKind::BoundaryCall { .. } => {
+                    unreachable!("boundary calls were validated above")
+                }
+                OperationKind::Call {
+                    callee,
+                    arguments,
+                    requirement_obligations,
+                    crash_continuations,
+                } => {
+                    let callee =
+                        machines
+                            .get(&callee)
+                            .copied()
+                            .ok_or(ModuleError::UnknownCallTarget {
+                                operation: operation.id,
+                                callee,
+                            })?;
+                    validate_service_reach(
+                        operation.id,
+                        &machine.published_service_ceiling,
+                        &callee.published_service_ceiling,
+                    )?;
+                    if crash_continuations
+                        .windows(2)
+                        .any(|pair| pair[0].cause >= pair[1].cause)
+                    {
+                        return Err(ModuleError::NonCanonicalCallCrashContinuations(
+                            operation.id,
+                        ));
+                    }
+                    let substitutions = callee
+                        .parameters
+                        .iter()
+                        .zip(&arguments)
+                        .map(|(parameter, argument)| {
+                            (
+                                parameter.id,
+                                ScalarTerm::value(*argument, parameter.scalar_type),
+                            )
+                        })
+                        .collect::<BTreeMap<_, _>>();
+                    let expected_crash_continuations =
+                        substitute_crash_routes(&callee.contract.crash_routes, &substitutions);
+                    if crash_continuations != expected_crash_continuations {
+                        return Err(ModuleError::CallCrashContinuationsMismatch {
+                            operation: operation.id,
+                            callee: callee.id,
+                        });
+                    }
+                    for continuation in &crash_continuations {
+                        let covered = machine.contract.crash_routes.iter().any(|published| {
+                            published.cause == continuation.cause
+                                && (published.alternatives == [CrashRouteGuard::Truth]
+                                    || continuation
+                                        .alternatives
+                                        .iter()
+                                        .all(|route| published.alternatives.contains(route)))
+                        });
+                        if !covered {
+                            return Err(ModuleError::CallCrashContinuationUncovered {
+                                operation: operation.id,
+                                cause: continuation.cause,
+                            });
+                        }
+                    }
+                    if !callee.structural_places.is_empty()
+                        || !callee.content_entry_claims.is_empty()
+                        || !callee.content_identity_reshuffles.is_empty()
+                        || !callee.content_partition_compositions.is_empty()
+                        || callee
+                            .contract
+                            .requires
+                            .iter()
+                            .chain(
+                                callee
+                                    .contract
+                                    .ensures
+                                    .iter()
+                                    .map(|clause| &clause.proposition),
+                            )
+                            .any(propositions::proposition_contains_content)
+                    {
+                        return Err(ModuleError::CallTargetHasStructuralContract {
+                            operation: operation.id,
+                            callee: callee.id,
+                        });
+                    }
+                    let Some(callee_result) = callee.result.scalar() else {
+                        return Err(ModuleError::CallTargetReturnsUnit {
+                            operation: operation.id,
+                            callee: callee.id,
+                        });
+                    };
+                    if operation.result.expect_scalar().scalar_type != callee_result.scalar_type {
+                        return Err(ModuleError::CallResultTypeMismatch {
+                            operation: operation.id,
+                            expected: callee_result.scalar_type,
+                            actual: operation.result.expect_scalar().scalar_type,
+                        });
+                    }
+                    if requirement_obligations.len() != callee.contract.requires.len() {
+                        return Err(ModuleError::CallRequirementArityMismatch {
+                            operation: operation.id,
+                            expected: callee.contract.requires.len(),
+                            actual: requirement_obligations.len(),
+                        });
+                    }
+                    for obligation in requirement_obligations {
+                        insert_unique(
+                            &mut registry.obligations,
+                            obligation,
+                            ModuleError::DuplicateObligation,
+                        )?;
+                    }
+                }
+                OperationKind::IntegerConstant { value } => {
+                    let ScalarType::Integer(integer_type) =
+                        operation.result.expect_scalar().scalar_type
+                    else {
+                        return Err(ModuleError::IntegerConstantRequiresIntegerResult(
+                            operation.id,
+                        ));
+                    };
+                    if !integer_type.admits(value) {
+                        return Err(ModuleError::IntegerConstantOutsideResultType(operation.id));
+                    }
+                }
+                OperationKind::BooleanConstant { .. } => {
+                    if operation.result.expect_scalar().scalar_type != ScalarType::Boolean {
+                        return Err(ModuleError::BooleanConstantRequiresBooleanResult(
+                            operation.id,
+                        ));
+                    }
+                }
+                OperationKind::IeeeFloatConstant { value } => {
+                    let expected = ScalarType::IeeeFloat(value.format());
+                    let actual = operation.result.expect_scalar().scalar_type;
+                    if actual != expected {
+                        return Err(ModuleError::IeeeFloatConstantResultTypeMismatch {
+                            operation: operation.id,
+                            expected,
+                            actual,
+                        });
+                    }
+                }
+                OperationKind::NearestIeeeFloatFusedMultiplyAdd { .. } => {
+                    if !matches!(
+                        operation.result.expect_scalar().scalar_type,
+                        ScalarType::IeeeFloat(_)
+                    ) {
+                        return Err(ModuleError::IeeeFloatFusedMultiplyAddRequiresFloatResult(
+                            operation.id,
+                        ));
+                    }
+                }
+                OperationKind::BooleanStructuralField { source, field } => {
+                    if operation.result.expect_scalar().scalar_type != ScalarType::Boolean {
+                        return Err(ModuleError::BooleanStructuralFieldRequiresBooleanResult(
+                            operation.id,
+                        ));
+                    }
+                    validate_boolean_structural_field(
+                        module,
+                        machine,
+                        operation.id,
+                        source,
+                        field,
+                    )?;
+                }
+                OperationKind::IntegerStructuralField { source, field } => {
+                    super::structural_scalar_fields::validate_integer_structural_field(
+                        module,
+                        machine,
+                        operation.id,
+                        source,
+                        field,
+                        operation.result.expect_scalar().scalar_type,
+                    )?;
+                }
+                OperationKind::BooleanNot { .. } => {
+                    if operation.result.expect_scalar().scalar_type != ScalarType::Boolean {
+                        return Err(ModuleError::BooleanNotRequiresBooleanResult(operation.id));
+                    }
+                }
+                OperationKind::BooleanEqual { .. } => {
+                    if operation.result.expect_scalar().scalar_type != ScalarType::Boolean {
+                        return Err(ModuleError::BooleanEqualRequiresBooleanResult(operation.id));
+                    }
+                }
+                OperationKind::IntegerEqual { .. } => {
+                    if operation.result.expect_scalar().scalar_type != ScalarType::Boolean {
+                        return Err(ModuleError::IntegerEqualRequiresBooleanResult(operation.id));
+                    }
+                }
+                OperationKind::IntegerLessThan { .. }
+                | OperationKind::IntegerLessOrEqual { .. } => {
+                    if operation.result.expect_scalar().scalar_type != ScalarType::Boolean {
+                        return Err(ModuleError::IntegerOrderingRequiresBooleanResult(
+                            operation.id,
+                        ));
+                    }
+                }
+                OperationKind::IntegerBitwiseAnd { .. }
+                | OperationKind::IntegerBitwiseOr { .. }
+                | OperationKind::IntegerBitwiseXor { .. } => {
+                    if !matches!(
+                        operation.result.expect_scalar().scalar_type,
+                        ScalarType::Integer(_)
+                    ) {
+                        return Err(ModuleError::IntegerBitwiseRequiresIntegerResult(
+                            operation.id,
+                        ));
+                    }
+                }
+                OperationKind::IntegerBitwiseNot { .. } => {
+                    if !matches!(
+                        operation.result.expect_scalar().scalar_type,
+                        ScalarType::Integer(_)
+                    ) {
+                        return Err(ModuleError::IntegerBitwiseRequiresIntegerResult(
+                            operation.id,
+                        ));
+                    }
+                }
+                OperationKind::IntegerWiden { .. } => {
+                    if !matches!(
+                        operation.result.expect_scalar().scalar_type,
+                        ScalarType::Integer(_)
+                    ) {
+                        return Err(ModuleError::IntegerWidenRequiresIntegerResult(operation.id));
+                    }
+                }
+                OperationKind::IntegerExactCast { obligation, .. } => {
+                    if !matches!(
+                        operation.result.expect_scalar().scalar_type,
+                        ScalarType::Integer(_)
+                    ) {
+                        return Err(ModuleError::IntegerExactCastRequiresIntegerResult(
+                            operation.id,
+                        ));
+                    }
+                    insert_unique(
+                        &mut registry.obligations,
+                        obligation,
+                        ModuleError::DuplicateObligation,
+                    )?;
+                }
+                OperationKind::WrappingIntegerShiftLeft { .. }
+                | OperationKind::WrappingIntegerShiftRight { .. } => {
+                    if !matches!(
+                        operation.result.expect_scalar().scalar_type,
+                        ScalarType::Integer(_)
+                    ) {
+                        return Err(ModuleError::WrappingIntegerShiftRequiresIntegerResult(
+                            operation.id,
+                        ));
+                    }
+                }
+                OperationKind::ExactIntegerShiftRight { obligation, .. } => {
+                    if !matches!(
+                        operation.result.expect_scalar().scalar_type,
+                        ScalarType::Integer(_)
+                    ) {
+                        return Err(ModuleError::ExactIntegerShiftRequiresIntegerResult(
+                            operation.id,
+                        ));
+                    }
+                    insert_unique(
+                        &mut registry.obligations,
+                        obligation,
+                        ModuleError::DuplicateObligation,
+                    )?;
+                }
+                OperationKind::ExactIntegerShiftLeft { obligation, .. } => {
+                    if !matches!(
+                        operation.result.expect_scalar().scalar_type,
+                        ScalarType::Integer(_)
+                    ) {
+                        return Err(ModuleError::ExactIntegerShiftRequiresIntegerResult(
+                            operation.id,
+                        ));
+                    }
+                    insert_unique(
+                        &mut registry.obligations,
+                        obligation,
+                        ModuleError::DuplicateObligation,
+                    )?;
+                }
+                OperationKind::ExactIntegerAdd { obligation, .. } => {
+                    if !matches!(
+                        operation.result.expect_scalar().scalar_type,
+                        ScalarType::Integer(_)
+                    ) {
+                        return Err(ModuleError::ExactIntegerAddRequiresIntegerResult(
+                            operation.id,
+                        ));
+                    }
+                    insert_unique(
+                        &mut registry.obligations,
+                        obligation,
+                        ModuleError::DuplicateObligation,
+                    )?;
+                }
+                OperationKind::ExactIntegerSubtract { obligation, .. } => {
+                    if !matches!(
+                        operation.result.expect_scalar().scalar_type,
+                        ScalarType::Integer(_)
+                    ) {
+                        return Err(ModuleError::ExactIntegerSubtractRequiresIntegerResult(
+                            operation.id,
+                        ));
+                    }
+                    insert_unique(
+                        &mut registry.obligations,
+                        obligation,
+                        ModuleError::DuplicateObligation,
+                    )?;
+                }
+                OperationKind::ExactIntegerMultiply { obligation, .. } => {
+                    if !matches!(
+                        operation.result.expect_scalar().scalar_type,
+                        ScalarType::Integer(_)
+                    ) {
+                        return Err(ModuleError::ExactIntegerMultiplyRequiresIntegerResult(
+                            operation.id,
+                        ));
+                    }
+                    insert_unique(
+                        &mut registry.obligations,
+                        obligation,
+                        ModuleError::DuplicateObligation,
+                    )?;
+                }
+                OperationKind::ExactIntegerDivide { obligation, .. } => {
+                    if !matches!(
+                        operation.result.expect_scalar().scalar_type,
+                        ScalarType::Integer(_)
+                    ) {
+                        return Err(ModuleError::ExactIntegerDivideRequiresIntegerResult(
+                            operation.id,
+                        ));
+                    }
+                    insert_unique(
+                        &mut registry.obligations,
+                        obligation,
+                        ModuleError::DuplicateObligation,
+                    )?;
+                }
+                OperationKind::ExactIntegerRemainder { obligation, .. } => {
+                    if !matches!(
+                        operation.result.expect_scalar().scalar_type,
+                        ScalarType::Integer(_)
+                    ) {
+                        return Err(ModuleError::ExactIntegerRemainderRequiresIntegerResult(
+                            operation.id,
+                        ));
+                    }
+                    insert_unique(
+                        &mut registry.obligations,
+                        obligation,
+                        ModuleError::DuplicateObligation,
+                    )?;
+                }
+                OperationKind::WrappingIntegerDivide { obligation, .. } => {
+                    if !matches!(
+                        operation.result.expect_scalar().scalar_type,
+                        ScalarType::Integer(_)
+                    ) {
+                        return Err(ModuleError::WrappingIntegerDivideRequiresIntegerResult(
+                            operation.id,
+                        ));
+                    }
+                    insert_unique(
+                        &mut registry.obligations,
+                        obligation,
+                        ModuleError::DuplicateObligation,
+                    )?;
+                }
+                OperationKind::WrappingIntegerRemainder { obligation, .. } => {
+                    if !matches!(
+                        operation.result.expect_scalar().scalar_type,
+                        ScalarType::Integer(_)
+                    ) {
+                        return Err(ModuleError::WrappingIntegerRemainderRequiresIntegerResult(
+                            operation.id,
+                        ));
+                    }
+                    insert_unique(
+                        &mut registry.obligations,
+                        obligation,
+                        ModuleError::DuplicateObligation,
+                    )?;
+                }
+                OperationKind::SaturatingIntegerDivide { obligation, .. } => {
+                    if !matches!(
+                        operation.result.expect_scalar().scalar_type,
+                        ScalarType::Integer(_)
+                    ) {
+                        return Err(ModuleError::SaturatingIntegerDivideRequiresIntegerResult(
+                            operation.id,
+                        ));
+                    }
+                    insert_unique(
+                        &mut registry.obligations,
+                        obligation,
+                        ModuleError::DuplicateObligation,
+                    )?;
+                }
+                OperationKind::SaturatingIntegerRemainder { obligation, .. } => {
+                    if !matches!(
+                        operation.result.expect_scalar().scalar_type,
+                        ScalarType::Integer(_)
+                    ) {
+                        return Err(
+                            ModuleError::SaturatingIntegerRemainderRequiresIntegerResult(
+                                operation.id,
+                            ),
+                        );
+                    }
+                    insert_unique(
+                        &mut registry.obligations,
+                        obligation,
+                        ModuleError::DuplicateObligation,
+                    )?;
+                }
+                OperationKind::WrappingIntegerAdd { .. } => {
+                    if !matches!(
+                        operation.result.expect_scalar().scalar_type,
+                        ScalarType::Integer(_)
+                    ) {
+                        return Err(ModuleError::WrappingIntegerAddRequiresIntegerResult(
+                            operation.id,
+                        ));
+                    }
+                }
+                OperationKind::SaturatingIntegerAdd { .. } => {
+                    if !matches!(
+                        operation.result.expect_scalar().scalar_type,
+                        ScalarType::Integer(_)
+                    ) {
+                        return Err(ModuleError::SaturatingIntegerAddRequiresIntegerResult(
+                            operation.id,
+                        ));
+                    }
+                }
+                OperationKind::WrappingIntegerSubtract { .. } => {
+                    if !matches!(
+                        operation.result.expect_scalar().scalar_type,
+                        ScalarType::Integer(_)
+                    ) {
+                        return Err(ModuleError::WrappingIntegerSubtractRequiresIntegerResult(
+                            operation.id,
+                        ));
+                    }
+                }
+                OperationKind::SaturatingIntegerSubtract { .. } => {
+                    if !matches!(
+                        operation.result.expect_scalar().scalar_type,
+                        ScalarType::Integer(_)
+                    ) {
+                        return Err(ModuleError::SaturatingIntegerSubtractRequiresIntegerResult(
+                            operation.id,
+                        ));
+                    }
+                }
+                OperationKind::WrappingIntegerMultiply { .. } => {
+                    if !matches!(
+                        operation.result.expect_scalar().scalar_type,
+                        ScalarType::Integer(_)
+                    ) {
+                        return Err(ModuleError::WrappingIntegerMultiplyRequiresIntegerResult(
+                            operation.id,
+                        ));
+                    }
+                }
+                OperationKind::SaturatingIntegerMultiply { .. } => {
+                    if !matches!(
+                        operation.result.expect_scalar().scalar_type,
+                        ScalarType::Integer(_)
+                    ) {
+                        return Err(ModuleError::SaturatingIntegerMultiplyRequiresIntegerResult(
+                            operation.id,
+                        ));
+                    }
+                }
+            }
+        }
+        for edge in block.terminator.edges() {
+            insert_unique(&mut registry.edges, edge, ModuleError::DuplicateEdge)?;
+        }
+        for cleanup in nominal_cleanups(&block.terminator) {
+            for obligation in &cleanup.requirement_obligations {
+                insert_unique(
+                    &mut registry.obligations,
+                    *obligation,
+                    ModuleError::DuplicateObligation,
+                )?;
+            }
+        }
+    }
+
+    let Some(entry) = blocks.get(&machine.entry) else {
+        return Err(ModuleError::UnknownEntryBlock {
+            machine: machine.id,
+            block: machine.entry,
+        });
+    };
+    if !entry.parameters.is_empty() {
+        return Err(ModuleError::EntryBlockCannotHaveParameters(machine.entry));
+    }
+
+    let context = PropositionContext::from_value_types_and_places(
+        value_types.iter().map(|(id, ty)| (*id, *ty)),
+        machine
+            .structural_places
+            .iter()
+            .map(|place| (place.id, place.kind))
+            .chain(contract_receiver.map(|receiver| {
+                (
+                    receiver,
+                    StructuralPlaceKind::Parameter {
+                        position: 0,
+                        is_self: true,
+                    },
+                )
+            })),
+    )
+    .map_err(ModuleError::MalformedProposition)?;
+    content::validate_content_entry_claims(machine, registry, &structural_place_kinds, &context)?;
+    content::validate_content_identity_reshuffles(
+        machine,
+        registry,
+        &structural_place_kinds,
+        &context,
+    )?;
+    content::validate_content_partition_compositions(
+        module,
+        machine,
+        machines,
+        registry,
+        &structural_place_kinds,
+        &context,
+    )?;
+    let requires_values = machine
+        .parameters
+        .iter()
+        .map(|parameter| parameter.id)
+        .collect::<BTreeSet<_>>();
+    validate_crash_frontiers(module, machine, &context, &requires_values)?;
+    validate_partial_affine_cleanup_shape(module, machine, machines)?;
+    validate_nominal_affine_cleanup_shape(module, machine, machines)?;
+    let mut ensures_values = requires_values.clone();
+    if let Some(result) = machine.result.scalar() {
+        ensures_values.insert(result.id);
+    }
+    for proposition in &machine.contract.requires {
+        contracts::validate_contract_clause_kind(
+            proposition,
+            machine.contract.id,
+            ContractClauseKind::Requires,
+        )?;
+        context
+            .validate(proposition)
+            .map_err(ModuleError::MalformedProposition)?;
+        contracts::validate_contract_scope(
+            proposition,
+            &requires_values,
+            machine.contract.id,
+            ContractClauseKind::Requires,
+        )?;
+        crash::validate_structural_case_memberships(module, machine, proposition)?;
+    }
+    for clause in &machine.contract.ensures {
+        insert_unique(
+            &mut registry.obligations,
+            clause.obligation,
+            ModuleError::DuplicateObligation,
+        )?;
+        contracts::validate_contract_clause_kind(
+            &clause.proposition,
+            machine.contract.id,
+            ContractClauseKind::Ensures,
+        )?;
+        context
+            .validate(&clause.proposition)
+            .map_err(ModuleError::MalformedProposition)?;
+        contracts::validate_contract_scope(
+            &clause.proposition,
+            &ensures_values,
+            machine.contract.id,
+            ContractClauseKind::Ensures,
+        )?;
+        crash::validate_structural_case_memberships(module, machine, &clause.proposition)?;
+    }
+    for row in &machine.contract.outcome_specific_ensures {
+        insert_unique(
+            &mut registry.obligations,
+            row.obligation,
+            ModuleError::DuplicateObligation,
+        )?;
+        contracts::validate_contract_clause_kind(
+            &row.proposition,
+            machine.contract.id,
+            ContractClauseKind::Ensures,
+        )?;
+        context
+            .validate(&row.proposition)
+            .map_err(ModuleError::MalformedProposition)?;
+        contracts::validate_contract_scope(
+            &row.proposition,
+            &ensures_values,
+            machine.contract.id,
+            ContractClauseKind::Ensures,
+        )?;
+        crash::validate_structural_case_memberships(module, machine, &row.proposition)?;
+        super::evidence::validate_outcome_guard(module, machine, row.guard)?;
+    }
+    if machine
+        .contract
+        .ensures
+        .windows(2)
+        .any(|pair| pair[0].obligation >= pair[1].obligation)
+    {
+        return Err(ModuleError::NonCanonicalContractEnsures(
+            machine.contract.id,
+        ));
+    }
+
+    let representation_backedges = ranked_scc::validate_ranked_scc(machine, &blocks, &value_types)?;
+    control_flow::validate_control_flow(
+        module,
+        machine,
+        machines,
+        &module.boundary_machines,
+        &blocks,
+        &value_types,
+        &representation_backedges,
+    )?;
+    frontier::validate_structural_frontier(
+        module,
+        machine,
+        machines,
+        &blocks,
+        &representation_backedges,
+    )?;
+    if policy == ValidationPolicy::Execution && machine.ranked_scc.is_some() {
+        return Err(ModuleError::NonExecutableRankedScc(machine.id));
+    }
+    Ok(())
+}

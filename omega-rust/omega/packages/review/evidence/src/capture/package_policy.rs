@@ -8,10 +8,10 @@ mod external;
 mod semantic_dependencies;
 
 use crate::record::PackagePolicyBaseline;
-use omega_compiler::CheckedCompilation;
-use omega_target::TargetProfile;
-use psi_core::PackageKeyIdentity;
-use psi_diagnostics::Diagnostic;
+use compiler::CheckedCompilation;
+use diagnostics::Diagnostic;
+use semantic_vocabulary::PackageKeyIdentity;
+use target::TargetProfile;
 
 pub fn project_checked_package_policy(
     compilation: &CheckedCompilation,

@@ -16,16 +16,16 @@ use super::casts::project_contract_cast;
 use super::names::project_contract_name_expression;
 use crate::capture::contracts::facts::ContractProjectionContext;
 use crate::record::PackageReviewContractExpression;
-use omega_compiler::CheckedCompilation;
-use psi_diagnostics::Diagnostic;
-use psi_symbols::SymbolHandle;
+use compiler::CheckedCompilation;
+use diagnostics::Diagnostic;
+use symbols::SymbolHandle;
 
 pub(crate) fn project_contract_expression(
     compilation: &CheckedCompilation,
     context: &ContractProjectionContext<'_>,
     binders: &[(SymbolHandle, String)],
-    expression: psi_typed_trees::expression::ExpressionHandle,
-    checked_fact: Option<psi_arena::Handle<psi_typed_trees::domain::ProofFact>>,
+    expression: typed_trees::expression::ExpressionHandle,
+    checked_fact: Option<arena::Handle<typed_trees::domain::ProofFact>>,
     depth: usize,
 ) -> Result<PackageReviewContractExpression, Vec<Diagnostic>> {
     project_contract_expression_with_substitutions(
@@ -44,13 +44,13 @@ pub(crate) fn project_contract_expression_with_substitutions(
     compilation: &CheckedCompilation,
     context: &ContractProjectionContext<'_>,
     binders: &[(SymbolHandle, String)],
-    expression: psi_typed_trees::expression::ExpressionHandle,
+    expression: typed_trees::expression::ExpressionHandle,
     substitutions: &[(SymbolHandle, PackageReviewContractExpression)],
-    projection_substitutions: &[(SymbolHandle, psi_typed_trees::expression::ExpressionHandle)],
-    checked_fact: Option<psi_arena::Handle<psi_typed_trees::domain::ProofFact>>,
+    projection_substitutions: &[(SymbolHandle, typed_trees::expression::ExpressionHandle)],
+    checked_fact: Option<arena::Handle<typed_trees::domain::ProofFact>>,
     depth: usize,
 ) -> Result<PackageReviewContractExpression, Vec<Diagnostic>> {
-    use psi_typed_trees::expression::ExpressionNode;
+    use typed_trees::expression::ExpressionNode;
 
     if depth >= 256 {
         return Err(vec![Diagnostic::error(format!(

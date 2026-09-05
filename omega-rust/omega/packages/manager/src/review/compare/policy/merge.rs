@@ -3,7 +3,7 @@ use super::{
     PackagePolicyRowChange,
     limits::{Budget, row_bytes},
 };
-use omega_package_evidence::record::PackagePolicyRow;
+use package_evidence::record::PackagePolicyRow;
 use std::cmp::Ordering;
 
 pub(super) fn rows(

@@ -80,8 +80,8 @@ fn immediate_artifact(machine: u64, values: [u128; 2]) -> (Vec<u8>, Vec<u8>) {
     let integer_type = IntegerType::new(IntegerSign::Unsigned, 64).unwrap();
     let machine = conditional_immediate_machine(machine, integer_type, values);
     let module = conditional_immediate_module(machine.id, vec![machine]);
-    let semantic = psi_terminal_codec::encode_module(&module).unwrap();
-    let proof = psi_terminal_codec::encode_proof_bundle(&ProofBundle {
+    let semantic = terminal_codec::encode_module(&module).unwrap();
+    let proof = terminal_codec::encode_proof_bundle(&ProofBundle {
         recursive_components: Vec::new(),
         evidence_producers: Vec::new(),
         evidence: Vec::new(),

@@ -1,7 +1,7 @@
 mod support;
 
-use omega_package_evidence::project_checked_calling_policy;
-use omega_package_evidence::record::{
+use package_evidence::project_checked_calling_policy;
+use package_evidence::record::{
     PackagePolicyCallingPlan, PackageReviewNominalOwner,
     PackageReviewOpaqueRepresentationCopyDisposition,
     PackageReviewOpaqueRepresentationMovementRole,
@@ -154,7 +154,7 @@ fn project(checked: &CheckedCompilation) -> PackagePolicyCallingPlan {
         .expect("complete calling policy bytes");
     let recovered = PackagePolicyCallingPlan::recover_canonical(
         &bytes,
-        omega_package_evidence::encoding::PackagePolicyRecoveryLimits::default(),
+        package_evidence::encoding::PackagePolicyRecoveryLimits::default(),
     )
     .expect("source-independent complete calling policy recovery");
     assert_eq!(recovered, policy);

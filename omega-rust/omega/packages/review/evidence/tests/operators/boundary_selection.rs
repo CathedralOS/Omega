@@ -73,7 +73,7 @@ satisfies CheckedMath::offset_zero
     );
     assert!(matches!(
         provider.rows()[0].binding,
-        omega_effects::provider_plan::ProviderBinding::CheckedAdapter { .. }
+        effects::provider_plan::ProviderBinding::CheckedAdapter { .. }
     ));
     assert!(
         review.boundary_application_realizations().is_empty(),
@@ -276,10 +276,7 @@ pub machine exercise(value: i32) -> i32 {
         .expression_table
         .set_source_span(
             expression,
-            psi_source::SourceSpan::new(
-                psi_source::SourceId(usize::MAX),
-                psi_source::Span::default(),
-            ),
+            source::SourceSpan::new(source::SourceId(usize::MAX), source::Span::default()),
         );
     let normalized_review = project_checked_package_review(&normalized_expression)
         .expect("exact authored selection survives an empty normalized expression span");
@@ -316,7 +313,7 @@ pub machine exercise(value: i32) -> i32 {
         .operators
         .named_uses
         .get_mut(actual_use)
-        .provider_plan_commitment = psi_checked_trees::CheckedProviderPlanCommitment::default();
+        .provider_plan_commitment = checked_trees::CheckedProviderPlanCommitment::default();
     let diagnostics = project_checked_package_review(&substituted_plan)
         .expect_err("ordinary application selected-plan substitution must reject");
     assert!(
@@ -463,11 +460,11 @@ satisfies CheckedMath::convert
     assert_eq!(family.target().target_name(), target);
     assert_eq!(
         family.authority(),
-        omega_package_evidence::record::PackageReviewProviderSelectionAuthority::BuildOverride
+        package_evidence::record::PackageReviewProviderSelectionAuthority::BuildOverride
     );
     assert_eq!(
         family.coverage(),
-        omega_package_evidence::record::PackageReviewProviderFamilyCoverage::CompleteDeclarationFamily
+        package_evidence::record::PackageReviewProviderFamilyCoverage::CompleteDeclarationFamily
     );
     let coordinates = family.coordinates();
     assert_eq!(coordinates.len(), 2);
@@ -839,7 +836,7 @@ pub machine other<Element>(left: Element, right: Element) -> bool { true }
     .expect("symbolic demand fixture should check");
 
     let mut wrong_requirement_binder = checked.clone();
-    let psi_checked_trees::CheckedSymbolicBoundaryOperatorApplicationArgument::TypeBinder {
+    let checked_trees::CheckedSymbolicBoundaryOperatorApplicationArgument::TypeBinder {
         binder_owner,
         ..
     } = &mut wrong_requirement_binder
@@ -847,11 +844,11 @@ pub machine other<Element>(left: Element, right: Element) -> bool { true }
         .operators
         .symbolic_boundary_applications[0]
         .arguments[0];
-    *binder_owner = psi_symbols::SymbolHandle::invalid();
+    *binder_owner = symbols::SymbolHandle::invalid();
     assert!(project_checked_package_review(&wrong_requirement_binder).is_err());
 
     let mut wrong_requirement_ordinal = checked.clone();
-    let psi_checked_trees::CheckedSymbolicBoundaryOperatorApplicationArgument::TypeBinder {
+    let checked_trees::CheckedSymbolicBoundaryOperatorApplicationArgument::TypeBinder {
         binder_ordinal,
         ..
     } = &mut wrong_requirement_ordinal
@@ -863,7 +860,7 @@ pub machine other<Element>(left: Element, right: Element) -> bool { true }
     assert!(project_checked_package_review(&wrong_requirement_ordinal).is_err());
 
     let mut wrong_producer_binder = checked.clone();
-    let psi_checked_trees::CheckedSymbolicBoundaryOperatorApplicationArgument::TypeBinder {
+    let checked_trees::CheckedSymbolicBoundaryOperatorApplicationArgument::TypeBinder {
         machine_binder_symbol,
         ..
     } = &mut wrong_producer_binder
@@ -871,7 +868,7 @@ pub machine other<Element>(left: Element, right: Element) -> bool { true }
         .operators
         .symbolic_boundary_applications[0]
         .arguments[0];
-    *machine_binder_symbol = psi_symbols::SymbolHandle::invalid();
+    *machine_binder_symbol = symbols::SymbolHandle::invalid();
     assert!(project_checked_package_review(&wrong_producer_binder).is_err());
 
     let other = checked
@@ -885,7 +882,7 @@ pub machine other<Element>(left: Element, right: Element) -> bool { true }
         .operators
         .symbolic_boundary_applications[0]
         .machine_symbol = other.symbol;
-    let psi_checked_trees::CheckedSymbolicBoundaryOperatorApplicationArgument::TypeBinder {
+    let checked_trees::CheckedSymbolicBoundaryOperatorApplicationArgument::TypeBinder {
         machine_binder_symbol,
         ..
     } = &mut wrong_callable
@@ -1146,7 +1143,7 @@ pub machine exercise(value: [u8; 4]) -> [u8; 4] {
     };
     assert_eq!(*binder_ordinal, 0);
     assert!(declared_carrier.canonical().contains("u64"));
-    let expected = psi_language_semantics::const_value::CanonicalConstIdentity::integer("u64", 4);
+    let expected = language_semantics::const_value::CanonicalConstIdentity::integer("u64", 4);
     assert_eq!(value_type, &expected.type_name);
     assert_eq!(value_encoding, &expected.encoding);
     assert_eq!(
@@ -1200,13 +1197,12 @@ pub machine exercise(value: i32) -> i32 {
         .iter_mut()
         .find(|specialization| !specialization.operator_realizations.is_empty())
         .expect("generic provider specialization");
-    let psi_typed_trees::operator::ClosedOperatorApplicationArgument::Type {
-        binder_symbol, ..
-    } = &mut specialization.operator_realizations[0].arguments[0]
+    let typed_trees::operator::ClosedOperatorApplicationArgument::Type { binder_symbol, .. } =
+        &mut specialization.operator_realizations[0].arguments[0]
     else {
         panic!("fixture retains one type application")
     };
-    *binder_symbol = psi_symbols::SymbolHandle::invalid();
+    *binder_symbol = symbols::SymbolHandle::invalid();
     assert!(
         project_checked_package_review(&substituted_application).is_err(),
         "review must independently reject a substituted retained application"
@@ -1220,7 +1216,7 @@ pub machine exercise(value: i32) -> i32 {
         .find(|specialization| !specialization.operator_realizations.is_empty())
         .expect("generic provider specialization");
     specialization.commitment =
-        psi_typed_trees::typed_trees::MachineSpecializationCommitment::from_digest([0xa5; 32]);
+        typed_trees::typed_trees::MachineSpecializationCommitment::from_digest([0xa5; 32]);
     assert!(
         project_checked_package_review(&stale_commitment).is_err(),
         "review must independently reject a stale specialization commitment"

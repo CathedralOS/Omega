@@ -64,7 +64,7 @@ where machine Work()
             })
             .unwrap_or_else(|| panic!("{name} review row"))
     };
-    let role_text = |row: &omega_package_evidence::record::PackageReviewCanonicalRow,
+    let role_text = |row: &package_evidence::record::PackageReviewCanonicalRow,
                      role: PackageReviewSourceLocationRole| {
         row.source()
             .authored_locations()
@@ -152,7 +152,7 @@ fn operational_review_rejects_missing_invalid_and_stale_source_custody() {
 
     let mut invalid = checked.clone();
     invalid.typed.machines_mut()[machine_index].blocks_keyword_source_spans[0] =
-        psi_source::SourceSpan::default();
+        source::SourceSpan::default();
     let diagnostics = project_checked_package_review(&invalid)
         .expect_err("invalid blocking source custody must reject");
     assert!(
@@ -170,7 +170,7 @@ fn operational_review_rejects_missing_invalid_and_stale_source_custody() {
         .find(|fact| fact.machine == symbol)
         .expect("operate suspension fact")
         .plan
-        .interface = psi_language_semantics::SuspensionInterface::InternalInferred;
+        .interface = language_semantics::SuspensionInterface::InternalInferred;
     let diagnostics = project_checked_package_review(&stale)
         .expect_err("stale checked suspension interface must reject");
     assert!(
@@ -227,7 +227,7 @@ invokes Host;
         .typed
         .signature_invokes
         .span_mut_or_empty(dispatch.invokes)[0]
-        .target = psi_typed_trees::signature::AuthoredInvocationTarget::Service(other);
+        .target = typed_trees::signature::AuthoredInvocationTarget::Service(other);
     let diagnostics = project_checked_package_review(&target_tamper)
         .expect_err("changed exact invocation target must not reuse stale checked evidence");
     assert!(diagnostics.iter().any(|diagnostic| {
@@ -241,7 +241,7 @@ invokes Host;
         .typed
         .signature_invokes
         .span_mut_or_empty(dispatch.invokes)[0]
-        .source_span = psi_source::SourceSpan::default();
+        .source_span = source::SourceSpan::default();
     let diagnostics = project_checked_package_review(&source_tamper)
         .expect_err("missing invocation source custody must reject review");
     assert!(

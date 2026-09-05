@@ -2,7 +2,9 @@
 
 use super::*;
 
-use omega_abstract_operations_optimizer::{CountedLoopAnalysisError, CountedLoopAnalysisSnapshot};
+use abstract_operations_to_abstract_operations::{
+    CountedLoopAnalysisError, CountedLoopAnalysisSnapshot,
+};
 
 #[test]
 fn source_countdown_yields_one_revision_bound_exact_trip_count() {
@@ -72,14 +74,13 @@ fn counted_loop_snapshot_replay_rejects_every_summary_axis() {
 
     let corruptions: Vec<Box<dyn Fn(&mut CountedLoopAnalysisSnapshot)>> = vec![
         Box::new(|snapshot| {
-            snapshot.revision =
-                omega_optimization_core::OptimizationUnitIdentity::from_canonical_bytes(
-                    b"stale counted-loop revision",
-                );
+            snapshot.revision = optimization_core::OptimizationUnitIdentity::from_canonical_bytes(
+                b"stale counted-loop revision",
+            );
         }),
         Box::new(|snapshot| {
             snapshot.terminal_psi.program_fingerprint =
-                psi_terminal::SemanticFingerprint::from_bytes([0xD3; 32]);
+                terminal_psi::SemanticFingerprint::from_bytes([0xD3; 32]);
         }),
         Box::new(|snapshot| snapshot.loops.clear()),
         Box::new(|snapshot| {
@@ -118,8 +119,11 @@ fn counted_loop_snapshot_replay_rejects_every_summary_axis() {
                 snapshot.loops[0].certificate.rank_parameter;
         }),
         Box::new(|snapshot| {
-            snapshot.loops[0].trip_count.scalar_type =
-                psi_core::IntegerType::new(psi_core::IntegerSign::Unsigned, 64).unwrap();
+            snapshot.loops[0].trip_count.scalar_type = semantic_vocabulary::IntegerType::new(
+                semantic_vocabulary::IntegerSign::Unsigned,
+                64,
+            )
+            .unwrap();
         }),
     ];
     assert_eq!(corruptions.len(), 17);

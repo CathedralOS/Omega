@@ -14,7 +14,7 @@ fn replay_rejects_roots_usage_and_every_retained_requirement_field() {
 
     let mut root = canonical.clone();
     root.abstract_spill_access_constraints =
-        omega_selected_instructions_to_register_homes::AbstractSpillAccessConstraintPlanIdentity::from_bytes([0x51; 32]);
+        selected_instructions_to_register_homes::AbstractSpillAccessConstraintPlanIdentity::from_bytes([0x51; 32]);
     assert_eq!(
         validate_non_authoritative_spill_frame_requirements(&source, &environment, root),
         Err(SpillFrameRequirementError::RootMismatch),
@@ -29,7 +29,7 @@ fn replay_rejects_roots_usage_and_every_retained_requirement_field() {
 
     let mut environment_root = canonical.clone();
     environment_root.register_environment =
-        omega_register_model::TargetRegisterEnvironmentIdentity::from_bytes([0x52; 32]);
+        register_model::TargetRegisterEnvironmentIdentity::from_bytes([0x52; 32]);
     assert_eq!(
         validate_non_authoritative_spill_frame_requirements(
             &source,
@@ -64,7 +64,7 @@ fn replay_rejects_roots_usage_and_every_retained_requirement_field() {
             plan.functions[0].abi_red_zone_capacity_bytes = 0;
         },
         |plan: &mut NonAuthoritativeSpillFrameRequirementPlan| {
-            plan.functions[0].machine = psi_core::MachineId::new(52_991).unwrap();
+            plan.functions[0].machine = semantic_vocabulary::MachineId::new(52_991).unwrap();
         },
         |plan: &mut NonAuthoritativeSpillFrameRequirementPlan| {
             plan.functions.clear();
@@ -79,13 +79,12 @@ fn replay_rejects_roots_usage_and_every_retained_requirement_field() {
     }
 
     let mut under_budget = canonical;
-    under_budget.budget =
-        omega_optimization_core::OptimizationWorkBudget::new(1, 6, 7, 2, 7).unwrap();
+    under_budget.budget = optimization_core::OptimizationWorkBudget::new(1, 6, 7, 2, 7).unwrap();
     assert_eq!(
         validate_non_authoritative_spill_frame_requirements(&source, &environment, under_budget,),
         Err(SpillFrameRequirementError::BudgetExceeded {
             required: super::fixture::EXACT_USAGE,
-            budget: omega_optimization_core::OptimizationWorkBudget::new(1, 6, 7, 2, 7).unwrap(),
+            budget: optimization_core::OptimizationWorkBudget::new(1, 6, 7, 2, 7).unwrap(),
         }),
     );
 }

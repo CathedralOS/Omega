@@ -10,7 +10,7 @@ use super::{
 pub struct PackageReviewDataField {
     pub(crate) identity: Option<u64>,
     pub(crate) name: String,
-    pub(crate) relevance: psi_language_core::BindingRelevance,
+    pub(crate) relevance: language_core::BindingRelevance,
     pub(crate) type_identity: PackageReviewTypeIdentity,
 }
 
@@ -23,7 +23,7 @@ impl PackageReviewDataField {
         &self.name
     }
 
-    pub const fn relevance(&self) -> psi_language_core::BindingRelevance {
+    pub const fn relevance(&self) -> language_core::BindingRelevance {
         self.relevance
     }
 
@@ -60,16 +60,16 @@ pub enum PackageReviewDataKind {
 /// tree declaration node.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub struct PackageReviewDataProperties {
-    pub(crate) multiplicity: psi_language_semantics::Multiplicity,
-    pub(crate) carry: Option<psi_language_semantics::CarryPolicy>,
+    pub(crate) multiplicity: language_semantics::Multiplicity,
+    pub(crate) carry: Option<language_semantics::CarryPolicy>,
 }
 
 impl PackageReviewDataProperties {
-    pub const fn multiplicity(&self) -> psi_language_semantics::Multiplicity {
+    pub const fn multiplicity(&self) -> language_semantics::Multiplicity {
         self.multiplicity
     }
 
-    pub const fn carry(&self) -> Option<psi_language_semantics::CarryPolicy> {
+    pub const fn carry(&self) -> Option<language_semantics::CarryPolicy> {
         self.carry
     }
 }
@@ -78,7 +78,7 @@ impl PackageReviewDataProperties {
 pub struct PackageReviewDataShape {
     pub(crate) identity: PackageReviewNominalIdentity,
     pub(crate) kind: PackageReviewDataKind,
-    pub(crate) supply: psi_language_semantics::DataSupplyMode,
+    pub(crate) supply: language_semantics::DataSupplyMode,
     pub(crate) lifetime_parameter_count: usize,
     pub(crate) type_parameters: Vec<PackageReviewTypeParameter>,
     pub(crate) properties: PackageReviewDataProperties,
@@ -97,7 +97,7 @@ impl PackageReviewDataShape {
         &self.kind
     }
 
-    pub const fn supply(&self) -> psi_language_semantics::DataSupplyMode {
+    pub const fn supply(&self) -> language_semantics::DataSupplyMode {
         self.supply
     }
 

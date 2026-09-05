@@ -1,6 +1,6 @@
 use crate::FunctionFragmentReplayInputs;
 use crate::tests::*;
-use omega_selected_instructions_to_register_homes::ValidatedSelectedAnalysis;
+use selected_instructions_to_register_homes::ValidatedSelectedAnalysis;
 
 #[test]
 fn fixed_frame_retains_original_allocation_and_rejects_current_program_substitution() {

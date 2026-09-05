@@ -1,8 +1,8 @@
 use super::*;
-use omega_abstract_operations_to_target_operations::AdmittedIeeeFloatFmaSettlement;
-use omega_effects::provider_plan::{ProviderBinding, ProviderPlan, ProviderPlanRow, ServiceSchema};
-use omega_target::{TargetProfile, X86_SCALAR_FMA_REQUIRED_FEATURES, X86ScalarFmaSlot};
-use psi_terminal::TerminalAffineCleanupAction;
+use abstract_operations_to_target_operations::AdmittedIeeeFloatFmaSettlement;
+use effects::provider_plan::{ProviderBinding, ProviderPlan, ProviderPlanRow, ServiceSchema};
+use target::{TargetProfile, X86_SCALAR_FMA_REQUIRED_FEATURES, X86ScalarFmaSlot};
+use terminal_psi::TerminalAffineCleanupAction;
 
 #[test]
 fn optimized_target_lowering_retains_byte_sequence_literal_custody() {
@@ -67,7 +67,7 @@ fn optimized_target_lowering_retains_byte_sequence_literal_custody() {
 
 #[test]
 fn optimized_target_lowering_retains_exact_ieee_literal_custody() {
-    let expected_value = psi_core::IeeeFloatValue::Binary64(0x7ff8_1234_5678_9abc);
+    let expected_value = semantic_vocabulary::IeeeFloatValue::Binary64(0x7ff8_1234_5678_9abc);
     for target_profile in [
         NativeTarget::linux_x64(),
         NativeTarget::windows_x64(),
@@ -121,17 +121,17 @@ fn optimized_target_lowering_retains_finite_ieee_literal_sequence_custody() {
         (
             OperationId::new(3_520).unwrap(),
             ValueId::new(3_521).unwrap(),
-            psi_core::IeeeFloatValue::Binary32(0x8000_0000),
+            semantic_vocabulary::IeeeFloatValue::Binary32(0x8000_0000),
         ),
         (
             OperationId::new(3_522).unwrap(),
             ValueId::new(3_523).unwrap(),
-            psi_core::IeeeFloatValue::Binary32(0x7fc1_2345),
+            semantic_vocabulary::IeeeFloatValue::Binary32(0x7fc1_2345),
         ),
         (
             OperationId::new(3_524).unwrap(),
             ValueId::new(3_525).unwrap(),
-            psi_core::IeeeFloatValue::Binary64(0x7ff8_1234_5678_9abc),
+            semantic_vocabulary::IeeeFloatValue::Binary64(0x7ff8_1234_5678_9abc),
         ),
     ];
     for target_profile in [
@@ -312,7 +312,7 @@ fn optimized_target_lowering_retains_ordered_mixed_literal_sequence_custody() {
                 && *value == IntegerValue::Signed(-128)
                 && *float_operation == OperationId::new(3_552).unwrap()
                 && *float_result == ValueId::new(3_553).unwrap()
-                && *float_value == psi_core::IeeeFloatValue::Binary32(0x7fc1_2345)
+                && *float_value == semantic_vocabulary::IeeeFloatValue::Binary32(0x7fc1_2345)
                 && *second_operation == OperationId::new(3_554).unwrap()
                 && *second_result == ValueId::new(3_555).unwrap()
                 && *second_type == IntegerType::new(IntegerSign::Unsigned, 16).unwrap()
@@ -346,11 +346,11 @@ fn optimized_target_lowering_retains_exact_nearest_ieee_fma_custody() {
     ] {
         for (format, slot) in [
             (
-                psi_core::IeeeFloatFormat::Binary32,
+                semantic_vocabulary::IeeeFloatFormat::Binary32,
                 X86ScalarFmaSlot::Binary32,
             ),
             (
-                psi_core::IeeeFloatFormat::Binary64,
+                semantic_vocabulary::IeeeFloatFormat::Binary64,
                 X86ScalarFmaSlot::Binary64,
             ),
         ] {
@@ -380,7 +380,7 @@ fn optimized_target_lowering_retains_exact_nearest_ieee_fma_custody() {
                 origin_package_identity: None,
                 origin_package: "test".into(),
             };
-            let provider = omega_target::AdmittedX86ScalarFmaProvider::from_deployment_claim(
+            let provider = target::AdmittedX86ScalarFmaProvider::from_deployment_claim(
                 profile,
                 &X86_SCALAR_FMA_REQUIRED_FEATURES,
             )

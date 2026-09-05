@@ -21,7 +21,7 @@ pub(super) fn analyze_and_allocate_structural_call(
     assert_eq!(effect_call.ownership, selected_call.ownership);
     assert_eq!(
         effect_call.declaration.frame,
-        omega_selected_instructions::StructuralUnitCallFrameEffect::BalancedCallerFrameV1 {
+        selected_instructions::StructuralUnitCallFrameEffect::BalancedCallerFrameV1 {
             frame_byte_count: 72,
             shadow_byte_count: 32,
             pre_call_stack_alignment: 16,
@@ -42,10 +42,10 @@ pub(super) fn analyze_and_allocate_structural_call(
         .unit_uses
         .clear();
     let environment = selected.register_environment();
-    let catalog = omega_isa_x86_64::validate_x86_64_machine_effect_catalog(
+    let catalog = isa_x86_64::validate_x86_64_machine_effect_catalog(
         NativeTarget::uefi_x64(),
         environment.constraints(),
-        omega_isa_x86_64::x86_64_machine_effect_catalog(
+        isa_x86_64::x86_64_machine_effect_catalog(
             NativeTarget::uefi_x64(),
             environment.constraints(),
         )
@@ -53,7 +53,7 @@ pub(super) fn analyze_and_allocate_structural_call(
     )
     .unwrap();
     assert!(
-        omega_selected_instructions_to_machine_effects::validate_pre_allocation_machine_effects(
+        selected_instructions_to_register_homes::validate_pre_allocation_machine_effects(
             selected.selected(),
             environment.identity(),
             environment.physical(),

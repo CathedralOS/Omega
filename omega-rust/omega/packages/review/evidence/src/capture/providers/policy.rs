@@ -14,11 +14,11 @@ use crate::record::{
     PackagePolicyProviderPlan, PackagePolicySelectedProviders,
     PackageReviewProviderGrantSelectorKind,
 };
-use omega_compiler::CheckedCompilation;
-use omega_provider_planning::plans::SelectedProviderReviewProvenance;
-use omega_target::TargetProfile;
-use psi_core::PackageKeyIdentity;
-use psi_diagnostics::Diagnostic;
+use compiler::CheckedCompilation;
+use diagnostics::Diagnostic;
+use provider_planning::plans::SelectedProviderReviewProvenance;
+use semantic_vocabulary::PackageKeyIdentity;
+use target::TargetProfile;
 
 /// Retain the root activation's complete selected provider meaning without
 /// evaluator, calling, native, or admission receipts. This grants no authority.
@@ -137,10 +137,10 @@ fn project_plan(
         .iter()
         .filter(|grant| grant.grant.replays_selected_plan(plan))
         .map(|grant| match grant.grant.selector_kind {
-            omega_trust_model::ProviderGrantSelectorKind::PlanName => {
+            trust_model::ProviderGrantSelectorKind::PlanName => {
                 PackageReviewProviderGrantSelectorKind::PlanName
             }
-            omega_trust_model::ProviderGrantSelectorKind::ProviderSlot => {
+            trust_model::ProviderGrantSelectorKind::ProviderSlot => {
                 PackageReviewProviderGrantSelectorKind::ProviderSlot
             }
         })
@@ -169,12 +169,12 @@ fn normalized_plan_name(
     retained: &SelectedProviderReviewProvenance,
 ) -> Result<String, Vec<Diagnostic>> {
     let plan = &retained.plan;
-    let omega_provider_planning::plans::ProviderSchemaDeclaration::BoundaryOperator(symbol) =
+    let provider_planning::plans::ProviderSchemaDeclaration::BoundaryOperator(symbol) =
         retained.provider.schema
     else {
         return Ok(plan.name.clone());
     };
-    let generated = omega_provider_planning::plans::satisfies_plan_name(
+    let generated = provider_planning::plans::satisfies_plan_name(
         &plan.target,
         &plan.schema.trait_name,
         &plan.provider_type,
@@ -186,7 +186,7 @@ fn normalized_plan_name(
     }
     let requirement =
         policy_provider_requirement_identity(compilation, retained.provider.schema, symbol)?;
-    Ok(omega_provider_planning::plans::satisfies_plan_name(
+    Ok(provider_planning::plans::satisfies_plan_name(
         &plan.target,
         requirement.path(),
         &plan.provider_type,

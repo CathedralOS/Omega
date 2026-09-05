@@ -6,7 +6,7 @@ use crate::limits::GIT_CONFIG_SHA256;
 use crate::tree::filesystem::io_error;
 use cap_fs_ext::DirExt;
 use cap_std::fs::Dir as CapabilityDirectory;
-use omega_platform_custody::record_file::{RecordFileLimits, RecordFileRoot};
+use platform_custody::record_file::{RecordFileLimits, RecordFileRoot};
 use std::ffi::OsStr;
 use std::path::Path;
 

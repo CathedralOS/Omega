@@ -130,7 +130,7 @@ impl Fixture {
         )
         .unwrap();
         CanonicalSourceClosureSubject::from_resolved(
-            &closure.for_exact_target(omega_target::TargetProfile::CrossPlatformCli),
+            &closure.for_exact_target(target::TargetProfile::CrossPlatformCli),
             CanonicalSourceClosureSubjectLimits::default(),
         )
         .unwrap()
@@ -186,8 +186,8 @@ pub(super) fn resolve(
     }
 }
 
-pub(super) fn commit(resolution: &omega_package_source::ImmutableSourceResolution) -> String {
-    let omega_package_source::ImmutableSourceResolution::Git { commit, .. } = resolution else {
+pub(super) fn commit(resolution: &package_source::ImmutableSourceResolution) -> String {
+    let package_source::ImmutableSourceResolution::Git { commit, .. } = resolution else {
         panic!("expected real Git resolution")
     };
     commit.to_hex()

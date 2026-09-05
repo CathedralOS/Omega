@@ -1,5 +1,5 @@
 use crate::tests::*;
-use omega_target::Architecture;
+use target::Architecture;
 
 const RULE: Optimization = Optimization::Aarch64ElideSameViewCopyI64BeforeReturnV1;
 

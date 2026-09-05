@@ -1,36 +1,34 @@
-use omega_abstract_operations::{AbstractOperation, AbstractOperationPlan};
-use omega_abstract_operations_to_target_operations::lower_to_target_operations;
-use omega_assigned_target_operations::AssignedOperation;
-use omega_image_emission::{build_object_artifact, derive_stack_demand};
-use omega_machine_emission::emit_machine_code;
-use omega_psi_to_abstract_operations::{ArtifactLoweringError, lower_artifact_sections};
-use omega_target::NativeTarget;
-use omega_target_operations::{
-    TargetBooleanControl, TargetIntegerControl, TargetIntegerExpression, TargetOperation,
-};
-use omega_target_operations_to_assigned_target_operations::assign_registers;
-use psi_core::{
+use abstract_operations::{AbstractOperation, AbstractOperationPlan};
+use abstract_operations_to_target_operations::lower_to_target_operations;
+use assigned_target_operations::AssignedOperation;
+use image_emission::{build_object_artifact, derive_stack_demand};
+use machine_emission::emit_machine_code;
+use proof_admission::AdmissionProfile;
+use semantic_vocabulary::{
     BlockId, ContractId, EdgeId, IntegerSign, IntegerType, IntegerValue, MachineId, OperationId,
     ScalarType, ValueId,
 };
-use psi_proof_admission::AdmissionProfile;
-use psi_terminal::{
-    Block, MachineContract, Operation, OperationKind, SuccessorEdge, TerminalMachine,
-    TerminalMachineResult, TerminalModule, Terminator, ValueDeclaration, VocabularyMarker,
+use target::NativeTarget;
+use target_operations::{
+    TargetBooleanControl, TargetIntegerControl, TargetIntegerExpression, TargetOperation,
 };
-use psi_terminal_codec::{
-    decode_module, encode_module, encode_proof_bundle, terminal_psi_identity,
-};
-use psi_terminal_fixed_fuel::{
+use target_operations_to_assigned_target_operations::assign_registers;
+use terminal_codec::{decode_module, encode_module, encode_proof_bundle, terminal_psi_identity};
+use terminal_fixed_fuel::{
     derive_fixed_entry_fuel, derive_fixed_safe_point_segments, validate_fixed_entry_fuel,
     validate_fixed_safe_point_segments,
 };
-use psi_terminal_fuel::FuelChargeSite;
-use psi_terminal_interpreter::{
+use terminal_fuel::FuelChargeSite;
+use terminal_interpreter::{
     MeasuredTerminalExecution, TerminalArtifactInterpretError, TerminalExecutionResult,
     TerminalScalarValue, interpret_terminal_artifact_measured,
 };
-use psi_terminal_verifier::{ProofBundle, VerifiedTerminalModule, verify_module};
+use terminal_psi::{
+    Block, MachineContract, Operation, OperationKind, SuccessorEdge, TerminalMachine,
+    TerminalMachineResult, TerminalModule, Terminator, ValueDeclaration, VocabularyMarker,
+};
+use terminal_psi_to_abstract_operations::{ArtifactLoweringError, lower_artifact_sections};
+use terminal_verifier::{ProofBundle, VerifiedTerminalModule, verify_module};
 
 fn interpret_verified_artifact(
     verified: &VerifiedTerminalModule<'_>,
@@ -254,7 +252,7 @@ fn conditional_fixed_bound_uses_the_maximum_path_not_the_sum() {
     let mut module = conditional_module(VocabularyMarker::CURRENT);
     module.machines[0].blocks[1].operations.push(Operation {
         id: OperationId::new(1).unwrap(),
-        result: psi_terminal::OperationResult::Scalar(ValueDeclaration {
+        result: terminal_psi::OperationResult::Scalar(ValueDeclaration {
             id: ValueId::new(7).unwrap(),
             scalar_type: ScalarType::Boolean,
         }),
@@ -755,8 +753,8 @@ fn conditional_requires_boolean_condition_and_dominating_values() {
             &ProofBundle::default(),
             &AdmissionProfile::default(),
         ),
-        Err(psi_terminal_verifier::VerificationError::Module(
-            psi_terminal_verifier::ModuleError::ConditionalConditionTypeMismatch { .. }
+        Err(terminal_verifier::VerificationError::Module(
+            terminal_verifier::ModuleError::ConditionalConditionTypeMismatch { .. }
         ))
     ));
 
@@ -773,8 +771,8 @@ fn conditional_requires_boolean_condition_and_dominating_values() {
             &ProofBundle::default(),
             &AdmissionProfile::default(),
         ),
-        Err(psi_terminal_verifier::VerificationError::Module(
-            psi_terminal_verifier::ModuleError::ValueUsedBeforeDefinition(value)
+        Err(terminal_verifier::VerificationError::Module(
+            terminal_verifier::ModuleError::ValueUsedBeforeDefinition(value)
         )) if value == true_parameter
     ));
 }
@@ -888,7 +886,7 @@ fn conditional_call_arm_module() -> TerminalModule {
     let integer = module.machines[0].parameters[1].scalar_type;
     module.machines[0].blocks[1].operations.push(Operation {
         id: OperationId::new(1).unwrap(),
-        result: psi_terminal::OperationResult::Scalar(ValueDeclaration {
+        result: terminal_psi::OperationResult::Scalar(ValueDeclaration {
             id: ValueId::new(7).unwrap(),
             scalar_type: integer,
         }),
@@ -1021,7 +1019,7 @@ fn conditional_shared_tail_module() -> TerminalModule {
                     parameters: vec![declaration(4, integer)],
                     operations: vec![Operation {
                         id: OperationId::new(1).unwrap(),
-                        result: psi_terminal::OperationResult::Scalar(declaration(6, integer)),
+                        result: terminal_psi::OperationResult::Scalar(declaration(6, integer)),
                         kind: OperationKind::WrappingIntegerAdd {
                             left: ValueId::new(4).unwrap(),
                             right: ValueId::new(4).unwrap(),
@@ -1039,7 +1037,7 @@ fn conditional_shared_tail_module() -> TerminalModule {
                     parameters: vec![declaration(5, integer)],
                     operations: vec![Operation {
                         id: OperationId::new(2).unwrap(),
-                        result: psi_terminal::OperationResult::Scalar(declaration(7, integer)),
+                        result: terminal_psi::OperationResult::Scalar(declaration(7, integer)),
                         kind: OperationKind::WrappingIntegerMultiply {
                             left: ValueId::new(5).unwrap(),
                             right: ValueId::new(5).unwrap(),
@@ -1057,7 +1055,7 @@ fn conditional_shared_tail_module() -> TerminalModule {
                     parameters: vec![declaration(8, integer)],
                     operations: vec![Operation {
                         id: OperationId::new(3).unwrap(),
-                        result: psi_terminal::OperationResult::Scalar(declaration(9, integer)),
+                        result: terminal_psi::OperationResult::Scalar(declaration(9, integer)),
                         kind: OperationKind::WrappingIntegerAdd {
                             left: ValueId::new(8).unwrap(),
                             right: ValueId::new(8).unwrap(),
@@ -1158,7 +1156,7 @@ fn nested_constant_conditional_module() -> TerminalModule {
                     parameters: vec![declaration(4, integer)],
                     operations: vec![Operation {
                         id: OperationId::new(1).unwrap(),
-                        result: psi_terminal::OperationResult::Scalar(declaration(
+                        result: terminal_psi::OperationResult::Scalar(declaration(
                             5,
                             ScalarType::Boolean,
                         )),
@@ -1195,7 +1193,7 @@ fn nested_constant_conditional_module() -> TerminalModule {
                     parameters: vec![declaration(7, integer)],
                     operations: vec![Operation {
                         id: OperationId::new(2).unwrap(),
-                        result: psi_terminal::OperationResult::Scalar(declaration(8, integer)),
+                        result: terminal_psi::OperationResult::Scalar(declaration(8, integer)),
                         kind: OperationKind::WrappingIntegerAdd {
                             left: ValueId::new(7).unwrap(),
                             right: ValueId::new(7).unwrap(),
@@ -1212,7 +1210,7 @@ fn nested_constant_conditional_module() -> TerminalModule {
                     parameters: vec![declaration(9, integer)],
                     operations: vec![Operation {
                         id: OperationId::new(3).unwrap(),
-                        result: psi_terminal::OperationResult::Scalar(declaration(12, integer)),
+                        result: terminal_psi::OperationResult::Scalar(declaration(12, integer)),
                         kind: OperationKind::WrappingIntegerMultiply {
                             left: ValueId::new(9).unwrap(),
                             right: ValueId::new(9).unwrap(),

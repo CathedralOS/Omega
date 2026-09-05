@@ -10,14 +10,14 @@ use crate::record::{
     PackageReviewExternalCallableSignature, PackageReviewExternalExecutableSupply,
     PackageReviewExternalRequirement, PackageReviewNominalIdentity,
 };
-use omega_compiler::CheckedCompilation;
-use psi_diagnostics::Diagnostic;
+use compiler::CheckedCompilation;
+use diagnostics::Diagnostic;
 
 pub(super) fn project_top_level_requirement_external_supply(
     compilation: &CheckedCompilation,
-    machine: &psi_typed_trees::machine::Machine,
-    conformance: &psi_typed_trees::machine::TraitConformance,
-    requirement: &psi_typed_trees::machine::Machine,
+    machine: &typed_trees::machine::Machine,
+    conformance: &typed_trees::machine::TraitConformance,
+    requirement: &typed_trees::machine::Machine,
     callable_identity: &PackageReviewNominalIdentity,
     signature: &PackageReviewExternalCallableSignature,
     binding: &PackageReviewExternalBinding,
@@ -38,12 +38,12 @@ pub(super) fn project_top_level_requirement_external_supply(
     }
     let requirement_parameters = compilation.machine_type_parameters(requirement);
     let realization_parameters = compilation.machine_type_parameters(machine);
-    let unsupported_static_parameter = |parameter: &psi_typed_trees::data::TypeParameter| {
+    let unsupported_static_parameter = |parameter: &typed_trees::data::TypeParameter| {
         !matches!(
             parameter.kind,
-            psi_typed_trees::data::TypeParameterKind::Type
-                | psi_typed_trees::data::TypeParameterKind::Const { .. }
-                | psi_typed_trees::data::TypeParameterKind::Machine { .. }
+            typed_trees::data::TypeParameterKind::Type
+                | typed_trees::data::TypeParameterKind::Const { .. }
+                | typed_trees::data::TypeParameterKind::Machine { .. }
         )
     };
     if requirement_parameters
@@ -58,7 +58,7 @@ pub(super) fn project_top_level_requirement_external_supply(
             machine.name, requirement.name
         ))]);
     }
-    psi_validation::revalidate_top_level_requirement_realization(
+    validation::revalidate_top_level_requirement_realization(
         &compilation.typed,
         machine,
         requirement,
@@ -150,8 +150,8 @@ fn same_conformance_bound_shape(
 
 pub(super) fn validate_selected_top_level_requirement_external_supply(
     compilation: &CheckedCompilation,
-    machine: &psi_typed_trees::machine::Machine,
-    requirement: &psi_typed_trees::machine::Machine,
+    machine: &typed_trees::machine::Machine,
+    requirement: &typed_trees::machine::Machine,
     binding: &PackageReviewExternalBinding,
 ) -> Result<(), Vec<Diagnostic>> {
     let plans = compilation.selected_provider_plans().plans();
@@ -170,7 +170,7 @@ pub(super) fn validate_selected_top_level_requirement_external_supply(
         .zip(provenance)
         .filter(|(_plan, retained)| {
             retained.provider.schema
-                == omega_provider_planning::plans::ProviderSchemaDeclaration::BoundaryRequirement(
+                == provider_planning::plans::ProviderSchemaDeclaration::BoundaryRequirement(
                     requirement.symbol,
                 )
                 && retained.provider.row_realizations.contains(&machine.symbol)
@@ -180,7 +180,7 @@ pub(super) fn validate_selected_top_level_requirement_external_supply(
         return Ok(());
     }
     let Some(expected_schema) =
-        omega_effects::provider_plan::ServiceSchema::from_typed_boundary_requirement(
+        effects::provider_plan::ServiceSchema::from_typed_boundary_requirement(
             &compilation.typed,
             requirement,
         )

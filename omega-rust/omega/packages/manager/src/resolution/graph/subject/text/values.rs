@@ -3,17 +3,17 @@
 use super::Error;
 use super::framing::Reader;
 use crate::declarations::{AliasName, PackageName};
-use omega_package_source::SourceRelativePath;
+use package_source::SourceRelativePath;
 
 impl Reader<'_> {
     pub(super) fn package_name(&mut self, maximum: usize) -> Result<PackageName, Error> {
         let value = self.string(maximum)?;
         // Reject before the original owner's owned error formatting. A valid
         // ProjectName consumes this String without another allocation.
-        if !omega_build_declarations::ProjectName::is_valid(&value) {
+        if !build_declarations::ProjectName::is_valid(&value) {
             return Err(Error::new("invalid text package name"));
         }
-        omega_build_declarations::ProjectName::parse(value)
+        build_declarations::ProjectName::parse(value)
             .map(PackageName::from)
             .map_err(|_| Error::new("invalid text package name"))
     }

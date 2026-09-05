@@ -1,15 +1,15 @@
 use std::fmt::Write;
 use std::path::PathBuf;
 
-use omega_compiler::compile_to_checked;
-use psi_core::{ServiceId, StructuralTypeId};
-use psi_proof_admission::AdmissionProfile;
-use psi_terminal::{OperationKind, TerminalMachineResult, TerminalModule, Terminator};
-use psi_terminal_fixed_fuel::{
+use compiler::compile_to_checked;
+use proof_admission::AdmissionProfile;
+use semantic_vocabulary::{ServiceId, StructuralTypeId};
+use terminal_fixed_fuel::{
     derive_fixed_entry_fuel, derive_ranked_countdown_entry_fuel, validate_fixed_entry_fuel,
     validate_ranked_countdown_entry_fuel,
 };
-use psi_terminal_verifier::{verify_module, verify_module_for_fixed_fuel};
+use terminal_psi::{OperationKind, TerminalMachineResult, TerminalModule, Terminator};
+use terminal_verifier::{verify_module, verify_module_for_fixed_fuel};
 
 pub(super) fn run(arguments: impl Iterator<Item = std::ffi::OsString>) {
     let Some(arguments) = parse_inspect_terminal_arguments(arguments) else {
@@ -27,7 +27,7 @@ pub(super) fn run(arguments: impl Iterator<Item = std::ffi::OsString>) {
             std::process::exit(1);
         }
     };
-    let lowered = match psi_checked_trees_to_terminal::lower_machine(&checked, &arguments.machine) {
+    let lowered = match checked_trees_to_terminal_psi::lower_machine(&checked, &arguments.machine) {
         Ok(lowered) => lowered,
         Err(error) => {
             eprintln!(
@@ -160,7 +160,7 @@ fn parse_inspect_terminal_arguments(
 fn terminal_summary(
     selected_machine: &str,
     module: &TerminalModule,
-    fixed_fuel: &psi_terminal_fixed_fuel::FixedEntryFuelCertificate,
+    fixed_fuel: &terminal_fixed_fuel::FixedEntryFuelCertificate,
 ) -> String {
     let mut output = String::new();
     writeln!(
@@ -177,30 +177,30 @@ fn terminal_summary(
             declaration.id.get(),
             declaration.identity,
             match &declaration.shape {
-                psi_terminal::StructuralTypeShape::PrimitiveScalar(scalar_type) => {
+                terminal_psi::StructuralTypeShape::PrimitiveScalar(scalar_type) => {
                     format!("primitive_scalar({scalar_type:?})")
                 }
-                psi_terminal::StructuralTypeShape::ByteSequence(carrier) => match carrier {
-                    psi_terminal::ByteSequenceCarrier::BorrowedView => {
+                terminal_psi::StructuralTypeShape::ByteSequence(carrier) => match carrier {
+                    terminal_psi::ByteSequenceCarrier::BorrowedView => {
                         "byte_sequence(borrowed_view)".to_owned()
                     }
-                    psi_terminal::ByteSequenceCarrier::BoundedOwned { capacity } => {
+                    terminal_psi::ByteSequenceCarrier::BoundedOwned { capacity } => {
                         format!("byte_sequence(bounded_owned,capacity={capacity})")
                     }
                 },
-                psi_terminal::StructuralTypeShape::Record { fields } => {
+                terminal_psi::StructuralTypeShape::Record { fields } => {
                     format!("record(fields={})", fields.len())
                 }
-                psi_terminal::StructuralTypeShape::FixedArray { element, length } => {
+                terminal_psi::StructuralTypeShape::FixedArray { element, length } => {
                     format!(
                         "fixed_array(element=type:{},length={length})",
                         element.get()
                     )
                 }
-                psi_terminal::StructuralTypeShape::Sum { cases } => {
+                terminal_psi::StructuralTypeShape::Sum { cases } => {
                     format!("sum(cases={})", cases.len())
                 }
-                psi_terminal::StructuralTypeShape::Mixed { fields, cases } => {
+                terminal_psi::StructuralTypeShape::Mixed { fields, cases } => {
                     format!("mixed(fields={},cases={})", fields.len(), cases.len())
                 }
             }
@@ -363,7 +363,7 @@ fn write_operation_summary(
     module: &TerminalModule,
     machine: u64,
     block: u64,
-    operation: &psi_terminal::Operation,
+    operation: &terminal_psi::Operation,
 ) {
     match &operation.kind {
         OperationKind::CallUnit {

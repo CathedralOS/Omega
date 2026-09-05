@@ -77,8 +77,8 @@ unsupported. No result from this stage can enter machine emission.
 
 ## Implementation Map
 
-- `omega-selected-instructions-to-register-homes/src/analyses/allocation_legality/`
+- `selected-instructions-to-register-homes/src/analyses/allocation_legality/`
   owns computation, identity and independent replay. The adjacent `legality/`
   module selects policy and retains cross-step custody.
-- `omega-register-model` owns aliases, write footprints and validated active
-  reservations; `omega-register-homes` owns durable allocation identities.
+- `register-model` owns aliases, write footprints and validated active
+  reservations; `register-homes` owns durable allocation identities.

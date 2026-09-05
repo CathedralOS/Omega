@@ -35,8 +35,8 @@ pub machine GenericProvider::identity<Value>(value: Value) -> Value
         .expect("external realization")
         .type_parameters;
     for multiplicity in [
-        psi_language_semantics::Multiplicity::Unrestricted,
-        psi_language_semantics::Multiplicity::Linear,
+        language_semantics::Multiplicity::Unrestricted,
+        language_semantics::Multiplicity::Linear,
     ] {
         let parameter = &mut checked
             .typed
@@ -62,8 +62,8 @@ pub machine GenericProvider::identity<Value>(value: Value) -> Value
         .data_type_parameters
         .span_mut(realization_telescope)
         .expect("realization static telescope")[0];
-    parameter.bounds.multiplicity = psi_language_semantics::Multiplicity::Affine;
-    parameter.bounds.carry = Some(psi_language_semantics::CarryPolicy::STRICT);
+    parameter.bounds.multiplicity = language_semantics::Multiplicity::Affine;
+    parameter.bounds.carry = Some(language_semantics::CarryPolicy::STRICT);
     let diagnostics = project_checked_package_review(&checked)
         .expect_err("post-check stronger provider carry bound must reject");
     assert!(
@@ -409,7 +409,7 @@ pub machine invoke_leaf()
 
     fn replace_external_binding(
         checked: &mut CheckedCompilation,
-        identity: psi_language_semantics::ExternalBindingIdentity,
+        identity: language_semantics::ExternalBindingIdentity,
     ) {
         let mechanism = identity.mechanism();
         let binding = checked.typed.external_bindings.intern(identity);
@@ -420,7 +420,7 @@ pub machine invoke_leaf()
             .find(|machine| machine.name.as_str() == "invoke_leaf")
             .expect("external leaf");
         let satisfies = leaf.satisfies;
-        leaf.supply_mode = psi_language_semantics::MachineSupplyMode::ExternalRealization {
+        leaf.supply_mode = language_semantics::MachineSupplyMode::ExternalRealization {
             binding: Some(binding),
             mechanism: Some(mechanism),
         };
@@ -438,7 +438,7 @@ pub machine invoke_leaf()
         .iter_mut()
         .find(|machine| machine.name.as_str() == "invoke_leaf")
         .expect("external leaf");
-    leaf.supply_mode = psi_language_semantics::MachineSupplyMode::ExternalRealization {
+    leaf.supply_mode = language_semantics::MachineSupplyMode::ExternalRealization {
         binding: None,
         mechanism: None,
     };
@@ -457,14 +457,14 @@ pub machine invoke_leaf()
         .iter_mut()
         .find(|machine| machine.name.as_str() == "invoke_leaf")
         .expect("external leaf");
-    let psi_language_semantics::MachineSupplyMode::ExternalRealization { binding, .. } =
+    let language_semantics::MachineSupplyMode::ExternalRealization { binding, .. } =
         leaf.supply_mode
     else {
         panic!("external leaf supply")
     };
-    leaf.supply_mode = psi_language_semantics::MachineSupplyMode::ExternalRealization {
+    leaf.supply_mode = language_semantics::MachineSupplyMode::ExternalRealization {
         binding,
-        mechanism: Some(psi_language_semantics::ExternalBindingMechanism::Import),
+        mechanism: Some(language_semantics::ExternalBindingMechanism::Import),
     };
     let diagnostics = project_checked_package_review(&mechanism_mismatch)
         .expect_err("mechanism mismatch must fail closed");
@@ -538,7 +538,7 @@ pub machine invoke_leaf()
     );
 
     let mut missing_binding_identity = checked.clone();
-    let invalid_binding = psi_language_semantics::ExternalBindingId(u32::MAX);
+    let invalid_binding = language_semantics::ExternalBindingId(u32::MAX);
     let leaf = missing_binding_identity
         .typed
         .machines_mut()
@@ -546,9 +546,9 @@ pub machine invoke_leaf()
         .find(|machine| machine.name.as_str() == "invoke_leaf")
         .expect("external leaf");
     let satisfies = leaf.satisfies;
-    leaf.supply_mode = psi_language_semantics::MachineSupplyMode::ExternalRealization {
+    leaf.supply_mode = language_semantics::MachineSupplyMode::ExternalRealization {
         binding: Some(invalid_binding),
-        mechanism: Some(psi_language_semantics::ExternalBindingMechanism::Syscall),
+        mechanism: Some(language_semantics::ExternalBindingMechanism::Syscall),
     };
     missing_binding_identity
         .typed
@@ -624,7 +624,7 @@ pub machine invoke_leaf()
     let different_binding = mismatched_conformance_binding
         .typed
         .external_bindings
-        .intern(psi_language_semantics::ExternalBindingIdentity::Syscall { number: 61 });
+        .intern(language_semantics::ExternalBindingIdentity::Syscall { number: 61 });
     let satisfies = mismatched_conformance_binding
         .typed
         .machines()
@@ -652,7 +652,7 @@ pub machine invoke_leaf()
         .iter_mut()
         .find(|machine| machine.name.as_str() == "invoke_leaf")
         .expect("external leaf")
-        .supply_mode = psi_language_semantics::MachineSupplyMode::Boundary;
+        .supply_mode = language_semantics::MachineSupplyMode::Boundary;
     let diagnostics = project_checked_package_review(&nonexternal_supply)
         .expect_err("external conformance binding on ordinary supply must fail closed");
     assert!(diagnostics.iter().any(|diagnostic| {
@@ -663,35 +663,35 @@ pub machine invoke_leaf()
 
     let malformed = [
         (
-            psi_language_semantics::ExternalBindingIdentity::Import {
+            language_semantics::ExternalBindingIdentity::Import {
                 library: String::new(),
                 symbol: "entry".to_owned(),
             },
             "has no exact import-library identity",
         ),
         (
-            psi_language_semantics::ExternalBindingIdentity::Import {
+            language_semantics::ExternalBindingIdentity::Import {
                 library: "omega".to_owned(),
                 symbol: String::new(),
             },
             "has no exact import-symbol identity",
         ),
         (
-            psi_language_semantics::ExternalBindingIdentity::Syscall { number: -1 },
+            language_semantics::ExternalBindingIdentity::Syscall { number: -1 },
             "has a syscall number outside 0..=u32::MAX",
         ),
         (
-            psi_language_semantics::ExternalBindingIdentity::VtableSlot { index: -1 },
+            language_semantics::ExternalBindingIdentity::VtableSlot { index: -1 },
             "has a negative vtable-slot index",
         ),
         (
-            psi_language_semantics::ExternalBindingIdentity::VtableField {
+            language_semantics::ExternalBindingIdentity::VtableField {
                 field: String::new(),
             },
             "has no exact table-field identity",
         ),
         (
-            psi_language_semantics::ExternalBindingIdentity::TableFunction {
+            language_semantics::ExternalBindingIdentity::TableFunction {
                 field: "invoke".to_owned(),
             },
             "has table-field supply without one exact attached provider data declaration",

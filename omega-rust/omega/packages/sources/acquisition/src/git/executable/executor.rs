@@ -8,7 +8,7 @@ use crate::git::request::GitExecutionTransport;
 use crate::limits::{
     GIT_COMMAND_TIMEOUT, GIT_FIXED_COMMAND_ALLOWANCE, GIT_RESOLUTION_TIMEOUT, LocalSourceLimits,
 };
-use omega_resolver_execution::ResolverExecutionBackend;
+use resolver_execution::ResolverExecutionBackend;
 use std::cell::Cell;
 #[cfg(all(test, unix))]
 use std::path::Path;

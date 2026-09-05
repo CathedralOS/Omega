@@ -10,11 +10,11 @@ use super::cache::{
 use super::dependencies::{WorkspaceContext, resolve_registered_package_closure};
 use super::errors::ResolveWorkspacePackageClosureError;
 use crate::resolution::source::ResolvePackageSourceError;
-use omega_package_source::{
+use package_source::{
     ExternalSourceContext, SourceLineage, SourceRelativePath, WorkspaceLineageIdentity,
     WorkspaceMemberLineage,
 };
-use omega_package_source::{LocalSourceLimits, SourceResolverStorage};
+use package_source::{LocalSourceLimits, SourceResolverStorage};
 use std::collections::BTreeMap;
 use std::path::Path;
 

@@ -13,7 +13,7 @@ use crate::record::{
     PackageReviewContractOperatorMeaning, PackageReviewContractStaticArgument,
     PackageReviewContractUnaryOperator, PackageReviewFloatLiteral, PackageReviewReferenceAccess,
 };
-use psi_symbols::BuiltinFunction;
+use symbols::BuiltinFunction;
 
 pub(super) fn expression(
     reader: &mut Reader<'_>,

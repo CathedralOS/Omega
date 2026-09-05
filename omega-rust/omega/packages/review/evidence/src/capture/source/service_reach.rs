@@ -2,13 +2,13 @@ use crate::capture::semantics::facts::exactly_one;
 use crate::capture::source::ProjectedNestedSourceLocation;
 use crate::capture::source::locations::canonical_source_span_location;
 use crate::record::PackageReviewSourceLocationRole;
-use omega_compiler::CheckedCompilation;
-use psi_diagnostics::Diagnostic;
-use psi_symbols::SymbolHandle;
+use compiler::CheckedCompilation;
+use diagnostics::Diagnostic;
+use symbols::SymbolHandle;
 
 pub(crate) fn project_machine_service_reach_source_locations(
     compilation: &CheckedCompilation,
-    machine: &psi_typed_trees::machine::Machine,
+    machine: &typed_trees::machine::Machine,
 ) -> Result<Vec<ProjectedNestedSourceLocation>, Vec<Diagnostic>> {
     checked_machine_service_reach(compilation, machine).map(authored_service_reach_locations)
 }
@@ -16,15 +16,15 @@ pub(crate) fn project_machine_service_reach_source_locations(
 /// Rejoin authored targets and checked ceilings without constructing location rows.
 pub(crate) fn validate_machine_service_reach(
     compilation: &CheckedCompilation,
-    machine: &psi_typed_trees::machine::Machine,
+    machine: &typed_trees::machine::Machine,
 ) -> Result<(), Vec<Diagnostic>> {
     checked_machine_service_reach(compilation, machine).map(|_| ())
 }
 
 fn checked_machine_service_reach<'a>(
     compilation: &'a CheckedCompilation,
-    machine: &psi_typed_trees::machine::Machine,
-) -> Result<Option<&'a psi_typed_trees::signature::AuthoredServiceReachRow>, Vec<Diagnostic>> {
+    machine: &typed_trees::machine::Machine,
+) -> Result<Option<&'a typed_trees::signature::AuthoredServiceReachRow>, Vec<Diagnostic>> {
     let authored = exact_authored_service_reach_row(
         compilation,
         machine.symbol,
@@ -39,7 +39,7 @@ fn checked_machine_service_reach<'a>(
     let declared = derive_declared_service_reach(
         compilation,
         authored,
-        &psi_effects::declared_machine_invocations(compilation, machine),
+        &flow_effects::declared_machine_invocations(compilation, machine),
         parameters,
         machine.name.as_str(),
     )?;
@@ -64,15 +64,14 @@ fn checked_machine_service_reach<'a>(
         machine.name.as_str(),
         "service-reach",
     )?;
-    let should_publish = machine.supply_mode
-        != psi_language_semantics::MachineSupplyMode::CheckedBody
+    let should_publish = machine.supply_mode != language_semantics::MachineSupplyMode::CheckedBody
         || machine.is_public
         || authored.is_some()
         || !declared.is_empty();
     let expected_interface = if should_publish {
-        psi_language_semantics::ServiceReachInterface::PublishedCeiling(machine.service_reach_row)
+        language_semantics::ServiceReachInterface::PublishedCeiling(machine.service_reach_row)
     } else {
-        psi_language_semantics::ServiceReachInterface::InternalInferred
+        language_semantics::ServiceReachInterface::InternalInferred
     };
     if checked.interface != expected_interface
         || checked.published_ceiling != machine.service_reach_row
@@ -89,7 +88,7 @@ fn checked_machine_service_reach<'a>(
 pub(crate) fn project_signature_service_reach_source_locations(
     compilation: &CheckedCompilation,
     owner: SymbolHandle,
-    signature: &psi_typed_trees::signature::StateSignature,
+    signature: &typed_trees::signature::StateSignature,
 ) -> Result<Vec<ProjectedNestedSourceLocation>, Vec<Diagnostic>> {
     let authored = exact_authored_service_reach_row(
         compilation,
@@ -100,7 +99,7 @@ pub(crate) fn project_signature_service_reach_source_locations(
     let declared = derive_declared_service_reach(
         compilation,
         authored,
-        &psi_effects::declared_signature_invocations(compilation, signature),
+        &flow_effects::declared_signature_invocations(compilation, signature),
         compilation.state_signature_parameters(signature),
         signature.name.as_str(),
     )?;
@@ -162,7 +161,7 @@ fn exact_authored_service_reach_row<'a>(
     owner: SymbolHandle,
     owner_name: &str,
     installation_bound: bool,
-) -> Result<Option<&'a psi_typed_trees::signature::AuthoredServiceReachRow>, Vec<Diagnostic>> {
+) -> Result<Option<&'a typed_trees::signature::AuthoredServiceReachRow>, Vec<Diagnostic>> {
     let matching = compilation
         .authored_service_reach_rows_for(owner)
         .collect::<Vec<_>>();
@@ -200,11 +199,11 @@ fn exact_authored_service_reach_row<'a>(
 
 fn derive_declared_service_reach(
     compilation: &CheckedCompilation,
-    authored: Option<&psi_typed_trees::signature::AuthoredServiceReachRow>,
-    invocations: &[psi_effects::InvocationTarget],
-    parameters: &[psi_typed_trees::signature::StateParameter],
+    authored: Option<&typed_trees::signature::AuthoredServiceReachRow>,
+    invocations: &[flow_effects::InvocationTarget],
+    parameters: &[typed_trees::signature::StateParameter],
     owner_name: &str,
-) -> Result<Vec<psi_language_semantics::ServiceReachId>, Vec<Diagnostic>> {
+) -> Result<Vec<language_semantics::ServiceReachId>, Vec<Diagnostic>> {
     let mut direct = authored
         .into_iter()
         .flat_map(|row| &row.targets)
@@ -225,10 +224,10 @@ fn derive_declared_service_reach(
         .collect::<Vec<_>>();
     for invocation in invocations {
         let symbol = match invocation {
-            psi_effects::InvocationTarget::Parameter(ordinal) => non_self_parameters
+            flow_effects::InvocationTarget::Parameter(ordinal) => non_self_parameters
                 .get(*ordinal as usize)
                 .map(|parameter| {
-                    psi_typed_trees::service::exact_bound_service_requirement(
+                    typed_trees::service::exact_bound_service_requirement(
                         compilation,
                         parameter.type_reference,
                     )
@@ -240,7 +239,7 @@ fn derive_declared_service_reach(
                     })
                 })
                 .unwrap_or_else(SymbolHandle::invalid),
-            psi_effects::InvocationTarget::Service(symbol) => *symbol,
+            flow_effects::InvocationTarget::Service(symbol) => *symbol,
         };
         let service = compilation
             .service_reaches
@@ -265,7 +264,7 @@ fn derive_declared_service_reach(
 }
 
 fn authored_service_reach_locations(
-    authored: Option<&psi_typed_trees::signature::AuthoredServiceReachRow>,
+    authored: Option<&typed_trees::signature::AuthoredServiceReachRow>,
 ) -> Vec<ProjectedNestedSourceLocation> {
     let Some(authored) = authored else {
         return Vec::new();

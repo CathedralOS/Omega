@@ -5,13 +5,11 @@ use crate::record::{
     PackagePolicyProviderEvaluatedSyscall, PackageReviewForeignLocator,
     PackageReviewNominalIdentity,
 };
-use omega_compiler::CheckedCompilation;
-use omega_effects::provider_plan::ProviderBinding;
-use omega_provider_planning::evaluated_via_bindings::{
-    EvaluatedViaBinding, EvaluatedViaBindingRow,
-};
-use psi_diagnostics::Diagnostic;
-use psi_symbols::SymbolHandle;
+use compiler::CheckedCompilation;
+use diagnostics::Diagnostic;
+use effects::provider_plan::ProviderBinding;
+use provider_planning::evaluated_via_bindings::{EvaluatedViaBinding, EvaluatedViaBindingRow};
+use symbols::SymbolHandle;
 
 pub(super) fn project(
     compilation: &CheckedCompilation,
@@ -168,21 +166,21 @@ fn table_declaration(
     nominal_identity(compilation, table.symbol)
 }
 
-fn locator(locator: &omega_target::ForeignLocatorCandidate) -> PackageReviewForeignLocator {
+fn locator(locator: &target::ForeignLocatorCandidate) -> PackageReviewForeignLocator {
     match locator {
-        omega_target::ForeignLocatorCandidate::PeByName { library, export } => {
+        target::ForeignLocatorCandidate::PeByName { library, export } => {
             PackageReviewForeignLocator::PeByName {
                 library: library.clone(),
                 export: export.clone(),
             }
         }
-        omega_target::ForeignLocatorCandidate::PeByOrdinal { library, ordinal } => {
+        target::ForeignLocatorCandidate::PeByOrdinal { library, ordinal } => {
             PackageReviewForeignLocator::PeByOrdinal {
                 library: library.clone(),
                 ordinal: *ordinal,
             }
         }
-        omega_target::ForeignLocatorCandidate::ElfVersioned {
+        target::ForeignLocatorCandidate::ElfVersioned {
             object,
             symbol,
             version,
@@ -191,7 +189,7 @@ fn locator(locator: &omega_target::ForeignLocatorCandidate) -> PackageReviewFore
             symbol: symbol.clone(),
             version: version.clone(),
         },
-        omega_target::ForeignLocatorCandidate::MachODylibSymbol {
+        target::ForeignLocatorCandidate::MachODylibSymbol {
             install_name,
             symbol,
         } => PackageReviewForeignLocator::MachODylibSymbol {

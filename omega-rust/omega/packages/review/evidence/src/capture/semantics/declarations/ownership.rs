@@ -1,10 +1,10 @@
 use crate::record::{
     PackageReviewNominalIdentity, PackageReviewNominalOwner, PackageReviewToolchainSourceIdentity,
 };
-use omega_compiler::CheckedCompilation;
-use psi_core::PackageKeyIdentity;
-use psi_diagnostics::Diagnostic;
-use psi_symbols::SymbolHandle;
+use compiler::CheckedCompilation;
+use diagnostics::Diagnostic;
+use semantic_vocabulary::PackageKeyIdentity;
+use symbols::SymbolHandle;
 
 pub(crate) fn reviewed_package_owns(
     identity: &PackageReviewNominalIdentity,
@@ -28,7 +28,7 @@ pub(crate) fn nominal_owner(
 }
 
 pub(crate) fn nominal_owner_from_symbols(
-    symbols: &psi_symbols::SymbolTable,
+    symbols: &symbols::SymbolTable,
     symbol: SymbolHandle,
 ) -> Result<PackageReviewNominalOwner, Vec<Diagnostic>> {
     if let Some(package) = symbols.symbol_package_identity(symbol) {
@@ -41,18 +41,18 @@ pub(crate) fn nominal_owner_from_symbols(
         return Ok(PackageReviewNominalOwner::Unresolved);
     };
     match source_file.origin {
-        psi_source::SourceOrigin::Toolchain => Ok(PackageReviewNominalOwner::ToolchainSource(
+        source::SourceOrigin::Toolchain => Ok(PackageReviewNominalOwner::ToolchainSource(
             toolchain_source_identity(source_file)?,
         )),
-        psi_source::SourceOrigin::User => Ok(PackageReviewNominalOwner::Unresolved),
+        source::SourceOrigin::User => Ok(PackageReviewNominalOwner::Unresolved),
     }
 }
 
 pub(crate) fn toolchain_source_identity(
-    source_file: &psi_source::SourceFile,
+    source_file: &source::SourceFile,
 ) -> Result<PackageReviewToolchainSourceIdentity, Vec<Diagnostic>> {
     Ok(PackageReviewToolchainSourceIdentity {
-        digest: omega_package_compilation::toolchain_source_identity_digest(source_file)?,
+        digest: package_compilation::toolchain_source_identity_digest(source_file)?,
     })
 }
 

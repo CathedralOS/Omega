@@ -1,11 +1,11 @@
 use super::super::semantics::declarations::nominal_identity;
 use crate::record::{PackageReviewMutation, PackageReviewWriteFrameCompleteness};
-use omega_compiler::CheckedCompilation;
-use psi_diagnostics::Diagnostic;
+use compiler::CheckedCompilation;
+use diagnostics::Diagnostic;
 
 pub(crate) fn project_mutation(
     compilation: &CheckedCompilation,
-    plans: &[psi_checked_trees::StateWriteFramePlan],
+    plans: &[checked_trees::StateWriteFramePlan],
 ) -> Result<Vec<PackageReviewMutation>, Vec<Diagnostic>> {
     let mut projected = plans
         .iter()
@@ -31,13 +31,11 @@ pub(crate) fn project_mutation(
 }
 
 const fn project_write_frame_completeness(
-    completeness: psi_facts::WriteFrameCompleteness,
+    completeness: facts::WriteFrameCompleteness,
 ) -> PackageReviewWriteFrameCompleteness {
     match completeness {
-        psi_facts::WriteFrameCompleteness::Complete => {
-            PackageReviewWriteFrameCompleteness::Complete
-        }
-        psi_facts::WriteFrameCompleteness::Opaque => PackageReviewWriteFrameCompleteness::Opaque,
+        facts::WriteFrameCompleteness::Complete => PackageReviewWriteFrameCompleteness::Complete,
+        facts::WriteFrameCompleteness::Opaque => PackageReviewWriteFrameCompleteness::Opaque,
     }
 }
 
@@ -55,11 +53,11 @@ mod tests {
     #[test]
     fn write_frame_completeness_crosses_the_review_boundary_as_closed_evidence() {
         assert_eq!(
-            project_write_frame_completeness(psi_facts::WriteFrameCompleteness::Complete),
+            project_write_frame_completeness(facts::WriteFrameCompleteness::Complete),
             PackageReviewWriteFrameCompleteness::Complete,
         );
         assert_eq!(
-            project_write_frame_completeness(psi_facts::WriteFrameCompleteness::Opaque),
+            project_write_frame_completeness(facts::WriteFrameCompleteness::Opaque),
             PackageReviewWriteFrameCompleteness::Opaque,
         );
     }

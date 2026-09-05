@@ -1,6 +1,6 @@
 //! Navigation from one authenticated acquisition root to one package root.
 
-use omega_package_source::SourceRelativePath;
+use package_source::SourceRelativePath;
 
 /// Operational package location inside an acquired source.
 ///

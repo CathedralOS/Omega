@@ -1,15 +1,15 @@
 //! Reauthenticated object-artifact record fields and canonical wire axes.
 
 use crate::tests::*;
-use omega_optimization_core::{
+use optimization_core::{
     FunctionFragmentEmissionManifestIdentity, FunctionFragmentObjectContainerManifestIdentity,
     FunctionFragmentTextSectionManifestIdentity,
     FunctionRelativeOptimizationRealizationManifestIdentity, OptimizationSelectionIdentity,
     PostAllocationOptimizationManifestIdentity, PrePhysicalOptimizationManifestIdentity,
     RelocationFreeObjectContainerIdentity, RelocationFreeObjectPlanIdentity,
 };
-use omega_target::{Architecture, ObjectFormat};
-use psi_terminal::SemanticFingerprint;
+use target::{Architecture, ObjectFormat};
+use terminal_psi::SemanticFingerprint;
 
 use super::fixture::staged_object_artifact;
 
@@ -122,7 +122,7 @@ fn every_representable_artifact_record_field_rejects_after_reauthentication() {
 
     *staged.artifact_mut() = baseline;
     staged.artifact_mut().identity =
-        omega_optimization_core::OptimizedObjectArtifactIdentity::from_bytes([0xb7; 32]);
+        optimization_core::OptimizedObjectArtifactIdentity::from_bytes([0xb7; 32]);
     assert_eq!(
         validate_optimized_object_artifact(&staged),
         Err(OptimizedObjectArtifactError::ArtifactMismatch),

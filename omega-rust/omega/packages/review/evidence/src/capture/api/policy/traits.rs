@@ -9,10 +9,10 @@ use crate::capture::semantics::facts::exactly_one;
 use crate::capture::semantics::signatures::policy_crashes;
 use crate::capture::semantics::types::review_signature_type_identity_with_binders;
 use crate::record::*;
-use omega_compiler::CheckedCompilation;
-use psi_core::PackageKeyIdentity;
-use psi_diagnostics::Diagnostic;
-use psi_symbols::SymbolHandle;
+use compiler::CheckedCompilation;
+use diagnostics::Diagnostic;
+use semantic_vocabulary::PackageKeyIdentity;
+use symbols::SymbolHandle;
 
 pub(super) fn project(
     compilation: &CheckedCompilation,
@@ -77,11 +77,11 @@ pub(super) fn project(
 fn project_requirement(
     compilation: &CheckedCompilation,
     owner: SymbolHandle,
-    source: &psi_typed_trees::signature::StateSignature,
+    source: &typed_trees::signature::StateSignature,
     row: PackageReviewTraitRequirement,
     outer_binders: &[(SymbolHandle, String)],
     offset: usize,
-    outer_lifetimes: &[psi_typed_trees::name::Identifier],
+    outer_lifetimes: &[typed_trees::name::Identifier],
 ) -> Result<PackagePolicyTraitRequirement, Vec<Diagnostic>> {
     let (prepared, binders, type_parameters) = signatures::requirement(
         compilation,
@@ -95,12 +95,12 @@ fn project_requirement(
     let context = ContractProjectionContext {
         subject_kind: "public trait policy requirement",
         subject_name: &row.identity.path,
-        owner: psi_checked_trees::ContractProofFactOwner::StateSignature { owner_symbol: owner, state_symbol: source.symbol },
-        point: psi_facts::ProgramPoint::State { machine_symbol: owner, state_symbol: source.symbol },
+        owner: checked_trees::ContractProofFactOwner::StateSignature { owner_symbol: owner, state_symbol: source.symbol },
+        point: facts::ProgramPoint::State { machine_symbol: owner, state_symbol: source.symbol },
         parameters: compilation.state_signature_parameters(source),
         domain_symbol: None, data_symbol: None,
         lifetime_binders: &prepared.lifetimes, lifetime_substitutions: &prepared.scopes[0].lifetime_substitutions,
-        selection_exposure: psi_language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure::PublicInterface,
+        selection_exposure: language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure::PublicInterface,
     };
     let published_crash = values::crashes(policy_crashes::project(
         compilation,

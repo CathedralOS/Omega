@@ -3,7 +3,7 @@
 use super::output::{Hex, Output};
 use crate::declarations::PackageKey;
 use crate::review::PackagePolicyDependencyPath;
-use omega_package_source::{GitTransport, ImmutableSourceResolution, SourceLineage};
+use package_source::{GitTransport, ImmutableSourceResolution, SourceLineage};
 use std::fmt::{self, Write};
 
 pub(super) fn package_key(output: &mut Output, prefix: &str, key: &PackageKey) -> fmt::Result {

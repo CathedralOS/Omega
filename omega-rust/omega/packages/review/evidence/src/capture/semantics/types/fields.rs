@@ -1,14 +1,14 @@
 use super::review_signature_type_identity_with_binders;
 use crate::record::PackageReviewDataField;
-use omega_compiler::CheckedCompilation;
-use psi_diagnostics::Diagnostic;
-use psi_symbols::SymbolHandle;
+use compiler::CheckedCompilation;
+use diagnostics::Diagnostic;
+use symbols::SymbolHandle;
 
 pub(crate) fn project_data_field(
     compilation: &CheckedCompilation,
-    field: &psi_typed_trees::data::DataField,
+    field: &typed_trees::data::DataField,
     binders: &[(SymbolHandle, String)],
-    lifetime_binders: &[psi_typed_trees::name::Identifier],
+    lifetime_binders: &[typed_trees::name::Identifier],
 ) -> Result<PackageReviewDataField, Vec<Diagnostic>> {
     Ok(PackageReviewDataField {
         identity: field.identity,

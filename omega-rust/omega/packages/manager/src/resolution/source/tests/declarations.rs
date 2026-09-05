@@ -2,7 +2,7 @@ use super::{make_tree_owner_writable, temp_root, write_package};
 use crate::declarations::dependencies::read::{DependencyProjectionError, DependencySourceRequest};
 use crate::declarations::roles::BuildDeclarationError;
 use crate::resolution::source::{ResolvePackageSourceError, resolve_external_local_package_source};
-use omega_package_source::{ExternalSourceContext, LocalSourceLimits};
+use package_source::{ExternalSourceContext, LocalSourceLimits};
 
 #[test]
 fn declaration_failure_does_not_fall_back_to_repository_name() {

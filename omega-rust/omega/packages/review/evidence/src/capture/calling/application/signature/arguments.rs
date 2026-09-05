@@ -6,11 +6,11 @@ use crate::capture::semantics::types::{
     review_signature_type_identity_with_binders_and_substitutions_and_lifetimes,
 };
 use crate::record::PackageReviewTypeIdentity;
-use omega_compiler::CheckedCompilation;
-use psi_diagnostics::Diagnostic;
-use psi_symbols::SymbolHandle;
-use psi_typed_trees::trait_definition::TraitDefinition;
-use psi_typed_trees::{data::TypeParameterKind, name::Identifier, types::TypeReferenceHandle};
+use compiler::CheckedCompilation;
+use diagnostics::Diagnostic;
+use symbols::SymbolHandle;
+use typed_trees::trait_definition::TraitDefinition;
+use typed_trees::{data::TypeParameterKind, name::Identifier, types::TypeReferenceHandle};
 
 pub(super) fn project(
     compilation: &CheckedCompilation,

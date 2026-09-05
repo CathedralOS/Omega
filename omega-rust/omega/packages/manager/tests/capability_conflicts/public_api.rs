@@ -18,7 +18,7 @@ fn public_const_changes_render_as_blocking_review_conflicts() {
     )
     .expect("resolve public const baseline");
     let baseline_reviews = compile_resolved_package_reviews(
-        &baseline_sources.for_exact_target(omega_target::TargetProfile::WindowsX64),
+        &baseline_sources.for_exact_target(target::TargetProfile::WindowsX64),
         &build_root,
     )
     .expect("compile public const baseline");
@@ -33,7 +33,7 @@ fn public_const_changes_render_as_blocking_review_conflicts() {
     )
     .expect("resolve public const candidate");
     let candidate_reviews = compile_resolved_package_reviews(
-        &candidate_sources.for_exact_target(omega_target::TargetProfile::WindowsX64),
+        &candidate_sources.for_exact_target(target::TargetProfile::WindowsX64),
         &build_root,
     )
     .expect("compile public const candidate");
@@ -41,7 +41,7 @@ fn public_const_changes_render_as_blocking_review_conflicts() {
     let conflicts = compare_review_only_capabilities(
         &baseline_reviews,
         &candidate_reviews,
-        &candidate_sources.for_exact_target(omega_target::TargetProfile::WindowsX64),
+        &candidate_sources.for_exact_target(target::TargetProfile::WindowsX64),
         ReviewOnlyCapabilityConflictLimits::default(),
     )
     .expect("compare public const compatibility");
@@ -108,7 +108,7 @@ fn public_operator_changes_render_as_blocking_review_conflicts() {
     )
     .expect("resolve public operator baseline");
     let baseline_reviews = compile_resolved_package_reviews(
-        &baseline_sources.for_exact_target(omega_target::TargetProfile::WindowsX64),
+        &baseline_sources.for_exact_target(target::TargetProfile::WindowsX64),
         &build_root,
     )
     .expect("compile public operator baseline");
@@ -126,7 +126,7 @@ fn public_operator_changes_render_as_blocking_review_conflicts() {
     )
     .expect("resolve public operator candidate");
     let candidate_reviews = compile_resolved_package_reviews(
-        &candidate_sources.for_exact_target(omega_target::TargetProfile::WindowsX64),
+        &candidate_sources.for_exact_target(target::TargetProfile::WindowsX64),
         &build_root,
     )
     .expect("compile public operator candidate");
@@ -134,7 +134,7 @@ fn public_operator_changes_render_as_blocking_review_conflicts() {
     let conflicts = compare_review_only_capabilities(
         &baseline_reviews,
         &candidate_reviews,
-        &candidate_sources.for_exact_target(omega_target::TargetProfile::WindowsX64),
+        &candidate_sources.for_exact_target(target::TargetProfile::WindowsX64),
         ReviewOnlyCapabilityConflictLimits::default(),
     )
     .expect("compare public operator compatibility");
@@ -181,7 +181,7 @@ fn public_callable_parameter_changes_render_exact_parameter_locations() {
     )
     .expect("resolve public callable parameter baseline");
     let baseline_reviews = compile_resolved_package_reviews(
-        &baseline_sources.for_exact_target(omega_target::TargetProfile::WindowsX64),
+        &baseline_sources.for_exact_target(target::TargetProfile::WindowsX64),
         &build_root,
     )
     .expect("compile public callable parameter baseline");
@@ -196,7 +196,7 @@ fn public_callable_parameter_changes_render_exact_parameter_locations() {
     )
     .expect("resolve public callable parameter candidate");
     let candidate_reviews = compile_resolved_package_reviews(
-        &candidate_sources.for_exact_target(omega_target::TargetProfile::WindowsX64),
+        &candidate_sources.for_exact_target(target::TargetProfile::WindowsX64),
         &build_root,
     )
     .expect("compile public callable parameter candidate");
@@ -204,7 +204,7 @@ fn public_callable_parameter_changes_render_exact_parameter_locations() {
     let conflicts = compare_review_only_capabilities(
         &baseline_reviews,
         &candidate_reviews,
-        &candidate_sources.for_exact_target(omega_target::TargetProfile::WindowsX64),
+        &candidate_sources.for_exact_target(target::TargetProfile::WindowsX64),
         ReviewOnlyCapabilityConflictLimits::default(),
     )
     .expect("compare public callable parameter rows");
@@ -298,7 +298,7 @@ fn callable_changes_render_exact_checked_body_call_locations() {
     )
     .expect("resolve body-call baseline");
     let baseline_reviews = compile_resolved_package_reviews(
-        &baseline_sources.for_exact_target(omega_target::TargetProfile::WindowsX64),
+        &baseline_sources.for_exact_target(target::TargetProfile::WindowsX64),
         &build_root,
     )
     .expect("compile body-call baseline");
@@ -313,7 +313,7 @@ fn callable_changes_render_exact_checked_body_call_locations() {
     )
     .expect("resolve body-call candidate");
     let candidate_reviews = compile_resolved_package_reviews(
-        &candidate_sources.for_exact_target(omega_target::TargetProfile::WindowsX64),
+        &candidate_sources.for_exact_target(target::TargetProfile::WindowsX64),
         &build_root,
     )
     .expect("compile body-call candidate");
@@ -321,7 +321,7 @@ fn callable_changes_render_exact_checked_body_call_locations() {
     let conflicts = compare_review_only_capabilities(
         &baseline_reviews,
         &candidate_reviews,
-        &candidate_sources.for_exact_target(omega_target::TargetProfile::WindowsX64),
+        &candidate_sources.for_exact_target(target::TargetProfile::WindowsX64),
         ReviewOnlyCapabilityConflictLimits::default(),
     )
     .expect("compare changed checked body call");
@@ -377,7 +377,7 @@ pub Choice: First satisfies Marker<{argument}> {{ }}
     )
     .expect("resolve public conformance baseline");
     let baseline_reviews = compile_resolved_package_reviews(
-        &baseline_sources.for_exact_target(omega_target::TargetProfile::WindowsX64),
+        &baseline_sources.for_exact_target(target::TargetProfile::WindowsX64),
         &build_root,
     )
     .expect("compile public conformance baseline");
@@ -392,7 +392,7 @@ pub Choice: First satisfies Marker<{argument}> {{ }}
     )
     .expect("resolve public conformance candidate");
     let candidate_reviews = compile_resolved_package_reviews(
-        &candidate_sources.for_exact_target(omega_target::TargetProfile::WindowsX64),
+        &candidate_sources.for_exact_target(target::TargetProfile::WindowsX64),
         &build_root,
     )
     .expect("compile public conformance candidate");
@@ -400,7 +400,7 @@ pub Choice: First satisfies Marker<{argument}> {{ }}
     let conflicts = compare_review_only_capabilities(
         &baseline_reviews,
         &candidate_reviews,
-        &candidate_sources.for_exact_target(omega_target::TargetProfile::WindowsX64),
+        &candidate_sources.for_exact_target(target::TargetProfile::WindowsX64),
         ReviewOnlyCapabilityConflictLimits::default(),
     )
     .expect("compare public conformance compatibility");
@@ -455,7 +455,7 @@ fn public_trait_requirement_changes_render_exact_requirement_locations() {
     )
     .expect("resolve public trait requirement baseline");
     let baseline_reviews = compile_resolved_package_reviews(
-        &baseline_sources.for_exact_target(omega_target::TargetProfile::WindowsX64),
+        &baseline_sources.for_exact_target(target::TargetProfile::WindowsX64),
         &build_root,
     )
     .expect("compile public trait requirement baseline");
@@ -470,7 +470,7 @@ fn public_trait_requirement_changes_render_exact_requirement_locations() {
     )
     .expect("resolve public trait requirement candidate");
     let candidate_reviews = compile_resolved_package_reviews(
-        &candidate_sources.for_exact_target(omega_target::TargetProfile::WindowsX64),
+        &candidate_sources.for_exact_target(target::TargetProfile::WindowsX64),
         &build_root,
     )
     .expect("compile public trait requirement candidate");
@@ -478,7 +478,7 @@ fn public_trait_requirement_changes_render_exact_requirement_locations() {
     let conflicts = compare_review_only_capabilities(
         &baseline_reviews,
         &candidate_reviews,
-        &candidate_sources.for_exact_target(omega_target::TargetProfile::WindowsX64),
+        &candidate_sources.for_exact_target(target::TargetProfile::WindowsX64),
         ReviewOnlyCapabilityConflictLimits::default(),
     )
     .expect("compare public trait requirement rows");
@@ -539,7 +539,7 @@ pub trait Child: {parent} {{ }}
     )
     .expect("resolve public-trait baseline");
     let baseline_reviews = compile_resolved_package_reviews(
-        &baseline_sources.for_exact_target(omega_target::TargetProfile::WindowsX64),
+        &baseline_sources.for_exact_target(target::TargetProfile::WindowsX64),
         &build_root,
     )
     .expect("compile public-trait baseline");
@@ -554,7 +554,7 @@ pub trait Child: {parent} {{ }}
     )
     .expect("resolve public-trait candidate");
     let candidate_reviews = compile_resolved_package_reviews(
-        &candidate_sources.for_exact_target(omega_target::TargetProfile::WindowsX64),
+        &candidate_sources.for_exact_target(target::TargetProfile::WindowsX64),
         &build_root,
     )
     .expect("compile public-trait candidate");
@@ -562,7 +562,7 @@ pub trait Child: {parent} {{ }}
     let conflicts = compare_review_only_capabilities(
         &baseline_reviews,
         &candidate_reviews,
-        &candidate_sources.for_exact_target(omega_target::TargetProfile::WindowsX64),
+        &candidate_sources.for_exact_target(target::TargetProfile::WindowsX64),
         ReviewOnlyCapabilityConflictLimits::default(),
     )
     .expect("compare public-trait compatibility");
@@ -608,7 +608,7 @@ fn public_data_shape_changes_render_exact_member_locations() {
     )
     .expect("resolve public data baseline");
     let baseline_reviews = compile_resolved_package_reviews(
-        &baseline_sources.for_exact_target(omega_target::TargetProfile::WindowsX64),
+        &baseline_sources.for_exact_target(target::TargetProfile::WindowsX64),
         &build_root,
     )
     .expect("compile public data baseline");
@@ -623,7 +623,7 @@ fn public_data_shape_changes_render_exact_member_locations() {
     )
     .expect("resolve public data candidate");
     let candidate_reviews = compile_resolved_package_reviews(
-        &candidate_sources.for_exact_target(omega_target::TargetProfile::WindowsX64),
+        &candidate_sources.for_exact_target(target::TargetProfile::WindowsX64),
         &build_root,
     )
     .expect("compile public data candidate");
@@ -631,7 +631,7 @@ fn public_data_shape_changes_render_exact_member_locations() {
     let conflicts = compare_review_only_capabilities(
         &baseline_reviews,
         &candidate_reviews,
-        &candidate_sources.for_exact_target(omega_target::TargetProfile::WindowsX64),
+        &candidate_sources.for_exact_target(target::TargetProfile::WindowsX64),
         ReviewOnlyCapabilityConflictLimits::default(),
     )
     .expect("compare public data rows");

@@ -1,13 +1,15 @@
 use super::*;
-use omega_abstract_operations_optimizer::{AnalysisProduct, compute_analysis, run_psi_pipeline};
-use omega_optimization_core::{
+use abstract_operations_to_abstract_operations::{
+    AnalysisProduct, compute_analysis, run_psi_pipeline,
+};
+use optimization_core::{
     AcceptedObligationFactIdentity, AnalysisKind, Optimization, OptimizationFactReference,
     OptimizationSelections, OptimizationUnitIdentity, OptimizationWorkBudget,
 };
-use omega_optimization_unit::{
+use optimization_unit::{
     ValueRangeFact, ValueRangeScope, ValueRangeSupport, value_range_fact_identity,
 };
-use omega_optimization_validation::{
+use optimization_validation::{
     OptimizationUnitValidationError, validate_current_value_range_fact,
     validate_current_value_range_fact_at,
 };
@@ -39,7 +41,7 @@ fn checked_source_guarded_exact_narrowing_carries_independently_verified_evidenc
         evidence.obligation == cast_obligation
             && matches!(
                 evidence.route,
-                psi_proof_admission::EvidenceRoute::CertificateDerived(_)
+                proof_admission::EvidenceRoute::CertificateDerived(_)
             )
     }));
 
@@ -56,7 +58,7 @@ fn checked_source_guarded_exact_narrowing_carries_independently_verified_evidenc
             &missing_cast_proof,
             &AdmissionProfile::default(),
         ),
-        Err(psi_terminal_verifier::VerificationError::MissingEvidence(obligation))
+        Err(terminal_verifier::VerificationError::MissingEvidence(obligation))
             if obligation == cast_obligation
     ));
 
@@ -155,11 +157,11 @@ fn checked_source_exact_right_shift_carries_independently_verified_count_evidenc
         evidence.obligation == shift_obligation
             && matches!(
                 evidence.route,
-                psi_proof_admission::EvidenceRoute::CertificateDerived(_)
+                proof_admission::EvidenceRoute::CertificateDerived(_)
             )
     }));
     let reconstructed =
-        psi_terminal_verifier::reconstruct_operation_obligations(&lowered.semantic_module)
+        terminal_verifier::reconstruct_operation_obligations(&lowered.semantic_module)
             .expect("exact right-shift obligation reconstructs");
     let site = reconstructed
         .iter()
@@ -172,9 +174,9 @@ fn checked_source_exact_right_shift_carries_independently_verified_count_evidenc
     );
     assert_eq!(
         site.obligation.proposition,
-        psi_core::Proposition::LessOrEqual(
-            psi_core::ScalarTerm::value(count, ScalarType::Integer(u64_type)),
-            psi_core::ScalarTerm::integer(u64_type, IntegerValue::Unsigned(63)).unwrap(),
+        semantic_vocabulary::Proposition::LessOrEqual(
+            semantic_vocabulary::ScalarTerm::value(count, ScalarType::Integer(u64_type)),
+            semantic_vocabulary::ScalarTerm::integer(u64_type, IntegerValue::Unsigned(63)).unwrap(),
         ),
     );
 
@@ -191,18 +193,18 @@ fn checked_source_exact_right_shift_carries_independently_verified_count_evidenc
             &missing_shift_proof,
             &AdmissionProfile::default(),
         ),
-        Err(psi_terminal_verifier::VerificationError::MissingEvidence(obligation))
+        Err(terminal_verifier::VerificationError::MissingEvidence(obligation))
             if obligation == shift_obligation
     ));
 
     let optimizer_input =
-        omega_psi_to_abstract_operations::lower_artifact_sections_for_optimization(
+        terminal_psi_to_abstract_operations::lower_artifact_sections_for_optimization(
             &semantic,
             &proof,
             &AdmissionProfile::default(),
         )
         .expect("exact shift verifies for optimizer admission");
-    let verified = omega_psi_to_abstract_operations::build_verified_psi_optimization_unit(
+    let verified = terminal_psi_to_abstract_operations::build_verified_psi_optimization_unit(
         optimizer_input,
         TerminalFuelSchedule::CURRENT.identity(),
     )
@@ -454,13 +456,13 @@ fn checked_source_range_proof_folds_a_later_integer_comparison() {
     let semantic = encode_module(&lowered.semantic_module).expect("range fold semantics");
     let proof = encode_proof_bundle(&lowered.proof_bundle).expect("range fold proof");
     let optimizer_input =
-        omega_psi_to_abstract_operations::lower_artifact_sections_for_optimization(
+        terminal_psi_to_abstract_operations::lower_artifact_sections_for_optimization(
             &semantic,
             &proof,
             &AdmissionProfile::default(),
         )
         .expect("range fold verifies for optimizer admission");
-    let verified = omega_psi_to_abstract_operations::build_verified_psi_optimization_unit(
+    let verified = terminal_psi_to_abstract_operations::build_verified_psi_optimization_unit(
         optimizer_input,
         TerminalFuelSchedule::CURRENT.identity(),
     )
@@ -526,13 +528,13 @@ fn checked_source_range_comparison_proves_false_and_declines_overlap() {
         let semantic = encode_module(&lowered.semantic_module).expect("range boundary semantics");
         let proof = encode_proof_bundle(&lowered.proof_bundle).expect("range boundary proof");
         let optimizer_input =
-            omega_psi_to_abstract_operations::lower_artifact_sections_for_optimization(
+            terminal_psi_to_abstract_operations::lower_artifact_sections_for_optimization(
                 &semantic,
                 &proof,
                 &AdmissionProfile::default(),
             )
             .expect("range boundary verifies for optimizer admission");
-        let verified = omega_psi_to_abstract_operations::build_verified_psi_optimization_unit(
+        let verified = terminal_psi_to_abstract_operations::build_verified_psi_optimization_unit(
             optimizer_input,
             TerminalFuelSchedule::CURRENT.identity(),
         )
@@ -648,13 +650,13 @@ fn checked_source_range_comparisons_cover_both_operand_orders_and_inclusive_orde
         let semantic = encode_module(&lowered.semantic_module).expect("range comparison semantics");
         let proof = encode_proof_bundle(&lowered.proof_bundle).expect("range comparison proof");
         let optimizer_input =
-            omega_psi_to_abstract_operations::lower_artifact_sections_for_optimization(
+            terminal_psi_to_abstract_operations::lower_artifact_sections_for_optimization(
                 &semantic,
                 &proof,
                 &AdmissionProfile::default(),
             )
             .expect("range comparison verifies for optimizer admission");
-        let verified = omega_psi_to_abstract_operations::build_verified_psi_optimization_unit(
+        let verified = terminal_psi_to_abstract_operations::build_verified_psi_optimization_unit(
             optimizer_input,
             TerminalFuelSchedule::CURRENT.identity(),
         )
@@ -748,13 +750,13 @@ fn checked_source_range_equality_covers_both_operand_orders_and_declines_overlap
         let semantic = encode_module(&lowered.semantic_module).expect("range equality semantics");
         let proof = encode_proof_bundle(&lowered.proof_bundle).expect("range equality proof");
         let optimizer_input =
-            omega_psi_to_abstract_operations::lower_artifact_sections_for_optimization(
+            terminal_psi_to_abstract_operations::lower_artifact_sections_for_optimization(
                 &semantic,
                 &proof,
                 &AdmissionProfile::default(),
             )
             .expect("range equality verifies for optimizer admission");
-        let verified = omega_psi_to_abstract_operations::build_verified_psi_optimization_unit(
+        let verified = terminal_psi_to_abstract_operations::build_verified_psi_optimization_unit(
             optimizer_input,
             TerminalFuelSchedule::CURRENT.identity(),
         )
@@ -843,7 +845,7 @@ fn checked_source_exact_left_shift_carries_count_and_value_evidence() {
         evidence.obligation == shift_obligation
             && matches!(
                 evidence.route,
-                psi_proof_admission::EvidenceRoute::CertificateDerived(_)
+                proof_admission::EvidenceRoute::CertificateDerived(_)
             )
     }));
 
@@ -861,7 +863,7 @@ fn checked_source_exact_left_shift_carries_count_and_value_evidence() {
             &missing_shift_proof,
             &AdmissionProfile::default(),
         ),
-        Err(psi_terminal_verifier::VerificationError::MissingEvidence(obligation))
+        Err(terminal_verifier::VerificationError::MissingEvidence(obligation))
             if obligation == shift_obligation
     ));
 

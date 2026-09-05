@@ -22,7 +22,7 @@ use crate::encoding::{
 use crate::record::{
     PackagePolicyTerminalPermission, PackagePolicyTerminalPermissions, PackagePolicyTerminalService,
 };
-use omega_effects::{TerminalAuthorityClass, TerminalAuthorityDisposition};
+use effects::{TerminalAuthorityClass, TerminalAuthorityDisposition};
 
 impl PackagePolicyTerminalPermissions {
     pub fn recover_canonical(

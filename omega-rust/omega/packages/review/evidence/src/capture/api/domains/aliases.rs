@@ -3,9 +3,9 @@ use crate::record::{
     PackageReviewDomainAliasAtom, PackageReviewDomainEstablishmentKind,
     PackageReviewDomainEstablishmentRoute,
 };
-use omega_compiler::CheckedCompilation;
-use psi_diagnostics::Diagnostic;
-use psi_symbols::SymbolHandle;
+use compiler::CheckedCompilation;
+use diagnostics::Diagnostic;
+use symbols::SymbolHandle;
 
 pub(crate) fn project_domain_alias_expansion(
     compilation: &CheckedCompilation,
@@ -50,11 +50,11 @@ pub(crate) fn project_domain_alias_expansion(
                 .join("::");
             if !constituent.domain_symbol.is_valid() && label == "Carry::Portable" {
                 atoms.extend(
-                    psi_language_semantics::CarryPermission::ALL
+                    language_semantics::CarryPermission::ALL
                         .map(PackageReviewDomainAliasAtom::Carry),
                 );
             } else if !constituent.domain_symbol.is_valid()
-                && let Some(permission) = psi_language_semantics::CarryPermission::from_name(&label)
+                && let Some(permission) = language_semantics::CarryPermission::from_name(&label)
             {
                 atoms.push(PackageReviewDomainAliasAtom::Carry(permission));
             } else {
@@ -84,10 +84,10 @@ pub(crate) fn project_domain_alias_expansion(
 
 pub(crate) fn project_domain_establishment_route(
     compilation: &CheckedCompilation,
-    route: psi_language_semantics::DomainEstablishmentRoute,
+    route: language_semantics::DomainEstablishmentRoute,
 ) -> Result<PackageReviewDomainEstablishmentRoute, Vec<Diagnostic>> {
     let (kind, trait_symbol, requirement_symbol, expects_boundary) = match route {
-        psi_language_semantics::DomainEstablishmentRoute::CheckedRequirement {
+        language_semantics::DomainEstablishmentRoute::CheckedRequirement {
             trait_definition,
             requirement,
         } => (
@@ -96,7 +96,7 @@ pub(crate) fn project_domain_establishment_route(
             requirement,
             false,
         ),
-        psi_language_semantics::DomainEstablishmentRoute::BoundaryRequirement {
+        language_semantics::DomainEstablishmentRoute::BoundaryRequirement {
             boundary_trait,
             requirement,
         } => (

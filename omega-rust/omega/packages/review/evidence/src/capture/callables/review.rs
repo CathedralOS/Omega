@@ -10,12 +10,12 @@ use crate::record::{
     CheckedPackageCallableReview, PackageReviewCallableRole, PackageReviewExternalExecutableSupply,
     PackageReviewNominalIdentity,
 };
-use omega_compiler::CheckedCompilation;
-use psi_diagnostics::Diagnostic;
+use compiler::CheckedCompilation;
+use diagnostics::Diagnostic;
 
 pub(in crate::capture) fn project_callable(
     compilation: &CheckedCompilation,
-    machine: &psi_typed_trees::machine::Machine,
+    machine: &typed_trees::machine::Machine,
     role: PackageReviewCallableRole,
     identity: PackageReviewNominalIdentity,
 ) -> Result<
@@ -73,7 +73,7 @@ pub(in crate::capture) fn project_callable(
 
 pub(in crate::capture) fn project_contract_entailment_open_contract(
     compilation: &CheckedCompilation,
-    machine: &psi_typed_trees::machine::Machine,
+    machine: &typed_trees::machine::Machine,
     contract_index: usize,
     fact_index: usize,
 ) -> Result<crate::record::PackageReviewCallableContract, Vec<Diagnostic>> {
@@ -101,7 +101,7 @@ pub(in crate::capture) fn project_contract_entailment_open_contract(
 
 pub(in crate::capture) fn project_private_external_executable_supply(
     compilation: &CheckedCompilation,
-    machine: &psi_typed_trees::machine::Machine,
+    machine: &typed_trees::machine::Machine,
     identity: &PackageReviewNominalIdentity,
 ) -> Result<Vec<ProjectedReviewRow<PackageReviewExternalExecutableSupply>>, Vec<Diagnostic>> {
     let machine_type_parameters = compilation.machine_type_parameters(machine);

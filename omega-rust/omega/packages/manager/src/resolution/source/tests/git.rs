@@ -4,7 +4,7 @@ use crate::resolution::source::{
     GitPackageSourceRequest, ResolvePackageSourceError, resolve_external_local_package_source,
     resolve_git_package_source, resolve_selected_git_package_source_with_storage,
 };
-use omega_package_source::{ExternalSourceContext, GitSourceRequest, LocalSourceLimits};
+use package_source::{ExternalSourceContext, GitSourceRequest, LocalSourceLimits};
 use std::path::Path;
 use std::process::Command;
 
@@ -84,8 +84,8 @@ fn named_git_binding_rejects_missing_and_duplicate_declared_names() {
         "https://github.com/CathedralOS/named-errors.git",
     )
     .expect("local Git request");
-    let storage = omega_package_source::SourceResolverStorage::for_hardened_base(&cache)
-        .expect("retained storage");
+    let storage =
+        package_source::SourceResolverStorage::for_hardened_base(&cache).expect("retained storage");
 
     let missing = resolve_selected_git_package_source_with_storage(
         &GitPackageSourceRequest::new(
@@ -159,8 +159,8 @@ fn named_git_binding_rejects_symlink_member_navigation() {
         "https://github.com/CathedralOS/named-symlink.git",
     )
     .expect("local Git request");
-    let storage = omega_package_source::SourceResolverStorage::for_hardened_base(&cache)
-        .expect("retained storage");
+    let storage =
+        package_source::SourceResolverStorage::for_hardened_base(&cache).expect("retained storage");
 
     let error = resolve_selected_git_package_source_with_storage(
         &GitPackageSourceRequest::new(
@@ -176,7 +176,7 @@ fn named_git_binding_rejects_symlink_member_navigation() {
     assert!(matches!(
         error,
         ResolvePackageSourceError::Source(
-            omega_package_source::SourceResolveError::GitTreeInvalid { path, .. }
+            package_source::SourceResolveError::GitTreeInvalid { path, .. }
         ) if path == b"packages/linked/build.omg"
     ));
 

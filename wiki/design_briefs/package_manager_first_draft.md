@@ -2409,7 +2409,7 @@ manufacture a portable “proof of audit.”
 
 ## Implementation trust status
 
-The `omega-package-manager` release surface now contains reviewed corrected-model
+The `package-manager` release surface now contains reviewed corrected-model
 building blocks for immutable source custody, typed identity and closure,
 compiler handoff/review, exact row conflicts, and review-only triage. The ratified
 acceptance model above still needs command integration. The legacy manifest,

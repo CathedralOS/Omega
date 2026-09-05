@@ -1,10 +1,10 @@
 use super::{CompileResolvedPackageReviewsError, CompilerIssuedPackageReviewSet};
 use crate::declarations::PackageKey;
 use crate::resolution::graph::ResolvedPackageSourceClosure;
-use omega_compiler::CheckedCompilation;
-use omega_effects::provider_plan::ServiceSchema;
-use omega_package_compilation::{AcceptedSemanticBinding, AcceptedSemanticBindingRole};
-use omega_package_evidence::record::{
+use compiler::CheckedCompilation;
+use effects::provider_plan::ServiceSchema;
+use package_compilation::{AcceptedSemanticBinding, AcceptedSemanticBindingRole};
+use package_evidence::record::{
     CheckedPackageCallableReview, CheckedPackageProviderReview, CheckedPackageReviewProjection,
     PackageReviewNominalIdentity, PackageReviewNominalOwner,
 };
@@ -27,10 +27,7 @@ impl SemanticBindingReviewCandidate {
     fn new(binding: AcceptedSemanticBinding, service_schema: ServiceSchema) -> Self {
         debug_assert_eq!(
             binding.normalized_schema_digest(),
-            omega_package_compilation::accepted_service_schema_digest(
-                binding.role(),
-                &service_schema,
-            ),
+            package_compilation::accepted_service_schema_digest(binding.role(), &service_schema,),
         );
         Self {
             binding,
@@ -245,7 +242,7 @@ pub(super) fn candidate_service_bindings(
             },
         );
     };
-    if omega_package_compilation::accepted_service_schema_digest(binding.role(), &service_schema)
+    if package_compilation::accepted_service_schema_digest(binding.role(), &service_schema)
         != binding.normalized_schema_digest()
     {
         return Err(

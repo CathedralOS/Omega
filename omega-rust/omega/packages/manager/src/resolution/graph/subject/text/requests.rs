@@ -9,7 +9,7 @@ use super::{Error, Limits};
 use crate::declarations::BuildDeclarationKind;
 use crate::declarations::dependencies::read::{DependencySourceRequest, PackageSelection};
 use crate::resolution::source::PackageSourceNavigation;
-use omega_package_source::ExternalSourceContext;
+use package_source::ExternalSourceContext;
 
 pub(super) fn write_root(
     writer: &mut Writer,

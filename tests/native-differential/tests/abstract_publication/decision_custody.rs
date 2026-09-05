@@ -1,14 +1,14 @@
 //! Applied-decision publication custody.
 
 use super::*;
-use omega_abstract_operations_optimizer::{OptimizationRun, PSI_PASS_CATALOG};
-use omega_optimization_core::{
+use abstract_operations_to_abstract_operations::{OptimizationRun, PSI_PASS_CATALOG};
+use optimization_core::{
     AcceptedObligationFactIdentity, AnalysisKind, AnalysisSet, OptimizationCandidateIdentity,
     OptimizationCandidateVerdict, OptimizationDecisionRecord, OptimizationFactReference,
     OptimizationPassIdentity, OptimizationPassManifestRecord, OptimizationReasonCode,
     OptimizationRuleSetIdentity, OptimizationUnitIdentity, OptimizationValidatorIdentity,
 };
-use omega_optimization_core::{
+use optimization_core::{
     BaselineDecisionLogBuilder, ExternalCandidateFeatures, ExternalDecisionAction,
     ExternalDecisionLog, ExternalDecisionPoint, ValidatedCandidateSummary,
 };

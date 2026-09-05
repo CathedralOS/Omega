@@ -55,7 +55,7 @@ fn exact_subtract_retains_proof_target_effects_and_reaches_homes() {
             );
             assert!(subtract.implicit_uses.is_empty());
             assert!(subtract.implicit_defs.is_empty());
-            if target.architecture == omega_target::Architecture::X86_64 {
+            if target.architecture == target::Architecture::X86_64 {
                 assert!(!subtract.clobbers.is_empty());
             } else {
                 assert!(subtract.clobbers.is_empty());
@@ -110,7 +110,7 @@ fn exact_subtract_retains_proof_target_effects_and_reaches_homes() {
         assert_eq!(homes.custody().assignment_count(), 7);
         let post = stage_optimized_post_allocation_machine_plan(&homes).unwrap();
         assert_eq!(post.custody().instruction_count(), 10);
-        let decoded_post = omega_physical_instructions::PostAllocationMachinePlan::decode(
+        let decoded_post = physical_instructions::PostAllocationMachinePlan::decode(
             &post.machine().plan().encode(),
         )
         .unwrap();
@@ -163,8 +163,7 @@ fn exact_subtract_retains_proof_target_effects_and_reaches_homes() {
             .rows()
             .iter()
             .filter(|row| {
-                row.alternative.family
-                    == omega_selected_instructions::MachineAlternativeFamily::ReturnI64
+                row.alternative.family == selected_instructions::MachineAlternativeFamily::ReturnI64
             })
             .collect::<Vec<_>>();
         assert_eq!(returns.len(), 2);
@@ -174,7 +173,7 @@ fn exact_subtract_retains_proof_target_effects_and_reaches_homes() {
             };
             assert_eq!(
                 bytes.as_slice(),
-                if target.architecture == omega_target::Architecture::X86_64 {
+                if target.architecture == target::Architecture::X86_64 {
                     &[0xc3][..]
                 } else {
                     &[0xc0, 0x03, 0x5f, 0xd6][..]
@@ -251,7 +250,7 @@ fn exact_subtract_retains_proof_target_effects_and_reaches_homes() {
             branch.1.when_fallthrough_offset
         );
         match target.architecture {
-            omega_target::Architecture::X86_64 => {
+            target::Architecture::X86_64 => {
                 assert_eq!(&branch.0.bytes[..2], [0x0f, 0x85]);
                 assert_eq!(
                     branch.1.byte_displacement,
@@ -259,7 +258,7 @@ fn exact_subtract_retains_proof_target_effects_and_reaches_homes() {
                         - i64::try_from(branch.0.offset + 6).unwrap()
                 );
             }
-            omega_target::Architecture::Aarch64 => {
+            target::Architecture::Aarch64 => {
                 assert_eq!(branch.0.bytes[0] & 0x1f, 1);
                 assert_eq!(
                     branch.1.byte_displacement,
@@ -344,7 +343,7 @@ fn exact_subtract_retains_proof_target_effects_and_reaches_homes() {
             .flat_map(|block| &block.instructions)
             .filter(|instruction| {
                 instruction.alternative.key.family
-                    == omega_selected_instructions::MachineAlternativeFamily::ExactSubtractI64
+                    == selected_instructions::MachineAlternativeFamily::ExactSubtractI64
             })
             .collect::<Vec<_>>();
         assert_eq!(subtracts.len(), 2);
@@ -371,15 +370,14 @@ fn exact_subtract_retains_proof_target_effects_and_reaches_homes() {
             .flat_map(|block| &mut block.instructions)
             .find(|instruction| {
                 instruction.alternative.key.family
-                    == omega_selected_instructions::MachineAlternativeFamily::ExactSubtractI64
+                    == selected_instructions::MachineAlternativeFamily::ExactSubtractI64
             })
             .unwrap();
         subtract.alternative.key.variant = u32::MAX;
-        corrupted.identity =
-            omega_physical_instructions::post_allocation_machine_identity(&corrupted);
+        corrupted.identity = physical_instructions::post_allocation_machine_identity(&corrupted);
         assert!(matches!(
             validate_raw_post_allocation(&homes, &post, corrupted),
-            Err(omega_register_homes_to_post_allocation_machine::PostAllocationMachineError::InstructionMismatch { .. })
+            Err(register_homes_to_post_allocation_machine::PostAllocationMachineError::InstructionMismatch { .. })
         ));
 
         let mut corrupted = post.machine().plan().clone();
@@ -392,21 +390,19 @@ fn exact_subtract_retains_proof_target_effects_and_reaches_homes() {
             .unwrap()
             .write_units
             .clear();
-        corrupted.identity =
-            omega_physical_instructions::post_allocation_machine_identity(&corrupted);
+        corrupted.identity = physical_instructions::post_allocation_machine_identity(&corrupted);
         assert!(matches!(
             validate_raw_post_allocation(&homes, &post, corrupted),
-            Err(omega_register_homes_to_post_allocation_machine::PostAllocationMachineError::InstructionMismatch { .. })
+            Err(register_homes_to_post_allocation_machine::PostAllocationMachineError::InstructionMismatch { .. })
         ));
 
         let mut corrupted = post.machine().plan().clone();
         corrupted.effects =
-            omega_selected_instructions::PreAllocationMachineEffectIdentity::from_bytes([0x5a; 32]);
-        corrupted.identity =
-            omega_physical_instructions::post_allocation_machine_identity(&corrupted);
+            selected_instructions::PreAllocationMachineEffectIdentity::from_bytes([0x5a; 32]);
+        corrupted.identity = physical_instructions::post_allocation_machine_identity(&corrupted);
         assert_eq!(
             validate_raw_post_allocation(&homes, &post, corrupted),
-            Err(omega_register_homes_to_post_allocation_machine::PostAllocationMachineError::EffectRootMismatch)
+            Err(register_homes_to_post_allocation_machine::PostAllocationMachineError::EffectRootMismatch)
         );
     }
 }

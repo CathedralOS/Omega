@@ -95,7 +95,7 @@ compiler artifact. The concise `start(M, args)` form may be transparent future
 sugar, but the current surface uses the already-honest `start<M>(args)` spelling.
 
 The source truth is deliberately smaller than the current
-`omega-task-plans` prototype. One new activation receives one fixed, nonmoving
+`task-plans` prototype. One new activation receives one fixed, nonmoving
 stack sized from WCSU and retains that stack while parked. Direct suspension
 does not negotiate or allocate a second continuation buffer. The activation
 descriptor therefore asks for a `StackLease` satisfying `StackPlan<M>`, not for
@@ -152,7 +152,7 @@ report coordinate—into the invocation binding, so a compact-equal
 specialization substitution cannot activate or alias the original runtime
 child.
 
-The provider-independent selection gate is also live in `omega-task-plans`.
+The provider-independent selection gate is also live in `task-plans`.
 It consumes one exact checked-conformance or admission-receipt identity for
 each demanded CPU/host-thread preservation axis, rejects missing or mismatched
 evidence, and folds the validated executor selection into the task lifecycle
@@ -252,7 +252,7 @@ the carrier is not: close/reclaim must prove that every child claim and lease
 has been reconciled.
 
 The normalized provider-side accounting carrier is now live in
-`omega-task-plans`. One ledger belongs to one admitted runtime instance.
+`task-plans`. One ledger belongs to one admitted runtime instance.
 Accepting an activation records the exact activation admission plus either a
 persistent `{storage owner, lease era}` edge or an admitted inline-completion
 fact before it yields a non-clonable lifecycle claim. Cancellation validates
@@ -388,7 +388,7 @@ those facts in their proper homes, `TaskRuntimeContract`,
 `RuntimeBehaviorContract`, and the generalized
 `ActivationDemand <= RuntimeSupply` join have no surviving semantic role.
 
-The `omega-task-plans` Rust crate no longer implements that retired join:
+The `task-plans` Rust crate no longer implements that retired join:
 continuation capacity, preemption granularity, continuation movement, and
 inline-completion runtime fields have been removed. Its lifecycle ledger is
 now explicitly downstream of an already selected runtime and exact activation
@@ -620,7 +620,7 @@ modules are considered complete.
    preservation. Keep incomplete derivation fail-closed.
 4. Retire `TaskRuntimeContract`, `AdmittedTaskRuntimeContract`,
    `PreemptionGranularity`, and the generalized activation/runtime join from
-   `omega-task-plans`. The ordinary selected `TaskRuntime` provider plan and
+   `task-plans`. The ordinary selected `TaskRuntime` provider plan and
    operation-specific requirement are connected to each concrete activation.
    The normalized provider-instance/invocation receipt now binds that static
    fact, its exact activation plan, and the executor's preservation evidence

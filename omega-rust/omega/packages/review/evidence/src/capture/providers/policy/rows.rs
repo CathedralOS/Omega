@@ -6,11 +6,11 @@ use crate::capture::semantics::declarations::{
     nominal_identity, policy_provider_requirement_identity, provider_requirement_schema,
 };
 use crate::record::PackagePolicyProviderRow;
-use omega_compiler::CheckedCompilation;
-use omega_provider_planning::plans::{ProviderSchemaDeclaration, SelectedProviderReviewProvenance};
-use omega_target::TargetProfile;
-use psi_diagnostics::Diagnostic;
-use psi_symbols::SymbolHandle;
+use compiler::CheckedCompilation;
+use diagnostics::Diagnostic;
+use provider_planning::plans::{ProviderSchemaDeclaration, SelectedProviderReviewProvenance};
+use symbols::SymbolHandle;
+use target::TargetProfile;
 
 pub(super) fn project(
     compilation: &CheckedCompilation,
@@ -118,7 +118,7 @@ fn validate_lifetime_partition(
             "lifetime partition has no unique declaring-trait application",
         ));
     };
-    if psi_typed_trees::machine::normalize_requirement_lifetime_partition(
+    if typed_trees::machine::normalize_requirement_lifetime_partition(
         &application.trait_lifetime_arguments,
     ) != retained
     {

@@ -523,23 +523,23 @@ fn checked_source_computed_integer_comparison_reaches_native_code() {
     assert!(matches!(
         &lowered.semantic_module.machines[0].blocks[0].operations[..],
         [
-            psi_terminal::Operation {
+            terminal_psi::Operation {
                 kind: OperationKind::IntegerConstant { .. },
                 ..
             },
-            psi_terminal::Operation {
+            terminal_psi::Operation {
                 kind: OperationKind::WrappingIntegerMultiply { .. },
                 ..
             },
-            psi_terminal::Operation {
+            terminal_psi::Operation {
                 kind: OperationKind::IntegerConstant { .. },
                 ..
             },
-            psi_terminal::Operation {
+            terminal_psi::Operation {
                 kind: OperationKind::WrappingIntegerAdd { .. },
                 ..
             },
-            psi_terminal::Operation {
+            terminal_psi::Operation {
                 kind: OperationKind::IntegerLessThan { .. },
                 ..
             },
@@ -810,7 +810,7 @@ fn checked_source_same_carrier_policy_casts_retag_without_terminal_work() {
         .expect("same-carrier policy erasure should lower as an identity");
     assert!(matches!(
         &wrapping.semantic_module.machines[0].blocks[0].operations[..],
-        [psi_terminal::Operation {
+        [terminal_psi::Operation {
             kind: OperationKind::WrappingIntegerAdd { .. },
             ..
         }]

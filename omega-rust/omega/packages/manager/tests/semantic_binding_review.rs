@@ -1,25 +1,25 @@
-use omega_effects::{
+use effects::{
     ServiceTerminalAuthorityPermission, TerminalAuthorityClass, TerminalAuthorityDisposition,
 };
-use omega_package_compilation::{
+use package_compilation::{
     AcceptedSemanticBinding, AcceptedSemanticBindingRole, BuildDeclarationKind,
     PackageCompilationInputs, PackageDependencyBinding, PackageSourceBinding,
 };
-use omega_package_evidence::record::{
+use package_evidence::record::{
     PackageReviewCanonicalRowKind, PackageReviewCompilerIntrinsicExecution,
     PackageReviewDangerousAuthorityClass, PackageReviewNominalOwner,
 };
-use omega_package_manager::admission::{
+use package_manager::admission::{
     accept_ordinary_closure_evidence, accepted_terminal_authority_permission_policy,
     realize_accepted_reviewed_package_candidate_with_source_evaluated_imports_and_policy,
     realize_accepted_terminal_artifact_with_source_evaluated_imports_and_policy,
 };
-use omega_package_manager::declarations::{PackageKey, PackageName};
-use omega_package_manager::resolution::graph::{
+use package_manager::declarations::{PackageKey, PackageName};
+use package_manager::resolution::graph::{
     PackageSourceClosureLimits, resolve_external_local_project_closure_with_storage,
 };
-use omega_package_manager::resolution::package_compilation_inputs;
-use omega_package_manager::review::{
+use package_manager::resolution::package_compilation_inputs;
+use package_manager::review::{
     CanonicalPackageReconstructionQuestionLimits, CompileResolvedPackageReviewsError,
     ConsumerScopedSemanticBindingReviewInput, FreshPackageRootPolicyError,
     ReviewOnlyCapabilityConflictLimits, ReviewOnlyRootPolicyDisposition,
@@ -29,10 +29,10 @@ use omega_package_manager::review::{
     compile_resolved_package_reviews_with_semantic_bindings,
     resolve_review_only_root_policy_decisions,
 };
-use omega_package_source::{
+use package_source::{
     ExternalSourceContext, LocalSourceLimits, SourceLineage, SourceResolverStorage,
 };
-use psi_core::PackageKeyIdentity;
+use semantic_vocabulary::PackageKeyIdentity;
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -142,7 +142,7 @@ invokes console;
     )
     .expect("resolve ordinary Console closure");
     let preliminary = compile_resolved_package_reviews(
-        &closure.for_exact_target(omega_target::TargetProfile::LinuxX64),
+        &closure.for_exact_target(target::TargetProfile::LinuxX64),
         &temporary.0.join("preliminary-build"),
     )
     .expect("compile Console candidate without consumer authority");
@@ -200,7 +200,7 @@ invokes console;
     );
     assert!(matches!(
         compile_resolved_package_reviews_with_semantic_bindings(
-            &closure.for_exact_target(omega_target::TargetProfile::LinuxX64),
+            &closure.for_exact_target(target::TargetProfile::LinuxX64),
             &temporary.0.join("absent-consumer-build"),
             &[ConsumerScopedSemanticBindingReviewInput::new(
                 absent_consumer.clone(),
@@ -214,7 +214,7 @@ invokes console;
     ));
     assert!(matches!(
         compile_resolved_package_reviews_with_semantic_bindings(
-            &closure.for_exact_target(omega_target::TargetProfile::LinuxX64),
+            &closure.for_exact_target(target::TargetProfile::LinuxX64),
             &temporary.0.join("duplicate-binding-build"),
             &[binding_input.clone(), binding_input.clone()],
         ),
@@ -228,7 +228,7 @@ invokes console;
 
     let production_candidate =
         compile_resolved_package_candidate_for_production_with_semantic_bindings(
-            &closure.for_exact_target(omega_target::TargetProfile::LinuxX64),
+            &closure.for_exact_target(target::TargetProfile::LinuxX64),
             &temporary.0.join("accepted-build"),
             std::slice::from_ref(&binding_input),
         )
@@ -240,7 +240,7 @@ invokes console;
     );
     assert_eq!(
         production_candidate.target_profile(),
-        omega_target::TargetProfile::LinuxX64
+        target::TargetProfile::LinuxX64
     );
     let reviews = production_candidate.reviews();
     let root_review = reviews.review(&root_key).expect("bound root review");
@@ -263,7 +263,7 @@ invokes console;
     let conflict_limits = ReviewOnlyCapabilityConflictLimits::default();
     let conflicts = compare_review_only_initial_capabilities(
         reviews,
-        &closure.for_exact_target(omega_target::TargetProfile::LinuxX64),
+        &closure.for_exact_target(target::TargetProfile::LinuxX64),
         conflict_limits,
     )
     .expect("derive complete fresh conflicts");
@@ -287,7 +287,7 @@ invokes console;
     );
     assert!(matches!(
         bind_fresh_package_root_policy(
-            &closure.for_exact_target(omega_target::TargetProfile::LinuxX64),
+            &closure.for_exact_target(target::TargetProfile::LinuxX64),
             reviews,
             CanonicalPackageReconstructionQuestionLimits::default(),
             conflict_limits,
@@ -316,7 +316,7 @@ invokes console;
     let root_policy = resolve_review_only_root_policy_decisions(&conflicts, &decisions)
         .expect("accept every exact blocking row");
     let evidence = accept_ordinary_closure_evidence(
-        &closure.for_exact_target(omega_target::TargetProfile::LinuxX64),
+        &closure.for_exact_target(target::TargetProfile::LinuxX64),
         reviews,
         CanonicalPackageReconstructionQuestionLimits::default(),
         conflict_limits,
@@ -404,20 +404,20 @@ invokes console;
             .expect("attach exact root semantic bindings")
     };
     let compile_terminal_report = |label: &str, semantic_bindings: Vec<AcceptedSemanticBinding>| {
-        omega_compiler::compile(
-                omega_compiler::CompileRequest::new(omega_compiler::CompileOptions {
+        compiler::compile(
+                compiler::CompileRequest::new(compiler::CompileOptions {
                     root_path: root_path.clone(),
                     build_dir: Some(temporary.0.join(label)),
                     target_name: Some("linux_x86_64".to_owned()),
                 })
                 .with_package_inputs(production_inputs(semantic_bindings))
-                .with_requested_product(omega_compiler::RequestedCompileProduct::TerminalArtifact),
+                .with_requested_product(compiler::RequestedCompileProduct::TerminalArtifact),
             )
             .unwrap_or_else(|diagnostics| {
                 panic!("accepted package application must produce one retained Terminal report: {diagnostics:#?}")
             })
     };
-    let exact_checked = omega_compiler::compile_to_checked_with_packages_in_build_dir(
+    let exact_checked = compiler::compile_to_checked_with_packages_in_build_dir(
         &root_path,
         &temporary.0.join("exact-checked-build"),
         Some("linux_x86_64"),
@@ -430,9 +430,9 @@ invokes console;
         realize_accepted_reviewed_package_candidate_with_source_evaluated_imports_and_policy(
             production_candidate,
             &evidence,
-            &psi_proof_admission::AdmissionProfile::default(),
-            &omega_optimization_core::PostTerminalOptimizationSelections::default(),
-            omega_terminal_psi_to_native_artifact::current_terminal_authority_policy(),
+            &proof_admission::AdmissionProfile::default(),
+            &optimization_core::PostTerminalOptimizationSelections::default(),
+            terminal_psi_to_native_artifact::current_terminal_authority_policy(),
             accepted_permission_policy.clone(),
             &[],
         )
@@ -459,7 +459,7 @@ invokes console;
     );
     let observation_probe_identity =
         PackageKeyIdentity::from_digest([0x7a; 32]).expect("nonzero observation-probe identity");
-    let observation_probe_checked = omega_compiler::compile_to_checked_with_packages(
+    let observation_probe_checked = compiler::compile_to_checked_with_packages(
         &observation_probe.join("main.omg"),
         None,
         PackageCompilationInputs::new_package(
@@ -474,47 +474,45 @@ invokes console;
         .expect("single-package observation probe"),
     )
     .expect("compile distinct build observation probe");
-    let substituted_observation_subject =
-        omega_compiler::ProductionCompilationSubject::from_checked(
-            exact_checked
-                .package_compilation_subject()
-                .expect("exact checked package subject")
-                .clone(),
-            exact_checked
-                .selected_build_machine_identity()
-                .expect("exact checked build-machine identity")
-                .to_owned(),
-            exact_checked
-                .build_evaluation_usage()
-                .expect("exact checked invocation usage"),
-            observation_probe_checked
-                .build_observation_summary()
-                .expect("probe retains a distinct observation"),
-            omega_target::TargetProfile::LinuxX64,
-            omega_target::TargetProfile::LinuxX64.native_target(),
-        )
-        .expect("construct structurally valid observation-substituted subject");
+    let substituted_observation_subject = compiler::ProductionCompilationSubject::from_checked(
+        exact_checked
+            .package_compilation_subject()
+            .expect("exact checked package subject")
+            .clone(),
+        exact_checked
+            .selected_build_machine_identity()
+            .expect("exact checked build-machine identity")
+            .to_owned(),
+        exact_checked
+            .build_evaluation_usage()
+            .expect("exact checked invocation usage"),
+        observation_probe_checked
+            .build_observation_summary()
+            .expect("probe retains a distinct observation"),
+        target::TargetProfile::LinuxX64,
+        target::TargetProfile::LinuxX64.native_target(),
+    )
+    .expect("construct structurally valid observation-substituted subject");
     let exact_report = compile_terminal_report(
         "observation-substitution-build",
         root_evidence.semantic_bindings().to_vec(),
     );
-    let observation_substituted_report =
-        omega_compiler::CompileReport::from_retained_terminal_artifact(
-            root_path.clone(),
-            exact_checked.source_file_count(),
-            exact_report
-                .into_retained_terminal_artifact()
-                .expect("exact report retains Terminal product"),
-            Some(substituted_observation_subject),
-        )
-        .expect("observation substitution remains structurally valid report custody");
+    let observation_substituted_report = compiler::CompileReport::from_retained_terminal_artifact(
+        root_path.clone(),
+        exact_checked.source_file_count(),
+        exact_report
+            .into_retained_terminal_artifact()
+            .expect("exact report retains Terminal product"),
+        Some(substituted_observation_subject),
+    )
+    .expect("observation substitution remains structurally valid report custody");
     let observation_diagnostics =
         realize_accepted_terminal_artifact_with_source_evaluated_imports_and_policy(
             observation_substituted_report,
             &evidence,
-            &psi_proof_admission::AdmissionProfile::default(),
-            &omega_optimization_core::PostTerminalOptimizationSelections::default(),
-            omega_terminal_psi_to_native_artifact::current_terminal_authority_policy(),
+            &proof_admission::AdmissionProfile::default(),
+            &optimization_core::PostTerminalOptimizationSelections::default(),
+            terminal_psi_to_native_artifact::current_terminal_authority_policy(),
             accepted_permission_policy.clone(),
             &[],
         )
@@ -574,7 +572,7 @@ invokes console;
     .expect("attach accepted dependency bundle to substituted source graph")
     .with_accepted_semantic_bindings(root_evidence.semantic_bindings().to_vec())
     .expect("attach exact accepted semantic binding to substituted source graph");
-    let substituted_checked = omega_compiler::compile_to_checked_with_packages_in_build_dir(
+    let substituted_checked = compiler::compile_to_checked_with_packages_in_build_dir(
         &substituted_root.join("main.omg"),
         &temporary.0.join("source-substitution-checked-build"),
         Some("linux_x86_64"),
@@ -585,7 +583,7 @@ invokes console;
         substituted_checked.source_consumption_commitment(),
         exact_checked.source_consumption_commitment(),
     );
-    let substituted_source_subject = omega_compiler::ProductionCompilationSubject::from_checked(
+    let substituted_source_subject = compiler::ProductionCompilationSubject::from_checked(
         substituted_checked
             .package_compilation_subject()
             .expect("substituted checked package subject")
@@ -600,15 +598,15 @@ invokes console;
         exact_checked
             .build_observation_summary()
             .expect("exact checked build observation"),
-        omega_target::TargetProfile::LinuxX64,
-        omega_target::TargetProfile::LinuxX64.native_target(),
+        target::TargetProfile::LinuxX64,
+        target::TargetProfile::LinuxX64.native_target(),
     )
     .expect("construct structurally valid source-substituted subject");
     let exact_report = compile_terminal_report(
         "source-substitution-build",
         root_evidence.semantic_bindings().to_vec(),
     );
-    let source_substituted_report = omega_compiler::CompileReport::from_retained_terminal_artifact(
+    let source_substituted_report = compiler::CompileReport::from_retained_terminal_artifact(
         root_path.clone(),
         exact_checked.source_file_count(),
         exact_report
@@ -621,9 +619,9 @@ invokes console;
         realize_accepted_terminal_artifact_with_source_evaluated_imports_and_policy(
             source_substituted_report,
             &evidence,
-            &psi_proof_admission::AdmissionProfile::default(),
-            &omega_optimization_core::PostTerminalOptimizationSelections::default(),
-            omega_terminal_psi_to_native_artifact::current_terminal_authority_policy(),
+            &proof_admission::AdmissionProfile::default(),
+            &optimization_core::PostTerminalOptimizationSelections::default(),
+            terminal_psi_to_native_artifact::current_terminal_authority_policy(),
             accepted_permission_policy.clone(),
             &[],
         )
@@ -654,26 +652,24 @@ invokes console;
     let widened_report =
         compile_terminal_report("proposal-substitution-build", vec![widened_binding]);
     let widened_receiving_policy =
-        omega_terminal_psi_to_native_artifact::terminal_authority_permission_policy_with_rows(
-            vec![
-                omega_terminal_psi_to_native_artifact::TerminalAuthorityPermissionPolicyRow::new(
-                    provider.schema().identity_digest(),
-                    exit_requirement.clone(),
-                    TerminalAuthorityDisposition::from_classes([
-                        TerminalAuthorityClass::ProcessOutput,
-                        TerminalAuthorityClass::ProcessTermination,
-                    ]),
-                ),
-            ],
-        )
+        terminal_psi_to_native_artifact::terminal_authority_permission_policy_with_rows(vec![
+            terminal_psi_to_native_artifact::TerminalAuthorityPermissionPolicyRow::new(
+                provider.schema().identity_digest(),
+                exit_requirement.clone(),
+                TerminalAuthorityDisposition::from_classes([
+                    TerminalAuthorityClass::ProcessOutput,
+                    TerminalAuthorityClass::ProcessTermination,
+                ]),
+            ),
+        ])
         .expect("construct coordinated widened receiving permission policy");
     let proposal_diagnostics =
         realize_accepted_terminal_artifact_with_source_evaluated_imports_and_policy(
             widened_report,
             &evidence,
-            &psi_proof_admission::AdmissionProfile::default(),
-            &omega_optimization_core::PostTerminalOptimizationSelections::default(),
-            omega_terminal_psi_to_native_artifact::current_terminal_authority_policy(),
+            &proof_admission::AdmissionProfile::default(),
+            &optimization_core::PostTerminalOptimizationSelections::default(),
+            terminal_psi_to_native_artifact::current_terminal_authority_policy(),
             widened_receiving_policy,
             &[],
         )
@@ -696,7 +692,7 @@ invokes console;
     )
     .expect("resolve ordinary Windows Console closure");
     let windows_reviews = compile_resolved_package_candidate_reviews(
-        &windows_closure.for_exact_target(omega_target::TargetProfile::WindowsX64),
+        &windows_closure.for_exact_target(target::TargetProfile::WindowsX64),
         &temporary.0.join("windows-build"),
     )
     .expect("bind target-independent Console semantics on Windows");

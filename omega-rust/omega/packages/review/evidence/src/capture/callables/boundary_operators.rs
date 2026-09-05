@@ -1,12 +1,12 @@
 use super::external_supply::external_binding_matches_provider_binding;
 use crate::record::PackageReviewExternalBinding;
-use omega_compiler::CheckedCompilation;
-use psi_diagnostics::Diagnostic;
+use compiler::CheckedCompilation;
+use diagnostics::Diagnostic;
 
 pub(super) fn validate_fixed_token_checked_adapter_dispatch_shape(
     compilation: &CheckedCompilation,
-    machine: &psi_typed_trees::machine::Machine,
-    operator: &psi_typed_trees::operator::OperatorDefinition,
+    machine: &typed_trees::machine::Machine,
+    operator: &typed_trees::operator::OperatorDefinition,
 ) -> Result<(), Vec<Diagnostic>> {
     let Some(spelling) = operator.spelling else {
         return Ok(());
@@ -15,24 +15,24 @@ pub(super) fn validate_fixed_token_checked_adapter_dispatch_shape(
     let supported = operand_count == 2
         && matches!(
             spelling,
-            psi_language_core::OperatorSpelling::Add
-                | psi_language_core::OperatorSpelling::Subtract
-                | psi_language_core::OperatorSpelling::Multiply
-                | psi_language_core::OperatorSpelling::Divide
-                | psi_language_core::OperatorSpelling::Modulo
-                | psi_language_core::OperatorSpelling::Equal
-                | psi_language_core::OperatorSpelling::NotEqual
-                | psi_language_core::OperatorSpelling::Less
-                | psi_language_core::OperatorSpelling::LessEqual
-                | psi_language_core::OperatorSpelling::Greater
-                | psi_language_core::OperatorSpelling::GreaterEqual
-                | psi_language_core::OperatorSpelling::Index
+            language_core::OperatorSpelling::Add
+                | language_core::OperatorSpelling::Subtract
+                | language_core::OperatorSpelling::Multiply
+                | language_core::OperatorSpelling::Divide
+                | language_core::OperatorSpelling::Modulo
+                | language_core::OperatorSpelling::Equal
+                | language_core::OperatorSpelling::NotEqual
+                | language_core::OperatorSpelling::Less
+                | language_core::OperatorSpelling::LessEqual
+                | language_core::OperatorSpelling::Greater
+                | language_core::OperatorSpelling::GreaterEqual
+                | language_core::OperatorSpelling::Index
         );
     if !supported {
         return Err(vec![Diagnostic::error(format!(
             "reviewed checked adapter `{}` realizes fixed-token boundary operator `{}` with unsupported dispatch shape `{}` and {operand_count} normalized operands",
             machine.name,
-            psi_typed_trees::operator::boundary_operator_requirement_identity(
+            typed_trees::operator::boundary_operator_requirement_identity(
                 &compilation.typed,
                 operator,
             ),
@@ -44,8 +44,8 @@ pub(super) fn validate_fixed_token_checked_adapter_dispatch_shape(
 
 pub(super) fn validate_selected_boundary_operator_checked_adapter(
     compilation: &CheckedCompilation,
-    machine: &psi_typed_trees::machine::Machine,
-    operator: &psi_typed_trees::operator::OperatorDefinition,
+    machine: &typed_trees::machine::Machine,
+    operator: &typed_trees::operator::OperatorDefinition,
 ) -> Result<(), Vec<Diagnostic>> {
     let plans = compilation.selected_provider_plans().plans();
     let provenance = compilation.selected_provider_provenance();
@@ -54,17 +54,15 @@ pub(super) fn validate_selected_boundary_operator_checked_adapter(
             "selected boundary-operator provider plans are not aligned with retained declaration provenance",
         )]);
     }
-    let slot = psi_typed_trees::operator::boundary_operator_requirement_identity(
-        &compilation.typed,
-        operator,
-    );
+    let slot =
+        typed_trees::operator::boundary_operator_requirement_identity(&compilation.typed, operator);
     let matches = plans
         .iter()
         .zip(provenance)
         .filter(|(plan, retained)| {
             plan.schema.trait_name == slot
                 && retained.provider.schema
-                    == omega_provider_planning::plans::ProviderSchemaDeclaration::BoundaryOperator(
+                    == provider_planning::plans::ProviderSchemaDeclaration::BoundaryOperator(
                         operator.symbol,
                     )
         })
@@ -109,7 +107,7 @@ pub(super) fn validate_selected_boundary_operator_checked_adapter(
         .symbols
         .symbol_package_identity(machine.symbol);
     let selected_identity_matches = match &row.binding {
-        omega_effects::provider_plan::ProviderBinding::CheckedAdapter {
+        effects::provider_plan::ProviderBinding::CheckedAdapter {
             machine_identity,
             machine_package_identity,
         } if *machine_package_identity == expected_package => {
@@ -120,7 +118,7 @@ pub(super) fn validate_selected_boundary_operator_checked_adapter(
                     .iter()
                     .filter(|specialization| specialization.instance == machine.symbol)
                     .any(|specialization| {
-                        psi_validation::machine_specialization_matches_template_identity(
+                        validation::machine_specialization_matches_template_identity(
                             &compilation.typed,
                             specialization,
                             machine_identity,
@@ -148,8 +146,8 @@ pub(super) fn validate_selected_boundary_operator_checked_adapter(
 
 pub(super) fn validate_selected_boundary_operator_external_supply(
     compilation: &CheckedCompilation,
-    machine: &psi_typed_trees::machine::Machine,
-    operator: &psi_typed_trees::operator::OperatorDefinition,
+    machine: &typed_trees::machine::Machine,
+    operator: &typed_trees::operator::OperatorDefinition,
     binding: &PackageReviewExternalBinding,
 ) -> Result<(), Vec<Diagnostic>> {
     let plans = compilation.selected_provider_plans().plans();
@@ -159,17 +157,15 @@ pub(super) fn validate_selected_boundary_operator_external_supply(
             "selected boundary-operator provider plans are not aligned with retained declaration provenance",
         )]);
     }
-    let slot = psi_typed_trees::operator::boundary_operator_requirement_identity(
-        &compilation.typed,
-        operator,
-    );
+    let slot =
+        typed_trees::operator::boundary_operator_requirement_identity(&compilation.typed, operator);
     let matches = plans
         .iter()
         .zip(provenance)
         .filter(|(plan, retained)| {
             plan.schema.trait_name == slot
                 && retained.provider.schema
-                    == omega_provider_planning::plans::ProviderSchemaDeclaration::BoundaryOperator(
+                    == provider_planning::plans::ProviderSchemaDeclaration::BoundaryOperator(
                         operator.symbol,
                     )
                 && retained.provider.row_realizations.contains(&machine.symbol)

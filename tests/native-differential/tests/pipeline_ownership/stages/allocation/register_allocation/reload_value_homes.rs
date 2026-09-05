@@ -61,19 +61,19 @@ fn independent_replay_rejects_root_assignment_domain_roster_and_usage_corruption
 
     let mut root = canonical.clone();
     root.abstract_spill_insertion =
-        omega_selected_instructions_to_register_homes::AbstractSpillInsertionIdentity::from_bytes(
+        selected_instructions_to_register_homes::AbstractSpillInsertionIdentity::from_bytes(
             [0x91; 32],
         );
     assert_eq!(
         sources.validate(root),
-        Err(omega_selected_instructions_to_register_homes::ReloadValueHomeError::RootMismatch)
+        Err(selected_instructions_to_register_homes::ReloadValueHomeError::RootMismatch)
     );
 
     for corrupt in [
-        |plan: &mut omega_selected_instructions_to_register_homes::ReloadValueHomePlan| {
+        |plan: &mut selected_instructions_to_register_homes::ReloadValueHomePlan| {
             plan.functions[0].assignment.as_mut().unwrap().view.0 += 1;
         },
-        |plan: &mut omega_selected_instructions_to_register_homes::ReloadValueHomePlan| {
+        |plan: &mut selected_instructions_to_register_homes::ReloadValueHomePlan| {
             plan.functions[0]
                 .assignment
                 .as_mut()
@@ -81,7 +81,7 @@ fn independent_replay_rejects_root_assignment_domain_roster_and_usage_corruption
                 .candidates
                 .reverse();
         },
-        |plan: &mut omega_selected_instructions_to_register_homes::ReloadValueHomePlan| {
+        |plan: &mut selected_instructions_to_register_homes::ReloadValueHomePlan| {
             let assignment = plan.functions[0].assignment.as_mut().unwrap();
             let unused = assignment
                 .candidates
@@ -90,7 +90,7 @@ fn independent_replay_rejects_root_assignment_domain_roster_and_usage_corruption
                 .unwrap();
             assignment.candidates.remove(unused);
         },
-        |plan: &mut omega_selected_instructions_to_register_homes::ReloadValueHomePlan| {
+        |plan: &mut selected_instructions_to_register_homes::ReloadValueHomePlan| {
             plan.functions[0]
                 .assignment
                 .as_mut()
@@ -103,7 +103,7 @@ fn independent_replay_rejects_root_assignment_domain_roster_and_usage_corruption
         corrupt(&mut changed);
         assert_eq!(
             sources.validate(changed),
-            Err(omega_selected_instructions_to_register_homes::ReloadValueHomeError::NonCanonicalAssignment { function: 0 })
+            Err(selected_instructions_to_register_homes::ReloadValueHomeError::NonCanonicalAssignment { function: 0 })
         );
     }
 
@@ -111,7 +111,7 @@ fn independent_replay_rejects_root_assignment_domain_roster_and_usage_corruption
     usage.usage.validation_steps += 1;
     assert_eq!(
         sources.validate(usage),
-        Err(omega_selected_instructions_to_register_homes::ReloadValueHomeError::UsageMismatch)
+        Err(selected_instructions_to_register_homes::ReloadValueHomeError::UsageMismatch)
     );
 }
 
@@ -131,9 +131,7 @@ fn budget_is_exact_and_empty_pressure_has_no_reload_assignment() {
             )
             .unwrap()
         ),
-        Err(
-            omega_selected_instructions_to_register_homes::ReloadValueHomeError::BudgetExceeded { .. }
-        )
+        Err(selected_instructions_to_register_homes::ReloadValueHomeError::BudgetExceeded { .. })
     ));
 
     let legality = stage_optimized_allocation_legality(
@@ -185,18 +183,20 @@ fn bridge_chain_reaches_exact_reload_pressure_through_public_validation() {
         );
         assert_eq!(
             sources.assign(selected_lowering_budget()),
-            Err(omega_selected_instructions_to_register_homes::ReloadValueHomeError::ReloadPressure {
-                function: 0,
-                result: 0,
-            })
+            Err(
+                selected_instructions_to_register_homes::ReloadValueHomeError::ReloadPressure {
+                    function: 0,
+                    result: 0,
+                }
+            )
         );
     }
 }
 
 pub(super) struct ReloadSources {
     legality: StagedOptimizedAllocationLegality,
-    logical: omega_selected_instructions_to_register_homes::ValidatedLogicalSpillOperations,
-    insertion: omega_selected_instructions_to_register_homes::ValidatedAbstractSpillInsertion,
+    logical: selected_instructions_to_register_homes::ValidatedLogicalSpillOperations,
+    insertion: selected_instructions_to_register_homes::ValidatedAbstractSpillInsertion,
 }
 
 impl ReloadSources {
@@ -220,25 +220,25 @@ impl ReloadSources {
             selected_lowering_budget(),
         )
         .unwrap();
-        let logical = omega_selected_instructions_to_register_homes::plan_logical_spill_operations(
+        let logical = selected_instructions_to_register_homes::plan_logical_spill_operations(
             selected.selected(),
             ranges.ranges(),
             legality.legality(),
             &choices,
-            omega_selected_instructions_to_register_homes::LogicalSpillOperationPolicy::SelectedActiveResidentInstructionResultU64StoreBeforePressureReloadBeforeFirstFutureFlexibleUseV1,
+            selected_instructions_to_register_homes::LogicalSpillOperationPolicy::SelectedActiveResidentInstructionResultU64StoreBeforePressureReloadBeforeFirstFutureFlexibleUseV1,
             selected_lowering_budget(),
         )
         .unwrap();
-        let slots = omega_selected_instructions_to_register_homes::color_logical_spill_stack_slots(
+        let slots = selected_instructions_to_register_homes::color_logical_spill_stack_slots(
             &logical,
-            omega_selected_instructions_to_register_homes::StackSlotColoringPolicy::BlockLocalNonAddressUnsignedU64ClosedIntervalFirstFitV1,
+            selected_instructions_to_register_homes::StackSlotColoringPolicy::BlockLocalNonAddressUnsignedU64ClosedIntervalFirstFitV1,
             selected_lowering_budget(),
         )
         .unwrap();
-        let insertion = omega_selected_instructions_to_register_homes::schedule_abstract_spill_insertion(
+        let insertion = selected_instructions_to_register_homes::schedule_abstract_spill_insertion(
             &logical,
             &slots,
-            omega_selected_instructions_to_register_homes::AbstractSpillInsertionPolicy::BlockLocalNonAddressUnsignedU64AbstractSpillAreaV1,
+            selected_instructions_to_register_homes::AbstractSpillInsertionPolicy::BlockLocalNonAddressUnsignedU64AbstractSpillAreaV1,
             selected_lowering_budget(),
         )
         .unwrap();
@@ -253,15 +253,15 @@ impl ReloadSources {
         &self,
         budget: OptimizationWorkBudget,
     ) -> Result<
-        omega_selected_instructions_to_register_homes::ValidatedReloadValueHomes,
-        omega_selected_instructions_to_register_homes::ReloadValueHomeError,
+        selected_instructions_to_register_homes::ValidatedReloadValueHomes,
+        selected_instructions_to_register_homes::ReloadValueHomeError,
     > {
         let ranges = self.legality.live_range_stage();
         let environment = ranges
             .liveness_stage()
             .selected_stage()
             .register_environment();
-        omega_selected_instructions_to_register_homes::assign_reload_value_homes(
+        selected_instructions_to_register_homes::assign_reload_value_homes(
             &self.insertion,
             &self.logical,
             self.legality.legality(),
@@ -270,20 +270,20 @@ impl ReloadSources {
             environment.constraints(),
             environment.reservations(),
             environment.allocation_constraint_keys(),
-            omega_selected_instructions_to_register_homes::ReloadValueHomePolicy::BlockLocalSingleSpillReloadFirstLowestCompatibleViewV1,
+            selected_instructions_to_register_homes::ReloadValueHomePolicy::BlockLocalSingleSpillReloadFirstLowestCompatibleViewV1,
             budget,
         )
     }
 
     pub(super) const fn insertion(
         &self,
-    ) -> &omega_selected_instructions_to_register_homes::ValidatedAbstractSpillInsertion {
+    ) -> &selected_instructions_to_register_homes::ValidatedAbstractSpillInsertion {
         &self.insertion
     }
 
     pub(super) const fn logical(
         &self,
-    ) -> &omega_selected_instructions_to_register_homes::ValidatedLogicalSpillOperations {
+    ) -> &selected_instructions_to_register_homes::ValidatedLogicalSpillOperations {
         &self.logical
     }
 
@@ -293,17 +293,17 @@ impl ReloadSources {
 
     fn validate(
         &self,
-        plan: omega_selected_instructions_to_register_homes::ReloadValueHomePlan,
+        plan: selected_instructions_to_register_homes::ReloadValueHomePlan,
     ) -> Result<
-        omega_selected_instructions_to_register_homes::ValidatedReloadValueHomes,
-        omega_selected_instructions_to_register_homes::ReloadValueHomeError,
+        selected_instructions_to_register_homes::ValidatedReloadValueHomes,
+        selected_instructions_to_register_homes::ReloadValueHomeError,
     > {
         let ranges = self.legality.live_range_stage();
         let environment = ranges
             .liveness_stage()
             .selected_stage()
             .register_environment();
-        omega_selected_instructions_to_register_homes::validate_reload_value_homes(
+        selected_instructions_to_register_homes::validate_reload_value_homes(
             &self.insertion,
             &self.logical,
             self.legality.legality(),

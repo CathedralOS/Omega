@@ -7,7 +7,7 @@ use crate::declarations::dependencies::read::DependencySourceRequest;
 use crate::declarations::{AliasName, PackageKey};
 use crate::resolution::graph::PackageRootSourceRequest;
 use crate::resolution::source::PackageSourceCustody;
-use omega_target::TargetProfile;
+use target::TargetProfile;
 
 use std::collections::{BTreeMap, BTreeSet, VecDeque};
 use std::path::Path;

@@ -52,7 +52,7 @@ fn global_value_numbering_projects_proof_certified_cse_with_exact_fact_custody()
             .iter()
             .filter(|fact| matches!(
                 fact,
-                omega_optimization_unit::OptimizationFact::OperationObligationReference { .. }
+                optimization_unit::OptimizationFact::OperationObligationReference { .. }
             ))
             .count(),
         1
@@ -61,7 +61,7 @@ fn global_value_numbering_projects_proof_certified_cse_with_exact_fact_custody()
     assert_eq!(optimized.pass_manifests().len(), 1);
     assert_eq!(
         optimized.pass_manifests()[0].decisions()[0].consumed_facts(),
-        &[omega_optimization_core::OptimizationFactReference::AcceptedObligation(redundant_fact)]
+        &[optimization_core::OptimizationFactReference::AcceptedObligation(redundant_fact)]
     );
     assert_eq!(optimized.transformation_ledger().records().len(), 1);
 }
@@ -99,7 +99,7 @@ fn compatible_policy_gvn_projects_and_lowers_with_exact_fact_custody() {
                 .iter()
                 .filter(|fact| matches!(
                     fact,
-                    omega_optimization_unit::OptimizationFact::OperationObligationReference { .. }
+                    optimization_unit::OptimizationFact::OperationObligationReference { .. }
                 ))
                 .count(),
             0
@@ -107,11 +107,7 @@ fn compatible_policy_gvn_projects_and_lowers_with_exact_fact_custody() {
         assert_eq!(optimized.unit().accepted_obligation_facts.len(), 1);
         assert_eq!(
             optimized.pass_manifests()[0].decisions()[0].consumed_facts(),
-            &[
-                omega_optimization_core::OptimizationFactReference::AcceptedObligation(
-                    redundant_fact
-                )
-            ]
+            &[optimization_core::OptimizationFactReference::AcceptedObligation(redundant_fact)]
         );
         let lowered = lower_optimized_to_target_operations(optimized, target).unwrap();
         assert_eq!(lowered.target(), target);
@@ -214,14 +210,14 @@ fn global_value_numbering_projects_proof_certified_phi_custody() {
             .iter()
             .filter(|fact| matches!(
                 fact,
-                omega_optimization_unit::OptimizationFact::OperationObligationReference { .. }
+                optimization_unit::OptimizationFact::OperationObligationReference { .. }
             ))
             .count(),
         2
     );
     assert_eq!(
         optimized.pass_manifests()[0].decisions()[0].consumed_facts(),
-        &[omega_optimization_core::OptimizationFactReference::AcceptedObligation(redundant_fact,)]
+        &[optimization_core::OptimizationFactReference::AcceptedObligation(redundant_fact,)]
     );
     let supplied = function
         .blocks
@@ -263,7 +259,7 @@ fn compatible_policy_phi_gvn_and_wrapping_shift_identities_project_and_lower() {
         assert_eq!(join_block.nodes.len(), 1);
         assert_eq!(optimized.unit().accepted_obligation_facts.len(), 1);
         assert!(function.facts.iter().all(|fact| {
-                !matches!(fact, omega_optimization_unit::OptimizationFact::OperationObligationReference { support, .. }
+                !matches!(fact, optimization_unit::OptimizationFact::OperationObligationReference { support, .. }
                     if *support == redundant_operation)
             }));
         assert_eq!(

@@ -17,8 +17,7 @@
 //! EACCES reading outside every root -- with the denied files verifiably
 //! absent from real disk afterwards.
 
-use omega_compiler::{CheckedCompilation, compile_to_checked};
-use psi_checked_interpreter::{
+use checked_interpreter::{
     BuildMachineEvaluationFailureKind, BuildTimeValue, FilesystemAccess,
     FilesystemEvaluationHaltKind, FilesystemGrantRoot, FilesystemGrantRootIdentity,
     FilesystemLogicalHandleInputResolution, FilesystemLogicalHandleKind,
@@ -26,6 +25,7 @@ use psi_checked_interpreter::{
     FilesystemSponsorLimits, FsGrants, InterpretOptions, InterpretOutcome,
     evaluate_build_machine_with_filesystem_measured, interpret_entry, interpret_entry_with_options,
 };
+use compiler::{CheckedCompilation, compile_to_checked};
 use std::path::Path;
 
 #[path = "real_fs/build_activation.rs"]

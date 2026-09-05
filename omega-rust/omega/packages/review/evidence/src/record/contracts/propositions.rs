@@ -32,24 +32,24 @@ fn package_review_data_properties_key(
     properties: PackageReviewDataProperties,
 ) -> (u8, Option<(u8, u8, u8, u8)>) {
     let multiplicity = match properties.multiplicity {
-        psi_language_semantics::Multiplicity::Unrestricted => 0,
-        psi_language_semantics::Multiplicity::Affine => 1,
-        psi_language_semantics::Multiplicity::Linear => 2,
+        language_semantics::Multiplicity::Unrestricted => 0,
+        language_semantics::Multiplicity::Affine => 1,
+        language_semantics::Multiplicity::Linear => 2,
     };
     let carry = properties.carry.map(|carry| {
         (
             u8::from(matches!(
                 carry.suspension,
-                psi_language_semantics::CarrySuspension::Allowed
+                language_semantics::CarrySuspension::Allowed
             )),
-            u8::from(matches!(carry.cpu, psi_language_semantics::CarryCpu::Any)),
+            u8::from(matches!(carry.cpu, language_semantics::CarryCpu::Any)),
             u8::from(matches!(
                 carry.host_thread,
-                psi_language_semantics::CarryHostThread::Any
+                language_semantics::CarryHostThread::Any
             )),
             u8::from(matches!(
                 carry.address,
-                psi_language_semantics::CarryAddress::Movable
+                language_semantics::CarryAddress::Movable
             )),
         )
     });

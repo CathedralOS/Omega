@@ -1,0 +1,18 @@
+[package]
+name = "image"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[lib]
+name = "image"
+path = "src/lib.rs"
+
+[dependencies]
+calling-conventions = { path = "../../../representations/calling-conventions" }
+function-identity = { path = "../../../representations/function-identity" }
+arena = { path = "../../../../psi/foundation/arena" }
+diagnostics = { path = "../../../../psi/foundation/diagnostics" }
+object-file = { path = "../../object/object-file" }
+target = { path = "../../../representations/target" }
+sha2 = "0.10.9"

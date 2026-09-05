@@ -6,10 +6,10 @@ use crate::resolution::graph::{
     ResolveLockedPackageClosureError, ResolvedPackageSourceClosure,
     resolve_locked_package_source_closure_with_storage,
 };
-use omega_package_source::git::resolution::GitExactRevisionAcquisition;
-use omega_package_source::{LocalSourceLimits, SourceResolverStorage};
-use omega_target::TargetProfile;
+use package_source::git::resolution::GitExactRevisionAcquisition;
+use package_source::{LocalSourceLimits, SourceResolverStorage};
 use std::fmt;
+use target::TargetProfile;
 
 /// Acquisition permission and current resource ceilings, not accepted policy.
 #[derive(Debug, Clone, Copy)]

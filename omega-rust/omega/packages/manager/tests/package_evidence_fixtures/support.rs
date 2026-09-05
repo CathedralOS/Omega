@@ -17,7 +17,7 @@ pub(super) fn workspace_root() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR"))
         .ancestors()
         .find(|ancestor| ancestor.join("tests/fixtures/packages").is_dir())
-        .expect("omega-package-manager should live beneath the Omega workspace")
+        .expect("package-manager should live beneath the Omega workspace")
         .to_path_buf()
 }
 

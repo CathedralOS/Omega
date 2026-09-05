@@ -4,11 +4,11 @@ use super::report::PackageSourceInspection;
 #[cfg(test)]
 use super::request::PackageSourceRequestParseError;
 use super::request::{PackageSourceInspectionError, PackageSourceRequest, SourceAdapter};
-use omega_package_source::git::resolution::resolve_git_source_in_lane;
+use package_source::git::resolution::resolve_git_source_in_lane;
 #[cfg(test)]
-use omega_package_source::resolve_git_source_with_storage;
-use omega_package_source::storage::RetainedStorageLane;
-use omega_package_source::{
+use package_source::resolve_git_source_with_storage;
+use package_source::storage::RetainedStorageLane;
+use package_source::{
     LocalSourceLimits, SourceResolveError, SourceResolverStorage, resolve_local_source,
 };
 #[cfg(test)]
@@ -134,7 +134,7 @@ pub fn inspect_package_source_locator(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use omega_package_source::GitSourceRequest;
+    use package_source::GitSourceRequest;
     use std::ffi::OsStr;
     use std::process::Command;
     use std::time::{SystemTime, UNIX_EPOCH};

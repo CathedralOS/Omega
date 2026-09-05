@@ -16,7 +16,7 @@ fn value_type() -> PackageReviewTypeIdentity {
 }
 fn properties() -> PackageReviewDataProperties {
     PackageReviewDataProperties {
-        multiplicity: psi_language_semantics::Multiplicity::Unrestricted,
+        multiplicity: language_semantics::Multiplicity::Unrestricted,
         carry: None,
     }
 }
@@ -44,7 +44,7 @@ fn data() -> PackagePolicyDataShape {
     PackagePolicyDataShape {
         identity: identity("Data"),
         kind: PackageReviewDataKind::Ordinary,
-        supply: psi_language_semantics::DataSupplyMode::CheckedShape,
+        supply: language_semantics::DataSupplyMode::CheckedShape,
         lifetime_parameter_count: 1,
         type_parameters: vec![parameter(PackagePolicyTypeParameterKind::Type)],
         properties: properties(),
@@ -54,7 +54,7 @@ fn data() -> PackagePolicyDataShape {
         members: vec![PackageReviewDataMember::Field(PackageReviewDataField {
             identity: Some(2),
             name: "field".to_owned(),
-            relevance: psi_language_core::BindingRelevance::Relevant,
+            relevance: language_core::BindingRelevance::Relevant,
             type_identity: value_type(),
         })],
     }
@@ -130,7 +130,7 @@ fn declaration_subjects_and_proposition_telescope_are_distinct() {
         type_parameters: vec![],
         target_type: value_type(),
         index_arguments: vec![],
-        predicate_body: psi_language_semantics::DomainPredicateBody::Present,
+        predicate_body: language_semantics::DomainPredicateBody::Present,
         predicate_facts: vec![fact(PackageReviewContractExpression::DomainSubject)],
         alias_expansion: None,
         classification: None,

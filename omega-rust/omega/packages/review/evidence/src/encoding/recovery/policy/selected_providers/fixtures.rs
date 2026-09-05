@@ -1,8 +1,8 @@
 use crate::record::*;
-use omega_effects::provider_plan::*;
-use omega_target::TargetProfile;
-use psi_core::PackageKeyIdentity;
-use psi_language_semantics::*;
+use effects::provider_plan::*;
+use language_semantics::*;
+use semantic_vocabulary::PackageKeyIdentity;
+use target::TargetProfile;
 
 pub(super) fn nominal(path: &str) -> PackageReviewNominalIdentity {
     PackageReviewNominalIdentity {

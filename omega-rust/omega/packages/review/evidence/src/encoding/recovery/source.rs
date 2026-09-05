@@ -1,4 +1,4 @@
-use psi_core::PackageKeyIdentity;
+use semantic_vocabulary::PackageKeyIdentity;
 
 use super::codec::{RecoveryDecoder, RecoveryEncoder, clone_string};
 use super::model::{

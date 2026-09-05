@@ -307,8 +307,8 @@ fn conditional_active_resident_exact_add_chain_artifact_with_graph(
     };
     let proof = operation_proof_bundle(&module);
     (
-        psi_terminal_codec::encode_module(&module).unwrap(),
-        psi_terminal_codec::encode_proof_bundle(&proof).unwrap(),
+        terminal_codec::encode_module(&module).unwrap(),
+        terminal_codec::encode_proof_bundle(&proof).unwrap(),
     )
 }
 

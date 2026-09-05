@@ -1,5 +1,5 @@
 use crate::tests::*;
-use omega_optimization_core::OptimizationWorkBudget;
+use optimization_core::OptimizationWorkBudget;
 
 use super::fixture::{call_homes, exact_budget, stage, wide_budget};
 

@@ -9,10 +9,10 @@
 //! it -- it is to re-pin the NEW shape and check the migration carried the
 //! distinction the comment names.
 
-use psi_typed_trees::data::DataProperties;
-use psi_typed_trees::domain::DomainDefinition;
-use psi_typed_trees::machine::Machine;
-use psi_typed_trees::types::DomainConstraint;
+use typed_trees::data::DataProperties;
+use typed_trees::domain::DomainDefinition;
+use typed_trees::machine::Machine;
+use typed_trees::types::DomainConstraint;
 
 /// LOSS 1 -- PARTIALLY RE-PINNED (DOM theory records, 2026-07-28): predicate
 /// body, role-keyed semantic contributions, and normalized establishment
@@ -126,7 +126,7 @@ fn machine_record_carries_one_public_termination_interface() {
 /// contract-identity carrier) unchanged.
 #[test]
 fn termination_plan_witness_swap_is_contract_invisible() {
-    use psi_language_semantics::{
+    use language_semantics::{
         MachineTerminationPlan, RankingViewId, RankingWitness, TerminationGuarantee,
         TerminationInterface,
     };
@@ -165,7 +165,7 @@ fn termination_plan_witness_swap_is_contract_invisible() {
 /// per type travels beside the orthogonal normalized carry record.
 #[test]
 fn data_properties_carries_first_class_multiplicity() {
-    use psi_language_semantics::Multiplicity;
+    use language_semantics::Multiplicity;
     let DataProperties {
         carry: _,
         multiplicity,
@@ -180,7 +180,7 @@ fn data_properties_carries_first_class_multiplicity() {
 /// service rows normalize resolved identities as deterministic sets.
 #[test]
 fn service_reach_rows_are_identity_sets_without_global_name_bits() {
-    use psi_language_semantics::{ServiceReachId, ServiceReachRowTable};
+    use language_semantics::{ServiceReachId, ServiceReachRowTable};
     let mut rows = ServiceReachRowTable::default();
     let console = ServiceReachId(2);
     let filesystem = ServiceReachId(3);
