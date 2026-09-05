@@ -1,6 +1,10 @@
 use super::*;
 use psi_facts::{PlaceHandle, QualificationCorrespondence, QualificationPayloadIdentity};
 
+mod byte_sequences;
+mod constructed;
+mod projected;
+
 pub(super) fn propagate_statement_transfers(
     program: &psi_typed_trees::TypedTrees,
     semantic: &mut FactPlan,
@@ -9,6 +13,7 @@ pub(super) fn propagate_statement_transfers(
     state_symbol: SymbolHandle,
     statement_index: usize,
     statement: &StatementNode,
+    assignment_source_contexts: HandleSpan<FlowSemanticContextRef>,
     active_contexts: &mut HandleSpan<FlowSemanticContextRef>,
     active_constraints: &mut HandleSpan<FlowConstraintRef>,
 ) {
@@ -52,6 +57,20 @@ pub(super) fn propagate_statement_transfers(
         }
     };
     let source_label = program.expression_table.display_name(source_expression);
+    // A runtime index can change without writing the collection. Until value
+    // facts retain index dependencies, only immutable selectors carry values.
+    let stable_value_target = semantic
+        .place_segments
+        .span_or_empty(semantic.places.get(target_place).segments)
+        .iter()
+        .all(|segment| {
+            matches!(
+                segment,
+                psi_facts::PlaceSegment::Field { .. }
+                    | psi_facts::PlaceSegment::Case { .. }
+                    | psi_facts::PlaceSegment::FixedIndex { .. }
+            )
+        });
 
     let mut refs = HandleSpan::empty();
     let context_handles: Vec<_> = ctx
@@ -71,6 +90,19 @@ pub(super) fn propagate_statement_transfers(
             .filter_map(|reference| {
                 let fact = *semantic.facts.get(reference.fact);
                 match fact.payload {
+                    FactPayload::AssignedValue { value } => {
+                        if !stable_value_target {
+                            return None;
+                        }
+                        let FactPlace::Place(fact_place) = fact.place else {
+                            return None;
+                        };
+                        source_place
+                            .filter(|source_place| {
+                                semantic.places_match(program, fact_place, *source_place)
+                            })
+                            .map(|_| (FactPayload::AssignedValue { value }, fact.evidence, None))
+                    }
                     FactPayload::DomainMembership {
                         domain,
                         domain_symbol,
@@ -203,6 +235,77 @@ pub(super) fn propagate_statement_transfers(
                 );
             }
         }
+    }
+
+    if let Some(source_place) = source_place {
+        projected::append_copied_field_predicates(
+            program,
+            semantic,
+            ctx,
+            *active_contexts,
+            source_place,
+            target_place,
+            ProgramPoint::Statement {
+                machine_symbol,
+                state_symbol,
+                statement_index,
+            },
+            &mut refs,
+        );
+    }
+
+    if stable_value_target {
+        constructed::append_constructed_field_values(
+            program,
+            semantic,
+            ctx,
+            assignment_source_contexts,
+            statement,
+            source_expression,
+            target_place,
+            ProgramPoint::Statement {
+                machine_symbol,
+                state_symbol,
+                statement_index,
+            },
+            &mut refs,
+        );
+        byte_sequences::append_concatenated_predicates(
+            program,
+            semantic,
+            ctx,
+            assignment_source_contexts,
+            source_expression,
+            target_place,
+            ProgramPoint::Statement {
+                machine_symbol,
+                state_symbol,
+                statement_index,
+            },
+            &mut refs,
+        );
+    }
+
+    if stable_value_target
+        && matches!(
+            program.expression_table.expression(source_expression),
+            ExpressionNode::Integer(_) | ExpressionNode::Boolean(_) | ExpressionNode::String(_)
+        )
+    {
+        let fact = semantic.append_fact(Fact {
+            place: FactPlace::Place(target_place),
+            point: ProgramPoint::Statement {
+                machine_symbol,
+                state_symbol,
+                statement_index,
+            },
+            origin: FactOrigin::StatementTransfer,
+            evidence: QualificationEvidence::default(),
+            payload: FactPayload::AssignedValue {
+                value: source_expression,
+            },
+        });
+        semantic.append_ref(&mut refs, fact);
     }
 
     // #66 read-narrowing across a write: initializing or assigning any

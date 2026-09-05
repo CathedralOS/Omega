@@ -32,7 +32,7 @@ pub(super) fn check_self_transition_arrival_requires(
     else {
         return;
     };
-    let requirements = facts
+    let mut requirements = facts
         .semantic
         .contexts_at_point(ProgramPoint::State {
             machine_symbol: machine.symbol,
@@ -46,10 +46,16 @@ pub(super) fn check_self_transition_arrival_requires(
                     machine_symbol,
                     state_symbol,
                 } if machine_symbol == machine.symbol && state_symbol == state.symbol
-            )
+            ) || matches!(fact.origin, FactOrigin::StateParameterDomain { .. })
         })
         .cloned()
         .collect::<Vec<_>>();
+    requirements.extend(
+        facts.semantic.contexts_at_point(ProgramPoint::Machine { machine_symbol: machine.symbol })
+            .flat_map(|context| context.facts())
+            .filter(|fact| matches!(fact.origin, FactOrigin::MachineFieldDomain { machine_symbol } if machine_symbol == machine.symbol))
+            .cloned(),
+    );
     if requirements.is_empty() {
         return;
     }

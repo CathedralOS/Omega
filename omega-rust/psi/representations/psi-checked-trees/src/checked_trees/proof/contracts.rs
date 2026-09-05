@@ -332,6 +332,8 @@ pub struct ContractExitFact {
     pub machine_symbol: SymbolHandle,
     pub state_symbol: SymbolHandle,
     pub statement_index: usize,
+    /// Exact returning arm; invalid for expression tails and implicit Unit exits.
+    pub transition_target: psi_typed_trees::statement::TransitionTargetHandle,
     pub ensures: HandleSpan<ContractProofFactRef>,
 }
 

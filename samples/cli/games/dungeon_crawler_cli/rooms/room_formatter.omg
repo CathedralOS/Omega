@@ -302,38 +302,6 @@ ensures out_line in Utf8
     ) {
         out_line = "Inv: 30 gold. Purse heavy, charm secured.";
     }
-
-    state inventory_items(
-        &mut self,
-        player: Player,
-        out_line: &mut [u8; 128]
-    ) {
-        transition player.inventory.item_count > 0 {
-            true -> stocked_inventory(out_line)
-            false -> light_inventory(out_line)
-        }
-    }
-
-    state wealthy_inventory(
-        &mut self,
-        out_line: &mut [u8; 128]
-    ) {
-        out_line = "Inv: purse heavy and gear secured.";
-    }
-
-    state stocked_inventory(
-        &mut self,
-        out_line: &mut [u8; 128]
-    ) {
-        out_line = "Inv: a few coins and some gear.";
-    }
-
-    state light_inventory(
-        &mut self,
-        out_line: &mut [u8; 128]
-    ) {
-        out_line = "Inv: nearly empty.";
-    }
 }
 
 machine RoomFormatter::write_character(

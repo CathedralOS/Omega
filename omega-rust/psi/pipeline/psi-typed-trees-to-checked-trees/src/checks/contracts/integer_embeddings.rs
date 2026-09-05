@@ -42,17 +42,25 @@ pub(super) fn proves_exit_equality(
         .get(exit_flow.statement_index)
         .and_then(|statement| {
             if let StatementNode::Expression(value) = statement {
-                return (exit_flow.statement_index.checked_add(1)
-                    == Some(state.statement_nodes.len()))
+                return (!exit_flow.transition_target.is_valid()
+                    && exit_flow.statement_index.checked_add(1)
+                        == Some(state.statement_nodes.len()))
                 .then_some(*value);
             }
             let StatementNode::Transition(transition) = statement else {
                 return None;
             };
-            if transition.continuation.is_valid() {
+            if !exit_flow.transition_target.is_valid()
+                || ![transition.target, transition.continuation]
+                    .contains(&exit_flow.transition_target)
+                || transition.exit != psi_typed_trees::statement::TransitionExit::Ordinary
+            {
                 return None;
             }
-            match program.statement_table.transition_target(transition.target) {
+            match program
+                .statement_table
+                .transition_target(exit_flow.transition_target)
+            {
                 TransitionTargetNode::Value(value) => Some(*value),
                 _ => None,
             }

@@ -188,7 +188,8 @@ fn fact_point_machine(point: psi_facts::ProgramPoint) -> Option<SymbolHandle> {
         | psi_facts::ProgramPoint::Call { machine_symbol, .. }
         | psi_facts::ProgramPoint::CallRequires { machine_symbol, .. }
         | psi_facts::ProgramPoint::CallEnsures { machine_symbol, .. }
-        | psi_facts::ProgramPoint::Exit { machine_symbol, .. } => Some(machine_symbol),
+        | psi_facts::ProgramPoint::Exit { machine_symbol, .. }
+        | psi_facts::ProgramPoint::TransitionArm { machine_symbol, .. } => Some(machine_symbol),
         psi_facts::ProgramPoint::Global | psi_facts::ProgramPoint::Definition { .. } => None,
     }
 }

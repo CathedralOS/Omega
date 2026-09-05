@@ -152,10 +152,18 @@ pub enum ProgramPoint {
         statement_index: usize,
         call_ordinal: usize,
     },
+    TransitionArm {
+        machine_symbol: SymbolHandle,
+        state_symbol: SymbolHandle,
+        statement_index: usize,
+        /// Invalid identifies the guard-false fallthrough to the next arm.
+        transition_target: psi_typed_trees::statement::TransitionTargetHandle,
+    },
     Exit {
         machine_symbol: SymbolHandle,
         state_symbol: SymbolHandle,
         statement_index: usize,
+        transition_target: psi_typed_trees::statement::TransitionTargetHandle,
     },
 }
 
@@ -209,6 +217,7 @@ pub enum FactOrigin {
     },
     CallRequires,
     CallEnsures,
+    TransitionGuard,
     ExitEnsures,
     OperatorRequires {
         operator_symbol: SymbolHandle,
@@ -292,7 +301,18 @@ pub enum ProofObligationKind {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum FactPayload {
+    /// Exact immutable value installed at `Fact.place` by a checked statement.
+    /// The statement coordinate lives on the enclosing fact. Only literals
+    /// are retained; this is not a deferred read of the source expression.
+    AssignedValue {
+        value: ExpressionHandle,
+    },
     BooleanExpression(ExpressionHandle),
+    /// A branch-local truth value, invalidated when any expression input changes.
+    BooleanValue {
+        expression: ExpressionHandle,
+        value: bool,
+    },
     DomainMembership {
         value: ExpressionHandle,
         domain: HandleSpan<Identifier>,
@@ -397,7 +417,9 @@ impl QualificationPayloadIdentity {
                 Some(Self::CarryPermission { permission })
             }
             FactPayload::CarryOrigin { .. } => Some(Self::CarryOrigin),
-            FactPayload::BooleanExpression(_)
+            FactPayload::AssignedValue { .. }
+            | FactPayload::BooleanValue { .. }
+            | FactPayload::BooleanExpression(_)
             | FactPayload::PropositionApplication { .. }
             | FactPayload::TypeConstraint { .. }
             | FactPayload::ProofObligation { .. }

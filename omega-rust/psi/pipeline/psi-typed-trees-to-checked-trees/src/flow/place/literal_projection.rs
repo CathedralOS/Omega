@@ -14,16 +14,85 @@ pub(crate) fn literal_argument_access_places(
     reference: TypeReferenceHandle,
     segments: &[psi_facts::PlaceSegment],
 ) -> Option<Vec<CanonicalPlace>> {
-    let mut pending = vec![(expression, reference, segments)];
+    literal_projections(
+        program,
+        expression,
+        reference,
+        segments,
+        ProjectionMode::Access,
+    )?
+    .into_iter()
+    .map(|projection| {
+        let mut place = canonical_place_from_expression_in_state(
+            program,
+            state_symbol,
+            statement_index,
+            projection.expression,
+        )?;
+        place.segments.extend_from_slice(&projection.remaining);
+        Some(place)
+    })
+    .collect()
+}
+
+pub(crate) struct LiteralValueProjection {
+    pub expression: ExpressionHandle,
+    pub remaining: Vec<psi_facts::PlaceSegment>,
+    pub destination: Vec<psi_facts::PlaceSegment>,
+}
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum ProjectionMode {
+    Access,
+    SelectedValue,
+    ConstructedValues,
+}
+
+pub(crate) fn literal_value_projections(
+    program: &psi_typed_trees::TypedTrees,
+    expression: ExpressionHandle,
+    reference: TypeReferenceHandle,
+    segments: &[psi_facts::PlaceSegment],
+    enumerate: bool,
+) -> Option<Vec<LiteralValueProjection>> {
+    literal_projections(
+        program,
+        expression,
+        reference,
+        segments,
+        if enumerate {
+            ProjectionMode::ConstructedValues
+        } else {
+            ProjectionMode::SelectedValue
+        },
+    )
+}
+
+fn literal_projections(
+    program: &psi_typed_trees::TypedTrees,
+    expression: ExpressionHandle,
+    reference: TypeReferenceHandle,
+    segments: &[psi_facts::PlaceSegment],
+    mode: ProjectionMode,
+) -> Option<Vec<LiteralValueProjection>> {
+    let mut pending = vec![(expression, reference, segments, Vec::new())];
     let mut places = Vec::new();
-    while let Some((expression, reference, segments)) = pending.pop() {
+    while let Some((expression, reference, segments, destination)) = pending.pop() {
         if !reference.is_valid() {
             return None;
         }
         if let TypeReferenceNode::Constrained { base_type, .. } =
             program.type_reference_table.type_reference(reference)
         {
-            pending.push((expression, *base_type, segments));
+            pending.push((expression, *base_type, segments, destination));
+            continue;
+        }
+        if mode == ProjectionMode::SelectedValue && segments.is_empty() {
+            places.push(LiteralValueProjection {
+                expression,
+                remaining: Vec::new(),
+                destination,
+            });
             continue;
         }
         if program.primitive_type_reference(reference).is_some()
@@ -37,6 +106,13 @@ pub(crate) fn literal_argument_access_places(
             // copy does not access the caller expression.
             if !segments.is_empty() {
                 return None;
+            }
+            if mode != ProjectionMode::Access {
+                places.push(LiteralValueProjection {
+                    expression,
+                    remaining: Vec::new(),
+                    destination,
+                });
             }
             continue;
         }
@@ -143,10 +219,20 @@ pub(crate) fn literal_argument_access_places(
                         }
                         return None;
                     };
+                    let mut destination = destination.clone();
+                    if let Some(variant) =
+                        psi_facts::payload_variant_for_field(program, field.symbol)
+                    {
+                        destination.push(psi_facts::PlaceSegment::Case { variant });
+                    }
+                    destination.push(psi_facts::PlaceSegment::Field {
+                        symbol: field.symbol,
+                    });
                     pending.push((
                         actual.value,
                         field.type_reference,
                         selected.map_or(&[][..], |(_, remaining)| remaining),
+                        destination,
                     ));
                 }
             }
@@ -164,37 +250,49 @@ pub(crate) fn literal_argument_access_places(
                 }
                 match segments.split_first() {
                     None => {
-                        for element in elements {
-                            pending.push((*element, *element_type, &[]));
+                        for (index, element) in elements.iter().enumerate() {
+                            let mut destination = destination.clone();
+                            destination.push(psi_facts::PlaceSegment::FixedIndex { index });
+                            pending.push((*element, *element_type, &[], destination));
                         }
                     }
                     Some((psi_facts::PlaceSegment::FixedIndex { index }, remaining)) => {
-                        pending.push((*elements.get(*index)?, *element_type, remaining));
+                        let mut destination = destination;
+                        destination.push(psi_facts::PlaceSegment::FixedIndex { index: *index });
+                        pending.push((
+                            *elements.get(*index)?,
+                            *element_type,
+                            remaining,
+                            destination,
+                        ));
                     }
                     Some((psi_facts::PlaceSegment::Index { .. }, remaining)) => {
-                        for element in elements {
-                            pending.push((*element, *element_type, remaining));
+                        for (index, element) in elements.iter().enumerate() {
+                            let mut destination = destination.clone();
+                            destination.push(psi_facts::PlaceSegment::FixedIndex { index });
+                            pending.push((*element, *element_type, remaining, destination));
                         }
                     }
                     Some((psi_facts::PlaceSegment::FixedRange { start, end }, remaining))
                         if start <= end && *end <= elements.len() =>
                     {
-                        for element in &elements[*start..*end] {
-                            pending.push((*element, *element_type, remaining));
+                        for (offset, element) in elements[*start..*end].iter().enumerate() {
+                            let mut destination = destination.clone();
+                            destination.push(psi_facts::PlaceSegment::FixedIndex {
+                                index: start + offset,
+                            });
+                            pending.push((*element, *element_type, remaining, destination));
                         }
                     }
                     _ => return None,
                 }
             }
             _ => {
-                let mut place = canonical_place_from_expression_in_state(
-                    program,
-                    state_symbol,
-                    statement_index,
+                places.push(LiteralValueProjection {
                     expression,
-                )?;
-                place.segments.extend_from_slice(segments);
-                places.push(place);
+                    remaining: segments.to_vec(),
+                    destination,
+                });
             }
         }
     }

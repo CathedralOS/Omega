@@ -19,6 +19,7 @@ pub(super) fn check_call_requires(
     facts: &CheckFacts,
     state_flow: &FlowStateFact,
     call_flow: &FlowCallFact,
+    nominal_requirements: &super::nominal_inputs::DeclaredFieldRequirements,
     incoming_guards: &[crate::checks::ranges::incoming_guards::IncomingGuard],
     diagnostics: &mut Vec<Diagnostic>,
 ) {
@@ -38,6 +39,15 @@ pub(super) fn check_call_requires(
             call_flow.receiver_symbol,
         )
         .collect();
+    super::nominal_inputs::check(
+        program,
+        facts,
+        state_flow,
+        call_flow,
+        nominal_requirements,
+        &entry_contexts,
+        diagnostics,
+    );
     for requires_context in facts
         .flow
         .semantic_constraint_contexts(call_flow.requires_constraints)

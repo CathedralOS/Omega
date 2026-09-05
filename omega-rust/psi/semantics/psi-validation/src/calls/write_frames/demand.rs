@@ -189,6 +189,7 @@ impl<'program> CallFrameResolver<'program> {
                                 &self.symbols,
                                 &receiver,
                                 call.target.as_str(),
+                                CallerWriteSite::Call(call),
                                 self.program
                                     .statement_table
                                     .expression_handles(call.arguments),
@@ -533,6 +534,12 @@ pub(super) fn collect_expression_call_written_paths(
             // A boundary member with the same spelling still has its declared
             // receiver and argument reach; spelling cannot bypass resolution.
             if value_builtin_has_empty_write_frame(program, call)
+                && !super::boundary_calls::selected_boundary_signature(program, call.target_symbol)
+                && !super::boundary_calls::expression_receiver_requires_boundary_frame(
+                    program,
+                    current_machine,
+                    call.receiver,
+                )
                 && super::machine_state_by_symbol(program, call.target_symbol).is_none()
                 && !receiver_members.as_deref().is_some_and(|receiver| {
                     receiver_requires_boundary_frame(machine_symbols, symbols, receiver)
@@ -589,6 +596,7 @@ pub(super) fn collect_expression_call_written_paths(
                     symbols,
                     &receiver_members,
                     call.target.as_str(),
+                    CallerWriteSite::Expression(expression),
                     arguments,
                     inference,
                 )

@@ -1,28 +1,12 @@
-//! #66 read-narrowing: a machine-attached-data field declared with an encoding
-//! domain (`out: &[u8] in Utf8`) carries that domain as an ALWAYS-HOLDING
-//! invariant -- every write is enforced in-domain (see `checks::contracts::writes`),
-//! so every READ may trust it. This producer surfaces that invariant as a
-//! `DomainMembership` fact over the place `self.<field>` at `ProgramPoint::Machine`,
-//! which `build_state_flow_fact` folds into each state's entry context. Reads of
-//! `self.<field>` then carry the `in Domain` fact (and the statement-transfer
-//! machinery propagates it to copies), so a `requires <arg> in Domain` call /
-//! return discharges with no re-proof -- the field analog of the declared-param
-//! domain fact-flow (#66 Phase 1) and of the self.field range narrowing (#63).
+//! Declared default-domain fields become entry facts at exact storage places.
+//! Ordinary mutations invalidate these facts; a nominal annotation alone does
+//! not restore them. Call and state-arrival checks require the same field
+//! obligations over the current incoming values before reusing an entry fact.
 //!
-//! This is deliberately NOT a machine `requires` contract: a contract fact would
-//! also become a CALLER obligation (`build_contract_call_facts` matches
-//! `ContractProofFactOwner::Machine`), which is wrong for an always-true field
-//! invariant. The fact is established directly, imposing no caller obligation.
-//!
-//! SOUNDNESS: the entry-invariant rests on the field's ZERO/ZII value being
-//! in-domain. The fact is surfaced as ALWAYS-holding at machine entry, so a READ
-//! with no prior write discharges against it -- which is sound only if the
-//! field's default (for a slice carrier, the EMPTY byte sequence) satisfies the
-//! domain. We therefore GATE the surfacing on
-//! `crate::field_domain::domain_admits_empty_byte_sequence`: Utf8/NoNul/AsciiOnly
-//! admit the empty sequence (surfaced as before), while an empty-violating domain
-//! (e.g. `non_empty`, `len > 0`) is NOT surfaced -- a read-with-no-prior-write of
-//! such a field cannot falsely discharge.
+//! Machine storage additionally requires its ZII value to satisfy the domain.
+//! Nominal input storage instead relies on the checked incoming argument.
+//! Write-only input views supply no readable entry facts. Independent fields
+//! use separate contexts so invalidation does not erase unrelated evidence.
 
 use psi_facts::{
     Fact, FactOrigin, FactPayload, FactPlace, FactPlan, PlaceSegment, ProgramPoint,
@@ -66,7 +50,8 @@ pub(super) fn append_machine_field_domain_facts(program: &TypedTrees, facts: &mu
         if refs.is_empty() {
             continue;
         }
-        facts.append_context(
+        append_independent_place_contexts(
+            facts,
             ProgramPoint::Machine {
                 machine_symbol: machine.symbol,
             },
@@ -186,16 +171,35 @@ fn append_data_field_domain_facts(
 /// fallthrough arms (now that a transition no longer leaks its branch-taken exit
 /// context onto its sibling fallthrough -- see flow/statements.rs).
 ///
-/// Needs no empty/ZII soundness gate (a param is an argument a caller proved
-/// in-domain, never a default). MUTABLE params are excluded for now: a
-/// reassignment would have to invalidate the fact, which the flow does handle, but
-/// the conservative immutable-only surface is enough for the current corpus.
+/// Nominal parameters additionally carry their declared field predicates on
+/// entry, including readable mutable references: calls and transitions are
+/// default-domain consumption points. These are live entry facts, not facts
+/// restored after arbitrary writes. Ordinary storage invalidation retires them.
+/// Write-only views cannot inspect the incoming value and receive no such facts.
 pub(super) fn append_state_parameter_domain_facts(program: &TypedTrees, facts: &mut FactPlan) {
     for machine in program.machines() {
         for state in program.machine_states(machine) {
             let mut refs = psi_arena::HandleSpan::empty();
             for parameter in program.state_parameters(state) {
-                if parameter.is_self || parameter.is_mutable {
+                if parameter.is_self {
+                    continue;
+                }
+                if let Some(data) = readable_nominal_definition(program, parameter.type_reference) {
+                    append_state_parameter_data_field_domain_facts(
+                        program,
+                        facts,
+                        machine.symbol,
+                        state.symbol,
+                        parameter.symbol,
+                        data,
+                        &[],
+                        &[data.symbol],
+                        &mut refs,
+                    );
+                }
+                // Keep the existing root qualification/resource permission
+                // rule separate from default-domain fields of nominal values.
+                if parameter.is_mutable {
                     continue;
                 }
                 let mut has_resource_claim = false;
@@ -238,36 +242,13 @@ pub(super) fn append_state_parameter_domain_facts(program: &TypedTrees, facts: &
                         &mut refs,
                     );
                 }
-
-                // A by-value immutable data parameter carries the invariant of
-                // each domained field in its declared data shape. Construction
-                // and every write establish those invariants before the value
-                // reaches this state, so `room.label` is as trustworthy here as
-                // a directly domained parameter. Mutable parameters remain
-                // excluded: their field facts are established statement by
-                // statement after checked writes.
-                if let Some(data) = crate::field_domain::data_definition_for_field_type(
-                    program,
-                    parameter.type_reference,
-                ) {
-                    append_state_parameter_data_field_domain_facts(
-                        program,
-                        facts,
-                        machine.symbol,
-                        state.symbol,
-                        parameter.symbol,
-                        data,
-                        &[],
-                        &[data.name.as_str()],
-                        &mut refs,
-                    );
-                }
             }
 
             if refs.is_empty() {
                 continue;
             }
-            facts.append_context(
+            append_independent_place_contexts(
+                facts,
                 ProgramPoint::State {
                     machine_symbol: machine.symbol,
                     state_symbol: state.symbol,
@@ -275,6 +256,40 @@ pub(super) fn append_state_parameter_domain_facts(program: &TypedTrees, facts: &
                 refs,
             );
         }
+    }
+}
+
+fn append_independent_place_contexts(
+    facts: &mut FactPlan,
+    point: ProgramPoint,
+    refs: psi_arena::HandleSpan<psi_facts::FactRef>,
+) {
+    // Invalidating one storage coordinate must not discard independent
+    // parameter or machine-field facts. Facts over the same place stay coupled.
+    let mut groups: Vec<(FactPlace, Vec<psi_facts::FactRef>)> = Vec::new();
+    for reference in facts.refs.span_or_empty(refs) {
+        let place = facts.facts.get(reference.fact).place;
+        if let Some((_, group)) =
+            groups
+                .iter_mut()
+                .find(|(candidate, _)| match (*candidate, place) {
+                    (FactPlace::Place(left), FactPlace::Place(right)) => {
+                        facts.places_equal(left, right)
+                    }
+                    _ => *candidate == place,
+                })
+        {
+            group.push(*reference);
+        } else {
+            groups.push((place, vec![*reference]));
+        }
+    }
+    for (_, group) in groups {
+        let mut refs = psi_arena::HandleSpan::empty();
+        for reference in group {
+            facts.refs.append_to_span(&mut refs, reference);
+        }
+        facts.append_context(point, refs);
     }
 }
 
@@ -386,13 +401,16 @@ fn append_state_parameter_data_field_domain_facts(
     parameter_symbol: SymbolHandle,
     data: &psi_typed_trees::data::DataDefinition,
     prefix: &[SymbolHandle],
-    visited: &[&str],
+    visited: &[SymbolHandle],
     refs: &mut psi_arena::HandleSpan<psi_facts::FactRef>,
 ) {
     for member in program.data_members(data) {
         let DataMember::Field(field) = member else {
             continue;
         };
+        if readable_type_reference(program, field.type_reference).is_none() {
+            continue;
+        }
         for domain_symbol in field_domain_symbols(program, field.type_reference) {
             let mut path = prefix.to_vec();
             path.push(field.symbol);
@@ -407,14 +425,13 @@ fn append_state_parameter_data_field_domain_facts(
                 refs,
             );
         }
-        if let Some(nested) =
-            crate::field_domain::data_definition_for_field_type(program, field.type_reference)
-            && !visited.contains(&nested.name.as_str())
+        if let Some(nested) = readable_nominal_definition(program, field.type_reference)
+            && !visited.contains(&nested.symbol)
         {
             let mut next_prefix = prefix.to_vec();
             next_prefix.push(field.symbol);
             let mut next_visited = visited.to_vec();
-            next_visited.push(nested.name.as_str());
+            next_visited.push(nested.symbol);
             append_state_parameter_data_field_domain_facts(
                 program,
                 facts,
@@ -428,6 +445,47 @@ fn append_state_parameter_data_field_domain_facts(
             );
         }
     }
+}
+
+/// Peel only readable reference/constraint shells. Array elements and generic
+/// substitutions need their own structural evidence, not a nominal-name guess.
+fn readable_type_reference(
+    program: &TypedTrees,
+    mut reference: TypeReferenceHandle,
+) -> Option<TypeReferenceHandle> {
+    use psi_typed_trees::types::TypeReferenceNode;
+    while reference.is_valid() {
+        match program.type_reference_table.type_reference(reference) {
+            TypeReferenceNode::Constrained { base_type, .. } => reference = *base_type,
+            TypeReferenceNode::Reference {
+                referee, access, ..
+            } if access.is_readable() => reference = *referee,
+            TypeReferenceNode::Reference { .. } => return None,
+            _ => return Some(reference),
+        }
+    }
+    None
+}
+
+fn readable_nominal_definition(
+    program: &TypedTrees,
+    reference: TypeReferenceHandle,
+) -> Option<&psi_typed_trees::data::DataDefinition> {
+    use psi_typed_trees::types::TypeReferenceNode;
+    let reference = readable_type_reference(program, reference)?;
+    let symbol = match program.type_reference_table.type_reference(reference) {
+        TypeReferenceNode::Named { symbol, .. } => *symbol,
+        TypeReferenceNode::Generic {
+            base_symbol,
+            arguments,
+            ..
+        } if arguments.is_empty() => *base_symbol,
+        _ => return None,
+    };
+    program
+        .data_definitions()
+        .iter()
+        .find(|data| data.symbol == symbol && data.type_parameters.is_empty())
 }
 
 fn append_state_parameter_domain_fact(

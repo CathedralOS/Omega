@@ -1,6 +1,6 @@
 use super::*;
 
-pub(super) fn relative_place_segments_from_expression(
+pub(crate) fn relative_place_segments_from_expression(
     program: &psi_typed_trees::TypedTrees,
     expression: ExpressionHandle,
     self_type_symbol: Option<SymbolHandle>,
@@ -20,7 +20,15 @@ pub(super) fn relative_place_segments_from_expression(
                 return None;
             }
 
-            Some(Vec::new())
+            let mut segments = Vec::new();
+            let mut receiver_type = self_type_symbol;
+            for member in &members[1..] {
+                let symbol =
+                    resolve_member_symbol_from_type(program, receiver_type, member.as_str())?;
+                crate::flow::push_field_place_segments(program, &mut segments, symbol);
+                receiver_type = crate::flow::symbol_type_symbol(program, symbol);
+            }
+            Some(segments)
         }
         ExpressionNode::Member(member) => {
             let mut segments = relative_place_segments_from_expression(
@@ -28,8 +36,15 @@ pub(super) fn relative_place_segments_from_expression(
                 member.receiver,
                 self_type_symbol,
             )?;
+            let receiver_type = match segments.last() {
+                None => self_type_symbol,
+                Some(psi_facts::PlaceSegment::Field { symbol }) => {
+                    crate::flow::symbol_type_symbol(program, *symbol)
+                }
+                _ => None,
+            };
             let member_symbol = if let Some(symbol) =
-                resolve_member_symbol_from_type(program, self_type_symbol, member.member.as_str())
+                resolve_member_symbol_from_type(program, receiver_type, member.member.as_str())
             {
                 symbol
             } else {

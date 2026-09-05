@@ -109,3 +109,19 @@ fn find_call_site_in_transition_target<'program>(
         TransitionTargetNode::SelfTarget | TransitionTargetNode::Terminal => None,
     }
 }
+
+pub(crate) fn transition_call_target(
+    traversal: &mut CallSiteTraversal<'_, '_>,
+    transition: &psi_typed_trees::statement::TableTransition,
+) -> Option<psi_typed_trees::statement::TransitionTargetHandle> {
+    if let TransitionGuardNode::When(expression) = transition.guard
+        && find_call_site_in_expression(traversal, expression).is_some()
+    {
+        return Some(Default::default());
+    }
+    [transition.target, transition.continuation]
+        .into_iter()
+        .find(|&target| {
+            target.is_valid() && find_call_site_in_transition_target(traversal, target).is_some()
+        })
+}

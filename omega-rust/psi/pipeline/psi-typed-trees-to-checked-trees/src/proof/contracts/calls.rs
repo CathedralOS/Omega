@@ -115,13 +115,11 @@ pub(crate) fn build_contract_exit_facts(
     let mut exits = psi_arena::Arena::with_capacity(machine_state_count(program));
 
     for machine in program.machines() {
+        if !machine.body_is_present {
+            continue;
+        }
         for state in program.machine_states(machine) {
             let statements = program.statement_table.statements(state.statement_nodes);
-            let Some((statement_index, StatementNode::Expression(_))) =
-                statements.iter().enumerate().next_back()
-            else {
-                continue;
-            };
             let ensures = append_contract_fact_refs(
                 contract_facts,
                 fact_refs,
@@ -134,12 +132,58 @@ pub(crate) fn build_contract_exit_facts(
                 continue;
             }
 
-            exits.append(ContractExitFact {
-                machine_symbol: machine.symbol,
-                state_symbol: state.symbol,
-                statement_index,
-                ensures,
-            });
+            let mut has_transition = false;
+            for (statement_index, statement) in statements.iter().enumerate() {
+                let StatementNode::Transition(transition) = statement else {
+                    continue;
+                };
+                has_transition = true;
+                if transition.exit == psi_typed_trees::statement::TransitionExit::Ordinary {
+                    for target in [transition.target, transition.continuation] {
+                        if target.is_valid()
+                            && matches!(
+                                program.statement_table.transition_target(target),
+                                psi_typed_trees::statement::TransitionTargetNode::Terminal
+                                    | psi_typed_trees::statement::TransitionTargetNode::Value(_)
+                            )
+                        {
+                            exits.append(ContractExitFact {
+                                machine_symbol: machine.symbol,
+                                state_symbol: state.symbol,
+                                statement_index,
+                                transition_target: target,
+                                ensures,
+                            });
+                        }
+                    }
+                }
+                // Typed dispatches are exhaustive; later statements beyond
+                // this maximal run are not additional normal return sites.
+                if transition.continuation.is_valid()
+                    || !matches!(
+                        statements.get(statement_index + 1),
+                        Some(StatementNode::Transition(_))
+                    )
+                {
+                    break;
+                }
+            }
+            if !has_transition {
+                exits.append(ContractExitFact {
+                    machine_symbol: machine.symbol,
+                    state_symbol: state.symbol,
+                    statement_index: if matches!(
+                        statements.last(),
+                        Some(StatementNode::Expression(_))
+                    ) {
+                        statements.len() - 1
+                    } else {
+                        statements.len()
+                    },
+                    transition_target: Default::default(),
+                    ensures,
+                });
+            }
         }
     }
 

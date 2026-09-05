@@ -21,9 +21,11 @@ use psi_typed_trees::types::TypeReferenceHandle;
 /// changing admission of existing pure places and direct-call trees.
 pub(super) fn call_argument_types(
     program: &TypedTrees,
+    current_machine: &Machine,
     target_symbol: SymbolHandle,
     target_name: &str,
     receiver: &[String],
+    site: super::caller_aliases::CallerWriteSite<'_>,
     machine_symbols: &MachineSymbols<'_>,
     symbols: &TopLevelSymbols<'_>,
 ) -> Vec<TypeReferenceHandle> {
@@ -35,10 +37,12 @@ pub(super) fn call_argument_types(
     }) else {
         return boundary_trait_signature_for_parts(
             program,
+            current_machine,
             machine_symbols,
             symbols,
             receiver,
             target_name,
+            site,
         )
         .map(|signature| {
             program

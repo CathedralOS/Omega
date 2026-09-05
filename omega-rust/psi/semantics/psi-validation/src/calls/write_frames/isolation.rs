@@ -83,7 +83,7 @@ pub(super) fn type_is_caller_isolated_local(
     program: &TypedTrees,
     handle: TypeReferenceHandle,
 ) -> bool {
-    type_is_caller_isolated_local_inner(program, handle, &mut Vec::new(), false)
+    type_is_caller_isolated_local_inner(program, handle, &mut Vec::new(), false, &mut Vec::new())
 }
 
 /// Erased recursive proof values can have finite constructor terms without a
@@ -93,7 +93,7 @@ pub(super) fn type_is_caller_isolated_proof_value(
     program: &TypedTrees,
     handle: TypeReferenceHandle,
 ) -> bool {
-    type_is_caller_isolated_local_inner(program, handle, &mut Vec::new(), true)
+    type_is_caller_isolated_local_inner(program, handle, &mut Vec::new(), true, &mut Vec::new())
 }
 
 fn type_is_caller_isolated_local_inner(
@@ -101,18 +101,30 @@ fn type_is_caller_isolated_local_inner(
     handle: TypeReferenceHandle,
     visiting: &mut Vec<SymbolHandle>,
     proof_values: bool,
+    isolated_parameters: &mut Vec<SymbolHandle>,
 ) -> bool {
     if program.primitive_type_reference(handle).is_some() {
         return true;
     }
     match program.type_reference_table.type_reference(handle) {
-        TypeReferenceNode::Constrained { base_type, .. } => {
-            type_is_caller_isolated_local_inner(program, *base_type, visiting, proof_values)
-        }
-        TypeReferenceNode::FixedArray { element_type, .. } => {
-            type_is_caller_isolated_local_inner(program, *element_type, visiting, proof_values)
-        }
+        TypeReferenceNode::Constrained { base_type, .. } => type_is_caller_isolated_local_inner(
+            program,
+            *base_type,
+            visiting,
+            proof_values,
+            isolated_parameters,
+        ),
+        TypeReferenceNode::FixedArray { element_type, .. } => type_is_caller_isolated_local_inner(
+            program,
+            *element_type,
+            visiting,
+            proof_values,
+            isolated_parameters,
+        ),
         TypeReferenceNode::Named { symbol, name } => {
+            if proof_values && symbol.is_valid() && isolated_parameters.contains(symbol) {
+                return true;
+            }
             if proof_values
                 && matches!(
                     program.symbols.builtin_type_atom(*symbol),
@@ -134,7 +146,63 @@ fn type_is_caller_isolated_local_inner(
             if definitions.next().is_some() {
                 return false;
             }
-            data_definition_is_caller_isolated(program, definition, visiting, proof_values)
+            definition.type_parameters.is_empty()
+                && data_definition_is_caller_isolated(
+                    program,
+                    definition,
+                    visiting,
+                    proof_values,
+                    isolated_parameters,
+                )
+        }
+        TypeReferenceNode::Generic {
+            base_symbol,
+            arguments,
+            ..
+        } if proof_values => {
+            let Some(definition) = program
+                .data_definitions()
+                .iter()
+                .find(|definition| base_symbol.is_valid() && definition.symbol == *base_symbol)
+            else {
+                return false;
+            };
+            let parameters = program.data_type_parameters(definition);
+            let arguments = program
+                .type_reference_table
+                .type_reference_handles(*arguments);
+            if parameters.len() != arguments.len()
+                || parameters.iter().any(|parameter| {
+                    !parameter.symbol.is_valid()
+                        || program.symbols.get(parameter.symbol).kind != psi_symbols::SymbolKind::TypeParameter
+                        || program.symbols.get(parameter.symbol).parent != definition.symbol
+                        || !matches!(parameter.kind, psi_typed_trees::data::TypeParameterKind::Type)
+                })
+                // Check actual arguments before consulting the nominal cycle
+                // guard: Nest<T> -> Nest<&mut T> introduces authority even
+                // though the data-definition symbol is already on the path.
+                || !arguments.iter().all(|argument| {
+                    type_is_caller_isolated_local_inner(
+                        program, *argument, visiting, true, isolated_parameters,
+                    )
+                })
+            {
+                return false;
+            }
+            // Every actual argument has independently proved the same unary
+            // property. Substituting these exact binders therefore preserves
+            // isolation without allocating a second tree of substituted types.
+            let parameter_count = isolated_parameters.len();
+            isolated_parameters.extend(parameters.iter().map(|parameter| parameter.symbol));
+            let isolated = data_definition_is_caller_isolated(
+                program,
+                definition,
+                visiting,
+                true,
+                isolated_parameters,
+            );
+            isolated_parameters.truncate(parameter_count);
+            isolated
         }
         TypeReferenceNode::Reference { .. }
         | TypeReferenceNode::Slice { .. }
@@ -174,14 +242,20 @@ pub(super) fn struct_literal_type_is_caller_isolated(
     };
     definitions.next().is_none()
         && unique_shape
-        && data_definition_is_caller_isolated(program, definition, &mut Vec::new(), false)
+        && data_definition_is_caller_isolated(
+            program,
+            definition,
+            &mut Vec::new(),
+            false,
+            &mut Vec::new(),
+        )
 }
 
 pub(super) fn data_definition_has_only_owned_storage(
     program: &TypedTrees,
     definition: &psi_typed_trees::data::DataDefinition,
 ) -> bool {
-    data_definition_is_caller_isolated(program, definition, &mut Vec::new(), false)
+    data_definition_is_caller_isolated(program, definition, &mut Vec::new(), false, &mut Vec::new())
 }
 
 fn data_definition_is_caller_isolated(
@@ -189,8 +263,14 @@ fn data_definition_is_caller_isolated(
     definition: &psi_typed_trees::data::DataDefinition,
     visiting: &mut Vec<SymbolHandle>,
     proof_values: bool,
+    isolated_parameters: &mut Vec<SymbolHandle>,
 ) -> bool {
-    if !definition.type_parameters.is_empty()
+    if (!definition.type_parameters.is_empty()
+        && (!proof_values
+            || program
+                .data_type_parameters(definition)
+                .iter()
+                .any(|parameter| !isolated_parameters.contains(&parameter.symbol))))
         || (proof_values
             && definition.supply_mode != psi_language_semantics::DataSupplyMode::CheckedShape)
     {
@@ -209,6 +289,7 @@ fn data_definition_is_caller_isolated(
                 field.type_reference,
                 visiting,
                 proof_values,
+                isolated_parameters,
             ),
             DataMember::Variant(variant) => {
                 program.data_payload_fields(variant).iter().all(|field| {
@@ -217,6 +298,7 @@ fn data_definition_is_caller_isolated(
                         field.type_reference,
                         visiting,
                         proof_values,
+                        isolated_parameters,
                     )
                 })
             }

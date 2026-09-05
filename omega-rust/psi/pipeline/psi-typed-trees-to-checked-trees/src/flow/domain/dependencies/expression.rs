@@ -1,7 +1,7 @@
 use super::*;
 mod relative;
 
-use relative::relative_place_segments_from_expression;
+pub(crate) use relative::relative_place_segments_from_expression;
 
 pub(super) fn collect_dependency_paths_from_expression(
     program: &psi_typed_trees::TypedTrees,

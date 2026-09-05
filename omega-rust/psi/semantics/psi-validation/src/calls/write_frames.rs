@@ -663,6 +663,7 @@ fn walk_state_write_prefix_inner(
                             symbols,
                             &nested_receiver_members,
                             nested_call.target.as_str(),
+                            caller_aliases::CallerWriteSite::Call(nested_call),
                             arguments,
                             inference,
                         )
@@ -1556,9 +1557,11 @@ fn statement_call_preserves_transparent_result(
         .collect::<Vec<_>>();
     let argument_types = call_targets::call_argument_types(
         program,
+        current_machine,
         call.target_symbol,
         call.target.as_str(),
         &receiver_members,
+        caller_aliases::CallerWriteSite::Call(call),
         &machine_symbols,
         symbols,
     );
@@ -1620,6 +1623,7 @@ fn statement_call_preserves_transparent_result(
                 symbols,
                 &receiver_members,
                 call.target.as_str(),
+                caller_aliases::CallerWriteSite::Call(call),
                 arguments,
                 inference,
             )
@@ -2217,6 +2221,7 @@ fn build_permuted_cycle_frame_equation<'program>(
                             symbols,
                             &receiver_members,
                             call.target.as_str(),
+                            caller_aliases::CallerWriteSite::Call(call),
                             arguments,
                             &mut inference,
                         )

@@ -19,7 +19,7 @@ data EventRuntime {
 machine EventRuntime::describe(
     &mut self,
     room: Room,
-    out_line: &mut [u8; 128] in Utf8
+    out_line: &mut [u8; 128]
 )
 ensures out_line in Utf8
 {
@@ -34,21 +34,21 @@ ensures out_line in Utf8
 
     state describe_fountain(
         &mut self,
-        out_line: &mut [u8; 128] in Utf8
+        out_line: &mut [u8; 128]
     ) {
         out_line = "A fountain of life glows here. Type use to drink.";
     }
 
     state describe_treasure(
         &mut self,
-        out_line: &mut [u8; 128] in Utf8
+        out_line: &mut [u8; 128]
     ) {
         out_line = "A treasure cache rests against the wall. Type use to claim it.";
     }
 
     state describe_gold(
         &mut self,
-        out_line: &mut [u8; 128] in Utf8
+        out_line: &mut [u8; 128]
     ) {
         out_line = "Loose gold glitters in the dust. Type use to collect it.";
     }
@@ -56,14 +56,14 @@ ensures out_line in Utf8
     state describe_enemy(
         &mut self,
         enemy: Enemy,
-        out_line: &mut [u8; 128] in Utf8
+        out_line: &mut [u8; 128]
     ) {
         out_line = enemy.name + " blocks the way. Type fight.";
     }
 
     state quiet_room(
         &mut self,
-        out_line: &mut [u8; 128] in Utf8
+        out_line: &mut [u8; 128]
     ) {
         out_line = "The room is quiet.";
     }
@@ -73,7 +73,7 @@ machine EventRuntime::use_event(
     &mut self,
     player: &mut Player,
     room: &mut Room,
-    out_line: &mut [u8; 128] in Utf8
+    out_line: &mut [u8; 128]
 )
 ensures out_line in Utf8
 {
@@ -89,7 +89,7 @@ ensures out_line in Utf8
         &mut self,
         player: &mut Player,
         event: &mut RoomEvent,
-        out_line: &mut [u8; 128] in Utf8
+        out_line: &mut [u8; 128]
     ) {
         self.player_system.heal(player, 12);
         event.consumed = true;
@@ -100,7 +100,7 @@ ensures out_line in Utf8
         &mut self,
         player: &mut Player,
         event: &mut RoomEvent,
-        out_line: &mut [u8; 128] in Utf8
+        out_line: &mut [u8; 128]
     ) {
         self.player_system.grant_reward(player, event.reward);
         event.consumed = true;
@@ -109,7 +109,7 @@ ensures out_line in Utf8
 
     state no_usable_event(
         &mut self,
-        out_line: &mut [u8; 128] in Utf8
+        out_line: &mut [u8; 128]
     ) {
         out_line = "There is nothing here to use.";
     }
@@ -121,7 +121,7 @@ machine EventRuntime::fight_event(
     room: &mut Room,
     random: &mut RandomState,
     round: &mut CombatRound,
-    out_line: &mut [u8; 128] in Utf8
+    out_line: &mut [u8; 128]
 )
 ensures out_line in Utf8
 {
@@ -137,7 +137,7 @@ ensures out_line in Utf8
         room: &mut Room,
         random: &mut RandomState,
         round: &mut CombatRound,
-        out_line: &mut [u8; 128] in Utf8
+        out_line: &mut [u8; 128]
     ) {
         self.combat.fight(player, &mut room.event, random, round);
         out_line = "You trade blows with the monster.";
@@ -151,14 +151,14 @@ ensures out_line in Utf8
 
     state no_enemy(
         &mut self,
-        out_line: &mut [u8; 128] in Utf8
+        out_line: &mut [u8; 128]
     ) {
         out_line = "There is no enemy here.";
     }
 
     state player_died(
         &mut self,
-        out_line: &mut [u8; 128] in Utf8
+        out_line: &mut [u8; 128]
     ) {
         out_line = "You fall in the dark.";
     }
@@ -166,7 +166,7 @@ ensures out_line in Utf8
     state enemy_died(
         &mut self,
         reward: Reward,
-        out_line: &mut [u8; 128] in Utf8
+        out_line: &mut [u8; 128]
     ) {
         transition {
             reward.gold >= 20 -> rich_reward(out_line)
@@ -177,21 +177,21 @@ ensures out_line in Utf8
 
     state rich_reward(
         &mut self,
-        out_line: &mut [u8; 128] in Utf8
+        out_line: &mut [u8; 128]
     ) {
         out_line = "The enemy collapses. You scoop up a serious pile of gold.";
     }
 
     state small_reward(
         &mut self,
-        out_line: &mut [u8; 128] in Utf8
+        out_line: &mut [u8; 128]
     ) {
         out_line = "The enemy collapses. You find a little gold.";
     }
 
     state empty_reward(
         &mut self,
-        out_line: &mut [u8; 128] in Utf8
+        out_line: &mut [u8; 128]
     ) {
         out_line = "The enemy collapses. Nothing useful remains.";
     }
@@ -199,7 +199,7 @@ ensures out_line in Utf8
     state exchange_blows(
         &mut self,
         round: CombatRound,
-        out_line: &mut [u8; 128] in Utf8
+        out_line: &mut [u8; 128]
     ) {
         transition {
             round.player_damage > 10 -> heavy_exchange(out_line)
@@ -211,28 +211,28 @@ ensures out_line in Utf8
 
     state heavy_exchange(
         &mut self,
-        out_line: &mut [u8; 128] in Utf8
+        out_line: &mut [u8; 128]
     ) {
         out_line = "You deal more than 10 damage, but the enemy keeps moving.";
     }
 
     state clean_hit(
         &mut self,
-        out_line: &mut [u8; 128] in Utf8
+        out_line: &mut [u8; 128]
     ) {
         out_line = "You hit cleanly and avoid the counterattack.";
     }
 
     state painful_exchange(
         &mut self,
-        out_line: &mut [u8; 128] in Utf8
+        out_line: &mut [u8; 128]
     ) {
         out_line = "You trade blows and take 5 or more damage.";
     }
 
     state glancing_exchange(
         &mut self,
-        out_line: &mut [u8; 128] in Utf8
+        out_line: &mut [u8; 128]
     ) {
         out_line = "Steel scrapes in the dark as you exchange blows.";
     }

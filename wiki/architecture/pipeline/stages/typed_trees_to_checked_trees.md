@@ -82,6 +82,35 @@ that evidence: a checked tree exists only after diagnostics are clear, and the
 acceptance views expose the proof, borrow, boundary, reach, invalidation, and
 call/exit evidence that made each state operation admissible.
 
+Normal returns owe their postconditions whether they produce a value or Unit.
+An implicit return is positioned after the final statement; a transition exit
+also retains its exact target handle so a returning continuation cannot share
+the other arm's facts. Named state jumps are transfers, and crash edges are not
+normal returns. Exit proof consumes the facts live on the returning path, not
+the guarantees it is trying to establish.
+
+Reference origins across named states are a finite, entry-reachable dataflow
+calculation. Renaming and identity-preserving loops retain the entry subject;
+conflicting, unknown, or rebound references do not. This transports the subject
+of an obligation, not the truth of an authored entry assumption. Rebased facts
+stay scoped to their exact state or exit. Global and machine declaration
+contexts are shared, never populated with a sibling state's derived facts.
+
+Literal assignment values belong to the common semantic fact contexts. They
+are attached to exact stable places and use the same mutation invalidation as
+domain facts; unknown writes supply no value and uninitialized storage supplies
+no assumed zero. Domain predicate checking can use these live values. Existing
+arithmetic and structural entailment contributes only explicit positive results
+for exact machine and expression identities. An unjudged contract, an admission,
+or a normalized content equation is not a proof result.
+
+Assignment evidence is captured after right-hand-side call effects and before
+the destination write invalidates its old facts. Whole copies and constructors
+transport live field predicates to the destination; byte concatenation uses the
+shared predicate law. The resulting facts name the new storage, not mutable
+source expressions to replay later. Independent declared field facts have
+separate contexts, while a proof with multiple dependencies remains coupled.
+
 Exact `satisfies Trait<'...>::requirement` edges retain raw declaration-order
 ordinals into the realizing machine's lifetime telescope under that embedded
 typed custody. Checking requires complete in-scope target-trait applications

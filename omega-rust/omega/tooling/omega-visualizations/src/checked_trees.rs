@@ -521,6 +521,12 @@ fn validate_qualification_program_point(program: &CheckedTrees, point: psi_facts
             machine_symbol,
             state_symbol,
             statement_index,
+        }
+        | ProgramPoint::TransitionArm {
+            machine_symbol,
+            state_symbol,
+            statement_index,
+            ..
         } => (machine_symbol, state_symbol, Some(statement_index), None),
         ProgramPoint::Call {
             machine_symbol,
@@ -549,7 +555,21 @@ fn validate_qualification_program_point(program: &CheckedTrees, point: psi_facts
             machine_symbol,
             state_symbol,
             statement_index,
-        } => (machine_symbol, state_symbol, Some(statement_index), None),
+            transition_target,
+        } => {
+            assert!(
+                program.facts.proof.contract_exits.iter().any(|(_, exit)| {
+                    exit.machine_symbol == machine_symbol
+                        && exit.state_symbol == state_symbol
+                        && exit.statement_index == statement_index
+                        && exit.transition_target == transition_target
+                }),
+                "qualification evidence exit point must name an exact checked exit"
+            );
+            // Implicit Unit returns sit after the final statement, including
+            // statement zero for an empty body. Their exit join is the bound.
+            (machine_symbol, state_symbol, None, None)
+        }
     };
     let machine = program
         .machines()
@@ -597,6 +617,24 @@ fn validate_qualification_program_point(program: &CheckedTrees, point: psi_facts
                     call.statement_index == statement_index && call.call_ordinal == call_ordinal
                 }),
             "qualification evidence call point must name an exact owned checked flow call",
+        );
+    }
+    if let ProgramPoint::TransitionArm {
+        statement_index,
+        transition_target,
+        ..
+    } = point
+    {
+        let psi_typed_trees::statement::StatementNode::Transition(transition) =
+            &program.statement_table.statements(state.statement_nodes)[statement_index]
+        else {
+            panic!("qualification evidence transition point must name a transition");
+        };
+        assert!(
+            !transition_target.is_valid()
+                || transition_target == transition.target
+                || transition_target == transition.continuation,
+            "qualification evidence transition target must belong to its exact statement",
         );
     }
 }
@@ -2780,6 +2818,7 @@ fn program_point_name(point: psi_facts::ProgramPoint) -> &'static str {
         ProgramPoint::Machine { .. } => "machine",
         ProgramPoint::State { .. } => "state",
         ProgramPoint::Statement { .. } => "statement",
+        ProgramPoint::TransitionArm { .. } => "transition_arm",
         ProgramPoint::Call { .. } => "call",
         ProgramPoint::CallRequires { .. } => "call_requires",
         ProgramPoint::CallEnsures { .. } => "call_ensures",
@@ -2801,6 +2840,17 @@ fn exact_program_point_label(program: &CheckedTrees, point: psi_facts::ProgramPo
             statement_index,
             ..
         } => format!("{}:statement-{statement_index}", symbol(state_symbol)),
+        ProgramPoint::TransitionArm {
+            state_symbol,
+            statement_index,
+            transition_target,
+            ..
+        } => format!(
+            "{}:transition-{statement_index}:target-{}.{}",
+            symbol(state_symbol),
+            transition_target.arena_index(),
+            transition_target.generation()
+        ),
         ProgramPoint::Call {
             state_symbol,
             statement_index,
@@ -2831,8 +2881,19 @@ fn exact_program_point_label(program: &CheckedTrees, point: psi_facts::ProgramPo
         ProgramPoint::Exit {
             state_symbol,
             statement_index,
+            transition_target,
             ..
-        } => format!("{}:exit-{statement_index}", symbol(state_symbol)),
+        } => {
+            let mut label = format!("{}:exit-{statement_index}", symbol(state_symbol));
+            if transition_target.is_valid() {
+                label.push_str(&format!(
+                    ":target-{}.{}",
+                    transition_target.arena_index(),
+                    transition_target.generation()
+                ));
+            }
+            label
+        }
     }
 }
 

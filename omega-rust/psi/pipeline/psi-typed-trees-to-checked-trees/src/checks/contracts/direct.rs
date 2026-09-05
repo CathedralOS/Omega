@@ -5,6 +5,8 @@ use super::labels::{ContractTargetParameters, instantiate_call_contract_expressi
 use super::places::{expression_is_boolean_place_like, expression_place_matches};
 use crate::labels::{canonical_place_label, semantic_boolean_fact_label};
 
+mod guard_values;
+
 pub(super) fn direct_context_proves_boolean_expression(
     program: &psi_typed_trees::TypedTrees,
     semantic: &psi_facts::FactPlan,
@@ -14,6 +16,13 @@ pub(super) fn direct_context_proves_boolean_expression(
     let required_label = program.expression_table.display_name(expression);
 
     semantic.context_view(context).facts().any(|fact| {
+        if let psi_facts::FactPayload::BooleanValue {
+            expression: guard,
+            value,
+        } = fact.payload
+        {
+            return guard_values::proves(program, guard, value, expression, true);
+        }
         let candidate_label = semantic_boolean_fact_label(program, semantic, fact).or_else(|| {
             semantic
                 .proposition_fact_label(program, fact)

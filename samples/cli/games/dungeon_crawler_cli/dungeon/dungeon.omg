@@ -44,7 +44,7 @@ machine Dungeon::enter_room(
 machine Dungeon::use_event(
     &mut self,
     cell: CellId,
-    line: &mut [u8; 128] in Utf8
+    line: &mut [u8; 128]
 )
 ensures line in Utf8
 {
@@ -57,7 +57,7 @@ ensures line in Utf8
 
     state try_take_treasure(
         &mut self,
-        line: &mut [u8; 128] in Utf8
+        line: &mut [u8; 128]
     ) {
         transition self.treasure_taken {
             false -> take_treasure(line)
@@ -67,7 +67,7 @@ ensures line in Utf8
 
     state take_treasure(
         &mut self,
-        line: &mut [u8; 128] in Utf8
+        line: &mut [u8; 128]
     ) {
         self.player.inventory.gold = self.player.inventory.gold + 24;
         self.treasure_taken = true;
@@ -76,7 +76,7 @@ ensures line in Utf8
 
     state try_use_fountain(
         &mut self,
-        line: &mut [u8; 128] in Utf8
+        line: &mut [u8; 128]
     ) {
         transition self.fountain_used {
             false -> use_fountain(line)
@@ -86,7 +86,7 @@ ensures line in Utf8
 
     state use_fountain(
         &mut self,
-        line: &mut [u8; 128] in Utf8
+        line: &mut [u8; 128]
     ) {
         self.player.health = min(self.player.max_health, self.player.health + 12);
         self.fountain_used = true;
@@ -95,7 +95,7 @@ ensures line in Utf8
 
     state try_take_gold(
         &mut self,
-        line: &mut [u8; 128] in Utf8
+        line: &mut [u8; 128]
     ) {
         transition self.gold_taken {
             false -> take_gold(line)
@@ -105,7 +105,7 @@ ensures line in Utf8
 
     state take_gold(
         &mut self,
-        line: &mut [u8; 128] in Utf8
+        line: &mut [u8; 128]
     ) {
         self.player.inventory.gold = self.player.inventory.gold + 6;
         self.gold_taken = true;
@@ -114,7 +114,7 @@ ensures line in Utf8
 
     state no_usable_event(
         &mut self,
-        line: &mut [u8; 128] in Utf8
+        line: &mut [u8; 128]
     ) {
         line = "There is nothing here to use.";
     }
@@ -123,7 +123,7 @@ ensures line in Utf8
 machine Dungeon::fight(
     &mut self,
     cell: CellId,
-    line: &mut [u8; 128] in Utf8
+    line: &mut [u8; 128]
 )
 ensures line in Utf8
 {
@@ -134,7 +134,7 @@ ensures line in Utf8
 
     state try_defeat_enemy(
         &mut self,
-        line: &mut [u8; 128] in Utf8
+        line: &mut [u8; 128]
     ) {
         transition self.enemy_defeated {
             false -> defeat_enemy(line)
@@ -144,7 +144,7 @@ ensures line in Utf8
 
     state defeat_enemy(
         &mut self,
-        line: &mut [u8; 128] in Utf8
+        line: &mut [u8; 128]
     ) {
         self.player.inventory.gold = self.player.inventory.gold + 6;
         self.player.xp = self.player.xp + 5;
@@ -154,7 +154,7 @@ ensures line in Utf8
 
     state no_enemy(
         &mut self,
-        line: &mut [u8; 128] in Utf8
+        line: &mut [u8; 128]
     ) {
         line = "There is no enemy here.";
     }
