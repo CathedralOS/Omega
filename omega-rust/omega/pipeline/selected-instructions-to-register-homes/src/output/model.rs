@@ -9,11 +9,6 @@ use crate::{
     OptimizedActiveResidentRematerializationError, OptimizedPostCopyRegisterHomeCustodyError,
     OptimizedPostLiteralFoldHomeCustodyError, OptimizedPostSelectedLoweringHomeCustodyError,
     OptimizedRegisterHomeCustodyError,
-    StagedOptimizedActiveResidentRematerializationCustodyReceipt,
-    StagedOptimizedPostCopyRegisterHomeCustodyReceipt,
-    StagedOptimizedPostLiteralFoldHomeCustodyReceipt,
-    StagedOptimizedPostSelectedLoweringHomeCustodyReceipt,
-    StagedOptimizedRegisterHomeCustodyReceipt,
 };
 
 /// A temporary borrow of the current allocated program, not another program
@@ -99,16 +94,7 @@ impl<'program> AllocationOutput<'program> {
     }
 }
 
-/// Evidence roles remain distinct; they do not choose the downstream program
-/// representation or machine-plan implementation.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum AllocationEvidence {
-    RegisterHomes(StagedOptimizedRegisterHomeCustodyReceipt),
-    FixedViewCopies(StagedOptimizedPostCopyRegisterHomeCustodyReceipt),
-    LiteralFolds(StagedOptimizedPostLiteralFoldHomeCustodyReceipt),
-    SelectedLowering(StagedOptimizedPostSelectedLoweringHomeCustodyReceipt),
-    ActiveResidentRematerialization(StagedOptimizedActiveResidentRematerializationCustodyReceipt),
-}
+pub use register_homes::AllocationEvidence;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum AllocationReplayError {

@@ -6,16 +6,13 @@ use crate::{
 use crate::{StagedOptimizedLiveRanges, validate_optimized_live_range_custody};
 
 use super::custody::custody_receipt;
-use super::model::{
-    OptimizedAllocationLegalityCustodyError, StagedOptimizedAllocationLegalityCustodyReceipt,
-};
+use super::model::{AllocationLegalityCustodyReceipt, OptimizedAllocationLegalityCustodyError};
 
 pub fn validate_optimized_allocation_legality_custody(
     ranges: &StagedOptimizedLiveRanges,
     availability: &ValidatedAllocatorAvailability,
     legality: &ValidatedAllocationLegality,
-) -> Result<StagedOptimizedAllocationLegalityCustodyReceipt, OptimizedAllocationLegalityCustodyError>
-{
+) -> Result<AllocationLegalityCustodyReceipt, OptimizedAllocationLegalityCustodyError> {
     let upstream = validate_optimized_live_range_custody(ranges.liveness_stage(), ranges.ranges())
         .map_err(OptimizedAllocationLegalityCustodyError::UpstreamLiveRanges)?;
     let environment = ranges

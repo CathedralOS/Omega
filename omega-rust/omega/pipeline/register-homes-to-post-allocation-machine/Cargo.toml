@@ -9,6 +9,7 @@ name = "register_homes_to_post_allocation_machine"
 path = "src/lib.rs"
 
 [dependencies]
+register-homes = { path = "../../representations/register-homes" }
 physical-instructions = { path = "../../representations/physical-instructions" }
 selected-instructions-to-register-homes = { path = "../selected-instructions-to-register-homes" }
 register-environment = { path = "../../backend/register-environment" }

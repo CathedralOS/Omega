@@ -57,8 +57,8 @@ fn backend_crates_use_only_reviewed_physical_pipeline_dependencies() {
         ),
         (
             "machine-emission/Cargo.toml",
-            "post-allocation-machine-to-selected-form-encoding",
-            "../../pipeline/post-allocation-machine-to-selected-form-encoding",
+            "post-allocation-machine-to-resolved-layout",
+            "../../pipeline/post-allocation-machine-to-resolved-layout",
         ),
         (
             "machine-emission/Cargo.toml",
@@ -67,8 +67,8 @@ fn backend_crates_use_only_reviewed_physical_pipeline_dependencies() {
         ),
         (
             "machine-emission/Cargo.toml",
-            "selected-form-encoding-to-resolved-layout",
-            "../../pipeline/selected-form-encoding-to-resolved-layout",
+            "post-allocation-machine-to-resolved-layout",
+            "../../pipeline/post-allocation-machine-to-resolved-layout",
         ),
         (
             "machine-emission/Cargo.toml",
@@ -174,8 +174,7 @@ fn only_exact_target_closing_pipeline_crates_depend_on_final_machinery() {
     // Extracted physical stages consume the same two ISA owners as their
     // former coordinator. Keep this closed roster, not a layer-wide escape.
     for owner in [
-        "post-allocation-machine-to-selected-form-encoding",
-        "selected-form-encoding-to-resolved-layout",
+        "post-allocation-machine-to-resolved-layout",
         "selected-instructions-to-register-homes",
     ] {
         expected.insert((

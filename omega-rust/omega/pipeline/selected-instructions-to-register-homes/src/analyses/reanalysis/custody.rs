@@ -1,16 +1,16 @@
 use crate::{ValidatedAllocationLegality, ValidatedLiveRanges, ValidatedLiveness};
 
-use crate::StagedOptimizedFixedViewCopyCustodyReceipt;
+use crate::FixedViewCopyCustodyReceipt;
 
-use super::model::StagedOptimizedSelectedReanalysisCustodyReceipt;
+use super::model::SelectedReanalysisCustodyReceipt;
 
 pub(super) fn selected_reanalysis_custody_receipt(
-    source: StagedOptimizedFixedViewCopyCustodyReceipt,
+    source: FixedViewCopyCustodyReceipt,
     liveness: &ValidatedLiveness,
     ranges: &ValidatedLiveRanges,
     legality: &ValidatedAllocationLegality,
-) -> StagedOptimizedSelectedReanalysisCustodyReceipt {
-    StagedOptimizedSelectedReanalysisCustodyReceipt {
+) -> SelectedReanalysisCustodyReceipt {
+    SelectedReanalysisCustodyReceipt {
         source,
         transformed_liveness: liveness.receipt().identity(),
         transformed_ranges: ranges.receipt().identity(),

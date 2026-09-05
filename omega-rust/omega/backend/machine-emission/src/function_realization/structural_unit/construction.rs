@@ -1,9 +1,9 @@
 use selected_instructions_to_register_homes::{AllocationSource, RetainedAllocation};
 
 use crate::stage_whole_function_exit_contract;
-use post_allocation_machine_to_selected_form_encoding::stage_optimized_layout_independent_selected_form_encoding;
+use post_allocation_machine_to_resolved_layout::selected_form_encoding::stage_optimized_layout_independent_selected_form_encoding;
+use post_allocation_machine_to_resolved_layout::stage_optimized_resolved_selected_form_layout;
 use register_homes_to_post_allocation_machine::stage_optimized_post_allocation_machine_plan;
-use selected_form_encoding_to_resolved_layout::stage_optimized_resolved_selected_form_layout;
 
 use super::custody::structural_unit_realization_receipt;
 use super::manifest::expected_manifest;

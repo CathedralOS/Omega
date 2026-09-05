@@ -683,8 +683,8 @@ fn structural_call_encoding_data_does_not_require_the_isa_implementation() {
         );
     }
     for path in [
-        "omega-rust/omega/pipeline/post-allocation-machine-to-selected-form-encoding/src/model.rs",
-        "omega-rust/omega/pipeline/selected-form-encoding-to-resolved-layout/src/resolved_selected_form_layout/model.rs",
+        "omega-rust/omega/pipeline/post-allocation-machine-to-resolved-layout/src/selected_form_encoding/model.rs",
+        "omega-rust/omega/pipeline/post-allocation-machine-to-resolved-layout/src/resolved_selected_form_layout/model.rs",
     ] {
         let source = std::fs::read_to_string(root.join(path)).unwrap();
         assert!(source.contains("use machine_code::{"));
@@ -727,7 +727,7 @@ fn resolved_layout_data_and_identity_do_not_require_a_producing_stage() {
     assert!(machine.contains("omega.terminal.resolved-selected-form-layout.v9"));
     assert!(!pipeline.contains("omega.terminal.resolved-selected-form-layout.v9"));
 
-    let stage = root.join("omega-rust/omega/pipeline/selected-form-encoding-to-resolved-layout/src/resolved_selected_form_layout");
+    let stage = root.join("omega-rust/omega/pipeline/post-allocation-machine-to-resolved-layout/src/resolved_selected_form_layout");
     let wrapper = std::fs::read_to_string(stage.join("model.rs")).unwrap();
     assert!(wrapper.contains("program: Arc<ResolvedMachineLayout>"));
     assert!(wrapper.contains("Arc::clone(&self.program)"));
@@ -960,7 +960,7 @@ fn applied_frame_data_and_target_mechanics_have_separate_owners() {
 #[test]
 fn resolved_layout_transformation_is_owned_outside_the_coordinator() {
     let root = repository();
-    let owner = root.join("omega-rust/omega/pipeline/selected-form-encoding-to-resolved-layout");
+    let owner = root.join("omega-rust/omega/pipeline/post-allocation-machine-to-resolved-layout");
     let coordinator = root.join("omega-rust/omega/compiler/native-realization/src");
     let algorithms = rust_source(&owner.join("src"));
     let orchestration = rust_source(&coordinator);
@@ -1140,7 +1140,12 @@ fn allocation_has_one_phase_owner_and_machine_consumers_ignore_history() {
     let output = rust_source(&allocation.join("output"));
     assert!(output.contains("pub trait AllocationSource: sealed::Sealed"));
     assert!(output.contains("pub struct AllocationOutput<'program>"));
-    assert!(output.contains("pub enum AllocationEvidence"));
+    assert!(!output.contains("pub enum AllocationEvidence"));
+    assert!(output.contains("pub use register_homes::AllocationEvidence;"));
+    assert!(
+        rust_source(&repository().join("omega-rust/omega/representations/register-homes/src"))
+            .contains("pub enum AllocationEvidence")
+    );
     assert!(output.contains("pub struct RetainedAllocation"));
     assert!(output.contains("impl TryFrom<StagedOptimizedRegisterHomes>"));
     let retained = std::fs::read_to_string(allocation.join("output/retained.rs")).unwrap();
@@ -1485,4 +1490,137 @@ fn fragment_consumers_read_current_data_and_only_replay_walks_history() {
             );
         }
     }
+}
+
+#[test]
+fn physical_rule_custody_records_belong_to_the_representation() {
+    let root = repository();
+    let representation =
+        rust_source(&root.join("omega-rust/omega/representations/physical-instructions/src"));
+    let pipeline = rust_source(&root.join("omega-rust/omega/pipeline"));
+    for rule in [
+        "Aarch64CbnzFusion",
+        "Aarch64MovnMaterialization",
+        "Aarch64SameViewCopyElision",
+        "X86XorZeroMaterialization",
+        "X86MovR32Imm32Materialization",
+        "X86MovR64Imm32SignExtendedMaterialization",
+    ] {
+        let declaration = format!("pub struct {rule}CustodyReceipt {{");
+        assert_eq!(representation.matches(&declaration).count(), 1, "{rule}");
+        assert!(
+            !pipeline.contains(&declaration),
+            "producer owns {rule} evidence"
+        );
+        assert!(
+            !pipeline.contains(&format!("StagedOptimized{rule}CustodyReceipt")),
+            "legacy producer-owned evidence remains for {rule}"
+        );
+    }
+    let records = std::fs::read_to_string(root.join(
+        "omega-rust/omega/representations/physical-instructions/src/physical_instructions/evidence/rules.rs",
+    ))
+    .unwrap();
+    for producer in [
+        "Validated",
+        "StagedOptimized",
+        "post_allocation_machine_to_post_allocation_machine::",
+        "register_homes_to_post_allocation_machine::",
+    ] {
+        assert!(!records.contains(producer), "evidence retains {producer}");
+    }
+}
+
+#[test]
+fn selected_form_encoding_data_has_an_independent_representation_owner() {
+    let root = repository();
+    let representation =
+        rust_source(&root.join("omega-rust/omega/representations/machine-code/src"));
+    let pipeline = rust_source(&root.join("omega-rust/omega/pipeline"));
+    for declaration in [
+        "pub struct SelectedFormEncoding {",
+        "pub struct SelectedFormEncodingRow {",
+        "pub struct SelectedStructuralUnitFunctionEncoding {",
+        "pub enum SelectedFormEncodingState {",
+        "pub struct TargetFrameLayoutPlan {",
+        "pub struct FunctionTargetFrameLayout {",
+    ] {
+        assert_eq!(
+            representation.matches(declaration).count(),
+            1,
+            "{declaration}"
+        );
+        assert!(
+            !pipeline.contains(declaration),
+            "producer still owns {declaration}"
+        );
+    }
+    let admission = std::fs::read_to_string(root.join(
+        "omega-rust/omega/pipeline/post-allocation-machine-to-resolved-layout/src/selected_form_encoding/model.rs",
+    ))
+    .unwrap();
+    assert!(admission.contains("pub(super) program: std::sync::Arc<SelectedFormEncoding>"));
+    assert!(!representation.contains("pub struct StagedOptimizedSelectedFormEncoding"));
+}
+
+#[test]
+fn allocation_custody_records_are_data_and_admission_stays_in_the_transform() {
+    let root = repository();
+    let representation =
+        rust_source(&root.join("omega-rust/omega/representations/register-homes/src"));
+    let owner = root.join("omega-rust/omega/pipeline/selected-instructions-to-register-homes/src");
+    let transform = rust_source(&owner);
+    for record in [
+        "AllocationLegalityCustodyReceipt",
+        "LivenessCustodyReceipt",
+        "LiveRangeCustodyReceipt",
+        "SelectedReanalysisCustodyReceipt",
+        "RegisterHomeCustodyReceipt",
+        "PostCopyRegisterHomeCustodyReceipt",
+        "PostLiteralFoldHomeCustodyReceipt",
+        "PostSelectedLoweringHomeCustodyReceipt",
+        "FixedPrecoloredSegmentHomeCustodyReceipt",
+        "FixedViewCopyCustodyReceipt",
+        "SelectedLoweringOptimizationCustodyReceipt",
+        "LiteralFoldAttemptReceipt",
+        "LiteralFoldCustodyReceipt",
+        "LiteralFoldIterationReceipt",
+        "ActiveResidentRematerializationCustodyReceipt",
+        "FixedPrecoloredIntervalValidationReceipt",
+        "FixedPrecoloredSplitRequirementValidationReceipt",
+        "FixedPrecoloredSegmentHomeValidationReceipt",
+    ] {
+        let declaration = format!("pub struct {record} {{");
+        assert_eq!(representation.matches(&declaration).count(), 1, "{record}");
+        assert!(
+            !transform.contains(&declaration),
+            "transform owns {record} data"
+        );
+    }
+    assert_eq!(
+        representation
+            .matches("pub enum AllocationEvidence {")
+            .count(),
+        1
+    );
+    for admitted in [
+        "StagedOptimizedRegisterHomes",
+        "ValidatedFixedPrecoloredIntervals",
+        "ValidatedFixedPrecoloredSplitRequirements",
+        "ValidatedFixedPrecoloredSegmentHomes",
+    ] {
+        let declaration = format!("pub struct {admitted} {{");
+        assert!(
+            transform.contains(&declaration),
+            "missing admission owner {admitted}"
+        );
+        assert!(
+            !representation.contains(&declaration),
+            "data owns admission {admitted}"
+        );
+    }
+    let boundary = std::fs::read_to_string(owner.join("output/mod.rs")).unwrap();
+    assert!(boundary.contains("pub trait AllocationSource: sealed::Sealed"));
+    let retained = std::fs::read_to_string(owner.join("output/retained.rs")).unwrap();
+    assert!(retained.contains("self.current.validate_against(&current)?"));
 }

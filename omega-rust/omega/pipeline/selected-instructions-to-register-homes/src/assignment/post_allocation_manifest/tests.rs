@@ -24,7 +24,7 @@ fn record() -> PostAllocationOptimizationManifest {
         selected: SelectedInstructionPlanIdentity::from_canonical_bytes(b"selected"),
         selected_lowering_completion: None,
         selected_transformations: Vec::new(),
-        liveness: LivenessIdentity([1; 32]),
+        liveness: LivenessIdentity::from_bytes([1; 32]),
         ranges: LiveRangeIdentity::from_bytes([2; 32]),
         legality: AllocationLegalityIdentity::from_bytes([3; 32]),
         register_environment: TargetRegisterEnvironmentIdentity::from_bytes([4; 32]),
@@ -65,7 +65,9 @@ fn identity_binds_every_post_allocation_domain() {
         },
         |record| {
             record.selected_transformations.push(
-                PostAllocationSelectedTransformation::FixedViewCopy(FixedViewCopyIdentity([6; 32])),
+                PostAllocationSelectedTransformation::FixedViewCopy(
+                    FixedViewCopyIdentity::from_bytes([6; 32]),
+                ),
             )
         },
         |record| {
@@ -82,7 +84,7 @@ fn identity_binds_every_post_allocation_domain() {
                 ),
             )
         },
-        |record| record.liveness = LivenessIdentity([7; 32]),
+        |record| record.liveness = LivenessIdentity::from_bytes([7; 32]),
         |record| record.ranges = LiveRangeIdentity::from_bytes([8; 32]),
         |record| record.legality = AllocationLegalityIdentity::from_bytes([9; 32]),
         |record| {
@@ -135,7 +137,9 @@ fn canonical_codec_round_trips_both_routes_and_rejects_corruption() {
     transformed.selected_lowering_completion =
         Some(SelectedLoweringOptimizationCompletionIdentity::from_canonical_bytes(b"completed"));
     transformed.selected_transformations = vec![
-        PostAllocationSelectedTransformation::FixedViewCopy(FixedViewCopyIdentity([12; 32])),
+        PostAllocationSelectedTransformation::FixedViewCopy(FixedViewCopyIdentity::from_bytes(
+            [12; 32],
+        )),
         PostAllocationSelectedTransformation::LiteralFold(LiteralFoldIdentity::from_bytes(
             [13; 32],
         )),
@@ -194,7 +198,7 @@ fn canonical_codec_round_trips_both_routes_and_rejects_corruption() {
     let mut one_transformation = record();
     one_transformation.selected_transformations =
         vec![PostAllocationSelectedTransformation::FixedViewCopy(
-            FixedViewCopyIdentity([12; 32]),
+            FixedViewCopyIdentity::from_bytes([12; 32]),
         )];
     one_transformation.identity = one_transformation.recomputed_identity();
     let mut unknown_transformation = one_transformation.encode();

@@ -1,12 +1,12 @@
 use crate::{
     ValidatedFunctionRelativeOptimizationRealizationManifest, ValidatedWholeFunctionExitContract,
 };
-use post_allocation_machine_to_selected_form_encoding::StagedOptimizedSelectedFormEncoding;
+use post_allocation_machine_to_resolved_layout::StagedOptimizedResolvedSelectedFormLayout;
+use post_allocation_machine_to_resolved_layout::selected_form_encoding::StagedOptimizedSelectedFormEncoding;
+use register_homes::AllocationEvidence;
 use register_homes_to_post_allocation_machine::StagedOptimizedPostAllocationMachinePlan;
-use selected_form_encoding_to_resolved_layout::StagedOptimizedResolvedSelectedFormLayout;
 
 use super::model::StagedAllocationRecoveryFunctionRelativeRealizationCustodyReceipt;
-use selected_instructions_to_register_homes::AllocationEvidence;
 
 pub(super) fn receipt(
     source: AllocationEvidence,

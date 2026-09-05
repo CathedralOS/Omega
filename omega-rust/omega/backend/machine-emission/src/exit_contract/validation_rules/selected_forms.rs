@@ -10,10 +10,9 @@ use selected_instructions::{
 use semantic_vocabulary::EdgeId;
 use target::{Architecture, NativeTarget};
 
-use post_allocation_machine_to_selected_form_encoding::{
-    SelectedFormEncodingState, SelectedFormMachineDisposition, StagedOptimizedSelectedFormEncoding,
-};
-use selected_form_encoding_to_resolved_layout::StagedOptimizedResolvedSelectedFormLayout;
+use machine_code::{SelectedFormEncodingState, SelectedFormMachineDisposition};
+use post_allocation_machine_to_resolved_layout::StagedOptimizedResolvedSelectedFormLayout;
+use post_allocation_machine_to_resolved_layout::selected_form_encoding::StagedOptimizedSelectedFormEncoding;
 
 use super::super::{
     error::WholeFunctionExitContractError,
@@ -28,7 +27,7 @@ pub(in crate::exit_contract) fn unique_encoding_rows<'a>(
 ) -> Result<
     BTreeMap<
         (semantic_vocabulary::MachineId, SelectedInstructionId),
-        &'a post_allocation_machine_to_selected_form_encoding::SelectedFormEncodingRow,
+        &'a machine_code::SelectedFormEncodingRow,
     >,
     WholeFunctionExitContractError,
 > {
@@ -137,7 +136,7 @@ pub(in crate::exit_contract) fn reject_preservation_writes(
 }
 
 pub(in crate::exit_contract) fn transformed_implicit_writes_any(
-    encoding: &post_allocation_machine_to_selected_form_encoding::SelectedFormEncodingRow,
+    encoding: &machine_code::SelectedFormEncodingRow,
     units: &BTreeSet<RegisterUnitId>,
 ) -> bool {
     match &encoding.state {
@@ -158,7 +157,7 @@ pub(in crate::exit_contract) fn transformed_implicit_writes_any(
 pub(in crate::exit_contract) fn validate_non_return(
     instruction: SelectedInstructionId,
     conditional_terminator: bool,
-    encoding: &post_allocation_machine_to_selected_form_encoding::SelectedFormEncodingRow,
+    encoding: &machine_code::SelectedFormEncodingRow,
     layout: &machine_code::ResolvedSelectedFormRow,
 ) -> Result<(), WholeFunctionExitContractError> {
     let effects = match &encoding.state {
@@ -229,7 +228,7 @@ pub(in crate::exit_contract) fn validate_return(
     psi_return_edge: EdgeId,
     selected: &selected_instructions::SelectedInstruction,
     machine: &PostAllocationMachineInstruction,
-    encoding: &post_allocation_machine_to_selected_form_encoding::SelectedFormEncodingRow,
+    encoding: &machine_code::SelectedFormEncodingRow,
     layout: &machine_code::ResolvedSelectedFormRow,
     layout_block_end: u64,
 ) -> Result<WholeFunctionReturnEvidence, WholeFunctionExitContractError> {

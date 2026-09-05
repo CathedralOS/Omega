@@ -10,3 +10,6 @@ pub struct SelectedInstructionProvenance {
     pub obligations: Vec<ObligationId>,
     pub fuel: Vec<FuelSettlement>,
 }
+
+mod selection;
+pub use selection::SelectionCustodyReceipt;

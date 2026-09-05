@@ -138,7 +138,7 @@ fn fixed_view_copy_identity_with_schema(
         bytes.extend_from_slice(&copy.copy_constraint.variant.to_le_bytes());
     }
     bytes.extend_from_slice(&transformed.bytes());
-    FixedViewCopyIdentity(Sha256::digest(bytes).into())
+    FixedViewCopyIdentity::from_bytes(Sha256::digest(bytes).into())
 }
 
 fn encode_source_evidence(bytes: &mut Vec<u8>, evidence: FixedViewCopySourceEvidence) {

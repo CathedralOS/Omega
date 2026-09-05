@@ -57,7 +57,7 @@ pub use identity::{
     SelectedBlockId, SelectedInstructionId, SelectedInstructionPlanIdentity, VirtualRegisterId,
 };
 pub use instructions::{SelectedInstruction, SelectedInstructionKind};
-pub use provenance::SelectedInstructionProvenance;
+pub use provenance::{SelectedInstructionProvenance, SelectionCustodyReceipt};
 pub use values::{SelectedOperand, VirtualRegister, VirtualRegisterOrigin};
 
 use semantic_vocabulary::{FuelScheduleIdentity, MachineId};

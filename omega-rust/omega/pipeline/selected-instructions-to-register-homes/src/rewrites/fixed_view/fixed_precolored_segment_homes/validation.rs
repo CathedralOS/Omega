@@ -5,13 +5,13 @@ use crate::{
 };
 
 use crate::{
-    StagedOptimizedAllocationLegality, StagedOptimizedAllocationLegalityCustodyReceipt,
+    AllocationLegalityCustodyReceipt, StagedOptimizedAllocationLegality,
     validate_optimized_allocation_legality_custody,
 };
 
 use super::{
-    OptimizedFixedPrecoloredSegmentHomeCustodyError,
-    StagedOptimizedFixedPrecoloredSegmentHomeCustodyReceipt, custody,
+    FixedPrecoloredSegmentHomeCustodyReceipt, OptimizedFixedPrecoloredSegmentHomeCustodyError,
+    custody,
 };
 
 pub fn validate_optimized_fixed_precolored_segment_home_custody(
@@ -19,10 +19,8 @@ pub fn validate_optimized_fixed_precolored_segment_home_custody(
     fixed: &ValidatedFixedPrecoloredIntervals,
     requirements: &ValidatedFixedPrecoloredSplitRequirements,
     homes: &ValidatedFixedPrecoloredSegmentHomes,
-) -> Result<
-    StagedOptimizedFixedPrecoloredSegmentHomeCustodyReceipt,
-    OptimizedFixedPrecoloredSegmentHomeCustodyError,
-> {
+) -> Result<FixedPrecoloredSegmentHomeCustodyReceipt, OptimizedFixedPrecoloredSegmentHomeCustodyError>
+{
     let upstream = validate_source(source)?;
     let ranges = source.live_range_stage().ranges();
     let replayed_fixed =
@@ -69,10 +67,7 @@ pub fn validate_optimized_fixed_precolored_segment_home_custody(
 
 pub(super) fn validate_source(
     source: &StagedOptimizedAllocationLegality,
-) -> Result<
-    StagedOptimizedAllocationLegalityCustodyReceipt,
-    OptimizedFixedPrecoloredSegmentHomeCustodyError,
-> {
+) -> Result<AllocationLegalityCustodyReceipt, OptimizedFixedPrecoloredSegmentHomeCustodyError> {
     validate_optimized_allocation_legality_custody(
         source.live_range_stage(),
         source.allocator_availability(),

@@ -11,24 +11,9 @@ use crate::{
 const SPILL_CHOICE_MAGIC: &[u8; 8] = b"OMGSPC\0\0";
 const SPILL_CHOICE_VERSION: u32 = 2;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub struct SpillChoiceIdentity(pub(crate) [u8; 32]);
+pub use register_homes::SpillChoiceIdentity;
 
-impl SpillChoiceIdentity {
-    pub const fn from_bytes(bytes: [u8; 32]) -> Self {
-        Self(bytes)
-    }
-    pub const fn bytes(self) -> [u8; 32] {
-        self.0
-    }
-}
-
-/// Stable structural policy for the first locally witnessed pressure point.
-/// This is not an optimization level or a target cost model.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum SpillChoicePolicy {
-    SingleBlockFarthestEndThenHighestVregV1,
-}
+pub use register_homes::SpillChoicePolicy;
 
 /// Deterministic recovery-victim evidence. Despite the historical “spill”
 /// name, this artifact grants no spill/reload, rematerialization, stack-slot,

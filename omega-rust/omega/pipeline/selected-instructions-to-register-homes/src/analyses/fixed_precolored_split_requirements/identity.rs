@@ -38,7 +38,7 @@ pub fn fixed_precolored_split_requirement_plan_identity(
     bytes.extend_from_slice(&plan.usage.encode());
     encode_family(&mut bytes, &plan.functions);
     encode_family(&mut bytes, &plan.structural_unit_functions);
-    FixedPrecoloredSplitRequirementPlanIdentity(Sha256::digest(bytes).into())
+    FixedPrecoloredSplitRequirementPlanIdentity::from_bytes(Sha256::digest(bytes).into())
 }
 
 fn encode_family(

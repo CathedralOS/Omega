@@ -3,10 +3,9 @@ use crate::{
     require_post_allocation_machine_rule, validate_aarch64_movn_materialization,
 };
 use optimization_core::{
-    Optimization, OptimizationExecutionPhase, OptimizationSelectionIdentity,
-    OptimizationSelections, OptimizationWorkBudget,
+    Optimization, OptimizationExecutionPhase, OptimizationSelections, OptimizationWorkBudget,
 };
-use physical_instructions::Aarch64MovnMaterializationIdentity;
+use physical_instructions::Aarch64MovnMaterializationCustodyReceipt;
 use register_model::ValidatedPhysicalRegisterModel;
 use selected_instructions_to_register_homes::ValidatedSelectedAnalysis;
 
@@ -17,50 +16,15 @@ use super::OptimizedPostAllocationMachineOptimizationError;
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct StagedOptimizedAarch64MovnMaterialization {
     materialization: ValidatedAarch64MovnMaterialization,
-    custody: StagedOptimizedAarch64MovnMaterializationCustodyReceipt,
+    custody: Aarch64MovnMaterializationCustodyReceipt,
 }
 
 impl StagedOptimizedAarch64MovnMaterialization {
     pub const fn materialization(&self) -> &ValidatedAarch64MovnMaterialization {
         &self.materialization
     }
-    pub const fn custody(&self) -> StagedOptimizedAarch64MovnMaterializationCustodyReceipt {
+    pub const fn custody(&self) -> Aarch64MovnMaterializationCustodyReceipt {
         self.custody
-    }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct StagedOptimizedAarch64MovnMaterializationCustodyReceipt {
-    selections: OptimizationSelectionIdentity,
-    post_allocation_machine_selections: OptimizationSelectionIdentity,
-    source: physical_instructions::PostAllocationMachineIdentity,
-    materialization: Aarch64MovnMaterializationIdentity,
-    action_count: usize,
-    baseline_words: u64,
-    selected_words: u64,
-}
-
-impl StagedOptimizedAarch64MovnMaterializationCustodyReceipt {
-    pub const fn selections(self) -> OptimizationSelectionIdentity {
-        self.selections
-    }
-    pub const fn post_allocation_machine_selections(self) -> OptimizationSelectionIdentity {
-        self.post_allocation_machine_selections
-    }
-    pub const fn source(self) -> physical_instructions::PostAllocationMachineIdentity {
-        self.source
-    }
-    pub const fn materialization(self) -> Aarch64MovnMaterializationIdentity {
-        self.materialization
-    }
-    pub const fn action_count(self) -> usize {
-        self.action_count
-    }
-    pub const fn baseline_words(self) -> u64 {
-        self.baseline_words
-    }
-    pub const fn selected_words(self) -> u64 {
-        self.selected_words
     }
 }
 
@@ -85,10 +49,8 @@ pub fn validate_optimized_aarch64_movn_materialization_custody(
     source: &impl crate::AllocationSource,
     machine: &StagedOptimizedPostAllocationMachinePlan,
     staged: &StagedOptimizedAarch64MovnMaterialization,
-) -> Result<
-    StagedOptimizedAarch64MovnMaterializationCustodyReceipt,
-    OptimizedPostAllocationMachineOptimizationError,
-> {
+) -> Result<Aarch64MovnMaterializationCustodyReceipt, OptimizedPostAllocationMachineOptimizationError>
+{
     let allocation = crate::replay_machine_source(source, machine)?;
     validate_with_inputs(
         allocation.selected(),
@@ -138,10 +100,8 @@ fn validate_with_inputs<S: ValidatedSelectedAnalysis>(
     selections: &OptimizationSelections,
     budget: OptimizationWorkBudget,
     staged: &StagedOptimizedAarch64MovnMaterialization,
-) -> Result<
-    StagedOptimizedAarch64MovnMaterializationCustodyReceipt,
-    OptimizedPostAllocationMachineOptimizationError,
-> {
+) -> Result<Aarch64MovnMaterializationCustodyReceipt, OptimizedPostAllocationMachineOptimizationError>
+{
     let phase_selections =
         selections.project_phase(OptimizationExecutionPhase::PostAllocationMachine);
     let phase = require_post_allocation_machine_rule(
@@ -173,15 +133,15 @@ fn custody_receipt(
     selections: &OptimizationSelections,
     phase: &OptimizationSelections,
     materialization: &ValidatedAarch64MovnMaterialization,
-) -> StagedOptimizedAarch64MovnMaterializationCustodyReceipt {
+) -> Aarch64MovnMaterializationCustodyReceipt {
     let receipt = materialization.receipt();
-    StagedOptimizedAarch64MovnMaterializationCustodyReceipt {
-        selections: selections.identity(),
-        post_allocation_machine_selections: phase.identity(),
-        source: receipt.source(),
-        materialization: receipt.identity(),
-        action_count: receipt.action_count(),
-        baseline_words: receipt.baseline_words(),
-        selected_words: receipt.selected_words(),
-    }
+    Aarch64MovnMaterializationCustodyReceipt::from_parts(
+        selections.identity(),
+        phase.identity(),
+        receipt.source(),
+        receipt.identity(),
+        receipt.action_count(),
+        receipt.baseline_words(),
+        receipt.selected_words(),
+    )
 }

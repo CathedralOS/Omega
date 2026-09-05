@@ -5,6 +5,7 @@
 //! The allocation phase supplies one replayed current-program view. This stage
 //! does not inspect rewrite history or select a different construction route.
 
+use register_homes::AllocationEvidence;
 mod construction;
 mod model;
 mod plan;
@@ -14,8 +15,6 @@ pub use construction::*;
 pub use model::*;
 pub use plan::*;
 pub use validation::*;
-
-use selected_instructions_to_register_homes::AllocationEvidence;
 
 use selected_instructions_to_register_homes::ValidatedPreAllocationMachineEffects;
 
@@ -36,8 +35,8 @@ fn post_allocation_machine_custody(
     source: AllocationEvidence,
     effects: &selected_instructions_to_register_homes::ValidatedPreAllocationMachineEffects,
     machine: &ValidatedPostAllocationMachinePlan,
-) -> StagedOptimizedPostAllocationMachineCustodyReceipt {
-    StagedOptimizedPostAllocationMachineCustodyReceipt {
+) -> PostAllocationMachineCustodyReceipt {
+    PostAllocationMachineCustodyReceipt {
         source,
         effects: effects.receipt().identity(),
         machine: machine.receipt().identity(),

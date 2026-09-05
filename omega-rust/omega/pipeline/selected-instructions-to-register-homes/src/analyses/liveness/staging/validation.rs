@@ -5,12 +5,12 @@ use target_operations_to_selected_instructions::{
 };
 
 use super::custody::liveness_custody_receipt;
-use super::model::{OptimizedLivenessCustodyError, StagedOptimizedLivenessCustodyReceipt};
+use super::model::{LivenessCustodyReceipt, OptimizedLivenessCustodyError};
 
 pub fn validate_optimized_liveness_custody(
     selected: &StagedOptimizedSelectedInstructions,
     liveness: &ValidatedLiveness,
-) -> Result<StagedOptimizedLivenessCustodyReceipt, OptimizedLivenessCustodyError> {
+) -> Result<LivenessCustodyReceipt, OptimizedLivenessCustodyError> {
     let upstream = validate_optimized_selection_custody(
         selected.optimized_target(),
         selected.register_environment(),

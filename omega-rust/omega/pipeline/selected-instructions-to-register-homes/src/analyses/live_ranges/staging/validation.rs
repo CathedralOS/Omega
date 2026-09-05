@@ -3,12 +3,12 @@ use crate::{ValidatedLiveRanges, validate_live_ranges};
 use crate::{StagedOptimizedLiveness, validate_optimized_liveness_custody};
 
 use super::custody::live_range_custody_receipt;
-use super::model::{OptimizedLiveRangeCustodyError, StagedOptimizedLiveRangeCustodyReceipt};
+use super::model::{LiveRangeCustodyReceipt, OptimizedLiveRangeCustodyError};
 
 pub fn validate_optimized_live_range_custody(
     liveness: &StagedOptimizedLiveness,
     ranges: &ValidatedLiveRanges,
-) -> Result<StagedOptimizedLiveRangeCustodyReceipt, OptimizedLiveRangeCustodyError> {
+) -> Result<LiveRangeCustodyReceipt, OptimizedLiveRangeCustodyError> {
     let upstream =
         validate_optimized_liveness_custody(liveness.selected_stage(), liveness.liveness())
             .map_err(OptimizedLiveRangeCustodyError::UpstreamLiveness)?;

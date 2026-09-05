@@ -1,13 +1,13 @@
 use crate::{ValidatedWholeFunctionExitContract, stage_whole_function_exit_contract};
-use post_allocation_machine_to_selected_form_encoding::{
+use post_allocation_machine_to_resolved_layout::selected_form_encoding::{
     StagedOptimizedSelectedFormEncoding, stage_optimized_layout_independent_selected_form_encoding,
+};
+use post_allocation_machine_to_resolved_layout::{
+    StagedOptimizedResolvedSelectedFormLayout, stage_optimized_resolved_selected_form_layout,
 };
 use register_homes_to_post_allocation_machine::{
     StagedOptimizedPostAllocationMachinePlan,
     validate_optimized_post_allocation_machine_plan_custody,
-};
-use selected_form_encoding_to_resolved_layout::{
-    StagedOptimizedResolvedSelectedFormLayout, stage_optimized_resolved_selected_form_layout,
 };
 
 use super::custody::receipt;

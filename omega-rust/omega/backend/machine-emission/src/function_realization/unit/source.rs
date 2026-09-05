@@ -1,15 +1,13 @@
 use optimization_core::OptimizationExecutionPhase;
+use register_homes::{AllocationEvidence, RegisterHomeCustodyReceipt};
 use selected_instructions::{SelectedInstructionKind, SelectedInstructionPlan, SelectedTerminator};
-use selected_instructions_to_register_homes::{AllocationEvidence, AllocationOutput};
-
-use selected_instructions_to_register_homes::StagedOptimizedRegisterHomeCustodyReceipt;
+use selected_instructions_to_register_homes::AllocationOutput;
 
 use super::model::OptimizedUnitFunctionRelativeRealizationError;
 
 pub(super) fn validate_source(
     current: &AllocationOutput<'_>,
-) -> Result<StagedOptimizedRegisterHomeCustodyReceipt, OptimizedUnitFunctionRelativeRealizationError>
-{
+) -> Result<RegisterHomeCustodyReceipt, OptimizedUnitFunctionRelativeRealizationError> {
     let AllocationEvidence::RegisterHomes(source) = current.evidence() else {
         return Err(OptimizedUnitFunctionRelativeRealizationError::RootMismatch);
     };

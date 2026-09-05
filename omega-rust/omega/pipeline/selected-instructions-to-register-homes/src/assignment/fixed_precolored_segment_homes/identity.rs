@@ -37,7 +37,7 @@ pub fn fixed_precolored_segment_home_plan_identity(
     bytes.extend_from_slice(&plan.usage.encode());
     encode_family(&mut bytes, &plan.functions);
     encode_family(&mut bytes, &plan.structural_unit_functions);
-    FixedPrecoloredSegmentHomePlanIdentity(Sha256::digest(bytes).into())
+    FixedPrecoloredSegmentHomePlanIdentity::from_bytes(Sha256::digest(bytes).into())
 }
 
 fn encode_family(bytes: &mut Vec<u8>, functions: &[crate::FunctionFixedPrecoloredSegmentHomes]) {

@@ -64,6 +64,20 @@ fn active_resident_rematerialization_reaches_layout_independent_encoding_on_both
             &encoding,
         )
         .unwrap();
+        let retained = encoding.shared_program();
+        assert!(std::ptr::eq(retained.as_ref(), encoding.program()));
+        let expected_identity = encoding.identity();
+        let expected_rows = encoding.rows().len();
+        drop(encoding);
+        drop(current);
+        drop(machine);
+        drop(source);
+        assert_eq!(retained.identity, expected_identity);
+        assert_eq!(retained.rows.len(), expected_rows);
+        assert!(retained.rows.iter().any(|row| matches!(
+            &row.state,
+            SelectedFormEncodingState::Encoded { bytes, .. } if !bytes.is_empty()
+        )));
     }
 }
 

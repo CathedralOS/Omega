@@ -191,6 +191,10 @@ fn whole_root_pin_rejects_corrupt_cache_and_changed_snapshot_without_fetch() {
             permissions.set_mode(permissions.mode() | 0o200);
         }
         #[cfg(not(unix))]
+        #[allow(
+            clippy::permissions_set_readonly_false,
+            reason = "Windows read-only attributes do not change Unix permission bits"
+        )]
         permissions.set_readonly(false);
         std::fs::set_permissions(&altered, permissions).expect("make fixture file owner-writable");
         std::fs::write(&altered, b"changed cache contents\n")

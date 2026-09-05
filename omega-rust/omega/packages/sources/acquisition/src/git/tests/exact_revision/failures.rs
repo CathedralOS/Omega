@@ -88,6 +88,10 @@ fn persisted_objects_reject_tampered_cache_or_snapshot_without_repair_fetch() {
             permissions.set_mode(permissions.mode() | 0o200);
         }
         #[cfg(not(unix))]
+        #[allow(
+            clippy::permissions_set_readonly_false,
+            reason = "Windows read-only attributes do not change Unix permission bits"
+        )]
         permissions.set_readonly(false);
         std::fs::set_permissions(&altered, permissions).unwrap();
         std::fs::write(&altered, b"changed retained source\n").unwrap();

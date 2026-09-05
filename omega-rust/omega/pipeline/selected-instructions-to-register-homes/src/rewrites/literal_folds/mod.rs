@@ -5,24 +5,21 @@
 //! carriers, execution/replay, scheduling receipts, and work accounting.
 
 use crate::{
-    AllocationLegalityError, LiteralFoldError, LiteralFoldIdentity, LiteralFoldPolicy,
-    LiveRangeError, LivenessError, RecoveryClassificationError, RecoveryClassificationPolicy,
-    SpillChoiceError, SpillChoicePolicy, ValidatedAllocationLegality, ValidatedLiteralFold,
-    ValidatedLiveRanges, ValidatedLiveness, ValidatedRecoveryClassifications,
-    ValidatedSelectedAnalysis, ValidatedSpillChoices, analyze_allocation_legality,
-    analyze_live_ranges, analyze_liveness, choose_spill_victims, classify_pressure_recovery,
-    fold_selected_incoming_literal, resolve_selected_lowering_rules,
+    AllocationLegalityError, LiteralFoldError, LiteralFoldPolicy, LiveRangeError, LivenessError,
+    RecoveryClassificationError, RecoveryClassificationPolicy, SpillChoiceError, SpillChoicePolicy,
+    ValidatedAllocationLegality, ValidatedLiteralFold, ValidatedLiveRanges, ValidatedLiveness,
+    ValidatedRecoveryClassifications, ValidatedSelectedAnalysis, ValidatedSpillChoices,
+    analyze_allocation_legality, analyze_live_ranges, analyze_liveness, choose_spill_victims,
+    classify_pressure_recovery, fold_selected_incoming_literal, resolve_selected_lowering_rules,
 };
 use optimization_core::{
-    Optimization, OptimizationSelectionIdentity, OptimizationSelections, OptimizationWorkBudget,
-    OptimizationWorkUsage, SelectedLoweringOptimizationCompletionIdentity,
+    Optimization, OptimizationSelections, OptimizationWorkBudget, OptimizationWorkUsage,
+    SelectedLoweringOptimizationCompletionIdentity,
 };
-use selected_instructions::SelectedInstructionPlanIdentity;
 
 use crate::{
-    OptimizedAllocationLegalityCustodyError, StagedOptimizedAllocationLegality,
-    StagedOptimizedAllocationLegalityCustodyReceipt,
-    validate_optimized_allocation_legality_custody,
+    AllocationLegalityCustodyReceipt, OptimizedAllocationLegalityCustodyError,
+    StagedOptimizedAllocationLegality, validate_optimized_allocation_legality_custody,
 };
 
 mod accounting;

@@ -1025,12 +1025,12 @@ dependencies = [
  "optimization-core",
  "physical-instructions",
  "post-allocation-machine-to-post-allocation-machine",
- "post-allocation-machine-to-selected-form-encoding",
+ "post-allocation-machine-to-resolved-layout",
  "proof-admission",
  "register-environment",
+ "register-homes",
  "register-homes-to-post-allocation-machine",
  "register-model",
- "selected-form-encoding-to-resolved-layout",
  "selected-instructions",
  "selected-instructions-to-register-homes",
  "semantic-vocabulary",
@@ -1123,13 +1123,13 @@ dependencies = [
  "optimization-core",
  "optimization-unit",
  "post-allocation-machine-to-post-allocation-machine",
+ "post-allocation-machine-to-resolved-layout",
  "program-entry-plan",
  "proof-admission",
  "provider-planning",
  "register-environment",
  "register-homes-to-post-allocation-machine",
  "selected-dispatch",
- "selected-form-encoding-to-resolved-layout",
  "selected-instructions",
  "selected-instructions-to-register-homes",
  "semantic-vocabulary",
@@ -1283,14 +1283,13 @@ dependencies = [
  "optimization-unit-semantics",
  "physical-instructions",
  "post-allocation-machine-to-post-allocation-machine",
- "post-allocation-machine-to-selected-form-encoding",
+ "post-allocation-machine-to-resolved-layout",
  "program-entry-plan",
  "proof-admission",
  "provider-planning",
  "register-environment",
  "register-homes-to-post-allocation-machine",
  "register-model",
- "selected-form-encoding-to-resolved-layout",
  "selected-instructions",
  "selected-instructions-to-register-homes",
  "semantic-vocabulary",
@@ -1530,7 +1529,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "post-allocation-machine-to-selected-form-encoding"
+name = "post-allocation-machine-to-resolved-layout"
 version = "0.1.0"
 dependencies = [
  "calling-conventions",
@@ -1540,6 +1539,7 @@ dependencies = [
  "optimization-core",
  "physical-instructions",
  "post-allocation-machine-to-post-allocation-machine",
+ "register-environment",
  "register-homes-to-post-allocation-machine",
  "register-model",
  "selected-instructions",
@@ -1673,6 +1673,7 @@ dependencies = [
  "semantic-vocabulary",
  "sha2",
  "target",
+ "terminal-psi",
 ]
 
 [[package]]
@@ -1683,6 +1684,7 @@ dependencies = [
  "optimization-core",
  "physical-instructions",
  "register-environment",
+ "register-homes",
  "register-model",
  "selected-instructions",
  "selected-instructions-to-register-homes",
@@ -1787,27 +1789,6 @@ dependencies = [
  "typed-trees",
  "typed-trees-to-checked-trees",
  "validation",
-]
-
-[[package]]
-name = "selected-form-encoding-to-resolved-layout"
-version = "0.1.0"
-dependencies = [
- "calling-conventions",
- "isa-aarch64",
- "isa-x86_64",
- "machine-code",
- "optimization-core",
- "physical-instructions",
- "post-allocation-machine-to-post-allocation-machine",
- "post-allocation-machine-to-selected-form-encoding",
- "register-homes-to-post-allocation-machine",
- "register-model",
- "selected-instructions",
- "selected-instructions-to-register-homes",
- "semantic-vocabulary",
- "sha2",
- "target",
 ]
 
 [[package]]

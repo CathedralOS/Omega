@@ -12,25 +12,9 @@ use crate::{
     SpillChoiceIdentity,
 };
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub struct RecoveryClassificationIdentity(pub(crate) [u8; 32]);
+pub use register_homes::RecoveryClassificationIdentity;
 
-impl RecoveryClassificationIdentity {
-    pub const fn from_bytes(bytes: [u8; 32]) -> Self {
-        Self(bytes)
-    }
-
-    pub const fn bytes(self) -> [u8; 32] {
-        self.0
-    }
-}
-
-/// Named, deliberately bounded policy for classifying the already selected
-/// pressure victim. This is not a spill, rematerialization, or cost policy.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum RecoveryClassificationPolicy {
-    SelectedVictimImmediateU64EligibilityV1,
-}
+pub use register_homes::RecoveryClassificationPolicy;
 
 /// Semantic eligibility evidence for the first selected local pressure victim.
 ///

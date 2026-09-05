@@ -1,3 +1,4 @@
+pub(super) use physical_instructions::PostAllocationMachineCustodyReceipt;
 pub(super) use std::fmt::Write;
 
 pub(super) use optimization_core::{
@@ -41,22 +42,21 @@ pub(super) use post_allocation_machine_to_post_allocation_machine::{
     OptimizedPostAllocationMachineOptimizationError,
     StagedOptimizedPostAllocationMachineOptimization,
 };
-pub(super) use post_allocation_machine_to_selected_form_encoding::{
+pub(super) use post_allocation_machine_to_resolved_layout::selected_form_encoding::{
     OptimizedSelectedFormEncodingError, StagedOptimizedSelectedFormEncoding,
     stage_optimized_layout_independent_selected_form_encoding,
     validate_optimized_layout_independent_selected_form_encoding,
 };
-pub(super) use register_homes_to_post_allocation_machine::{
-    OptimizedPostAllocationMachinePipelineError,
-    StagedOptimizedPostAllocationMachineCustodyReceipt, StagedOptimizedPostAllocationMachinePlan,
-    stage_optimized_post_allocation_machine_plan,
-    validate_optimized_post_allocation_machine_plan_custody,
-};
-pub(super) use selected_form_encoding_to_resolved_layout::{
+pub(super) use post_allocation_machine_to_resolved_layout::{
     OptimizedResolvedSelectedFormLayoutError, OptimizedX86BranchRelaxationError,
     StagedOptimizedResolvedSelectedFormLayout, StagedOptimizedX86BranchRelaxation,
     stage_optimized_resolved_selected_form_layout, stage_optimized_x86_branch_relaxation,
     validate_optimized_resolved_selected_form_layout, validate_optimized_x86_branch_relaxation,
+};
+pub(super) use register_homes_to_post_allocation_machine::{
+    OptimizedPostAllocationMachinePipelineError, StagedOptimizedPostAllocationMachinePlan,
+    stage_optimized_post_allocation_machine_plan,
+    validate_optimized_post_allocation_machine_plan_custody,
 };
 pub(super) use selected_instructions_to_register_homes::{
     AllocatedCalleeSavedRequirementIdentity, AllocatedCalleeSavedRequirementPolicy,
@@ -64,6 +64,5 @@ pub(super) use selected_instructions_to_register_homes::{
     validate_allocated_callee_saved_requirements,
 };
 pub(super) use selected_instructions_to_register_homes::{
-    StagedOptimizedPostSelectedLoweringHomeCustodyReceipt,
-    StagedOptimizedRegisterHomeCustodyReceipt,
+    PostSelectedLoweringHomeCustodyReceipt, RegisterHomeCustodyReceipt,
 };

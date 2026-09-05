@@ -1,4 +1,5 @@
 use physical_instructions::PostAllocationMachineIdentity;
+use std::sync::Arc;
 use target::NativeTarget;
 
 use crate::frame_layout::{
@@ -74,12 +75,15 @@ impl TargetFrameLayoutReceipt {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ValidatedTargetFrameLayout {
-    pub(in crate::frame_layout) plan: TargetFrameLayoutPlan,
+    pub(in crate::frame_layout) plan: Arc<TargetFrameLayoutPlan>,
     pub(in crate::frame_layout) receipt: TargetFrameLayoutReceipt,
 }
 
 impl ValidatedTargetFrameLayout {
-    pub const fn plan(&self) -> &TargetFrameLayoutPlan {
+    pub fn shared_plan(&self) -> Arc<TargetFrameLayoutPlan> {
+        Arc::clone(&self.plan)
+    }
+    pub fn plan(&self) -> &TargetFrameLayoutPlan {
         &self.plan
     }
     pub const fn receipt(&self) -> TargetFrameLayoutReceipt {

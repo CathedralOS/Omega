@@ -2147,7 +2147,7 @@ fn terminal_component_staging_consumes_only_the_psi_owned_artifact() {
         "omega-rust/omega/pipeline/selected-instructions-to-register-homes/src/rewrites/selected_lowering/mod.rs",
         "omega-rust/omega/pipeline/selected-instructions-to-register-homes/src/rewrites/allocation_recovery/mod.rs",
         "omega-rust/omega/pipeline/post-allocation-machine-to-post-allocation-machine/src/rules/mod.rs",
-        "omega-rust/omega/pipeline/selected-form-encoding-to-resolved-layout/src/x86_branch_relaxation/catalog.rs",
+        "omega-rust/omega/pipeline/post-allocation-machine-to-resolved-layout/src/x86_branch_relaxation/catalog.rs",
     ]
     .map(|relative| {
         let path = root.join(relative);
@@ -4830,9 +4830,9 @@ fn ranked_countdown_object_replay_cannot_reenter_machine_emission() {
 #[test]
 fn selected_form_encoding_validation_cannot_reenter_its_producer() {
     let root = workspace_root();
-    let stage = root
-        .join("omega-rust/omega/pipeline/post-allocation-machine-to-selected-form-encoding/src");
-    let entrance = std::fs::read_to_string(stage.join("lib.rs"))
+    let stage =
+        root.join("omega-rust/omega/pipeline/post-allocation-machine-to-resolved-layout/src/selected_form_encoding");
+    let entrance = std::fs::read_to_string(stage.join("mod.rs"))
         .expect("read selected-form encoding entrance");
     assert!(
         entrance
@@ -5023,7 +5023,7 @@ fn psi_content_compact_fingerprints_are_report_only_beside_exact_replay() {
 fn resolved_layout_validation_cannot_reenter_its_producer() {
     let root = workspace_root();
     let stage = root.join(
-        "omega-rust/omega/pipeline/selected-form-encoding-to-resolved-layout/src/resolved_selected_form_layout",
+        "omega-rust/omega/pipeline/post-allocation-machine-to-resolved-layout/src/resolved_selected_form_layout",
     );
     let entrance = std::fs::read_to_string(stage.join("mod.rs"))
         .expect("read resolved selected-form layout entrance");

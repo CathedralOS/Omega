@@ -15,18 +15,7 @@ pub const X86_MOV_R64_IMM32_SIGN_EXTENDED_BASELINE_BYTE_COUNT: u8 = 10;
 pub const X86_MOV_R64_IMM32_SIGN_EXTENDED_LOW_REGISTER_BYTE_COUNT: u8 = 7;
 pub const X86_MOV_R64_IMM32_SIGN_EXTENDED_EXTENDED_REGISTER_BYTE_COUNT: u8 = 7;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub struct X86MovR64Imm32SignExtendedMaterializationIdentity([u8; 32]);
-
-impl X86MovR64Imm32SignExtendedMaterializationIdentity {
-    pub const fn from_bytes(bytes: [u8; 32]) -> Self {
-        Self(bytes)
-    }
-
-    pub const fn bytes(self) -> [u8; 32] {
-        self.0
-    }
-}
+pub use physical_instructions::X86MovR64Imm32SignExtendedMaterializationIdentity;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct X86MovR64Imm32SignExtendedMaterializationRevisionIdentity([u8; 32]);

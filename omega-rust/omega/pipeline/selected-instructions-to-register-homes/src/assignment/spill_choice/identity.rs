@@ -6,7 +6,7 @@ pub fn spill_choice_identity(plan: &SpillChoicePlan) -> SpillChoiceIdentity {
     let mut bytes = Vec::new();
     bytes.extend_from_slice(b"omega.terminal-spill-choices.v2\0");
     bytes.extend_from_slice(&encode_terminal_spill_choice_content(plan));
-    SpillChoiceIdentity(Sha256::digest(bytes).into())
+    SpillChoiceIdentity::from_bytes(Sha256::digest(bytes).into())
 }
 
 pub(crate) fn encode_terminal_spill_choice_content(plan: &SpillChoicePlan) -> Vec<u8> {

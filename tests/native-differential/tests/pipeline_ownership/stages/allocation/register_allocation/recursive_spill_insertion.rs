@@ -102,11 +102,12 @@ fn reload_victim_v1_recursive_identity_remains_byte_stable() {
             OptimizationWorkBudget::new(1, 3, 14, 3, 4).unwrap(),
         )
         .unwrap();
+    // Full-pipeline golden includes the upstream proof vocabulary version 24.
     assert_eq!(
         scheduled.receipt().identity().bytes(),
         [
-            57, 178, 110, 81, 57, 208, 163, 19, 107, 51, 203, 203, 94, 119, 198, 224, 63, 50, 8,
-            127, 81, 30, 64, 160, 254, 104, 74, 211, 72, 69, 100, 245,
+            241, 188, 192, 122, 128, 42, 55, 244, 45, 174, 78, 213, 140, 185, 63, 15, 196, 56, 28,
+            3, 202, 151, 232, 161, 104, 51, 99, 188, 127, 155, 100, 231
         ]
     );
     assert_eq!(

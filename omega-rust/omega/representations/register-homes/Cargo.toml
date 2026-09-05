@@ -7,6 +7,7 @@ version.workspace = true
 [dependencies]
 optimization-core = { path = "../optimization-core" }
 target = { path = "../target" }
+terminal-psi = { path = "../../../psi/representations/terminal-psi" }
 register-model = { path = "../register-model" }
 selected-instructions = { path = "../selected-instructions" }
 semantic-vocabulary = { path = "../../../psi/foundation/semantic-vocabulary" }

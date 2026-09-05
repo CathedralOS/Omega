@@ -7,14 +7,14 @@ use crate::{
 use register_environment::ValidatedTargetRegisterEnvironment;
 
 use super::constraints::selection_constraints;
-use super::model::{OptimizedSelectionCustodyError, StagedOptimizedSelectionCustodyReceipt};
+use super::model::{OptimizedSelectionCustodyError, SelectionCustodyReceipt};
 
 pub fn validate_optimized_selection_custody(
     optimized_target: &ValidatedOptimizedTargetOperations,
     register_environment: &ValidatedTargetRegisterEnvironment,
     legalized: &ValidatedLegalizedOperations,
     selected: &ValidatedSelectedInstructions,
-) -> Result<StagedOptimizedSelectionCustodyReceipt, OptimizedSelectionCustodyError> {
+) -> Result<SelectionCustodyReceipt, OptimizedSelectionCustodyError> {
     let target = optimized_target.target_operations();
     let plan = selected.plan();
     if target.psi != plan.psi
@@ -99,7 +99,7 @@ pub fn validate_optimized_selection_custody(
     {
         return Err(OptimizedSelectionCustodyError::FunctionRosterMismatch);
     }
-    Ok(StagedOptimizedSelectionCustodyReceipt {
+    Ok(SelectionCustodyReceipt {
         psi: target.psi,
         target: target.target,
         entry: target.entry,

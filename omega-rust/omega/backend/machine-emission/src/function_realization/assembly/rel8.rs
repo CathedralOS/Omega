@@ -6,7 +6,7 @@ pub(in crate::function_realization) fn rel8_selected(
     architecture: target::Architecture,
 ) -> Result<bool, FunctionRelativeOptimizationRealizationError> {
     let phase = selections.project_phase(OptimizationExecutionPhase::FunctionRelativeLayout);
-    selected_form_encoding_to_resolved_layout::x86_rel8_selected(&phase, architecture)
+    post_allocation_machine_to_resolved_layout::x86_rel8_selected(&phase, architecture)
         .map_err(FunctionRelativeOptimizationRealizationError::RuleCatalog)
 }
 

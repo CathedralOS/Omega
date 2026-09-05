@@ -5,16 +5,14 @@ use crate::{
 use optimization_core::{
     Optimization, OptimizationExecutionPhase, OptimizationSelections, OptimizationWorkBudget,
 };
+use physical_instructions::X86MovR32Imm32MaterializationCustodyReceipt;
 use register_model::ValidatedPhysicalRegisterModel;
 use selected_instructions_to_register_homes::ValidatedSelectedAnalysis;
 
 use crate::StagedOptimizedPostAllocationMachinePlan;
 
 use super::super::OptimizedPostAllocationMachineOptimizationError;
-use super::{
-    StagedOptimizedX86MovR32Imm32Materialization,
-    StagedOptimizedX86MovR32Imm32MaterializationCustodyReceipt,
-};
+use super::StagedOptimizedX86MovR32Imm32Materialization;
 
 pub fn stage_optimized_x86_mov_r32_imm32_materialization(
     source: &impl crate::AllocationSource,
@@ -38,7 +36,7 @@ pub fn validate_optimized_x86_mov_r32_imm32_materialization_custody(
     machine: &StagedOptimizedPostAllocationMachinePlan,
     staged: &StagedOptimizedX86MovR32Imm32Materialization,
 ) -> Result<
-    StagedOptimizedX86MovR32Imm32MaterializationCustodyReceipt,
+    X86MovR32Imm32MaterializationCustodyReceipt,
     OptimizedPostAllocationMachineOptimizationError,
 > {
     let allocation = crate::replay_machine_source(source, machine)?;
@@ -92,7 +90,7 @@ fn validate_with_inputs<S: ValidatedSelectedAnalysis>(
     budget: OptimizationWorkBudget,
     staged: &StagedOptimizedX86MovR32Imm32Materialization,
 ) -> Result<
-    StagedOptimizedX86MovR32Imm32MaterializationCustodyReceipt,
+    X86MovR32Imm32MaterializationCustodyReceipt,
     OptimizedPostAllocationMachineOptimizationError,
 > {
     let phase_selections =
@@ -126,15 +124,15 @@ fn custody_receipt(
     selections: &OptimizationSelections,
     phase: &OptimizationSelections,
     materialization: &ValidatedX86MovR32Imm32Materialization,
-) -> StagedOptimizedX86MovR32Imm32MaterializationCustodyReceipt {
+) -> X86MovR32Imm32MaterializationCustodyReceipt {
     let receipt = materialization.receipt();
-    StagedOptimizedX86MovR32Imm32MaterializationCustodyReceipt {
-        selections: selections.identity(),
-        post_allocation_machine_selections: phase.identity(),
-        source: receipt.source(),
-        materialization: receipt.identity(),
-        action_count: receipt.action_count(),
-        baseline_bytes: receipt.baseline_bytes(),
-        selected_bytes: receipt.selected_bytes(),
-    }
+    X86MovR32Imm32MaterializationCustodyReceipt::from_parts(
+        selections.identity(),
+        phase.identity(),
+        receipt.source(),
+        receipt.identity(),
+        receipt.action_count(),
+        receipt.baseline_bytes(),
+        receipt.selected_bytes(),
+    )
 }

@@ -84,11 +84,12 @@ fn legacy_reload_victim_identity_encoding_remains_byte_stable() {
     let actions = sources
         .plan_generalized_recovery_actions(&homes, &choices, selected_lowering_budget())
         .unwrap();
+    // Full-pipeline golden includes the upstream proof vocabulary version 24.
     assert_eq!(
         actions.receipt().identity().bytes(),
         [
-            254, 115, 107, 46, 104, 52, 194, 173, 214, 253, 118, 21, 182, 138, 242, 16, 243, 219,
-            150, 197, 220, 61, 44, 7, 17, 45, 208, 208, 194, 227, 9, 64,
+            12, 165, 199, 188, 214, 118, 115, 132, 141, 221, 71, 86, 226, 235, 196, 157, 19, 5, 64,
+            67, 195, 184, 191, 184, 214, 56, 116, 149, 3, 45, 170, 24
         ]
     );
     let mut wrong_policy = actions.plan().clone();

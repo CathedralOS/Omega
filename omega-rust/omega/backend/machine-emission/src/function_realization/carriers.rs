@@ -1,6 +1,7 @@
 use super::prelude::*;
 use super::{assembly::final_layout, model::*};
-use selected_instructions_to_register_homes::{AllocationEvidence, RetainedAllocation};
+use register_homes::AllocationEvidence;
+use selected_instructions_to_register_homes::RetainedAllocation;
 
 /// Direct ordinary realization whose call, preservation, and return effects
 /// are discharged by one exact canonical target frame. Frame requirements,
@@ -63,7 +64,7 @@ impl StagedFixedFrameFunctionRelativeRealization {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct StagedFixedFrameFunctionRelativeRealizationCustodyReceipt {
-    pub(super) source: StagedOptimizedRegisterHomeCustodyReceipt,
+    pub(super) source: RegisterHomeCustodyReceipt,
     pub(super) machine: physical_instructions::PostAllocationMachineIdentity,
     pub(super) requirements: AllocatedCalleeSavedRequirementIdentity,
     pub(super) storage: NonAuthoritativeCalleeSaveStorageIdentity,
@@ -74,7 +75,7 @@ pub struct StagedFixedFrameFunctionRelativeRealizationCustodyReceipt {
 }
 
 impl StagedFixedFrameFunctionRelativeRealizationCustodyReceipt {
-    pub const fn source(self) -> StagedOptimizedRegisterHomeCustodyReceipt {
+    pub const fn source(self) -> RegisterHomeCustodyReceipt {
         self.source
     }
     pub const fn machine(self) -> physical_instructions::PostAllocationMachineIdentity {
@@ -164,7 +165,7 @@ impl StagedPostAllocationMachineFunctionRelativeRealization {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct StagedPostAllocationMachineFunctionRelativeRealizationCustodyReceipt {
     pub(super) source: AllocationEvidence,
-    pub(super) machine: StagedOptimizedPostAllocationMachineCustodyReceipt,
+    pub(super) machine: PostAllocationMachineCustodyReceipt,
     pub(super) optimization: physical_instructions::PostAllocationMachineOptimizationCustody,
     pub(super) exit_contract: WholeFunctionExitContractIdentity,
     pub(super) realization: FunctionRelativeOptimizationRealizationManifestIdentity,
@@ -174,7 +175,7 @@ impl StagedPostAllocationMachineFunctionRelativeRealizationCustodyReceipt {
     pub const fn source(&self) -> &AllocationEvidence {
         &self.source
     }
-    pub const fn machine(&self) -> &StagedOptimizedPostAllocationMachineCustodyReceipt {
+    pub const fn machine(&self) -> &PostAllocationMachineCustodyReceipt {
         &self.machine
     }
     pub const fn optimization(
@@ -360,18 +361,18 @@ pub enum FunctionRelativeLayoutPublicationCustodyFieldForTest {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct StagedFunctionRelativeLayoutOptimizationRealizationCustodyReceipt {
-    pub(super) source: StagedOptimizedRegisterHomeCustodyReceipt,
-    pub(super) machine: StagedOptimizedPostAllocationMachineCustodyReceipt,
+    pub(super) source: RegisterHomeCustodyReceipt,
+    pub(super) machine: PostAllocationMachineCustodyReceipt,
     pub(super) relaxation: X86BranchRelaxationIdentity,
     pub(super) exit_contract: WholeFunctionExitContractIdentity,
     pub(super) realization: FunctionRelativeOptimizationRealizationManifestIdentity,
 }
 
 impl StagedFunctionRelativeLayoutOptimizationRealizationCustodyReceipt {
-    pub const fn source(&self) -> StagedOptimizedRegisterHomeCustodyReceipt {
+    pub const fn source(&self) -> RegisterHomeCustodyReceipt {
         self.source
     }
-    pub const fn machine(&self) -> &StagedOptimizedPostAllocationMachineCustodyReceipt {
+    pub const fn machine(&self) -> &PostAllocationMachineCustodyReceipt {
         &self.machine
     }
     pub const fn relaxation(&self) -> X86BranchRelaxationIdentity {
@@ -387,17 +388,17 @@ impl StagedFunctionRelativeLayoutOptimizationRealizationCustodyReceipt {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct StagedSelectedLoweringFunctionRelativeRealizationCustodyReceipt {
-    pub(super) source: StagedOptimizedPostSelectedLoweringHomeCustodyReceipt,
-    pub(super) machine: StagedOptimizedPostAllocationMachineCustodyReceipt,
+    pub(super) source: PostSelectedLoweringHomeCustodyReceipt,
+    pub(super) machine: PostAllocationMachineCustodyReceipt,
     pub(super) exit_contract: WholeFunctionExitContractIdentity,
     pub(super) realization: FunctionRelativeOptimizationRealizationManifestIdentity,
 }
 
 impl StagedSelectedLoweringFunctionRelativeRealizationCustodyReceipt {
-    pub const fn source(&self) -> &StagedOptimizedPostSelectedLoweringHomeCustodyReceipt {
+    pub const fn source(&self) -> &PostSelectedLoweringHomeCustodyReceipt {
         &self.source
     }
-    pub const fn machine(&self) -> &StagedOptimizedPostAllocationMachineCustodyReceipt {
+    pub const fn machine(&self) -> &PostAllocationMachineCustodyReceipt {
         &self.machine
     }
     pub const fn exit_contract(&self) -> WholeFunctionExitContractIdentity {

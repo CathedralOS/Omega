@@ -16,7 +16,7 @@ terminal-production = { path = "../../../psi/compiler/terminal-production" }
 abstract-operations-to-abstract-operations = { path = "../../pipeline/abstract-operations-to-abstract-operations" }
 post-allocation-machine-to-post-allocation-machine = { path = "../../pipeline/post-allocation-machine-to-post-allocation-machine" }
 register-homes-to-post-allocation-machine = { path = "../../pipeline/register-homes-to-post-allocation-machine" }
-selected-form-encoding-to-resolved-layout = { path = "../../pipeline/selected-form-encoding-to-resolved-layout" }
+post-allocation-machine-to-resolved-layout = { path = "../../pipeline/post-allocation-machine-to-resolved-layout" }
 selected-instructions-to-register-homes = { path = "../../pipeline/selected-instructions-to-register-homes" }
 target-operations-to-selected-instructions = { path = "../../pipeline/target-operations-to-selected-instructions" }
 register-environment = { path = "../../backend/register-environment" }

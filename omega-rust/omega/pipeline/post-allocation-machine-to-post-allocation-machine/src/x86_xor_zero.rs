@@ -1,12 +1,11 @@
 use crate::{
-    ValidatedX86XorZeroMaterialization, X86XorZeroMaterializationIdentity,
-    optimize_x86_materialize_i64_zero_with_xor, require_post_allocation_machine_rule,
-    validate_x86_xor_zero_materialization,
+    ValidatedX86XorZeroMaterialization, optimize_x86_materialize_i64_zero_with_xor,
+    require_post_allocation_machine_rule, validate_x86_xor_zero_materialization,
 };
 use optimization_core::{
-    Optimization, OptimizationExecutionPhase, OptimizationSelectionIdentity,
-    OptimizationSelections, OptimizationWorkBudget,
+    Optimization, OptimizationExecutionPhase, OptimizationSelections, OptimizationWorkBudget,
 };
+use physical_instructions::X86XorZeroMaterializationCustodyReceipt;
 use register_model::ValidatedPhysicalRegisterModel;
 use selected_instructions_to_register_homes::{ValidatedLiveness, ValidatedSelectedAnalysis};
 
@@ -17,7 +16,7 @@ use super::OptimizedPostAllocationMachineOptimizationError;
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct StagedOptimizedX86XorZeroMaterialization {
     materialization: ValidatedX86XorZeroMaterialization,
-    custody: StagedOptimizedX86XorZeroMaterializationCustodyReceipt,
+    custody: X86XorZeroMaterializationCustodyReceipt,
 }
 
 impl StagedOptimizedX86XorZeroMaterialization {
@@ -25,43 +24,8 @@ impl StagedOptimizedX86XorZeroMaterialization {
         &self.materialization
     }
 
-    pub const fn custody(&self) -> StagedOptimizedX86XorZeroMaterializationCustodyReceipt {
+    pub const fn custody(&self) -> X86XorZeroMaterializationCustodyReceipt {
         self.custody
-    }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct StagedOptimizedX86XorZeroMaterializationCustodyReceipt {
-    selections: OptimizationSelectionIdentity,
-    post_allocation_machine_selections: OptimizationSelectionIdentity,
-    source: physical_instructions::PostAllocationMachineIdentity,
-    materialization: X86XorZeroMaterializationIdentity,
-    action_count: usize,
-    baseline_bytes: u64,
-    selected_bytes: u64,
-}
-
-impl StagedOptimizedX86XorZeroMaterializationCustodyReceipt {
-    pub const fn selections(self) -> OptimizationSelectionIdentity {
-        self.selections
-    }
-    pub const fn post_allocation_machine_selections(self) -> OptimizationSelectionIdentity {
-        self.post_allocation_machine_selections
-    }
-    pub const fn source(self) -> physical_instructions::PostAllocationMachineIdentity {
-        self.source
-    }
-    pub const fn materialization(self) -> X86XorZeroMaterializationIdentity {
-        self.materialization
-    }
-    pub const fn action_count(self) -> usize {
-        self.action_count
-    }
-    pub const fn baseline_bytes(self) -> u64 {
-        self.baseline_bytes
-    }
-    pub const fn selected_bytes(self) -> u64 {
-        self.selected_bytes
     }
 }
 
@@ -85,10 +49,8 @@ pub fn validate_optimized_x86_xor_zero_materialization_custody(
     source: &impl crate::AllocationSource,
     machine: &StagedOptimizedPostAllocationMachinePlan,
     staged: &StagedOptimizedX86XorZeroMaterialization,
-) -> Result<
-    StagedOptimizedX86XorZeroMaterializationCustodyReceipt,
-    OptimizedPostAllocationMachineOptimizationError,
-> {
+) -> Result<X86XorZeroMaterializationCustodyReceipt, OptimizedPostAllocationMachineOptimizationError>
+{
     let allocation = crate::replay_machine_source(source, machine)?;
     validate_with_inputs(
         allocation.selected(),
@@ -141,10 +103,8 @@ fn validate_with_inputs<S: ValidatedSelectedAnalysis>(
     selections: &OptimizationSelections,
     budget: OptimizationWorkBudget,
     staged: &StagedOptimizedX86XorZeroMaterialization,
-) -> Result<
-    StagedOptimizedX86XorZeroMaterializationCustodyReceipt,
-    OptimizedPostAllocationMachineOptimizationError,
-> {
+) -> Result<X86XorZeroMaterializationCustodyReceipt, OptimizedPostAllocationMachineOptimizationError>
+{
     let phase_selections =
         selections.project_phase(OptimizationExecutionPhase::PostAllocationMachine);
     let phase = require_post_allocation_machine_rule(
@@ -177,15 +137,15 @@ fn custody_receipt(
     selections: &OptimizationSelections,
     phase: &OptimizationSelections,
     materialization: &ValidatedX86XorZeroMaterialization,
-) -> StagedOptimizedX86XorZeroMaterializationCustodyReceipt {
+) -> X86XorZeroMaterializationCustodyReceipt {
     let receipt = materialization.receipt();
-    StagedOptimizedX86XorZeroMaterializationCustodyReceipt {
-        selections: selections.identity(),
-        post_allocation_machine_selections: phase.identity(),
-        source: receipt.source(),
-        materialization: receipt.identity(),
-        action_count: receipt.action_count(),
-        baseline_bytes: receipt.baseline_bytes(),
-        selected_bytes: receipt.selected_bytes(),
-    }
+    X86XorZeroMaterializationCustodyReceipt::from_parts(
+        selections.identity(),
+        phase.identity(),
+        receipt.source(),
+        receipt.identity(),
+        receipt.action_count(),
+        receipt.baseline_bytes(),
+        receipt.selected_bytes(),
+    )
 }

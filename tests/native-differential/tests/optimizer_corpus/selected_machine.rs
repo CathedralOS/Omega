@@ -10,11 +10,11 @@ use native_realization::*;
 use optimization_core::{Optimization, OptimizationSelections, OptimizationWorkBudget};
 use optimization_unit::PsiRewritePatch;
 use post_allocation_machine_to_post_allocation_machine::*;
-use post_allocation_machine_to_selected_form_encoding::*;
+use post_allocation_machine_to_resolved_layout::selected_form_encoding::*;
+use post_allocation_machine_to_resolved_layout::*;
 use proof_admission::AdmissionProfile;
 use register_environment::*;
 use register_homes_to_post_allocation_machine::*;
-use selected_form_encoding_to_resolved_layout::*;
 use selected_instructions_to_register_homes::*;
 use semantic_vocabulary::IntegerValue;
 use target::NativeTarget;
@@ -138,8 +138,8 @@ struct MachineEvidence {
     ledger: optimization_unit::PsiTransformationLedger,
     pre_manifest: optimization_unit::PrePhysicalOptimizationManifest,
     post_manifest: selected_instructions_to_register_homes::PostAllocationOptimizationManifest,
-    home_custody: StagedOptimizedRegisterHomeCustodyReceipt,
-    machine_custody: StagedOptimizedPostAllocationMachineCustodyReceipt,
+    home_custody: RegisterHomeCustodyReceipt,
+    machine_custody: PostAllocationMachineCustodyReceipt,
     optimization: StagedOptimizedPostAllocationMachineOptimization,
     encoding: StagedOptimizedSelectedFormEncoding,
     layout: StagedOptimizedResolvedSelectedFormLayout,

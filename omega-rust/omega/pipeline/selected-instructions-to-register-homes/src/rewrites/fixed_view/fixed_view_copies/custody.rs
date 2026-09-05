@@ -1,14 +1,14 @@
 use crate::FixedViewCopyValidationReceipt;
 
-use crate::StagedOptimizedFixedPrecoloredSegmentHomeCustodyReceipt;
+use crate::FixedPrecoloredSegmentHomeCustodyReceipt;
 
-use super::model::StagedOptimizedFixedViewCopyCustodyReceipt;
+use super::model::FixedViewCopyCustodyReceipt;
 
 pub(super) fn fixed_view_copy_custody_receipt(
-    segment_homes: StagedOptimizedFixedPrecoloredSegmentHomeCustodyReceipt,
+    segment_homes: FixedPrecoloredSegmentHomeCustodyReceipt,
     copies: FixedViewCopyValidationReceipt,
-) -> StagedOptimizedFixedViewCopyCustodyReceipt {
-    StagedOptimizedFixedViewCopyCustodyReceipt {
+) -> FixedViewCopyCustodyReceipt {
+    FixedViewCopyCustodyReceipt {
         psi: segment_homes.upstream().psi(),
         target: segment_homes.upstream().target(),
         entry: segment_homes.upstream().entry(),

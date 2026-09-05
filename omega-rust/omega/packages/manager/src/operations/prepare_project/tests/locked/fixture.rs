@@ -111,6 +111,10 @@ fn writable(path: &Path) {
     #[cfg(windows)]
     {
         let mut permissions = metadata.permissions();
+        #[allow(
+            clippy::permissions_set_readonly_false,
+            reason = "Windows read-only attributes do not change Unix permission bits"
+        )]
         permissions.set_readonly(false);
         fs::set_permissions(path, permissions).unwrap();
     }

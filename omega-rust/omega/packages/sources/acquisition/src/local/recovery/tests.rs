@@ -124,9 +124,21 @@ fn byte_identical_content_does_not_cross_local_origins() {
         )
         .is_err()
     );
+    // PathBuf::join removes parent components from verbatim Windows roots.
+    // Keep the malformed spelling intact so this probe reaches the guard.
+    let mut traversing_origin = other.clone();
+    let separator = std::path::MAIN_SEPARATOR;
+    traversing_origin
+        .as_mut_os_string()
+        .push(format!("{separator}..{separator}source"));
+    assert!(
+        traversing_origin
+            .components()
+            .any(|part| matches!(part, std::path::Component::ParentDir))
+    );
     assert!(
         recover_cached_local_source_in_lane(
-            &other.join("../source"),
+            &traversing_origin,
             &expected,
             storage.external_local_sources(),
             LocalSourceLimits::default()

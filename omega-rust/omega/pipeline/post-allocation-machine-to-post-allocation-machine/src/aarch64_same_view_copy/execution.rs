@@ -14,6 +14,7 @@ use crate::{
 use optimization_core::{
     Optimization, OptimizationExecutionPhase, OptimizationSelections, OptimizationWorkBudget,
 };
+use physical_instructions::Aarch64SameViewCopyElisionCustodyReceipt;
 use register_model::ValidatedPhysicalRegisterModel;
 use selected_instructions_to_register_homes::{ValidatedLiveness, ValidatedSelectedAnalysis};
 
@@ -21,10 +22,7 @@ use crate::{
     OptimizedPostAllocationMachineOptimizationError, StagedOptimizedPostAllocationMachinePlan,
 };
 
-use super::{
-    StagedOptimizedAarch64SameViewCopyElision,
-    StagedOptimizedAarch64SameViewCopyElisionCustodyReceipt,
-};
+use super::StagedOptimizedAarch64SameViewCopyElision;
 
 pub(super) fn stage_with_inputs<S: ValidatedSelectedAnalysis>(
     selected: &S,
@@ -100,10 +98,8 @@ pub(super) fn validate_with_inputs<S: ValidatedSelectedAnalysis>(
     selections: &OptimizationSelections,
     budget: OptimizationWorkBudget,
     staged: &StagedOptimizedAarch64SameViewCopyElision,
-) -> Result<
-    StagedOptimizedAarch64SameViewCopyElisionCustodyReceipt,
-    OptimizedPostAllocationMachineOptimizationError,
-> {
+) -> Result<Aarch64SameViewCopyElisionCustodyReceipt, OptimizedPostAllocationMachineOptimizationError>
+{
     let staged_custody = staged.custody();
     let phase_selections =
         selections.project_phase(OptimizationExecutionPhase::PostAllocationMachine);
@@ -170,9 +166,9 @@ fn custody_receipt(
     selections: &OptimizationSelections,
     phase: &OptimizationSelections,
     elision: &ValidatedAarch64SameViewCopyElision,
-) -> StagedOptimizedAarch64SameViewCopyElisionCustodyReceipt {
+) -> Aarch64SameViewCopyElisionCustodyReceipt {
     let receipt = elision.receipt();
-    StagedOptimizedAarch64SameViewCopyElisionCustodyReceipt::new(
+    Aarch64SameViewCopyElisionCustodyReceipt::from_parts(
         optimization,
         selections.identity(),
         phase.identity(),

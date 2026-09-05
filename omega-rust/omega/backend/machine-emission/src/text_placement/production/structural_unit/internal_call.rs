@@ -12,8 +12,8 @@ use selected_instructions::{SelectedBlockId, SelectedStructuralUnitCallInstructi
 use semantic_vocabulary::MachineId;
 use target::NativeTarget;
 
+use machine_code::SelectedStructuralUnitCallEncodingRow;
 use machine_code::{ResolvedStructuralUnitCallLayout, WholeFunctionStructuralUnitCallEvidence};
-use post_allocation_machine_to_selected_form_encoding::SelectedStructuralUnitCallEncodingRow;
 
 use super::super::super::TextPlacementError;
 use super::super::super::conversion::u64_to_usize;

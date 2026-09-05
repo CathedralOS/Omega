@@ -153,6 +153,8 @@ Omega/
 |       |   |-- [CRATE] calling-conventions/
 |       |   |-- [CRATE] {abstract,target,legalized,assigned-target}-operations/
 |       |   |-- [CRATE] selected-instructions/
+|       |   |-- [CRATE] register-homes/
+|       |   |-- [CRATE] physical-instructions/
 |       |   |-- [CRATE] machine-code/
 |       |   |-- [CRATE] {register-model,optimization-core,optimization-unit}/
 |       |   |-- [CRATE] {effects,installation-evidence,task-plans}/
@@ -166,8 +168,8 @@ Omega/
 |       |   |-- [CRATE] selected-instructions-to-register-homes/
 |       |   |-- [CRATE] register-homes-to-post-allocation-machine/
 |       |   |-- [CRATE] post-allocation-machine-to-post-allocation-machine/
-|       |   |-- [CRATE] post-allocation-machine-to-selected-form-encoding/
-|       |   |-- [CRATE] selected-form-encoding-to-resolved-layout/
+|       |   |-- [CRATE] post-allocation-machine-to-resolved-layout/
+|       |   |   `-- src/{selected_form_encoding,resolved_selected_form_layout,x86_branch_relaxation}/
 |       |   `-- [CRATE] target-operations-to-assigned-target-operations/ # Alternate route still to delete.
 |       |
 |       |-- semantics/

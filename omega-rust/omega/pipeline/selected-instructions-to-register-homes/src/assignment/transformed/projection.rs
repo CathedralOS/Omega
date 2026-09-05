@@ -2,12 +2,12 @@ use crate::PostAllocationSelectedTransformation;
 use optimization_core::PrePhysicalOptimizationManifestIdentity;
 
 use crate::{
-    StagedOptimizedLiteralFoldCustodyReceipt, StagedSelectedLoweringOptimizationCustodyReceipt,
+    LiteralFoldCustodyReceipt, SelectedLoweringOptimizationCustodyReceipt,
     StagedSelectedLoweringOptimizationRun,
 };
 
 pub(super) fn literal_fold_transformations(
-    source: &StagedOptimizedLiteralFoldCustodyReceipt,
+    source: &LiteralFoldCustodyReceipt,
 ) -> Vec<PostAllocationSelectedTransformation> {
     source
         .transformations()
@@ -18,7 +18,7 @@ pub(super) fn literal_fold_transformations(
 }
 
 pub(super) fn literal_fold_pre_physical(
-    source: &StagedOptimizedLiteralFoldCustodyReceipt,
+    source: &LiteralFoldCustodyReceipt,
 ) -> PrePhysicalOptimizationManifestIdentity {
     source.source().manifest()
 }
@@ -39,7 +39,7 @@ pub(super) fn selected_lowering_final_analysis(
 }
 
 pub(super) fn selected_lowering_transformations(
-    source: &StagedSelectedLoweringOptimizationCustodyReceipt,
+    source: &SelectedLoweringOptimizationCustodyReceipt,
 ) -> Vec<PostAllocationSelectedTransformation> {
     source
         .iterations()

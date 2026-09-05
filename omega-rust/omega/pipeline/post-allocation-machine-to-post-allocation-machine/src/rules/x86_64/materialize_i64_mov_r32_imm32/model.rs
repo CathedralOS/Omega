@@ -15,18 +15,7 @@ pub const X86_MOV_R32_IMM32_BASELINE_BYTE_COUNT: u8 = 10;
 pub const X86_MOV_R32_IMM32_LOW_REGISTER_BYTE_COUNT: u8 = 5;
 pub const X86_MOV_R32_IMM32_EXTENDED_REGISTER_BYTE_COUNT: u8 = 6;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub struct X86MovR32Imm32MaterializationIdentity([u8; 32]);
-
-impl X86MovR32Imm32MaterializationIdentity {
-    pub const fn from_bytes(bytes: [u8; 32]) -> Self {
-        Self(bytes)
-    }
-
-    pub const fn bytes(self) -> [u8; 32] {
-        self.0
-    }
-}
+pub use physical_instructions::X86MovR32Imm32MaterializationIdentity;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct X86MovR32Imm32MaterializationRevisionIdentity([u8; 32]);

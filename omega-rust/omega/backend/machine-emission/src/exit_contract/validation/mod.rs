@@ -17,9 +17,9 @@ use super::{
 };
 use crate::ValidatedTargetFrameProtocolEncoding;
 use crate::frame_layout::ValidatedTargetFrameLayout;
-use post_allocation_machine_to_selected_form_encoding::StagedOptimizedSelectedFormEncoding;
+use post_allocation_machine_to_resolved_layout::StagedOptimizedResolvedSelectedFormLayout;
+use post_allocation_machine_to_resolved_layout::selected_form_encoding::StagedOptimizedSelectedFormEncoding;
 use register_homes_to_post_allocation_machine::StagedOptimizedPostAllocationMachinePlan;
-use selected_form_encoding_to_resolved_layout::StagedOptimizedResolvedSelectedFormLayout;
 
 struct Inputs<'a> {
     selected: &'a selected_instructions::SelectedInstructionPlan,

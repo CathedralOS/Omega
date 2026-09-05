@@ -4,7 +4,7 @@ use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::sync::atomic::{AtomicU64, Ordering};
 
-use selected_form_encoding_to_resolved_layout::StagedOptimizedResolvedSelectedFormLayout;
+use post_allocation_machine_to_resolved_layout::StagedOptimizedResolvedSelectedFormLayout;
 
 static SCRATCH_SEQUENCE: AtomicU64 = AtomicU64::new(0);
 

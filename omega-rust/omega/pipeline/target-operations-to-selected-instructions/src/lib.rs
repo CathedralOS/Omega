@@ -19,10 +19,9 @@ pub use legalization::{
     validate_legalized_operations,
 };
 pub use optimized::{
-    OptimizedSelectionCustodyError, OptimizedSelectionPipelineError,
-    StagedOptimizedSelectedInstructions, StagedOptimizedSelectionCustodyReceipt,
-    selection_constraints, stage_optimized_instruction_selection,
-    validate_optimized_selection_custody,
+    OptimizedSelectionCustodyError, OptimizedSelectionPipelineError, SelectionCustodyReceipt,
+    StagedOptimizedSelectedInstructions, selection_constraints,
+    stage_optimized_instruction_selection, validate_optimized_selection_custody,
 };
 pub use selection::{
     SelectedInstructionError, SelectedInstructionValidationReceipt, ValidatedSelectedInstructions,

@@ -1,8 +1,8 @@
 use crate::{
     ValidatedFunctionRelativeOptimizationRealizationManifest, ValidatedWholeFunctionExitContract,
 };
+use register_homes::RegisterHomeCustodyReceipt;
 use register_homes_to_post_allocation_machine::StagedOptimizedPostAllocationMachinePlan;
-use selected_instructions_to_register_homes::StagedOptimizedRegisterHomeCustodyReceipt;
 
 use super::model::{
     StagedOptimizedUnitFunctionRelativeRealizationCustodyReceipt, UnitSavedReturnAddressFrame,
@@ -10,7 +10,7 @@ use super::model::{
 };
 
 pub(super) fn unit_realization_receipt(
-    source: StagedOptimizedRegisterHomeCustodyReceipt,
+    source: RegisterHomeCustodyReceipt,
     machine: &StagedOptimizedPostAllocationMachinePlan,
     frame: Option<&UnitSavedReturnAddressFrame>,
     exit_contract: &ValidatedWholeFunctionExitContract,

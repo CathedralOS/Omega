@@ -165,11 +165,12 @@ fn legacy_v1_identity_and_signature_remain_byte_stable() {
         OptimizationWorkBudget::new(1, 6, 23, 10, 14).unwrap(),
     )
     .unwrap();
+    // Full-pipeline golden includes the upstream proof vocabulary version 24.
     assert_eq!(
         v1.receipt().identity().bytes(),
         [
-            246, 90, 160, 209, 116, 214, 42, 81, 147, 234, 55, 176, 189, 109, 131, 115, 196, 44,
-            72, 109, 106, 105, 230, 94, 140, 154, 41, 19, 10, 3, 120, 28,
+            183, 152, 68, 176, 254, 110, 32, 170, 55, 38, 19, 193, 242, 76, 152, 172, 168, 171,
+            161, 0, 82, 63, 255, 253, 76, 135, 190, 181, 89, 29, 215, 38
         ],
     );
 }

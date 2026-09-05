@@ -29,7 +29,7 @@ pub fn liveness_identity(plan: &LivenessPlan) -> LivenessIdentity {
     for function in &plan.structural_unit_functions {
         encode_function(&mut bytes, function);
     }
-    LivenessIdentity(Sha256::digest(bytes).into())
+    LivenessIdentity::from_bytes(Sha256::digest(bytes).into())
 }
 
 fn encode_function(bytes: &mut Vec<u8>, function: &FunctionLiveness) {

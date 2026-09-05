@@ -9,15 +9,15 @@ name = "machine_emission"
 path = "src/lib.rs"
 
 [dependencies]
+register-homes = { path = "../../representations/register-homes" }
 sha2 = "0.10.9"
 abstract-operations-to-target-operations = { path = "../../pipeline/abstract-operations-to-target-operations" }
 terminal-psi-to-abstract-operations = { path = "../../pipeline/terminal-psi-to-abstract-operations" }
 abstract-operations-to-abstract-operations = { path = "../../pipeline/abstract-operations-to-abstract-operations" }
 register-environment = { path = "../register-environment" }
 post-allocation-machine-to-post-allocation-machine = { path = "../../pipeline/post-allocation-machine-to-post-allocation-machine" }
-post-allocation-machine-to-selected-form-encoding = { path = "../../pipeline/post-allocation-machine-to-selected-form-encoding" }
+post-allocation-machine-to-resolved-layout = { path = "../../pipeline/post-allocation-machine-to-resolved-layout" }
 register-homes-to-post-allocation-machine = { path = "../../pipeline/register-homes-to-post-allocation-machine" }
-selected-form-encoding-to-resolved-layout = { path = "../../pipeline/selected-form-encoding-to-resolved-layout" }
 selected-instructions-to-register-homes = { path = "../../pipeline/selected-instructions-to-register-homes" }
 register-model = { path = "../../representations/register-model" }
 selected-instructions = { path = "../../representations/selected-instructions" }
@@ -57,6 +57,5 @@ typed-trees-to-checked-trees = { path = "../../../psi/pipeline/typed-trees-to-ch
 [features]
 test-support = [
     "selected-instructions-to-register-homes/test-support",
-    "post-allocation-machine-to-selected-form-encoding/test-support",
-    "selected-form-encoding-to-resolved-layout/test-support",
+    "post-allocation-machine-to-resolved-layout/test-support",
 ]

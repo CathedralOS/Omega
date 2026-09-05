@@ -13,18 +13,7 @@ use target::NativeTarget;
 
 use physical_instructions::{PostAllocationMachineIdentity, PostAllocationMachinePlan};
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub struct Aarch64SameViewCopyElisionIdentity([u8; 32]);
-
-impl Aarch64SameViewCopyElisionIdentity {
-    pub const fn from_bytes(bytes: [u8; 32]) -> Self {
-        Self(bytes)
-    }
-
-    pub const fn bytes(self) -> [u8; 32] {
-        self.0
-    }
-}
+pub use physical_instructions::Aarch64SameViewCopyElisionIdentity;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct Aarch64SameViewCopyElisionRevisionIdentity([u8; 32]);

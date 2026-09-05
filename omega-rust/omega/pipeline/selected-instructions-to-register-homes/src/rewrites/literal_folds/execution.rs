@@ -166,7 +166,7 @@ pub(super) fn execute_selected_lowering_optimizations(
 
 pub fn validate_selected_lowering_optimization_custody(
     run: &StagedSelectedLoweringOptimizationRun,
-) -> Result<StagedSelectedLoweringOptimizationCustodyReceipt, OptimizedLiteralFoldCustodyError> {
+) -> Result<SelectedLoweringOptimizationCustodyReceipt, OptimizedLiteralFoldCustodyError> {
     let upstream = validate_source(&run.source)?;
     let optimized = run
         .source
@@ -303,7 +303,7 @@ pub fn validate_selected_lowering_optimization_custody(
 
 pub fn validate_optimized_literal_fold_custody(
     sequence: &StagedOptimizedLiteralFolds,
-) -> Result<StagedOptimizedLiteralFoldCustodyReceipt, OptimizedLiteralFoldCustodyError> {
+) -> Result<LiteralFoldCustodyReceipt, OptimizedLiteralFoldCustodyError> {
     let upstream = validate_source(&sequence.source)?;
     let Some(first) = sequence.steps.first() else {
         return Err(OptimizedLiteralFoldCustodyError::EmptySequence);
@@ -343,7 +343,7 @@ pub fn validate_optimized_literal_fold_custody(
 
 fn validate_source(
     source: &StagedOptimizedAllocationLegality,
-) -> Result<StagedOptimizedAllocationLegalityCustodyReceipt, OptimizedLiteralFoldCustodyError> {
+) -> Result<AllocationLegalityCustodyReceipt, OptimizedLiteralFoldCustodyError> {
     validate_optimized_allocation_legality_custody(
         source.live_range_stage(),
         source.allocator_availability(),
