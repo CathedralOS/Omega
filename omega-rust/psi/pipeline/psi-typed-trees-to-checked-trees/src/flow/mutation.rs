@@ -166,61 +166,85 @@ fn call_write_places(
                     .any(|signature| signature.symbol == borrow_call.target_symbol)
         });
         if boundary_target {
-            let machine = program
-                .machines()
-                .iter()
-                .find(|machine| machine.symbol == caller_machine_symbol)?;
-            let site = find_call_site(
-                program,
-                caller_machine_symbol,
-                caller_state_symbol,
-                borrow_call.statement_index,
-                borrow_call.call_ordinal,
-            )?;
-            let resolver = psi_validation::CallFrameResolver::new(program)?;
-            let frame = match &site {
-                CallSite::Statement(call) => resolver.may_write_frame(machine, call),
-                CallSite::Expression { expression, .. } => {
-                    resolver.expression_write_frame(machine, *expression)
-                }
-                CallSite::TransitionNamed { .. } => return None,
-            };
-            let state = find_state(program, caller_state_symbol)?;
             // The shared boundary frame owns implicit receiver and argument
             // reach. Reconstruct its storage paths instead of using access
             // roots, which can name a field without its caller receiver.
-            places = frame
-                .complete_paths()?
-                .iter()
-                .map(|path| {
-                    local_origins::place_from_origin_path(
-                        program,
-                        state,
-                        borrow_call.statement_index,
-                        path,
-                    )
-                })
-                .collect::<Option<Vec<_>>>()?;
+            return shared_call_storage_places(
+                program,
+                caller_machine_symbol,
+                caller_state_symbol,
+                borrow_call,
+            );
         }
         if places.is_empty() {
             return call_is_storage_free_asm_intrinsic(program, borrow_call).then(Vec::new);
         }
         let mut storage = Vec::new();
         for place in places {
-            let canonical = local_origins::rebase_local_write_place(
+            let canonical_places = local_origins::rebase_local_write_places(
                 program,
                 caller_state_symbol,
                 borrow_call.statement_index,
                 place,
             )?;
-            if !storage.contains(&canonical) {
-                storage.push(canonical);
+            for canonical in canonical_places {
+                if !storage.contains(&canonical) {
+                    storage.push(canonical);
+                }
             }
         }
         Some(storage)
     } else {
         Some(places)
     }
+}
+
+fn shared_call_storage_places(
+    program: &psi_typed_trees::TypedTrees,
+    caller_machine_symbol: SymbolHandle,
+    caller_state_symbol: SymbolHandle,
+    borrow_call: &BorrowCallFact,
+) -> Option<Vec<CanonicalPlace>> {
+    let machine = program
+        .machines()
+        .iter()
+        .find(|machine| machine.symbol == caller_machine_symbol)?;
+    let state = find_state(program, caller_state_symbol)?;
+    let site = find_call_site(
+        program,
+        caller_machine_symbol,
+        caller_state_symbol,
+        borrow_call.statement_index,
+        borrow_call.call_ordinal,
+    )?;
+    let resolver = psi_validation::CallFrameResolver::new(program)?;
+    let frame = match &site {
+        CallSite::Statement(call) => resolver.may_write_frame(machine, call),
+        CallSite::Expression { expression, .. } => {
+            resolver.expression_write_frame(machine, *expression)
+        }
+        CallSite::TransitionNamed { .. } => return None,
+    };
+    let mut places = Vec::new();
+    for path in frame.complete_paths()? {
+        let source = local_origins::place_from_origin_path(
+            program,
+            state,
+            borrow_call.statement_index,
+            path,
+        )?;
+        for place in local_origins::rebase_local_write_places(
+            program,
+            caller_state_symbol,
+            borrow_call.statement_index,
+            source,
+        )? {
+            if !places.contains(&place) {
+                places.push(place);
+            }
+        }
+    }
+    Some(places)
 }
 
 fn call_is_storage_free_asm_intrinsic(
@@ -271,7 +295,7 @@ pub(crate) fn statement_storage_writes(
     if !matches!(statement, StatementNode::Assignment(_)) {
         return Some(Vec::new());
     }
-    let place = local_origins::assignment_storage_place(
+    let places = local_origins::assignment_storage_places(
         program,
         machine_symbol,
         state_symbol,
@@ -283,7 +307,7 @@ pub(crate) fn statement_storage_writes(
         machine_symbol,
         state_symbol,
         statement_index,
-        vec![place],
+        places,
     )
 }
 

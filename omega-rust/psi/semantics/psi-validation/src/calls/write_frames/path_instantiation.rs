@@ -17,7 +17,7 @@ use psi_typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use psi_typed_trees::machine::Machine;
 use psi_typed_trees::signature::StateParameter;
 
-mod aggregate_arguments;
+pub(super) mod aggregate_arguments;
 
 #[allow(clippy::too_many_arguments)]
 pub(super) fn instantiate_written_path(
