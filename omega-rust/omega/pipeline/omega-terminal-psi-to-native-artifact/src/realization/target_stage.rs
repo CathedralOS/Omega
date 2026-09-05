@@ -1,7 +1,7 @@
 //! Complete target lowering after the explicit post-Terminal optimization stage.
 
 use crate::realization::diagnostics::realization_error;
-use crate::realization::model::NativeRealizationCoreRequest;
+use crate::realization::model::{NativeRealizationAuthority, NativeRealizationCoreRequest};
 use crate::realization::optimization_stage::NativeOptimizationStageResult;
 use omega_abstract_operations_to_target_operations::AdmittedBoundarySettlement;
 use omega_installation_evidence::ProviderInstallationEvidence;
@@ -26,8 +26,10 @@ pub(crate) fn lower_realization_target_stage(
     settlements: &[AdmittedBoundarySettlement<'_>],
     request: &NativeRealizationCoreRequest<'_>,
 ) -> Result<NativeTargetStageResult, Vec<Diagnostic>> {
-    match optimization_stage {
-        NativeOptimizationStageResult::IdentityOrdinary(identity) => {
+    let NativeOptimizationStageResult { program, authority } = optimization_stage;
+    match authority {
+        NativeRealizationAuthority::Ordinary if request.optimization_selections.is_empty() => {
+            let identity = program;
             let installation = provider_installation
                 .as_ref()
                 .map(|installation| installation as &dyn ProviderInstallationEvidence);
@@ -43,10 +45,8 @@ pub(crate) fn lower_realization_target_stage(
                 .map_err(|error| realization_error("ordinary target lowering", error))?;
             Ok(NativeTargetStageResult::IdentityOrdinary(target))
         }
-        NativeOptimizationStageResult::IdentityRanked {
-            ranked,
-            abstract_identity,
-        } => {
+        NativeRealizationAuthority::RankedU32Countdown(ranked) => {
+            let abstract_identity = program;
             if abstract_identity.plan() != &ranked.plan {
                 return Err(realization_error(
                     "ranked abstract optimization identity",
@@ -71,7 +71,8 @@ pub(crate) fn lower_realization_target_stage(
                 .map_err(|error| realization_error("ranked target lowering", error))?;
             Ok(NativeTargetStageResult::IdentityRanked(target))
         }
-        NativeOptimizationStageResult::OptimizedOrdinary(optimized) => {
+        NativeRealizationAuthority::Ordinary => {
+            let optimized = program;
             let optimized_target = match provider_installation {
                 Some(installation) => omega_optimization_pipeline::lower_optimized_to_target_operations_with_provider_executions_and_installation(
                     optimized,

@@ -91,12 +91,7 @@ fn realize_core(
     let terminal_artifact_identity = *artifact.manifest().identity().as_bytes();
     let input = match prepared_input {
         Some(prepared) => reopen_prepared_native_realization_input(prepared, &artifact, &request)?,
-        None => lower_realization_input(
-            semantic_bytes,
-            proof_bytes,
-            request.profile,
-            request.optimization_selections,
-        )?,
+        None => lower_realization_input(semantic_bytes, proof_bytes, request.profile)?,
     };
     let AdmittedNativeProviders {
         settlements,
@@ -112,7 +107,10 @@ fn realize_core(
         terminal_artifact_identity,
         &request,
     )?;
-    let initial_physical_evidence_scope = input.physical_evidence_scope(checked_scope);
+    let initial_physical_evidence_scope = super::model::physical_evidence_scope(
+        request.optimization_selections.is_empty(),
+        checked_scope,
+    );
     let emitted = emit_realization_machine_code(
         input,
         installation,
