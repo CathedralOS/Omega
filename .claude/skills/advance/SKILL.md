@@ -28,10 +28,16 @@ end beats a polished slice that stops at a stage boundary.
 
 Orient first, always:
 
-1. Fetch `main` and read the newest commits in the lane you are about to touch.
-   Overlapping an active change is the most expensive mistake available here.
-2. Read the relevant board. Take the task that unblocks the most downstream work,
-   not the one that is easiest to close.
+1. `git pull --rebase` and read the newest commits in the lane you are about to
+   touch. Overlapping an active change is the most expensive mistake available
+   here. Other sessions commit in this same checkout, so the tree may already be
+   dirty and ahead — if the rebase refuses, that is someone else's work in
+   progress: fetch and read instead, and leave their files alone.
+2. Read the relevant board. If the invocation names a board or its area, that
+   board is the only one in scope — do not widen to the others because it looks
+   thin, and do not touch their entries. Unnamed means all four boards are the
+   candidate pool. Either way you leave with one task — the one that unblocks the
+   most downstream work, not the one that is easiest to close.
 3. Unspecified but obvious work counts — a missing lowering, an unimplemented
    stage, a representation with no producer. It does not need a board entry to be
    the right next task.
