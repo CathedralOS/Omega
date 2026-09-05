@@ -3,6 +3,7 @@ use super::*;
 mod anonymous_integer_exits;
 mod assembly;
 mod assigned_values;
+mod bounded_returns;
 mod byte_sequences;
 mod closed_boolean_calls;
 mod contract_entailment_certificates;
