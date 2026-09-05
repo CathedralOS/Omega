@@ -56,6 +56,49 @@ fn previously_landed_integer_operations_keep_their_selected_width() {
 }
 
 #[test]
+fn anonymous_local_initializers_land_without_widths_on_intermediate_values() {
+    for (expression, target) in [
+        ("(255 + 1) - 1", "u8"),
+        ("(0 - 1) + 2", "u8"),
+        ("(0 - 129) + 1", "i8"),
+        ("(18446744073709551615 + 1) - 1", "u64"),
+        (
+            "(18446744073709551615 * 18446744073709551615) / 18446744073709551615",
+            "u64",
+        ),
+        ("(255 + 1) - 129", "u8 [0..=127]"),
+    ] {
+        let source = format!("machine value() {{ let landed: {target} = {expression}; }}");
+        lower_typed_trees(parse_typed_trees(&source))
+            .unwrap_or_else(|diagnostics| panic!("{source}: {diagnostics:#?}"));
+    }
+}
+
+#[test]
+fn anonymous_local_landing_enforces_final_carrier_and_refinement_ranges() {
+    for (expression, target) in [
+        ("255 + 1", "u8"),
+        ("127 + 1", "i8"),
+        ("0 - 1", "u8"),
+        ("18446744073709551615 + 1", "u64"),
+        ("(255 + 1) - 1", "u8 [0..=127]"),
+        ("(255u8 + 1u8) - 1u8", "u8"),
+    ] {
+        let source = format!("machine value() {{ let landed: {target} = {expression}; }}");
+        let diagnostics = lower_typed_trees(parse_typed_trees(&source))
+            .expect_err("a local destination cannot discard its numeric obligations");
+        assert!(
+            diagnostics.iter().any(|diagnostic| {
+                diagnostic.message.contains("does not fit destination")
+                    || diagnostic.message.contains("may overflow")
+                    || diagnostic.message.contains("declared range")
+            }),
+            "{source}: {diagnostics:#?}"
+        );
+    }
+}
+
+#[test]
 fn anonymous_operator_meaning_requires_intact_selection_custody() {
     let mut program = parse_typed_trees("machine value() -> u8 { 3 + 4 }");
     let root = program
@@ -92,45 +135,50 @@ fn anonymous_operator_meaning_requires_intact_selection_custody() {
 }
 
 #[test]
-fn return_landing_does_not_bless_a_shared_literal_at_an_unhandled_call_site() {
-    let mut program = parse_typed_trees(
-        r#"
-        machine good() -> u64 { (18446744073709551615 + 1) - 1 }
-        machine consume(value: u64) {}
-        machine bad() { consume(0); }
-    "#,
-    );
-    let large = program
-        .expression_table
-        .iter_expressions()
-        .find_map(|(handle, node)| match node {
-            psi_typed_trees::expression::ExpressionNode::Integer(literal)
-                if literal.value_u64() == Some(u64::MAX) =>
-            {
-                Some(handle)
-            }
-            _ => None,
-        })
-        .unwrap();
-    let bad = program
-        .machines()
-        .iter()
-        .find(|machine| machine.name.as_str() == "bad")
-        .unwrap();
-    let state = &program.machine_states(bad)[0];
-    let arguments = match &program.statement_table.statements(state.statement_nodes)[0] {
-        psi_typed_trees::statement::StatementNode::Call(call) => call.arguments,
-        _ => panic!("expected statement call"),
-    };
-    program
-        .statement_table
-        .set_expression_handle_at_offset(arguments, 0, large);
-    let diagnostics = psi_validation::validate_program(&program)
-        .expect_err("unhandled use must retain width rejection");
-    assert!(
-        diagnostics
+fn destination_landing_does_not_bless_a_shared_literal_at_an_unhandled_call_site() {
+    for body in [
+        "(18446744073709551615 + 1) - 1",
+        "let landed: u64 = (18446744073709551615 + 1) - 1; landed",
+    ] {
+        let mut program = parse_typed_trees(&format!(
+            r#"
+        machine good() -> u64 {{ {body} }}
+        machine consume(value: u64) {{}}
+        machine bad() {{ consume(0); }}
+    "#
+        ));
+        let large = program
+            .expression_table
+            .iter_expressions()
+            .find_map(|(handle, node)| match node {
+                psi_typed_trees::expression::ExpressionNode::Integer(literal)
+                    if literal.value_u64() == Some(u64::MAX) =>
+                {
+                    Some(handle)
+                }
+                _ => None,
+            })
+            .unwrap();
+        let bad = program
+            .machines()
             .iter()
-            .any(|diagnostic| diagnostic.message.contains("exceeds the i64 range")),
-        "{diagnostics:#?}"
-    );
+            .find(|machine| machine.name.as_str() == "bad")
+            .unwrap();
+        let state = &program.machine_states(bad)[0];
+        let arguments = match &program.statement_table.statements(state.statement_nodes)[0] {
+            psi_typed_trees::statement::StatementNode::Call(call) => call.arguments,
+            _ => panic!("expected statement call"),
+        };
+        program
+            .statement_table
+            .set_expression_handle_at_offset(arguments, 0, large);
+        let diagnostics = psi_validation::validate_program(&program)
+            .expect_err("unhandled use must retain width rejection");
+        assert!(
+            diagnostics
+                .iter()
+                .any(|diagnostic| diagnostic.message.contains("exceeds the i64 range")),
+            "{diagnostics:#?}"
+        );
+    }
 }

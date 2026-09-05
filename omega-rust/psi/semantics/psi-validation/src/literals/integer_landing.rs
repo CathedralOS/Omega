@@ -13,8 +13,8 @@ use psi_typed_trees::{
     types::PrimitiveType,
 };
 
-mod returns;
-pub(super) use returns::append_return_literals;
+mod destinations;
+pub(super) use destinations::append_destination_literals;
 
 #[cfg(test)]
 mod tests;

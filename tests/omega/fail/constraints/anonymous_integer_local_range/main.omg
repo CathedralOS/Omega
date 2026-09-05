@@ -1,0 +1,3 @@
+machine value() {
+    let landed: u8 [0..=127] = (255 + 1) - 1;
+}

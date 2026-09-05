@@ -1,0 +1,14 @@
+machine byte_value() -> u8 {
+    let landed: u8 = (255 + 1) - 1;
+    landed
+}
+
+machine signed_value() -> i8 {
+    let landed: i8 = (0 - 129) + 1;
+    landed
+}
+
+machine full_unsigned_value() -> u64 {
+    let landed: u64 = (18446744073709551615 + 1) - 1;
+    landed
+}
