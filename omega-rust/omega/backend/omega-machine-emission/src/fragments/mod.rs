@@ -5,6 +5,8 @@
 //! publication. Neither raw input nor a successful projection grants that authority.
 
 mod production;
+mod statistics;
+pub use statistics::{FunctionFragmentStatisticsOverflow, function_fragment_emission_statistics};
 mod validation;
 
 use omega_machine_code::{FunctionFragmentEmissionPlan, ResolvedMachineProgram};

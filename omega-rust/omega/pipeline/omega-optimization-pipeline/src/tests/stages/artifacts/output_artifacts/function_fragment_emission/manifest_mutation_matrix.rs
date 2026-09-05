@@ -41,6 +41,37 @@ fn staged_fragment_emission() -> StagedOptimizedFunctionFragmentEmission {
 }
 
 #[test]
+fn fragment_publication_data_outlives_its_producer_without_a_history_snapshot() {
+    let staged = staged_fragment_emission();
+    let fragments = staged.shared_fragments();
+    let manifest = staged.manifest().shared_record();
+    assert!(std::ptr::eq(fragments.as_ref(), staged.fragments()));
+    assert!(std::ptr::eq(manifest.as_ref(), staged.manifest().record()));
+    let encoded = manifest.encode();
+    drop(staged);
+
+    assert_eq!(fragments.identity, manifest.fragments);
+    assert_eq!(fragments.recomputed_identity(), manifest.fragments);
+    assert_eq!(
+        omega_machine_emission::function_fragment_emission_statistics(&fragments),
+        Ok(manifest.statistics),
+    );
+    let decoded = omega_machine_code::FunctionFragmentEmissionManifest::decode(&encoded).unwrap();
+    assert_eq!(decoded, *manifest);
+    assert_eq!(decoded.encode(), encoded);
+
+    // Counting does not admit these deliberately impossible fragments.
+    let mut excessive = (*fragments).clone();
+    excessive.functions[0].byte_count = u64::MAX;
+    excessive.functions.push(excessive.functions[0].clone());
+    assert_eq!(
+        omega_machine_emission::function_fragment_emission_statistics(&excessive),
+        Err(omega_machine_emission::FunctionFragmentStatisticsOverflow),
+    );
+    assert_eq!(manifest.encode(), encoded);
+}
+
+#[test]
 fn every_representable_fragment_manifest_field_rejects_after_reauthentication() {
     let mut staged = staged_fragment_emission();
     let baseline = staged.manifest().record().clone();
@@ -150,6 +181,12 @@ fn every_representable_fragment_manifest_field_rejects_after_reauthentication() 
         let record = staged.manifest_record_mut();
         mutate(record);
         record.identity = record.recomputed_identity();
+        // A canonical, self-consistent record is data, not an admitted manifest.
+        assert_eq!(
+            omega_machine_code::FunctionFragmentEmissionManifest::decode(&record.encode()),
+            Ok(record.clone()),
+            "{field} changes remain representable without granting authority",
+        );
         assert_eq!(
             validate_optimized_function_fragment_emission(&staged),
             Err(FunctionFragmentEmissionError::ManifestMismatch),
@@ -170,7 +207,7 @@ fn every_representable_fragment_manifest_field_rejects_after_reauthentication() 
 fn fragment_manifest_wire_rejects_every_closed_tag_and_envelope_mutation() {
     let staged = staged_fragment_emission();
     let encoded = staged.manifest().record().encode();
-    assert_eq!(encoded.len(), 500, "selected-lowering V9 layout is pinned");
+    assert_eq!(encoded.len(), 500, "selected-lowering V10 layout is pinned");
 
     let mut wrong_magic = encoded.clone();
     wrong_magic[0] ^= 1;

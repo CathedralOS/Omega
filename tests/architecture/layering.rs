@@ -5109,9 +5109,15 @@ fn selected_lowering_fragment_admission_is_rule_independent() {
         .expect("read function-fragment source admission");
     let model = std::fs::read_to_string(stage.join("model.rs"))
         .expect("read function-fragment retained model");
+    let publication = root.join(
+        "omega-rust/omega/representations/omega-machine-code/src/machine_code/fragments/publication.rs",
+    );
+    let record = std::fs::read_to_string(&publication)
+        .expect("read function-fragment publication representation");
     assert!(
         source.contains("SelectedLowering(Box<StagedSelectedLoweringFunctionRelativeRealization>)")
-            && model.contains("SelectedLoweringV1"),
+            && model.contains("FunctionFragmentEmissionSourceKind")
+            && record.contains("SelectedLoweringV1"),
         "fragment admission must expose one selected-lowering carrier and source kind",
     );
     for forbidden in [
@@ -5125,7 +5131,7 @@ fn selected_lowering_fragment_admission_is_rule_independent() {
         );
     }
     for (manifest, version) in [
-        (stage.join("manifest.rs"), 10),
+        (publication.with_extension("").join("codec.rs"), 10),
         (
             stage
                 .parent()

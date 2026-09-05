@@ -3,7 +3,7 @@
 use super::{
     FunctionFragmentEmissionError, FunctionFragmentEmissionSourceKind,
     FunctionFragmentEmissionStage, FunctionFragmentEmissionUnavailableData,
-    StagedOptimizedFunctionFragmentEmission, statistics,
+    StagedOptimizedFunctionFragmentEmission,
 };
 
 pub(super) fn manifest(
@@ -13,7 +13,7 @@ pub(super) fn manifest(
     let source = current.function_relative_manifest().record();
     let fragments = &staged.fragments;
     let record = staged.manifest.record();
-    let counts = statistics::compute(fragments)?;
+    let counts = omega_machine_emission::function_fragment_emission_statistics(fragments)?;
     let source_kind = if current
         .program()
         .selected

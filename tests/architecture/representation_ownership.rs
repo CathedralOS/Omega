@@ -480,6 +480,51 @@ fn fragment_projection_is_backend_owned_and_replay_does_not_emit() {
 }
 
 #[test]
+fn fragment_publication_data_and_codec_do_not_depend_on_admission() {
+    let root = repository();
+    let representation = root.join("omega-rust/omega/representations/omega-machine-code/src/machine_code/fragments/publication.rs");
+    let data = std::fs::read_to_string(&representation).unwrap();
+    let pipeline = root.join("omega-rust/omega/pipeline/omega-optimization-pipeline/src/stages/artifacts/function_fragment_emission");
+    let coordinator = rust_source(&pipeline);
+    for declaration in [
+        "pub struct FunctionFragmentEmissionManifest {",
+        "pub struct FunctionFragmentEmissionStatistics {",
+        "pub enum FunctionFragmentEmissionStage {",
+        "pub enum FunctionFragmentEmissionSourceKind {",
+        "pub enum FunctionFragmentEmissionUnavailableData {",
+    ] {
+        assert!(
+            data.contains(declaration),
+            "missing representation {declaration}"
+        );
+        assert!(
+            !coordinator.contains(declaration),
+            "coordinator owns {declaration}"
+        );
+    }
+    let codec = rust_source(&representation.with_extension(""));
+    assert!(codec.contains("omega.function-fragment-emission-manifest.v10"));
+    assert!(!coordinator.contains("omega.function-fragment-emission-manifest.v10"));
+    assert!(!pipeline.join("manifest.rs").exists());
+    assert!(!pipeline.join("statistics.rs").exists());
+    for forbidden in [
+        "ValidatedFunctionFragmentEmissionManifest",
+        "StagedOptimizedFunctionFragmentEmission",
+        "omega_optimization_pipeline",
+    ] {
+        assert!(!data.contains(forbidden));
+        assert!(!codec.contains(forbidden));
+    }
+    assert!(coordinator.contains("pub struct ValidatedFunctionFragmentEmissionManifest"));
+    assert!(coordinator.contains("function_fragment_emission_statistics"));
+    let backend =
+        root.join("omega-rust/omega/backend/omega-machine-emission/src/fragments/statistics.rs");
+    let counting = std::fs::read_to_string(backend).unwrap();
+    assert!(counting.contains("pub fn function_fragment_emission_statistics("));
+    assert!(!counting.contains("FunctionFragmentEmissionManifest {"));
+}
+
+#[test]
 fn applied_frame_data_and_target_mechanics_have_separate_owners() {
     let root = repository();
     let data = rust_source(&root.join("omega-rust/omega/representations/omega-machine-code/src"));

@@ -249,7 +249,8 @@ usable as data after the producer is dropped, without granting publication
 authority. Layout construction and explicit relaxation now have a transform
 owner outside the coordinator; exit admission, resolved-fragment projection,
 and frame application live in the machine-emission backend. Fragment publication
-metadata, placement, and artifact emission still need their proper owners.
+records and their codec also have a representation owner; placement and artifact
+emission still need their proper owners.
 Separating data from replay does not complete C.
 
 Acceptance: downstream allocation, layout, and emission APIs consume current
@@ -305,8 +306,7 @@ publication and resumed lowering by a separate authority remain supported.
 
 ### C. The coordinator and stage granularity still have misplaced owners
 
-`omega-optimization-pipeline` contains realization, fragment publication metadata,
-placement, and artifact production,
+`omega-optimization-pipeline` contains realization, placement, and artifact production,
 and broad stage re-exports in addition to coordination. It is not yet a thin
 sequence of phase calls. `omega-regalloc`, `omega-machine-optimizer`,
 `omega-optimization-policy`, and `omega-optimization-validation` mix or expose
@@ -350,8 +350,19 @@ is available after the producer is dropped, but grants no publication authority.
 The coordinator still replays the seven admitted source roles before calling
 the backend, checks manifest fields directly, and binds publication custody.
 It no longer owns instruction-byte assembly or regenerates fragments during
-replay. Manifest data/codec ownership, placement, and final artifact emission
-remain to be separated; the narrow backend projection is not all of C.
+replay. Placement and final artifact emission remain to be separated; the narrow
+backend projection is not all of C.
+
+The fragment manifest, source-role/stage vocabulary, counters, and unchanged
+version-10 codec belong to `omega-machine-code` under `fragments/publication`.
+The admitted wrapper shares the original immutable record and fragments; those
+data remain usable after the producer and replay graph are dropped. The backend
+counts current fragment records without assembling a manifest. The coordinator
+binds those counts and source identities, independently checks the retained
+manifest, and constructs admission and custody wrappers. Codec success only
+establishes canonical, self-consistent data: a rehashed false count can decode
+but still fails admission against the actual fragments. Source-role tags remain
+evidence vocabulary, not a selector for the current program representation.
 
 Applied-frame records and their unchanged version-2 identity belong to
 `omega-machine-code` under `storage/frame_application`. The publication wrapper
@@ -374,6 +385,14 @@ Candidate internal substeps include callee-saved requirement derivation, save
 storage assignment, spill/frame requirement derivation, and frame protocol
 construction. Their correctness boundaries need not all be public crate
 boundaries. Consolidation must retain the distinct checks and evidence.
+
+The next artifact boundary is `function_fragment_text_section`. Its placement
+dispatcher still receives admitted stage wrappers, while `validation.rs` calls
+the same `assembly::compute` / `compute_fixed_frame` producers and compares their
+results. Separate source-role admission from raw fragment placement, retain the
+appropriate frame and exit evidence explicitly, and replace producer re-entry
+with checks of candidate bytes, alignment, spans, and internal-call fixups.
+Moving the producer alone would leave that replay dependency unresolved.
 
 The callee-saved requirement entrance and validator now consume the sealed
 current-allocation boundary. Direct derivation and independent keyed replay

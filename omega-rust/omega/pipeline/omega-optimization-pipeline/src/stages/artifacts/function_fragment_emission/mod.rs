@@ -3,11 +3,9 @@ mod compute;
 mod current;
 mod custody;
 mod error;
-mod manifest;
 mod model;
 mod replay;
 mod source;
-mod statistics;
 mod validation;
 
 pub use error::{FunctionFragmentEmissionError, FunctionFragmentEmissionManifestDecodeError};
@@ -33,7 +31,7 @@ pub fn stage_optimized_function_fragment_emission(
     let custody = receipt(&manifest, &fragments);
     let staged = StagedOptimizedFunctionFragmentEmission {
         source,
-        fragments,
+        fragments: std::sync::Arc::new(fragments),
         manifest,
         custody,
     };

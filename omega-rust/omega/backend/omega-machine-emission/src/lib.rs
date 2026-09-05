@@ -11,7 +11,8 @@ pub use frame_application::{
 };
 mod fragments;
 pub use fragments::{
-    ResolvedFragmentEmissionError, emit_resolved_function_fragments,
+    FunctionFragmentStatisticsOverflow, ResolvedFragmentEmissionError,
+    emit_resolved_function_fragments, function_fragment_emission_statistics,
     validate_resolved_function_fragments,
 };
 

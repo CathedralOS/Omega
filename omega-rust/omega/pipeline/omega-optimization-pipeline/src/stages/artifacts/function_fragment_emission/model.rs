@@ -1,97 +1,36 @@
 use omega_machine_code::FunctionFragmentEmissionPlan;
 use omega_optimization_core::{
     FunctionFragmentEmissionIdentity, FunctionFragmentEmissionManifestIdentity,
-    FunctionRelativeOptimizationRealizationManifestIdentity, Optimization,
-    OptimizationSelectionIdentity, PostAllocationOptimizationManifestIdentity,
+    FunctionRelativeOptimizationRealizationManifestIdentity,
 };
-use omega_target::NativeTarget;
-use psi_core::FuelScheduleIdentity;
-use psi_terminal::TerminalPsiIdentity;
-
-use crate::{SelectedFormEncodingIdentity, WholeFunctionExitContractIdentity};
+use std::sync::Arc;
 
 use super::source::StagedOptimizedFunctionFragmentEmissionSource;
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum FunctionFragmentEmissionSourceKind {
-    X86Rel8V1,
-    SelectedLoweringV1,
-    PostAllocationMachineOptimizationV1 { optimization: Optimization },
-    AllocationRecoveryV1,
-    UnitBaselineV1,
-    StructuralUnitV1,
-    CanonicalFixedFrameBodyV1,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum FunctionFragmentEmissionStage {
-    ValidatedRelocationFreeFunctionFragmentsV1,
-    ValidatedFunctionFragmentsWithUnresolvedInternalMachineFixupsV1,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum FunctionFragmentEmissionUnavailableData {
-    Unavailable,
-}
-
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
-pub struct FunctionFragmentEmissionStatistics {
-    pub functions: u64,
-    pub blocks: u64,
-    pub instruction_spans: u64,
-    pub zero_byte_instruction_spans: u64,
-    pub bytes: u64,
-    pub resolved_conditional_branches: u64,
-    pub logical_fuel_settlements: u64,
-    pub structural_unit_functions: u64,
-    pub structural_unit_blocks: u64,
-    pub structural_unit_instruction_spans: u64,
-    pub structural_unit_bytes: u64,
-    pub unresolved_internal_machine_fixups: u64,
-    pub structural_logical_fuel_settlements: u64,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct FunctionFragmentEmissionManifest {
-    pub identity: FunctionFragmentEmissionManifestIdentity,
-    pub stage: FunctionFragmentEmissionStage,
-    pub source_kind: FunctionFragmentEmissionSourceKind,
-    pub source_realization: FunctionRelativeOptimizationRealizationManifestIdentity,
-    pub selections: OptimizationSelectionIdentity,
-    pub psi: TerminalPsiIdentity,
-    pub fuel_schedule: FuelScheduleIdentity,
-    pub selected: omega_selected_instructions::SelectedInstructionPlanIdentity,
-    pub post_allocation_manifest: PostAllocationOptimizationManifestIdentity,
-    pub post_allocation_machine: omega_physical_instructions::PostAllocationMachineIdentity,
-    pub final_pre_layout: SelectedFormEncodingIdentity,
-    pub final_resolved_layout: crate::ResolvedSelectedFormLayoutIdentity,
-    pub whole_function_exit_contract: WholeFunctionExitContractIdentity,
-    pub fragments: FunctionFragmentEmissionIdentity,
-    pub target: NativeTarget,
-    pub statistics: FunctionFragmentEmissionStatistics,
-    pub section_placement: FunctionFragmentEmissionUnavailableData,
-    pub symbols: FunctionFragmentEmissionUnavailableData,
-    pub object_relocations: FunctionFragmentEmissionUnavailableData,
-    pub executable_image: FunctionFragmentEmissionUnavailableData,
-    pub installation: FunctionFragmentEmissionUnavailableData,
-    pub publication: FunctionFragmentEmissionUnavailableData,
-}
+pub use omega_machine_code::{
+    FunctionFragmentEmissionManifest, FunctionFragmentEmissionSourceKind,
+    FunctionFragmentEmissionStage, FunctionFragmentEmissionStatistics,
+    FunctionFragmentEmissionUnavailableData,
+};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ValidatedFunctionFragmentEmissionManifest {
-    pub(super) record: FunctionFragmentEmissionManifest,
+    pub(super) record: Arc<FunctionFragmentEmissionManifest>,
 }
 
 impl ValidatedFunctionFragmentEmissionManifest {
-    pub const fn record(&self) -> &FunctionFragmentEmissionManifest {
+    pub fn record(&self) -> &FunctionFragmentEmissionManifest {
         &self.record
+    }
+
+    pub fn shared_record(&self) -> Arc<FunctionFragmentEmissionManifest> {
+        Arc::clone(&self.record)
     }
 }
 
 #[derive(Debug)]
 pub struct StagedOptimizedFunctionFragmentEmission {
     pub(super) source: StagedOptimizedFunctionFragmentEmissionSource,
-    pub(super) fragments: FunctionFragmentEmissionPlan,
+    pub(super) fragments: Arc<FunctionFragmentEmissionPlan>,
     pub(super) manifest: ValidatedFunctionFragmentEmissionManifest,
     pub(super) custody: StagedFunctionFragmentEmissionCustodyReceipt,
 }
@@ -100,8 +39,11 @@ impl StagedOptimizedFunctionFragmentEmission {
     pub const fn source(&self) -> &StagedOptimizedFunctionFragmentEmissionSource {
         &self.source
     }
-    pub const fn fragments(&self) -> &FunctionFragmentEmissionPlan {
+    pub fn fragments(&self) -> &FunctionFragmentEmissionPlan {
         &self.fragments
+    }
+    pub fn shared_fragments(&self) -> Arc<FunctionFragmentEmissionPlan> {
+        Arc::clone(&self.fragments)
     }
     pub const fn manifest(&self) -> &ValidatedFunctionFragmentEmissionManifest {
         &self.manifest
@@ -142,12 +84,12 @@ impl StagedOptimizedFunctionFragmentEmission {
 
     #[cfg(test)]
     pub(crate) fn fragments_mut(&mut self) -> &mut FunctionFragmentEmissionPlan {
-        &mut self.fragments
+        Arc::make_mut(&mut self.fragments)
     }
 
     #[cfg(test)]
     pub(crate) fn manifest_record_mut(&mut self) -> &mut FunctionFragmentEmissionManifest {
-        &mut self.manifest.record
+        Arc::make_mut(&mut self.manifest.record)
     }
 
     #[cfg(test)]
