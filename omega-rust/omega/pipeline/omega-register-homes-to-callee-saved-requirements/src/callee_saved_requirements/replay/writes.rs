@@ -13,7 +13,10 @@ pub(super) fn scan_instruction(
     machine: psi_core::MachineId,
     block: SelectedBlockId,
     instruction: &SelectedInstruction,
-    homes: &BTreeMap<VirtualRegisterId, &omega_regalloc::VirtualRegisterHome>,
+    homes: &BTreeMap<
+        VirtualRegisterId,
+        &omega_selected_instructions_to_register_homes::VirtualRegisterHome,
+    >,
     units: &mut BTreeMap<RegisterUnitId, Vec<CalleeSavedModificationWitness>>,
 ) -> Result<(), AllocatedCalleeSavedRequirementError> {
     traversal.instruction_count = add(traversal.instruction_count, 1)?;
@@ -112,9 +115,12 @@ fn scan_units(
 }
 
 pub(super) fn index_homes(
-    homes: &omega_regalloc::FunctionRegisterHomes,
+    homes: &omega_selected_instructions_to_register_homes::FunctionRegisterHomes,
 ) -> Result<
-    BTreeMap<VirtualRegisterId, &omega_regalloc::VirtualRegisterHome>,
+    BTreeMap<
+        VirtualRegisterId,
+        &omega_selected_instructions_to_register_homes::VirtualRegisterHome,
+    >,
     AllocatedCalleeSavedRequirementError,
 > {
     let mut keyed = BTreeMap::new();

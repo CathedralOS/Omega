@@ -13,7 +13,7 @@ fn every_representable_first_under_budget_fails_before_publication() {
     ] {
         assert!(matches!(
             analyze(&source, budget),
-            Err(omega_regalloc::FixedPrecoloredIntervalError::BudgetExceeded { required, budget: actual })
+            Err(omega_selected_instructions_to_register_homes::FixedPrecoloredIntervalError::BudgetExceeded { required, budget: actual })
                 if required == EXACT_USAGE && actual == budget
         ));
     }

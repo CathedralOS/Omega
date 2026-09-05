@@ -623,7 +623,7 @@ route:
 | Which post-Terminal abstract-operation optimizations were explicitly requested, and what verified plan leaves? | `omega-optimization-pipeline/src/coordination/abstract_operation_optimization/mod.rs` |
 | Which physical phase composition runs next? | `omega-optimization-pipeline/src/coordination/physical_pipeline/mod.rs` |
 | Which exact post-Terminal abstract-operation passes and local rules are enabled? | `omega-abstract-operations-optimizer/src/rules/mod.rs` -> `rules/catalog.rs` -> `passes/<exact-pass>/mod.rs` |
-| Which selected-lowering or allocation-recovery rule is enabled? | `omega-regalloc/src/rules/<phase>/mod.rs` -> adjacent `catalog.rs` |
+| Which selected-lowering or allocation-recovery rule is enabled? | `omega-selected-instructions-to-register-homes/src/rewrites/<phase>/mod.rs` -> adjacent `catalog.rs` |
 | Which post-allocation machine rule is enabled for the ISA? | `omega-machine-optimizer/src/rules/mod.rs` -> `rules/catalog.rs` -> `<isa>/<exact-rule>/mod.rs` |
 | How are recorded policy decisions admitted for offline work? | `omega-optimization-policy-offline/src/corpus/mod.rs` -> `capture.rs`, `validate.rs`, `identity.rs`, `split.rs` |
 | Where does the non-authoritative reference policy train and evaluate? | `omega-optimization-policy-offline/src/reference_policy/mod.rs` -> `training/`, `evaluation/`, `codec/` |
@@ -651,7 +651,7 @@ omega-rust/omega/
     omega-optimization-pipeline/    # transitional cross-stage coordinator to dissolve
     omega-optimization-policy/      # deterministic decisions over validated candidates
     omega-optimization-validation/  # independent optimization-unit validation
-    omega-regalloc/                 # physical analyses, allocation, recovery rules
+    omega-selected-instructions-to-register-homes/                 # physical analyses, allocation, recovery rules
     omega-psi-to-abstract-operations/
                                       # artifact, optimizer-unit, provider, and lowering entrances
     omega-abstract-operations-to-target-operations/

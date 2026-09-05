@@ -34,7 +34,8 @@ pub(super) fn exact_budget(target: NativeTarget) -> OptimizationWorkBudget {
 
 pub(super) struct SplitFixture {
     pub(super) source: StagedOptimizedAllocationLegality,
-    pub(super) fixed: omega_regalloc::ValidatedFixedPrecoloredIntervals,
+    pub(super) fixed:
+        omega_selected_instructions_to_register_homes::ValidatedFixedPrecoloredIntervals,
 }
 
 pub(super) fn source(target: NativeTarget) -> SplitFixture {
@@ -42,10 +43,10 @@ pub(super) fn source(target: NativeTarget) -> SplitFixture {
     let liveness = stage_optimized_liveness(selected).unwrap();
     let ranges = stage_optimized_live_ranges(liveness).unwrap();
     let source = stage_optimized_allocation_legality(ranges).unwrap();
-    let fixed = omega_regalloc::analyze_fixed_precolored_intervals(
+    let fixed = omega_selected_instructions_to_register_homes::analyze_fixed_precolored_intervals(
         source.live_range_stage().ranges(),
         source.legality(),
-        omega_regalloc::FixedPrecoloredIntervalPolicy::FixedConstraintPointIntervalsV1,
+        omega_selected_instructions_to_register_homes::FixedPrecoloredIntervalPolicy::FixedConstraintPointIntervalsV1,
         generous_budget(),
     )
     .unwrap();
@@ -60,26 +61,26 @@ pub(super) fn analyze(
     fixture: &SplitFixture,
     budget: OptimizationWorkBudget,
 ) -> Result<
-    omega_regalloc::ValidatedFixedPrecoloredSplitRequirements,
-    omega_regalloc::FixedPrecoloredSplitRequirementError,
+    omega_selected_instructions_to_register_homes::ValidatedFixedPrecoloredSplitRequirements,
+    omega_selected_instructions_to_register_homes::FixedPrecoloredSplitRequirementError,
 > {
-    omega_regalloc::analyze_fixed_precolored_split_requirements(
+    omega_selected_instructions_to_register_homes::analyze_fixed_precolored_split_requirements(
         fixture.source.live_range_stage().ranges(),
         fixture.source.legality(),
         &fixture.fixed,
-        omega_regalloc::FixedPrecoloredSplitRequirementPolicy::FixedUseBoundaryRequirementsV1,
+        omega_selected_instructions_to_register_homes::FixedPrecoloredSplitRequirementPolicy::FixedUseBoundaryRequirementsV1,
         budget,
     )
 }
 
 pub(super) fn validate(
     fixture: &SplitFixture,
-    plan: omega_regalloc::FixedPrecoloredSplitRequirementPlan,
+    plan: omega_selected_instructions_to_register_homes::FixedPrecoloredSplitRequirementPlan,
 ) -> Result<
-    omega_regalloc::ValidatedFixedPrecoloredSplitRequirements,
-    omega_regalloc::FixedPrecoloredSplitRequirementError,
+    omega_selected_instructions_to_register_homes::ValidatedFixedPrecoloredSplitRequirements,
+    omega_selected_instructions_to_register_homes::FixedPrecoloredSplitRequirementError,
 > {
-    omega_regalloc::validate_fixed_precolored_split_requirements(
+    omega_selected_instructions_to_register_homes::validate_fixed_precolored_split_requirements(
         fixture.source.live_range_stage().ranges(),
         fixture.source.legality(),
         &fixture.fixed,

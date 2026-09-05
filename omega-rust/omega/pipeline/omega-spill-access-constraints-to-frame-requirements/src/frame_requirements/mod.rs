@@ -21,7 +21,7 @@ pub(crate) use compute::derive_zero_access_requirement_for_test;
 pub(crate) use replay::replay_zero_access_requirement_for_test;
 
 use omega_optimization_core::OptimizationWorkBudget;
-use omega_regalloc::ValidatedAbstractSpillAccessConstraints;
+use omega_selected_instructions_to_register_homes::ValidatedAbstractSpillAccessConstraints;
 
 use crate::ValidatedTargetRegisterEnvironment;
 

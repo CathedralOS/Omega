@@ -1,5 +1,5 @@
 use crate::tests::*;
-use omega_regalloc::ValidatedSelectedAnalysis;
+use omega_selected_instructions_to_register_homes::ValidatedSelectedAnalysis;
 
 #[test]
 fn explicit_one_view_availability_reaches_real_pressure_and_recovery_on_both_architectures() {
@@ -112,7 +112,10 @@ fn explicit_one_view_availability_reaches_real_pressure_and_recovery_on_both_arc
         );
         let encoded = availability.plan().encode();
         assert_eq!(
-            omega_regalloc::AllocatorAvailabilityPlan::decode(&encoded).unwrap(),
+            omega_selected_instructions_to_register_homes::AllocatorAvailabilityPlan::decode(
+                &encoded
+            )
+            .unwrap(),
             *availability.plan()
         );
         let legality =
@@ -279,7 +282,9 @@ fn two_explicit_u12_exact_add_folds_close_one_view_pressure_on_both_architecture
                 environment.allocation_constraint_keys(),
                 corrupted_recipe,
             ),
-            Err(omega_regalloc::LiteralFoldError::DecisionMismatch { .. })
+            Err(
+                omega_selected_instructions_to_register_homes::LiteralFoldError::DecisionMismatch { .. }
+            )
         ));
         let foreign_target = match target.architecture {
             omega_target::Architecture::X86_64 => NativeTarget::linux_arm64(),
@@ -301,7 +306,7 @@ fn two_explicit_u12_exact_add_folds_close_one_view_pressure_on_both_architecture
                 environment.allocation_constraint_keys(),
                 fold_one.plan().clone(),
             ),
-            Err(omega_regalloc::LiteralFoldError::RootMismatch)
+            Err(omega_selected_instructions_to_register_homes::LiteralFoldError::RootMismatch)
         );
         let folded_add = &fold_one.transformed().functions[0].blocks[1].instructions[1];
         assert!(matches!(
@@ -404,7 +409,7 @@ fn two_explicit_u12_exact_add_folds_close_one_view_pressure_on_both_architecture
                 .iter()
                 .all(|function| function.choice.is_none())
         );
-        let homes = omega_regalloc::assign_register_homes(
+        let homes = omega_selected_instructions_to_register_homes::assign_register_homes(
             &legality_two,
             &ranges_two,
             environment.identity(),
@@ -435,7 +440,7 @@ fn two_explicit_u12_exact_add_folds_close_one_view_pressure_on_both_architecture
             .selected_stage()
             .register_environment();
         assert!(matches!(
-            omega_regalloc::assign_register_homes(
+            omega_selected_instructions_to_register_homes::assign_register_homes(
                 staged_folds.final_step().legality(),
                 staged_folds.final_step().ranges(),
                 staged_environment.identity(),

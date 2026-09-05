@@ -9,29 +9,33 @@ use omega_optimization_core::OptimizationWorkUsage;
 
 fn schedule(
     sources: &ReloadSources,
-    recovery: &omega_regalloc::ValidatedSpillRecoveryActions,
+    recovery: &omega_selected_instructions_to_register_homes::ValidatedSpillRecoveryActions,
     budget: OptimizationWorkBudget,
 ) -> Result<
-    omega_regalloc::ValidatedGeneralizedSpillInsertion,
-    omega_regalloc::GeneralizedSpillInsertionError,
+    omega_selected_instructions_to_register_homes::ValidatedGeneralizedSpillInsertion,
+    omega_selected_instructions_to_register_homes::GeneralizedSpillInsertionError,
 > {
-    omega_regalloc::schedule_generalized_spill_insertion(
+    omega_selected_instructions_to_register_homes::schedule_generalized_spill_insertion(
         sources.insertion(),
         recovery,
-        omega_regalloc::GeneralizedSpillInsertionPolicy::EpochZeroAndOneBlockLocalUnsignedU64ClosedIntervalFirstFitV1,
+        omega_selected_instructions_to_register_homes::GeneralizedSpillInsertionPolicy::EpochZeroAndOneBlockLocalUnsignedU64ClosedIntervalFirstFitV1,
         budget,
     )
 }
 
 fn validate(
     sources: &ReloadSources,
-    recovery: &omega_regalloc::ValidatedSpillRecoveryActions,
-    candidate: omega_regalloc::GeneralizedSpillInsertionPlan,
+    recovery: &omega_selected_instructions_to_register_homes::ValidatedSpillRecoveryActions,
+    candidate: omega_selected_instructions_to_register_homes::GeneralizedSpillInsertionPlan,
 ) -> Result<
-    omega_regalloc::ValidatedGeneralizedSpillInsertion,
-    omega_regalloc::GeneralizedSpillInsertionError,
+    omega_selected_instructions_to_register_homes::ValidatedGeneralizedSpillInsertion,
+    omega_selected_instructions_to_register_homes::GeneralizedSpillInsertionError,
 > {
-    omega_regalloc::validate_generalized_spill_insertion(sources.insertion(), recovery, candidate)
+    omega_selected_instructions_to_register_homes::validate_generalized_spill_insertion(
+        sources.insertion(),
+        recovery,
+        candidate,
+    )
 }
 
 #[test]
@@ -84,8 +88,10 @@ fn both_spills_receive_closed_slots_and_one_ordered_target_neutral_schedule() {
                 (16, 2, 0, 0, 8),
             ]
         );
-        let omega_regalloc::GeneralizedSpillEvent::Store { before_reload, .. } =
-            function.schedule[1]
+        let omega_selected_instructions_to_register_homes::GeneralizedSpillEvent::Store {
+            before_reload,
+            ..
+        } = function.schedule[1]
         else {
             panic!("epoch-one store must be the point-12 store event")
         };
@@ -105,22 +111,26 @@ fn independent_replay_rejects_root_slot_schedule_and_usage_corruption() {
 
         let mut root = canonical.clone();
         root.spill_recovery_actions =
-            omega_regalloc::SpillRecoveryActionIdentity::from_bytes([0x84; 32]);
+            omega_selected_instructions_to_register_homes::SpillRecoveryActionIdentity::from_bytes(
+                [0x84; 32],
+            );
         assert_eq!(
             validate(&sources, &recovery, root),
-            Err(omega_regalloc::GeneralizedSpillInsertionError::RootMismatch)
+            Err(omega_selected_instructions_to_register_homes::GeneralizedSpillInsertionError::RootMismatch)
         );
 
         let mut slot = canonical.clone();
         slot.functions[0].slots[1].spill_area_offset = 0;
         assert_eq!(
             validate(&sources, &recovery, slot),
-            Err(omega_regalloc::GeneralizedSpillInsertionError::NonCanonicalSlots { function: 0 })
+            Err(omega_selected_instructions_to_register_homes::GeneralizedSpillInsertionError::NonCanonicalSlots { function: 0 })
         );
 
         let mut schedule_row = canonical.clone();
-        let omega_regalloc::GeneralizedSpillEvent::Store { before_reload, .. } =
-            &mut schedule_row.functions[0].schedule[1]
+        let omega_selected_instructions_to_register_homes::GeneralizedSpillEvent::Store {
+            before_reload,
+            ..
+        } = &mut schedule_row.functions[0].schedule[1]
         else {
             panic!("expected epoch-one store")
         };
@@ -128,7 +138,7 @@ fn independent_replay_rejects_root_slot_schedule_and_usage_corruption() {
         assert_eq!(
             validate(&sources, &recovery, schedule_row),
             Err(
-                omega_regalloc::GeneralizedSpillInsertionError::NonCanonicalSchedule {
+                omega_selected_instructions_to_register_homes::GeneralizedSpillInsertionError::NonCanonicalSchedule {
                     function: 0,
                 }
             )
@@ -138,7 +148,7 @@ fn independent_replay_rejects_root_slot_schedule_and_usage_corruption() {
         usage.usage.iterations += 1;
         assert_eq!(
             validate(&sources, &recovery, usage),
-            Err(omega_regalloc::GeneralizedSpillInsertionError::UsageMismatch)
+            Err(omega_selected_instructions_to_register_homes::GeneralizedSpillInsertionError::UsageMismatch)
         );
     }
 }
@@ -159,7 +169,7 @@ fn exact_budget_representable_first_over_axes_and_cross_target_roots_are_typed()
         for budget in insufficient {
             assert!(matches!(
                 schedule(&sources, &recovery, budget),
-                Err(omega_regalloc::GeneralizedSpillInsertionError::BudgetExceeded {
+                Err(omega_selected_instructions_to_register_homes::GeneralizedSpillInsertionError::BudgetExceeded {
                     required: OptimizationWorkUsage {
                         rule_evaluations: 1,
                         candidates: 2,
@@ -180,17 +190,22 @@ fn exact_budget_representable_first_over_axes_and_cross_target_roots_are_typed()
     let arm_recovery = plan_recovery(&arm, selected_lowering_budget()).unwrap();
     assert_eq!(
         validate(&arm, &arm_recovery, plan),
-        Err(omega_regalloc::GeneralizedSpillInsertionError::RootMismatch)
+        Err(omega_selected_instructions_to_register_homes::GeneralizedSpillInsertionError::RootMismatch)
     );
 }
 
-const fn action(epoch: u32, ordinal: u32) -> omega_regalloc::GeneralizedSpillActionId {
-    omega_regalloc::GeneralizedSpillActionId { epoch, ordinal }
+const fn action(
+    epoch: u32,
+    ordinal: u32,
+) -> omega_selected_instructions_to_register_homes::GeneralizedSpillActionId {
+    omega_selected_instructions_to_register_homes::GeneralizedSpillActionId { epoch, ordinal }
 }
 
-fn event_shape(event: &omega_regalloc::GeneralizedSpillEvent) -> (u32, u8, u32, u32, u32) {
+fn event_shape(
+    event: &omega_selected_instructions_to_register_homes::GeneralizedSpillEvent,
+) -> (u32, u8, u32, u32, u32) {
     match *event {
-        omega_regalloc::GeneralizedSpillEvent::Store {
+        omega_selected_instructions_to_register_homes::GeneralizedSpillEvent::Store {
             action,
             point,
             before_instruction,
@@ -202,7 +217,7 @@ fn event_shape(event: &omega_regalloc::GeneralizedSpillEvent) -> (u32, u8, u32, 
             action.ordinal,
             before_instruction.0,
         ),
-        omega_regalloc::GeneralizedSpillEvent::Reload {
+        omega_selected_instructions_to_register_homes::GeneralizedSpillEvent::Reload {
             action,
             point,
             before_instruction,
@@ -214,7 +229,7 @@ fn event_shape(event: &omega_regalloc::GeneralizedSpillEvent) -> (u32, u8, u32, 
             action.ordinal,
             before_instruction.0,
         ),
-        omega_regalloc::GeneralizedSpillEvent::Rewrite {
+        omega_selected_instructions_to_register_homes::GeneralizedSpillEvent::Rewrite {
             action,
             point,
             instruction,

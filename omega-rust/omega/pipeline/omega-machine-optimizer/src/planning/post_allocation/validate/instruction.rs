@@ -1,10 +1,10 @@
 use std::collections::BTreeSet;
 
-use omega_regalloc::FunctionRegisterHomes;
 use omega_register_model::{RegisterOperandAccess, ValidatedPhysicalRegisterModel};
 use omega_selected_instructions::{
     MachineAlternativeApplicability, SelectedBlock, SelectedInstruction,
 };
+use omega_selected_instructions_to_register_homes::FunctionRegisterHomes;
 
 use crate::{
     InstructionMachineEffects, PhysicalOperandFootprint, PostAllocationMachineError,

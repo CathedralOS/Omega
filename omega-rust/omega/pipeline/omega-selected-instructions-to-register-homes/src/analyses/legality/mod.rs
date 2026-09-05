@@ -13,7 +13,7 @@ mod validation;
 pub use model::*;
 pub use validation::validate_optimized_allocation_legality_custody;
 
-use omega_regalloc::ValidatedAllocatorAvailability;
+use crate::ValidatedAllocatorAvailability;
 
 use crate::StagedOptimizedLiveRanges;
 

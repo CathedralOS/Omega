@@ -12,13 +12,15 @@ pub use validate::validate_post_allocation_machine_plan;
 /// its independently validated physical homes. Target applicability must
 /// identify exactly one legal alternative for every instruction.
 #[allow(clippy::too_many_arguments)]
-pub fn analyze_post_allocation_machine_plan<S: omega_regalloc::ValidatedSelectedAnalysis>(
+pub fn analyze_post_allocation_machine_plan<
+    S: omega_selected_instructions_to_register_homes::ValidatedSelectedAnalysis,
+>(
     selected: &S,
     effects: &crate::ValidatedPreAllocationMachineEffects,
-    ranges: &omega_regalloc::ValidatedLiveRanges,
-    legality: &omega_regalloc::ValidatedAllocationLegality,
-    homes: &omega_regalloc::ValidatedRegisterHomes,
-    manifest: &omega_regalloc::ValidatedPostAllocationOptimizationManifest,
+    ranges: &omega_selected_instructions_to_register_homes::ValidatedLiveRanges,
+    legality: &omega_selected_instructions_to_register_homes::ValidatedAllocationLegality,
+    homes: &omega_selected_instructions_to_register_homes::ValidatedRegisterHomes,
+    manifest: &omega_selected_instructions_to_register_homes::ValidatedPostAllocationOptimizationManifest,
     register_environment: omega_register_model::TargetRegisterEnvironmentIdentity,
     physical: &omega_register_model::ValidatedPhysicalRegisterModel,
     constraints: &omega_register_model::ValidatedRegisterConstraintCatalog,

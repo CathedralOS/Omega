@@ -3,8 +3,8 @@
 //! Ordinary and structural rows descend separately into target-owned byte
 //! decoders. Aggregate custody is checked only after both row families pass.
 
-use omega_regalloc::ValidatedSelectedAnalysis;
 use omega_register_model::ValidatedPhysicalRegisterModel;
+use omega_selected_instructions_to_register_homes::ValidatedSelectedAnalysis;
 
 use crate::{
     StagedOptimizedPostAllocationMachineOptimization, StagedOptimizedPostAllocationMachinePlan,

@@ -5,8 +5,8 @@
 //! This stage serializes selected instructions before any address-dependent
 //! layout and retains normalized custody for optional machine rewrites.
 
-use omega_regalloc::ValidatedSelectedAnalysis;
 use omega_register_model::ValidatedPhysicalRegisterModel;
+use omega_selected_instructions_to_register_homes::ValidatedSelectedAnalysis;
 
 use omega_post_allocation_machine_to_optimized_machine::{
     PostAllocationMachineOptimizationCustody, StagedOptimizedAarch64CbnzFusion,

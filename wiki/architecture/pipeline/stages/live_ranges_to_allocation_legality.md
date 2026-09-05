@@ -77,9 +77,8 @@ unsupported. No result from this stage can enter machine emission.
 
 ## Implementation Map
 
-- `pipeline/omega-regalloc` owns the data,
-  production, independent replay, and identity.
-- `pipeline/omega-selected-instructions-to-register-homes` owns policy selection and
-  nested cross-stage custody.
-- `omega-register-model` owns physical aliases, write footprints, and the
-  validated active reservation profile.
+- `omega-selected-instructions-to-register-homes/src/analyses/allocation_legality/`
+  owns computation, identity and independent replay. The adjacent `legality/`
+  module selects policy and retains cross-step custody.
+- `omega-register-model` owns aliases, write footprints and validated active
+  reservations; `omega-register-homes` owns durable allocation identities.

@@ -1,7 +1,6 @@
 use omega_optimization_core::{
     OptimizationWorkBudget, OptimizationWorkUsage, PostAllocationOptimizationManifestIdentity,
 };
-use omega_regalloc::RegisterHomeIdentity;
 use omega_register_model::{
     PhysicalRegisterModelIdentity, RegisterUnitId, RegisterViewId, RegisterWriteSemantics,
     TargetRegisterEnvironmentIdentity,
@@ -9,6 +8,7 @@ use omega_register_model::{
 use omega_selected_instructions::{
     SelectedBlockId, SelectedInstructionId, SelectedInstructionPlanIdentity, VirtualRegisterId,
 };
+use omega_selected_instructions_to_register_homes::RegisterHomeIdentity;
 use omega_target::NativeTarget;
 use psi_core::MachineId;
 

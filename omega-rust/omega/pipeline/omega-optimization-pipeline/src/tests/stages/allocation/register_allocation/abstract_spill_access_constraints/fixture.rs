@@ -4,7 +4,8 @@ use omega_optimization_core::{OptimizationWorkBudget, OptimizationWorkUsage};
 use super::super::{homed_spill_pseudo_instructions, recursive_reload_value_homes::Bundle};
 
 pub(super) struct ConstraintBundle {
-    pub(super) effects: omega_regalloc::ValidatedAbstractSpillMemoryEffects,
+    pub(super) effects:
+        omega_selected_instructions_to_register_homes::ValidatedAbstractSpillMemoryEffects,
 }
 
 pub(super) fn build(
@@ -14,9 +15,9 @@ pub(super) fn build(
     let homed_source = homed_spill_pseudo_instructions::build(constructor, target);
     let homed =
         homed_spill_pseudo_instructions::lower(&homed_source, selected_lowering_budget()).unwrap();
-    let effects = omega_regalloc::derive_abstract_spill_memory_effects(
+    let effects = omega_selected_instructions_to_register_homes::derive_abstract_spill_memory_effects(
         &homed,
-        omega_regalloc::AbstractSpillMemoryEffectPolicy::HomedPseudoReadWriteV1,
+        omega_selected_instructions_to_register_homes::AbstractSpillMemoryEffectPolicy::HomedPseudoReadWriteV1,
         OptimizationWorkBudget::new(7, 9, 15, 6, 10).unwrap(),
     )
     .unwrap();
@@ -27,24 +28,27 @@ pub(super) fn constrain(
     source: &ConstraintBundle,
     budget: OptimizationWorkBudget,
 ) -> Result<
-    omega_regalloc::ValidatedAbstractSpillAccessConstraints,
-    omega_regalloc::AbstractSpillAccessConstraintError,
+    omega_selected_instructions_to_register_homes::ValidatedAbstractSpillAccessConstraints,
+    omega_selected_instructions_to_register_homes::AbstractSpillAccessConstraintError,
 > {
-    omega_regalloc::constrain_abstract_spill_accesses(
+    omega_selected_instructions_to_register_homes::constrain_abstract_spill_accesses(
         &source.effects,
-        omega_regalloc::AbstractSpillAccessConstraintPolicy::BlockLocalDataBarrierAndOverlapV1,
+        omega_selected_instructions_to_register_homes::AbstractSpillAccessConstraintPolicy::BlockLocalDataBarrierAndOverlapV1,
         budget,
     )
 }
 
 pub(super) fn validate(
     source: &ConstraintBundle,
-    plan: omega_regalloc::AbstractSpillAccessConstraintPlan,
+    plan: omega_selected_instructions_to_register_homes::AbstractSpillAccessConstraintPlan,
 ) -> Result<
-    omega_regalloc::ValidatedAbstractSpillAccessConstraints,
-    omega_regalloc::AbstractSpillAccessConstraintError,
+    omega_selected_instructions_to_register_homes::ValidatedAbstractSpillAccessConstraints,
+    omega_selected_instructions_to_register_homes::AbstractSpillAccessConstraintError,
 > {
-    omega_regalloc::validate_abstract_spill_access_constraints(&source.effects, plan)
+    omega_selected_instructions_to_register_homes::validate_abstract_spill_access_constraints(
+        &source.effects,
+        plan,
+    )
 }
 
 pub(super) const EXACT_USAGE: OptimizationWorkUsage = OptimizationWorkUsage {

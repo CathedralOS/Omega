@@ -51,7 +51,9 @@ pub(super) fn construct(
     })
 }
 
-fn build_for_selected<S: omega_regalloc::ValidatedSelectedAnalysis>(
+fn build_for_selected<
+    S: omega_selected_instructions_to_register_homes::ValidatedSelectedAnalysis,
+>(
     selected: &S,
     machine: &StagedOptimizedPostAllocationMachinePlan,
     physical: &omega_register_model::ValidatedPhysicalRegisterModel,

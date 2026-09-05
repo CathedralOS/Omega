@@ -65,7 +65,6 @@ package, not new top-level tasks.
 | Current cluster | Required destination |
 | --- | --- |
 | `omega-optimization-pipeline` | Retire the umbrella implementation. Sequencing goes to compiler/native coordination; computations go to real transforms or backend. Delete the old crate and re-export surface after consumers migrate. |
-| `omega-regalloc` + `omega-selected-instructions-to-register-homes` | One allocation transform owner; durable data in register homes and independently reusable validity in semantics. |
 | `omega-machine-optimizer` + `omega-post-allocation-machine-to-optimized-machine` | One explicit machine-optimization phase, with rule execution and private analyses homed there. |
 | `omega-optimization-policy` + `omega-optimization-validation` | Build policy to orchestration, durable vocabulary to representations, reusable validity to semantics, rule-local checks beside their rule. Remove the catch-all packages. |
 | Callee-saved requirements, save storage, spill/frame requirements, frame layout and protocol substeps | Consolidate phase-private calculations into allocation/frame owners. Preserve their independent checks without a public crate per calculation. |

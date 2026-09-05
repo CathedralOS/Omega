@@ -1,8 +1,8 @@
-use omega_isa_aarch64::aarch64_preservation_convention_for_target;
-use omega_isa_x86_64::x86_64_preservation_convention_for_target;
-use omega_regalloc::{
+use crate::{
     AllocatorAvailabilityPolicy, ValidatedAllocatorAvailability, materialize_allocator_availability,
 };
+use omega_isa_aarch64::aarch64_preservation_convention_for_target;
+use omega_isa_x86_64::x86_64_preservation_convention_for_target;
 
 use crate::StagedOptimizedLiveRanges;
 

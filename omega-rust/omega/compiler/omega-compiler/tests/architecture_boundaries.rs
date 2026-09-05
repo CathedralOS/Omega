@@ -41,7 +41,7 @@ fn backend_crates_use_only_reviewed_physical_pipeline_dependencies() {
         "omega-register-homes-to-post-allocation-machine",
         "omega-selected-form-encoding-to-resolved-layout",
         "omega-machine-optimizer",
-        "omega-regalloc",
+        "omega-selected-instructions-to-register-homes",
     ]);
 
     for cargo_toml in cargo_tomls_under(&backend_root) {

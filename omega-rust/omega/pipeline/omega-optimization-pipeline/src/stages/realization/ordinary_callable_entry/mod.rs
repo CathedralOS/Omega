@@ -16,7 +16,6 @@ use omega_optimization_core::{
     OptimizedTerminalOrdinaryCallableEntryIdentity, RelocationFreeObjectContainerIdentity,
     RelocationFreeObjectPlanIdentity,
 };
-use omega_regalloc::{RegisterHomeIdentity, register_home_identity};
 use omega_register_model::{
     PhysicalRegisterModelIdentity, RegisterClassId, RegisterUnitId, RegisterViewId,
 };
@@ -24,6 +23,7 @@ use omega_selected_instructions::{
     SelectedInstructionId, SelectedInstructionPlanIdentity, SelectedTerminator, VirtualRegisterId,
     VirtualRegisterOrigin,
 };
+use omega_selected_instructions_to_register_homes::{RegisterHomeIdentity, register_home_identity};
 use omega_target::{Architecture, NativeTarget, ObjectFormat};
 use psi_core::{EdgeId, IntegerCarrier, IntegerSign, IntegerType, MachineId, ScalarType, ValueId};
 use psi_terminal::{TerminalMachineResult, TerminalPsiIdentity, Terminator, ValueDeclaration};

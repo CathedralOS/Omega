@@ -16,7 +16,7 @@ omega-post-allocation-machine-to-selected-form-encoding = { path = "../../pipeli
 omega-register-homes-to-post-allocation-machine = { path = "../../pipeline/omega-register-homes-to-post-allocation-machine" }
 omega-selected-form-encoding-to-resolved-layout = { path = "../../pipeline/omega-selected-form-encoding-to-resolved-layout" }
 omega-machine-optimizer = { path = "../../pipeline/omega-machine-optimizer" }
-omega-regalloc = { path = "../../pipeline/omega-regalloc" }
+omega-selected-instructions-to-register-homes = { path = "../../pipeline/omega-selected-instructions-to-register-homes" }
 omega-register-model = { path = "../../representations/omega-register-model" }
 omega-selected-instructions = { path = "../../representations/omega-selected-instructions" }
 omega-optimization-core = { path = "../../representations/omega-optimization-core" }

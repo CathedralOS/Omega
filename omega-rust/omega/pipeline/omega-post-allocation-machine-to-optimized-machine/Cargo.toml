@@ -13,7 +13,6 @@ omega-physical-instructions = { path = "../../representations/omega-physical-ins
 omega-selected-instructions-to-register-homes = { path = "../omega-selected-instructions-to-register-homes" }
 omega-machine-optimizer = { path = "../omega-machine-optimizer" }
 omega-optimization-core = { path = "../../representations/omega-optimization-core" }
-omega-regalloc = { path = "../omega-regalloc" }
 omega-register-homes-to-post-allocation-machine = { path = "../omega-register-homes-to-post-allocation-machine" }
 omega-register-model = { path = "../../representations/omega-register-model" }
 omega-target = { path = "../../representations/omega-target" }

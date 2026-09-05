@@ -19,7 +19,7 @@ omega-object-file = { path = "../../backend/object/omega-object-file" }
 omega-optimization-core = { path = "../../representations/omega-optimization-core" }
 omega-optimization-validation = { path = "../omega-optimization-validation" }
 omega-abstract-operations-optimizer = { path = "../omega-abstract-operations-optimizer" }
-omega-regalloc = { path = "../omega-regalloc" }
+omega-selected-instructions-to-register-homes = { path = "../omega-selected-instructions-to-register-homes" }
 omega-register-model = { path = "../../representations/omega-register-model" }
 omega-legalized-operations = { path = "../../representations/omega-legalized-operations" }
 omega-machine-code = { path = "../../representations/omega-machine-code" }
@@ -29,7 +29,6 @@ omega-psi-to-abstract-operations = { path = "../omega-psi-to-abstract-operations
 omega-target-operations = { path = "../../representations/omega-target-operations" }
 omega-target-operations-to-selected-instructions = { path = "../omega-target-operations-to-selected-instructions" }
 omega-target-to-register-environment = { path = "../omega-target-to-register-environment" }
-omega-selected-instructions-to-register-homes = { path = "../omega-selected-instructions-to-register-homes" }
 omega-selected-instructions-to-machine-effects = { path = "../omega-selected-instructions-to-machine-effects" }
 omega-register-homes-to-callee-saved-requirements = { path = "../omega-register-homes-to-callee-saved-requirements" }
 omega-register-homes-to-post-allocation-machine = { path = "../omega-register-homes-to-post-allocation-machine" }
@@ -50,9 +49,9 @@ psi-terminal-fuel = { path = "../../../psi/semantics/psi-terminal-fuel" }
 sha2 = "0.10.9"
 
 [dev-dependencies]
+omega-selected-instructions-to-register-homes = { path = "../omega-selected-instructions-to-register-homes", features = ["test-support"] }
 omega-machine-emission = { path = "../../backend/omega-machine-emission", features = ["test-support"] }
 omega-selected-form-encoding-to-resolved-layout = { path = "../omega-selected-form-encoding-to-resolved-layout", features = ["test-support"] }
-omega-selected-instructions-to-register-homes = { path = "../omega-selected-instructions-to-register-homes", features = ["test-support"] }
 omega-post-allocation-machine-to-selected-form-encoding = { path = "../omega-post-allocation-machine-to-selected-form-encoding", features = ["test-support"] }
 omega-optimization-unit = { path = "../../representations/omega-optimization-unit" }
 omega-abstract-operations = { path = "../../representations/omega-abstract-operations" }

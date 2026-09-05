@@ -1,84 +1,132 @@
-use omega_optimization_core::{
-    OptimizationIdentityBundleIdentity, OptimizationUnitIdentity,
-    OptimizedAbstractPlanProjectionIdentity, PrePhysicalOptimizationManifestIdentity,
+use omega_optimization_core::OptimizationUnitIdentity;
+use omega_register_model::{
+    RegisterClassId, RegisterOperandAccess, RegisterUnitId, RegisterViewId,
 };
-use omega_regalloc::{LivenessError, LivenessIdentity, ValidatedLiveness};
-use omega_selected_instructions::SelectedInstructionPlanIdentity;
-use psi_core::{FuelScheduleIdentity, MachineId};
-use psi_terminal::TerminalPsiIdentity;
-
-use omega_target_operations_to_selected_instructions::{
-    OptimizedSelectionCustodyError, StagedOptimizedSelectedInstructions,
+use omega_selected_instructions::{
+    SelectedBlockId, SelectedInstructionId, SelectedInstructionPlanIdentity, VirtualRegisterId,
 };
+use omega_target::NativeTarget;
+use psi_core::{BlockId, EdgeId, FuelScheduleIdentity, MachineId};
 
-/// Opt-in liveness staging over the complete selected-instruction custody
-/// carrier. This grants no interval, allocation, emission, or publication
-/// authority.
-#[derive(Debug)]
-pub struct StagedOptimizedLiveness {
-    pub(super) selected: StagedOptimizedSelectedInstructions,
-    pub(super) liveness: ValidatedLiveness,
-    pub(super) custody: StagedOptimizedLivenessCustodyReceipt,
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct LivenessPosition(pub u32);
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct LivenessIdentity(pub(crate) [u8; 32]);
+
+impl LivenessIdentity {
+    pub const fn from_bytes(bytes: [u8; 32]) -> Self {
+        Self(bytes)
+    }
+
+    pub const fn bytes(self) -> [u8; 32] {
+        self.0
+    }
 }
 
-impl StagedOptimizedLiveness {
-    pub const fn selected_stage(&self) -> &StagedOptimizedSelectedInstructions {
-        &self.selected
-    }
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct LivenessPlan {
+    pub selected: SelectedInstructionPlanIdentity,
+    pub optimization_unit: OptimizationUnitIdentity,
+    pub fuel_schedule: FuelScheduleIdentity,
+    pub target: NativeTarget,
+    pub functions: Vec<FunctionLiveness>,
+    /// Structural-ABI Unit functions retain their own roster even though the
+    /// current exact form has no allocator-managed virtual registers. Keeping
+    /// this separate prevents a zero-VReg result from erasing function, call,
+    /// return, or architectural-unit custody.
+    pub structural_unit_functions: Vec<FunctionLiveness>,
+}
 
-    pub const fn liveness(&self) -> &ValidatedLiveness {
-        &self.liveness
-    }
-
-    pub const fn custody(&self) -> StagedOptimizedLivenessCustodyReceipt {
-        self.custody
-    }
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct FunctionLiveness {
+    pub machine: MachineId,
+    pub entry_definitions: Vec<EntryDefinition>,
+    pub operand_positions: Vec<OperandPosition>,
+    pub blocks: Vec<BlockLiveness>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct StagedOptimizedLivenessCustodyReceipt {
-    pub(super) psi: TerminalPsiIdentity,
-    pub(super) target: omega_target::NativeTarget,
-    pub(super) entry: MachineId,
-    pub(super) optimization: OptimizationIdentityBundleIdentity,
-    pub(super) projection: OptimizedAbstractPlanProjectionIdentity,
-    pub(super) manifest: PrePhysicalOptimizationManifestIdentity,
-    pub(super) optimization_unit: OptimizationUnitIdentity,
-    pub(super) fuel_schedule: FuelScheduleIdentity,
-    pub(super) register_environment: omega_register_model::TargetRegisterEnvironmentIdentity,
-    pub(super) selected: SelectedInstructionPlanIdentity,
-    pub(super) liveness: LivenessIdentity,
-    pub(super) function_count: usize,
-    pub(super) structural_unit_function_count: usize,
-    pub(super) block_count: usize,
-    pub(super) virtual_register_count: usize,
-    pub(super) instruction_count: usize,
-    pub(super) successor_count: usize,
+pub struct EntryDefinition {
+    pub virtual_register: VirtualRegisterId,
+    pub class: RegisterClassId,
+    pub fixed_view: Option<RegisterViewId>,
 }
 
-impl StagedOptimizedLivenessCustodyReceipt {
-    pub const fn psi(self) -> TerminalPsiIdentity {
-        self.psi
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct OperandPosition {
+    pub position: LivenessPosition,
+    pub instruction: SelectedInstructionId,
+    pub operand: u16,
+    pub virtual_register: VirtualRegisterId,
+    pub access: RegisterOperandAccess,
+    pub class: RegisterClassId,
+    pub fixed_view: Option<RegisterViewId>,
+    pub tied_to: Option<u16>,
+    pub early_clobber: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct BlockLiveness {
+    pub block: SelectedBlockId,
+    pub source_block: BlockId,
+    pub virtual_live_in: Vec<VirtualRegisterId>,
+    pub virtual_live_out: Vec<VirtualRegisterId>,
+    pub unit_live_in: Vec<RegisterUnitId>,
+    pub unit_live_out: Vec<RegisterUnitId>,
+    pub instructions: Vec<InstructionLiveness>,
+    pub successors: Vec<SuccessorLiveness>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct InstructionLiveness {
+    pub position: LivenessPosition,
+    pub instruction: SelectedInstructionId,
+    pub virtual_uses: Vec<VirtualRegisterId>,
+    pub virtual_defs: Vec<VirtualRegisterId>,
+    pub virtual_live_in: Vec<VirtualRegisterId>,
+    pub virtual_live_out: Vec<VirtualRegisterId>,
+    pub unit_uses: Vec<RegisterUnitId>,
+    pub unit_defs: Vec<RegisterUnitId>,
+    pub unit_clobbers: Vec<RegisterUnitId>,
+    pub unit_live_in: Vec<RegisterUnitId>,
+    pub unit_live_out: Vec<RegisterUnitId>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SuccessorLiveness {
+    pub terminator: SelectedInstructionId,
+    /// Canonical branch polarity: zero is nonzero/true, one is zero/false.
+    pub polarity_ordinal: u8,
+    pub psi_edge: EdgeId,
+    pub target: SelectedBlockId,
+    pub virtual_live: Vec<VirtualRegisterId>,
+    pub unit_live: Vec<RegisterUnitId>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct LivenessValidationReceipt {
+    pub(crate) identity: LivenessIdentity,
+    pub(crate) selected: SelectedInstructionPlanIdentity,
+    pub(crate) optimization_unit: OptimizationUnitIdentity,
+    pub(crate) fuel_schedule: FuelScheduleIdentity,
+    pub(crate) function_count: usize,
+    pub(crate) structural_unit_function_count: usize,
+    pub(crate) block_count: usize,
+    pub(crate) virtual_register_count: usize,
+    pub(crate) instruction_count: usize,
+    pub(crate) successor_count: usize,
+    pub(crate) tied_pair_count: usize,
+    pub(crate) early_clobber_count: usize,
+}
+
+impl LivenessValidationReceipt {
+    pub const fn identity(self) -> LivenessIdentity {
+        self.identity
     }
 
-    pub const fn target(self) -> omega_target::NativeTarget {
-        self.target
-    }
-
-    pub const fn entry(self) -> MachineId {
-        self.entry
-    }
-
-    pub const fn optimization(self) -> OptimizationIdentityBundleIdentity {
-        self.optimization
-    }
-
-    pub const fn projection(self) -> OptimizedAbstractPlanProjectionIdentity {
-        self.projection
-    }
-
-    pub const fn manifest(self) -> PrePhysicalOptimizationManifestIdentity {
-        self.manifest
+    pub const fn selected(self) -> SelectedInstructionPlanIdentity {
+        self.selected
     }
 
     pub const fn optimization_unit(self) -> OptimizationUnitIdentity {
@@ -87,20 +135,6 @@ impl StagedOptimizedLivenessCustodyReceipt {
 
     pub const fn fuel_schedule(self) -> FuelScheduleIdentity {
         self.fuel_schedule
-    }
-
-    pub const fn selected(self) -> SelectedInstructionPlanIdentity {
-        self.selected
-    }
-
-    pub const fn register_environment(
-        self,
-    ) -> omega_register_model::TargetRegisterEnvironmentIdentity {
-        self.register_environment
-    }
-
-    pub const fn liveness(self) -> LivenessIdentity {
-        self.liveness
     }
 
     pub const fn function_count(self) -> usize {
@@ -126,20 +160,93 @@ impl StagedOptimizedLivenessCustodyReceipt {
     pub const fn successor_count(self) -> usize {
         self.successor_count
     }
-}
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum OptimizedLivenessCustodyError {
-    UpstreamSelection(OptimizedSelectionCustodyError),
-    Analysis(LivenessError),
-    Revalidation(LivenessError),
-    ReceiptMismatch,
-}
+    pub const fn tied_pair_count(self) -> usize {
+        self.tied_pair_count
+    }
 
-impl std::fmt::Display for OptimizedLivenessCustodyError {
-    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(formatter, "optimized liveness staging failed: {self:?}")
+    pub const fn early_clobber_count(self) -> usize {
+        self.early_clobber_count
     }
 }
 
-impl std::error::Error for OptimizedLivenessCustodyError {}
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ValidatedLiveness {
+    pub(crate) plan: std::sync::Arc<LivenessPlan>,
+    pub(crate) receipt: LivenessValidationReceipt,
+}
+
+impl ValidatedLiveness {
+    pub fn plan(&self) -> &LivenessPlan {
+        &self.plan
+    }
+
+    pub const fn receipt(&self) -> LivenessValidationReceipt {
+        self.receipt
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum LivenessError {
+    ProjectedStructuralCallReturnUnsupported,
+    RootMismatch,
+    DuplicateMachine {
+        machine: u64,
+    },
+    StructuralFunctionMismatch {
+        function: usize,
+    },
+    UnsupportedUseDef {
+        function: usize,
+        instruction: u32,
+        operand: u16,
+    },
+    UnsupportedTiedOperand {
+        function: usize,
+        instruction: u32,
+        operand: u16,
+    },
+    UnsupportedEarlyClobber {
+        function: usize,
+        instruction: u32,
+        operand: u16,
+    },
+    FunctionMismatch {
+        function: usize,
+    },
+    BlockMismatch {
+        function: usize,
+        block: u32,
+    },
+    InstructionMismatch {
+        function: usize,
+        instruction: u32,
+    },
+    SuccessorMismatch {
+        function: usize,
+        block: u32,
+        ordinal: u8,
+    },
+    NonCanonicalSet {
+        function: usize,
+        instruction: Option<u32>,
+    },
+    NonDensePositions {
+        function: usize,
+    },
+    TransferMismatch {
+        function: usize,
+        instruction: u32,
+    },
+    FixedConstraintMismatch {
+        function: usize,
+    },
+}
+
+impl std::fmt::Display for LivenessError {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(formatter, "Terminal selected liveness failed: {self:?}")
+    }
+}
+
+impl std::error::Error for LivenessError {}

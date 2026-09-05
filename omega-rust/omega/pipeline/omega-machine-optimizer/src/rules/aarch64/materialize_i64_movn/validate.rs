@@ -1,11 +1,11 @@
 use omega_optimization_core::{OptimizationWorkBudget, OptimizationWorkUsage};
-use omega_regalloc::ValidatedSelectedAnalysis;
 use omega_register_model::{RegisterOperandAccess, ValidatedPhysicalRegisterModel};
 use omega_selected_instructions::{
     MachineAlternativeFamily, MachineEncodedControlEffect, MachineEncodedMemoryEffect,
     MachineEncodedStackEffect, MachineEncodedTrapBehavior, SelectedInstruction,
     SelectedInstructionKind, SelectedInstructionPlan,
 };
+use omega_selected_instructions_to_register_homes::ValidatedSelectedAnalysis;
 use omega_target::Architecture;
 use psi_core::IntegerValue;
 

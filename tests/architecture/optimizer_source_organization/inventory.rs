@@ -42,7 +42,6 @@ const GOVERNED_ROOTS: &[&str] = &[
     "omega-rust/omega/pipeline/omega-post-allocation-machine-to-frame-layout",
     "omega-rust/omega/pipeline/omega-post-allocation-machine-to-selected-form-encoding",
     "omega-rust/omega/pipeline/omega-selected-form-encoding-to-resolved-layout",
-    "omega-rust/omega/pipeline/omega-regalloc",
     "omega-rust/omega/pipeline/omega-register-homes-to-callee-saved-requirements",
     "omega-rust/omega/pipeline/omega-register-homes-to-post-allocation-machine",
     "omega-rust/omega/pipeline/omega-selected-instructions-to-machine-effects",
@@ -92,22 +91,22 @@ pub(super) const RULE_STAGES: &[RuleStageDescriptor] = &[
         ],
     },
     RuleStageDescriptor {
-        entrance: "omega-rust/omega/pipeline/omega-regalloc/src/rules/selected_lowering/mod.rs",
-        catalog: "omega-rust/omega/pipeline/omega-regalloc/src/rules/selected_lowering/catalog.rs",
+        entrance: "omega-rust/omega/pipeline/omega-selected-instructions-to-register-homes/src/rewrites/selected_lowering/mod.rs",
+        catalog: "omega-rust/omega/pipeline/omega-selected-instructions-to-register-homes/src/rewrites/selected_lowering/catalog.rs",
         coordination_marker: "pub fn resolve_selected_lowering_rules",
         catalog_marker: "SELECTED_LOWERING_RULE_CATALOG",
         next_rungs: &[
-            "omega-rust/omega/pipeline/omega-regalloc/src/rules/selected_lowering/literal_fold",
+            "omega-rust/omega/pipeline/omega-selected-instructions-to-register-homes/src/rewrites/selected_lowering/literal_fold",
         ],
     },
     RuleStageDescriptor {
-        entrance: "omega-rust/omega/pipeline/omega-regalloc/src/rules/allocation_recovery/mod.rs",
-        catalog: "omega-rust/omega/pipeline/omega-regalloc/src/rules/allocation_recovery/catalog.rs",
+        entrance: "omega-rust/omega/pipeline/omega-selected-instructions-to-register-homes/src/rewrites/allocation_recovery/mod.rs",
+        catalog: "omega-rust/omega/pipeline/omega-selected-instructions-to-register-homes/src/rewrites/allocation_recovery/catalog.rs",
         coordination_marker: "pub fn selected_allocation_recovery_rule",
         catalog_marker: "ALLOCATION_RECOVERY_RULE_CATALOG",
         next_rungs: &[
-            "omega-rust/omega/pipeline/omega-regalloc/src/rules/allocation_recovery/fixed_view_copy",
-            "omega-rust/omega/pipeline/omega-regalloc/src/rules/allocation_recovery/pressure_rematerialization",
+            "omega-rust/omega/pipeline/omega-selected-instructions-to-register-homes/src/rewrites/allocation_recovery/fixed_view_copy",
+            "omega-rust/omega/pipeline/omega-selected-instructions-to-register-homes/src/rewrites/allocation_recovery/pressure_rematerialization",
         ],
     },
     RuleStageDescriptor {

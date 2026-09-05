@@ -3,10 +3,6 @@ use omega_optimization_core::{
     OptimizationUnitIdentity, OptimizationWorkBudget, PostAllocationOptimizationManifestIdentity,
 };
 use omega_optimization_unit::ValueDefinitionSite;
-use omega_regalloc::{
-    BlockLiveness, FunctionLiveness, InstructionLiveness, LivenessIdentity, LivenessPlan,
-    LivenessPosition,
-};
 use omega_register_model::{
     RegisterConstraintCatalogIdentity, RegisterOperandAccess, TargetRegisterEnvironmentIdentity,
     ValidatedPhysicalRegisterModel, validate_physical_register_model,
@@ -20,6 +16,10 @@ use omega_selected_instructions::{
     SelectedInstructionKind, SelectedInstructionPlan, SelectedInstructionPlanIdentity,
     SelectedInstructionProvenance, SelectedOperand, SelectedTerminator, VirtualRegister,
     VirtualRegisterId, VirtualRegisterOrigin,
+};
+use omega_selected_instructions_to_register_homes::{
+    AllocationLegalityIdentity, BlockLiveness, FunctionLiveness, InstructionLiveness,
+    LiveRangeIdentity, LivenessIdentity, LivenessPlan, LivenessPosition, RegisterHomeIdentity,
 };
 use omega_target::NativeTarget;
 use omega_target_operations::TerminalPsiProvenance;
@@ -294,9 +294,9 @@ pub(crate) fn fixture() -> Fixture {
         identity: source_identity,
         selected: selected_identity,
         effects: PreAllocationMachineEffectIdentity::from_bytes([5; 32]),
-        ranges: omega_regalloc::LiveRangeIdentity::from_bytes([6; 32]),
-        legality: omega_regalloc::AllocationLegalityIdentity::from_bytes([7; 32]),
-        homes: omega_regalloc::RegisterHomeIdentity::from_bytes([8; 32]),
+        ranges: LiveRangeIdentity::from_bytes([6; 32]),
+        legality: AllocationLegalityIdentity::from_bytes([7; 32]),
+        homes: RegisterHomeIdentity::from_bytes([8; 32]),
         post_allocation_manifest: PostAllocationOptimizationManifestIdentity::from_bytes([9; 32]),
         target: selected.target,
         register_environment: TargetRegisterEnvironmentIdentity::from_bytes([10; 32]),

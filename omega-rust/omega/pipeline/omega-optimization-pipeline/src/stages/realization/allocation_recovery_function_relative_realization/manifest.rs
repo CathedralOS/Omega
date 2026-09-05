@@ -1,5 +1,5 @@
 use omega_optimization_core::{OptimizationExecutionPhase, OptimizationSelections};
-use omega_regalloc::PostAllocationSelectedTransformation;
+use omega_selected_instructions_to_register_homes::PostAllocationSelectedTransformation;
 
 use crate::stages::realization::function_relative_realization::{
     function_relative_statistics, seal_function_relative_manifest,
@@ -14,7 +14,7 @@ use crate::{
 };
 
 use super::model::AllocationRecoveryFunctionRelativeRealizationError;
-use omega_regalloc::ValidatedSelectedAnalysis;
+use omega_selected_instructions_to_register_homes::ValidatedSelectedAnalysis;
 use omega_selected_instructions_to_register_homes::{AllocationEvidence, AllocationOutput};
 
 pub(super) fn expected_manifest(

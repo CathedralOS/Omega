@@ -1,5 +1,4 @@
-use omega_optimization_core::OptimizationWorkBudget;
-use omega_regalloc::{
+use crate::{
     AllocationLegalityError, PostAllocationOptimizationManifestError,
     PressureRematerializationError, PressureRematerializationPolicy, RecoveryClassificationError,
     RecoveryClassificationPolicy, RegisterHomeError, SpillChoiceError, SpillChoicePolicy,
@@ -7,6 +6,7 @@ use omega_regalloc::{
     ValidatedPostAllocationOptimizationManifest, ValidatedPressureRematerialization,
     ValidatedRecoveryClassifications, ValidatedRegisterHomes, ValidatedSpillChoices,
 };
+use omega_optimization_core::OptimizationWorkBudget;
 
 use crate::{
     OptimizedAllocationLegalityCustodyError, StagedOptimizedAllocationLegality,
@@ -66,21 +66,21 @@ impl StagedOptimizedActiveResidentRematerialization {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct StagedOptimizedActiveResidentRematerializationCustodyReceipt {
     pub(super) source: StagedOptimizedAllocationLegalityCustodyReceipt,
-    pub(super) choices: omega_regalloc::SpillChoiceIdentity,
+    pub(super) choices: crate::SpillChoiceIdentity,
     pub(super) choice_policy: SpillChoicePolicy,
     pub(super) choice_usage: omega_optimization_core::OptimizationWorkUsage,
-    pub(super) classifications: omega_regalloc::RecoveryClassificationIdentity,
+    pub(super) classifications: crate::RecoveryClassificationIdentity,
     pub(super) classification_policy: RecoveryClassificationPolicy,
     pub(super) classification_usage: omega_optimization_core::OptimizationWorkUsage,
-    pub(super) rematerialization: omega_regalloc::PressureRematerializationIdentity,
+    pub(super) rematerialization: crate::PressureRematerializationIdentity,
     pub(super) rematerialization_policy: PressureRematerializationPolicy,
     pub(super) rematerialization_usage: omega_optimization_core::OptimizationWorkUsage,
     pub(super) budget: OptimizationWorkBudget,
     pub(super) transformed_selected: omega_selected_instructions::SelectedInstructionPlanIdentity,
-    pub(super) liveness: omega_regalloc::LivenessIdentity,
-    pub(super) ranges: omega_regalloc::LiveRangeIdentity,
-    pub(super) legality: omega_regalloc::AllocationLegalityIdentity,
-    pub(super) homes: omega_regalloc::RegisterHomeIdentity,
+    pub(super) liveness: crate::LivenessIdentity,
+    pub(super) ranges: crate::LiveRangeIdentity,
+    pub(super) legality: crate::AllocationLegalityIdentity,
+    pub(super) homes: crate::RegisterHomeIdentity,
     pub(super) manifest: omega_optimization_core::PostAllocationOptimizationManifestIdentity,
     pub(super) function_count: usize,
     pub(super) virtual_register_count: usize,
@@ -93,7 +93,7 @@ impl StagedOptimizedActiveResidentRematerializationCustodyReceipt {
     pub const fn source(self) -> StagedOptimizedAllocationLegalityCustodyReceipt {
         self.source
     }
-    pub const fn choices(self) -> omega_regalloc::SpillChoiceIdentity {
+    pub const fn choices(self) -> crate::SpillChoiceIdentity {
         self.choices
     }
     pub const fn choice_policy(self) -> SpillChoicePolicy {
@@ -102,7 +102,7 @@ impl StagedOptimizedActiveResidentRematerializationCustodyReceipt {
     pub const fn choice_usage(self) -> omega_optimization_core::OptimizationWorkUsage {
         self.choice_usage
     }
-    pub const fn classifications(self) -> omega_regalloc::RecoveryClassificationIdentity {
+    pub const fn classifications(self) -> crate::RecoveryClassificationIdentity {
         self.classifications
     }
     pub const fn classification_policy(self) -> RecoveryClassificationPolicy {
@@ -111,7 +111,7 @@ impl StagedOptimizedActiveResidentRematerializationCustodyReceipt {
     pub const fn classification_usage(self) -> omega_optimization_core::OptimizationWorkUsage {
         self.classification_usage
     }
-    pub const fn rematerialization(self) -> omega_regalloc::PressureRematerializationIdentity {
+    pub const fn rematerialization(self) -> crate::PressureRematerializationIdentity {
         self.rematerialization
     }
     pub const fn rematerialization_policy(self) -> PressureRematerializationPolicy {
@@ -128,16 +128,16 @@ impl StagedOptimizedActiveResidentRematerializationCustodyReceipt {
     ) -> omega_selected_instructions::SelectedInstructionPlanIdentity {
         self.transformed_selected
     }
-    pub const fn liveness(self) -> omega_regalloc::LivenessIdentity {
+    pub const fn liveness(self) -> crate::LivenessIdentity {
         self.liveness
     }
-    pub const fn ranges(self) -> omega_regalloc::LiveRangeIdentity {
+    pub const fn ranges(self) -> crate::LiveRangeIdentity {
         self.ranges
     }
-    pub const fn legality(self) -> omega_regalloc::AllocationLegalityIdentity {
+    pub const fn legality(self) -> crate::AllocationLegalityIdentity {
         self.legality
     }
-    pub const fn homes(self) -> omega_regalloc::RegisterHomeIdentity {
+    pub const fn homes(self) -> crate::RegisterHomeIdentity {
         self.homes
     }
     pub const fn manifest(
@@ -170,8 +170,8 @@ pub enum OptimizedActiveResidentRematerializationError {
     Classification(RecoveryClassificationError),
     Rematerialization(PressureRematerializationError),
     NoAppliedAction,
-    Liveness(omega_regalloc::LivenessError),
-    Ranges(omega_regalloc::LiveRangeError),
+    Liveness(crate::LivenessError),
+    Ranges(crate::LiveRangeError),
     Legality(AllocationLegalityError),
     RemainingTransitions { count: usize },
     Homes(RegisterHomeError),

@@ -31,8 +31,12 @@ pub enum OptimizedVerifiedPhysicalPipelineError {
     PostAllocationMachineRuleCatalog(
         omega_machine_optimizer::PostAllocationMachineRuleCatalogError,
     ),
-    SelectedLoweringRuleCatalog(omega_regalloc::SelectedLoweringRuleCatalogError),
-    AllocationRecoveryRuleCatalog(omega_regalloc::AllocationRecoveryRuleCatalogError),
+    SelectedLoweringRuleCatalog(
+        omega_selected_instructions_to_register_homes::SelectedLoweringRuleCatalogError,
+    ),
+    AllocationRecoveryRuleCatalog(
+        omega_selected_instructions_to_register_homes::AllocationRecoveryRuleCatalogError,
+    ),
     FunctionRelativeLayoutRuleCatalog(crate::FunctionRelativeLayoutCatalogError),
     AllocationRecoveryFunctionRelative(Box<AllocationRecoveryFunctionRelativeRealizationError>),
     UnitFunctionRelativeRealization(OptimizedUnitFunctionRelativeRealizationError),

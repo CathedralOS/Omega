@@ -9,13 +9,13 @@ pub(super) fn sources(
     target: NativeTarget,
 ) -> (
     Sources,
-    omega_regalloc::ValidatedGeneralizedSpillRecoveryActions,
+    omega_selected_instructions_to_register_homes::ValidatedGeneralizedSpillRecoveryActions,
 ) {
     let sources = Sources::new(target);
     let homes = sources.assign(selected_lowering_budget()).unwrap();
-    let worklist = omega_regalloc::seed_generalized_spill_recovery_worklist(
+    let worklist = omega_selected_instructions_to_register_homes::seed_generalized_spill_recovery_worklist(
         &homes,
-        omega_regalloc::GeneralizedSpillRecoveryWorklistPolicy::EpochOnePressureToEpochTwoV1,
+        omega_selected_instructions_to_register_homes::GeneralizedSpillRecoveryWorklistPolicy::EpochOnePressureToEpochTwoV1,
         selected_lowering_budget(),
     )
     .unwrap();
@@ -62,11 +62,11 @@ fn epoch_two_extends_one_schedule_and_reuses_the_disjoint_epoch_zero_offset() {
             .find(|event| {
                 matches!(
                     event,
-                    omega_regalloc::RecursiveSpillEvent::Store { action, .. } if *action == id(2, 0)
+                    omega_selected_instructions_to_register_homes::RecursiveSpillEvent::Store { action, .. } if *action == id(2, 0)
                 )
             })
             .unwrap();
-        let omega_regalloc::RecursiveSpillEvent::Store {
+        let omega_selected_instructions_to_register_homes::RecursiveSpillEvent::Store {
             point,
             before_instruction,
             before_reload,
@@ -81,14 +81,16 @@ fn epoch_two_extends_one_schedule_and_reuses_the_disjoint_epoch_zero_offset() {
         assert_eq!(before_reload, Some(id(1, 0)));
         assert_eq!(
             source,
-            omega_regalloc::RecursiveSpillStoredValue::Reload(id(0, 0))
+            omega_selected_instructions_to_register_homes::RecursiveSpillStoredValue::Reload(id(
+                0, 0
+            ))
         );
         assert!(matches!(
             function.schedule.iter().find(|event| matches!(
                 event,
-                omega_regalloc::RecursiveSpillEvent::Reload { action, .. } if *action == id(2, 0)
+                omega_selected_instructions_to_register_homes::RecursiveSpillEvent::Reload { action, .. } if *action == id(2, 0)
             )),
-            Some(omega_regalloc::RecursiveSpillEvent::Reload { point: LiveRangePoint(16), before_instruction, .. }) if before_instruction.0 == 8
+            Some(omega_selected_instructions_to_register_homes::RecursiveSpillEvent::Reload { point: LiveRangePoint(16), before_instruction, .. }) if before_instruction.0 == 8
         ));
     }
 }
@@ -115,10 +117,10 @@ fn reload_victim_v1_recursive_identity_remains_byte_stable() {
             OptimizationWorkBudget::new(1, 3, 14, 3, 4).unwrap(),
         ),
         Err(
-            omega_regalloc::RecursiveSpillInsertionError::UnsupportedRecoveryVictim {
+            omega_selected_instructions_to_register_homes::RecursiveSpillInsertionError::UnsupportedRecoveryVictim {
                 function: 0,
                 action: id(2, 0),
-                victim: omega_regalloc::GeneralizedSpillRecoveryVictim::Reload(id(0, 0)),
+                victim: omega_selected_instructions_to_register_homes::GeneralizedSpillRecoveryVictim::Reload(id(0, 0)),
             }
         )
     );
@@ -135,27 +137,27 @@ fn independent_replay_rejects_root_slot_schedule_and_usage_corruption() {
             .clone();
 
         for corrupt in [
-            |plan: &mut omega_regalloc::RecursiveSpillInsertionPlan| {
+            |plan: &mut omega_selected_instructions_to_register_homes::RecursiveSpillInsertionPlan| {
                 plan.generalized_spill_insertion =
-                    omega_regalloc::GeneralizedSpillInsertionIdentity::from_bytes([0xe1; 32]);
+                    omega_selected_instructions_to_register_homes::GeneralizedSpillInsertionIdentity::from_bytes([0xe1; 32]);
             },
-            |plan: &mut omega_regalloc::RecursiveSpillInsertionPlan| {
+            |plan: &mut omega_selected_instructions_to_register_homes::RecursiveSpillInsertionPlan| {
                 plan.recovery_actions =
-                    omega_regalloc::GeneralizedSpillRecoveryActionIdentity::from_bytes([0xe2; 32]);
+                    omega_selected_instructions_to_register_homes::GeneralizedSpillRecoveryActionIdentity::from_bytes([0xe2; 32]);
             },
-            |plan: &mut omega_regalloc::RecursiveSpillInsertionPlan| {
+            |plan: &mut omega_selected_instructions_to_register_homes::RecursiveSpillInsertionPlan| {
                 plan.register_environment =
                     omega_register_model::TargetRegisterEnvironmentIdentity::from_bytes([0xe3; 32]);
             },
-            |plan: &mut omega_regalloc::RecursiveSpillInsertionPlan| {
+            |plan: &mut omega_selected_instructions_to_register_homes::RecursiveSpillInsertionPlan| {
                 plan.allocator_availability =
-                    omega_regalloc::AllocatorAvailabilityIdentity::from_bytes([0xe4; 32]);
+                    omega_selected_instructions_to_register_homes::AllocatorAvailabilityIdentity::from_bytes([0xe4; 32]);
             },
-            |plan: &mut omega_regalloc::RecursiveSpillInsertionPlan| {
+            |plan: &mut omega_selected_instructions_to_register_homes::RecursiveSpillInsertionPlan| {
                 plan.optimization_unit =
                     omega_optimization_core::OptimizationUnitIdentity::from_bytes([0xe5; 32]);
             },
-            |plan: &mut omega_regalloc::RecursiveSpillInsertionPlan| {
+            |plan: &mut omega_selected_instructions_to_register_homes::RecursiveSpillInsertionPlan| {
                 plan.fuel_schedule = psi_core::FuelScheduleIdentity::new(99_950).unwrap();
             },
         ] {
@@ -163,7 +165,7 @@ fn independent_replay_rejects_root_slot_schedule_and_usage_corruption() {
             corrupt(&mut root);
             assert_eq!(
                 sources.validate_recursive_spills(&actions, root),
-                Err(omega_regalloc::RecursiveSpillInsertionError::RootMismatch)
+                Err(omega_selected_instructions_to_register_homes::RecursiveSpillInsertionError::RootMismatch)
             );
         }
 
@@ -171,7 +173,7 @@ fn independent_replay_rejects_root_slot_schedule_and_usage_corruption() {
         slot.functions[0].slots[2].spill_area_offset = 8;
         assert_eq!(
             sources.validate_recursive_spills(&actions, slot),
-            Err(omega_regalloc::RecursiveSpillInsertionError::NonCanonicalSlots { function: 0 })
+            Err(omega_selected_instructions_to_register_homes::RecursiveSpillInsertionError::NonCanonicalSlots { function: 0 })
         );
 
         let mut event = canonical.clone();
@@ -181,26 +183,31 @@ fn independent_replay_rejects_root_slot_schedule_and_usage_corruption() {
             .find(|event| {
                 matches!(
                     event,
-                    omega_regalloc::RecursiveSpillEvent::Store { action, .. } if *action == id(2, 0)
+                    omega_selected_instructions_to_register_homes::RecursiveSpillEvent::Store { action, .. } if *action == id(2, 0)
                 )
             })
             .unwrap();
-        let omega_regalloc::RecursiveSpillEvent::Store { source, .. } = row else {
+        let omega_selected_instructions_to_register_homes::RecursiveSpillEvent::Store {
+            source,
+            ..
+        } = row
+        else {
             unreachable!()
         };
-        *source = omega_regalloc::RecursiveSpillStoredValue::Original(
-            omega_selected_instructions::VirtualRegisterId(0),
-        );
+        *source =
+            omega_selected_instructions_to_register_homes::RecursiveSpillStoredValue::Original(
+                omega_selected_instructions::VirtualRegisterId(0),
+            );
         assert_eq!(
             sources.validate_recursive_spills(&actions, event),
-            Err(omega_regalloc::RecursiveSpillInsertionError::NonCanonicalSchedule { function: 0 })
+            Err(omega_selected_instructions_to_register_homes::RecursiveSpillInsertionError::NonCanonicalSchedule { function: 0 })
         );
 
         let mut usage = canonical;
         usage.usage.iterations += 1;
         assert_eq!(
             sources.validate_recursive_spills(&actions, usage),
-            Err(omega_regalloc::RecursiveSpillInsertionError::UsageMismatch)
+            Err(omega_selected_instructions_to_register_homes::RecursiveSpillInsertionError::UsageMismatch)
         );
     }
 }
@@ -220,7 +227,7 @@ fn exact_budget_and_cross_target_roots_fail_closed() {
         for budget in insufficient {
             assert!(matches!(
                 sources.schedule_recursive_spills(&actions, budget),
-                Err(omega_regalloc::RecursiveSpillInsertionError::BudgetExceeded { required, budget: actual })
+                Err(omega_selected_instructions_to_register_homes::RecursiveSpillInsertionError::BudgetExceeded { required, budget: actual })
                     if required == exact_usage() && actual == budget
             ));
         }
@@ -235,12 +242,15 @@ fn exact_budget_and_cross_target_roots_fail_closed() {
     let (arm, arm_actions) = sources(NativeTarget::linux_arm64());
     assert_eq!(
         arm.validate_recursive_spills(&arm_actions, foreign),
-        Err(omega_regalloc::RecursiveSpillInsertionError::RootMismatch)
+        Err(omega_selected_instructions_to_register_homes::RecursiveSpillInsertionError::RootMismatch)
     );
 }
 
-const fn id(epoch: u32, ordinal: u32) -> omega_regalloc::GeneralizedSpillActionId {
-    omega_regalloc::GeneralizedSpillActionId { epoch, ordinal }
+const fn id(
+    epoch: u32,
+    ordinal: u32,
+) -> omega_selected_instructions_to_register_homes::GeneralizedSpillActionId {
+    omega_selected_instructions_to_register_homes::GeneralizedSpillActionId { epoch, ordinal }
 }
 
 const fn exact_usage() -> OptimizationWorkUsage {

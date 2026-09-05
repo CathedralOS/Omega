@@ -1,5 +1,5 @@
 use omega_machine_code::resolved_machine_layout_identity as layout_identity;
-use omega_regalloc::ValidatedSelectedAnalysis;
+use omega_selected_instructions_to_register_homes::ValidatedSelectedAnalysis;
 
 use omega_physical_instructions::PostAllocationMachineOptimizationCustody;
 use omega_post_allocation_machine_to_selected_form_encoding::StagedOptimizedSelectedFormEncoding;

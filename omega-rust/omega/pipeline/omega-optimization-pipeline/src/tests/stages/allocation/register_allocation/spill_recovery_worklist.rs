@@ -16,15 +16,15 @@ pub(super) fn seed(
     sources: &ReloadSources,
     budget: OptimizationWorkBudget,
 ) -> Result<
-    omega_regalloc::ValidatedSpillRecoveryWorklist,
-    omega_regalloc::SpillRecoveryWorklistError,
+    omega_selected_instructions_to_register_homes::ValidatedSpillRecoveryWorklist,
+    omega_selected_instructions_to_register_homes::SpillRecoveryWorklistError,
 > {
     let ranges = sources.legality().live_range_stage();
     let environment = ranges
         .liveness_stage()
         .selected_stage()
         .register_environment();
-    omega_regalloc::seed_spill_recovery_worklist(
+    omega_selected_instructions_to_register_homes::seed_spill_recovery_worklist(
         sources.insertion(),
         sources.logical(),
         sources.legality().legality(),
@@ -33,26 +33,26 @@ pub(super) fn seed(
         environment.constraints(),
         environment.reservations(),
         environment.allocation_constraint_keys(),
-        omega_regalloc::ReloadValueHomePolicy::BlockLocalSingleSpillReloadFirstLowestCompatibleViewV1,
+        omega_selected_instructions_to_register_homes::ReloadValueHomePolicy::BlockLocalSingleSpillReloadFirstLowestCompatibleViewV1,
         selected_lowering_budget(),
-        omega_regalloc::SpillRecoveryWorklistPolicy::SingleReloadPressureEpochOneV1,
+        omega_selected_instructions_to_register_homes::SpillRecoveryWorklistPolicy::SingleReloadPressureEpochOneV1,
         budget,
     )
 }
 
 fn validate(
     sources: &ReloadSources,
-    plan: omega_regalloc::SpillRecoveryWorklistPlan,
+    plan: omega_selected_instructions_to_register_homes::SpillRecoveryWorklistPlan,
 ) -> Result<
-    omega_regalloc::ValidatedSpillRecoveryWorklist,
-    omega_regalloc::SpillRecoveryWorklistError,
+    omega_selected_instructions_to_register_homes::ValidatedSpillRecoveryWorklist,
+    omega_selected_instructions_to_register_homes::SpillRecoveryWorklistError,
 > {
     let ranges = sources.legality().live_range_stage();
     let environment = ranges
         .liveness_stage()
         .selected_stage()
         .register_environment();
-    omega_regalloc::validate_spill_recovery_worklist(
+    omega_selected_instructions_to_register_homes::validate_spill_recovery_worklist(
         sources.insertion(),
         sources.logical(),
         sources.legality().legality(),
@@ -116,23 +116,23 @@ fn independent_replay_rejects_identity_worklist_and_usage_corruption_on_both_arc
 
         let mut root = canonical.clone();
         root.abstract_spill_insertion =
-            omega_regalloc::AbstractSpillInsertionIdentity::from_bytes([0x7d; 32]);
+            omega_selected_instructions_to_register_homes::AbstractSpillInsertionIdentity::from_bytes([0x7d; 32]);
         assert_eq!(
             validate(&sources, root),
-            Err(omega_regalloc::SpillRecoveryWorklistError::RootMismatch)
+            Err(omega_selected_instructions_to_register_homes::SpillRecoveryWorklistError::RootMismatch)
         );
 
         for corrupt in [
-            |plan: &mut omega_regalloc::SpillRecoveryWorklistPlan| {
+            |plan: &mut omega_selected_instructions_to_register_homes::SpillRecoveryWorklistPlan| {
                 plan.epochs[0].epoch = 2;
             },
-            |plan: &mut omega_regalloc::SpillRecoveryWorklistPlan| {
+            |plan: &mut omega_selected_instructions_to_register_homes::SpillRecoveryWorklistPlan| {
                 plan.epochs[0].work_items[0].synthetic.ordinal = 1;
             },
-            |plan: &mut omega_regalloc::SpillRecoveryWorklistPlan| {
+            |plan: &mut omega_selected_instructions_to_register_homes::SpillRecoveryWorklistPlan| {
                 plan.epochs[0].work_items[0].start.0 += 1;
             },
-            |plan: &mut omega_regalloc::SpillRecoveryWorklistPlan| {
+            |plan: &mut omega_selected_instructions_to_register_homes::SpillRecoveryWorklistPlan| {
                 plan.epochs[0].work_items[0].candidates.reverse();
             },
         ] {
@@ -140,7 +140,7 @@ fn independent_replay_rejects_identity_worklist_and_usage_corruption_on_both_arc
             corrupt(&mut changed);
             assert_eq!(
                 validate(&sources, changed),
-                Err(omega_regalloc::SpillRecoveryWorklistError::NonCanonicalWorklist)
+                Err(omega_selected_instructions_to_register_homes::SpillRecoveryWorklistError::NonCanonicalWorklist)
             );
         }
 
@@ -148,7 +148,7 @@ fn independent_replay_rejects_identity_worklist_and_usage_corruption_on_both_arc
         usage.usage.validation_steps += 1;
         assert_eq!(
             validate(&sources, usage),
-            Err(omega_regalloc::SpillRecoveryWorklistError::UsageMismatch)
+            Err(omega_selected_instructions_to_register_homes::SpillRecoveryWorklistError::UsageMismatch)
         );
     }
 }
@@ -162,7 +162,7 @@ fn worklist_budget_is_independent_exact_and_first_over_on_both_architectures() {
         let first_over = OptimizationWorkBudget::new(1, 2, 14, 1, 1).unwrap();
         assert!(matches!(
             seed(&sources, first_over),
-            Err(omega_regalloc::SpillRecoveryWorklistError::BudgetExceeded {
+            Err(omega_selected_instructions_to_register_homes::SpillRecoveryWorklistError::BudgetExceeded {
                 required: OptimizationWorkUsage {
                     validation_steps: 15,
                     ..
@@ -178,6 +178,6 @@ fn successful_reload_assignment_cannot_seed_recursive_recovery() {
     let sources = ReloadSources::new(NativeTarget::linux_x64());
     assert_eq!(
         seed(&sources, selected_lowering_budget()),
-        Err(omega_regalloc::SpillRecoveryWorklistError::ReloadPressureRequired)
+        Err(omega_selected_instructions_to_register_homes::SpillRecoveryWorklistError::ReloadPressureRequired)
     );
 }

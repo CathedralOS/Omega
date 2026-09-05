@@ -1,10 +1,10 @@
+use crate::{
+    AllocationLegalityError, AllocationLegalityIdentity, AllocatorAvailabilityError,
+    AllocatorAvailabilityIdentity, ValidatedAllocationLegality, ValidatedAllocatorAvailability,
+};
 use omega_optimization_core::{
     OptimizationIdentityBundleIdentity, OptimizationUnitIdentity,
     OptimizedAbstractPlanProjectionIdentity, PrePhysicalOptimizationManifestIdentity,
-};
-use omega_regalloc::{
-    AllocationLegalityError, AllocationLegalityIdentity, AllocatorAvailabilityError,
-    AllocatorAvailabilityIdentity, ValidatedAllocationLegality, ValidatedAllocatorAvailability,
 };
 use omega_selected_instructions::SelectedInstructionPlanIdentity;
 use psi_core::{FuelScheduleIdentity, MachineId};
@@ -51,8 +51,8 @@ pub struct StagedOptimizedAllocationLegalityCustodyReceipt {
     pub(super) register_environment: omega_register_model::TargetRegisterEnvironmentIdentity,
     pub(super) allocator_availability: AllocatorAvailabilityIdentity,
     pub(super) selected: SelectedInstructionPlanIdentity,
-    pub(super) liveness: omega_regalloc::LivenessIdentity,
-    pub(super) ranges: omega_regalloc::LiveRangeIdentity,
+    pub(super) liveness: crate::LivenessIdentity,
+    pub(super) ranges: crate::LiveRangeIdentity,
     pub(super) legality: AllocationLegalityIdentity,
     pub(super) function_count: usize,
     pub(super) structural_unit_function_count: usize,
@@ -98,10 +98,10 @@ impl StagedOptimizedAllocationLegalityCustodyReceipt {
     pub const fn selected(self) -> SelectedInstructionPlanIdentity {
         self.selected
     }
-    pub const fn liveness(self) -> omega_regalloc::LivenessIdentity {
+    pub const fn liveness(self) -> crate::LivenessIdentity {
         self.liveness
     }
-    pub const fn ranges(self) -> omega_regalloc::LiveRangeIdentity {
+    pub const fn ranges(self) -> crate::LiveRangeIdentity {
         self.ranges
     }
     pub const fn legality(self) -> AllocationLegalityIdentity {

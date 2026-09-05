@@ -79,11 +79,9 @@ the admitted graph rather than deferred gaps.
 
 ## Implementation Map
 
-- `pipeline/omega-regalloc`
-  owns the proposal-to-independent-validation join.
-- `omega-regalloc` descends through separately implemented producer and replay
-  domain, conflict, placement, and canonical-validation rungs.
-- `pipeline/omega-selected-instructions-to-register-homes` owns both the direct
-  and post-copy-reanalysis entrances and their nested cross-stage custody.
-- `omega-register-model` remains the sole authority for views, aliases, write
-  footprints, constraints, and active reservations.
+- `omega-selected-instructions-to-register-homes/src/assignment/` owns both
+  assignment algorithms and their direct/post-reanalysis entrances.
+  `home_assignment/` keeps independent producer and replay implementations;
+  `baseline/` and `transformed/` retain their respective input evidence.
+- `omega-register-homes` owns durable home plans and their codec.
+  `omega-register-model` owns views, aliases, constraints and reservations.

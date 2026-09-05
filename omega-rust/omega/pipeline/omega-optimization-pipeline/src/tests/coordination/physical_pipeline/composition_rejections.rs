@@ -47,7 +47,7 @@ fn allocation_recovery_compositions_reject_instead_of_dispatching_a_hidden_polic
                 result,
                 Err(
                     OptimizedVerifiedPhysicalPipelineError::AllocationRecoveryRuleCatalog(
-                        omega_regalloc::AllocationRecoveryRuleCatalogError::UnsupportedComposition
+                        omega_selected_instructions_to_register_homes::AllocationRecoveryRuleCatalogError::UnsupportedComposition
                     )
                 )
             ));

@@ -70,9 +70,12 @@ pub(super) fn add(
 
 #[allow(clippy::needless_lifetimes)] // The explicit replay lifetime makes independent custody visible to architecture review.
 pub(super) fn keyed_homes<'home>(
-    functions: &'home [omega_regalloc::FunctionRegisterHomes],
+    functions: &'home [omega_selected_instructions_to_register_homes::FunctionRegisterHomes],
 ) -> Result<
-    BTreeMap<MachineId, &'home omega_regalloc::FunctionRegisterHomes>,
+    BTreeMap<
+        MachineId,
+        &'home omega_selected_instructions_to_register_homes::FunctionRegisterHomes,
+    >,
     super::super::AllocatedCalleeSavedRequirementError,
 > {
     let mut keyed = BTreeMap::new();

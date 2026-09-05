@@ -16,8 +16,8 @@ pub use error::*;
 pub use model::*;
 
 use omega_optimization_core::OptimizationWorkBudget;
-use omega_regalloc::ValidatedSelectedAnalysis;
 use omega_register_model::ValidatedPhysicalRegisterModel;
+use omega_selected_instructions_to_register_homes::ValidatedSelectedAnalysis;
 
 use crate::{
     StagedOptimizedResolvedSelectedFormLayout, validate_optimized_resolved_selected_form_layout,

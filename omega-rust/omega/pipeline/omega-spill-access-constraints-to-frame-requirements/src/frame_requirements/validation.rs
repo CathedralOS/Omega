@@ -1,4 +1,4 @@
-use omega_regalloc::ValidatedAbstractSpillAccessConstraints;
+use omega_selected_instructions_to_register_homes::ValidatedAbstractSpillAccessConstraints;
 
 use crate::ValidatedTargetRegisterEnvironment;
 

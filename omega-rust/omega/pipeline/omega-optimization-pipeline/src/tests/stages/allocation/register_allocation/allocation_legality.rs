@@ -98,16 +98,17 @@ fn allocation_legality_is_phase_exact_and_exposes_fixed_view_transitions() {
                 AllocatorAvailabilityPolicy::AllEnvironmentAllocatableViewsV1,
             )
             .unwrap();
-            let reduced_legality = omega_regalloc::analyze_allocation_legality(
-                staged.live_range_stage().ranges(),
-                &reduced_availability,
-                reduced_identity,
-                environment.physical(),
-                environment.constraints(),
-                &reduced,
-                environment.allocation_constraint_keys(),
-            )
-            .unwrap();
+            let reduced_legality =
+                omega_selected_instructions_to_register_homes::analyze_allocation_legality(
+                    staged.live_range_stage().ranges(),
+                    &reduced_availability,
+                    reduced_identity,
+                    environment.physical(),
+                    environment.constraints(),
+                    &reduced,
+                    environment.allocation_constraint_keys(),
+                )
+                .unwrap();
             let r15 = model.view_named("r15").unwrap().id;
             assert!(
                 function

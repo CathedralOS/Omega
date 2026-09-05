@@ -16,7 +16,6 @@ omega-target-to-register-environment = { path = "../omega-target-to-register-env
 omega-isa-aarch64 = { path = "../../backend/instruction_set_architectures/omega-isa-aarch64" }
 omega-isa-x86_64 = { path = "../../backend/instruction_set_architectures/omega-isa-x86_64" }
 omega-optimization-core = { path = "../../representations/omega-optimization-core" }
-omega-regalloc = { path = "../omega-regalloc" }
 omega-register-homes = { path = "../../representations/omega-register-homes" }
 omega-register-model = { path = "../../representations/omega-register-model" }
 omega-selected-instructions = { path = "../../representations/omega-selected-instructions" }
@@ -24,3 +23,10 @@ omega-target = { path = "../../representations/omega-target" }
 omega-target-operations-to-selected-instructions = { path = "../omega-target-operations-to-selected-instructions" }
 psi-core = { path = "../../../psi/foundation/psi-core" }
 psi-terminal = { path = "../../../psi/representations/psi-terminal" }
+omega-optimization-unit = { path = "../../representations/omega-optimization-unit" }
+omega-abstract-operations = { path = "../../representations/omega-abstract-operations" }
+omega-calling-conventions = { path = "../../representations/omega-calling-conventions" }
+omega-legalized-operations = { path = "../../representations/omega-legalized-operations" }
+omega-target-operations = { path = "../../representations/omega-target-operations" }
+psi-terminal-codec = { path = "../../../psi/semantics/psi-terminal-codec" }
+sha2 = "0.10.9"

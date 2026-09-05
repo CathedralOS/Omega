@@ -8,7 +8,9 @@ use omega_target_to_register_environment::ValidatedTargetRegisterEnvironment;
 use super::MachineEffectStageError;
 use super::catalog::validated_catalog;
 
-pub(super) fn analyze<S: omega_regalloc::ValidatedSelectedAnalysis>(
+pub(super) fn analyze<
+    S: omega_selected_instructions_to_register_homes::ValidatedSelectedAnalysis,
+>(
     selected: &S,
     environment: &ValidatedTargetRegisterEnvironment,
 ) -> Result<ValidatedPreAllocationMachineEffects, MachineEffectStageError> {
@@ -25,7 +27,9 @@ pub(super) fn analyze<S: omega_regalloc::ValidatedSelectedAnalysis>(
     .map_err(MachineEffectStageError::Analysis)
 }
 
-pub(super) fn revalidate<S: omega_regalloc::ValidatedSelectedAnalysis>(
+pub(super) fn revalidate<
+    S: omega_selected_instructions_to_register_homes::ValidatedSelectedAnalysis,
+>(
     selected: &S,
     environment: &ValidatedTargetRegisterEnvironment,
     effects: &ValidatedPreAllocationMachineEffects,

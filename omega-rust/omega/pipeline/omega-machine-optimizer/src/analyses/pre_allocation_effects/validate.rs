@@ -1,4 +1,3 @@
-use omega_regalloc::ValidatedSelectedAnalysis;
 use omega_register_model::{
     TargetRegisterEnvironmentConstraintKeys, TargetRegisterEnvironmentIdentity,
     ValidatedPhysicalRegisterModel, ValidatedRegisterConstraintCatalog,
@@ -8,6 +7,7 @@ use omega_selected_instructions::{
     MachineEffectDeclaration, MachineSemanticKind, SelectedConstraintKeys, SelectedInstruction,
     SelectedInstructionKind, SelectedTerminator, ValidatedMachineEffectCatalog,
 };
+use omega_selected_instructions_to_register_homes::ValidatedSelectedAnalysis;
 
 use crate::{
     FunctionMachineEffects, InstructionMachineEffects, MachineEffectError,

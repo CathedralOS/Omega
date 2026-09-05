@@ -1,5 +1,5 @@
-use omega_regalloc::ValidatedSelectedAnalysis;
 use omega_register_model::ValidatedPhysicalRegisterModel;
+use omega_selected_instructions_to_register_homes::ValidatedSelectedAnalysis;
 
 use omega_post_allocation_machine_to_optimized_machine::{
     StagedOptimizedAarch64CbnzFusion, StagedOptimizedAarch64MovnMaterialization,

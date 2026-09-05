@@ -1,5 +1,5 @@
+use crate::PostAllocationSelectedTransformation;
 use omega_optimization_core::PrePhysicalOptimizationManifestIdentity;
-use omega_regalloc::PostAllocationSelectedTransformation;
 
 use crate::{
     StagedOptimizedLiteralFoldCustodyReceipt, StagedSelectedLoweringOptimizationCustodyReceipt,
@@ -26,8 +26,8 @@ pub(super) fn literal_fold_pre_physical(
 pub(super) fn selected_lowering_final_analysis(
     run: &StagedSelectedLoweringOptimizationRun,
 ) -> (
-    &omega_regalloc::ValidatedLiveRanges,
-    &omega_regalloc::ValidatedAllocationLegality,
+    &crate::ValidatedLiveRanges,
+    &crate::ValidatedAllocationLegality,
 ) {
     match run.steps().last() {
         Some(step) => (step.ranges(), step.legality()),

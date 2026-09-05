@@ -1,4 +1,4 @@
-use omega_regalloc::{
+use crate::{
     validate_post_allocation_optimization_manifest,
     validate_post_allocation_optimization_manifest_after_selected_lowering,
     validate_register_homes,

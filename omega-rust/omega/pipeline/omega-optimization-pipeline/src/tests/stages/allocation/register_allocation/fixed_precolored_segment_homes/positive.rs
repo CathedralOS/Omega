@@ -20,7 +20,7 @@ fn forwarded_conditional_assigns_exact_segment_domains_without_claiming_movement
         assert_eq!(first.receipt().usage(), EXACT_USAGE);
         assert_eq!(
             first.receipt().identity(),
-            omega_regalloc::fixed_precolored_segment_home_plan_identity(first.plan())
+            omega_selected_instructions_to_register_homes::fixed_precolored_segment_home_plan_identity(first.plan())
         );
 
         let environment = fixture

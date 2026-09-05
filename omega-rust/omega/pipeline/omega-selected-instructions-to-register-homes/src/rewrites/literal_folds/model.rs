@@ -133,9 +133,9 @@ pub struct StagedSelectedLoweringOptimizationCustodyReceipt {
     pub(super) iterations: Vec<StagedOptimizedLiteralFoldIterationReceipt>,
     pub(super) attempt: StagedOptimizedLiteralFoldAttemptReceipt,
     pub(super) final_selected: SelectedInstructionPlanIdentity,
-    pub(super) final_liveness: omega_regalloc::LivenessIdentity,
-    pub(super) final_ranges: omega_regalloc::LiveRangeIdentity,
-    pub(super) final_legality: omega_regalloc::AllocationLegalityIdentity,
+    pub(super) final_liveness: crate::LivenessIdentity,
+    pub(super) final_ranges: crate::LiveRangeIdentity,
+    pub(super) final_legality: crate::AllocationLegalityIdentity,
     pub(super) final_virtual_register_count: usize,
 }
 
@@ -176,13 +176,13 @@ impl StagedSelectedLoweringOptimizationCustodyReceipt {
     pub const fn final_selected(&self) -> SelectedInstructionPlanIdentity {
         self.final_selected
     }
-    pub const fn final_liveness(&self) -> omega_regalloc::LivenessIdentity {
+    pub const fn final_liveness(&self) -> crate::LivenessIdentity {
         self.final_liveness
     }
-    pub const fn final_ranges(&self) -> omega_regalloc::LiveRangeIdentity {
+    pub const fn final_ranges(&self) -> crate::LiveRangeIdentity {
         self.final_ranges
     }
-    pub const fn final_legality(&self) -> omega_regalloc::AllocationLegalityIdentity {
+    pub const fn final_legality(&self) -> crate::AllocationLegalityIdentity {
         self.final_legality
     }
     pub const fn final_virtual_register_count(&self) -> usize {
@@ -193,12 +193,12 @@ impl StagedSelectedLoweringOptimizationCustodyReceipt {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct StagedOptimizedLiteralFoldAttemptReceipt {
     pub(super) source_selected: SelectedInstructionPlanIdentity,
-    pub(super) source_ranges: omega_regalloc::LiveRangeIdentity,
-    pub(super) source_legality: omega_regalloc::AllocationLegalityIdentity,
-    pub(super) choices: omega_regalloc::SpillChoiceIdentity,
+    pub(super) source_ranges: crate::LiveRangeIdentity,
+    pub(super) source_legality: crate::AllocationLegalityIdentity,
+    pub(super) choices: crate::SpillChoiceIdentity,
     pub(super) choice_policy: SpillChoicePolicy,
     pub(super) choice_usage: OptimizationWorkUsage,
-    pub(super) recovery: omega_regalloc::RecoveryClassificationIdentity,
+    pub(super) recovery: crate::RecoveryClassificationIdentity,
     pub(super) recovery_policy: RecoveryClassificationPolicy,
     pub(super) recovery_usage: OptimizationWorkUsage,
     pub(super) fold: LiteralFoldIdentity,
@@ -212,13 +212,13 @@ impl StagedOptimizedLiteralFoldAttemptReceipt {
     pub const fn source_selected(self) -> SelectedInstructionPlanIdentity {
         self.source_selected
     }
-    pub const fn source_ranges(self) -> omega_regalloc::LiveRangeIdentity {
+    pub const fn source_ranges(self) -> crate::LiveRangeIdentity {
         self.source_ranges
     }
-    pub const fn source_legality(self) -> omega_regalloc::AllocationLegalityIdentity {
+    pub const fn source_legality(self) -> crate::AllocationLegalityIdentity {
         self.source_legality
     }
-    pub const fn choices(self) -> omega_regalloc::SpillChoiceIdentity {
+    pub const fn choices(self) -> crate::SpillChoiceIdentity {
         self.choices
     }
     pub const fn choice_policy(self) -> SpillChoicePolicy {
@@ -227,7 +227,7 @@ impl StagedOptimizedLiteralFoldAttemptReceipt {
     pub const fn choice_usage(self) -> OptimizationWorkUsage {
         self.choice_usage
     }
-    pub const fn recovery(self) -> omega_regalloc::RecoveryClassificationIdentity {
+    pub const fn recovery(self) -> crate::RecoveryClassificationIdentity {
         self.recovery
     }
     pub const fn recovery_policy(self) -> RecoveryClassificationPolicy {
@@ -259,9 +259,9 @@ pub struct StagedOptimizedLiteralFoldCustodyReceipt {
     pub(super) iterations: Vec<StagedOptimizedLiteralFoldIterationReceipt>,
     pub(super) transformations: Vec<LiteralFoldIdentity>,
     pub(super) final_selected: SelectedInstructionPlanIdentity,
-    pub(super) final_liveness: omega_regalloc::LivenessIdentity,
-    pub(super) final_ranges: omega_regalloc::LiveRangeIdentity,
-    pub(super) final_legality: omega_regalloc::AllocationLegalityIdentity,
+    pub(super) final_liveness: crate::LivenessIdentity,
+    pub(super) final_ranges: crate::LiveRangeIdentity,
+    pub(super) final_legality: crate::AllocationLegalityIdentity,
     pub(super) final_virtual_register_count: usize,
     pub(super) final_entry_transition_count: usize,
 }
@@ -279,13 +279,13 @@ impl StagedOptimizedLiteralFoldCustodyReceipt {
     pub const fn final_selected(&self) -> SelectedInstructionPlanIdentity {
         self.final_selected
     }
-    pub const fn final_liveness(&self) -> omega_regalloc::LivenessIdentity {
+    pub const fn final_liveness(&self) -> crate::LivenessIdentity {
         self.final_liveness
     }
-    pub const fn final_ranges(&self) -> omega_regalloc::LiveRangeIdentity {
+    pub const fn final_ranges(&self) -> crate::LiveRangeIdentity {
         self.final_ranges
     }
-    pub const fn final_legality(&self) -> omega_regalloc::AllocationLegalityIdentity {
+    pub const fn final_legality(&self) -> crate::AllocationLegalityIdentity {
         self.final_legality
     }
     pub const fn final_virtual_register_count(&self) -> usize {
@@ -299,34 +299,34 @@ impl StagedOptimizedLiteralFoldCustodyReceipt {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct StagedOptimizedLiteralFoldIterationReceipt {
     pub(super) source_selected: SelectedInstructionPlanIdentity,
-    pub(super) source_ranges: omega_regalloc::LiveRangeIdentity,
-    pub(super) source_legality: omega_regalloc::AllocationLegalityIdentity,
-    pub(super) choices: omega_regalloc::SpillChoiceIdentity,
+    pub(super) source_ranges: crate::LiveRangeIdentity,
+    pub(super) source_legality: crate::AllocationLegalityIdentity,
+    pub(super) choices: crate::SpillChoiceIdentity,
     pub(super) choice_policy: SpillChoicePolicy,
     pub(super) choice_usage: OptimizationWorkUsage,
-    pub(super) recovery: omega_regalloc::RecoveryClassificationIdentity,
+    pub(super) recovery: crate::RecoveryClassificationIdentity,
     pub(super) recovery_policy: RecoveryClassificationPolicy,
     pub(super) recovery_usage: OptimizationWorkUsage,
     pub(super) fold: LiteralFoldIdentity,
     pub(super) fold_policy: LiteralFoldPolicy,
     pub(super) fold_usage: OptimizationWorkUsage,
     pub(super) transformed_selected: SelectedInstructionPlanIdentity,
-    pub(super) fresh_liveness: omega_regalloc::LivenessIdentity,
-    pub(super) fresh_ranges: omega_regalloc::LiveRangeIdentity,
-    pub(super) fresh_legality: omega_regalloc::AllocationLegalityIdentity,
+    pub(super) fresh_liveness: crate::LivenessIdentity,
+    pub(super) fresh_ranges: crate::LiveRangeIdentity,
+    pub(super) fresh_legality: crate::AllocationLegalityIdentity,
 }
 
 impl StagedOptimizedLiteralFoldIterationReceipt {
     pub const fn source_selected(self) -> SelectedInstructionPlanIdentity {
         self.source_selected
     }
-    pub const fn source_ranges(self) -> omega_regalloc::LiveRangeIdentity {
+    pub const fn source_ranges(self) -> crate::LiveRangeIdentity {
         self.source_ranges
     }
-    pub const fn source_legality(self) -> omega_regalloc::AllocationLegalityIdentity {
+    pub const fn source_legality(self) -> crate::AllocationLegalityIdentity {
         self.source_legality
     }
-    pub const fn choices(self) -> omega_regalloc::SpillChoiceIdentity {
+    pub const fn choices(self) -> crate::SpillChoiceIdentity {
         self.choices
     }
     pub const fn choice_policy(self) -> SpillChoicePolicy {
@@ -335,7 +335,7 @@ impl StagedOptimizedLiteralFoldIterationReceipt {
     pub const fn choice_usage(self) -> OptimizationWorkUsage {
         self.choice_usage
     }
-    pub const fn recovery(self) -> omega_regalloc::RecoveryClassificationIdentity {
+    pub const fn recovery(self) -> crate::RecoveryClassificationIdentity {
         self.recovery
     }
     pub const fn recovery_policy(self) -> RecoveryClassificationPolicy {
@@ -356,13 +356,13 @@ impl StagedOptimizedLiteralFoldIterationReceipt {
     pub const fn transformed_selected(self) -> SelectedInstructionPlanIdentity {
         self.transformed_selected
     }
-    pub const fn fresh_liveness(self) -> omega_regalloc::LivenessIdentity {
+    pub const fn fresh_liveness(self) -> crate::LivenessIdentity {
         self.fresh_liveness
     }
-    pub const fn fresh_ranges(self) -> omega_regalloc::LiveRangeIdentity {
+    pub const fn fresh_ranges(self) -> crate::LiveRangeIdentity {
         self.fresh_ranges
     }
-    pub const fn fresh_legality(self) -> omega_regalloc::AllocationLegalityIdentity {
+    pub const fn fresh_legality(self) -> crate::AllocationLegalityIdentity {
         self.fresh_legality
     }
 }

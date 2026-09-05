@@ -21,7 +21,8 @@ impl StagedOptimizedVerifiedPhysicalPipeline {
     }
     pub fn post_allocation_manifest(
         &self,
-    ) -> &omega_regalloc::ValidatedPostAllocationOptimizationManifest {
+    ) -> &omega_selected_instructions_to_register_homes::ValidatedPostAllocationOptimizationManifest
+    {
         self.source.post_allocation_manifest()
     }
     pub fn machine(&self) -> &crate::StagedOptimizedPostAllocationMachinePlan {

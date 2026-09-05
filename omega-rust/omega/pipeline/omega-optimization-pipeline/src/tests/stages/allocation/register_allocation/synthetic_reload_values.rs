@@ -1,7 +1,7 @@
 //! Synthetic reload-value namespace custody after reload-home assignment.
 
 use omega_optimization_core::{OptimizationWorkBudget, OptimizationWorkUsage};
-use omega_regalloc::{
+use omega_selected_instructions_to_register_homes::{
     SyntheticReloadValueError, SyntheticReloadValueId, SyntheticReloadValuePlan,
     SyntheticReloadValuePolicy, ValidatedReloadValueHomes, ValidatedSyntheticReloadValues,
     bind_synthetic_reload_values, validate_synthetic_reload_values,
@@ -63,7 +63,10 @@ fn independent_replay_rejects_root_namespace_home_and_usage_corruption() {
             .clone();
 
         let mut root = canonical.clone();
-        root.reload_value_homes = omega_regalloc::ReloadValueHomeIdentity::from_bytes([0x71; 32]);
+        root.reload_value_homes =
+            omega_selected_instructions_to_register_homes::ReloadValueHomeIdentity::from_bytes(
+                [0x71; 32],
+            );
         assert_eq!(
             validate(&sources, &homes, root),
             Err(SyntheticReloadValueError::RootMismatch)

@@ -11,7 +11,7 @@ use super::{
 pub(super) fn reconstruct(
     traversal: &mut ReplayTraversal<'_>,
     function: &omega_selected_instructions::SelectedFunction,
-    homes: &omega_regalloc::FunctionRegisterHomes,
+    homes: &omega_selected_instructions_to_register_homes::FunctionRegisterHomes,
 ) -> Result<(), AllocatedCalleeSavedRequirementError> {
     if function.machine != homes.machine
         || function.virtual_registers.len() != homes.assignments.len()

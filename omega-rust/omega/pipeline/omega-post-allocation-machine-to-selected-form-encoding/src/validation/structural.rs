@@ -2,8 +2,8 @@ use omega_isa_x86_64::{
     validate_x86_64_register_constraint_catalog,
     validate_x86_64_selected_structural_unit_call_template, x86_64_register_constraint_catalog,
 };
-use omega_regalloc::ValidatedSelectedAnalysis;
 use omega_register_model::ValidatedPhysicalRegisterModel;
+use omega_selected_instructions_to_register_homes::ValidatedSelectedAnalysis;
 use omega_target::Architecture;
 
 use crate::StagedOptimizedPostAllocationMachinePlan;

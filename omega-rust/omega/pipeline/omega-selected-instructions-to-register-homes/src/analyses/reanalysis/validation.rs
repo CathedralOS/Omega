@@ -1,4 +1,4 @@
-use omega_regalloc::{
+use crate::{
     ValidatedAllocationLegality, ValidatedLiveRanges, ValidatedLiveness,
     validate_allocation_legality, validate_live_ranges, validate_liveness,
 };

@@ -1,6 +1,8 @@
 //! Target-neutral spill-area slot coloring after validated logical spilling.
 
-use omega_regalloc::{LogicalSpillStorageClass, LogicalSpillStorageId};
+use omega_selected_instructions_to_register_homes::{
+    LogicalSpillStorageClass, LogicalSpillStorageId,
+};
 
 use crate::tests::*;
 
@@ -9,15 +11,15 @@ fn stack_slot_coloring_is_deterministic_and_target_neutral() {
     let mut canonical = None;
     for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
         let logical = active_resident_logical_spill(target);
-        let first = omega_regalloc::color_logical_spill_stack_slots(
+        let first = omega_selected_instructions_to_register_homes::color_logical_spill_stack_slots(
             &logical,
-            omega_regalloc::StackSlotColoringPolicy::BlockLocalNonAddressUnsignedU64ClosedIntervalFirstFitV1,
+            omega_selected_instructions_to_register_homes::StackSlotColoringPolicy::BlockLocalNonAddressUnsignedU64ClosedIntervalFirstFitV1,
             selected_lowering_budget(),
         )
         .unwrap();
-        let second = omega_regalloc::color_logical_spill_stack_slots(
+        let second = omega_selected_instructions_to_register_homes::color_logical_spill_stack_slots(
             &logical,
-            omega_regalloc::StackSlotColoringPolicy::BlockLocalNonAddressUnsignedU64ClosedIntervalFirstFitV1,
+            omega_selected_instructions_to_register_homes::StackSlotColoringPolicy::BlockLocalNonAddressUnsignedU64ClosedIntervalFirstFitV1,
             selected_lowering_budget(),
         )
         .unwrap();
@@ -44,11 +46,17 @@ fn stack_slot_coloring_is_deterministic_and_target_neutral() {
             logical.receipt().identity()
         );
         assert_eq!(
-            omega_regalloc::StackSlotColoringPlan::decode(&first.plan().encode()),
+            omega_selected_instructions_to_register_homes::StackSlotColoringPlan::decode(
+                &first.plan().encode()
+            ),
             Ok(first.plan().clone())
         );
         assert_eq!(
-            omega_regalloc::validate_stack_slot_coloring(&logical, first.plan().clone(),).unwrap(),
+            omega_selected_instructions_to_register_homes::validate_stack_slot_coloring(
+                &logical,
+                first.plan().clone(),
+            )
+            .unwrap(),
             first
         );
 
@@ -72,40 +80,44 @@ fn stack_slot_coloring_is_deterministic_and_target_neutral() {
 #[test]
 fn stack_slot_coloring_rejects_root_assignment_extent_and_usage_corruption() {
     let logical = active_resident_logical_spill(NativeTarget::linux_x64());
-    let validated = omega_regalloc::color_logical_spill_stack_slots(
+    let validated = omega_selected_instructions_to_register_homes::color_logical_spill_stack_slots(
         &logical,
-        omega_regalloc::StackSlotColoringPolicy::BlockLocalNonAddressUnsignedU64ClosedIntervalFirstFitV1,
+        omega_selected_instructions_to_register_homes::StackSlotColoringPolicy::BlockLocalNonAddressUnsignedU64ClosedIntervalFirstFitV1,
         selected_lowering_budget(),
     )
     .unwrap();
 
     let mut root = validated.plan().clone();
     root.logical_spill_operations =
-        omega_regalloc::LogicalSpillOperationIdentity::from_bytes([211; 32]);
+        omega_selected_instructions_to_register_homes::LogicalSpillOperationIdentity::from_bytes(
+            [211; 32],
+        );
     assert_eq!(
-        omega_regalloc::validate_stack_slot_coloring(&logical, root),
-        Err(omega_regalloc::StackSlotColoringError::RootMismatch)
+        omega_selected_instructions_to_register_homes::validate_stack_slot_coloring(&logical, root),
+        Err(omega_selected_instructions_to_register_homes::StackSlotColoringError::RootMismatch)
     );
 
     let mut assignment = validated.plan().clone();
     assignment.functions[0].assignments[0].spill_area_offset = 8;
     assert_eq!(
-        omega_regalloc::validate_stack_slot_coloring(&logical, assignment),
-        Err(omega_regalloc::StackSlotColoringError::NonCanonicalAssignments { function: 0 })
+        omega_selected_instructions_to_register_homes::validate_stack_slot_coloring(&logical, assignment),
+        Err(omega_selected_instructions_to_register_homes::StackSlotColoringError::NonCanonicalAssignments { function: 0 })
     );
 
     let mut extent = validated.plan().clone();
     extent.functions[0].spill_area_bytes = 16;
     assert_eq!(
-        omega_regalloc::validate_stack_slot_coloring(&logical, extent),
-        Err(omega_regalloc::StackSlotColoringError::NonCanonicalAssignments { function: 0 })
+        omega_selected_instructions_to_register_homes::validate_stack_slot_coloring(&logical, extent),
+        Err(omega_selected_instructions_to_register_homes::StackSlotColoringError::NonCanonicalAssignments { function: 0 })
     );
 
     let mut usage = validated.plan().clone();
     usage.usage.validation_steps += 1;
     assert_eq!(
-        omega_regalloc::validate_stack_slot_coloring(&logical, usage),
-        Err(omega_regalloc::StackSlotColoringError::UsageMismatch)
+        omega_selected_instructions_to_register_homes::validate_stack_slot_coloring(
+            &logical, usage
+        ),
+        Err(omega_selected_instructions_to_register_homes::StackSlotColoringError::UsageMismatch)
     );
 }
 
@@ -120,9 +132,9 @@ fn stack_slot_coloring_preserves_an_empty_pressure_plan_without_allocating_a_slo
     )
     .unwrap();
     let logical = logical_spill_from_legality(&legality);
-    let colored = omega_regalloc::color_logical_spill_stack_slots(
+    let colored = omega_selected_instructions_to_register_homes::color_logical_spill_stack_slots(
         &logical,
-        omega_regalloc::StackSlotColoringPolicy::BlockLocalNonAddressUnsignedU64ClosedIntervalFirstFitV1,
+        omega_selected_instructions_to_register_homes::StackSlotColoringPolicy::BlockLocalNonAddressUnsignedU64ClosedIntervalFirstFitV1,
         selected_lowering_budget(),
     )
     .unwrap();
@@ -140,14 +152,14 @@ fn stack_slot_coloring_preserves_an_empty_pressure_plan_without_allocating_a_slo
 
 fn active_resident_logical_spill(
     target: NativeTarget,
-) -> omega_regalloc::ValidatedLogicalSpillOperations {
+) -> omega_selected_instructions_to_register_homes::ValidatedLogicalSpillOperations {
     let legality = staged_active_resident_two_view_legality(target);
     logical_spill_from_legality(&legality)
 }
 
 fn logical_spill_from_legality(
     legality: &StagedOptimizedAllocationLegality,
-) -> omega_regalloc::ValidatedLogicalSpillOperations {
+) -> omega_selected_instructions_to_register_homes::ValidatedLogicalSpillOperations {
     let ranges = legality.live_range_stage();
     let selected = ranges.liveness_stage().selected_stage();
     let environment = selected.register_environment();
@@ -163,12 +175,12 @@ fn logical_spill_from_legality(
         selected_lowering_budget(),
     )
     .unwrap();
-    omega_regalloc::plan_logical_spill_operations(
+    omega_selected_instructions_to_register_homes::plan_logical_spill_operations(
         selected.selected(),
         ranges.ranges(),
         legality.legality(),
         &choices,
-        omega_regalloc::LogicalSpillOperationPolicy::SelectedActiveResidentInstructionResultU64StoreBeforePressureReloadBeforeFirstFutureFlexibleUseV1,
+        omega_selected_instructions_to_register_homes::LogicalSpillOperationPolicy::SelectedActiveResidentInstructionResultU64StoreBeforePressureReloadBeforeFirstFutureFlexibleUseV1,
         selected_lowering_budget(),
     )
     .unwrap()

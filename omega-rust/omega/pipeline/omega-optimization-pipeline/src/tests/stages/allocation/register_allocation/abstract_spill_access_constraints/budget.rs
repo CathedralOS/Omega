@@ -26,7 +26,7 @@ fn exact_budget_all_five_first_under_axes_and_cross_target_custody_fail_closed()
                 assert_eq!(
                     constrain(&source, actual),
                     Err(
-                        omega_regalloc::AbstractSpillAccessConstraintError::BudgetExceeded {
+                        omega_selected_instructions_to_register_homes::AbstractSpillAccessConstraintError::BudgetExceeded {
                             required: EXACT_USAGE,
                             budget: actual,
                         }
@@ -39,7 +39,7 @@ fn exact_budget_all_five_first_under_axes_and_cross_target_custody_fail_closed()
         let arm = build(constructor, NativeTarget::linux_arm64());
         assert_eq!(
             validate(&arm, foreign),
-            Err(omega_regalloc::AbstractSpillAccessConstraintError::RootMismatch),
+            Err(omega_selected_instructions_to_register_homes::AbstractSpillAccessConstraintError::RootMismatch),
         );
     }
 }

@@ -13,7 +13,15 @@ use omega_optimization_core::{
     Optimization, OptimizationSelections, OptimizationWorkBudget, OptimizationWorkUsage,
 };
 use omega_optimization_unit::{FuelSettlement, OwnershipEvent, PsiProvenance, ValueDefinitionSite};
-use omega_regalloc::{
+use omega_register_model::{
+    RegisterOperandAccess, RegisterReservationProfile, RegisterUnitId, RegisterViewId,
+    target_register_environment_identity, validate_register_reservation_profile,
+};
+use omega_selected_instructions::{
+    MachineBarrier, SelectedInstructionId, SelectedInstructionKind, SelectedTerminator,
+    VirtualRegisterId, VirtualRegisterOrigin,
+};
+use omega_selected_instructions_to_register_homes::{
     AllocationLegalityError, AllocatorAvailabilityError, AllocatorAvailabilityPolicy,
     ArchitecturalUnitActionKind, FixedViewCopyError, FixedViewCopyPolicy, LiteralFoldPlan,
     LiteralFoldPolicy, LiveRangeError, LiveRangeFragment, LiveRangePoint, LivenessError,
@@ -28,14 +36,6 @@ use omega_regalloc::{
     register_home_identity, validate_allocation_legality, validate_allocator_availability,
     validate_fixed_view_copies, validate_literal_fold, validate_live_ranges, validate_liveness,
     validate_post_allocation_optimization_manifest, validate_register_homes,
-};
-use omega_register_model::{
-    RegisterOperandAccess, RegisterReservationProfile, RegisterUnitId, RegisterViewId,
-    target_register_environment_identity, validate_register_reservation_profile,
-};
-use omega_selected_instructions::{
-    MachineBarrier, SelectedInstructionId, SelectedInstructionKind, SelectedTerminator,
-    VirtualRegisterId, VirtualRegisterOrigin,
 };
 use omega_target::NativeTarget;
 use omega_target_operations::{

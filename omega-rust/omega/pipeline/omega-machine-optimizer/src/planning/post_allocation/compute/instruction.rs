@@ -16,7 +16,7 @@ pub(super) fn build(
     function_index: usize,
     selected: &SelectedInstruction,
     effects: &InstructionMachineEffects,
-    homes: &omega_regalloc::FunctionRegisterHomes,
+    homes: &omega_selected_instructions_to_register_homes::FunctionRegisterHomes,
     physical: &ValidatedPhysicalRegisterModel,
 ) -> Result<PostAllocationMachineInstruction, PostAllocationMachineError> {
     if effects.instruction != selected.id || effects.kind != selected.kind {

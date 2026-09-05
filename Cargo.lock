@@ -922,11 +922,11 @@ dependencies = [
  "omega-post-allocation-machine-to-optimized-machine",
  "omega-post-allocation-machine-to-selected-form-encoding",
  "omega-psi-to-abstract-operations",
- "omega-regalloc",
  "omega-register-homes-to-post-allocation-machine",
  "omega-register-model",
  "omega-selected-form-encoding-to-resolved-layout",
  "omega-selected-instructions",
+ "omega-selected-instructions-to-register-homes",
  "omega-target",
  "omega-target-operations",
  "omega-target-operations-to-assigned-target-operations",
@@ -955,9 +955,9 @@ dependencies = [
  "omega-optimization-core",
  "omega-optimization-unit",
  "omega-physical-instructions",
- "omega-regalloc",
  "omega-register-model",
  "omega-selected-instructions",
+ "omega-selected-instructions-to-register-homes",
  "omega-target",
  "omega-target-operations",
  "psi-core",
@@ -1022,9 +1022,9 @@ dependencies = [
  "omega-program-entry-plan",
  "omega-provider-planning",
  "omega-psi-to-abstract-operations",
- "omega-regalloc",
  "omega-register-model",
  "omega-selected-instructions",
+ "omega-selected-instructions-to-register-homes",
  "omega-target",
  "omega-target-operations",
  "omega-target-operations-to-assigned-target-operations",
@@ -1110,7 +1110,6 @@ dependencies = [
  "omega-post-allocation-machine-to-optimized-machine",
  "omega-post-allocation-machine-to-selected-form-encoding",
  "omega-psi-to-abstract-operations",
- "omega-regalloc",
  "omega-register-homes-to-callee-saved-requirements",
  "omega-register-homes-to-post-allocation-machine",
  "omega-register-model",
@@ -1365,7 +1364,6 @@ dependencies = [
  "omega-machine-optimizer",
  "omega-optimization-core",
  "omega-physical-instructions",
- "omega-regalloc",
  "omega-register-homes-to-post-allocation-machine",
  "omega-register-model",
  "omega-selected-instructions-to-register-homes",
@@ -1384,10 +1382,10 @@ dependencies = [
  "omega-optimization-core",
  "omega-physical-instructions",
  "omega-post-allocation-machine-to-optimized-machine",
- "omega-regalloc",
  "omega-register-homes-to-post-allocation-machine",
  "omega-register-model",
  "omega-selected-instructions",
+ "omega-selected-instructions-to-register-homes",
  "omega-target",
  "psi-core",
  "sha2",
@@ -1479,27 +1477,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "omega-regalloc"
-version = "0.1.0"
-dependencies = [
- "omega-abstract-operations",
- "omega-calling-conventions",
- "omega-legalized-operations",
- "omega-optimization-core",
- "omega-optimization-unit",
- "omega-register-homes",
- "omega-register-model",
- "omega-selected-instructions",
- "omega-target",
- "omega-target-operations",
- "omega-target-operations-to-selected-instructions",
- "psi-core",
- "psi-terminal",
- "psi-terminal-codec",
- "sha2",
-]
-
-[[package]]
 name = "omega-register-homes"
 version = "0.1.0"
 dependencies = [
@@ -1514,7 +1491,6 @@ name = "omega-register-homes-to-callee-saved-requirements"
 version = "0.1.0"
 dependencies = [
  "omega-optimization-core",
- "omega-regalloc",
  "omega-register-model",
  "omega-selected-instructions",
  "omega-selected-instructions-to-register-homes",
@@ -1530,7 +1506,6 @@ version = "0.1.0"
 dependencies = [
  "omega-machine-optimizer",
  "omega-physical-instructions",
- "omega-regalloc",
  "omega-selected-instructions-to-machine-effects",
  "omega-selected-instructions-to-register-homes",
  "omega-target-to-register-environment",
@@ -1620,10 +1595,10 @@ dependencies = [
  "omega-physical-instructions",
  "omega-post-allocation-machine-to-optimized-machine",
  "omega-post-allocation-machine-to-selected-form-encoding",
- "omega-regalloc",
  "omega-register-homes-to-post-allocation-machine",
  "omega-register-model",
  "omega-selected-instructions",
+ "omega-selected-instructions-to-register-homes",
  "omega-target",
  "psi-core",
  "sha2",
@@ -1653,9 +1628,9 @@ dependencies = [
  "omega-isa-aarch64",
  "omega-isa-x86_64",
  "omega-machine-optimizer",
- "omega-regalloc",
  "omega-register-model",
  "omega-selected-instructions",
+ "omega-selected-instructions-to-register-homes",
  "omega-target",
  "omega-target-to-register-environment",
 ]
@@ -1664,19 +1639,25 @@ dependencies = [
 name = "omega-selected-instructions-to-register-homes"
 version = "0.1.0"
 dependencies = [
+ "omega-abstract-operations",
  "omega-abstract-operations-to-target-operations",
+ "omega-calling-conventions",
  "omega-isa-aarch64",
  "omega-isa-x86_64",
+ "omega-legalized-operations",
  "omega-optimization-core",
- "omega-regalloc",
+ "omega-optimization-unit",
  "omega-register-homes",
  "omega-register-model",
  "omega-selected-instructions",
  "omega-target",
+ "omega-target-operations",
  "omega-target-operations-to-selected-instructions",
  "omega-target-to-register-environment",
  "psi-core",
  "psi-terminal",
+ "psi-terminal-codec",
+ "sha2",
 ]
 
 [[package]]
@@ -1684,8 +1665,8 @@ name = "omega-spill-access-constraints-to-frame-requirements"
 version = "0.1.0"
 dependencies = [
  "omega-optimization-core",
- "omega-regalloc",
  "omega-register-model",
+ "omega-selected-instructions-to-register-homes",
  "omega-target",
  "omega-target-to-register-environment",
  "psi-core",

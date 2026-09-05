@@ -1,8 +1,8 @@
-use omega_optimization_core::{OptimizationSelections, OptimizationWorkBudget};
-use omega_regalloc::{
+use crate::{
     SelectedProgramRef, ValidatedAllocationLegality, ValidatedLiveRanges, ValidatedLiveness,
     ValidatedPostAllocationOptimizationManifest, ValidatedRegisterHomes,
 };
+use omega_optimization_core::{OptimizationSelections, OptimizationWorkBudget};
 use omega_target_to_register_environment::ValidatedTargetRegisterEnvironment;
 
 use crate::{

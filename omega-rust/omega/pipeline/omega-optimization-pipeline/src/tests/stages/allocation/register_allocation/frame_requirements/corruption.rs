@@ -14,7 +14,7 @@ fn replay_rejects_roots_usage_and_every_retained_requirement_field() {
 
     let mut root = canonical.clone();
     root.abstract_spill_access_constraints =
-        omega_regalloc::AbstractSpillAccessConstraintPlanIdentity::from_bytes([0x51; 32]);
+        omega_selected_instructions_to_register_homes::AbstractSpillAccessConstraintPlanIdentity::from_bytes([0x51; 32]);
     assert_eq!(
         validate_non_authoritative_spill_frame_requirements(&source, &environment, root),
         Err(SpillFrameRequirementError::RootMismatch),

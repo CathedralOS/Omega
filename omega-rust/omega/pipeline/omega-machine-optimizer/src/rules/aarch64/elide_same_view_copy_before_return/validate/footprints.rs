@@ -1,12 +1,12 @@
 use std::collections::BTreeSet;
 
-use omega_regalloc::{BlockLiveness, InstructionLiveness};
 use omega_register_model::{RegisterOperandAccess, ValidatedPhysicalRegisterModel};
 use omega_selected_instructions::{
     MachineAlternativeFamily, MachineEncodedControlEffect, MachineEncodedMemoryEffect,
     MachineEncodedStackEffect, MachineEncodedTrapBehavior, SelectedInstruction,
     SelectedInstructionKind,
 };
+use omega_selected_instructions_to_register_homes::{BlockLiveness, InstructionLiveness};
 
 use crate::{
     Aarch64SameViewCopyElisionError, PostAllocationMachineInstruction, QualifiedPhysicalOperand,

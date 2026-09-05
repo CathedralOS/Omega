@@ -1,4 +1,4 @@
-use omega_regalloc::{FixedViewCopyError, ValidatedFixedViewCopies, validate_fixed_view_copies};
+use crate::{FixedViewCopyError, ValidatedFixedViewCopies, validate_fixed_view_copies};
 
 use crate::{
     StagedOptimizedFixedPrecoloredSegmentHomeCustodyReceipt,

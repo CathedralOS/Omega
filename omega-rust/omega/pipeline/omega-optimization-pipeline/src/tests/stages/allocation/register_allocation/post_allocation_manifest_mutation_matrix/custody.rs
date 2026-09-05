@@ -1,5 +1,5 @@
 use omega_optimization_core::PrePhysicalOptimizationManifestIdentity;
-use omega_regalloc::FixedViewCopyIdentity;
+use omega_selected_instructions_to_register_homes::FixedViewCopyIdentity;
 
 use super::fixture::{staged, validate};
 use crate::tests::*;

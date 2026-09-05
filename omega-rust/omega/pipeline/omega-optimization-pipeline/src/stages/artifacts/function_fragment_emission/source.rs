@@ -34,7 +34,9 @@ impl StagedOptimizedFunctionFragmentEmissionSource {
     pub fn selected_plan(&self) -> &omega_selected_instructions::SelectedInstructionPlan {
         &self.current.program.selected
     }
-    pub fn register_homes(&self) -> &omega_regalloc::ValidatedRegisterHomes {
+    pub fn register_homes(
+        &self,
+    ) -> &omega_selected_instructions_to_register_homes::ValidatedRegisterHomes {
         &self.current.homes
     }
     pub fn register_environment(&self) -> &crate::ValidatedTargetRegisterEnvironment {
@@ -59,7 +61,8 @@ impl StagedOptimizedFunctionFragmentEmissionSource {
     }
     pub fn post_allocation_manifest(
         &self,
-    ) -> &omega_regalloc::ValidatedPostAllocationOptimizationManifest {
+    ) -> &omega_selected_instructions_to_register_homes::ValidatedPostAllocationOptimizationManifest
+    {
         &self.current.post_allocation_manifest
     }
     pub fn optimized_target(&self) -> &crate::ValidatedOptimizedTargetOperations {

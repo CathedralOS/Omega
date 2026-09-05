@@ -1,26 +1,26 @@
-//! Optimizer module role: executable entrance. Validated liveness to validated live ranges.
-//!
-//! This crate owns the analysis-to-independent-replay join over complete
-//! liveness custody. No interval or interference fact escapes before replay.
+//! Optimizer module role: executable entrance. Block-local live ranges and interference compute -> validation entrance.
 
-mod compute;
-mod custody;
-mod model;
-mod validation;
+use crate::*;
 
+pub(crate) mod compute;
+pub(crate) mod identity;
+pub(crate) mod model;
+pub(crate) mod validate;
+
+pub use identity::live_range_identity;
 pub use model::*;
-pub use validation::validate_optimized_live_range_custody;
+pub use validate::validate_live_ranges;
 
-use crate::StagedOptimizedLiveness;
-
-pub fn stage_optimized_live_ranges(
-    liveness: StagedOptimizedLiveness,
-) -> Result<StagedOptimizedLiveRanges, OptimizedLiveRangeCustodyError> {
-    let ranges = compute::compute_live_ranges(&liveness)?;
-    let custody = validate_optimized_live_range_custody(&liveness, &ranges)?;
-    Ok(StagedOptimizedLiveRanges {
-        liveness,
-        ranges,
-        custody,
-    })
+/// Derive block-local live-range fragments and virtual-register interference
+/// from an exact selected CFG and validated liveness facts.
+pub fn analyze_live_ranges<S: ValidatedSelectedAnalysis>(
+    selected: &S,
+    liveness: &ValidatedLiveness,
+) -> Result<ValidatedLiveRanges, LiveRangeError> {
+    validate::revalidate_liveness_custody(selected, liveness)?;
+    let plan = compute::compute_terminal_live_ranges(selected, liveness)?;
+    validate_live_ranges(selected, liveness, plan)
 }
+
+mod staging;
+pub use staging::*;

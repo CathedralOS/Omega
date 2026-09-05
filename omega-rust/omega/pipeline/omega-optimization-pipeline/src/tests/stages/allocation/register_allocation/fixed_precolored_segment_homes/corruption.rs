@@ -9,10 +9,10 @@ fn independent_replay_rejects_assignment_and_root_corruption() {
 
     let mut root = canonical.plan().clone();
     root.split_requirements =
-        omega_regalloc::FixedPrecoloredSplitRequirementPlanIdentity::from_bytes([9; 32]);
+        omega_selected_instructions_to_register_homes::FixedPrecoloredSplitRequirementPlanIdentity::from_bytes([9; 32]);
     assert_eq!(
         validate(&fixture, root),
-        Err(omega_regalloc::FixedPrecoloredSegmentHomeError::RootMismatch)
+        Err(omega_selected_instructions_to_register_homes::FixedPrecoloredSegmentHomeError::RootMismatch)
     );
 
     let mut corruptions = Vec::new();
@@ -27,11 +27,11 @@ fn independent_replay_rejects_assignment_and_root_corruption() {
     corruptions.push(plan);
     let mut plan = canonical.plan().clone();
     plan.functions[0].assignments[0].source_segment =
-        omega_regalloc::FixedPrecoloredSourceSegmentId(99);
+        omega_selected_instructions_to_register_homes::FixedPrecoloredSourceSegmentId(99);
     corruptions.push(plan);
     let mut plan = canonical.plan().clone();
     plan.functions[0].assignments[0].allocation_domain =
-        omega_regalloc::FixedPrecoloredHomeDomainId(99);
+        omega_selected_instructions_to_register_homes::FixedPrecoloredHomeDomainId(99);
     corruptions.push(plan);
     let mut plan = canonical.plan().clone();
     plan.functions[0].assignments[0].view = omega_register_model::RegisterViewId(99);
@@ -39,7 +39,7 @@ fn independent_replay_rejects_assignment_and_root_corruption() {
     for corruption in corruptions {
         assert_eq!(
             validate(&fixture, corruption),
-            Err(omega_regalloc::FixedPrecoloredSegmentHomeError::NonCanonicalFunctions)
+            Err(omega_selected_instructions_to_register_homes::FixedPrecoloredSegmentHomeError::NonCanonicalFunctions)
         );
     }
 
@@ -47,12 +47,12 @@ fn independent_replay_rejects_assignment_and_root_corruption() {
     usage.usage.iterations += 1;
     assert_eq!(
         validate(&fixture, usage),
-        Err(omega_regalloc::FixedPrecoloredSegmentHomeError::UsageMismatch)
+        Err(omega_selected_instructions_to_register_homes::FixedPrecoloredSegmentHomeError::UsageMismatch)
     );
 
     let other = source(NativeTarget::linux_arm64());
     assert_eq!(
         validate(&other, canonical.plan().clone()),
-        Err(omega_regalloc::FixedPrecoloredSegmentHomeError::RootMismatch)
+        Err(omega_selected_instructions_to_register_homes::FixedPrecoloredSegmentHomeError::RootMismatch)
     );
 }

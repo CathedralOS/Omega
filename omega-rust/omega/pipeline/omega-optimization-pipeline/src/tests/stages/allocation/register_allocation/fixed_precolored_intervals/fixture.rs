@@ -26,25 +26,25 @@ pub(super) fn analyze(
     source: &StagedOptimizedAllocationLegality,
     budget: OptimizationWorkBudget,
 ) -> Result<
-    omega_regalloc::ValidatedFixedPrecoloredIntervals,
-    omega_regalloc::FixedPrecoloredIntervalError,
+    omega_selected_instructions_to_register_homes::ValidatedFixedPrecoloredIntervals,
+    omega_selected_instructions_to_register_homes::FixedPrecoloredIntervalError,
 > {
-    omega_regalloc::analyze_fixed_precolored_intervals(
+    omega_selected_instructions_to_register_homes::analyze_fixed_precolored_intervals(
         source.live_range_stage().ranges(),
         source.legality(),
-        omega_regalloc::FixedPrecoloredIntervalPolicy::FixedConstraintPointIntervalsV1,
+        omega_selected_instructions_to_register_homes::FixedPrecoloredIntervalPolicy::FixedConstraintPointIntervalsV1,
         budget,
     )
 }
 
 pub(super) fn validate(
     source: &StagedOptimizedAllocationLegality,
-    plan: omega_regalloc::FixedPrecoloredIntervalPlan,
+    plan: omega_selected_instructions_to_register_homes::FixedPrecoloredIntervalPlan,
 ) -> Result<
-    omega_regalloc::ValidatedFixedPrecoloredIntervals,
-    omega_regalloc::FixedPrecoloredIntervalError,
+    omega_selected_instructions_to_register_homes::ValidatedFixedPrecoloredIntervals,
+    omega_selected_instructions_to_register_homes::FixedPrecoloredIntervalError,
 > {
-    omega_regalloc::validate_fixed_precolored_intervals(
+    omega_selected_instructions_to_register_homes::validate_fixed_precolored_intervals(
         source.live_range_stage().ranges(),
         source.legality(),
         plan,

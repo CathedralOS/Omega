@@ -30,7 +30,7 @@ fn both_recursive_paths_gain_exact_block_local_dependencies_on_both_targets() {
             );
             assert_eq!(
                 first.receipt().identity(),
-                omega_regalloc::abstract_spill_access_constraint_plan_identity(first.plan()),
+                omega_selected_instructions_to_register_homes::abstract_spill_access_constraint_plan_identity(first.plan()),
             );
             let function = &first.plan().functions[0];
             assert_eq!(
@@ -46,12 +46,12 @@ fn both_recursive_paths_gain_exact_block_local_dependencies_on_both_targets() {
                     ))
                     .collect::<Vec<_>>(),
                 vec![
-                    (0, 0, 9, omega_regalloc::AbstractSpillAccessKind::Write, 0),
-                    (1, 1, 12, omega_regalloc::AbstractSpillAccessKind::Write, 8),
-                    (2, 2, 12, omega_regalloc::AbstractSpillAccessKind::Read, 0),
-                    (3, 3, 14, omega_regalloc::AbstractSpillAccessKind::Write, 0),
-                    (4, 4, 14, omega_regalloc::AbstractSpillAccessKind::Read, 8),
-                    (5, 5, 16, omega_regalloc::AbstractSpillAccessKind::Read, 0),
+                    (0, 0, 9, omega_selected_instructions_to_register_homes::AbstractSpillAccessKind::Write, 0),
+                    (1, 1, 12, omega_selected_instructions_to_register_homes::AbstractSpillAccessKind::Write, 8),
+                    (2, 2, 12, omega_selected_instructions_to_register_homes::AbstractSpillAccessKind::Read, 0),
+                    (3, 3, 14, omega_selected_instructions_to_register_homes::AbstractSpillAccessKind::Write, 0),
+                    (4, 4, 14, omega_selected_instructions_to_register_homes::AbstractSpillAccessKind::Read, 8),
+                    (5, 5, 16, omega_selected_instructions_to_register_homes::AbstractSpillAccessKind::Read, 0),
                 ],
             );
             assert_edges(function);
@@ -59,18 +59,24 @@ fn both_recursive_paths_gain_exact_block_local_dependencies_on_both_targets() {
     }
 }
 
-fn assert_edges(function: &omega_regalloc::FunctionAbstractSpillAccessConstraints) {
+fn assert_edges(
+    function: &omega_selected_instructions_to_register_homes::FunctionAbstractSpillAccessConstraints,
+) {
     for (before, after) in [(0, 2), (1, 4), (3, 5)] {
-        assert!(has(function, before, after, |reason| matches!(
+        assert!(has(function, before, after, |reason| {
+            matches!(
             reason,
-            omega_regalloc::AbstractSpillAccessDependencyReason::StoredValue { .. }
-        )));
+            omega_selected_instructions_to_register_homes::AbstractSpillAccessDependencyReason::StoredValue { .. }
+        )
+        }));
     }
     for (before, after) in [(1, 2), (3, 4)] {
-        assert!(has(function, before, after, |reason| matches!(
+        assert!(has(function, before, after, |reason| {
+            matches!(
             reason,
-            omega_regalloc::AbstractSpillAccessDependencyReason::DeclaredBeforeReload
-        )));
+            omega_selected_instructions_to_register_homes::AbstractSpillAccessDependencyReason::DeclaredBeforeReload
+        )
+        }));
     }
     for (before, after, offset) in [
         (0, 2, 0),
@@ -83,7 +89,7 @@ fn assert_edges(function: &omega_regalloc::FunctionAbstractSpillAccessConstraint
     ] {
         assert!(has(function, before, after, |reason| matches!(
             reason,
-            omega_regalloc::AbstractSpillAccessDependencyReason::OverlappingAbstractSlice {
+            omega_selected_instructions_to_register_homes::AbstractSpillAccessDependencyReason::OverlappingAbstractSlice {
                 spill_area_offset,
                 size_bytes: 8,
             } if *spill_area_offset == offset
@@ -92,10 +98,12 @@ fn assert_edges(function: &omega_regalloc::FunctionAbstractSpillAccessConstraint
 }
 
 fn has(
-    function: &omega_regalloc::FunctionAbstractSpillAccessConstraints,
+    function: &omega_selected_instructions_to_register_homes::FunctionAbstractSpillAccessConstraints,
     before: u32,
     after: u32,
-    reason: impl Fn(&omega_regalloc::AbstractSpillAccessDependencyReason) -> bool,
+    reason: impl Fn(
+        &omega_selected_instructions_to_register_homes::AbstractSpillAccessDependencyReason,
+    ) -> bool,
 ) -> bool {
     function.dependencies.iter().any(|edge| {
         edge.before.ordinal == before && edge.after.ordinal == after && reason(&edge.reason)

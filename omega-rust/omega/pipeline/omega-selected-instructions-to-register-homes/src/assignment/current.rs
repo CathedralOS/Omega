@@ -21,7 +21,7 @@ pub fn stage_register_allocation(
         .optimized_target()
         .optimized()
         .selections();
-    let recovery = omega_regalloc::selected_allocation_recovery_rule(
+    let recovery = crate::selected_allocation_recovery_rule(
         &selections.project_phase(OptimizationExecutionPhase::AllocationRecovery),
     )
     .map_err(RegisterAllocationError::RecoveryCatalog)?;
@@ -69,7 +69,7 @@ pub fn stage_register_allocation(
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum RegisterAllocationError {
     UnsupportedComposition,
-    RecoveryCatalog(omega_regalloc::AllocationRecoveryRuleCatalogError),
+    RecoveryCatalog(crate::AllocationRecoveryRuleCatalogError),
     FixedSegments(crate::OptimizedFixedPrecoloredSegmentHomeCustodyError),
     FixedViewCopies(crate::OptimizedFixedViewCopyCustodyError),
     FixedViewHomes(crate::OptimizedPostCopyRegisterHomeCustodyError),

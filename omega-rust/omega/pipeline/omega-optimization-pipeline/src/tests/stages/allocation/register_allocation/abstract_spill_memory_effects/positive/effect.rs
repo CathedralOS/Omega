@@ -1,11 +1,17 @@
 pub(super) fn assert_exact_effect(
-    effect: &omega_regalloc::AbstractSpillMemoryEffect,
-    pseudo: &omega_regalloc::HomedSpillPseudoInstruction,
-    owner: &omega_regalloc::FunctionHomedSpillPseudoInstructions,
+    effect: &omega_selected_instructions_to_register_homes::AbstractSpillMemoryEffect,
+    pseudo: &omega_selected_instructions_to_register_homes::HomedSpillPseudoInstruction,
+    owner: &omega_selected_instructions_to_register_homes::FunctionHomedSpillPseudoInstructions,
 ) {
     let storage_id = match pseudo {
-        omega_regalloc::HomedSpillPseudoInstruction::Store { storage, .. }
-        | omega_regalloc::HomedSpillPseudoInstruction::Reload { storage, .. } => *storage,
+        omega_selected_instructions_to_register_homes::HomedSpillPseudoInstruction::Store {
+            storage,
+            ..
+        }
+        | omega_selected_instructions_to_register_homes::HomedSpillPseudoInstruction::Reload {
+            storage,
+            ..
+        } => *storage,
     };
     let storage = owner
         .storage
@@ -14,7 +20,7 @@ pub(super) fn assert_exact_effect(
         .unwrap();
     match (effect, pseudo) {
         (
-            omega_regalloc::AbstractSpillMemoryEffect::Write {
+            omega_selected_instructions_to_register_homes::AbstractSpillMemoryEffect::Write {
                 pseudo,
                 action,
                 block,
@@ -29,7 +35,7 @@ pub(super) fn assert_exact_effect(
                 size_bytes,
                 alignment_bytes,
             },
-            omega_regalloc::HomedSpillPseudoInstruction::Store {
+            omega_selected_instructions_to_register_homes::HomedSpillPseudoInstruction::Store {
                 id,
                 action: expected_action,
                 block: expected_block,
@@ -71,7 +77,7 @@ pub(super) fn assert_exact_effect(
             );
         }
         (
-            omega_regalloc::AbstractSpillMemoryEffect::Read {
+            omega_selected_instructions_to_register_homes::AbstractSpillMemoryEffect::Read {
                 pseudo,
                 action,
                 block,
@@ -86,7 +92,7 @@ pub(super) fn assert_exact_effect(
                 destination_class,
                 destination_view,
             },
-            omega_regalloc::HomedSpillPseudoInstruction::Reload {
+            omega_selected_instructions_to_register_homes::HomedSpillPseudoInstruction::Reload {
                 id,
                 action: expected_action,
                 block: expected_block,
@@ -137,8 +143,13 @@ pub(super) fn assert_exact_effect(
 }
 
 fn assert_geometry(
-    actual: (omega_regalloc::LogicalSpillStorageClass, u64, u64, u64),
-    storage: &omega_regalloc::SpillPseudoStorage,
+    actual: (
+        omega_selected_instructions_to_register_homes::LogicalSpillStorageClass,
+        u64,
+        u64,
+        u64,
+    ),
+    storage: &omega_selected_instructions_to_register_homes::SpillPseudoStorage,
 ) {
     assert_eq!(
         actual,

@@ -8,9 +8,12 @@ use super::generalized_reload_value_homes::Sources;
 
 pub(super) struct Bundle {
     pub(super) sources: Sources,
-    pub(super) prior: omega_regalloc::ValidatedGeneralizedReloadValueHomes,
-    pub(super) actions: omega_regalloc::ValidatedGeneralizedSpillRecoveryActions,
-    pub(super) recursive: omega_regalloc::ValidatedRecursiveSpillInsertion,
+    pub(super) prior:
+        omega_selected_instructions_to_register_homes::ValidatedGeneralizedReloadValueHomes,
+    pub(super) actions:
+        omega_selected_instructions_to_register_homes::ValidatedGeneralizedSpillRecoveryActions,
+    pub(super) recursive:
+        omega_selected_instructions_to_register_homes::ValidatedRecursiveSpillInsertion,
 }
 
 pub(super) fn reload_bundle(target: NativeTarget) -> Bundle {
@@ -32,16 +35,16 @@ pub(super) fn original_bundle(target: NativeTarget) -> Bundle {
         staged_active_resident_original_victim_chain_two_view_legality(target),
     );
     let prior = sources.assign(selected_lowering_budget()).unwrap();
-    let worklist = omega_regalloc::seed_generalized_spill_recovery_worklist(
+    let worklist = omega_selected_instructions_to_register_homes::seed_generalized_spill_recovery_worklist(
         &prior,
-        omega_regalloc::GeneralizedSpillRecoveryWorklistPolicy::EpochOnePressureToEpochTwoV1,
+        omega_selected_instructions_to_register_homes::GeneralizedSpillRecoveryWorklistPolicy::EpochOnePressureToEpochTwoV1,
         selected_lowering_budget(),
     )
     .unwrap();
     let choices = sources.choose_generalized_victim_with_policy(
         &prior,
         &worklist,
-        omega_regalloc::GeneralizedSpillRecoveryChoicePolicy::EpochTwoEligibleOriginalBeforeReloadThenFarthestEndThenHighestValueV1,
+        omega_selected_instructions_to_register_homes::GeneralizedSpillRecoveryChoicePolicy::EpochTwoEligibleOriginalBeforeReloadThenFarthestEndThenHighestValueV1,
         selected_lowering_budget(),
     ).unwrap();
     let actions = sources
@@ -124,7 +127,7 @@ fn both_recursive_victim_paths_close_every_reload_segment_on_both_targets() {
             if original {
                 assert!(matches!(
                     rows[2].source,
-                    omega_regalloc::RecursiveSpillActionSource::EpochTwoOriginal {
+                    omega_selected_instructions_to_register_homes::RecursiveSpillActionSource::EpochTwoOriginal {
                         victim: VirtualRegisterId(5),
                         ..
                     }
@@ -137,23 +140,23 @@ fn both_recursive_victim_paths_close_every_reload_segment_on_both_targets() {
                     rows[0].coexisting_homes,
                     vec![
                         home(
-                            omega_regalloc::RecursiveReloadCoexistingValue::Original(
+                            omega_selected_instructions_to_register_homes::RecursiveReloadCoexistingValue::Original(
                                 VirtualRegisterId(4)
                             ),
                             high
                         ),
                         home(
-                            omega_regalloc::RecursiveReloadCoexistingValue::Original(
+                            omega_selected_instructions_to_register_homes::RecursiveReloadCoexistingValue::Original(
                                 VirtualRegisterId(5)
                             ),
                             high
                         ),
                         home(
-                            omega_regalloc::RecursiveReloadCoexistingValue::Reload(id(1, 0)),
+                            omega_selected_instructions_to_register_homes::RecursiveReloadCoexistingValue::Reload(id(1, 0)),
                             high
                         ),
                         home(
-                            omega_regalloc::RecursiveReloadCoexistingValue::Reload(id(2, 0)),
+                            omega_selected_instructions_to_register_homes::RecursiveReloadCoexistingValue::Reload(id(2, 0)),
                             high
                         ),
                     ]
@@ -161,33 +164,33 @@ fn both_recursive_victim_paths_close_every_reload_segment_on_both_targets() {
                 assert_eq!(
                     rows[1].coexisting_homes,
                     vec![home(
-                        omega_regalloc::RecursiveReloadCoexistingValue::Reload(id(0, 0)),
+                        omega_selected_instructions_to_register_homes::RecursiveReloadCoexistingValue::Reload(id(0, 0)),
                         low,
                     )]
                 );
                 assert_eq!(
                     rows[2].coexisting_homes,
                     vec![home(
-                        omega_regalloc::RecursiveReloadCoexistingValue::Reload(id(0, 0)),
+                        omega_selected_instructions_to_register_homes::RecursiveReloadCoexistingValue::Reload(id(0, 0)),
                         low,
                     )]
                 );
             } else {
                 assert!(
-                    matches!(rows[2].source, omega_regalloc::RecursiveSpillActionSource::EpochTwo { victim, .. } if victim == id(0, 0))
+                    matches!(rows[2].source, omega_selected_instructions_to_register_homes::RecursiveSpillActionSource::EpochTwo { victim, .. } if victim == id(0, 0))
                 );
                 assert!(rows.iter().all(|row| row.view == low));
                 assert_eq!(
                     rows[0].coexisting_homes,
                     vec![
                         home(
-                            omega_regalloc::RecursiveReloadCoexistingValue::Original(
+                            omega_selected_instructions_to_register_homes::RecursiveReloadCoexistingValue::Original(
                                 VirtualRegisterId(4)
                             ),
                             high
                         ),
                         home(
-                            omega_regalloc::RecursiveReloadCoexistingValue::Original(
+                            omega_selected_instructions_to_register_homes::RecursiveReloadCoexistingValue::Original(
                                 VirtualRegisterId(5)
                             ),
                             high
@@ -197,7 +200,7 @@ fn both_recursive_victim_paths_close_every_reload_segment_on_both_targets() {
                 assert_eq!(
                     rows[1].coexisting_homes,
                     vec![home(
-                        omega_regalloc::RecursiveReloadCoexistingValue::Original(
+                        omega_selected_instructions_to_register_homes::RecursiveReloadCoexistingValue::Original(
                             VirtualRegisterId(5)
                         ),
                         high,
@@ -227,48 +230,48 @@ fn independent_replay_rejects_roots_lineage_interval_domain_view_roster_order_an
                 .clone();
 
             for corrupt in [
-                |plan: &mut omega_regalloc::RecursiveReloadValueHomePlan| {
+                |plan: &mut omega_selected_instructions_to_register_homes::RecursiveReloadValueHomePlan| {
                     plan.recursive_spill_insertion =
-                        omega_regalloc::RecursiveSpillInsertionIdentity::from_bytes([0xb0; 32]);
+                        omega_selected_instructions_to_register_homes::RecursiveSpillInsertionIdentity::from_bytes([0xb0; 32]);
                 },
-                |plan: &mut omega_regalloc::RecursiveReloadValueHomePlan| {
+                |plan: &mut omega_selected_instructions_to_register_homes::RecursiveReloadValueHomePlan| {
                     plan.recovery_actions =
-                        omega_regalloc::GeneralizedSpillRecoveryActionIdentity::from_bytes(
+                        omega_selected_instructions_to_register_homes::GeneralizedSpillRecoveryActionIdentity::from_bytes(
                             [0xb1; 32],
                         );
                 },
-                |plan: &mut omega_regalloc::RecursiveReloadValueHomePlan| {
+                |plan: &mut omega_selected_instructions_to_register_homes::RecursiveReloadValueHomePlan| {
                     plan.prior_reload_value_homes =
-                        omega_regalloc::GeneralizedReloadValueHomeIdentity::from_bytes([0xb2; 32]);
+                        omega_selected_instructions_to_register_homes::GeneralizedReloadValueHomeIdentity::from_bytes([0xb2; 32]);
                 },
-                |plan: &mut omega_regalloc::RecursiveReloadValueHomePlan| {
+                |plan: &mut omega_selected_instructions_to_register_homes::RecursiveReloadValueHomePlan| {
                     plan.selected =
                         omega_selected_instructions::SelectedInstructionPlanIdentity::from_bytes(
                             [0xb3; 32],
                         );
                 },
-                |plan: &mut omega_regalloc::RecursiveReloadValueHomePlan| {
-                    plan.ranges = omega_regalloc::LiveRangeIdentity::from_bytes([0xb4; 32]);
+                |plan: &mut omega_selected_instructions_to_register_homes::RecursiveReloadValueHomePlan| {
+                    plan.ranges = omega_selected_instructions_to_register_homes::LiveRangeIdentity::from_bytes([0xb4; 32]);
                 },
-                |plan: &mut omega_regalloc::RecursiveReloadValueHomePlan| {
+                |plan: &mut omega_selected_instructions_to_register_homes::RecursiveReloadValueHomePlan| {
                     plan.legality =
-                        omega_regalloc::AllocationLegalityIdentity::from_bytes([0xb5; 32]);
+                        omega_selected_instructions_to_register_homes::AllocationLegalityIdentity::from_bytes([0xb5; 32]);
                 },
-                |plan: &mut omega_regalloc::RecursiveReloadValueHomePlan| {
+                |plan: &mut omega_selected_instructions_to_register_homes::RecursiveReloadValueHomePlan| {
                     plan.register_environment =
                         omega_register_model::TargetRegisterEnvironmentIdentity::from_bytes(
                             [0xb6; 32],
                         );
                 },
-                |plan: &mut omega_regalloc::RecursiveReloadValueHomePlan| {
+                |plan: &mut omega_selected_instructions_to_register_homes::RecursiveReloadValueHomePlan| {
                     plan.allocator_availability =
-                        omega_regalloc::AllocatorAvailabilityIdentity::from_bytes([0xb7; 32]);
+                        omega_selected_instructions_to_register_homes::AllocatorAvailabilityIdentity::from_bytes([0xb7; 32]);
                 },
-                |plan: &mut omega_regalloc::RecursiveReloadValueHomePlan| {
+                |plan: &mut omega_selected_instructions_to_register_homes::RecursiveReloadValueHomePlan| {
                     plan.optimization_unit =
                         omega_optimization_core::OptimizationUnitIdentity::from_bytes([0xb8; 32]);
                 },
-                |plan: &mut omega_regalloc::RecursiveReloadValueHomePlan| {
+                |plan: &mut omega_selected_instructions_to_register_homes::RecursiveReloadValueHomePlan| {
                     plan.fuel_schedule = psi_core::FuelScheduleIdentity::new(99_980).unwrap();
                 },
             ] {
@@ -281,15 +284,15 @@ fn independent_replay_rejects_roots_lineage_interval_domain_view_roster_order_an
                         &bundle.prior,
                         changed,
                     ),
-                    Err(omega_regalloc::RecursiveReloadValueHomeError::RootMismatch),
+                    Err(omega_selected_instructions_to_register_homes::RecursiveReloadValueHomeError::RootMismatch),
                 );
             }
 
             for corrupt in [
-                |plan: &mut omega_regalloc::RecursiveReloadValueHomePlan| {
+                |plan: &mut omega_selected_instructions_to_register_homes::RecursiveReloadValueHomePlan| {
                     plan.functions[0].assignments[2].source =
-                        omega_regalloc::RecursiveSpillActionSource::EpochTwoOriginal {
-                            work_item: omega_regalloc::GeneralizedSpillRecoveryWorkItemId {
+                        omega_selected_instructions_to_register_homes::RecursiveSpillActionSource::EpochTwoOriginal {
+                            work_item: omega_selected_instructions_to_register_homes::GeneralizedSpillRecoveryWorkItemId {
                                 epoch: 2,
                                 ordinal: 0,
                             },
@@ -297,20 +300,20 @@ fn independent_replay_rejects_roots_lineage_interval_domain_view_roster_order_an
                             victim: VirtualRegisterId(99),
                         };
                 },
-                |plan: &mut omega_regalloc::RecursiveReloadValueHomePlan| {
+                |plan: &mut omega_selected_instructions_to_register_homes::RecursiveReloadValueHomePlan| {
                     plan.functions[0].assignments[2].exclusive_end.0 += 1;
                 },
-                |plan: &mut omega_regalloc::RecursiveReloadValueHomePlan| {
+                |plan: &mut omega_selected_instructions_to_register_homes::RecursiveReloadValueHomePlan| {
                     plan.functions[0].assignments[1].candidates.reverse();
                 },
-                |plan: &mut omega_regalloc::RecursiveReloadValueHomePlan| {
+                |plan: &mut omega_selected_instructions_to_register_homes::RecursiveReloadValueHomePlan| {
                     plan.functions[0].assignments[1].view =
                         omega_register_model::RegisterViewId(999);
                 },
-                |plan: &mut omega_regalloc::RecursiveReloadValueHomePlan| {
+                |plan: &mut omega_selected_instructions_to_register_homes::RecursiveReloadValueHomePlan| {
                     plan.functions[0].assignments[0].coexisting_homes.clear();
                 },
-                |plan: &mut omega_regalloc::RecursiveReloadValueHomePlan| {
+                |plan: &mut omega_selected_instructions_to_register_homes::RecursiveReloadValueHomePlan| {
                     plan.functions[0].assignments.swap(0, 1);
                 },
             ] {
@@ -324,7 +327,7 @@ fn independent_replay_rejects_roots_lineage_interval_domain_view_roster_order_an
                         changed,
                     ),
                     Err(
-                        omega_regalloc::RecursiveReloadValueHomeError::NonCanonicalAssignments {
+                        omega_selected_instructions_to_register_homes::RecursiveReloadValueHomeError::NonCanonicalAssignments {
                             function: 0
                         }
                     ),
@@ -340,7 +343,7 @@ fn independent_replay_rejects_roots_lineage_interval_domain_view_roster_order_an
                     &bundle.prior,
                     usage,
                 ),
-                Err(omega_regalloc::RecursiveReloadValueHomeError::UsageMismatch),
+                Err(omega_selected_instructions_to_register_homes::RecursiveReloadValueHomeError::UsageMismatch),
             );
         }
     }
@@ -418,7 +421,7 @@ fn exact_envelopes_every_first_over_axis_and_cross_target_roots_fail_closed() {
                         actual,
                     ),
                     Err(
-                        omega_regalloc::RecursiveReloadValueHomeError::BudgetExceeded {
+                        omega_selected_instructions_to_register_homes::RecursiveReloadValueHomeError::BudgetExceeded {
                             required: usage,
                             budget: actual,
                         }
@@ -442,13 +445,16 @@ fn exact_envelopes_every_first_over_axis_and_cross_target_roots_fail_closed() {
                 &arm.prior,
                 foreign,
             ),
-            Err(omega_regalloc::RecursiveReloadValueHomeError::RootMismatch),
+            Err(omega_selected_instructions_to_register_homes::RecursiveReloadValueHomeError::RootMismatch),
         );
     }
 }
 
-const fn id(epoch: u32, ordinal: u32) -> omega_regalloc::GeneralizedSpillActionId {
-    omega_regalloc::GeneralizedSpillActionId { epoch, ordinal }
+const fn id(
+    epoch: u32,
+    ordinal: u32,
+) -> omega_selected_instructions_to_register_homes::GeneralizedSpillActionId {
+    omega_selected_instructions_to_register_homes::GeneralizedSpillActionId { epoch, ordinal }
 }
 
 const fn exact_usage(original: bool) -> OptimizationWorkUsage {
@@ -473,10 +479,10 @@ fn budget(usage: OptimizationWorkUsage) -> OptimizationWorkBudget {
 }
 
 fn home(
-    value: omega_regalloc::RecursiveReloadCoexistingValue,
+    value: omega_selected_instructions_to_register_homes::RecursiveReloadCoexistingValue,
     view: omega_register_model::RegisterViewId,
-) -> omega_regalloc::RecursiveReloadCoexistingHome {
-    omega_regalloc::RecursiveReloadCoexistingHome {
+) -> omega_selected_instructions_to_register_homes::RecursiveReloadCoexistingHome {
+    omega_selected_instructions_to_register_homes::RecursiveReloadCoexistingHome {
         value,
         class: omega_register_model::RegisterClassId(0),
         view,

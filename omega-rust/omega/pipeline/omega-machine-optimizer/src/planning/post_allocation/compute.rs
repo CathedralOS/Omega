@@ -12,13 +12,13 @@ mod structural;
 #[cfg(test)]
 mod tests;
 
-use omega_regalloc::{
-    ValidatedAllocationLegality, ValidatedLiveRanges, ValidatedPostAllocationOptimizationManifest,
-    ValidatedRegisterHomes, ValidatedSelectedAnalysis,
-};
 use omega_register_model::{
     TargetRegisterEnvironmentIdentity, ValidatedPhysicalRegisterModel,
     ValidatedRegisterConstraintCatalog,
+};
+use omega_selected_instructions_to_register_homes::{
+    ValidatedAllocationLegality, ValidatedLiveRanges, ValidatedPostAllocationOptimizationManifest,
+    ValidatedRegisterHomes, ValidatedSelectedAnalysis,
 };
 
 use crate::{

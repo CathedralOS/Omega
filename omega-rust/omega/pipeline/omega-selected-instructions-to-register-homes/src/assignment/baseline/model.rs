@@ -1,11 +1,11 @@
+use crate::{
+    PostAllocationOptimizationManifestError, RegisterHomeError, RegisterHomeIdentity,
+    ValidatedPostAllocationOptimizationManifest, ValidatedRegisterHomes,
+};
 use omega_optimization_core::{
     OptimizationIdentityBundleIdentity, OptimizationUnitIdentity,
     OptimizedAbstractPlanProjectionIdentity, PostAllocationOptimizationManifestIdentity,
     PrePhysicalOptimizationManifestIdentity,
-};
-use omega_regalloc::{
-    PostAllocationOptimizationManifestError, RegisterHomeError, RegisterHomeIdentity,
-    ValidatedPostAllocationOptimizationManifest, ValidatedRegisterHomes,
 };
 use omega_selected_instructions::SelectedInstructionPlanIdentity;
 use psi_core::{FuelScheduleIdentity, MachineId};
@@ -55,11 +55,11 @@ pub struct StagedOptimizedRegisterHomeCustodyReceipt {
     pub(super) optimization_unit: OptimizationUnitIdentity,
     pub(super) fuel_schedule: FuelScheduleIdentity,
     pub(super) register_environment: omega_register_model::TargetRegisterEnvironmentIdentity,
-    pub(super) allocator_availability: omega_regalloc::AllocatorAvailabilityIdentity,
+    pub(super) allocator_availability: crate::AllocatorAvailabilityIdentity,
     pub(super) selected: SelectedInstructionPlanIdentity,
-    pub(super) liveness: omega_regalloc::LivenessIdentity,
-    pub(super) ranges: omega_regalloc::LiveRangeIdentity,
-    pub(super) legality: omega_regalloc::AllocationLegalityIdentity,
+    pub(super) liveness: crate::LivenessIdentity,
+    pub(super) ranges: crate::LiveRangeIdentity,
+    pub(super) legality: crate::AllocationLegalityIdentity,
     pub(super) homes: RegisterHomeIdentity,
     pub(super) post_allocation_manifest: PostAllocationOptimizationManifestIdentity,
     pub(super) function_count: usize,
@@ -97,19 +97,19 @@ impl StagedOptimizedRegisterHomeCustodyReceipt {
     ) -> omega_register_model::TargetRegisterEnvironmentIdentity {
         self.register_environment
     }
-    pub const fn allocator_availability(self) -> omega_regalloc::AllocatorAvailabilityIdentity {
+    pub const fn allocator_availability(self) -> crate::AllocatorAvailabilityIdentity {
         self.allocator_availability
     }
     pub const fn selected(self) -> SelectedInstructionPlanIdentity {
         self.selected
     }
-    pub const fn liveness(self) -> omega_regalloc::LivenessIdentity {
+    pub const fn liveness(self) -> crate::LivenessIdentity {
         self.liveness
     }
-    pub const fn ranges(self) -> omega_regalloc::LiveRangeIdentity {
+    pub const fn ranges(self) -> crate::LiveRangeIdentity {
         self.ranges
     }
-    pub const fn legality(self) -> omega_regalloc::AllocationLegalityIdentity {
+    pub const fn legality(self) -> crate::AllocationLegalityIdentity {
         self.legality
     }
     pub const fn homes(self) -> RegisterHomeIdentity {

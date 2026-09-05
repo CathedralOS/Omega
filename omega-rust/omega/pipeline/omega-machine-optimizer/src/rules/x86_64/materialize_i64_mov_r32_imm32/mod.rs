@@ -17,7 +17,7 @@ pub use validate::validate_x86_mov_r32_imm32_materialization;
 /// Select the flag-preserving five- or six-byte form for an exact bit pattern
 /// in `0..=u32::MAX`, then independently replay the symbolic decision.
 pub fn optimize_x86_materialize_i64_with_mov_r32_imm32<
-    S: omega_regalloc::ValidatedSelectedAnalysis,
+    S: omega_selected_instructions_to_register_homes::ValidatedSelectedAnalysis,
 >(
     selected: &S,
     source: &crate::ValidatedPostAllocationMachinePlan,

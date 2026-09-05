@@ -11,7 +11,6 @@ path = "src/lib.rs"
 [dependencies]
 omega-selected-instructions-to-register-homes = { path = "../omega-selected-instructions-to-register-homes" }
 omega-optimization-core = { path = "../../representations/omega-optimization-core" }
-omega-regalloc = { path = "../omega-regalloc" }
 omega-register-model = { path = "../../representations/omega-register-model" }
 omega-selected-instructions = { path = "../../representations/omega-selected-instructions" }
 omega-target = { path = "../../representations/omega-target" }

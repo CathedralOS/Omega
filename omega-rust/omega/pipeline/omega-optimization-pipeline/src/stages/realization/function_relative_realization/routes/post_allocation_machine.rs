@@ -1,6 +1,6 @@
 //! One function-relative join over current allocation facts, independent of rewrite history.
 
-use omega_regalloc::ValidatedSelectedAnalysis;
+use omega_selected_instructions_to_register_homes::ValidatedSelectedAnalysis;
 use omega_selected_instructions_to_register_homes::{
     AllocationReplayError, AllocationSource, RetainedAllocation,
 };

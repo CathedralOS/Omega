@@ -14,7 +14,7 @@ pub use validate::validate_aarch64_movn_materialization;
 /// Select a MOVN-seeded symbolic sequence only when it strictly reduces the
 /// declared zero-seeded instruction count. This owns no encoded bytes.
 pub fn optimize_aarch64_materialize_i64_with_shortest_movn_seed<
-    S: omega_regalloc::ValidatedSelectedAnalysis,
+    S: omega_selected_instructions_to_register_homes::ValidatedSelectedAnalysis,
 >(
     selected: &S,
     source: &crate::ValidatedPostAllocationMachinePlan,

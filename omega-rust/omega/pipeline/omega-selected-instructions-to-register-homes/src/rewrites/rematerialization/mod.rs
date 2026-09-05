@@ -12,10 +12,8 @@ mod validation;
 pub use model::*;
 pub use validation::validate_optimized_active_resident_rematerialization;
 
+use crate::{PressureRematerializationPolicy, RecoveryClassificationPolicy, SpillChoicePolicy};
 use omega_optimization_core::OptimizationWorkBudget;
-use omega_regalloc::{
-    PressureRematerializationPolicy, RecoveryClassificationPolicy, SpillChoicePolicy,
-};
 
 use crate::StagedOptimizedAllocationLegality;
 
