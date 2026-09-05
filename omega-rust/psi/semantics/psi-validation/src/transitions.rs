@@ -1,5 +1,5 @@
 use crate::arithmetic_domains::ValueEnv;
-use crate::calls::validate_call_arguments_handles;
+use crate::calls::validate_call_arguments_handles_with_policy_retention;
 use crate::locals::WritableRoots;
 use crate::symbols::{MachineSymbols, TopLevelSymbols};
 use psi_diagnostics::Diagnostic;
@@ -10,12 +10,16 @@ use psi_typed_trees::signature::StateParameter;
 use psi_typed_trees::state::State;
 use psi_typed_trees::statement::{TransitionTargetHandle, TransitionTargetNode};
 
+mod evaluation;
+pub(crate) use evaluation::TransitionArgumentEnvironments;
+
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn validate_transition_target_node(
     program: &TypedTrees,
     current_machine: &Machine,
     current_state: Option<&State>,
     value_env: &ValueEnv,
+    argument_environments: &[ValueEnv],
     target: TransitionTargetHandle,
     machine_symbols: &MachineSymbols<'_>,
     symbols: &TopLevelSymbols<'_>,
@@ -42,6 +46,7 @@ pub(crate) fn validate_transition_target_node(
             current_machine,
             current_state,
             value_env,
+            argument_environments,
             arguments,
             state.name.as_str(),
             program.state_parameters(state),
@@ -63,6 +68,7 @@ pub(crate) fn validate_transition_target_node(
             current_machine,
             current_state,
             value_env,
+            argument_environments,
             arguments,
             state.name.as_str(),
             program.state_parameters(state),
@@ -99,6 +105,7 @@ pub(crate) fn validate_transition_target_node(
             current_machine,
             current_state,
             value_env,
+            argument_environments,
             arguments,
             &state.name,
             program.state_parameters(state),
@@ -115,6 +122,7 @@ fn validate_transition_arguments_handles(
     current_machine: &Machine,
     current_state: Option<&State>,
     value_env: &ValueEnv,
+    argument_environments: &[ValueEnv],
     arguments: &[ExpressionHandle],
     target_name: &str,
     parameters: &[StateParameter],
@@ -122,7 +130,7 @@ fn validate_transition_arguments_handles(
     writable_roots: &WritableRoots<'_, '_>,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
-    validate_call_arguments_handles(
+    validate_call_arguments_handles_with_policy_retention(
         program,
         current_machine,
         current_state,
@@ -132,6 +140,8 @@ fn validate_transition_arguments_handles(
         parameters,
         Some(callee_state),
         writable_roots,
+        false,
+        argument_environments,
         diagnostics,
     );
 }

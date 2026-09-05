@@ -83,6 +83,26 @@ fn scalar_storage_remapping_preserves_direct_calls_and_explicit_state_arguments(
 }
 
 #[test]
+fn computed_scalar_state_arguments_execute_with_the_selected_operations() {
+    for (initial, argument, expected) in [
+        (3, "current + 4", 7),
+        (255, "((current as u8 in Wrapping) + 1) as u8", 0),
+        (255, "((current as u8 in Saturating) + 1) as u8", 255),
+    ] {
+        let source = format!(
+            "machine value() -> u8\nrequires {expected}u8 == {expected}u8\nensures {expected}u8 == {expected}u8\n{{ let mut current: u8 = {initial}; transition {{ _ -> finish({argument}) }} state finish(input: u8) -> u8 {{ input }} }}"
+        );
+        assert_eq!(
+            execute(&source),
+            TerminalExecutionResult::Scalar(TerminalScalarValue::Integer {
+                scalar_type: IntegerType::new(IntegerSign::Unsigned, 8).unwrap(),
+                value: IntegerValue::Unsigned(expected),
+            }),
+        );
+    }
+}
+
+#[test]
 fn scalar_storage_guards_select_using_the_updated_value() {
     for (initial, replacement) in [(false, true), (true, false)] {
         let source = format!(

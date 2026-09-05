@@ -257,6 +257,7 @@ fn validate_expression_call_bounds(
             None,
             writable_roots,
             retains_arithmetic_policy,
+            &[],
             diagnostics,
         );
         validate_named_float_to_integer_call(

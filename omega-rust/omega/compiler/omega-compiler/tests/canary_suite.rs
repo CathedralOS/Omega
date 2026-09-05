@@ -340,6 +340,7 @@ const CROSS_TARGET_FAIL_CANARIES: &[(&str, &str)] = &[
 /// lowering and therefore do not require a deployable `ProgramEntry` binding.
 const CHECKED_ONLY_PASS_CANARIES: &[&str] = &[
     "constraints/mutable_scalar_value_reads",
+    "constraints/state_argument_value_snapshots",
     "arithmetic/bounded_arithmetic_return",
     "arithmetic/bounded_assignment",
     "arithmetic/bounded_literal_named_constraints",
@@ -691,6 +692,7 @@ const CHECKED_ONLY_PASS_CANARIES: &[&str] = &[
 
 const CHECKED_ONLY_FAIL_CANARIES: &[&str] = &[
     "constraints/mutable_scalar_value_invalidated",
+    "constraints/state_argument_value_reread",
     "arithmetic/bounded_call_unproven",
     "constants/free_const_field_collision",
     "constants/free_const_local_collision",

@@ -644,6 +644,7 @@ pub(crate) fn validate_call_arguments_handles(
         callee_state,
         writable_roots,
         false,
+        &[],
         diagnostics,
     );
 }
@@ -689,7 +690,7 @@ fn validate_generic_bound_argument_types(
 }
 
 #[allow(clippy::too_many_arguments)]
-fn validate_call_arguments_handles_with_policy_retention(
+pub(crate) fn validate_call_arguments_handles_with_policy_retention(
     program: &TypedTrees,
     current_machine: &Machine,
     current_state: Option<&State>,
@@ -700,6 +701,7 @@ fn validate_call_arguments_handles_with_policy_retention(
     callee_state: Option<&State>,
     writable_roots: &WritableRoots<'_, '_>,
     retain_arithmetic_policy: bool,
+    argument_environments: &[ValueEnv],
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     if report_argument_count_mismatch(target_name, parameters, arguments, diagnostics) {
@@ -720,10 +722,14 @@ fn validate_call_arguments_handles_with_policy_retention(
         )));
     }
 
-    for (argument, parameter) in arguments
+    for (argument_index, (argument, parameter)) in arguments
         .iter()
         .zip(parameters.iter().filter(|parameter| !parameter.is_self))
+        .enumerate()
     {
+        let value_env = argument_environments
+            .get(argument_index)
+            .unwrap_or(value_env);
         let expected_access = declared_reference_access(program, parameter.type_reference);
         let supplied_access = match program.expression_table.expression(*argument) {
             ExpressionNode::Borrow(borrow) => Some(borrow.access),

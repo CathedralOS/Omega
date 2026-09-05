@@ -2,6 +2,216 @@ use super::*;
 use psi_checked_trees::{CheckedScalarBindingValue, CheckedValueStatementRole};
 
 #[test]
+fn scalar_transition_argument_custody_keeps_exact_targets_and_source_bindings() {
+    use psi_checked_trees::{
+        CheckedBooleanExpression, CheckedScalarExpression, CheckedScalarExpressionRole,
+    };
+    use psi_typed_trees::statement::TransitionTargetNode;
+
+    for (declarations, signature, arguments, target_parameters) in [
+        (
+            "data Packet [copy] { value: u64; }",
+            "machine transfer(packet: Packet, input: u8)",
+            "packet, ((current as u8 in Wrapping) + 1) as u8, !flag, saved",
+            "packet: Packet, next: u8, chosen: bool, prior: u8",
+        ),
+        (
+            "data Root {}",
+            "machine Root::transfer(&self, input: u8)",
+            "((current as u8 in Wrapping) + 1) as u8, !flag, saved",
+            "&self, next: u8, chosen: bool, prior: u8",
+        ),
+    ] {
+        let source = format!(
+            "{declarations} {signature} -> u8 {{ let mut current: u8 = 3; let mut flag: bool = false; let saved: u8 = current; transition {{ _ -> finish({arguments}) }} state finish({target_parameters}) -> u8 {{ prior }} }}"
+        );
+        let checked = lower_typed_trees(typed_trees(&source))
+            .unwrap_or_else(|diagnostics| panic!("{source}: {diagnostics:#?}"));
+        let states = checked.machine_states(&checked.machines()[0]);
+        let state = &states[0];
+        let target = &states[1];
+        let parameters = checked.state_parameters(state);
+        let target_parameters = checked.state_parameters(target);
+        let statements = checked.statement_table.statements(state.statement_nodes);
+        let [
+            StatementNode::LocalData(current),
+            StatementNode::LocalData(flag),
+            StatementNode::LocalData(saved),
+            StatementNode::Transition(transition),
+        ] = statements
+        else {
+            panic!("three locals precede one explicit jump")
+        };
+        let TransitionTargetNode::Named { arguments, .. } =
+            checked.statement_table.transition_target(transition.target)
+        else {
+            panic!("named target")
+        };
+        let arguments = checked.statement_table.expression_handles(*arguments);
+        let scalar_arguments = &arguments[arguments.len() - 3..];
+        let plans = &checked.facts.values.scalar_expressions;
+        let rows: Vec<_> = plans
+            .source_bindings
+            .iter()
+            .map(|(_, row)| row)
+            .filter(|row| {
+                matches!(
+                    row.role,
+                    CheckedScalarExpressionRole::TransitionArgument { .. }
+                )
+            })
+            .collect();
+        assert_eq!(
+            rows.len(),
+            3,
+            "self and structural parameters are not scalar arguments"
+        );
+        for (index, row) in rows.iter().enumerate() {
+            assert_eq!(row.state, state.symbol);
+            assert_eq!(row.statement_ordinal, 3);
+            assert_eq!(row.expression, scalar_arguments[index]);
+            assert_eq!(row.destination, target_parameters[index + 1].symbol);
+            assert_eq!(
+                row.role,
+                CheckedScalarExpressionRole::TransitionArgument {
+                    argument_ordinal: u32::try_from(index + 1).unwrap(),
+                },
+                "the target declaration position survives self/structural filtering"
+            );
+            assert_eq!(
+                plans.binding_symbols.span_or_empty(row.symbols),
+                &[parameters[1].symbol, saved.symbol],
+                "mutable storage and structural parameters cannot shift immutable operands"
+            );
+        }
+        assert!(matches!(
+            plans.expression_at(rows[0].state, rows[0].statement_ordinal, rows[0].role),
+            Some(CheckedScalarExpression::IntegerBinary { left, .. })
+                if matches!(left.as_ref(), CheckedScalarExpression::StorageRead { symbol, .. }
+                    if *symbol == current.symbol)
+        ));
+        assert!(matches!(
+            plans.expression_at(rows[1].state, rows[1].statement_ordinal, rows[1].role),
+            Some(CheckedScalarExpression::Boolean(expression))
+                if matches!(expression.as_ref(), CheckedBooleanExpression::Not(operand)
+                    if matches!(operand.as_ref(), CheckedBooleanExpression::StorageRead { symbol }
+                        if *symbol == flag.symbol))
+        ));
+        assert!(matches!(
+            plans.expression_at(rows[2].state, rows[2].statement_ordinal, rows[2].role),
+            Some(CheckedScalarExpression::Local { position: 1, .. })
+        ));
+    }
+}
+
+#[test]
+fn scalar_transition_continuation_has_independent_argument_custody() {
+    use psi_checked_trees::CheckedScalarExpressionRole;
+    use psi_typed_trees::statement::TransitionTargetNode;
+
+    let mut program = typed_trees(
+        r#"
+        machine choose(flag: bool) -> u8 {
+            let seed: u8 = 2;
+            let mut current: u8 = 3;
+            transition flag {
+                true -> first(seed + 1)
+                false -> second(current + 4)
+            }
+            state first(value: u8) -> u8 { value }
+            state second(value: u8) -> u8 { value }
+        }
+        "#,
+    );
+    // Authored arms are separate statements. Exercise the same combined
+    // primary/continuation representation used by retained transition plans.
+    let machine = program.machines()[0].clone();
+    let nodes = program.machine_states(&machine)[0].statement_nodes;
+    let transitions: Vec<_> = program
+        .statement_table
+        .statements(nodes)
+        .iter()
+        .enumerate()
+        .filter_map(|(index, statement)| {
+            if let StatementNode::Transition(transition) = statement {
+                Some((index, transition.target))
+            } else {
+                None
+            }
+        })
+        .collect();
+    let [
+        (statement_index, primary),
+        (continuation_index, continuation),
+    ] = transitions.as_slice()
+    else {
+        panic!("two authored arms")
+    };
+    assert_eq!(*continuation_index, *statement_index + 1);
+    assert_eq!(*continuation_index + 1, nodes.count() as usize);
+    let StatementNode::Transition(transition) =
+        &mut program.statement_table.statements_mut(nodes)[*statement_index]
+    else {
+        unreachable!()
+    };
+    transition.continuation = *continuation;
+    program.machine_states_mut(&machine)[0].statement_nodes =
+        psi_arena::HandleSpan::from_parts(nodes.start(), nodes.count() - 1);
+
+    let checked = lower_typed_trees(program).expect("both combined arms remain checked");
+    let state = &checked.machine_states(&checked.machines()[0])[0];
+    let plans = &checked.facts.values.scalar_expressions;
+    for (target, role) in [
+        (
+            *primary,
+            CheckedScalarExpressionRole::TransitionArgument {
+                argument_ordinal: 0,
+            },
+        ),
+        (
+            *continuation,
+            CheckedScalarExpressionRole::TransitionContinuationArgument {
+                argument_ordinal: 0,
+            },
+        ),
+    ] {
+        let TransitionTargetNode::Named {
+            path, arguments, ..
+        } = checked.statement_table.transition_target(target)
+        else {
+            panic!("named target")
+        };
+        let destination = checked
+            .machine_states(&checked.machines()[0])
+            .iter()
+            .find(|candidate| candidate.symbol == path.symbol)
+            .unwrap();
+        let rows: Vec<_> = plans
+            .source_bindings
+            .iter()
+            .map(|(_, row)| row)
+            .filter(|row| row.state == state.symbol && row.role == role)
+            .collect();
+        assert_eq!(rows.len(), 1);
+        let row = rows[0];
+        assert_eq!(row.statement_ordinal as usize, *statement_index);
+        assert_eq!(
+            row.expression,
+            checked.statement_table.expression_handles(*arguments)[0]
+        );
+        assert_eq!(
+            row.destination,
+            checked.state_parameters(destination)[0].symbol
+        );
+        assert!(
+            plans
+                .expression_at(state.symbol, row.statement_ordinal, role)
+                .is_some()
+        );
+    }
+}
+
+#[test]
 fn mutable_scalar_reads_require_consistent_exact_resolved_name_handles() {
     use psi_checked_trees::{
         CheckedBooleanExpression, CheckedOperatorFacts, CheckedScalarExpression,
@@ -262,7 +472,8 @@ fn scalar_return_custody_keeps_same_spelling_state_bindings_and_source_occurrenc
         !plans
             .source_bindings
             .iter()
-            .any(|(_, binding)| binding.state == states[0].symbol),
+            .any(|(_, binding)| binding.state == states[0].symbol
+                && binding.role == CheckedScalarExpressionRole::Return),
         "named transitions are not value-return source bindings"
     );
     let mut prior = None;

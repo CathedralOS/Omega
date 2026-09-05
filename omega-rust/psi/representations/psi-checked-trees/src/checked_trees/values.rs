@@ -120,8 +120,9 @@ pub struct CheckedScalarExpressionPlans {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CheckedScalarExpressionBindings {
-    /// Exact local or bare assignment destination; zero for a returned value,
-    /// argument, or projected store. This is separate from operand identities.
+    /// Exact local, bare assignment destination, or target state parameter;
+    /// zero for a returned value, other argument, or projected store.
+    /// This is separate from operand identities.
     pub destination: SymbolHandle,
     pub state: SymbolHandle,
     pub statement_ordinal: u32,
@@ -203,6 +204,11 @@ pub enum CheckedScalarExpressionRole {
     Return,
     Guard,
     TransitionArgument {
+        argument_ordinal: u32,
+    },
+    /// False-arm continuation operands have distinct custody from the primary
+    /// target even when their formal positions are identical.
+    TransitionContinuationArgument {
         argument_ordinal: u32,
     },
 }

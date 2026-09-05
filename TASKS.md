@@ -467,10 +467,10 @@ Owners include
   occurrence disappears, duplicates, or is cleaned after transfer.
 
 - **STATE-LOCAL-VALUE-FRONTIER.** Complete live contract/value-fact transport
-  across explicit state arguments, including directly computed arguments and
-  dynamic projections. Extend storage-value operands and their executable
-  paths to borrowed/projected places and the remaining scalar carriers;
-  materialize effectful returns and earlier call arguments at their exact
+  across dynamic projections. Extend storage-value operands and executable
+  paths to borrowed/projected places and the remaining scalar carriers.
+  Finish executable lowering for state arguments whose evaluation invokes
+  effects; materialize effectful returns and earlier call arguments at their exact
   evaluation points and activate staged loans at their evaluation points.
   Complete anonymous integer landing for guarded returns, argument and
   aggregate-element destinations, and the remaining numeric operator/policy
