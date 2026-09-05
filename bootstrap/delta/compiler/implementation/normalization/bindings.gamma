@@ -1,0 +1,7 @@
+; The initializer and body remain in their original positions. Capture analysis
+; separately respects the binder's absence from its own initializer.
+(def normalization_initializer_done
+  ((value Int) (payload Int) (depth Int) (frames Int) (state Int)) Int
+  (let pending Int (second payload)
+    (normalization_visit (first pending) (second pending) (+ depth 1)
+      (normalization_frame 3 (pair (first payload) value) frames) state)))

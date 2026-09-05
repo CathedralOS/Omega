@@ -1,0 +1,19 @@
+; The original binder is absent from its initializer and active only in the
+; body. Saved scopes on surrounding frames prevent sibling scope leakage.
+(def capture_let
+  ((node Int) (bound_count Int) (bound Int) (state Int)
+   (depth Int) (frames Int)) Int
+  (let payload Int (gamma_payload node)
+    (let expressions Int (second payload)
+      (capture_visit (first expressions) bound_count bound state (+ depth 1)
+        (capture_frame 2
+          (pair (first payload) (pair (second expressions) (pair bound_count bound)))
+          frames)))))
+
+(def capture_initializer_done
+  ((value Int) (payload Int) (state Int) (depth Int) (frames Int)) Int
+  (let body_and_scope Int (second payload)
+    (let scope Int (second body_and_scope)
+      (capture_visit (first body_and_scope) (+ (first scope) 1)
+        (pair (first payload) (second scope)) state (+ depth 1)
+        (capture_frame 3 (pair (first payload) value) frames)))))

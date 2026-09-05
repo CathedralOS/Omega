@@ -11,7 +11,8 @@ evaluator-tape identity under `GammaComposedV1`, not the entry file alone.
 
 Start at `delta_compiler.gamma`, then follow `implementation/pipeline.gamma`.
 The latter sequences source checking, catalogs, typing, profile validation,
-complete Gamma lowering, and emission. Concept-owned members are grouped below it:
+complete Gamma lowering, body-height normalization, and emission. Concept-owned
+members are grouped below it:
 
 - `implementation/boundary/`: bounded request admission and DCOUT publication;
 - `implementation/checking/`: source tokens, retained syntax and grammar roles,
@@ -20,6 +21,8 @@ complete Gamma lowering, and emission. Concept-owned members are grouped below i
   binding identities, and generated expression heights;
 - `implementation/lowering/`: checked Delta declarations and expressions to
   that Gamma plan, including calls, constructors, arithmetic, and matches;
+- `implementation/normalization/`: scoped Gamma body-height budgets and
+  capture-safe extraction of over-height fragments into generated functions;
 - `implementation/emission/`: generic Gamma serialization and the unchanged
   fixed byte helpers/profile adapters.
 
@@ -43,10 +46,12 @@ Lowering starts at
 [`lowering/program.gamma`](implementation/lowering/program.gamma) and completes
 every authored function body before publication. The resulting program is defined in
 [`representation/gamma.gamma`](implementation/representation/gamma.gamma).
+[`normalization/`](implementation/normalization/README.md) then extracts
+over-height fragments while retaining evaluation order and binding identity.
 [`emission/program.gamma`](implementation/emission/program.gamma) serializes
-that expanded Gamma plan; it does not select Delta lowering rules.
+the resulting Gamma plan; it does not select Delta lowering rules.
 
-`implementation/implementation.gamma.sources` selects all 45 shared members
+`implementation/implementation.gamma.sources` selects all 55 shared members
 with exact lengths, digests, and ordered identities. The byte-only source
 materializer validates that closed inventory and prefixes the explicitly
 selected entry. For the canonical entry, its application marker is therefore
@@ -244,12 +249,15 @@ application schema mismatch (20).
 Missing `main` has no source coordinate; a schema mismatch
 anchors at the entry name. Source-byte and expression `parse_depth` refusals
 have owned resource frames; other compiler-owned resource accounting and
-internal failure publication remain open. Stack-safe compiler traversal does
-not guarantee generated Gamma admission throughout the 1,024-level Delta
-profile: the selected Gamma evaluator separately caps each generated body at
-255 nested expression lists, and lowering can introduce additional wrappers.
-The plan records expanded expression-list height, including generated wrappers,
-but recording that height does not normalize or lift an over-height body.
+internal failure publication remain open. Lowering records expanded expression
+heights, including generated wrappers. Normalization uses the selected Gamma
+evaluator's 255-list body budget, reusing fitting subtrees and extracting whole
+over-height fragments into helpers with free established values as arguments.
+Fresh capture-parameter identities preserve lexical bindings; calls remain at
+the original evaluation positions. Programs whose bodies already fit retain
+their exact receipts. This does not guarantee full Gamma-profile admission
+throughout Delta's 1,024-level profile: generated helpers, non-tail calls, and
+immutable allocations still face separate function, context, and storage limits.
 Underlying evaluator failures on those paths are not DCOUT. These
 frontend diagnostics do not establish final edge closure.
 Calls emitted in tail position remain in Gamma tail position through
@@ -258,6 +266,7 @@ construction and traversal in bounded call context. Static acceptance of the
 scalar/nominal slice is not full-language admission.
 
 Run `sh tests/delta/staged-compiler/run.sh` for lowering and generated execution,
+`sh tests/delta/normalization/run.sh` for body-height and capture behavior,
 `sh tests/delta/request-boundary/run.sh` for exact request outcomes,
 `sh tests/delta/frontend-boundary/run.sh` for exact frontend outcomes, and
 `sh tests/gamma/composed-artifact.sh` for composed identity and publication.
@@ -267,7 +276,7 @@ The downgraded full compiler remains separate under
 ## Measurements
 
 ```text
-2,606-line / 111,464-byte canonical entry plus shared Gamma implementation
+2,910-line / 125,850-byte canonical entry plus shared Gamma implementation
 7-line / 195-byte nullary-ADT Delta fixture
   -> 3-line / 165-byte Gamma receipt
   -> selected Gamma evaluation produces byte 9

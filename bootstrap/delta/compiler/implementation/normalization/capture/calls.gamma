@@ -1,0 +1,25 @@
+; Function and primitive heads never enter lexical capture. Only argument
+; expressions are visited, in their retained left-to-right order.
+(def capture_call_arguments
+  ((node Int) (remaining Int) (arguments Int) (reversed Int)
+   (bound_count Int) (bound Int) (state Int) (depth Int) (frames Int)) Int
+  (if (eq remaining 0)
+    (let original Int (gamma_payload node)
+      (let count Int (first (second original))
+        (capture_resume
+          (gamma_call (first original) count (syntax_reverse_nodes count reversed 0))
+          state depth frames)))
+    (capture_visit (first arguments) bound_count bound state (+ depth 1)
+      (capture_frame 1
+        (pair node (pair (- remaining 1) (pair (second arguments)
+          (pair reversed (pair bound_count bound))))) frames))))
+
+(def capture_argument_done
+  ((value Int) (payload Int) (state Int) (depth Int) (frames Int)) Int
+  (let remaining Int (second payload)
+    (let arguments Int (second remaining)
+      (let accumulated Int (second arguments)
+        (let scope Int (second accumulated)
+          (capture_call_arguments (first payload) (first remaining) (first arguments)
+            (pair value (first accumulated)) (first scope) (second scope)
+            state depth frames))))))

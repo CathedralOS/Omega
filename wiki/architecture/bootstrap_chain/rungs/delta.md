@@ -11,8 +11,8 @@ The normative contract is
 [`bootstrap/delta/LANGUAGE.md`](../../../../bootstrap/delta/LANGUAGE.md). The canonical
 compiler must be written in Gamma and emit canonical Gamma source. The selected
 Beta-authored Gamma evaluator executes that compiler over Delta source and can
-execute the resulting canonical Gamma receipt. The selected 2,606-line source
-is one canonical request entry plus 45 manifested shared implementation members.
+execute the resulting canonical Gamma receipt. The selected 2,910-line source
+is one canonical request entry plus 55 manifested shared implementation members.
 It enforces Delta's textual-ASCII byte envelope, identifier and
 reserved-name grammar, signed-literal range, and exact global function
 signatures. A complete lexical pass follows source-envelope validation and
@@ -40,9 +40,10 @@ arbitrary-field recursive algebraic data and exact arbitrary-order exhaustive
 `match`, while a whole-program pass enforces
 global declaration order, nonempty data, unique namespaces, and exactly one
 `main`. That whole-program type check and selected-profile schema validation
-precede a complete expanded Gamma lowering plan. Only then does emission print
-the plan, without repeating declaration and binder validation or numeric
-spelling/range checks. Tail calls remain in
+precede a complete expanded Gamma lowering plan. Body-height normalization
+then extracts over-height fragments with explicit capture parameters. Only
+then does emission print the plan, without repeating declaration and binder
+validation or numeric spelling/range checks. Tail calls remain in
 tail position through emitted `if`, `let`, and
 lowered `match`; a 100,000-node construction/traversal witness completes in the
 selected evaluator's bounded call context. Authored signed arithmetic evaluates
@@ -72,7 +73,12 @@ binding identities and expanded expression-list heights in the Gamma plan.
 Serialization consumes that plan rather than interpreting Delta constructs.
 Stack-safe compiler traversal does not establish generated Gamma admission: each generated
 body remains subject to the selected evaluator's separate 255-list nesting
-bound. Recording height does not yet normalize or lift over-height bodies.
+bound. Normalization reuses fitting subtrees and extracts whole over-height
+fragments at the same evaluation position; helper bodies receive a fresh
+255-level budget. Fresh capture parameters retain lexical identity and only
+receive established values. Programs whose bodies already fit keep their
+exact receipts. Generated helper count, non-tail runtime contexts, and immutable
+storage remain separately bounded.
 Other compiler-owned resource/internal outcomes, successful generated
 admission throughout Delta's 1,024-level depth profile,
 and final edge closure remain open;

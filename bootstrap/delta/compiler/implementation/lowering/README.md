@@ -55,10 +55,14 @@ arithmetic, or lexical-environment knowledge.
 
 ## Remaining boundaries
 
-The complete plan enables a later normalization phase; no such normalization
-or lifting is implied by this separation. A stack-safe compiler traversal can
-still produce a body exceeding Gamma's 255-list profile. Allocated plan and
-continuation pairs also consume the evaluator's finite immutable arena.
-Resource/internal DCOUT closure and full generated-profile admission remain
-open. Exact checking and execution receipts must remain byte-identical while
-this structural dependency is introduced.
+This phase deliberately returns the expanded, pre-normalization plan. The
+private lowering-height diagnostic observes those original heights, including
+heights above 255. Normal compilation passes the plan to
+[normalization](../normalization/README.md) before publication; that separate
+owner handles body nesting without changing Delta lowering rules.
+
+Allocated plan and continuation pairs consume the evaluator's finite immutable
+arena. Resource/internal DCOUT closure and full generated-profile admission
+remain open. Body-height normalization does not by itself bound helper count,
+live runtime contexts, or cumulative storage. Exact checking and execution
+receipts remain unchanged when the original bodies already fit the profile.

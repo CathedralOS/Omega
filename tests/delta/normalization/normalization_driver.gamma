@@ -1,0 +1,46 @@
+; Private raw-source diagnostic for the production profile-1 normalizer.
+; Five u32 words report authored count/height, normalized count/height, and
+; the maximum parameter count among appended helper definitions.
+; The selected unmarked Gamma evaluator appends main's final scalar byte 0.
+(def main () Int
+  (let prepared Int (prepare_admitted_source 1)
+    (if (eq (first prepared) 0)
+      (let original Int (second prepared)
+        (let normalized Int (normalize_program original)
+          (let original_count Int (write_unsigned_little_endian (first original) 4)
+            (let original_height Int
+              (write_unsigned_little_endian
+                (maximum_body_height (first original) (second original) 0) 4)
+              (let normalized_count Int
+                (write_unsigned_little_endian (first normalized) 4)
+                (let normalized_height Int
+                  (write_unsigned_little_endian
+                    (maximum_body_height (first normalized) (second normalized) 0) 4)
+                  (let helper_parameters Int
+                    (write_unsigned_little_endian
+                      (diagnostic_helper_parameter_maximum (first original)
+                        (first normalized) (second normalized) 0) 4)
+                    0)))))))
+      (fail))))
+
+(def maximum_body_height ((remaining Int) (definitions Int) (maximum Int)) Int
+  (if (eq remaining 0)
+    maximum
+    (let height Int (gamma_height (gamma_definition_body (first definitions)))
+      (maximum_body_height (- remaining 1) (second definitions)
+        (if (lt maximum height) height maximum)))))
+
+(def diagnostic_helper_parameter_maximum
+  ((skip Int) (remaining Int) (definitions Int) (maximum Int)) Int
+  (if (eq remaining 0)
+    maximum
+    (if (eq skip 0)
+      (let count Int (gamma_definition_parameter_count (first definitions))
+        (diagnostic_helper_parameter_maximum 0 (- remaining 1)
+          (second definitions) (if (lt maximum count) count maximum)))
+      (diagnostic_helper_parameter_maximum (- skip 1) (- remaining 1)
+        (second definitions) maximum))))
+
+(def source_length () Int (input))
+(def source_read ((index Int)) Int (read index))
+(def compilation_profile () Int 1)

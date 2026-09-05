@@ -1,0 +1,26 @@
+; Every authored definition is normalized before any receipt byte is written.
+; Helpers follow authored definitions; all remain ordinary closed Gamma code.
+(def normalize_program ((program Int)) Int
+  (normalization_definitions (first program) (second program) (first program)
+    0 (normalization_state 0 0 0)))
+
+; Selected Gamma evaluator profile: nested expression lists per function body.
+(def normalization_height_limit () Int 255)
+
+(def normalization_definitions
+  ((remaining Int) (definitions Int) (total Int) (reversed Int) (state Int)) Int
+  (if (eq remaining 0)
+    (let helpers Int (second state)
+      (let ordered Int (syntax_reverse_nodes (first helpers) (second helpers) 0)
+        (gamma_program (+ total (first helpers))
+          (syntax_reverse_nodes total reversed ordered))))
+    (let definition Int (first definitions)
+      (let normalized Int
+        (normalization_visit (gamma_definition_body definition)
+          (normalization_height_limit) 0 0 state)
+        (let rewritten Int
+          (gamma_definition (gamma_definition_name definition)
+            (gamma_definition_parameter_count definition)
+            (gamma_definition_parameters definition) (first normalized))
+          (normalization_definitions (- remaining 1) (second definitions) total
+            (pair rewritten reversed) (second normalized)))))))

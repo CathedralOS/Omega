@@ -1,0 +1,23 @@
+; Every sibling gets the same expression-height budget. Only the global helper
+; state passes between siblings; no argument computation moves to a call site.
+(def normalization_arguments
+  ((head Int) (total Int) (remaining Int) (nodes Int) (reversed Int)
+   (budget Int) (depth Int) (frames Int) (state Int)) Int
+  (if (eq remaining 0)
+    (normalization_resume
+      (gamma_call head total (syntax_reverse_nodes total reversed 0))
+      depth frames state)
+    (normalization_visit (first nodes) budget (+ depth 1)
+      (normalization_frame 1
+        (pair head (pair total (pair (- remaining 1)
+          (pair (second nodes) (pair reversed budget))))) frames) state)))
+
+(def normalization_argument_done
+  ((value Int) (payload Int) (depth Int) (frames Int) (state Int)) Int
+  (let total Int (second payload)
+    (let remaining Int (second total)
+      (let nodes Int (second remaining)
+        (let built Int (second nodes)
+          (normalization_arguments (first payload) (first total) (first remaining)
+            (first nodes) (pair value (first built)) (second built)
+            depth frames state))))))

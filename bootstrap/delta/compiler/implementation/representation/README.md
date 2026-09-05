@@ -26,12 +26,16 @@ expressions, classify source constructs, or resolve names.
 
 Source parameters, lets, and pattern binders receive binding atoms. Every
 lowered reference reuses its established binding atom, so equal spellings in
-disjoint scopes do not erase declaration identity. Generated bindings retain an
-explicit marker and source coordinate, and their references reuse that atom.
-No comparison observes the numeric provenance of a Gamma pair reference.
+disjoint scopes do not erase declaration identity. Lowering-generated bindings
+retain an explicit marker and source coordinate. Normalization uses that same
+atom form with a marker and program-wide allocated identity for fresh helper
+names and parameters. Binding references reuse their established atom; no
+comparison observes the numeric provenance of a Gamma pair reference.
 
-This representation is the boundary between source-dependent lowering and
-Gamma serialization. The complete plan exists before receipt publication.
-It does not itself normalize or lift expressions to satisfy the selected
-Gamma evaluator's 255-list body bound. Compiler-owned resource accounting and
-internal-failure publication also remain separate work.
+This representation is shared by source-dependent lowering,
+[body-height normalization](../normalization/README.md), and Gamma
+serialization. Normalization consumes its explicit heights and binding atoms
+and produces another program in the same representation. The complete
+normalized plan exists before receipt publication. This representation does
+not itself establish complete Gamma-profile admission, compiler-owned resource
+accounting, or internal-failure publication.

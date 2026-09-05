@@ -1,0 +1,48 @@
+; Binding equality observes explicit identity, never pair-reference provenance
+; or printed spelling. Source bindings own a declaration start; generated
+; bindings own their marker and coordinate in a separate identity category.
+(def capture_same_binding ((left Int) (right Int)) Int
+  (let kind Int (gamma_kind left)
+    (if (eq kind (gamma_kind right))
+      (let left_identity Int (gamma_payload left)
+        (let right_identity Int (gamma_payload right)
+          (if (eq kind 2)
+            (eq (syntax_start left_identity) (syntax_start right_identity))
+            (if (eq kind 4)
+              (if (eq (first left_identity) (first right_identity))
+                (eq (second left_identity) (second right_identity))
+                0)
+              0))))
+      0)))
+
+(def capture_is_bound ((node Int) (count Int) (bindings Int)) Int
+  (if (eq count 0)
+    0
+    (if (capture_same_binding node (first bindings))
+      1
+      (capture_is_bound node (- count 1) (second bindings)))))
+
+; Mapping rows are (pair original-binding fresh-parameter), newest first.
+; An explicit option distinguishes no mapping from a pair-valued parameter.
+(def capture_find_binding ((node Int) (count Int) (rows Int)) Int
+  (if (eq count 0)
+    (pair 0 0)
+    (let row Int (first rows)
+      (if (capture_same_binding node (first row))
+        (pair 1 (second row))
+        (capture_find_binding node (- count 1) (second rows))))))
+
+(def capture_reference
+  ((node Int) (bound_count Int) (bound Int) (state Int)
+   (depth Int) (frames Int)) Int
+  (if (capture_is_bound node bound_count bound)
+    (capture_resume node state depth frames)
+    (let mappings Int (second state)
+      (let found Int (capture_find_binding node (first mappings) (second mappings))
+        (if (first found)
+          (capture_resume (second found) state depth frames)
+          (let parameter Int (gamma_generated 99 (first state))
+            (capture_resume parameter
+              (capture_state (+ (first state) 1) (+ (first mappings) 1)
+                (pair (pair node parameter) (second mappings)))
+              depth frames)))))))

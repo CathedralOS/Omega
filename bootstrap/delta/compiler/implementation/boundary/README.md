@@ -164,11 +164,12 @@ Canonical frontend rejection and the owned source-byte/parse-depth refusals
 are not full DCOUT or Delta-edge closure. Other resource/internal outcomes do
 not yet carry compiler-owned evidence. Lowering constructs a complete expanded
 Gamma plan before publication, and records the height of every generated
-expression. Its explicit continuations and the separate plan serializer do not
-remove the selected evaluator's 255-list nesting bound. Normalization or
-lifting of over-height plans is not implemented by height accounting.
-Successful generated admission throughout Delta's 1,024-level profile remains
-open. Those empty-output evaluator
+expression. A separate normalizer extracts over-height fragments under the
+selected evaluator's 255-list body budget before serialization. It introduces
+no new refusal code or profile limit. Generated helpers count toward the
+existing function limit; non-tail calls and immutable allocation retain their
+separate context and storage bounds. Successful full generated-profile
+admission throughout Delta's 1,024-level profile remains open. Those empty-output evaluator
 statuses must not be decoded as DCOUT or synthesized into frames by a runner.
 The generated ConformanceBytesV1 program's statuses are separately owned by
 its adapter. Successful compiler output remains the exact unwrapped Gamma
