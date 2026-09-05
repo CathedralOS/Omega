@@ -204,8 +204,22 @@ no required choices accepts an empty set without manufacturing approval work.
 This uses the checked report directly, with no compiler reconstruction or
 evidence-promotion step. It records decisions, not whether an audit happened.
 
+`review::render_package_policy_review` places editable `pending` decisions beside
+the complete comparison's readable before/after policy rows, source replacements,
+and root-role changes. Source pins and dependency paths identify each side;
+audit recommendations also remain visible when no choice is required. Package
+prose never enters this document. Source identifiers are quoted data and policy
+strings use the evidence codec's escaping.
+
+`review::recover_package_policy_review` accepts only per-change `accept` or
+`reject` edits. It regenerates the findings from the current comparison and
+requires unchanged framing, identifiers, and displayed meaning before resolving
+all choices. The versioned text uses LF and a caller-selected byte ceiling for
+both rendering and recovery. This is ordinary resume consistency, not an audit
+certificate, reviewer receipt, or authentication of the project author.
+
 `all_required_changes_accepted` describes only the represented choices, not
-permission to publish. Explicit command intent, decision text/file handling,
+permission to publish. Explicit command intent, review-file handling,
 removed-package history in the lock, fresh compiler obligations, and
 transactional candidate/project-file rechecks remain integration work.
 

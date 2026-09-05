@@ -80,8 +80,8 @@ adding machinery; do not invent proof-of-review or host-security requirements.
   rows, including removals; package-name/source replacement is explicit.
   Initial dangerous authority and accepted assumptions require review.
   Ordinary initial API rows have no previous compatibility contract.
-  Integrate complete-policy row/root-role/source-replacement decisions and their
-  persisted review input. Preserve explicit command replacement intent when
+  Wire the complete-policy review document into command-owned file loading and
+  resume. Preserve explicit command replacement intent when
   both alias and source change; graph comparison must not infer pairing from
   package names or authored positions. Retain removed-package
   decisions without indexing them into the candidate-only lock graph.
