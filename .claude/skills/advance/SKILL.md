@@ -215,11 +215,12 @@ worker commits in your own integration worktree, then enqueue when ready. Wait
 locally for the FIFO head and claim before incorporating current main and running
 final gates. Rebase onto the returned base, integrate
 ready commits in sequence, and run the full gate list on that candidate. Publish
-the exact verified SHA through `tools/landing.ps1`; do not pull/rebase again
+the exact verified SHA through `tools/landing.py`; do not pull/rebase again
 between validation and publication or push directly to main. A busy reservation
 means continue local development, not repeatedly run the full integration gates.
-Cancel if no longer ready; release after a failed gate before continuing
-implementation. Rejoin with a new ticket at the tail. Do not autostash
+Cancel if no longer ready; release after a new or unexplained gate failure before
+continuing implementation. Rejoin with a new ticket at the tail; documented
+baseline exceptions follow `AGENTS.md`. Do not autostash
 another session's work or rewrite an unpushed commit that is not yours.
 
 Commit on coherent milestones — a working improvement, not a finished epic.
