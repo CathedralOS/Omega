@@ -27,6 +27,7 @@ pub(in crate::checks) use types::expression_enforced_declared_range;
 
 pub(crate) fn check_indexed_accesses(
     program: &typed_trees::TypedTrees,
+    operators: &checked_trees::CheckedOperatorFacts,
     call_frames: Option<&validation::CallFrameResolver<'_>>,
     incoming_guards: &IncomingGuardIndex,
 ) -> Result<(), Vec<Diagnostic>> {
@@ -40,6 +41,7 @@ pub(crate) fn check_indexed_accesses(
         let loop_invariant_facts = collect_loop_invariant_facts(program, machine, call_frames);
         for state in program.machine_states(machine) {
             let mut facts = RangeFacts::new(&field_lengths);
+            facts.checked_operators = Some(operators);
             // State parameters are stable named places for the duration of
             // the state, just like locals introduced by `let`. Retain a
             // literal fixed-array referee's length even through a reference
@@ -58,7 +60,13 @@ pub(crate) fn check_indexed_accesses(
             seed_dependent_param_orderings(program, &mut facts, machine, state);
             seed_incoming_guard_facts(program, machine, &mut facts, state, incoming_guard_facts);
             seed_loop_invariant_facts(program, &mut facts, state, &loop_invariant_facts);
-            for statement in program.statement_table.statements(state.statement_nodes) {
+            for (statement_index, statement) in program
+                .statement_table
+                .statements(state.statement_nodes)
+                .iter()
+                .enumerate()
+            {
+                facts.statement_index = statement_index;
                 check_statement(
                     program,
                     machine,

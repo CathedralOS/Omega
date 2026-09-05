@@ -9,11 +9,15 @@ use crate::domain::DomainDefinition;
 use crate::types::{FixedArrayLength, TypeReferenceHandle, TypeReferenceNode};
 
 mod applications;
+mod indexing;
+
+pub use indexing::resolve_indexed_spelling_for_operands;
 
 pub use applications::{
     ClosedOperatorApplicationArgument, ClosedOperatorRealizationApplication,
-    SymbolicOperatorTypeApplicationArgument, closed_operator_application_for_operands,
-    closed_operator_realization_application, symbolic_operator_type_application_for_operands,
+    SymbolicOperatorTypeApplicationArgument, closed_indexed_operator_application_for_operands,
+    closed_operator_application_for_operands, closed_operator_realization_application,
+    symbolic_operator_type_application_for_operands,
 };
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -632,6 +636,15 @@ fn operator_matches_operands(
     operator: &OperatorDefinition,
     operand_types: &[Option<TypeReferenceHandle>],
 ) -> bool {
+    operator_matches_operands_with_indexed_collection(program, operator, operand_types, false)
+}
+
+fn operator_matches_operands_with_indexed_collection(
+    program: &TypedTrees,
+    operator: &OperatorDefinition,
+    operand_types: &[Option<TypeReferenceHandle>],
+    indexed_collection: bool,
+) -> bool {
     let parameters = program.operator_parameters(operator);
     if parameters.len() != operand_types.len() {
         return false;
@@ -642,17 +655,25 @@ fn operator_matches_operands(
     operand_types
         .iter()
         .zip(normalized_operand_parameters(parameters))
-        .all(|(actual, expected)| {
+        .enumerate()
+        .all(|(position, (actual, expected))| {
             actual.is_none_or(|actual| {
+                let (matched_actual, matched_expected) = if indexed_collection && position == 0 {
+                    indexing::shared_collection_elements(program, actual, expected.type_reference)
+                        .unwrap_or((actual, expected.type_reference))
+                } else {
+                    (actual, expected.type_reference)
+                };
                 type_reference_matches(
                     program,
-                    actual,
-                    expected.type_reference,
+                    matched_actual,
+                    matched_expected,
                     None,
                     type_parameters,
                     &mut bindings,
                     &mut const_bindings,
                 ) && declared_domain_constraints_match(program, actual, expected.type_reference)
+                    && declared_domain_constraints_match(program, matched_actual, matched_expected)
             })
         })
 }

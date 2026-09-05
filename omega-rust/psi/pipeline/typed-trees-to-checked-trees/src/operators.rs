@@ -865,7 +865,7 @@ fn indexed_operator_spelling(program: &TypedTrees, index: ExpressionHandle) -> O
     }
 }
 
-fn indexed_operand_types(
+pub(crate) fn indexed_operand_types(
     program: &TypedTrees,
     indexed: &TableIndexedExpression,
     origin: CheckedValueOrigin,
@@ -919,7 +919,15 @@ fn operator_use_fact(
             candidate_facts,
         );
     }
-    let candidates = resolve_spelling_for_operands(program, spelling, operand_types);
+    let candidates = if matches!(spelling, OperatorSpelling::Index | OperatorSpelling::Range) {
+        typed_trees::operator::resolve_indexed_spelling_for_operands(
+            program,
+            spelling,
+            operand_types,
+        )
+    } else {
+        resolve_spelling_for_operands(program, spelling, operand_types)
+    };
     let candidate_count = candidates.len();
     let candidate_span = candidate_facts.insert_many(
         candidates
@@ -1109,7 +1117,7 @@ fn float_policy_adapter(
     }
 }
 
-fn checked_candidate(
+pub(crate) fn checked_candidate(
     program: &TypedTrees,
     candidate: &SpelledOperator<'_>,
 ) -> CheckedOperatorCandidateFact {

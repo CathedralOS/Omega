@@ -11,6 +11,242 @@ use typed_trees::types::TypeReferenceHandle;
 
 mod applications;
 
+fn indexed_selection_fixture(
+    source: &str,
+) -> (typed_trees::TypedTrees, checked_trees::CheckedOperatorFacts) {
+    let tokens = Lexer::new(source)
+        .tokenize()
+        .expect("tokenize indexed selection");
+    let syntax = parse_syntax_trees(&tokens).expect("parse indexed selection");
+    let resolved = lower_syntax_trees(&syntax).expect("resolve indexed selection");
+    let program = lower_symbol_resolved_trees(&resolved).expect("type indexed selection");
+    let mut roots = arena::Arena::default();
+    for machine in program.machines() {
+        for state in program.machine_states(machine) {
+            for (statement_index, statement) in program
+                .statement_table
+                .statements(state.statement_nodes)
+                .iter()
+                .enumerate()
+            {
+                let StatementNode::LocalData(local) = statement else {
+                    continue;
+                };
+                roots.append(checked_trees::CheckedValueFact {
+                    expression: local.initial_value,
+                    origin: checked_trees::CheckedValueOrigin::StateStatement {
+                        machine_symbol: machine.symbol,
+                        state_symbol: state.symbol,
+                        statement_index,
+                        role: checked_trees::CheckedValueStatementRole::Expression,
+                    },
+                    ..Default::default()
+                });
+            }
+        }
+    }
+    let facts = build_operator_facts(
+        &program,
+        &checked_trees::CheckedValueFacts::with_roots(roots),
+    );
+    (program, facts)
+}
+
+#[test]
+fn indexed_shared_collection_views_retain_exact_operator_and_closed_element() {
+    for collection in [
+        "[i32; 3]",
+        "&[i32; 3]",
+        "&mut [i32; 3]",
+        "&[i32]",
+        "&mut [i32]",
+    ] {
+        let source = format!(
+            r#"
+            boundary operator [] Collection::read<Element>(items: &[Element], index: u64) -> Element
+            requires index < items.len;
+            machine inspect(items: {collection}, index: u64) {{ let value: i32 = items[index]; }}
+        "#
+        );
+        let (program, facts) = indexed_selection_fixture(&source);
+        let operator_use = facts
+            .uses
+            .iter()
+            .find_map(|(_, value)| (value.spelling == OperatorSpelling::Index).then_some(value))
+            .expect("index use");
+        assert_eq!(
+            operator_use.status,
+            checked_trees::CheckedOperatorResolutionStatus::Resolved,
+            "{collection}"
+        );
+        let operator = program
+            .operators()
+            .iter()
+            .find(|operator| operator.symbol == operator_use.selected_operator_symbol)
+            .expect("exact selected declaration");
+        let candidate = facts
+            .selected_candidate(operator_use)
+            .expect("selected candidate");
+        assert_eq!(candidate.contracts, operator.contracts);
+        assert_eq!(candidate.contract_count, 1);
+        let ExpressionNode::Indexed(indexed) =
+            program.expression_table.expression(operator_use.expression)
+        else {
+            panic!("indexed use");
+        };
+        let operands =
+            crate::operators::indexed_operand_types(&program, indexed, operator_use.origin);
+        let application = typed_trees::operator::closed_indexed_operator_application_for_operands(
+            &program, operator, &operands,
+        )
+        .expect("closed indexed binding");
+        let [
+            typed_trees::operator::ClosedOperatorApplicationArgument::Type {
+                binder_symbol,
+                type_reference,
+            },
+        ] = application.as_slice()
+        else {
+            panic!("one element type binding");
+        };
+        assert_eq!(
+            *binder_symbol,
+            program.operator_type_parameters(operator)[0].symbol
+        );
+        assert_eq!(program.display_type_reference(*type_reference), "i32");
+        if collection == "[i32; 3]" {
+            assert!(
+                resolve_spelling_for_operands(&program, OperatorSpelling::Index, &operands)
+                    .is_empty(),
+                "ordinary matching must not gain collection coercion"
+            );
+            assert!(
+                typed_trees::operator::closed_operator_application_for_operands(
+                    &program, operator, &operands
+                )
+                .is_none()
+            );
+        }
+    }
+}
+
+#[test]
+fn indexed_collection_adaptation_preserves_other_operands_and_access() {
+    for (element, index_type, actual_collection, expected_collection) in [
+        ("u8", "u64", "[i32; 3]", "&[u8]"),
+        ("i32", "i32", "[i32; 3]", "&[i32]"),
+        ("i32", "u64", "[i32; 3]", "&mut [i32]"),
+        ("i32", "u64", "&[i32; 3]", "&mut [i32]"),
+        ("i32", "u64", "&i32", "&[i32]"),
+        ("[i32; 3]", "u64", "[[i32; 2]; 3]", "&[[i32; 3]]"),
+    ] {
+        let source = format!(
+            r#"
+            boundary operator [] Collection::read(items: {expected_collection}, index: {index_type}) -> {element};
+            machine inspect(items: {actual_collection}, index: u64) {{ let value: i32 = items[index]; }}
+        "#
+        );
+        let (_, facts) = indexed_selection_fixture(&source);
+        let operator_use = facts
+            .uses
+            .iter()
+            .find_map(|(_, value)| (value.spelling == OperatorSpelling::Index).then_some(value))
+            .expect("index use");
+        assert_eq!(
+            operator_use.status,
+            checked_trees::CheckedOperatorResolutionStatus::Missing,
+            "{source}"
+        );
+        assert!(!operator_use.selected_operator_symbol.is_valid());
+    }
+}
+
+#[test]
+fn indexed_element_binding_is_shared_with_the_remaining_tuple() {
+    for (index_type, expected_status) in [
+        (
+            "i32",
+            checked_trees::CheckedOperatorResolutionStatus::Resolved,
+        ),
+        (
+            "u64",
+            checked_trees::CheckedOperatorResolutionStatus::Missing,
+        ),
+    ] {
+        let source = format!(
+            r#"
+            boundary operator [] Collection::read<Element>(items: &[Element], index: Element) -> Element;
+            machine inspect(items: [i32; 3], index: {index_type}) {{ let value: i32 = items[index]; }}
+        "#
+        );
+        let (_, facts) = indexed_selection_fixture(&source);
+        let operator_use = facts
+            .uses
+            .iter()
+            .find_map(|(_, value)| (value.spelling == OperatorSpelling::Index).then_some(value))
+            .expect("index use");
+        assert_eq!(operator_use.status, expected_status, "{source}");
+    }
+}
+
+#[test]
+fn indexed_collection_views_do_not_rank_competing_candidates() {
+    let (program, facts) = indexed_selection_fixture(
+        r#"
+        boundary operator [] Collection::generic<Element>(items: &[Element], index: u64) -> Element;
+        boundary operator [] Collection::concrete(items: &[i32], index: u64) -> i32;
+        machine inspect(items: [i32; 3], index: u64) { let value: i32 = items[index]; }
+    "#,
+    );
+    let operator_use = facts
+        .uses
+        .iter()
+        .find_map(|(_, value)| (value.spelling == OperatorSpelling::Index).then_some(value))
+        .expect("index use");
+    assert_eq!(
+        operator_use.status,
+        checked_trees::CheckedOperatorResolutionStatus::Ambiguous
+    );
+    assert_eq!(operator_use.candidate_count, 2);
+    assert!(!operator_use.selected_operator_symbol.is_valid());
+    assert_eq!(
+        facts.candidate_symbols(operator_use).collect::<Vec<_>>(),
+        program
+            .operators()
+            .iter()
+            .map(|operator| operator.symbol)
+            .collect::<Vec<_>>()
+    );
+}
+
+#[test]
+fn ranged_collection_views_check_both_endpoint_types() {
+    for (end_type, expected_status) in [
+        (
+            "u64",
+            checked_trees::CheckedOperatorResolutionStatus::Resolved,
+        ),
+        (
+            "i32",
+            checked_trees::CheckedOperatorResolutionStatus::Missing,
+        ),
+    ] {
+        let source = format!(
+            r#"
+            boundary operator [..] Collection::window<Element>(items: &[Element], start: u64, end: u64) -> &[Element];
+            machine inspect(items: [i32; 3], start: u64, end: {end_type}) {{ let value: &[i32] = items[start..end]; }}
+        "#
+        );
+        let (_, facts) = indexed_selection_fixture(&source);
+        let operator_use = facts
+            .uses
+            .iter()
+            .find_map(|(_, value)| (value.spelling == OperatorSpelling::Range).then_some(value))
+            .expect("range use");
+        assert_eq!(operator_use.status, expected_status, "{source}");
+    }
+}
+
 #[test]
 fn checked_software_may_satisfy_a_contracted_ordinary_operator() {
     let source = r#"

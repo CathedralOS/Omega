@@ -158,7 +158,15 @@ pub(super) fn check_expression<'program>(
             );
             // Collection/index producers run before the access. Their writes
             // must retire old scalar and length premises before discharge.
-            check_indexed_access(program, machine, state, facts, indexed, diagnostics);
+            check_indexed_access(
+                program,
+                machine,
+                state,
+                facts,
+                expression,
+                indexed,
+                diagnostics,
+            );
         }
         ExpressionNode::Member(member) => {
             check_expression(

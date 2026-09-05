@@ -49,6 +49,9 @@ Must own:
   symbols; a missing or ambiguous template cannot acquire derivation custody.
 - Constructing symbol identity for definitions.
 - Stamping references with symbol handles when lookup is source/scope based.
+- Operator contract expressions resolve against that operator's own formal
+  parameters and generic telescope, including domain-owned operators. Another
+  overload's same-spelled parameter is not the same lexical binding.
 - Statement calls retain the exact lexical receiver root independently of the
   final projected receiver symbol. A member awaiting type-aware resolution does
   not erase its already-resolved current-state parameter or prior-local root.

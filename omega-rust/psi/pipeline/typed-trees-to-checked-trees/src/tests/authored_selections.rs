@@ -7,6 +7,8 @@ use language_semantics::declaration_selection::{
     AuthoredDeclarationSelectionTarget, AuthoredDeclarationSelections,
 };
 
+mod indexed_operators;
+
 #[test]
 fn successful_checking_rejects_any_unresolved_authored_selection() {
     let mut typed = typed_trees::TypedTrees::default();

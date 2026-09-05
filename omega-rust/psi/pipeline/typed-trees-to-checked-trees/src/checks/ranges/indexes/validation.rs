@@ -4,10 +4,6 @@ use typed_trees::expression::{
     ExpressionHandle, ExpressionNode, TableIndexedExpression, TableRangeExpression,
 };
 use typed_trees::machine::Machine;
-use typed_trees::operator::{
-    candidates_for_spelling, operator_contract_path, operator_requires_clauses,
-};
-use typed_trees::signature::SignatureContractKind;
 use typed_trees::state::State;
 
 use super::super::diagnostics::{
@@ -24,6 +20,7 @@ use super::super::types::{
     expression_type_reference,
 };
 
+mod selected;
 #[cfg(test)]
 mod tests;
 
@@ -37,95 +34,12 @@ pub(super) enum BoundsCheckResult {
     Unsupported,
 }
 
-/// The proof obligation for an `items[i]` / `items[a..b]` access, sourced from
-/// the spelled boundary operator that governs the access.
-///
-/// Operators lane (bounds-from-operator seam): rather than deriving the bounds
-/// obligation purely from the literal `Indexed`/`Range` syntax, we resolve the
-/// `[]` / `[..]` spelling to its boundary operator (e.g. `Slice::index ...
-/// requires index < items.len`) and source the obligation from that operator's
-/// `requires` contract. The hard-coded length/bounds proof below is then the
-/// discharge mechanism for the operator-sourced obligation, validated for
-/// consistency: a governing spelled operator must carry a `requires` clause for
-/// the bound we enforce.
-struct OperatorBoundsObligation {
-    /// True when a spelled `[]` / `[..]` operator governs this access *and*
-    /// carries a `requires` contract — i.e. the obligation is operator-sourced.
-    sourced_from_operator: bool,
-    /// True when a governing spelled operator exists but lacks any `requires`
-    /// contract, which is a contract gap the access cannot rely on.
-    operator_without_requires: bool,
-    /// When the obligation is operator-sourced, the human-readable attribution
-    /// for a failed bound, e.g.
-    /// "cannot prove `start <= end && end <= items.len` — the `requires` of
-    /// `Slice::range` (spelled `[..]`)". `None` when no governing operator
-    /// carries a `requires` contract, in which case the literal-shape fact
-    /// diagnostics stand on their own.
-    attribution: Option<String>,
-}
-
-/// Builds the operator-contract attribution clause appended to a failed bounds
-/// diagnostic. It names the unproven `requires` clauses, the operator that
-/// declares them, and the spelling that resolved to it, so the user can browse
-/// to the operator declaration (e.g. `Slice::range` in the core slice surface)
-/// and read the governing contract.
-fn operator_attribution(
-    program: &typed_trees::TypedTrees,
-    spelling: OperatorSpelling,
-) -> Option<String> {
-    let operators = program.operators();
-    let path = operator_contract_path(program, operators, spelling)?;
-    let clauses = operator_requires_clauses(program, operators, spelling);
-    if clauses.is_empty() {
-        return None;
-    }
-    Some(format!(
-        "cannot prove `{}` — the `requires` of `{}` (spelled `{}`)",
-        clauses.join(" && "),
-        path,
-        spelling.symbol()
-    ))
-}
-
-fn index_bounds_obligation(
-    program: &typed_trees::TypedTrees,
-    spelling: OperatorSpelling,
-) -> OperatorBoundsObligation {
-    let operators = program.operators();
-    let candidates = candidates_for_spelling(operators, spelling);
-
-    if candidates.is_empty() {
-        // No spelled operator in scope (e.g. fixed-array literal indexing that
-        // never imports the slice surface). The literal-shape obligation below
-        // still applies; nothing is operator-sourced.
-        return OperatorBoundsObligation {
-            sourced_from_operator: false,
-            operator_without_requires: false,
-            attribution: None,
-        };
-    }
-
-    let any_requires = candidates.iter().any(|&index| {
-        program
-            .operator_contracts(&operators[index])
-            .iter()
-            .any(|contract| contract.kind == SignatureContractKind::Requires)
-    });
-
-    OperatorBoundsObligation {
-        sourced_from_operator: any_requires,
-        operator_without_requires: !any_requires,
-        attribution: any_requires
-            .then(|| operator_attribution(program, spelling))
-            .flatten(),
-    }
-}
-
 pub(super) fn check_indexed_access(
     program: &typed_trees::TypedTrees,
     machine: &Machine,
     state: &State,
     facts: &RangeFacts<'_>,
+    expression: ExpressionHandle,
     indexed: &TableIndexedExpression,
     diagnostics: &mut Vec<Diagnostic>,
 ) -> BoundsCheckResult {
@@ -137,18 +51,18 @@ pub(super) fn check_indexed_access(
         ExpressionNode::Range(_) => OperatorSpelling::Range,
         _ => OperatorSpelling::Index,
     };
-    let obligation = index_bounds_obligation(program, spelling);
-    if obligation.operator_without_requires {
-        diagnostics.push(Diagnostic::error(format!(
-            "indexing spelling `{}` resolves to a boundary operator with no `requires` \
-             contract, so its bounds obligation cannot be sourced from the operator",
-            spelling.symbol()
-        )));
-    }
-    let _ = obligation.sourced_from_operator;
+    let attribution = match selected::obligation(
+        program, machine, state, facts, expression, indexed, spelling,
+    ) {
+        Ok(attribution) => attribution,
+        Err(message) => {
+            diagnostics.push(Diagnostic::error(message));
+            return BoundsCheckResult::Rejected;
+        }
+    };
     // When the obligation is operator-sourced, every bounds failure below is
     // attributed to the governing operator contract (e.g. `Slice::range`).
-    let attribution = obligation.attribution.as_deref();
+    let attribution = attribution.as_deref();
 
     let length = expression_indexable_length(program, facts, indexed.collection).or_else(|| {
         expression_type_reference(program, machine, state, indexed.collection).and_then(
@@ -179,13 +93,9 @@ pub(super) fn check_indexed_access(
             diagnostics,
         )
     } else {
-        return if obligation.operator_without_requires {
-            BoundsCheckResult::Rejected
-        } else {
-            BoundsCheckResult::Unsupported
-        };
+        return BoundsCheckResult::Unsupported;
     };
-    if !proven || obligation.operator_without_requires {
+    if !proven {
         BoundsCheckResult::Rejected
     } else if spelling == OperatorSpelling::Range {
         BoundsCheckResult::ProvenRange

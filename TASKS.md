@@ -182,16 +182,6 @@ the [Rust Compiler Completion Contract](wiki/releases/rust_compiler_completion_c
   private-witness/public-guarantee split described in chapter 3 and the
   [termination brief](wiki/design_briefs/termination_ranking_and_progress.md).
 
-- **INDEX-OPERATOR-ASSOCIATION.** Rejoin imported indexing operators to their
-  checked declaration-selection disposition in
-  `typed-trees-to-checked-trees/src/authored_selections.rs` and the indexing
-  checker. `operators/slice_index_bounds_from_operator_contract` rejects with
-  an unresolved `CheckedOperator` occurrence even though its fixed-array index
-  is within bounds. Acceptance: that fixture reaches checked trees using the
-  selected operator's exact bounds contract; invalid indexes and unrelated
-  unresolved or substituted operator selections still reject. Do not bypass
-  the authored-selection guard or infer authority from the operator's spelling.
-
 - **BOUNDED-RETURN-ARRIVAL-FACTS.** Join incoming guards for bounded returns in
   `psi/semantics/validation/src/arithmetic_domains/` and
   `psi/semantics/proof/src/obligations.rs` and `checker.rs`, preserving exact

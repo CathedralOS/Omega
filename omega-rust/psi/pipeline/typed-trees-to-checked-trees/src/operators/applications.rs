@@ -210,11 +210,23 @@ fn checked_spelled_boundary_application(
     origin: CheckedValueOrigin,
     operand_types: &[Option<TypeReferenceHandle>],
 ) -> Result<Option<CheckedBoundaryOperatorApplicationDemand>, diagnostics::Diagnostic> {
-    let Some(bindings) = typed_trees::operator::closed_operator_application_for_operands(
-        program,
-        operator,
-        operand_types,
-    ) else {
+    let bindings = if matches!(
+        program.expression_table.expression(expression),
+        ExpressionNode::Indexed(_)
+    ) {
+        typed_trees::operator::closed_indexed_operator_application_for_operands(
+            program,
+            operator,
+            operand_types,
+        )
+    } else {
+        typed_trees::operator::closed_operator_application_for_operands(
+            program,
+            operator,
+            operand_types,
+        )
+    };
+    let Some(bindings) = bindings else {
         return Ok(None);
     };
     validation::validate_closed_operator_application(program, symbols, operator, &bindings)?;
