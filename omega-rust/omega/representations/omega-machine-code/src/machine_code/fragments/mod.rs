@@ -4,11 +4,13 @@ pub mod control_flow;
 pub mod fixups;
 pub mod functions;
 pub mod identity;
+pub mod publication;
 
 pub use control_flow::*;
 pub use fixups::*;
 pub use functions::*;
 pub use identity::function_fragment_emission_identity;
+pub use publication::*;
 
 use omega_optimization_core::FunctionFragmentEmissionIdentity;
 use omega_selected_instructions::SelectedInstructionPlanIdentity;

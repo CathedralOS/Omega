@@ -50,31 +50,12 @@ impl From<omega_machine_emission::ResolvedFragmentEmissionError> for FunctionFra
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum FunctionFragmentEmissionManifestDecodeError {
-    Truncated,
-    WrongMagic,
-    UnsupportedVersion(u32),
-    UnknownStage(u8),
-    UnknownSourceKind(u8),
-    UnknownPostAllocationMachineOptimization(u8),
-    UnknownVocabulary(u16),
-    InvalidFuelSchedule,
-    UnknownArchitecture(u8),
-    UnknownObjectFormat(u8),
-    TargetLayoutOverflow,
-    UnknownUnavailableStatus,
-    IdentityMismatch,
-    TrailingBytes,
-}
+pub use omega_machine_code::FunctionFragmentEmissionManifestDecodeError;
 
-impl std::fmt::Display for FunctionFragmentEmissionManifestDecodeError {
-    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(
-            formatter,
-            "invalid function-fragment emission manifest: {self:?}"
-        )
+impl From<omega_machine_emission::FunctionFragmentStatisticsOverflow>
+    for FunctionFragmentEmissionError
+{
+    fn from(_: omega_machine_emission::FunctionFragmentStatisticsOverflow) -> Self {
+        Self::StatisticsOverflow
     }
 }
-
-impl std::error::Error for FunctionFragmentEmissionManifestDecodeError {}

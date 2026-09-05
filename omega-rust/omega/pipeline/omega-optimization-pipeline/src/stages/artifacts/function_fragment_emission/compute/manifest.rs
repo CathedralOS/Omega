@@ -3,19 +3,19 @@ use omega_optimization_core::FunctionFragmentEmissionManifestIdentity;
 
 use crate::FunctionRelativeOptimizationRealizationManifest;
 
-use super::super::statistics;
 use super::super::{
     FunctionFragmentEmissionError, FunctionFragmentEmissionManifest,
     FunctionFragmentEmissionSourceKind, FunctionFragmentEmissionStage,
     FunctionFragmentEmissionUnavailableData, ValidatedFunctionFragmentEmissionManifest,
 };
+use omega_machine_emission::function_fragment_emission_statistics;
 
 pub(super) fn seal(
     fragments: FunctionFragmentEmissionPlan,
     source: &FunctionRelativeOptimizationRealizationManifest,
     source_kind: FunctionFragmentEmissionSourceKind,
 ) -> Result<super::Emission, FunctionFragmentEmissionError> {
-    let statistics = statistics::compute(&fragments)?;
+    let statistics = function_fragment_emission_statistics(&fragments)?;
     let stage = if statistics.unresolved_internal_machine_fixups == 0 {
         FunctionFragmentEmissionStage::ValidatedRelocationFreeFunctionFragmentsV1
     } else {
@@ -65,6 +65,8 @@ fn seal_with_statistics(
     record.identity = record.recomputed_identity();
     (
         fragments,
-        ValidatedFunctionFragmentEmissionManifest { record },
+        ValidatedFunctionFragmentEmissionManifest {
+            record: std::sync::Arc::new(record),
+        },
     )
 }

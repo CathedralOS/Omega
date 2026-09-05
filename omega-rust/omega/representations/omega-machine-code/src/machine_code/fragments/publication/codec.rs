@@ -10,7 +10,7 @@ use psi_terminal::{SemanticFingerprint, TerminalPsiIdentity, VocabularyMarker};
 use crate::{SelectedFormEncodingIdentity, WholeFunctionExitContractIdentity};
 
 use super::error::FunctionFragmentEmissionManifestDecodeError;
-use super::model::{
+use super::{
     FunctionFragmentEmissionManifest, FunctionFragmentEmissionSourceKind,
     FunctionFragmentEmissionStage, FunctionFragmentEmissionStatistics,
     FunctionFragmentEmissionUnavailableData,
