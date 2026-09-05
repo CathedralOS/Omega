@@ -67,15 +67,15 @@ pub(super) fn capture(
         SymbolKind::Local => {
             for (_, state) in program.machine_states.iter() {
                 for statement in program.statement_table.statements(state.statement_nodes) {
-                    if let StatementNode::LocalData(local) = statement {
-                        if local.symbol == symbol {
-                            if !snapshot.types.is_empty() {
-                                return Err(rejected("duplicate operand local binding"));
-                            }
-                            builder.charge(1)?;
-                            snapshot.types.push((state.symbol, local.type_reference));
-                            snapshot.local_mutability.push(local.is_mutable);
+                    if let StatementNode::LocalData(local) = statement
+                        && local.symbol == symbol
+                    {
+                        if !snapshot.types.is_empty() {
+                            return Err(rejected("duplicate operand local binding"));
                         }
+                        builder.charge(1)?;
+                        snapshot.types.push((state.symbol, local.type_reference));
+                        snapshot.local_mutability.push(local.is_mutable);
                     }
                 }
             }
@@ -85,11 +85,11 @@ pub(super) fn capture(
         }
         SymbolKind::Field => {
             for (_, member) in program.data_members.iter() {
-                if let DataMember::Field(field) = member {
-                    if field.symbol == symbol {
-                        builder.charge(1)?;
-                        snapshot.fields.push(field.clone());
-                    }
+                if let DataMember::Field(field) = member
+                    && field.symbol == symbol
+                {
+                    builder.charge(1)?;
+                    snapshot.fields.push(field.clone());
                 }
             }
             for (_, field) in program
@@ -281,14 +281,14 @@ pub(super) fn capture(
         SymbolKind::Variant => {
             let mut found = 0;
             for (_, member) in program.data_members.iter() {
-                if let DataMember::Variant(variant) = member {
-                    if variant.symbol == symbol {
-                        found += 1;
-                        builder.charge(program.data_payload_fields(variant).len())?;
-                        snapshot
-                            .fields
-                            .extend_from_slice(program.data_payload_fields(variant));
-                    }
+                if let DataMember::Variant(variant) = member
+                    && variant.symbol == symbol
+                {
+                    found += 1;
+                    builder.charge(program.data_payload_fields(variant).len())?;
+                    snapshot
+                        .fields
+                        .extend_from_slice(program.data_payload_fields(variant));
                 }
             }
             if found != 1 {
@@ -359,15 +359,14 @@ fn attached_field_alias(
         "an attached field alias without its exact carrier",
     )?;
     for member in program.data_members(definition) {
-        if let DataMember::Field(field) = member {
-            if symbols.get(field.symbol).parent == definition.symbol
-                && symbols.symbol_source_span(field.symbol) == Some(selected_span)
-                && symbols.same_symbol_source_package(field.symbol, selected)
-            {
-                builder.charge(1)?;
-                fields.push(field.clone());
-                builder.symbol(field.symbol)?;
-            }
+        if let DataMember::Field(field) = member
+            && symbols.get(field.symbol).parent == definition.symbol
+            && symbols.symbol_source_span(field.symbol) == Some(selected_span)
+            && symbols.same_symbol_source_package(field.symbol, selected)
+        {
+            builder.charge(1)?;
+            fields.push(field.clone());
+            builder.symbol(field.symbol)?;
         }
     }
     Ok(())
