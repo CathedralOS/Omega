@@ -1,7 +1,7 @@
 # process-exit
 
-Capability-bearing fixture. Its public API reaches the exact toolchain-owned
-`Console` boundary through an explicit affine `Service<Console> in Bound`
+Capability-bearing fixture. Its public API reaches the exact ordinary-package
+`Console` boundary supplied by `host-services`, through an affine `Service<Console> in Bound`
 parameter. `Console` includes process termination at trait granularity; the
 invocation remains rooted at public parameter zero for package review.
 

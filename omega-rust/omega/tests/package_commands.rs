@@ -12,6 +12,8 @@ mod generated;
 mod inspection;
 #[path = "package_commands/remote.rs"]
 mod remote;
+#[path = "package_commands/remote_authority.rs"]
+mod remote_authority;
 #[path = "package_commands/workspace.rs"]
 mod workspace;
 

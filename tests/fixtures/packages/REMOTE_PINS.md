@@ -15,8 +15,9 @@ mbx test -p package-manager --test remote_fixtures -- --ignored --test-threads=1
 | --- | --- | --- |
 | `arithmetic-kernels` | `https://github.com/CathedralOS/arithmetic-kernels` | `b65cc9b062f69ef02a586c82cd260d51bf28945c` |
 | `generated-table` | `https://github.com/CathedralOS/generated-table` | `cc5fc1addda6aa565f254ad2e002d9e0be189fd4` |
-| `file-journal` | `https://github.com/CathedralOS/file-journal` | `deea7b84b13cf6e1b67868f314d0e5dbdb9ff20e` |
-| `process-exit` | `https://github.com/CathedralOS/process-exit` | `066585cfd952b6251780bdfdbdf17ca0e970b07e` |
+| `host-services` | `https://github.com/CathedralOS/host-services` | `25c18b37f4891aa31b83e1434562fb2ab0994450` |
+| `file-journal` | `https://github.com/CathedralOS/file-journal` | `ae37f95cf856d85c05fd4f113a0d32fe6f7229fa` |
+| `process-exit` | `https://github.com/CathedralOS/process-exit` | `15beea1a49aecce2362e4700e791a46d48bab598` |
 | `network-overreach` | `https://github.com/CathedralOS/network-overreach` | `d0fe2b00c2485700ace9242114bfa8c8e4a6c526` |
 | `remote-journal` | `https://github.com/CathedralOS/remote-journal` | `11a2c6e3825a4a9221fe536164417846f88cd63c` |
 | `axiom-ledger` | `https://github.com/CathedralOS/axiom-ledger` | `9f274c21386ea3cd7d7cce5b8d20bcb935f06f58` |
@@ -40,8 +41,27 @@ mbx test -p omega --test package_commands remote::pinned_https -- --ignored --te
 
 These tests install the baseline, update to the candidate, repeat that exact
 update, and compile an import through the default alias. The remaining remote
-mirrors still need their own syntax/content refresh; refreshing two fixtures does
+mirrors still need their own syntax/content refresh; refreshing selected fixtures does
 not establish that the full remote-fixture matrix passes.
+
+## Filesystem and process authority
+
+`file-journal` upgrades from `3f1e20615b1226aef011b5cfe651a179daca59ad`
+to the table's candidate. Only a temporary result binding is removed; its API
+and filesystem authority stay unchanged. Both it and `process-exit` pin the
+table's `host-services` revision over SSH, rather than using sibling paths
+outside their Git trees. Local fixtures retain Path dependencies for offline
+tests. Exact remote build overrides live in
+[package-remotes](../package-remotes/README.md); other files match locally.
+
+```text
+mbx test -p package-manager --test remote_fixtures refreshed_authority_pins -- --ignored --test-threads=1
+mbx test -p omega --test package_commands remote_authority::pinned_ssh -- --ignored --test-threads=1
+```
+
+These are SSH-closure tests, not independent HTTPS coverage. HTTPS checks above
+use the dependency-free arithmetic fixture. Host Git HTTPS credentials and SSH
+credentials are independent; neither test silently substitutes the other.
 
 ## Named workspace
 
