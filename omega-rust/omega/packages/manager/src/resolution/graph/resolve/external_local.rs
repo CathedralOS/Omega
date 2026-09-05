@@ -9,6 +9,7 @@ use super::cache::{
 };
 use super::dependencies::resolve_registered_package_closure;
 use super::errors::ResolveExternalLocalPackageClosureError;
+use super::git_pins::GitDependencyPins;
 use crate::declarations::PackageKey;
 use crate::resolution::source::{
     PackageSourceCustody, ResolvePackageSourceError, bind_staged_external_local_project_source,
@@ -94,6 +95,52 @@ pub fn resolve_staged_external_local_project_closure_with_storage(
     source_limits: LocalSourceLimits,
     closure_limits: PackageSourceClosureLimits,
 ) -> Result<ResolvedPackageSourceClosure, ResolveExternalLocalPackageClosureError> {
+    resolve_staged_external_local_project(
+        stage,
+        source_context,
+        storage,
+        source_limits,
+        closure_limits,
+        &mut GitAcquisitionCache::default(),
+    )
+}
+
+/// Resolve an install or selective update while preserving unchanged accepted
+/// Git requests. The accepted baseline must belong to this exact root request.
+pub fn resolve_staged_external_local_project_closure_with_git_pins(
+    stage: &StagedLocalSnapshot,
+    source_context: ExternalSourceContext,
+    storage: &SourceResolverStorage,
+    source_limits: LocalSourceLimits,
+    closure_limits: PackageSourceClosureLimits,
+    pins: GitDependencyPins<'_>,
+) -> Result<ResolvedPackageSourceClosure, ResolveExternalLocalPackageClosureError> {
+    use crate::resolution::graph::CanonicalRootSourceRequest;
+    if !matches!(pins.accepted().root().request(),
+        CanonicalRootSourceRequest::ExternalLocal { requested_root, source_context: context }
+            if requested_root == stage.requested_root().as_os_str().as_encoded_bytes()
+                && context == &source_context)
+    {
+        return Err(ResolveExternalLocalPackageClosureError::RootRequestMismatch);
+    }
+    resolve_staged_external_local_project(
+        stage,
+        source_context,
+        storage,
+        source_limits,
+        closure_limits,
+        &mut GitAcquisitionCache::preserving(pins),
+    )
+}
+
+fn resolve_staged_external_local_project(
+    stage: &StagedLocalSnapshot,
+    source_context: ExternalSourceContext,
+    storage: &SourceResolverStorage,
+    source_limits: LocalSourceLimits,
+    closure_limits: PackageSourceClosureLimits,
+    git_acquisitions: &mut GitAcquisitionCache<'_>,
+) -> Result<ResolvedPackageSourceClosure, ResolveExternalLocalPackageClosureError> {
     let source_error = |error| {
         ResolveExternalLocalPackageClosureError::Root(ResolvePackageSourceError::Source(error))
     };
@@ -113,6 +160,7 @@ pub fn resolve_staged_external_local_project_closure_with_storage(
                     SourceCacheLane::Retained(storage.git_sources()),
                     source_limits,
                     closure_limits,
+                    git_acquisitions,
                 )
             });
     stage.verify_live_source_unchanged().map_err(source_error)?;
@@ -195,6 +243,7 @@ fn resolve_external_local_declared_closure_from_lanes(
         git_cache,
         source_limits,
         closure_limits,
+        &mut GitAcquisitionCache::default(),
     )
 }
 
@@ -209,6 +258,7 @@ fn resolve_bound_external_local_closure(
     git_cache: SourceCacheLane<'_>,
     source_limits: LocalSourceLimits,
     closure_limits: PackageSourceClosureLimits,
+    git_acquisitions: &mut GitAcquisitionCache<'_>,
 ) -> Result<ResolvedPackageSourceClosure, ResolveExternalLocalPackageClosureError> {
     let root_request = PackageRootSourceRequest::ExternalLocal {
         requested_root: requested_root.to_path_buf(),
@@ -216,7 +266,6 @@ fn resolve_bound_external_local_closure(
     };
     let mut external_roots: BTreeMap<PackageKey, PathBuf> =
         BTreeMap::from([(root.key().clone(), canonical_live_root.to_path_buf())]);
-    let mut git_acquisitions = GitAcquisitionCache::default();
 
     resolve_registered_package_closure(
         root_request,
@@ -229,7 +278,7 @@ fn resolve_bound_external_local_closure(
         &mut BTreeMap::new(),
         &mut external_roots,
         Some(&source_context),
-        &mut git_acquisitions,
+        git_acquisitions,
     )
     .map_err(ResolveExternalLocalPackageClosureError::Closure)
 }

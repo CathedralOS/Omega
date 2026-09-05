@@ -34,8 +34,15 @@ It accepts an automatic replacement only and checks the planner's old-file
 digest. The staged local project resolver reads the proposed declaration while
 preserving the original root path/context for package identity and relative
 dependency lookup. Keep the edit plan and staged original identity through
-review and publication. Staging does not freeze unaffected Git selectors;
-selective update resolution remains command integration.
+review and publication. The pin-aware staged resolver takes `GitDependencyPins`
+from the accepted source graph and exact selected package keys. Unchanged Git
+locator/revision requests keep their recorded commit, tree, and content; an
+empty update selection preserves all existing Git requests for installation.
+Selected Git repositories refresh as a unit, including their reachable workspace
+members and relative Path edges. Unrelated repositories, including unchanged
+transitive requests, stay pinned. New or changed requests resolve normally.
+Missing preserved pins use either offline failure or explicit exact-commit fetch,
+never selector refresh. This policy changes resolution only, not accepted policy.
 
 `operations::review_package_change` checks an already-resolved candidate for an
 exact target, rejects outstanding ordinary contract obligations in any package,
@@ -57,7 +64,7 @@ completes forward only from recorded old/new contents; unrelated edits stop it.
 Ordinary project preparation coordinates with existing pending state before
 snapshotting. See [publication](src/operations/publication/README.md) for the
 file protocol and platform limits. Command-owned review-file loading/resume
-and selective pin reconciliation remain integration work.
+and command-level package/alias selection remain integration work.
 
 Candidate checking executes the existing scoped build evaluator, so it is not
 side-effect-free: package-input reads, disposable-output writes, and compiler

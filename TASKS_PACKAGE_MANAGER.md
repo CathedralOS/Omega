@@ -104,7 +104,9 @@ adding machinery; do not invent proof-of-review or host-security requirements.
 
 - [ ] **OMEGA-UPDATE.** Implement
   `omega update [package-or-alias...] [--to <revision>]` over the same
-  transaction. Acceptance: selected updates respect existing pins for
+  transaction. Map unambiguous user selections to exact accepted package keys
+  and use pin-aware resolution; report every affected workspace member.
+  Acceptance: selected updates respect existing pins for
   unaffected packages, explain resolution conflicts, block capability changes
   pending decisions, recommend audit for retained dangerous authority, and
   commit the reviewed graph only.

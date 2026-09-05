@@ -3,6 +3,8 @@ use super::super::dependencies::register_git_repository;
 use super::*;
 use std::collections::BTreeMap;
 
+mod registration;
+
 #[test]
 fn two_named_packages_share_one_exact_git_acquisition() {
     let repository = temp_root("git-shared-acquisition-repository");

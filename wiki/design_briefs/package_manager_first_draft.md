@@ -2432,8 +2432,10 @@ reintroduce or depend on any path that:
 
 The source-lock codec, exact locked recovery, complete-policy comparison and
 decisions, proposed lock sections, and non-mutating dependency-edit staging are
-available building blocks. Command-owned review-file loading/resume, selective
-update pin preservation, and command orchestration remain integration work.
+available building blocks. Selective resolution preserves unchanged Git pins
+while refreshing explicitly selected repository lineages; workspace members
+move together within the selected graph. Command-owned review-file loading/resume,
+package/alias selection, and command orchestration remain integration work.
 Reviewed pair publication and interruption recovery use a bounded commit-intent
 journal and OS mutex, without additional evidence-promotion prerequisites.
 These source operations do not require certification prerequisites. Unsupported
