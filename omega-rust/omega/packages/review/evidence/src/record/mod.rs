@@ -5,6 +5,8 @@
 
 mod authority;
 mod authority_expressions;
+mod calling;
+mod conformances;
 mod contracts;
 mod data;
 mod domains;
@@ -29,6 +31,15 @@ pub use authority::{
     PackageReviewProgressPremise, PackageReviewProgressSubject, PackageReviewScalarExpression,
     PackageReviewStructuralParameterField, PackageReviewStructuralPredicatePathSegment,
     PackageReviewTermination, PackageReviewWriteFrameCompleteness,
+};
+pub use calling::{
+    PackagePolicyEntryControl, PackagePolicyEntryStack, PackagePolicyMachineRegime,
+    PackagePolicyMachineState, PackagePolicyMachineStateSet, PackagePolicyPhysicalCallingContract,
+    PackagePolicyPreemption, PackagePolicyStatePlan,
+};
+pub use conformances::{
+    PackagePolicyClosedConformanceApplication, PackagePolicyConformanceConstArgument,
+    PackagePolicyConformanceRow,
 };
 pub use contracts::{
     PackageReviewArithmeticDomain, PackageReviewAtomicLoadOrdering,

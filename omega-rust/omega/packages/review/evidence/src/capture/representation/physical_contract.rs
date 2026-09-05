@@ -159,7 +159,7 @@ pub(super) fn project_boundary_shape_graph(
     }
 }
 
-pub(super) fn project_calling_policy(
+pub(crate) fn project_calling_policy(
     policy: omega_calling_conventions::CallingPolicy,
 ) -> PackageReviewBoundaryCallingPolicy {
     match policy {
@@ -181,7 +181,7 @@ pub(super) fn project_calling_policy(
     }
 }
 
-pub(super) fn project_value_placement(
+pub(crate) fn project_value_placement(
     placement: &omega_calling_conventions::ValuePlacement,
 ) -> PackageReviewBoundaryValuePlacement {
     PackageReviewBoundaryValuePlacement {
@@ -275,7 +275,7 @@ fn project_system_v_class(
     }
 }
 
-fn project_machine_register(
+pub(crate) fn project_machine_register(
     register: omega_calling_conventions::MachineRegister,
 ) -> PackageReviewMachineRegister {
     match register {

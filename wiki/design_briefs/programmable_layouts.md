@@ -180,6 +180,10 @@ alongside the compact slot report coordinate during normalization and target
 closure. The report's name-plus-fingerprint spelling is not parsed to recover
 the declaration or its arguments. This retained semantic input does not change
 the existing native-layout report fingerprint or confer additional authority.
+Closed applications also retain their original resolved static argument trees
+in declaration order, so package-policy projection can qualify nested type and
+machine arguments by their exact owners instead of interpreting display names.
+These compiler-private trees are not themselves accepted-lock data.
 
 The source-visible specification has no corresponding field. A layout
 containing a private demand is incomplete for ordinary value materialization;

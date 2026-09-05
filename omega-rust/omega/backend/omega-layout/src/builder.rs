@@ -1987,6 +1987,7 @@ mod tests {
             private_callback_demands: vec![psi_layout_plans::PrivateCallbackLayoutDemandReport {
                 slot_application: psi_typed_trees::typed_trees::ClosedConformanceApplication {
                     declaration: psi_symbols::SymbolHandle::from_arena_index(7),
+                    arguments: Box::new([]),
                     lifetime_arguments: Vec::new(),
                     type_arguments: Vec::new(),
                     const_arguments: Vec::new(),

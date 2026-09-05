@@ -8,6 +8,7 @@ mod api;
 mod authority;
 mod behavior;
 mod callables;
+mod calling;
 mod contracts;
 mod package;
 mod providers;
@@ -19,4 +20,5 @@ mod terminal_authority_permissions;
 
 pub use package::project_checked_package_review;
 pub use quotients::project_non_executable_quotient_package_review;
+pub use semantics::conformances::project_checked_conformance_policy;
 pub(crate) use semantics::declarations::nominal_identity;

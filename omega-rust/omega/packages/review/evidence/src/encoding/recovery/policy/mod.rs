@@ -6,11 +6,13 @@
 //! representations or reconstructing proofs.
 
 mod behavior;
+mod conformance;
 mod contracts;
 mod expressions;
 mod external;
 mod identity;
 mod model;
+mod physical_calling_policy;
 mod reader;
 mod signatures;
 

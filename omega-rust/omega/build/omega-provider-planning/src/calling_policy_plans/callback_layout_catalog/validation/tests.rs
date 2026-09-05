@@ -32,6 +32,7 @@ pub(in crate::calling_policy_plans) fn signature_fixture() -> MaterializedBounda
         data_symbol,
         slot_identity,
         slot_application: ClosedConformanceApplication {
+            arguments: Box::new([]),
             declaration: SymbolHandle::from_arena_index(131),
             trait_definition: SymbolHandle::from_arena_index(137),
             commitment: ClosedConformanceApplicationCommitment::from_digest([7; 32]),

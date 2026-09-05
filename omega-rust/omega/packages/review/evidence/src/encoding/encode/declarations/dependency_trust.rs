@@ -273,7 +273,7 @@ fn encode_opaque_occurrence(
     encode_value_placement(encoder, occurrence.placement())
 }
 
-fn encode_value_placement(
+pub(crate) fn encode_value_placement(
     encoder: &mut Encoder,
     placement: &PackageReviewBoundaryValuePlacement,
 ) -> Result<(), PackageReviewEncodingError> {
@@ -363,7 +363,10 @@ const fn system_v_class_tag(class: PackageReviewSystemVEightbyteClass) -> u8 {
     }
 }
 
-fn encode_machine_register(encoder: &mut Encoder, register: PackageReviewMachineRegister) {
+pub(crate) fn encode_machine_register(
+    encoder: &mut Encoder,
+    register: PackageReviewMachineRegister,
+) {
     match register {
         PackageReviewMachineRegister::X86Rax => encoder.byte(0),
         PackageReviewMachineRegister::X86Rcx => encoder.byte(1),
@@ -396,7 +399,7 @@ fn encode_machine_register(encoder: &mut Encoder, register: PackageReviewMachine
     }
 }
 
-const fn calling_policy_tag(policy: PackageReviewBoundaryCallingPolicy) -> u8 {
+pub(crate) const fn calling_policy_tag(policy: PackageReviewBoundaryCallingPolicy) -> u8 {
     match policy {
         PackageReviewBoundaryCallingPolicy::MicrosoftX64 => 0,
         PackageReviewBoundaryCallingPolicy::SystemVAMD64 => 1,

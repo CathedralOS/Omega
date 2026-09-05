@@ -380,6 +380,11 @@ impl MachineTemplateCommitment {
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct ClosedConformanceApplication {
     pub declaration: psi_symbols::SymbolHandle,
+    /// Exact ordered source-resolved arguments retained for structural policy
+    /// projection. This added tree does not participate in the historical
+    /// application report or commitment; equal legacy coordinates cannot
+    /// substitute for joining its exact resolved symbols.
+    pub arguments: Box<[crate::expression::StaticMachineArgument]>,
     pub lifetime_arguments: Vec<String>,
     pub type_arguments: Vec<String>,
     pub const_arguments: Vec<ClosedConformanceConstArgument>,
@@ -394,7 +399,8 @@ pub struct ClosedConformanceApplication {
     /// Historical compact coordinate retained for diagnostics and local
     /// indexing. Authority-bearing joins must also replay `commitment`.
     pub report_fingerprint: u64,
-    /// Domain-separated commitment to the complete closed application.
+    /// Domain-separated commitment to the historical closed-application
+    /// encoding. The separately retained resolved argument tree is not hashed.
     pub commitment: ClosedConformanceApplicationCommitment,
 }
 
