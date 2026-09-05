@@ -833,6 +833,7 @@ const CHECKED_ONLY_FAIL_CANARIES: &[&str] = &[
     "core/content_projection_signed_embedding",
     "proofs/proof_integer_embedding_boolean",
     "proofs/proof_bignum_constant_false",
+    "arithmetic/u64_range_fact_cap_store_rejected",
     "proofs/proof_integer_embedding_runtime",
     "core/content_conservation_unqualified_place",
     "core/content_conservation_entry_former_retired",
