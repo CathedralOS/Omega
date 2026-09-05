@@ -888,12 +888,7 @@ pub(super) fn lower_attached_unit_closure_including(
     placed_view_inputs.sort();
     let scalar_requirement_counts = prepared_scalar_machines
         .iter()
-        .map(|machine| {
-            (
-                machine.source_machine,
-                usize::from(machine.contract_value.is_some()),
-            )
-        })
+        .map(|machine| (machine.source_machine, machine.contract.requirement_count()))
         .collect::<Vec<_>>();
     let mut next_operation = 1_u64;
     let mut next_value = 1_u64;
@@ -2787,8 +2782,7 @@ pub(super) fn lower_attached_unit_closure_including(
         let mut lowered = build_scalar_graph_module(
             &machine.states,
             machine.result_type,
-            machine.contract_value,
-            machine.result_predicate,
+            machine.contract,
             machine.crash_routes,
             machine.identity_reshuffles,
             machine.partition_compositions,

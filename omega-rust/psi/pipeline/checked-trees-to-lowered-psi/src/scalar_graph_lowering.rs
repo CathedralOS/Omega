@@ -155,12 +155,11 @@ pub(super) fn lower_scalar_graph_machine(
 ) -> Result<LoweredPsi, LoweringError> {
     let prepared = prepare_standalone_scalar_graph_machine(checked, machine, graph)?;
     let machine_ids = [(machine, machine_id(1))];
-    let requirement_counts = [(machine, usize::from(prepared.contract_value.is_some()))];
+    let requirement_counts = [(machine, prepared.contract.requirement_count())];
     let mut lowered = build_scalar_graph_module(
         &prepared.states,
         prepared.result_type,
-        prepared.contract_value,
-        prepared.result_predicate,
+        prepared.contract,
         prepared.crash_routes,
         prepared.identity_reshuffles,
         prepared.partition_compositions,
@@ -183,12 +182,11 @@ pub(super) fn lower_selected_scalar_graph_machine(
 ) -> Result<LoweredPsi, LoweringError> {
     let prepared = prepare_embedded_scalar_graph_machine(checked, machine, graph)?;
     let machine_ids = [(machine, machine_id(1))];
-    let requirement_counts = [(machine, usize::from(prepared.contract_value.is_some()))];
+    let requirement_counts = [(machine, prepared.contract.requirement_count())];
     let mut lowered = build_scalar_graph_module(
         &prepared.states,
         prepared.result_type,
-        prepared.contract_value,
-        prepared.result_predicate,
+        prepared.contract,
         prepared.crash_routes,
         prepared.identity_reshuffles,
         prepared.partition_compositions,
@@ -562,9 +560,14 @@ fn prepare_scalar_graph_machine_with_contract_mode(
         )
     });
     let expected_value = evaluate_known_scalar_graph(&lowered_states);
-    let contract_value = if contract_mode == ScalarContractMode::EmbeddedByEnclosingCall {
-        closed_scalar_contract_plan(checked, machine)?;
-        None
+    let plan = closed_scalar_contract_plan(checked, machine)?;
+    let has_predicates = plan
+        .requires()
+        .iter()
+        .chain(plan.ensures())
+        .any(|clause| matches!(clause, Some(ClosedScalarContractValue::Predicate(_))));
+    let contract = if contract_mode == ScalarContractMode::EmbeddedByEnclosingCall {
+        PreparedScalarContract::Empty
     } else if has_return {
         if contract_mode == ScalarContractMode::StandaloneProofOnlyFloatResult
             && exact_direct_result_float_meaning_reflexivity_contract(
@@ -574,9 +577,20 @@ fn prepare_scalar_graph_machine_with_contract_mode(
                 has_crash,
             )
         {
-            None
+            PreparedScalarContract::Empty
+        } else if has_predicates {
+            if plan.has_outcome_specific_clauses()
+                || plan
+                    .requires()
+                    .iter()
+                    .chain(plan.ensures())
+                    .any(Option::is_none)
+            {
+                return unsupported("scalar contract contains an unsupported clause");
+            }
+            PreparedScalarContract::Predicates(plan.clone())
         } else {
-            Some(validate_closed_scalar_contract(
+            PreparedScalarContract::ClosedLiteral(validate_closed_scalar_contract(
                 checked,
                 machine,
                 result_type,
@@ -595,24 +609,13 @@ fn prepare_scalar_graph_machine_with_contract_mode(
         {
             return unsupported("an all-crash scalar graph cannot declare a value contract");
         }
-        None
-    };
-    let result_predicate = if contract_value.is_some() {
-        match closed_scalar_contract_plan(checked, machine)?.ensures() {
-            [Some(ClosedScalarContractValue::ResultPredicate(predicate))] => {
-                Some(predicate.clone())
-            }
-            _ => None,
-        }
-    } else {
-        None
+        PreparedScalarContract::Empty
     };
     Ok(PreparedScalarMachine {
         source_machine: machine,
         states: lowered_states,
         result_type,
-        contract_value,
-        result_predicate,
+        contract,
         crash_routes: lower_checked_crash_routes(checked, machine)?,
         identity_reshuffles,
         partition_compositions,
@@ -1582,19 +1585,6 @@ fn validate_closed_scalar_contract(
         || (!allow_crash_contracts && contract.has_crash_clauses())
     {
         return unsupported("machine must have exactly one requires and one ensures clause");
-    }
-    if let ClosedScalarContractValue::ResultPredicate(_) = ensures {
-        return match (result_type, requires) {
-            (ScalarType::Integer(_), ClosedScalarContractValue::Integer(literal)) => {
-                // The requirement is a tautology, not the returned value. The
-                // actual result predicate is proved from every emitted return.
-                Ok(KnownDirectScalar::Integer(integer_value(
-                    literal,
-                    result_type,
-                )?))
-            }
-            _ => unsupported("result predicate requires a matching closed integer requirement"),
-        };
     }
     let (requires, ensures) = match (result_type, requires, ensures) {
         (

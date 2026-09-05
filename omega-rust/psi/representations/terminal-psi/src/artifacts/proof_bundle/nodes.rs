@@ -49,6 +49,14 @@ pub enum ProofRule {
         left_equals_middle: Box<ProofNode>,
         middle_equals_right: Box<ProofNode>,
     },
+    /// Reverse one independently proved scalar equality without changing terms.
+    EqualitySymmetry {
+        equality: Box<ProofNode>,
+    },
+    /// Retain the exact integer endpoints while weakening equality or strict order.
+    IntegerOrderWeakening {
+        relation: Box<ProofNode>,
+    },
     IntegerLessOrEqualTransitivity {
         left_less_or_equal_middle: Box<ProofNode>,
         middle_less_or_equal_right: Box<ProofNode>,

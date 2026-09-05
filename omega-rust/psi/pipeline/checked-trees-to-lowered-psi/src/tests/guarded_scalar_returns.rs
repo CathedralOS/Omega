@@ -10,8 +10,7 @@ fn guarded_division_obligation_retains_its_selected_arm_facts() {
     let lowered = build_scalar_graph_module(
         &prepared.states,
         prepared.result_type,
-        prepared.contract_value,
-        prepared.result_predicate,
+        prepared.contract,
         prepared.crash_routes,
         prepared.identity_reshuffles,
         prepared.partition_compositions,

@@ -8,8 +8,7 @@ mod result_contract;
 pub(super) fn build_scalar_graph_module(
     states: &[LoweredScalarBranchState],
     result_type: ScalarType,
-    contract_value: Option<KnownDirectScalar>,
-    result_predicate: Option<CheckedBooleanExpression>,
+    contract: PreparedScalarContract,
     crash_routes: Vec<checked_trees::CrashRouteBucket>,
     identity_reshuffles: LoweredContentIdentityReshuffles,
     partition_compositions: LoweredContentPartitionCompositions,
@@ -984,8 +983,11 @@ pub(super) fn build_scalar_graph_module(
         })
         .collect::<Result<Vec<_>, LoweringError>>()?;
     resolved_partition_compositions.sort();
-    let (requires, mut ensures, mut evidence) = match (result_type, contract_value) {
-        (ScalarType::Boolean, Some(KnownDirectScalar::Boolean(value))) => {
+    let (requires, ensures, evidence) = match (result_type, contract) {
+        (
+            ScalarType::Boolean,
+            PreparedScalarContract::ClosedLiteral(KnownDirectScalar::Boolean(value)),
+        ) => {
             let literal = ScalarTerm::boolean(value);
             let goal = Proposition::Equal(literal.clone(), literal);
             let obligation = obligation_id(
@@ -1005,7 +1007,10 @@ pub(super) fn build_scalar_graph_module(
                 }],
             )
         }
-        (ScalarType::Integer(integer_type), Some(KnownDirectScalar::Integer(value))) => {
+        (
+            ScalarType::Integer(integer_type),
+            PreparedScalarContract::ClosedLiteral(KnownDirectScalar::Integer(value)),
+        ) => {
             let literal = ScalarTerm::integer(integer_type, value)
                 .expect("validated source contract fits the result type");
             let goal = Proposition::Equal(literal.clone(), literal);
@@ -1026,18 +1031,30 @@ pub(super) fn build_scalar_graph_module(
                 }],
             )
         }
-        (_, None) => (Vec::new(), Vec::new(), Vec::new()),
+        (_, PreparedScalarContract::Empty) => (Vec::new(), Vec::new(), Vec::new()),
+        (_, PreparedScalarContract::Predicates(plan)) => {
+            let requires = result_contract::clauses(plan.requires(), &parameters)?
+                .into_iter()
+                .collect();
+            let mut namespace = parameters.clone();
+            namespace.push(result);
+            let ensures = result_contract::clauses(plan.ensures(), &namespace)?
+                .into_iter()
+                .map(|proposition| ContractClause {
+                    obligation: obligation_id(
+                        identity_base
+                            .checked_add(1)
+                            .expect("contract obligation is one-based"),
+                    ),
+                    proposition,
+                })
+                .collect();
+            // These are real parameter/result relations. Finalization proves
+            // their requirements at calls and guarantees from emitted exits.
+            (requires, ensures, Vec::new())
+        }
         _ => unreachable!("validated scalar contract matches the machine result type"),
     };
-    if let Some(predicate) = result_predicate {
-        let [clause] = ensures.as_mut_slice() else {
-            return unsupported("result predicate has no corresponding scalar contract clause");
-        };
-        clause.proposition = result_contract::proposition(&predicate, result)?;
-        // Reflexivity of the old literal tautology cannot prove this result
-        // relation. Finalization derives its certificate from emitted exits.
-        evidence.clear();
-    }
     let mut structural_places = identity_reshuffles
         .structural_places
         .into_iter()

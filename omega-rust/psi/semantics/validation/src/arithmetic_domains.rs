@@ -39,6 +39,7 @@ mod exact_division_definedness;
 mod expression_analysis;
 mod guard_narrowing;
 mod interval;
+mod invariant_bounds;
 mod total_specification;
 mod value_environment;
 
@@ -50,6 +51,7 @@ pub(crate) use guard_narrowing::{
     seed_out_param_ensures,
 };
 pub(crate) use interval::Interval;
+pub use invariant_bounds::immutable_integer_expression_bounds;
 pub(crate) use total_specification::{
     validate_abstract_total_specification_arithmetic,
     validate_machine_total_specification_arithmetic, validate_total_specification_arithmetic,

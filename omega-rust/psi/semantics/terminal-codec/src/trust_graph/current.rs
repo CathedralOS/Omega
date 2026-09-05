@@ -44,7 +44,7 @@ fn canonical_terminal_bytes_version() -> String {
 }
 
 fn canonical_proof_calculus_identity() -> &'static str {
-    "root:canonical-proof-calculus-format-24"
+    "root:canonical-proof-calculus-format-25"
 }
 
 fn canonical_proof_calculus_version() -> String {

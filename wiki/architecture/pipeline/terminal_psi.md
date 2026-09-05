@@ -3004,13 +3004,25 @@ emitted return equations and instantiated call guarantees. A literal tautology
 does not stand in for a result guarantee, and a changed return or weakened
 guarantee cannot reuse its serialized evidence.
 
+Integer contract predicates also name exact immutable entry parameters. Their
+checked positions follow the complete scalar parameter order, with the result
+slot present only in postconditions. Explicit requirements and enforced literal
+parameter ranges become one canonical conjunction; calls substitute the actual
+evaluated argument values and prove that requirement before assuming a result
+guarantee. Equality operand order comes from the codec, with explicit symmetry
+evidence when proof traversal needs the other direction. Computed argument bounds
+cross a returned-value equality or order relation through checked substitution
+or transitivity, including case analysis over disjoined guarantees. Named-state
+forwarding retains exact immutable entry origins and rejects ambiguous joins,
+including backedges to the entry state spelled through its state or machine name.
+
 Remaining numeric policies and selected operator calls, other expression
 destinations, borrowed/projected operands, and named runtime proof outputs still
-need execution-plan extensions. Parameter-relative and nonliteral result
-postconditions still need complete evaluated-argument transport into Terminal
-contracts; source interval projection uses only immutable formal declarations
-and builtin required bounds, never a reread of caller storage. A call's carrier
-alone never proves a partial conversion.
+need execution-plan extensions. Nonliteral contract arithmetic and result bounds
+that need caller-specific snapshots beyond immutable scalar formal comparisons
+still need complete transport. Source interval projection uses only immutable
+formal declarations and builtin required bounds, never a reread of caller
+storage. A call's carrier alone never proves a partial conversion.
 The older flat guarded-argument normalization remains on uncovered paths and
 must be retired as those paths move to checked computation planning; this work
 remains in `STATE-LOCAL-VALUE-FRONTIER`.
@@ -4113,8 +4125,16 @@ that alternative appended to the enclosing assumptions and requires the same
 conclusion in every branch. Discharged local assumptions are not ambient
 requirements in the acceptance record. This permits signed division to use
 both nonzero signs while independently proving the `MIN / -1` exclusion.
-The proof rule uses proof-bundle format 24 and canonical proof-calculus trust
-root 24; it adds no semantic operation or proposition vocabulary.
+The current proof vocabulary uses proof-bundle format 25 and canonical
+proof-calculus trust root 25; it adds no semantic operation or proposition
+vocabulary. `EqualitySymmetry` reverses one independently proved scalar
+equality, retaining its exact child citation. This lets canonical contract
+equalities participate in either direction without inventing an equality or
+depending on runtime value identity ordering.
+`IntegerOrderWeakening` carries one independently proved integer equality or
+strict inequality and concludes `<=` over the same ordered endpoints. It also
+derives reflexive order from the existing reflexive-equality primitive; it
+neither reverses strict order nor treats Boolean equality as integer order.
 Proof-node encoding, decoding, and kernel traversal use explicit pending work
 so proofs at the existing codec depth limit do not exhaust the host call stack.
 Case discovery follows transitive value dependencies; unrelated disjunctions

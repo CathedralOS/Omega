@@ -178,37 +178,39 @@ impl Interval {
         }
     }
 
-    /// `a / b`: truncated division by a divisor of magnitude >= 1 never grows the
-    /// dividend's magnitude and preserves its sign, so the quotient stays within
-    /// the dividend's own bounds widened to include 0 (the quotient can reach 0,
-    /// e.g. `small / large`). SOUND only when the divisor is provably nonzero;
-    /// else unbounded. Like `modulo`, the result can only shrink, so it is
-    /// strictly permissive.
+    /// Truncated division is monotone in each operand within each sign region.
+    /// A divisor interval excluding zero therefore has quotient extrema at its
+    /// endpoint pairs, including when the dividend crosses zero. An unbounded
+    /// far divisor endpoint contributes zero, the truncated quotient limit.
+    /// Checked division rejects the unrepresentable `i64::MIN / -1` corner.
     pub(super) fn divide(self, divisor: Self) -> Self {
-        if divisor.nonzero_magnitude_bound().is_none() {
-            return Interval::UNBOUNDED;
-        }
         let (Some(low), Some(high)) = (self.low, self.high) else {
             return Interval::UNBOUNDED;
         };
-        // EXACT quotient bounds for a single-valued POSITIVE divisor
-        // (`x / 10`): truncated division is monotone non-decreasing in the
-        // dividend for k > 0, so `[lo/k, hi/k]` is tight -- `[0, 99] / 10 =
-        // [0, 9]`, which is what lets `let tens: u32 [0..=9] = x / 10`
-        // store-prove (the range-containment keystone). Any other divisor
-        // shape keeps the magnitude-preserving over-approximation.
-        if let (Some(k), Some(k_high)) = (divisor.low, divisor.high)
-            && k == k_high
-            && k > 0
+        if low > high
+            || divisor
+                .low
+                .zip(divisor.high)
+                .is_some_and(|(low, high)| low > high)
+            || !divisor.excludes_zero()
         {
-            return Self {
-                low: Some(low / k),
-                high: Some(high / k),
-            };
+            return Interval::UNBOUNDED;
         }
+        let quotient = |value: i64, endpoint: Option<i64>| match endpoint {
+            Some(endpoint) => value.checked_div(endpoint),
+            None => Some(0),
+        };
+        let [Some(first), Some(second), Some(third), Some(fourth)] = [
+            quotient(low, divisor.low),
+            quotient(low, divisor.high),
+            quotient(high, divisor.low),
+            quotient(high, divisor.high),
+        ] else {
+            return Interval::UNBOUNDED;
+        };
         Self {
-            low: Some(low.min(0)),
-            high: Some(high.max(0)),
+            low: Some(first.min(second).min(third).min(fourth)),
+            high: Some(first.max(second).max(third).max(fourth)),
         }
     }
 

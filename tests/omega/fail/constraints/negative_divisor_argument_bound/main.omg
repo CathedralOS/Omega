@@ -1,0 +1,7 @@
+machine nonnegative(input: i16) -> i16
+requires input >= 0i16
+ensures result == input
+{ input }
+
+machine value(input: i16 [2..=10], divisor: i16 [-2..=-1]) -> i16
+{ nonnegative(input / divisor) }

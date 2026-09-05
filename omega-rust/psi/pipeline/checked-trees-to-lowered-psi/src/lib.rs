@@ -447,11 +447,28 @@ struct PreparedScalarMachine {
     source_machine: symbols::SymbolHandle,
     states: Vec<LoweredScalarBranchState>,
     result_type: ScalarType,
-    contract_value: Option<KnownDirectScalar>,
-    result_predicate: Option<CheckedBooleanExpression>,
+    contract: PreparedScalarContract,
     crash_routes: Vec<checked_trees::CrashRouteBucket>,
     identity_reshuffles: LoweredContentIdentityReshuffles,
     partition_compositions: LoweredContentPartitionCompositions,
+}
+
+enum PreparedScalarContract {
+    Empty,
+    ClosedLiteral(KnownDirectScalar),
+    Predicates(ClosedScalarValueContractPlan),
+}
+
+impl PreparedScalarContract {
+    fn requirement_count(&self) -> usize {
+        match self {
+            Self::Empty => 0,
+            Self::ClosedLiteral(_) => 1,
+            // The predicate plan's source clauses are published as one
+            // canonical conjunction, including implicit parameter ranges.
+            Self::Predicates(plan) => usize::from(!plan.requires().is_empty()),
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

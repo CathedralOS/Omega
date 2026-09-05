@@ -30,6 +30,8 @@ pub enum AcceptedProofRule {
     ImplicationIntroduction,
     ImplicationElimination,
     EqualityTransitivity,
+    EqualitySymmetry,
+    IntegerOrderWeakening,
     IntegerLessOrEqualTransitivity,
     IntegerLessOrEqualSubstitution,
     IntegerAffineBound,
@@ -332,6 +334,15 @@ fn check_node_locally(
                 .then_some(())
                 .ok_or(ProofError::ImplicationConclusionMismatch)
         }
+        ProofRule::EqualitySymmetry { equality } => {
+            acceptance.rules.insert(AcceptedProofRule::EqualitySymmetry);
+            let Proposition::Equal(left, right) = &equality.conclusion else {
+                return Err(ProofError::RulePremiseMismatch("equality symmetry"));
+            };
+            (proof.conclusion == Proposition::Equal(right.clone(), left.clone()))
+                .then_some(())
+                .ok_or(ProofError::EqualityConclusionMismatch)
+        }
         ProofRule::EqualityTransitivity {
             left_equals_middle,
             middle_equals_right,
@@ -414,6 +425,29 @@ fn check_node_locally(
                 }
                 _ => Err(ProofError::RulePremiseMismatch("equality transitivity")),
             }
+        }
+        ProofRule::IntegerOrderWeakening { relation } => {
+            acceptance
+                .rules
+                .insert(AcceptedProofRule::IntegerOrderWeakening);
+            let (Proposition::Equal(left, right) | Proposition::LessThan(left, right)) =
+                &relation.conclusion
+            else {
+                return Err(ProofError::RulePremiseMismatch("integer order weakening"));
+            };
+            if !matches!(
+                left.scalar_type(),
+                semantic_vocabulary::ScalarType::Integer(_)
+            ) || left.scalar_type() != right.scalar_type()
+            {
+                return Err(ProofError::RulePremiseMismatch("integer order weakening"));
+            }
+            propositions_match_under_integer_math_normalization(
+                &Proposition::LessOrEqual(left.clone(), right.clone()),
+                &proof.conclusion,
+            )
+            .then_some(())
+            .ok_or(ProofError::IntegerOrderConclusionMismatch)
         }
         ProofRule::IntegerLessOrEqualTransitivity {
             left_less_or_equal_middle,

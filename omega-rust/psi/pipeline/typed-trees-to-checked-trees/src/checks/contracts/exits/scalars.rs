@@ -49,6 +49,9 @@ pub(super) fn proves<'program>(
     if !has_builtin_operators(program, &facts.operators, expression) {
         return false;
     }
+    if evaluator.proves_immutable_result_comparison(expression) {
+        return true;
+    }
     evaluate_scalar(program, expression, &mut |leaf| {
         evaluator.contract_value(leaf)
     }) == Some(ScalarValue::Boolean(true))
@@ -65,6 +68,117 @@ struct ExitScalars<'program, 'facts> {
 }
 
 impl ExitScalars<'_, '_> {
+    fn proves_immutable_result_comparison(&self, expression: ExpressionHandle) -> bool {
+        use typed_trees::expression::{BinaryOperator, ExpressionNode};
+        let ExpressionNode::Binary(binary) = self.program.expression_table.expression(expression)
+        else {
+            return false;
+        };
+        let spelling = match binary.operator {
+            BinaryOperator::And => {
+                return self.proves_immutable_result_comparison(binary.left)
+                    && self.proves_immutable_result_comparison(binary.right);
+            }
+            BinaryOperator::Or => {
+                return self.proves_immutable_result_comparison(binary.left)
+                    || self.proves_immutable_result_comparison(binary.right);
+            }
+            BinaryOperator::Equal => language_core::OperatorSpelling::Equal,
+            BinaryOperator::LessOrEqual => language_core::OperatorSpelling::LessEqual,
+            BinaryOperator::GreaterOrEqual => language_core::OperatorSpelling::GreaterEqual,
+            _ => return false,
+        };
+        let argument = if is_result_reference(self.program, self.machine, binary.left) {
+            binary.right
+        } else if is_result_reference(self.program, self.machine, binary.right) {
+            binary.left
+        } else {
+            return false;
+        };
+        let ExpressionNode::Name(path) = self.program.expression_table.expression(argument) else {
+            return false;
+        };
+        if !path.symbol.is_valid() || path.head_symbol != path.symbol {
+            return false;
+        }
+        let Some(entry) = self.program.machine_states(self.machine).first() else {
+            return false;
+        };
+        let Some(parameter) = self
+            .program
+            .state_parameters(entry)
+            .iter()
+            .find(|parameter| parameter.symbol == path.symbol)
+        else {
+            return false;
+        };
+        if parameter.is_mutable
+            || parameter.is_self
+            || parameter.is_const
+            || !self
+                .program
+                .primitive_type_reference(parameter.type_reference)
+                .is_some_and(|primitive| primitive.accepts_integer_literal())
+            || self
+                .program
+                .primitive_type_reference(parameter.type_reference)
+                != self.program.primitive_type_reference(entry.return_type)
+        {
+            return false;
+        }
+        let types = if argument == binary.right {
+            [Some(entry.return_type), Some(parameter.type_reference)]
+        } else {
+            [Some(parameter.type_reference), Some(entry.return_type)]
+        };
+        if !typed_trees::operator::has_builtin_spelled_expression_meaning(
+            self.program,
+            self.machine.symbol,
+            expression,
+            spelling,
+            &types,
+        ) {
+            return false;
+        }
+        let Some(origin) = self
+            .facts
+            .flow
+            .control
+            .exit_parameter_origins
+            .span_or_empty(self.exit.parameter_origins)
+            .iter()
+            .find(|origin| {
+                origin.contract == self.contract && origin.entry_parameter == parameter.symbol
+            })
+        else {
+            return false;
+        };
+        let Some(state) = crate::find_state_in_machine(
+            self.program,
+            self.exit.machine_symbol,
+            self.exit.state_symbol,
+        ) else {
+            return false;
+        };
+        if !self
+            .program
+            .state_parameters(state)
+            .iter()
+            .any(|parameter| {
+                parameter.symbol == origin.state_parameter
+                    && !parameter.is_mutable
+                    && !parameter.is_self
+                    && !parameter.is_const
+            })
+        {
+            return false;
+        }
+        // The return is this immutable entry value, identified through the
+        // retained state-edge origin. No initializer or storage read is replayed.
+        matches!(self.program.expression_table.expression(exit_return_expression(self.program, self.exit)), ExpressionNode::Name(returned)
+            if origin.state_parameter.is_valid() && returned.symbol == origin.state_parameter && returned.head_symbol == origin.state_parameter)
+    }
+
     fn contract_value(&self, expression: ExpressionHandle) -> Option<ScalarValue> {
         if is_result_reference(self.program, self.machine, expression) {
             return self.return_value();

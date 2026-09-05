@@ -490,11 +490,11 @@ Owners include
   evaluation points and activate staged loans at their evaluation points.
   Complete typed computation plans for remaining numeric policies and selected
   operator calls, return/initializer/guard roots, and borrowed/projected operands.
-  Complete parameter-relative and nonliteral callee-result contract transport
-  into nested exact-cast obligations, preserving evaluated argument snapshots.
-  Retire the
-  remaining flat guarded-argument call hoisting once these paths use the same
-  evaluation graph. Owning area: argument normalization and checked scalar
+  Complete nonliteral contract arithmetic and callee-result bounds requiring
+  caller-specific snapshots beyond immutable scalar formal comparisons; carry
+  those facts into nested exact-cast obligations without rereading arguments.
+  Retire the remaining flat guarded-argument call hoisting once these paths use
+  the same evaluation graph. Owning area: argument normalization and checked scalar
   computation lowering. Acceptance: selected arguments
   execute left-to-right once, skipped calls never execute, and dynamic RHS
   calls serialize, independently verify, and execute with their exact guards.

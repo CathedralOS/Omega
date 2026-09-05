@@ -1686,9 +1686,11 @@ pub struct MachineContractIdentity {
 pub enum ClosedScalarContractValue {
     Boolean(bool),
     Integer(IntegerLiteral),
-    /// A normal-return predicate. Parameter position zero denotes only this
-    /// machine's result, not an authored argument or source-local value.
-    ResultPredicate(crate::CheckedBooleanExpression),
+    /// Integer contract predicate. Positions name entry scalar parameters in
+    /// source order; only ensures may additionally name the result at the
+    /// position immediately after the last parameter. Source locals and
+    /// mutable post-state values do not inhabit this namespace.
+    Predicate(crate::CheckedBooleanExpression),
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]

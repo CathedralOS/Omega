@@ -4,6 +4,8 @@ use checked_trees::{
     ClosedScalarContractValue,
 };
 
+mod parameter_predicates;
+
 fn typed(source: &str) -> TypedTrees {
     let tokens = source_files_to_tokens::Lexer::new(source)
         .tokenize()
@@ -94,7 +96,7 @@ fn result_predicates_and_literal_requirements_gate_their_own_meanings() {
         assert_eq!(
             matches!(
                 plan.ensures()[0],
-                Some(ClosedScalarContractValue::ResultPredicate(_))
+                Some(ClosedScalarContractValue::Predicate(_))
             ),
             ensure_builtin,
             "{spelling}"

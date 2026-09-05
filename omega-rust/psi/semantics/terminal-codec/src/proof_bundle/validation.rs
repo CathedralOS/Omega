@@ -94,7 +94,13 @@ fn validate_proof_node(node: &ProofNode, depth: usize) -> Result<(), ProofCodecE
             }
             Ok(())
         }
-        ProofRule::ConjunctionElimination { conjunction, .. }
+        ProofRule::EqualitySymmetry {
+            equality: conjunction,
+        }
+        | ProofRule::IntegerOrderWeakening {
+            relation: conjunction,
+        }
+        | ProofRule::ConjunctionElimination { conjunction, .. }
         | ProofRule::ImplicationIntroduction { body: conjunction } => {
             validate_proof_node(conjunction, depth + 1)
         }

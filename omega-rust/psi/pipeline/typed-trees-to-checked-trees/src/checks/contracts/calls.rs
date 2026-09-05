@@ -58,6 +58,9 @@ pub(super) fn check_call_requires(
             let satisfied = match fact.payload {
                 FactPayload::ContractBooleanExpression { expression, .. } => {
                     closed_boolean_value(program, &facts.operators, expression) == Some(true)
+                        || super::call_bounds::proves(
+                            program, facts, state_flow, call_flow, expression,
+                        )
                         || call_entry_contexts_prove_boolean_contract_expression(
                             program,
                             &facts.semantic,

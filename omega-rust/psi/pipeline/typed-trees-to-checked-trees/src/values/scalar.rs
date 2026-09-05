@@ -20,7 +20,9 @@ use typed_trees::{
 mod computations;
 mod result_contract;
 pub(crate) use computations::build_checked_scalar_computation_plans;
-pub(crate) use result_contract::lower_integer_result_predicate;
+pub(crate) use result_contract::{
+    lower_integer_contract_predicate, lower_integer_parameter_range_requirements,
+};
 
 #[derive(Debug, Clone)]
 struct ScalarLocal {

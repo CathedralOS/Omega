@@ -1,4 +1,4 @@
-//! Exact whole-reference custody across explicit named-state arguments.
+//! Exact reference and immutable scalar origins across named-state arguments.
 
 use super::*;
 use typed_trees::statement::{TransitionExit, TransitionTargetNode};
@@ -16,25 +16,62 @@ fn reference_type(
     }
 }
 
+fn immutable_scalar(
+    program: &typed_trees::TypedTrees,
+    parameter: &typed_trees::signature::StateParameter,
+) -> bool {
+    !parameter.is_mutable
+        && !parameter.is_self
+        && !parameter.is_const
+        && program
+            .primitive_type_reference(parameter.type_reference)
+            .is_some_and(|primitive| primitive.accepts_integer_literal())
+}
+
+fn tracked_parameter(
+    program: &typed_trees::TypedTrees,
+    parameter: &typed_trees::signature::StateParameter,
+) -> bool {
+    reference_type(program, parameter.type_reference) || immutable_scalar(program, parameter)
+}
+
+fn stable_parameter(
+    program: &typed_trees::TypedTrees,
+    machine: &typed_trees::machine::Machine,
+    state: &typed_trees::state::State,
+    symbol: SymbolHandle,
+) -> bool {
+    program
+        .state_parameters(state)
+        .iter()
+        .find(|parameter| parameter.symbol == symbol)
+        .is_some_and(|parameter| {
+            immutable_scalar(program, parameter)
+                || validation::state_reference_parameter_binding_is_stable(
+                    program, machine, state, symbol,
+                )
+        })
+}
+
 /// Scratch dataflow rows. An invalid source denotes an unknown origin; an
 /// empty set means that no entry-reachable predecessor has supplied it yet.
 /// Alternative origins are unioned, never chosen by predecessor order.
 #[derive(Default)]
-struct ReferenceOrigins {
+struct ParameterOrigins {
     parameter: SymbolHandle,
     sources: Vec<SymbolHandle>,
 }
 
-struct ReferenceEdge {
+struct ParameterEdge {
     source: usize,
     target: usize,
     parameters: Vec<(SymbolHandle, SymbolHandle)>,
 }
 
-fn reference_edges(
+fn parameter_edges(
     program: &typed_trees::TypedTrees,
     machine: &typed_trees::machine::Machine,
-) -> Vec<ReferenceEdge> {
+) -> Vec<ParameterEdge> {
     let states = program.machine_states(machine);
     let mut edges = Vec::new();
     for (source_index, source) in states.iter().enumerate() {
@@ -54,8 +91,10 @@ fn reference_edges(
                         TransitionTargetNode::Named {
                             path, arguments, ..
                         } => {
-                            let Some(index) =
-                                states.iter().position(|state| state.symbol == path.symbol)
+                            let Some(index) = states
+                                .iter()
+                                .position(|state| state.symbol == path.symbol)
+                                .or_else(|| (path.symbol == machine.symbol).then_some(0))
                             else {
                                 continue;
                             };
@@ -101,28 +140,30 @@ fn reference_edges(
                             }
                             program.state_parameters(source).iter().find(|candidate| {
                                 candidate.symbol == name.head_symbol
-                                    && reference_type(program, candidate.type_reference)
-                                    && reference_type(program, parameter.type_reference)
+                                    && ((reference_type(program, candidate.type_reference)
+                                        && reference_type(program, parameter.type_reference))
+                                        || (immutable_scalar(program, candidate)
+                                            && immutable_scalar(program, parameter)
+                                            && program.primitive_type_reference(
+                                                candidate.type_reference,
+                                            ) == program.primitive_type_reference(
+                                                parameter.type_reference,
+                                            )))
                             })
                         })
                     };
-                    if !reference_type(program, parameter.type_reference) {
+                    if !tracked_parameter(program, parameter) {
                         continue;
                     }
                     let source_symbol = source_parameter
                         .filter(|source_parameter| {
-                            validation::state_reference_parameter_binding_is_stable(
-                                program,
-                                machine,
-                                source,
-                                source_parameter.symbol,
-                            )
+                            stable_parameter(program, machine, source, source_parameter.symbol)
                         })
                         .map(|parameter| parameter.symbol)
                         .unwrap_or_default();
                     mapped.push((parameter.symbol, source_symbol));
                 }
-                edges.push(ReferenceEdge {
+                edges.push(ParameterEdge {
                     source: source_index,
                     target: target_index,
                     parameters: mapped,
@@ -145,7 +186,7 @@ fn state_origins(
     else {
         return Vec::new();
     };
-    let edges = reference_edges(program, machine);
+    let edges = parameter_edges(program, machine);
     let mut origins = states
         .iter()
         .enumerate()
@@ -153,8 +194,8 @@ fn state_origins(
             program
                 .state_parameters(state)
                 .iter()
-                .filter(|parameter| reference_type(program, parameter.type_reference))
-                .map(|parameter| ReferenceOrigins {
+                .filter(|parameter| tracked_parameter(program, parameter))
+                .map(|parameter| ParameterOrigins {
                     parameter: parameter.symbol,
                     sources: if index == 0 {
                         vec![parameter.symbol]
@@ -208,14 +249,8 @@ fn state_origins(
             let [source] = row.sources.as_slice() else {
                 return None;
             };
-            (source.is_valid()
-                && validation::state_reference_parameter_binding_is_stable(
-                    program,
-                    machine,
-                    state,
-                    row.parameter,
-                ))
-            .then_some((*source, row.parameter))
+            (source.is_valid() && stable_parameter(program, machine, state, row.parameter))
+                .then_some((*source, row.parameter))
         })
         .collect()
 }
@@ -240,6 +275,10 @@ pub(super) fn rebase_contexts(
         return (contexts, HandleSpan::empty());
     }
     let mut origins = if entry.symbol == state.symbol {
+        // Entry can also be reached by a named backedge. Immutable scalar
+        // bindings retain the original invocation value only when every
+        // incoming argument preserves it, just as for other named states.
+        let incoming_origins = state_origins(program, machine, state);
         // Exit substitution refers to the caller's original input referent,
         // even when the source gives its local reference binding `mut`.
         // Initial assumptions are still admitted above; this is only the
@@ -256,7 +295,16 @@ pub(super) fn rebase_contexts(
                         parameter.symbol,
                     )
             })
-            .map(|parameter| (parameter.symbol, parameter.symbol))
+            .filter_map(|parameter| {
+                if immutable_scalar(program, parameter) {
+                    incoming_origins
+                        .iter()
+                        .find(|(_, target)| *target == parameter.symbol)
+                        .copied()
+                } else {
+                    Some((parameter.symbol, parameter.symbol))
+                }
+            })
             .collect()
     } else {
         state_origins(program, machine, state)

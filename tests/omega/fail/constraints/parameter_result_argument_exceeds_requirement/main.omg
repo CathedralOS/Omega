@@ -1,0 +1,6 @@
+machine bounded(input: u16) -> u16
+requires input < 128u16
+ensures result == input
+{ input }
+
+machine value(input: u16) -> u16 { bounded(input % 256u16) }
