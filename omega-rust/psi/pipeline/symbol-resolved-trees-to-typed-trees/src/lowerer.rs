@@ -112,7 +112,7 @@ pub fn lower_seeded_extension(
     }
     if source.service_reaches != resolved_base.service_reaches
         || source.service_reach_rows != resolved_base.service_reach_rows
-        || source.authored_service_reach_rows != resolved_base.authored_service_reach_rows
+        || !retained_authored_service_reaches_are_exact(&source, &resolved_base)
         || source.semantic_domains != resolved_base.semantic_domains
         || source.external_bindings != resolved_base.external_bindings
         || source.evidence_forwardings != resolved_base.evidence_forwardings
@@ -138,6 +138,20 @@ pub fn lower_seeded_extension(
     let mut candidate = retained.typed.clone();
     candidate.retain_authored_declaration_selections(resolved_ledger.clone());
     candidate.symbols = source.symbols.clone();
+    // This cohort reuses the retained service identities and normalized rows.
+    // Only the generated declarations' authored occurrences are appended.
+    candidate.authored_service_reach_rows.extend(
+        source
+            .authored_service_reach_rows
+            .iter()
+            .filter(|row| {
+                !resolved_base
+                    .authored_service_reach_rows
+                    .iter()
+                    .any(|base_row| base_row.owner == row.owner)
+            })
+            .map(lower_authored_service_reach_row),
+    );
     let mut lowerer = Lowerer {
         typed_trees: candidate,
         source_trees: &source,
@@ -370,6 +384,56 @@ pub fn retained_typed_base_is_exact_prefix(base: &TypedTrees, candidate: &TypedT
         && candidate
             .ranking_expression_custody
             .starts_with(&base.ranking_expression_custody)
+}
+
+fn lower_authored_service_reach_row(
+    row: &symbol_resolved_trees::signature::AuthoredServiceReachRow,
+) -> typed_trees::signature::AuthoredServiceReachRow {
+    typed_trees::signature::AuthoredServiceReachRow {
+        owner: row.owner,
+        keyword_source_spans: row.keyword_source_spans.clone(),
+        targets: row
+            .targets
+            .iter()
+            .map(
+                |target| typed_trees::signature::AuthoredServiceReachTarget {
+                    service: target.service,
+                    source_span: target.source_span,
+                },
+            )
+            .collect(),
+        installation_bound: row.installation_bound,
+    }
+}
+
+fn retained_authored_service_reaches_are_exact(
+    source: &SymbolResolvedTrees,
+    base: &SymbolResolvedTrees,
+) -> bool {
+    // Resolution groups machines before trait requirements, so generated
+    // machine rows can precede retained requirement rows. Rejoin by owner;
+    // preserve the typed base order and append only generated machine rows.
+    let retained_owner = |row: &&symbol_resolved_trees::signature::AuthoredServiceReachRow| {
+        base.authored_service_reach_rows
+            .iter()
+            .any(|base_row| base_row.owner == row.owner)
+    };
+    source
+        .authored_service_reach_rows
+        .iter()
+        .filter(retained_owner)
+        .eq(base.authored_service_reach_rows.iter())
+        && source
+            .authored_service_reach_rows
+            .iter()
+            .filter(|row| !retained_owner(row))
+            .all(|row| {
+                source
+                    .machines
+                    .iter()
+                    .skip(base.machines.len())
+                    .any(|machine| machine.symbol == row.owner)
+            })
 }
 
 fn arena_is_exact_prefix<T: Default + PartialEq>(
@@ -681,7 +745,6 @@ fn exact_extension_machine_symbol(
         || !machine.ranking_view.is_empty()
         || !machine.ranking_view_arguments.is_empty()
         || machine.ranking_range.is_valid()
-        || !machine.invokes.is_empty()
         || machine.suspends
         || machine.blocks
         || machine.supply_mode != language_semantics::MachineSupplyMode::CheckedBody
@@ -1029,21 +1092,7 @@ pub fn lower_symbol_resolved_trees(
     lowerer.typed_trees.authored_service_reach_rows = symbol_resolved_trees
         .authored_service_reach_rows
         .iter()
-        .map(|row| typed_trees::signature::AuthoredServiceReachRow {
-            owner: row.owner,
-            keyword_source_spans: row.keyword_source_spans.clone(),
-            targets: row
-                .targets
-                .iter()
-                .map(
-                    |target| typed_trees::signature::AuthoredServiceReachTarget {
-                        service: target.service,
-                        source_span: target.source_span,
-                    },
-                )
-                .collect(),
-            installation_bound: row.installation_bound,
-        })
+        .map(lower_authored_service_reach_row)
         .collect();
     lowerer.typed_trees.semantic_domains = symbol_resolved_trees.semantic_domains.clone();
     lowerer.typed_trees.external_bindings = symbol_resolved_trees.external_bindings.clone();

@@ -30,6 +30,9 @@ host credentials, and organizational review policy have separate owners.
   authority. Package-source reads, staged-output writes, and build logging use
   the existing compiler facets; do not invent broader build services to finish
   this task. Detect relevant source/build drift before publication.
+  Generated calls needing new normalized service sets still require support in
+  Psi's seeded typing continuation; do not bypass its retained-table checks in
+  the manager.
 
 - [ ] **OMEGA-AUDIT-PACKAGES.** Expose graph and authority inspection through the
   CLI using the existing manager report. Show exact pins, accepted policy,

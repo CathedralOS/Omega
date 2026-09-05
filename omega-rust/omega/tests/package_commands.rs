@@ -1,5 +1,7 @@
 //! Package commands exercise the shipped binary and real local source acquisition.
 
+#[path = "package_commands/authority.rs"]
+mod authority;
 #[path = "package_commands/fixture.rs"]
 mod fixture;
 #[path = "package_commands/generated.rs"]
