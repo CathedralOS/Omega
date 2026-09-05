@@ -70,7 +70,7 @@ pub(super) fn encoding_identity(
         encode_encoding_row(&mut hasher, &function.return_instruction);
     }
     encode_counts(&mut hasher, counts);
-    SelectedFormEncodingIdentity(hasher.finalize().into())
+    SelectedFormEncodingIdentity::from_bytes(hasher.finalize().into())
 }
 
 fn encode_encoding_row(hasher: &mut Sha256, row: &SelectedFormEncodingRow) {

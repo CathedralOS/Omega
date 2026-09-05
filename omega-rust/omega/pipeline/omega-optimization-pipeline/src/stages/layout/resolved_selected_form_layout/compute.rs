@@ -10,11 +10,13 @@ use crate::{
 };
 
 use super::error::OptimizedResolvedSelectedFormLayoutError;
-use super::identity::layout_identity;
 use super::model::{SelectedFunctionLayoutPolicy, StagedOptimizedResolvedSelectedFormLayout};
 use super::optimization::{validate_layout_byte_savings, validate_optimization_custody};
 use super::ordinary::{instructions, layout, select};
 use super::structural::layout_structural_unit_function;
+use omega_machine_code::{
+    ResolvedMachineLayout, resolved_machine_layout_identity as layout_identity,
+};
 
 pub(super) fn compute<S: ValidatedSelectedAnalysis>(
     selected: &S,
@@ -205,7 +207,7 @@ pub(super) fn compute<S: ValidatedSelectedAnalysis>(
         &functions,
         &structural_unit_functions,
     );
-    let artifact = StagedOptimizedResolvedSelectedFormLayout {
+    let artifact = StagedOptimizedResolvedSelectedFormLayout::from_program(ResolvedMachineLayout {
         selected: selected_root,
         machine: machine_root,
         pre_layout: pre_layout_root,
@@ -215,7 +217,7 @@ pub(super) fn compute<S: ValidatedSelectedAnalysis>(
         identity,
         functions,
         structural_unit_functions,
-    };
+    });
     if let Some(custody) = normalized {
         let baseline_encoding =
             stage_optimized_layout_independent_selected_form_encoding(selected, machine, physical)

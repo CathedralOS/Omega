@@ -1,8 +1,10 @@
-use omega_calling_conventions::MachineRegister;
-use omega_machine_code::{
+//! Exact identity of the function-relative bytes, layout, and replay inputs.
+
+use crate::{
     X86_64SelectedStructuralUnitCallFootprint, X86_64StructuralUnitInternalControlFixup,
     X86_64StructuralUnitInternalControlFixupKind, X86_64StructuralUnitInternalControlFixupState,
 };
+use omega_calling_conventions::MachineRegister;
 use omega_selected_instructions::{
     MachineAlternativeKey, MachineEncodedControlEffect, MachineEncodedEffects,
     MachineEncodedMemoryEffect, MachineEncodedStackEffect, MachineEncodedTrapBehavior,
@@ -10,23 +12,35 @@ use omega_selected_instructions::{
 use omega_target::{Architecture, NativeTarget, ObjectFormat};
 use sha2::{Digest, Sha256};
 
-use crate::PostAllocationMachineOptimizationCustody;
+use omega_physical_instructions::PostAllocationMachineOptimizationCustody;
 
-use super::model::{
-    ResolvedConditionalBranchPredicate, ResolvedSelectedFormLayoutIdentity,
-    ResolvedSelectedFunctionLayout, ResolvedStructuralUnitFunctionLayout,
-    SelectedFunctionLayoutPolicy,
+use super::{
+    ResolvedConditionalBranchPredicate, ResolvedSelectedFunctionLayout,
+    ResolvedStructuralUnitFunctionLayout, SelectedFunctionLayoutPolicy,
 };
 use crate::{
     SelectedFormInternalMachineFixup, SelectedFormInternalMachineFixupKind,
     SelectedFormInternalMachineFixupState,
 };
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct ResolvedSelectedFormLayoutIdentity(pub(super) [u8; 32]);
+
+impl ResolvedSelectedFormLayoutIdentity {
+    pub const fn from_bytes(bytes: [u8; 32]) -> Self {
+        Self(bytes)
+    }
+
+    pub const fn bytes(self) -> [u8; 32] {
+        self.0
+    }
+}
+
 const LAYOUT_SCHEMA: &[u8] = b"omega.terminal.resolved-selected-form-layout.v9";
 
-pub(super) fn layout_identity(
+pub fn resolved_machine_layout_identity(
     selected: omega_selected_instructions::SelectedInstructionPlanIdentity,
-    machine: omega_machine_optimizer::PostAllocationMachineIdentity,
+    machine: omega_physical_instructions::PostAllocationMachineIdentity,
     pre_layout: crate::SelectedFormEncodingIdentity,
     post_allocation_machine_optimization: Option<PostAllocationMachineOptimizationCustody>,
     target: NativeTarget,

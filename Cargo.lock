@@ -889,6 +889,7 @@ dependencies = [
  "omega-function-identity",
  "omega-optimization-core",
  "omega-optimization-unit",
+ "omega-physical-instructions",
  "omega-register-model",
  "omega-selected-instructions",
  "omega-target",
@@ -1345,6 +1346,7 @@ version = "0.1.0"
 dependencies = [
  "omega-machine-optimizer",
  "omega-optimization-core",
+ "omega-physical-instructions",
  "omega-regalloc",
  "omega-register-homes-to-post-allocation-machine",
  "omega-register-model",

@@ -167,6 +167,14 @@ pub(super) fn verify_structural_call_encoding_and_layout(homes: &StagedOptimized
         &encoding,
     )
     .expect("structural Unit fixups must reach unresolved function-relative custody");
+    // Captured before separating layout data from its admitted stage wrapper.
+    assert_eq!(
+        layout.identity().bytes(),
+        [
+            138, 179, 115, 87, 187, 161, 49, 160, 196, 101, 233, 218, 171, 95, 59, 244, 117, 33,
+            62, 122, 93, 132, 239, 112, 70, 30, 115, 7, 49, 14, 202, 212
+        ]
+    );
     assert_eq!(
         layout.policy(),
         SelectedFunctionLayoutPolicy::StructuralUnitCallThenReturnSingleEntryBlockV1
@@ -256,4 +264,60 @@ pub(super) fn verify_structural_call_encoding_and_layout(homes: &StagedOptimized
         ),
         Err(OptimizedResolvedSelectedFormLayoutError::ArtifactMismatch)
     ));
+
+    let retained = layout.shared_program();
+    assert!(std::ptr::eq(retained.as_ref(), layout.program()));
+    assert!(std::sync::Arc::ptr_eq(
+        &retained,
+        &layout.clone().shared_program()
+    ));
+    drop(layout);
+    assert_eq!(retained.identity, retained.recomputed_identity());
+    let admitted = admit_resolved_machine_layout(
+        range_stage.liveness_stage().selected_stage().selected(),
+        &post,
+        environment.physical(),
+        &encoding,
+        None,
+        std::sync::Arc::clone(&retained),
+    )
+    .expect("retained current data must admit without the original layout wrapper");
+    assert!(std::sync::Arc::ptr_eq(
+        &retained,
+        &admitted.shared_program()
+    ));
+
+    let original_byte = retained.structural_unit_functions[0]
+        .call
+        .as_ref()
+        .unwrap()
+        .bytes[0];
+    let mut substituted = std::sync::Arc::clone(&retained);
+    let changed = std::sync::Arc::make_mut(&mut substituted);
+    changed.structural_unit_functions[0]
+        .call
+        .as_mut()
+        .unwrap()
+        .bytes[0] ^= 1;
+    changed.identity = changed.recomputed_identity();
+    assert_eq!(
+        admitted.structural_unit_functions()[0]
+            .call
+            .as_ref()
+            .unwrap()
+            .bytes[0],
+        original_byte
+    );
+    assert!(
+        admit_resolved_machine_layout(
+            range_stage.liveness_stage().selected_stage().selected(),
+            &post,
+            environment.physical(),
+            &encoding,
+            None,
+            substituted,
+        )
+        .is_err(),
+        "a recomputed identity must not admit substituted call bytes"
+    );
 }

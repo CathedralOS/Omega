@@ -9,6 +9,7 @@ name = "omega_post_allocation_machine_to_optimized_machine"
 path = "src/lib.rs"
 
 [dependencies]
+omega-physical-instructions = { path = "../../representations/omega-physical-instructions" }
 omega-selected-instructions-to-register-homes = { path = "../omega-selected-instructions-to-register-homes" }
 omega-machine-optimizer = { path = "../omega-machine-optimizer" }
 omega-optimization-core = { path = "../../representations/omega-optimization-core" }

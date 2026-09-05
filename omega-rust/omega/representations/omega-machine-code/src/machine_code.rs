@@ -7,9 +7,11 @@
 pub mod boundary;
 pub mod calls;
 pub mod control_flow;
+pub mod encoding;
 pub mod fragments;
 pub mod functions;
 pub mod instructions;
+pub mod layout;
 pub mod ownership;
 pub mod provenance;
 pub mod storage;
@@ -17,9 +19,17 @@ pub mod storage;
 pub use boundary::*;
 pub use calls::*;
 pub use control_flow::*;
+pub use encoding::*;
 pub use fragments::*;
 pub use functions::*;
 pub use instructions::*;
+pub use layout::{
+    ResolvedConditionalBranchEvidence, ResolvedConditionalBranchPredicate, ResolvedMachineLayout,
+    ResolvedSelectedBlockLayout, ResolvedSelectedFormLayoutIdentity, ResolvedSelectedFormRow,
+    ResolvedSelectedFunctionLayout, ResolvedStructuralUnitCallLayout,
+    ResolvedStructuralUnitFunctionLayout, SelectedFunctionLayoutPolicy,
+    resolved_machine_layout_identity,
+};
 pub use ownership::*;
 pub use provenance::*;
 pub use storage::*;

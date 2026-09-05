@@ -95,6 +95,8 @@ fn program_representations_have_named_roots_and_concept_owners() {
                 "provenance",
                 "instructions",
                 "fragments",
+                "encoding",
+                "layout",
             ][..],
         ),
         (
@@ -107,6 +109,7 @@ fn program_representations_have_named_roots_and_concept_owners() {
                 "operands",
                 "identity",
                 "codec",
+                "evidence",
             ][..],
         ),
         (
@@ -299,6 +302,57 @@ fn structural_call_encoding_data_does_not_require_the_isa_implementation() {
     .unwrap();
     assert!(!manifest.contains("/backend/"));
     assert!(!manifest.contains("/pipeline/"));
+}
+
+#[test]
+fn resolved_layout_data_and_identity_do_not_require_a_producing_stage() {
+    let root = repository();
+    let machine =
+        rust_source(&root.join("omega-rust/omega/representations/omega-machine-code/src"));
+    let physical =
+        rust_source(&root.join("omega-rust/omega/representations/omega-physical-instructions/src"));
+    let pipeline = rust_source(&root.join("omega-rust/omega/pipeline"));
+    for declaration in [
+        "pub struct ResolvedMachineLayout {",
+        "pub struct ResolvedSelectedFunctionLayout {",
+        "pub struct ResolvedStructuralUnitFunctionLayout {",
+        "pub struct ResolvedSelectedFormLayoutIdentity(",
+        "pub struct SelectedFormEncodingIdentity(",
+        "pub struct SelectedFormInternalMachineFixup {",
+    ] {
+        assert_eq!(machine.matches(declaration).count(), 1, "{declaration}");
+        assert!(
+            !pipeline.contains(declaration),
+            "pipeline owns {declaration}"
+        );
+    }
+    let record = "pub struct PostAllocationMachineOptimizationCustody {";
+    assert_eq!(physical.matches(record).count(), 1);
+    assert!(!pipeline.contains(record));
+    assert!(!machine.contains("omega_machine_optimizer::"));
+    assert!(!machine.contains("pub struct StagedOptimizedResolvedSelectedFormLayout"));
+    assert!(machine.contains("omega.terminal.resolved-selected-form-layout.v9"));
+    assert!(!pipeline.contains("omega.terminal.resolved-selected-form-layout.v9"));
+
+    let stage = root.join("omega-rust/omega/pipeline/omega-optimization-pipeline/src/stages/layout/resolved_selected_form_layout");
+    let wrapper = std::fs::read_to_string(stage.join("model.rs")).unwrap();
+    assert!(wrapper.contains("program: Arc<ResolvedMachineLayout>"));
+    assert!(wrapper.contains("Arc::clone(&self.program)"));
+    assert!(!wrapper.contains("pub(super) functions:"));
+    assert!(!wrapper.contains("pub(super) structural_unit_functions:"));
+    let admission = std::fs::read_to_string(stage.join("stage.rs")).unwrap();
+    assert!(admission.contains("pub fn admit_resolved_machine_layout"));
+    assert!(admission.contains("super::validation::validate("));
+    for package in ["omega-machine-code", "omega-physical-instructions"] {
+        let manifest = std::fs::read_to_string(
+            root.join("omega-rust/omega/representations")
+                .join(package)
+                .join("Cargo.toml"),
+        )
+        .unwrap();
+        assert!(!manifest.contains("/pipeline/"));
+        assert!(!manifest.contains("/backend/"));
+    }
 }
 
 #[test]
