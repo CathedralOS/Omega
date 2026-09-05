@@ -63,6 +63,14 @@ compiler-derived policy changes and audit recommendations, not package prose
 or proof that somebody audited the source. Nonblocking candidates publish
 directly; retained dangerous authority still recommends an audit on upgrades.
 
+Compiler failures return status 1 with the package, failed phase, and diagnostic
+reasons on stderr. Diagnostics use escaped text, not editable review records.
+Output shows at most 16 diagnostics and 4 KiB of input bytes per message;
+package names abbreviate after 256 bytes. Every omission is explicit. Available
+source-unit byte spans are retained; filenames already present in messages are
+preserved, but the error API has no source map for reconstructing missing paths
+or line numbers. Rejection does not publish dependency or lock changes.
+
 Ignored `build/package-manager/` contains:
 
 - `proposal`: candidate pins, proposed build bytes, targets, and original

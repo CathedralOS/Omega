@@ -12,6 +12,8 @@ use std::fmt;
 use std::io;
 use std::path::PathBuf;
 
+mod diagnostic_output;
+
 #[derive(Debug)]
 pub enum CompileResolvedPackageReviewsError {
     BuildStagingCreate {
@@ -272,21 +274,11 @@ impl fmt::Display for CompileResolvedPackageReviewsError {
             Self::Compilation {
                 package,
                 diagnostics,
-            } => write!(
-                formatter,
-                "checked compilation failed for package `{}` with {} diagnostic(s)",
-                package.name().as_str(),
-                diagnostics.len()
-            ),
+            } => diagnostic_output::render(formatter, "checked compilation", package, diagnostics),
             Self::Projection {
                 package,
                 diagnostics,
-            } => write!(
-                formatter,
-                "review projection failed for package `{}` with {} diagnostic(s)",
-                package.name().as_str(),
-                diagnostics.len()
-            ),
+            } => diagnostic_output::render(formatter, "review projection", package, diagnostics),
             Self::Encoding { package, error } => write!(
                 formatter,
                 "review encoding failed for package `{}`: {error}",
@@ -300,11 +292,11 @@ impl fmt::Display for CompileResolvedPackageReviewsError {
             Self::SourceConsumptionDrift {
                 package,
                 diagnostics,
-            } => write!(
+            } => diagnostic_output::render(
                 formatter,
-                "compiler-consumed source verification failed for package `{}` with {} diagnostic(s)",
-                package.name().as_str(),
-                diagnostics.len()
+                "compiler-consumed source verification",
+                package,
+                diagnostics,
             ),
             Self::IdentityMismatch { package } => write!(
                 formatter,

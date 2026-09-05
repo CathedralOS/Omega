@@ -2,6 +2,8 @@
 
 #[path = "package_commands/authority.rs"]
 mod authority;
+#[path = "package_commands/diagnostics.rs"]
+mod diagnostics;
 #[path = "package_commands/fixture.rs"]
 mod fixture;
 #[path = "package_commands/generated.rs"]
