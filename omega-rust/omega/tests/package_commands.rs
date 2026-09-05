@@ -6,6 +6,8 @@ mod authority;
 mod diagnostics;
 #[path = "package_commands/fixture.rs"]
 mod fixture;
+#[path = "fixture_rosters/package_commands.rs"]
+mod fixture_roster;
 #[path = "package_commands/generated.rs"]
 mod generated;
 #[path = "package_commands/inspection.rs"]
@@ -120,21 +122,23 @@ fn missing_source_preserves_an_existing_accepted_pair() {
 
 #[test]
 fn invalid_dependency_proof_leaves_build_and_absent_lock_unchanged() {
-    let fixture = Fixture::new();
-    fixture.write(
-        "dependency/main.omg",
-        include_str!("../../../tests/omega/fail/domains/exit_ensures_unproven/main.omg"),
-    );
-    let before = fixture.accepted_files();
-    let output = fixture.omega(&["install", "../dependency"]);
-    assert_status(&output, 1);
-    let expected = "checked compilation failed for package `arithmetic-kernels`";
-    assert!(
-        String::from_utf8_lossy(&output.stderr).contains(expected),
-        "{}",
-        String::from_utf8_lossy(&output.stderr)
-    );
-    assert_eq!(fixture.accepted_files(), before);
+    let corpus = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../tests/omega/fail");
+    for canary in fixture_roster::FAIL_CANARIES {
+        let fixture = Fixture::new();
+        let source = std::fs::read_to_string(corpus.join(canary).join("main.omg"))
+            .expect("package CLI canary source must exist");
+        fixture.write("dependency/main.omg", &source);
+        let before = fixture.accepted_files();
+        let output = fixture.omega(&["install", "../dependency"]);
+        assert_status(&output, 1);
+        let expected = "checked compilation failed for package `arithmetic-kernels`";
+        assert!(
+            String::from_utf8_lossy(&output.stderr).contains(expected),
+            "{}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+        assert_eq!(fixture.accepted_files(), before);
+    }
 }
 
 #[test]

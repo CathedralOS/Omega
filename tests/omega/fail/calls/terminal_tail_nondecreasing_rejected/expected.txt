@@ -1,1 +1,1 @@
-cannot prove `terminates by` ranking witness for machine Main::countdown
+cannot prove the `terminates by` ranking for machine Main::countdown

@@ -4373,7 +4373,7 @@ fn public_const_requires_canonical_compatibility_value_but_private_const_v0_does
 fn lowers_dungeon_style_machine_program() {
     let source = r#"
     data Inventory {
-        gold: u32[exact];
+        gold: u32;
     }
 
     pub machine Inventory::clear(&mut self, inventory: &mut Inventory) {

@@ -4860,7 +4860,7 @@ fn validates_local_state_call_arguments_from_source_pipeline() {
 
         state take_non_negative(
             &mut self,
-            value: u32[exact, non_negative]
+            value: u32
         ) {
         }
     }

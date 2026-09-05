@@ -54,8 +54,12 @@ mod native_structural_return;
 mod native_terminal_sources;
 #[path = "../fixture_rosters/no_selection_golden.rs"]
 mod no_selection_golden;
+#[path = "../../../../tests/fixture_rosters/package_commands.rs"]
+mod package_commands;
 #[path = "../fixture_rosters/package_compilation_inputs.rs"]
 mod package_compilation_inputs;
+#[path = "../../../../packages/manager/tests/fixture_rosters/semantic_failures.rs"]
+mod package_semantic_failures;
 #[path = "../fixture_rosters/plan_laid_repeated_runtime.rs"]
 mod plan_laid_repeated_runtime;
 #[path = "../fixture_rosters/recast_views.rs"]
@@ -224,6 +228,7 @@ fn file_expectation_fail_roster() -> Vec<&'static str> {
         .chain(no_selection_golden::FILE_EXPECTATION_FAIL_CANARIES)
         .chain(generics_and_dependent_facts::FILE_EXPECTATION_FAIL_CANARIES)
         .chain(generics_and_dependent_facts::CLOSED_INDEXED_FAIL_CANARIES)
+        .chain(package_semantic_failures::FILE_EXPECTATION_FAIL_CANARIES)
         .copied()
         .collect()
 }
@@ -231,6 +236,7 @@ fn file_expectation_fail_roster() -> Vec<&'static str> {
 fn fail_roster() -> Vec<&'static str> {
     file_expectation_fail_roster()
         .into_iter()
+        .chain(package_commands::FAIL_CANARIES.iter().copied())
         .chain(inline_asm::FAIL_CANARIES.iter().copied())
         .chain(inline_asm::FLAGS_FAIL_CANARIES.iter().map(|entry| entry.0))
         .chain(inline_asm::MSR_FAIL_CANARIES.iter().map(|entry| entry.0))
@@ -440,14 +446,9 @@ fn registered_pass_canaries_have_source_on_every_host() {
 fn registered_fail_canaries_have_source_and_their_owned_expectations() {
     let root = repo_root().join("tests/omega/fail");
     // Every owner needs source; only file-based owners require expected.txt.
-    // Negative reverse closure remains CANARY-ROSTER-DERIVATION. The file
-    // expectation subset deliberately excludes owners with inline diagnostics.
-    assert_registered_fixtures(
-        &root,
-        &fail_roster(),
-        false,
-        InventoryScope::RegisteredFixtures,
-    );
+    // The file expectation subset deliberately excludes owners with inline
+    // diagnostics; reverse closure applies to the complete owner union only.
+    assert_registered_fixtures(&root, &fail_roster(), false, InventoryScope::CompleteCorpus);
     assert_registered_fixtures(
         &root,
         &file_expectation_fail_roster(),

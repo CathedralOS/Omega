@@ -1,5 +1,8 @@
 use super::*;
 
+#[path = "../../fixture_rosters/semantic_failures.rs"]
+mod fixture_roster;
+
 // Existing package_reconstruction_question fixture: ordinary exit checking
 // preserves this assumption, but polynomial entailment cannot represent min.
 const OPEN_CONTRACT: &str = "pub machine unchecked_claim(left: u64, right: u64)\nrequires min(left, right) >= 1\nensures min(left, right) >= 1\n{}\n";
@@ -46,10 +49,7 @@ fn unresolved_contracts_reject_for_the_root_and_transitive_packages() {
 #[test]
 fn invalid_proof_and_service_reach_remain_compiler_failures() {
     let corpus = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../../tests/omega/fail");
-    for case in [
-        "domains/exit_ensures_unproven",
-        "capabilities/effect_ceiling_exceeded",
-    ] {
+    for case in fixture_roster::FILE_EXPECTATION_FAIL_CANARIES {
         let fixture = corpus.join(case);
         let main = fs::read_to_string(fixture.join("main.omg")).unwrap();
         let expected = fs::read_to_string(fixture.join("expected.txt")).unwrap();
