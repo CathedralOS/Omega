@@ -9,6 +9,73 @@ fn check_expression(expression: &str, target: &str, expected: &str, accepted: bo
     }
 }
 
+fn combine_return_arms(program: &mut psi_typed_trees::TypedTrees) {
+    use psi_typed_trees::statement::StatementNode;
+    let machine = program.machines()[0].clone();
+    let nodes = program.machine_states(&machine)[0].statement_nodes;
+    let count = nodes.count() as usize;
+    let StatementNode::Transition(other) = &program.statement_table.statements(nodes)[count - 1]
+    else {
+        panic!("false return arm")
+    };
+    let continuation = other.target;
+    let StatementNode::Transition(first) =
+        &mut program.statement_table.statements_mut(nodes)[count - 2]
+    else {
+        panic!("true return arm")
+    };
+    first.continuation = continuation;
+    program.machine_states_mut(&machine)[0].statement_nodes =
+        psi_arena::HandleSpan::from_parts(nodes.start(), nodes.count() - 1);
+}
+
+#[test]
+fn guarded_return_values_land_at_the_declared_destination() {
+    for (expression, target, expected, fallback) in [
+        ("(255 + 1) - 1", "u8", "255", "255"),
+        ("(0 - 129) + 1", "i8", "-128", "-128"),
+        (
+            "(18446744073709551615 + 1) - 1",
+            "u64",
+            "18446744073709551615",
+            "18446744073709551615",
+        ),
+        ("((255u8 as u8 in Wrapping) + 1) as u8", "u8", "0", "0"),
+    ] {
+        for accepted in [true, false] {
+            let comparison = if accepted { "==" } else { "!=" };
+            let source = format!(
+                "machine value(flag: bool) -> {target} ensures result {comparison} {expected} {{ transition flag {{ true -> ({expression}) false -> ({fallback}) }} }}"
+            );
+            for combined in [false, true] {
+                let mut program = parse_typed_trees(&source);
+                if combined {
+                    combine_return_arms(&mut program);
+                }
+                let result = lower_typed_trees(program);
+                assert_eq!(
+                    result.is_ok(),
+                    accepted,
+                    "combined={combined}: {source}: {result:?}"
+                );
+            }
+        }
+    }
+}
+
+#[test]
+fn guarded_scalar_returns_read_current_storage_and_keep_saved_values() {
+    let source = "machine value(flag: bool) -> u8 ensures result == 7 { let mut current: u8 = 7; let saved: u8 = current; current = 8; transition flag { true -> saved false -> (current - 1) } }";
+    for combined in [false, true] {
+        let mut program = parse_typed_trees(source);
+        if combined {
+            combine_return_arms(&mut program);
+        }
+        lower_typed_trees(program)
+            .unwrap_or_else(|diagnostics| panic!("combined={combined}: {source}: {diagnostics:?}"));
+    }
+}
+
 #[test]
 fn anonymous_integer_arithmetic_lands_once_at_the_return_destination() {
     for (expression, target, value) in [
@@ -151,6 +218,7 @@ fn anonymous_operator_meaning_requires_intact_selection_custody() {
 fn destination_landing_does_not_bless_a_shared_literal_at_an_unhandled_call_site() {
     for body in [
         "(18446744073709551615 + 1) - 1",
+        "transition true { true -> ((18446744073709551615 + 1) - 1) false -> 0u64 }",
         "let landed: u64 = (18446744073709551615 + 1) - 1; landed",
         "let mut landed: u64 = (18446744073709551615 + 1) - 1; landed",
         "let mut landed: u64 = 0; landed = (18446744073709551615 + 1) - 1; landed",

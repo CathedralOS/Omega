@@ -1,0 +1,7 @@
+machine value(flag: bool) -> u8
+{
+    transition flag {
+        true -> (255 + 1)
+        false -> 0
+    }
+}

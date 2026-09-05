@@ -456,10 +456,16 @@ Owners include
   Finish executable lowering for state arguments whose evaluation invokes
   effects; materialize effectful returns and earlier call arguments at their exact
   evaluation points and activate staged loans at their evaluation points.
-  Complete anonymous integer landing for guarded returns, argument and
-  aggregate-element destinations, and the remaining numeric operator/policy
-  surface, so proof and execution consume the same values without rereading
-  changed operands.
+  Extend guarded scalar control to crash arms and longer dispatches. Complete
+  anonymous integer landing for argument and aggregate-element destinations
+  and the remaining numeric operator/policy surface, so proof and execution
+  consume the same values without rereading changed operands.
+  Carry false-edge predicates into Terminal operation proofs: division in the
+  false arm of `denominator == 0` validates at source but lacks the nonzero
+  premise during certificate synthesis. Owning area:
+  `psi-terminal-verifier` terminator/path facts and the existing integer
+  certificate producer. Acceptance: both guard polarities publish and execute
+  checked division without evaluating the unselected arm.
   Non-divisible anonymous integer division and signed remainder await the
   [anonymous division ruling](OWNER_QUESTIONS.md#anonymous-integer-division-and-remainder);
   this does not block the other destinations or already-defined operators.

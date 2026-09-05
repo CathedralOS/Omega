@@ -45,10 +45,8 @@ pub(in crate::literals) fn append_destination_literals(
                             }
                             match program.statement_table.transition_target(target) {
                                 TransitionTargetNode::Value(expression)
-                                    if transition.guard == TransitionGuardNode::Always
-                                        && transition.exit
-                                            == psi_typed_trees::statement::TransitionExit::Ordinary
-                                        && !transition.continuation.is_valid()
+                                    if transition.exit
+                                        == psi_typed_trees::statement::TransitionExit::Ordinary
                                         && admitted(state.return_type, *expression) =>
                                 {
                                     append_tree(program, *expression, &mut owned)
