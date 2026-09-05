@@ -5,50 +5,7 @@ use crate::{
     SuspensionFacts, SynchronousInvocationFacts, TerminationFacts,
 };
 
-/// Exact checked certificate for the first fact-call projection rung. The
-/// expression handles rejoin the retained typed call/member tree; all nominal
-/// coordinates are duplicated here so later review cannot accept a merely
-/// shape-compatible projection.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct CheckedFactCallProjection {
-    pub projection_expression: psi_typed_trees::expression::ExpressionHandle,
-    pub call_expression: psi_typed_trees::expression::ExpressionHandle,
-    pub target_machine: psi_symbols::SymbolHandle,
-    pub target_state: psi_symbols::SymbolHandle,
-    pub machine_arguments: Box<[psi_typed_trees::expression::StaticMachineArgument]>,
-    pub result_type: psi_typed_trees::types::TypeReferenceHandle,
-    pub field: psi_symbols::SymbolHandle,
-}
-
-/// Exact checked compiler-intrinsic use joined to its retained expression.
-/// The expression handle is custody; the closed intrinsic identity is the
-/// semantic result of checking, never a later source-text classification.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct CheckedIntrinsicCallFact {
-    pub expression: psi_typed_trees::expression::ExpressionHandle,
-    pub intrinsic:
-        psi_language_semantics::declaration_selection::AuthoredDeclarationSelectionIntrinsic,
-}
-
-/// Source-span-free compiler-internal custody for one direct concrete placed-
-/// view machine input. The complete validated placement is retained because
-/// its compact compatibility fingerprint is not semantic authority. Symbol
-/// handles remain private joins and never cross the Terminal boundary.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct CheckedPlacedViewInput {
-    pub machine: psi_symbols::SymbolHandle,
-    pub state: psi_symbols::SymbolHandle,
-    pub position: u32,
-    pub parameter: psi_symbols::SymbolHandle,
-    pub reference_access: psi_language_core::ReferenceAccess,
-    pub binding_is_const: bool,
-    pub binding_is_mutable: bool,
-    pub view: psi_symbols::SymbolHandle,
-    pub policy: psi_symbols::SymbolHandle,
-    pub policy_plan_machine: psi_symbols::SymbolHandle,
-    pub schema: psi_symbols::SymbolHandle,
-    pub placement: psi_access_plans::ValidatedPlacementPlan,
-}
+use crate::{CheckedFactCallProjection, CheckedIntrinsicCallFact, CheckedPlacedViewInput};
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct CheckFacts {
@@ -158,47 +115,5 @@ impl CheckFacts {
             intrinsic_calls: Vec::new(),
             placed_view_inputs: Vec::new(),
         }
-    }
-}
-
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
-pub struct CheckedTrees {
-    pub typed: psi_typed_trees::TypedTrees,
-    pub facts: CheckFacts,
-}
-
-impl CheckedTrees {
-    pub fn with_roots(typed: psi_typed_trees::TypedTrees, facts: CheckFacts) -> Self {
-        Self { typed, facts }
-    }
-}
-
-impl std::ops::Deref for CheckedTrees {
-    type Target = psi_typed_trees::TypedTrees;
-
-    fn deref(&self) -> &Self::Target {
-        &self.typed
-    }
-}
-
-impl AsRef<psi_typed_trees::TypedTrees> for CheckedTrees {
-    fn as_ref(&self) -> &psi_typed_trees::TypedTrees {
-        &self.typed
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use crate::{CheckFacts, CheckedTrees};
-
-    #[test]
-    fn checked_tree_constructor_keeps_typed_tree_and_fact_roots_explicit() {
-        let typed = psi_typed_trees::TypedTrees::default();
-        let facts = CheckFacts::default();
-
-        let checked = CheckedTrees::with_roots(typed.clone(), facts.clone());
-
-        assert_eq!(checked.typed, typed);
-        assert_eq!(checked.facts, facts);
     }
 }

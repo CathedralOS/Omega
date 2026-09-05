@@ -151,6 +151,81 @@ fn program_representations_have_named_roots_and_concept_owners() {
 }
 
 #[test]
+fn psi_program_roots_expose_concept_owners_without_flat_definition_dumps() {
+    for (package, module, program, areas) in [
+        (
+            "psi-terminal",
+            "terminal_module",
+            "TerminalModule",
+            &[
+                "boundary",
+                "control_flow",
+                "identity",
+                "observation",
+                "ownership",
+                "proof",
+                "types",
+                "values",
+            ][..],
+        ),
+        (
+            "psi-checked-trees",
+            "checked_trees",
+            "CheckedTrees",
+            &[
+                "admissibility",
+                "borrow",
+                "facts",
+                "flow",
+                "operators",
+                "proof",
+                "service_parameter",
+                "statement",
+                "values",
+            ][..],
+        ),
+    ] {
+        let directory = repository()
+            .join("omega-rust/psi/representations")
+            .join(package)
+            .join("src");
+        let mut files = std::fs::read_dir(&directory)
+            .unwrap()
+            .map(|entry| entry.unwrap().path())
+            .filter(|path| path.is_file())
+            .map(|path| path.file_name().unwrap().to_string_lossy().into_owned())
+            .collect::<Vec<_>>();
+        files.sort();
+        let mut expected = vec!["lib.rs".to_owned(), format!("{module}.rs")];
+        expected.sort();
+        assert_eq!(files, expected, "ambiguous program entrance in {package}");
+        let entrance = std::fs::read_to_string(directory.join("lib.rs")).unwrap();
+        assert!(entrance.contains(&format!("pub mod {module};")));
+        assert!(!entrance.contains("pub struct ") && !entrance.contains("pub enum "));
+        let root = std::fs::read_to_string(directory.join(format!("{module}.rs"))).unwrap();
+        assert!(root.contains(&format!("pub struct {program} {{")));
+        assert_eq!(
+            root.matches("pub struct ").count(),
+            1,
+            "root must lead to subordinate vocabulary"
+        );
+        assert!(!root.contains("pub enum "));
+        for area in areas {
+            assert!(
+                root.contains(&format!("pub mod {area};")),
+                "{package} lost its {area} owner"
+            );
+        }
+        assert_eq!(
+            rust_source(&directory)
+                .matches(&format!("pub struct {program} {{"))
+                .count(),
+            1
+        );
+    }
+}
+
+#[test]
 fn effect_analysis_does_not_depend_on_optimizer_history() {
     let root = repository();
     let stage =

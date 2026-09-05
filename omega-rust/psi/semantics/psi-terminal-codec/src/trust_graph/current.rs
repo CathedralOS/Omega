@@ -8,7 +8,7 @@ use super::{
     PROOF_ADMISSION_LIB_SOURCE, PROOF_ADMISSION_PROOF_SOURCE, PROOF_BUNDLE_SOURCE,
     PROOF_CODEC_SOURCE, PROPOSITION_SOURCE, RECONSTRUCTION_SOURCE, SUBSTITUTION_SOURCE,
     TERMINAL_CALL_COMPOSITION_SOURCE, TERMINAL_CANONICAL_SCALAR_GOAL_SOURCE,
-    TERMINAL_DYNAMIC_DISPATCH_SOURCE, TERMINAL_MODEL_SOURCE, TERMINAL_PROOF_BEARING_SCALAR_SOURCE,
+    TERMINAL_PROOF_BEARING_SCALAR_SOURCE, TERMINAL_REPRESENTATION_SOURCE_CLOSURE,
     TERMINAL_SEMANTICS_SOURCE, TERMINAL_STRUCTURAL_EFFECT_SOURCE, TrustAcceptingPolicy,
     TrustDependencyKind, TrustDependencyNode, TrustDependencyStatus, TrustGraphError,
     VERIFIER_CALL_COMPOSITION_SOURCE, VERIFIER_LIB_SOURCE, VERIFIER_SOURCE,
@@ -78,10 +78,13 @@ fn registered_roots() -> Vec<TrustDependencyNode> {
             TrustAcceptingPolicy::RegisteredSemanticFoundation,
             Vec::new(),
             &[
-                ("psi-terminal/module.rs", TERMINAL_MODEL_SOURCE),
                 (
-                    "psi-terminal/dynamic_dispatch.rs",
-                    TERMINAL_DYNAMIC_DISPATCH_SOURCE,
+                    "psi-terminal/representation-source-closure",
+                    TERMINAL_REPRESENTATION_SOURCE_CLOSURE,
+                ),
+                (
+                    "psi-terminal-codec/build.rs",
+                    VERIFIER_SOURCE_CLOSURE_BUILD_SOURCE,
                 ),
             ],
         ),
