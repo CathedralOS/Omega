@@ -8,10 +8,10 @@
 // can replace this package with the constructive Cauchy quotient without
 // changing consumers' contracts.
 
-boundary data Real;
+pub boundary data Real;
 
-boundary machine Real::add(a: Real, b: Real) -> Real;
-boundary machine Real::multiply(a: Real, b: Real) -> Real;
+pub boundary machine Real::add(a: Real, b: Real) -> Real;
+pub boundary machine Real::multiply(a: Real, b: Real) -> Real;
 
 boundary machine real_add_commutative(a: Real, b: Real)
 ensures Real::add(a, b) == Real::add(b, a);
