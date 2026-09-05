@@ -1,0 +1,27 @@
+boundary trait Console {
+  machine exit_process(return_code: i32) -> never;
+  machine write_byte(value: i32);
+  machine read_byte() -> i32;
+  machine write_line(text: &[u8]);
+}
+
+data Child { value: i32; }
+data Cell { value: i32; child: Child; bytes: [u8; 2]; }
+data Main { console: Console; original: Cell; destination: Cell; }
+
+machine Main::main(&mut self) {
+  self.original.value = 65;
+  self.destination.value = 66;
+  self.destination.child.value = 67;
+  self.destination.bytes[0] = 128;
+  self.destination.bytes[1] = 255;
+  self.destination = self.original;
+  assert self.destination.value == 65;
+  assert self.destination.child.value == 0;
+  assert self.destination.bytes[0] == 0;
+  assert self.destination.bytes[1] == 0;
+  self.destination = self.destination;
+  assert self.destination.value == 65;
+  assert self.original.value == 65;
+  self.console.write_byte(self.destination.value);
+}

@@ -1,33 +1,36 @@
 
 (def epsilon_evaluate_one_scalar_argument
   ((context EpsilonEvaluatorInvocation) (arguments EpsilonExpressionList)
-  (locals EpsilonEvaluatorLocalValueList)
-  (fields EpsilonEvaluatorFieldValueList) (output Bytes)) EpsilonEvaluatorOutcome
+  (bindings EpsilonEvaluatorBindings) (store EpsilonRuntimeStore)
+  (output Bytes)) EpsilonEvaluatorOutcome
   (match arguments
     (NoEpsilonExpressions (EpsilonEvaluatorInternal 0))
     ((MoreEpsilonExpressions item rest)
       (match rest
         (NoEpsilonExpressions
-          (epsilon_evaluate_expression context item locals fields output))
+          (epsilon_evaluate_expression context item bindings store output))
         ((MoreEpsilonExpressions nextItem nextRest)
           (EpsilonEvaluatorInternal (epsilon_expression_start nextItem)))))))
 
 (def epsilon_evaluate_console_scalar_effect ((context EpsilonEvaluatorInvocation)
-  (kind Int) (arguments EpsilonExpressionList)
-  (locals EpsilonEvaluatorLocalValueList)
-  (fields EpsilonEvaluatorFieldValueList) (output Bytes)) EpsilonEvaluatorOutcome
+  (kind Int) (arguments EpsilonExpressionList) (bindings EpsilonEvaluatorBindings)
+  (store EpsilonRuntimeStore) (output Bytes)) EpsilonEvaluatorOutcome
   (if (if (eq kind 1) 1 (eq kind 2))
     (let outcome EpsilonEvaluatorOutcome
-      (epsilon_evaluate_one_scalar_argument context arguments locals fields output)
+      (epsilon_evaluate_one_scalar_argument context arguments bindings store output)
       (match outcome
-        ((EpsilonEvaluatorValue value nextFields nextOutput)
-          (if (eq kind 1)
-            (EpsilonEvaluatorExit value nextOutput)
-            (if (if (lt value 0) 1 (lt 255 value))
-              (EpsilonEvaluatorTrap 5 nextOutput)
-              (EpsilonEvaluatorResultless nextFields
-                (bytes_concat nextOutput (bytes_single value))))))
-        ((EpsilonEvaluatorResultless nextFields nextOutput)
+        ((EpsilonEvaluatorValue value place nextStore nextOutput)
+          (match value
+            ((EpsilonRuntimeInteger scalar)
+              (if (eq kind 1)
+                (EpsilonEvaluatorExit scalar nextOutput)
+                (if (if (lt scalar 0) 1 (lt 255 scalar))
+                  (EpsilonEvaluatorTrap 5 nextOutput)
+                  (EpsilonEvaluatorResultless nextStore
+                    (bytes_concat nextOutput (bytes_single scalar))))))
+            ((EpsilonRuntimeAggregate typeValue children)
+              (EpsilonEvaluatorInternal 0))))
+        ((EpsilonEvaluatorResultless nextStore nextOutput)
           (EpsilonEvaluatorInternal 0))
         ((EpsilonEvaluatorExit code nextOutput) outcome)
         ((EpsilonEvaluatorTrap trapKind nextOutput) outcome)

@@ -1,0 +1,53 @@
+
+(def epsilon_runtime_reverse_path ((input EpsilonRuntimePath)
+  (output EpsilonRuntimePath)) EpsilonRuntimePath
+  (match input
+    (NoEpsilonRuntimePath output)
+    ((MoreEpsilonRuntimePath projection rest)
+      (epsilon_runtime_reverse_path rest
+        (MoreEpsilonRuntimePath projection output)))))
+
+(def epsilon_runtime_project_place ((place EpsilonRuntimePlace)
+  (projection EpsilonRuntimeProjection) (childType EpsilonType))
+  EpsilonRuntimePlace
+  (match place
+    ((EpsilonRuntimePlaceAt identifier path leafType)
+      (EpsilonRuntimePlaceAt identifier
+        (epsilon_runtime_reverse_path
+          (epsilon_runtime_reverse_path path NoEpsilonRuntimePath)
+          (MoreEpsilonRuntimePath projection NoEpsilonRuntimePath))
+        childType))))
+
+(def epsilon_runtime_read_path ((value EpsilonRuntimeValue)
+  (path EpsilonRuntimePath)) EpsilonRuntimeValueLookup
+  (match path
+    (NoEpsilonRuntimePath (SomeEpsilonRuntimeValue value))
+    ((MoreEpsilonRuntimePath projection rest)
+      (match (epsilon_runtime_project value projection)
+        (NoEpsilonRuntimeValue NoEpsilonRuntimeValue)
+        ((SomeEpsilonRuntimeValue child)
+          (epsilon_runtime_read_path child rest))))))
+
+; Parent snapshots and the selected projection form an explicit reconstruction
+; stack. Neither path length nor sparse-child width retains recursive frames.
+(def epsilon_runtime_rebuild_parents ((value EpsilonRuntimeValue)
+  (parents EpsilonRuntimeChildren)) EpsilonRuntimeValueLookup
+  (match parents
+    (NoEpsilonRuntimeChildren (SomeEpsilonRuntimeValue value))
+    ((MoreEpsilonRuntimeChildren projection parent rest)
+      (match (epsilon_runtime_with_child parent projection value)
+        (NoEpsilonRuntimeValue NoEpsilonRuntimeValue)
+        ((SomeEpsilonRuntimeValue updated)
+          (epsilon_runtime_rebuild_parents updated rest))))))
+
+(def epsilon_runtime_replace_path ((previous EpsilonRuntimeValue)
+  (path EpsilonRuntimePath) (value EpsilonRuntimeValue)
+  (parents EpsilonRuntimeChildren)) EpsilonRuntimeValueLookup
+  (match path
+    (NoEpsilonRuntimePath (epsilon_runtime_rebuild_parents value parents))
+    ((MoreEpsilonRuntimePath projection rest)
+      (match (epsilon_runtime_project previous projection)
+        (NoEpsilonRuntimeValue NoEpsilonRuntimeValue)
+        ((SomeEpsilonRuntimeValue child)
+          (epsilon_runtime_replace_path child rest value
+            (MoreEpsilonRuntimeChildren projection previous parents)))))))

@@ -1,0 +1,32 @@
+boundary trait Console {
+  machine exit_process(return_code: i32) -> never;
+  machine write_byte(value: i32);
+  machine read_byte() -> i32;
+  machine write_line(text: &[u8]);
+}
+
+data Cell { value: i32; }
+data Main { console: Console; original: Cell; }
+
+machine Main::main(&mut self) {
+  self.original.value = 99;
+  let total: i32 = recurse(self.original, 2);
+  assert total == 183;
+  assert self.original.value == 99;
+  self.console.write_byte(total - 118);
+}
+
+machine recurse(seed: Cell, depth: i32) -> i32 {
+  transition depth {
+    0 -> return 60
+    _ -> step()
+  }
+  state step() {
+    let copied: Cell = seed;
+    copied.value = depth + 60;
+    let subtotal: i32 = recurse(seed, depth - 1);
+    assert copied.value == depth + 60;
+    assert seed.value == 99;
+    return subtotal + copied.value;
+  }
+}

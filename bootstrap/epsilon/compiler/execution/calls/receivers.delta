@@ -1,0 +1,65 @@
+
+(def epsilon_evaluator_apply_receiver ((context EpsilonEvaluatorInvocation)
+  (callable EpsilonResolvedCallable) (receiver EpsilonRuntimeOptionalPlace)
+  (arguments EpsilonExpressionList) (bindings EpsilonEvaluatorBindings)
+  (store EpsilonRuntimeStore) (output Bytes)) EpsilonEvaluatorOutcome
+  (match receiver
+    (NoEpsilonRuntimePlace (EpsilonEvaluatorInternal 0))
+    ((SomeEpsilonRuntimePlace place)
+      (match callable
+        ((EpsilonResolvedDataMachineCallable owner targetMachine)
+          (epsilon_evaluate_machine_call context targetMachine receiver arguments
+            bindings store output))
+        ((EpsilonResolvedBoundaryMachineCallable owner memberValue)
+          (match context
+            ((EpsilonEvaluatorInvocationContext source machineValue references
+              fieldReferences callables control currentReceiver blockFloor)
+              (epsilon_evaluate_console_scalar_effect context
+                (epsilon_console_member_kind source
+                  (epsilon_boundary_machine_name memberValue))
+                arguments bindings store output))))
+        ((EpsilonResolvedUnqualifiedMachineCallable targetMachine)
+          (EpsilonEvaluatorInternal 0))
+        ((EpsilonResolvedConstructorCallable owner caseValue)
+          (EpsilonEvaluatorInternal 0))))))
+
+(def epsilon_evaluate_receiver_expression ((context EpsilonEvaluatorInvocation)
+  (callable EpsilonResolvedCallable) (receiver EpsilonExpression)
+  (arguments EpsilonExpressionList) (bindings EpsilonEvaluatorBindings)
+  (store EpsilonRuntimeStore) (output Bytes)) EpsilonEvaluatorOutcome
+  (let outcome EpsilonEvaluatorOutcome
+    (epsilon_evaluate_expression context receiver bindings store output)
+    (match outcome
+      ((EpsilonEvaluatorValue value place nextStore nextOutput)
+        (epsilon_evaluator_apply_receiver context callable place arguments
+          bindings nextStore nextOutput))
+      ((EpsilonEvaluatorResultless nextStore nextOutput)
+        (EpsilonEvaluatorInternal (epsilon_expression_start receiver)))
+      ((EpsilonEvaluatorExit code nextOutput) outcome)
+      ((EpsilonEvaluatorTrap kind nextOutput) outcome)
+      ((EpsilonEvaluatorInternal offset) outcome)
+      (EpsilonEvaluatorUnsupported outcome))))
+
+(def epsilon_evaluate_receiver_call ((context EpsilonEvaluatorInvocation)
+  (callable EpsilonResolvedCallable) (base EpsilonExpression)
+  (arguments EpsilonExpressionList) (bindings EpsilonEvaluatorBindings)
+  (store EpsilonRuntimeStore) (output Bytes)) EpsilonEvaluatorOutcome
+  (match (epsilon_call_head_core base)
+    ((EpsilonFieldExpression start end receiver member)
+      (epsilon_evaluate_receiver_expression context callable receiver arguments
+        bindings store output))
+    ((EpsilonIntegerExpression start end literal) (EpsilonEvaluatorInternal start))
+    ((EpsilonCharacterExpression start end literal) (EpsilonEvaluatorInternal start))
+    ((EpsilonStringExpression start end literal) (EpsilonEvaluatorInternal start))
+    ((EpsilonTrueExpression start end) (EpsilonEvaluatorInternal start))
+    ((EpsilonFalseExpression start end) (EpsilonEvaluatorInternal start))
+    ((EpsilonNameExpression start end name) (EpsilonEvaluatorInternal start))
+    ((EpsilonQualifiedExpression start end owner name supplied)
+      (EpsilonEvaluatorInternal start))
+    ((EpsilonGroupedExpression start end inner) (EpsilonEvaluatorInternal start))
+    ((EpsilonCallExpression start end inner supplied) (EpsilonEvaluatorInternal start))
+    ((EpsilonIndexExpression start end inner indexValue) (EpsilonEvaluatorInternal start))
+    ((EpsilonSliceExpression start end inner low high) (EpsilonEvaluatorInternal start))
+    ((EpsilonNegateExpression start end operand) (EpsilonEvaluatorInternal start))
+    ((EpsilonBinaryExpression start end operator operatorStart operatorEnd left right)
+      (EpsilonEvaluatorInternal start))))

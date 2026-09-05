@@ -1,0 +1,39 @@
+boundary trait Console {
+  machine exit_process(return_code: i32) -> never;
+  machine write_byte(value: i32);
+  machine read_byte() -> i32;
+  machine write_line(text: &[u8]);
+}
+
+data Cell { value: i32; }
+data Main { console: Console; first: Cell; second: Cell; marker: Cell; }
+
+machine Main::main(&mut self) {
+  self.first.value = 65;
+  self.second.value = 66;
+  self.marker.value = 67;
+  let result: i32 = swap(self.first, self.second, self.marker);
+  assert self.first.value == 65;
+  assert self.second.value == 66;
+  assert self.marker.value == 67;
+  self.console.write_byte(result);
+}
+
+machine swap(first: Cell, second: Cell, marker: Cell) -> i32 {
+  transition 0 { 0 -> step(first, second, 0) }
+  state step(left: Cell, right: Cell, count: i32) {
+    transition count {
+      0 -> step(right, left, 1)
+      _ -> done(left, right)
+    }
+  }
+  state done(left: Cell, right: Cell) {
+    assert left.value == 66;
+    assert right.value == 65;
+    assert marker.value == 67;
+    left.value = 68;
+    assert first.value == 65;
+    assert second.value == 66;
+    return right.value;
+  }
+}

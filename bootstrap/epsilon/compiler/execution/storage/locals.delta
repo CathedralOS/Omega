@@ -5,145 +5,114 @@
     (eq (epsilon_statement_end left) (epsilon_statement_end right))
     0))
 
-(def epsilon_evaluate_let_value ((target EpsilonStatement)
-  (locals EpsilonEvaluatorLocalValueList)) EpsilonEvaluatorScalar
-  (match locals
-    (NoEpsilonEvaluatorLocalValues NoEpsilonEvaluatorScalar)
-    ((MoreEpsilonEvaluatorLocalValues item rest)
+(def epsilon_evaluator_parameters_same_identity ((left EpsilonParameter)
+  (right EpsilonParameter)) Int
+  (if (eq (epsilon_parameter_start left) (epsilon_parameter_start right))
+    (eq (epsilon_parameter_end left) (epsilon_parameter_end right))
+    0))
+
+(def epsilon_evaluator_find_let_binding ((target EpsilonStatement)
+  (bindings EpsilonEvaluatorBindings)) EpsilonEvaluatorBindingLookup
+  (match bindings
+    (NoEpsilonEvaluatorBindings NoEpsilonEvaluatorBinding)
+    ((MoreEpsilonEvaluatorBindings item rest)
       (match item
-        ((EpsilonEvaluatorLetValue statementValue value)
+        ((EpsilonEvaluatorLetBinding statementValue identifier)
           (if (epsilon_evaluator_statements_same_identity target statementValue)
-            (OneEpsilonEvaluatorScalar value)
-            (epsilon_evaluate_let_value target rest)))
-        ((EpsilonEvaluatorParameterValue parameterValue value)
-          (epsilon_evaluate_let_value target rest))))))
+            (SomeEpsilonEvaluatorBinding identifier)
+            (epsilon_evaluator_find_let_binding target rest)))
+        ((EpsilonEvaluatorParameterBinding parameterValue identifier)
+          (epsilon_evaluator_find_let_binding target rest))))))
 
-(def epsilon_evaluate_parameter_value ((target EpsilonParameter)
-  (locals EpsilonEvaluatorLocalValueList)) EpsilonEvaluatorScalar
-  (match locals
-    (NoEpsilonEvaluatorLocalValues NoEpsilonEvaluatorScalar)
-    ((MoreEpsilonEvaluatorLocalValues item rest)
+(def epsilon_evaluator_find_parameter_binding ((target EpsilonParameter)
+  (bindings EpsilonEvaluatorBindings)) EpsilonEvaluatorBindingLookup
+  (match bindings
+    (NoEpsilonEvaluatorBindings NoEpsilonEvaluatorBinding)
+    ((MoreEpsilonEvaluatorBindings item rest)
       (match item
-        ((EpsilonEvaluatorLetValue statementValue value)
-          (epsilon_evaluate_parameter_value target rest))
-        ((EpsilonEvaluatorParameterValue parameterValue value)
-          (if (if (eq (epsilon_parameter_start target)
-                      (epsilon_parameter_start parameterValue))
-                (eq (epsilon_parameter_end target)
-                  (epsilon_parameter_end parameterValue))
-                0)
-            (OneEpsilonEvaluatorScalar value)
-            (epsilon_evaluate_parameter_value target rest)))))))
+        ((EpsilonEvaluatorLetBinding statementValue identifier)
+          (epsilon_evaluator_find_parameter_binding target rest))
+        ((EpsilonEvaluatorParameterBinding parameterValue identifier)
+          (if (epsilon_evaluator_parameters_same_identity target parameterValue)
+            (SomeEpsilonEvaluatorBinding identifier)
+            (epsilon_evaluator_find_parameter_binding target rest)))))))
 
-(def epsilon_evaluator_local_homes_same_identity
-  ((left EpsilonEvaluatorLocalValue) (right EpsilonEvaluatorLocalValue)) Int
-  (match left
-    ((EpsilonEvaluatorLetValue leftStatement leftValue)
-      (match right
-        ((EpsilonEvaluatorLetValue rightStatement rightValue)
-          (epsilon_evaluator_statements_same_identity leftStatement rightStatement))
-        ((EpsilonEvaluatorParameterValue rightParameter rightValue) 0)))
-    ((EpsilonEvaluatorParameterValue leftParameter leftValue)
-      (match right
-        ((EpsilonEvaluatorLetValue rightStatement rightValue) 0)
-        ((EpsilonEvaluatorParameterValue rightParameter rightValue)
-          (if (eq (epsilon_parameter_start leftParameter)
-                  (epsilon_parameter_start rightParameter))
-            (eq (epsilon_parameter_end leftParameter)
-              (epsilon_parameter_end rightParameter))
-            0))))))
+(def epsilon_evaluator_read_place ((place EpsilonRuntimePlace)
+  (store EpsilonRuntimeStore) (output Bytes) (offset Int)) EpsilonEvaluatorOutcome
+  (match (epsilon_runtime_read place store)
+    (NoEpsilonRuntimeValue (EpsilonEvaluatorInternal offset))
+    ((SomeEpsilonRuntimeValue value)
+      (EpsilonEvaluatorValue value (SomeEpsilonRuntimePlace place) store output))))
 
-; A store replaces an established declaration home, never a same-spelled name
-; or an uninitialized slot. Rebuild the prefix without changing other homes.
-(def epsilon_evaluator_replace_local_home ((replacement EpsilonEvaluatorLocalValue)
-  (locals EpsilonEvaluatorLocalValueList)) EpsilonEvaluatorLocalAssignmentOutcome
-  (match locals
-    (NoEpsilonEvaluatorLocalValues EpsilonEvaluatorLocalAssignmentMissing)
-    ((MoreEpsilonEvaluatorLocalValues item rest)
-      (if (epsilon_evaluator_local_homes_same_identity replacement item)
-        (EpsilonEvaluatorLocalAssignmentUpdated
-          (MoreEpsilonEvaluatorLocalValues replacement rest))
-        (match (epsilon_evaluator_replace_local_home replacement rest)
-          (EpsilonEvaluatorLocalAssignmentUnsupported
-            EpsilonEvaluatorLocalAssignmentUnsupported)
-          (EpsilonEvaluatorLocalAssignmentMissing
-            EpsilonEvaluatorLocalAssignmentMissing)
-          ((EpsilonEvaluatorLocalAssignmentUpdated nextRest)
-            (EpsilonEvaluatorLocalAssignmentUpdated
-              (MoreEpsilonEvaluatorLocalValues item nextRest))))))))
+(def epsilon_evaluator_read_binding ((binding EpsilonEvaluatorBindingLookup)
+  (typeValue EpsilonType) (store EpsilonRuntimeStore) (output Bytes)
+  (offset Int)) EpsilonEvaluatorOutcome
+  (match binding
+    (NoEpsilonEvaluatorBinding (EpsilonEvaluatorInternal offset))
+    ((SomeEpsilonEvaluatorBinding identifier)
+      (epsilon_evaluator_read_place
+        (EpsilonRuntimePlaceAt identifier NoEpsilonRuntimePath typeValue)
+        store output offset))))
 
-(def epsilon_evaluator_assign_local ((expressionValue EpsilonExpression)
-  (value Int) (references EpsilonResolvedLocalReferenceList)
-  (locals EpsilonEvaluatorLocalValueList)) EpsilonEvaluatorLocalAssignmentOutcome
-  (match (epsilon_find_resolved_local_reference expressionValue references)
-    (NoEpsilonResolvedLocalReference EpsilonEvaluatorLocalAssignmentMissing)
-    ((OneEpsilonResolvedLocalReference bindingValue)
-      (match bindingValue
-        ((EpsilonLetLocal name typeValue statementValue)
-          (if (epsilon_type_is_i32 typeValue)
-            (epsilon_evaluator_replace_local_home
-              (EpsilonEvaluatorLetValue statementValue value) locals)
-            EpsilonEvaluatorLocalAssignmentUnsupported))
-        ((EpsilonStateParameterLocal parameterValue)
-          (match parameterValue
-            ((EpsilonParameterSyntax start end name typeValue)
-              (if (epsilon_type_is_i32 typeValue)
-                (epsilon_evaluator_replace_local_home
-                  (EpsilonEvaluatorParameterValue parameterValue value) locals)
-                EpsilonEvaluatorLocalAssignmentUnsupported))))
-        ((EpsilonReceiverLocal name typeValue)
-          EpsilonEvaluatorLocalAssignmentUnsupported)
-        ((EpsilonMachineParameterLocal parameterValue)
-          (match parameterValue
-            ((EpsilonParameterSyntax start end name typeValue)
-              (if (epsilon_type_is_i32 typeValue)
-                (epsilon_evaluator_replace_local_home
-                  (EpsilonEvaluatorParameterValue parameterValue value) locals)
-                EpsilonEvaluatorLocalAssignmentUnsupported))))
-        ((EpsilonTransitionBinderLocal patternValue name)
-          EpsilonEvaluatorLocalAssignmentUnsupported)))))
-
-(def epsilon_evaluate_resolved_local_scalar ((expressionValue EpsilonExpression)
-  (references EpsilonResolvedLocalReferenceList)
-  (locals EpsilonEvaluatorLocalValueList)) EpsilonEvaluatorScalar
-  (match (epsilon_find_resolved_local_reference expressionValue references)
-    (NoEpsilonResolvedLocalReference NoEpsilonEvaluatorScalar)
-    ((OneEpsilonResolvedLocalReference bindingValue)
-      (match bindingValue
-        ((EpsilonLetLocal name typeValue statementValue)
-          (epsilon_evaluate_let_value statementValue locals))
-        ((EpsilonReceiverLocal name typeValue) NoEpsilonEvaluatorScalar)
-        ((EpsilonMachineParameterLocal parameterValue)
-          (epsilon_evaluate_parameter_value parameterValue locals))
-        ((EpsilonStateParameterLocal parameterValue)
-          (epsilon_evaluate_parameter_value parameterValue locals))
-        ((EpsilonTransitionBinderLocal patternValue name)
-          NoEpsilonEvaluatorScalar)))))
+(def epsilon_evaluate_resolved_local ((context EpsilonEvaluatorInvocation)
+  (expressionValue EpsilonExpression) (bindings EpsilonEvaluatorBindings)
+  (store EpsilonRuntimeStore) (output Bytes)) EpsilonEvaluatorOutcome
+  (match context
+    ((EpsilonEvaluatorInvocationContext source machineValue references
+      fieldReferences callables control receiver blockRootFloor)
+      (match (epsilon_find_resolved_local_reference expressionValue references)
+        (NoEpsilonResolvedLocalReference
+          (EpsilonEvaluatorInternal (epsilon_expression_start expressionValue)))
+        ((OneEpsilonResolvedLocalReference bindingValue)
+          (match bindingValue
+            ((EpsilonLetLocal name typeValue statementValue)
+              (epsilon_evaluator_read_binding
+                (epsilon_evaluator_find_let_binding statementValue bindings)
+                typeValue store output (epsilon_expression_start expressionValue)))
+            ((EpsilonReceiverLocal name typeValue)
+              (match receiver
+                (NoEpsilonRuntimePlace
+                  (EpsilonEvaluatorInternal (epsilon_expression_start expressionValue)))
+                ((SomeEpsilonRuntimePlace place)
+                  (epsilon_evaluator_read_place place store output
+                    (epsilon_expression_start expressionValue)))))
+            ((EpsilonMachineParameterLocal parameterValue)
+              (match parameterValue
+                ((EpsilonParameterSyntax start end name typeValue)
+                  (epsilon_evaluator_read_binding
+                    (epsilon_evaluator_find_parameter_binding parameterValue bindings)
+                    typeValue store output (epsilon_expression_start expressionValue)))))
+            ((EpsilonStateParameterLocal parameterValue)
+              (match parameterValue
+                ((EpsilonParameterSyntax start end name typeValue)
+                  (epsilon_evaluator_read_binding
+                    (epsilon_evaluator_find_parameter_binding parameterValue bindings)
+                    typeValue store output (epsilon_expression_start expressionValue)))))
+            ((EpsilonTransitionBinderLocal patternValue name)
+              EpsilonEvaluatorUnsupported)))))))
 
 (def epsilon_evaluator_is_machine_parameter ((target EpsilonParameter)
   (parameters EpsilonParameterList)) Int
   (match parameters
     (NoEpsilonParameters 0)
     ((MoreEpsilonParameters item rest)
-      (if (epsilon_evaluator_local_homes_same_identity
-        (EpsilonEvaluatorParameterValue target 0)
-        (EpsilonEvaluatorParameterValue item 0))
+      (if (epsilon_evaluator_parameters_same_identity target item)
         1
         (epsilon_evaluator_is_machine_parameter target rest)))))
 
-; A state transfer discards block homes but retains the invocation's current
-; parameter values, including mutations. Spelling never selects a retained row.
+; Keep the invocation's exact parameter roots, not copies of their old values.
+; State-local roots are released separately after all argument snapshots exist.
 (def epsilon_evaluator_preserve_machine_parameters
-  ((parameters EpsilonParameterList) (locals EpsilonEvaluatorLocalValueList))
-  EpsilonEvaluatorLocalValueList
-  (match locals
-    (NoEpsilonEvaluatorLocalValues NoEpsilonEvaluatorLocalValues)
-    ((MoreEpsilonEvaluatorLocalValues item rest)
+  ((parameters EpsilonParameterList) (bindings EpsilonEvaluatorBindings))
+  EpsilonEvaluatorBindings
+  (match bindings
+    (NoEpsilonEvaluatorBindings NoEpsilonEvaluatorBindings)
+    ((MoreEpsilonEvaluatorBindings item rest)
       (match item
-        ((EpsilonEvaluatorLetValue statementValue value)
+        ((EpsilonEvaluatorLetBinding statementValue identifier)
           (epsilon_evaluator_preserve_machine_parameters parameters rest))
-        ((EpsilonEvaluatorParameterValue parameterValue value)
+        ((EpsilonEvaluatorParameterBinding parameterValue identifier)
           (if (epsilon_evaluator_is_machine_parameter parameterValue parameters)
-            (MoreEpsilonEvaluatorLocalValues item
+            (MoreEpsilonEvaluatorBindings item
               (epsilon_evaluator_preserve_machine_parameters parameters rest))
             (epsilon_evaluator_preserve_machine_parameters parameters rest)))))))

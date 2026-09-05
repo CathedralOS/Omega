@@ -1,0 +1,26 @@
+boundary trait Console {
+  machine exit_process(return_code: i32) -> never;
+  machine write_byte(value: i32);
+  machine read_byte() -> i32;
+  machine write_line(text: &[u8]);
+}
+
+data Main { console: Console; steps: i32; }
+
+machine Main::main(&mut self) {
+  transition 0 { 0 -> step(300, 65) }
+  state step(remaining: i32, value: i32) {
+    let copied: i32 = value;
+    let next: i32 = remaining - 1;
+    self.steps = self.steps + 1;
+    assert copied == 65;
+    transition remaining {
+      1 -> done(copied)
+      _ -> step(next, copied)
+    }
+  }
+  state done(value: i32) {
+    assert self.steps == 300;
+    self.console.write_byte(value);
+  }
+}

@@ -1,0 +1,28 @@
+boundary trait Console {
+  machine exit_process(return_code: i32) -> never;
+  machine write_byte(value: i32);
+  machine read_byte() -> i32;
+  machine write_line(text: &[u8]);
+}
+
+data Cell { value: i32; }
+data Main { console: Console; original: Cell; }
+
+machine Main::main(&mut self) {
+  self.original.value = 65;
+  let result: i32 = inspect(self.original, self.change());
+  assert result == 65;
+  assert self.original.value == 66;
+  self.console.write_byte(self.original.value);
+}
+
+machine Main::change(&mut self) -> i32 {
+  self.console.write_byte(65);
+  self.original.value = 66;
+  return 0;
+}
+
+machine inspect(snapshot: Cell, ignored: i32) -> i32 {
+  assert ignored == 0;
+  return snapshot.value;
+}

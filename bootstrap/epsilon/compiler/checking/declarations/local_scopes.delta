@@ -137,9 +137,18 @@
 (def epsilon_census_scan_statements ((source Bytes)
   (statements EpsilonStatementList)
   (environment EpsilonNameList)) EpsilonCensusLocalScan
+  (epsilon_census_scan_statements_fold source statements environment
+    NoEpsilonCensusCandidate))
+
+; Scan in source order so each let sees exactly its earlier bindings. Carry
+; the earliest candidate, retaining the earlier derivation on equal offsets,
+; rather than retaining a return frame for every established local.
+(def epsilon_census_scan_statements_fold ((source Bytes)
+  (statements EpsilonStatementList) (environment EpsilonNameList)
+  (candidate EpsilonCensusCandidate)) EpsilonCensusLocalScan
   (match statements
     (NoEpsilonStatements
-      (EpsilonCensusLocalScanResult NoEpsilonCensusCandidate environment))
+      (EpsilonCensusLocalScanResult candidate environment))
     ((MoreEpsilonStatements item rest)
       (match item
         ((EpsilonLetStatement start end name typeValue expressionValue)
@@ -147,20 +156,15 @@
             (if (epsilon_census_name_in_list source name environment)
               (epsilon_census_duplicate start)
               NoEpsilonCensusCandidate)
-            (let tailScan EpsilonCensusLocalScan
-              (epsilon_census_scan_statements source rest
-                (MoreEpsilonNames name environment))
-              (match tailScan
-                ((EpsilonCensusLocalScanResult tailCandidate tailEnvironment)
-                  (EpsilonCensusLocalScanResult
-                    (epsilon_census_min current tailCandidate)
-                    tailEnvironment))))))
+            (epsilon_census_scan_statements_fold source rest
+              (MoreEpsilonNames name environment)
+              (epsilon_census_min candidate current))))
         ((EpsilonAssignmentStatement start end placeValue expressionValue)
-          (epsilon_census_scan_statements source rest environment))
+          (epsilon_census_scan_statements_fold source rest environment candidate))
         ((EpsilonPostfixStatement start end expressionValue)
-          (epsilon_census_scan_statements source rest environment))
+          (epsilon_census_scan_statements_fold source rest environment candidate))
         ((EpsilonAssertStatement start end expressionValue)
-          (epsilon_census_scan_statements source rest environment))))))
+          (epsilon_census_scan_statements_fold source rest environment candidate))))))
 
 (def epsilon_census_binder_outer_collisions ((source Bytes)
   (names EpsilonNameList) (environment EpsilonNameList)) EpsilonCensusCandidate

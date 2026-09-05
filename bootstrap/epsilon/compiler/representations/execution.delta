@@ -1,6 +1,5 @@
 
-; Staging outcome for the executable evaluator frontier. Unsupported is not an
-; Epsilon observation and cannot be published by the final evaluator.
+; Staging outcomes never turn unsupported execution into an Epsilon observation.
 (data EpsilonEvaluatorSliceOutcome
   (EpsilonEvaluatorSliceExit Int Bytes)
   (EpsilonEvaluatorSliceTrap Int Bytes)
@@ -8,71 +7,108 @@
   (EpsilonEvaluatorSliceInternal Int)
   (EpsilonEvaluatorSliceUnsupported))
 
-(data EpsilonEvaluatorScalar
-  (NoEpsilonEvaluatorScalar)
-  (OneEpsilonEvaluatorScalar Int))
-
+; Pure arithmetic results are separate from effect-threaded expression results.
 (data EpsilonEvaluatorScalarOutcome
   (EpsilonEvaluatorScalarUnsupported)
   (EpsilonEvaluatorScalarValue Int)
   (EpsilonEvaluatorScalarTrapped Int))
 
-(data EpsilonEvaluatorLocalValue
-  (EpsilonEvaluatorLetValue EpsilonStatement Int)
-  (EpsilonEvaluatorParameterValue EpsilonParameter Int))
+; Aggregate snapshots share immutable children. Unwritten children are typed
+; zero defaults, not eagerly allocated storage for the entire declared array.
+(data EpsilonRuntimeValue
+  (EpsilonRuntimeInteger Int)
+  (EpsilonRuntimeAggregate EpsilonType EpsilonRuntimeChildren))
 
-(data EpsilonEvaluatorLocalValueList
-  (NoEpsilonEvaluatorLocalValues)
-  (MoreEpsilonEvaluatorLocalValues EpsilonEvaluatorLocalValue
-    EpsilonEvaluatorLocalValueList))
+(data EpsilonRuntimeProjection
+  (EpsilonRuntimeField EpsilonDeclaration EpsilonDataMember)
+  (EpsilonRuntimeIndex Int))
 
-(data EpsilonEvaluatorLocalAssignmentOutcome
-  (EpsilonEvaluatorLocalAssignmentUnsupported)
-  (EpsilonEvaluatorLocalAssignmentMissing)
-  (EpsilonEvaluatorLocalAssignmentUpdated EpsilonEvaluatorLocalValueList))
+(data EpsilonRuntimeChildren
+  (NoEpsilonRuntimeChildren)
+  (MoreEpsilonRuntimeChildren EpsilonRuntimeProjection EpsilonRuntimeValue
+    EpsilonRuntimeChildren))
 
-(data EpsilonEvaluatorFieldValue
-  (EpsilonEvaluatorScalarFieldValue EpsilonDeclaration EpsilonDataMember Int)
-  (EpsilonEvaluatorArrayElementValue EpsilonDeclaration EpsilonDataMember Int Int))
+(data EpsilonRuntimePath
+  (NoEpsilonRuntimePath)
+  (MoreEpsilonRuntimePath EpsilonRuntimeProjection EpsilonRuntimePath))
 
-(data EpsilonEvaluatorFieldValueList
-  (NoEpsilonEvaluatorFieldValues)
-  (MoreEpsilonEvaluatorFieldValues EpsilonEvaluatorFieldValue
-    EpsilonEvaluatorFieldValueList))
+(data EpsilonRuntimePlace
+  (EpsilonRuntimePlaceAt Int EpsilonRuntimePath EpsilonType))
 
-(data EpsilonEvaluatorAssignmentOutcome
-  (EpsilonEvaluatorAssignmentUnsupported)
-  (EpsilonEvaluatorAssignmentTrapped Int)
-  (EpsilonEvaluatorAssignmentUpdated EpsilonEvaluatorFieldValueList))
+(data EpsilonRuntimeOptionalPlace
+  (NoEpsilonRuntimePlace)
+  (SomeEpsilonRuntimePlace EpsilonRuntimePlace))
 
-; Expressions and ordinary invocations return their committed effects together.
-; Only the outer entry adapter turns a resultless return into process exit.
+(data EpsilonRuntimeValueLookup
+  (NoEpsilonRuntimeValue)
+  (SomeEpsilonRuntimeValue EpsilonRuntimeValue))
+
+; A declaration identifies a slot's syntax, never its recursive runtime instance.
+(data EpsilonRuntimeRoots
+  (NoEpsilonRuntimeRoots)
+  (MoreEpsilonRuntimeRoots Int EpsilonRuntimeValue EpsilonRuntimeRoots))
+
+(data EpsilonRuntimeStore
+  (EpsilonRuntimeStoreState Int EpsilonRuntimeRoots))
+
+(data EpsilonRuntimeAllocation
+  (EpsilonRuntimeAllocated Int EpsilonRuntimeStore))
+
+(data EpsilonRuntimeStoreOutcome
+  (EpsilonRuntimeStoreUpdated EpsilonRuntimeStore)
+  (EpsilonRuntimeStoreTrapped Int)
+  (EpsilonRuntimeStoreInternal))
+
+(data EpsilonEvaluatorBinding
+  (EpsilonEvaluatorLetBinding EpsilonStatement Int)
+  (EpsilonEvaluatorParameterBinding EpsilonParameter Int))
+
+(data EpsilonEvaluatorBindings
+  (NoEpsilonEvaluatorBindings)
+  (MoreEpsilonEvaluatorBindings EpsilonEvaluatorBinding EpsilonEvaluatorBindings))
+
+(data EpsilonEvaluatorBindingLookup
+  (NoEpsilonEvaluatorBinding)
+  (SomeEpsilonEvaluatorBinding Int))
+
+(data EpsilonEvaluatorBoundParameters
+  (EpsilonEvaluatorParametersBound EpsilonEvaluatorBindings EpsilonRuntimeStore))
+
+; Values may carry a place while evaluating projections. Copies and returns
+; retain only their immutable value; a receiver call retains the selected place.
 (data EpsilonEvaluatorOutcome
-  (EpsilonEvaluatorValue Int EpsilonEvaluatorFieldValueList Bytes)
-  (EpsilonEvaluatorResultless EpsilonEvaluatorFieldValueList Bytes)
+  (EpsilonEvaluatorValue EpsilonRuntimeValue EpsilonRuntimeOptionalPlace
+    EpsilonRuntimeStore Bytes)
+  (EpsilonEvaluatorResultless EpsilonRuntimeStore Bytes)
   (EpsilonEvaluatorExit Int Bytes)
   (EpsilonEvaluatorTrap Int Bytes)
   (EpsilonEvaluatorInternal Int)
   (EpsilonEvaluatorUnsupported))
 
-; Checked invocation identity stays fixed across its entry and state blocks.
+; The block-root floor is fixed after machine-parameter homes are installed.
 (data EpsilonEvaluatorInvocation
   (EpsilonEvaluatorInvocationContext Bytes EpsilonDeclaration
     EpsilonResolvedLocalReferenceList EpsilonResolvedFieldReferenceList
-    EpsilonResolvedCallableReferenceList EpsilonControlReferenceLedger))
+    EpsilonResolvedCallableReferenceList EpsilonControlReferenceLedger
+    EpsilonRuntimeOptionalPlace Int))
 
 (data EpsilonEvaluatorBlockOutcome
-  (EpsilonEvaluatorBlockFalloff EpsilonEvaluatorLocalValueList
-    EpsilonEvaluatorFieldValueList Bytes)
-  (EpsilonEvaluatorBlockReturn Int EpsilonEvaluatorFieldValueList Bytes)
-  (EpsilonEvaluatorBlockTransfer EpsilonState EpsilonEvaluatorLocalValueList
-    EpsilonEvaluatorFieldValueList Bytes)
+  (EpsilonEvaluatorBlockFalloff EpsilonEvaluatorBindings EpsilonRuntimeStore Bytes)
+  (EpsilonEvaluatorBlockReturn EpsilonRuntimeValue EpsilonRuntimeStore Bytes)
+  (EpsilonEvaluatorBlockTransfer EpsilonState EpsilonEvaluatorBindings
+    EpsilonRuntimeStore Bytes)
   (EpsilonEvaluatorBlockExit Int Bytes)
   (EpsilonEvaluatorBlockTrap Int Bytes)
   (EpsilonEvaluatorBlockInternal Int)
   (EpsilonEvaluatorBlockUnsupported))
 
+; Each argument captures a snapshot before the next argument's effects.
+(data EpsilonEvaluatorArgumentValues
+  (NoEpsilonEvaluatorArgumentValues)
+  (MoreEpsilonEvaluatorArgumentValues EpsilonParameter EpsilonRuntimeValue
+    EpsilonEvaluatorArgumentValues))
+
 (data EpsilonEvaluatorArgumentsOutcome
-  (EpsilonEvaluatorArgumentsBound EpsilonEvaluatorLocalValueList
-    EpsilonEvaluatorFieldValueList Bytes)
+  (EpsilonEvaluatorArgumentsEvaluated EpsilonEvaluatorArgumentValues
+    EpsilonRuntimeStore Bytes)
   (EpsilonEvaluatorArgumentsStopped EpsilonEvaluatorOutcome))

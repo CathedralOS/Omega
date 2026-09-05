@@ -1,15 +1,17 @@
 
-; Argument effects commit left-to-right while every argument reads the caller's
-; local environment. New parameter homes become visible only after all arguments.
+; Evaluate every argument before installing parameter homes. Each value is an
+; immutable snapshot taken before the following argument's effects.
 (def epsilon_evaluate_arguments ((context EpsilonEvaluatorInvocation)
   (parameters EpsilonParameterList) (arguments EpsilonExpressionList)
-  (locals EpsilonEvaluatorLocalValueList)
-  (fields EpsilonEvaluatorFieldValueList) (output Bytes)
-  (bound EpsilonEvaluatorLocalValueList)) EpsilonEvaluatorArgumentsOutcome
+  (bindings EpsilonEvaluatorBindings) (store EpsilonRuntimeStore) (output Bytes)
+  (values EpsilonEvaluatorArgumentValues)) EpsilonEvaluatorArgumentsOutcome
   (match parameters
     (NoEpsilonParameters
       (match arguments
-        (NoEpsilonExpressions (EpsilonEvaluatorArgumentsBound bound fields output))
+        (NoEpsilonExpressions
+          (EpsilonEvaluatorArgumentsEvaluated
+            (epsilon_evaluator_reverse_argument_values values
+              NoEpsilonEvaluatorArgumentValues) store output))
         ((MoreEpsilonExpressions item rest)
           (EpsilonEvaluatorArgumentsStopped
             (EpsilonEvaluatorInternal (epsilon_expression_start item))))))
@@ -19,30 +21,41 @@
           (EpsilonEvaluatorArgumentsStopped
             (EpsilonEvaluatorInternal (epsilon_parameter_start parameterValue))))
         ((MoreEpsilonExpressions expressionValue remainingArguments)
-          (match parameterValue
-            ((EpsilonParameterSyntax start end name typeValue)
-              (if (epsilon_type_is_i32 typeValue)
-                (let outcome EpsilonEvaluatorOutcome
-                  (epsilon_evaluate_expression context expressionValue locals
-                    fields output)
-                  (match outcome
-                    ((EpsilonEvaluatorValue value nextFields nextOutput)
-                      (epsilon_evaluate_arguments context remainingParameters
-                        remainingArguments locals nextFields nextOutput
-                        (MoreEpsilonEvaluatorLocalValues
-                          (EpsilonEvaluatorParameterValue parameterValue value)
-                          bound)))
-                    ((EpsilonEvaluatorResultless nextFields nextOutput)
-                      (EpsilonEvaluatorArgumentsStopped
-                        (EpsilonEvaluatorInternal
-                          (epsilon_expression_start expressionValue))))
-                    ((EpsilonEvaluatorExit code nextOutput)
-                      (EpsilonEvaluatorArgumentsStopped outcome))
-                    ((EpsilonEvaluatorTrap kind nextOutput)
-                      (EpsilonEvaluatorArgumentsStopped outcome))
-                    ((EpsilonEvaluatorInternal offset)
-                      (EpsilonEvaluatorArgumentsStopped outcome))
-                    (EpsilonEvaluatorUnsupported
-                      (EpsilonEvaluatorArgumentsStopped outcome))))
+          (let outcome EpsilonEvaluatorOutcome
+            (epsilon_evaluate_expression context expressionValue bindings store output)
+            (match outcome
+              ((EpsilonEvaluatorValue value place nextStore nextOutput)
+                (epsilon_evaluate_arguments context remainingParameters
+                  remainingArguments bindings nextStore nextOutput
+                  (MoreEpsilonEvaluatorArgumentValues parameterValue value values)))
+              ((EpsilonEvaluatorResultless nextStore nextOutput)
                 (EpsilonEvaluatorArgumentsStopped
-                  EpsilonEvaluatorUnsupported)))))))))
+                  (EpsilonEvaluatorInternal (epsilon_expression_start expressionValue))))
+              ((EpsilonEvaluatorExit code nextOutput)
+                (EpsilonEvaluatorArgumentsStopped outcome))
+              ((EpsilonEvaluatorTrap kind nextOutput)
+                (EpsilonEvaluatorArgumentsStopped outcome))
+              ((EpsilonEvaluatorInternal offset)
+                (EpsilonEvaluatorArgumentsStopped outcome))
+              (EpsilonEvaluatorUnsupported (EpsilonEvaluatorArgumentsStopped outcome)))))))))
+
+(def epsilon_evaluator_reverse_argument_values ((input EpsilonEvaluatorArgumentValues)
+  (output EpsilonEvaluatorArgumentValues)) EpsilonEvaluatorArgumentValues
+  (match input
+    (NoEpsilonEvaluatorArgumentValues output)
+    ((MoreEpsilonEvaluatorArgumentValues parameterValue value rest)
+      (epsilon_evaluator_reverse_argument_values rest
+        (MoreEpsilonEvaluatorArgumentValues parameterValue value output)))))
+
+(def epsilon_evaluator_bind_arguments ((values EpsilonEvaluatorArgumentValues)
+  (bindings EpsilonEvaluatorBindings) (store EpsilonRuntimeStore))
+  EpsilonEvaluatorBoundParameters
+  (match values
+    (NoEpsilonEvaluatorArgumentValues (EpsilonEvaluatorParametersBound bindings store))
+    ((MoreEpsilonEvaluatorArgumentValues parameterValue value rest)
+      (match (epsilon_runtime_allocate value store)
+        ((EpsilonRuntimeAllocated identifier nextStore)
+          (epsilon_evaluator_bind_arguments rest
+            (MoreEpsilonEvaluatorBindings
+              (EpsilonEvaluatorParameterBinding parameterValue identifier) bindings)
+            nextStore))))))

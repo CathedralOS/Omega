@@ -1,0 +1,20 @@
+boundary trait Console {
+  machine exit_process(return_code: i32) -> never;
+  machine write_byte(value: i32);
+  machine read_byte() -> i32;
+  machine write_line(text: &[u8]);
+}
+
+data Cell { value: i32; }
+data Main { console: Console; original: Cell; }
+
+machine Main::main(&mut self) {
+  self.original.value = 64;
+  let copied: Cell = self.original;
+  copied.increment();
+  assert copied.value == 65;
+  assert self.original.value == 64;
+  self.console.write_byte(copied.value);
+}
+
+machine Cell::increment(&mut self) { self.value = self.value + 1; }

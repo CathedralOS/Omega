@@ -1,21 +1,21 @@
 
 (def epsilon_evaluate_block ((context EpsilonEvaluatorInvocation)
   (statements EpsilonStatementList) (terminalValue EpsilonOptionalTerminal)
-  (locals EpsilonEvaluatorLocalValueList)
-  (fields EpsilonEvaluatorFieldValueList) (output Bytes))
+  (bindings EpsilonEvaluatorBindings)
+  (store EpsilonRuntimeStore) (output Bytes))
   EpsilonEvaluatorBlockOutcome
-  (match (epsilon_evaluate_statements context statements locals fields output)
-    ((EpsilonEvaluatorBlockFalloff nextLocals nextFields nextOutput)
+  (match (epsilon_evaluate_statements context statements bindings store output)
+    ((EpsilonEvaluatorBlockFalloff nextBindings nextStore nextOutput)
       (match terminalValue
         (NoEpsilonTerminal
-          (EpsilonEvaluatorBlockFalloff nextLocals nextFields nextOutput))
+          (EpsilonEvaluatorBlockFalloff nextBindings nextStore nextOutput))
         ((SomeEpsilonTerminal terminal)
-          (epsilon_evaluate_terminal context terminal nextLocals nextFields
+          (epsilon_evaluate_terminal context terminal nextBindings nextStore
             nextOutput))))
-    ((EpsilonEvaluatorBlockTransfer stateValue nextLocals nextFields nextOutput)
-      (EpsilonEvaluatorBlockTransfer stateValue nextLocals nextFields nextOutput))
-    ((EpsilonEvaluatorBlockReturn value nextFields nextOutput)
-      (EpsilonEvaluatorBlockReturn value nextFields nextOutput))
+    ((EpsilonEvaluatorBlockTransfer stateValue nextBindings nextStore nextOutput)
+      (EpsilonEvaluatorBlockTransfer stateValue nextBindings nextStore nextOutput))
+    ((EpsilonEvaluatorBlockReturn value nextStore nextOutput)
+      (EpsilonEvaluatorBlockReturn value nextStore nextOutput))
     ((EpsilonEvaluatorBlockExit code nextOutput)
       (EpsilonEvaluatorBlockExit code nextOutput))
     ((EpsilonEvaluatorBlockTrap kind nextOutput)
@@ -26,9 +26,9 @@
 (def epsilon_evaluator_stopped_block ((outcome EpsilonEvaluatorOutcome)
   (offset Int)) EpsilonEvaluatorBlockOutcome
   (match outcome
-    ((EpsilonEvaluatorValue value fields output)
+    ((EpsilonEvaluatorValue value place store output)
       (EpsilonEvaluatorBlockInternal offset))
-    ((EpsilonEvaluatorResultless fields output)
+    ((EpsilonEvaluatorResultless store output)
       (EpsilonEvaluatorBlockInternal offset))
     ((EpsilonEvaluatorExit code output) (EpsilonEvaluatorBlockExit code output))
     ((EpsilonEvaluatorTrap kind output) (EpsilonEvaluatorBlockTrap kind output))

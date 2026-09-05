@@ -1,34 +1,13 @@
 
-; Receiver realization currently admits only the invocation's existing root.
-; Other places stay unsupported until instance/path custody is represented.
-(def epsilon_evaluator_call_has_self_receiver ((base EpsilonExpression)
-  (references EpsilonResolvedLocalReferenceList)) Int
-  (match (epsilon_call_head_core base)
-    ((EpsilonFieldExpression start end receiver member)
-      (epsilon_evaluator_expression_is_receiver
-        (epsilon_call_head_core receiver) references))
-    ((EpsilonIntegerExpression start end literal) 0)
-    ((EpsilonCharacterExpression start end literal) 0)
-    ((EpsilonStringExpression start end literal) 0)
-    ((EpsilonTrueExpression start end) 0)
-    ((EpsilonFalseExpression start end) 0)
-    ((EpsilonNameExpression start end name) 0)
-    ((EpsilonQualifiedExpression start end owner name arguments) 0)
-    ((EpsilonGroupedExpression start end inner) 0)
-    ((EpsilonCallExpression start end inner arguments) 0)
-    ((EpsilonIndexExpression start end inner indexValue) 0)
-    ((EpsilonSliceExpression start end inner low high) 0)
-    ((EpsilonNegateExpression start end operand) 0)
-    ((EpsilonBinaryExpression start end operator operatorStart operatorEnd
-      left right) 0)))
-
+; Checked callable identity selects one route. Receiver selection and ordinary
+; value argument binding remain separate operations with explicit effect order.
 (def epsilon_evaluate_call ((context EpsilonEvaluatorInvocation)
   (expressionValue EpsilonExpression) (base EpsilonExpression)
-  (arguments EpsilonExpressionList) (locals EpsilonEvaluatorLocalValueList)
-  (fields EpsilonEvaluatorFieldValueList) (output Bytes)) EpsilonEvaluatorOutcome
+  (arguments EpsilonExpressionList) (bindings EpsilonEvaluatorBindings)
+  (store EpsilonRuntimeStore) (output Bytes)) EpsilonEvaluatorOutcome
   (match context
     ((EpsilonEvaluatorInvocationContext source machineValue references
-      fieldReferences callables control)
+      fieldReferences callables control receiver blockFloor)
       (match (epsilon_find_resolved_callable_reference_normalized expressionValue
         callables)
         (NoEpsilonResolvedCallableReference
@@ -36,17 +15,13 @@
         ((OneEpsilonResolvedCallableReference callable)
           (match callable
             ((EpsilonResolvedUnqualifiedMachineCallable targetMachine)
-              (epsilon_evaluate_machine_call context targetMachine arguments
-                locals fields output))
+              (epsilon_evaluate_machine_call context targetMachine
+                NoEpsilonRuntimePlace arguments bindings store output))
             ((EpsilonResolvedDataMachineCallable owner targetMachine)
-              (if (epsilon_evaluator_call_has_self_receiver base references)
-                (epsilon_evaluate_machine_call context targetMachine arguments
-                  locals fields output)
-                EpsilonEvaluatorUnsupported))
+              (epsilon_evaluate_receiver_call context callable base arguments
+                bindings store output))
             ((EpsilonResolvedBoundaryMachineCallable owner memberValue)
-              (epsilon_evaluate_console_scalar_effect context
-                (epsilon_console_member_kind source
-                  (epsilon_boundary_machine_name memberValue))
-                arguments locals fields output))
+              (epsilon_evaluate_receiver_call context callable base arguments
+                bindings store output))
             ((EpsilonResolvedConstructorCallable owner caseValue)
               EpsilonEvaluatorUnsupported)))))))

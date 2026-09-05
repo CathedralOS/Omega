@@ -88,9 +88,14 @@ first C tape only when its ordinary `alpha_bootstrap` target is selected.
   artifact yet. The
   current fact pass does enforce D38's contextual receiver/result relation and
   separate array-view extra-call rejection.
-  Executable scalar slices include unqualified and direct-self machine calls,
-  independent recursive invocation locals, value/resultless returns, and
-  effect-threaded expressions; arbitrary receiver-place and aggregate execution
+  The staging executor supports unqualified calls and nested receiver places,
+  independent recursive invocation homes, record/fixed-array value copies,
+  value/resultless returns, and effect-threaded expressions. Runtime places
+  distinguish instances by root identifier and checked field/index path;
+  scope exit releases local roots without reusing their identifiers. Sparse
+  zero homes avoid eager aggregate allocation but do not establish a complete
+  physical application storage profile. Sum and view execution, remaining
+  Console operations, and exact composition with the complete Omega D source
   remain incomplete.
 
 Superseded bridge and native-publication experiments remain only in Git

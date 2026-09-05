@@ -1,12 +1,11 @@
 
 (def epsilon_evaluate_state_application ((context EpsilonEvaluatorInvocation)
   (targetMachine EpsilonDeclaration) (stateValue EpsilonState)
-  (arguments EpsilonExpressionList) (locals EpsilonEvaluatorLocalValueList)
-  (fields EpsilonEvaluatorFieldValueList) (output Bytes))
-  EpsilonEvaluatorBlockOutcome
+  (arguments EpsilonExpressionList) (bindings EpsilonEvaluatorBindings)
+  (store EpsilonRuntimeStore) (output Bytes)) EpsilonEvaluatorBlockOutcome
   (match context
     ((EpsilonEvaluatorInvocationContext source machineValue references
-      fieldReferences callables control)
+      fieldReferences callables control receiver blockRootFloor)
       (if (eq (epsilon_declaration_end machineValue)
               (epsilon_declaration_end targetMachine))
         (match machineValue
@@ -18,13 +17,16 @@
             (match stateValue
               ((EpsilonStateSyntax stateStart stateEnd stateName parameters stateBody)
                 (match (epsilon_evaluate_arguments context parameters arguments
-                  locals fields output
-                  (epsilon_evaluator_preserve_machine_parameters
-                    (epsilon_machine_input_parameters inputs) locals))
+                  bindings store output NoEpsilonEvaluatorArgumentValues)
                   ((EpsilonEvaluatorArgumentsStopped outcome)
                     (epsilon_evaluator_stopped_block outcome stateStart))
-                  ((EpsilonEvaluatorArgumentsBound bound nextFields nextOutput)
-                    (EpsilonEvaluatorBlockTransfer stateValue bound nextFields
-                      nextOutput)))))))
+                  ((EpsilonEvaluatorArgumentsEvaluated values nextStore nextOutput)
+                    (match (epsilon_evaluator_bind_arguments values
+                      (epsilon_evaluator_preserve_machine_parameters
+                        (epsilon_machine_input_parameters inputs) bindings)
+                      (epsilon_runtime_release_since blockRootFloor nextStore))
+                      ((EpsilonEvaluatorParametersBound nextBindings finalStore)
+                        (EpsilonEvaluatorBlockTransfer stateValue nextBindings
+                          finalStore nextOutput)))))))))
         (EpsilonEvaluatorBlockInternal
           (epsilon_declaration_end targetMachine))))))

@@ -1,0 +1,26 @@
+boundary trait Console {
+  machine exit_process(return_code: i32) -> never;
+  machine write_byte(value: i32);
+  machine read_byte() -> i32;
+  machine write_line(text: &[u8]);
+}
+
+data Cell { value: i32; }
+data Main { console: Console; cells: [Cell; 2]; }
+
+machine Main::main(&mut self) {
+  self.cells[self.index()].set(self.argument());
+  self.console.write_byte(67);
+}
+
+machine Main::index(&mut self) -> i32 {
+  self.console.write_byte(65);
+  return 2;
+}
+
+machine Main::argument(&mut self) -> i32 {
+  self.console.write_byte(66);
+  return 65;
+}
+
+machine Cell::set(&mut self, value: i32) { self.value = value; }

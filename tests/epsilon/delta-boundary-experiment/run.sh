@@ -28,21 +28,21 @@ expect_metric() {
     }
 }
 
-expect_metric 'source_lines=10092'
-expect_metric 'top_level_forms=749'
-expect_metric 'data_forms=160'
-expect_metric 'definition_forms=589'
+expect_metric 'source_lines=10321'
+expect_metric 'top_level_forms=787'
+expect_metric 'data_forms=169'
+expect_metric 'definition_forms=618'
 expect_metric 'optional_forms=8'
 expect_metric 'optional_lines=24'
 expect_metric 'optional_shapes=0/1:4,0/3:4'
 expect_metric 'parse_outcome_forms=25'
 expect_metric 'parse_outcome_lines=75'
 expect_metric 'parse_outcome_shapes=1/2:18,2/2:7'
-expect_metric 'recursive_list_forms=26'
-expect_metric 'recursive_list_lines=86'
-expect_metric 'recursive_list_shapes=0/2:26'
+expect_metric 'recursive_list_forms=29'
+expect_metric 'recursive_list_lines=95'
+expect_metric 'recursive_list_shapes=0/2:26,0/3:3'
 expect_metric 'ordinary_list_forms=26'
-expect_metric 'ordinary_list_lines=86'
+expect_metric 'ordinary_list_lines=84'
 expect_metric 'reverse_function_forms=23'
 expect_metric 'reverse_function_lines=167'
 expect_metric 'template_reverse_function_forms=22'
@@ -61,15 +61,15 @@ expect_metric 'candidate_lines=10'
 expect_metric 'minimum_function_forms=6'
 expect_metric 'minimum_function_lines=67'
 expect_metric 'generic_sum_gross_ceiling_lines=99'
-expect_metric 'generic_list_gross_ceiling_lines=267'
+expect_metric 'generic_list_gross_ceiling_lines=276'
 expect_metric 'exact_list_family_forms=51'
-expect_metric 'exact_list_family_lines=253'
-expect_metric 'exact_list_family_bytes=11749'
+expect_metric 'exact_list_family_lines=251'
+expect_metric 'exact_list_family_bytes=11676'
 expect_metric 'catalog_gross_ceiling_lines=245'
 expect_metric 'span_gross_ceiling_lines=164'
 expect_metric 'candidate_gross_ceiling_lines=77'
-expect_metric 'combined_gross_ceiling_lines=852'
-expect_metric 'combined_gross_ceiling_per_mille=84'
+expect_metric 'combined_gross_ceiling_lines=861'
+expect_metric 'combined_gross_ceiling_per_mille=83'
 
 materialize_gamma_evaluator "$TMP/evaluator" >/dev/null
 EVALUATOR="$TMP/evaluator" DELTA="$DELTA" EPSILON="$EPSILON" \
@@ -130,7 +130,7 @@ for name, digest in proposals.items():
 
 list_artifacts = {
     "list_elaborator.gamma": (292, 13200, "bda48281d6a61cb4e6fd76f40e7cecc0f9d65c72660114dcfc0363009b884f78"),
-    "list_family.delta-plus": (26, 3736, "54493f5461f5a0f8d0d15687ac4057165b992ccf84481e0653c7d4224e175596"),
+    "list_family.delta-plus": (26, 3689, "7a735100847de679414fc0f40251dca952013ac7d8619ba664be1ed63546d105"),
     "list_smoke.delta-plus": (3, 194, "26ead8ae1fb420f914910065c0e51b4e505a0864bd8f11b2e02d323ee4d2b685"),
     "list_smoke.delta": (6, 464, "4e3a8ba3f4bc04a3a3a11d63efb5ba0f848519c0ec6e5c3b37ec2634b0edcd6b"),
 }
@@ -152,9 +152,9 @@ if status != 0 or evaluate(smoke_receipt) != (0, b"\x02"):
 
 family_spec = root.joinpath("list_family.delta-plus").read_bytes()
 status, family_expansion = evaluate(elaborator, family_spec)
-if status != 0 or len(family_expansion) != 11038:
+if status != 0 or len(family_expansion) != 10973:
     raise SystemExit("derived Epsilon list family did not expand")
-if hashlib.sha256(family_expansion).hexdigest() != "1c479b3640000fb3a4acad40ab59f7db27a0648ba0883cded2a244aa91e1dcbb":
+if hashlib.sha256(family_expansion).hexdigest() != "02bb471b4cb915d9ff8806b0709098666cd32897e471ec21eb50df9156dda423":
     raise SystemExit("derived Epsilon list family identity changed")
 
 analyzer = runpy.run_path(str(root / "analyze.py"), run_name="boundary_analyzer")
@@ -195,7 +195,7 @@ for name in count_names:
 if wanted != actual or len(actual) != 51:
     raise SystemExit("derived Epsilon list family is not alpha-equivalent")
 
-if 292 + 26 - 253 != 65:
+if 292 + 26 - 251 != 67:
     raise SystemExit("derived-list break-even arithmetic changed")
 PY
 
