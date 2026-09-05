@@ -302,18 +302,6 @@
       1
       (upper_name_valid start end))))
 
-(def constructor_shape_arity_at ((constructor_end Int)) Int
-  (count_constructor_shape_fields (skip constructor_end) 0))
-
-(def count_constructor_shape_fields ((index Int) (count Int)) Int
-  (let next Int (skip index)
-    (if (eq (source_read next) 41)
-      count
-      (let type_end Int (token_end next)
-        (if (field_type_shape_valid next type_end)
-          (count_constructor_shape_fields type_end (+ count 1))
-          (fail))))))
-
 (def field_type_valid ((start Int) (end Int) (type_rows Int)) Int
   (if (token_int start end)
     1
@@ -322,40 +310,3 @@
       (if (upper_name_valid start end)
         (first (name_trie_find_option type_rows end start))
         0))))
-
-(def constructor_shape_after ((constructor_end Int)) Int
-  (constructor_shape_fields_after (skip constructor_end)))
-
-(def constructor_shape_fields_after ((index Int)) Int
-  (let next Int (skip index)
-    (if (eq (source_read next) 41)
-      (token_end next)
-      (let type_end Int (token_end next)
-        (if (field_type_shape_valid next type_end)
-          (constructor_shape_fields_after type_end)
-          (fail))))))
-
-(def constructor_arity_at ((constructor_end Int) (type_rows Int)) Int
-  (count_constructor_fields (skip constructor_end) 0 type_rows))
-
-(def count_constructor_fields
-  ((index Int) (count Int) (type_rows Int)) Int
-  (let next Int (skip index)
-    (if (eq (source_read next) 41)
-      count
-      (let type_end Int (token_end next)
-        (if (field_type_valid next type_end type_rows)
-          (count_constructor_fields type_end (+ count 1) type_rows)
-          (fail))))))
-
-(def constructor_after ((constructor_end Int) (type_rows Int)) Int
-  (constructor_fields_after (skip constructor_end) type_rows))
-
-(def constructor_fields_after ((index Int) (type_rows Int)) Int
-  (let next Int (skip index)
-    (if (eq (source_read next) 41)
-      (token_end next)
-      (let type_end Int (token_end next)
-        (if (field_type_valid next type_end type_rows)
-          (constructor_fields_after type_end type_rows)
-          (fail))))))

@@ -14,12 +14,12 @@ The latter sequences source checking, catalogs, typing, profile validation,
 and emission. Concept-owned members are grouped below it:
 
 - `implementation/boundary/`: bounded request admission and DCOUT publication;
-- `implementation/checking/`: source tokens, exact-name catalogs, declarations,
-  expression types, and application schema;
+- `implementation/checking/`: source tokens, retained syntax and grammar roles,
+  exact-name catalogs, declarations, expression types, and application schema;
 - `implementation/emission/`: program structure, matches, value representation,
   checked arithmetic, byte helpers/adapters, and textual output.
 
-`implementation/implementation.gamma.sources` selects all 16 shared members
+`implementation/implementation.gamma.sources` selects all 23 shared members
 with exact lengths, digests, and ordered identities. The byte-only source
 materializer validates that closed inventory and prefixes the explicitly
 selected entry. For the canonical entry, its application marker is therefore
@@ -62,8 +62,16 @@ complete lexical pass then admits identifiers, parentheses, arithmetic operator
 tokens, and signed decimal literals. It checks an entire numeric spelling
 before its range, so an overflowing prefix with a nondigit suffix is invalid
 syntax, not an out-of-range literal. Comments retain CR, LF, and EOF boundaries.
-Only after all tokens pass does it scan the declaration sequence. Collection
-records every type,
+After lexical admission, a total parser retains exact atom/list spans and ordered
+children. An explicit frame stack handles nesting without recursive return
+contexts. The complete balanced tree precedes grammar-role checking, so a later
+unmatched delimiter wins over an earlier malformed declaration role. Missing
+closing parentheses anchor at exact EOF; unmatched closing parentheses anchor
+at their own byte. A separate iterative worklist checks declaration, binder,
+type-name, expression, and pattern roles. Offending children anchor at their
+start, and missing children at the containing closing parenthesis.
+Only after the complete structural grammar passes does collection consume the
+retained program. Collection records every type,
 constructor, and function identity, constructor counts, representation shape,
 and source coordinates before resolving any declaration type. Duplicate
 identities therefore precede declaration-type and body failures. Resolution
@@ -123,9 +131,10 @@ exhaustive arm as the fallback, preserving the existing ordered receipts.
 
 The global function trie carries each exact declaration's owner, arity, ordered
 resolved parameter types, result type, typed parameter environment, and body
-coordinate. Its preceding raw census rows also retain the already-scanned
-declaration end. Resolution checks the retained owner and name span, resolves
-the signature, and advances at that cached end without rescanning the body.
+coordinate. Its preceding raw census rows retain the parsed declaration node.
+Resolution checks the retained owner and name span, resolves the signature from
+its child nodes, and advances through the counted declarations without rescanning
+the body.
 Application heads resolve through the checked table, including
 forward and mutual calls, without reparsing the callee signature. Type and
 constructor references likewise resolve through metadata catalogs rather than
@@ -160,11 +169,11 @@ output-extent statuses. Strict request admission publishes canonical DCOUT for
 malformed framing, unknown profiles, and source-length refusal; see
 [`implementation/boundary/README.md`](implementation/boundary/README.md).
 Owned source failures now include forbidden source byte (code 3), invalid token
-spelling (the lexical subset of syntax code 4), out-of-range integer literal
-(5), duplicate type/constructor/function identity (6/7/8), missing `main` (19),
-and application
+spelling and structural grammar (code 4), out-of-range integer literal (5),
+duplicate type/constructor/function identity (6/7/8), missing `main` (19), and application
 schema mismatch (20). Missing `main` has no source coordinate; a schema mismatch
-anchors at the entry name. Structural syntax, declaration-type, and body failures
+anchors at the entry name. Declaration-type, name-resolution, semantic arity,
+and other body-checking failures
 still exit through evaluator-owned Gamma status 249 without publication, not
 DCOUT. Completing those paths, later resource accounting, internal failures,
 and final edge closure remains open.
@@ -183,7 +192,7 @@ The downgraded full compiler remains separate under
 ## Measurements
 
 ```text
-2,378-line / 98,630-byte canonical entry plus shared Gamma implementation
+2,693-line / 111,236-byte canonical entry plus shared Gamma implementation
 7-line / 195-byte nullary-ADT Delta fixture
   -> 3-line / 165-byte Gamma receipt
   -> selected Gamma evaluation produces byte 9

@@ -1,21 +1,22 @@
-(def emit_program ((index Int) (globals Int)) Int
-  (let form Int (skip index)
-    (if (eq form (source_length))
+(def emit_program ((program Int) (globals Int)) Int
+  (emit_program_nodes (first program) (second program) globals))
+
+(def emit_program_nodes ((count Int) (forms Int) (globals Int)) Int
+    (if (eq count 0)
       (if (eq (compilation_profile) 0)
         10
         (if (eq (compilation_profile) 1)
           (emit_conformance_adapter)
           (fail)))
-      (let head Int (form_head form)
-        (let head_end Int (token_end head)
-          (if (token_data head head_end)
-            (emit_program
-              (skip_expression form) globals)
-            (if (token_def head head_end)
-              (let next Int (emit_definition form globals)
+      (let form Int (first forms)
+        (let head Int (syntax_child form 0)
+          (if (token_data (syntax_start head) (syntax_after head))
+            (emit_program_nodes (- count 1) (second forms) globals)
+            (let after Int (emit_definition (syntax_start form) globals)
+              (if (eq after (syntax_after form))
                 (let ignored Int (write '\n')
-                  (emit_program next globals)))
-              (fail))))))))
+                  (emit_program_nodes (- count 1) (second forms) globals))
+                (fail))))))))
 
 (def emit_definition ((form Int) (globals Int)) Int
   (let head Int (form_head form)

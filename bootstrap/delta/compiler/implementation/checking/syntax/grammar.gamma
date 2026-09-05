@@ -1,0 +1,36 @@
+; Balanced retained syntax precedes this grammar judgment; collection and type
+; resolution follow it. Each declaration's work completes before the next one.
+(def validate_program_syntax ((program Int)) Int
+  (grammar_program program (first program) (second program) 0))
+
+; Work is (pair count entries); each entry retains a role and one syntax node.
+; Nested expression and pattern traversal grows this immutable worklist, never
+; the Gamma return stack. Successful steps return Complete(updated-work).
+(def grammar_run ((work Int)) Int
+  (if (eq (first work) 0)
+    (compiler_complete 0)
+    (let entry Int (first (second work))
+      (let remaining Int
+        (pair (- (first work) 1) (second (second work)))
+        (let checked Int
+          (grammar_check_role (first entry) (second entry) remaining)
+          (if (eq (first checked) 0)
+            (grammar_run (second checked))
+            checked))))))
+
+; 1 expression, 2 value name, 3 nominal name, 4 type, 5 parameter list,
+; 6 parameter, 7 constructor declaration, 8 match arm, 9 pattern.
+(def grammar_check_role ((role Int) (node Int) (work Int)) Int
+  (if (eq role 1)
+    (grammar_expression node work)
+    (if (lt role 5)
+      (grammar_atom_role role node work)
+      (if (eq role 5)
+        (grammar_parameters node work)
+        (if (eq role 6)
+          (grammar_parameter node work)
+          (if (eq role 7)
+            (grammar_constructor node work)
+            (if (eq role 8)
+              (grammar_arm node work)
+              (grammar_pattern node work))))))))

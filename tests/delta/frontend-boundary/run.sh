@@ -31,7 +31,7 @@ directory = Path(os.environ["FRONTEND_BOUNDARY_TMP"])
 compiler = (directory / "compiler.gamma").read_bytes()
 identity = (len(compiler.splitlines()), len(compiler), hashlib.sha256(compiler).hexdigest())
 if identity != (
-    2378, 98630, "38fb49e2fa679581c35f4cd134cdcf8e050eb36650bd779669b363f861da6009"
+    2693, 111236, "48526e2713778321efcc15121b70269c4c7d91cf007e31cad53f66ff18e47671"
 ):
     raise SystemExit(f"Delta compiler identity changed: {identity}")
 
@@ -145,19 +145,91 @@ cases.append(("entry prefix is not main", b"(def mai () Int 0)\n",
 cases.append(("entry suffix is not main", b"(def main_suffix () Int 0)\n",
               rejection(19, 0, space=0)))
 
+# Each prefix is authored as part of the fixture construction, not discovered
+# by parsing or searching its source. The next byte is the expected location:
+# an offending child, the containing close for a missing child, or exact EOF.
+structural = (
+    ("empty source", b"", b"", b""),
+    ("comment-only source", b"; no declarations", b"", b""),
+    ("open delimiter at EOF", b"(", b"", b""),
+    ("unclosed function at EOF", b"(def main () Int 0\n", b"", b""),
+    ("unmatched closing delimiter", b"", b")", b""),
+    ("later unmatched close before earlier name role",
+     b"(def Main () Int 0)\n", b")", b""),
+    ("later unmatched open before earlier name role",
+     b"(def Main () Int 0)\n(", b"", b""),
+    ("empty top-level list", b"(", b")", b""),
+    ("top-level atom", b"", b"value", b""),
+    ("nested declaration head", b"(", b"(def)", b" main () Int 0)"),
+    ("data after function", b"(def helper () Int 0)\n",
+     b"(data Item (Item))", b""),
+    ("data without any function", b"(data Item (Item))\n", b"", b""),
+    ("empty data declaration", b"(data Item", b")", b""),
+    ("lowercase data name", b"(data ", b"item", b" (Item))"),
+    ("constructor declaration is a list", b"(data Item ", b"Item", b")"),
+    ("empty constructor declaration", b"(data Item (", b")", b")"),
+    ("lowercase constructor name", b"(data Item (", b"item", b"))"),
+    ("payload type name role", b"(data Item (Item ", b"lower", b"))"),
+    ("uppercase function name", b"(def ", b"Main", b" () Int 0)"),
+    ("reserved function name", b"(def ", b"if", b" () Int 0)"),
+    ("parameter collection is a list", b"(def main ", b"value", b" Int 0)"),
+    ("parameter row is a list", b"(def main (", b"value", b") Int 0)"),
+    ("parameter missing type", b"(def main ((value", b")", b") Int 0)"),
+    ("parameter extra child", b"(def main ((value Int ", b"Bytes", b")) Int 0)"),
+    ("uppercase parameter name", b"(def main ((", b"Value", b" Int)) Int 0)"),
+    ("parameter type name role", b"(def main ((value ", b"lower", b")) Int 0)"),
+    ("result type name role", b"(def main () ", b"lower", b" 0)"),
+    ("function missing body", b"(def main () Int", b")", b""),
+    ("function extra body", b"(def main () Int 0 ", b"1", b")"),
+    ("if missing branch", b"(def main () Int (if 1 0", b")", b")"),
+    ("if extra branch", b"(def main () Int (if 1 0 0 ", b"1", b"))"),
+    ("let missing body", b"(def main () Int (let value Int 0", b")", b")"),
+    ("let extra body", b"(def main () Int (let value Int 0 value ", b"1", b"))"),
+    ("let reserved binder", b"(def main () Int (let ", b"if", b" Int 0 0))"),
+    ("let type name role", b"(def main () Int (let value ", b"lower", b" 0 0))"),
+    ("match requires an arm", b"(def main () Int (match Item", b")", b")"),
+    ("match arm is a list", b"(def main () Int (match Item ", b"Item", b"))"),
+    ("match arm missing body", b"(def main () Int (match Item (Item", b")", b"))"),
+    ("match arm extra body", b"(def main () Int (match Item (Item 0 ", b"1", b")))"),
+    ("lowercase atomic pattern", b"(def main () Int (match Item (", b"item", b" 0)))"),
+    ("empty payload pattern", b"(def main () Int (match Item ((", b")", b" 0)))"),
+    ("pattern binder name role", b"(def main () Int (match Item ((Item ", b"Value", b") 0)))"),
+    ("empty expression list", b"(def main () Int (", b")", b")"),
+    ("nested expression head", b"(def main () Int (", b"(helper)", b" 0))"),
+    ("bare subtraction token is not an atom", b"(def main () Int ", b"-", b")\n"),
+    ("reserved word is not an atom", b"(def main () Int ", b"if", b")"),
+    ("reserved declaration word is not a call head", b"(def main () Int (", b"data", b" 0))"),
+    ("later role defect before duplicate collection",
+     b"(def helper () Int 0)\n(def helper () Int 0)\n(def ", b"Main", b" () Int 0)"),
+    ("role defect before unknown declaration type",
+     b"(def main ((value Unknown)) Int ", b"-", b")"),
+)
+for name, prefix, offending, suffix in structural:
+    cases.append((name, prefix + offending + suffix, rejection(4, len(prefix))))
+
+# The parser and role walk both traverse all 1,000 nested call nodes before
+# rejecting the inner operator atom. The host constructs, but never parses, it.
+deep_prefix = b"(def main () Int " + b"(helper " * 1000
+cases.append(("deep structural traversal", deep_prefix + b"-" + b")" * 1001,
+              rejection(4, len(deep_prefix))))
+
 # These unfinished frontend paths must remain evaluator-owned failures, not
 # guessed DCOUT frames or schema diagnostics derived before frontend success.
 for name, source in (
-    ("empty source", b""),
-    ("invalid syntax", b"("),
-    ("bare subtraction token is not an atom", b"(def main () Int -)\n"),
-    ("valid tokens with unbalanced structure", b"(def main () Int 0\n"),
     ("unknown signature type without main", b"(def helper ((value Unknown)) Int 0)\n"),
     ("unknown constructor type without main", b"(data Item (Item Unknown))\n(def helper () Int 0)\n"),
     ("unknown body name without main", b"(def helper () Int missing)\n"),
     ("wrong present entry with body error", b"(def main () Int missing)\n"),
     ("wrong present entry with body type error", b"(def main () Int (bytes_empty))\n"),
     ("ordinary body error before valid entry", b"(def helper () Int missing)\n" + identity_source),
+    ("known function argument count",
+     b"(def helper ((value Int)) Int value)\n(def main () Int (helper))\n"),
+    ("known constructor argument count",
+     b"(data Item (Item Int))\n(def main () Item (Item))\n"),
+    ("known pattern payload count",
+     b"(data Item (Item Int))\n(def main () Int (match (Item 0) ((Item) 0)))\n"),
+    ("arithmetic argument count", b"(def main () Int (+ 1))\n"),
+    ("bytes builtin argument count", b"(def main () Bytes (bytes_single))\n"),
 ):
     cases.append((name, source, (249, b"")))
 
@@ -207,6 +279,13 @@ accepted = (
     ("malformed numbers in EOF comment",
      identity_source + b"; +123 12suffix --1 1.0 9223372036854775808"),
 )
+# Wide ordinary declarations and calls exercise counted child spines without
+# selecting a private arity limit. The last argument preserves binary input.
+wide_parameters = b" ".join(f"(value{index} Bytes)".encode("ascii") for index in range(200))
+wide_arguments = b" ".join([b"source"] * 200)
+accepted += (("two-hundred parameter and argument identity",
+              b"(def wide (" + wide_parameters + b") Bytes value199)\n"
+              b"(def main ((source Bytes)) Bytes (wide " + wide_arguments + b"))\n"),)
 payload = b"\x00A\x80\xff"
 for name, source in accepted:
     status, receipt = evaluate(compiler, request(source))

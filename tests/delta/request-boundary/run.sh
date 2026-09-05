@@ -33,7 +33,7 @@ identity = (
     len(compiler.splitlines()), len(compiler), hashlib.sha256(compiler).hexdigest()
 )
 if identity != (
-    2378, 98630, "38fb49e2fa679581c35f4cd134cdcf8e050eb36650bd779669b363f861da6009"
+    2693, 111236, "48526e2713778321efcc15121b70269c4c7d91cf007e31cad53f66ff18e47671"
 ):
     raise SystemExit(f"Delta compiler identity changed: {identity}")
 
@@ -145,12 +145,13 @@ cases.append((
 cases.append(("invalid source byte", framed(b"\x00"), failure(1, 3, 0, space=1)))
 cases.append(("wrong entry schema", framed(b"(def main () Int 7)\n"),
               failure(1, 20, 5, space=1)))
+cases.append(("empty source", framed(b""), failure(1, 4, 0, space=1)))
+cases.append(("unmatched opening delimiter", framed(b"("),
+              failure(1, 4, 1, space=1)))
 
-# Unfinished syntax/type/body paths remain evaluator-owned failures rather
+# Unfinished type/body paths remain evaluator-owned failures rather
 # than being relabeled as canonical compiler rejections.
 for name, source in (
-    ("empty source", b""),
-    ("invalid syntax", b"("),
     ("unknown local", b"(def main ((source Bytes)) Bytes missing)\n"),
 ):
     cases.append((name, framed(source), (249, b"")))
