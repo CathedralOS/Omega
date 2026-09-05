@@ -75,11 +75,13 @@ Spawn both agents in the same turn, one per clone. When they finish:
 ```sh
 sh harness.sh collect a <run-dir>/outputs
 sh harness.sh regate  a <run-dir>/outputs     # ONE SIDE AT A TIME, machine idle
-python grade.py <run-dir>
 ```
 
-Then hand-grade the judgement assertions in `evals.json`, build `grading.json`
-per the skill-creator schema, and view with `eval-viewer/generate_review.py`.
+Then grade by hand against `evals.json`: the mechanical assertions come from
+`_refs.txt`, `_commits.txt`, `_board_diff.txt`, and `_regate.txt` under the
+output directory, and the judgement assertions from `report.md`. There is no
+grader script; this repository is Rust, Omega, and `sh`, and a grader is not a
+reason to add another language.
 
 ```sh
 sh harness.sh reset a          # between evals; keeps the warm target/ dir
