@@ -1,8 +1,6 @@
 //! Optimizer module role: executable entrance. Independent applied-frame projection checking.
 use super::FrameApplicationError;
-use omega_frame_layout_to_frame_protocol::{
-    TargetFrameProtocolEncodingPlan, target_frame_protocol_encoding_identity,
-};
+use crate::{TargetFrameProtocolEncodingPlan, target_frame_protocol_encoding_identity};
 use omega_machine_code::{
     FunctionAppliedFrameEpilogue, FunctionAppliedFrameProtocol, FunctionFragment,
     FunctionFragmentControlProvenance, FunctionFragmentEmissionPlan,
@@ -77,10 +75,7 @@ fn same_plan_roots(
 fn unique_protocol(
     protocol: &TargetFrameProtocolEncodingPlan,
     machine: psi_core::MachineId,
-) -> Result<
-    &omega_frame_layout_to_frame_protocol::FunctionTargetFrameProtocolEncoding,
-    FrameApplicationError,
-> {
+) -> Result<&crate::FunctionTargetFrameProtocolEncoding, FrameApplicationError> {
     let mut rows = protocol
         .functions
         .iter()

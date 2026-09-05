@@ -624,6 +624,19 @@ fn selected_call_template_and_layout_corruption_fail_independent_replay() {
                 plan.functions[0].callee_save_slots[0].frame_offset_bytes += 8
             },
             |plan: &mut TargetFrameLayoutPlan| plan.functions[0].contains_call = false,
+            |plan: &mut TargetFrameLayoutPlan| plan.functions.clear(),
+            |plan: &mut TargetFrameLayoutPlan| plan.functions.push(plan.functions[0].clone()),
+            |plan: &mut TargetFrameLayoutPlan| plan.functions.swap(0, 1),
+            |plan: &mut TargetFrameLayoutPlan| plan.functions[0].pre_call_stack_alignment = 8,
+            |plan: &mut TargetFrameLayoutPlan| plan.functions[0].abi_stack_alignment_bytes = 8,
+            |plan: &mut TargetFrameLayoutPlan| plan.functions[0].callee_save_slots.clear(),
+            |plan: &mut TargetFrameLayoutPlan| {
+                plan.functions[0].callee_save_slots[0].size_bytes += 1
+            },
+            |plan: &mut TargetFrameLayoutPlan| {
+                plan.functions[0].callee_save_slots[0].alignment_bytes += 1
+            },
+            |plan: &mut TargetFrameLayoutPlan| plan.functions[0].frame_size_bytes += 16,
         ] {
             let mut changed = frame.plan().clone();
             corrupt(&mut changed);
@@ -633,12 +646,27 @@ fn selected_call_template_and_layout_corruption_fail_independent_replay() {
             );
         }
 
-        let mut changed = protocol.plan().clone();
-        changed.bytes[0] ^= 1;
-        assert_eq!(
-            validate_target_frame_protocol_encoding(&frame, &environment, changed),
-            Err(TargetFrameProtocolEncodingError::NonCanonicalEncoding)
-        );
+        for corrupt in [
+            |plan: &mut TargetFrameProtocolEncodingPlan| plan.bytes[0] ^= 1,
+            |plan: &mut TargetFrameProtocolEncodingPlan| plan.bytes.push(0),
+            |plan: &mut TargetFrameProtocolEncodingPlan| {
+                plan.bytes.pop();
+            },
+            |plan: &mut TargetFrameProtocolEncodingPlan| plan.functions.clear(),
+            |plan: &mut TargetFrameProtocolEncodingPlan| plan.functions.push(plan.functions[0]),
+            |plan: &mut TargetFrameProtocolEncodingPlan| plan.functions.swap(0, 1),
+            |plan: &mut TargetFrameProtocolEncodingPlan| plan.functions[0].prologue.offset += 1,
+            |plan: &mut TargetFrameProtocolEncodingPlan| {
+                plan.functions[0].epilogue = plan.functions[0].prologue
+            },
+        ] {
+            let mut changed = protocol.plan().clone();
+            corrupt(&mut changed);
+            assert_eq!(
+                validate_target_frame_protocol_encoding(&frame, &environment, changed),
+                Err(TargetFrameProtocolEncodingError::NonCanonicalEncoding)
+            );
+        }
 
         let mut changed = protocol.plan().clone();
         let caller = changed

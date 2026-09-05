@@ -56,9 +56,7 @@ impl StagedOptimizedFunctionFragmentEmissionSource {
     {
         &self.current.encoding
     }
-    pub fn frame_protocol(
-        &self,
-    ) -> Option<&omega_frame_layout_to_frame_protocol::ValidatedTargetFrameProtocolEncoding> {
+    pub fn frame_protocol(&self) -> Option<&crate::ValidatedTargetFrameProtocolEncoding> {
         self.current.frame_protocol.as_ref()
     }
     pub fn frame_layout(

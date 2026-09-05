@@ -97,9 +97,7 @@ impl FunctionFragmentReplayInputs {
     /// Routes whose realization owns a validated target frame protocol. The
     /// Unit baseline route joins the fixed-frame route here because every
     /// AArch64 Unit function carries a saved return address.
-    pub fn frame_protocol(
-        &self,
-    ) -> Option<&omega_frame_layout_to_frame_protocol::ValidatedTargetFrameProtocolEncoding> {
+    pub fn frame_protocol(&self) -> Option<&crate::ValidatedTargetFrameProtocolEncoding> {
         match self {
             Self::FixedFrame(realization) => Some(realization.protocol()),
             Self::UnitBaseline(realization) => realization.protocol(),

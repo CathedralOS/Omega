@@ -66,6 +66,16 @@ normalization and legalization remain lowering responsibilities and run whether
 or not an optimization is selected. Optional profitability-changing rewrites
 run only when their exact names are selected.
 
+## Allocation and frame ownership
+
+Allocation owns ABI-preserved-register discovery. Frame layout owns abstract
+callee-save storage and spill requirements; machine emission owns packing the
+resulting prologue/epilogue bytes. These calculations are modules of their
+consuming phases, not separately scheduled public pipeline stages. Retained
+requirements and receipts remain available for replay. Frame geometry is
+checked by bounds and congruences, and emitted frame spans by exact order,
+extent and target encoding; neither check re-enters the producing calculation.
+
 ## Terminal boundary
 
 Terminal Psi is the output of target-neutral Psi optimization, not its mutable

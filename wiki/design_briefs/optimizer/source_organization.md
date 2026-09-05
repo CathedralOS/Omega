@@ -518,9 +518,9 @@ mirrored pipeline test owns both victim lineages, targets, corruption, and all
 five budget axes; architecture guards register the complete ladder and prohibit
 executable memory, frame, fault, alias, encoding, or publication claims.
 
-Non-authoritative spill-frame requirements enter through the dedicated
-`omega-spill-access-constraints-to-frame-requirements` stage crate. Its
-`frame_requirements/mod.rs` entrance visibly
+Non-authoritative spill-frame requirements are an internal calculation of
+`omega-post-allocation-machine-to-frame-layout`. Its
+`spill_requirements/mod.rs` entrance visibly
 joins authenticated abstract access constraints to the validated register
 environment, delegates direct derivation and independent replay to distinct
 `compute.rs` and `replay.rs` leaves, and seals only after `validation.rs` agrees;
@@ -529,9 +529,9 @@ The registered semantic ladder therefore exposes the whole descent from one
 small meaningful entrance without granting frame layout, executable memory,
 fault, unwind, probing, encoding, emission, or publication authority.
 
-Allocation-visible callee-save discovery enters through the dedicated
-`omega-register-homes-to-callee-saved-requirements` stage crate. Its small
-`callee_saved_requirements/mod.rs` entrance visibly
+Allocation-visible callee-save discovery belongs to
+`omega-selected-instructions-to-register-homes`. Its
+`preservation/mod.rs` entrance visibly
 joins `compute::derive` to `validate_allocated_callee_saved_requirements` and
 does no hidden traversal. Shared immutable target convention selection lives in
 `omega-target-to-register-environment`; the requirement carrier, identity, custody,
@@ -544,9 +544,9 @@ corruption, and budget evidence. Architecture guards register every rung,
 require exact `write_units` use on both paths, and forbid frame, save/restore,
 unwind, machine, encoding, and publication authority.
 
-Non-authoritative callee-save storage planning enters through the dedicated
-`omega-callee-saved-requirements-to-save-storage` stage crate. Its
-`callee_save_storage/mod.rs` entrance visibly joins
+Non-authoritative callee-save storage planning belongs to
+`omega-post-allocation-machine-to-frame-layout`. Its
+`save_storage/mod.rs` entrance visibly joins
 `compute::derive` to `validate_non_authoritative_callee_save_storage` and
 descends through `compute/{groups,work}`. Independent reconstruction descends
 through `replay/{groups,work}`, builds its own keyed unit-to-group index, and

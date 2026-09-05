@@ -17,9 +17,11 @@ pub use text_placement::{
 mod exit_contract;
 pub use exit_contract::*;
 mod frame_application;
+mod frame_protocol;
 pub use frame_application::{
     FrameApplicationError, apply_frame_protocol_to_fragments, validate_frame_protocol_application,
 };
+pub use frame_protocol::*;
 mod fragments;
 pub use fragments::{
     FunctionFragmentStatisticsOverflow, ResolvedFragmentEmissionError,

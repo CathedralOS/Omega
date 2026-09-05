@@ -47,28 +47,13 @@ fn backend_crates_use_only_reviewed_physical_pipeline_dependencies() {
         ),
         (
             "omega-machine-emission/Cargo.toml",
-            "omega-callee-saved-requirements-to-save-storage",
-            "../../pipeline/omega-callee-saved-requirements-to-save-storage",
-        ),
-        (
-            "omega-machine-emission/Cargo.toml",
             "omega-optimization-validation",
             "../../pipeline/omega-optimization-validation",
         ),
         (
             "omega-machine-emission/Cargo.toml",
-            "omega-register-homes-to-callee-saved-requirements",
-            "../../pipeline/omega-register-homes-to-callee-saved-requirements",
-        ),
-        (
-            "omega-machine-emission/Cargo.toml",
             "omega-target-to-register-environment",
             "../../pipeline/omega-target-to-register-environment",
-        ),
-        (
-            "omega-machine-emission/Cargo.toml",
-            "omega-frame-layout-to-frame-protocol",
-            "../../pipeline/omega-frame-layout-to-frame-protocol",
         ),
         (
             "omega-machine-emission/Cargo.toml",
@@ -220,7 +205,6 @@ fn only_exact_target_closing_pipeline_crates_depend_on_final_machinery() {
     // Extracted physical stages consume the same two ISA owners as their
     // former coordinator. Keep this closed roster, not a layer-wide escape.
     for owner in [
-        "omega-frame-layout-to-frame-protocol",
         "omega-post-allocation-machine-to-selected-form-encoding",
         "omega-selected-form-encoding-to-resolved-layout",
         "omega-selected-instructions-to-machine-effects",
