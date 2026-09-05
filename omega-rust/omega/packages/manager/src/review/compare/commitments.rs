@@ -7,8 +7,9 @@ use super::model::*;
 use crate::declarations::BuildDeclarationKind;
 use crate::declarations::PackageKey;
 use crate::resolution::graph::{
-    CanonicalSourceClosureSubject, CanonicalSourceClosureSubjectLimits, DependencyRequestPath,
-    ExactTargetPackageSourceClosure, ResolvedPackageClosure,
+    CanonicalSourceClosureSubject, CanonicalSourceClosureSubjectFingerprint,
+    CanonicalSourceClosureSubjectLimits, DependencyRequestPath, ExactTargetPackageSourceClosure,
+    ResolvedPackageClosure,
 };
 use crate::review::candidate::{PackageReviewEvidence, ReviewOnlySourceConsumptionCommitment};
 use omega_package_evidence::record::{
@@ -82,20 +83,36 @@ pub(super) fn derive_conflict_fingerprint<C: PackageReviewEvidence>(
     ReviewOnlyCapabilityConflictFingerprint(digest.finalize().into())
 }
 
-pub(super) fn derive_candidate_closure_commitment<C: PackageReviewEvidence>(
+pub(super) fn derive_candidate_closure_identity<C: PackageReviewEvidence>(
     target_closure: &ExactTargetPackageSourceClosure<'_>,
     candidate_reviews: &[&C],
-) -> Result<ReviewOnlyCandidateClosureCommitment, ReviewOnlyCapabilityConflictError> {
+) -> Result<
+    (
+        ReviewOnlyCandidateClosureCommitment,
+        CanonicalSourceClosureSubjectFingerprint,
+    ),
+    ReviewOnlyCapabilityConflictError,
+> {
     let source_closure = CanonicalSourceClosureSubject::from_resolved(
         target_closure,
         CanonicalSourceClosureSubjectLimits::default(),
     )
     .map_err(|_| ReviewOnlyCapabilityConflictError::InvalidCandidateSourceClosure)?;
-    derive_candidate_graph_commitment_with_source(
+    let commitment = derive_candidate_graph_commitment_with_source(
         target_closure.source_closure().graph(),
         Some(source_closure.canonical_bytes()),
         candidate_reviews,
-    )
+    )?;
+    Ok((commitment, source_closure.fingerprint().clone()))
+}
+
+#[cfg(test)]
+pub(super) fn derive_candidate_closure_commitment<C: PackageReviewEvidence>(
+    target_closure: &ExactTargetPackageSourceClosure<'_>,
+    candidate_reviews: &[&C],
+) -> Result<ReviewOnlyCandidateClosureCommitment, ReviewOnlyCapabilityConflictError> {
+    derive_candidate_closure_identity(target_closure, candidate_reviews)
+        .map(|(commitment, _)| commitment)
 }
 
 #[cfg(test)]

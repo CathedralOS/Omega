@@ -25,6 +25,9 @@ pub enum ReviewOnlyCapabilityConflictError {
     CandidateResolutionMismatch {
         package: Box<PackageKey>,
     },
+    CandidateTargetMismatch {
+        package: Box<PackageKey>,
+    },
     MixedReviewTarget {
         role: ReviewSetRole,
         first: Box<PackageKey>,
@@ -102,6 +105,11 @@ impl fmt::Display for ReviewOnlyCapabilityConflictError {
             Self::CandidateResolutionMismatch { package } => write!(
                 formatter,
                 "candidate source custody and compiler review disagree on `{}` resolution",
+                package.name().as_str()
+            ),
+            Self::CandidateTargetMismatch { package } => write!(
+                formatter,
+                "candidate compiler review target differs from the requested target for `{}`",
                 package.name().as_str()
             ),
             Self::MixedReviewTarget {

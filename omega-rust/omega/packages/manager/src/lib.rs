@@ -9,6 +9,7 @@
 
 pub mod admission;
 pub mod declarations;
+pub mod lock;
 pub mod operations;
 pub mod resolution;
 pub mod review;

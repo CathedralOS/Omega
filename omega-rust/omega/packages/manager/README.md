@@ -22,6 +22,7 @@ manager/
 │   ├── admission/         current evidence promotion and native handoff gates
 │   ├── declarations/      checked package declarations from build.omg
 │   ├── resolution/        exact source selection and dependency closure
+│   ├── lock/              persistent source-scoped project policy
 │   └── review/            compile, compare, audit, and decide
 └── tests/                 manager integration tests
 ```
@@ -81,6 +82,15 @@ resolve/fetch/review workflow and transactional lock/cache updates, with
 accepted baselines and decisions recorded directly. Extending the promotion
 layer or certifying lock acceptance is not a prerequisite. The source and
 review crates remain subordinate to those operations.
+
+`lock/decisions` records historical choices against the complete canonical
+source subject. Its bounded ASCII section refers to that subject's sorted
+package entries and binds the exact root, role, graph, and target. Recovery
+needs only the retained source subject, not the old checkout or a recreated
+compiler conflict. It preserves both acceptance and rejection without making
+either a fresh authorization. Fresh capture still requires the complete exact
+current resolution. The corresponding normalized policy baseline and atomic
+install/update publication remain unfinished; this section alone is not a lock.
 
 Return to the [package subsystem map](../README.md), or consult:
 

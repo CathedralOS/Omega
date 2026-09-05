@@ -8,6 +8,8 @@ mod candidate_conflicts;
 mod conflict_behavior;
 #[path = "transaction/fixture.rs"]
 mod fixture;
+#[path = "transaction/historical_policy.rs"]
+mod historical_policy;
 #[path = "transaction/root_policy.rs"]
 mod root_policy;
 
@@ -18,6 +20,7 @@ fn exact_compiler_rows_become_candidate_bound_review_conflicts() {
     let scenario = fixture::ExactCompilerRowScenario::establish();
     let conflicts = candidate_conflicts::derive_and_assert(&scenario);
 
+    historical_policy::assert_historical_policy(&scenario, &conflicts);
     root_policy::assert_persistence_and_recovery(&scenario, &conflicts);
     conflict_behavior::assert_comparison_limits_and_risk_classes(&scenario, &conflicts);
     accepted_claims::assert_candidate_binding(&scenario, &conflicts);
