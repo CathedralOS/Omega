@@ -70,9 +70,10 @@ fn exit_replay_checks_rosters_and_return_fields_after_reauthentication() {
         (NativeTarget::linux_x64(), true),
         (NativeTarget::linux_arm64(), false),
     ] {
-        let mut realization = stage_selected_lowering_function_relative_realization(allocation(
-            target, true, relaxation,
-        ))
+        let mut realization = crate::tests::with_allocated_machine(
+            allocation(target, true, relaxation),
+            stage_selected_lowering_function_relative_realization,
+        )
         .unwrap();
         let original = realization.exit_contract().shared_contract();
         assert!(original.functions[0].returns.len() > 1);

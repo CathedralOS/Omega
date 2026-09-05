@@ -48,8 +48,18 @@ pub fn stage_register_allocation(
         .for_phase(OptimizationExecutionPhase::SelectedLowering)
         .is_empty()
     {
-        let legality = stage_optimized_allocation_legality(ranges)
-            .map_err(RegisterAllocationError::Legality)?;
+        // Function-relative branch relaxation currently admits a frameless
+        // leaf. That allocation contract belongs here, not in a second
+        // compiler-owned allocator invocation selected by the layout route.
+        let frameless = !selections
+            .for_phase(OptimizationExecutionPhase::FunctionRelativeLayout)
+            .is_empty();
+        let legality = if frameless {
+            stage_optimized_allocation_legality_for_frameless_leaf(ranges)
+        } else {
+            stage_optimized_allocation_legality(ranges)
+        }
+        .map_err(RegisterAllocationError::Legality)?;
         let homes =
             stage_optimized_register_homes(legality).map_err(RegisterAllocationError::Homes)?;
         RetainedAllocation::try_from(homes).map_err(RegisterAllocationError::Replay)

@@ -1,8 +1,9 @@
 //! Optimizer module role: executable entrance. Compiler-facing physical optimizer coordination.
 //!
 //! This entrance consumes validated target operations, reads the exact selected
-//! phase set, and runs common selection and analysis before allocation dispatch. [`model`] defines the
-//! returned carrier, [`error`] defines the closed failure surface, and
+//! phase set, and runs selection, analysis, allocation, and machine construction
+//! once before realization. [`model`] defines the returned carrier, [`error`]
+//! defines the closed failure surface, and
 //! [`routes`] owns the lower route taxonomy. The test-only [`input`] helper
 //! composes target lowering to exercise the complete route in isolation.
 
@@ -24,13 +25,13 @@ use optimization_core::PostTerminalOptimizationSelections;
 pub(crate) use phase_selections::PhysicalOptimizationPhaseSelections;
 use register_environment::baseline_target_register_environment;
 use selected_instructions_to_register_homes::{
-    stage_optimized_live_ranges, stage_optimized_liveness,
+    stage_optimized_live_ranges, stage_optimized_liveness, stage_register_allocation,
 };
 
 pub(crate) use routes::{
     ResolvedPhysicalPhaseComposition, ResolvedRealizationPlan, resolve_physical_phase_composition,
 };
-use routes::{stage_allocation_and_realization, stage_allocation_recovery_pipeline};
+use routes::{realize_allocated_program, realize_recovered_allocation};
 
 pub fn stage_optimized_verified_physical_pipeline(
     optimized_target: ValidatedOptimizedTargetOperations,
@@ -60,20 +61,28 @@ pub fn stage_optimized_verified_physical_pipeline(
         .map_err(OptimizedVerifiedPhysicalPipelineError::Liveness)?;
     let ranges = stage_optimized_live_ranges(liveness)
         .map_err(OptimizedVerifiedPhysicalPipelineError::LiveRanges)?;
+    let allocation = stage_register_allocation(ranges)
+        .map_err(OptimizedVerifiedPhysicalPipelineError::RegisterAllocation)?;
+    let machine =
+        register_homes_to_post_allocation_machine::stage_optimized_post_allocation_machine_plan(
+            &allocation.current(),
+        )
+        .map_err(OptimizedVerifiedPhysicalPipelineError::PostAllocationMachine)?;
     match composition {
         ResolvedPhysicalPhaseComposition::AllocationRecovery {
             post_allocation: Some(entry),
             ..
-        } => stage_allocation_and_realization(
-            ranges,
+        } => realize_allocated_program(
+            allocation,
+            machine,
             ResolvedRealizationPlan::PostAllocationMachine { entry },
         ),
         ResolvedPhysicalPhaseComposition::AllocationRecovery {
             post_allocation: None,
             ..
-        } => stage_allocation_recovery_pipeline(ranges),
+        } => realize_recovered_allocation(allocation, machine),
         ResolvedPhysicalPhaseComposition::Realization(composition) => {
-            stage_allocation_and_realization(ranges, composition)
+            realize_allocated_program(allocation, machine, composition)
         }
     }
 }

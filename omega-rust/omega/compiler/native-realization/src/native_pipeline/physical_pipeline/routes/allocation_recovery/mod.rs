@@ -3,18 +3,13 @@
 use super::super::OptimizedVerifiedPhysicalPipelineError;
 use crate::StagedOptimizedVerifiedPhysicalPipeline;
 use machine_emission::stage_allocation_recovery_function_relative_realization;
-use register_homes_to_post_allocation_machine::stage_optimized_post_allocation_machine_plan;
-use selected_instructions_to_register_homes::{
-    StagedOptimizedLiveRanges, stage_register_allocation,
-};
+use register_homes_to_post_allocation_machine::StagedOptimizedPostAllocationMachinePlan;
+use selected_instructions_to_register_homes::RetainedAllocation;
 
-pub(in crate::native_pipeline::physical_pipeline) fn stage_allocation_recovery_pipeline(
-    ranges: StagedOptimizedLiveRanges,
+pub(in crate::native_pipeline::physical_pipeline) fn realize_recovered_allocation(
+    allocation: RetainedAllocation,
+    machine: StagedOptimizedPostAllocationMachinePlan,
 ) -> Result<StagedOptimizedVerifiedPhysicalPipeline, OptimizedVerifiedPhysicalPipelineError> {
-    let allocation = stage_register_allocation(ranges)
-        .map_err(OptimizedVerifiedPhysicalPipelineError::RegisterAllocation)?;
-    let machine = stage_optimized_post_allocation_machine_plan(&allocation.current())
-        .map_err(OptimizedVerifiedPhysicalPipelineError::PostAllocationMachine)?;
     let realization = stage_allocation_recovery_function_relative_realization(allocation, machine)
         .map_err(|error| {
             OptimizedVerifiedPhysicalPipelineError::AllocationRecoveryFunctionRelative(Box::new(

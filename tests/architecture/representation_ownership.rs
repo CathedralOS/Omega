@@ -1274,7 +1274,9 @@ fn unit_realization_and_identity_routing_consume_current_allocation() {
     let route =
         std::fs::read_to_string(root.join("native_pipeline/physical_pipeline/routes/identity.rs"))
             .unwrap();
-    assert!(route.contains("RetainedAllocation::try_from(homes)"));
+    assert!(route.contains("allocation: RetainedAllocation"));
+    assert!(!route.contains("RetainedAllocation::try_from("));
+    assert!(!route.contains("stage_register_allocation("));
     assert!(route.contains("current.selected_plan()"));
     assert!(route.contains("current.budget_per_pass()"));
     for forbidden in ["legality_stage()", "selected_stage()", "optimized_target()"] {
@@ -1361,12 +1363,25 @@ fn physical_coordination_shares_selection_and_does_not_fork_machine_rules_by_his
         1
     );
     for route in [
+        "routes/identity.rs",
         "routes/selected_phases.rs",
         "routes/allocation_recovery/mod.rs",
     ] {
         let source = std::fs::read_to_string(root.join(route)).unwrap();
         assert!(!source.contains("::stage_optimized_instruction_selection("));
         assert!(!source.contains("stage_optimized_liveness("));
+        assert!(!source.contains("stage_optimized_post_allocation_machine_plan("));
+        for allocator_entry in [
+            "stage_register_allocation(",
+            "stage_optimized_allocation_legality",
+            "stage_optimized_register_homes",
+            "run_selected_lowering_optimizations(",
+        ] {
+            assert!(
+                !source.contains(allocator_entry),
+                "allocation duplicated in {route}: {allocator_entry}"
+            );
+        }
     }
     let machine_route = std::fs::read_to_string(root.join("routes/selected_phases.rs")).unwrap();
     assert_eq!(
@@ -1375,8 +1390,26 @@ fn physical_coordination_shares_selection_and_does_not_fork_machine_rules_by_his
             .count(),
         1
     );
-    assert!(machine_route.contains("stage_register_allocation(ranges)"));
+    assert_eq!(
+        entrance
+            .matches("stage_register_allocation(ranges)")
+            .count(),
+        1
+    );
     let recovery = rust_source(&root.join("routes/allocation_recovery"));
+    assert_eq!(
+        entrance
+            .matches("::stage_optimized_post_allocation_machine_plan(")
+            .count(),
+        1
+    );
+    let emission = rust_source(
+        &repository().join("omega-rust/omega/backend/machine-emission/src/function_realization"),
+    );
+    assert!(
+        !emission.contains("stage_optimized_post_allocation_machine_plan("),
+        "emission must consume the preceding machine stage rather than execute it"
+    );
     for owned_by_allocation in [
         "SpillChoicePolicy",
         "RecoveryClassificationPolicy",

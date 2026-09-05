@@ -222,10 +222,13 @@ Rematerialized programs use the ordinary encoding and resolved-layout stages.
 The separate active-resident encoding crate and its layout/realization wrappers
 have been removed; their byte and corruption controls exercise the shared paths.
 
-Physical coordination performs instruction selection, liveness, and live ranges
-once before allocation dispatch. Ordinary allocation, selected lowering, and
-recovery feed one post-allocation machine path; the allocation owner executes
-the retained rule policies, including recovery availability and reanalysis.
+Physical coordination performs instruction selection, liveness, live ranges,
+register allocation, and post-allocation machine construction once. Ordinary
+allocation, selected lowering, and recovery use the allocation owner's entry;
+that owner executes rule policies, recovery availability, reanalysis, and any
+required frameless contract. Function-relative realization consumes the same
+allocation and machine outputs and independently checks their join. It cannot
+rerun either earlier stage or substitute a machine from another allocation.
 Optional later layout execution is read from its phase
 selection, not encoded as a second selected-lowering route variant.
 

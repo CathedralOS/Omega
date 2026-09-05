@@ -18,11 +18,13 @@ use selected_instructions_to_register_homes::RetainedAllocation;
 
 pub fn stage_optimized_structural_unit_function_relative_realization(
     allocation: RetainedAllocation,
+    machine: register_homes_to_post_allocation_machine::StagedOptimizedPostAllocationMachinePlan,
 ) -> Result<
     StagedOptimizedStructuralUnitFunctionRelativeRealization,
     OptimizedStructuralUnitFunctionRelativeRealizationError,
 > {
-    let staged = construction::construct_structural_unit_function_relative_realization(allocation)?;
+    let staged =
+        construction::construct_structural_unit_function_relative_realization(allocation, machine)?;
     validate_optimized_structural_unit_function_relative_realization(&staged)?;
     Ok(staged)
 }

@@ -8,7 +8,6 @@ use machine_emission::{
     stage_optimized_structural_unit_function_relative_realization,
     stage_optimized_unit_function_relative_realization, validate_unit_shape,
 };
-use selected_instructions_to_register_homes::StagedOptimizedRegisterHomes;
 
 use super::super::OptimizedVerifiedPhysicalPipelineError;
 
@@ -21,10 +20,9 @@ enum IdentityFunctionRelativeRoute {
 }
 
 pub(in crate::native_pipeline::physical_pipeline) fn stage_identity_function_relative_pipeline(
-    homes: StagedOptimizedRegisterHomes,
+    allocation: RetainedAllocation,
+    machine: register_homes_to_post_allocation_machine::StagedOptimizedPostAllocationMachinePlan,
 ) -> Result<StagedOptimizedVerifiedPhysicalPipeline, OptimizedVerifiedPhysicalPipelineError> {
-    let allocation = RetainedAllocation::try_from(homes)
-        .map_err(OptimizedVerifiedPhysicalPipelineError::AllocationReplay)?;
     let current = allocation.current();
     let selected = current.selected_plan();
     let route = if !selected.structural_unit_functions.is_empty() {
@@ -37,18 +35,18 @@ pub(in crate::native_pipeline::physical_pipeline) fn stage_identity_function_rel
     let budget = current.budget_per_pass();
 
     match route {
-        IdentityFunctionRelativeRoute::Unit => stage_optimized_unit_function_relative_realization(allocation)
+        IdentityFunctionRelativeRoute::Unit => stage_optimized_unit_function_relative_realization(allocation, machine)
             .map(StagedOptimizedVerifiedPhysicalPipeline::from)
             .map_err(OptimizedVerifiedPhysicalPipelineError::UnitFunctionRelativeRealization),
         IdentityFunctionRelativeRoute::StructuralUnit => {
-            stage_optimized_structural_unit_function_relative_realization(allocation)
+            stage_optimized_structural_unit_function_relative_realization(allocation, machine)
                 .map(StagedOptimizedVerifiedPhysicalPipeline::from)
                 .map_err(
                     OptimizedVerifiedPhysicalPipelineError::StructuralUnitFunctionRelativeRealization,
                 )
         }
         IdentityFunctionRelativeRoute::FixedFrame => {
-            stage_fixed_frame_function_relative_realization(allocation, budget)
+            stage_fixed_frame_function_relative_realization(allocation, machine, budget)
                 .map(StagedOptimizedVerifiedPhysicalPipeline::from)
                 .map_err(OptimizedVerifiedPhysicalPipelineError::FunctionRelativeRealization)
         }

@@ -9,9 +9,7 @@ use machine_emission::{
 use post_allocation_machine_to_post_allocation_machine::OptimizedPostAllocationMachineOptimizationError;
 use register_homes_to_post_allocation_machine::OptimizedPostAllocationMachinePipelineError;
 use selected_instructions_to_register_homes::{
-    OptimizedAllocationLegalityCustodyError, OptimizedLiteralFoldCustodyError,
     OptimizedLiveRangeCustodyError, OptimizedLivenessCustodyError,
-    OptimizedPostSelectedLoweringHomeCustodyError, OptimizedRegisterHomeCustodyError,
 };
 use target_operations_to_selected_instructions::OptimizedSelectionPipelineError;
 
@@ -24,12 +22,7 @@ pub enum OptimizedVerifiedPhysicalPipelineError {
     Selection(OptimizedSelectionPipelineError),
     Liveness(OptimizedLivenessCustodyError),
     LiveRanges(OptimizedLiveRangeCustodyError),
-    AllocationLegality(OptimizedAllocationLegalityCustodyError),
     RegisterAllocation(selected_instructions_to_register_homes::RegisterAllocationError),
-    AllocationReplay(selected_instructions_to_register_homes::AllocationReplayError),
-    RegisterHomes(OptimizedRegisterHomeCustodyError),
-    SelectedLowering(OptimizedLiteralFoldCustodyError),
-    SelectedLoweringHomes(OptimizedPostSelectedLoweringHomeCustodyError),
     PostAllocationMachine(OptimizedPostAllocationMachinePipelineError),
     PostAllocationMachineOptimization(OptimizedPostAllocationMachineOptimizationError),
     PostAllocationMachineRuleCatalog(

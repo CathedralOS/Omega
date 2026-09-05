@@ -2191,14 +2191,14 @@ fn terminal_component_staging_consumes_only_the_psi_owned_artifact() {
             )
             && optimizer_physical_model.contains("into_function_fragment_emission_source(")
             && optimizer_selected_phases
-                .contains("stage_identity_function_relative_pipeline(homes)")
+                .contains("stage_identity_function_relative_pipeline(allocation, machine)")
             && optimizer_identity_route
-                .contains("stage_optimized_unit_function_relative_realization(allocation)")
+                .contains("stage_optimized_unit_function_relative_realization(allocation, machine)")
             && optimizer_identity_route.contains(
-                "stage_optimized_structural_unit_function_relative_realization(allocation)"
+                "stage_optimized_structural_unit_function_relative_realization(allocation, machine)"
             )
             && optimizer_identity_route
-                .contains("stage_fixed_frame_function_relative_realization(allocation, budget)")
+                .contains("stage_fixed_frame_function_relative_realization(allocation, machine, budget)")
             && !optimizer_identity_route.contains(".or_else(")
             && optimizer_physical_pipeline
                 .contains("post_terminal: &PostTerminalOptimizationSelections")
@@ -5606,9 +5606,9 @@ fn allocation_recovery_has_one_route_and_one_realization_carrier() {
     )
     .expect("read allocation-recovery route entrance");
     for required in [
-        "fn stage_allocation_recovery_pipeline",
-        "stage_register_allocation(ranges)",
-        "stage_optimized_post_allocation_machine_plan(&allocation.current())",
+        "fn realize_recovered_allocation",
+        "allocation: RetainedAllocation",
+        "machine: StagedOptimizedPostAllocationMachinePlan",
         "stage_allocation_recovery_function_relative_realization(allocation, machine)",
     ] {
         assert!(
@@ -5616,6 +5616,7 @@ fn allocation_recovery_has_one_route_and_one_realization_carrier() {
             "allocation-recovery route must expose `{required}`"
         );
     }
+    assert!(!route.contains("stage_register_allocation("));
     let model =
         std::fs::read_to_string(pipeline.join("native_pipeline/physical_pipeline/model.rs"))
             .expect("read physical carrier model");

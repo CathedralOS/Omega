@@ -49,7 +49,6 @@ pub(super) use post_allocation_machine_to_selected_form_encoding::{
 pub(super) use register_homes_to_post_allocation_machine::{
     OptimizedPostAllocationMachinePipelineError,
     StagedOptimizedPostAllocationMachineCustodyReceipt, StagedOptimizedPostAllocationMachinePlan,
-    stage_optimized_post_allocation_machine_plan,
     validate_optimized_post_allocation_machine_plan_custody,
 };
 pub(super) use selected_form_encoding_to_resolved_layout::{
