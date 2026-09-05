@@ -40,6 +40,40 @@ crates including every Psi one never execute and the gate reports a stop
 rather than a coverage gap. Platform integration tests
 are separate and must report an explicit skip when the host cannot run them.
 
+### Developer platform support
+
+Windows and macOS are supported development hosts; Zac works on macOS. Shared
+build, test, maintenance, and landing workflows must have a documented usable
+entrypoint on both. Do not assume PowerShell, Windows paths, drive letters, or
+Windows-only executables are available on another developer's machine.
+
+- Put shared behavior in one portable implementation. Prefer an existing Rust
+  subcommand or a Python standard-library script when it fits the task. Thin
+  `.ps1` and `.sh` launchers may call it; do not maintain independent copies of
+  the protocol or business logic in each shell.
+- A `.ps1` file is not sufficient evidence of macOS support. PowerShell 7 can be
+  a cross-platform runtime, but `pwsh` must then be an explicit, documented
+  prerequisite on both hosts, and the implementation must avoid Windows-only
+  APIs. Do not silently require Zac to install PowerShell as the default answer
+  to a missing macOS entrypoint. When adding or extending shared tooling,
+  provide the portable route and document its runtime prerequisites.
+- Document commands for both PowerShell and macOS's shell when their syntax
+  differs: environment variables, quoting, line continuation, path handling,
+  and exit-code checks. Use repository-relative paths and propagate failures.
+  A shell wrapper that swallows a failing check is not equivalent behavior.
+- Platform-specific tooling is appropriate for platform-specific work. Label
+  its scope and document the corresponding host route or explicit limitation;
+  do not make a Windows-only helper mandatory for an unrelated shared workflow.
+- Validate shared behavior on Windows and macOS when those hosts are available,
+  including failure paths. Record which host actually ran each check. A Windows
+  pass or source inspection alone does not establish a macOS runtime pass; if
+  macOS is unavailable, report that remaining validation explicitly.
+
+For landing reservations, all host entrypoints must preserve the same Git
+reference format, ownership checks, and atomic publication/release behavior.
+A macOS route must interoperate with Windows publishers; bypassing reservations
+with a direct push is not a portability workaround.
+
 ### Driving the compiler
 
 The CLI package is **`omega`** (binary `omega`); there is no `omega-cli`
@@ -312,17 +346,77 @@ steal a reservation automatically. See [landing](tools/landing.md) for commands,
 observed-owner recovery, and handling an uncertain network result. This protocol
 coordinates publishing across machines; it does not assign work ownership.
 
-Commit messages do not follow this repository's own `git log`. That history is
-capitalized, imperative, and bodiless: it restates what the diff already shows
-and drops the reasoning, which is the part no later reader can recover.
+### Commit naming
 
-The subject is `lane: statement`. The lane names the area touched — `psi`,
-`omega`, `delta`, `bootstrap`, `library`, `backend`, `docs`. The statement is
-lowercase and declarative, and gives the resulting behavior rather than the
-action taken. Around 68 characters, 85 at the outside. Two things landing
-together join with `and`.
+Use `lane: statement`. Choose the lane from the changed responsibility below,
+not the repository name, implementation language, or a prefix copied from Git
+history. Omega names the whole project, a compiler stage, and a bootstrap
+implementation; those meanings must stay distinct in commit subjects.
 
+| Lane | Responsibility and current path anchors |
+| --- | --- |
+| `alpha`, `beta`, `gamma`, `delta`, `epsilon` | The corresponding language rung in `bootstrap/<rung>/`, including its compiler/evaluator, Rust reference tooling, and rung-specific tests. Use the actual rung name. |
+| `bootstrap-omega` | The Epsilon-written first Omega compiler D in `bootstrap/omega/` and tests specifically of that implementation. Never shorten this to `omega`. |
+| `bootstrap` | Cross-rung reconstruction, trust-chain edges, artifact provenance, and chain hygiene; includes `tests/bootstrap/` and shared `tools/bootstrap/` orchestration. A helper specific to one rung uses that rung's lane. |
+| `psi` | Target-neutral source semantics through Terminal Psi: parsing, resolution, typing, checking, proof, interpretation, and Psi optimization in `omega-rust/psi/` or `source/psi/`. |
+| `omega` | The Terminal-Psi-consuming compiler stage: Omega representations, transforms, optimization, and realization semantics in `omega-rust/omega/{representations,pipeline,semantics}/` or corresponding `source/omega/` implementation. Never a project-wide default. |
+| `backend` | Target, ISA, ABI, object/image encoding, layout, and execution primitives in `omega-rust/omega/backend/` and their product-source equivalents. Transform policy in `pipeline/` remains `omega`. |
+| `compiler` | Product compilation coordination and reports in `omega-rust/omega/compiler/`, or an inseparable compiler contract change spanning Psi and Omega. A coordinator call-site adjustment accompanying a stage fix keeps the stage's lane. |
+| `build` | The product's build evaluation, composition, provider planning, deployment, and trust ledger in `omega-rust/omega/build/`, plus product build declarations such as `source/omega/build.omg`. Repository build commands and CI use `repo`. |
+| `packages` | Package acquisition, graphs, review, admission, installation, and update workflows in `omega-rust/omega/packages/`. Package command wiring accompanying those changes keeps `packages`. |
+| `cli` | Command parsing, flags, help, and command dispatch in `omega-rust/omega/src/`, plus the corresponding product entrypoint. The command's underlying compiler or package behavior uses its owning lane. |
+| `tooling` | Shipped compiler support such as artifact views, profiles, language-server/docs-generator behavior, and host custody in `omega-rust/omega/tooling/`. |
+| `library` | Bundled packages in `source/library/`, including `core`, `alloc`, and `std`. A compiler semantic fix exercised by library code keeps its compiler lane. |
+| `samples` | Standalone sample/example content and presentation in `samples/` or example directories. A regression fixture for an implementation fix keeps that implementation's lane. |
+| `tests` | Shared test infrastructure, corpus registration, fixtures, or architecture gates spanning multiple owners. Tests for one responsibility use that responsibility's lane, even in a test-only commit. |
+| `tools` | Repository maintenance/development utilities in `tools/`, including landing reservations and sample-refresh scripts. Bootstrap tools follow the rung/chain rules above; shipped tooling uses `tooling`. |
+| `repo` | Repository-wide workflow, agent instructions/skills, CI, workspace/dependency configuration, formatting policy, and Git settings. Includes standalone policy changes in `AGENTS.md`, `CLAUDE.md`, and `.claude/`. |
+| `docs` | Explanatory documentation-only changes in `wiki/`, README files, or guides. Executable agent instructions use `repo`; documentation accompanying an implementation change keeps its implementation lane. |
+
+Apply these selection rules in order:
+
+1. Read the diff and identify the responsibility whose behavior or contract
+   changed. The more specific table row wins over an enclosing directory:
+   `omega-rust/omega/packages/` is `packages`, not `omega` or `repo`.
+2. Supporting tests, fixtures, documentation, task-board updates, and mechanical
+   call-site edits inherit that responsibility's lane. `tests/omega/` names the
+   language corpus; a typing regression there is `psi`, an encoding regression
+   is `backend`. `TASKS*.md` and `OWNER_QUESTIONS.md` follow their subject; changes
+   to the board workflow itself use `repo`.
+3. For independently useful changes in different lanes, split the commits.
+   For one inseparable change, use the responsibility whose contract required
+   the other edits. Use `compiler` for a joint Psi/Omega contract, `bootstrap`
+   for a joint chain edge, `tests` for shared test machinery, and `repo` for
+   repository-wide policy or mechanical maintenance. File count does not decide
+   the lane. Explain the coupled areas in the body; do not invent combined
+   prefixes such as `psi/omega` or use `repo` merely because many files changed.
+4. New files in an existing responsibility use its existing lane. Only a new
+   responsibility absent from this table needs a new lane: choose a short,
+   lowercase area name, add its scope and overlap rules here in the same change,
+   and explain its ownership in the body. Do not create synonyms for listed lanes.
+
+The statement is lowercase and declarative: name the resulting behavior or
+structure, rather than an instruction to the reader. Preserve case in literal
+identifiers and proper names. Aim for about 68 characters for the entire subject;
+85 is the maximum. Use no trailing period, ticket-only title, or generic verb
+such as "update" without the concrete result. Use `and` for two coupled results;
+put secondary detail in the body when the subject would exceed the limit.
+Do not add a second change-type prefix such as `feat:` or `fix:`.
+
+Examples of subject wording (not claims that these changes have landed):
+
+    tools: landing reservations serialize integration and publication
+    repo: commit lanes distinguish compiler stages from project tooling
+    psi: index checks reject values outside the declared range
+    backend: Windows import encoding preserves DLL casing
+    packages: install selects declared Git workspace members
+    bootstrap-omega: source manifests include every compiler member
     delta: signed arithmetic traps at every overflow boundary
+
+Before committing, compare the subject and body with `git diff --cached`: the
+lane must match the staged responsibility and every claimed result must be
+supported by that diff or observed validation. This convention applies to future
+commits; it does not authorize rewriting existing history to rename subjects.
 
 The body is prose paragraphs after a blank line, with numbers in place of
 adjectives: `240.9 degrees against 194.8`, not `the phase varied`. Cover
