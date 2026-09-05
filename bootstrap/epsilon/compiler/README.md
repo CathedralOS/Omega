@@ -28,10 +28,12 @@ heap. The ambiguous arm-level `return expression?` uses the same scalar
 lookahead to recognize a complete following `pattern ->` prefix. Parser success
 wrappers contain only their native AST value and no duplicated cursor or span.
 It deliberately has no final evaluator `main` or composed executable identity.
-The first staging execution slice accepts only a completely checked empty
-`Main::main` entry or direct literal `Console.write_byte` and
-`Console.exit_process` statements. It now retains scalar let values by exact
-checked binding identity and executes grouped/local reads plus `assert`. Output
+The staging execution path starts from a completely checked `Main::main`.
+Scalar locals and state parameters retain exact checked declaration identity;
+assignment evaluates against the old values and replaces only the established
+home. Grouped/local reads and `assert` use the same scalar evaluator as
+`Console.write_byte` and `Console.exit_process` arguments. Argument arithmetic
+or bounds traps precede publication, byte-range checks, and process exit. Output
 prefixes survive exact exit, arithmetic, shift-count, `ByteRange`, and
 `Assertion` trap outcomes. Every scalar operator, including short-circuit
 Boolean logic, bitwise operations, shifts, division, and remainder, executes;
