@@ -10,6 +10,9 @@ use omega_compiler::CompileOptions;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
+#[path = "fixture_rosters/subslice_runtime_end_bounds.rs"]
+mod fixture_roster;
+
 fn compile(
     options: CompileOptions,
 ) -> Result<omega_compiler::CompileReport, Vec<psi_diagnostics::Diagnostic>> {
@@ -71,7 +74,7 @@ fn assert_exit(canary_rel: &str, tag: &str, expected: i32) {
 fn domained_slice_len_guard_lowers() {
     // Fix #1 alone: `self.k < path.len` over a `&[u8] in Path` param.
     assert_exit(
-        "slices/domained_slice_len_guard_exit",
+        fixture_roster::DOMAINED_SLICE_LEN_GUARD_EXIT,
         "domained-len-guard",
         70,
     );
@@ -81,7 +84,7 @@ fn domained_slice_len_guard_lowers() {
 fn runtime_end_subslice_machine_field_bound_materializes() {
     // Fix #2 alone: `sub[0..self.k]` with a machine-field END, plain slice.
     assert_exit(
-        "slices/runtime_end_subslice_machine_field_exit",
+        fixture_roster::RUNTIME_END_SUBSLICE_MACHINE_FIELD_EXIT,
         "rt-end-subslice",
         70,
     );
@@ -92,7 +95,7 @@ fn domained_runtime_end_subslice_materializes() {
     // Both fixes: the create_dir_all path-scan shape (domained param + machine
     // -field-end subslice + subslice-domain grant), minus the fs call.
     assert_exit(
-        "slices/domained_runtime_end_subslice_exit",
+        fixture_roster::DOMAINED_RUNTIME_END_SUBSLICE_EXIT,
         "domained-rt-end-subslice",
         70,
     );

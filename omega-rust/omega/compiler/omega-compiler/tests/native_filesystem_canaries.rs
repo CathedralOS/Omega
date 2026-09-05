@@ -12,6 +12,9 @@ use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::sync::atomic::{AtomicU64, Ordering};
 
+#[path = "fixture_rosters/native_filesystem_canaries.rs"]
+mod fixture_roster;
+
 static NEXT_ENTRY_STAGE: AtomicU64 = AtomicU64::new(1);
 
 fn compile_program(
@@ -112,8 +115,9 @@ fn repo_root() -> PathBuf {
         .to_path_buf()
 }
 
-fn compile_run(canary: &str) -> (Option<i32>, String) {
-    let source_dir = repo_root().join("tests/omega/pass/filesystem").join(canary);
+fn compile_run(fixture: fixture_roster::Fixture) -> (Option<i32>, String) {
+    let canary = fixture.name;
+    let source_dir = repo_root().join("tests/omega/pass").join(fixture.path);
     let build_dir =
         std::env::temp_dir().join(format!("omega-fscanary-{}-{}", canary, std::process::id()));
     let _ = std::fs::remove_dir_all(&build_dir);
@@ -135,10 +139,11 @@ fn compile_run(canary: &str) -> (Option<i32>, String) {
     )
 }
 
-fn assert_pass(canary: &str) {
+fn assert_pass(fixture: fixture_roster::Fixture) {
     // These canaries signal success by writing "PASS: …" to stdout; their exit code
     // is the final write's byte count (not 0), so success is the stdout, not the code.
-    let (_code, stdout) = compile_run(canary);
+    let canary = fixture.name;
+    let (_code, stdout) = compile_run(fixture);
     assert!(
         stdout.contains("PASS") && !stdout.contains("FAIL"),
         "{canary} expected PASS, got stdout: {stdout:?}"
@@ -148,29 +153,29 @@ fn assert_pass(canary: &str) {
 #[test]
 fn native_close_still_compiles_and_runs() {
     // No Path domain, only close(fd); just needs to compile + run without crashing.
-    let (code, _) = compile_run("native_close");
+    let (code, _) = compile_run(fixture_roster::NATIVE_CLOSE);
     assert!(code.is_some(), "native_close should run to a normal exit");
 }
 
 #[test]
 fn native_stat_still_passes() {
-    assert_pass("native_stat");
+    assert_pass(fixture_roster::NATIVE_STAT);
 }
 #[test]
 fn native_crud_still_passes() {
-    assert_pass("native_crud");
+    assert_pass(fixture_roster::NATIVE_CRUD);
 }
 #[test]
 fn native_dirs_still_passes() {
-    assert_pass("native_dirs");
+    assert_pass(fixture_roster::NATIVE_DIRS);
 }
 #[test]
 fn native_read_dir_iter_still_passes() {
-    assert_pass("native_read_dir_iter");
+    assert_pass(fixture_roster::NATIVE_READ_DIR_ITER);
 }
 #[test]
 fn native_flock_still_passes() {
-    assert_pass("native_flock");
+    assert_pass(fixture_roster::NATIVE_FLOCK);
 }
 // The WRAPPER lock family (lock/lock_shared/try_lock/try_lock_shared/unlock,
 // Rust File::lock parity) + metadata(File) (the fstat wrapper) -- first
@@ -180,7 +185,7 @@ fn native_flock_still_passes() {
 // the interpreter leg was probe-verified at 70 when this landed.
 #[test]
 fn wrapper_lock_metadata_exit_runs() {
-    let (code, _) = compile_run("wrapper_lock_metadata_exit");
+    let (code, _) = compile_run(fixture_roster::WRAPPER_LOCK_METADATA_EXIT);
     assert_eq!(code, Some(70), "wrapper lock/metadata cycle should exit 70");
 }
 // Closes the wrapper zero-caller sweep: set_times (futimens, read back via
@@ -189,7 +194,7 @@ fn wrapper_lock_metadata_exit_runs() {
 // no msvcrt rows, so macOS-gated here; interp leg probe-verified at 70.
 #[test]
 fn wrapper_times_owner_lstat_exit_runs() {
-    let (code, _) = compile_run("wrapper_times_owner_lstat_exit");
+    let (code, _) = compile_run(fixture_roster::WRAPPER_TIMES_OWNER_LSTAT_EXIT);
     assert_eq!(code, Some(70), "wrapper times/owner/lstat should exit 70");
 }
 // The dirfd REWIND: a second first-entry read on the same fd must return the
@@ -197,14 +202,14 @@ fn wrapper_times_owner_lstat_exit_runs() {
 // lseeks to 0 first). The iterative remove_dir_all drain depends on this.
 #[test]
 fn dirfd_reread_exit_runs() {
-    let (code, _) = compile_run("dirfd_reread_exit");
+    let (code, _) = compile_run(fixture_roster::DIRFD_REREAD_EXIT);
     assert_eq!(code, Some(70), "dirfd re-read should exit 70");
 }
 // The dir-walk wrapper family END TO END (create_dir_all -> read_dir_count /
 // is_empty -> remove_dir_all): the capstone of the call-with-return arc.
 #[test]
 fn dir_walk_wrappers_exit_runs() {
-    let (code, _) = compile_run("dir_walk_wrappers_exit");
+    let (code, _) = compile_run(fixture_roster::DIR_WALK_WRAPPERS_EXIT);
     assert_eq!(code, Some(70), "native dir-walk family should exit 70");
 }
 
@@ -314,11 +319,11 @@ machine Main::main(&mut self) {{
 }
 #[test]
 fn native_at_ops_passes() {
-    assert_pass("native_at_ops");
+    assert_pass(fixture_roster::NATIVE_AT_OPS);
 }
 #[test]
 fn native_at_runtime_name_passes() {
-    assert_pass("native_at_runtime_name");
+    assert_pass(fixture_roster::NATIVE_AT_RUNTIME_NAME);
 }
 
 // --- Promoted coverage -------------------------------------------------------
@@ -331,213 +336,213 @@ fn native_at_runtime_name_passes() {
 // Core byte I/O + open modes
 #[test]
 fn native_append_passes() {
-    assert_pass("native_append");
+    assert_pass(fixture_roster::NATIVE_APPEND);
 }
 #[test]
 fn native_open_rw_passes() {
-    assert_pass("native_open_rw");
+    assert_pass(fixture_roster::NATIVE_OPEN_RW);
 }
 #[test]
 fn native_open_create_passes() {
-    assert_pass("native_open_create");
+    assert_pass(fixture_roster::NATIVE_OPEN_CREATE);
 }
 #[test]
 fn native_seek_passes() {
-    assert_pass("native_seek");
+    assert_pass(fixture_roster::NATIVE_SEEK);
 }
 #[test]
 fn native_positioned_io_passes() {
-    assert_pass("native_positioned_io");
+    assert_pass(fixture_roster::NATIVE_POSITIONED_IO);
 }
 #[test]
 fn native_errno_passes() {
-    assert_pass("native_errno");
+    assert_pass(fixture_roster::NATIVE_ERRNO);
 }
 #[test]
 fn native_fs_workflow_passes() {
-    assert_pass("native_fs_workflow");
+    assert_pass(fixture_roster::NATIVE_FS_WORKFLOW);
 }
 
 // Value-call literal forwarding (aliased-literal operand resolution, step 14 fix #1)
 #[test]
 fn native_value_call_literal_passes() {
-    assert_pass("native_value_call_literal");
+    assert_pass(fixture_roster::NATIVE_VALUE_CALL_LITERAL);
 }
 #[test]
 fn native_value_call_path_passes() {
-    assert_pass("native_value_call_path");
+    assert_pass(fixture_roster::NATIVE_VALUE_CALL_PATH);
 }
 // `let`-bound host call forwarded through a same-machine value-call (step 14
 // layers 2+3: LocalData collection + LocalStorage emission) — the ergonomic
 // wrapper's shape, for a SAME-data-type callee.
 #[test]
 fn native_value_call_local_passes() {
-    assert_pass("native_value_call_local");
+    assert_pass(fixture_roster::NATIVE_VALUE_CALL_LOCAL);
 }
 
 // Copy / buffer marshalling
 #[test]
 fn native_buffer_copy_passes() {
-    assert_pass("native_buffer_copy");
+    assert_pass(fixture_roster::NATIVE_BUFFER_COPY);
 }
 #[test]
 fn native_subslice_copy_passes() {
-    assert_pass("native_subslice_copy");
+    assert_pass(fixture_roster::NATIVE_SUBSLICE_COPY);
 }
 #[test]
 fn native_copy_preserve_passes() {
-    assert_pass("native_copy_preserve");
+    assert_pass(fixture_roster::NATIVE_COPY_PRESERVE);
 }
 #[test]
 fn native_forwarded_slice_literal_passes() {
-    assert_pass("native_forwarded_slice_literal");
+    assert_pass(fixture_roster::NATIVE_FORWARDED_SLICE_LITERAL);
 }
 
 // Links, rename, truncation, permissions
 #[test]
 fn native_rename_passes() {
-    assert_pass("native_rename");
+    assert_pass(fixture_roster::NATIVE_RENAME);
 }
 #[test]
 fn native_hard_link_passes() {
-    assert_pass("native_hard_link");
+    assert_pass(fixture_roster::NATIVE_HARD_LINK);
 }
 #[test]
 fn native_symlink_passes() {
-    assert_pass("native_symlink");
+    assert_pass(fixture_roster::NATIVE_SYMLINK);
 }
 #[test]
 fn native_set_len_passes() {
-    assert_pass("native_set_len");
+    assert_pass(fixture_roster::NATIVE_SET_LEN);
 }
 #[test]
 fn native_permissions_passes() {
-    assert_pass("native_permissions");
+    assert_pass(fixture_roster::NATIVE_PERMISSIONS);
 }
 #[test]
 fn native_fchmod_passes() {
-    assert_pass("native_fchmod");
+    assert_pass(fixture_roster::NATIVE_FCHMOD);
 }
 // Ownership: expects a NON-root user (a real chown to root -> EPERM). Would fail
 // only if the suite were ever run as root, which the dev/CI macOS box is not.
 #[test]
 fn native_chown_passes() {
-    assert_pass("native_chown");
+    assert_pass(fixture_roster::NATIVE_CHOWN);
 }
 
 // Existence / classification / path resolution
 #[test]
 fn native_exists_passes() {
-    assert_pass("native_exists");
+    assert_pass(fixture_roster::NATIVE_EXISTS);
 }
 #[test]
 fn native_try_exists_passes() {
-    assert_pass("native_try_exists");
+    assert_pass(fixture_roster::NATIVE_TRY_EXISTS);
 }
 #[test]
 fn native_filetype_passes() {
-    assert_pass("native_filetype");
+    assert_pass(fixture_roster::NATIVE_FILETYPE);
 }
 #[test]
 fn native_canonicalize_passes() {
-    assert_pass("native_canonicalize");
+    assert_pass(fixture_roster::NATIVE_CANONICALIZE);
 }
 #[test]
 fn native_try_clone_passes() {
-    assert_pass("native_try_clone");
+    assert_pass(fixture_roster::NATIVE_TRY_CLONE);
 }
 #[test]
 fn native_read_dir_passes() {
-    assert_pass("native_read_dir");
+    assert_pass(fixture_roster::NATIVE_READ_DIR);
 }
 
 // Durability
 #[test]
 fn native_sync_passes() {
-    assert_pass("native_sync");
+    assert_pass(fixture_roster::NATIVE_SYNC);
 }
 #[test]
 fn native_sync_data_passes() {
-    assert_pass("native_sync_data");
+    assert_pass(fixture_roster::NATIVE_SYNC_DATA);
 }
 #[test]
 fn native_set_times_passes() {
-    assert_pass("native_set_times");
+    assert_pass(fixture_roster::NATIVE_SET_TIMES);
 }
 
 // Metadata decode (struct stat byte-assembly)
 #[test]
 fn native_fstat_passes() {
-    assert_pass("native_fstat");
+    assert_pass(fixture_roster::NATIVE_FSTAT);
 }
 #[test]
 fn native_symlink_metadata_passes() {
-    assert_pass("native_symlink_metadata");
+    assert_pass(fixture_roster::NATIVE_SYMLINK_METADATA);
 }
 #[test]
 fn native_metadata_nlink_passes() {
-    assert_pass("native_metadata_nlink");
+    assert_pass(fixture_roster::NATIVE_METADATA_NLINK);
 }
 #[test]
 fn native_metadata_ino_passes() {
-    assert_pass("native_metadata_ino");
+    assert_pass(fixture_roster::NATIVE_METADATA_INO);
 }
 #[test]
 fn native_metadata_ctime_dev_passes() {
-    assert_pass("native_metadata_ctime_dev");
+    assert_pass(fixture_roster::NATIVE_METADATA_CTIME_DEV);
 }
 #[test]
 fn native_metadata_blocks_passes() {
-    assert_pass("native_metadata_blocks");
+    assert_pass(fixture_roster::NATIVE_METADATA_BLOCKS);
 }
 #[test]
 fn native_metadata_modified_passes() {
-    assert_pass("native_metadata_modified");
+    assert_pass(fixture_roster::NATIVE_METADATA_MODIFIED);
 }
 #[test]
 fn native_metadata_times_passes() {
-    assert_pass("native_metadata_times");
+    assert_pass(fixture_roster::NATIVE_METADATA_TIMES);
 }
 #[test]
 fn native_metadata_readonly_passes() {
-    assert_pass("native_metadata_readonly");
+    assert_pass(fixture_roster::NATIVE_METADATA_READONLY);
 }
 
 #[test]
 fn native_value_call_let_chain_passes() {
-    assert_pass("native_value_call_let_chain");
+    assert_pass(fixture_roster::NATIVE_VALUE_CALL_LET_CHAIN);
 }
 // The SHIPPED ergonomic Filesystem wrapper natively (step 14 COMPLETE, all 5 layers)
 #[test]
 fn native_wrapper_write_all_passes() {
-    assert_pass("native_wrapper_write_all");
+    assert_pass(fixture_roster::NATIVE_WRAPPER_WRITE_ALL);
 }
 // STAT wrapper `Filesystem::exists` natively via TERMINAL-VALUE COMPLETION —
 // the no-transition workaround for the value-call guard-ordering bug.
 #[test]
 fn native_wrapper_exists_passes() {
-    assert_pass("native_wrapper_exists");
+    assert_pass(fixture_roster::NATIVE_WRAPPER_EXISTS);
 }
 // The value-call transition-guard DEEP BUG, now FIXED (both halves): a callee that
 // branches on a host-call result in an internal transition, whose bool result is
 // assigned to a field. Guards the ordering fix + the field-mutation constant-fold fix.
 #[test]
 fn native_value_call_guard_passes() {
-    assert_pass("native_value_call_guard");
+    assert_pass(fixture_roster::NATIVE_VALUE_CALL_GUARD);
 }
 // ENUM-transition-leaf delivery: a value-call whose callee transitions to enum
 // leaves (Err / Ok{pair}) delivers the correct arm's tag+payload to a field. Guards
 // the nullary-enum-variant frame-slot tag write (mutation/frame_slots.rs).
 #[test]
 fn native_enum_result_passes() {
-    assert_pass("native_enum_result");
+    assert_pass(fixture_roster::NATIVE_ENUM_RESULT);
 }
 // The PAYLOAD-CARRYING ergonomic wrapper result natively (unblocked by the deep
 // fix): `Filesystem::write_all -> UnitResult` reports Error for a bad path and Ok
 // for a good one — the RESULT, not just the side effect, is now correct.
 #[test]
 fn native_wrapper_write_all_result_passes() {
-    assert_pass("native_wrapper_write_all_result");
+    assert_pass(fixture_roster::NATIVE_WRAPPER_WRITE_ALL_RESULT);
 }
 // `Filesystem::try_exists -> ExistsResult` Yes/No natively: the faithful 3-way now
 // captures errno into a field in the entry (before branching) so the No-vs-Error
@@ -545,7 +550,7 @@ fn native_wrapper_write_all_result_passes() {
 // doesn't reach at that nesting.
 #[test]
 fn native_wrapper_try_exists_passes() {
-    assert_pass("native_wrapper_try_exists");
+    assert_pass(fixture_roster::NATIVE_WRAPPER_TRY_EXISTS);
 }
 // `Filesystem::metadata_path -> MetadataResult::Ok { meta }` with the PAYLOAD
 // destructured and USED (`meta.len == 5`). Promoted 2026-07-08 from
@@ -554,7 +559,7 @@ fn native_wrapper_try_exists_passes() {
 // (straight-line-defers-with-leaf; cast-field convert arm) natively on darwin.
 #[test]
 fn native_wrapper_metadata_passes() {
-    assert_pass("native_wrapper_metadata");
+    assert_pass(fixture_roster::NATIVE_WRAPPER_METADATA);
 }
 
 // The `file_journal` CLI SAMPLE (samples/cli/systems/file_journal) — a real
@@ -624,7 +629,10 @@ fn sample_note_vault_exits_14() {
 // host-argument scratch retains its FLOAT register class. It returns 4.
 #[test]
 fn native_float_arg_exits_4() {
-    let main_path = repo_root().join("tests/omega/pass/float/native_float_arg/main.omg");
+    let main_path = repo_root()
+        .join("tests/omega/pass")
+        .join(fixture_roster::NATIVE_FLOAT_ARG.path)
+        .join("main.omg");
     let build_dir = std::env::temp_dir().join(format!("omega-floatarg-{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&build_dir);
     compile_exact_macos_entry(CompileOptions {
@@ -650,7 +658,10 @@ fn native_float_arg_exits_4() {
 // verify the bits. sqrt(16.0) -> 4.0 -> round 4 -> exit 4.
 #[test]
 fn native_float_return_exits_4() {
-    let main_path = repo_root().join("tests/omega/pass/float/native_float_return/main.omg");
+    let main_path = repo_root()
+        .join("tests/omega/pass")
+        .join(fixture_roster::NATIVE_FLOAT_RETURN.path)
+        .join("main.omg");
     let build_dir = std::env::temp_dir().join(format!("omega-floatret-{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&build_dir);
     compile_exact_macos_entry(CompileOptions {
@@ -676,7 +687,10 @@ fn native_float_return_exits_4() {
 // hypot(3.0 + 0.0, 4.0 + 0.0) -> 5.0, then round_nearest -> exit 5.
 #[test]
 fn native_float_two_args_exits_5() {
-    let main_path = repo_root().join("tests/omega/pass/float/native_float_two_args/main.omg");
+    let main_path = repo_root()
+        .join("tests/omega/pass")
+        .join(fixture_roster::NATIVE_FLOAT_TWO_ARGS.path)
+        .join("main.omg");
     let build_dir = std::env::temp_dir().join(format!("omega-float2-{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&build_dir);
     compile_exact_macos_entry(CompileOptions {
@@ -699,8 +713,10 @@ fn native_float_two_args_exits_5() {
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
 #[test]
 fn returning_foreign_call_restores_canonical_float_control_state() {
-    let main_path =
-        repo_root().join("tests/omega/pass/float/foreign_control_state_restore/main.omg");
+    let main_path = repo_root()
+        .join("tests/omega/pass")
+        .join(fixture_roster::FOREIGN_CONTROL_STATE_RESTORE.path)
+        .join("main.omg");
     let build_dir =
         std::env::temp_dir().join(format!("omega-float-control-{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&build_dir);
@@ -729,7 +745,10 @@ fn returning_foreign_call_restores_canonical_float_control_state() {
 // yields cls==0 (exit 1) or aborts at dyld load (non-7 exit) — both caught here.
 #[test]
 fn objc_get_class_exits_7() {
-    let main_path = repo_root().join("tests/omega/pass/objc/objc_get_class/main.omg");
+    let main_path = repo_root()
+        .join("tests/omega/pass")
+        .join(fixture_roster::OBJC_GET_CLASS.path)
+        .join("main.omg");
     let build_dir = std::env::temp_dir().join(format!("omega-objcclass-{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&build_dir);
     compile_exact_macos_entry(CompileOptions {
@@ -753,7 +772,10 @@ fn objc_get_class_exits_7() {
 // non-null instance -> exit 7. recv->x0, sel->x1, id result->x0.
 #[test]
 fn objc_alloc_exits_7() {
-    let main_path = repo_root().join("tests/omega/pass/objc/objc_alloc/main.omg");
+    let main_path = repo_root()
+        .join("tests/omega/pass")
+        .join(fixture_roster::OBJC_ALLOC.path)
+        .join("main.omg");
     let build_dir = std::env::temp_dir().join(format!("omega-objcalloc-{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&build_dir);
     compile_exact_macos_entry(CompileOptions {
@@ -779,7 +801,10 @@ fn objc_alloc_exits_7() {
 // (setActivationPolicy: int, activateIgnoringOtherApps: BOOL).
 #[test]
 fn objc_msgsend_scalar_exits_8() {
-    let main_path = repo_root().join("tests/omega/pass/objc/objc_msgsend_scalar/main.omg");
+    let main_path = repo_root()
+        .join("tests/omega/pass")
+        .join(fixture_roster::OBJC_MSGSEND_SCALAR.path)
+        .join("main.omg");
     let build_dir = std::env::temp_dir().join(format!("omega-objcscalar-{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&build_dir);
     compile_exact_macos_entry(CompileOptions {
@@ -805,7 +830,10 @@ fn objc_msgsend_scalar_exits_8() {
 // AppKit loads cleanly from a bare CLI mach-o (no .app bundle).
 #[test]
 fn framework_classes_exits_9() {
-    let main_path = repo_root().join("tests/omega/pass/objc/framework_classes/main.omg");
+    let main_path = repo_root()
+        .join("tests/omega/pass")
+        .join(fixture_roster::FRAMEWORK_CLASSES.path)
+        .join("main.omg");
     let build_dir = std::env::temp_dir().join(format!("omega-fwclasses-{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&build_dir);
     compile_exact_macos_entry(CompileOptions {
@@ -829,7 +857,10 @@ fn framework_classes_exits_9() {
 // loads: NSString alloc/initWithUTF8String:"hello", [str length] == 5 -> exit 5.
 #[test]
 fn nsstring_length_exits_5() {
-    let main_path = repo_root().join("tests/omega/pass/objc/nsstring_length/main.omg");
+    let main_path = repo_root()
+        .join("tests/omega/pass")
+        .join(fixture_roster::NSSTRING_LENGTH.path)
+        .join("main.omg");
     let build_dir = std::env::temp_dir().join(format!("omega-nsstrlen-{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&build_dir);
     compile_exact_macos_entry(CompileOptions {
@@ -855,7 +886,10 @@ fn nsstring_length_exits_5() {
 // bindable as a directly-called framework (no objc).
 #[test]
 fn cgrect_hfa_exits_6() {
-    let main_path = repo_root().join("tests/omega/pass/objc/cgrect_hfa/main.omg");
+    let main_path = repo_root()
+        .join("tests/omega/pass")
+        .join(fixture_roster::CGRECT_HFA.path)
+        .join("main.omg");
     let build_dir = std::env::temp_dir().join(format!("omega-cgrect-{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&build_dir);
     compile_exact_macos_entry(CompileOptions {
@@ -882,7 +916,10 @@ fn cgrect_hfa_exits_6() {
 // both files are placed right. Headless-safe (never ordered on-screen). -> exit 3.
 #[test]
 fn nswindow_init_exits_3() {
-    let main_path = repo_root().join("tests/omega/pass/objc/nswindow_init/main.omg");
+    let main_path = repo_root()
+        .join("tests/omega/pass")
+        .join(fixture_roster::NSWINDOW_INIT.path)
+        .join("main.omg");
     let build_dir = std::env::temp_dir().join(format!("omega-nswin-{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&build_dir);
     compile_exact_macos_entry(CompileOptions {
@@ -908,7 +945,10 @@ fn nswindow_init_exits_3() {
 // CGImage whose width reads back as 4 -> exit 4.
 #[test]
 fn cgimage_blit_exits_4() {
-    let main_path = repo_root().join("tests/omega/pass/objc/cgimage_blit/main.omg");
+    let main_path = repo_root()
+        .join("tests/omega/pass")
+        .join(fixture_roster::CGIMAGE_BLIT.path)
+        .join("main.omg");
     let build_dir = std::env::temp_dir().join(format!("omega-blit-{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&build_dir);
     compile_exact_macos_entry(CompileOptions {
@@ -935,7 +975,10 @@ fn cgimage_blit_exits_4() {
 // Headless-safe: the assert is on the object graph, not on-screen visibility.
 #[test]
 fn present_frame_exits_5() {
-    let main_path = repo_root().join("tests/omega/pass/objc/present_frame/main.omg");
+    let main_path = repo_root()
+        .join("tests/omega/pass")
+        .join(fixture_roster::PRESENT_FRAME.path)
+        .join("main.omg");
     let build_dir = std::env::temp_dir().join(format!("omega-present-{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&build_dir);
     compile_exact_macos_entry(CompileOptions {
@@ -962,7 +1005,10 @@ fn present_frame_exits_5() {
 // with a deadline and fails loudly instead of hanging the suite. -> exit 6.
 #[test]
 fn event_pump_exits_6() {
-    let main_path = repo_root().join("tests/omega/pass/objc/event_pump/main.omg");
+    let main_path = repo_root()
+        .join("tests/omega/pass")
+        .join(fixture_roster::EVENT_PUMP.path)
+        .join("main.omg");
     let build_dir = std::env::temp_dir().join(format!("omega-pump-{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&build_dir);
     compile_exact_macos_entry(CompileOptions {
@@ -1001,7 +1047,10 @@ fn event_pump_exits_6() {
 // remaining integration gap is provider wiring (boundary Gui trait -> this).
 #[test]
 fn gui_backend_valuecall_exits_7() {
-    let main_path = repo_root().join("tests/omega/pass/objc/gui_backend_valuecall/main.omg");
+    let main_path = repo_root()
+        .join("tests/omega/pass")
+        .join(fixture_roster::GUI_BACKEND_VALUECALL.path)
+        .join("main.omg");
     let build_dir = std::env::temp_dir().join(format!("omega-vcgui-{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&build_dir);
     compile_exact_macos_entry(CompileOptions {
@@ -1029,7 +1078,10 @@ fn gui_backend_valuecall_exits_7() {
 // ever regressed to blocking, so the test spawns with a deadline. -> exit 4.
 #[test]
 fn native_gui_loop_exits_4() {
-    let main_path = repo_root().join("tests/omega/pass/objc/native_gui_loop/main.omg");
+    let main_path = repo_root()
+        .join("tests/omega/pass")
+        .join(fixture_roster::NATIVE_GUI_LOOP.path)
+        .join("main.omg");
     let build_dir = std::env::temp_dir().join(format!("omega-guiloop-{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&build_dir);
     compile_exact_macos_entry(CompileOptions {
@@ -1069,7 +1121,10 @@ fn native_gui_loop_exits_4() {
 // sample's boundary Gui field with this provider on darwin.
 #[test]
 fn gui_impl_through_field_exits_7() {
-    let main_path = repo_root().join("tests/omega/pass/objc/gui_impl_through_field/main.omg");
+    let main_path = repo_root()
+        .join("tests/omega/pass")
+        .join(fixture_roster::GUI_IMPL_THROUGH_FIELD.path)
+        .join("main.omg");
     let build_dir = std::env::temp_dir().join(format!("omega-tfgui-{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&build_dir);
     compile_exact_macos_entry(CompileOptions {
@@ -1096,7 +1151,10 @@ fn gui_impl_through_field_exits_7() {
 // Non-null window -> exit 8. The hardest Gui op proven in its true sample shape.
 #[test]
 fn gui_window_i32_args_exits_8() {
-    let main_path = repo_root().join("tests/omega/pass/objc/gui_window_i32_args/main.omg");
+    let main_path = repo_root()
+        .join("tests/omega/pass")
+        .join(fixture_roster::GUI_WINDOW_I32_ARGS.path)
+        .join("main.omg");
     let build_dir = std::env::temp_dir().join(format!("omega-i32gui-{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&build_dir);
     compile_exact_macos_entry(CompileOptions {
@@ -1129,7 +1187,10 @@ fn gui_window_i32_args_exits_8() {
 // window is real, so a stuck run is killed rather than hanging CI.
 #[test]
 fn macos_gui_module_exits_3() {
-    let main_path = repo_root().join("tests/omega/pass/objc/macos_gui_module/main.omg");
+    let main_path = repo_root()
+        .join("tests/omega/pass")
+        .join(fixture_roster::MACOS_GUI_MODULE.path)
+        .join("main.omg");
     let build_dir = std::env::temp_dir().join(format!("omega-macgui-{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&build_dir);
     compile_exact_macos_entry(CompileOptions {
@@ -1170,7 +1231,10 @@ fn macos_gui_module_exits_3() {
 // enough to catch a 1000x units error either direction.
 #[test]
 fn clock_sleep_poll_milliseconds_exits_6() {
-    let main_path = repo_root().join("tests/omega/pass/objc/clock_sleep/main.omg");
+    let main_path = repo_root()
+        .join("tests/omega/pass")
+        .join(fixture_roster::CLOCK_SLEEP.path)
+        .join("main.omg");
     let build_dir = std::env::temp_dir().join(format!("omega-clocksleep-{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&build_dir);
     compile_exact_macos_entry(CompileOptions {
@@ -1203,7 +1267,10 @@ fn clock_sleep_poll_milliseconds_exits_6() {
 // with 7.
 #[test]
 fn gui_provider_substitution_exits_7() {
-    let main_path = repo_root().join("tests/omega/pass/objc/gui_provider_substitution/main.omg");
+    let main_path = repo_root()
+        .join("tests/omega/pass")
+        .join(fixture_roster::GUI_PROVIDER_SUBSTITUTION.path)
+        .join("main.omg");
     let build_dir = std::env::temp_dir().join(format!("omega-guisubst-{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&build_dir);
     compile_exact_macos_entry(CompileOptions {
@@ -1295,7 +1362,10 @@ fn sample_window_demo_runs_natively_exits_0() {
 // lowering runs end-to-end.
 #[test]
 fn input_provider_substitution_exits_4() {
-    let main_path = repo_root().join("tests/omega/pass/objc/input_provider_substitution/main.omg");
+    let main_path = repo_root()
+        .join("tests/omega/pass")
+        .join(fixture_roster::INPUT_PROVIDER_SUBSTITUTION.path)
+        .join("main.omg");
     let build_dir = std::env::temp_dir().join(format!("omega-inputsubst-{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&build_dir);
     compile_exact_macos_entry(CompileOptions {
@@ -1372,8 +1442,10 @@ fn sample_window_app_renders_natively() {
 // i32::MIN%-1=0, 10/-1=-10 -> exit 7.
 #[test]
 fn saturating_divide_native_exits_7() {
-    let main_path =
-        repo_root().join("tests/omega/pass/arithmetic/saturating_divide_native/main.omg");
+    let main_path = repo_root()
+        .join("tests/omega/pass")
+        .join(fixture_roster::SATURATING_DIVIDE_NATIVE.path)
+        .join("main.omg");
     let build_dir = std::env::temp_dir().join(format!("omega-satdiv-{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&build_dir);
     compile_exact_macos_entry(CompileOptions {

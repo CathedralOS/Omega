@@ -1,10 +1,20 @@
 //! Fixture inventory is independent of host eligibility and compile filters.
 use super::*;
 
+#[path = "../fixture_rosters/call_acknowledgements.rs"]
+mod call_acknowledgements;
 #[path = "../fixture_rosters/concurrency_carry.rs"]
 mod concurrency_carry;
+#[path = "../fixture_rosters/layout_plans.rs"]
+mod layout_plans;
+#[path = "../fixture_rosters/native_filesystem_canaries.rs"]
+mod native_filesystem_canaries;
+#[path = "../fixture_rosters/plan_laid_repeated_runtime.rs"]
+mod plan_laid_repeated_runtime;
 #[path = "../fixture_rosters/recast_views.rs"]
 mod recast_views;
+#[path = "../fixture_rosters/subslice_runtime_end_bounds.rs"]
+mod subslice_runtime_end_bounds;
 
 fn pass_roster() -> Vec<&'static str> {
     CHECKED_ONLY_PASS_CANARIES
@@ -13,7 +23,16 @@ fn pass_roster() -> Vec<&'static str> {
         .chain(WINDOWS_HOST_PASS_CANARIES)
         .chain(concurrency_carry::PASS_CANARIES)
         .chain(recast_views::PASS_CANARIES)
+        .chain(call_acknowledgements::PASS_CANARIES)
+        .chain(layout_plans::PASS_CANARIES)
+        .chain(plan_laid_repeated_runtime::PASS_CANARIES)
+        .chain(subslice_runtime_end_bounds::PASS_CANARIES)
         .copied()
+        .chain(
+            native_filesystem_canaries::PASS_CANARIES
+                .iter()
+                .map(|fixture| fixture.path),
+        )
         .chain(CROSS_TARGET_PASS_CANARIES.iter().map(|entry| entry.0))
         .chain(
             ROOTED_TARGET_BACKEND_PASS_CANARIES
@@ -37,6 +56,7 @@ fn fail_roster() -> Vec<&'static str> {
         .into_iter()
         .chain(concurrency_carry::FAIL_CANARIES.iter().map(|entry| entry.0))
         .chain(recast_views::FAIL_CANARIES.iter().copied())
+        .chain(layout_plans::FAIL_CANARIES.iter().copied())
         .collect()
 }
 
