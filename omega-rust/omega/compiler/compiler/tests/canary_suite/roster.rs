@@ -1,6 +1,8 @@
 //! Fixture inventory is independent of host eligibility and compile filters.
+use super::abi_runtime_values_and_strings::fixture_roster as abi_runtime_values_and_strings;
 use super::content_text_and_carriers::fixture_roster as content_text_and_carriers;
 use super::generics_and_dependent_facts::fixture_roster as generics_and_dependent_facts;
+use super::providers_float_and_console::fixture_roster as providers_float_and_console;
 use super::ranges_storage_and_entries::fixture_roster as ranges_storage_and_entries;
 use super::time_hosts_and_indexed_storage::fixture_roster as time_hosts_and_indexed_storage;
 use super::value_and_type_checks::fixture_roster as value_and_type_checks;
@@ -45,6 +47,10 @@ fn pass_roster() -> Vec<&'static str> {
         .chain(package_compilation_inputs::PASS_CANARIES)
         .chain(value_and_type_checks::PASS_CANARIES)
         .chain(content_text_and_carriers::PASS_CANARIES)
+        .chain(abi_runtime_values_and_strings::PASS_CANARIES)
+        .chain(abi_runtime_values_and_strings::BOUNDED_CARRIER_PASS_CANARIES)
+        .chain(providers_float_and_console::PASS_CANARIES)
+        .chain(providers_float_and_console::CONSOLE_LINE_REPLAY_CANARIES)
         .chain(ranges_storage_and_entries::PASS_CANARIES)
         .chain(value_calls_and_dispatch::PASS_CANARIES)
         .chain(wire_and_algorithms::PASS_CANARIES)
@@ -52,6 +58,17 @@ fn pass_roster() -> Vec<&'static str> {
         .chain(generics_and_dependent_facts::STRUCTURED_CONST_PASS_CANARIES)
         .chain(time_hosts_and_indexed_storage::PASS_CANARIES)
         .copied()
+        .chain(
+            abi_runtime_values_and_strings::PRNG_REPOSITORY_PASS_CANARIES
+                .iter()
+                .chain(abi_runtime_values_and_strings::FILESYSTEM_REPOSITORY_PASS_CANARIES)
+                .chain(abi_runtime_values_and_strings::REPOSITORY_PASS_CANARIES)
+                .map(|relative| {
+                    relative
+                        .strip_prefix("tests/omega/pass/")
+                        .expect("repository-relative pass fixture prefix")
+                }),
+        )
         .chain(
             ranges_storage_and_entries::ENTRY_SCALAR_OPERATION_RESULTS
                 .iter()

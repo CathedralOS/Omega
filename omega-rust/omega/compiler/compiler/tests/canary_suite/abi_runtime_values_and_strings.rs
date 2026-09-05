@@ -1,5 +1,8 @@
 use super::*;
 
+#[path = "../fixture_rosters/abi_runtime_values_and_strings.rs"]
+pub(super) mod fixture_roster;
+
 fn application_build() -> String {
     "machine build(builder: &mut Build) {\n    builder.application(\"cross-target-canary\");\n}\n"
         .to_owned()
@@ -7,7 +10,7 @@ fn application_build() -> String {
 
 #[test]
 fn cross_aarch64_authored_scalar_float_preserves_vector_class() {
-    let canary = pass_canary("capabilities/aarch64_scalar_float_import_compile");
+    let canary = pass_canary(fixture_roster::AARCH64_SCALAR_FLOAT_IMPORT_COMPILE);
     let scratch = std::env::temp_dir().join(format!(
         "omega-aarch64-scalar-float-import-{}",
         std::process::id()
@@ -50,7 +53,7 @@ fn cross_aarch64_authored_scalar_float_preserves_vector_class() {
 
 #[test]
 fn cross_aarch64_small_aggregate_import_uses_consecutive_x_registers() {
-    let canary = pass_canary("capabilities/aarch64_small_aggregate_import_compile");
+    let canary = pass_canary(fixture_roster::AARCH64_SMALL_AGGREGATE_IMPORT_COMPILE);
     let scratch = std::env::temp_dir().join(format!(
         "omega-aarch64-small-aggregate-import-{}",
         std::process::id()
@@ -93,7 +96,7 @@ fn cross_aarch64_small_aggregate_import_uses_consecutive_x_registers() {
 
 #[test]
 fn cross_sysv_small_aggregate_import_reaches_elf_dynamic_binding_blocker() {
-    let canary = pass_canary("capabilities/sysv_small_aggregate_import_compile");
+    let canary = pass_canary(fixture_roster::SYSV_SMALL_AGGREGATE_IMPORT_COMPILE);
     let scratch = std::env::temp_dir().join(format!(
         "omega-sysv-small-aggregate-import-{}",
         std::process::id()
@@ -120,7 +123,7 @@ fn cross_sysv_small_aggregate_import_reaches_elf_dynamic_binding_blocker() {
 
 #[test]
 fn cross_aarch64_small_aggregate_import_falls_wholly_to_stack() {
-    let canary = pass_canary("capabilities/aarch64_small_aggregate_stack_import_compile");
+    let canary = pass_canary(fixture_roster::AARCH64_SMALL_AGGREGATE_STACK_IMPORT_COMPILE);
     let scratch = std::env::temp_dir().join(format!(
         "omega-aarch64-small-aggregate-stack-import-{}",
         std::process::id()
@@ -159,7 +162,7 @@ fn cross_aarch64_small_aggregate_import_falls_wholly_to_stack() {
 
 #[test]
 fn cross_aarch64_hfa_stack_import_copies_the_aggregate() {
-    let canary = pass_canary("capabilities/aarch64_hfa_stack_import_compile");
+    let canary = pass_canary(fixture_roster::AARCH64_HFA_STACK_IMPORT_COMPILE);
     let scratch =
         std::env::temp_dir().join(format!("omega-aarch64-hfa-stack-{}", std::process::id()));
     let _ = fs::remove_dir_all(&scratch);
@@ -196,7 +199,7 @@ fn cross_aarch64_hfa_stack_import_copies_the_aggregate() {
 
 #[test]
 fn cross_aarch64_hfa_result_import_spills_fragmented_result() {
-    let canary = pass_canary("capabilities/aarch64_hfa_result_import_compile");
+    let canary = pass_canary(fixture_roster::AARCH64_HFA_RESULT_IMPORT_COMPILE);
     let scratch =
         std::env::temp_dir().join(format!("omega-aarch64-hfa-result-{}", std::process::id()));
     let _ = fs::remove_dir_all(&scratch);
@@ -229,7 +232,7 @@ fn cross_aarch64_hfa_result_import_spills_fragmented_result() {
 
 #[test]
 fn cross_aarch64_erased_hfa_result_keeps_two_vector_fragments() {
-    let canary = pass_canary("capabilities/aarch64_erased_hfa_result_import_compile");
+    let canary = pass_canary(fixture_roster::AARCH64_ERASED_HFA_RESULT_IMPORT_COMPILE);
     let scratch = std::env::temp_dir().join(format!(
         "omega-aarch64-erased-hfa-result-{}",
         std::process::id()
@@ -264,7 +267,7 @@ fn cross_aarch64_erased_hfa_result_keeps_two_vector_fragments() {
 
 #[test]
 fn cross_aarch64_small_aggregate_result_import_spills_fragmented_result() {
-    let canary = pass_canary("capabilities/aarch64_small_aggregate_result_import_compile");
+    let canary = pass_canary(fixture_roster::AARCH64_SMALL_AGGREGATE_RESULT_IMPORT_COMPILE);
     let scratch = std::env::temp_dir().join(format!(
         "omega-aarch64-small-aggregate-result-{}",
         std::process::id()
@@ -300,7 +303,7 @@ fn cross_aarch64_small_aggregate_result_import_spills_fragmented_result() {
 
 #[test]
 fn cross_aarch64_large_aggregate_import_uses_indirect_places() {
-    let canary = pass_canary("capabilities/aarch64_large_aggregate_import_compile");
+    let canary = pass_canary(fixture_roster::AARCH64_LARGE_AGGREGATE_IMPORT_COMPILE);
     let scratch = std::env::temp_dir().join(format!(
         "omega-aarch64-large-aggregate-{}",
         std::process::id()
@@ -345,7 +348,7 @@ fn cross_aarch64_large_aggregate_import_uses_indirect_places() {
 
 #[test]
 fn cross_win64_large_aggregate_import_uses_an_aligned_caller_copy() {
-    let canary = pass_canary("capabilities/win64_large_aggregate_import_compile");
+    let canary = pass_canary(fixture_roster::WIN64_LARGE_AGGREGATE_IMPORT_COMPILE);
     let scratch = std::env::temp_dir().join(format!(
         "omega-win64-large-aggregate-{}",
         std::process::id()
@@ -399,7 +402,7 @@ fn cross_win64_large_aggregate_import_uses_an_aligned_caller_copy() {
 
 #[test]
 fn cross_win64_direct_aggregate_import_loads_the_record_by_value() {
-    let canary = pass_canary("capabilities/win64_direct_aggregate_import_compile");
+    let canary = pass_canary(fixture_roster::WIN64_DIRECT_AGGREGATE_IMPORT_COMPILE);
     let scratch = std::env::temp_dir().join(format!(
         "omega-win64-direct-aggregate-{}",
         std::process::id()
@@ -432,7 +435,7 @@ fn cross_win64_direct_aggregate_import_loads_the_record_by_value() {
 
 #[test]
 fn cross_win64_direct_aggregate_result_spills_rax_by_value() {
-    let canary = pass_canary("capabilities/win64_direct_aggregate_result_import_compile");
+    let canary = pass_canary(fixture_roster::WIN64_DIRECT_AGGREGATE_RESULT_IMPORT_COMPILE);
     let scratch = std::env::temp_dir().join(format!(
         "omega-win64-direct-aggregate-result-{}",
         std::process::id()
@@ -465,7 +468,7 @@ fn cross_win64_direct_aggregate_result_spills_rax_by_value() {
 
 #[test]
 fn cross_win64_large_aggregate_result_uses_hidden_rcx_destination() {
-    let canary = pass_canary("capabilities/win64_large_aggregate_result_import_compile");
+    let canary = pass_canary(fixture_roster::WIN64_LARGE_AGGREGATE_RESULT_IMPORT_COMPILE);
     let scratch = std::env::temp_dir().join(format!(
         "omega-win64-large-aggregate-result-{}",
         std::process::id()
@@ -495,7 +498,7 @@ fn cross_win64_large_aggregate_result_uses_hidden_rcx_destination() {
 
 #[test]
 fn cross_win64_scalar_float_import_uses_positional_xmm_and_stack_locations() {
-    let canary = pass_canary("capabilities/win64_scalar_float_import_compile");
+    let canary = pass_canary(fixture_roster::WIN64_SCALAR_FLOAT_IMPORT_COMPILE);
     let scratch =
         std::env::temp_dir().join(format!("omega-win64-scalar-float-{}", std::process::id()));
     let _ = fs::remove_dir_all(&scratch);
@@ -544,7 +547,7 @@ fn cross_win64_scalar_float_import_uses_positional_xmm_and_stack_locations() {
 // authored bindings, so unlike its neighbors this test runs no interp oracle.
 #[test]
 fn windows_external_import_canary_selects_exact_free_import_plan() {
-    let canary = pass_canary("capabilities/windows_provides_import_exit");
+    let canary = pass_canary(fixture_roster::WINDOWS_PROVIDES_IMPORT_EXIT);
     let checked = compile_to_checked(&canary.join("main.omg"), None)
         .expect("free DllImport leaf should resolve the Beeper slot");
     assert_eq!(
@@ -572,7 +575,7 @@ fn windows_external_import_canary_selects_exact_free_import_plan() {
 #[cfg(windows)]
 #[test]
 fn windows_external_import_exit_canary_runs() {
-    let canary = pass_canary("capabilities/windows_provides_import_exit");
+    let canary = pass_canary(fixture_roster::WINDOWS_PROVIDES_IMPORT_EXIT);
 
     let build_dir =
         std::env::temp_dir().join(format!("omega-external-import-{}", std::process::id()));
@@ -606,7 +609,7 @@ stderr:
 #[cfg(windows)]
 #[test]
 fn windows_fs_wrapper_breadth_exit_canary_runs() {
-    let canary = pass_canary("filesystem/windows_wrapper_breadth_exit");
+    let canary = pass_canary(fixture_roster::WINDOWS_WRAPPER_BREADTH_EXIT);
     let main_path = canary.join("main.omg");
 
     let checked = compile_to_checked(&main_path, None)
@@ -656,7 +659,7 @@ stderr:
 #[cfg(windows)]
 #[test]
 fn repeated_dir_walk_scan_exit_canary_runs() {
-    let canary = pass_canary("filesystem/repeated_dir_walk_scan_exit");
+    let canary = pass_canary(fixture_roster::REPEATED_DIR_WALK_SCAN_EXIT);
     let main_path = canary.join("main.omg");
 
     let checked = compile_to_checked(&main_path, None)
@@ -699,7 +702,7 @@ fn repeated_dir_walk_scan_exit_canary_runs() {
 #[cfg(windows)]
 #[test]
 fn windows_fs_raw_breadth_exit_canary_runs() {
-    let canary = pass_canary("filesystem/windows_raw_breadth_exit");
+    let canary = pass_canary(fixture_roster::WINDOWS_RAW_BREADTH_EXIT);
     let main_path = canary.join("main.omg");
 
     let checked = compile_to_checked(&main_path, None)
@@ -750,7 +753,7 @@ fn windows_fs_raw_breadth_exit_canary_runs() {
 // common field reads 0, not call 1's hp=9 through the reused slot.
 #[test]
 fn runtime_value_call_entry_field_write_exit_canary_runs() {
-    let canary = pass_canary("calls/runtime_value_call_entry_field_write_exit");
+    let canary = pass_canary(fixture_roster::RUNTIME_VALUE_CALL_ENTRY_FIELD_WRITE_EXIT);
     let main_path = canary.join("main.omg");
 
     let checked = compile_to_checked(&main_path, None)
@@ -800,7 +803,7 @@ fn runtime_value_call_entry_field_write_exit_canary_runs() {
 // inlined value callee -- swap_digits(42) = 24 on both engines.
 #[test]
 fn runtime_value_callee_post_entry_lets_exit_canary_runs() {
-    let canary = pass_canary("calls/runtime_value_callee_post_entry_lets_exit");
+    let canary = pass_canary(fixture_roster::RUNTIME_VALUE_CALLEE_POST_ENTRY_LETS_EXIT);
     let main_path = canary.join("main.omg");
 
     let checked = compile_to_checked(&main_path, None)
@@ -843,7 +846,7 @@ fn runtime_value_callee_post_entry_lets_exit_canary_runs() {
 // native 0, interp masked it).
 #[test]
 fn value_machine_self_array_local_index_exit_canary_runs() {
-    let canary = pass_canary("backend/value_machine_self_array_local_index_exit");
+    let canary = pass_canary(fixture_roster::VALUE_MACHINE_SELF_ARRAY_LOCAL_INDEX_EXIT);
     let main_path = canary.join("main.omg");
 
     let checked = compile_to_checked(&main_path, None)
@@ -894,7 +897,7 @@ fn value_machine_self_array_local_index_exit_canary_runs() {
 // (`stat_buf[ST_*_OFF + k]` = `stat_buf[24 + 0]` after substitution).
 #[test]
 fn value_machine_const_index_self_array_exit_canary_runs() {
-    let canary = pass_canary("backend/value_machine_const_index_self_array_exit");
+    let canary = pass_canary(fixture_roster::VALUE_MACHINE_CONST_INDEX_SELF_ARRAY_EXIT);
     let main_path = canary.join("main.omg");
 
     let checked = compile_to_checked(&main_path, None)
@@ -942,7 +945,7 @@ fn value_machine_const_index_self_array_exit_canary_runs() {
 // intermediate read more than once (`a` -> b,c; `b` -> c,d). proc(5)=30.
 #[test]
 fn runtime_post_entry_deep_chain_exit_canary_runs() {
-    let canary = pass_canary("calls/runtime_post_entry_deep_chain_exit");
+    let canary = pass_canary(fixture_roster::RUNTIME_POST_ENTRY_DEEP_CHAIN_EXIT);
     let main_path = canary.join("main.omg");
 
     let checked = compile_to_checked(&main_path, None)
@@ -985,7 +988,7 @@ fn runtime_post_entry_deep_chain_exit_canary_runs() {
 // path -- proc(100,7)=2 both engines (was native 0).
 #[test]
 fn runtime_post_entry_chained_let_exit_canary_runs() {
-    let canary = pass_canary("calls/runtime_post_entry_chained_let_exit");
+    let canary = pass_canary(fixture_roster::RUNTIME_POST_ENTRY_CHAINED_LET_EXIT);
     let main_path = canary.join("main.omg");
 
     let checked = compile_to_checked(&main_path, None)
@@ -1025,7 +1028,7 @@ fn runtime_post_entry_chained_let_exit_canary_runs() {
 // crash is back; 1 = the second callee's chain miscomputed.
 #[test]
 fn runtime_cross_callee_division_exit_canary_runs() {
-    let canary = pass_canary("calls/runtime_cross_callee_division_exit");
+    let canary = pass_canary(fixture_roster::RUNTIME_CROSS_CALLEE_DIVISION_EXIT);
     let main_path = canary.join("main.omg");
 
     let checked = compile_to_checked(&main_path, None)
@@ -1072,7 +1075,7 @@ stderr:
 // call's delivered result (exit 1 = first clobbered; 2 = second).
 #[test]
 fn runtime_cross_callee_let_names_exit_canary_runs() {
-    let canary = pass_canary("calls/runtime_cross_callee_let_names_exit");
+    let canary = pass_canary(fixture_roster::RUNTIME_CROSS_CALLEE_LET_NAMES_EXIT);
     let main_path = canary.join("main.omg");
 
     let checked = compile_to_checked(&main_path, None)
@@ -1120,7 +1123,7 @@ fn runtime_cross_callee_let_names_exit_canary_runs() {
 // is_less_than FALSE on a > b.
 #[test]
 fn runtime_nested_value_call_guard_exit_canary_runs() {
-    let canary = pass_canary("calls/runtime_nested_value_call_guard_exit");
+    let canary = pass_canary(fixture_roster::RUNTIME_NESTED_VALUE_CALL_GUARD_EXIT);
     let main_path = canary.join("main.omg");
 
     let checked = compile_to_checked(&main_path, None)
@@ -1167,7 +1170,7 @@ fn runtime_nested_value_call_guard_exit_canary_runs() {
 // (exit 2 = second zeroed, 1 = first zeroed).
 #[test]
 fn runtime_two_site_struct_result_exit_canary_runs() {
-    let canary = pass_canary("calls/runtime_two_site_struct_result_exit");
+    let canary = pass_canary(fixture_roster::RUNTIME_TWO_SITE_STRUCT_RESULT_EXIT);
     let main_path = canary.join("main.omg");
 
     let checked = compile_to_checked(&main_path, None)
@@ -1214,7 +1217,7 @@ fn runtime_two_site_struct_result_exit_canary_runs() {
 // the LAST result across every site.
 #[test]
 fn runtime_value_call_same_callee_sites_exit_canary_runs() {
-    let canary = pass_canary("calls/runtime_value_call_same_callee_sites_exit");
+    let canary = pass_canary(fixture_roster::RUNTIME_VALUE_CALL_SAME_CALLEE_SITES_EXIT);
     let main_path = canary.join("main.omg");
 
     let checked = compile_to_checked(&main_path, None)
@@ -1261,7 +1264,7 @@ fn runtime_value_call_same_callee_sites_exit_canary_runs() {
 // the Nth transition-argument call record by rank.
 #[test]
 fn runtime_value_call_transition_args_exit_canary_runs() {
-    let canary = pass_canary("calls/runtime_value_call_transition_args_exit");
+    let canary = pass_canary(fixture_roster::RUNTIME_VALUE_CALL_TRANSITION_ARGS_EXIT);
     let main_path = canary.join("main.omg");
 
     let checked = compile_to_checked(&main_path, None)
@@ -1305,7 +1308,7 @@ fn runtime_value_call_transition_args_exit_canary_runs() {
 // bugs delivered call 1's result (10) or ZII 0.
 #[test]
 fn runtime_value_call_transition_args_straight_line_exit_canary_runs() {
-    let canary = pass_canary("calls/runtime_value_call_transition_args_straight_line_exit");
+    let canary = pass_canary(fixture_roster::RUNTIME_VALUE_CALL_TRANSITION_ARGS_STRAIGHT_LINE_EXIT);
     let main_path = canary.join("main.omg");
 
     let checked = compile_to_checked(&main_path, None)
@@ -1349,7 +1352,7 @@ fn runtime_value_call_transition_args_straight_line_exit_canary_runs() {
 // bug gave both fields the LAST result (24).
 #[test]
 fn runtime_value_call_shared_slot_straight_line_exit_canary_runs() {
-    let canary = pass_canary("calls/runtime_value_call_shared_slot_straight_line_exit");
+    let canary = pass_canary(fixture_roster::RUNTIME_VALUE_CALL_SHARED_SLOT_STRAIGHT_LINE_EXIT);
     let main_path = canary.join("main.omg");
 
     let checked = compile_to_checked(&main_path, None)
@@ -1396,7 +1399,7 @@ fn runtime_value_call_shared_slot_straight_line_exit_canary_runs() {
 // non-ZII last tag + a bool designed-false leg.
 #[test]
 fn runtime_enum_self_method_exit_canary_runs() {
-    let canary = pass_canary("calls/runtime_enum_self_method_exit");
+    let canary = pass_canary(fixture_roster::RUNTIME_ENUM_SELF_METHOD_EXIT);
     let main_path = canary.join("main.omg");
 
     let checked = compile_to_checked(&main_path, None)
@@ -1443,7 +1446,7 @@ fn runtime_enum_self_method_exit_canary_runs() {
 // (calls/value_call_effectful_arm_rejected).
 #[test]
 fn runtime_value_call_dispatch_results_exit_canary_runs() {
-    let canary = pass_canary("calls/runtime_value_call_dispatch_results_exit");
+    let canary = pass_canary(fixture_roster::RUNTIME_VALUE_CALL_DISPATCH_RESULTS_EXIT);
     let main_path = canary.join("main.omg");
 
     let checked = compile_to_checked(&main_path, None)
@@ -1491,7 +1494,7 @@ fn runtime_value_call_dispatch_results_exit_canary_runs() {
 // these folds and that fence landed together and must stay together.
 #[test]
 fn runtime_value_call_literal_len_arm_guard_exit_canary_runs() {
-    let canary = pass_canary("calls/runtime_value_call_literal_len_arm_guard_exit");
+    let canary = pass_canary(fixture_roster::RUNTIME_VALUE_CALL_LITERAL_LEN_ARM_GUARD_EXIT);
     let main_path = canary.join("main.omg");
 
     let checked = compile_to_checked(&main_path, None)
@@ -1540,7 +1543,7 @@ fn runtime_value_call_literal_len_arm_guard_exit_canary_runs() {
 // (per-arm temps re-ran the callee once per attempted arm).
 #[test]
 fn runtime_value_call_guard_subject_exit_canary_runs() {
-    let canary = pass_canary("calls/runtime_value_call_guard_subject_exit");
+    let canary = pass_canary(fixture_roster::RUNTIME_VALUE_CALL_GUARD_SUBJECT_EXIT);
     let main_path = canary.join("main.omg");
 
     let checked = compile_to_checked(&main_path, None)
@@ -1581,7 +1584,7 @@ fn runtime_value_call_guard_subject_exit_canary_runs() {
 
 #[test]
 fn runtime_effectful_guard_local_and_self_terminal_exit_canary_runs() {
-    let canary = pass_canary("calls/runtime_effectful_guard_local_and_self_terminal_exit");
+    let canary = pass_canary(fixture_roster::RUNTIME_EFFECTFUL_GUARD_LOCAL_AND_SELF_TERMINAL_EXIT);
     let main_path = canary.join("main.omg");
 
     let checked = compile_to_checked(&main_path, None)
@@ -1621,7 +1624,7 @@ fn runtime_effectful_guard_local_and_self_terminal_exit_canary_runs() {
 
 #[test]
 fn runtime_guarded_effectful_transition_argument_exit_canary_runs() {
-    let canary = pass_canary("calls/runtime_guarded_effectful_transition_argument_exit");
+    let canary = pass_canary(fixture_roster::RUNTIME_GUARDED_EFFECTFUL_TRANSITION_ARGUMENT_EXIT);
     let main_path = canary.join("main.omg");
 
     let checked = compile_to_checked(&main_path, None)
@@ -1668,7 +1671,7 @@ fn runtime_guarded_effectful_transition_argument_exit_canary_runs() {
 // flag=false. The splice run ends at the CALLER's next own op.
 #[test]
 fn runtime_value_call_nested_entry_call_exit_canary_runs() {
-    let canary = pass_canary("calls/runtime_value_call_nested_entry_call_exit");
+    let canary = pass_canary(fixture_roster::RUNTIME_VALUE_CALL_NESTED_ENTRY_CALL_EXIT);
     let main_path = canary.join("main.omg");
 
     let checked = compile_to_checked(&main_path, None)
@@ -1716,7 +1719,7 @@ fn runtime_value_call_nested_entry_call_exit_canary_runs() {
 // variant, matching the destructure side.
 #[test]
 fn runtime_value_call_shared_payload_name_exit_canary_runs() {
-    let canary = pass_canary("calls/runtime_value_call_shared_payload_name_exit");
+    let canary = pass_canary(fixture_roster::RUNTIME_VALUE_CALL_SHARED_PAYLOAD_NAME_EXIT);
     let main_path = canary.join("main.omg");
 
     let checked = compile_to_checked(&main_path, None)
@@ -1760,7 +1763,7 @@ fn runtime_value_call_shared_payload_name_exit_canary_runs() {
 // arm, so the cast field silently dropped while its 15 siblings landed (exit 74).
 #[test]
 fn runtime_value_call_struct_payload_cast_field_exit_canary_runs() {
-    let canary = pass_canary("calls/runtime_value_call_struct_payload_cast_field_exit");
+    let canary = pass_canary(fixture_roster::RUNTIME_VALUE_CALL_STRUCT_PAYLOAD_CAST_FIELD_EXIT);
     let main_path = canary.join("main.omg");
 
     // Interpreter oracle first: it must agree the exit is 70.
@@ -1803,7 +1806,7 @@ fn runtime_value_call_struct_payload_cast_field_exit_canary_runs() {
 
 #[test]
 fn runtime_branch_leaf_multiple_named_conversion_exit_canary_runs() {
-    let canary = pass_canary("calls/runtime_branch_leaf_multiple_named_conversion_exit");
+    let canary = pass_canary(fixture_roster::RUNTIME_BRANCH_LEAF_MULTIPLE_NAMED_CONVERSION_EXIT);
     let build_dir = std::env::temp_dir().join(format!(
         "omega-branch-leaf-multiple-named-conversion-{}",
         std::process::id()
@@ -1961,7 +1964,7 @@ fn contained_health_loop_command_branch_carrier_canary_runs() {
 // each echoed -- the second read must overwrite the first line's bytes + length.
 #[test]
 fn runtime_stdin_line_buffering_carrier_canary_runs() {
-    let canary = pass_canary("text/runtime_stdin_line_buffering_exit");
+    let canary = pass_canary(fixture_roster::RUNTIME_STDIN_LINE_BUFFERING_EXIT);
     let build_dir = std::env::temp_dir().join(format!(
         "omega-runtime-line-buffering-{}",
         std::process::id()
@@ -2009,7 +2012,7 @@ fn runtime_stdin_line_buffering_carrier_canary_runs() {
 // (stdin straight into the inline bytes + len), then `write_line` the carrier back.
 #[test]
 fn runtime_text_storage_carrier_canary_runs() {
-    let canary = pass_canary("text/runtime_text_storage");
+    let canary = pass_canary(fixture_roster::RUNTIME_TEXT_STORAGE);
     let build_dir =
         std::env::temp_dir().join(format!("omega-runtime-text-storage-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
@@ -2065,7 +2068,7 @@ fn runtime_stderr_write_exit_canary_runs() {
     // handle (GetStdHandle(-12)) instead of stdout (-11). The program must emit
     // its text on stderr only, leaving stdout empty, and exit with the requested
     // code.
-    let canary = pass_canary("text/runtime_stderr_write_exit");
+    let canary = pass_canary(fixture_roster::RUNTIME_STDERR_WRITE_EXIT);
     let build_dir =
         std::env::temp_dir().join(format!("omega-runtime-stderr-write-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
@@ -2105,7 +2108,7 @@ fn runtime_stderr_write_exit_canary_runs() {
 
 #[test]
 fn runtime_stdin_line_buffering_exit_canary_runs() {
-    let canary = pass_canary("text/runtime_stdin_line_buffering_exit");
+    let canary = pass_canary(fixture_roster::RUNTIME_STDIN_LINE_BUFFERING_EXIT);
     let build_dir = std::env::temp_dir().join(format!(
         "omega-runtime-stdin-line-buffering-{}",
         std::process::id()
@@ -2156,7 +2159,7 @@ fn runtime_stdin_crlf_line_read_canary_runs() {
     // not leave the trailing '\n' to surface as a phantom empty line on the next
     // read_line. Reuses the two-read echo sample; with the bug the second read
     // returns "" and the output is "hello\n\n".
-    let canary = pass_canary("text/runtime_stdin_line_buffering_exit");
+    let canary = pass_canary(fixture_roster::RUNTIME_STDIN_LINE_BUFFERING_EXIT);
     let build_dir = std::env::temp_dir().join(format!(
         "omega-runtime-stdin-crlf-line-read-{}",
         std::process::id()
@@ -2202,7 +2205,7 @@ fn runtime_stdin_crlf_line_read_canary_runs() {
 
 #[test]
 fn runtime_slice_alias_indexed_string_field_concat_exit_canary_runs() {
-    let canary = pass_canary("text/runtime_slice_alias_indexed_string_field_concat_exit");
+    let canary = pass_canary(fixture_roster::RUNTIME_SLICE_ALIAS_INDEXED_STRING_FIELD_CONCAT_EXIT);
     let build_dir = std::env::temp_dir().join(format!(
         "omega-runtime-slice-alias-indexed-string-field-concat-{}",
         std::process::id()
@@ -2238,7 +2241,7 @@ fn runtime_slice_indexed_string_guard_exit_canary_runs() {
     // matching field takes the true arm, and a same-length differing field
     // takes the false arm. Exit 70 only when all three behave (the lying-guard
     // regression took the true arm unconditionally, exiting 71).
-    let canary = pass_canary("text/runtime_slice_indexed_string_guard_exit");
+    let canary = pass_canary(fixture_roster::RUNTIME_SLICE_INDEXED_STRING_GUARD_EXIT);
     let build_dir = std::env::temp_dir().join(format!(
         "omega-runtime-slice-indexed-string-guard-{}",
         std::process::id()
@@ -2268,7 +2271,7 @@ fn runtime_slice_indexed_string_guard_exit_canary_runs() {
 
 #[test]
 fn runtime_slice_machine_indexed_string_guard_exit_canary_runs() {
-    let canary = pass_canary("text/runtime_slice_machine_indexed_string_guard_exit");
+    let canary = pass_canary(fixture_roster::RUNTIME_SLICE_MACHINE_INDEXED_STRING_GUARD_EXIT);
     let build_dir = std::env::temp_dir().join(format!(
         "omega-runtime-slice-machine-indexed-string-guard-{}",
         std::process::id()
@@ -2302,7 +2305,7 @@ fn runtime_string_field_literal_guard_exit_canary_runs() {
     // The storage-place sibling of the slice-indexed shape: a machine-owned
     // String field guard-compared against a literal (empty field takes the
     // false arm; written field takes the true arm).
-    let canary = pass_canary("text/runtime_string_field_literal_guard_exit");
+    let canary = pass_canary(fixture_roster::RUNTIME_STRING_FIELD_LITERAL_GUARD_EXIT);
     let build_dir = std::env::temp_dir().join(format!(
         "omega-runtime-string-field-literal-guard-{}",
         std::process::id()
@@ -2337,7 +2340,7 @@ fn runtime_local_array_indexed_string_guard_exit_canary_runs() {
     // literal at a runtime index (empty field takes the false arm, matching
     // takes true, same-length-differing takes false; the lying-guard
     // regression selected no compare and took the true arm unconditionally).
-    let canary = pass_canary("text/runtime_local_array_indexed_string_guard_exit");
+    let canary = pass_canary(fixture_roster::RUNTIME_LOCAL_ARRAY_INDEXED_STRING_GUARD_EXIT);
     let build_dir = std::env::temp_dir().join(format!(
         "omega-runtime-local-array-indexed-string-guard-{}",
         std::process::id()
@@ -2368,7 +2371,7 @@ fn runtime_local_array_indexed_string_guard_exit_canary_runs() {
 
 #[test]
 fn runtime_local_array_indexed_string_field_concat_exit_canary_runs() {
-    let canary = pass_canary("text/runtime_local_array_indexed_string_field_concat_exit");
+    let canary = pass_canary(fixture_roster::RUNTIME_LOCAL_ARRAY_INDEXED_STRING_FIELD_CONCAT_EXIT);
     let build_dir = std::env::temp_dir().join(format!(
         "omega-runtime-local-array-indexed-string-field-concat-{}",
         std::process::id()
@@ -2402,7 +2405,7 @@ fn runtime_slice_fixed_indexed_string_guard_exit_canary_runs() {
     // element's String field guard-compared against a literal at a literal
     // index (`room_slice[0]`), lowering through the fixed-indexed place
     // (descriptor deref + folded constant offset). Same three regimes.
-    let canary = pass_canary("text/runtime_slice_fixed_indexed_string_guard_exit");
+    let canary = pass_canary(fixture_roster::RUNTIME_SLICE_FIXED_INDEXED_STRING_GUARD_EXIT);
     let build_dir = std::env::temp_dir().join(format!(
         "omega-runtime-slice-fixed-indexed-string-guard-{}",
         std::process::id()
@@ -2438,7 +2441,7 @@ fn runtime_pointee_string_guard_exit_canary_runs() {
     // a literal. The pre-fix regression here was an always-unequal compare:
     // the place resolved to the pointer slot's raw bytes rather than the
     // pointee's descriptor, so the MATCH regime took the false arm.
-    let canary = pass_canary("text/runtime_pointee_string_guard_exit");
+    let canary = pass_canary(fixture_roster::RUNTIME_POINTEE_STRING_GUARD_EXIT);
     let build_dir = std::env::temp_dir().join(format!(
         "omega-runtime-pointee-string-guard-{}",
         std::process::id()
@@ -2468,7 +2471,7 @@ fn runtime_pointee_string_guard_exit_canary_runs() {
 
 #[test]
 fn runtime_mutable_carrier_parameter_concat_exit_canary_runs() {
-    let canary = pass_canary("text/runtime_mutable_string_parameter_concat_exit");
+    let canary = pass_canary(fixture_roster::RUNTIME_MUTABLE_STRING_PARAMETER_CONCAT_EXIT);
     let build_dir = std::env::temp_dir().join(format!(
         "omega-runtime-mutable-carrier-parameter-concat-{}",
         std::process::id()
@@ -2499,7 +2502,7 @@ fn runtime_mutable_carrier_parameter_concat_exit_canary_runs() {
 
 #[test]
 fn runtime_mutable_string_parameter_concat_write_line_canary_runs() {
-    let canary = pass_canary("text/runtime_mutable_string_parameter_concat_write_line");
+    let canary = pass_canary(fixture_roster::RUNTIME_MUTABLE_STRING_PARAMETER_CONCAT_WRITE_LINE);
     let main_path = canary.join("main.omg");
     let checked = compile_to_checked(&main_path, None)
         .expect("runtime mutable carrier parameter concat/write canary should check");
@@ -2539,7 +2542,8 @@ fn runtime_mutable_string_parameter_concat_write_line_canary_runs() {
 
 #[test]
 fn runtime_mutable_string_parameter_wrapped_concat_write_line_canary_runs() {
-    let canary = pass_canary("text/runtime_mutable_string_parameter_wrapped_concat_write_line");
+    let canary =
+        pass_canary(fixture_roster::RUNTIME_MUTABLE_STRING_PARAMETER_WRAPPED_CONCAT_WRITE_LINE);
     let main_path = canary.join("main.omg");
     let checked = compile_to_checked(&main_path, None)
         .expect("runtime wrapped mutable carrier concat/write canary should check");
@@ -2579,7 +2583,7 @@ fn runtime_mutable_string_parameter_wrapped_concat_write_line_canary_runs() {
 
 #[test]
 fn runtime_mutable_struct_carrier_field_copy_concat_exit_canary_runs() {
-    let canary = pass_canary("text/runtime_mutable_struct_string_field_copy_concat_exit");
+    let canary = pass_canary(fixture_roster::RUNTIME_MUTABLE_STRUCT_STRING_FIELD_COPY_CONCAT_EXIT);
     let build_dir = std::env::temp_dir().join(format!(
         "omega-runtime-mutable-struct-carrier-field-copy-concat-{}",
         std::process::id()
@@ -2610,7 +2614,7 @@ fn runtime_mutable_struct_carrier_field_copy_concat_exit_canary_runs() {
 
 #[test]
 fn runtime_local_struct_string_field_concat_exit_canary_runs() {
-    let canary = pass_canary("text/runtime_local_struct_string_field_concat_exit");
+    let canary = pass_canary(fixture_roster::RUNTIME_LOCAL_STRUCT_STRING_FIELD_CONCAT_EXIT);
     let build_dir = std::env::temp_dir().join(format!(
         "omega-runtime-local-struct-string-field-concat-{}",
         std::process::id()
@@ -2640,7 +2644,7 @@ fn runtime_local_struct_string_field_concat_exit_canary_runs() {
 
 #[test]
 fn runtime_string_stored_suffix_exit_canary_runs() {
-    let canary = pass_canary("text/runtime_string_stored_suffix_exit");
+    let canary = pass_canary(fixture_roster::RUNTIME_STRING_STORED_SUFFIX_EXIT);
     let build_dir = std::env::temp_dir().join(format!(
         "omega-runtime-string-stored-suffix-{}",
         std::process::id()
@@ -2670,7 +2674,7 @@ fn runtime_string_stored_suffix_exit_canary_runs() {
 
 #[test]
 fn runtime_lookup_struct_field_concat_exit_canary_runs() {
-    let canary = pass_canary("text/runtime_lookup_struct_field_concat_exit");
+    let canary = pass_canary(fixture_roster::RUNTIME_LOOKUP_STRUCT_FIELD_CONCAT_EXIT);
     let main_path = canary.join("main.omg");
     let checked = compile_to_checked(&main_path, None)
         .expect("runtime lookup carrier concat should compile to checked trees");
@@ -2705,7 +2709,7 @@ fn runtime_lookup_struct_field_concat_exit_canary_runs() {
 
 #[test]
 fn runtime_large_lookup_struct_field_concat_exit_canary_runs() {
-    let canary = pass_canary("text/runtime_large_lookup_struct_field_concat_exit");
+    let canary = pass_canary(fixture_roster::RUNTIME_LARGE_LOOKUP_STRUCT_FIELD_CONCAT_EXIT);
     let main_path = canary.join("main.omg");
     let checked = compile_to_checked(&main_path, None)
         .expect("large lookup carrier concat should compile to checked trees");
@@ -2744,7 +2748,7 @@ fn runtime_large_lookup_struct_field_concat_exit_canary_runs() {
 
 #[test]
 fn runtime_large_room_lookup_struct_field_concat_exit_canary_runs() {
-    let canary = pass_canary("text/runtime_large_room_lookup_struct_field_concat_exit");
+    let canary = pass_canary(fixture_roster::RUNTIME_LARGE_ROOM_LOOKUP_STRUCT_FIELD_CONCAT_EXIT);
     let main_path = canary.join("main.omg");
     let checked = compile_to_checked(&main_path, None)
         .expect("large room lookup carrier concat should compile to checked trees");
@@ -2783,7 +2787,8 @@ fn runtime_large_room_lookup_struct_field_concat_exit_canary_runs() {
 
 #[test]
 fn runtime_call_argument_struct_string_field_slice_alias_exit_canary_runs() {
-    let canary = pass_canary("text/runtime_call_argument_struct_string_field_slice_alias_exit");
+    let canary =
+        pass_canary(fixture_roster::RUNTIME_CALL_ARGUMENT_STRUCT_STRING_FIELD_SLICE_ALIAS_EXIT);
     let build_dir = std::env::temp_dir().join(format!(
         "omega-runtime-call-argument-struct-string-slice-alias-{}",
         std::process::id()
@@ -2814,26 +2819,9 @@ fn runtime_call_argument_struct_string_field_slice_alias_exit_canary_runs() {
 
 #[test]
 fn bounded_carrier_regressions_compile_on_aarch64() {
-    for (index, canary_name) in [
-        "text/runtime_mutable_string_parameter_concat_exit",
-        "text/runtime_mutable_struct_string_field_copy_concat_exit",
-        "text/runtime_mutable_string_parameter_concat_write_line",
-        "text/runtime_mutable_string_parameter_wrapped_concat_write_line",
-        "text/runtime_mutable_struct_string_field_copy_concat_write_line",
-        "dungeon/runtime_clear_carve_render_string_fields_exit",
-        "dungeon/runtime_full_level_wrapper_lookup_string_field_exit",
-        "calls/mutable_output_host_call",
-        "text/runtime_text_storage",
-        "text/runtime_stdin_line_buffering_exit",
-        "text/runtime_stdin_command_branch_exit",
-        "dungeon/runtime_ordered_room_dispatch_loop_exit",
-        "dungeon/runtime_ordered_room_dispatch_large_machine_exit",
-        "dungeon/runtime_ordered_room_dispatch_real_show_states_exit",
-        "text/runtime_chained_string_append_exit",
-        "text/runtime_machine_string_append_in_place_exit",
-    ]
-    .into_iter()
-    .enumerate()
+    for (index, &canary_name) in fixture_roster::BOUNDED_CARRIER_PASS_CANARIES
+        .iter()
+        .enumerate()
     {
         let canary = pass_canary(canary_name);
         let scratch = std::env::temp_dir().join(format!(
@@ -2869,7 +2857,8 @@ fn bounded_carrier_regressions_compile_on_aarch64() {
 
 #[test]
 fn runtime_mutable_struct_string_field_copy_concat_write_line_canary_runs() {
-    let canary = pass_canary("text/runtime_mutable_struct_string_field_copy_concat_write_line");
+    let canary =
+        pass_canary(fixture_roster::RUNTIME_MUTABLE_STRUCT_STRING_FIELD_COPY_CONCAT_WRITE_LINE);
     let main_path = canary.join("main.omg");
     let checked = compile_to_checked(&main_path, None)
         .expect("runtime mutable struct carrier field copy/write canary should check");
@@ -2909,7 +2898,7 @@ fn runtime_mutable_struct_string_field_copy_concat_write_line_canary_runs() {
 
 #[test]
 fn runtime_machine_owned_indexed_integer_write_exit_canary_runs() {
-    let canary = pass_canary("storage/runtime_machine_owned_indexed_integer_write_exit");
+    let canary = pass_canary(fixture_roster::RUNTIME_MACHINE_OWNED_INDEXED_INTEGER_WRITE_EXIT);
     let build_dir = std::env::temp_dir().join(format!(
         "omega-runtime-machine-owned-indexed-integer-write-{}",
         std::process::id()
@@ -2940,7 +2929,7 @@ fn runtime_machine_owned_indexed_integer_write_exit_canary_runs() {
 
 #[test]
 fn runtime_machine_owned_fixed_indexed_struct_copy_exit_canary_runs() {
-    let canary = pass_canary("storage/runtime_machine_owned_fixed_indexed_struct_copy_exit");
+    let canary = pass_canary(fixture_roster::RUNTIME_MACHINE_OWNED_FIXED_INDEXED_STRUCT_COPY_EXIT);
     let build_dir = std::env::temp_dir().join(format!(
         "omega-runtime-machine-owned-fixed-indexed-struct-copy-{}",
         std::process::id()
@@ -2971,7 +2960,7 @@ fn runtime_machine_owned_fixed_indexed_struct_copy_exit_canary_runs() {
 
 #[test]
 fn runtime_machine_owned_indexed_struct_copy_exit_canary_runs() {
-    let canary = pass_canary("storage/runtime_machine_owned_indexed_struct_copy_exit");
+    let canary = pass_canary(fixture_roster::RUNTIME_MACHINE_OWNED_INDEXED_STRUCT_COPY_EXIT);
     let build_dir = std::env::temp_dir().join(format!(
         "omega-runtime-machine-owned-indexed-struct-copy-{}",
         std::process::id()
@@ -3002,7 +2991,7 @@ fn runtime_machine_owned_indexed_struct_copy_exit_canary_runs() {
 
 #[test]
 fn runtime_machine_owned_indexed_nested_exit_write_exit_canary_runs() {
-    let canary = pass_canary("storage/runtime_machine_owned_indexed_nested_exit_write_exit");
+    let canary = pass_canary(fixture_roster::RUNTIME_MACHINE_OWNED_INDEXED_NESTED_EXIT_WRITE_EXIT);
     let build_dir = std::env::temp_dir().join(format!(
         "omega-runtime-machine-owned-indexed-nested-exit-write-{}",
         std::process::id()
@@ -3033,7 +3022,7 @@ fn runtime_machine_owned_indexed_nested_exit_write_exit_canary_runs() {
 
 #[test]
 fn runtime_ordered_room_dispatch_exit_canary_runs() {
-    let canary = pass_canary("dungeon/runtime_ordered_room_dispatch_exit");
+    let canary = pass_canary(fixture_roster::RUNTIME_ORDERED_ROOM_DISPATCH_EXIT);
     let build_dir = std::env::temp_dir().join(format!(
         "omega-runtime-ordered-room-dispatch-{}",
         std::process::id()
@@ -3063,7 +3052,7 @@ fn runtime_ordered_room_dispatch_exit_canary_runs() {
 
 #[test]
 fn runtime_ordered_room_dispatch_after_call_exit_canary_runs() {
-    let canary = pass_canary("dungeon/runtime_ordered_room_dispatch_after_call_exit");
+    let canary = pass_canary(fixture_roster::RUNTIME_ORDERED_ROOM_DISPATCH_AFTER_CALL_EXIT);
     let build_dir = std::env::temp_dir().join(format!(
         "omega-runtime-ordered-room-dispatch-after-call-{}",
         std::process::id()
@@ -3094,7 +3083,7 @@ fn runtime_ordered_room_dispatch_after_call_exit_canary_runs() {
 
 #[test]
 fn runtime_ordered_room_dispatch_game_shape_exit_canary_runs() {
-    let canary = pass_canary("dungeon/runtime_ordered_room_dispatch_game_shape_exit");
+    let canary = pass_canary(fixture_roster::RUNTIME_ORDERED_ROOM_DISPATCH_GAME_SHAPE_EXIT);
     let build_dir = std::env::temp_dir().join(format!(
         "omega-runtime-ordered-room-dispatch-game-shape-{}",
         std::process::id()
@@ -3125,7 +3114,7 @@ fn runtime_ordered_room_dispatch_game_shape_exit_canary_runs() {
 
 #[test]
 fn runtime_ordered_room_dispatch_large_machine_exit_canary_runs() {
-    let canary = pass_canary("dungeon/runtime_ordered_room_dispatch_large_machine_exit");
+    let canary = pass_canary(fixture_roster::RUNTIME_ORDERED_ROOM_DISPATCH_LARGE_MACHINE_EXIT);
     let build_dir = std::env::temp_dir().join(format!(
         "omega-runtime-ordered-room-dispatch-large-machine-{}",
         std::process::id()
@@ -3156,7 +3145,7 @@ fn runtime_ordered_room_dispatch_large_machine_exit_canary_runs() {
 
 #[test]
 fn runtime_ordered_room_dispatch_loop_exit_canary_runs() {
-    let canary = pass_canary("dungeon/runtime_ordered_room_dispatch_loop_exit");
+    let canary = pass_canary(fixture_roster::RUNTIME_ORDERED_ROOM_DISPATCH_LOOP_EXIT);
     let build_dir = std::env::temp_dir().join(format!(
         "omega-runtime-ordered-room-dispatch-loop-{}",
         std::process::id()
@@ -3197,7 +3186,7 @@ fn runtime_ordered_room_dispatch_loop_exit_canary_runs() {
 
 #[test]
 fn runtime_guarded_inline_leaf_arm_skip_exit_canary_runs() {
-    let canary = pass_canary("dungeon/runtime_guarded_inline_leaf_arm_skip_exit");
+    let canary = pass_canary(fixture_roster::RUNTIME_GUARDED_INLINE_LEAF_ARM_SKIP_EXIT);
     let build_dir = std::env::temp_dir().join(format!(
         "omega-runtime-guarded-inline-leaf-arm-skip-{}",
         std::process::id()
@@ -3230,7 +3219,7 @@ fn runtime_guarded_inline_leaf_arm_skip_exit_canary_runs() {
 
 #[test]
 fn runtime_ordered_room_dispatch_real_show_states_exit_canary_runs() {
-    let canary = pass_canary("dungeon/runtime_ordered_room_dispatch_real_show_states_exit");
+    let canary = pass_canary(fixture_roster::RUNTIME_ORDERED_ROOM_DISPATCH_REAL_SHOW_STATES_EXIT);
     let build_dir = std::env::temp_dir().join(format!(
         "omega-runtime-ordered-room-dispatch-real-show-states-{}",
         std::process::id()
@@ -3278,7 +3267,7 @@ fn runtime_threaded_mut_arg_interrupt_soak_exit_canary_runs() {
     // whenever a timer tick landed inside a copy pair (the dungeon hot-potato
     // segfault). Fifty million dispatched pointer-threaded increments span many
     // ticks; a lost copy shows up as exit 71 (dropped count) or a crash.
-    let canary = pass_canary("dungeon/runtime_threaded_mut_arg_interrupt_soak_exit");
+    let canary = pass_canary(fixture_roster::RUNTIME_THREADED_MUT_ARG_INTERRUPT_SOAK_EXIT);
     let main_path = canary.join("main.omg");
     let build_dir = std::env::temp_dir().join(format!(
         "omega-runtime-threaded-mut-arg-interrupt-soak-{}",
@@ -3314,16 +3303,7 @@ fn runtime_threaded_mut_arg_interrupt_soak_exit_canary_runs() {
 
 #[test]
 fn named_integer_conversion_prng_cohort_reaches_checked_trees() {
-    for relative in [
-        "tests/omega/pass/arithmetic/runtime_contained_range_write",
-        "tests/omega/pass/arithmetic/runtime_unsigned_modulo_call_argument_exit",
-        "tests/omega/pass/calls/runtime_call_enum_sequence",
-        "tests/omega/pass/calls/runtime_nested_named_conversion_alias_exit",
-        "tests/omega/pass/control_flow/runtime_branching_helper_local_guard_value",
-        "tests/omega/pass/dungeon/runtime_nested_value_call_caller_local_guard_exit",
-        "tests/omega/pass/rewards/runtime_contained_reward_table_roll_item",
-        "tests/omega/pass/rewards/runtime_reward_table_roll_item_shape",
-    ] {
+    for &relative in fixture_roster::PRNG_REPOSITORY_PASS_CANARIES {
         let main_path = repo_root().join(relative).join("main.omg");
         compile_to_checked(&main_path, None).unwrap_or_else(|diagnostics| {
             panic!(
@@ -3336,26 +3316,7 @@ fn named_integer_conversion_prng_cohort_reaches_checked_trees() {
 
 #[test]
 fn named_integer_conversion_filesystem_decode_cohort_reaches_checked_trees() {
-    for relative in [
-        "tests/omega/pass/calls/runtime_value_call_struct_payload_cast_field_exit",
-        "tests/omega/pass/filesystem/native_copy_preserve",
-        "tests/omega/pass/filesystem/native_filetype",
-        "tests/omega/pass/filesystem/native_fs_workflow",
-        "tests/omega/pass/filesystem/native_fstat",
-        "tests/omega/pass/filesystem/native_metadata_blocks",
-        "tests/omega/pass/filesystem/native_metadata_ctime_dev",
-        "tests/omega/pass/filesystem/native_metadata_ino",
-        "tests/omega/pass/filesystem/native_metadata_modified",
-        "tests/omega/pass/filesystem/native_metadata_nlink",
-        "tests/omega/pass/filesystem/native_metadata_readonly",
-        "tests/omega/pass/filesystem/native_metadata_times",
-        "tests/omega/pass/filesystem/native_open_create",
-        "tests/omega/pass/filesystem/native_set_times",
-        "tests/omega/pass/filesystem/native_stat",
-        "tests/omega/pass/filesystem/native_symlink_metadata",
-        "tests/omega/pass/time/runtime_fs_mtime_interop_windows_exit",
-        "tests/omega/pass/time/runtime_fs_mtime_system_time_interop_exit",
-    ] {
+    for &relative in fixture_roster::FILESYSTEM_REPOSITORY_PASS_CANARIES {
         let main_path = repo_root().join(relative).join("main.omg");
         compile_to_checked(&main_path, None).unwrap_or_else(|diagnostics| {
             panic!(
@@ -3365,7 +3326,7 @@ fn named_integer_conversion_filesystem_decode_cohort_reaches_checked_trees() {
         });
     }
 
-    let windows_relative = "tests/omega/pass/filesystem/windows_set_file_time_exit";
+    let windows_relative = fixture_roster::REPOSITORY_WINDOWS_SET_FILE_TIME_EXIT;
     let windows_main = repo_root().join(windows_relative).join("main.omg");
     compile_to_checked(&windows_main, None).unwrap_or_else(|diagnostics| {
         panic!(
@@ -3377,7 +3338,7 @@ fn named_integer_conversion_filesystem_decode_cohort_reaches_checked_trees() {
 
 #[test]
 fn named_integer_conversion_filesystem_cross_targets_reach_checked_trees() {
-    let canary = pass_canary("filesystem/windows_positioned_io_exit");
+    let canary = pass_canary(fixture_roster::WINDOWS_POSITIONED_IO_EXIT);
     let targets = ["linux_x86_64", "linux_arm64", "windows_x86_64"];
     let results = run_bounded_canary_jobs(&targets, |target| {
         compile_to_checked(&canary.join("main.omg"), Some(target))
@@ -3403,7 +3364,7 @@ fn runtime_nested_value_call_caller_local_guard_exit_canary_runs() {
     // so the call-result write was silently dropped: the guard byte stayed 0
     // and the TRUE arm never dispatched -- the dungeon's side rooms R05/R06
     // were never carved, rendering empty description lines.
-    let canary = pass_canary("dungeon/runtime_nested_value_call_caller_local_guard_exit");
+    let canary = pass_canary(fixture_roster::RUNTIME_NESTED_VALUE_CALL_CALLER_LOCAL_GUARD_EXIT);
     let build_dir = std::env::temp_dir().join(format!(
         "omega-nested-value-call-caller-local-guard-{}",
         std::process::id()
