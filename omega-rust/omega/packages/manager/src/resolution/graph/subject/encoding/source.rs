@@ -2,7 +2,7 @@
 
 use super::super::CanonicalSourceClosureSubjectError;
 use super::super::validation::{validate_package_key, validate_source_lineage};
-use super::framing::{Decoder, Encoder, decode_hex_32, encode_hex};
+use super::framing::{Decoder, Encoder, encode_hex};
 use crate::declarations::{PackageKey, PackageName};
 use crate::resolution::graph::ResolvedSourceIdentity;
 use omega_package_source::{
@@ -97,7 +97,7 @@ pub(super) fn encode_source_lineage(
         }
         SourceLineage::Workspace(lineage) => {
             encoder.byte(3);
-            encoder.fixed(&decode_hex_32(&lineage.workspace_identity().to_hex())?);
+            encoder.fixed(lineage.workspace_identity().digest());
             encoder.bytes_bounded(
                 lineage.member_path().as_str().as_bytes(),
                 maximum_identity_bytes,
@@ -105,7 +105,7 @@ pub(super) fn encode_source_lineage(
         }
         SourceLineage::ExternalLocal(lineage) => {
             encoder.byte(4);
-            encoder.fixed(&decode_hex_32(&lineage.source_context().to_hex())?);
+            encoder.fixed(lineage.source_context().digest());
             encoder.bytes_bounded(
                 lineage
                     .canonical_absolute_path()
@@ -242,17 +242,19 @@ fn encode_resolution(
             content,
         } => {
             encoder.byte(0);
+            encoder.scratch(hex_length(commit.algorithm()))?;
             encoder.bytes_bounded(commit.to_hex().as_bytes(), 64)?;
+            encoder.scratch(hex_length(tree.algorithm()))?;
             encoder.bytes_bounded(tree.to_hex().as_bytes(), 64)?;
-            encoder.fixed(&decode_hex_32(&content.to_hex())?);
+            encoder.fixed(content.digest());
         }
         ImmutableSourceResolution::Workspace { content } => {
             encoder.byte(1);
-            encoder.fixed(&decode_hex_32(&content.to_hex())?);
+            encoder.fixed(content.digest());
         }
         ImmutableSourceResolution::ExternalLocal { content } => {
             encoder.byte(2);
-            encoder.fixed(&decode_hex_32(&content.to_hex())?);
+            encoder.fixed(content.digest());
         }
     }
     Ok(())
@@ -287,6 +289,13 @@ fn decode_resolution(
         _ => Err(CanonicalSourceClosureSubjectError::new(
             "invalid immutable-resolution tag",
         )),
+    }
+}
+
+fn hex_length(algorithm: omega_package_source::GitObjectIdAlgorithm) -> usize {
+    match algorithm {
+        omega_package_source::GitObjectIdAlgorithm::Sha1 => 40,
+        omega_package_source::GitObjectIdAlgorithm::Sha256 => 64,
     }
 }
 

@@ -25,6 +25,17 @@ pub enum ImmutableSourceResolution {
 }
 
 impl ImmutableSourceResolution {
+    /// Exact payload/capacity allowance for `git`'s tree hexadecimal temporary
+    /// and fixed-capacity domain-separated content-evidence buffer.
+    #[doc(hidden)]
+    pub fn git_recovery_owned_bytes(tree: &GitTreeId) -> usize {
+        let hexadecimal = match tree.algorithm() {
+            GitObjectIdAlgorithm::Sha1 => 40,
+            GitObjectIdAlgorithm::Sha256 => 64,
+        };
+        hexadecimal + GIT_TREE_CONTENT_EVIDENCE_DOMAIN.len() + 1 + 64
+    }
+
     pub fn git(commit: GitCommitId, tree: GitTreeId) -> Result<Self, IdentityError> {
         if commit.algorithm() != tree.algorithm() {
             return Err(IdentityError::GitObjectFormatMismatch);

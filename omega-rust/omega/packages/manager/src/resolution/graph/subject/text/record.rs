@@ -2,17 +2,18 @@
 
 use super::super::validation::validate_subject;
 use super::super::{
-    CanonicalDependencySourceRequest, CanonicalDependencySourceSelection,
-    CanonicalSourceClosureSubject, CanonicalSourceClosureSubjectError as Error,
-    CanonicalSourceClosureSubjectLimits as Limits,
+    CanonicalDependencySourceSelection, CanonicalSourceClosureSubject,
+    CanonicalSourceClosureSubjectError as Error, CanonicalSourceClosureSubjectLimits as Limits,
 };
-use super::framing::{Reader, Writer, reserve};
+use super::super::{
+    CanonicalSourceClosureSubjectRecoveryUsage as Usage, request_view::Request, usage::Budget,
+};
+use super::framing::{Reader, Writer};
 use super::requests::{
     into_authored, read_navigation, read_request, read_root, write_navigation, write_request,
     write_root,
 };
 use super::source::{read_key, read_source, write_key, write_source};
-use crate::declarations::AliasName;
 use crate::declarations::dependencies::read::ProjectedDependencies;
 use omega_target::TargetProfile;
 
@@ -52,13 +53,18 @@ impl CanonicalSourceClosureSubject {
                 "source-closure subject exceeds its record-byte limit",
             ));
         }
-        let mut writer = Writer::new(limits.maximum_record_bytes);
+        let mut writer = Writer::new(limits.maximum_record_bytes, Budget::new(usize::MAX));
+        self.write_text(&mut writer)?;
+        Ok(writer.finish()?.0)
+    }
+
+    fn write_text(&self, writer: &mut Writer) -> Result<(), Error> {
         writer.row("omega-source-closure 1", &[])?;
         writer.row(
             "target",
             &[self.target_profile().identity().as_str().as_bytes()],
         )?;
-        write_root(&mut writer, self.root())?;
+        write_root(writer, self.root())?;
         writer.number("packages", self.packages().len())?;
         for ((package, navigation), projection) in self
             .packages
@@ -67,36 +73,47 @@ impl CanonicalSourceClosureSubject {
             .zip(&self.package_dependency_projections)
         {
             writer.row("package", &[])?;
-            write_source(&mut writer, package)?;
-            write_navigation(&mut writer, navigation)?;
+            write_source(writer, package)?;
+            write_navigation(writer, navigation)?;
             writer.number("authored", projection.authored_dependencies().len())?;
             for request in projection.authored_dependencies() {
-                write_request(
-                    &mut writer,
-                    &CanonicalDependencySourceRequest::from(request),
-                )?;
+                write_request(writer, Request::from(request))?;
             }
         }
         writer.number("edges", self.dependency_requests().len())?;
         for edge in self.dependency_requests() {
             writer.row("edge", &[])?;
             writer.row("requester", &[])?;
-            write_key(&mut writer, edge.requester())?;
+            write_key(writer, edge.requester())?;
             writer.number("ordinal", edge.dependency_index())?;
-            write_request(&mut writer, edge.request())?;
+            write_request(writer, Request::from(edge.request()))?;
             writer.row("resolved-alias", &[edge.alias().as_str().as_bytes()])?;
             writer.row("selected", &[])?;
-            write_source(&mut writer, edge.selected())?;
+            write_source(writer, edge.selected())?;
         }
         writer.row("end", &[])?;
-        Ok(writer.finish())
+        Ok(())
     }
 
     /// Recover exact source identity and requests only. No filesystem access,
     /// selector update, compiler evidence, or project decision is implied.
     pub fn recover_text(text: &str, limits: Limits) -> Result<Self, Error> {
+        Self::recover_text_with_usage(text, limits, usize::MAX).map(|(subject, _)| subject)
+    }
+
+    /// Recover under one monotone allowance covering parsed/retained values and
+    /// validation, constructor, binary-encoding, and text-verification scratch.
+    pub fn recover_text_with_usage(
+        text: &str,
+        limits: Limits,
+        maximum_owned_bytes: usize,
+    ) -> Result<(Self, Usage), Error> {
         let limits = limits.compiler_bounded();
-        let mut reader = Reader::new(text, limits.maximum_record_bytes)?;
+        let mut reader = Reader::new(
+            text,
+            limits.maximum_record_bytes,
+            Budget::new(maximum_owned_bytes),
+        )?;
         reader.expect("omega-source-closure")?;
         reader.expect("1")?;
         reader.expect("target")?;
@@ -108,9 +125,9 @@ impl CanonicalSourceClosureSubject {
         let root = read_root(&mut reader, limits)?;
         reader.expect("packages")?;
         let count = reader.count(limits.maximum_packages)?;
-        let mut packages = reserve(count)?;
-        let mut navigations = reserve(count)?;
-        let mut projections = reserve(count)?;
+        let mut packages = reader.budget.reserve(count)?;
+        let mut navigations = reader.budget.reserve(count)?;
+        let mut projections = reader.budget.reserve(count)?;
         let mut total_authored = 0usize;
         for _ in 0..count {
             reader.expect("package")?;
@@ -125,7 +142,7 @@ impl CanonicalSourceClosureSubject {
             if total_authored > limits.maximum_dependency_requests {
                 return Err(Error::new("text authored-request count exceeds its limit"));
             }
-            let mut authored = reserve(authored_count)?;
+            let mut authored = reader.budget.reserve(authored_count)?;
             for _ in 0..authored_count {
                 authored.push(into_authored(read_request(&mut reader, limits)?));
             }
@@ -133,7 +150,7 @@ impl CanonicalSourceClosureSubject {
         }
         reader.expect("edges")?;
         let count = reader.count(limits.maximum_dependency_requests)?;
-        let mut edges = reserve(count)?;
+        let mut edges = reader.budget.reserve(count)?;
         for _ in 0..count {
             reader.expect("edge")?;
             reader.expect("requester")?;
@@ -142,8 +159,7 @@ impl CanonicalSourceClosureSubject {
             let dependency_index = reader.number(u32::MAX as usize)?;
             let request = read_request(&mut reader, limits)?;
             reader.expect("resolved-alias")?;
-            let alias = AliasName::parse(reader.string(limits.maximum_identity_bytes)?)
-                .map_err(|_| Error::new("invalid text resolved alias"))?;
+            let alias = reader.alias(limits.maximum_identity_bytes)?;
             reader.expect("selected")?;
             let selected = read_source(&mut reader, limits)?;
             edges.push(CanonicalDependencySourceSelection {
@@ -156,7 +172,11 @@ impl CanonicalSourceClosureSubject {
         }
         reader.expect("end")?;
         reader.finish()?;
-        let subject = Self::finish_with_projections(
+        reader.budget.usage.packages = packages.len();
+        reader.budget.usage.authored_dependency_requests = total_authored;
+        reader.budget.usage.dependency_requests = edges.len();
+        let mut budget = reader.budget;
+        let subject = Self::finish_with_budget(
             target,
             root,
             packages,
@@ -164,10 +184,11 @@ impl CanonicalSourceClosureSubject {
             projections,
             edges,
             limits,
+            &mut budget,
         )?;
-        if subject.canonical_text(limits)? != text {
-            return Err(Error::new("source-closure text is not canonical"));
-        }
-        Ok(subject)
+        let mut writer = Writer::verifying(limits.maximum_record_bytes, text, budget);
+        subject.write_text(&mut writer)?;
+        let (_, budget) = writer.finish()?;
+        Ok((subject, budget.usage))
     }
 }

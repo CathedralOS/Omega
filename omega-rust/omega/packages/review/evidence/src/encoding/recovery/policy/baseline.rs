@@ -8,10 +8,13 @@ mod external_tests;
 mod tests;
 #[cfg(test)]
 mod text_tests;
+#[cfg(test)]
+mod usage_tests;
 
 use super::{
-    Error, PackagePolicyRecoveryLimits, callable_policy, external, identity::package, public_api,
-    reader::Reader, representation, selected_providers, terminal_permissions,
+    Error, PackagePolicyRecoveryLimits, PackagePolicyRecoveryUsage, callable_policy, external,
+    identity::package, public_api, reader::Reader, representation, selected_providers,
+    terminal_permissions,
 };
 use crate::encoding::{PACKAGE_POLICY_BASELINE_MAGIC, PACKAGE_POLICY_BASELINE_VERSION};
 use crate::record::*;
@@ -22,6 +25,13 @@ impl PackagePolicyBaseline {
         bytes: &[u8],
         limits: PackagePolicyRecoveryLimits,
     ) -> Result<Self, Error> {
+        Self::recover_canonical_with_usage(bytes, limits).map(|(policy, _)| policy)
+    }
+
+    pub(super) fn recover_canonical_with_usage(
+        bytes: &[u8],
+        limits: PackagePolicyRecoveryLimits,
+    ) -> Result<(Self, PackagePolicyRecoveryUsage), Error> {
         let mut reader = Reader::new(bytes, limits)?;
         reader.literal(PACKAGE_POLICY_BASELINE_MAGIC)?;
         if reader.u16()? != PACKAGE_POLICY_BASELINE_VERSION {
@@ -47,12 +57,12 @@ impl PackagePolicyBaseline {
             .map_err(|_| Error::InvalidValue)?;
         reader.canonical_scratch(bytes.len())?;
         if policy
-            .canonical_bytes()
+            .canonical_bytes_for_recovery(bytes.len())
             .map_err(|_| Error::NonCanonicalEncoding)?
             != bytes
         {
             return Err(Error::NonCanonicalEncoding);
         }
-        Ok(policy)
+        Ok((policy, reader.usage()))
     }
 }

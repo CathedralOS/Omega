@@ -50,6 +50,16 @@ pub struct CanonicalSourceClosureSubject {
 }
 
 impl CanonicalSourceClosureSubject {
+    /// Compare every target-independent source field without allocation.
+    /// Target-scoped encoded bytes and fingerprints are deliberately excluded.
+    pub fn same_source_graph(&self, other: &Self) -> bool {
+        self.root == other.root
+            && self.packages == other.packages
+            && self.package_navigations == other.package_navigations
+            && self.package_dependency_projections == other.package_dependency_projections
+            && self.dependency_requests == other.dependency_requests
+    }
+
     pub const fn root(&self) -> &CanonicalRootSourceSelection {
         &self.root
     }

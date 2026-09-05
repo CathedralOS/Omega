@@ -6,7 +6,9 @@ mod tests;
 mod tokens;
 
 use crate::encoding::encode::encoder::text::{MAXIMUM_TEXT_BYTES, Writer, render};
-use crate::encoding::{PackagePolicyRecoveryError, PackagePolicyRecoveryLimits};
+use crate::encoding::{
+    PackagePolicyRecoveryError, PackagePolicyRecoveryLimits, PackagePolicyRecoveryUsage,
+};
 use crate::record::PackagePolicyBaseline;
 
 /// Text expansion has its own byte ceiling. All reconstructed binary storage,
@@ -40,6 +42,17 @@ impl PackagePolicyBaseline {
         text: &str,
         limits: PackagePolicyTextRecoveryLimits,
     ) -> Result<Self, PackagePolicyRecoveryError> {
+        Self::recover_text_with_usage(text, limits).map(|(policy, _)| policy)
+    }
+
+    /// Recover the same inert meaning and report all charged storage and typed
+    /// elements so an enclosing document can lower its next child's ceilings.
+    /// Storage includes the requested reconstructed-binary reserve, typed data,
+    /// and canonical binary scratch. Input and text verification stay borrowed.
+    pub fn recover_text_with_usage(
+        text: &str,
+        limits: PackagePolicyTextRecoveryLimits,
+    ) -> Result<(Self, PackagePolicyRecoveryUsage), PackagePolicyRecoveryError> {
         let maximum = limits.maximum_text_bytes.min(MAXIMUM_TEXT_BYTES);
         if text.len() > maximum {
             return Err(PackagePolicyRecoveryError::InputTooLarge);
@@ -50,9 +63,13 @@ impl PackagePolicyBaseline {
             .maximum_owned_bytes
             .checked_sub(reserved)
             .ok_or(PackagePolicyRecoveryError::AllocationLimitExceeded)?;
-        let policy = Self::recover_canonical(&binary, policy_limits)?;
+        let (policy, mut usage) = Self::recover_canonical_with_usage(&binary, policy_limits)?;
         render(&policy, Writer::new(maximum, Some(text)))
             .map_err(|_| PackagePolicyRecoveryError::NonCanonicalEncoding)?;
-        Ok(policy)
+        usage.owned_bytes = usage
+            .owned_bytes
+            .checked_add(reserved)
+            .ok_or(PackagePolicyRecoveryError::LengthOverflow)?;
+        Ok((policy, usage))
     }
 }

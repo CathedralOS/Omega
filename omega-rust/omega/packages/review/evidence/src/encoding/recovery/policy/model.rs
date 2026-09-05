@@ -1,5 +1,28 @@
 use std::fmt;
 
+/// Resource charges incurred by one successful policy recovery. These are
+/// accounting values, not evidence of acceptance or compiler validation.
+/// Subtract both charges from an enclosing budget before recovering its next
+/// child. Storage counts requested allocations, including verification scratch,
+/// not allocator overhead or the retained value's exact heap size.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct PackagePolicyRecoveryUsage {
+    pub(in crate::encoding) owned_bytes: usize,
+    pub(in crate::encoding) sequence_elements: usize,
+}
+
+impl PackagePolicyRecoveryUsage {
+    pub const fn owned_bytes(self) -> usize {
+        self.owned_bytes
+    }
+
+    /// Aggregate sequence entries and recursive expression, static-argument,
+    /// and machine-contract entries charged by the typed reader.
+    pub const fn sequence_elements(self) -> usize {
+        self.sequence_elements
+    }
+}
+
 /// Independent ceilings for untrusted policy input. Raised caller ceilings
 /// are clamped to these format limits; lowering any ceiling is supported.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

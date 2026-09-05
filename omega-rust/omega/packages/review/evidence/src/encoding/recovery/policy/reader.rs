@@ -1,4 +1,4 @@
-use super::{Error, PackagePolicyRecoveryLimits};
+use super::{Error, PackagePolicyRecoveryLimits, PackagePolicyRecoveryUsage};
 
 pub(super) struct Reader<'a> {
     remaining: &'a [u8],
@@ -28,6 +28,13 @@ impl<'a> Reader<'a> {
             Ok(())
         } else {
             Err(Error::TrailingBytes)
+        }
+    }
+
+    pub(super) fn usage(&self) -> PackagePolicyRecoveryUsage {
+        PackagePolicyRecoveryUsage {
+            owned_bytes: self.limits.maximum_owned_bytes - self.remaining_owned_bytes,
+            sequence_elements: self.limits.maximum_sequence_elements - self.remaining_elements,
         }
     }
 

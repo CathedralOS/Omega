@@ -6,7 +6,8 @@ use super::super::{
     CanonicalRootSourceRequest, CanonicalRootSourceSelection, CanonicalSourceClosureSubjectError,
     CanonicalSourceClosureSubjectLimits, SOURCE_CLOSURE_SUBJECT_ENCODING_VERSION,
 };
-use super::framing::{Decoder, Encoder, decode_hex_32, encode_hex};
+use super::super::{request_view::Request, usage::Budget};
+use super::framing::{Decoder, Encoder, encode_hex};
 use super::source::{
     decode_package_key, decode_source_identity, decode_source_lineage, encode_package_key,
     encode_source_identity, encode_source_lineage,
@@ -31,25 +32,74 @@ pub(in super::super) fn encode_subject(
     limits: CanonicalSourceClosureSubjectLimits,
 ) -> Result<Vec<u8>, CanonicalSourceClosureSubjectError> {
     let mut encoder = Encoder::new();
+    encode_subject_to(
+        &mut encoder,
+        target_profile,
+        root,
+        packages,
+        package_navigations,
+        package_dependency_projections,
+        dependency_requests,
+        limits,
+    )?;
+    encoder.check()?;
+    Ok(encoder.finish())
+}
+
+pub(in super::super) fn encode_subject_with_budget(
+    target_profile: TargetProfile,
+    root: &CanonicalRootSourceSelection,
+    packages: &[ResolvedSourceIdentity],
+    package_navigations: &[PackageSourceNavigation],
+    package_dependency_projections: &[ProjectedDependencies],
+    dependency_requests: &[CanonicalDependencySourceSelection],
+    limits: CanonicalSourceClosureSubjectLimits,
+    budget: &mut Budget,
+) -> Result<Vec<u8>, CanonicalSourceClosureSubjectError> {
+    let mut encoder = Encoder::budgeted(budget, limits.maximum_record_bytes);
+    encode_subject_to(
+        &mut encoder,
+        target_profile,
+        root,
+        packages,
+        package_navigations,
+        package_dependency_projections,
+        dependency_requests,
+        limits,
+    )?;
+    encoder.check()?;
+    Ok(encoder.finish())
+}
+
+fn encode_subject_to(
+    encoder: &mut Encoder,
+    target_profile: TargetProfile,
+    root: &CanonicalRootSourceSelection,
+    packages: &[ResolvedSourceIdentity],
+    package_navigations: &[PackageSourceNavigation],
+    package_dependency_projections: &[ProjectedDependencies],
+    dependency_requests: &[CanonicalDependencySourceSelection],
+    limits: CanonicalSourceClosureSubjectLimits,
+) -> Result<(), CanonicalSourceClosureSubjectError> {
     encoder.fixed(SOURCE_CLOSURE_SUBJECT_MAGIC);
     encoder.u16(SOURCE_CLOSURE_SUBJECT_ENCODING_VERSION);
-    encode_target_profile(&mut encoder, target_profile, limits)?;
-    encode_root_selection(&mut encoder, root, limits)?;
+    encode_target_profile(encoder, target_profile, limits)?;
+    encode_root_selection(encoder, root, limits)?;
     encoder.count(packages.len())?;
     for ((source, navigation), projection) in packages
         .iter()
         .zip(package_navigations)
         .zip(package_dependency_projections)
     {
-        encode_source_identity(&mut encoder, source, limits.maximum_identity_bytes)?;
-        encode_package_navigation(&mut encoder, navigation, limits.maximum_request_bytes)?;
-        encode_dependency_projection(&mut encoder, projection, limits)?;
+        encode_source_identity(encoder, source, limits.maximum_identity_bytes)?;
+        encode_package_navigation(encoder, navigation, limits.maximum_request_bytes)?;
+        encode_dependency_projection(encoder, projection, limits)?;
     }
     encoder.count(dependency_requests.len())?;
     for request in dependency_requests {
-        encode_dependency_selection(&mut encoder, request, limits)?;
+        encode_dependency_selection(encoder, request, limits)?;
     }
-    Ok(encoder.finish())
+    encoder.check()
 }
 
 fn encode_target_profile(
@@ -81,11 +131,7 @@ fn encode_dependency_projection(
 ) -> Result<(), CanonicalSourceClosureSubjectError> {
     encoder.count(dependencies.authored_dependencies().len())?;
     for request in dependencies.authored_dependencies() {
-        encode_dependency_request(
-            encoder,
-            &CanonicalDependencySourceRequest::from(request),
-            limits,
-        )?;
+        encode_dependency_request(encoder, Request::from(request), limits)?;
     }
     Ok(())
 }
@@ -166,7 +212,7 @@ fn encode_root_selection(
         } => {
             encoder.byte(2);
             encoder.bytes_bounded(requested_root, limits.maximum_request_bytes)?;
-            encoder.fixed(&decode_hex_32(&source_context.to_hex())?);
+            encoder.fixed(source_context.digest());
         }
     }
     encode_build_declaration_kind(encoder, root.role);
@@ -247,7 +293,7 @@ fn encode_dependency_selection(
     encoder.u32(u32::try_from(selection.dependency_index).map_err(|_| {
         CanonicalSourceClosureSubjectError::new("dependency ordinal exceeds canonical range")
     })?);
-    encode_dependency_request(encoder, &selection.request, limits)?;
+    encode_dependency_request(encoder, Request::from(&selection.request), limits)?;
     encoder.bytes_bounded(
         selection.alias.as_str().as_bytes(),
         limits.maximum_identity_bytes,
@@ -257,11 +303,11 @@ fn encode_dependency_selection(
 
 pub(super) fn encode_dependency_request(
     encoder: &mut Encoder,
-    request: &CanonicalDependencySourceRequest,
+    request: Request<'_>,
     limits: CanonicalSourceClosureSubjectLimits,
 ) -> Result<(), CanonicalSourceClosureSubjectError> {
     match request {
-        CanonicalDependencySourceRequest::Path {
+        Request::Path {
             explicit_alias,
             location,
         } => {
@@ -269,7 +315,7 @@ pub(super) fn encode_dependency_request(
             encode_optional_alias(encoder, explicit_alias, limits.maximum_identity_bytes)?;
             encoder.bytes_bounded(location.as_bytes(), limits.maximum_request_bytes)?;
         }
-        CanonicalDependencySourceRequest::Git {
+        Request::Git {
             explicit_alias,
             repository,
             revision,
@@ -392,7 +438,7 @@ pub(in super::super) fn decode_package_navigation(
 
 fn encode_optional_alias(
     encoder: &mut Encoder,
-    alias: &Option<AliasName>,
+    alias: Option<&AliasName>,
     maximum_identity_bytes: usize,
 ) -> Result<(), CanonicalSourceClosureSubjectError> {
     match alias {

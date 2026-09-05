@@ -13,10 +13,11 @@ use omega_target::TargetProfile;
 
 use super::super::encoding::{
     Decoder, decode_dependency_projection, decode_dependency_selection, decode_package_navigation,
-    decode_root_selection, decode_source_identity, decode_target_profile, encode_subject,
-    fingerprint,
+    decode_root_selection, decode_source_identity, decode_target_profile,
+    encode_subject_with_budget, fingerprint,
 };
-use super::super::validation::{canonical_root_request, validate_subject};
+use super::super::usage::Budget;
+use super::super::validation::{canonical_root_request, validate_subject_with_budget};
 
 impl CanonicalSourceClosureSubject {
     pub fn from_resolved(
@@ -162,16 +163,39 @@ impl CanonicalSourceClosureSubject {
         dependency_requests: Vec<CanonicalDependencySourceSelection>,
         limits: CanonicalSourceClosureSubjectLimits,
     ) -> Result<Self, CanonicalSourceClosureSubjectError> {
+        Self::finish_with_budget(
+            target_profile,
+            root,
+            packages,
+            package_navigations,
+            package_dependency_projections,
+            dependency_requests,
+            limits,
+            &mut Budget::new(usize::MAX),
+        )
+    }
+
+    pub(in super::super) fn finish_with_budget(
+        target_profile: TargetProfile,
+        root: CanonicalRootSourceSelection,
+        packages: Vec<ResolvedSourceIdentity>,
+        package_navigations: Vec<PackageSourceNavigation>,
+        package_dependency_projections: Vec<ProjectedDependencies>,
+        dependency_requests: Vec<CanonicalDependencySourceSelection>,
+        limits: CanonicalSourceClosureSubjectLimits,
+        budget: &mut Budget,
+    ) -> Result<Self, CanonicalSourceClosureSubjectError> {
         let limits = limits.compiler_bounded();
-        validate_subject(
+        validate_subject_with_budget(
             &root,
             &packages,
             &package_navigations,
             &package_dependency_projections,
             &dependency_requests,
             limits,
+            budget,
         )?;
-        let canonical_bytes = encode_subject(
+        let canonical_bytes = encode_subject_with_budget(
             target_profile,
             &root,
             &packages,
@@ -179,6 +203,7 @@ impl CanonicalSourceClosureSubject {
             &package_dependency_projections,
             &dependency_requests,
             limits,
+            budget,
         )?;
         if canonical_bytes.len() > limits.maximum_record_bytes {
             return Err(CanonicalSourceClosureSubjectError::new(

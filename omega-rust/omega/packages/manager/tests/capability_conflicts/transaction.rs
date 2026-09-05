@@ -10,6 +10,10 @@ mod conflict_behavior;
 mod fixture;
 #[path = "transaction/historical_policy.rs"]
 mod historical_policy;
+#[path = "transaction/lock_framing.rs"]
+mod lock_framing;
+#[path = "transaction/package_lock.rs"]
+mod package_lock;
 #[path = "transaction/root_policy.rs"]
 mod root_policy;
 
@@ -24,4 +28,5 @@ fn exact_compiler_rows_become_candidate_bound_review_conflicts() {
     root_policy::assert_persistence_and_recovery(&scenario, &conflicts);
     conflict_behavior::assert_comparison_limits_and_risk_classes(&scenario, &conflicts);
     accepted_claims::assert_candidate_binding(&scenario, &conflicts);
+    package_lock::assert_complete_lock(&scenario, &conflicts);
 }

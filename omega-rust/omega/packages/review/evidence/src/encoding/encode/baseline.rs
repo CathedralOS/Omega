@@ -1,6 +1,7 @@
 //! One envelope and resource budget for the composed package policy.
 
 mod boundary;
+mod recovery;
 
 use super::{
     callable_policy, declarations, encoder::Encoder, public_api, representation,

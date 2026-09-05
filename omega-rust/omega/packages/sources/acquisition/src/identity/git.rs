@@ -18,6 +18,19 @@ pub enum SourceLineage {
 }
 
 impl SourceLineage {
+    /// Preflight owned payload allowance for `git`, including discarded parser
+    /// strings. The parsed user/host/port/path together fit within the locator;
+    /// GitHub/GitLab normalization copies at most the path once more. Scheme
+    /// normalization (or its unsupported-protocol error) is charged separately.
+    /// No caller-owned locator copy is included.
+    #[doc(hidden)]
+    pub fn git_recovery_owned_bytes(locator: &str) -> Option<usize> {
+        let scheme = locator
+            .split_once("://")
+            .map_or(0, |(scheme, _)| scheme.len());
+        locator.len().checked_mul(2)?.checked_add(scheme)
+    }
+
     /// Parses a locator already selected by the Git source adapter.
     pub fn git(locator: &str) -> Result<Self, IdentityError> {
         Self::git_with_transport(locator).map(|(lineage, _)| lineage)

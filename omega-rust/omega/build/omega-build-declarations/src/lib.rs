@@ -30,9 +30,14 @@ const MEMBER_MACHINE_NAME: &str = "member";
 pub struct ProjectName(String);
 
 impl ProjectName {
+    /// Validate a borrowed spelling without constructing an owned diagnostic.
+    pub fn is_valid(value: &str) -> bool {
+        is_kebab_case(value)
+    }
+
     pub fn parse(value: impl Into<String>) -> Result<Self, String> {
         let value = value.into();
-        if is_kebab_case(&value) {
+        if Self::is_valid(&value) {
             Ok(Self(value))
         } else {
             Err(format!(

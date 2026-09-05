@@ -219,6 +219,16 @@ text buffer. Markup depth is bounded separately from the existing semantic
 recursion limit. The manager still owns composition with source pins, graph
 edges, and historical project decisions; readable policy is not itself a lock.
 
+`recover_text_with_usage()` returns that same recovered baseline together with
+plain owned-byte and aggregate-element charges. An enclosing document subtracts
+these charges before recovering its next baseline, so independently bounded
+children cannot reset a document's remaining resources. Charges include the
+requested reconstructed-binary reserve, typed allocations, and canonical binary
+scratch; they are not an exact retained-heap measurement or an acceptance claim.
+`canonical_text_with_element_count()` likewise returns the serializer's element
+charge from the same traversal, allowing aggregate writers to enforce the same
+ceiling without recovering or traversing each baseline a second time.
+
 The supported result lanes do not pretend to prove a bodyless accepted claim,
 grant dangerous authority, validate externally supplied executable code, or
 exercise or admit a terminal-authority permission. `ledger/results.rs` rejoins

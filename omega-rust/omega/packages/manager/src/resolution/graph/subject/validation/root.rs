@@ -1,3 +1,4 @@
+use super::super::usage::Budget;
 use super::super::{
     CanonicalRootSourceRequest, CanonicalRootSourceSelection, CanonicalSourceClosureSubjectError,
     CanonicalSourceClosureSubjectLimits,
@@ -6,9 +7,7 @@ use super::source::{validate_git_selection, validate_request_bytes, validate_sou
 use crate::declarations::BuildDeclarationKind;
 use crate::resolution::graph::reconcile::PackageRootSourceRequest;
 use crate::resolution::source::PackageSourceNavigation;
-use omega_package_source::{
-    GitSourceRequest, ImmutableSourceResolution, SourceLineage, WorkspaceLineageIdentity,
-};
+use omega_package_source::{ImmutableSourceResolution, SourceLineage, WorkspaceLineageIdentity};
 
 pub(in super::super) fn canonical_root_request(
     request: &PackageRootSourceRequest,
@@ -45,6 +44,7 @@ pub(super) fn validate_root_request(
     root: &CanonicalRootSourceSelection,
     navigation: &PackageSourceNavigation,
     limits: CanonicalSourceClosureSubjectLimits,
+    budget: &mut Budget,
 ) -> Result<(), CanonicalSourceClosureSubjectError> {
     if root.role == BuildDeclarationKind::Workspace {
         return Err(CanonicalSourceClosureSubjectError::new(
@@ -60,10 +60,7 @@ pub(super) fn validate_root_request(
             validate_request_bytes(requested_locator.as_bytes(), limits.maximum_request_bytes)?;
             validate_request_bytes(requested_revision.as_bytes(), limits.maximum_request_bytes)?;
             let request =
-                GitSourceRequest::new(requested_locator.clone(), Some(requested_revision.clone()))
-                    .map_err(|_| {
-                        CanonicalSourceClosureSubjectError::new("invalid root Git request")
-                    })?;
+                super::source::git_request(requested_locator, requested_revision, budget)?;
             if request.lineage() != root.selected.key().source_lineage()
                 || !matches!(
                     root.selected.resolution(),

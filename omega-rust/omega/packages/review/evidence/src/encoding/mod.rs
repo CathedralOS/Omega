@@ -19,7 +19,9 @@ pub(crate) fn assert_external_policy_text(
     encode::text_test_support::component(encode::text_test_support::Component::External(value));
 }
 
-pub use recovery::{PackagePolicyRecoveryError, PackagePolicyRecoveryLimits};
+pub use recovery::{
+    PackagePolicyRecoveryError, PackagePolicyRecoveryLimits, PackagePolicyRecoveryUsage,
+};
 
 pub const PACKAGE_POLICY_BASELINE_VERSION: u16 = 1;
 pub(crate) const PACKAGE_POLICY_BASELINE_MAGIC: &[u8] = b"OMEGA-PACKAGE-POLICY\0";

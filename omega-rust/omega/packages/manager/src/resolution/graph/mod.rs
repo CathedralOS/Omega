@@ -44,5 +44,6 @@ pub use subject::{
     CanonicalDependencySourceRequest, CanonicalDependencySourceSelection,
     CanonicalRootSourceRequest, CanonicalRootSourceSelection, CanonicalSourceClosureSubject,
     CanonicalSourceClosureSubjectError, CanonicalSourceClosureSubjectFingerprint,
-    CanonicalSourceClosureSubjectLimits, SOURCE_CLOSURE_SUBJECT_ENCODING_VERSION,
+    CanonicalSourceClosureSubjectLimits, CanonicalSourceClosureSubjectRecoveryUsage,
+    SOURCE_CLOSURE_SUBJECT_ENCODING_VERSION,
 };
