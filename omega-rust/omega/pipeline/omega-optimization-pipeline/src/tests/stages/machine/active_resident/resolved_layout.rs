@@ -26,6 +26,22 @@ fn active_resident_rematerialization_reaches_resolved_layout_on_both_architectur
         )
         .unwrap();
         assert_eq!(layout.selected(), encoding.selected());
+        // Both identities were captured before moving the current layout data.
+        let original_identity = match target.architecture {
+            omega_target::Architecture::X86_64 => [
+                100, 47, 33, 155, 120, 54, 225, 240, 65, 70, 83, 0, 41, 152, 12, 231, 211, 229, 76,
+                51, 210, 172, 137, 106, 171, 249, 226, 56, 226, 61, 146, 11,
+            ],
+            omega_target::Architecture::Aarch64 => [
+                10, 187, 105, 218, 130, 159, 149, 255, 203, 193, 139, 232, 50, 63, 24, 195, 215,
+                138, 171, 24, 203, 163, 184, 161, 10, 18, 66, 63, 128, 177, 36, 69,
+            ],
+        };
+        assert_eq!(layout.identity().bytes(), original_identity);
+        assert!(std::ptr::eq(
+            layout.program().functions.as_slice(),
+            layout.functions()
+        ));
         assert_eq!(layout.machine(), encoding.machine());
         assert_eq!(layout.pre_layout(), encoding.identity());
         assert_eq!(layout.target(), target);

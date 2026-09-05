@@ -12,47 +12,14 @@ use psi_core::{MachineId, OperationId};
 
 use crate::PostAllocationMachineOptimizationCustody;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub struct SelectedFormEncodingIdentity(pub(super) [u8; 32]);
-
-impl SelectedFormEncodingIdentity {
-    pub const fn from_bytes(bytes: [u8; 32]) -> Self {
-        Self(bytes)
-    }
-
-    pub const fn bytes(self) -> [u8; 32] {
-        self.0
-    }
-}
+pub use omega_machine_code::{
+    SelectedFormEncodingIdentity, SelectedFormInternalMachineFixup,
+    SelectedFormInternalMachineFixupKind, SelectedFormInternalMachineFixupState,
+};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum DeferredControlEncodingReason {
     RequiresResolvedBranchLayout,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum SelectedFormInternalMachineFixupKind {
-    X86Relative32FromNextInstructionToInternalMachineV1,
-    Aarch64BranchLinkImmediate26FromInstructionToInternalMachineV1,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum SelectedFormInternalMachineFixupState {
-    UnresolvedZeroFieldV1,
-}
-
-/// Row-relative unresolved internal-call patch. Layout may translate these
-/// coordinates into function-relative custody but may not resolve the patch.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct SelectedFormInternalMachineFixup {
-    pub kind: SelectedFormInternalMachineFixupKind,
-    pub state: SelectedFormInternalMachineFixupState,
-    pub callee: MachineId,
-    pub opcode_row_offset: u16,
-    pub patch_row_offset: u16,
-    pub reference_row_offset: u16,
-    pub patch_byte_width: u8,
-    pub addend: i64,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

@@ -117,12 +117,24 @@ proof inputs merely to make the ownership graph look smaller.
 Raw x86 structural-call footprint and fixup records live in
 `omega-machine-code/src/machine_code/calls/structural.rs`;
 ISA encoding, decoding, and private validated wrappers stay in the backend.
-This removes that particular backend-type dependency, not the whole layout
-ownership problem. The resolved-layout carrier still includes pipeline-owned
-encoding identities and optimizer-specific evidence. Separate reusable layout
-data from producer/admission wrappers before moving the remaining carrier down
-a layer. Neither the physical instruction root nor the raw-data move
-closes the emission-boundary work.
+`omega-machine-code/src/machine_code/layout.rs` owns the current
+`ResolvedMachineLayout`, its function/block spans, branch facts, structural-call
+fixups, policy, and unchanged version-9 content identity. Its admitted pipeline
+wrapper shares the same immutable program. Retaining that data does not retain
+the wrapper or grant admission; a separate entrance independently rechecks the
+selected/machine inputs, byte decoding, offsets, and optimization records.
+Layout-independent encoding identity and internal-call fixup data have the same
+representation owner. Generic post-allocation optimization records live in
+`omega-physical-instructions` evidence; typed rule results stay with their
+producer and independent validator.
+
+The completed physical result still needs to retain current machine and layout
+data directly, rather than finding these through the seven history roles.
+Share the original physical machine data as well as layout; do not create a
+deep-copy snapshot merely to populate a new output struct. Admission and
+transformation replay still retain the exact inputs they need. The independent
+layout owner alone does not close that emission-boundary work or move layout
+algorithms out of the coordinator.
 
 Acceptance: downstream allocation, layout, and emission APIs consume current
 representations and explicit policy/evidence. No production consumer selects

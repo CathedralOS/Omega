@@ -1,3 +1,4 @@
+use omega_machine_code::resolved_machine_layout_identity as layout_identity;
 use omega_regalloc::ValidatedSelectedAnalysis;
 
 use crate::{
@@ -7,7 +8,7 @@ use crate::{
 
 use super::super::{
     OptimizedResolvedSelectedFormLayoutError, SelectedFunctionLayoutPolicy,
-    StagedOptimizedResolvedSelectedFormLayout, identity::layout_identity,
+    StagedOptimizedResolvedSelectedFormLayout,
 };
 
 pub(super) fn validate_roots<S: ValidatedSelectedAnalysis>(
@@ -18,12 +19,12 @@ pub(super) fn validate_roots<S: ValidatedSelectedAnalysis>(
     policy: SelectedFunctionLayoutPolicy,
     artifact: &StagedOptimizedResolvedSelectedFormLayout,
 ) -> Result<(), OptimizedResolvedSelectedFormLayoutError> {
-    if artifact.selected != selected.selected_identity()
-        || artifact.machine != machine.machine().receipt().identity()
-        || artifact.pre_layout != pre_layout.identity()
-        || artifact.post_allocation_machine_optimization != optimization
-        || artifact.target != selected.selected_plan().target
-        || artifact.policy != policy
+    if artifact.selected() != selected.selected_identity()
+        || artifact.machine() != machine.machine().receipt().identity()
+        || artifact.pre_layout() != pre_layout.identity()
+        || artifact.post_allocation_machine_optimization() != optimization
+        || artifact.target() != selected.selected_plan().target
+        || artifact.policy() != policy
     {
         return Err(OptimizedResolvedSelectedFormLayoutError::ArtifactMismatch);
     }
@@ -34,16 +35,16 @@ pub(super) fn validate_identity(
     artifact: &StagedOptimizedResolvedSelectedFormLayout,
 ) -> Result<(), OptimizedResolvedSelectedFormLayoutError> {
     let identity = layout_identity(
-        artifact.selected,
-        artifact.machine,
-        artifact.pre_layout,
-        artifact.post_allocation_machine_optimization,
-        artifact.target,
-        artifact.policy,
+        artifact.selected(),
+        artifact.machine(),
+        artifact.pre_layout(),
+        artifact.post_allocation_machine_optimization(),
+        artifact.target(),
+        artifact.policy(),
         artifact.functions(),
         artifact.structural_unit_functions(),
     );
-    if artifact.identity != identity {
+    if artifact.identity() != identity {
         return Err(OptimizedResolvedSelectedFormLayoutError::ArtifactMismatch);
     }
     Ok(())

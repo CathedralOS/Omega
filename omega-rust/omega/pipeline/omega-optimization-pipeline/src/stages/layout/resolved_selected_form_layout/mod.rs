@@ -1,7 +1,6 @@
 //! Optimizer module role: executable entrance.
 mod compute;
 mod error;
-mod identity;
 mod model;
 mod optimization;
 mod ordinary;
@@ -18,7 +17,7 @@ pub use model::{
     StagedOptimizedResolvedSelectedFormLayout,
 };
 pub use stage::{
-    stage_optimized_resolved_selected_form_layout,
+    admit_resolved_machine_layout, stage_optimized_resolved_selected_form_layout,
     stage_optimized_resolved_selected_form_layout_after_aarch64_cbnz_fusion,
     stage_optimized_resolved_selected_form_layout_after_aarch64_movn_materialization,
     validate_optimized_resolved_selected_form_layout,
@@ -46,15 +45,14 @@ pub fn stage_optimized_resolved_selected_form_layout_with_post_allocation_machin
     optimization: Option<&StagedOptimizedPostAllocationMachineOptimization>,
 ) -> Result<StagedOptimizedResolvedSelectedFormLayout, OptimizedResolvedSelectedFormLayoutError> {
     let artifact = compute::compute(selected, machine, physical, pre_layout, optimization)?;
-    validate_optimized_resolved_selected_form_layout_with_post_allocation_machine_optimization(
+    admit_resolved_machine_layout(
         selected,
         machine,
         physical,
         pre_layout,
         optimization,
-        &artifact,
-    )?;
-    Ok(artifact)
+        artifact.program,
+    )
 }
 
 /// Replay the canonical resolved-layout join against the typed rule result,

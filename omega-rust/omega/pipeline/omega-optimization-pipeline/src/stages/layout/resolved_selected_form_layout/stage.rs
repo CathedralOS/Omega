@@ -133,3 +133,26 @@ pub fn validate_optimized_resolved_selected_form_layout_after_aarch64_movn_mater
         artifact,
     )
 }
+
+/// Independently admit retained current data, without a producer-stage history.
+/// Content identity alone is insufficient: replay checks the selected program,
+/// machine, target decoding, offsets, fixups, and exact optimization records.
+pub fn admit_resolved_machine_layout<S: ValidatedSelectedAnalysis>(
+    selected: &S,
+    machine: &StagedOptimizedPostAllocationMachinePlan,
+    physical: &ValidatedPhysicalRegisterModel,
+    pre_layout: &StagedOptimizedSelectedFormEncoding,
+    optimization: Option<&StagedOptimizedPostAllocationMachineOptimization>,
+    program: std::sync::Arc<omega_machine_code::ResolvedMachineLayout>,
+) -> Result<StagedOptimizedResolvedSelectedFormLayout, OptimizedResolvedSelectedFormLayoutError> {
+    let artifact = StagedOptimizedResolvedSelectedFormLayout { program };
+    super::validation::validate(
+        selected,
+        machine,
+        physical,
+        pre_layout,
+        optimization,
+        &artifact,
+    )?;
+    Ok(artifact)
+}
