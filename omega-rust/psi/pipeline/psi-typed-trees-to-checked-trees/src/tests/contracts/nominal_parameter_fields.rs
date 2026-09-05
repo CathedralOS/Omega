@@ -6,6 +6,237 @@ const DEFINITIONS: &str = r#"
     data Packet { payload: Text; tag: u64; }
 "#;
 
+fn check_nominal_self_edge(source: &str, accepted: bool) {
+    let typed = parse_typed_trees(source);
+    check_typed_nominal_self_edge(typed, source, accepted);
+}
+
+fn check_typed_nominal_self_edge(typed: psi_typed_trees::TypedTrees, source: &str, accepted: bool) {
+    use psi_typed_trees::statement::{StatementNode, TransitionTargetNode};
+    assert!(
+        typed.machines().iter().any(|machine| {
+            typed.machine_states(machine).iter().any(|state| {
+                typed
+                    .statement_table
+                    .statements(state.statement_nodes)
+                    .iter()
+                    .any(|statement| {
+                        matches!(statement, StatementNode::Transition(transition)
+                    if [transition.target, transition.continuation].into_iter().any(|target|
+                        target.is_valid() && matches!(typed.statement_table.transition_target(target),
+                            TransitionTargetNode::SelfTarget)))
+                    })
+            })
+        }),
+        "the regression must exercise an actual SelfTarget, not a named call"
+    );
+    match lower_typed_trees(typed) {
+        Ok(_) => assert!(
+            accepted,
+            "a corrupted default field crossed SelfTarget: {source}"
+        ),
+        Err(diagnostics) => {
+            assert!(
+                !accepted,
+                "a restored field should satisfy its back-edge: {diagnostics:#?}\n{source}"
+            );
+            assert!(
+                diagnostics.iter().any(|diagnostic| diagnostic
+                    .message
+                    .contains("cannot prove state arrival contract on self-transition")),
+                "the self-edge obligation must reject the corrupted field: {diagnostics:#?}"
+            );
+        }
+    }
+}
+
+#[test]
+fn nominal_self_edge_rechecks_attached_default_fields() {
+    for field in ["self.bytes", "self.packet.payload.bytes"] {
+        for (restore, accepted) in [(true, true), (false, false)] {
+            let repair = if restore {
+                format!("{field} = \"okay\";")
+            } else {
+                String::new()
+            };
+            let source = format!(
+                r#"{DEFINITIONS}
+                data Main {{ bytes: [u8; 4] in Utf8; packet: Packet; }}
+                machine Main::run(&mut self) {{
+                    {field}[0] = 255;
+                    {repair}
+                    transition {{ _ -> self }}
+                }}
+            "#
+            );
+            check_nominal_self_edge(&source, accepted);
+        }
+    }
+}
+
+#[test]
+fn nominal_self_edge_rechecks_named_state_attached_fields() {
+    for (repair, accepted) in [("self.packet.payload.bytes = \"okay\";", true), ("", false)] {
+        let source = format!(
+            r#"{DEFINITIONS}
+            data Main {{ packet: Packet; }}
+            machine Main::run(&mut self) {{
+                transition {{ _ -> visit() }}
+                state visit(&mut self) {{
+                    self.packet.payload.bytes[0] = 255;
+                    {repair}
+                    transition {{ _ -> self }}
+                }}
+            }}
+        "#
+        );
+        check_nominal_self_edge(&source, accepted);
+    }
+}
+
+#[test]
+fn nominal_self_edge_rechecks_raw_parameter_default_fields() {
+    for (repair, accepted) in [("packet.payload.bytes = \"okay\";", true), ("", false)] {
+        let source = format!(
+            r#"{DEFINITIONS}
+            machine run(packet: &mut Packet) {{
+                packet.payload.bytes[0] = 255;
+                {repair}
+                transition {{ _ -> self }}
+            }}
+        "#
+        );
+        check_nominal_self_edge(&source, accepted);
+    }
+}
+
+#[test]
+fn nominal_self_edge_uses_only_its_own_guard_polarity() {
+    use psi_typed_trees::statement::{StatementNode, TransitionTargetNode};
+    for (guard, self_arm, accepted) in [
+        ("self.flag", "true", true),
+        ("self.flag", "false", false),
+        ("!self.flag", "false", true),
+        ("!self.flag", "true", false),
+    ] {
+        let (true_target, false_target) = if self_arm == "true" {
+            ("self", "done()")
+        } else {
+            ("done()", "self")
+        };
+        let source = format!(
+            r#"
+            data Main {{ flag: bool; }}
+            machine Main::run(&mut self) {{
+                transition self.flag {{ true -> waiting() false -> done() }}
+                state waiting(&mut self)
+                requires self.flag;
+                {{
+                    self.flag = false;
+                    transition {guard} {{ true -> {true_target} false -> {false_target} }}
+                }}
+                state done(&mut self) {{}}
+            }}
+        "#
+        );
+        let original = parse_typed_trees(&source);
+        for combined in [false, true] {
+            let mut typed = original.clone();
+            if combined {
+                let machine = typed
+                    .machines()
+                    .iter()
+                    .find(|machine| machine.name.as_str() == "Main::run")
+                    .expect("run")
+                    .clone();
+                let state_index = typed
+                    .machine_states(&machine)
+                    .iter()
+                    .position(|state| state.name.as_str() == "waiting")
+                    .expect("waiting");
+                let nodes = typed.machine_states(&machine)[state_index].statement_nodes;
+                let transitions = typed
+                    .statement_table
+                    .statements(nodes)
+                    .iter()
+                    .enumerate()
+                    .filter_map(|(index, statement)| {
+                        matches!(statement, StatementNode::Transition(_)).then_some(index)
+                    })
+                    .collect::<Vec<_>>();
+                let first_index = transitions[0];
+                if let [first, second] = transitions.as_slice() {
+                    assert_eq!(*first + 1, *second);
+                    assert_eq!(*second + 1, nodes.count() as usize);
+                    let StatementNode::Transition(second_transition) =
+                        &typed.statement_table.statements(nodes)[*second]
+                    else {
+                        unreachable!();
+                    };
+                    let continuation = second_transition.target;
+                    let StatementNode::Transition(first_transition) =
+                        &mut typed.statement_table.statements_mut(nodes)[*first]
+                    else {
+                        unreachable!();
+                    };
+                    assert!(!first_transition.continuation.is_valid());
+                    first_transition.continuation = continuation;
+                    typed.machine_states_mut(&machine)[state_index].statement_nodes =
+                        psi_arena::HandleSpan::from_parts(nodes.start(), nodes.count() - 1);
+                } else {
+                    assert_eq!(transitions.len(), 1);
+                }
+                let StatementNode::Transition(transition) =
+                    &typed.statement_table.statements(nodes)[first_index]
+                else {
+                    unreachable!();
+                };
+                assert!(transition.continuation.is_valid());
+                if self_arm == "false" {
+                    assert!(
+                        matches!(
+                            typed
+                                .statement_table
+                                .transition_target(transition.continuation),
+                            TransitionTargetNode::SelfTarget
+                        ),
+                        "the false arm must be represented by an actual continuation SelfTarget"
+                    );
+                }
+            }
+            check_typed_nominal_self_edge(
+                typed,
+                &format!("combined={combined}\n{source}"),
+                accepted,
+            );
+        }
+    }
+}
+
+#[test]
+fn nominal_self_edge_checks_fields_after_guard_call_effects() {
+    for (effect, contract, accepted) in [
+        ("", "", true),
+        ("bytes = \"okay\";", "ensures bytes in Utf8", true),
+        ("bytes[0] = 255;", "", false),
+    ] {
+        let source = format!(
+            r#"{DEFINITIONS}
+            data Main {{ packet: Packet; }}
+            machine decide(bytes: &mut [u8; 4]) -> bool {contract} {{ {effect} true }}
+            machine Main::run(&mut self) {{
+                transition decide(&mut self.packet.payload.bytes) {{
+                    true -> self
+                    false -> done()
+                }}
+                state done(&mut self) {{}}
+            }}
+        "#
+        );
+        check_nominal_self_edge(&source, accepted);
+    }
+}
+
 #[test]
 fn readable_mutable_nominal_parameters_carry_declared_field_facts() {
     for parameter in ["packet: &mut Packet", "mut packet: Packet"] {

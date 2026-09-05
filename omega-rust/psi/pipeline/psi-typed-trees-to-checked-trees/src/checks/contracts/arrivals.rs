@@ -1,11 +1,8 @@
 use psi_checked_trees::FlowStateFact;
 use psi_diagnostics::Diagnostic;
 use psi_facts::{FactOrigin, ProgramPoint};
-use psi_typed_trees::statement::{
-    StatementNode, TransitionGuardNode, TransitionTargetHandle, TransitionTargetNode,
-};
+use psi_typed_trees::statement::{StatementNode, TransitionTargetHandle, TransitionTargetNode};
 
-use super::calls::guard_conjunct_matches;
 use super::prover::semantic_contexts_prove_contract_fact;
 use crate::labels::semantic_fact_requirement_label;
 
@@ -69,42 +66,37 @@ pub(super) fn check_self_transition_arrival_requires(
         let StatementNode::Transition(transition) = statement else {
             continue;
         };
-        if !(target_is_self(program, transition.target)
-            || transition.continuation.is_valid()
-                && target_is_self(program, transition.continuation))
-        {
-            continue;
-        }
-
-        let entry_constraints = facts
-            .flow
-            .state_statement(state_flow, statement_index)
-            .map(|statement| statement.entry_constraints)
-            .unwrap_or(state_flow.entry_constraints);
-        let entry_contexts = facts
-            .flow
-            .semantic_constraint_contexts(entry_constraints)
-            .collect::<Vec<_>>();
-
-        for requirement in &requirements {
-            let label = semantic_fact_requirement_label(program, &facts.semantic, requirement);
-            let guard_proves = match transition.guard {
-                TransitionGuardNode::When(guard) => guard_conjunct_matches(program, guard, &label),
-                TransitionGuardNode::Always => false,
-            };
-            if semantic_contexts_prove_contract_fact(
-                program,
-                &facts.semantic,
-                &entry_contexts,
-                requirement,
-            ) || guard_proves
-            {
+        for target in [transition.target, transition.continuation] {
+            if !target.is_valid() || !target_is_self(program, target) {
                 continue;
             }
-            diagnostics.push(Diagnostic::error(format!(
-                "cannot prove state arrival contract on self-transition in {} state `{}` at statement {}: {}",
-                machine.name, state.name, statement_index, label
-            )));
+            let point = ProgramPoint::TransitionArm {
+                machine_symbol: machine.symbol,
+                state_symbol: state.symbol,
+                statement_index,
+                transition_target: target,
+            };
+            let entry_contexts = facts
+                .semantic
+                .contexts
+                .iter()
+                .filter_map(|(handle, context)| (context.point == point).then_some(handle))
+                .collect::<Vec<_>>();
+            for requirement in &requirements {
+                if semantic_contexts_prove_contract_fact(
+                    program,
+                    &facts.semantic,
+                    &entry_contexts,
+                    requirement,
+                ) {
+                    continue;
+                }
+                let label = semantic_fact_requirement_label(program, &facts.semantic, requirement);
+                diagnostics.push(Diagnostic::error(format!(
+                    "cannot prove state arrival contract on self-transition in {} state `{}` at statement {}: {}",
+                    machine.name, state.name, statement_index, label
+                )));
+            }
         }
     }
 }

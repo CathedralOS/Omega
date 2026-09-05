@@ -4,6 +4,8 @@ use psi_facts::{FactPayload, FactPlace};
 mod assigned_values;
 pub(super) use assigned_values::prove_domain_at_place;
 mod booleans;
+#[cfg(test)]
+mod tests;
 
 use self::booleans::{
     semantic_context_proves_boolean_expression,
@@ -82,7 +84,8 @@ pub(super) fn semantic_contexts_prove_contract_fact(
     fact: &psi_facts::Fact,
 ) -> bool {
     match fact.payload {
-        FactPayload::ContractDomainMembership { domain_symbol, .. } => {
+        FactPayload::DomainMembership { domain_symbol, .. }
+        | FactPayload::ContractDomainMembership { domain_symbol, .. } => {
             let FactPlace::Place(place) = fact.place else {
                 return false;
             };
@@ -116,7 +119,8 @@ pub(super) fn semantic_contexts_prove_contract_fact(
                 domain_symbol,
             )
         }
-        FactPayload::ContractCarryPermission { permission, .. } => {
+        FactPayload::CarryPermission { permission, .. }
+        | FactPayload::ContractCarryPermission { permission, .. } => {
             let FactPlace::Place(place) = fact.place else {
                 return false;
             };
@@ -136,7 +140,8 @@ pub(super) fn semantic_contexts_prove_contract_fact(
                 })
             })
         }
-        FactPayload::ContractBooleanExpression { expression, .. } => {
+        FactPayload::BooleanExpression(expression)
+        | FactPayload::ContractBooleanExpression { expression, .. } => {
             matches!(
                 program.expression_table.expression(expression),
                 psi_checked_trees::expression::ExpressionNode::Boolean(true)
@@ -145,7 +150,8 @@ pub(super) fn semantic_contexts_prove_contract_fact(
                 semantic_context_proves_boolean_expression(program, semantic, context, expression)
             })
         }
-        FactPayload::ContractPropositionApplication { .. } => {
+        FactPayload::PropositionApplication { .. }
+        | FactPayload::ContractPropositionApplication { .. } => {
             let Some(required_label) = semantic.proposition_fact_label(program, fact) else {
                 return false;
             };
@@ -165,6 +171,27 @@ pub(super) fn semantic_contexts_prove_contract_fact(
                         })
             })
         }
-        _ => true,
+        FactPayload::CarryOrigin { .. } => {
+            let FactPlace::Place(place) = fact.place else {
+                return false;
+            };
+            entry_contexts.iter().any(|entry_context| {
+                semantic
+                    .context_view(semantic.contexts.get(*entry_context))
+                    .facts()
+                    .any(|candidate| {
+                        matches!(candidate.payload, FactPayload::CarryOrigin { .. })
+                            && matches!(candidate.place, FactPlace::Place(candidate_place)
+                            if semantic.places_match(program, candidate_place, place))
+                    })
+            })
+        }
+        // These are evidence or deferred obligations, not propositions this
+        // dispatcher can establish. An unfamiliar payload is never success.
+        FactPayload::AssignedValue { .. }
+        | FactPayload::BooleanValue { .. }
+        | FactPayload::TypeConstraint { .. }
+        | FactPayload::ProofObligation { .. }
+        | FactPayload::Contract { .. } => false,
     }
 }
