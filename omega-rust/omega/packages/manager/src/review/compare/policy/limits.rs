@@ -19,6 +19,7 @@ pub struct PackagePolicyChangeLimits {
     pub maximum_rows: usize,
     pub maximum_projection_owned_bytes: usize,
     pub maximum_projection_elements: usize,
+    /// Combined policy-row changes and source-replacement findings.
     pub maximum_changed_rows: usize,
     pub maximum_changed_owned_bytes: usize,
     /// Per diagnostic path. Combined retained path storage is context-bounded.
@@ -186,6 +187,15 @@ impl Budget {
                     .len(),
             ),
         }
+    }
+
+    pub(super) fn source_replacements(&mut self, count: usize) -> Result<(), Error> {
+        charge(
+            &mut self.changed_rows,
+            count,
+            self.limits.maximum_changed_rows,
+            "changed rows and source replacements",
+        )
     }
 }
 pub(super) fn row_bytes(row: &PackagePolicyRow) -> Result<usize, Error> {

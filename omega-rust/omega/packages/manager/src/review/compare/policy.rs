@@ -8,6 +8,7 @@ mod merge;
 mod model;
 mod paths;
 mod projection;
+mod replacements;
 
 pub use error::PackagePolicyChangeError;
 pub use limits::PackagePolicyChangeLimits;
@@ -16,6 +17,7 @@ pub use model::{
     PackagePolicyDependencyPath, PackagePolicyDependencyPathStep, PackagePolicyPackageChange,
     PackagePolicyRowChange,
 };
+pub use replacements::{PackagePolicyReplacementSite, PackagePolicySourceReplacement};
 
 use crate::declarations::BuildDeclarationKind;
 use crate::lock::PackageLockTarget;
@@ -66,6 +68,12 @@ pub fn compare_package_policy_changes(
         .map(|old| role_change(old.source(), &source, &mut budget))
         .transpose()?
         .flatten();
+    let source_replacements = replacements::compare(
+        accepted.map(PackageLockTarget::source),
+        &source,
+        fingerprint,
+        &mut budget,
+    )?;
     Ok(PackagePolicyChangeSet {
         baseline_source_subject: accepted.map(|old| old.source().fingerprint().clone()),
         candidate_source_subject: source.fingerprint().clone(),
@@ -73,6 +81,7 @@ pub fn compare_package_policy_changes(
         root_changed,
         source_subject_changed,
         root_role_change,
+        source_replacements,
         packages,
     })
 }

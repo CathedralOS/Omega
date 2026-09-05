@@ -31,6 +31,8 @@ mod fixtures;
 mod graph;
 #[path = "package_policy_changes/initial.rs"]
 mod initial;
+#[path = "package_policy_changes/replacements.rs"]
+mod replacements;
 #[path = "locked_source_recovery/support.rs"]
 mod support;
 use fixtures::*;

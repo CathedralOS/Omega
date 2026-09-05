@@ -1,3 +1,4 @@
+use super::PackagePolicySourceReplacement;
 use crate::declarations::PackageKey;
 use crate::resolution::graph::CanonicalSourceClosureSubjectFingerprint;
 use crate::review::compare::model::ReviewOnlyRootRoleChange;
@@ -160,6 +161,7 @@ pub struct PackagePolicyChangeSet {
     pub(super) root_changed: bool,
     pub(super) source_subject_changed: bool,
     pub(super) root_role_change: Option<ReviewOnlyRootRoleChange>,
+    pub(super) source_replacements: Vec<PackagePolicySourceReplacement>,
     pub(super) packages: Vec<PackagePolicyPackageChange>,
 }
 impl PackagePolicyChangeSet {
@@ -188,6 +190,7 @@ impl PackagePolicyChangeSet {
     }
     pub fn requires_decision(&self) -> bool {
         self.root_role_change.is_some()
+            || !self.source_replacements.is_empty()
             || self
                 .packages
                 .iter()
@@ -199,5 +202,9 @@ impl PackagePolicyChangeSet {
                 .packages
                 .iter()
                 .any(PackagePolicyPackageChange::audit_recommended)
+    }
+
+    pub fn source_replacements(&self) -> &[PackagePolicySourceReplacement] {
+        &self.source_replacements
     }
 }
