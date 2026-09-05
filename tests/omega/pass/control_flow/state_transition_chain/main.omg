@@ -15,7 +15,7 @@ machine Main::main(&mut self) {
     }
 
 
-    state second() {
+    state second(&mut self) {
         self.console.write_line("second");
         self.console.exit_process(0);
     }

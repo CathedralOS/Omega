@@ -18,9 +18,9 @@ machine Main::main(&mut self) {
     let y: i32 in Wrapping = a << self.n;
     transition y == 256 {
         true  -> operand_count40()
-        false -> diagnose_write()
+        false -> diagnose_write(y)
     }
-    state diagnose_write(&mut self) {
+    state diagnose_write(&mut self, y: i32 in Wrapping) {
         transition y == 0 {
             true  -> retired_modular_zero()
             false -> weird()

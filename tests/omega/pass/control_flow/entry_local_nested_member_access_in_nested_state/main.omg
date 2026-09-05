@@ -1,11 +1,6 @@
-// A nested state reads a field of a field, and an element of a field, of a
-// struct the entry block bound with `let`.
-//
-// The single-level case already has a canary beside this one. Two levels was
-// separate: root type recovery for a captured entry-block local answered only
-// for the state that authored the binding, so the place algebra could build
-// `packet.header.room_id` but never recover its root type, and the authored
-// MemberAccess selection stayed late-bound through checking.
+// A named state receives an entry-local struct through an explicit transition
+// argument, then resolves nested member and indexed-field accesses on its own
+// parameter.
 
 data Header {
     room_id: u32;
@@ -26,10 +21,10 @@ machine Main::main(&mut self) {
     };
 
     transition {
-        _ -> check_packet()
+        _ -> check_packet(packet)
     }
 
-    state check_packet(&mut self) {
+    state check_packet(&mut self, packet: Packet) {
         transition packet.header.room_id == 300 && packet.samples[0] == 150 {
             true -> {}
             _ -> {}

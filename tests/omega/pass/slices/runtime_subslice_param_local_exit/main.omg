@@ -25,10 +25,10 @@ machine Main::main(&mut self) {
 
 machine Main::check(&mut self, sub: &[Entry]) {
     transition sub.len > 2 {
-        true -> work()
+        true -> work(sub)
         false -> bad()
     }
-    state work(&mut self) {
+    state work(&mut self, sub: &[Entry]) {
         let tail: &[Entry] = sub[1..];
         transition tail.len == 3 {
             true -> good()

@@ -40,12 +40,12 @@ machine Main::decode(&self, k: Coeffs) -> i32 {
 machine Main::main(&mut self) {
     let kk: Coeffs = Coeffs { a: 1, b: 2, c: 3 };
     let r: i32 in Wrapping = self.decode(kk);
-    transition r == 123 { true -> good() _ -> wrong() }
+    transition r == 123 { true -> good() _ -> wrong(r) }
 
     state good(&mut self) {
         self.console.exit_process(70);
     }
-    state wrong(&mut self) {
+    state wrong(&mut self, r: i32 in Wrapping) {
         self.console.exit_process(r as i32); // surface the decoded value on regression
     }
 }

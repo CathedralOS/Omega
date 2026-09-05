@@ -1,11 +1,5 @@
-// A nested state reads a FIELD of a struct the entry block bound with `let`.
-//
-// Entry-block locals are captured lexically by nested states, exactly as entry
-// parameters are, and reading one bare in a sibling state is already exercised
-// across the corpus. Member access on one is the case that was missing: type
-// recovery searched only the entry state's parameters, so the receiver had no
-// type, the authored MemberAccess selection stayed late-bound, and the
-// post-check completeness scan rejected a program that had checked cleanly.
+// A named state reads a field of an entry-local struct explicitly passed as
+// a transition argument. Member resolution uses the target state's parameter.
 
 data Header {
     room_id: u32;
@@ -18,10 +12,10 @@ machine Main::main(&mut self) {
     let header: Header = Header { room_id: 300 };
 
     transition {
-        _ -> check_header()
+        _ -> check_header(header)
     }
 
-    state check_header(&mut self) {
+    state check_header(&mut self, header: Header) {
         transition header.room_id == 300 {
             true -> {}
             _ -> {}

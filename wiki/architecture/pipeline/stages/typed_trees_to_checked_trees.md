@@ -139,6 +139,8 @@ Both range walks seed machine requirements only at entry and authored state
 requirements at their declaring state. Assignments retire stale scalar and
 collection bounds through one shared invalidation rule before replacement
 facts can flow into a later state.
+Declaration initializers are not seeded as named-state integer invariants;
+only live values transported along explicit edges can establish those facts.
 
 Literal assignment values belong to the common semantic fact contexts. They
 are attached to exact stable places and use the same mutation invalidation as
@@ -181,10 +183,14 @@ opaque external supply.
 ## Ownership Rules
 
 State values follow chapter 4's explicit parameter frontier: transitions name
-the values delivered to the target state. Existing accepted entry-local or
-entry-parameter captures are an implementation gap, not a language extension.
-Member-selection fixes must not broaden that gap. Explicit state arguments
-retain nominal member identity without requiring physical copies.
+the values delivered to the target state. Executable reads, writes, and call
+receivers use the exact current-state declaration and preceding local bindings;
+state arrival contracts use only that state's parameters. Entry and sibling
+bindings are not recovered by spelling. Declared `self` attachment remains
+explicit, while qualified operator namespaces are declarations, not storage.
+Explicit state arguments retain nominal member identity without requiring
+physical copies. Checked member selection does not recover entry-local types
+for a receiver absent from the current state.
 
 Must own:
 
@@ -1550,8 +1556,7 @@ Current ownership is:
   seeding, `checks/ranges/guards/bounds/orderings.rs` owns ordering fact
   seeding, `checks/ranges/indexes.rs` owns indexed-expression traversal,
   `checks/ranges/indexes/validation.rs` owns known-length and unknown-slice
-  index/subslice proof diagnostics, `checks/ranges/initializers.rs` owns
-  data-field and machine-owned integer fact seeding,
+  index/subslice proof diagnostics,
   `checks/ranges/proofs.rs` owns proof lookups,
   `checks/ranges/expressions.rs` owns the helper export surface,
   `checks/ranges/expressions/integers.rs` owns scalar integer/range-bound

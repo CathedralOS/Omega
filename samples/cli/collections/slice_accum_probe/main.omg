@@ -80,7 +80,7 @@ machine Main::main(&mut self) {
     let b: i32 = self.walker.sum_entries(se, 0);
 
     transition a == 70 {
-        true -> check_b()
+        true -> check_b(b)
         _ -> bad_a()
     }
 
@@ -91,7 +91,7 @@ machine Main::main(&mut self) {
         self.console.exit_process(71);
     }
 
-    state check_b(&mut self) {
+    state check_b(&mut self, b: i32) {
         transition b == 70 {
             true -> good()
             _ -> bad_b()

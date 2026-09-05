@@ -1,0 +1,6 @@
+machine inspect(input: u64) {
+    transition { _ -> finish() }
+    state finish()
+    requires input == input
+    {}
+}

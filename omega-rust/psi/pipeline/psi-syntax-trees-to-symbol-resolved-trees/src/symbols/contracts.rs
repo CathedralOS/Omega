@@ -9,12 +9,10 @@ use super::expressions::{
 use super::scope::MachineScope;
 use super::targets::assign_static_argument_symbols;
 
-/// Resolve call targets and static machine arguments inside ordinary
-/// machine/state contract facts. Contract expressions share the callable's
-/// machine-parameter scope; leaving call edges unstamped made non-generic calls
-/// limp through name fallbacks while correctly fenced generic calls reported
-/// an unresolved callee. Value/name stamping remains on its established proof
-/// path: changing that identity here also changes flow-fact invalidation.
+/// Resolve contract value references, call targets, and static machine
+/// arguments in the owning callable's scope. Machine contracts use entry
+/// parameters; state contracts use only that state's explicit parameters.
+/// Membership domain names retain their separate declaration lookup.
 pub(super) fn assign_contract_reference_symbols(
     program: &mut SymbolResolvedTrees,
     symbols: &SymbolTable,
@@ -129,8 +127,11 @@ fn assign_contract_span(
 ) {
     for contract in signature_contracts.span_or_empty(contracts) {
         for fact in proof_facts.span_or_empty(contract.facts) {
-            let psi_symbol_resolved_trees::domain::ProofFact::Expression(expression) = fact else {
-                continue;
+            let expression = match fact {
+                psi_symbol_resolved_trees::domain::ProofFact::Expression(expression) => *expression,
+                psi_symbol_resolved_trees::domain::ProofFact::Membership(membership) => {
+                    membership.value
+                }
             };
             assign_contract_call_symbols(
                 symbols,
@@ -139,7 +140,7 @@ fn assign_contract_span(
                 state_symbol,
                 expression_table,
                 child_type_references,
-                *expression,
+                expression,
             );
         }
     }

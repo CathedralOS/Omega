@@ -1,16 +1,5 @@
-// Locks the BARE-NAME allow-list against the two non-obvious forms that a naive
-// "unknown bare name" existence check wrongly rejected before it was scoped to the
-// WHOLE machine (see fail canary undeclared_bare_name_rejected + its check in
-// psi-validation/calls.rs `is_known_bare_name`):
-//
-//   1. CROSS-STATE param read: `state report` reads `n`, which is a PARAMETER of a
-//      SIBLING state (`classify`), not of `report` itself. State bindings share the
-//      machine-wide environment, so the existence check scans EVERY state's
-//      parameters/locals -- a per-current-state lookup would falsely reject this.
-//   2. BARE ENUM CASE: `let signal: Light = On;` -- `On` is a single-segment `Name`
-//      that resolves to an enum case constant, not a local/param/field.
-//
-// classify(70): n=70 > 0 -> report -> exit_process(n) = 70. Differential (interp==native).
+// Bare enum cases remain visible declarations. State values instead reach a
+// sibling through an explicit argument and bind to that sibling's parameter.
 
 use omega_language_std::console;
 
@@ -23,10 +12,10 @@ machine Main::main(&mut self) {
     transition { _ -> classify(70) }
     state classify(&mut self, n: i32 [0..=100]) {
         transition n > 0 {
-            true -> report()
+            true -> report(n)
             _ -> zero()
         }
     }
-    state report(&mut self) { self.console.exit_process(n); } // reads sibling `classify`'s param
+    state report(&mut self, n: i32 [0..=100]) { self.console.exit_process(n); }
     state zero(&mut self) { self.console.exit_process(2); }
 }

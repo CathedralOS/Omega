@@ -11,10 +11,10 @@ use omega_language_std::console;
 data Store { name: [u8; 8] in Utf8; }
 machine Store::check(&mut self, idx: i32) -> bool {
     transition idx == 0 {
-        true -> arm_a()
+        true -> arm_a(idx)
         _ -> arm_b()
     }
-    state arm_a(&mut self) -> bool {
+    state arm_a(&mut self, idx: i32) -> bool {
         let x: bool = self.name == "omega";
         transition idx == 0 {
             true -> fwd(x)

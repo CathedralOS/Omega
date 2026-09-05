@@ -11,12 +11,15 @@ use psi_typed_trees::signature::{SignatureContract, StateParameter};
 use psi_typed_trees::types::TypeReferenceHandle;
 use std::fmt;
 
+mod value_scope;
+
 pub(crate) fn validate_callable_state_signatures(
     program: &TypedTrees,
     symbols: &TopLevelSymbols<'_>,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     for machine in program.machines() {
+        value_scope::validate(program, machine, symbols, diagnostics);
         let mut type_parameters = program.machine_type_parameters(machine).to_vec();
         let mut lifetime_parameters = machine.lifetime_parameters.clone();
         if let Some(attached_data) = &machine.attached_data

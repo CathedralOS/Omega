@@ -92,7 +92,7 @@ machine Main::main(&mut self) {
 
     // Check each result.
     transition r1 == 15 {
-        true -> check_r2()
+        true -> check_r2(r2, r3, r4, r1)
         _ -> bad_r1()
     }
 
@@ -103,9 +103,9 @@ machine Main::main(&mut self) {
         self.console.exit_process(71);
     }
 
-    state check_r2(&mut self) {
+    state check_r2(&mut self, r2: i32, r3: i32, r4: i32, r1: i32) {
         transition r2 == 28 {
-            true -> check_r3()
+            true -> check_r3(r3, r4, r1, r2)
             _ -> bad_r2()
         }
     }
@@ -117,9 +117,9 @@ machine Main::main(&mut self) {
         self.console.exit_process(72);
     }
 
-    state check_r3(&mut self) {
+    state check_r3(&mut self, r3: i32, r4: i32, r1: i32, r2: i32) {
         transition r3 == 12 {
-            true -> check_r4()
+            true -> check_r4(r4, r1, r2, r3)
             _ -> bad_r3()
         }
     }
@@ -131,9 +131,9 @@ machine Main::main(&mut self) {
         self.console.exit_process(73);
     }
 
-    state check_r4(&mut self) {
+    state check_r4(&mut self, r4: i32, r1: i32, r2: i32, r3: i32) {
         transition r4 == 15 {
-            true -> compute_total()
+            true -> compute_total(r1, r2, r3, r4)
             _ -> bad_r4()
         }
     }
@@ -145,7 +145,7 @@ machine Main::main(&mut self) {
         self.console.exit_process(74);
     }
 
-    state compute_total(&mut self) {
+    state compute_total(&mut self, r1: i32, r2: i32, r3: i32, r4: i32) {
         // total = r1 + r2 + r3 + r4 = 15 + 28 + 12 + 15 = 70.
         let total: i32 = r1 + r2 + r3 + r4;
         transition total == 70 {

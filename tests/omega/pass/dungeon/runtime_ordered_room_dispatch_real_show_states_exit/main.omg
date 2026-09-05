@@ -44,10 +44,10 @@ machine Dungeon::enter_room(
     room_index: u64
 ) {
     transition {
-        _ -> mark_current_room()
+        _ -> mark_current_room(room_index)
     }
 
-    state mark_current_room(&mut self) {
+    state mark_current_room(&mut self, room_index: u64) {
         transition room_index {
             0 -> mark_zero()
             1 -> mark_one()

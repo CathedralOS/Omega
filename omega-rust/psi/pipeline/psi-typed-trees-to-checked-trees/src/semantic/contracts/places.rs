@@ -4,6 +4,9 @@ use crate::semantic_calls::call_target_parameters;
 use crate::semantic_places::{append_place_segment, resolve_place_member_symbol};
 use psi_facts::PlaceHandle;
 
+#[cfg(test)]
+mod tests;
+
 pub(crate) fn contract_fact_place(
     program: &psi_typed_trees::TypedTrees,
     facts: &mut FactPlan,
@@ -191,7 +194,26 @@ fn contract_name_path_place(
         .expression_table
         .name_path_member_symbols(path.member_symbols);
 
-    let (mut place, start_index) = if path.head_symbol.is_valid() {
+    let (mut place, start_index) = if members
+        .first()
+        .is_some_and(|member| member.as_str() == "self")
+    {
+        let self_symbol = contract_owner_self_symbol(program, contract.owner)?;
+        // Typed source names retain the machine attachment identity for self.
+        // Contract flow instead transports the owner's explicit self formal;
+        // keep that declaration root even once name resolution stamps the path.
+        let attachment_root = crate::flow::normalized_event_place_root(
+            program,
+            psi_facts::PlaceRoot::Symbol(self_symbol),
+        );
+        if path.head_symbol.is_valid()
+            && path.head_symbol != self_symbol
+            && attachment_root != psi_facts::PlaceRoot::Symbol(path.head_symbol)
+        {
+            return None;
+        }
+        (facts.append_symbol_place(self_symbol), 1usize)
+    } else if path.head_symbol.is_valid() {
         (facts.append_symbol_place(path.head_symbol), 1usize)
     } else if let Some(parameter_symbol) =
         contract_owner_parameter_symbol(program, contract.owner, path, members.first())
@@ -278,7 +300,7 @@ fn contract_owner_parameter(
                 .iter()
                 .find(|machine| machine.symbol == machine_symbol)
                 .and_then(|machine| {
-                    program.machine_states(machine).iter().find_map(|state| {
+                    program.machine_states(machine).first().and_then(|state| {
                         program
                             .state_parameters(state)
                             .iter()

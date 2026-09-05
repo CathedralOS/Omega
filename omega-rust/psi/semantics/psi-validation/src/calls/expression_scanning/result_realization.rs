@@ -58,13 +58,18 @@ pub(crate) fn report_local_receiver_value_call(
     if receiver == "self" {
         return;
     }
-    // A state PARAMETER (whole-machine scope) is a supported receiver.
-    let is_parameter = program.machine_states(machine).iter().any(|state| {
-        program
-            .state_parameters(state)
-            .iter()
-            .any(|parameter| parameter.name.as_str() == receiver)
-    });
+    let Some(state) = program
+        .machine_states(machine)
+        .iter()
+        .find(|state| state.name.as_str() == state_name)
+    else {
+        return;
+    };
+    // Only this state's exact parameter is a supported parameter receiver.
+    let is_parameter = program
+        .state_parameters(state)
+        .iter()
+        .any(|parameter| parameter.symbol == path.symbol && parameter.name.as_str() == receiver);
     if is_parameter {
         return;
     }
@@ -77,9 +82,8 @@ pub(crate) fn report_local_receiver_value_call(
     if is_field {
         return;
     }
-    // A LOCAL-DATA binding anywhere in the machine (bindings are
-    // whole-machine scope).
-    let local = program.machine_states(machine).iter().find_map(|state| {
+    // Local receiver realization concerns this state's declaration only.
+    let local = {
         program
             .statement_table
             .statements(state.statement_nodes)
@@ -88,9 +92,9 @@ pub(crate) fn report_local_receiver_value_call(
                 let StatementNode::LocalData(local) = statement else {
                     return None;
                 };
-                (local.name.as_str() == receiver).then_some(local)
+                (local.symbol == path.symbol && local.name.as_str() == receiver).then_some(local)
             })
-    });
+    };
     let Some(local) = local else {
         return;
     };

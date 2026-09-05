@@ -15,10 +15,10 @@ machine Main::main(&mut self) {
 }
 machine Main::bump(&mut self, k: u64 [0..=3]) {
     transition self.arr[k] < 10 {
-        true -> go()
+        true -> go(k)
         false -> full()
     }
-    state go(&mut self) {
+    state go(&mut self, k: u64 [0..=3]) {
         self.arr[k] = self.arr[k] + 1;
         transition self.arr[2] == 5 {
             true -> yes()

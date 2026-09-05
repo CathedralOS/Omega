@@ -380,7 +380,7 @@ fn state_parameter_claim_retains_its_strict_origin_without_a_permission() {
             let token: Token = self.issuer.issue(7);
             transition { _ -> hold(token) }
 
-            state hold(token: Token in Token::Issued) -> Token {
+            state hold(&mut self, token: Token in Token::Issued) -> Token {
                 suspend self.scheduler.park();
                 transition { _ -> (token as Token) }
             }
@@ -419,7 +419,7 @@ fn state_parameter_claim_retains_its_exact_carry_permission() {
             let token: Token = self.issuer.issue(7);
             transition { _ -> hold(token) }
 
-            state hold(token: Token in Token::Issued & Carry::AcrossSuspend) -> Token {
+            state hold(&mut self, token: Token in Token::Issued & Carry::AcrossSuspend) -> Token {
                 suspend self.scheduler.park();
                 transition { _ -> (token as Token) }
             }

@@ -16,10 +16,10 @@ machine Main::build(&mut self, random: &mut Rng) -> u32 {
     self.bump(random);
     self.bump(random);
     transition random.calls == 2 {
-        true -> after()
+        true -> after(random)
         _ -> (71)
     }
-    state after(&mut self) -> u32 {
+    state after(&mut self, random: &mut Rng) -> u32 {
         self.bump(random);
         transition random.calls == 3 {
             true -> (70)

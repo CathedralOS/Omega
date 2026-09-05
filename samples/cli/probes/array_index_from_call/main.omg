@@ -100,7 +100,7 @@ machine Main::main(&mut self) {
 
     // Verify idx0 == 0.
     transition idx0 == 0 {
-        true -> check_idx2()
+        true -> check_idx2(idx2, v0, v2, v1)
         _ -> bad_idx0()
     }
 
@@ -111,9 +111,9 @@ machine Main::main(&mut self) {
         self.console.exit_process(71);
     }
 
-    state check_idx2(&mut self) {
+    state check_idx2(&mut self, idx2: i32, v0: i32, v2: i32, v1: i32) {
         transition idx2 == 4 {
-            true -> check_v0()
+            true -> check_v0(v0, v2, v1)
             _ -> bad_idx2()
         }
     }
@@ -125,9 +125,9 @@ machine Main::main(&mut self) {
         self.console.exit_process(72);
     }
 
-    state check_v0(&mut self) {
+    state check_v0(&mut self, v0: i32, v2: i32, v1: i32) {
         transition v0 == 3 {
-            true -> compute_result()
+            true -> compute_result(v0, v2, v1)
             _ -> bad_v0()
         }
     }
@@ -139,7 +139,7 @@ machine Main::main(&mut self) {
         self.console.exit_process(73);
     }
 
-    state compute_result(&mut self) {
+    state compute_result(&mut self, v0: i32, v2: i32, v1: i32) {
         // result = v2 + v1 - v0 - 1 = 60 + 14 - 3 - 1 = 70.
         let result: i32 = v2 + v1 - v0 - 1;
         transition result == 70 {

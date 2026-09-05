@@ -1,0 +1,10 @@
+data Packet { value: u64; }
+machine Packet::inspect(&self) {}
+machine inspect(packet: &Packet, output: &mut u64) {
+    let saved: u64 = 7;
+    transition { _ -> finish(packet, output, saved) }
+    state finish(value: &Packet, destination: &mut u64, result: u64) {
+        value.inspect();
+        destination = result;
+    }
+}
