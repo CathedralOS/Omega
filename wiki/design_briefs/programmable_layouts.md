@@ -175,6 +175,12 @@ requirement declaration, target-closed placement, and complete layout-plan
 identity separately. A target-neutral callback requirement may therefore keep
 one identity while x86 and x64 plans place its slot differently.
 
+The implementation retains the complete typed closed conformance application
+alongside the compact slot report coordinate during normalization and target
+closure. The report's name-plus-fingerprint spelling is not parsed to recover
+the declaration or its arguments. This retained semantic input does not change
+the existing native-layout report fingerprint or confer additional authority.
+
 The source-visible specification has no corresponding field. A layout
 containing a private demand is incomplete for ordinary value materialization;
 only a consuming plan that supplies every demand exactly once may use it. The

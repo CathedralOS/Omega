@@ -1015,6 +1015,15 @@ layout, one domain-separated inline named-record field identity plus its exact
 demand. The compiler preserves the terminal one-slot layout identity and gives
 the rooted layout a separate data- and policy-subject-bound identity, so equal
 physical layouts cannot alias roots and existing one-slot plans do not drift.
+Checked calling signatures also retain a named callback-layout catalog: exact
+semantic/native formal positions, root layout, optional inline field and child
+layout, complete typed terminal slot application, and target-closed geometry.
+Each entry stays paired with its native demand while sorting, and replay
+requires complete, ordered, exact field-demand joins. Direct native callback
+parameters contribute no invented layout field. The signature is exposed by
+borrowed access so callers cannot substitute an unhashed catalog. These
+compiler-owned records support later receipt-free policy projection; their
+arena handles and compact native IDs are not an accepted-lock encoding.
 Layout closure and independent replay both prove the field belongs to the root
 record, rejoin the exact child record, and checked-compose the two relative
 offsets while validating the terminal extent inside the child and the final

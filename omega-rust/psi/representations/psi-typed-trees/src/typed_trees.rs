@@ -487,7 +487,8 @@ pub struct PlanLaidLayout {
     /// intentionally stop at exact declaration identity plus offset; the
     /// selected target calling plan supplies pointer extent and completes
     /// bounds/non-overlap validation before materialization.
-    pub private_callback_demands: Vec<psi_layout_plans::PrivateCallbackLayoutDemandReport>,
+    pub private_callback_demands:
+        Vec<psi_layout_plans::PrivateCallbackLayoutDemandReport<ClosedConformanceApplication>>,
     /// Byte offset of each field, in declaration order.
     pub offsets: Vec<usize>,
     /// Fragmented scalar fields keyed by declaration-order field index.

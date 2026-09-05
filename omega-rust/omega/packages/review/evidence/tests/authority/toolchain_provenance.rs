@@ -200,7 +200,7 @@ pub PublicTokenRepresentation:
             .boundary_calling_plan_realizations()
             .iter()
             .all(|realization| realization
-                .materialized_signature
+                .materialized_signature()
                 .opaque_representation_uses()
                 .is_empty())
     );
@@ -295,7 +295,7 @@ pub CopyTokenRepresentation:
             .boundary_calling_plan_realizations()
             .iter()
             .all(|realization| realization
-                .materialized_signature
+                .materialized_signature()
                 .opaque_representation_uses()
                 .is_empty()),
         "an unused property receipt is not a D26 consumer demand"

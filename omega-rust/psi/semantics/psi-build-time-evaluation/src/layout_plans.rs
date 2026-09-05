@@ -13,8 +13,15 @@ use psi_layout_plans::{
 };
 #[allow(unused_imports)]
 pub use psi_layout_plans::{LayoutFieldEntryReport, LayoutPlacementReport, LayoutPlanReport};
-pub use psi_layout_plans::{NativeLayoutPlanReport, PrivateCallbackLayoutDemandReport};
 use psi_typed_trees::TypedTrees;
+
+/// Validated native layout with exact typed custody for each selected slot.
+pub type NativeLayoutPlanReport = psi_layout_plans::NativeLayoutPlanReport<
+    psi_typed_trees::typed_trees::ClosedConformanceApplication,
+>;
+pub type PrivateCallbackLayoutDemandReport = psi_layout_plans::PrivateCallbackLayoutDemandReport<
+    psi_typed_trees::typed_trees::ClosedConformanceApplication,
+>;
 
 use crate::BuildTimeAdmissionPlan;
 
@@ -390,6 +397,7 @@ fn normalize_private_callback_demands(
             ));
         }
         normalized.push(PrivateCallbackLayoutDemandReport {
+            slot_application: closed_application,
             slot_identity,
             layout_subject_identity: typed
                 .normalized_hermetic_symbol_identity(conformance.carrier_symbol)?,
