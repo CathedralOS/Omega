@@ -238,6 +238,10 @@ fn package_evidence_encoding_has_one_canonical_encoder_owner() {
 
     let encoder = encoding.join("encode");
     assert!(
+        encoding.join("recovery/policy/mod.rs").is_file(),
+        "receipt-free typed policy recovery must remain subordinate to recovery",
+    );
+    assert!(
         encoder.join("values/mod.rs").is_file(),
         "semantic value encoders must remain subordinate to canonical encoding",
     );

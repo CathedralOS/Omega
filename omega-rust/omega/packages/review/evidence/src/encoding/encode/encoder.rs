@@ -5,6 +5,9 @@ pub(crate) struct Encoder {
     output: Vec<u8>,
     maximum_bytes: usize,
     exceeded: bool,
+    policy_elements: Option<usize>,
+    policy_depth: usize,
+    maximum_policy_depth: usize,
 }
 
 impl Encoder {
@@ -13,7 +16,51 @@ impl Encoder {
             output: Vec::new(),
             maximum_bytes,
             exceeded: false,
+            policy_elements: None,
+            policy_depth: 0,
+            maximum_policy_depth: 0,
         }
+    }
+
+    pub(crate) fn policy_bounded(maximum_bytes: usize) -> Self {
+        let limits = crate::encoding::PackagePolicyRecoveryLimits::default();
+        Self {
+            policy_elements: Some(limits.maximum_sequence_elements),
+            maximum_policy_depth: limits.maximum_depth,
+            ..Self::bounded(maximum_bytes.min(limits.maximum_bytes))
+        }
+    }
+
+    /// Only policy components use these structural limits. Ordinary review
+    /// serialization keeps its existing behavior and byte representation.
+    pub(crate) fn nested<T>(
+        &mut self,
+        encode: impl FnOnce(&mut Self) -> Result<T, PackageReviewEncodingError>,
+    ) -> Result<T, PackageReviewEncodingError> {
+        if self.policy_elements.is_none() {
+            return encode(self);
+        }
+        self.policy_elements(1)?;
+        if self.policy_depth >= self.maximum_policy_depth {
+            return Err(PackageReviewEncodingError::new(
+                "package policy exceeds its nesting ceiling",
+            ));
+        }
+        self.policy_depth += 1;
+        let result = encode(self);
+        self.policy_depth -= 1;
+        result
+    }
+
+    fn policy_elements(&mut self, count: usize) -> Result<(), PackageReviewEncodingError> {
+        if let Some(remaining) = self.policy_elements {
+            self.policy_elements = Some(remaining.checked_sub(count).ok_or_else(|| {
+                PackageReviewEncodingError::new(
+                    "package policy exceeds its aggregate element ceiling",
+                )
+            })?);
+        }
+        Ok(())
     }
 
     pub(crate) fn finish(self) -> Result<Vec<u8>, PackageReviewEncodingError> {
@@ -101,6 +148,7 @@ impl Encoder {
         values: &[T],
         encode_value: impl Fn(&mut Self, &T) -> Result<(), PackageReviewEncodingError>,
     ) -> Result<(), PackageReviewEncodingError> {
+        self.policy_elements(values.len())?;
         self.usize(values.len())?;
         for value in values {
             encode_value(self, value)?;

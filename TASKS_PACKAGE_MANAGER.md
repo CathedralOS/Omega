@@ -69,9 +69,10 @@ adding machinery; do not invent proof-of-review or host-security requirements.
   Acceptance: complete supported graphs round-trip; malformed or inconsistent
   graphs reject; the baseline is available without the old checkout. The lock
   needs neither proof certificates nor build/native replay transcripts.
-  Project provider and opaque-representation policy from checked typed facts
-  without embedding evaluator/native receipts or the existing replay-bearing
-  review capsule. Integrate typed external-supply policy recovery and the
+  Retain exact named callback-layout applications alongside checked calling
+  plans, then project provider and opaque-representation policy without
+  embedding evaluator/native receipts or the existing replay-bearing review
+  capsule. Integrate typed external-supply policy recovery and the
   source-scoped historical decisions into the complete lock; decisions cannot
   replace the normalized baseline or authorize a later changed candidate.
 

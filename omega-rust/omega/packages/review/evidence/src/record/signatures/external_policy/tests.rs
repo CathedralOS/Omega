@@ -7,6 +7,8 @@ use crate::record::{
     PackageReviewNominalOwner, PackageReviewOperatorCoordinate, PackageReviewTypeIdentity,
 };
 
+mod recovery;
+
 fn nominal(path: &str) -> PackageReviewNominalIdentity {
     PackageReviewNominalIdentity {
         owner: PackageReviewNominalOwner::Package(package(7)),
@@ -41,7 +43,10 @@ fn usage() -> PackageReviewEvaluatedBindingUsage {
 
 fn import(locator: PackageReviewForeignLocator) -> PackageReviewEvaluatedImport {
     PackageReviewEvaluatedImport {
-        target: "windows_x86_64".to_owned(),
+        target: omega_target::TargetProfile::WindowsX64
+            .identity()
+            .as_str()
+            .to_owned(),
         locator,
         locator_identity_digest: [1; 32],
         producer: nominal("Bindings::import"),
@@ -60,7 +65,10 @@ fn import(locator: PackageReviewForeignLocator) -> PackageReviewEvaluatedImport 
 
 fn syscall() -> PackageReviewEvaluatedSyscall {
     PackageReviewEvaluatedSyscall {
-        target: "linux_x86_64".to_owned(),
+        target: omega_target::TargetProfile::LinuxX64
+            .identity()
+            .as_str()
+            .to_owned(),
         number: 60,
         binding_identity_digest: [1; 32],
         producer: nominal("Bindings::exit"),
@@ -375,7 +383,12 @@ fn evaluator_receipts_do_not_change_import_or_syscall_policy() {
 fn normalized_binding_target_value_and_producer_fields_change_policy() {
     let original = import(locators().remove(0));
     let import_mutations: &[fn(&mut PackageReviewEvaluatedImport)] = &[
-        |row| row.target = "windows_arm64".to_owned(),
+        |row| {
+            row.target = omega_target::TargetProfile::LinuxArm64
+                .identity()
+                .as_str()
+                .to_owned()
+        },
         |row| row.producer.path.push_str("_other"),
         |row| row.producer.owner = PackageReviewNominalOwner::Package(package(8)),
         |row| row.producer_package = Some(package(8)),
@@ -395,7 +408,12 @@ fn normalized_binding_target_value_and_producer_fields_change_policy() {
     }
     let original = syscall();
     let syscall_mutations: &[fn(&mut PackageReviewEvaluatedSyscall)] = &[
-        |row| row.target = "linux_arm64".to_owned(),
+        |row| {
+            row.target = omega_target::TargetProfile::LinuxArm64
+                .identity()
+                .as_str()
+                .to_owned()
+        },
         |row| row.number += 1,
         |row| row.producer.path.push_str("_other"),
         |row| row.producer.owner = PackageReviewNominalOwner::Package(package(8)),

@@ -11,6 +11,9 @@ pub(super) mod review;
 pub(super) mod rows;
 mod values;
 
+#[cfg(test)]
+pub(super) use values::expressions::{encode_contract_expression, encode_contract_static_argument};
+
 pub(crate) const MAGIC: &[u8] = b"OMEGA-PACKAGE-REVIEW\0";
 pub const PACKAGE_REVIEW_ENCODING_VERSION: u16 = 130;
 pub(crate) const ROW_MAGIC: &[u8] = b"OMEGA-PACKAGE-REVIEW-ROW\0";
