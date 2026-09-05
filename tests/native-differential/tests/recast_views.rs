@@ -1,5 +1,8 @@
 //! Focused interpreter parity for programmable-layout recast views.
 
+#[path = "../fixture_rosters/recast_views.rs"]
+mod fixture_roster;
+
 use checked_interpreter::{InterpretOutcome, interpret_entry};
 use compiler::{CheckedCompilation, compile_to_checked};
 use std::path::{Path, PathBuf};
@@ -19,7 +22,9 @@ fn repo_root() -> PathBuf {
 #[test]
 fn mutable_equivalent_domain_recast_preserves_the_established_fact() {
     let main = repo_root()
-        .join("tests/omega/pass/recast/runtime_mutable_equivalent_domain_recast_exit/main.omg");
+        .join("tests/omega/pass")
+        .join(fixture_roster::RUNTIME_MUTABLE_EQUIVALENT_DOMAIN_RECAST_EXIT)
+        .join("main.omg");
     let checked = compile_to_checked(&main, None).unwrap_or_else(|diagnostics| {
         panic!(
             "equivalent-domain recast should compile:\n{}",
@@ -42,7 +47,9 @@ fn mutable_equivalent_domain_recast_preserves_the_established_fact() {
 #[test]
 fn mutable_equivalent_range_recast_preserves_the_established_fact() {
     let main = repo_root()
-        .join("tests/omega/pass/recast/runtime_mutable_equivalent_range_recast_exit/main.omg");
+        .join("tests/omega/pass")
+        .join(fixture_roster::RUNTIME_MUTABLE_EQUIVALENT_RANGE_RECAST_EXIT)
+        .join("main.omg");
     let checked = compile_to_checked(&main, None).unwrap_or_else(|diagnostics| {
         panic!(
             "equivalent-range recast should compile:\n{}",
@@ -65,7 +72,9 @@ fn mutable_equivalent_range_recast_preserves_the_established_fact() {
 #[test]
 fn bool_representation_recasts_preserve_aliasing_and_facts() {
     let main = repo_root()
-        .join("tests/omega/pass/recast/runtime_bool_representation_recast_exit/main.omg");
+        .join("tests/omega/pass")
+        .join(fixture_roster::RUNTIME_BOOL_REPRESENTATION_RECAST_EXIT)
+        .join("main.omg");
     let checked = compile_to_checked(&main, None).unwrap_or_else(|diagnostics| {
         panic!(
             "bool representation recasts should compile:\n{}",
@@ -88,7 +97,9 @@ fn bool_representation_recasts_preserve_aliasing_and_facts() {
 #[test]
 fn shared_domain_weakening_preserves_the_source_value() {
     let main = repo_root()
-        .join("tests/omega/pass/recast/runtime_shared_domain_weakening_recast_exit/main.omg");
+        .join("tests/omega/pass")
+        .join(fixture_roster::RUNTIME_SHARED_DOMAIN_WEAKENING_RECAST_EXIT)
+        .join("main.omg");
     let checked = compile_to_checked(&main, None).unwrap_or_else(|diagnostics| {
         panic!(
             "shared domain weakening should compile:\n{}",
@@ -111,7 +122,9 @@ fn shared_domain_weakening_preserves_the_source_value() {
 #[test]
 fn float_range_recasts_preserve_aliasing_and_interval_facts() {
     let main = repo_root()
-        .join("tests/omega/pass/recast/runtime_float_range_representation_recast_exit/main.omg");
+        .join("tests/omega/pass")
+        .join(fixture_roster::RUNTIME_FLOAT_RANGE_REPRESENTATION_RECAST_EXIT)
+        .join("main.omg");
     let checked = compile_to_checked(&main, None).unwrap_or_else(|diagnostics| {
         panic!(
             "same-carrier float range recasts should compile:\n{}",
@@ -134,7 +147,9 @@ fn float_range_recasts_preserve_aliasing_and_interval_facts() {
 #[test]
 fn shared_record_float_range_weakening_preserves_the_leaf_value() {
     let main = repo_root()
-        .join("tests/omega/pass/recast/runtime_shared_record_float_range_weakening_exit/main.omg");
+        .join("tests/omega/pass")
+        .join(fixture_roster::RUNTIME_SHARED_RECORD_FLOAT_RANGE_WEAKENING_EXIT)
+        .join("main.omg");
     let checked = compile_to_checked(&main, None).unwrap_or_else(|diagnostics| {
         panic!(
             "shared record float-range weakening should compile:\n{}",
@@ -157,7 +172,9 @@ fn shared_record_float_range_weakening_preserves_the_leaf_value() {
 #[test]
 fn mutable_equivalent_record_recast_preserves_aliasing_and_facts() {
     let main = repo_root()
-        .join("tests/omega/pass/recast/runtime_mutable_equivalent_record_recast_exit/main.omg");
+        .join("tests/omega/pass")
+        .join(fixture_roster::RUNTIME_MUTABLE_EQUIVALENT_RECORD_RECAST_EXIT)
+        .join("main.omg");
     let checked = compile_to_checked(&main, None).unwrap_or_else(|diagnostics| {
         panic!(
             "equivalent-record recast should compile:\n{}",
@@ -179,9 +196,10 @@ fn mutable_equivalent_record_recast_preserves_aliasing_and_facts() {
 
 #[test]
 fn aggregate_slice_recasts_preserve_repeated_leaf_facts_and_aliasing() {
-    let main = repo_root().join(
-        "tests/omega/pass/recast/runtime_aggregate_slice_representation_recast_exit/main.omg",
-    );
+    let main = repo_root()
+        .join("tests/omega/pass")
+        .join(fixture_roster::RUNTIME_AGGREGATE_SLICE_REPRESENTATION_RECAST_EXIT)
+        .join("main.omg");
     let checked = compile_to_checked(&main, None).unwrap_or_else(|diagnostics| {
         panic!(
             "aggregate slice representation recast should compile:\n{}",
@@ -204,7 +222,9 @@ fn aggregate_slice_recasts_preserve_repeated_leaf_facts_and_aliasing() {
 #[test]
 fn interior_slice_recasts_preserve_dynamic_tail_length_and_aliasing() {
     let main = repo_root()
-        .join("tests/omega/pass/recast/runtime_interior_slice_view_mutable_write_exit/main.omg");
+        .join("tests/omega/pass")
+        .join(fixture_roster::RUNTIME_INTERIOR_SLICE_VIEW_MUTABLE_WRITE_EXIT)
+        .join("main.omg");
     let checked = compile_to_checked(&main, None).unwrap_or_else(|diagnostics| {
         panic!(
             "interior slice recast should compile:\n{}",

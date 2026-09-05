@@ -1,5 +1,8 @@
 //! Source-to-install canary for one whole content-bearing custody exit.
 
+#[path = "../fixture_rosters/content_custody.rs"]
+mod fixture_roster;
+
 use std::path::{Path, PathBuf};
 
 use abstract_operations::AbstractOperation;
@@ -37,7 +40,9 @@ fn source_canary() -> PathBuf {
         .ancestors()
         .nth(2)
         .expect("native differential tests live under tests/native-differential")
-        .join("tests/omega/pass/terminal_psi/content_custody_exit/main.omg")
+        .join("tests/omega/pass")
+        .join(fixture_roster::CONTENT_CUSTODY_EXIT)
+        .join("main.omg")
 }
 
 #[test]

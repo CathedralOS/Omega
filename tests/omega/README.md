@@ -45,6 +45,11 @@ that same table. Inventory membership does not schedule another compilation or
 change a checked-only case into a native case. Inline diagnostic owners need not
 add an unused `expected.txt` merely to appear in the inventory.
 
+Cross-layer native differential tests own their shared inputs under
+`tests/native-differential/fixture_rosters/`. The compiler inventory includes
+only those dependency-free leaves, not the differential harness. Corpus bucket
+membership does not replace a dedicated owner's phase-specific expectation.
+
 Reverse closure remains `CANARY-ROSTER-DERIVATION` in `TASKS.md`: not all
 dedicated test owners are represented yet, so the inventory does not yet reject
 every unregistered directory. New registrations must name an actual executing

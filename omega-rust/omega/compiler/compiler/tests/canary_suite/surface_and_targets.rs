@@ -1,8 +1,11 @@
 use super::*;
 
+#[path = "../fixture_rosters/surface_and_targets.rs"]
+pub(super) mod fixture_roster;
+
 #[test]
 fn free_machine_named_transition_is_rejected_as_a_nonlocal_jump() {
-    let canary = fail_canary("calls/free_machine_named_transition_rejected");
+    let canary = fail_canary(fixture_roster::FREE_MACHINE_NAMED_TRANSITION_REJECTED);
     let diagnostics = compile_canary_without_output_for_target(&canary, "macos_arm64")
         .expect_err("a named transition must not enter another free machine");
     let combined = diagnostics
@@ -397,7 +400,7 @@ machine build(builder: &mut Build) {
 
 #[test]
 fn build_static_machine_selection_reaches_pe_subsystem() {
-    let canary = pass_canary("build/static_machine_parameter_config_compile");
+    let canary = pass_canary(fixture_roster::STATIC_MACHINE_PARAMETER_CONFIG_COMPILE);
     let build_dir = std::env::temp_dir().join(format!(
         "omega-build-static-machine-selection-{}",
         std::process::id()
@@ -436,10 +439,7 @@ fn build_static_machine_selection_reaches_pe_subsystem() {
 /// pinned natively on aarch64 + the interpreter by their own suite tests.)
 #[test]
 fn linux_x64_recent_encoder_canaries_compile() {
-    for canary_name in [
-        "arithmetic/runtime_float_compare_bool_exit",
-        "text/runtime_text_not_equals_exit",
-    ] {
+    for &canary_name in fixture_roster::RECENT_ENCODER_PASS_CANARIES {
         let canary = pass_canary(canary_name);
         let scratch = std::env::temp_dir().join(format!(
             "omega-x64-enc-{}-{}",
@@ -465,7 +465,7 @@ fn linux_x64_wrapping_shift_masked_count_bytes() {
     // the retired modular-value zero CLAMP must be GONE and the plain
     // width-correct shl present; sub-word operands carry the explicit
     // `and r11d, 7/15`.
-    let canary = pass_canary("arithmetic/runtime_shift_count_domain_exit");
+    let canary = pass_canary(fixture_roster::RUNTIME_SHIFT_COUNT_DOMAIN_EXIT);
     let scratch = std::env::temp_dir().join(format!("omega-x64-shlclamp-{}", std::process::id()));
     let _ = fs::remove_dir_all(&scratch);
     let count_domain = scratch.join("count-domain");
@@ -492,7 +492,7 @@ fn linux_x64_wrapping_shift_masked_count_bytes() {
     // The OPERAND-POSITION arm (the at-width canary nests `b << c` under an
     // add): the plain node-width shl followed DIRECTLY by the node-width
     // extension (mov r10d, r10d for unsigned width 4) -- no clamp between.
-    let atwidth = pass_canary("arithmetic/runtime_shift_atwidth_signed_modular_exit");
+    let atwidth = pass_canary(fixture_roster::RUNTIME_SHIFT_ATWIDTH_SIGNED_MODULAR_EXIT);
     let atwidth_case = scratch.join("atwidth");
     compile_single_file_hosted_main(&atwidth, &atwidth_case, "linux_x86_64")
         .expect("at-width modular canary should cross-compile for linux_x64");
@@ -506,7 +506,7 @@ fn linux_x64_wrapping_shift_masked_count_bytes() {
 
     // SUB-WORD masked counts: the explicit AND (and r11d, 7 / 15) before the
     // width-correct shift (the new subword canary exercises u8 + i16).
-    let subword = pass_canary("arithmetic/runtime_shift_subword_masked_count_exit");
+    let subword = pass_canary(fixture_roster::RUNTIME_SHIFT_SUBWORD_MASKED_COUNT_EXIT);
     let subword_case = scratch.join("subword");
     compile_single_file_hosted_main(&subword, &subword_case, "linux_x86_64")
         .expect("sub-word masked-count canary should cross-compile for linux_x64");
@@ -523,7 +523,7 @@ fn linux_x64_wrapping_shift_masked_count_bytes() {
     // Saturating `<<` (the promoted slice-C canary): the count cap
     // (mov eax,#w + cmp r11,#w + cmovae r11,rax -- the COUNT register)
     // followed by the 64-bit shl and the u8 cmova clamp tail.
-    let shl_sat = pass_canary("arithmetic/runtime_shl_saturating_exit");
+    let shl_sat = pass_canary(fixture_roster::RUNTIME_SHL_SATURATING_EXIT);
     let shl_sat_case = scratch.join("shl-saturating");
     compile_single_file_hosted_main(&shl_sat, &shl_sat_case, "linux_x86_64")
         .expect("saturating shl canary should cross-compile for linux_x64");
@@ -549,7 +549,7 @@ fn linux_x64_wrapping_shift_masked_count_bytes() {
     // count -- the plain mov-ecx + sar runs the hardware mask at both
     // widths, and the RETIRED count SATURATION (mov eax,width-1 + cmp +
     // cmovae into the count register) must be gone.
-    let shr = pass_canary("arithmetic/runtime_shift_right_atwidth_exit");
+    let shr = pass_canary(fixture_roster::RUNTIME_SHIFT_RIGHT_ATWIDTH_EXIT);
     let shr_case = scratch.join("shift-right-atwidth");
     compile_single_file_hosted_main(&shr, &shr_case, "linux_x86_64")
         .expect("at-width shr canary should cross-compile for linux_x64");
@@ -588,7 +588,7 @@ fn linux_x64_wrapping_shift_masked_count_bytes() {
         );
     }
 
-    let trapping = pass_canary("arithmetic/runtime_trapping_shift_count_exit");
+    let trapping = pass_canary(fixture_roster::RUNTIME_TRAPPING_SHIFT_COUNT_EXIT);
     let trapping_case = scratch.join("trapping");
     compile_single_file_hosted_main(&trapping, &trapping_case, "linux_x86_64")
         .expect("trapping shift canary should cross-compile for linux_x64");
@@ -602,7 +602,7 @@ fn linux_x64_wrapping_shift_masked_count_bytes() {
     // The MIN-idiom sat-subtract (the promoted canary): left (a convert of
     // 0) extends, the wide immediate right does NOT, one exact 64-bit sub,
     // then the signed upper bound of the shared tail.
-    let min_idiom = pass_canary("arithmetic/runtime_sat_min_idiom_exit");
+    let min_idiom = pass_canary(fixture_roster::RUNTIME_SAT_MIN_IDIOM_EXIT);
     let min_idiom_case = scratch.join("sat-min-idiom");
     compile_single_file_hosted_main(&min_idiom, &min_idiom_case, "linux_x86_64")
         .expect("MIN idiom canary should cross-compile for linux_x64");
@@ -625,7 +625,7 @@ fn linux_x64_wrapping_shift_masked_count_bytes() {
     // The wire decode-boundary utf8 validator (the promoted refusal canary):
     // the walk's pointer/end setup (mov rcx,r15 / mov r11,r15 / add r11,rax)
     // followed by the loop-head compare and the lead load.
-    let utf8_canary = pass_canary("wire/runtime_wire_utf8_invalid_refused_exit");
+    let utf8_canary = pass_canary(fixture_roster::RUNTIME_WIRE_UTF8_INVALID_REFUSED_EXIT);
     let utf8_case = scratch.join("wire-utf8-refusal");
     compile_single_file_hosted_main(&utf8_canary, &utf8_case, "linux_x86_64")
         .expect("utf8 refusal canary should cross-compile for linux_x64");
@@ -689,7 +689,7 @@ fn linux_x86_64_cli_mvp_emits_elf_with_syscalls() {
 
 #[test]
 fn external_leaf_syscall_reaches_linux_x64_backend() {
-    let canary = pass_canary("providers/external_leaf_syscall_compile");
+    let canary = pass_canary(fixture_roster::EXTERNAL_LEAF_SYSCALL_COMPILE);
     let scratch = std::env::temp_dir().join(format!("omega-via-syscall-{}", std::process::id()));
     let build_dir = scratch.join("out");
     let _ = fs::remove_dir_all(&scratch);
