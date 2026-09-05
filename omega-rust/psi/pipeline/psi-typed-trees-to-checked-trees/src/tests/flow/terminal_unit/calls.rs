@@ -2939,3 +2939,98 @@ fn retains_opaque_erased_field_identity_in_unit_structural_shape() {
         "opaque erased field carriers do not enter the executable structural graph"
     );
 }
+
+#[test]
+fn presents_projected_owned_byte_carrier_at_a_borrowed_boundary_view() {
+    let checked = checked(
+        r#"
+        domain [u8; 16]::Utf8
+        requires
+            valid_utf8(self);
+
+        boundary trait Console {
+            machine read_line(out_line: &mut [u8])
+            reaches Console;
+        }
+
+        data Root { line: [u8; 16] in Utf8; }
+        machine Root::enter(self)
+        reaches Console
+        {
+            Console::read_line(&mut self.line);
+        }
+        "#,
+    );
+    let plans = &checked.facts.flow.terminal_unit_effects;
+    let boundary = plans
+        .boundary_machines
+        .iter()
+        .find(|boundary| boundary.structural_parameters.len() == 1)
+        .expect("read_line boundary structural parameter");
+    let view_identity = boundary.structural_parameters[0].type_identity.clone();
+    assert!(matches!(
+        plans
+            .structural_types
+            .iter()
+            .find(|shape| shape.identity == view_identity)
+            .expect("borrowed byte-sequence shape")
+            .shape,
+        CheckedUnitStructuralTypeShape::ByteSequence(
+            psi_checked_trees::CheckedByteSequenceCarrier::BorrowedView
+        )
+    ));
+    let root = plans
+        .for_machine(machine_named(&checked, "enter"))
+        .expect("projected boundary caller plan");
+    let CheckedUnitEffectOperationPlan::BoundaryCall {
+        structural_arguments,
+        ..
+    } = &root.operations[0]
+    else {
+        panic!("read_line should retain a bodyless boundary call")
+    };
+    // The argument names the attachment field it projects, and presents the
+    // requirement's borrowed view: the lowering derives the bound from this
+    // exact place rather than materializing a view here.
+    assert!(matches!(
+        structural_arguments.as_slice(),
+        [argument]
+            if argument.source_parameter_index() == Some(0)
+                && matches!(
+                    argument.path.as_slice(),
+                    [CheckedUnitStructuralPathSegment::Field(field)] if field.ends_with("line")
+                )
+                && argument.type_identity == view_identity
+                && argument.access == psi_checked_trees::CheckedStructuralAccess::MutableBorrow
+    ));
+}
+
+#[test]
+fn rejects_a_projected_array_that_is_no_byte_carrier_at_a_borrowed_boundary_view() {
+    // Without a declared domain the projected `[u8; 16]` is an ordinary fixed
+    // array, not a bounded owned byte carrier. Equal element types alone never
+    // present at the requirement's borrowed view.
+    let checked = checked(
+        r#"
+        boundary trait Console {
+            machine read_line(out_line: &mut [u8])
+            reaches Console;
+        }
+
+        data Root { line: [u8; 16]; }
+        machine Root::enter(self)
+        reaches Console
+        {
+            Console::read_line(&mut self.line);
+        }
+        "#,
+    );
+    assert!(
+        checked
+            .facts
+            .flow
+            .terminal_unit_effects
+            .for_machine(machine_named(&checked, "enter"))
+            .is_none()
+    );
+}

@@ -617,6 +617,41 @@ fn boundary_value_result_matches(
     }
 }
 
+/// Whether a projected caller place may be presented at this boundary
+/// requirement parameter. The ordinary rule is the transitive lane's: the
+/// projected type carries the parameter's exact normalized identity.
+///
+/// One carrier presentation additionally crosses. A concrete owned
+/// `[u8; N] in D` destination is admitted at a requirement that declares the
+/// borrowed `[u8]` view, which is the settled `Console::read_line` surface: the
+/// requirement keeps its checked mutable-slice type while the lowering derives
+/// N and the live-length write from this exact call-site place. That is why the
+/// argument retains the projected path instead of a materialized view. Equal
+/// element types establish nothing on their own -- both sides must classify as
+/// byte-sequence carriers, and no other pair of carriers agrees.
+fn boundary_argument_presentation_is_admitted(
+    program: &TypedTrees,
+    projected_type: psi_typed_trees::types::TypeReferenceHandle,
+    parameter_type: psi_typed_trees::types::TypeReferenceHandle,
+    target_identity: &str,
+) -> bool {
+    if base_type_identity(program, projected_type, &[])
+        .is_some_and(|identity| identity == target_identity)
+    {
+        return true;
+    }
+    matches!(
+        (
+            byte_sequence_carrier(program, projected_type, &[]),
+            byte_sequence_carrier(program, parameter_type, &[]),
+        ),
+        (
+            Some(psi_checked_trees::CheckedByteSequenceCarrier::BoundedOwned { .. }),
+            Some(psi_checked_trees::CheckedByteSequenceCarrier::BorrowedView),
+        )
+    )
+}
+
 pub(super) fn build_call_operation(
     program: &TypedTrees,
     facts: &CheckFacts,
@@ -824,11 +859,12 @@ pub(super) fn build_call_operation(
             let psi_facts::PlaceRoot::Symbol(source_symbol) = place.root else {
                 return None;
             };
-            if !place.segments.is_empty() {
-                return None;
-            }
+            // An authored `self.field` argument roots at the `self` parameter's
+            // own symbol, while an implicit receiver place roots at the machine
+            // the parameter is attached to. Both spellings name one parameter.
             let source_parameter = caller_source_parameters.iter().find(|candidate| {
                 parameter_root_symbol(machine.symbol, candidate) == source_symbol
+                    || candidate.symbol == source_symbol
             })?;
             let source_position = caller_source_parameters
                 .iter()
@@ -836,16 +872,36 @@ pub(super) fn build_call_operation(
             let source_parameter_index = caller_parameters.iter().position(|candidate| {
                 candidate.position == u32::try_from(source_position).unwrap_or(u32::MAX)
             })?;
-            if caller_parameters.get(source_parameter_index)?.type_identity != target_identity {
-                return None;
-            }
+            let caller_parameter = caller_parameters.get(source_parameter_index)?;
+            let path = if place.segments.is_empty() {
+                if caller_parameter.type_identity != target_identity {
+                    return None;
+                }
+                Vec::new()
+            } else {
+                if !caller_parameter.qualifications.is_empty() {
+                    return None;
+                }
+                let (projected_type, path) =
+                    projected_argument_path(program, state.symbol, call.statement_index, &place)?;
+                if !boundary_argument_presentation_is_admitted(
+                    program,
+                    projected_type,
+                    parameter.type_reference,
+                    &target_identity,
+                ) {
+                    return None;
+                }
+                path
+            };
             structural_arguments.push(CheckedUnitStructuralArgumentPlan {
                 source: CheckedUnitStructuralArgumentSourcePlan::Parameter {
                     parameter_index: u32::try_from(source_parameter_index).ok()?,
                 },
-                path: Vec::new(),
+                path,
                 type_identity: target_identity,
                 access: exact_structural_argument_access(
+                    program,
                     facts,
                     machine.symbol,
                     state.symbol,
@@ -860,7 +916,16 @@ pub(super) fn build_call_operation(
             || program
                 .state_signature_parameters(signature)
                 .iter()
-                .any(|parameter| !parameter.is_self && (parameter.is_const || parameter.is_mutable))
+                // `is_mutable` is set by a `mut` binding and by an exclusive
+                // borrow alike, and the requirement's exclusive borrow is
+                // already carried exactly by the argument's presented access.
+                // Only an owned mutable binding stays outside this call surface.
+                .any(|parameter| {
+                    !parameter.is_self
+                        && (parameter.is_const
+                            || (parameter.is_mutable
+                                && !is_reference(program, parameter.type_reference)))
+                })
             || arguments.len() != abi_parameters.len()
             || if let Some((_, qualifier)) = selected_realization {
                 call.has_receiver && call.receiver_symbol != qualifier
@@ -1206,6 +1271,100 @@ fn checked_literal_index_path(
             .iter()
             .all(|segment| matches!(segment, CheckedUnitStructuralPathSegment::FixedIndex(_))))
     .then_some(fields)
+}
+
+/// Translate an authored place into the checked structural path a call
+/// argument retains, and report the exact type that path projects to. Every
+/// admitted fixed index is checked against its literal array length, so the
+/// returned path names storage the place actually contains. Root and field
+/// resolution belong to `canonical_place_type_reference`, which already owns
+/// the two `self` spellings.
+///
+/// Both call lanes share this owner. What does not belong here is the admission
+/// decision: which segment shapes a lane permits, and which rule the projected
+/// type must satisfy against the target parameter. The ordinary transitive lane
+/// demands equal normalized identity; a boundary requirement additionally
+/// admits one declared carrier presentation.
+pub(super) fn projected_argument_path(
+    program: &TypedTrees,
+    state_symbol: SymbolHandle,
+    statement_index: usize,
+    place: &crate::flow::CanonicalPlace,
+) -> Option<(
+    psi_typed_trees::types::TypeReferenceHandle,
+    Vec<CheckedUnitStructuralPathSegment>,
+)> {
+    let mut path = Vec::with_capacity(place.segments.len());
+    for (position, segment) in place.segments.iter().enumerate() {
+        match segment {
+            psi_facts::PlaceSegment::Field { symbol } => {
+                path.push(CheckedUnitStructuralPathSegment::Field(
+                    terminal_field_identity(program, *symbol)?,
+                ));
+            }
+            psi_facts::PlaceSegment::FixedIndex { index } => {
+                let container = crate::flow::CanonicalPlace {
+                    root: place.root,
+                    segments: place.segments[..position].to_vec(),
+                };
+                let container = crate::flow::canonical_place_type_reference(
+                    program,
+                    state_symbol,
+                    statement_index,
+                    &container,
+                )?;
+                if *index >= fixed_array_literal_length(program, container)? {
+                    return None;
+                }
+                path.push(CheckedUnitStructuralPathSegment::FixedIndex(
+                    u64::try_from(*index).ok()?,
+                ));
+            }
+            psi_facts::PlaceSegment::FixedRange { .. }
+            | psi_facts::PlaceSegment::Index { .. }
+            | psi_facts::PlaceSegment::Case { .. } => return None,
+        }
+    }
+    let projected =
+        crate::flow::canonical_place_type_reference(program, state_symbol, statement_index, place)?;
+    Some((projected, path))
+}
+
+/// The shared owner under the ordinary rule: the projected type must carry the
+/// target parameter's exact normalized identity.
+fn projected_argument_path_with_identity(
+    program: &TypedTrees,
+    state_symbol: SymbolHandle,
+    statement_index: usize,
+    place: &crate::flow::CanonicalPlace,
+    target_identity: &str,
+) -> Option<Vec<CheckedUnitStructuralPathSegment>> {
+    let (projected, path) = projected_argument_path(program, state_symbol, statement_index, place)?;
+    (base_type_identity(program, projected, &[])? == target_identity).then_some(path)
+}
+
+/// The literal element count of a fixed array reached through any number of
+/// domain constraints and borrows. A length that is not an authored literal
+/// bounds no fixed index here.
+fn fixed_array_literal_length(
+    program: &TypedTrees,
+    mut type_reference: psi_typed_trees::types::TypeReferenceHandle,
+) -> Option<usize> {
+    while let TypeReferenceNode::Constrained { base_type, .. }
+    | TypeReferenceNode::Reference {
+        referee: base_type, ..
+    } = program.type_reference_table.type_reference(type_reference)
+    {
+        type_reference = *base_type;
+    }
+    let TypeReferenceNode::FixedArray {
+        length: psi_typed_trees::types::FixedArrayLength::Literal(length),
+        ..
+    } = program.type_reference_table.type_reference(type_reference)
+    else {
+        return None;
+    };
+    Some(*length)
 }
 
 fn place_literal_index_path(
@@ -1809,8 +1968,12 @@ pub(super) fn structural_call_arguments(
             });
             continue;
         }
+        // An authored `self.field` argument roots at the `self` parameter's own
+        // symbol, while an implicit receiver place roots at the machine the
+        // parameter is attached to. Both spellings name one parameter.
         let source_parameter = source_parameters.iter().find(|parameter| {
             parameter_root_symbol(caller_machine.symbol, parameter) == source_symbol
+                || parameter.symbol == source_symbol
         })?;
         let source_index = caller_parameters.iter().position(|candidate| {
             candidate.position
@@ -1832,29 +1995,13 @@ pub(super) fn structural_call_arguments(
                         .qualifications
                         .is_empty() =>
             {
-                let mut source_type = source_parameter.type_reference;
-                while let TypeReferenceNode::Constrained { base_type, .. }
-                | TypeReferenceNode::Reference {
-                    referee: base_type, ..
-                } = program.type_reference_table.type_reference(source_type)
-                {
-                    source_type = *base_type;
-                }
-                let TypeReferenceNode::FixedArray {
-                    element_type,
-                    length: psi_typed_trees::types::FixedArrayLength::Literal(length),
-                } = program.type_reference_table.type_reference(source_type)
-                else {
-                    return None;
-                };
-                if *index >= *length
-                    || base_type_identity(program, *element_type, &[])? != target_identity
-                {
-                    return None;
-                }
-                vec![CheckedUnitStructuralPathSegment::FixedIndex(
-                    u64::try_from(*index).ok()?,
-                )]
+                projected_argument_path_with_identity(
+                    program,
+                    caller_state.symbol,
+                    statement_index,
+                    &place,
+                    &target_identity,
+                )?
             }
             segments @ [psi_facts::PlaceSegment::FixedIndex { .. }, ..]
                 if (matches!(segments.len(), 2 | 3)
@@ -1874,23 +2021,13 @@ pub(super) fn structural_call_arguments(
                         .qualifications
                         .is_empty() =>
             {
-                let projected_type = crate::flow::project_type_reference_from_segments(
+                projected_argument_path_with_identity(
                     program,
-                    source_parameter.type_reference,
-                    segments,
-                )?;
-                if base_type_identity(program, projected_type, &[])? != target_identity {
-                    return None;
-                }
-                segments
-                    .iter()
-                    .map(|segment| match segment {
-                        psi_facts::PlaceSegment::FixedIndex { index } => u64::try_from(*index)
-                            .ok()
-                            .map(CheckedUnitStructuralPathSegment::FixedIndex),
-                        _ => None,
-                    })
-                    .collect::<Option<Vec<_>>>()?
+                    caller_state.symbol,
+                    statement_index,
+                    &place,
+                    &target_identity,
+                )?
             }
             segments @ [psi_facts::PlaceSegment::Field { .. }, ..]
                 if ((allow_field_path_projection
@@ -1925,36 +2062,13 @@ pub(super) fn structural_call_arguments(
                         .qualifications
                         .is_empty() =>
             {
-                let projected_type = crate::flow::project_type_reference_from_segments(
+                projected_argument_path_with_identity(
                     program,
-                    source_parameter.type_reference,
-                    place.segments.as_slice(),
-                )?;
-                if base_type_identity(program, projected_type, &[])? != target_identity {
-                    return None;
-                }
-                segments
-                    .iter()
-                    .map(|segment| match segment {
-                        psi_facts::PlaceSegment::Field { symbol } => {
-                            Some(CheckedUnitStructuralPathSegment::Field(
-                                terminal_field_identity(program, *symbol)?,
-                            ))
-                        }
-                        psi_facts::PlaceSegment::FixedIndex { index }
-                            if place_literal_index_path(segments)
-                                .is_some_and(|fields| !fields.is_empty()) =>
-                        {
-                            u64::try_from(*index)
-                                .ok()
-                                .map(CheckedUnitStructuralPathSegment::FixedIndex)
-                        }
-                        psi_facts::PlaceSegment::FixedIndex { .. }
-                        | psi_facts::PlaceSegment::FixedRange { .. }
-                        | psi_facts::PlaceSegment::Index { .. }
-                        | psi_facts::PlaceSegment::Case { .. } => None,
-                    })
-                    .collect::<Option<Vec<_>>>()?
+                    caller_state.symbol,
+                    statement_index,
+                    &place,
+                    &target_identity,
+                )?
             }
             _ => return None,
         };
@@ -1971,6 +2085,7 @@ pub(super) fn structural_call_arguments(
                 structural_access_for_type_reference(program, target.type_reference)?
             } else {
                 exact_structural_argument_access(
+                    program,
                     facts,
                     caller_machine.symbol,
                     caller_state.symbol,
@@ -2165,7 +2280,36 @@ fn reborrow_restored_shared_cohort_observation_alias_target(
     Some(place.clone())
 }
 
+/// The `(root, segments)` spelling the borrow facts record for one authored
+/// place. An attached-data field is its own borrow root, so `self.line` is
+/// recorded as `line` with no segments; every other place is already spelled
+/// the way it was authored.
+fn borrow_access_spelling<'place>(
+    program: &TypedTrees,
+    machine: SymbolHandle,
+    state: SymbolHandle,
+    place: &'place crate::flow::CanonicalPlace,
+) -> Option<(SymbolHandle, &'place [psi_facts::PlaceSegment])> {
+    let psi_facts::PlaceRoot::Symbol(root) = place.root else {
+        return None;
+    };
+    if (root == machine
+        || crate::find_state(program, state).is_some_and(|state| {
+            program
+                .state_parameters(state)
+                .iter()
+                .any(|parameter| parameter.is_self && parameter.symbol == root)
+        }))
+        && let Some((psi_facts::PlaceSegment::Field { symbol }, remaining)) =
+            place.segments.split_first()
+    {
+        return Some((*symbol, remaining));
+    }
+    Some((root, place.segments.as_slice()))
+}
+
 fn exact_structural_argument_access(
+    program: &TypedTrees,
     facts: &CheckFacts,
     machine: SymbolHandle,
     state: SymbolHandle,
@@ -2176,9 +2320,11 @@ fn exact_structural_argument_access(
     if target_access == CheckedStructuralAccess::Owned {
         return Some(CheckedStructuralAccess::Owned);
     }
-    let psi_facts::PlaceRoot::Symbol(root_symbol) = place.root else {
-        return None;
-    };
+    // The borrow model roots an attached-data field at the field's own symbol,
+    // while an authored `self.field` argument roots at `self`. Re-express the
+    // place in the borrow spelling before matching, under the same self test
+    // `canonical_place_type_reference` applies to types.
+    let (root_symbol, segments) = borrow_access_spelling(program, machine, state, place)?;
     let borrow_state = facts
         .borrow
         .states
@@ -2205,8 +2351,7 @@ fn exact_structural_argument_access(
         .span_or_empty(borrow_call.accesses)
         .iter()
         .filter(|access| {
-            access.root_symbol == root_symbol
-                && facts.borrow.access_segments(access) == place.segments.as_slice()
+            access.root_symbol == root_symbol && facts.borrow.access_segments(access) == segments
         })
         .map(|access| &access.kind)
         .collect::<Vec<_>>();
