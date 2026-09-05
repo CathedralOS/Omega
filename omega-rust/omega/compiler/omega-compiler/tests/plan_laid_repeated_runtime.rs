@@ -25,13 +25,12 @@ use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::time::{SystemTime, UNIX_EPOCH};
 
-const PRIMITIVE_CANARY: &str = "layouts/runtime_plan_laid_tiled_outer_array_view_exit";
-const RECORD_CANARY: &str = "layouts/runtime_plan_laid_tiled_record_array_view_exit";
-const NESTED_ARRAY_CANARY: &str = "layouts/runtime_plan_laid_tiled_nested_array_view_exit";
-const RECORD_NESTED_ARRAY_CANARY: &str =
-    "layouts/runtime_plan_laid_tiled_record_nested_array_view_exit";
-const MULTIPLE_AGGREGATE_FIELDS_CANARY: &str =
-    "layouts/runtime_plan_laid_multiple_aggregate_fields_view_exit";
+#[path = "fixture_rosters/plan_laid_repeated_runtime.rs"]
+mod fixtures;
+use fixtures::{
+    MULTIPLE_AGGREGATE_FIELDS_CANARY, NESTED_ARRAY_CANARY, PRIMITIVE_CANARY, RECORD_CANARY,
+    RECORD_NESTED_ARRAY_CANARY,
+};
 
 fn repo_root() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR"))
