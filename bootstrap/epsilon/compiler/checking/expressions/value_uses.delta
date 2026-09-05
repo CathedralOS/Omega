@@ -1,0 +1,117 @@
+; Value-use premise joins shared by scalar operators and projections.
+; D52's direct argument judgments remain owned by calls/arguments.delta.
+
+; A one-child value relation owns its resultless mismatch. Multi-child
+; relations must establish their complete premise set before invoking it.
+; Mispositioned `never` remains an independent child judgment at its call head.
+(def epsilon_local_scan_value_use_candidate
+  ((expressionValue EpsilonExpression) (child EpsilonExpression)
+  (scan EpsilonLocalResolutionScan)) EpsilonLocalResolutionScan
+  (match scan
+    ((EpsilonLocalResolutionScanSyntax catalog references fields callables stateApplications types
+      candidate)
+      (match (epsilon_find_expression_result child types)
+        (NoEpsilonExpressionResult scan)
+        ((OneEpsilonExpressionResult resultValue)
+          (match resultValue
+            ((EpsilonValueExpressionResult typeValue placeType) scan)
+            (EpsilonResultlessExpressionResult
+              (epsilon_local_scan_add_candidate TypeMismatch
+                (epsilon_expression_start expressionValue) scan))
+            (EpsilonNeverExpressionResult
+              (epsilon_local_scan_add_candidate InvalidTerminal
+                (epsilon_expression_start (epsilon_call_head_core child))
+                scan))))))))
+
+; An unresolved or nonreturning child cannot satisfy an ordinary operator or
+; projection premise. Resultless is complete enough to reject the parent once
+; every other premise exists, but it never supplies an authored value.
+(def epsilon_expression_has_nonterminal_result
+  ((expressionValue EpsilonExpression) (types EpsilonTypedExpressionList)) Int
+  (match (epsilon_find_expression_result expressionValue types)
+    (NoEpsilonExpressionResult 0)
+    ((OneEpsilonExpressionResult resultValue)
+      (match resultValue
+        ((EpsilonValueExpressionResult typeValue placeType) 1)
+        (EpsilonResultlessExpressionResult 1)
+        (EpsilonNeverExpressionResult 0)))))
+
+(def epsilon_local_scan_never_value_use_candidate
+  ((child EpsilonExpression) (scan EpsilonLocalResolutionScan))
+  EpsilonLocalResolutionScan
+  (match scan
+    ((EpsilonLocalResolutionScanSyntax catalog references fields callables
+      control types candidate)
+      (match (epsilon_find_expression_result child types)
+        (NoEpsilonExpressionResult scan)
+        ((OneEpsilonExpressionResult resultValue)
+          (match resultValue
+            ((EpsilonValueExpressionResult typeValue placeType) scan)
+            (EpsilonResultlessExpressionResult scan)
+            (EpsilonNeverExpressionResult
+              (epsilon_local_scan_add_candidate InvalidTerminal
+                (epsilon_expression_start (epsilon_call_head_core child))
+                scan))))))))
+
+(def epsilon_local_scan_pair_value_use_candidates
+  ((expressionValue EpsilonExpression) (left EpsilonExpression)
+   (right EpsilonExpression) (scan EpsilonLocalResolutionScan))
+  EpsilonLocalResolutionScan
+  (match scan
+    ((EpsilonLocalResolutionScanSyntax catalog references fields callables
+      control types candidate)
+      (if (epsilon_expression_has_nonterminal_result left types)
+        (if (epsilon_expression_has_nonterminal_result right types)
+          (epsilon_local_scan_value_use_candidate expressionValue right
+            (epsilon_local_scan_value_use_candidate expressionValue left scan))
+          (epsilon_local_scan_never_value_use_candidate right scan))
+        (epsilon_local_scan_never_value_use_candidate right
+          (epsilon_local_scan_never_value_use_candidate left scan))))))
+
+(def epsilon_local_scan_optional_value_use_candidate
+  ((expressionValue EpsilonExpression) (bound EpsilonOptionalExpression)
+  (scan EpsilonLocalResolutionScan)) EpsilonLocalResolutionScan
+  (match bound
+    (NoEpsilonExpression scan)
+    ((SomeEpsilonExpression child)
+      (epsilon_local_scan_value_use_candidate expressionValue child
+        scan))))
+
+(def epsilon_optional_expression_has_nonterminal_result
+  ((bound EpsilonOptionalExpression) (types EpsilonTypedExpressionList)) Int
+  (match bound
+    (NoEpsilonExpression 1)
+    ((SomeEpsilonExpression child)
+      (epsilon_expression_has_nonterminal_result child types))))
+
+(def epsilon_local_scan_optional_never_value_use_candidate
+  ((bound EpsilonOptionalExpression) (scan EpsilonLocalResolutionScan))
+  EpsilonLocalResolutionScan
+  (match bound
+    (NoEpsilonExpression scan)
+    ((SomeEpsilonExpression child)
+      (epsilon_local_scan_never_value_use_candidate child scan))))
+
+(def epsilon_local_scan_slice_value_use_candidates
+  ((expressionValue EpsilonExpression) (base EpsilonExpression)
+   (low EpsilonOptionalExpression) (high EpsilonOptionalExpression)
+   (scan EpsilonLocalResolutionScan)) EpsilonLocalResolutionScan
+  (let childScan EpsilonLocalResolutionScan
+    (epsilon_local_scan_optional_never_value_use_candidate high
+      (epsilon_local_scan_optional_never_value_use_candidate low
+        (epsilon_local_scan_never_value_use_candidate base scan)))
+    (match childScan
+      ((EpsilonLocalResolutionScanSyntax catalog references fields callables
+        control types candidate)
+        (if (epsilon_expression_has_nonterminal_result base types)
+          (if (epsilon_optional_expression_has_nonterminal_result low types)
+            (if (epsilon_optional_expression_has_nonterminal_result high types)
+              (epsilon_local_scan_optional_value_use_candidate expressionValue
+                high
+                (epsilon_local_scan_optional_value_use_candidate expressionValue
+                  low
+                  (epsilon_local_scan_value_use_candidate expressionValue base
+                    childScan)))
+              childScan)
+            childScan)
+          childScan)))))

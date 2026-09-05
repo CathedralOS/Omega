@@ -370,11 +370,14 @@ ordinary member is `UnknownName` at its spelling; a known case, machine, or
 boundary member used as a value selector is `TypeMismatch`; contextual names
 on unsupported complete receivers are `TypeMismatch`; and resultless/`never`
 bases retain category/terminal failures. Grouped call heads reuse the same
-classifier before the separate call suffix. Index and slice joins retain each
-available resultless/`never` child failure independently, but derive
-unsupported-base and non-`i32` relations only when every required operand has
-a value fact. Missing siblings therefore manufacture no projection relation or
-parent result. Static index/slice checking still imposes no range judgment.
+classifier before the separate call suffix. Binary, index, and slice relations
+require complete nonterminal results from every operand, including each present
+slice bound, before a resultless child can produce a parent `TypeMismatch`.
+An unresolved or `never` sibling cannot satisfy that join. Mispositioned `never`
+remains an independent child failure at its exact call head. Unsupported-base
+and non-`i32` relations additionally require every consumed value fact. Missing
+siblings therefore manufacture no parent relation or result. Static index/slice
+checking still imposes no range judgment.
 
 The fact pass follows D37 by producing no parent fact or dependent diagnostic
 while a consumed child premise is absent. Admitted callable arity is a sibling
@@ -382,10 +385,12 @@ judgment and can therefore coexist with an independently failing
 argument, while result typing waits for complete compatible values. A separate
 call suffix on a complete ordinary value or resultless result is `TypeMismatch`;
 an embedded `never` result is `InvalidTerminal`. The contract gives every
-authored argument its independently anchored category branch regardless of
+direct authored argument its independently anchored category branch regardless of
 enclosing-callee admission and arity. D52 fixes resultless `TypeMismatch` at
 the authored argument expression start, including outer grouping, while grouped `never`
-retains its exact call-head anchor; both branches are implemented. Let and
+retains its exact call-head anchor. This D52 direct-argument rule does not make
+a nested binary/index/slice mismatch independent of that expression's own
+complete-premise join. Both rules are implemented. Let and
 `assert`
 relations consume only complete values. Assignment checks its left value/place
 and right value branches independently, and compares against the retained

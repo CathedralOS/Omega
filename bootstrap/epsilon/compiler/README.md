@@ -24,7 +24,7 @@ execution entrance, not yet the final evaluator `main` or a closed compiler edge
 | Runtime operations | [`execution/statements.delta`](execution/statements.delta) applies statements. `scalars/` and `control/` own scalar operations and block/state control. |
 | Shared representations | [`representations/`](representations/) groups syntax, parsing outcomes, checked facts, diagnostics, and execution values by concept. |
 
-The 75 authoring members have at most 450 lines each; the root entrance has 22.
+The 76 authoring members have at most 450 lines each; the root entrance has 22.
 Files end at complete top-level Delta forms. They are not independent Delta
 modules: they share one translation unit and the language gains no imports.
 
@@ -42,8 +42,8 @@ source inventory, then concatenates bytes without separators. It does not parse
 or lower Delta. Bootstrap callers use `OMEGA_PATH_EPSILON_COMPILER_SOURCES`
 from the shared role registry rather than reading the entrance as the full source.
 
-The packed evaluator is 11,201 lines / 564,884 bytes, SHA-256
-`6771e44e15ccb8543f483ede4a4fe27e7c46c1948f40681ff1a25f20594161d8`.
+The packed evaluator is 11,280 lines / 568,684 bytes, SHA-256
+`68c0a974718e933bd9ca023b3b929ade0acda913aadd39112c422f29c7cd120b`.
 When editing a member, update its manifest length and digest; change membership
 explicitly when adding or removing source. Update exact test identities only
 after reviewing the semantic change and its generated receipt.

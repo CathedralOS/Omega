@@ -16,8 +16,8 @@ Delta-written Epsilon evaluator + exact Epsilon-written Omega D
 The gate requires the Omega product build to bind exactly one
 `alpha_bootstrap::ProgramEntry`, requires Omega D to retain its Alpha tape
 construction, and rejects any `EpsilonAlpha`/`epsilon_alpha_` backend residue in
-the Delta-written Epsilon implementation. The evaluator is currently 11,201
-lines / 564,884 bytes, authored in 75 explicitly manifested members.
+the Delta-written Epsilon implementation. The evaluator is currently 11,280
+lines / 568,684 bytes, authored in 76 explicitly manifested members.
 
 The executable slice runs the current checking pipeline, locates `Main::main`,
 and executes an empty entry, scalar `let` and local/parameter assignment,
@@ -68,8 +68,8 @@ Any retained `Unsupported` staging outcome is not an Epsilon observation and
 cannot survive in the final evaluator.
 
 The gate compiles the exact evaluator plus `execution_driver.delta` through the
-selected Delta route and pins the 675,696-byte Gamma receipt, SHA-256
-`cdd865843bb854f2c78606a138ad3c2979e371f7f4b9956d587b9b4bec3618ed`.
+selected Delta route and pins the 680,155-byte Gamma receipt, SHA-256
+`e3a8ea1551fd1f377a486bd51ca51215231fe770aa4d2a6060727b6777f39565`.
 The original 108 ordinary controls cover
 success, local, receiver-field, and fixed-array values, repeated mutation,
 output, comparisons, bitwise/shift/division behavior, short-circuiting, bounds

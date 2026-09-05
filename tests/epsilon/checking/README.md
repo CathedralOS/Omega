@@ -18,7 +18,7 @@ from semantic source parsing in the runner. The runner checks identities,
 frames/invokes the selected stages, and compares exact observations. It neither
 extracts checker functions nor translates Epsilon source.
 
-The 16 fixtures cover raw, grouped, and nested non-callable continuation targets,
+The original 16 fixtures cover raw, grouped, and nested non-callable continuation targets,
 grouped genuine machine/state calls, independent unknown arguments, unresolved
 callees, genuine-call arity, and after-never parent suppression while child
 name checking remains active. Invalid-control anchors retain the outer
@@ -36,8 +36,20 @@ subject, argument, and pattern name errors remain active. Paired reachable
 record-subject and incomplete-sum controls retain their ordinary `TypeMismatch`
 and `NonexhaustiveSum` judgments.
 
-`receipt.tsv` records the measured 672,152-byte checker receipt with SHA-256
-`9a80f7fb2bbfd2fd0e3af74a65501ef14d18174d872df1a1dcb6f77c3e839fa0`.
-Every gate run reconstructs this exact receipt before comparing the 16 complete
+Another 22 controls cover complete operand premises for binary, index, and
+slice relations. An unresolved operand or bound cannot be replaced by the
+sibling's resultless category to derive an enclosing `TypeMismatch`. Doing so
+previously either displaced the correct child diagnostic or collided with it
+at the same coordinate and produced `InternalFailure`. Ordinary parent joins
+also cannot consume a nonreturning operand: its independent `InvalidTerminal`
+retains the exact call-head anchor. Paired controls retain resultless mismatches
+when all parent premises exist and preserve D52's independent machine and
+constructor argument rules. The previous checker fails 13 of these 22 exact
+observations; grouping and opposite operand orders prevent an implementation
+from merely suppressing coordinate ties.
+
+`receipt.tsv` records the measured 676,611-byte checker receipt with SHA-256
+`82851cb90224e4c4722fa189023b3b40f82b753e26e825aad74716adfa2d96e3`.
+Every gate run reconstructs this exact receipt before comparing the 38 complete
 judgments. These controls establish the listed checking relations, not full
 Epsilon conformance, runtime execution, or closure of the Omega bootstrap edge.
