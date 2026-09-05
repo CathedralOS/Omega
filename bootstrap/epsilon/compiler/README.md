@@ -47,14 +47,17 @@ source inventory, then concatenates bytes without separators. It does not parse
 or lower Delta. Bootstrap callers use `OMEGA_PATH_EPSILON_COMPILER_SOURCES`
 from the shared role registry rather than reading the entrance as the full source.
 
-The packed evaluator is 11,688 lines / 591,132 bytes, SHA-256
-`c8a330c8c777e23b9b555adfeccb7485c5b7f66f128c709232e445fa4036f2b5`.
+The packed evaluator is 11,693 lines / 591,380 bytes, SHA-256
+`56c53e94a06dbd44357634d309a92cd232def179768f133c625935f08ecc7e59`.
 When editing a member, update its manifest length and digest; change membership
 explicitly when adding or removing source. Update exact test identities only
 after reviewing the semantic change and its generated receipt.
 
 Runtime reference lookup uses a derivative index, not a replacement checked
 program. Entry builds an immutable interval tree over source-start coordinates.
+Each branch retains its canonical midpoint, calculated and checked during
+construction. Lookup validates that the saved split lies inside the current
+interval and descends without recomputing midpoint division.
 Each leaf retains separate ordered local, field, callable, state-application,
 transition-subject, and completed-pattern ledgers. Original lookup helpers still
 own exact kind/span matching and progress precedence. Callable grouping is
@@ -66,7 +69,10 @@ premises retain all six original query ledgers, including incomplete pattern
 facts, in a linear fallback. Coverage remains in the unchanged checking ledger
 and has no runtime query. Construction allocates logarithmic paths in the
 existing Gamma pair arena; it neither enlarges that profile nor establishes
-Epsilon's final physical storage bounds.
+Epsilon's final physical storage bounds. A cached split adds one integer payload
+to each branch; it does not add a separate tree level or change leaf identity.
+Current Delta constructor lowering represents that payload with one additional
+Gamma pair per branch reconstruction, including paths superseded by later inserts.
 
 ## Validation and completion
 

@@ -132,7 +132,7 @@
 (data EpsilonRuntimeReferenceTree
   (EmptyEpsilonRuntimeReferenceTree)
   (BranchEpsilonRuntimeReferenceTree
-    EpsilonRuntimeReferenceTree EpsilonRuntimeReferenceTree)
+    Int EpsilonRuntimeReferenceTree EpsilonRuntimeReferenceTree)
   (LeafEpsilonRuntimeReferenceTree EpsilonRuntimeReferenceBucket))
 
 (data EpsilonRuntimeReferences

@@ -8,22 +8,22 @@
 
 (def epsilon_runtime_insert_reference_branches
   ((reference EpsilonRuntimeReference) (coordinate Int) (low Int) (high Int)
+   (middle Int)
    (left EpsilonRuntimeReferenceTree) (right EpsilonRuntimeReferenceTree))
   EpsilonRuntimeReferenceInsertion
-  (let middle Int (+ low (/ (- high low) 2))
-    (if (lt coordinate middle)
-      (match (epsilon_runtime_insert_reference_path reference coordinate
-        low middle left)
-        (InvalidEpsilonRuntimeReferenceInsertion InvalidEpsilonRuntimeReferenceInsertion)
-        ((InsertedEpsilonRuntimeReference updated)
-          (InsertedEpsilonRuntimeReference
-            (BranchEpsilonRuntimeReferenceTree updated right))))
-      (match (epsilon_runtime_insert_reference_path reference coordinate
-        middle high right)
-        (InvalidEpsilonRuntimeReferenceInsertion InvalidEpsilonRuntimeReferenceInsertion)
-        ((InsertedEpsilonRuntimeReference updated)
-          (InsertedEpsilonRuntimeReference
-            (BranchEpsilonRuntimeReferenceTree left updated)))))))
+  (if (lt coordinate middle)
+    (match (epsilon_runtime_insert_reference_path reference coordinate
+      low middle left)
+      (InvalidEpsilonRuntimeReferenceInsertion InvalidEpsilonRuntimeReferenceInsertion)
+      ((InsertedEpsilonRuntimeReference updated)
+        (InsertedEpsilonRuntimeReference
+          (BranchEpsilonRuntimeReferenceTree middle updated right))))
+    (match (epsilon_runtime_insert_reference_path reference coordinate
+      middle high right)
+      (InvalidEpsilonRuntimeReferenceInsertion InvalidEpsilonRuntimeReferenceInsertion)
+      ((InsertedEpsilonRuntimeReference updated)
+        (InsertedEpsilonRuntimeReference
+          (BranchEpsilonRuntimeReferenceTree middle left updated))))))
 
 ; Only interval-path reconstruction is non-tail, bounded by source extent.
 ; Invalid coordinates or tree shapes fail construction, never alias a bucket.
@@ -43,17 +43,20 @@
             (InsertedEpsilonRuntimeReference
               (LeafEpsilonRuntimeReferenceTree
                 (epsilon_runtime_prepend_reference reference bucket))))
-          ((BranchEpsilonRuntimeReferenceTree left right)
+          ((BranchEpsilonRuntimeReferenceTree middle left right)
             InvalidEpsilonRuntimeReferenceInsertion))
         (match tree
           (EmptyEpsilonRuntimeReferenceTree
             (epsilon_runtime_insert_reference_branches reference coordinate low high
+              (+ low (/ (- high low) 2))
               EmptyEpsilonRuntimeReferenceTree EmptyEpsilonRuntimeReferenceTree))
           ((LeafEpsilonRuntimeReferenceTree bucket)
             InvalidEpsilonRuntimeReferenceInsertion)
-          ((BranchEpsilonRuntimeReferenceTree left right)
-            (epsilon_runtime_insert_reference_branches reference coordinate low high
-              left right))))
+          ((BranchEpsilonRuntimeReferenceTree middle left right)
+            (if (eq middle (+ low (/ (- high low) 2)))
+              (epsilon_runtime_insert_reference_branches reference coordinate low high
+                middle left right)
+              InvalidEpsilonRuntimeReferenceInsertion))))
       InvalidEpsilonRuntimeReferenceInsertion)))
 
 (def epsilon_runtime_insert_reference ((reference EpsilonRuntimeReference)

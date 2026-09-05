@@ -1,5 +1,6 @@
 ; Bucket selection only narrows the ledger. Each query still delegates to the
 ; original exact kind/start/end matcher in its own reference kind.
+; Construction retains the canonical split; descent only checks its interval.
 (def epsilon_runtime_find_reference_bucket ((coordinate Int) (low Int) (high Int)
   (tree EpsilonRuntimeReferenceTree)) EpsilonRuntimeReferenceBucket
   (match tree
@@ -8,12 +9,13 @@
       (if (eq (- high low) 1)
         bucket
         (epsilon_runtime_empty_reference_bucket)))
-    ((BranchEpsilonRuntimeReferenceTree left right)
-      (if (lt 1 (- high low))
-        (let middle Int (+ low (/ (- high low) 2))
+    ((BranchEpsilonRuntimeReferenceTree middle left right)
+      (if (lt low middle)
+        (if (lt middle high)
           (if (lt coordinate middle)
             (epsilon_runtime_find_reference_bucket coordinate low middle left)
-            (epsilon_runtime_find_reference_bucket coordinate middle high right)))
+            (epsilon_runtime_find_reference_bucket coordinate middle high right))
+          (epsilon_runtime_empty_reference_bucket))
         (epsilon_runtime_empty_reference_bucket)))))
 
 (def epsilon_runtime_reference_bucket ((start Int) (end Int)
