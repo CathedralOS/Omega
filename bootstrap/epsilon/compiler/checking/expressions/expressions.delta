@@ -36,8 +36,8 @@
   (left EpsilonExpression) (right EpsilonExpression)
   (scan EpsilonLocalResolutionScan)) EpsilonLocalResolutionScan
   (let categoryScan EpsilonLocalResolutionScan
-    (epsilon_local_scan_value_use_candidate expressionValue right
-      (epsilon_local_scan_value_use_candidate expressionValue left scan))
+    (epsilon_local_scan_pair_value_use_candidates expressionValue left right
+      scan)
     (match categoryScan
     ((EpsilonLocalResolutionScanSyntax catalog references fields callables stateApplications types
       candidate)

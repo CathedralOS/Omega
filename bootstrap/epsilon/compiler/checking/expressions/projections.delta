@@ -274,37 +274,12 @@
                 (epsilon_expression_start (epsilon_call_head_core base))
                 scan))))))))
 
-; Resultless and `never` are complete expression categories whose invalid use
-; is independent of sibling premises. The relation anchor owns a resultless
-; value-use mismatch, while a mispositioned `never` result remains anchored at
-; the exact call beneath any grouping. Value-type and place relations stay in
-; their enclosing joins and therefore wait for every fact they consume.
-(def epsilon_local_scan_value_use_candidate
-  ((expressionValue EpsilonExpression) (child EpsilonExpression)
-  (scan EpsilonLocalResolutionScan)) EpsilonLocalResolutionScan
-  (match scan
-    ((EpsilonLocalResolutionScanSyntax catalog references fields callables stateApplications types
-      candidate)
-      (match (epsilon_find_expression_result child types)
-        (NoEpsilonExpressionResult scan)
-        ((OneEpsilonExpressionResult resultValue)
-          (match resultValue
-            ((EpsilonValueExpressionResult typeValue placeType) scan)
-            (EpsilonResultlessExpressionResult
-              (epsilon_local_scan_add_candidate TypeMismatch
-                (epsilon_expression_start expressionValue) scan))
-            (EpsilonNeverExpressionResult
-              (epsilon_local_scan_add_candidate InvalidTerminal
-                (epsilon_expression_start (epsilon_call_head_core child))
-                scan))))))))
-
 (def epsilon_local_scan_index_fact ((expressionValue EpsilonExpression)
   (base EpsilonExpression) (indexValue EpsilonExpression)
   (scan EpsilonLocalResolutionScan)) EpsilonLocalResolutionScan
   (let categoryScan EpsilonLocalResolutionScan
-    (epsilon_local_scan_value_use_candidate expressionValue indexValue
-      (epsilon_local_scan_value_use_candidate expressionValue base
-        scan))
+    (epsilon_local_scan_pair_value_use_candidates expressionValue base
+      indexValue scan)
     (match categoryScan
     ((EpsilonLocalResolutionScanSyntax catalog references fields callables stateApplications types
       candidate)
@@ -380,26 +355,13 @@
             (EpsilonResultlessExpressionResult 0)
             (EpsilonNeverExpressionResult 0)))))))
 
-(def epsilon_local_scan_optional_value_use_candidate
-  ((expressionValue EpsilonExpression) (bound EpsilonOptionalExpression)
-  (scan EpsilonLocalResolutionScan)) EpsilonLocalResolutionScan
-  (match bound
-    (NoEpsilonExpression scan)
-    ((SomeEpsilonExpression child)
-      (epsilon_local_scan_value_use_candidate expressionValue child
-        scan))))
-
 (def epsilon_local_scan_slice_fact ((expressionValue EpsilonExpression)
   (base EpsilonExpression) (low EpsilonOptionalExpression)
   (high EpsilonOptionalExpression) (scan EpsilonLocalResolutionScan))
   EpsilonLocalResolutionScan
   (let categoryScan EpsilonLocalResolutionScan
-    (epsilon_local_scan_optional_value_use_candidate expressionValue
-      high
-      (epsilon_local_scan_optional_value_use_candidate
-        expressionValue low
-        (epsilon_local_scan_value_use_candidate expressionValue base
-          scan)))
+    (epsilon_local_scan_slice_value_use_candidates expressionValue base low high
+      scan)
     (match categoryScan
       ((EpsilonLocalResolutionScanSyntax catalog references fields callables stateApplications types
         candidate)
