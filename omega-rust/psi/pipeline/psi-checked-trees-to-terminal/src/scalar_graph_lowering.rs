@@ -2,6 +2,7 @@
 
 use super::*;
 
+mod branch_destinations;
 mod storage;
 
 fn merge_known_parameters<T: Copy + Eq>(
@@ -253,9 +254,19 @@ fn prepare_scalar_graph_machine_with_contract_mode(
     let result_type = terminal_scalar_type(entry_state.result_type)?;
     let (identity_reshuffles, partition_compositions) =
         lower_content_evidence(checked, machine, entry_state.state)?;
-    let mut lowered_states = Vec::with_capacity(states.len());
-    let mut successors = vec![Vec::new(); states.len()];
-    let mut indegree = vec![0usize; states.len()];
+    let return_sink = states
+        .iter()
+        .any(|state| {
+            matches!(&state.terminator, CheckedScalarStateTerminator::Conditional {
+            when_true, when_false, ..
+        } if matches!(when_true, CheckedScalarBranchDestination::Return { .. })
+            || matches!(when_false, CheckedScalarBranchDestination::Return { .. }))
+        })
+        .then_some(states.len());
+    let lowered_state_count = states.len() + usize::from(return_sink.is_some());
+    let mut lowered_states = Vec::with_capacity(lowered_state_count);
+    let mut successors = vec![Vec::new(); lowered_state_count];
+    let mut indegree = vec![0usize; lowered_state_count];
 
     for (state_index, state) in states.iter().enumerate() {
         if terminal_scalar_type(state.result_type)? != result_type {
@@ -403,6 +414,11 @@ fn prepare_scalar_graph_machine_with_contract_mode(
                 when_true,
                 when_false,
             } => {
+                branch_destinations::validate_coordinates(
+                    *guard_statement_ordinal,
+                    when_true,
+                    when_false,
+                )?;
                 let LoweredDirectExpression::Boolean {
                     expression: condition,
                 } = scalar_bindings.expression_at(
@@ -418,22 +434,28 @@ fn prepare_scalar_graph_machine_with_contract_mode(
                 validate_short_circuit_expression(&condition)?;
                 validate_boolean_parameter_types(&condition, &value_types)?;
 
-                let (when_true_target, when_true_arguments) = lower_scalar_graph_successor(
-                    checked,
-                    states,
-                    state.state,
-                    &value_types,
-                    when_true,
-                    &scalar_bindings,
-                )?;
-                let (when_false_target, when_false_arguments) = lower_scalar_graph_successor(
-                    checked,
-                    states,
-                    state.state,
-                    &value_types,
-                    when_false,
-                    &scalar_bindings,
-                )?;
+                let (when_true_target, when_true_arguments) =
+                    branch_destinations::lower_destination(
+                        checked,
+                        states,
+                        state.state,
+                        &value_types,
+                        when_true,
+                        &scalar_bindings,
+                        result_type,
+                        return_sink,
+                    )?;
+                let (when_false_target, when_false_arguments) =
+                    branch_destinations::lower_destination(
+                        checked,
+                        states,
+                        state.state,
+                        &value_types,
+                        when_false,
+                        &scalar_bindings,
+                        result_type,
+                        return_sink,
+                    )?;
                 successors[state_index] = vec![when_true_target, when_false_target];
                 indegree[when_true_target] = indegree[when_true_target]
                     .checked_add(1)
@@ -450,6 +472,11 @@ fn prepare_scalar_graph_machine_with_contract_mode(
                 }
             }
             CheckedScalarStateTerminator::Jump(successor) => {
+                if successor.is_continuation {
+                    return unsupported(
+                        "an unconditional scalar jump cannot select continuation arguments",
+                    );
+                }
                 let (target, arguments) = lower_scalar_graph_successor(
                     checked,
                     states,
@@ -472,13 +499,29 @@ fn prepare_scalar_graph_machine_with_contract_mode(
         });
     }
 
+    if return_sink.is_some() {
+        // Return expressions are arguments to this private identity block.
+        // Existing conditional argument lowering evaluates them only in the
+        // selected arm; no source state or executable value is manufactured.
+        lowered_states.push(LoweredScalarBranchState {
+            parameter_types: vec![result_type],
+            bindings: Vec::new(),
+            terminator: LoweredScalarBranchTerminator::Return {
+                expression: LoweredDirectExpression::Parameter {
+                    position: 0,
+                    scalar_type: result_type,
+                },
+            },
+        });
+    }
+
     if indegree[0] != 0 || indegree[1..].contains(&0) {
         return unsupported(
             "scalar graph control must be rooted at the machine entry and reach every state",
         );
     }
-    let mut visited = vec![false; states.len()];
-    let mut active = vec![false; states.len()];
+    let mut visited = vec![false; lowered_state_count];
+    let mut active = vec![false; lowered_state_count];
     validate_scalar_graph(0, &successors, &mut visited, &mut active)?;
     if visited.iter().any(|visited| !*visited) {
         return unsupported("scalar graph control contains an unreachable state");
@@ -687,7 +730,11 @@ fn lower_scalar_graph_successor(
                 checked,
                 source_state,
                 successor.statement_ordinal,
-                CheckedScalarExpressionRole::TransitionArgument { argument_ordinal },
+                if successor.is_continuation {
+                    CheckedScalarExpressionRole::TransitionContinuationArgument { argument_ordinal }
+                } else {
+                    CheckedScalarExpressionRole::TransitionArgument { argument_ordinal }
+                },
             )?;
             validate_direct_parameter_types(&expression, source_value_types)?;
             (expression.scalar_type() == target_type)

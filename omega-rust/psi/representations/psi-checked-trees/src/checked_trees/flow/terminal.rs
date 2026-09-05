@@ -133,14 +133,26 @@ pub enum CheckedScalarStateTerminator {
     Jump(CheckedScalarSuccessor),
     Conditional {
         guard_statement_ordinal: u32,
-        when_true: CheckedScalarSuccessor,
-        when_false: CheckedScalarSuccessor,
+        when_true: CheckedScalarBranchDestination,
+        when_false: CheckedScalarBranchDestination,
+    },
+}
+
+/// A selected scalar arm either transfers into a state or completes the machine.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum CheckedScalarBranchDestination {
+    Jump(CheckedScalarSuccessor),
+    Return {
+        statement_ordinal: u32,
+        /// The false sibling of a combined transition has its own value role.
+        is_continuation: bool,
     },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CheckedScalarSuccessor {
     pub statement_ordinal: u32,
+    pub is_continuation: bool,
     pub target: SymbolHandle,
     pub argument_count: u32,
 }

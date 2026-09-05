@@ -202,6 +202,8 @@ pub enum CheckedScalarExpressionRole {
     /// by a later executable plan.
     AssignmentValue,
     Return,
+    /// Value returned by the false sibling of a combined transition.
+    ContinuationReturn,
     Guard,
     TransitionArgument {
         argument_ordinal: u32,

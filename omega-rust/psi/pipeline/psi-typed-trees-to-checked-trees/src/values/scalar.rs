@@ -325,7 +325,7 @@ pub(crate) fn build_checked_scalar_expression_plans(
                     }
                     StatementNode::Transition(transition) => {
                         if let TransitionGuardNode::When(guard) = transition.guard
-                            && let Some(guard) = lower_positive_boolean_guard(
+                            && let Some(guard) = lower_boolean_guard(
                                 program,
                                 operators,
                                 guard,
@@ -345,51 +345,58 @@ pub(crate) fn build_checked_scalar_expression_plans(
                                 expression: CheckedScalarExpression::Boolean(Box::new(guard)),
                             });
                         }
-                        if transition.exit == psi_typed_trees::statement::TransitionExit::Ordinary
-                            && transition.guard == TransitionGuardNode::Always
-                            && !transition.continuation.is_valid()
-                            && let TransitionTargetNode::Value(expression) =
-                                program.statement_table.transition_target(transition.target)
-                            && let Some(result_type) = result_type
-                            && let Some(return_expression) = lower_return_expression(
-                                program,
-                                operators,
-                                *expression,
-                                &scalar_parameters,
-                                &parameter_types,
-                                &locals,
-                                result_type,
-                                exact_integer_casts,
-                            )
-                        {
-                            source_bindings.append(CheckedScalarExpressionBindings {
-                                destination: psi_symbols::SymbolHandle::invalid(),
-                                state: state.symbol,
-                                statement_ordinal,
-                                role: CheckedScalarExpressionRole::Return,
-                                expression: *expression,
-                                symbols: binding_symbols.insert_many(
-                                    scalar_parameters
-                                        .iter()
-                                        .map(|parameter| parameter.symbol)
-                                        .chain(
-                                            locals
-                                                .iter()
-                                                .filter(|local| !local.is_mutable)
-                                                .map(|local| local.symbol),
-                                        ),
-                                ),
-                            });
-                            expressions.push(CheckedLocatedScalarExpression {
-                                state: state.symbol,
-                                statement_ordinal,
-                                role: CheckedScalarExpressionRole::Return,
-                                expression: return_expression,
-                            });
-                        }
                         for (target, continuation) in
                             [(transition.target, false), (transition.continuation, true)]
                         {
+                            if !target.is_valid() {
+                                continue;
+                            }
+                            if transition.exit
+                                == psi_typed_trees::statement::TransitionExit::Ordinary
+                                && let TransitionTargetNode::Value(expression) =
+                                    program.statement_table.transition_target(target)
+                                && let Some(result_type) = result_type
+                                && let Some(return_expression) = lower_return_expression(
+                                    program,
+                                    operators,
+                                    *expression,
+                                    &scalar_parameters,
+                                    &parameter_types,
+                                    &locals,
+                                    result_type,
+                                    exact_integer_casts,
+                                )
+                            {
+                                let role = if continuation {
+                                    CheckedScalarExpressionRole::ContinuationReturn
+                                } else {
+                                    CheckedScalarExpressionRole::Return
+                                };
+                                source_bindings.append(CheckedScalarExpressionBindings {
+                                    destination: psi_symbols::SymbolHandle::invalid(),
+                                    state: state.symbol,
+                                    statement_ordinal,
+                                    role,
+                                    expression: *expression,
+                                    symbols: binding_symbols.insert_many(
+                                        scalar_parameters
+                                            .iter()
+                                            .map(|parameter| parameter.symbol)
+                                            .chain(
+                                                locals
+                                                    .iter()
+                                                    .filter(|local| !local.is_mutable)
+                                                    .map(|local| local.symbol),
+                                            ),
+                                    ),
+                                });
+                                expressions.push(CheckedLocatedScalarExpression {
+                                    state: state.symbol,
+                                    statement_ordinal,
+                                    role,
+                                    expression: return_expression,
+                                });
+                            }
                             let TransitionTargetNode::Named {
                                 path, arguments, ..
                             } = program.statement_table.transition_target(target)
@@ -2745,7 +2752,7 @@ fn lower_boolean_expression(
     }
 }
 
-fn lower_positive_boolean_guard(
+fn lower_boolean_guard(
     program: &TypedTrees,
     operators: &CheckedOperatorFacts,
     expression: ExpressionHandle,
@@ -2765,7 +2772,7 @@ fn lower_positive_boolean_guard(
             exact_integer_casts,
         );
     };
-    if binary.operator == BinaryOperator::Equal {
+    if binary.operator == BinaryOperator::Equal && operator_is_builtin(operators, expression) {
         match (
             program.expression_table.expression(binary.left),
             program.expression_table.expression(binary.right),
@@ -2795,7 +2802,7 @@ fn lower_positive_boolean_guard(
             _ => {}
         }
     }
-    let guard = lower_boolean_expression(
+    lower_boolean_expression(
         program,
         operators,
         expression,
@@ -2803,8 +2810,7 @@ fn lower_positive_boolean_guard(
         parameter_types,
         locals,
         exact_integer_casts,
-    )?;
-    (is_integer_comparison(&guard) || contains_short_circuit(&guard)).then_some(guard)
+    )
 }
 
 fn parameter_position(
@@ -3023,42 +3029,50 @@ fn checked_integer_binary_kind(
     }
 }
 
-fn contains_short_circuit(expression: &CheckedBooleanExpression) -> bool {
-    match expression {
-        CheckedBooleanExpression::StorageRead { .. } => false,
-        CheckedBooleanExpression::Constant(_)
-        | CheckedBooleanExpression::Parameter { .. }
-        | CheckedBooleanExpression::Local { .. }
-        | CheckedBooleanExpression::StructuralParameterField { .. }
-        | CheckedBooleanExpression::IntegerComparison { .. }
-        | CheckedBooleanExpression::IeeeFloatComparison { .. }
-        | CheckedBooleanExpression::ByteSequenceEqual { .. }
-        | CheckedBooleanExpression::PayloadlessSumEqual { .. }
-        | CheckedBooleanExpression::StructuralCaseMembership { .. } => false,
-        CheckedBooleanExpression::Not(operand) => contains_short_circuit(operand),
-        CheckedBooleanExpression::Equal { left, right } => {
-            contains_short_circuit(left) || contains_short_circuit(right)
-        }
-        CheckedBooleanExpression::And { .. } | CheckedBooleanExpression::Or { .. } => true,
-    }
-}
-
-fn is_integer_comparison(expression: &CheckedBooleanExpression) -> bool {
-    match expression {
-        CheckedBooleanExpression::IntegerComparison { .. } => true,
-        CheckedBooleanExpression::Not(operand) => {
-            matches!(
-                operand.as_ref(),
-                CheckedBooleanExpression::IntegerComparison { .. }
-            )
-        }
-        _ => false,
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
+    use psi_arena::Arena;
+
+    #[test]
+    fn boolean_guard_selection_preserves_both_polarities_and_operator_meaning() {
+        for value in [false, true] {
+            let mut program = TypedTrees::default();
+            let left = program
+                .expression_table
+                .insert(ExpressionNode::Boolean(true));
+            let right = program
+                .expression_table
+                .insert(ExpressionNode::Boolean(value));
+            let expression = program.expression_table.insert(ExpressionNode::Binary(
+                psi_typed_trees::expression::TableBinaryExpression {
+                    left,
+                    operator: BinaryOperator::Equal,
+                    right,
+                },
+            ));
+            for (status, accepted) in [
+                (CheckedOperatorResolutionStatus::BuiltinFallback, true),
+                (CheckedOperatorResolutionStatus::Resolved, false),
+                (CheckedOperatorResolutionStatus::Missing, false),
+                (CheckedOperatorResolutionStatus::Ambiguous, false),
+            ] {
+                let mut uses = Arena::new();
+                uses.append(psi_checked_trees::CheckedOperatorUseFact {
+                    expression,
+                    status,
+                    ..Default::default()
+                });
+                let operators = CheckedOperatorFacts::with_roots(uses, Arena::new(), Arena::new());
+                assert_eq!(
+                    lower_boolean_guard(&program, &operators, expression, &[], &[], &[], &[])
+                        .is_some(),
+                    accepted,
+                    "value={value}, status={status:?}",
+                );
+            }
+        }
+    }
 
     #[test]
     fn retained_widening_requires_complete_fixed_integer_range_containment() {

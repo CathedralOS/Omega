@@ -1,4 +1,4 @@
-//! Argument-local range premises follow the authored transition schedule.
+//! Target-local range premises follow the authored transition schedule.
 
 use super::*;
 use crate::calls::CallFrameResolver;
@@ -8,11 +8,11 @@ use psi_typed_trees::statement::{StatementNode, TransitionGuardNode};
 mod tests;
 
 #[derive(Default)]
-pub(crate) struct TransitionArgumentEnvironments {
+pub(crate) struct TransitionValueEnvironments {
     targets: Vec<(TransitionTargetHandle, Vec<ValueEnv>)>,
 }
 
-impl TransitionArgumentEnvironments {
+impl TransitionValueEnvironments {
     pub(crate) fn collect<'program>(
         program: &'program TypedTrees,
         machine: &'program Machine,
@@ -29,10 +29,12 @@ impl TransitionArgumentEnvironments {
             if !target.is_valid() {
                 continue;
             }
-            let TransitionTargetNode::Named { arguments, .. } =
-                program.statement_table.transition_target(target)
-            else {
-                continue;
+            let expressions = match program.statement_table.transition_target(target) {
+                TransitionTargetNode::Named { arguments, .. } => {
+                    program.statement_table.expression_handles(*arguments)
+                }
+                TransitionTargetNode::Value(expression) => std::slice::from_ref(expression),
+                TransitionTargetNode::SelfTarget | TransitionTargetNode::Terminal => continue,
             };
             let mut current = if positive {
                 crate::arithmetic_domains::guard_narrowed_env(
@@ -59,10 +61,10 @@ impl TransitionArgumentEnvironments {
                 cross_expression_effects(&mut current, machine, guard, frames);
             }
             let mut environments = Vec::new();
-            for argument in program.statement_table.expression_handles(*arguments) {
-                // Within one argument we remain conservative about nested calls;
+            for expression in expressions {
+                // Within one value we remain conservative about nested calls;
                 // later arguments never invalidate an already evaluated value.
-                cross_expression_effects(&mut current, machine, *argument, frames);
+                cross_expression_effects(&mut current, machine, *expression, frames);
                 environments.push(current.clone());
             }
             result.targets.push((target, environments));

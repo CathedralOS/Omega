@@ -648,7 +648,7 @@ fn validate_program_internal(
                         [..statement_index],
                     parameters: program.state_parameters(state),
                 };
-                let transition_arguments = transitions::TransitionArgumentEnvironments::collect(
+                let transition_values = transitions::TransitionValueEnvironments::collect(
                     program,
                     machine,
                     state,
@@ -743,7 +743,7 @@ fn validate_program_internal(
                     statement_handle,
                     statement,
                     &mut value_env,
-                    &transition_arguments,
+                    &transition_values,
                     direct_written,
                     &mut exact_integer_casts,
                     &mut boundary_operator_applications,
@@ -892,7 +892,7 @@ fn validate_state_statement_node(
     statement_handle: psi_typed_trees::statement::StatementHandle,
     statement: &StatementNode,
     value_env: &mut arithmetic_domains::ValueEnv,
-    transition_arguments: &transitions::TransitionArgumentEnvironments,
+    transition_values: &transitions::TransitionValueEnvironments,
     direct_written: Option<Vec<String>>,
     exact_integer_casts: &mut Vec<ExactIntegerCastFact>,
     boundary_operator_applications: &mut Vec<ValidatedBoundaryOperatorApplication>,
@@ -1585,7 +1585,7 @@ fn validate_state_statement_node(
                 machine,
                 current_state,
                 value_env,
-                transition_arguments.for_target(transition.target),
+                transition_values.for_target(transition.target),
                 transition.target,
                 machine_symbols,
                 symbols,
@@ -1599,7 +1599,7 @@ fn validate_state_statement_node(
                     machine,
                     current_state,
                     value_env,
-                    transition_arguments.for_target(transition.continuation),
+                    transition_values.for_target(transition.continuation),
                     transition.continuation,
                     machine_symbols,
                     symbols,
@@ -1608,13 +1608,10 @@ fn validate_state_statement_node(
                 );
             }
 
-            // Decision 17 completeness: an arm fires only when its guard holds, so
-            // BOTH a value return (`n > 0 { true -> (n - 1) }`) and a call argument
-            // (`count_down(n - 1)`) may assume the guard's bound. Narrow the env by
-            // the arm's guard once, up front, for both. `guard_narrowed_env`
-            // intersects each bounded place with its type range (so a one-sided
-            // `n > 0` keeps the type's other end) and negates for the `false` arm,
-            // so an unguarded (or wrong-arm) decrement is still correctly rejected.
+            // Return and argument expressions use their collected target-local
+            // premises: the primary arm assumes the guard, the continuation
+            // assumes its complement, and each crosses only its own effects.
+            // Keep the ordinary guard environment for targets without values.
             let narrowed = arithmetic_domains::guard_narrowed_env(
                 program,
                 machine,
@@ -1635,7 +1632,7 @@ fn validate_state_statement_node(
                             .iter()
                             .enumerate()
                         {
-                            let argument_env = transition_arguments
+                            let argument_env = transition_values
                                 .for_target(target)
                                 .get(argument_index)
                                 .unwrap_or(&narrowed);
@@ -1650,12 +1647,16 @@ fn validate_state_statement_node(
                         }
                     }
                     TransitionTargetNode::Value(expression) => {
+                        let return_env = transition_values
+                            .for_target(target)
+                            .first()
+                            .unwrap_or(&narrowed);
                         arithmetic_domains::collect_exact_integer_cast_facts(
                             program,
                             machine,
                             current_state,
                             *expression,
-                            &narrowed,
+                            return_env,
                             exact_integer_casts,
                         );
                     }
@@ -1692,6 +1693,10 @@ fn validate_state_statement_node(
                     if let TransitionTargetNode::Value(return_expression) =
                         program.statement_table.transition_target(target)
                     {
+                        let return_env = transition_values
+                            .for_target(target)
+                            .first()
+                            .unwrap_or(&narrowed);
                         // Cross-class guard: `_ -> (true)` returning a bool from an
                         // i32-returning machine is a silent miscompile. The terminal
                         // `{ true }` return form is caught by the general shape gate;
@@ -1758,7 +1763,7 @@ fn validate_state_statement_node(
                             machine,
                             state,
                             *return_expression,
-                            &narrowed,
+                            return_env,
                             &format!(
                                 "machine `{}` state `{state_name}` return value",
                                 machine.name
@@ -1782,7 +1787,7 @@ fn validate_state_statement_node(
                         .iter()
                         .enumerate()
                     {
-                        let argument_env = transition_arguments
+                        let argument_env = transition_values
                             .for_target(target)
                             .get(argument_index)
                             .unwrap_or(&narrowed);

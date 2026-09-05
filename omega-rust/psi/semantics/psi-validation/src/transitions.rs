@@ -11,7 +11,7 @@ use psi_typed_trees::state::State;
 use psi_typed_trees::statement::{TransitionTargetHandle, TransitionTargetNode};
 
 mod evaluation;
-pub(crate) use evaluation::TransitionArgumentEnvironments;
+pub(crate) use evaluation::TransitionValueEnvironments;
 
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn validate_transition_target_node(

@@ -153,10 +153,29 @@ impl ExitScalars<'_, '_> {
     fn selected_return_value(&self, expression: ExpressionHandle) -> Option<ScalarValue> {
         let plans = &self.facts.values.scalar_expressions;
         let statement_ordinal = u32::try_from(self.exit.statement_index).ok()?;
+        let state = crate::find_state_in_machine(
+            self.program,
+            self.exit.machine_symbol,
+            self.exit.state_symbol,
+        )?;
+        let role = match self
+            .program
+            .statement_table
+            .statements(state.statement_nodes)
+            .get(self.exit.statement_index)?
+        {
+            psi_typed_trees::statement::StatementNode::Transition(transition)
+                if self.exit.transition_target.is_valid()
+                    && self.exit.transition_target == transition.continuation =>
+            {
+                CheckedScalarExpressionRole::ContinuationReturn
+            }
+            _ => CheckedScalarExpressionRole::Return,
+        };
         let mut bindings = plans.source_bindings.iter().filter(|(_, binding)| {
             binding.state == self.exit.state_symbol
                 && binding.statement_ordinal == statement_ordinal
-                && binding.role == CheckedScalarExpressionRole::Return
+                && binding.role == role
                 && binding.expression == expression
         });
         let (_, binding) = bindings.next()?;

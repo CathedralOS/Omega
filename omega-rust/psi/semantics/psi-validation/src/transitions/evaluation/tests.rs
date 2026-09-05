@@ -1,3 +1,5 @@
+mod returns;
+
 fn parse(source: &str) -> psi_typed_trees::TypedTrees {
     let tokens = psi_source_files_to_tokens::Lexer::new(source)
         .tokenize()

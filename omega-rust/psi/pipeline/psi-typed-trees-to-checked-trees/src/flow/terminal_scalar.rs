@@ -1,8 +1,8 @@
 use psi_checked_trees::{
-    CheckedScalarBinding, CheckedScalarBindingValue, CheckedScalarGraphPlans,
-    CheckedScalarMachineGraph, CheckedScalarStateGraph, CheckedScalarStateTerminator,
-    CheckedScalarSuccessor, CheckedTerminalMachineSelection, CheckedTerminalMachineSelections,
-    CheckedTerminalSignatureEligibility,
+    CheckedScalarBinding, CheckedScalarBindingValue, CheckedScalarBranchDestination,
+    CheckedScalarGraphPlans, CheckedScalarMachineGraph, CheckedScalarStateGraph,
+    CheckedScalarStateTerminator, CheckedScalarSuccessor, CheckedTerminalMachineSelection,
+    CheckedTerminalMachineSelections, CheckedTerminalSignatureEligibility,
 };
 
 pub(crate) fn build_checked_terminal_machine_selections(
@@ -54,12 +54,17 @@ use psi_typed_trees::{
     statement::{StatementNode, TransitionExit, TransitionGuardNode, TransitionTargetNode},
 };
 
-pub(crate) fn build_checked_scalar_graph_plans(program: &TypedTrees) -> CheckedScalarGraphPlans {
+mod guards;
+
+pub(crate) fn build_checked_scalar_graph_plans(
+    program: &TypedTrees,
+    expressions: &psi_checked_trees::CheckedScalarExpressionPlans,
+) -> CheckedScalarGraphPlans {
     CheckedScalarGraphPlans {
         machines: program
             .machines()
             .iter()
-            .filter_map(|machine| build_machine_graph(program, machine))
+            .filter_map(|machine| build_machine_graph(program, machine, expressions))
             .collect(),
     }
 }
@@ -67,6 +72,7 @@ pub(crate) fn build_checked_scalar_graph_plans(program: &TypedTrees) -> CheckedS
 fn build_machine_graph(
     program: &TypedTrees,
     machine: &psi_typed_trees::machine::Machine,
+    expressions: &psi_checked_trees::CheckedScalarExpressionPlans,
 ) -> Option<CheckedScalarMachineGraph> {
     let source_states = program.machine_states(machine);
     if source_states.is_empty() {
@@ -197,24 +203,74 @@ fn build_machine_graph(
                     StatementNode::Transition(when_true),
                     StatementNode::Transition(when_false),
                 ] if matches!(when_true.guard, TransitionGuardNode::When(_))
-                    && when_false.guard == TransitionGuardNode::Always
+                    && (when_false.guard == TransitionGuardNode::Always
+                        || guards::complementary(
+                            expressions,
+                            state.symbol,
+                            terminator_ordinal,
+                        ))
                     && !when_true.continuation.is_valid()
                     && !when_false.continuation.is_valid() =>
                 {
                     CheckedScalarStateTerminator::Conditional {
                         guard_statement_ordinal: terminator_ordinal,
-                        when_true: checked_successor(
+                        when_true: checked_branch_destination(
                             program,
                             source_states,
                             terminator_ordinal,
                             when_true,
+                            false,
                         )?,
-                        when_false: checked_successor(
+                        when_false: checked_branch_destination(
                             program,
                             source_states,
                             terminator_ordinal.checked_add(1)?,
                             when_false,
+                            false,
                         )?,
+                    }
+                }
+                [StatementNode::Transition(transition)]
+                    if matches!(transition.guard, TransitionGuardNode::When(_))
+                        && transition.continuation.is_valid() =>
+                {
+                    CheckedScalarStateTerminator::Conditional {
+                        guard_statement_ordinal: terminator_ordinal,
+                        when_true: checked_branch_destination(
+                            program,
+                            source_states,
+                            terminator_ordinal,
+                            transition,
+                            false,
+                        )?,
+                        when_false: checked_branch_destination(
+                            program,
+                            source_states,
+                            terminator_ordinal,
+                            transition,
+                            true,
+                        )?,
+                    }
+                }
+                [
+                    StatementNode::Transition(transition),
+                    StatementNode::Expression(_),
+                ] if matches!(transition.guard, TransitionGuardNode::When(_))
+                    && !transition.continuation.is_valid() =>
+                {
+                    CheckedScalarStateTerminator::Conditional {
+                        guard_statement_ordinal: terminator_ordinal,
+                        when_true: checked_branch_destination(
+                            program,
+                            source_states,
+                            terminator_ordinal,
+                            transition,
+                            false,
+                        )?,
+                        when_false: CheckedScalarBranchDestination::Return {
+                            statement_ordinal: terminator_ordinal.checked_add(1)?,
+                            is_continuation: false,
+                        },
                     }
                 }
                 [StatementNode::Transition(transition)]
@@ -226,6 +282,7 @@ fn build_machine_graph(
                         source_states,
                         terminator_ordinal,
                         transition,
+                        false,
                     )?)
                 }
                 _ => return None,
@@ -284,10 +341,20 @@ fn checked_successor(
     states: &[psi_typed_trees::state::State],
     statement_ordinal: u32,
     transition: &psi_typed_trees::statement::TableTransition,
+    is_continuation: bool,
 ) -> Option<CheckedScalarSuccessor> {
+    if transition.exit != TransitionExit::Ordinary {
+        return None;
+    }
     let TransitionTargetNode::Named {
         path, arguments, ..
-    } = program.statement_table.transition_target(transition.target)
+    } = program
+        .statement_table
+        .transition_target(if is_continuation {
+            transition.continuation
+        } else {
+            transition.target
+        })
     else {
         return None;
     };
@@ -297,8 +364,45 @@ fn checked_successor(
         .then_some(())?;
     Some(CheckedScalarSuccessor {
         statement_ordinal,
+        is_continuation,
         target: path.symbol,
         argument_count: u32::try_from(program.statement_table.expression_handles(*arguments).len())
             .ok()?,
     })
+}
+
+fn checked_branch_destination(
+    program: &TypedTrees,
+    states: &[psi_typed_trees::state::State],
+    statement_ordinal: u32,
+    transition: &psi_typed_trees::statement::TableTransition,
+    is_continuation: bool,
+) -> Option<CheckedScalarBranchDestination> {
+    if transition.exit != TransitionExit::Ordinary {
+        return None;
+    }
+    let target = if is_continuation {
+        transition.continuation
+    } else {
+        transition.target
+    };
+    match program.statement_table.transition_target(target) {
+        TransitionTargetNode::Value(expression)
+            if program.expression_table.expression_is_valid(*expression) =>
+        {
+            Some(CheckedScalarBranchDestination::Return {
+                statement_ordinal,
+                is_continuation,
+            })
+        }
+        TransitionTargetNode::Named { .. } => checked_successor(
+            program,
+            states,
+            statement_ordinal,
+            transition,
+            is_continuation,
+        )
+        .map(CheckedScalarBranchDestination::Jump),
+        _ => None,
+    }
 }

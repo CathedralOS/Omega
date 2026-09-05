@@ -1,0 +1,8 @@
+machine value(flag: bool) -> u64
+ensures result == 18446744073709551615
+{
+    transition flag {
+        true -> ((18446744073709551615 + 1) - 1)
+        false -> 18446744073709551615
+    }
+}

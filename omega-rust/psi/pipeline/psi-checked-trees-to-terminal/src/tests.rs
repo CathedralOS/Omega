@@ -30,6 +30,7 @@ mod composed_unit_prefixed_control;
 mod composed_unit_transitive_internal_calls;
 mod content_conservation;
 mod dynamic_composed_unit;
+mod guarded_scalar_returns;
 mod preterminal_optimization;
 mod proof_recursion;
 mod quotient_correspondence;
