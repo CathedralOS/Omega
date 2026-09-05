@@ -298,6 +298,17 @@ History on `main` stays linear. The Git for Windows system config sets
 merge commit; override it with `git config pull.rebase true`. Land a branch by
 rebasing it onto `main` and fast-forwarding, not by merging.
 
+Reserve only final integration and publication with `tools/landing.ps1`.
+Develop and checkpoint in an isolated worktree first; `main` is the only shared
+code branch. Claim the shared reservation, rebase onto its returned base, run
+the applicable checks locally, and publish the exact verified commit through
+the command. All writers use this route rather than direct pushes to `main`.
+An occupied reservation does not prevent development or reading incoming main.
+Release after a failed gate before continuing implementation. Do not expire or
+steal a reservation automatically. See [landing](tools/landing.md) for commands,
+observed-owner recovery, and handling an uncertain network result. This protocol
+coordinates publishing across machines; it does not assign work ownership.
+
 Commit messages do not follow this repository's own `git log`. That history is
 capitalized, imperative, and bodiless: it restates what the diff already shows
 and drops the reasoning, which is the part no later reader can recover.
