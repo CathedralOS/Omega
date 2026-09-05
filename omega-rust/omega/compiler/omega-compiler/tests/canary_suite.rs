@@ -693,6 +693,16 @@ const CHECKED_ONLY_PASS_CANARIES: &[&str] = &[
 ];
 
 const CHECKED_ONLY_FAIL_CANARIES: &[&str] = &[
+    "types/addr_plus_addr_rejected",
+    "types/isize_rejected",
+    "types/usize_rejected",
+    "data/proof_only_local_rejected",
+    "data/proof_only_reference_view_rejected",
+    "data/proof_only_runtime_property_rejected",
+    "data/proof_only_state_param_rejected",
+    "wire/proof_only_wire_field_rejected",
+    "traits/conformance_item_missing_member",
+    "traits/conformance_item_unknown_trait",
     "constraints/mutable_scalar_value_invalidated",
     "constraints/state_argument_value_reread",
     "arithmetic/bounded_call_unproven",
