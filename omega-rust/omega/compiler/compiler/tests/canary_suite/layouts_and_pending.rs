@@ -1,5 +1,8 @@
 use super::*;
 
+#[path = "../fixture_rosters/layouts_and_pending.rs"]
+pub(super) mod fixture_roster;
+
 #[test]
 fn plan_laid_value_field_exit_canary_runs() {
     // PLAN-LAID VALUE TYPES (layouts L4): `gdt: Spread16<Gdtish>` places every
@@ -7,7 +10,7 @@ fn plan_laid_value_field_exit_canary_runs() {
     // and the program writes, whole-value-copies, and reads back through those
     // baked plan offsets. Exit 71 = some consumer recomputed native offsets
     // independently (a read landed in a padding gap).
-    let canary = pass_canary("layouts/runtime_plan_laid_value_field_exit");
+    let canary = pass_canary(fixture_roster::RUNTIME_PLAN_LAID_VALUE_FIELD_EXIT);
     let build_dir =
         std::env::temp_dir().join(format!("omega-plan-laid-value-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
@@ -36,7 +39,7 @@ fn plan_laid_value_field_exit_canary_runs() {
 
 #[test]
 fn plan_laid_erased_field_is_semantic_but_not_physical() {
-    let canary = pass_canary("layouts/runtime_plan_laid_erased_field_exit");
+    let canary = pass_canary(fixture_roster::RUNTIME_PLAN_LAID_ERASED_FIELD_EXIT);
     let checked = compile_to_checked(&canary.join("main.omg"), None)
         .expect("plan-laid erased field should reach checked semantics");
 
@@ -102,7 +105,7 @@ fn plan_laid_erased_field_is_semantic_but_not_physical() {
 
 #[test]
 fn distinct_closed_erased_generic_sums_run_with_exact_identities() {
-    let canary = pass_canary("generics/runtime_distinct_closed_erased_sums_exit");
+    let canary = pass_canary(fixture_roster::RUNTIME_DISTINCT_CLOSED_ERASED_SUMS_EXIT);
     let checked = compile_to_checked(&canary.join("main.omg"), None)
         .expect("distinct closed erased sums should reach checked semantics");
 
@@ -160,7 +163,7 @@ fn distinct_closed_erased_generic_sums_run_with_exact_identities() {
 
 #[test]
 fn mixed_closed_generic_erasure_runs_with_common_and_payload_fields() {
-    let canary = pass_canary("generics/runtime_mixed_generic_erased_sum_exit");
+    let canary = pass_canary(fixture_roster::RUNTIME_MIXED_GENERIC_ERASED_SUM_EXIT);
     let checked = compile_to_checked(&canary.join("main.omg"), None)
         .expect("mixed closed erased sum should reach checked semantics");
     let definition = checked
@@ -199,7 +202,7 @@ fn mixed_closed_generic_erasure_runs_with_common_and_payload_fields() {
 
 #[test]
 fn generic_erased_literals_use_exact_call_and_return_contexts() {
-    let canary = pass_canary("generics/runtime_generic_exact_call_return_exit");
+    let canary = pass_canary(fixture_roster::RUNTIME_GENERIC_EXACT_CALL_RETURN_EXIT);
     let checked = compile_to_checked(&canary.join("main.omg"), None)
         .expect("exact call/return contexts should reach checked semantics");
     assert_eq!(interpret(&checked, &[]).exit_code, 70);
@@ -228,7 +231,7 @@ fn generic_erased_literals_use_exact_call_and_return_contexts() {
 
 #[test]
 fn wire_erased_field_is_semantic_but_not_encoded() {
-    let canary = pass_canary("wire/runtime_wire_erased_field_roundtrip_exit");
+    let canary = pass_canary(fixture_roster::RUNTIME_WIRE_ERASED_FIELD_ROUNDTRIP_EXIT);
     let checked = compile_to_checked(&canary.join("main.omg"), None)
         .expect("wire erased field should reach checked semantics");
     let schema = checked
@@ -299,7 +302,7 @@ fn wire_erased_field_is_semantic_but_not_encoded() {
 
 #[test]
 fn nested_wire_erased_field_is_not_encoded() {
-    let canary = pass_canary("wire/runtime_wire_nested_erased_field_roundtrip_exit");
+    let canary = pass_canary(fixture_roster::RUNTIME_WIRE_NESTED_ERASED_FIELD_ROUNDTRIP_EXIT);
     let checked = compile_to_checked(&canary.join("main.omg"), None)
         .expect("nested erased wire field should reach checked semantics");
     let interpreted = interpret(&checked, &[]);
@@ -330,7 +333,7 @@ fn nested_wire_erased_field_is_not_encoded() {
 
 #[test]
 fn plan_laid_compact_bits_exit_canary_runs_and_cross_compiles() {
-    let canary = pass_canary("layouts/runtime_plan_laid_compact_bits_exit");
+    let canary = pass_canary(fixture_roster::RUNTIME_PLAN_LAID_COMPACT_BITS_EXIT);
     let main_path = canary.join("main.omg");
     let checked = compile_to_checked(&main_path, None)
         .expect("compact-bit plan-laid canary should compile to checked trees");
@@ -377,7 +380,7 @@ fn plan_laid_compact_bits_exit_canary_runs_and_cross_compiles() {
 
 #[test]
 fn plan_laid_integer_at_projection_exit_canary_runs_and_cross_compiles() {
-    let canary = pass_canary("layouts/runtime_plan_laid_integer_at_projection_exit");
+    let canary = pass_canary(fixture_roster::RUNTIME_PLAN_LAID_INTEGER_AT_PROJECTION_EXIT);
     let checked = compile_to_checked(&canary.join("main.omg"), None)
         .expect("IntegerAt projection canary should compile to checked trees");
     let interpreted = interpret(&checked, &[]);
@@ -421,7 +424,7 @@ fn plan_laid_integer_at_projection_exit_canary_runs_and_cross_compiles() {
 
 #[test]
 fn plan_laid_integer_at_total_write_exit_canary_runs_and_cross_compiles() {
-    let canary = pass_canary("layouts/runtime_plan_laid_integer_at_total_write_exit");
+    let canary = pass_canary(fixture_roster::RUNTIME_PLAN_LAID_INTEGER_AT_TOTAL_WRITE_EXIT);
     let build_dir = std::env::temp_dir().join(format!(
         "omega-plan-laid-integer-at-write-{}",
         std::process::id()
@@ -457,7 +460,7 @@ fn plan_laid_integer_at_total_write_exit_canary_runs_and_cross_compiles() {
 
 #[test]
 fn plan_laid_integer_at_proved_write_exit_canary_runs_and_cross_compiles() {
-    let canary = pass_canary("layouts/runtime_plan_laid_integer_at_proved_write_exit");
+    let canary = pass_canary(fixture_roster::RUNTIME_PLAN_LAID_INTEGER_AT_PROVED_WRITE_EXIT);
     let checked = compile_to_checked(&canary.join("main.omg"), None)
         .expect("proved-fit IntegerAt mutation canary should compile to checked trees");
     let interpreted = interpret(&checked, &[]);
@@ -500,7 +503,7 @@ fn plan_laid_integer_at_proved_write_exit_canary_runs_and_cross_compiles() {
 
 #[test]
 fn plan_laid_integer_at_unproved_write_stays_rejected() {
-    let canary = pass_canary("layouts/runtime_plan_laid_integer_at_proved_write_exit");
+    let canary = pass_canary(fixture_roster::RUNTIME_PLAN_LAID_INTEGER_AT_PROVED_WRITE_EXIT);
     let source = fs::read_to_string(canary.join("main.omg"))
         .expect("read proved-fit IntegerAt canary")
         .replace("source: i64 [-128..=127];", "source: i64;")
@@ -526,7 +529,7 @@ fn plan_laid_integer_at_unproved_write_stays_rejected() {
 
 #[test]
 fn plan_laid_integer_at_unproved_mutable_recast_write_stays_rejected() {
-    let canary = pass_canary("layouts/runtime_plan_laid_integer_at_proved_write_exit");
+    let canary = pass_canary(fixture_roster::RUNTIME_PLAN_LAID_INTEGER_AT_PROVED_WRITE_EXIT);
     let source = fs::read_to_string(canary.join("main.omg"))
         .expect("read proved-fit IntegerAt canary")
         .replace("source: i64 [-128..=127];", "source: i64;")
@@ -557,7 +560,7 @@ fn plan_laid_value_by_value_param_exit_canary_runs() {
     // `Spread16<Gdtish>` spread placement must survive being handed to a state
     // by value and threaded across further edges. Exit 71 = a callee copy
     // recomputed native packing (a read landed in a padding gap).
-    let canary = pass_canary("layouts/runtime_plan_laid_value_by_value_param_exit");
+    let canary = pass_canary(fixture_roster::RUNTIME_PLAN_LAID_VALUE_BY_VALUE_PARAM_EXIT);
     let build_dir =
         std::env::temp_dir().join(format!("omega-plan-laid-byval-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
@@ -590,7 +593,7 @@ fn plan_laid_record_view_exit_canary_runs() {
     // record. Both engines must consume the plan's low@8/high@24 offsets and
     // preserve projected scalar loads through u16->u64 widening and u64->u16
     // narrowing; native packing would read the gaps and exit 71.
-    let canary = pass_canary("layouts/runtime_plan_laid_record_view_exit");
+    let canary = pass_canary(fixture_roster::RUNTIME_PLAN_LAID_RECORD_VIEW_EXIT);
     let main_path = canary.join("main.omg");
     let checked = compile_to_checked(&main_path, None)
         .expect("plan-laid record-view canary should compile to checked trees");
@@ -632,7 +635,7 @@ fn plan_laid_record_view_exit_canary_runs() {
 
 #[test]
 fn plan_laid_fixed_array_record_view_exit_canary_runs() {
-    let canary = pass_canary("layouts/runtime_plan_laid_fixed_array_view_exit");
+    let canary = pass_canary(fixture_roster::RUNTIME_PLAN_LAID_FIXED_ARRAY_VIEW_EXIT);
     let main_path = canary.join("main.omg");
     let checked = compile_to_checked(&main_path, None)
         .expect("plan-laid fixed-array view should compile to checked trees");
@@ -676,7 +679,7 @@ fn plan_laid_fixed_array_record_view_exit_canary_runs() {
 
 #[test]
 fn plan_laid_fixed_array_mutable_view_exit_canary_runs() {
-    let canary = pass_canary("layouts/runtime_plan_laid_fixed_array_mutable_write_exit");
+    let canary = pass_canary(fixture_roster::RUNTIME_PLAN_LAID_FIXED_ARRAY_MUTABLE_WRITE_EXIT);
     let main_path = canary.join("main.omg");
     let checked = compile_to_checked(&main_path, None)
         .expect("mutable plan-laid fixed-array view should compile to checked trees");
@@ -725,7 +728,8 @@ fn plan_laid_fixed_array_mutable_view_exit_canary_runs() {
 
 #[test]
 fn plan_laid_nested_fixed_array_mutable_view_exit_canary_runs() {
-    let canary = pass_canary("layouts/runtime_plan_laid_nested_fixed_array_mutable_write_exit");
+    let canary =
+        pass_canary(fixture_roster::RUNTIME_PLAN_LAID_NESTED_FIXED_ARRAY_MUTABLE_WRITE_EXIT);
     let main_path = canary.join("main.omg");
     let checked = compile_to_checked(&main_path, None)
         .expect("mutable plan-laid nested-array view should compile to checked trees");
@@ -765,7 +769,7 @@ fn plan_laid_nested_fixed_array_mutable_view_exit_canary_runs() {
 
 #[test]
 fn plan_laid_nested_record_mutable_view_exit_canary_runs() {
-    let canary = pass_canary("layouts/runtime_plan_laid_nested_record_mutable_write_exit");
+    let canary = pass_canary(fixture_roster::RUNTIME_PLAN_LAID_NESTED_RECORD_MUTABLE_WRITE_EXIT);
     let main_path = canary.join("main.omg");
     let checked = compile_to_checked(&main_path, None)
         .expect("mutable plan-laid nested-record view should compile to checked trees");
@@ -801,7 +805,7 @@ fn plan_laid_nested_record_mutable_view_exit_canary_runs() {
 
 #[test]
 fn plan_laid_fixed_record_array_mutable_view_exit_canary_runs() {
-    let canary = pass_canary("layouts/runtime_plan_laid_record_array_mutable_write_exit");
+    let canary = pass_canary(fixture_roster::RUNTIME_PLAN_LAID_RECORD_ARRAY_MUTABLE_WRITE_EXIT);
     let checked = compile_to_checked(&canary.join("main.omg"), None)
         .expect("mutable plan-laid fixed-record-array view should compile to checked trees");
     assert_eq!(interpret(&checked, &[]).exit_code, 70);
@@ -836,7 +840,7 @@ fn plan_laid_fixed_record_array_mutable_view_exit_canary_runs() {
 
 #[test]
 fn plan_laid_mutable_record_view_exit_canary_runs() {
-    let canary = pass_canary("layouts/runtime_plan_laid_record_mutable_write_exit");
+    let canary = pass_canary(fixture_roster::RUNTIME_PLAN_LAID_RECORD_MUTABLE_WRITE_EXIT);
     let main_path = canary.join("main.omg");
     let checked = compile_to_checked(&main_path, None)
         .expect("mutable plan-laid record view should compile to checked trees");
@@ -898,7 +902,7 @@ fn value_call_sequential_result_slots_exit_canary_runs() {
     // After the fix: the deferral condition detects callee-body LocalStorage
     // ops after the StateCall and defers the leaf expansion to after the LAST
     // such op, so `rr` is written before the copy fires.
-    let canary = pass_canary("calls/value_call_sequential_result_slots_exit");
+    let canary = pass_canary(fixture_roster::VALUE_CALL_SEQUENTIAL_RESULT_SLOTS_EXIT);
     let build_dir = std::env::temp_dir().join(format!(
         "omega-value-call-sequential-result-slots-{}",
         std::process::id()
@@ -931,7 +935,7 @@ fn value_call_sequential_result_slots_exit_canary_runs() {
 #[test]
 fn arithmetic_domain_saturating_const_fold_exit_canary_runs() {
     // Decision 17 / task #39: const*const Saturating overflow must clamp, not wrap.
-    let canary = pass_canary("expressions/arithmetic_domain_saturating_const_fold_exit");
+    let canary = pass_canary(fixture_roster::ARITHMETIC_DOMAIN_SATURATING_CONST_FOLD_EXIT);
     let build_dir =
         std::env::temp_dir().join(format!("omega-sat-const-fold-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
@@ -966,7 +970,7 @@ fn value_call_sequential_self_capture_exit_canary_runs() {
     // LocalStorage op the deferral waits on). Pinned so the bare self-capture
     // shape cannot silently regress. exit 70 = a1 = cap() = self.seed = 9,
     // a2 = add(40) = 49, self.v = a1 + 61 = 70.
-    let canary = pass_canary("calls/value_call_sequential_self_capture_exit");
+    let canary = pass_canary(fixture_roster::VALUE_CALL_SEQUENTIAL_SELF_CAPTURE_EXIT);
     let build_dir = std::env::temp_dir().join(format!(
         "omega-value-call-sequential-self-capture-{}",
         std::process::id()
@@ -1006,7 +1010,7 @@ fn runtime_f64_state_arg_exit_canary_runs() {
     // ExpressionNode::Float branch that writes the bit-pattern via
     // WriteRuntimeStorageInteger.  exit 72 = bad_flt (wrong bits); exit 71 =
     // bad_int (regression); exit 70 = both args arrived correctly.
-    let canary = pass_canary("expressions/runtime_f64_state_arg_exit");
+    let canary = pass_canary(fixture_roster::RUNTIME_F64_STATE_ARG_EXIT);
     let build_dir =
         std::env::temp_dir().join(format!("omega-f64-state-arg-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
@@ -1043,7 +1047,7 @@ fn runtime_let_local_nested_state_arg_exit_canary_runs() {
     // argument_materialization.rs by blocking the fold when the local has a
     // LocalStorage slot and its initializer is a pure place expression.  exit
     // 72 = wrong arm (set2 taken instead of set1); exit 70 = correct.
-    let canary = pass_canary("calls/runtime_let_local_nested_state_arg_exit");
+    let canary = pass_canary(fixture_roster::RUNTIME_LET_LOCAL_NESTED_STATE_ARG_EXIT);
     let build_dir = std::env::temp_dir().join(format!(
         "omega-let-local-nested-state-arg-{}",
         std::process::id()

@@ -1,12 +1,15 @@
 //! Fixture inventory is independent of host eligibility and compile filters.
 use super::abi_runtime_values_and_strings::fixture_roster as abi_runtime_values_and_strings;
+use super::artifact_footprints::fixture_roster as artifact_footprints;
 use super::atomics_and_target_canaries::fixture_roster as atomics_and_target_canaries;
 use super::content_text_and_carriers::fixture_roster as content_text_and_carriers;
 use super::domains_control_and_structures::fixture_roster as domains_control_and_structures;
 use super::float_plans_and_policies::fixture_roster as float_plans_and_policies;
 use super::generics_and_dependent_facts::fixture_roster as generics_and_dependent_facts;
+use super::layouts_and_pending::fixture_roster as layouts_and_pending;
 use super::providers_float_and_console::fixture_roster as providers_float_and_console;
 use super::ranges_storage_and_entries::fixture_roster as ranges_storage_and_entries;
+use super::structural_selected_operator::fixture_roster as structural_selected_operator;
 use super::surface_and_targets::fixture_roster as surface_and_targets;
 use super::time_hosts_and_indexed_storage::fixture_roster as time_hosts_and_indexed_storage;
 use super::value_and_type_checks::fixture_roster as value_and_type_checks;
@@ -54,6 +57,9 @@ fn pass_roster() -> Vec<&'static str> {
         .chain(native_recast_views::PASS_CANARIES)
         .chain(native_structural_return::PASS_CANARIES)
         .chain(native_terminal_sources::PASS_CANARIES)
+        .chain(layouts_and_pending::PASS_CANARIES)
+        .chain(artifact_footprints::PASS_CANARIES)
+        .chain(structural_selected_operator::PASS_CANARIES)
         .chain(WINDOWS_HOST_PASS_CANARIES)
         .chain(concurrency_carry::PASS_CANARIES)
         .chain(recast_views::PASS_CANARIES)

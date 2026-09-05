@@ -1,8 +1,11 @@
 use super::*;
 
+#[path = "../fixture_rosters/structural_selected_operator.rs"]
+pub(super) mod fixture_roster;
+
 #[test]
 fn specialized_structural_fixed_operator_hosted_native_canary_compiles() {
-    let canary = pass_canary("providers/specialized_structural_fixed_operator_hosted_native");
+    let canary = pass_canary(fixture_roster::SPECIALIZED_STRUCTURAL_FIXED_OPERATOR_HOSTED_NATIVE);
     for target in ["linux_x86_64", "linux_arm64"] {
         let report = compile_rooted_backend_canary_without_output_for_target(&canary, target)
             .unwrap_or_else(|diagnostics| {
@@ -32,7 +35,7 @@ fn specialized_structural_fixed_operator_hosted_native_canary_compiles() {
 
 #[test]
 fn specialized_structural_fixed_operator_hosted_local_transfer_is_exact() {
-    let canary = pass_canary("providers/specialized_structural_fixed_operator_hosted_native");
+    let canary = pass_canary(fixture_roster::SPECIALIZED_STRUCTURAL_FIXED_OPERATOR_HOSTED_NATIVE);
     let checked = compile_to_checked(&canary.join("main.omg"), Some("linux_x86_64"))
         .expect("hosted structural selection should check");
     let main = checked
@@ -195,7 +198,7 @@ fn specialized_structural_fixed_operator_hosted_local_transfer_rejects_drift() {
         RestoredDiscard,
     }
 
-    let canary = pass_canary("providers/specialized_structural_fixed_operator_hosted_native");
+    let canary = pass_canary(fixture_roster::SPECIALIZED_STRUCTURAL_FIXED_OPERATOR_HOSTED_NATIVE);
     let checked = compile_to_checked(&canary.join("main.omg"), Some("linux_x86_64"))
         .expect("hosted structural selection should check");
     let main = checked
@@ -292,7 +295,7 @@ fn specialized_structural_fixed_operator_hosted_local_transfer_rejects_drift() {
 #[test]
 fn specialized_structural_fixed_operator_unit_terminal_custody_canary_compiles() {
     let canary =
-        pass_canary("providers/specialized_structural_fixed_operator_unit_terminal_custody");
+        pass_canary(fixture_roster::SPECIALIZED_STRUCTURAL_FIXED_OPERATOR_UNIT_TERMINAL_CUSTODY);
     let checked = compile_to_checked(&canary.join("main.omg"), Some("linux_x86_64"))
         .expect("structural fixed-token Unit custody canary should check");
     let consume = checked
@@ -415,7 +418,7 @@ fn specialized_structural_fixed_operator_unit_terminal_custody_rejects_drift() {
     }
 
     let canary =
-        pass_canary("providers/specialized_structural_fixed_operator_unit_terminal_custody");
+        pass_canary(fixture_roster::SPECIALIZED_STRUCTURAL_FIXED_OPERATOR_UNIT_TERMINAL_CUSTODY);
     let checked = compile_to_checked(&canary.join("main.omg"), Some("linux_x86_64"))
         .expect("structural fixed-token Unit custody canary should check");
     let consume = checked
@@ -502,7 +505,8 @@ fn specialized_structural_fixed_operator_unit_terminal_custody_rejects_drift() {
 
 #[test]
 fn specialized_mixed_structural_fixed_operator_hosted_native_reaches_d32() {
-    let canary = pass_canary("providers/specialized_mixed_structural_fixed_operator_hosted_native");
+    let canary =
+        pass_canary(fixture_roster::SPECIALIZED_MIXED_STRUCTURAL_FIXED_OPERATOR_HOSTED_NATIVE);
     for target in ["linux_x86_64", "linux_arm64"] {
         let report = compile_rooted_backend_canary_without_output_for_target(&canary, target)
             .unwrap_or_else(|diagnostics| {
@@ -536,7 +540,8 @@ fn specialized_mixed_structural_fixed_operator_hosted_native_reaches_d32() {
 
 #[test]
 fn specialized_mixed_structural_fixed_operator_arguments_are_exact() {
-    let canary = pass_canary("providers/specialized_mixed_structural_fixed_operator_hosted_native");
+    let canary =
+        pass_canary(fixture_roster::SPECIALIZED_MIXED_STRUCTURAL_FIXED_OPERATOR_HOSTED_NATIVE);
     let checked = compile_to_checked(&canary.join("main.omg"), Some("linux_x86_64"))
         .expect("hosted mixed structural/fixed-integer selection should check");
     let consume = checked
@@ -748,7 +753,7 @@ fn specialized_mixed_structural_fixed_operator_arguments_are_exact() {
 #[test]
 fn specialized_mixed_structural_result_operator_has_exact_checked_custody() {
     let canary =
-        pass_canary("providers/specialized_mixed_structural_result_operator_hosted_native");
+        pass_canary(fixture_roster::SPECIALIZED_MIXED_STRUCTURAL_RESULT_OPERATOR_HOSTED_NATIVE);
     let checked = compile_to_checked(&canary.join("main.omg"), Some("linux_x86_64"))
         .expect("hosted mixed structural-result selection should check");
     let consume = checked
@@ -842,7 +847,7 @@ fn specialized_mixed_structural_result_operator_has_exact_checked_custody() {
 #[test]
 fn specialized_mixed_structural_result_operator_hosted_native_reaches_d32() {
     let canary =
-        pass_canary("providers/specialized_mixed_structural_result_operator_hosted_native");
+        pass_canary(fixture_roster::SPECIALIZED_MIXED_STRUCTURAL_RESULT_OPERATOR_HOSTED_NATIVE);
     for target in ["linux_x86_64", "linux_arm64"] {
         let report = compile_rooted_backend_canary_without_output_for_target(&canary, target)
             .unwrap_or_else(|diagnostics| {
@@ -873,7 +878,7 @@ fn specialized_mixed_structural_result_operator_hosted_native_reaches_d32() {
 #[test]
 fn specialized_mixed_structural_result_operator_has_exact_terminal_custody() {
     let canary =
-        pass_canary("providers/specialized_mixed_structural_result_operator_hosted_native");
+        pass_canary(fixture_roster::SPECIALIZED_MIXED_STRUCTURAL_RESULT_OPERATOR_HOSTED_NATIVE);
     let checked = compile_to_checked(&canary.join("main.omg"), Some("linux_x86_64"))
         .expect("hosted mixed structural-result selection should check");
     let produced =
@@ -973,7 +978,7 @@ fn specialized_mixed_structural_result_operator_has_exact_terminal_custody() {
 #[test]
 fn specialized_mixed_structural_result_operator_reaches_installed_native_custody() {
     let canary =
-        pass_canary("providers/specialized_mixed_structural_result_operator_hosted_native");
+        pass_canary(fixture_roster::SPECIALIZED_MIXED_STRUCTURAL_RESULT_OPERATOR_HOSTED_NATIVE);
     let checked = compile_to_checked(&canary.join("main.omg"), Some("linux_x86_64"))
         .expect("hosted mixed structural-result selection should check");
     let terminal =
@@ -1120,7 +1125,7 @@ fn specialized_mixed_structural_result_operator_rejects_terminal_custody_drift()
     }
 
     let canary =
-        pass_canary("providers/specialized_mixed_structural_result_operator_hosted_native");
+        pass_canary(fixture_roster::SPECIALIZED_MIXED_STRUCTURAL_RESULT_OPERATOR_HOSTED_NATIVE);
     let checked = compile_to_checked(&canary.join("main.omg"), Some("linux_x86_64"))
         .expect("hosted mixed structural-result selection should check");
     let consume = checked
@@ -1206,7 +1211,8 @@ fn specialized_mixed_structural_fixed_operator_rejects_argument_drift() {
         StructuralSource,
     }
 
-    let canary = pass_canary("providers/specialized_mixed_structural_fixed_operator_hosted_native");
+    let canary =
+        pass_canary(fixture_roster::SPECIALIZED_MIXED_STRUCTURAL_FIXED_OPERATOR_HOSTED_NATIVE);
     let checked = compile_to_checked(&canary.join("main.omg"), Some("linux_x86_64"))
         .expect("hosted mixed structural/fixed-integer selection should check");
     let consume = checked

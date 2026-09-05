@@ -1,5 +1,8 @@
 use super::*;
 
+#[path = "../fixture_rosters/artifact_footprints.rs"]
+pub(super) mod fixture_roster;
+
 fn assert_native_exit_code(
     report: &CompileReport,
     expected: i32,
@@ -23,7 +26,7 @@ fn assert_native_exit_code(
 
 #[test]
 fn static_guard_footprints_reach_x86_and_aarch64_artifacts() {
-    let canary = pass_canary("control_flow/runtime_integer_literal_dispatch_exit");
+    let canary = pass_canary(fixture_roster::RUNTIME_INTEGER_LITERAL_DISPATCH_EXIT);
     let host_scratch = std::env::temp_dir().join(format!(
         "omega-static-guard-footprint-host-{}",
         std::process::id()
@@ -61,7 +64,7 @@ fn static_guard_footprints_reach_x86_and_aarch64_artifacts() {
 
 #[test]
 fn runtime_text_guard_footprints_reach_x86_and_aarch64_artifacts() {
-    let canary = pass_canary("text/runtime_local_struct_string_field_concat_exit");
+    let canary = pass_canary(fixture_roster::RUNTIME_LOCAL_STRUCT_STRING_FIELD_CONCAT_EXIT);
     for (target, expected_registers) in [
         ("linux_x86_64", "[\"X86Rax\", \"X86R15\"]"),
         ("linux_arm64", "[\"Aarch64X(16)\", \"Aarch64X(17)\"]"),
@@ -111,7 +114,7 @@ fn runtime_text_guard_footprints_reach_x86_and_aarch64_artifacts() {
 
 #[test]
 fn place_guard_footprints_reach_x86_and_aarch64_artifacts() {
-    let canary = pass_canary("control_flow/termination_index_distance_compile");
+    let canary = pass_canary(fixture_roster::TERMINATION_INDEX_DISTANCE_COMPILE);
     for (target, expected_registers) in [
         (
             "linux_x86_64",
@@ -167,7 +170,7 @@ fn place_guard_footprints_reach_x86_and_aarch64_artifacts() {
 
 #[test]
 fn compiler_body_place_copy_footprints_reach_x86_and_aarch64_artifacts() {
-    let canary = pass_canary("calls/runtime_value_call_through_alias_in_dispatch_exit");
+    let canary = pass_canary(fixture_roster::RUNTIME_VALUE_CALL_THROUGH_ALIAS_IN_DISPATCH_EXIT);
     for (target, expected_registers) in [
         ("linux_x86_64", "[\"X86Rax\", \"X86R14\", \"X86R15\"]"),
         (
@@ -205,7 +208,7 @@ fn compiler_body_place_copy_footprints_reach_x86_and_aarch64_artifacts() {
 
 #[test]
 fn compiler_body_from_pointee_copy_footprints_reach_x86_and_aarch64_artifacts() {
-    let canary = pass_canary("calls/runtime_shared_ref_param_copy_exit");
+    let canary = pass_canary(fixture_roster::RUNTIME_SHARED_REF_PARAM_COPY_EXIT);
     for (target, expected_registers) in [
         ("linux_x86_64", "[\"X86Rax\", \"X86R14\", \"X86R15\"]"),
         (
@@ -258,7 +261,7 @@ fn compiler_body_from_pointee_copy_footprints_reach_x86_and_aarch64_artifacts() 
 
 #[test]
 fn runtime_shared_ref_param_copy_exit_canary_runs() {
-    let canary = pass_canary("calls/runtime_shared_ref_param_copy_exit");
+    let canary = pass_canary(fixture_roster::RUNTIME_SHARED_REF_PARAM_COPY_EXIT);
     let build_dir = std::env::temp_dir().join(format!(
         "omega-runtime-shared-ref-param-copy-{}",
         std::process::id()
@@ -279,7 +282,7 @@ fn runtime_shared_ref_param_copy_exit_canary_runs() {
 
 #[test]
 fn compiler_body_pointee_pair_copy_footprints_reach_x86_and_aarch64_artifacts() {
-    let canary = pass_canary("calls/runtime_pointee_pair_copy_exit");
+    let canary = pass_canary(fixture_roster::RUNTIME_POINTEE_PAIR_COPY_EXIT);
     for (target, expected_registers) in [
         ("linux_x86_64", "[\"X86Rax\", \"X86R14\", \"X86R15\"]"),
         (
@@ -332,7 +335,7 @@ fn compiler_body_pointee_pair_copy_footprints_reach_x86_and_aarch64_artifacts() 
 
 #[test]
 fn runtime_pointee_pair_copy_exit_canary_runs() {
-    let canary = pass_canary("calls/runtime_pointee_pair_copy_exit");
+    let canary = pass_canary(fixture_roster::RUNTIME_POINTEE_PAIR_COPY_EXIT);
     let build_dir = std::env::temp_dir().join(format!(
         "omega-runtime-pointee-pair-copy-{}",
         std::process::id()
@@ -353,7 +356,7 @@ fn runtime_pointee_pair_copy_exit_canary_runs() {
 
 #[test]
 fn compiler_body_from_indexed_copy_footprints_reach_x86_and_aarch64_artifacts() {
-    let canary = pass_canary("slices/runtime_slice_element_runtime_index_read_exit");
+    let canary = pass_canary(fixture_roster::RUNTIME_SLICE_ELEMENT_RUNTIME_INDEX_READ_EXIT);
     for (target, expected_registers) in [
         (
             "linux_x86_64",
@@ -409,7 +412,7 @@ fn compiler_body_from_indexed_copy_footprints_reach_x86_and_aarch64_artifacts() 
 
 #[test]
 fn compiler_body_to_indexed_copy_footprints_reach_x86_and_aarch64_artifacts() {
-    let canary = pass_canary("collections/runtime_fixed_vec_round_trip_exit");
+    let canary = pass_canary(fixture_roster::RUNTIME_FIXED_VEC_ROUND_TRIP_EXIT);
     for (target, expected_registers) in [
         (
             "linux_x86_64",
@@ -472,7 +475,7 @@ fn compiler_body_to_indexed_copy_footprints_reach_x86_and_aarch64_artifacts() {
 
 #[test]
 fn compiler_body_indexed_to_pointee_copy_footprints_reach_x86_and_aarch64_artifacts() {
-    let canary = pass_canary("calls/runtime_alias_indexed_read_through_transition_exit");
+    let canary = pass_canary(fixture_roster::RUNTIME_ALIAS_INDEXED_READ_THROUGH_TRANSITION_EXIT);
     for (target, expected_registers) in [
         (
             "linux_x86_64",
@@ -519,7 +522,7 @@ fn compiler_body_indexed_to_pointee_copy_footprints_reach_x86_and_aarch64_artifa
 
 #[test]
 fn compiler_body_cross_region_frame_base_indexed_write_footprints_reach_artifacts() {
-    let canary = pass_canary("collections/runtime_frame_indexed_local_read_exit");
+    let canary = pass_canary(fixture_roster::RUNTIME_FRAME_INDEXED_LOCAL_READ_EXIT);
     for (target, expected_register) in [
         ("linux_x86_64", "\"X86R10\""),
         ("linux_arm64", "\"Aarch64X(15)\""),
@@ -586,7 +589,7 @@ fn compiler_body_cross_region_frame_base_indexed_write_footprints_reach_artifact
 
 #[test]
 fn compiler_body_machine_indexed_copy_footprints_reach_x86_and_aarch64_artifacts() {
-    let canary = pass_canary("calls/runtime_machine_indexed_struct_field_arg_exit");
+    let canary = pass_canary(fixture_roster::RUNTIME_MACHINE_INDEXED_STRUCT_FIELD_ARG_EXIT);
     for (target, expected_registers) in [
         (
             "linux_x86_64",
@@ -644,7 +647,7 @@ fn compiler_body_machine_indexed_copy_footprints_reach_x86_and_aarch64_artifacts
 
 #[test]
 fn compiler_body_to_machine_indexed_copy_footprints_reach_x86_and_aarch64_artifacts() {
-    let canary = pass_canary("collections/runtime_machine_frame_index_write_exit");
+    let canary = pass_canary(fixture_roster::RUNTIME_MACHINE_FRAME_INDEX_WRITE_EXIT);
     for (target, expected_registers) in [
         (
             "linux_x86_64",
@@ -703,7 +706,7 @@ fn compiler_body_to_machine_indexed_copy_footprints_reach_x86_and_aarch64_artifa
 
 #[test]
 fn compiler_body_frame_double_indexed_write_footprints_reach_both_artifacts() {
-    let canary = pass_canary("collections/runtime_frame_double_indexed_read_exit");
+    let canary = pass_canary(fixture_roster::RUNTIME_FRAME_DOUBLE_INDEXED_READ_EXIT);
     for (target, expected_register) in [
         ("linux_x86_64", "\"X86R11\""),
         ("linux_arm64", "\"Aarch64X(15)\""),
@@ -759,7 +762,7 @@ fn compiler_body_frame_double_indexed_write_footprints_reach_both_artifacts() {
 
 #[test]
 fn compiler_body_machine_double_indexed_copy_footprints_reach_x86_and_aarch64_artifacts() {
-    let canary = pass_canary("collections/runtime_double_indexed_read_exit");
+    let canary = pass_canary(fixture_roster::RUNTIME_DOUBLE_INDEXED_READ_EXIT);
     for (target, expected_register) in [
         ("linux_x86_64", "\"X86R10\""),
         ("linux_arm64", "\"Aarch64X(15)\""),
@@ -803,7 +806,7 @@ fn compiler_body_machine_double_indexed_copy_footprints_reach_x86_and_aarch64_ar
 
 #[test]
 fn compiler_body_to_machine_double_indexed_copy_footprints_reach_x86_and_aarch64_artifacts() {
-    let canary = pass_canary("collections/runtime_double_indexed_write_exit");
+    let canary = pass_canary(fixture_roster::RUNTIME_DOUBLE_INDEXED_WRITE_EXIT);
     for (target, expected_register) in [
         ("linux_x86_64", "\"X86R10\""),
         ("linux_arm64", "\"Aarch64X(24)\""),
@@ -851,7 +854,7 @@ fn compiler_body_to_machine_double_indexed_copy_footprints_reach_x86_and_aarch64
 
 #[test]
 fn compiler_body_machine_indexed_pair_copy_footprints_reach_x86_and_aarch64_artifacts() {
-    let canary = pass_canary("collections/runtime_dual_indexed_copy_exit");
+    let canary = pass_canary(fixture_roster::RUNTIME_DUAL_INDEXED_COPY_EXIT);
     for (target, expected_register) in [
         ("linux_x86_64", "\"X86R11\""),
         ("linux_arm64", "\"Aarch64X(24)\""),
@@ -895,7 +898,7 @@ fn compiler_body_machine_indexed_pair_copy_footprints_reach_x86_and_aarch64_arti
 
 #[test]
 fn compiler_body_mixed_index_frame_pair_copy_footprints_reach_x86_and_aarch64_artifacts() {
-    let canary = pass_canary("collections/runtime_frame_mixed_index_pair_copy_exit");
+    let canary = pass_canary(fixture_roster::RUNTIME_FRAME_MIXED_INDEX_PAIR_COPY_EXIT);
     for (target, expected_register) in [
         ("linux_x86_64", "\"X86R11\""),
         ("linux_arm64", "\"Aarch64X(15)\""),
@@ -941,7 +944,7 @@ fn compiler_body_mixed_index_frame_pair_copy_footprints_reach_x86_and_aarch64_ar
 
 #[test]
 fn compiler_body_cross_region_indexed_pair_footprints_reach_x86_and_aarch64_artifacts() {
-    let canary = pass_canary("collections/runtime_cross_region_indexed_pair_copy_exit");
+    let canary = pass_canary(fixture_roster::RUNTIME_CROSS_REGION_INDEXED_PAIR_COPY_EXIT);
     for (target, expected_register) in [
         ("linux_x86_64", "\"X86R11\""),
         ("linux_arm64", "\"Aarch64X(15)\""),
@@ -987,7 +990,7 @@ fn compiler_body_cross_region_indexed_pair_footprints_reach_x86_and_aarch64_arti
 
 #[test]
 fn compiler_body_cross_region_double_indexed_pair_footprints_reach_x86_and_aarch64_artifacts() {
-    let canary = pass_canary("collections/runtime_cross_region_double_indexed_pair_copy_exit");
+    let canary = pass_canary(fixture_roster::RUNTIME_CROSS_REGION_DOUBLE_INDEXED_PAIR_COPY_EXIT);
     for (target, expected_register) in [
         ("linux_x86_64", "\"X86R10\""),
         ("linux_arm64", "\"Aarch64X(20)\""),
@@ -1034,7 +1037,7 @@ fn compiler_body_cross_region_double_indexed_pair_footprints_reach_x86_and_aarch
 
 #[test]
 fn compiler_body_direct_integer_write_footprints_reach_x86_and_aarch64_artifacts() {
-    let canary = pass_canary("collections/runtime_dual_indexed_copy_exit");
+    let canary = pass_canary(fixture_roster::RUNTIME_DUAL_INDEXED_COPY_EXIT);
     for (target, expected_register) in [
         ("linux_x86_64", "\"X86R15\""),
         ("linux_arm64", "\"Aarch64X(17)\""),
@@ -1083,7 +1086,7 @@ fn compiler_body_direct_binary_write_footprints_reach_x86_and_aarch64_artifacts(
     // The left-associative f32 chain retains nested Binary operand roots, so
     // this covers both the outer target relocation and recursive evaluator
     // relocation/footprint replay on each architecture.
-    let canary = pass_canary("expressions/f32_deep_chain_binary");
+    let canary = pass_canary(fixture_roster::F32_DEEP_CHAIN_BINARY);
     for (target, expected_register) in [
         ("linux_x86_64", "\"X86R14\""),
         ("linux_arm64", "\"Aarch64X(16)\""),
@@ -1129,7 +1132,7 @@ fn compiler_body_direct_binary_write_footprints_reach_x86_and_aarch64_artifacts(
 
 #[test]
 fn compiler_body_pointee_binary_write_footprints_reach_x86_and_aarch64_artifacts() {
-    let canary = pass_canary("control_flow/runtime_statement_call_single_execution_exit");
+    let canary = pass_canary(fixture_roster::RUNTIME_STATEMENT_CALL_SINGLE_EXECUTION_EXIT);
     for (target, expected_register) in [
         ("linux_x86_64", "\"X86R14\""),
         ("linux_arm64", "\"Aarch64X(16)\""),
@@ -1160,7 +1163,7 @@ fn compiler_body_pointee_binary_write_footprints_reach_x86_and_aarch64_artifacts
 
 #[test]
 fn compiler_body_frame_indexed_binary_write_footprints_reach_x86_and_aarch64_artifacts() {
-    let canary = pass_canary("storage/runtime_slice_indexed_binary_rmw_exit");
+    let canary = pass_canary(fixture_roster::RUNTIME_SLICE_INDEXED_BINARY_RMW_EXIT);
     for (target, expected_register) in [
         ("linux_x86_64", "\"X86R14\""),
         ("linux_arm64", "\"Aarch64X(16)\""),
@@ -1207,7 +1210,7 @@ fn compiler_body_frame_indexed_binary_write_footprints_reach_x86_and_aarch64_art
 
 #[test]
 fn compiler_body_frame_base_indexed_binary_write_footprints_reach_x86_and_aarch64_artifacts() {
-    let canary = pass_canary("storage/runtime_dispatch_local_index_binary_write_exit");
+    let canary = pass_canary(fixture_roster::RUNTIME_DISPATCH_LOCAL_INDEX_BINARY_WRITE_EXIT);
     for (target, expected_register) in [
         ("linux_x86_64", "\"X86R14\""),
         ("linux_arm64", "\"Aarch64X(16)\""),
@@ -1243,7 +1246,7 @@ fn compiler_body_frame_base_indexed_binary_write_footprints_reach_x86_and_aarch6
 
 #[test]
 fn compiler_body_machine_indexed_binary_write_footprints_reach_x86_and_aarch64_artifacts() {
-    let canary = pass_canary("collections/runtime_indexed_rmw_loop_exit");
+    let canary = pass_canary(fixture_roster::RUNTIME_INDEXED_RMW_LOOP_EXIT);
     for (target, expected_register) in [
         ("linux_x86_64", "\"X86R14\""),
         ("linux_arm64", "\"Aarch64X(16)\""),
@@ -1279,7 +1282,7 @@ fn compiler_body_machine_indexed_binary_write_footprints_reach_x86_and_aarch64_a
 
 #[test]
 fn compiler_body_machine_double_indexed_binary_write_footprints_reach_x86_and_aarch64_artifacts() {
-    let canary = pass_canary("collections/runtime_double_indexed_rmw_exit");
+    let canary = pass_canary(fixture_roster::RUNTIME_DOUBLE_INDEXED_RMW_EXIT);
     for (target, expected_register) in [
         ("linux_x86_64", "\"X86R14\""),
         ("linux_arm64", "\"Aarch64X(16)\""),
@@ -1386,7 +1389,7 @@ machine Main::main(&mut self) {
 
 #[test]
 fn compiler_body_bounded_buffer_source_append_footprints_reach_artifacts() {
-    let canary = pass_canary("text/runtime_bounded_carrier_local_source_concat_exit");
+    let canary = pass_canary(fixture_roster::RUNTIME_BOUNDED_CARRIER_LOCAL_SOURCE_CONCAT_EXIT);
     for (target, expected_register) in [
         ("linux_x86_64", "\"X86Rsi\""),
         ("linux_arm64", "\"Aarch64X(12)\""),
@@ -1432,7 +1435,7 @@ fn compiler_body_bounded_buffer_source_append_footprints_reach_artifacts() {
 
 #[test]
 fn compiler_body_text_buffer_materialize_footprints_reach_artifacts() {
-    let canary = pass_canary("text/runtime_string_append_in_place_exit");
+    let canary = pass_canary(fixture_roster::RUNTIME_STRING_APPEND_IN_PLACE_EXIT);
     for (target, expected_register) in [
         ("linux_x86_64", "\"X86Rsi\""),
         ("linux_arm64", "\"Aarch64X(21)\""),
@@ -1478,7 +1481,7 @@ fn compiler_body_text_buffer_materialize_footprints_reach_artifacts() {
 
 #[test]
 fn compiler_body_frame_base_indexed_text_assembly_footprints_reach_aarch64_artifact() {
-    let canary = pass_canary("text/runtime_local_array_indexed_string_field_concat_exit");
+    let canary = pass_canary(fixture_roster::RUNTIME_LOCAL_ARRAY_INDEXED_STRING_FIELD_CONCAT_EXIT);
     let scratch = std::env::temp_dir().join(format!(
         "omega-compiler-body-frame-base-indexed-text-assembly-footprint-{}",
         std::process::id()
@@ -1509,7 +1512,7 @@ fn compiler_body_frame_base_indexed_text_assembly_footprints_reach_aarch64_artif
 
 #[test]
 fn compiler_body_text_literal_append_footprints_reach_artifacts() {
-    let canary = pass_canary("text/runtime_local_struct_string_field_concat_exit");
+    let canary = pass_canary(fixture_roster::RUNTIME_LOCAL_STRUCT_STRING_FIELD_CONCAT_EXIT);
     for (target, expected_register) in [
         ("linux_x86_64", "\"X86Rcx\""),
         ("linux_arm64", "\"Aarch64X(26)\""),
@@ -1555,7 +1558,7 @@ fn compiler_body_text_literal_append_footprints_reach_artifacts() {
 
 #[test]
 fn compiler_body_text_stored_append_footprints_reach_artifacts() {
-    let canary = pass_canary("text/runtime_slice_alias_indexed_string_field_concat_exit");
+    let canary = pass_canary(fixture_roster::RUNTIME_SLICE_ALIAS_INDEXED_STRING_FIELD_CONCAT_EXIT);
     for (target, expected_register) in [
         ("linux_x86_64", "\"X86Rsi\""),
         ("linux_arm64", "\"Aarch64X(24)\""),
@@ -1586,7 +1589,7 @@ fn compiler_body_text_stored_append_footprints_reach_artifacts() {
 
 #[test]
 fn compiler_body_text_stored_suffix_footprints_reach_artifacts() {
-    let canary = pass_canary("text/runtime_string_stored_suffix_exit");
+    let canary = pass_canary(fixture_roster::RUNTIME_STRING_STORED_SUFFIX_EXIT);
     for (target, expected_register) in [
         ("linux_x86_64", "\"X86R11\""),
         ("linux_arm64", "\"Aarch64X(23)\""),
@@ -1636,7 +1639,7 @@ fn compiler_body_text_stored_suffix_footprints_reach_artifacts() {
 
 #[test]
 fn compiler_body_place_address_footprints_reach_artifacts() {
-    let canary = pass_canary("recast/runtime_record_view_exit");
+    let canary = pass_canary(fixture_roster::RUNTIME_RECORD_VIEW_EXIT);
     for (target, expected_register) in [
         ("linux_x86_64", "\"X86R14\""),
         ("linux_arm64", "\"Aarch64X(21)\""),
@@ -1685,7 +1688,7 @@ fn compiler_body_place_address_footprints_reach_artifacts() {
 
 #[test]
 fn runtime_record_view_place_address_canary_runs() {
-    let canary = pass_canary("recast/runtime_record_view_exit");
+    let canary = pass_canary(fixture_roster::RUNTIME_RECORD_VIEW_EXIT);
     let build_dir = std::env::temp_dir().join(format!(
         "omega-runtime-record-view-place-address-{}",
         std::process::id()
@@ -1704,8 +1707,9 @@ fn runtime_record_view_place_address_canary_runs() {
 
 #[test]
 fn compiler_body_bounded_buffer_literal_append_footprints_reach_artifacts() {
-    let canary =
-        pass_canary("text/runtime_machine_owned_double_indexed_bounded_carrier_literal_exit");
+    let canary = pass_canary(
+        fixture_roster::RUNTIME_MACHINE_OWNED_DOUBLE_INDEXED_BOUNDED_CARRIER_LITERAL_EXIT,
+    );
     for (target, expected_register) in [
         ("linux_x86_64", "\"X86Rdi\""),
         ("linux_arm64", "\"Aarch64X(14)\""),
@@ -1742,7 +1746,8 @@ fn compiler_body_bounded_buffer_literal_append_footprints_reach_artifacts() {
 
 #[test]
 fn compiler_body_string_write_footprints_reach_x86_and_aarch64_artifacts() {
-    let canary = pass_canary("text/runtime_machine_owned_double_indexed_string_field_concat_exit");
+    let canary =
+        pass_canary(fixture_roster::RUNTIME_MACHINE_OWNED_DOUBLE_INDEXED_STRING_FIELD_CONCAT_EXIT);
     for (target, expected_register) in [
         ("linux_x86_64", "\"X86R14\""),
         ("linux_arm64", "\"Aarch64X(17)\""),
@@ -1771,7 +1776,8 @@ fn compiler_body_string_write_footprints_reach_x86_and_aarch64_artifacts() {
 
 #[test]
 fn compiler_body_general_x86_text_assembly_reaches_the_final_artifact() {
-    let canary = pass_canary("text/runtime_x86_general_double_indexed_string_concat_compile");
+    let canary =
+        pass_canary(fixture_roster::RUNTIME_X86_GENERAL_DOUBLE_INDEXED_STRING_CONCAT_COMPILE);
     let scratch = std::env::temp_dir().join(format!(
         "omega-general-x86-text-assembly-{}",
         std::process::id()
@@ -1808,7 +1814,7 @@ fn compiler_body_general_x86_text_assembly_reaches_the_final_artifact() {
 
 #[test]
 fn compiler_body_wire_scalar_appends_reach_x86_and_aarch64_artifacts() {
-    let canary = pass_canary("wire/runtime_wire_encode_primitive_exit");
+    let canary = pass_canary(fixture_roster::RUNTIME_WIRE_ENCODE_PRIMITIVE_EXIT);
     for (target, expected_scalar_register) in [
         ("linux_x86_64", "\"X86Rax\""),
         ("linux_arm64", "\"Aarch64X(26)\""),
@@ -1872,7 +1878,7 @@ fn compiler_body_wire_scalar_appends_reach_x86_and_aarch64_artifacts() {
 
 #[test]
 fn compiler_body_wire_text_appends_reach_x86_and_aarch64_artifacts() {
-    let canary = pass_canary("wire/runtime_wire_encode_string_exit");
+    let canary = pass_canary(fixture_roster::RUNTIME_WIRE_ENCODE_STRING_EXIT);
     for (target, expected_registers) in [
         (
             "linux_x86_64",
@@ -1944,7 +1950,7 @@ fn compiler_body_wire_text_appends_reach_x86_and_aarch64_artifacts() {
 
 #[test]
 fn compiler_body_wire_scalar_slice_appends_reach_x86_and_aarch64_artifacts() {
-    let canary = pass_canary("wire/runtime_wire_encode_borrowed_scalar_slice_exit");
+    let canary = pass_canary(fixture_roster::RUNTIME_WIRE_ENCODE_BORROWED_SCALAR_SLICE_EXIT);
     for (target, expected_registers) in [
         (
             "linux_x86_64",
@@ -2018,7 +2024,7 @@ fn compiler_body_wire_scalar_slice_appends_reach_x86_and_aarch64_artifacts() {
 
 #[test]
 fn compiler_body_wire_repeated_scalar_appends_reach_x86_and_aarch64_artifacts() {
-    let canary = pass_canary("wire/runtime_wire_encode_repeated_then_string_exit");
+    let canary = pass_canary(fixture_roster::RUNTIME_WIRE_ENCODE_REPEATED_THEN_STRING_EXIT);
     for (target, expected_registers) in [
         (
             "linux_x86_64",
@@ -2096,7 +2102,7 @@ fn compiler_body_wire_repeated_scalar_appends_reach_x86_and_aarch64_artifacts() 
 
 #[test]
 fn compiler_body_wire_byte_slice_reads_reach_x86_and_aarch64_artifacts() {
-    let canary = pass_canary("wire/runtime_wire_decode_byte_slice_exit");
+    let canary = pass_canary(fixture_roster::RUNTIME_WIRE_DECODE_BYTE_SLICE_EXIT);
     for (target, expected_registers) in [
         (
             "linux_x86_64",
@@ -2169,7 +2175,7 @@ fn compiler_body_wire_byte_slice_reads_reach_x86_and_aarch64_artifacts() {
 
 #[test]
 fn compiler_body_wire_nested_bounds_reach_x86_and_aarch64_artifacts() {
-    let canary = pass_canary("wire/runtime_wire_roundtrip_nested_and_repeated_exit");
+    let canary = pass_canary(fixture_roster::RUNTIME_WIRE_ROUNDTRIP_NESTED_AND_REPEATED_EXIT);
     for (target, expected_open_registers, expected_close_registers) in [
         (
             "linux_x86_64",
@@ -2250,7 +2256,7 @@ fn compiler_body_wire_nested_bounds_reach_x86_and_aarch64_artifacts() {
 
 #[test]
 fn compiler_body_wire_repeated_scalar_reads_reach_x86_and_aarch64_artifacts() {
-    let canary = pass_canary("wire/runtime_wire_roundtrip_nested_and_repeated_exit");
+    let canary = pass_canary(fixture_roster::RUNTIME_WIRE_ROUNDTRIP_NESTED_AND_REPEATED_EXIT);
     for (target, expected_registers) in [
         (
             "linux_x86_64",
@@ -2329,7 +2335,7 @@ fn compiler_body_wire_repeated_scalar_reads_reach_x86_and_aarch64_artifacts() {
 
 #[test]
 fn compiler_body_wire_expected_byte_reads_reach_x86_and_aarch64_artifacts() {
-    let canary = pass_canary("wire/runtime_wire_decode_let_compare_exit");
+    let canary = pass_canary(fixture_roster::RUNTIME_WIRE_DECODE_LET_COMPARE_EXIT);
     for (target, expected_register) in [
         ("linux_x86_64", "\"X86R13\""),
         ("linux_arm64", "\"Aarch64X(21)\""),
@@ -2393,7 +2399,7 @@ fn compiler_body_wire_expected_byte_reads_reach_x86_and_aarch64_artifacts() {
 
 #[test]
 fn compiler_body_wire_ranged_scalar_reads_reach_x86_and_aarch64_artifacts() {
-    let canary = pass_canary("wire/runtime_wire_decode_ranged_field_exit");
+    let canary = pass_canary(fixture_roster::RUNTIME_WIRE_DECODE_RANGED_FIELD_EXIT);
     for (target, expected_registers) in [
         (
             "linux_x86_64",
@@ -2467,7 +2473,8 @@ fn compiler_body_wire_ranged_scalar_reads_reach_x86_and_aarch64_artifacts() {
 
 #[test]
 fn aarch64_frame_descriptor_ops_with_machine_index_reach_the_final_artifact() {
-    let canary = pass_canary("slices/runtime_aarch64_cross_region_frame_indexed_rmw_compile");
+    let canary =
+        pass_canary(fixture_roster::RUNTIME_AARCH64_CROSS_REGION_FRAME_INDEXED_RMW_COMPILE);
     let scratch = std::env::temp_dir().join(format!(
         "omega-aarch64-cross-region-frame-indexed-rmw-{}",
         std::process::id()
@@ -2505,8 +2512,9 @@ fn aarch64_frame_descriptor_ops_with_machine_index_reach_the_final_artifact() {
 
 #[test]
 fn compiler_body_bounded_buffer_write_footprints_reach_x86_and_aarch64_artifacts() {
-    let canary =
-        pass_canary("text/runtime_machine_owned_double_indexed_bounded_carrier_literal_exit");
+    let canary = pass_canary(
+        fixture_roster::RUNTIME_MACHINE_OWNED_DOUBLE_INDEXED_BOUNDED_CARRIER_LITERAL_EXIT,
+    );
     for (target, expected_register) in [
         ("linux_x86_64", "\"X86Rax\""),
         ("linux_arm64", "\"Aarch64X(17)\""),
@@ -2543,7 +2551,7 @@ fn compiler_body_bounded_buffer_write_footprints_reach_x86_and_aarch64_artifacts
 
 #[test]
 fn compiler_body_storage_bit_field_write_footprints_reach_x86_and_aarch64_artifacts() {
-    let canary = pass_canary("layouts/runtime_plan_laid_compact_bits_exit");
+    let canary = pass_canary(fixture_roster::RUNTIME_PLAN_LAID_COMPACT_BITS_EXIT);
     for (target, expected_register) in [
         ("linux_x86_64", "\"X86R11\""),
         ("linux_arm64", "\"Aarch64X(20)\""),
@@ -2589,7 +2597,7 @@ fn compiler_body_storage_bit_field_write_footprints_reach_x86_and_aarch64_artifa
 
 #[test]
 fn compiler_body_storage_convert_write_footprints_reach_x86_and_aarch64_artifacts() {
-    let canary = pass_canary("control_flow/runtime_entry_cast_result_exit");
+    let canary = pass_canary(fixture_roster::RUNTIME_ENTRY_CAST_RESULT_EXIT);
     for (target, expected_register) in [
         ("linux_x86_64", "\"X86R14\""),
         ("linux_arm64", "\"Aarch64X(16)\""),
@@ -2635,7 +2643,7 @@ fn compiler_body_storage_convert_write_footprints_reach_x86_and_aarch64_artifact
 
 #[test]
 fn compiler_body_machine_indexed_convert_write_footprints_reach_x86_and_aarch64_artifacts() {
-    let canary = pass_canary("text/runtime_number_to_decimal_exit");
+    let canary = pass_canary(fixture_roster::RUNTIME_NUMBER_TO_DECIMAL_EXIT);
     for (target, expected_register) in [
         ("linux_x86_64", "\"X86R14\""),
         ("linux_arm64", "\"Aarch64X(16)\""),
@@ -2682,7 +2690,7 @@ fn compiler_body_machine_indexed_convert_write_footprints_reach_x86_and_aarch64_
 
 #[test]
 fn compiler_body_pointee_integer_write_footprints_reach_x86_and_aarch64_artifacts() {
-    let canary = pass_canary("borrow/runtime_view_of_view_chain_exit");
+    let canary = pass_canary(fixture_roster::RUNTIME_VIEW_OF_VIEW_CHAIN_EXIT);
     for (target, expected_register) in [
         ("linux_x86_64", "\"X86R15\""),
         ("linux_arm64", "\"Aarch64X(17)\""),
@@ -2871,7 +2879,7 @@ machine Main::main(&mut self) {
 
 #[test]
 fn compiler_body_machine_indexed_integer_write_footprints_reach_artifacts() {
-    let canary = pass_canary("storage/runtime_machine_owned_indexed_integer_write_exit");
+    let canary = pass_canary(fixture_roster::RUNTIME_MACHINE_OWNED_INDEXED_INTEGER_WRITE_EXIT);
     for (target, expected_register) in [
         ("linux_x86_64", "\"X86R11\""),
         ("linux_arm64", "\"Aarch64X(26)\""),
@@ -2974,7 +2982,7 @@ machine Main::main(&mut self) {
 
 #[test]
 fn runtime_value_guard_footprints_reach_x86_and_aarch64_artifacts() {
-    let canary = pass_canary("text/runtime_string_field_literal_guard_exit");
+    let canary = pass_canary(fixture_roster::RUNTIME_STRING_FIELD_LITERAL_GUARD_EXIT);
     for (target, expected_registers) in [
         (
             "linux_x86_64",
