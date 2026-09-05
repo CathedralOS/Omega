@@ -28,6 +28,8 @@ use super::value_calls_and_dispatch::fixture_roster as value_calls_and_dispatch;
 use super::wire_and_algorithms::fixture_roster as wire_and_algorithms;
 use super::*;
 
+#[path = "../fixture_rosters/access_plans.rs"]
+mod access_plans;
 #[path = "../fixture_rosters/build_target_activation.rs"]
 mod build_target_activation;
 #[path = "../fixture_rosters/call_acknowledgements.rs"]
@@ -66,6 +68,7 @@ fn pass_roster() -> Vec<&'static str> {
         CHECKED_ONLY_PASS_CANARIES,
         ACTIVE_PASS_CANARIES,
         root_fixture_roster::PASS_CANARIES,
+        access_plans::PASS_CANARIES,
         compiler_library::PASS_CANARIES,
         conformance_policy_source::PASS_CANARIES,
         inline_asm::PASS_CANARIES,

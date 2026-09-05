@@ -35,6 +35,16 @@ use package_compilation::{
 use semantic_vocabulary::PackageKeyIdentity;
 use target::NativeTarget;
 
+#[path = "fixture_rosters/access_plans.rs"]
+mod fixture_roster;
+
+fn corpus_source(fixture: &str) -> PathBuf {
+    PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("../../../../tests/omega/pass")
+        .join(fixture)
+        .join("main.omg")
+}
+
 fn write_program(name: &str, source: &str) -> PathBuf {
     let directory =
         std::env::temp_dir().join(format!("omega-access-{name}-{}", std::process::id()));
@@ -424,6 +434,66 @@ machine Main::main(&mut self) {}
             .all(|machine| !machine.name.as_str().starts_with("PlacedField::")),
         "compiler-only accessor templates must not enter the typed program"
     );
+}
+
+#[test]
+fn corpus_inaccessible_seed_exposes_only_the_selected_field() {
+    let source = fs::read_to_string(corpus_source(fixture_roster::ACCESS_PLAN_INACCESSIBLE_SEED))
+        .expect("read inaccessible-seed corpus source");
+    // Supply geometry for the fixture's two u32 fields through the ordinary
+    // source evaluator; access evaluation must replay that validated layout.
+    let main = write_program(
+        "corpus-inaccessible-seed",
+        &format!(
+            "{source}\n{}",
+            r#"
+data PairLayout { entries: [FieldEntry; 64]; }
+machine PairLayout::plan(&mut self, schema: Schema) -> Plan {
+    self.entries[0] = FieldEntry {
+        key: schema.fields[0].key,
+        placement: FieldPlan::At { offset: 0 },
+    };
+    self.entries[1] = FieldEntry {
+        key: schema.fields[1].key,
+        placement: FieldPlan::At { offset: 4 },
+    };
+    Plan { entries: self.entries, entry_count: 2,
+           size_fixed: 8, size_is_dynamic: false, align: 4 }
+}
+"#
+        ),
+    );
+    let checked = compile_to_checked(&main, None).expect("inaccessible-seed source should check");
+    let layout = compute_layout_plan(&checked.typed, "PairLayout::plan", "Pair")
+        .expect("pair geometry should validate");
+    let access = compute_access_plan(&checked.typed, "PairAccess::plan", "Pair", &layout)
+        .expect("corpus access policy should evaluate");
+    assert_eq!(access.plan().entries().len(), 2);
+    let [readable] = access.field_descriptors() else {
+        panic!("only the readable field should produce an access descriptor")
+    };
+    assert_eq!(readable.field(), "readable");
+    assert_eq!(readable.transfer_width_bits(), 32);
+    assert_eq!(readable.observation(), ObservationModel::Stable);
+    assert!(readable.permissions().read);
+    assert!(!readable.permissions().write);
+    assert_eq!(readable.exposure(), AccessExposure::Exported);
+    let hidden = access
+        .plan()
+        .entries()
+        .iter()
+        .find(|entry| entry.field() == "hidden")
+        .expect("the hidden field retains its inaccessible decision");
+    assert!(matches!(hidden.access(), FieldAccess::Inaccessible));
+}
+
+#[test]
+fn corpus_placed_policy_records_reach_checked_trees() {
+    compile_to_checked(
+        &corpus_source(fixture_roster::PLACED_POLICY_CORE_RECORDS),
+        None,
+    )
+    .expect("ordinary policy records should check without granting placement authority");
 }
 
 #[test]
