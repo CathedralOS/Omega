@@ -288,6 +288,20 @@ impl<'program, 'target, 'scope> ExpressionTableLowerer<'program, 'target, 'scope
                 let private_layout_operation = self.lower_private_layout_operation_request(call)?;
                 let receiver = self.lower_optional(call.receiver)?;
                 let arguments = self.lower_expression_handle_span(call.arguments)?;
+                let target_symbol = if !call.target_symbol.is_valid() {
+                    self.program
+                        .map(|program| {
+                            crate::call_results::computed_receiver_method_target(
+                                program,
+                                &self.target_trees.expression_table,
+                                receiver,
+                                &call.target,
+                            )
+                        })
+                        .unwrap_or_default()
+                } else {
+                    call.target_symbol
+                };
                 let machine_arguments = if private_layout_operation.is_some() {
                     // `Slot` is a sealed proof-static selector, not an
                     // ordinary generic parameter of the identity operation.
@@ -304,7 +318,7 @@ impl<'program, 'target, 'scope> ExpressionTableLowerer<'program, 'target, 'scope
                     .insert(typed::expression::ExpressionNode::Call(
                         typed::expression::TableCallExpression {
                             receiver,
-                            target_symbol: call.target_symbol,
+                            target_symbol,
                             target: lower_name(&call.target),
                             static_requirement_dispatch: None,
                             machine_arguments,

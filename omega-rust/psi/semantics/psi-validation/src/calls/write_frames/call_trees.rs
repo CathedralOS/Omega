@@ -23,9 +23,10 @@ enum PendingNode {
     CallFrame(ExpressionHandle),
 }
 
-/// Receiver indices use the same complete call-tree proof as other scalar
-/// indexes. Declaration lookup identifies reference slots without replaying
-/// caller-prefix origin transfer from inside a raw frame query.
+/// Receiver producers and indices use the shared complete call-tree proof.
+/// Result-origin evidence is separate from this non-rebinding effect check.
+/// Declaration lookup identifies reference slots without replaying caller-prefix
+/// origin transfer from inside a raw frame query.
 pub(super) fn receiver_expression_preserves_origin(
     program: &TypedTrees,
     current_machine: &Machine,
@@ -37,8 +38,7 @@ pub(super) fn receiver_expression_preserves_origin(
     complete_expression_tree(
         program,
         current_machine,
-        receiver,
-        ValuePosition::IndexOperand,
+        PendingNode::Receiver(receiver),
         machine_symbols,
         symbols,
         active_states,
@@ -77,8 +77,7 @@ pub(super) fn stable_alias_index_expression_preserves_origin(
     complete_expression_tree(
         program,
         current_machine,
-        expression,
-        ValuePosition::IndexOperand,
+        PendingNode::Expression(expression, ValuePosition::IndexOperand),
         machine_symbols,
         symbols,
         active_states,
@@ -109,8 +108,7 @@ pub(super) fn parameter_relative_expression_preserves_transparent_result(
     complete_expression_tree(
         program,
         current_machine,
-        expression,
-        position,
+        PendingNode::Expression(expression, position),
         machine_symbols,
         symbols,
         active_states,
@@ -166,8 +164,7 @@ pub(super) fn parameter_relative_expression_preserves_transparent_result(
 fn complete_expression_tree(
     program: &TypedTrees,
     current_machine: &Machine,
-    expression: ExpressionHandle,
-    position: ValuePosition,
+    root: PendingNode,
     machine_symbols: &MachineSymbols<'_>,
     symbols: &TopLevelSymbols<'_>,
     active_states: &mut Vec<SymbolHandle>,
@@ -177,7 +174,7 @@ fn complete_expression_tree(
         &mut Vec<SymbolHandle>,
     ) -> ExpressionAdmission,
 ) -> bool {
-    let mut pending = vec![PendingNode::Expression(expression, position)];
+    let mut pending = vec![root];
     let mut value_children = Vec::new();
     while let Some(node) = pending.pop() {
         let expression =
@@ -188,23 +185,30 @@ fn complete_expression_tree(
                         ExpressionAdmission::Leaf => continue,
                         ExpressionAdmission::Traverse => {}
                     }
-                    match program.expression_table.expression(expression) {
-                        ExpressionNode::Borrow(borrow) => {
-                            pending.push(PendingNode::Receiver(borrow.target))
+                    if matches!(
+                        program.expression_table.expression(expression),
+                        ExpressionNode::Call(_)
+                    ) {
+                        expression
+                    } else {
+                        match program.expression_table.expression(expression) {
+                            ExpressionNode::Borrow(borrow) => {
+                                pending.push(PendingNode::Receiver(borrow.target))
+                            }
+                            ExpressionNode::Member(member) => {
+                                pending.push(PendingNode::Receiver(member.receiver))
+                            }
+                            ExpressionNode::Indexed(indexed) => {
+                                pending.push(PendingNode::Expression(
+                                    indexed.index,
+                                    ValuePosition::IndexOperand,
+                                ));
+                                pending.push(PendingNode::Receiver(indexed.collection));
+                            }
+                            _ => return false,
                         }
-                        ExpressionNode::Member(member) => {
-                            pending.push(PendingNode::Receiver(member.receiver))
-                        }
-                        ExpressionNode::Indexed(indexed) => {
-                            pending.push(PendingNode::Expression(
-                                indexed.index,
-                                ValuePosition::IndexOperand,
-                            ));
-                            pending.push(PendingNode::Receiver(indexed.collection));
-                        }
-                        _ => return false,
+                        continue;
                     }
-                    continue;
                 }
                 PendingNode::Expression(expression, position) => {
                     match admit_expression(expression, position, active_states) {
@@ -245,12 +249,22 @@ fn complete_expression_tree(
             return false;
         };
         let arguments = program.expression_table.expression_handles(call.arguments);
-        let Some((receiver_members, receiver_origin)) =
-            super::receiver_frame_origin(program, call.receiver)
-        else {
+        let Some((receiver_members, receiver_origin)) = super::receiver_frame_origin(
+            program,
+            current_machine,
+            call.receiver,
+            symbols,
+            active_states,
+        ) else {
             return false;
         };
-        if matches!(node, PendingNode::Expression(..)) {
+        if call.receiver.is_valid()
+            && receiver_member_chain(program, call.receiver).is_none()
+            && super::machine_state_by_symbol(program, call.target_symbol).is_none()
+        {
+            return false;
+        }
+        if !matches!(node, PendingNode::CallFrame(..)) {
             // Check child expressions before the parent frame, in source order.
             pending.push(PendingNode::CallFrame(expression));
             let argument_types = call_argument_types(

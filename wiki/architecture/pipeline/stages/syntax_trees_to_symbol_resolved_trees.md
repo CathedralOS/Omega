@@ -48,6 +48,9 @@ Must own:
   must retain the exact current receiver, parameter, or prior local identity;
   unresolved indexed paths cannot select a free same-named callable. Bounds,
   index effects, receiver access, and call validity remain later obligations.
+- Unresolved receivers rooted in call results also cannot select a same-named
+  free callable. Typed lowering selects these methods from declared producer
+  return types, after their receiver children have lowered.
 - Keeping source names available for diagnostics without letting strings become
   semantic identity.
 - Preserving an explicit named `requires`/`ensures` evidence binding while its

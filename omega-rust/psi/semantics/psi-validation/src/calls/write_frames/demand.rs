@@ -496,7 +496,7 @@ pub(super) fn collect_expression_call_written_paths(
             // `min`/`max` reductions into opaque whole-receiver clobbers.
             // A boundary member with the same spelling still has its declared
             // receiver and argument reach; spelling cannot bypass resolution.
-            if value_builtin_has_empty_write_frame(call.target.as_str())
+            if value_builtin_has_empty_write_frame(program, call)
                 && super::machine_state_by_symbol(program, call.target_symbol).is_none()
                 && !receiver_members.as_deref().is_some_and(|receiver| {
                     receiver_requires_boundary_frame(machine_symbols, symbols, receiver)
@@ -505,8 +505,18 @@ pub(super) fn collect_expression_call_written_paths(
                 return Some(());
             }
             let exact_receiver = receiver_members.is_some();
-            let (receiver_members, receiver_origin) =
-                super::receiver_frame_origin(program, call.receiver)?;
+            if !exact_receiver
+                && super::machine_state_by_symbol(program, call.target_symbol).is_none()
+            {
+                return None;
+            }
+            let (receiver_members, receiver_origin) = super::receiver_frame_origin(
+                program,
+                current_machine,
+                call.receiver,
+                symbols,
+                active_states,
+            )?;
             if !exact_receiver
                 && !super::call_trees::receiver_expression_preserves_origin(
                     program,
@@ -606,11 +616,31 @@ pub(super) fn collect_expression_call_written_paths(
     Some(())
 }
 
-fn value_builtin_has_empty_write_frame(target: &str) -> bool {
+fn value_builtin_has_empty_write_frame(
+    program: &TypedTrees,
+    call: &psi_typed_trees::expression::TableCallExpression,
+) -> bool {
+    if !call.receiver.is_valid() {
+        return matches!(
+            program
+                .symbols
+                .builtin_function_for_symbol(call.target_symbol),
+            Some(
+                psi_symbols::BuiltinFunction::Min
+                    | psi_symbols::BuiltinFunction::Max
+                    | psi_symbols::BuiltinFunction::Sqrt
+            )
+        );
+    }
+    // View operations remain receiver-bearing builtins. Numeric builtins are
+    // free functions: an unresolved method cannot acquire their empty frame.
     matches!(
-        target,
-        "min" | "max" | "sqrt" | "as_slice" | "as_mut_slice" | "as_view" | "bytes"
-    )
+        call.target.as_str(),
+        "as_slice" | "as_mut_slice" | "as_view" | "bytes"
+    ) && program
+        .expression_table
+        .expression_handles(call.arguments)
+        .is_empty()
 }
 
 pub(super) fn syntactic_call_written_paths(

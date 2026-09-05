@@ -1,6 +1,52 @@
 use super::{Lexer, lower_syntax_trees, parse_syntax_trees};
 
 #[test]
+fn computed_receiver_does_not_select_a_same_spelling_free_machine() {
+    for receiver in ["produce()", "bucket().cell", "array()[0]"] {
+        let source = format!(
+            r#"
+            data Cell {{}} data Bucket {{ cell: Cell; }}
+            machine Cell::read(&self) -> u64 {{ 1 }}
+            machine read() -> u64 {{ 2 }}
+            machine produce() -> Cell {{ Cell {{}} }}
+            machine bucket() -> Bucket {{ Bucket {{ cell: Cell {{}} }} }}
+            machine array() -> [Cell; 1] {{ [Cell {{}}] }}
+            machine run() {{ let result: u64 = {receiver}.read(); }}
+        "#
+        );
+        let syntax =
+            parse_syntax_trees(&Lexer::new(&source).tokenize().expect("tokenize")).expect("parse");
+        let program = lower_syntax_trees(&syntax).expect("resolve");
+        let machine = program
+            .machines
+            .iter()
+            .find(|machine| machine.name.as_str() == "run")
+            .expect("caller");
+        let state = program.machine_state(program.machine_state_handles(machine.states)[0]);
+        let psi_symbol_resolved_trees::statement::StatementNode::LocalData(local) = &program
+            .tables
+            .bodies
+            .statements
+            .statements(state.statement_nodes)[0]
+        else {
+            panic!("result");
+        };
+        let psi_symbol_resolved_trees::expression::ExpressionNode::Call(call) = program
+            .tables
+            .bodies
+            .expressions
+            .expression(local.initial_value)
+        else {
+            panic!("method");
+        };
+        assert!(
+            !call.target_symbol.is_valid(),
+            "{receiver}: declared result typing must select the method"
+        );
+    }
+}
+
+#[test]
 fn state_local_receiver_wins_over_same_named_enclosing_state() {
     let source = r#"
         data Plan {}

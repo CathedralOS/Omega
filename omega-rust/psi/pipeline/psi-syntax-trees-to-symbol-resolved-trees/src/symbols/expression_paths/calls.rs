@@ -14,6 +14,12 @@ pub(in crate::symbols) fn resolve_expression_table_call_target_symbol(
     symbols: &SymbolTable,
 ) -> SymbolHandle {
     if call.receiver.is_valid() {
+        if receiver_needs_result_type(expression_table, call.receiver) {
+            // A result receiver is not a receiverless call. Its declared type
+            // settles during typing; a same-spelling free machine cannot select
+            // the method before that type is available.
+            return SymbolHandle::invalid();
+        }
         if super::indexed_receivers::contains_index(expression_table, call.receiver) {
             return super::indexed_receivers::call_target(
                 machine,
@@ -75,4 +81,20 @@ pub(in crate::symbols) fn resolve_expression_table_call_target_symbol(
         child_type_references,
         symbols,
     )
+}
+
+fn receiver_needs_result_type(
+    expressions: &psi_symbol_resolved_trees::expression::ExpressionTable,
+    mut receiver: psi_symbol_resolved_trees::expression::ExpressionHandle,
+) -> bool {
+    use psi_symbol_resolved_trees::expression::ExpressionNode;
+    loop {
+        receiver = match expressions.expression(receiver) {
+            ExpressionNode::Call(_) => return true,
+            ExpressionNode::Member(member) => member.receiver,
+            ExpressionNode::Indexed(indexed) => indexed.collection,
+            ExpressionNode::Borrow(borrow) => borrow.target,
+            _ => return false,
+        };
+    }
 }

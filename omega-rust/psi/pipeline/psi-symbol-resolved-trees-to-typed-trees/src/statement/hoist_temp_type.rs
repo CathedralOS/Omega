@@ -61,19 +61,8 @@ pub(super) fn infer_hoist_temp_type(
             let target_symbol = call.target_symbol;
             let target_name = call.target.as_str().to_string();
             let mut machine_substitutions = Vec::new();
-            let declared_state = target_symbol
-                .is_valid()
-                .then(|| {
-                    lowerer
-                        .source_trees
-                        .tables
-                        .declarations
-                        .machine_states
-                        .iter()
-                        .find(|(_, candidate)| candidate.symbol == target_symbol)
-                        .map(|(_, candidate)| candidate)
-                })
-                .flatten();
+            let declared_state =
+                crate::call_results::declared_call_state(lowerer.source_trees, target_symbol);
             let declared_return = declared_state
                     .and_then(|candidate| candidate.storage.return_type.clone())
                     .or_else(|| {

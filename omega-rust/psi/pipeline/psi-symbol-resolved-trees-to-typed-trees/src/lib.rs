@@ -2,6 +2,7 @@
 
 //! Attaches type and signature meaning to Psi symbol-resolved source trees.
 
+mod call_results;
 mod data;
 mod domain;
 mod domain_constraints;
