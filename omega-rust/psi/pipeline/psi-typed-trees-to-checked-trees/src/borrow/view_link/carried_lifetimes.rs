@@ -9,6 +9,50 @@ pub(super) struct CarriedLifetime {
     pub(super) access: psi_language_semantics::ReferenceAccess,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum DeclarationLifetimeFrontier {
+    Complete,
+    TemplateDependent,
+    Incomplete,
+}
+
+#[derive(Default)]
+struct TemplateFrontier<'a> {
+    parameters: &'a [SymbolHandle],
+    dependent: bool,
+}
+
+/// A declaration may describe a type parameter without knowing its carried
+/// references. This is not a complete frontier and never supplies a loan.
+pub(crate) fn declaration_lifetime_frontier(
+    program: &TypedTrees,
+    reference: TypeReferenceHandle,
+    parameters: &[SymbolHandle],
+) -> DeclarationLifetimeFrontier {
+    let mut template = TemplateFrontier {
+        parameters,
+        dependent: false,
+    };
+    let complete = collect_type(
+        program,
+        reference,
+        &[],
+        &[],
+        &[],
+        &mut Vec::new(),
+        &mut Vec::new(),
+        false,
+        &mut template,
+    );
+    if !complete {
+        DeclarationLifetimeFrontier::Incomplete
+    } else if template.dependent {
+        DeclarationLifetimeFrontier::TemplateDependent
+    } else {
+        DeclarationLifetimeFrontier::Complete
+    }
+}
+
 pub(super) fn carried_lifetimes(
     program: &TypedTrees,
     reference: TypeReferenceHandle,
@@ -23,6 +67,7 @@ pub(super) fn carried_lifetimes(
         &mut Vec::new(),
         &mut output,
         false,
+        &mut TemplateFrontier::default(),
     )
     .then_some(output)
 }
@@ -45,6 +90,7 @@ pub(super) fn whole_elided_result_accesses(
         &mut Vec::new(),
         &mut output,
         true,
+        &mut TemplateFrontier::default(),
     )
     .then(|| output.into_iter().map(|leaf| leaf.access).collect())
 }
@@ -58,6 +104,7 @@ fn collect_type(
     visiting: &mut Vec<SymbolHandle>,
     output: &mut Vec<CarriedLifetime>,
     whole_elided_contract: bool,
+    template: &mut TemplateFrontier<'_>,
 ) -> bool {
     if program.primitive_type_reference(reference).is_some() {
         return true;
@@ -93,6 +140,7 @@ fn collect_type(
             visiting,
             output,
             whole_elided_contract,
+            template,
         ),
         TypeReferenceNode::FixedArray {
             element_type,
@@ -113,6 +161,7 @@ fn collect_type(
                     visiting,
                     output,
                     whole_elided_contract,
+                    template,
                 )
             })
         }
@@ -168,6 +217,7 @@ fn collect_type(
                 visiting,
                 output,
                 whole_elided_contract,
+                template,
             )
         }
         TypeReferenceNode::Named { symbol, .. } => {
@@ -177,6 +227,10 @@ fn collect_type(
                 .find(|(parameter, _)| parameter == symbol)
             {
                 // An unresolved self-substitution is not a finite concrete type.
+                if *concrete == reference && template.parameters.contains(symbol) {
+                    template.dependent = true;
+                    return true;
+                }
                 if *concrete == reference || visiting.contains(symbol) {
                     return false;
                 }
@@ -190,11 +244,16 @@ fn collect_type(
                     visiting,
                     output,
                     whole_elided_contract,
+                    template,
                 );
                 visiting.pop();
                 return complete;
             }
             let Some(definition) = data_definition(program, *symbol) else {
+                if template.parameters.contains(symbol) {
+                    template.dependent = true;
+                    return true;
+                }
                 return false;
             };
             if !definition.type_parameters.is_empty()
@@ -211,6 +270,7 @@ fn collect_type(
                 visiting,
                 output,
                 whole_elided_contract,
+                template,
             )
         }
         TypeReferenceNode::Unit => true,
@@ -229,6 +289,7 @@ fn collect_data(
     visiting: &mut Vec<SymbolHandle>,
     output: &mut Vec<CarriedLifetime>,
     whole_elided_contract: bool,
+    template: &mut TemplateFrontier<'_>,
 ) -> bool {
     if visiting.contains(&definition.symbol) {
         return whole_elided_contract;
@@ -256,6 +317,7 @@ fn collect_data(
                 visiting,
                 output,
                 whole_elided_contract,
+                template,
             )
         })
     });
