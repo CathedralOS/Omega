@@ -15,7 +15,6 @@ psi-checked-interpreter = { path = "../psi-checked-interpreter" }
 psi-core = { path = "../../foundation/psi-core" }
 psi-diagnostics = { path = "../../foundation/psi-diagnostics" }
 psi-effects = { path = "../../representations/psi-effects" }
-psi-generic-instances = { path = "../../pipeline/psi-generic-instances" }
 psi-language-core = { path = "../../foundation/psi-language-core" }
 psi-language-semantics = { path = "../../foundation/psi-language-semantics" }
 psi-layout-plans = { path = "../../foundation/psi-layout-plans" }

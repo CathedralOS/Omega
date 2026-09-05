@@ -524,7 +524,6 @@ dependencies = [
  "psi-effects",
  "psi-extents",
  "psi-facts",
- "psi-generic-instances",
  "psi-language-core",
  "psi-language-semantics",
  "psi-layout-plans",
@@ -1776,7 +1775,6 @@ dependencies = [
  "psi-core",
  "psi-diagnostics",
  "psi-effects",
- "psi-generic-instances",
  "psi-language-core",
  "psi-language-semantics",
  "psi-layout-plans",
@@ -1899,27 +1897,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "psi-generic-instances"
-version = "0.1.0"
-dependencies = [
- "omega-layout",
- "omega-target",
- "psi-arena",
- "psi-checked-trees",
- "psi-diagnostics",
- "psi-facts",
- "psi-language-semantics",
- "psi-numerics",
- "psi-source",
- "psi-source-files-to-tokens",
- "psi-symbol-resolved-trees-to-typed-trees",
- "psi-syntax-trees",
- "psi-syntax-trees-to-symbol-resolved-trees",
- "psi-tokens-to-syntax-trees",
- "psi-typed-trees-to-checked-trees",
-]
-
-[[package]]
 name = "psi-language-core"
 version = "0.1.0"
 
@@ -2011,7 +1988,6 @@ dependencies = [
  "psi-arena",
  "psi-checked-trees",
  "psi-diagnostics",
- "psi-generic-instances",
  "psi-language-core",
  "psi-language-semantics",
  "psi-numerics",
@@ -2052,7 +2028,6 @@ version = "0.1.0"
 dependencies = [
  "psi-arena",
  "psi-diagnostics",
- "psi-generic-instances",
  "psi-language-semantics",
  "psi-numerics",
  "psi-source",

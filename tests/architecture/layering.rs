@@ -81,9 +81,8 @@ const KNOWN_EDGE_EXCEPTIONS: &[(&str, &str)] = &[
     ("omega-legalized-operations", "psi-terminal-codec"),
     // This target-neutral semantic service owns the pre-resolution/pre-check
     // conveyors documented in canonical_ir_fuel_and_resource_provisioning.md.
-    // Its probe evaluations deliberately invoke these four Psi frontend passes
+    // Its probe evaluations deliberately invoke these three Psi frontend passes
     // while keeping target/provider realization outside Psi.
-    ("psi-build-time-evaluation", "psi-generic-instances"),
     (
         "psi-build-time-evaluation",
         "psi-symbol-resolved-trees-to-typed-trees",

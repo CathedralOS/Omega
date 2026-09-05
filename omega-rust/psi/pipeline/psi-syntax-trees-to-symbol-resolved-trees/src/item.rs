@@ -229,7 +229,7 @@ fn lower_item_with_exposure(
             crate::constant::validate_const_definition(lowerer, syntax_trees, definition)?;
             let canonical_value_encoding = if definition.is_public {
                 Some(
-                    psi_generic_instances::canonicalize_declared_const_definition(
+                    crate::generic_data::canonicalize_declared_const_definition(
                         syntax_trees,
                         definition,
                     )

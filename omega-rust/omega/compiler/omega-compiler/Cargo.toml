@@ -30,7 +30,6 @@ psi-core = { path = "../../../psi/foundation/psi-core" }
 psi-arena = { path = "../../../psi/foundation/psi-arena" }
 psi-symbols = { path = "../../../psi/foundation/psi-symbols" }
 psi-syntax-trees = { path = "../../../psi/representations/psi-syntax-trees" }
-psi-generic-instances = { path = "../../../psi/pipeline/psi-generic-instances" }
 psi-syntax-trees-to-symbol-resolved-trees = { path = "../../../psi/pipeline/psi-syntax-trees-to-symbol-resolved-trees" }
 omega-calling-conventions = { path = "../../representations/omega-calling-conventions" }
 psi-access-plans = { path = "../../../psi/foundation/psi-access-plans" }
@@ -76,6 +75,7 @@ serde_json = "1"
 
 [dev-dependencies]
 sha2 = "0.10.9"
+
 psi-terminal-interpreter = { path = "../../../psi/semantics/psi-terminal-interpreter" }
 omega-bounded-process = { path = "../../tooling/omega-bounded-process" }
 omega-image-emission = { path = "../../backend/images/omega-image-emission" }
@@ -93,3 +93,7 @@ omega-package-compilation = { path = "../../build/omega-package-compilation", fe
 omega-installation-evidence = { path = "../../representations/omega-installation-evidence" }
 psi-facts = { path = "../../../psi/representations/psi-facts" }
 psi-terminal = { path = "../../../psi/representations/psi-terminal" }
+
+[[test]]
+name = "generic_data"
+path = "../../../../tests/omega/generic_data.rs"

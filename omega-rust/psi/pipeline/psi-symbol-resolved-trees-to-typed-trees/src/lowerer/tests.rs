@@ -235,8 +235,9 @@ fn seeded_normalized_plain_data_inputs(
             .expect("tokenize extension"),
     )
     .expect("parse extension");
-    let extension_syntax = psi_generic_instances::normalize_pre_resolution(extension_syntax)
-        .expect("normalize extension unit");
+    let extension_syntax =
+        psi_syntax_trees_to_symbol_resolved_trees::normalize_generic_data(extension_syntax)
+            .expect("normalize extension unit");
     let seeded = lower_syntax_extension_with_authored_selection_frontier(
         typing_base.resolved_base_for_extension(),
         &extension_syntax,

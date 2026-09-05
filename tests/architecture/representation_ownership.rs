@@ -15,6 +15,33 @@ fn repository() -> PathBuf {
 }
 
 #[test]
+fn generic_data_normalization_is_private_work_inside_name_resolution() {
+    let root = repository();
+    assert!(
+        !root
+            .join("omega-rust/psi/pipeline/psi-generic-instances/Cargo.toml")
+            .exists()
+    );
+    let owner = root.join("omega-rust/psi/pipeline/psi-syntax-trees-to-symbol-resolved-trees/src");
+    let entrance = std::fs::read_to_string(owner.join("lib.rs")).unwrap();
+    assert!(entrance.contains("mod generic_data;"));
+    assert!(entrance.contains("pub use generic_data::normalize_generic_data;"));
+    let normalization = std::fs::read_to_string(owner.join("generic_data/mod.rs")).unwrap();
+    assert!(normalization.contains("mut syntax: SyntaxTrees"));
+    assert!(normalization.contains("Result<SyntaxTrees, Vec<Diagnostic>>"));
+    let scratch = std::fs::read_to_string(owner.join("generic_data/discovery.rs")).unwrap();
+    for name in ["GenericData", "PendingRewrite", "Instantiation"] {
+        assert!(scratch.contains(&format!("pub(super) struct {name}")));
+        assert!(
+            !entrance.contains(name),
+            "working state is not a public program representation"
+        );
+    }
+    let declarations = std::fs::read_to_string(owner.join("item.rs")).unwrap();
+    assert!(declarations.contains("crate::generic_data::canonicalize_declared_const_definition"));
+}
+
+#[test]
 fn frame_calculations_have_phase_owners_and_replay_does_not_run_producers() {
     let root = repository();
     for owner in [

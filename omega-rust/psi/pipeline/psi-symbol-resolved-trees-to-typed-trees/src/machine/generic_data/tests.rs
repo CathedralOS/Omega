@@ -21,8 +21,8 @@ fn resolved_fixture() -> SymbolResolvedTrees {
         .source_id;
     let syntax = psi_tokens_to_syntax_trees::parse_syntax_trees_with_id(source_id, &tokens)
         .expect("parse generic method with exact source occurrence ownership");
-    let syntax =
-        psi_generic_instances::normalize_pre_resolution(syntax).expect("synthesize generic method");
+    let syntax = psi_syntax_trees_to_symbol_resolved_trees::normalize_generic_data(syntax)
+        .expect("synthesize generic method");
     psi_syntax_trees_to_symbol_resolved_trees::lower_syntax_trees_with_sources(
         &syntax,
         std::sync::Arc::new(sources),

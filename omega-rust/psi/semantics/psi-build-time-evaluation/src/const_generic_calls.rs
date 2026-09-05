@@ -47,7 +47,7 @@ pub(crate) fn evaluate_const_generic_calls_with_optional_sources(
             TypeReferenceNode::Named(Identifier::generated("0")),
         );
     }
-    let probe = psi_generic_instances::normalize_pre_resolution(probe)?;
+    let probe = psi_syntax_trees_to_symbol_resolved_trees::normalize_generic_data(probe)?;
     let resolved = crate::lower_probe_with_optional_sources(&probe, sources)?;
     let typed = psi_symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
         .map_err(|diagnostic| vec![diagnostic])?;
