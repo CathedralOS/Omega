@@ -129,19 +129,28 @@ impl CompileRequest {
     pub(super) fn validate_for_execution(
         mut self,
     ) -> Result<ValidatedCompileRequest, Vec<Diagnostic>> {
-        if !self.optimization_rollback.is_empty()
-            && self.requested_product != RequestedCompileProduct::NativeArtifact
-        {
-            let names = self
-                .optimization_rollback
-                .requested_disabled()
-                .as_slice()
-                .iter()
+        let unavailable = self
+            .optimization_rollback
+            .requested_disabled()
+            .as_slice()
+            .iter()
+            .filter(|optimization| match self.requested_product {
+                RequestedCompileProduct::Check => true,
+                RequestedCompileProduct::TerminalArtifact => {
+                    optimization.execution_phase()
+                        != optimization_core::OptimizationExecutionPhase::Psi
+                }
+                RequestedCompileProduct::NativeArtifact => false,
+            })
+            .collect::<Vec<_>>();
+        if !unavailable.is_empty() {
+            let names = unavailable
+                .into_iter()
                 .map(|optimization| format!("`{}`", optimization.build_case_name()))
                 .collect::<Vec<_>>()
                 .join(", ");
             return Err(vec![Diagnostic::error(format!(
-                "optimization rollback {names} requires NativeArtifact production; {:?} does not enter native optimizer realization",
+                "optimization rollback {names} names stages not executed by {:?}",
                 self.requested_product
             ))]);
         }
@@ -215,27 +224,34 @@ mod tests {
     }
 
     #[test]
-    fn request_admission_rejects_non_native_rollback_with_stable_diagnostic() {
+    fn request_admission_limits_rollback_to_executed_stages() {
         let rollback = OptimizationRollback::new([
             Optimization::ControlFlowCleanup,
             Optimization::CopyPropagation,
         ])
         .unwrap();
-        for product in [
-            RequestedCompileProduct::Check,
-            RequestedCompileProduct::TerminalArtifact,
-        ] {
-            let diagnostics = request(product, rollback.clone())
+        let diagnostics = request(RequestedCompileProduct::Check, rollback.clone())
+            .validate_for_execution()
+            .expect_err("Check does not execute optimization stages");
+        assert_eq!(diagnostics.len(), 1);
+        assert_eq!(
+            diagnostics[0].message,
+            "optimization rollback `ControlFlowCleanup`, `CopyPropagation` names stages not executed by Check"
+        );
+        assert!(
+            request(RequestedCompileProduct::TerminalArtifact, rollback.clone())
                 .validate_for_execution()
-                .expect_err("non-native rollback must reject during request admission");
-            assert_eq!(diagnostics.len(), 1);
-            assert_eq!(
-                diagnostics[0].message,
-                format!(
-                    "optimization rollback `ControlFlowCleanup`, `CopyPropagation` requires NativeArtifact production; {product:?} does not enter native optimizer realization"
-                )
-            );
-        }
+                .is_ok()
+        );
+        assert!(
+            request(
+                RequestedCompileProduct::TerminalArtifact,
+                OptimizationRollback::new([Optimization::SelectedIncomingU12ExactAddImmediate])
+                    .unwrap()
+            )
+            .validate_for_execution()
+            .is_err()
+        );
         assert!(
             request(RequestedCompileProduct::NativeArtifact, rollback)
                 .validate_for_execution()

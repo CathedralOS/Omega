@@ -6,10 +6,11 @@
 //! publication. The phase consumes the complete unsealed Psi product and
 //! returns the only carrier accepted by canonical Terminal publication.
 
+mod dead_scalar_elimination;
 mod model;
 mod validation;
 
-use optimization::PsiOptimizationSelections;
+use optimization::{PsiOptimization, PsiOptimizationSelections};
 
 use lowered_psi::LoweredPsi;
 pub use model::{PsiOptimizationStageError, PsiOptimizationStageResult};
@@ -20,15 +21,24 @@ use validation::validate_carrier;
 /// unsealed Psi product.
 ///
 /// The empty selection deliberately validates both sides of the identity
-/// transformation. Nonempty selections fail closed until their transformations
-/// and validators have moved from the post-Terminal Omega optimization unit.
+/// transformation. Selected passes execute in canonical order; unported passes
+/// fail closed instead of being recorded as executed identities.
 pub fn run_psi_optimization(
-    lowered: LoweredPsi,
+    mut lowered: LoweredPsi,
     selections: PsiOptimizationSelections,
 ) -> Result<PsiOptimizationStageResult, PsiOptimizationStageError> {
     let (input_semantic, input_proof) = validate_carrier(&lowered)?;
-    if let Some(unsupported) = selections.as_slice().first().copied() {
-        return Err(PsiOptimizationStageError::UnsupportedSelection(unsupported));
+    for selected in selections.as_slice() {
+        match selected {
+            PsiOptimization::DeadPureScalarElimination => {
+                lowered = dead_scalar_elimination::eliminate(lowered)?;
+            }
+            unsupported => {
+                return Err(PsiOptimizationStageError::UnsupportedSelection(
+                    *unsupported,
+                ));
+            }
+        }
     }
 
     let (output_semantic, output_proof) = validate_carrier(&lowered)?;

@@ -69,7 +69,10 @@ pub(super) const RULE_STAGES: &[RuleStageDescriptor] = &[
         catalog: "omega-rust/psi/representations/optimization/src/catalog.rs",
         coordination_marker: "pub fn run_psi_optimization",
         catalog_marker: "PRETERMINAL_PSI_PASS_CATALOG",
-        next_rungs: &[],
+        next_rungs: &[
+            "omega-rust/psi/pipeline/lowered-psi-to-lowered-psi/src/dead_scalar_elimination",
+            "omega-rust/psi/semantics/terminal-verifier/src/optimization.rs",
+        ],
     },
     RuleStageDescriptor {
         entrance: "omega-rust/omega/pipeline/target-operations-to-selected-instructions/src/legalization/mod.rs",

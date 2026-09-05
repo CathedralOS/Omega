@@ -88,8 +88,9 @@ explicit inside their proper stages.
 
 ## 4. Deliver optimized portable Psi
 
-Replace the identity-only pre-Terminal optimization implementation in
-`lowered-psi-to-lowered-psi/src/lib.rs`.
+Complete the selected pre-Terminal rewrites in
+`lowered-psi-to-lowered-psi/src/lib.rs`, including proof-context transport for
+dead scalar elimination in proof-bearing closures.
 
 Move applicable target-neutral rewrites and independent checks before Terminal:
 control-flow cleanup, SCCP, copy propagation, GVN, dead pure scalar elimination

@@ -5,6 +5,8 @@ license.workspace = true
 version.workspace = true
 
 [dependencies]
+semantic-vocabulary = { path = "../../foundation/semantic-vocabulary" }
+terminal-semantics = { path = "../../semantics/terminal-semantics" }
 lowered-psi = { path = "../../representations/lowered-psi" }
 optimization = { path = "../../representations/optimization" }
 terminal-psi = { path = "../../representations/terminal-psi" }

@@ -128,6 +128,14 @@ pub fn reconstruct_interpretable_terminal_obligations(
     reconstruct_validated_terminal_obligations(validated.module())
 }
 
+/// Preserve the complete proof question, including ordered assumptions, across
+/// an optimization. This consumes structural validation, not execution authority.
+pub fn reconstruct_optimizable_terminal_obligations(
+    validated: crate::ValidatedOptimizableTerminalModule<'_>,
+) -> Result<ReconstructedTerminalObligationSet, ModuleError> {
+    reconstruct_validated_terminal_obligations(validated.module())
+}
+
 /// Reconstruct the complete proof question replayed by [`crate::verify_module`].
 /// Rows retain exact semantic owners, assumptions, and axiom ordering. The set
 /// contains both executable-site obligations and every published contract

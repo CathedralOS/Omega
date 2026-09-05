@@ -188,9 +188,7 @@ fn dispatch() {
                     .map(|optimization| format!("`{}`", optimization.build_case_name()))
                     .collect::<Vec<_>>()
                     .join(", ");
-                eprintln!(
-                    "optimization rollback {names} requires NativeArtifact production; Check does not enter native optimizer realization"
-                );
+                eprintln!("optimization rollback {names} names stages not executed by Check");
                 std::process::exit(1);
             }
             let request = package_manager::operations::PreparedLocalProjectCheckRequest::new(

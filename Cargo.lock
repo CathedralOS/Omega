@@ -969,8 +969,10 @@ version = "0.1.0"
 dependencies = [
  "lowered-psi",
  "optimization",
+ "semantic-vocabulary",
  "terminal-codec",
  "terminal-psi",
+ "terminal-semantics",
  "terminal-verifier",
 ]
 

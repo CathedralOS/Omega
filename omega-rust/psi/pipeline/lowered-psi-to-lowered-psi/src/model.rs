@@ -55,6 +55,7 @@ impl PsiOptimizationStageResult {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum PsiOptimizationStageError {
+    InvalidDeadScalarRewrite(terminal_verifier::DeadScalarRewriteError),
     InvalidModule(ModuleError),
     InvalidSemantic(CodecError),
     InvalidProof(ProofCodecError),
@@ -66,6 +67,9 @@ pub enum PsiOptimizationStageError {
 impl std::fmt::Display for PsiOptimizationStageError {
     fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
+            Self::InvalidDeadScalarRewrite(error) => {
+                write!(formatter, "invalid dead scalar rewrite: {error:?}")
+            }
             Self::InvalidModule(error) => write!(formatter, "invalid optimization input: {error}"),
             Self::InvalidSemantic(error) => {
                 write!(formatter, "invalid optimization semantics: {error}")

@@ -425,6 +425,19 @@ pub fn operation_semantic_row(
     )
 }
 
+/// These scalar computations cannot trap, perform an external event, or change
+/// ownership. Their result and any proof use must still be dead before removal.
+pub fn is_unconditionally_total_scalar(operation: &OperationKind) -> bool {
+    matches!(operation, OperationKind::IeeeFloatConstant { .. })
+        || operation_semantic_row(operation).is_ok_and(|row| {
+            row.goal_free_scalar_leaf().is_some_and(|schema| {
+                schema.goal() == ScalarLeafGoalShape::None
+                    && schema.crash() == ScalarLeafCrashPolicy::Never
+                    && schema.frontier() == ScalarLeafFrontierPolicy::PreserveLocal
+            })
+        })
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum ScalarLeafInputs {
     IntegerLiteral(IntegerValue),

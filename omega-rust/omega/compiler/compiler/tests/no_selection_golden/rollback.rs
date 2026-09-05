@@ -113,7 +113,7 @@ fn rollback_to_empty_selection_rejoins_exact_ordinary_path_on_every_target() {
 }
 
 #[test]
-fn nonempty_rollback_rejects_products_that_do_not_enter_native_realization() {
+fn native_rollback_rejects_products_that_do_not_enter_native_realization() {
     for product in [
         RequestedCompileProduct::Check,
         RequestedCompileProduct::TerminalArtifact,
@@ -127,16 +127,21 @@ fn nonempty_rollback_rejects_products_that_do_not_enter_native_realization() {
             })
             .with_requested_product(product)
             .with_optimization_rollback(
-                OptimizationRollback::new([Optimization::ControlFlowCleanup]).unwrap(),
+                OptimizationRollback::new([Optimization::SelectedIncomingU12ExactAddImmediate])
+                    .unwrap(),
             ),
         )
         .expect_err("rollback cannot appear honored without native realization");
         assert_eq!(diagnostics.len(), 1);
-        assert!(diagnostics[0].message.contains("`ControlFlowCleanup`"));
         assert!(
             diagnostics[0]
                 .message
-                .contains("requires NativeArtifact production")
+                .contains("`SelectedIncomingU12ExactAddImmediate`")
+        );
+        assert!(
+            diagnostics[0]
+                .message
+                .contains("names stages not executed by")
         );
         assert!(diagnostics[0].message.contains(&format!("{product:?}")));
         assert!(!diagnostics[0].message.contains("failed to read"));

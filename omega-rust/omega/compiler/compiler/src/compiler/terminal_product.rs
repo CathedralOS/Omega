@@ -12,6 +12,7 @@ use diagnostics::Diagnostic;
 pub(super) fn produce_retained_terminal_artifact(
     checked: &crate::pipeline::CheckedCompilation,
     profile: &proof_admission::AdmissionProfile,
+    selections: &optimization_core::OptimizationSelections,
 ) -> Result<compilation_report::RetainedTerminalArtifact, Vec<Diagnostic>> {
     let callback_placements = checked.callback_placements().to_vec();
     let entry_machine = checked
@@ -30,7 +31,7 @@ pub(super) fn produce_retained_terminal_artifact(
         checked,
         checked.selected_provider_provenance(),
     )?;
-    let psi_optimizations = checked.optimization_selections().project_psi();
+    let psi_optimizations = selections.project_psi();
     let produced =
         terminal_production::produce_terminal_artifact_with_callback_custody_and_optimizations(
             checked,
@@ -60,6 +61,7 @@ pub(super) fn produce_retained_terminal_artifact(
         &callback_placements,
         &source_call_occurrences,
         &selected_ieee_float_fma_occurrences,
+        selections,
     )?;
     compilation_report::RetainedTerminalArtifact::new_with_native_realization_proposal(
         artifact,
@@ -77,6 +79,7 @@ fn project_terminal_native_realization_proposal(
     callback_placements: &[backend_plan::BoundNominalCallbackPlacement],
     source_call_occurrences: &[lowered_psi::LoweredSourceCallOccurrence],
     selected_ieee_float_fma_occurrences: &[lowered_psi::LoweredSelectedIeeeFloatFmaOccurrence],
+    selections: &optimization_core::OptimizationSelections,
 ) -> Result<compilation_report::TerminalNativeRealizationProposal, Vec<Diagnostic>> {
     let target_profile = checked.selected_target_profile().ok_or_else(|| {
         vec![Diagnostic::error(
@@ -247,7 +250,7 @@ fn project_terminal_native_realization_proposal(
         target_profile,
         native_target,
         checked.subsystem(),
-        checked.optimization_selections().project_post_terminal(),
+        selections.project_post_terminal(),
         program_entry,
         checked.selected_provider_plans().clone(),
         external_binding_rows,

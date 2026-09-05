@@ -248,11 +248,12 @@ child set. Checked-body backend enablement, admitted-provider parents, and
 non-identity optimized projections remain explicit follow-on lanes.
 
 Cross-field product admission precedes that frontend. The request owner
-consumes `CompileRequest` into a private validated request and rejects a
-nonempty optimization rollback unless the selected product is
-`NativeArtifact`. This preserves rollback as a native-realization-only release
-overlay and guarantees an invalid product combination reads no source and
-creates no report/output directory. The product driver consumes only the
+consumes `CompileRequest` into a private validated request and rejects rollback
+for stages the requested product will not execute. `Check` admits no rollback;
+`TerminalArtifact` admits only Psi-stage names; `NativeArtifact` admits the
+complete selection. Rollback remains a subtractive release overlay, and an
+invalid product combination reads no source and creates no report/output
+directory. The product driver consumes only the
 validated request; it does not inspect rollback contents or own the policy
 diagnostic.
 

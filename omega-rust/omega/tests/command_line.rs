@@ -163,7 +163,7 @@ fn optimizer_rollback_cli_rejects_check_before_reading_source() {
     ]);
     assert_eq!(output.status.code(), Some(1));
     let stderr = String::from_utf8_lossy(&output.stderr);
-    assert!(stderr.contains("requires NativeArtifact production"));
+    assert!(stderr.contains("names stages not executed by Check"));
     assert!(stderr.contains("`ControlFlowCleanup`"));
     assert!(!stderr.contains("failed to read"));
 }

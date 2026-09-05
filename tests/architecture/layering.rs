@@ -1435,7 +1435,8 @@ fn compile_request_owns_product_admission_before_source_acquisition() {
     for required in [
         "struct ValidatedCompileRequest",
         "fn validate_for_execution(",
-        "requires NativeArtifact production",
+        "names stages not executed by",
+        "OptimizationExecutionPhase::Psi",
         "RequestedCompileProduct::NativeArtifact",
     ] {
         assert!(
