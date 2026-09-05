@@ -18,6 +18,38 @@ pub(super) fn append_guard_context(
     let TransitionGuardNode::When(expression) = guard else {
         return;
     };
+    append_predicate_context(
+        program,
+        semantic,
+        ctx,
+        state_symbol,
+        statement_index,
+        expression,
+        value,
+        ProgramPoint::TransitionArm {
+            machine_symbol,
+            state_symbol,
+            statement_index,
+            transition_target,
+        },
+        active_contexts,
+        active_constraints,
+    );
+}
+
+#[allow(clippy::too_many_arguments)]
+pub(in crate::flow) fn append_predicate_context(
+    program: &psi_typed_trees::TypedTrees,
+    semantic: &mut FactPlan,
+    ctx: &mut FlowBuildContext,
+    state_symbol: SymbolHandle,
+    statement_index: usize,
+    expression: ExpressionHandle,
+    value: bool,
+    point: ProgramPoint,
+    active_contexts: &mut HandleSpan<FlowSemanticContextRef>,
+    active_constraints: &mut HandleSpan<FlowConstraintRef>,
+) {
     // An effectful invocation's result is not a promise about evaluating that
     // invocation again. A saved local boolean is an ordinary stable place.
     if !expression_is_stable_predicate(program, expression) {
@@ -44,12 +76,6 @@ pub(super) fn append_guard_context(
             places.push(place);
         }
     }
-    let point = ProgramPoint::TransitionArm {
-        machine_symbol,
-        state_symbol,
-        statement_index,
-        transition_target,
-    };
     let mut refs = HandleSpan::empty();
     for place in places
         .iter()

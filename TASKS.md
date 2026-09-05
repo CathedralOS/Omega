@@ -469,9 +469,12 @@ Owners include
 - **STATE-LOCAL-VALUE-FRONTIER.** Complete live contract/value-fact transport
   across explicit state arguments, including computed values and dynamic
   projections. Retain selected arithmetic values across local assignments and
-  materialize effectful returns at their exact evaluation points. Add
-  destination-correct landing for wholly anonymous integer expressions so exit
-  proof can consume their numeric laws without rereading changed operands.
+  materialize effectful returns and earlier call arguments at their exact
+  evaluation points. Unify transition operand scheduling with ordinary
+  expression scheduling and activate staged loans at their evaluation points.
+  Complete anonymous integer landing for guarded returns, local/argument/store
+  destinations, and the full numeric operator/policy surface, so proof and
+  execution consume the same values without rereading changed operands.
   Acceptance: implicit cross-state use rejects, while explicit renamed
   transfers retain exact contracts, field selection, ownership and cleanup
   without requiring a runtime copy. Wrong results, mismatched output origins,

@@ -9,7 +9,9 @@ mod place_builders;
 mod receiver;
 mod substitution;
 
-pub(crate) use expression::instantiate_outcome_contract_expression_place;
+pub(crate) use expression::{
+    instantiate_call_contract_expression_place, instantiate_outcome_contract_expression_place,
+};
 
 pub(crate) fn instantiate_call_contract_place(
     program: &psi_typed_trees::TypedTrees,

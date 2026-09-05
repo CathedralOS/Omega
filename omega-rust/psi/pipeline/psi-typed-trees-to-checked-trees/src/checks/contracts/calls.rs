@@ -56,7 +56,14 @@ pub(super) fn check_call_requires(
         for fact in facts.semantic.context_view(context).facts() {
             let satisfied = match fact.payload {
                 FactPayload::ContractBooleanExpression { expression, .. } => {
-                    if expression_is_boolean_place_like(program, expression) {
+                    call_entry_contexts_prove_boolean_contract_expression(
+                        program,
+                        &facts.semantic,
+                        state_flow,
+                        call_flow,
+                        &entry_contexts,
+                        expression,
+                    ) || if expression_is_boolean_place_like(program, expression) {
                         semantic_contexts_prove_contract_fact(
                             program,
                             &facts.semantic,
@@ -64,14 +71,6 @@ pub(super) fn check_call_requires(
                             fact,
                         )
                     } else {
-                        call_entry_contexts_prove_boolean_contract_expression(
-                            program,
-                            &facts.semantic,
-                            state_flow,
-                            call_flow,
-                            &entry_contexts,
-                            expression,
-                        )
                         // R1: a DOMINATING incoming-arm guard establishes a
                         // boolean requires fact -- the ranges machinery's
                         // IncomingGuard walk-back is the soundness gate
@@ -79,7 +78,7 @@ pub(super) fn check_call_requires(
                         // intermediate states), and the caller state's OWN
                         // statements must preserve the named fields up to
                         // the call (conservative whole-state scan).
-                        || incoming_guard_proves_requires(
+                        incoming_guard_proves_requires(
                             program,
                             state_flow,
                             call_flow,

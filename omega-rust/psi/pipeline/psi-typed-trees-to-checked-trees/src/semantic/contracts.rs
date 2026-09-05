@@ -380,6 +380,35 @@ fn append_call_semantic_contract_refs(
             payload,
         });
         facts.append_ref(refs, fact);
+        // A Boolean postcondition's outer expression is not its storage
+        // dependency. Retain each exact instantiated operand in the same
+        // context so the shared mutation filter retires the whole promise
+        // when any referenced value changes.
+        if origin == FactOrigin::CallEnsures
+            && matches!(payload, FactPayload::ContractBooleanExpression { .. })
+        {
+            for occurrence in
+                crate::contract_occurrences::fact_referenced_occurrences(program, contract.fact)
+            {
+                let dependency =
+                    crate::semantic_places::instantiate_call_contract_expression_place(
+                        program, facts, call, occurrence,
+                    )
+                    .map(FactPlace::Place)
+                    .unwrap_or(FactPlace::Unknown);
+                if dependency == place {
+                    continue;
+                }
+                let dependency_fact = facts.append_fact(Fact {
+                    place: dependency,
+                    point,
+                    origin,
+                    evidence,
+                    payload: FactPayload::StorageDependency { dependent: fact },
+                });
+                facts.append_ref(refs, dependency_fact);
+            }
+        }
         if let Some(value) = carry_origin {
             let fact = facts.append_fact(Fact {
                 place,

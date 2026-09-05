@@ -49,6 +49,16 @@ pub(super) fn direct_context_proves_instantiated_boolean_expression(
     target_state: &(impl ContractTargetParameters + ?Sized),
     expression: psi_typed_trees::expression::ExpressionHandle,
 ) -> bool {
+    if instantiated_guard_proves(
+        program,
+        semantic,
+        context,
+        call_site,
+        target_state,
+        expression,
+    ) {
+        return true;
+    }
     let required_label = instantiate_call_contract_expression_label(
         program,
         caller_state_symbol,
@@ -84,4 +94,63 @@ pub(super) fn direct_context_proves_instantiated_boolean_expression(
                     semantic.places.get(candidate_place),
                 )))
     })
+}
+
+fn instantiated_guard_proves(
+    program: &psi_typed_trees::TypedTrees,
+    semantic: &psi_facts::FactPlan,
+    context: &psi_facts::FactContext,
+    call_site: &crate::CallSite<'_>,
+    target: &(impl ContractTargetParameters + ?Sized),
+    expression: psi_typed_trees::expression::ExpressionHandle,
+) -> bool {
+    use super::prover::{ScalarValue, evaluate_scalar};
+    use psi_typed_trees::expression::ExpressionNode;
+
+    let parameters = target.contract_parameters(program);
+    let arguments = crate::call_site_argument_expressions(program, call_site);
+    evaluate_scalar(program, expression, &mut |formal| {
+        let ExpressionNode::Name(path) = program.expression_table.expression(formal) else {
+            return None;
+        };
+        if !path.symbol.is_valid()
+            || program
+                .expression_table
+                .name_path_members(path.members)
+                .len()
+                != 1
+        {
+            return None;
+        }
+        let argument = if parameters
+            .iter()
+            .any(|parameter| parameter.is_self && parameter.symbol == path.symbol)
+        {
+            match call_site {
+                crate::CallSite::Expression { call, .. } => call.receiver,
+                _ => return None,
+            }
+        } else {
+            let position = parameters
+                .iter()
+                .filter(|parameter| !parameter.is_self)
+                .position(|parameter| parameter.symbol == path.symbol)?;
+            *arguments.get(position)?
+        };
+        evaluate_scalar(program, argument, &mut |leaf| {
+            semantic.context_view(context).facts().find_map(|fact| {
+                let psi_facts::FactPayload::BooleanValue {
+                    expression: guard,
+                    value,
+                } = fact.payload
+                else {
+                    return None;
+                };
+                [true, false]
+                    .into_iter()
+                    .find(|required| guard_values::proves(program, guard, value, leaf, *required))
+                    .map(ScalarValue::Boolean)
+            })
+        })
+    }) == Some(ScalarValue::Boolean(true))
 }
