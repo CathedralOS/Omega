@@ -461,6 +461,111 @@ fn retained_x86_fma_and_source_evaluated_import_compose_nested_mxcsr_custody() {
 }
 
 #[test]
+fn windows_catalog_dll_case_variants_preserve_imports_and_execute() {
+    for (case_name, library) in [
+        ("lower", "kernel32.dll"),
+        ("catalog", "Kernel32.dll"),
+        ("upper-stem", "KERNEL32.dll"),
+        ("upper", "KERNEL32.DLL"),
+    ] {
+        let source = format!(
+            r#"use omega::language::core::external_binding;
+
+boundary trait WindowsCalls {{
+    machine find_close(handle: i64) -> i32;
+    machine exit(code: i32);
+}}
+windows_x86_64 machine find_close_binding() -> Binding<12, 9, 0> {{
+    Binding::DllImport {{
+        import: DllImport::PeByName {{ library: "{library}", export: "FindClose" }},
+    }}
+}}
+windows_x86_64 machine exit_binding() -> Binding<12, 11, 0> {{
+    Binding::DllImport {{
+        import: DllImport::PeByName {{ library: "Kernel32.dll", export: "ExitProcess" }},
+    }}
+}}
+machine find_close_leaf(handle: i64) -> i32 satisfies WindowsCalls::find_close via find_close_binding();
+machine exit_leaf(code: i32) satisfies WindowsCalls::exit via exit_binding();
+data Main {{ windows: WindowsCalls; }}
+machine Main::main(&mut self) {{
+    let result: i32 = self.windows.find_close(0);
+    self.windows.exit(result);
+}}
+"#
+        );
+        let fixture = Fixture::with_source(
+            &format!("dll-case-{case_name}"),
+            "windows_x86_64",
+            &source,
+            r#"machine build(builder: &mut Build) {
+    builder.application("windows-dll-case");
+    builder.roots.bind(windows_x86_64::ProgramEntry, Main::main);
+}
+"#,
+        );
+        let retained = fixture.compile_terminal();
+        let admissions = admit_imports(&retained, 0x4341_5345_0001);
+        assert_eq!(
+            admissions.len(),
+            2,
+            "{library}: both import leaves require custody"
+        );
+        let settlements = admissions
+            .iter()
+            .map(|admission| {
+                SourceEvaluatedImportSettlement::new(&admission.execution, &admission.same_stack)
+            })
+            .collect::<Vec<_>>();
+        let policy = terminal_authority_policy(&retained);
+        let permission_policy = terminal_authority_permission_policy(&retained);
+        let artifact = realize_retained_terminal_artifact_with_source_evaluated_imports_and_policy(
+            retained,
+            &proof_admission::AdmissionProfile::default(),
+            &optimization_core::PostTerminalOptimizationSelections::default(),
+            policy,
+            native_realization::current_terminal_authority_permission_policy(),
+            permission_policy,
+            &settlements,
+        )
+        .unwrap_or_else(|diagnostics| panic!("{library}: {diagnostics:#?}"));
+        artifact
+            .validate()
+            .expect("DLL case artifact independently replays");
+        assert_eq!(artifact.image().output().final_image_imports, 2);
+        assert_eq!(artifact.image().output().final_image_relocations, 2);
+        #[cfg(windows)]
+        {
+            let executable = fixture.root.join("dll-case.exe");
+            fs::write(&executable, &artifact.image().output().bytes)
+                .expect("write validated PE image");
+            let mut child = std::process::Command::new(executable)
+                .spawn()
+                .expect("run DLL case image");
+            let deadline = std::time::Instant::now() + std::time::Duration::from_secs(10);
+            let status = loop {
+                if let Some(status) = child.try_wait().expect("poll DLL case image") {
+                    break status;
+                }
+                if std::time::Instant::now() >= deadline {
+                    child.kill().expect("stop stalled DLL case image");
+                    child.wait().expect("reap stalled DLL case image");
+                    panic!("{library}: native execution timed out");
+                }
+                std::thread::sleep(std::time::Duration::from_millis(10));
+            };
+            assert_eq!(
+                status.code(),
+                Some(0),
+                "{library}: FindClose(0) result must reach ExitProcess"
+            );
+        }
+        #[cfg(not(windows))]
+        eprintln!("SKIP {library} native execution: host is not Windows");
+    }
+}
+
+#[test]
 fn windows_evaluated_u32_result_reaches_a_later_pe_import_through_exact_home_custody() {
     let fixture = Fixture::new_windows_u32_result_chain();
     let retained = fixture.compile_terminal();
