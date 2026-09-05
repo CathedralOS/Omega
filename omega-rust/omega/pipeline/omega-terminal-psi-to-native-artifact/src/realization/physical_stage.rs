@@ -35,16 +35,13 @@ pub(crate) fn lower_realization_physical_stage(
         .into_parts()
         .map_err(|error| realization_error("target program/evidence join", error))?;
     match evidence {
-        NativeTargetStageEvidence::Ordinary | NativeTargetStageEvidence::Ranked => {
-            let assigned = omega_target_operations_to_assigned_target_operations::assign_registers_with_native_callbacks(&target)
-                .map_err(|error| realization_error("ordinary physical assignment", error))?;
-            validate_callback_thunk_assignments(
-                request.callback_thunks,
-                &assigned.native_callback_arguments,
-            )?;
-            Ok(NativePhysicalStageResult::Assigned(assigned))
-        }
-        NativeTargetStageEvidence::Optimized(optimized_target) => {
+        NativeTargetStageEvidence::Ranked => assign_current_target(&target, request),
+        NativeTargetStageEvidence::Ordinary(optimized_target) => {
+            // Transitional physical split only. Target production and its
+            // retained translation evidence no longer depend on this selection.
+            if request.optimization_selections.is_empty() {
+                return assign_current_target(&target, request);
+            }
             let optimized_plan = optimized_target.optimized().plan().clone();
             let optimized_validation = optimized_target.optimized().validation();
             let has_provider_installation = optimized_target.provider_installation().is_some();
@@ -70,4 +67,17 @@ pub(crate) fn lower_realization_physical_stage(
             )))
         }
     }
+}
+
+fn assign_current_target(
+    target: &omega_target_operations::TargetOperationPlanWithNativeCallbacks,
+    request: &NativeRealizationCoreRequest<'_>,
+) -> Result<NativePhysicalStageResult, Vec<Diagnostic>> {
+    let assigned = omega_target_operations_to_assigned_target_operations::assign_registers_with_native_callbacks(target)
+        .map_err(|error| realization_error("ordinary physical assignment", error))?;
+    validate_callback_thunk_assignments(
+        request.callback_thunks,
+        &assigned.native_callback_arguments,
+    )?;
+    Ok(NativePhysicalStageResult::Assigned(assigned))
 }

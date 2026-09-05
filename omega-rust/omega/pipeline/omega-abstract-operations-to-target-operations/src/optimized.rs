@@ -6,11 +6,7 @@ use std::sync::Arc;
 
 use crate::{
     AbstractToTargetTranslationValidationReceipt, AdmittedBoundarySettlement,
-    AdmittedIeeeFloatFmaSettlement, LoweringError, lower_to_target_operations,
-    lower_to_target_operations_with_provider_executions,
-    lower_to_target_operations_with_provider_executions_and_installation,
-    lower_to_target_operations_with_provider_executions_installation_and_ieee_float_fma,
-    validate_abstract_to_target_translation,
+    AdmittedIeeeFloatFmaSettlement, LoweringError,
     validate_abstract_to_target_translation_with_ieee_float_fma_settlements,
 };
 
@@ -55,28 +51,44 @@ impl ValidatedOptimizedTargetOperations {
     }
 }
 
-fn current_program(plan: TargetOperationPlan) -> Arc<TargetOperationPlanWithNativeCallbacks> {
-    Arc::new(TargetOperationPlanWithNativeCallbacks {
-        plan,
-        native_callback_arguments: Vec::new(),
+/// One target lowering entrance for identity and selected abstract programs.
+/// Native admissions are explicit inputs, not a reason to select a different
+/// target producer. Translation coverage still names only reconstructed families.
+pub fn lower_validated_abstract_to_target_operations(
+    optimized: ValidatedOptimizedAbstractPlan,
+    target: NativeTarget,
+    settlements: &[AdmittedBoundarySettlement<'_>],
+    installation: Option<AdmittedProviderInstallation>,
+    ieee_float_fma: &[AdmittedIeeeFloatFmaSettlement<'_>],
+    native_callbacks: &[crate::AdmittedNativeCallbackArgument],
+) -> Result<ValidatedOptimizedTargetOperations, LoweringError> {
+    let installed = installation
+        .as_ref()
+        .map(|value| value as &dyn omega_installation_evidence::ProviderInstallationEvidence);
+    let program = crate::lower_to_target_operations_with_provider_executions_installation_ieee_float_fma_and_native_callbacks(
+        optimized.plan(), target, settlements, installed, ieee_float_fma, native_callbacks,
+    )?;
+    let translation_validation =
+        validate_abstract_to_target_translation_with_ieee_float_fma_settlements(
+            optimized.plan(),
+            target,
+            &program.plan,
+            ieee_float_fma,
+        )?;
+    Ok(ValidatedOptimizedTargetOperations {
+        optimized,
+        current_program: Arc::new(program),
+        translation_validation,
+        provider_installation: installation.map(Box::new),
     })
 }
 
-/// Lower one validated optimized abstract plan while retaining the complete
-/// upstream custody beside the target-operation result.
+// Compatibility entrances delegate to the same authority-aware transform.
 pub fn lower_optimized_to_target_operations(
     optimized: ValidatedOptimizedAbstractPlan,
     target: NativeTarget,
 ) -> Result<ValidatedOptimizedTargetOperations, LoweringError> {
-    let target_operations = lower_to_target_operations(optimized.plan(), target)?;
-    let translation_validation =
-        validate_abstract_to_target_translation(optimized.plan(), target, &target_operations)?;
-    Ok(ValidatedOptimizedTargetOperations {
-        optimized,
-        current_program: current_program(target_operations),
-        translation_validation,
-        provider_installation: None,
-    })
+    lower_validated_abstract_to_target_operations(optimized, target, &[], None, &[], &[])
 }
 
 pub fn lower_optimized_to_target_operations_with_ieee_float_fma_settlements(
@@ -84,27 +96,7 @@ pub fn lower_optimized_to_target_operations_with_ieee_float_fma_settlements(
     target: NativeTarget,
     settlements: &[AdmittedIeeeFloatFmaSettlement<'_>],
 ) -> Result<ValidatedOptimizedTargetOperations, LoweringError> {
-    let target_operations =
-        lower_to_target_operations_with_provider_executions_installation_and_ieee_float_fma(
-            optimized.plan(),
-            target,
-            &[],
-            None,
-            settlements,
-        )?;
-    let translation_validation =
-        validate_abstract_to_target_translation_with_ieee_float_fma_settlements(
-            optimized.plan(),
-            target,
-            &target_operations,
-            settlements,
-        )?;
-    Ok(ValidatedOptimizedTargetOperations {
-        optimized,
-        current_program: current_program(target_operations),
-        translation_validation,
-        provider_installation: None,
-    })
+    lower_validated_abstract_to_target_operations(optimized, target, &[], None, settlements, &[])
 }
 
 pub fn lower_optimized_to_target_operations_with_provider_executions(
@@ -112,40 +104,22 @@ pub fn lower_optimized_to_target_operations_with_provider_executions(
     target: NativeTarget,
     settlements: &[AdmittedBoundarySettlement<'_>],
 ) -> Result<ValidatedOptimizedTargetOperations, LoweringError> {
-    let target_operations =
-        lower_to_target_operations_with_provider_executions(optimized.plan(), target, settlements)?;
-    let translation_validation =
-        validate_abstract_to_target_translation(optimized.plan(), target, &target_operations)?;
-    Ok(ValidatedOptimizedTargetOperations {
-        optimized,
-        current_program: current_program(target_operations),
-        translation_validation,
-        provider_installation: None,
-    })
+    lower_validated_abstract_to_target_operations(optimized, target, settlements, None, &[], &[])
 }
 
-/// Lower with one exact checked-provider installation while retaining that
-/// opaque admission beside the target projection it authorized. Remaining
-/// bodyless boundaries may still be supplied as external executions; target
-/// lowering rejects overlap with installed boundaries.
+/// Retain the exact installation beside the target operations it authorized.
 pub fn lower_optimized_to_target_operations_with_provider_executions_and_installation(
     optimized: ValidatedOptimizedAbstractPlan,
     target: NativeTarget,
     settlements: &[AdmittedBoundarySettlement<'_>],
     installation: AdmittedProviderInstallation,
 ) -> Result<ValidatedOptimizedTargetOperations, LoweringError> {
-    let target_operations = lower_to_target_operations_with_provider_executions_and_installation(
-        optimized.plan(),
+    lower_validated_abstract_to_target_operations(
+        optimized,
         target,
         settlements,
-        Some(&installation),
-    )?;
-    let translation_validation =
-        validate_abstract_to_target_translation(optimized.plan(), target, &target_operations)?;
-    Ok(ValidatedOptimizedTargetOperations {
-        optimized,
-        current_program: current_program(target_operations),
-        translation_validation,
-        provider_installation: Some(Box::new(installation)),
-    })
+        Some(installation),
+        &[],
+        &[],
+    )
 }
