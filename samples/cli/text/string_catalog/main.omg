@@ -58,17 +58,26 @@ data Main {
     pause: [u8; 256];
 }
 
-machine Main::set_entry1(&mut self) {
+machine Main::set_entry1(&mut self)
+ensures
+    self.catalog.entry1.name in Utf8
+{
     self.catalog.entry1.name = "Alpha";
     self.catalog.entry1.score = 30;
 }
 
-machine Main::set_entry2(&mut self) {
+machine Main::set_entry2(&mut self)
+ensures
+    self.catalog.entry2.name in Utf8
+{
     self.catalog.entry2.name = "Beta";
     self.catalog.entry2.score = 40;
 }
 
-machine Main::build_label(&mut self) {
+machine Main::build_label(&mut self)
+ensures
+    self.catalog.label in Utf8
+{
     self.catalog.label = "[" + self.catalog.entry1.name + "+" + self.catalog.entry2.name + "]";
 }
 
