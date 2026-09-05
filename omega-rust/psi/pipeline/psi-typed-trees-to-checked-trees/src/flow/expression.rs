@@ -1,4 +1,4 @@
-//! Chapter 5 execution order for ordinary-statement expression effects.
+//! Chapter 5 execution order for statement and transition expression effects.
 //!
 //! Borrow call ordinals identify authored occurrences; their preorder is not
 //! execution order. This traversal owns invocation scheduling, not arithmetic
@@ -6,18 +6,27 @@
 
 use super::*;
 use psi_typed_trees::expression::BinaryOperator;
+use psi_typed_trees::statement::{TableTransition, TransitionTargetHandle, TransitionTargetNode};
+
+mod transitions;
 
 #[cfg(test)]
 mod tests;
 
 struct Invocation<'a> {
     call: &'a BorrowCallFact,
-    expression: ExpressionHandle,
-    statement: bool,
+    site: InvocationSite,
     visited: bool,
 }
 
-struct Execution<'a, 'b> {
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum InvocationSite {
+    Expression(ExpressionHandle),
+    Statement,
+    Transition(TransitionTargetHandle),
+}
+
+pub(super) struct Execution<'a, 'b> {
     program: &'a psi_typed_trees::TypedTrees,
     borrow: &'a BorrowFacts,
     proof: &'a ProofFacts,
@@ -25,8 +34,8 @@ struct Execution<'a, 'b> {
     machine: &'a psi_typed_trees::machine::Machine,
     state: &'a psi_typed_trees::state::State,
     statement_index: usize,
-    semantic: &'b mut FactPlan,
-    context: &'b mut FlowBuildContext,
+    pub(super) semantic: &'b mut FactPlan,
+    pub(super) context: &'b mut FlowBuildContext,
     state_calls: &'b mut HandleSpan<FlowCallFact>,
     invocations: Vec<Invocation<'a>>,
     operand_writes: Vec<Option<Vec<CanonicalPlace>>>,
@@ -49,61 +58,7 @@ pub(super) fn append_statement_calls(
     contexts: &mut HandleSpan<FlowSemanticContextRef>,
     constraints: &mut HandleSpan<FlowConstraintRef>,
 ) {
-    let mut malformed = false;
-    let invocations = calls
-        .iter()
-        .filter_map(|call| {
-            let (expression, statement) = match find_call_site(
-                program,
-                machine.symbol,
-                state.symbol,
-                statement_index,
-                call.call_ordinal,
-            ) {
-                Some(CallSite::Expression {
-                    expression,
-                    call: source,
-                }) => {
-                    let (receiver, path) =
-                        crate::lookup::call_receiver_parts(program, source.receiver);
-                    let target = crate::lookup::resolve_state_call_target(
-                        program,
-                        machine,
-                        state,
-                        receiver,
-                        source.target_symbol,
-                        path.as_deref(),
-                        &source.target,
-                    );
-                    if call.receiver_symbol != receiver
-                        || call.target_symbol
-                            != if target.is_valid() {
-                                target
-                            } else {
-                                source.target_symbol
-                            }
-                        || !program.expression_table.expression_is_valid(expression)
-                    {
-                        malformed = true;
-                        return None;
-                    }
-                    (expression, false)
-                }
-                Some(CallSite::Statement(_)) => (ExpressionHandle::invalid(), true),
-                _ => {
-                    malformed = true;
-                    return None;
-                }
-            };
-            Some(Invocation {
-                call,
-                expression,
-                statement,
-                visited: false,
-            })
-        })
-        .collect();
-    let mut execution = Execution {
+    let mut execution = Execution::new(
         program,
         borrow,
         proof,
@@ -114,14 +69,10 @@ pub(super) fn append_statement_calls(
         semantic,
         context,
         state_calls,
-        invocations,
-        operand_writes: Vec::new(),
-    };
-    if malformed {
-        // Missing occurrence custody cannot retain pre-call storage promises.
-        *contexts = HandleSpan::empty();
-        *constraints = HandleSpan::empty();
-    }
+        calls,
+        contexts,
+        constraints,
+    );
     match statement {
         StatementNode::Assignment(assignment) => {
             execution.expression(assignment.value, contexts, constraints);
@@ -138,32 +89,129 @@ pub(super) fn append_statement_calls(
                 operands.push((*argument, execution.operand_writes.len()));
                 execution.expression(*argument, contexts, constraints);
             }
-            execution.invoke(
-                ExpressionHandle::invalid(),
-                true,
-                &operands,
-                contexts,
-                constraints,
-            );
+            execution.invoke(InvocationSite::Statement, &operands, contexts, constraints);
         }
         StatementNode::AssemblyFact(_) | StatementNode::Transition(_) => {}
     }
 }
 
-impl Execution<'_, '_> {
+impl<'a, 'b> Execution<'a, 'b> {
+    #[allow(clippy::too_many_arguments)]
+    pub(super) fn new(
+        program: &'a psi_typed_trees::TypedTrees,
+        borrow: &'a BorrowFacts,
+        proof: &'a ProofFacts,
+        domains: &'a DomainFacts,
+        machine: &'a psi_typed_trees::machine::Machine,
+        state: &'a psi_typed_trees::state::State,
+        statement_index: usize,
+        semantic: &'b mut FactPlan,
+        context: &'b mut FlowBuildContext,
+        state_calls: &'b mut HandleSpan<FlowCallFact>,
+        calls: &'a [BorrowCallFact],
+        contexts: &mut HandleSpan<FlowSemanticContextRef>,
+        constraints: &mut HandleSpan<FlowConstraintRef>,
+    ) -> Self {
+        let mut malformed = false;
+        let invocations = calls
+            .iter()
+            .filter_map(|call| {
+                let site = match find_call_site(
+                    program,
+                    machine.symbol,
+                    state.symbol,
+                    statement_index,
+                    call.call_ordinal,
+                ) {
+                    Some(CallSite::Expression {
+                        expression,
+                        call: source,
+                    }) => {
+                        let (receiver, path) =
+                            crate::lookup::call_receiver_parts(program, source.receiver);
+                        let target = crate::lookup::resolve_state_call_target(
+                            program,
+                            machine,
+                            state,
+                            receiver,
+                            source.target_symbol,
+                            path.as_deref(),
+                            &source.target,
+                        );
+                        if call.receiver_symbol != receiver
+                            || call.target_symbol
+                                != if target.is_valid() {
+                                    target
+                                } else {
+                                    source.target_symbol
+                                }
+                            || !program.expression_table.expression_is_valid(expression)
+                        {
+                            malformed = true;
+                            return None;
+                        }
+                        InvocationSite::Expression(expression)
+                    }
+                    Some(CallSite::Statement(_)) => InvocationSite::Statement,
+                    Some(CallSite::TransitionNamed { .. }) => {
+                        let Some(target) = crate::semantic_calls::transition_call_target(
+                            program,
+                            machine,
+                            state,
+                            statement_index,
+                            call.call_ordinal,
+                        )
+                        .filter(|target| target.is_valid()) else {
+                            malformed = true;
+                            return None;
+                        };
+                        InvocationSite::Transition(target)
+                    }
+                    _ => {
+                        malformed = true;
+                        return None;
+                    }
+                };
+                Some(Invocation {
+                    call,
+                    site,
+                    visited: false,
+                })
+            })
+            .collect();
+        if malformed {
+            // Missing occurrence custody cannot retain pre-call storage promises.
+            *contexts = HandleSpan::empty();
+            *constraints = HandleSpan::empty();
+        }
+        Self {
+            program,
+            borrow,
+            proof,
+            domains,
+            machine,
+            state,
+            statement_index,
+            semantic,
+            context,
+            state_calls,
+            invocations,
+            operand_writes: Vec::new(),
+        }
+    }
+
     fn invoke(
         &mut self,
-        expression: ExpressionHandle,
-        statement: bool,
+        site: InvocationSite,
         operands: &[(ExpressionHandle, usize)],
         contexts: &mut HandleSpan<FlowSemanticContextRef>,
         constraints: &mut HandleSpan<FlowConstraintRef>,
     ) {
-        let Some(invocation) = self.invocations.iter_mut().find(|invocation| {
-            !invocation.visited
-                && invocation.statement == statement
-                && invocation.expression == expression
-        }) else {
+        let Some(invocation) = self
+            .invocations
+            .iter_mut()
+            .find(|invocation| !invocation.visited && invocation.site == site)
+        else {
             return;
         };
         invocation.visited = true;
@@ -203,7 +251,7 @@ impl Execution<'_, '_> {
             .append_to_span(self.state_calls, call);
     }
 
-    fn expression(
+    pub(super) fn expression(
         &mut self,
         expression: ExpressionHandle,
         contexts: &mut HandleSpan<FlowSemanticContextRef>,
@@ -271,7 +319,12 @@ impl Execution<'_, '_> {
                     operands.push((*argument, self.operand_writes.len()));
                     self.expression(*argument, contexts, constraints);
                 }
-                self.invoke(expression, false, &operands, contexts, constraints);
+                self.invoke(
+                    InvocationSite::Expression(expression),
+                    &operands,
+                    contexts,
+                    constraints,
+                );
             }
             ExpressionNode::ArrayLiteral(values) => {
                 for value in self.program.expression_table.expression_handles(*values) {

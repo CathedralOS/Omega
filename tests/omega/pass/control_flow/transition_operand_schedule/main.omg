@@ -1,0 +1,30 @@
+data Main { flag: bool; }
+
+machine clear(flag: &mut bool) -> bool { flag = false; true }
+
+machine Main::skip_and(&mut self) -> bool
+requires self.flag
+ensures self.flag
+{
+    transition { _ -> (false && clear(&mut self.flag)) }
+}
+
+machine Main::skip_or(&mut self) -> bool
+requires self.flag
+ensures self.flag
+{
+    transition { _ -> (true || clear(&mut self.flag)) }
+}
+
+machine checked_transfer() {
+    let mut flag: bool = false;
+    flag = true;
+    transition { _ -> done(false && clear(&mut flag), flag) }
+    state done(ignored: bool, current: bool) requires current {}
+}
+
+machine demand(flag: bool) -> bool requires flag { true }
+
+machine selected_operand(flag: bool) -> bool {
+    transition { _ -> (flag && demand(flag)) }
+}

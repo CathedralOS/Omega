@@ -470,8 +470,7 @@ Owners include
   across explicit state arguments, including computed values and dynamic
   projections. Retain selected arithmetic values across local assignments and
   materialize effectful returns and earlier call arguments at their exact
-  evaluation points. Unify transition operand scheduling with ordinary
-  expression scheduling and activate staged loans at their evaluation points.
+  evaluation points and activate staged loans at their evaluation points.
   Complete anonymous integer landing for guarded returns, local/argument/store
   destinations, and the full numeric operator/policy surface, so proof and
   execution consume the same values without rereading changed operands.

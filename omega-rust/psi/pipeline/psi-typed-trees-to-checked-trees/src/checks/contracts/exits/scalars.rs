@@ -98,7 +98,14 @@ impl ExitScalars<'_, '_> {
         if !stable_segments(&place.segments) {
             return None;
         }
-        scalar_value_at_place(self.program, &self.facts.semantic, self.contexts, &place)
+        scalar_value_at_place(
+            self.program,
+            &self.facts.semantic,
+            self.contexts
+                .iter()
+                .map(|context| self.facts.semantic.contexts.get(*context)),
+            &place,
+        )
     }
 
     fn return_value(&self) -> Option<ScalarValue> {
@@ -131,7 +138,14 @@ impl ExitScalars<'_, '_> {
                 if !stable_segments(&place.segments) {
                     return None;
                 }
-                scalar_value_at_place(self.program, &self.facts.semantic, self.contexts, &place)
+                scalar_value_at_place(
+                    self.program,
+                    &self.facts.semantic,
+                    self.contexts
+                        .iter()
+                        .map(|context| self.facts.semantic.contexts.get(*context)),
+                    &place,
+                )
             })
         })
     }
@@ -161,7 +175,14 @@ impl ExitScalars<'_, '_> {
         let symbols = plans.binding_symbols.span_or_empty(binding.symbols);
         evaluate_checked_scalar(&plan.expression, &mut |position| {
             let place = canonical_place_from_symbol(*symbols.get(position)?)?;
-            scalar_value_at_place(self.program, &self.facts.semantic, self.contexts, &place)
+            scalar_value_at_place(
+                self.program,
+                &self.facts.semantic,
+                self.contexts
+                    .iter()
+                    .map(|context| self.facts.semantic.contexts.get(*context)),
+                &place,
+            )
         })
     }
 }

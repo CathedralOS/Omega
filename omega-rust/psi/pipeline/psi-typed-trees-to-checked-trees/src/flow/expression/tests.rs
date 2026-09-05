@@ -241,3 +241,127 @@ fn unknown_short_circuit_invalidates_only_conditional_write_subject() {
         );
     }
 }
+
+#[test]
+fn transition_jump_calls_evaluate_arguments_before_requires() {
+    check(
+        r#"
+        machine clear(flag: &mut bool) -> bool { flag = false; true }
+        machine run() {
+            let mut flag: bool = true;
+            transition { _ -> done(clear(&mut flag), flag) }
+            state done(ignored: bool, current: bool) requires current {}
+        }
+        "#,
+        false,
+    );
+}
+
+#[test]
+fn transition_value_calls_preserve_short_circuit_guards_and_effects() {
+    for operand in [
+        "false && clear(&mut self.flag)",
+        "true || clear(&mut self.flag)",
+    ] {
+        check(
+            &format!(
+                r#"
+                machine clear(flag: &mut bool) -> bool {{ flag = false; true }}
+                data Main {{ flag: bool; }}
+                machine Main::run(&mut self) -> bool
+                requires self.flag
+                ensures self.flag
+                {{
+                    transition {{ _ -> ({operand}) }}
+                }}
+                "#
+            ),
+            true,
+        );
+    }
+    check(
+        r#"
+        machine demand(flag: bool) -> bool requires flag { true }
+        machine run(flag: bool) -> bool {
+            transition { _ -> (flag && demand(flag)) }
+        }
+        "#,
+        true,
+    );
+}
+
+#[test]
+fn transition_jump_inputs_do_not_run_skipped_mutations() {
+    check(
+        r#"
+        machine clear(flag: &mut bool) -> bool { flag = false; true }
+        machine run() {
+            let mut flag: bool = true;
+            transition { _ -> done(false && clear(&mut flag), flag) }
+            state done(ignored: bool, current: bool) requires current {}
+        }
+        "#,
+        true,
+    );
+}
+
+#[test]
+fn jump_requirements_use_live_values_instead_of_local_initializers() {
+    for (initial, update, accepted) in [
+        ("true", "", true),
+        ("false", "flag = true;", true),
+        ("true", "flag = false;", false),
+        ("false", "", false),
+    ] {
+        check(
+            &format!(
+                r#"
+                machine run() {{
+                    let mut flag: bool = {initial};
+                    {update}
+                    transition {{ _ -> done(flag) }}
+                    state done(current: bool) requires current {{}}
+                }}
+            "#
+            ),
+            accepted,
+        );
+    }
+}
+
+#[test]
+fn transition_sibling_writes_do_not_invalidate_other_jump_inputs() {
+    check(
+        r#"
+        machine clear(flag: &mut bool) -> bool { flag = false; true }
+        machine run(gate: bool) {
+            let mut flag: bool = true;
+            transition gate {
+                true -> discarded(clear(&mut flag))
+                false -> checked(flag)
+            }
+            state discarded(ignored: bool) {}
+            state checked(current: bool) requires current {}
+        }
+        "#,
+        true,
+    );
+}
+
+#[test]
+fn jump_operand_mutation_cannot_replay_the_taken_guard() {
+    check(
+        r#"
+        data Main { flag: bool; }
+        machine clear(flag: &mut bool) -> bool { flag = false; true }
+        machine Main::run(&mut self) {
+            transition self.flag {
+                true -> done(clear(&mut self.flag), self.flag)
+                false -> {}
+            }
+            state done(ignored: bool, current: bool) requires current {}
+        }
+        "#,
+        false,
+    );
+}

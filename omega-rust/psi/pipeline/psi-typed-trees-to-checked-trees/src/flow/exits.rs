@@ -123,43 +123,23 @@ pub(super) fn append_transition_flow_facts(
     active_contexts: &mut HandleSpan<FlowSemanticContextRef>,
     active_constraints: &mut HandleSpan<FlowConstraintRef>,
 ) {
-    let mut regions = [Vec::new(), Vec::new(), Vec::new()];
-    for call in calls {
-        let target = crate::semantic_calls::transition_call_target(
-            program,
-            machine,
-            state,
-            statement_index,
-            call.call_ordinal,
-        );
-        let region = match target {
-            Some(target) if target == transition.target => 1,
-            Some(target) if target.is_valid() && target == transition.continuation => 2,
-            Some(_) => 0,
-            None => {
-                // A malformed call coordinate supplies no branch-local proof.
-                *active_contexts = HandleSpan::empty();
-                *active_constraints = HandleSpan::empty();
-                0
-            }
-        };
-        regions[region].push(call);
-    }
-    for call in &regions[0] {
-        let flow = build_call_flow_fact(
-            program,
-            borrow,
-            proof,
-            semantic,
-            domains,
-            ctx,
-            machine,
-            state,
-            active_contexts,
-            active_constraints,
-            call,
-        );
-        ctx.control.calls.append_to_span(state_calls, flow);
+    let mut execution = super::expression::Execution::new(
+        program,
+        borrow,
+        proof,
+        domains,
+        machine,
+        state,
+        statement_index,
+        semantic,
+        ctx,
+        state_calls,
+        calls,
+        active_contexts,
+        active_constraints,
+    );
+    if let psi_typed_trees::statement::TransitionGuardNode::When(expression) = transition.guard {
+        execution.expression(expression, active_contexts, active_constraints);
     }
     // Guards execute on both paths. Their effects survive a missed arm, while
     // calls evaluating one target never run on its sibling continuation.
@@ -169,14 +149,18 @@ pub(super) fn append_transition_flow_facts(
         if !target.is_valid() {
             continue;
         }
-        let mut branch_contexts =
-            clone_flow_contexts(&mut ctx.contexts.semantic_context_refs, guard_contexts);
-        let mut branch_constraints =
-            clone_constraint_refs(&mut ctx.contexts.constraint_refs, guard_constraints);
+        let mut branch_contexts = clone_flow_contexts(
+            &mut execution.context.contexts.semantic_context_refs,
+            guard_contexts,
+        );
+        let mut branch_constraints = clone_constraint_refs(
+            &mut execution.context.contexts.constraint_refs,
+            guard_constraints,
+        );
         guards::append_guard_context(
             program,
-            semantic,
-            ctx,
+            execution.semantic,
+            execution.context,
             machine.symbol,
             state.symbol,
             statement_index,
@@ -186,84 +170,12 @@ pub(super) fn append_transition_flow_facts(
             &mut branch_contexts,
             &mut branch_constraints,
         );
-        let is_named_transfer = |call: &&BorrowCallFact| {
-            matches!(
-                find_call_site(
-                    program,
-                    machine.symbol,
-                    state.symbol,
-                    call.statement_index,
-                    call.call_ordinal
-                ),
-                Some(CallSite::TransitionNamed { .. })
-            )
-        };
-        let mut operand_writes = Some(Vec::new());
-        for call in regions[region]
-            .iter()
-            .filter(|call| !is_named_transfer(call))
-        {
-            if let Some(writes) = &mut operand_writes {
-                if let Some(current) = super::call_phases::call_storage_writes(
-                    program, borrow, ctx, machine, state, call,
-                ) {
-                    for place in current {
-                        if !writes.contains(&place) {
-                            writes.push(place);
-                        }
-                    }
-                } else {
-                    operand_writes = None;
-                }
-            }
-            let flow = build_call_flow_fact(
-                program,
-                borrow,
-                proof,
-                semantic,
-                domains,
-                ctx,
-                machine,
-                state,
-                &mut branch_contexts,
-                &mut branch_constraints,
-                call,
-            );
-            ctx.control.calls.append_to_span(state_calls, flow);
-        }
-        super::state_values::record_transition(
-            program,
-            semantic,
-            ctx,
-            machine,
-            state,
-            statement_index,
+        execution.transition_target(
             transition,
             target,
-            branch_contexts,
-            operand_writes.as_deref(),
+            &mut branch_contexts,
+            &mut branch_constraints,
         );
-        // The jump consumes evaluated arguments. Its own callee frame cannot
-        // erase the input snapshot before that explicit transfer is recorded.
-        for call in regions[region]
-            .iter()
-            .filter(|call| is_named_transfer(call))
-        {
-            let flow = build_call_flow_fact(
-                program,
-                borrow,
-                proof,
-                semantic,
-                domains,
-                ctx,
-                machine,
-                state,
-                &mut branch_contexts,
-                &mut branch_constraints,
-                call,
-            );
-            ctx.control.calls.append_to_span(state_calls, flow);
-        }
         if matches!(
             program.statement_table.transition_target(target),
             psi_typed_trees::statement::TransitionTargetNode::SelfTarget
@@ -277,22 +189,23 @@ pub(super) fn append_transition_flow_facts(
                 statement_index,
                 transition_target: target,
             };
-            for reference in ctx
+            for reference in execution
+                .context
                 .contexts
                 .semantic_context_refs
                 .span_or_empty(branch_contexts)
             {
-                let context = semantic.contexts.get(reference.context);
+                let context = execution.semantic.contexts.get(reference.context);
                 if context.point != point {
-                    semantic.append_context(point, context.facts);
+                    execution.semantic.append_context(point, context.facts);
                 }
             }
         }
         append_state_exit_facts(
             program,
             proof,
-            semantic,
-            ctx,
+            execution.semantic,
+            execution.context,
             machine.symbol,
             state.symbol,
             target,
@@ -304,8 +217,8 @@ pub(super) fn append_transition_flow_facts(
     *active_constraints = guard_constraints;
     guards::append_guard_context(
         program,
-        semantic,
-        ctx,
+        execution.semantic,
+        execution.context,
         machine.symbol,
         state.symbol,
         statement_index,
