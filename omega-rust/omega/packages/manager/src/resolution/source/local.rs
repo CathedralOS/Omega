@@ -1,3 +1,6 @@
+mod recovery;
+pub(crate) use recovery::recover_cached_external_local_source;
+
 use super::projection::project_package_build;
 use super::{ResolvePackageSourceError, ResolvedPackageSource};
 use crate::declarations::PackageKey;

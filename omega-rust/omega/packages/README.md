@@ -38,8 +38,8 @@ per-target review files, `--resume`, and recoverable publication. Start at the
 and its source map. The [task board](../../../TASKS_PACKAGE_MANAGER.md) contains
 only remaining work, with offline and model wiring separate from required
 integration. Source-code diffs are separate from editable capability decisions;
-changed local baselines still lack cache-only recovery. Install can select a
-Git workspace member with `--package <declared-name>`; its declared name still
+verified old local snapshots can be recovered from the existing cache. Install
+can select a Git workspace member with `--package <declared-name>`; its declared name still
 supplies the default import alias.
 
 The lock codec stores readable, receipt-free policy baselines and historical

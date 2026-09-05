@@ -31,15 +31,6 @@ host credentials, and organizational review policy have separate owners.
   the existing compiler facets; do not invent broader build services to finish
   this task. Detect relevant source/build drift before publication.
 
-- [ ] **LOCAL-BASELINE-SOURCE-RECOVERY.** In source acquisition and command
-  old-source recovery, recover an accepted local snapshot from cache when its
-  live source has changed. Git old-source recovery is not this task. Bind cache
-  selection to the known local source and recorded content, then validate the
-  snapshot; do not interpret arbitrary lock bytes as filesystem authority.
-  Acceptance: a cached old local revision yields an exact source diff; missing
-  or corrupt snapshots retain accepted policy comparison and explicit
-  standalone-candidate fallback. No second baseline archive or audit receipt.
-
 - [ ] **OMEGA-AUDIT-PACKAGES.** Expose graph and authority inspection through the
   CLI using the existing manager report. Show exact pins, accepted policy,
   freshly checked reach/API/assumption findings, and dependency paths.

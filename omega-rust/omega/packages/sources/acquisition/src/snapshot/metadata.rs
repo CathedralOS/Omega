@@ -114,6 +114,20 @@ pub(crate) fn verify_local_snapshot(
     Ok(normalized)
 }
 
+/// Read only the bounded cache routing metadata, not a verified source result.
+pub(crate) fn local_snapshot_content_identity(
+    publication: &Path,
+) -> Result<String, SourceResolveError> {
+    let metadata_path = publication.join(LOCAL_SNAPSHOT_METADATA);
+    let bytes = read_bounded_cache_record(
+        CacheCustodyKind::LocalSnapshot,
+        publication,
+        Path::new(LOCAL_SNAPSHOT_METADATA),
+        512,
+    )?;
+    Ok(parse_local_snapshot_metadata(&bytes, &metadata_path)?.content_identity)
+}
+
 fn take_u64(bytes: &mut &[u8]) -> Option<u64> {
     let value = u64::from_le_bytes(bytes.get(..8)?.try_into().ok()?);
     *bytes = &bytes[8..];

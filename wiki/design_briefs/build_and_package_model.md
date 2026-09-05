@@ -3960,11 +3960,12 @@ Missing lock state gives a fresh complete-graph review through unselected
 selection. Unsupported formats reject with recovery guidance before any
 selector refresh. Retained baselines support policy comparison without an old
 checkout. Commands write a separate `build/package-manager/source-diff.txt`.
-They recover exact old Git commits without refreshing selectors, reuse matching
-source, and capture an unchanged live root when it matches the accepted pin.
-Changed local baselines do not yet have cache-only recovery. Missing old source
-or bounded-rendering failure is reported explicitly without suppressing policy
-comparison. New packages have candidate source, not a fabricated previous version.
+They recover exact old Git commits without refreshing selectors and verified
+old local snapshots from the existing cache, using the known source origin and
+accepted content pin. Matching source or an unchanged live root can also supply
+the baseline. Missing or corrupt old source and bounded-rendering failure are
+reported explicitly without suppressing policy comparison. New packages have
+candidate source, not a fabricated previous version.
 Source text never enters editable capability decisions, and resume regenerates
 the source document. No advisory service is needed to resolve compiler findings.
 

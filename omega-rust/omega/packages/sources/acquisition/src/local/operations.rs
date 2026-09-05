@@ -1,5 +1,7 @@
 //! Public local resolution and package-snapshot verification operations.
 
+pub use super::recovery::recover_cached_local_source_in_lane;
+
 use std::path::Path;
 
 use crate::SourceResolveError;
