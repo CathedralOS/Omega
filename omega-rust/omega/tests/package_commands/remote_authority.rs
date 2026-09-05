@@ -6,6 +6,9 @@ use package_source::ImmutableSourceResolution;
 use std::fs;
 use std::process::Output;
 
+#[path = "remote_authority/transitions.rs"]
+mod transitions;
+
 const TARGET: target::TargetProfile = target::TargetProfile::LinuxX64;
 const HOST_REPOSITORY: &str = "git@github.com:CathedralOS/host-services.git";
 const HOST: &str = "25c18b37f4891aa31b83e1434562fb2ab0994450";
