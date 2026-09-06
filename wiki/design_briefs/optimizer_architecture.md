@@ -569,8 +569,11 @@ pseudo/action anchors, typed source or reload result, physical views/class, and
 abstract storage geometry, but has no fault field, executable address/base,
 frame coordinate, opcode, encoding, emission, or publication type. Direct
 production and independently keyed replay must agree before admission. This
-boundary is permitted by Q1's explicit scope; only conversion into real memory
-operations and frame/probing remains owner-blocked.
+boundary remains abstract. Conversion into real memory operations is
+implementation work under
+[compiler-owned stack storage and spill accesses](../language_guide/chapter_16_errors_traps_failure.md#compiler-owned-stack-storage-and-spill-accesses):
+final frames must feed the existing WCSU/provisioning contract without adding
+source crash routes.
 
 The adjacent `abstract_spill_access_constraints` V1 entrance orders only those
 compiler-private abstract accesses within each selected block. It retains
@@ -580,7 +583,8 @@ not a cross-block execution claim, and an overlapping abstract spill slice is
 not a program-memory alias judgment. Direct production and independent replay
 agree on all rows and bounded work before custody is issued. The carrier has no
 executable operation, address/base, frame coordinate, fault/trap behavior,
-opcode, encoding, emission, or publication type, so Q1 remains intact.
+opcode, encoding, emission, or publication type. The settled stack contract
+does not turn these abstract constraints into physical realization evidence.
 
 Fixed-view-copy insertion has two visible executable boundaries:
 `fixed_view_copy/mod.rs` owns the selected-policy producer-to-validator join,

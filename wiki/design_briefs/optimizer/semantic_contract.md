@@ -20,6 +20,16 @@ target contract:
 Native instruction count, code size, register pressure, compilation work, and
 wall-clock time are cost observations, not source logical fuel.
 
+Spill-inclusive final frame extents feed the existing WCSU and stack
+provisioning contracts. They may change native resource demand, never the
+source machine's `crashes` ceiling. A successful stack-size comparison does not
+establish backing; the selected provider must satisfy the admitted stack
+contract before execution. Demand must remain independently bound to the exact
+final optimization/allocation/frame realization rather than reused solely
+because Terminal semantics match. Physical access validation and target-required
+setup remain mandatory where applicable. See
+[compiler-owned stack storage and spill accesses](../../language_guide/chapter_16_errors_traps_failure.md#compiler-owned-stack-storage-and-spill-accesses).
+
 The current Terminal fuel schedule is deterministic accounting, not program
 meaning: exhaustion is an external incomplete-service outcome, optimized native
 execution has no fuel meter, and fixed-fuel certificates are reconstructed from

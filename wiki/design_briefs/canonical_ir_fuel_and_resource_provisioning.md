@@ -12,7 +12,14 @@ brief, retains superseded encodings and implementation checkpoints.
 ## Context
 
 WCSU proves a spatial fact: a closed activation needs at most a derived amount
-of stack. Logical-work accounting has three distinct customers:
+of stack. Its input is the final validated frame extent, including compiler
+spills, not an allocation-independent source estimate. The composition remains
+bound to the exact physical realization, and a separate provisioning judgment
+establishes usable backing. Runtime tail recursion lowers to iteration and does
+not accumulate frames. See
+[compiler-owned stack storage and spill accesses](../language_guide/chapter_16_errors_traps_failure.md#compiler-owned-stack-storage-and-spill-accesses).
+
+Logical-work accounting has three distinct customers:
 
 - deterministic metering inside bounded compiler and bootstrap services;
 - a restricted theorem for paths that must fit a fixed logical budget; and

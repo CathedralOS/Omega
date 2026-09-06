@@ -930,7 +930,10 @@ abstract storage offset/size/alignment. Its direct producer and independently
 keyed replay agree on order, roots, identity, and bounded work across both
 victim lineages and architectures. The model intentionally has no fault field,
 address base, frame coordinate, opcode, encoding, emission, or publication
-carrier; executable spill realization remains behind Q1.
+carrier. Executable spill realization is implementation work under
+[compiler-owned stack storage and spill accesses](../../language_guide/chapter_16_errors_traps_failure.md#compiler-owned-stack-storage-and-spill-accesses),
+not an open choice of source crash semantics. Final validated frames must join
+existing WCSU composition and valid stack provisioning before execution.
 
 Abstract spill-access constraints are the next target-neutral boundary. The V1
 policy assigns each effect its dense within-block placement and records exact

@@ -198,6 +198,65 @@ The explicit terminal outcome and service reach remain separate axes. An abort
 lowering may also reach the `ProcessExit` boundary service; neither fact implies
 the other. Graceful shutdown remains ordinary cleanup followed by `exit(code)`.
 
+## Compiler-owned stack storage and spill accesses
+
+Compiler-selected spill slots are part of an activation's frame storage, not
+new source-authored memory operations or crash routes. Their final physical
+extent contributes to the existing worst-case stack usage (WCSU) derivation.
+Register allocation may change the resources required by a native artifact;
+it does not add `crashes Trap` to the source machine or weaken the negative
+guarantee given by an omitted cause.
+
+This relies on the [runtime cycle contract](chapter_3_machines.md): tail
+recursion lowers to iterative backedges with no accumulating frames, and
+non-tail runtime recursion rejects. The admitted runtime call chains therefore
+have a statically bounded stack demand. A termination measure does not size a
+frame or introduce recursive stack growth. No new recursion-depth bound or
+per-call exhaustion protocol is introduced by spill realization.
+
+Use the existing stack contracts in this order:
+
+1. Derive each final validated frame extent, including spill-slot reuse,
+   alignment, saved registers, and calling-plan storage. Charge live physical
+   storage, not the sum of all spill instructions or overlapping slot demands.
+2. Compose those extents through the existing WCSU call-chain and external-root
+   context/nesting rules, including checked or admitted same-stack providers.
+3. Compare the composed demand with the admitted stack supply, and establish
+   valid backing through the existing `StackPlan`/`StackLease` or external-entry
+   provisioning contract before the checked activation executes. Maintain that
+   backing for the activation's required lifetime, including suspension.
+
+A byte-count comparison alone does not establish usable memory. The selected
+target/provider must satisfy the access, alignment, lifetime, and backing
+requirements as well. Insufficient supply or failure to establish it follows
+the existing admission, installation, or activation-failure route; it is not a
+new Omega machine `Trap`. Ordinary nested calls within that admitted activation
+consume the already-composed bound, not a newly introduced runtime exhaustion
+mechanism.
+
+Within the established contract, validated spill loads and stores are
+non-faulting in the language model. Target-required setup or probing is not
+prohibited: it belongs to establishing and realizing the admitted stack
+contract, and any live stack overhead contributes to the bound. This decision
+requires no per-spill source crash guard. It does not remove physical
+store/reload provenance, bounds, offset, alignment, lifetime, or frame replay.
+A wrong generated address or invalid lifetime remains a compiler defect, not
+a permitted resource-exhaustion outcome.
+
+WCSU must be checked against the exact final physical realization whose stack
+it provisions. The retained relation covers the selected optimization and
+allocation result, final frames, target/calling rules, and installed artifact;
+matching Terminal semantics alone is insufficient. Reusing demand from another
+realization without revalidation rejects. Existing independently checked,
+transitive identity relations may establish this connection; a parallel hash
+field is not required merely to restate it.
+
+This is an integration requirement, not a second stack planner or failure
+model. Existing abstract spill requirements and WCSU composition machinery do
+not by themselves establish complete physical realization or runtime backing.
+The remaining work is tracked under spill realization and frame layout on
+[the optimizer execution board](../../TASKS_OPTIMIZER.md).
+
 ## A Crash Contract Does Not Prove Recovery
 
 Crash checking proves route coverage, propagation, and absence after successful
