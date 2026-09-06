@@ -1037,12 +1037,24 @@ Current ownership is:
   reference identity at a statement prefix. It reuses binding transfer with
   shared-reference discovery enabled only for this demand; shared access never
   gains write capability. Initializers and rebindings require declared nominal
-  roots and owned Field/Case projections. Body-proven helper results reuse the
-  shared returned-place relation for shared and exclusive references. Each
+  roots and owned Field/Case projections. `reference_subjects/results.rs`
+  queries direct helper results through `result_origins`, the same frozen-prefix
+  leaf analysis used for references returned inside owned carriers. A direct
+  result must contain exactly one exact reference leaf. Each
   helper hop needs a resolved callee and a selected parameter-rooted source;
   intermediate aliases cannot recover identity from a missing symbol's name.
   The exact query validates both the relative projection and actual caller
   source, and rejects reference-binding exposure in any call operand.
+  Shared-query prefix transfer checks incoming as well as local reference
+  bindings, preserving validated declaration/rebinding and pure terminal-return
+  exemptions. An operand that exposes a binding for replacement has no such
+  exemption. Owned `self` projections resolve through the exact attached data
+  declaration; typed `Self` names the machine and cannot be used as that data
+  identity. Retained selectors are checked before inherited-field normalization
+  so a matching spelling cannot repair a foreign selector. Missing ordinary
+  member symbols still require the subsequent exact nominal projection; they
+  are not missing root declarations or input-load evidence. This owned
+  projection does not establish a loaded self-field origin.
   Owned input carriers and carriers behind one readable input reference seed
   the same shared/exclusive reference leaves for statement-prefix identity
   queries. Each loaded input leaf requires its exact
@@ -1242,8 +1254,8 @@ Current ownership is:
   caller prefix. Public demand also validates a prefix with incoming carriers
   even when it has no alias-bearing local declarations, so earlier slot
   replacement cannot preserve a stale parameter-relative frame.
-  An aggregate-valued internal helper call derives its returned leaves from
-  the same state transfer and aggregate walker. Its exact checked-body target,
+  `calls/write_frames/result_origins.rs` derives an internal helper's returned
+  leaves from the same state transfer and aggregate walker. Its exact checked-body target,
   argument count, and normalized result type must agree. One final expression
   or unconditional value transition supplies the result; earlier transitions
   and alternate or named result routes still need graph-level relations.
@@ -1288,6 +1300,8 @@ Current ownership is:
   the same concrete nominal declaration. They do not erase type arguments or
   constraints or replace lifetime validation.
   This result evidence is storage information, not loan or lifetime authority.
+  It does not remove terminal-reference typing or nested value-call realization
+  restrictions; a successful origin query alone is not full source acceptance.
   Reference origins retain an exact source symbol and structural selectors
   separately from their may-write footprint. Indexing may coarsen that footprint
   without erasing the later field or case selecting the source reference.

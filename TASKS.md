@@ -476,6 +476,15 @@ Owners include
   input's exact premise, while unknown writes and reference aliases without
   exact provenance retain no checked guarantee.
 
+  Forward declared reference values from exact member selections in
+  `validation/src/expression_types.rs`, not only bare local/parameter names.
+  The origin query can identify a returned exclusive-reference field, but
+  terminal type validation currently rejects that expression. Acceptance:
+  `select(carrier: &mut Carrier) -> &mut Context { carrier.context }` passes
+  when the field declares that reference type, while mismatched access/referee
+  types and invalid or foreign field selectors reject. Preserve loan checking
+  independently of this type correspondence.
+
 - **NOMINAL-FIELD-FLOW.** Complete declared-field domain evidence in Psi
   semantic facts, flow transfer, and contract consumption. Collection elements
   need explicit live coverage for their declared field predicates, transported

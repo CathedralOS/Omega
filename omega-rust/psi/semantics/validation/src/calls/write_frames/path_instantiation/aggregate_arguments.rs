@@ -151,7 +151,7 @@ pub(in crate::calls::write_frames) fn reference_leaves_with_origins(
             let moved = if let ExpressionNode::Call(call) =
                 program.expression_table.expression(expression)
             {
-                super::super::aggregate_results::call_result_origins(
+                super::super::result_origins::call_result_origins(
                     program,
                     caller_machine,
                     call,
