@@ -43,7 +43,6 @@ pub(super) fn validate(state: &checked_trees::CheckedComposedUnitControlStatePla
 pub(super) fn emit(
     state: &checked_trees::CheckedComposedUnitControlStatePlan,
     catalogs: &super::super::catalogs::ComposedCatalogs,
-    next_value: &mut u64,
     operations: &mut OperationBuffer,
 ) -> Result<(), LoweringError> {
     for operation in &state.operations {
@@ -64,8 +63,7 @@ pub(super) fn emit(
                     &catalogs.structural_types,
                     &[],
                     &[],
-                    &[],
-                    next_value,
+                    Some(&[]),
                     operations,
                 )?;
             }

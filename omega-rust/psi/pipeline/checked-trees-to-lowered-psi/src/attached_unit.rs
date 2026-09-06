@@ -1095,7 +1095,8 @@ pub(super) fn lower_attached_unit_closure_including(
             };
             let evaluated_scalar_arguments = evaluation.arguments(
                 checked,
-                plan,
+                plan.machine,
+                plan.state,
                 operation,
                 &mut scalar_result_values,
                 &mut next_value_identity,

@@ -3060,9 +3060,24 @@ occurrence independently from the nested operand occurrences. Structural results
 retain their existing normal cleanup; forwarding those locals to later calls
 and inspecting sum payloads remain separate work.
 
-Later result initializers, returned calls, and composed-control leaves still
-need connections to that shared evaluator. Their existing pure argument paths
-remain distinct from an unsupported computed plan.
+Composed-control boundary leaves use the same evaluator, including the existing
+three-state, prefixed, nested acyclic, dynamic-result continuation, and closed-sum
+payload routes. The producer partitions exact outer flow calls from nested
+operand occurrences; the outer boundary remains one operation. Private blocks
+execute only within the selected leaf, carry completed scalar arguments once,
+and preserve the leaf's original value namespace for subsequent boundary calls.
+Whole-root linear settlement retains its claim until the boundary succeeds;
+scalar operands do not change structural argument or receipt positions.
+The selected scalar helper closure retains exact source targets, callee
+requirements, and crash contracts, and its identities are disjoint from Unit and
+dynamic-realization machines. Operation proofs are completed on the assembled
+module. Closed-sum payload execution still requires interpreter case inspection;
+operand support does not supply that missing runtime carrier.
+
+Later result initializers, returned calls, and ordinary internal Unit calls in
+composed control still need connections to that shared evaluator. Existing
+control-state signature restrictions remain; operand evaluation does not itself
+add general scalar state-argument transport or computed dispatch guards.
 
 Computed Boolean guards complete before either branch destination starts. A
 private dispatch block consumes the completed Boolean and retains the source

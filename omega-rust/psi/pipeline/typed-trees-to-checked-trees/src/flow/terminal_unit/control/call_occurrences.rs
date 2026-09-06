@@ -3,7 +3,7 @@
 use super::*;
 use checked_trees::{CheckedScalarComputationHandle, CheckedScalarComputationKind};
 
-pub(super) fn outer_calls<'a>(
+pub(in crate::flow::terminal_unit) fn outer_calls<'a>(
     program: &TypedTrees,
     facts: &'a CheckFacts,
     machine: SymbolHandle,

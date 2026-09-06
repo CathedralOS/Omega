@@ -85,7 +85,6 @@ pub(super) fn admit(
             CheckedUnitEffectOperationPlan::BoundaryCall {
                 coordinate,
                 target_state,
-                scalar_arguments,
                 structural_arguments,
                 completion_receipts,
                 ..
@@ -94,8 +93,7 @@ pub(super) fn admit(
         else {
             return unsupported("composed Unit linear leaf is not one boundary call");
         };
-        if !scalar_arguments.is_empty()
-            || !matches!(structural_arguments.as_slice(), [argument]
+        if !matches!(structural_arguments.as_slice(), [argument]
                 if argument.source_parameter_index() == Some(0)
                     && argument.path.is_empty()
                     && argument.type_identity == entry_parameter.type_identity
@@ -157,7 +155,6 @@ pub(super) fn validate_boundary(
             };
             validate_parameter(parameter, attachment)?;
             if !parameter.is_self
-                || !boundary.scalar_parameters.is_empty()
                 || !boundary.domain_requirements.is_empty()
                 || !boundary.result.is_unit()
             {

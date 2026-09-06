@@ -1120,6 +1120,30 @@ fn direct_dynamic_plan_retains_result_control_and_effect_leaves() {
 }
 
 #[test]
+fn direct_dynamic_result_leaves_retain_nested_scalar_operands() {
+    let source = format!(
+        "machine identity(value: i32) -> i32 {{ value }}\n{}",
+        DIRECT_DYNAMIC_INTEGER_CONTROL_SOURCE
+            .replace("exit_process(70)", "exit_process(identity(identity(70)))")
+            .replace("exit_process(71)", "exit_process(identity(71))")
+    );
+    let checked = check_dynamic_source(&source);
+    let continuation = sole_direct_dynamic_plan(&checked)
+        .unit_continuation
+        .as_ref()
+        .expect("dynamic continuation keeps computed leaf operands");
+    assert_eq!(continuation.leaves.len(), 2);
+    for leaf in &continuation.leaves {
+        assert!(
+            matches!(leaf.operations.as_slice(), [checked_trees::CheckedUnitEffectOperationPlan::BoundaryCall {
+            coordinate, scalar_arguments, ..
+        }] if coordinate.statement_index == 0 && coordinate.call_ordinal == 0
+            && matches!(scalar_arguments.as_slice(), [checked_trees::CheckedCallScalarArgument::Computation(_)]))
+        );
+    }
+}
+
+#[test]
 fn rebound_dynamic_plan_retains_both_exact_selection_versions() {
     let checked = check_dynamic_source(REBOUND_DYNAMIC_INTEGER_CONTROL_SOURCE);
     let plan = sole_rebound_dynamic_plan(&checked);

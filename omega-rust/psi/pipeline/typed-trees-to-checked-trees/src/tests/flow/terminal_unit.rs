@@ -5,6 +5,7 @@ use checked_trees::{
 
 mod calls;
 mod cleanup;
+mod composed_call_arguments;
 mod composed_claims;
 mod composed_internal_calls;
 mod composed_nested_control;
