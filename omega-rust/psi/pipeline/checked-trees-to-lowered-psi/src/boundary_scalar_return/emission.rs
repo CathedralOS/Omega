@@ -143,15 +143,26 @@ pub(crate) fn emit_boundary_scalar_return(
     }
     let mut operations = OperationBuffer::new(identities.identity_base);
     let mut next_value_identity = first_identity;
+    let scalar_parameters = plan
+        .scalar_parameters
+        .iter()
+        .map(|parameter| {
+            Ok(ValueDeclaration {
+                id: value_id(allocate_dense(&mut next_value_identity)?),
+                scalar_type: terminal_scalar_type(parameter.primitive_type)?,
+            })
+        })
+        .collect::<Result<Vec<_>, LoweringError>>()?;
     let mut next_block = first_identity;
     let mut next_edge = first_identity;
     let mut evaluation = argument_evaluation::Evaluation::new(&mut next_block)?;
+    let mut scalar_values = scalar_parameters.clone();
     let arguments = evaluation.arguments(
         checked,
         plan.machine,
         plan.state,
         &plan.boundary_call,
-        &mut Vec::new(),
+        &mut scalar_values,
         &mut next_value_identity,
         &mut next_block,
         &mut next_edge,
@@ -247,7 +258,7 @@ pub(crate) fn emit_boundary_scalar_return(
     let machine = TerminalMachine {
         id: identities.machine,
         attachment: Some(lookup_type_id(type_ids, &plan.attachment_type_identity)?),
-        parameters: Vec::new(),
+        parameters: scalar_parameters.clone(),
         structural_parameters: parameters.clone(),
         ranked_scc: None,
         result: TerminalMachineResult::Scalar(machine_result),
@@ -278,9 +289,14 @@ pub(crate) fn emit_boundary_scalar_return(
             id: identities.contract,
             crash_routes: lower_checked_crash_route_buckets(
                 &lower_checked_crash_routes(checked, plan.machine)?,
-                &[],
+                &scalar_parameters,
             )?,
-            requires: Vec::new(),
+            requires: crate::scalar_graph_module::result_contract::clauses(
+                &checked_requirements(checked, plan)?,
+                &scalar_parameters,
+            )?
+            .into_iter()
+            .collect(),
             ensures: Vec::new(),
             outcome_specific_ensures: Vec::new(),
         },

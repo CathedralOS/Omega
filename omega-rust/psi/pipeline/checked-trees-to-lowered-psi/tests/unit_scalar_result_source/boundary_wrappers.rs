@@ -135,6 +135,185 @@ fn scalar_wrapper_result_executes_and_publishes_with_exact_services() {
 }
 
 #[test]
+fn scalar_wrapper_parameters_forward_through_named_and_unit_entries() {
+    let source = source()
+        .replace("Scalar::measure() ->", "Scalar::measure(value: i32) ->")
+        .replace("Host::measure(70)", "Host::measure(value)")
+        .replace("Scalar::measure();", "Scalar::measure(70);");
+    let checked = checked_from_source(&source);
+    let named = checked_trees_to_lowered_psi::lower_machine(&checked, "Scalar::measure")
+        .expect("a boundary-returning body retains its scalar entry parameter");
+    assert_eq!(named.semantic_module.machines[0].parameters.len(), 1);
+    let artifact = artifact(&checked);
+    let (status, observed) = execute(&artifact);
+    assert_eq!(
+        status,
+        TerminalExecutionStatus::Complete(TerminalExecutionResult::Unit)
+    );
+    assert_eq!(observed.arguments, [vec![integer(70)], vec![integer(70)]]);
+}
+
+#[test]
+fn scalar_wrapper_parameter_ranges_survive_call_proofs_and_publication() {
+    let source = source()
+        .replace(
+            "Scalar::measure() ->",
+            "Scalar::measure(value: i32 [1..=100]) ->",
+        )
+        .replace("Host::measure(70)", "Host::measure(value)")
+        .replace("Scalar::measure();", "Scalar::measure(70);");
+    let checked = checked_from_source(&source);
+    let artifact = artifact(&checked);
+    let module = decode_module(&artifact.0).unwrap();
+    let wrapper = module
+        .machines
+        .iter()
+        .find(|machine| !machine.parameters.is_empty())
+        .unwrap();
+    assert_eq!(wrapper.contract.requires.len(), 1);
+    assert!(!matches!(
+        wrapper.contract.requires[0],
+        semantic_vocabulary::Proposition::Truth
+    ));
+    let call_obligation = module
+        .machines
+        .iter()
+        .flat_map(|machine| &machine.blocks)
+        .flat_map(|block| &block.operations)
+        .find_map(|operation| match &operation.kind {
+            terminal_psi::OperationKind::Call {
+                callee,
+                requirement_obligations,
+                ..
+            } if *callee == wrapper.id => {
+                assert_eq!(requirement_obligations.len(), 1);
+                Some(requirement_obligations[0])
+            }
+            _ => None,
+        })
+        .unwrap();
+    let mut missing_call_proof = decode_proof_bundle(&artifact.1).unwrap();
+    let original_count = missing_call_proof.evidence.len();
+    missing_call_proof
+        .evidence
+        .retain(|evidence| evidence.obligation != call_obligation);
+    assert_eq!(missing_call_proof.evidence.len(), original_count - 1);
+    assert!(
+        terminal_verifier::verify_module(
+            &module,
+            &missing_call_proof,
+            &AdmissionProfile::default()
+        )
+        .is_err()
+    );
+    let (status, observed) = execute(&artifact);
+    assert_eq!(
+        status,
+        TerminalExecutionStatus::Complete(TerminalExecutionResult::Unit)
+    );
+    assert_eq!(observed.arguments, [vec![integer(70)], vec![integer(70)]]);
+}
+
+#[test]
+fn scalar_wrapper_explicit_entry_predicate_survives_call_proofs() {
+    let source = source()
+        .replace(
+            "Scalar::measure() -> i32 reaches Host",
+            "Scalar::measure(value: i32) -> i32\nrequires value >= 1\nreaches Host",
+        )
+        .replace("Host::measure(70)", "Host::measure(value)")
+        .replace("Scalar::measure();", "Scalar::measure(70);");
+    let checked = checked_from_source(&source);
+    let artifact = artifact(&checked);
+    let module = decode_module(&artifact.0).unwrap();
+    assert_eq!(
+        module
+            .machines
+            .iter()
+            .find(|machine| !machine.parameters.is_empty())
+            .unwrap()
+            .contract
+            .requires
+            .len(),
+        1
+    );
+    let (status, observed) = execute(&artifact);
+    assert_eq!(
+        status,
+        TerminalExecutionStatus::Complete(TerminalExecutionResult::Unit)
+    );
+    assert_eq!(observed.arguments, [vec![integer(70)], vec![integer(70)]]);
+}
+
+#[test]
+fn parameterized_wrappers_nested_as_actuals_keep_one_body_and_ordered_effects() {
+    let source = source()
+        .replace("Scalar::measure() ->", "Scalar::measure(value: i32) ->")
+        .replace("Host::measure(70)", "Host::measure(value)")
+        .replace(
+            "Scalar::measure();",
+            "Scalar::measure(Scalar::measure(70));",
+        );
+    let artifact = artifact(&checked_from_source(&source));
+    assert_eq!(decode_module(&artifact.0).unwrap().machines.len(), 2);
+    let (status, observed) = execute(&artifact);
+    assert_eq!(
+        status,
+        TerminalExecutionStatus::Complete(TerminalExecutionResult::Unit)
+    );
+    assert_eq!(
+        observed.arguments,
+        [vec![integer(70)], vec![integer(70)], vec![integer(70)]]
+    );
+}
+
+#[test]
+fn scalar_wrapper_signature_and_parameter_range_custody_reject_mutations() {
+    let source = source()
+        .replace(
+            "Scalar::measure() ->",
+            "Scalar::measure(value: i32 [1..=100]) ->",
+        )
+        .replace("Host::measure(70)", "Host::measure(value)")
+        .replace("Scalar::measure();", "Scalar::measure(70);");
+    let original = checked_from_source(&source);
+    for mutation in 0..4 {
+        let mut checked = original.clone();
+        let plan = &mut checked.facts.flow.terminal_boundary_scalar_returns.machines[0];
+        match mutation {
+            0 => plan.scalar_parameters.clear(),
+            1 => plan.scalar_parameters[0].source_position = 1,
+            2 => plan.scalar_parameters[0].primitive_type = typed_trees::types::PrimitiveType::Bool,
+            3 => {
+                let machine = plan.machine;
+                let contract = checked
+                    .facts
+                    .contract_plans
+                    .machines
+                    .iter_mut()
+                    .find(|contract| contract.machine == machine)
+                    .unwrap();
+                contract.closed_scalar_values = checked_trees::ClosedScalarValueContractPlan::new(
+                    Vec::new(),
+                    contract.closed_scalar_values.ensures().to_vec(),
+                    contract.closed_scalar_values.has_crash_clauses(),
+                    contract.closed_scalar_values.has_outcome_specific_clauses(),
+                );
+            }
+            _ => unreachable!(),
+        }
+        assert!(
+            checked_trees_to_lowered_psi::lower_machine(&checked, "Scalar::measure").is_err(),
+            "mutation {mutation}"
+        );
+        assert!(
+            checked_trees_to_lowered_psi::lower_machine(&checked, "Main::main").is_err(),
+            "mutation {mutation}"
+        );
+    }
+}
+
+#[test]
 fn repeated_wrappers_share_boundaries_and_nested_helper_identities() {
     let source = format!(
         "machine identity(value: i32) -> i32\nrequires 0i32 == 0i32\nensures 0i32 == 0i32\n{{ value }}\n{}",

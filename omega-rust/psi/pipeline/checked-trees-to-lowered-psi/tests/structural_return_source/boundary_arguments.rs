@@ -6,7 +6,7 @@ use typed_trees::{expression::ExpressionNode, statement::StatementNode};
 
 fn checked(source: &str) -> checked_trees::CheckedTrees {
     let tokens = Lexer::new(source).tokenize().expect("tokenize");
-    let syntax = parse_syntax_trees(&tokens).expect("parse");
+    let syntax = parse_syntax_trees(&tokens).unwrap_or_else(|error| panic!("{source}: {error:?}"));
     let resolved = lower_syntax_trees(&syntax).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
     lower_typed_trees(typed).unwrap_or_else(|errors| panic!("{source}: {errors:#?}"))
@@ -45,6 +45,13 @@ fn artifact(checked: &checked_trees::CheckedTrees) -> (Vec<u8>, Vec<u8>) {
 }
 
 fn start(artifact: &(Vec<u8>, Vec<u8>)) -> TerminalExecution {
+    start_with_scalars(artifact, &[])
+}
+
+fn start_with_scalars(
+    artifact: &(Vec<u8>, Vec<u8>),
+    scalars: &[TerminalScalarValue],
+) -> TerminalExecution {
     let module = decode_module(&artifact.0).unwrap();
     let root = module
         .machines
@@ -58,7 +65,7 @@ fn start(artifact: &(Vec<u8>, Vec<u8>)) -> TerminalExecution {
         &artifact.0,
         &artifact.1,
         &AdmissionProfile::default(),
-        &[],
+        scalars,
         &[TerminalStructuralValue {
             opaque_identity: 700,
             structural_type: parameter.structural_type,
@@ -67,6 +74,97 @@ fn start(artifact: &(Vec<u8>, Vec<u8>)) -> TerminalExecution {
         }],
     )
     .unwrap()
+}
+
+#[test]
+fn mixed_scalar_formals_retain_ranges_and_linear_boundary_settlement() {
+    let source = source("u16", "first, second", "", false)
+        .replace(
+            "Root::enter(receipt: Receipt)",
+            "Root::enter(first: u16 [1..=100], receipt: Receipt, second: u16)",
+        )
+        .replace(
+            "reaches PortIo\n        \n",
+            "reaches PortIo\n        requires first >= second\n",
+        );
+    let checked = checked(&source);
+    let artifact = artifact(&checked);
+    let module = decode_module(&artifact.0).unwrap();
+    let root = module
+        .machines
+        .iter()
+        .find(|machine| machine.id == module.entry)
+        .unwrap();
+    assert_eq!(root.parameters.len(), 2);
+    assert_eq!(root.structural_parameters[0].position, 0);
+    assert_eq!(
+        checked.facts.flow.terminal_boundary_scalar_returns.machines[0].structural_parameters[0]
+            .position,
+        1
+    );
+    assert_eq!(root.contract.requires.len(), 1);
+    let mut execution = start_with_scalars(&artifact, &[unsigned(70), unsigned(7)]);
+    assert_eq!(execution.live_claim_frontier().count(), 1);
+    let mut observer = ObserveSettlement::default();
+    assert_eq!(
+        execution
+            .resume_with_effect_handler(&mut TerminalFuelMeter::unbounded(), &mut observer)
+            .unwrap(),
+        TerminalExecutionStatus::Complete(TerminalExecutionResult::Scalar(unsigned(7)))
+    );
+    assert_eq!(observer.calls, [vec![unsigned(70), unsigned(7)]]);
+    assert_eq!(execution.live_claim_frontier().count(), 0);
+}
+
+#[test]
+fn mixed_scalar_wrapper_cannot_erase_or_substitute_structural_membership() {
+    let source = source("u16", "value, value", "", false)
+        .replace(
+            "pub data Receipt [linear] { value: u64; }",
+            "pub data Receipt [linear] { value: u64; }\ndomain Receipt::Ready;\ndomain Receipt::Other;",
+        )
+        .replace(
+            "Root::enter(receipt: Receipt)",
+            "Root::enter(receipt: Receipt in Ready, value: u16 [1..=100])",
+        );
+    let original = checked(&source);
+    artifact(&original);
+    for mutation in 0..2 {
+        let mut checked = original.clone();
+        if mutation == 0 {
+            checked.facts.flow.terminal_boundary_scalar_returns.machines[0].structural_parameters
+                [0]
+            .qualifications
+            .clear();
+        } else {
+            let other = checked
+                .typed
+                .domain_definitions()
+                .iter()
+                .find(|domain| domain.name.as_str() == "Receipt::Other")
+                .unwrap()
+                .symbol;
+            let mut changed = 0;
+            let handles = checked
+                .typed
+                .proof_facts
+                .iter()
+                .map(|(handle, _)| handle)
+                .collect::<Vec<_>>();
+            for handle in handles {
+                let fact = checked.typed.proof_facts.get_mut(handle);
+                if let typed_trees::domain::ProofFact::Membership(membership) = fact {
+                    membership.domain_symbol = other;
+                    changed += 1;
+                }
+            }
+            assert!(changed > 0);
+        }
+        assert!(
+            checked_trees_to_lowered_psi::lower_machine(&checked, "Root::enter").is_err(),
+            "mutation {mutation}"
+        );
+    }
 }
 
 #[test]

@@ -68,54 +68,74 @@ pub(super) fn validate(
     {
         return unsupported("boundary scalar return cannot erase source content evidence");
     }
-    // This body has no runtime scalar contract or scalar formal namespace.
-    // Recheck the source fence rather than letting a manufactured checked plan
+    let expected_scalar_parameters =
+        crate::attached_unit::checked_scalar_source_parameters(checked, state)?;
+    let source_structural_parameters = program
+        .state_parameters(state)
+        .iter()
+        .enumerate()
+        .filter(|(_, source)| {
+            program
+                .primitive_type_reference(source.type_reference)
+                .is_none()
+        })
+        .collect::<Vec<_>>();
+    // Scalar requirements use the existing checked predicate package; structural
+    // memberships stay with the exact structural signature. Neither route may
     // erase authored requirements or guarantees during shared closure assembly.
     if machine.supply_mode != language_semantics::MachineSupplyMode::CheckedBody
-        || program.state_parameters(state).len() != plan.structural_parameters.len()
-        || program
-            .state_parameters(state)
+        || plan.scalar_parameters != expected_scalar_parameters
+        || source_structural_parameters.len() != plan.structural_parameters.len()
+        || source_structural_parameters
             .iter()
             .zip(&plan.structural_parameters)
-            .enumerate()
-            .any(|(position, (source, retained))| {
+            .any(|((position, source), retained)| {
                 source.is_const
                     || source.is_self != retained.is_self
-                    || usize::try_from(retained.position).ok() != Some(position)
+                    || usize::try_from(retained.position).ok() != Some(*position)
             })
-        || program.state_parameters(state).iter().any(|parameter| {
-            program
-                .primitive_type_reference(parameter.type_reference)
-                .is_some()
-        })
-        || program.state_contracts(state).iter().any(|contract| {
-            program
-                .proof_facts
-                .span_or_empty(contract.facts)
-                .iter()
-                .any(|fact| match (&contract.kind, fact) {
-                    (
-                        checked_trees::signature::SignatureContractKind::Requires,
-                        checked_trees::domain::ProofFact::Membership(_),
-                    ) => plan.structural_parameters.is_empty(),
-                    (
-                        checked_trees::signature::SignatureContractKind::Ensures,
-                        checked_trees::domain::ProofFact::Expression(expression),
-                    ) => {
-                        !program.expression_table.expression_is_valid(*expression)
-                            || !matches!(
-                                program.expression_table.expression(*expression),
-                                ExpressionNode::Boolean(true)
-                            )
-                    }
-                    _ => true,
-                })
-        })
+        || program
+            .state_contracts(state)
+            .iter()
+            .chain(program.machine_contracts(machine))
+            .any(|contract| {
+                contract.binding.is_some()
+                    || program
+                        .proof_facts
+                        .span_or_empty(contract.facts)
+                        .iter()
+                        .any(|fact| match (&contract.kind, fact) {
+                            (
+                                checked_trees::signature::SignatureContractKind::Requires,
+                                checked_trees::domain::ProofFact::Membership(_),
+                            ) => memberships::validate(checked, plan, fact).is_err(),
+                            (
+                                checked_trees::signature::SignatureContractKind::Requires,
+                                checked_trees::domain::ProofFact::Expression(_),
+                            ) => !program.machine_contracts(machine).contains(contract),
+                            (
+                                checked_trees::signature::SignatureContractKind::Ensures,
+                                checked_trees::domain::ProofFact::Expression(expression),
+                            ) => {
+                                !program.expression_table.expression_is_valid(*expression)
+                                    || !matches!(
+                                        program.expression_table.expression(*expression),
+                                        ExpressionNode::Boolean(true)
+                                    )
+                            }
+                            (
+                                checked_trees::signature::SignatureContractKind::Crashes { .. },
+                                _,
+                            ) => false,
+                            _ => true,
+                        })
+            })
     {
         return unsupported(
             "boundary scalar return source exceeds its structural signature and contract slice",
         );
     }
+    checked_requirements(checked, plan)?;
     let [
         StatementNode::LocalData(local),
         StatementNode::Expression(returned),
@@ -169,16 +189,18 @@ pub(super) fn validate(
         binding,
         terminal_scalar_type(plan.result_type)?,
     )?;
+    let result_position = plan.scalar_parameters.len();
     let returns_local = match expression {
         CheckedScalarExpression::Local {
-            position: 0,
+            position,
             primitive_type,
-        } => *primitive_type == plan.result_type,
+        } => *position == result_position && *primitive_type == plan.result_type,
         CheckedScalarExpression::Boolean(expression) => {
             plan.result_type == PrimitiveType::Bool
                 && matches!(
                     expression.as_ref(),
-                    checked_trees::CheckedBooleanExpression::Local { position: 0 }
+                    checked_trees::CheckedBooleanExpression::Local { position }
+                        if *position == result_position
                 )
         }
         _ => false,

@@ -2,7 +2,7 @@
 
 use super::*;
 
-mod result_contract;
+pub(crate) mod result_contract;
 
 #[allow(clippy::too_many_arguments)]
 pub(super) fn build_scalar_graph_module(

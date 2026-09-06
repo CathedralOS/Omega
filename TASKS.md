@@ -554,9 +554,8 @@ Owners include
   structural returned calls, and structural arguments on composed internal
   calls. Retain exact evaluation order across guards and other argument effects,
   including projected and borrowed operand staging.
-  Extend scalar-returning boundary callees beyond their empty entry signature:
-  carry structural parameters and claims through ordinary Unit call closures,
-  and add scalar formals without discarding source requirements.
+  Extend scalar-returning boundary callees to carry structural parameters and
+  claims through ordinary Unit call closures.
   Complete mixed-signature runtime requirement transport for call-bearing
   arguments, remaining computation kinds, and mutable value snapshots.
   Retain evaluated arguments and prove

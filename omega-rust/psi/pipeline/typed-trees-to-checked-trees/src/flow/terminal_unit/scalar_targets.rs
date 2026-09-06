@@ -27,13 +27,16 @@ pub(super) fn is_available(
     {
         return true;
     }
-    let Some(plan) = facts
+    let mut targets = facts
         .flow
         .terminal_boundary_scalar_returns
         .machines
         .iter()
-        .find(|plan| plan.machine == *target_machine && plan.state == *target_state)
-    else {
+        .filter(|plan| plan.machine == *target_machine);
+    let Some(plan) = targets.next() else {
+        return false;
+    };
+    if targets.next().is_some() || plan.state != *target_state {
         return false;
     };
     let Some(machine) = program
@@ -49,13 +52,44 @@ pub(super) fn is_available(
     let Some(contract) = facts.contract_plans.for_machine(*target_machine) else {
         return false;
     };
-    // This return-plan family currently has no scalar entry parameters.
     // Ordinary ScalarCall cannot transfer structural places or entry claims.
-    // Requiring the exact empty signature also excludes an erased receiver.
+    // Its dense scalar roster must cover the exact authored signature, without
+    // erasing a receiver or interpreting source positions as argument ordinals.
     machine.supply_mode == MachineSupplyMode::CheckedBody
         && state.symbol == *target_state
-        && program.state_parameters(state).is_empty()
-        && scalar_arguments.is_empty()
+        && program.state_parameters(state).len() == plan.scalar_parameters.len()
+        && scalar_arguments.len() == plan.scalar_parameters.len()
+        && program
+            .state_parameters(state)
+            .iter()
+            .zip(&plan.scalar_parameters)
+            .enumerate()
+            .all(|(position, (source, parameter))| {
+                !source.is_self
+                    && !source.is_const
+                    && !source.is_mutable
+                    && usize::try_from(parameter.source_position).ok() == Some(position)
+                    && program.primitive_type_reference(source.type_reference)
+                        == Some(parameter.primitive_type)
+            })
+        && scalar_arguments
+            .iter()
+            .zip(&plan.scalar_parameters)
+            .all(|(argument, parameter)| {
+                let primitive_type = match argument {
+                    checked_trees::CheckedCallScalarArgument::Pure(expression) => {
+                        crate::values::scalar_expression_type(expression)
+                    }
+                    checked_trees::CheckedCallScalarArgument::Computation(root) => {
+                        let computations = &facts.values.scalar_computations;
+                        computations
+                            .nodes
+                            .is_valid(*root)
+                            .then(|| computations.nodes.get(*root).primitive_type)
+                    }
+                };
+                primitive_type == Some(parameter.primitive_type)
+            })
         && plan.structural_parameters.is_empty()
         && plan.entry_claims.is_empty()
         && plan.result_type == result.primitive_type
