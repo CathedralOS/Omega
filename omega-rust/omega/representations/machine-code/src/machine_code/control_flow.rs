@@ -22,6 +22,13 @@ pub struct RankedU32CountdownMachineCodeRecord {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ScalarControlFlowEvidence {
     Linear,
+    /// One current selected decision followed physically by its fallthrough
+    /// return arm and then its taken return arm. A common prefix frame remains
+    /// live on both paths; each arm restores it independently. Calls, nested
+    /// decisions, shared returns and crash leaves are not part of this form.
+    DirectConditional {
+        branch: ScalarDirectConditionalBranchEvidence,
+    },
     /// A direct scalar return containing one or more compiler-generated x86-64
     /// signed division/remainder diamonds. Each branch selects the `-1`
     /// overflow handling arm or the ordinary DIV/IDIV arm, and both paths
@@ -61,6 +68,15 @@ pub enum ScalarControlFlowEvidence {
         structural_conditions: Vec<BooleanStructuralConditionEvidence>,
         merge_offset: usize,
     },
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ScalarDirectConditionalBranchEvidence {
+    pub predicate: crate::FunctionFragmentConditionalBranchPredicate,
+    pub branch_offset: usize,
+    pub branch_byte_count: usize,
+    pub taken_offset: usize,
+    pub fallthrough_offset: usize,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

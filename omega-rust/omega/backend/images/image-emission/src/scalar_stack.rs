@@ -43,6 +43,27 @@ pub(super) fn validate_scalar_stack(
             alignment: evidence.stack_alignment,
         });
     }
+    if let ScalarControlFlowEvidence::DirectConditional { branch } = &evidence.control_flow {
+        if !calls.is_empty()
+            || !dynamic_parameter_calls.is_empty()
+            || scalar_affine_cleanup.is_some()
+            || !scalar_control_affine_cleanups.is_empty()
+            || !scalar_structural_parameter_homes.is_empty()
+        {
+            return Err(ObjectError::InvalidScalarConditionalEvidence {
+                machine,
+                offset: branch.branch_offset,
+            });
+        }
+        return super::scalar_direct_conditional::validate_stack(
+            architecture,
+            machine,
+            bytes,
+            evidence,
+            branch,
+        )
+        .map(|stack| (stack, Vec::new()));
+    }
     if let ScalarControlFlowEvidence::BooleanSharedConvergence {
         decisions,
         joins,

@@ -25,7 +25,8 @@ const SELECTED_LOWERING_MACHINE_PROJECTION_DOMAIN: &[u8] =
 /// native publication.
 ///
 /// This carrier is deliberately narrower than a general physical-pipeline
-/// descriptor. It binds validated Unit returns and fixed-integer scalar leaves;
+/// descriptor. It binds validated Unit returns and fixed-integer no-call scalar
+/// leaves or direct-return decisions;
 /// it cannot carry policy callbacks or claim support for calls and providers.
 #[derive(Debug, Clone, Copy)]
 pub struct SelectedLoweringNativePublicationInput<'plan> {
@@ -891,5 +892,112 @@ mod tests {
         );
         let original: [u8; 32] = original.finalize().into();
         assert_eq!(machine_projection_from_plan(&plan), original);
+    }
+
+    fn conditional_scalar_plan() -> MachineCodePlan {
+        use machine_code::{
+            FunctionFragmentConditionalBranchPredicate, ScalarControlFlowEvidence,
+            ScalarDirectConditionalBranchEvidence,
+        };
+        use semantic_vocabulary::{EdgeId, OperationId};
+
+        let mut plan = scalar_plan();
+        let function = &mut plan.functions[0];
+        function.bytes = vec![
+            0x85, 0xc0, 0x75, 6, 0xb8, 1, 0, 0, 0, 0xc3, 0xb8, 2, 0, 0, 0, 0xc3,
+        ];
+        let edges = [1, 2, 3, 4].map(|value| EdgeId::new(value).unwrap());
+        let operations = [11, 12].map(|value| OperationId::new(value).unwrap());
+        function.provenance.edges = edges.to_vec();
+        function.provenance.operations = operations.to_vec();
+        function.scalar_stack.as_mut().unwrap().control_flow =
+            ScalarControlFlowEvidence::DirectConditional {
+                branch: ScalarDirectConditionalBranchEvidence {
+                    predicate: FunctionFragmentConditionalBranchPredicate::NonZeroV1,
+                    branch_offset: 2,
+                    branch_byte_count: 2,
+                    taken_offset: 10,
+                    fallthrough_offset: 4,
+                },
+            };
+        function.semantic_code_attribution = [
+            (SemanticCodeSite::Edge(edges[0]), 0, 2, 2),
+            (SemanticCodeSite::Edge(edges[1]), 0, 4, 0),
+            (SemanticCodeSite::Operation(operations[0]), 1, 4, 5),
+            (SemanticCodeSite::Edge(edges[2]), 2, 9, 1),
+            (SemanticCodeSite::Operation(operations[1]), 3, 10, 5),
+            (SemanticCodeSite::Edge(edges[3]), 4, 15, 1),
+        ]
+        .into_iter()
+        .map(
+            |(site, operation_ordinal, code_offset, byte_count)| SemanticCodeAttribution {
+                site,
+                operation_ordinal,
+                code_offset,
+                byte_count,
+            },
+        )
+        .collect();
+        plan
+    }
+
+    #[test]
+    fn selected_conditional_publication_binds_exact_branch_and_return_edges() {
+        let plan = conditional_scalar_plan();
+        let binding =
+            derive_selected_lowering_publication_binding(terminal(), input(&plan, 3)).unwrap();
+        let object = image_emission::build_object_artifact(&plan).unwrap();
+        validate_selected_lowering_publication_object(&binding, &object).unwrap();
+        let mut substituted = plan.clone();
+        let edge = semantic_vocabulary::EdgeId::new(99).unwrap();
+        substituted.functions[0].provenance.edges[0] = edge;
+        substituted.functions[0].semantic_code_attribution[0].site = SemanticCodeSite::Edge(edge);
+        let object = image_emission::build_object_artifact(&substituted).unwrap();
+        assert!(validate_selected_lowering_publication_object(&binding, &object).is_err());
+    }
+
+    #[test]
+    fn selected_conditional_publication_rejects_detached_control_and_attribution() {
+        use machine_code::{FunctionFragmentConditionalBranchPredicate, ScalarControlFlowEvidence};
+        let plan = conditional_scalar_plan();
+        for corruption in 0..7 {
+            let mut changed = plan.clone();
+            let function = &mut changed.functions[0];
+            match corruption {
+                0 => {
+                    function.scalar_stack.as_mut().unwrap().control_flow =
+                        ScalarControlFlowEvidence::Linear
+                }
+                1 => {
+                    let ScalarControlFlowEvidence::DirectConditional { branch } =
+                        &mut function.scalar_stack.as_mut().unwrap().control_flow
+                    else {
+                        unreachable!()
+                    };
+                    branch.predicate = FunctionFragmentConditionalBranchPredicate::I64LessThanV1;
+                }
+                2 => function.semantic_code_attribution[1].code_offset = 5,
+                3 => function.semantic_code_attribution[3].byte_count = 2,
+                4 => {
+                    function.semantic_code_attribution[1].site =
+                        SemanticCodeSite::Edge(semantic_vocabulary::EdgeId::new(99).unwrap())
+                }
+                5 => function
+                    .fixed_integer_scalar_abi
+                    .as_mut()
+                    .unwrap()
+                    .result
+                    .placement
+                    .locations
+                    .clear(),
+                6 => function.bytes[2] = 0x74,
+                _ => unreachable!(),
+            }
+            assert!(
+                derive_selected_lowering_publication_binding(terminal(), input(&changed, 3))
+                    .is_err(),
+                "conditional corruption {corruption}"
+            );
+        }
     }
 }
