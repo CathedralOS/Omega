@@ -367,9 +367,14 @@ selector and source; replacing or exposing the carrier or reference slot for
 replacement prevents reuse of that evidence. Explicit state requirements may
 use an existing live qualification of the exact referent; reference identity
 cannot establish a missing or invalidated qualification.
-Owned input carriers use that same boundary and prefix-stability rule. A
-declared reference identifies an input subject only while its binding remains
-unchanged; the subject's qualification must already be established. Exposure
+Owned input carriers and carriers behind one readable input reference use that
+same boundary and prefix-stability rule. Canonical carrier aliases preserve the
+load relation only while the carrier's reference slots remain frozen. Replacing
+or exposing the carrier through any known alias retires the relation; rebinding
+that alias alone does not replace the carrier. Additional reference boundaries
+need independent load evidence. A declared reference identifies an input subject
+only while its binding remains unchanged; the subject's qualification must
+already be established. Exposure
 in an earlier call operand is checked independently of that call's write frame.
 An unrelated reference with an unknown origin does not erase another
 reference's exact correspondence. Copies of that unknown reference remain

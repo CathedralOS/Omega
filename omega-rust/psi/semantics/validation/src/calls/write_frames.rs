@@ -422,18 +422,20 @@ fn walk_state_write_prefix_inner(
     let mut stored = if include_shared {
         parameters
             .iter()
-            .filter(|parameter| {
-                !parameter.is_self
-                    && !type_reference_is_reference(program, parameter.type_reference)
-            })
+            .filter(|parameter| !parameter.is_self)
             .filter_map(|parameter| {
-                stored_origins::declared_origins_for_query(
+                let reference =
+                    reference_subjects::carrier_storage_type(program, parameter.type_reference)?;
+                let origins = stored_origins::declared_origins_for_query(
                     program,
                     parameter.symbol,
                     parameter.name.as_str(),
-                    parameter.type_reference,
+                    reference,
                     true,
-                )
+                )?;
+                (!type_reference_is_reference(program, parameter.type_reference)
+                    || !origins.references.is_empty())
+                .then_some(origins)
             })
             .collect()
     } else {
@@ -542,7 +544,12 @@ fn walk_state_write_prefix_inner(
             _ => None,
         };
         if stored_origins::statement_exposes_frozen_binding(
-            program, machine, state, statement, &stored,
+            program,
+            machine,
+            state,
+            statement,
+            &stored,
+            &local_alias_origins,
         ) {
             return None;
         }
@@ -580,7 +587,22 @@ fn walk_state_write_prefix_inner(
         match statement {
             StatementNode::AssemblyFact(_) => {}
             StatementNode::Assignment(assignment) => {
-                if stored_origins::assignment_replaces_case_binding(program, assignment, &stored)
+                let replaces_local_binding = representable_alias_rebinding
+                    || (include_shared
+                        && reference_subjects::replaces_binding(program, machine, statement)?);
+                if (!replaces_local_binding
+                    && (stored_origins::assignment_replaces_case_binding(
+                        program,
+                        assignment,
+                        &stored,
+                        &local_alias_origins,
+                    ) || (include_shared
+                        && stored_origins::assignment_replaces_reference_ancestor(
+                            program,
+                            assignment,
+                            &stored,
+                            &local_alias_origins,
+                        ))))
                     || alias_bindings::assignment_replaces_untracked_reference(
                         program,
                         machine,
@@ -2204,7 +2226,12 @@ fn build_permuted_cycle_frame_equation<'program>(
             _ => false,
         };
         if stored_origins::statement_exposes_frozen_binding(
-            program, machine, state, statement, &stored,
+            program,
+            machine,
+            state,
+            statement,
+            &stored,
+            &local_alias_origins,
         ) {
             return None;
         }
@@ -2235,7 +2262,13 @@ fn build_permuted_cycle_frame_equation<'program>(
         match statement {
             StatementNode::AssemblyFact(_) | StatementNode::Expression(_) => {}
             StatementNode::Assignment(assignment) => {
-                if stored_origins::assignment_replaces_case_binding(program, assignment, &stored)
+                if (!representable_alias_rebinding
+                    && stored_origins::assignment_replaces_case_binding(
+                        program,
+                        assignment,
+                        &stored,
+                        &local_alias_origins,
+                    ))
                     || alias_bindings::assignment_replaces_untracked_reference(
                         program,
                         machine,

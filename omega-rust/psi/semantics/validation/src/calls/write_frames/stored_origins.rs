@@ -28,6 +28,8 @@ pub(super) fn has_aggregate_case_shape(
 }
 
 pub(super) use frozen_bindings::assignment_replaces_case_binding;
+pub(super) use frozen_bindings::assignment_replaces_reference_ancestor;
+pub(super) use frozen_bindings::binding_source;
 pub(super) use frozen_bindings::statement_exposes_frozen_binding;
 pub(super) use frozen_bindings::{call_exposes_frozen_binding, expression_exposes_frozen_binding};
 
@@ -172,10 +174,13 @@ pub(super) fn expression_borrows_carrier_binding(
     state: &typed_trees::state::State,
     expression: typed_trees::expression::ExpressionHandle,
     stored: &[StoredLocalOrigins],
+    aliases: &[(String, FramePlaceOrigin)],
 ) -> bool {
     super::local_aliases::expression_has_exclusive_borrow(program, expression, &|target| {
-        if frozen_bindings::target_replaces_case_binding(program, target, stored)
-            || frozen_bindings::target_replaces_reference_binding(program, target, stored, true)
+        if frozen_bindings::target_replaces_case_binding(program, target, stored, aliases)
+            || frozen_bindings::target_replaces_reference_binding(
+                program, target, stored, aliases, true,
+            )
         {
             return true;
         }

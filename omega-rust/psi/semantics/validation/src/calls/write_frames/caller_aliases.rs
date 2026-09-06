@@ -359,6 +359,7 @@ fn caller_aliases_at_site(
         state,
         statement,
         &prefix.stored,
+        &prefix.aliases,
     ) {
         return None;
     }

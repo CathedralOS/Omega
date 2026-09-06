@@ -42,9 +42,14 @@ pub(super) fn validate_frozen_inputs(
     }
     for statement in program.statement_table.statements(state.statement_nodes) {
         if stored_origins::statement_exposes_frozen_binding(
-            program, machine, state, statement, &inputs,
+            program,
+            machine,
+            state,
+            statement,
+            &inputs,
+            &[],
         ) || matches!(statement, StatementNode::Assignment(assignment)
-                if stored_origins::assignment_replaces_case_binding(program, assignment, &inputs))
+                if stored_origins::assignment_replaces_case_binding(program, assignment, &inputs, &[]))
         {
             return None;
         }

@@ -36,6 +36,7 @@ pub(in crate::calls::write_frames) fn are_stable_at_site(
                 state,
                 call,
                 &prefix.stored,
+                &prefix.aliases,
             ) || program
                 .statement_table
                 .expression_handles(call.arguments)
@@ -49,6 +50,7 @@ pub(in crate::calls::write_frames) fn are_stable_at_site(
                 state,
                 expression,
                 &prefix.stored,
+                &prefix.aliases,
             ) || reference_binding_exposed(expression)
         }
         CallerWriteSite::Statement(_) => return None,
