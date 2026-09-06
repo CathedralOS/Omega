@@ -4,15 +4,13 @@ use crate::*;
 
 pub(crate) mod compute;
 pub(crate) mod edge_values;
-pub(crate) mod identity;
 pub(crate) mod model;
 pub(crate) mod validate;
 
 #[cfg(test)]
 pub(crate) mod tests;
 
-pub use identity::liveness_identity;
-pub use model::*;
+pub use model::{LivenessError, LivenessValidationReceipt, ValidatedLiveness};
 pub use validate::validate_liveness;
 
 /// Compute and independently replay bounded selected-CFG liveness facts.

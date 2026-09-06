@@ -2,12 +2,13 @@
 
 use optimization_core::PostAllocationOptimizationManifestIdentity;
 use optimization_unit::{EffectLink, OwnershipEvent};
-use register_homes::{AllocationLegalityIdentity, LiveRangeIdentity, RegisterHomeIdentity};
+use register_homes::{AllocationLegalityIdentity, RegisterHomeIdentity};
 use register_model::{
     PhysicalRegisterModelIdentity, RegisterClassId, RegisterConstraintCatalogIdentity,
     RegisterConstraintFamily, RegisterConstraintKey, RegisterOperandAccess, RegisterUnitId,
     RegisterViewId, RegisterWriteSemantics, TargetRegisterEnvironmentIdentity,
 };
+use selected_instructions::LiveRangeIdentity;
 use selected_instructions::{
     MachineAlternative, MachineAlternativeApplicability, MachineAlternativeFamily,
     MachineAlternativeKey, MachineEffectCatalogIdentity, MachineEncodedControlEffect,

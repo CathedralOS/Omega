@@ -21,4 +21,13 @@ pub use output::{
 pub use preservation::*;
 pub use register_model::*;
 pub use rewrites::*;
+#[cfg(test)]
+use selected_instructions::{
+    BlockPointDomain, EarlyClobberConstraint, EarlyClobberUse, EdgeRegisterTransfer,
+    LivenessPosition, VirtualFixedConstraint, VirtualOccurrence,
+};
+use selected_instructions::{
+    DistinctUseDefTie, FunctionLiveRanges, LiveRangeFragment, LiveRangeIdentity, LiveRangePoint,
+    LivenessIdentity, VirtualFixedConstraintSite, VirtualInterference, VirtualLiveRange,
+};
 pub use selected_instructions_to_selected_instructions::*;

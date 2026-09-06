@@ -37,7 +37,9 @@ defines the root program struct and maps its subordinate concepts. For example,
 `selected-instructions/src/selected_instructions.rs` owns
 `SelectedInstructionPlan`; `selected_instructions/` contains control flow,
 virtual values, instructions, structural calls, constraints, provenance, and
-effects. Effect catalogs describe target mechanisms; effect program rows
+effects, plus retained liveness and live-range facts. Their raw plans and
+canonical identities describe selected instructions, not physical homes or
+validation authority. Effect catalogs describe target mechanisms; effect program rows
 describe a particular selected program and own their canonical encoding.
 
 The corresponding entrances are `abstract_operations.rs` for

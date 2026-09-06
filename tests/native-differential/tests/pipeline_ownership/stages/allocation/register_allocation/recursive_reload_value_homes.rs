@@ -249,7 +249,7 @@ fn independent_replay_rejects_roots_lineage_interval_domain_view_roster_order_an
                         );
                 },
                 |plan: &mut selected_instructions_to_register_homes::RecursiveReloadValueHomePlan| {
-                    plan.ranges = selected_instructions_to_register_homes::LiveRangeIdentity::from_bytes([0xb4; 32]);
+                    plan.ranges = selected_instructions::LiveRangeIdentity::from_bytes([0xb4; 32]);
                 },
                 |plan: &mut selected_instructions_to_register_homes::RecursiveReloadValueHomePlan| {
                     plan.legality =

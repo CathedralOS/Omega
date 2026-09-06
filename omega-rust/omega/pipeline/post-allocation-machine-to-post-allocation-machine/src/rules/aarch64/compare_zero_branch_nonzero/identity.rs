@@ -19,7 +19,7 @@ pub fn aarch64_cbnz_fusion_identity(plan: &Aarch64CbnzFusionPlan) -> Aarch64Cbnz
 pub(crate) fn revision_identity(
     source: physical_instructions::PostAllocationMachineIdentity,
     selected: selected_instructions::SelectedInstructionPlanIdentity,
-    liveness: selected_instructions_to_register_homes::LivenessIdentity,
+    liveness: selected_instructions::LivenessIdentity,
     target: target::NativeTarget,
     physical: register_model::PhysicalRegisterModelIdentity,
     functions: &[crate::Aarch64CbnzFusionFunction],
@@ -84,7 +84,7 @@ fn encode_roots(
     hasher: &mut Sha256,
     source: physical_instructions::PostAllocationMachineIdentity,
     selected: selected_instructions::SelectedInstructionPlanIdentity,
-    liveness: selected_instructions_to_register_homes::LivenessIdentity,
+    liveness: selected_instructions::LivenessIdentity,
     target: target::NativeTarget,
     physical: register_model::PhysicalRegisterModelIdentity,
 ) {

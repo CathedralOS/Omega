@@ -1,8 +1,8 @@
 use std::collections::BTreeSet;
 
 use register_model::ValidatedPhysicalRegisterModel;
+use selected_instructions::InstructionLiveness;
 use selected_instructions::{MachineSemanticKind, SelectedInstruction, SelectedInstructionKind};
-use selected_instructions_to_register_homes::InstructionLiveness;
 
 use physical_instructions::{PhysicalOperandFootprint, PostAllocationMachineInstruction};
 

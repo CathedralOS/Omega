@@ -2,7 +2,7 @@ use register_model::RegisterOperandAccess;
 use sha2::{Digest, Sha256};
 use target::{Architecture, ObjectFormat};
 
-use crate::analyses::liveness::model::{FunctionLiveness, LivenessIdentity, LivenessPlan};
+use crate::{FunctionLiveness, LivenessIdentity, LivenessPlan};
 
 pub fn liveness_identity(plan: &LivenessPlan) -> LivenessIdentity {
     let mut bytes = Vec::new();
@@ -104,7 +104,7 @@ fn encode_option_u16(bytes: &mut Vec<u8>, value: Option<u16>) {
     }
 }
 
-fn encode_vregs(bytes: &mut Vec<u8>, values: &[selected_instructions::VirtualRegisterId]) {
+fn encode_vregs(bytes: &mut Vec<u8>, values: &[crate::VirtualRegisterId]) {
     encode_len(bytes, values.len());
     for value in values {
         bytes.extend_from_slice(&value.0.to_le_bytes());
@@ -130,11 +130,9 @@ fn encode_len(bytes: &mut Vec<u8>, length: usize) {
 mod tests {
     use super::*;
     use crate::{BlockLiveness, FunctionLiveness, InstructionLiveness, LivenessPosition};
+    use crate::{SelectedBlockId, SelectedInstructionId, SelectedInstructionPlanIdentity};
     use optimization_core::OptimizationUnitIdentity;
     use register_model::RegisterUnitId;
-    use selected_instructions::{
-        SelectedBlockId, SelectedInstructionId, SelectedInstructionPlanIdentity,
-    };
     use semantic_vocabulary::{BlockId, FuelScheduleIdentity, MachineId};
 
     fn function(machine: u64, unit: u16) -> FunctionLiveness {

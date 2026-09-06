@@ -3,7 +3,7 @@
 use super::identity::encode_terminal_register_home_content;
 use crate::*;
 use register_model::{RegisterClassId, RegisterViewId, TargetRegisterEnvironmentIdentity};
-use selected_instructions::VirtualRegisterId;
+use selected_instructions::{LiveRangeIdentity, VirtualRegisterId};
 use semantic_vocabulary::MachineId;
 
 const REGISTER_HOME_MAGIC: &[u8; 8] = b"OMGRAH\0\0";

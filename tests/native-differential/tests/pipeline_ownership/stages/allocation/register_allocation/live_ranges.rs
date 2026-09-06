@@ -1,4 +1,63 @@
 use crate::tests::*;
+
+#[test]
+fn retained_selected_analysis_data_outlives_stages_and_requires_replay() {
+    for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
+        let (liveness, ranges, liveness_commitment, ranges_commitment): (
+            selected_instructions::LivenessPlan,
+            selected_instructions::LiveRangePlan,
+            selected_instructions::LivenessIdentity,
+            selected_instructions::LiveRangeIdentity,
+        ) = {
+            let stage = stage_optimized_live_ranges(
+                stage_optimized_liveness(staged_forwarded_conditional(target)).unwrap(),
+            )
+            .unwrap();
+            (
+                stage.liveness_stage().liveness().plan().clone(),
+                stage.ranges().plan().clone(),
+                stage.liveness_stage().liveness().receipt().identity(),
+                stage.ranges().receipt().identity(),
+            )
+        };
+        // Both raw plans remain usable after every producing stage was dropped.
+        assert_eq!(liveness.functions[0].blocks.len(), 3);
+        assert_eq!(ranges.functions[0].virtual_registers.len(), 2);
+        assert_eq!(
+            selected_instructions::liveness_identity(&liveness),
+            liveness_commitment
+        );
+        assert_eq!(
+            selected_instructions::live_range_identity(&ranges),
+            ranges_commitment
+        );
+
+        let selected = staged_forwarded_conditional(target);
+        let mut changed_liveness = liveness.clone();
+        changed_liveness.functions[0].blocks[0]
+            .virtual_live_in
+            .clear();
+        assert_ne!(
+            selected_instructions::liveness_identity(&changed_liveness),
+            liveness_commitment
+        );
+        assert!(validate_liveness(selected.selected(), changed_liveness).is_err());
+
+        let admitted_liveness = validate_liveness(selected.selected(), liveness).unwrap();
+        let mut changed_ranges = ranges.clone();
+        changed_ranges.functions[0].interference.clear();
+        assert_ne!(
+            selected_instructions::live_range_identity(&changed_ranges),
+            ranges_commitment
+        );
+        assert!(
+            validate_live_ranges(selected.selected(), &admitted_liveness, changed_ranges).is_err()
+        );
+        let admitted_ranges =
+            validate_live_ranges(selected.selected(), &admitted_liveness, ranges).unwrap();
+        assert_eq!(admitted_ranges.receipt().identity(), ranges_commitment);
+    }
+}
 #[test]
 fn live_ranges_are_block_local_and_interference_is_cfg_exact() {
     for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {

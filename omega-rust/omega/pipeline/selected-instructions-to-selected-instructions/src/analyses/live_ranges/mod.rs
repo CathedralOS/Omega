@@ -3,12 +3,10 @@
 use crate::*;
 
 pub(crate) mod compute;
-pub(crate) mod identity;
 pub(crate) mod model;
 pub(crate) mod validate;
 
-pub use identity::live_range_identity;
-pub use model::*;
+pub use model::{LiveRangeError, LiveRangeValidationReceipt, ValidatedLiveRanges};
 pub use validate::validate_live_ranges;
 
 /// Derive block-local live-range fragments and virtual-register interference

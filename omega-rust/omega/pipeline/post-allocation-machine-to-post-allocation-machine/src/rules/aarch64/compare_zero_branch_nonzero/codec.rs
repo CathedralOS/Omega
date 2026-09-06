@@ -2,10 +2,10 @@ use optimization_core::{OptimizationWorkBudget, OptimizationWorkUsage};
 use register_model::{
     PhysicalRegisterModelIdentity, RegisterClassId, RegisterUnitId, RegisterViewId,
 };
+use selected_instructions::LivenessIdentity;
 use selected_instructions::{
     SelectedBlockId, SelectedInstructionId, SelectedInstructionPlanIdentity, VirtualRegisterId,
 };
-use selected_instructions_to_register_homes::LivenessIdentity;
 use semantic_vocabulary::{EdgeId, MachineId};
 use target::{Architecture, NativeTarget, ObjectFormat};
 
@@ -280,10 +280,10 @@ mod tests {
     use register_model::{
         PhysicalRegisterModelIdentity, RegisterClassId, RegisterUnitId, RegisterViewId,
     };
+    use selected_instructions::LivenessIdentity;
     use selected_instructions::{
         SelectedBlockId, SelectedInstructionId, SelectedInstructionPlanIdentity, VirtualRegisterId,
     };
-    use selected_instructions_to_register_homes::LivenessIdentity;
     use semantic_vocabulary::{EdgeId, MachineId};
     use target::NativeTarget;
 

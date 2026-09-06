@@ -1,11 +1,12 @@
 //! Ordered V3 content decoding after frame admission.
 
 use optimization_core::PostAllocationOptimizationManifestIdentity;
-use register_homes::{AllocationLegalityIdentity, LiveRangeIdentity, RegisterHomeIdentity};
+use register_homes::{AllocationLegalityIdentity, RegisterHomeIdentity};
 use register_model::{
     PhysicalRegisterModelIdentity, RegisterConstraintCatalogIdentity,
     TargetRegisterEnvironmentIdentity,
 };
+use selected_instructions::LiveRangeIdentity;
 use selected_instructions::PreAllocationMachineEffectIdentity;
 use selected_instructions::{
     MachineEffectCatalogIdentity, SelectedBlockId, SelectedInstructionPlanIdentity,

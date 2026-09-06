@@ -3,10 +3,10 @@ use register_model::{
     PhysicalRegisterModelIdentity, RegisterClassId, RegisterUnitId, RegisterViewId,
     RegisterWriteSemantics,
 };
+use selected_instructions::LivenessIdentity;
 use selected_instructions::{
     SelectedBlockId, SelectedInstructionId, SelectedInstructionPlanIdentity, VirtualRegisterId,
 };
-use selected_instructions_to_register_homes::LivenessIdentity;
 use semantic_vocabulary::MachineId;
 use target::NativeTarget;
 

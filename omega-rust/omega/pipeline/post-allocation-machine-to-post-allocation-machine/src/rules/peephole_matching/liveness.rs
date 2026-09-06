@@ -1,4 +1,4 @@
-use selected_instructions_to_register_homes::{BlockLiveness, InstructionLiveness};
+use selected_instructions::{BlockLiveness, InstructionLiveness};
 
 use super::{
     InstructionPairMatchError, InstructionPairPattern, MatchedPhysicalRead,

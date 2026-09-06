@@ -140,7 +140,7 @@ fn replay_rejects_every_root_and_logical_action_surface_corruption() {
                 );
             },
             |plan: &mut selected_instructions_to_register_homes::GeneralizedSpillRecoveryActionPlan| {
-                plan.ranges = Some(selected_instructions_to_register_homes::LiveRangeIdentity::from_bytes([0xd8; 32]));
+                plan.ranges = Some(selected_instructions::LiveRangeIdentity::from_bytes([0xd8; 32]));
             },
             |plan: &mut selected_instructions_to_register_homes::GeneralizedSpillRecoveryActionPlan| {
                 plan.register_environment =
