@@ -1,6 +1,47 @@
 use super::*;
 
 #[test]
+fn direct_computed_byte_stores_use_selected_arithmetic() {
+    for (body, succeeds) in [
+        ("output[position] = 1 / 2 * 400;", false),
+        ("output[position] = 1 / 2 * 130;", true),
+        ("let byte: u8 = 60; output[position] = byte + 5;", true),
+        ("output[position] = 60 + 5;", true),
+        ("output[position] = (250 as u8 in Wrapping) + 71;", true),
+        ("output[position] = (250 as u8 in Saturating) + 71;", false),
+        ("let byte: u8 = 120; output[position] = byte + 8;", false),
+        (
+            "let mut byte: u8 = 60; byte = unknown; output[position] = (byte as u8 in Wrapping) + 5;",
+            false,
+        ),
+    ] {
+        let source = format!(
+            r#"
+            domain [u8; 4]::Ascii requires ascii_only(self);
+            machine replace(output: &mut [u8; 4], position: u64 [0..=3], unknown: u8)
+            requires output in Ascii
+            ensures output in Ascii {{ {body} }}
+            "#
+        );
+        let result = lower_typed_trees(parse_typed_trees(&source));
+        assert_eq!(
+            result.is_ok(),
+            succeeds,
+            "{body}: {:#?}",
+            result.as_ref().err()
+        );
+        if let Err(diagnostics) = result {
+            assert!(
+                diagnostics
+                    .iter()
+                    .any(|diagnostic| diagnostic.message.contains("cannot prove ensures")),
+                "{body}: {diagnostics:#?}"
+            );
+        }
+    }
+}
+
+#[test]
 fn computed_byte_stores_use_live_scalar_snapshots() {
     for (body, succeeds) in [
         ("let byte: u8 = 60 + 5; output[position] = byte;", true),
