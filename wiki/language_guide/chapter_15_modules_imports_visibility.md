@@ -28,6 +28,16 @@ Every `build.omg` states its kind explicitly — `builder.package` for a package
 `builder.member` for a workspace root, `builder.application` for an
 application. No role is inferred from an absent declaration.
 
+For complete macOS GUI application output, the settled
+[publication contract](../design_briefs/macos_application_publication.md) uses
+`builder.subsystem = Subsystem::Gui` as the opt-in to one `.app`, assembled
+after native emission. The application name supplies the executable and bundle
+basename; an explicit application identifier is required before signed macOS
+GUI native emission, not merely because a macOS entry was declared. Terminal
+Psi may still be published without those native realization inputs. The new
+identifier field and bundle producer are not yet implemented; current macOS
+GUI output is a flat executable, and std requests application activation.
+
 The selected manifest has exactly one free
 `machine build(builder: &mut Build)` entry. A scoped `Owner::build` is never a
 project root; its owner name proves neither identity nor authority, and the
