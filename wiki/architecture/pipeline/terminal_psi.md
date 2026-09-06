@@ -2018,6 +2018,18 @@ premise, and requires the exact-subtract evidence before constructing resumable
   correspondence without changing the emitted control flow. It is provenance
   for replay and analysis, never authority to insert runtime accounting.
 
+The current native ranked admission route selects the entry machine and requires
+its ranked component and exact countdown ceiling. It does not admit an ordinary
+caller invoking a ranked callee. The settled
+[projected-receiver call model](../../design_briefs/termination_ranking_and_progress.md#ranked-callees-on-projected-receivers)
+establishes a fixed field borrow at the call and preserves that same receiver
+through the callee's backedges; no receiver-rebinding syntax or second parent
+parameter is needed. Complete support must compose argument references,
+call/return and cleanup, callee ranking validation, and resource accounting.
+The one-structural-parameter replay restriction belongs to the bounded countdown
+implementation, not to general ranked-loop semantics. Widening it alone would
+not implement changing-reference transfers or their borrow/ranking checks.
+
 General cyclic control is nevertheless part of Terminal Psi's durable semantic
 model rather than a second loop language. `Jump` and `Conditional` form the
 graph; block parameters and exact successor arguments carry SSA values around a

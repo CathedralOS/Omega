@@ -86,6 +86,17 @@ needed for independent replay through publication.
   frontiers, optional well-founded ranking, productive unranked components,
   and structured finite-work failures.
 
+  First bounded call-composition milestone: implement the
+  [ranked callee on a projected receiver](wiki/design_briefs/termination_ranking_and_progress.md#ranked-callees-on-projected-receivers),
+  beyond the current whole-entry-only admission. Acceptance: an ordinary caller
+  borrows a nested field, its ranked callee preserves that referent across
+  backedges, and the caller observes writes after return. Conflicting parent
+  access and missing/invalid callee ranking reject. Validate argument identity,
+  call/return, cleanup, and composed resource bounds through native replay and
+  execution on both Linux architectures. This needs no new receiver syntax.
+  Broader changing-reference transfers still require loan/alias and ranking
+  substitution work; increasing the parameter count alone does not close them.
+
 - **TERMINAL-SCC-CONSUMERS.** Retarget LICM and other loop consumers from the
   exact countdown slice to validated Terminal SCCs. General invariant
   discovery, profitability, and motion remain open.
