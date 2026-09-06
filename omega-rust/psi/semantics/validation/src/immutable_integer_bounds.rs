@@ -3,10 +3,18 @@ use typed_trees::TypedTrees;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use typed_trees::statement::{StatementNode, TableLocalData};
 
+#[cfg(test)]
+mod tests;
+
 enum ImmutableLocalLookup<'program> {
     Missing,
     Found(&'program TableLocalData),
     Invalid,
+}
+
+enum NormalizedBound {
+    Expression(ExpressionHandle),
+    ComputedLocal(SymbolHandle),
 }
 
 /// Normalize an integer-bound expression through a finite chain of immutable
@@ -14,15 +22,31 @@ enum ImmutableLocalLookup<'program> {
 ///
 /// The terminal leaf is either the original integer literal or one exact
 /// symbol-backed bare name, such as a machine/state parameter. Mutable,
-/// ambiguous, cyclic, qualified, and computed aliases remain unknown. Typed
-/// local-name expressions currently retain no symbol, so an unresolved bare
-/// spelling is accepted only when it names one unique immutable local in the
-/// complete typed program.
+/// ambiguous, cyclic, qualified, and computed aliases remain unknown. A bare
+/// local name without a retained symbol is accepted only when it names one
+/// unique immutable local in the complete typed program.
 pub fn normalize_immutable_integer_bound_expression(
     program: &TypedTrees,
     expression: ExpressionHandle,
 ) -> Option<ExpressionHandle> {
-    normalize_bound(program, expression, &mut Vec::new())
+    match normalize_bound(program, expression, &mut Vec::new())? {
+        NormalizedBound::Expression(expression) => Some(expression),
+        NormalizedBound::ComputedLocal(_) => None,
+    }
+}
+
+/// Retain the identity of one computed immutable integer binding, including
+/// through immutable copies. This establishes shared value identity, not the
+/// initializer's value or equivalence to a separately evaluated computation.
+/// Static-index callers continue to use the expression/usize normalizers.
+pub fn computed_immutable_integer_bound_symbol(
+    program: &TypedTrees,
+    expression: ExpressionHandle,
+) -> Option<SymbolHandle> {
+    match normalize_bound(program, expression, &mut Vec::new())? {
+        NormalizedBound::ComputedLocal(symbol) => Some(symbol),
+        NormalizedBound::Expression(_) => None,
+    }
 }
 
 /// Normalize an integer literal or finite immutable local-copy chain to one
@@ -43,13 +67,13 @@ fn normalize_bound(
     program: &TypedTrees,
     expression: ExpressionHandle,
     seen_aliases: &mut Vec<SymbolHandle>,
-) -> Option<ExpressionHandle> {
+) -> Option<NormalizedBound> {
     if !expression.is_valid() {
         return None;
     }
 
     match program.expression_table.expression(expression) {
-        ExpressionNode::Integer(_) => Some(expression),
+        ExpressionNode::Integer(_) => Some(NormalizedBound::Expression(expression)),
         ExpressionNode::Name(path) => {
             let members = program.expression_table.name_path_members(path.members);
             if members.len() != 1 {
@@ -57,7 +81,7 @@ fn normalize_bound(
             }
             if path.symbol.is_valid() && path.head_symbol == path.symbol {
                 match immutable_local_by_symbol(program, path.symbol) {
-                    ImmutableLocalLookup::Missing => Some(expression),
+                    ImmutableLocalLookup::Missing => Some(NormalizedBound::Expression(expression)),
                     ImmutableLocalLookup::Found(local) => {
                         normalize_local(program, local, seen_aliases)
                     }
@@ -80,12 +104,18 @@ fn normalize_local(
     program: &TypedTrees,
     local: &TableLocalData,
     seen_aliases: &mut Vec<SymbolHandle>,
-) -> Option<ExpressionHandle> {
+) -> Option<NormalizedBound> {
     if !local.symbol.is_valid() || seen_aliases.contains(&local.symbol) {
         return None;
     }
     seen_aliases.push(local.symbol);
-    let normalized = normalize_bound(program, local.initial_value, seen_aliases);
+    let normalized = match program.expression_table.expression(local.initial_value) {
+        ExpressionNode::Integer(_) | ExpressionNode::Name(_) => {
+            normalize_bound(program, local.initial_value, seen_aliases)
+        }
+        _ if local.initial_value.is_valid() => Some(NormalizedBound::ComputedLocal(local.symbol)),
+        _ => None,
+    };
     seen_aliases.pop();
     normalized
 }

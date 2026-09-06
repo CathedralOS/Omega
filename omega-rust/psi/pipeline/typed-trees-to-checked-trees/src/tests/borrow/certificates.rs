@@ -1,5 +1,7 @@
 use super::super::*;
 
+mod computed_boundaries;
+
 const SYMBOLIC_ADJACENCY: &str = r#"
     data Main { items: [i32; 4]; }
 
@@ -14,6 +16,22 @@ const SYMBOLIC_ADJACENCY: &str = r#"
 
 fn checked_symbolic_adjacency() -> checked_trees::CheckedTrees {
     checked_source(SYMBOLIC_ADJACENCY)
+}
+
+#[test]
+fn computed_immutable_boundary_retains_one_stable_selector_identity() {
+    let checked =
+        checked_source(&SYMBOLIC_ADJACENCY.replace("let mid: u64 = 2;", "let mid: u64 = 1 + 1;"));
+    let certificate = sole_certificate(&checked);
+    assert!(certificate.conclusion.disjoint);
+    assert_eq!(
+        certificate.selector_snapshot[0].value,
+        certificate.selector_snapshot[3].value
+    );
+    assert!(matches!(
+        certificate.selector_snapshot[0].value,
+        Some(checked_trees::BorrowCompatibilitySelectorValue::Symbol(_))
+    ));
 }
 
 fn checked_source(source: &str) -> checked_trees::CheckedTrees {
