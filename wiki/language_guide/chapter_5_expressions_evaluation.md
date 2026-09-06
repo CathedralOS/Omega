@@ -500,6 +500,9 @@ corresponding remainder, so a nonzero signed result has the dividend's sign;
 it is not Euclidean modulo. Both operations require a nonzero divisor, and the
 signed `MIN / -1` and `MIN % -1` cases are outside Exact because their common
 quotient is not representable in the carrier.
+Proof-level `Int` uses the same quotient/remainder convention without a
+fixed-width bound. Anonymous `%` instead requires an integer-typed operand;
+see [typed integer quotient and remainder](#typed-integer-quotient-and-remainder).
 
 To perform arithmetic that *can* overflow, the value lives in an explicit
 primitive **domain** that defines the behavior:
@@ -798,15 +801,77 @@ align-down. It does not weaken compiler or proof soundness: the specified
 exact value is unchanged. Ordinary suppression remains allowed; there is no
 expression-only suppression restriction.
 
-This decision does not define anonymous `%`; its remaining semantics are an
-[open owner question](../../OWNER_QUESTIONS.md#anonymous-integer-remainder).
-Fixed-width integer remainder retains its existing dividend-sign rule.
-
 > **Implementation status:** these are the required language and diagnostic
 > rules, not a claim that every compiler path implements them. The shared
 > anonymous integer landing evaluator currently admits only exactly divisible
 > `/`; rational propagation, mixed-expression boundaries, and the warning are
 > tracked in [the execution board](../../TASKS.md).
+
+### Typed integer quotient and remainder
+
+Builtin `%` requires at least one operand that already has an integer type.
+An anonymous operand then lands to the type required by that operation.
+Anonymous `%` has no value: a destination annotation, proof context, positive
+operands, or a provably zero remainder does not supply the missing operand
+type. Anonymous `/` remains exact rational division.
+
+```omega
+let anonymous: i32 = -3 % 2;    // error: % needs an integer-typed operand
+let remainder: i32 = -3i32 % 2; // -1; typed dividend-sign remainder
+let positive: u32 = 7 % 2;      // the same missing-operand-type error
+let explicit: u32 = 7u32 % 2;   // 1
+```
+
+The rejection explains that an integer-typed operand is required and suggests
+typing an operand, not merely the destination. It offers only supported
+source spellings; it does not suggest a hypothetical Euclidean helper. A
+fractional anonymous operand cannot land for typed `%`, just as it cannot
+land for other integer operations. Already-typed incompatible operands still
+follow the ordinary operator-resolution rules; this introduces no implicit
+conversion between integer types.
+
+This contract includes the builtin proof-level `Int`, not just machine-width
+integers. `Int` division returns the unbounded integer quotient truncated
+toward zero. Its remainder is zero or has the dividend's sign. For an operand
+`a: Int`, `a % 2` and `a / 2` select those integer operations without an `i32`
+suffix or runtime representation. Being inside a proof alone does not type
+the literal-only expression `-3 % 2`.
+
+For nonzero divisor `b`, the paired mathematical quotient `q` and remainder
+`r` satisfy:
+
+```text
+a = q*b + r
+|r| < |b|
+r = 0 or sign(r) = sign(a)
+```
+
+For `a: Int` with value `-7`, `a / 2` is `-3` and `a % 2` is `-1`;
+a negative divisor changes the quotient's sign, not the remainder's
+dividend-sign rule. Both operations
+require a nonzero divisor. There is no width-overflow case for `Int`.
+Fixed-width integers retain their existing nonzero-divisor requirements,
+Exact admission, and other arithmetic-policy behavior. The mathematical law
+does not itself prove intermediate machine operations in its authored
+expression safe, nor does it override wrapping or saturating overflow cases.
+
+An exact anonymous rational quotient is not the `q` in that integer law.
+Proofs and algebra contracts must retain the operand kinds and the associated
+operator semantics. The source library's constructed `IntPair` is distinct
+from builtin `Int`; this decision does not add operators to that nominal type
+or bypass proof-only runtime-consumption restrictions.
+
+A separately named Euclidean modulo operation is deliberately deferred, with
+no spelling selected here. It must not appear as a second, context-selected
+meaning of builtin `%`. There is no anonymous Euclidean-remainder warning:
+the anonymous operation rejects rather than evaluating under a second sign
+convention. The fractional-intermediate warning remains unchanged.
+
+> **Implementation status:** this settles the meaning, not the completeness of
+> builtin `Int` division/remainder support. The anonymous integer evaluator's
+> fallback currently declines `%`; that helper alone does not prove rejection
+> across all compiler paths. Consistent rejection, `Int` evaluation and proof
+> support, and the signed controls remain execution-board work.
 
 ### Landed target-semantic dependencies
 
