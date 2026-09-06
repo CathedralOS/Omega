@@ -24,13 +24,13 @@ pub(crate) fn expected_store_bytes(
         || !result.returned_claims.is_empty()
         || !call.scalar_arguments.is_empty()
         || shape.class != ValueClass::Integer
-        || shape.alignment != 8
-        || !matches!(shape.byte_size, 8 | 16)
+        || !shape.alignment.is_power_of_two()
+        || !(shape.byte_size == 8 && shape.alignment == 8 || (9..=16).contains(&shape.byte_size))
         || result.caller_result_placement != result.callee_result_placement
         || result.caller_result_placement.shape != shape
         || !home
             .home_byte_offset
-            .is_multiple_of(u32::from(shape.alignment))
+            .is_multiple_of(u32::from(shape.alignment.max(8)))
     {
         return None;
     }
@@ -45,7 +45,7 @@ pub(crate) fn expected_store_bytes(
         else {
             return None;
         };
-        if value_byte_offset != cursor || byte_size != 8 {
+        if value_byte_offset != cursor || !matches!(byte_size, 1 | 2 | 4 | 8) {
             return None;
         }
         let offset = home.home_byte_offset.checked_add(u32::from(cursor))?;
@@ -137,6 +137,15 @@ pub(crate) fn exact_storage(
     let Some(parameter_end) = parameter_end else {
         return false;
     };
+    let expected_home = parameter_end
+        .iter()
+        .copied()
+        .max()
+        .unwrap_or(0)
+        .checked_next_multiple_of(u32::from(home.requirement.layout.shape().alignment.max(8)));
+    if expected_home != Some(home.home_byte_offset) {
+        return false;
+    }
     let scalar_end = scalar_homes
         .iter()
         .map(|scalar| {

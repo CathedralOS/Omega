@@ -559,9 +559,9 @@ Owners include
   calls, and partial initialization. Cleanup follows reverse establishment and
   exact residual custody; trap/abort edges clean nothing. Acceptance: no affine
   occurrence disappears, duplicates, or is cleaned after transfer.
-  Extend native ordinary call-result residual cleanup beyond complete eight-byte
-  direct-register fragments and implement boundary call-result residual cleanup,
-  including result homes and projected copies;
+  Complete native ordinary call-result residual cleanup for direct ABI fragments
+  requiring multi-instruction packing, and implement boundary call-result residual
+  cleanup, including result homes and projected copies;
   whole-result disposal does not cover a projected result's residuals.
   Extend source production to anonymous
   projected helper-result operands. Extend the

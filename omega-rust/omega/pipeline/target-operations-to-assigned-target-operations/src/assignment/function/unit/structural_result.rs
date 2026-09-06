@@ -166,8 +166,17 @@ pub(super) fn assign_result_call(
             if requirement.result != *result
                 || requirement.layout
                     != target_operations::TargetStructuralHomeLayout::Aggregate(argument.shape)
-                || !matches!(argument.shape.byte_size, 8 | 16)
-                || argument.shape.alignment != 8
+                || call_plan.result.as_ref().is_none_or(|placement| {
+                    placement.locations.iter().any(|location| {
+                        !matches!(
+                            location,
+                            ValueLocation::Register {
+                                byte_size: 1 | 2 | 4 | 8,
+                                ..
+                            }
+                        )
+                    })
+                })
                 || !scalar_arguments.is_empty()
                 || body
                     .parameters

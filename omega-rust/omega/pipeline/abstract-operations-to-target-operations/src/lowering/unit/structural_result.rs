@@ -214,14 +214,7 @@ pub(super) fn lower_structural_result_call(
     });
     if needs_home
         && (scalar.is_some()
-            || !matches!(
-                aggregate_shape,
-                ValueShape {
-                    byte_size: 8 | 16,
-                    alignment: 8,
-                    class: ValueClass::Integer
-                }
-            )
+            || !super::projected_result::has_store_fragments(result_placement)
             || !operations.is_empty())
     {
         return Err(LoweringError::UnsupportedOperationInUnitFunction(

@@ -16,8 +16,11 @@ pub(super) fn assign(
     {
         return Err(AssignmentError::ExpressionStackFrameNotEncodable);
     }
-    *next_home =
-        super::scalar_call::align_unit_frame_offset(*next_home, u32::from(shape.alignment))?;
+    let alignment = match requirement.layout {
+        target_operations::TargetStructuralHomeLayout::Aggregate(_) => shape.alignment.max(8),
+        target_operations::TargetStructuralHomeLayout::Sum(_) => shape.alignment,
+    };
+    *next_home = super::scalar_call::align_unit_frame_offset(*next_home, u32::from(alignment))?;
     let home = AssignedStructuralHome {
         requirement: requirement.clone(),
         byte_offset: *next_home,

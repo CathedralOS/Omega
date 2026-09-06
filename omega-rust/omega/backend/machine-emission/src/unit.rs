@@ -3251,7 +3251,7 @@ fn validate_assigned_unit_frame(
                 let Some((home, placement)) = structural_homes::call_home(operation)? else {
                     return Err(EmissionError::UnitCallStackAreaNotEncodable);
                 };
-                *cursor = align_u32(*cursor, u32::from(placement.shape.alignment))?;
+                *cursor = align_u32(*cursor, u32::from(placement.shape.alignment.max(8)))?;
                 if home.byte_offset != *cursor {
                     return Err(EmissionError::InvalidStructuralScalarCallCustody(
                         home.requirement.defining_operation,

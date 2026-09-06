@@ -25,24 +25,27 @@ pub(super) fn call_home(
         || home.requirement.result != *result
         || home.requirement.layout
             != target_operations::TargetStructuralHomeLayout::Aggregate(shape)
-        || !matches!(shape.byte_size, 8 | 16)
-        || shape.alignment != 8
+        || !((shape.byte_size == 8 && shape.alignment == 8) || (9..=16).contains(&shape.byte_size))
+        || shape.alignment == 0
         || shape.class != ValueClass::Integer
         || placement.shape != shape
-        || home.byte_offset % 8 != 0
+        || home.byte_offset % u32::from(shape.alignment.max(8)) != 0
         || !scalar_arguments.is_empty()
         || result.multiplicity != terminal_psi::StructuralMultiplicity::Affine
         || !result.qualifications.is_empty()
         || !result.projected_qualifications.is_empty()
         || !result.claims.is_empty()
-        || placement.locations.len() != usize::from(shape.byte_size / 8)
+        || placement.locations.len() != usize::from(shape.byte_size.div_ceil(8))
         || placement
             .locations
             .iter()
             .enumerate()
             .any(|(index, location)| {
-                !matches!(location, ValueLocation::Register { value_byte_offset, byte_size: 8, .. }
-                if usize::from(*value_byte_offset) == index * 8)
+                !matches!(location, ValueLocation::Register { value_byte_offset, byte_size, .. }
+                if usize::from(*value_byte_offset) == index * 8
+                    && matches!(*byte_size, 1 | 2 | 4 | 8)
+                    && usize::from(*byte_size)
+                        == (usize::from(shape.byte_size) - index * 8).min(8))
             })
     {
         return Err(invalid());
@@ -73,7 +76,7 @@ pub(super) fn emit_result_stores(
         let ValueLocation::Register {
             register,
             value_byte_offset,
-            byte_size: 8,
+            byte_size,
         } = location
         else {
             return Err(invalid());
@@ -83,15 +86,18 @@ pub(super) fn emit_result_stores(
             .checked_add(u32::from(*value_byte_offset))
             .ok_or_else(invalid)?;
         match target.architecture {
-            Architecture::X86_64 => {
-                emit_x86_64_stack_store_width(bytes, x86_unit_register(*register)?, offset, 8)?
-            }
+            Architecture::X86_64 => emit_x86_64_stack_store_width(
+                bytes,
+                x86_unit_register(*register)?,
+                offset,
+                *byte_size,
+            )?,
             Architecture::Aarch64 => {
                 let instruction = aarch64_unit_stack_access(
-                    aarch64_store_base(8)?,
+                    aarch64_store_base(*byte_size)?,
                     aarch64_unit_register(*register)?,
                     offset,
-                    8,
+                    *byte_size,
                 )?;
                 bytes.extend_from_slice(&instruction.to_le_bytes());
             }

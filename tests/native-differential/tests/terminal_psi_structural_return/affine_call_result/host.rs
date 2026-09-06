@@ -3,6 +3,37 @@
 use super::{Command, NEXT_SCRATCH_DIRECTORY, Ordering, ScratchDirectory, SystemTime};
 
 pub(super) fn execute(image: &image_emission::ExecutableImage, entry_offset: usize, wide: bool) {
+    let second_field = if wide { "uint64_t second;" } else { "" };
+    let second_value = if wide { ", ~values[index]" } else { "" };
+    execute_payload(
+        image,
+        entry_offset,
+        &format!("typedef struct {{ uint64_t first; {second_field} }} Payload;"),
+        &format!("Payload value = {{ values[index]{second_value} }};"),
+    );
+}
+
+pub(super) fn execute_byte_array(
+    image: &image_emission::ExecutableImage,
+    entry_offset: usize,
+    count: u16,
+) {
+    execute_payload(
+        image,
+        entry_offset,
+        &format!("typedef struct {{ uint8_t bytes[{count}]; }} Payload;"),
+        &format!(
+            "Payload value = {{0}}; for (unsigned byte = 0; byte < {count}; ++byte) {{ value.bytes[byte] = (uint8_t)(values[index] >> ((byte % 8) * 8)); }}"
+        ),
+    );
+}
+
+fn execute_payload(
+    image: &image_emission::ExecutableImage,
+    entry_offset: usize,
+    definition: &str,
+    initializer: &str,
+) {
     let output = image.output();
     assert_eq!(output.final_image_imports, 0);
     assert!(output.final_data_bytes.is_empty());
@@ -39,16 +70,14 @@ pub(super) fn execute(image: &image_emission::ExecutableImage, entry_offset: usi
     if !cfg!(target_os = "macos") {
         assembly.push_str(".section .note.GNU-stack,\"\",@progbits\n");
     }
-    let second_field = if wide { "uint64_t second;" } else { "" };
-    let second_value = if wide { ", ~values[index]" } else { "" };
     let driver = format!(
         "#include <stdint.h>\n\
-         typedef struct {{ uint64_t first; {second_field} }} Payload;\n\
+         {definition}\n\
          extern void entry(Payload);\n\
          int main(void) {{\n\
              const uint64_t values[] = {{ 0, UINT64_MAX, UINT64_C(0x5eedcafedeadbeef) }};\n\
              for (unsigned index = 0; index < 3; ++index) {{\n\
-                 Payload value = {{ values[index]{second_value} }};\n\
+                 {initializer}\n\
                  entry(value);\n\
              }}\n\
              return 0;\n\
