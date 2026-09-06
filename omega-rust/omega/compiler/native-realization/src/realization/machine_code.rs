@@ -3,7 +3,7 @@ use crate::realization::diagnostics::realization_error;
 use crate::realization::model::{NativeRealizationCoreRequest, NativeRealizationInput};
 use crate::realization::optimization_stage::lower_realization_optimization_stage;
 use crate::realization::optimized_fragment_projection::{
-    OptimizedFragmentPublicationRequest, emit_return_only_optimized_fragments,
+    OptimizedFragmentPublicationRequest, emit_optimized_fragments,
 };
 use crate::realization::physical_stage::{
     NativePhysicalStageResult, lower_realization_physical_stage,
@@ -52,7 +52,7 @@ pub(crate) fn emit_realization_machine_code(
             })
         }
         NativePhysicalStageResult::Optimized(optimized) => {
-            let (plan, physical_evidence_scope) = emit_return_only_optimized_fragments(
+            let (plan, physical_evidence_scope) = emit_optimized_fragments(
                 optimized.physical,
                 OptimizedFragmentPublicationRequest {
                     identity_scope: request

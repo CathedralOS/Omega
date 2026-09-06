@@ -6,7 +6,7 @@ mod active_resident_exact_add_original_victim_chain_return;
 mod entry_control;
 mod exact_binary_return;
 mod immediate_return;
-mod instruction_projection;
+pub(super) mod instruction_projection;
 mod parameter_return;
 mod return_routes;
 

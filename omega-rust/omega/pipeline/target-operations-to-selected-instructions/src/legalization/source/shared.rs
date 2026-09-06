@@ -7,7 +7,7 @@ pub(super) use legalized_operations::{
     LegalizedActiveResidentExactAddOriginalVictimChain as SourceActiveResidentExactAddOriginalVictimChain,
     LegalizedBoundarySettlement, LegalizedCallUnit, LegalizedCallUnitArgument,
     LegalizedCallUnitParameter, LegalizedCondition, LegalizedConditionParameter,
-    LegalizedExactAdd as SourceExactAdd, LegalizedFunction as SourceFunction,
+    LegalizedConditionalFunction as SourceFunction, LegalizedExactAdd as SourceExactAdd,
     LegalizedImmediate as SourceImmediate, LegalizedLeaf as SourceLeaf,
     LegalizedLeafValue as SourceLeafValue, LegalizedScalarCallUnitArgument,
     LegalizedScalarCallUnitCall, LegalizedScalarCallUnitConstant, LegalizedScalarCallUnitFunction,

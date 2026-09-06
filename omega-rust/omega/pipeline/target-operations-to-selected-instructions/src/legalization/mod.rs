@@ -12,6 +12,7 @@ mod condition_tests;
 mod model;
 mod projected_structural_call_return;
 mod replay;
+mod scalar_leaf;
 mod source;
 
 pub use model::{
@@ -20,7 +21,7 @@ pub use model::{
     ProjectedStructuralCallReturnLegalizationReceipt, ValidatedLegalizedOperations,
     legalization_validator_identity, legalization_validator_identity_v17_legacy,
     legalization_validator_identity_v18_legacy, legalization_validator_identity_v19_legacy,
-    legalization_validator_identity_v20_legacy,
+    legalization_validator_identity_v20_legacy, legalization_validator_identity_v21_legacy,
 };
 
 use abstract_operations::AbstractOperationPlan;

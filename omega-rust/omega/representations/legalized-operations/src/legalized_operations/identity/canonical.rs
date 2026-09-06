@@ -15,6 +15,7 @@ pub(super) fn identity(
     domain: &[u8],
     retain_call_contract: bool,
     retain_scalar_call_unit_roster: bool,
+    retain_scalar_body: bool,
 ) -> LegalizedOperationPlanIdentity {
     let mut bytes = Vec::new();
     bytes.extend_from_slice(domain);
@@ -26,6 +27,21 @@ pub(super) fn identity(
     bytes.extend_from_slice(&plan.entry.get().to_le_bytes());
     encode_len(&mut bytes, plan.functions.len());
     for function in &plan.functions {
+        let function = match function {
+            LegalizedFunction::Conditional(function) => {
+                if retain_scalar_body {
+                    bytes.push(0);
+                }
+                function
+            }
+            LegalizedFunction::Leaf(function) => {
+                // A legacy identity cannot claim leaf custody. The leaf tag
+                // and complete payload are retained even under legacy domains.
+                bytes.push(1);
+                super::scalar_leaf::encode(&mut bytes, function);
+                continue;
+            }
+        };
         bytes.extend_from_slice(&function.machine.get().to_le_bytes());
         encode_option_id(
             &mut bytes,

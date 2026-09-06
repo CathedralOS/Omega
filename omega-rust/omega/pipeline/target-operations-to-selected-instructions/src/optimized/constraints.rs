@@ -12,6 +12,27 @@ pub fn selection_constraints(
 ) -> SelectedSelectionConstraints {
     let mut fixed_inputs = Vec::new();
     for function in &legalized.plan().functions {
+        let function = match function {
+            legalized_operations::LegalizedFunction::Conditional(function) => function,
+            legalized_operations::LegalizedFunction::Leaf(function) => {
+                if let LegalizedLeafValue::EntryParameter {
+                    parameter_index,
+                    register,
+                    ..
+                } = function.leaf.value
+                {
+                    push_fixed_input(
+                        &mut fixed_inputs,
+                        environment,
+                        function.machine,
+                        function.leaf.source_value,
+                        parameter_index,
+                        register,
+                    );
+                }
+                continue;
+            }
+        };
         match &function.condition {
             LegalizedCondition::DirectParameter {
                 parameter_index,

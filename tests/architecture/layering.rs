@@ -2254,7 +2254,7 @@ fn terminal_component_staging_consumes_only_the_psi_owned_artifact() {
             && physical_stage.contains("stage_optimized_verified_physical_pipeline(")
             && machine_code.contains("lower_realization_target_stage(")
             && machine_code.contains("lower_realization_physical_stage(")
-            && machine_code.contains("emit_return_only_optimized_fragments(")
+            && machine_code.contains("emit_optimized_fragments(")
             && !machine_code.contains("StagedOptimizedVerifiedPhysicalPipeline::SelectedLowering")
             && optimized_fragment_projection
                 .contains("physical.into_function_fragment_emission_source()")

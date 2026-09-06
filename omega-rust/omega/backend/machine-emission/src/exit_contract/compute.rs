@@ -111,6 +111,15 @@ fn compute_inner<S: ValidatedSelectedAnalysis>(
                 return Err(WholeFunctionExitContractError::RootMismatch);
             }
             let policy = match frameless_policy {
+                WholeFunctionExitPolicy::MicrosoftX64FramelessLeafV1
+                    if frame
+                        .plan()
+                        .functions
+                        .iter()
+                        .all(|function| !function.contains_call) =>
+                {
+                    WholeFunctionExitPolicy::MicrosoftX64CanonicalLeafFrameV1
+                }
                 WholeFunctionExitPolicy::SystemVAMD64FramelessLeafV1 => {
                     WholeFunctionExitPolicy::SystemVAMD64CanonicalFixedFrameV1
                 }

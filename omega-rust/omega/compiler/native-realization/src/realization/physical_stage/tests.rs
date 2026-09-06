@@ -2,9 +2,96 @@ use super::*;
 use crate::realization::input::lower_realization_input;
 use crate::realization::optimization_stage::lower_realization_optimization_stage;
 use crate::realization::optimized_fragment_projection::{
-    OptimizedFragmentPublicationRequest, emit_return_only_optimized_fragments,
+    OptimizedFragmentPublicationRequest, emit_optimized_fragments,
 };
 use crate::realization::target_stage::lower_realization_target_stage;
+
+#[test]
+fn scalar_leaf_fragments_reach_native_object_publication() {
+    for (parameters, result) in [
+        ("", "0u64"),
+        ("", "7u64"),
+        ("", "1234605616436508552u64"),
+        ("item: u64", "item"),
+    ] {
+        let source = format!(
+            "machine value({parameters}) -> u64\nrequires true\nensures result == {result}\n{{ transition {{ _ -> {result} }} }}"
+        );
+        let checked = crate::tests::fixtures::checked_source::checked(&source);
+        let artifact = terminal_production::produce_terminal_artifact(&checked, "value").unwrap();
+        for target in [
+            target::NativeTarget::windows_x64(),
+            target::NativeTarget::linux_x64(),
+            target::NativeTarget::linux_arm64(),
+            target::NativeTarget::macos_arm64(),
+        ] {
+            let physical_optimization = if target.architecture == target::Architecture::X86_64 {
+                optimization_core::Optimization::X86SelectXorZeroI64MaterializationV1
+            } else {
+                optimization_core::Optimization::Aarch64SelectShortestMovnSeededI64MaterializationV1
+            };
+            let choices = [
+                optimization_core::OptimizationSelections::default(),
+                optimization_core::OptimizationSelections::new([
+                    optimization_core::Optimization::SelectedIncomingU12ExactAddImmediate,
+                ])
+                .unwrap(),
+                optimization_core::OptimizationSelections::new([physical_optimization]).unwrap(),
+            ];
+            let mut baseline_bytes = 0;
+            for selections in choices {
+                let input =
+                    terminal_psi_to_abstract_operations::lower_artifact_sections_for_optimization(
+                        artifact.semantic_bytes(),
+                        artifact.proof_bytes(),
+                        &proof_admission::AdmissionProfile::default(),
+                    )
+                    .unwrap();
+                let optimized = crate::optimize_verified_abstract_input(
+                    input,
+                    crate::compiler_baseline_request_v1(&selections),
+                )
+                .unwrap();
+                let post_terminal = optimized.selections().project_post_terminal();
+                let target_program =
+                    abstract_operations_to_target_operations::lower_optimized_to_target_operations(
+                        optimized, target,
+                    )
+                    .unwrap();
+                assert!(
+                    fragment_leaf_program(&target_program),
+                    "default production must select this same route"
+                );
+                let physical = crate::stage_optimized_verified_physical_pipeline(
+                    target_program,
+                    post_terminal.selections(),
+                )
+                .unwrap_or_else(|error| panic!("{target:?}: physical {error:?}"));
+                let emitted = machine_emission::stage_optimized_function_fragment_emission(
+                    physical.into_function_fragment_emission_source(),
+                )
+                .unwrap();
+                let published = machine_emission::publish_function_fragments(emitted)
+                    .unwrap_or_else(|error| panic!("{target:?}: publication {error:?}"));
+                image_emission::build_object_artifact(published.plan())
+                    .unwrap_or_else(|error| panic!("{target:?}: object {error:?}"));
+                let bytes = published.plan().functions[0].bytes.len();
+                if selections.is_empty() {
+                    baseline_bytes = bytes;
+                } else if result == "0u64"
+                    && selections.contains(
+                        optimization_core::Optimization::X86SelectXorZeroI64MaterializationV1,
+                    )
+                {
+                    assert!(
+                        bytes < baseline_bytes,
+                        "selected zero materialization must actually rewrite the body"
+                    );
+                }
+            }
+        }
+    }
+}
 
 #[test]
 fn identity_return_programs_use_fragments_and_preserve_native_bytes() {
@@ -88,7 +175,7 @@ fn identity_return_programs_use_fragments_and_preserve_native_bytes() {
         let NativePhysicalStageResult::Optimized(physical) = physical else {
             panic!("empty selections must use the fragment route for return programs");
         };
-        let (plan, _) = emit_return_only_optimized_fragments(
+        let (plan, _) = emit_optimized_fragments(
             physical.physical,
             OptimizedFragmentPublicationRequest {
                 identity_scope: Some(native_artifact::NativePhysicalEvidenceScope::Unavailable),

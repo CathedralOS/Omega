@@ -245,6 +245,7 @@ fn policy_tag(policy: WholeFunctionExitPolicy) -> u8 {
         WholeFunctionExitPolicy::SystemVAMD64CanonicalFixedFrameV1 => 7,
         WholeFunctionExitPolicy::Aapcs64CanonicalFixedFrameV1 => 8,
         WholeFunctionExitPolicy::DarwinAapcs64CanonicalFixedFrameV1 => 9,
+        WholeFunctionExitPolicy::MicrosoftX64CanonicalLeafFrameV1 => 10,
     }
 }
 

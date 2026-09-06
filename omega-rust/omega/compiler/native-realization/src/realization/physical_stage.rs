@@ -21,7 +21,7 @@ pub(crate) struct OptimizedNativePhysicalStage {
 
 /// One completed physical-routing stage result.
 ///
-/// Return-only identity programs share the fragment result with selected
+/// Unit returns and scalar leaves share the fragment result with selected
 /// execution. Richer ordinary and ranked programs still use baseline assignment
 /// until their ABI, call and control facts reach the same fragment postcondition.
 #[derive(Debug)]
@@ -43,7 +43,7 @@ pub(crate) fn lower_realization_physical_stage(
             // Transitional physical split only. Target production and its
             // retained translation evidence no longer depend on this selection.
             if request.optimization_selections.is_empty()
-                && !(return_only_fragment_program(optimized_target.optimized().plan())
+                && !(fragment_leaf_program(&optimized_target)
                     && optimized_target.provider_installation().is_none()
                     && request.settlements.is_empty()
                     && request.compiler_builtins.is_empty()
@@ -100,6 +100,55 @@ fn return_only_fragment_program(plan: &abstract_operations::AbstractOperationPla
                         if cleanup_actions.is_empty()
                 )
         })
+}
+
+fn fragment_leaf_program(
+    target: &abstract_operations_to_target_operations::ValidatedOptimizedTargetOperations,
+) -> bool {
+    let plan = target.optimized().plan();
+    if return_only_fragment_program(plan) {
+        return true;
+    }
+    let scalar_type = semantic_vocabulary::ScalarType::Integer(
+        semantic_vocabulary::IntegerType::new(semantic_vocabulary::IntegerSign::Unsigned, 64)
+            .expect("u64"),
+    );
+    !plan.functions.is_empty() && plan.functions.iter().all(|function| {
+        let Some(native) = target
+            .target_operations()
+            .functions
+            .iter()
+            .find(|native| native.machine == function.machine)
+        else {
+            return false;
+        };
+        function.attachment.is_none()
+            && function.structural_parameters.is_empty()
+            && function.entry_claims.is_empty()
+            && function.published_service_ceiling.is_empty()
+            && function
+                .parameters
+                .iter()
+                .all(|parameter| parameter.scalar_type == scalar_type)
+            && matches!(function.result, abstract_operations::AbstractFunctionResult::Scalar(result)
+                if result.scalar_type == scalar_type)
+            && matches!(function.block_entries.as_slice(), [block]
+                if block.block == function.entry && block.operation_offset == 0
+                    && block.parameters.is_empty())
+            && matches!(function.operations.as_slice(),
+                [abstract_operations::AbstractOperation::Return { cleanup_actions, .. }]
+                | [abstract_operations::AbstractOperation::IntegerConstant { .. },
+                   abstract_operations::AbstractOperation::Return { cleanup_actions, .. }]
+                if cleanup_actions.is_empty())
+            && matches!(
+                native.operation,
+                target_operations::TargetOperation::ReturnIntegerImmediate { .. }
+                    | target_operations::TargetOperation::ReturnIntegerParameter {
+                        location: target_operations::ScalarParameterLocation::Register(_),
+                        ..
+                    }
+            )
+    })
 }
 
 fn assign_current_target(

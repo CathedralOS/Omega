@@ -68,14 +68,67 @@ pub(super) fn derive_remaining(
                         matched,
                     )?);
             }
-        } else {
-            rosters.functions.push(derive_source_function(
+        } else if let Some((_, control)) =
+            crate::legalization::scalar_leaf::control(target_function)
+        {
+            let abi = crate::legalization::scalar_leaf::validate_input(
                 index,
+                target.target,
                 target_function,
                 abstracted,
                 optimized,
+            )?;
+            let target_operations::TargetIntegerControl::Return {
+                psi_return_edge, ..
+            } = &control
+            else {
+                unreachable!("leaf input");
+            };
+            let leaf = super::leaves::derive_leaf(
+                index,
+                *psi_return_edge,
+                &control,
+                &abstracted.operations,
+                &optimized.blocks[0].nodes,
+                abstracted,
+                optimized,
                 &unit.accepted_obligation_facts,
-            )?);
+                [
+                    legalized_operations::LegalizedTemporaryId(0),
+                    legalized_operations::LegalizedTemporaryId(1),
+                ],
+            )?;
+            let provenance = target_operations::TerminalPsiProvenance {
+                operations: super::leaves::source_operations(&leaf.value),
+                edges: vec![leaf.return_edge],
+            };
+            if provenance != target_function.provenance {
+                return Err(Error::SourceCustodyMismatch);
+            }
+            rosters
+                .functions
+                .push(legalized_operations::LegalizedFunction::Leaf(
+                    legalized_operations::LegalizedScalarLeafFunction {
+                        machine: target_function.machine,
+                        attachment: target_function.attachment,
+                        provenance,
+                        entry_block: optimized.entry,
+                        abi: abi.clone(),
+                        leaf,
+                    },
+                ));
+        } else {
+            rosters
+                .functions
+                .push(legalized_operations::LegalizedFunction::Conditional(
+                    derive_source_function(
+                        index,
+                        target_function,
+                        abstracted,
+                        optimized,
+                        &unit.accepted_obligation_facts,
+                    )?,
+                ));
         }
     }
     Ok(())

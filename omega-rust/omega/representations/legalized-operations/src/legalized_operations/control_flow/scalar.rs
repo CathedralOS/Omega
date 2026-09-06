@@ -10,7 +10,46 @@ use semantic_vocabulary::ValueId;
 use target_operations::TerminalPsiProvenance;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct LegalizedFunction {
+pub enum LegalizedFunction {
+    Conditional(LegalizedConditionalFunction),
+    Leaf(LegalizedScalarLeafFunction),
+}
+
+impl LegalizedFunction {
+    #[cfg(test)]
+    pub(crate) fn conditional_mut(&mut self) -> &mut LegalizedConditionalFunction {
+        match self {
+            Self::Conditional(function) => function,
+            Self::Leaf(_) => panic!("conditional fixture"),
+        }
+    }
+    pub const fn machine(&self) -> MachineId {
+        match self {
+            Self::Conditional(function) => function.machine,
+            Self::Leaf(function) => function.machine,
+        }
+    }
+
+    pub const fn provenance(&self) -> &TerminalPsiProvenance {
+        match self {
+            Self::Conditional(function) => &function.provenance,
+            Self::Leaf(function) => &function.provenance,
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct LegalizedScalarLeafFunction {
+    pub machine: MachineId,
+    pub attachment: Option<semantic_vocabulary::StructuralTypeId>,
+    pub provenance: TerminalPsiProvenance,
+    pub entry_block: BlockId,
+    pub abi: target_operations::FixedIntegerScalarFunctionAbi,
+    pub leaf: LegalizedLeaf,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct LegalizedConditionalFunction {
     pub machine: MachineId,
     pub attachment: Option<semantic_vocabulary::StructuralTypeId>,
     pub provenance: TerminalPsiProvenance,

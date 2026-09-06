@@ -6,6 +6,7 @@
 mod projected_structural_call_return;
 mod scalar;
 mod scalar_call_unit;
+mod scalar_leaf;
 mod structural_unit;
 mod unit;
 
@@ -24,7 +25,14 @@ pub(super) fn build_plan(
         .functions
         .iter()
         .enumerate()
-        .map(|(index, source)| scalar::build(index, source, constraints, physical, catalog))
+        .map(|(index, source)| match source {
+            legalized_operations::LegalizedFunction::Conditional(source) => {
+                scalar::build(index, source, constraints, physical, catalog)
+            }
+            legalized_operations::LegalizedFunction::Leaf(source) => {
+                scalar_leaf::build(index, source, target.target, constraints, physical, catalog)
+            }
+        })
         .collect::<Result<Vec<_>, _>>()?;
     functions.extend(
         target

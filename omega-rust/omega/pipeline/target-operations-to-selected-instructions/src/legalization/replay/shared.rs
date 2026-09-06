@@ -2,9 +2,9 @@ pub(super) use abstract_operations::{AbstractOperation, AbstractOperationPlan};
 pub(super) use calling_conventions::{CallSignature, CallingPolicy, evaluate_call_plan};
 pub(super) use legalized_operations::{
     LegalizationRecipe, LegalizationTheorem, LegalizedCondition, LegalizedConditionParameter,
-    LegalizedFunction, LegalizedImmediate, LegalizedLeaf, LegalizedLeafValue,
-    LegalizedOperationPlan, LegalizedScalarCallUnitArgument, LegalizedScalarCallUnitCall,
-    LegalizedScalarCallUnitConstant, LegalizedScalarCallUnitFunction,
+    LegalizedConditionalFunction as LegalizedFunction, LegalizedImmediate, LegalizedLeaf,
+    LegalizedLeafValue, LegalizedOperationPlan, LegalizedScalarCallUnitArgument,
+    LegalizedScalarCallUnitCall, LegalizedScalarCallUnitConstant, LegalizedScalarCallUnitFunction,
     LegalizedStructuralUnitFunction, LegalizedTemporaryId, LegalizedUnitFunction,
 };
 pub(super) use optimization_unit::{

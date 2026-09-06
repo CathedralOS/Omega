@@ -6,9 +6,10 @@ pub(super) use calling_conventions::{
 };
 pub(super) use legalized_operations::{
     LegalizationRecipe, LegalizedCallUnit, LegalizedCallUnitArgument, LegalizedCallUnitParameter,
-    LegalizedCondition, LegalizedFunction as SourceFunction, LegalizedImmediate as SourceImmediate,
-    LegalizedLeaf as SourceLeaf, LegalizedLeafValue as SourceLeafValue, LegalizedOperationPlan,
-    LegalizedOperationPlanIdentity, LegalizedProjectedStructuralCallReturn,
+    LegalizedCondition, LegalizedConditionalFunction as SourceFunction,
+    LegalizedImmediate as SourceImmediate, LegalizedLeaf as SourceLeaf,
+    LegalizedLeafValue as SourceLeafValue, LegalizedOperationPlan, LegalizedOperationPlanIdentity,
+    LegalizedProjectedStructuralCallReturn,
     LegalizedScalarCallUnitFunction as SourceScalarCallUnitFunction,
     LegalizedStructuralUnitFunction as SourceStructuralUnitFunction,
     LegalizedUnitFunction as SourceUnitFunction,

@@ -2,4 +2,5 @@
 
 mod fixtures;
 mod legalization;
+mod scalar_leaf;
 mod selection;

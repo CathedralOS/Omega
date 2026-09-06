@@ -30,7 +30,7 @@ pub(super) fn validate_initial_roots(
     let mut expected_machines = target
         .functions
         .iter()
-        .map(|function| function.machine)
+        .map(|function| function.machine())
         .chain(
             target
                 .unit_functions
@@ -57,6 +57,15 @@ pub(super) fn validate_initial_roots(
         .functions
         .iter()
         .map(|source| {
+            let source = match source {
+                legalized_operations::LegalizedFunction::Conditional(source) => source,
+                legalized_operations::LegalizedFunction::Leaf(source) => {
+                    return usize::from(matches!(
+                        source.leaf.value,
+                        SourceLeafValue::EntryParameter { .. }
+                    ));
+                }
+            };
             let condition_inputs = match &source.condition {
                 LegalizedCondition::DirectParameter { .. } => 1,
                 LegalizedCondition::U64EqualZeroParameterV1 { .. }

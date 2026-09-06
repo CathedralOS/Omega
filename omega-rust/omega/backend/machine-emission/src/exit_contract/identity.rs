@@ -132,6 +132,9 @@ mod tests {
         assert_ne!(generic_xor.identity, another_generic_rule.identity);
         assert_ne!(generic_xor.identity, another_generic_leaf.identity);
         assert_ne!(baseline.identity, framed.identity);
+        let mut windows = framed.clone();
+        windows.policy = WholeFunctionExitPolicy::MicrosoftX64CanonicalLeafFrameV1;
+        assert_ne!(contract_identity(&windows), framed.identity);
     }
 
     #[test]
