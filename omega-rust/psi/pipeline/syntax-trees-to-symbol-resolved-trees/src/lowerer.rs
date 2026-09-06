@@ -784,7 +784,7 @@ fn pending_service_reach_for(
             .targets
             .iter()
             .map(|target| {
-                symbol_resolved_trees::name::DiagnosticName::new(
+                symbol_resolved_trees::name::DiagnosticName::from_str(
                     program.symbols.name(target.service),
                     target.source_span,
                 )
