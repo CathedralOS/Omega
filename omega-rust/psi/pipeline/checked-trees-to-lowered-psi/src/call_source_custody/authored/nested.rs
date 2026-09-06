@@ -1,11 +1,12 @@
-//! Direct argument calls: authored preorder identity and postorder execution.
+//! Authored preorder call identity across mixed operand evaluation.
 
 use super::*;
 
 /// The scalar computation walker checks membership, not preorder identity.
-/// This narrower walk permits calls only at direct argument roots and rejoins
-/// syntax independently of the captured FlowCallFact expression stamp.
-pub(crate) fn execution_order(
+/// Structural calls must be direct argument roots. Scalar computations retain
+/// their own selective evaluator; this walk numbers their authored occurrences
+/// without imposing an unconditional execution schedule on their branches.
+pub(crate) fn authored_postorder(
     checked: &CheckedTrees,
     caller_state: SymbolHandle,
     statement_index: u32,
@@ -86,10 +87,14 @@ pub(crate) fn execution_order(
         active.push(expression);
         let mut children = Vec::new();
         let ordinal = match table.expression(expression) {
-            ExpressionNode::Call(call) if direct_argument => {
+            ExpressionNode::Call(call) => {
                 let (owner, target) =
                     crate::scalar_source_custody::authored_state(checked, call.target_symbol)?;
-                if owner.supply_mode.is_boundary_declaration()
+                if (!direct_argument
+                    && checked
+                        .primitive_type_reference(target.return_type)
+                        .is_none())
+                    || owner.supply_mode.is_boundary_declaration()
                     || !checked
                         .typed
                         .call_has_no_runtime_receiver(call, owner, target)

@@ -481,9 +481,8 @@ Owners include
   checked/lowered value planning path. Borrow checking can transfer owned
   helper-result projections, but full checking still rejects the inner call's
   result as an unrealized operand.
-  Complete result projections and interleaved scalar/structural argument
-  evaluation through the shared evaluator and result-binding lookup; extend the
-  shared closure to general structural-result callees. Carry loans,
+  Complete result projections through the shared evaluator and result-binding
+  lookup; extend the shared closure to general structural-result callees. Carry loans,
   qualifications, and projected claims through structural results without
   erasing their obligations.
   Acceptance:

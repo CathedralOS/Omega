@@ -1,4 +1,5 @@
-//! Nested argument calls belong to computation roots, never extra statements.
+//! Scalar operand calls belong to computation roots; structural operands retain
+//! their own result producers within the same authored statement.
 
 use super::*;
 use checked_trees::{CheckedScalarComputationHandle, CheckedScalarComputationKind};
@@ -35,7 +36,7 @@ pub(in crate::flow::terminal_unit) fn outer_calls<'a>(
     calls: &'a [checked_trees::FlowCallFact],
 ) -> Option<Vec<&'a checked_trees::FlowCallFact>> {
     let mut consumed = Vec::new();
-    let mut structural = Vec::new();
+    let mut structural = Vec::<&checked_trees::FlowCallFact>::new();
     let mut outer = Vec::new();
     for call in calls.iter().filter(|call| call.call_ordinal == 0) {
         if outer.iter().any(|prior: &&checked_trees::FlowCallFact| {
@@ -133,71 +134,36 @@ pub(in crate::flow::terminal_unit) fn outer_calls<'a>(
         if target != call.target_symbol {
             return None;
         }
-        let parameters = crate::call_target_parameters(program, target)?;
-        let explicit_self = arguments.len()
-            > parameters
-                .iter()
-                .filter(|parameter| !parameter.is_self)
-                .count();
-        let formals = parameters
-            .iter()
-            .filter(|parameter| !parameter.is_self || explicit_self)
-            .collect::<Vec<_>>();
-        if arguments.len() != formals.len() {
-            return None;
-        }
-        let scalar_arguments = arguments
-            .iter()
-            .zip(formals)
-            .filter_map(|(argument, parameter)| {
-                program
-                    .primitive_type_reference(parameter.type_reference)
-                    .map(|primitive| (*argument, primitive))
-            })
-            .collect::<Vec<_>>();
-        let mut roles = Vec::new();
-        for (_, root) in facts
-            .values
-            .scalar_computations
-            .roots
-            .iter()
-            .filter(|(_, root)| {
-                root.state == state.symbol
-                    && root.statement_ordinal as usize == call.statement_index
-            })
-        {
-            let ordinal = match root.role {
-                CheckedScalarExpressionRole::BoundaryCallArgument {
-                    call_ordinal: 0,
-                    argument_ordinal,
-                }
-                | CheckedScalarExpressionRole::UnitCallArgument {
-                    call_ordinal: 0,
-                    argument_ordinal,
-                } => argument_ordinal,
-                _ => continue,
-            };
-            if root.machine != machine || roles.contains(&root.role) {
-                return None;
-            }
-            roles.push(root.role);
-            let (expression, primitive) = scalar_arguments.get(ordinal as usize)?;
-            let plans = &facts.values.scalar_computations;
-            if !plans.nodes.is_valid(root.root)
-                || plans.nodes.get(root.root).authored_root != *expression
-                || plans.nodes.get(root.root).primitive_type != *primitive
-            {
-                return None;
-            }
-            collect(
-                facts,
-                call.statement_index,
-                root.root,
-                calls,
-                &mut Vec::new(),
-                &mut consumed,
-            )?;
-        }
+        collect_argument_calls(
+            program,
+            facts,
+            machine,
+            state.symbol,
+            call,
+            arguments,
+            calls,
+            &mut consumed,
+        )?;
+    }
+    for call in &structural {
+        let site = crate::find_call_site(
+            program,
+            machine,
+            state.symbol,
+            call.statement_index,
+            call.call_ordinal,
+        )?;
+        let arguments = crate::call_site_argument_expressions(program, &site);
+        collect_argument_calls(
+            program,
+            facts,
+            machine,
+            state.symbol,
+            call,
+            arguments,
+            calls,
+            &mut consumed,
+        )?;
     }
     if calls
         .iter()
@@ -212,6 +178,83 @@ pub(in crate::flow::terminal_unit) fn outer_calls<'a>(
         return None;
     }
     Some(outer)
+}
+
+fn collect_argument_calls(
+    program: &TypedTrees,
+    facts: &CheckFacts,
+    machine: SymbolHandle,
+    state: SymbolHandle,
+    call: &checked_trees::FlowCallFact,
+    arguments: &[typed_trees::expression::ExpressionHandle],
+    calls: &[checked_trees::FlowCallFact],
+    consumed: &mut Vec<arena::Handle<checked_trees::FlowCallFact>>,
+) -> Option<()> {
+    let parameters = crate::call_target_parameters(program, call.target_symbol)?;
+    let explicit_self = arguments.len()
+        > parameters
+            .iter()
+            .filter(|parameter| !parameter.is_self)
+            .count();
+    let formals = parameters
+        .iter()
+        .filter(|parameter| !parameter.is_self || explicit_self)
+        .collect::<Vec<_>>();
+    if arguments.len() != formals.len() {
+        return None;
+    }
+    let scalar_arguments = arguments
+        .iter()
+        .zip(formals)
+        .filter_map(|(argument, parameter)| {
+            program
+                .primitive_type_reference(parameter.type_reference)
+                .map(|primitive| (*argument, primitive))
+        })
+        .collect::<Vec<_>>();
+    let mut roles = Vec::new();
+    for (_, root) in facts
+        .values
+        .scalar_computations
+        .roots
+        .iter()
+        .filter(|(_, root)| {
+            root.state == state && root.statement_ordinal as usize == call.statement_index
+        })
+    {
+        let ordinal = match root.role {
+            CheckedScalarExpressionRole::BoundaryCallArgument {
+                call_ordinal,
+                argument_ordinal,
+            }
+            | CheckedScalarExpressionRole::UnitCallArgument {
+                call_ordinal,
+                argument_ordinal,
+            } if call_ordinal as usize == call.call_ordinal => argument_ordinal,
+            _ => continue,
+        };
+        if root.machine != machine || roles.contains(&root.role) {
+            return None;
+        }
+        roles.push(root.role);
+        let (expression, primitive) = scalar_arguments.get(ordinal as usize)?;
+        let plans = &facts.values.scalar_computations;
+        if !plans.nodes.is_valid(root.root)
+            || plans.nodes.get(root.root).authored_root != *expression
+            || plans.nodes.get(root.root).primitive_type != *primitive
+        {
+            return None;
+        }
+        collect(
+            facts,
+            call.statement_index,
+            root.root,
+            calls,
+            &mut Vec::new(),
+            consumed,
+        )?;
+    }
+    Some(())
 }
 
 fn collect(

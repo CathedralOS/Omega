@@ -17,9 +17,11 @@ use typed_trees::{
     types::{PrimitiveType, TypeReferenceHandle, TypeReferenceNode},
 };
 
+mod call_arguments;
 mod computations;
 mod contract_entry;
 mod result_contract;
+pub(crate) use call_arguments::retain_nested_structural_call_arguments;
 pub(crate) use computations::build_checked_scalar_computation_plans;
 pub(crate) use contract_entry::{
     lower_machine_entry_boolean_expression, lower_machine_entry_scalar_contract_expression,

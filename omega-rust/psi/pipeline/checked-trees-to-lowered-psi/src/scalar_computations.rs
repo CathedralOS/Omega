@@ -53,6 +53,7 @@ impl<'a> Expansion<'a> {
 
     /// Retain the caller prefix while completing each operand in source order.
     /// The target receives that prefix followed by the dense scalar arguments.
+    /// A slice retains its original dense scalar ordinal for source custody.
     #[allow(clippy::too_many_arguments)]
     pub(super) fn call_arguments(
         &mut self,
@@ -60,6 +61,7 @@ impl<'a> Expansion<'a> {
         coordinate: checked_trees::CheckedUnitCallCoordinate,
         boundary: bool,
         arguments: &[checked_trees::CheckedCallScalarArgument],
+        argument_ordinal_start: usize,
         bindings: &storage::ScalarBindings,
         source_types: &[ScalarType],
         target: usize,
@@ -71,6 +73,12 @@ impl<'a> Expansion<'a> {
         };
         let mut operands = Vec::with_capacity(arguments.len());
         for (ordinal, argument) in arguments.iter().enumerate() {
+            let ordinal =
+                argument_ordinal_start
+                    .checked_add(ordinal)
+                    .ok_or(LoweringError::Unsupported(
+                        "scalar call argument ordinal overflows",
+                    ))?;
             let argument_ordinal = u32::try_from(ordinal).map_err(|_| {
                 LoweringError::Unsupported("scalar call argument ordinal exceeds u32")
             })?;

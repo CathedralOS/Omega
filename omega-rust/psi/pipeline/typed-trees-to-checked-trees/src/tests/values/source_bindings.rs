@@ -233,6 +233,126 @@ fn structural_boundary_initializers_retain_scalar_inputs_without_scalar_result_s
 }
 
 #[test]
+fn nested_structural_pure_arguments_keep_captured_roles_and_prior_local_namespace() {
+    let source = r#"
+        data Value { number: u64; }
+        data Root {}
+        machine forward(before: u32, value: Value, after: u32) -> Value { value }
+        machine Root::consume(value: Value) {}
+        machine Root::enter(value: Value, count: u32) {
+            let saved: u32 = count ^ 1u32;
+            Root::consume(forward(saved, forward(count, value, saved), saved ^ 2u32));
+            let following: u32 = saved;
+        }
+    "#;
+    let checked = lower_typed_trees(typed_trees(source)).unwrap();
+    let machine = checked
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "Root::enter")
+        .unwrap();
+    let state = &checked.machine_states(machine)[0];
+    let parameters = checked.state_parameters(state);
+    let statements = checked.statement_table.statements(state.statement_nodes);
+    let [
+        StatementNode::LocalData(saved),
+        StatementNode::Call(consumer),
+        StatementNode::LocalData(following),
+    ] = statements
+    else {
+        panic!("two scalar locals surround the authored call");
+    };
+    let outer_expression = checked
+        .statement_table
+        .expression_handles(consumer.arguments)[0];
+    let ExpressionNode::Call(outer) = checked.expression_table.expression(outer_expression) else {
+        panic!("outer structural producer");
+    };
+    let inner_expression = checked.expression_table.expression_handles(outer.arguments)[1];
+    let ExpressionNode::Call(inner) = checked.expression_table.expression(inner_expression) else {
+        panic!("inner structural producer");
+    };
+    let plans = &checked.facts.values.scalar_expressions;
+    let namespace = [parameters[1].symbol, saved.symbol];
+    for (call_ordinal, expression, call) in
+        [(1, outer_expression, outer), (2, inner_expression, inner)]
+    {
+        let occurrences = checked
+            .facts
+            .flow
+            .control
+            .calls
+            .iter()
+            .filter(|(_, source)| source.authored_expression == expression)
+            .map(|(_, source)| (source.statement_index, source.call_ordinal))
+            .collect::<Vec<_>>();
+        assert_eq!(occurrences, vec![(1, call_ordinal as usize)]);
+        let arguments = checked.expression_table.expression_handles(call.arguments);
+        for (argument_ordinal, authored_position) in [(0, 0), (1, 2)] {
+            let role = CheckedScalarExpressionRole::UnitCallArgument {
+                call_ordinal,
+                argument_ordinal,
+            };
+            let (binding, selected) = plans
+                .bound_expression_at(state.symbol, 1, role)
+                .expect("one pure argument row at the captured nested coordinate");
+            assert_eq!(binding.expression, arguments[authored_position]);
+            assert!(!binding.destination.is_valid());
+            assert_eq!(
+                plans.binding_symbols.span_or_empty(binding.symbols),
+                namespace
+            );
+            assert!(
+                checked
+                    .facts
+                    .values
+                    .scalar_computations
+                    .root_at(state.symbol, 1, role)
+                    .is_none(),
+                "pure operands do not also acquire computation roots"
+            );
+            if argument_ordinal == 0 {
+                let expected = if call_ordinal == 1 {
+                    checked_trees::CheckedScalarExpression::Local {
+                        position: 1,
+                        primitive_type: typed_trees::types::PrimitiveType::U32,
+                    }
+                } else {
+                    checked_trees::CheckedScalarExpression::Parameter {
+                        position: 0,
+                        primitive_type: typed_trees::types::PrimitiveType::U32,
+                    }
+                };
+                assert_eq!(selected, &expected);
+            }
+        }
+    }
+    assert_eq!(
+        plans
+            .source_bindings
+            .iter()
+            .filter(|(_, binding)| {
+                binding.state == state.symbol && binding.statement_ordinal == 1
+            })
+            .count(),
+        4,
+        "two pure scalar operands per producer; no scalar row for structural inputs"
+    );
+    let (binding, _) = plans
+        .bound_expression_at(
+            state.symbol,
+            2,
+            CheckedScalarExpressionRole::LocalInitializer { binding_ordinal: 1 },
+        )
+        .expect("nested operands do not become source locals");
+    assert_eq!(binding.destination, following.symbol);
+    assert_eq!(
+        plans.binding_symbols.span_or_empty(binding.symbols),
+        namespace
+    );
+}
+
+#[test]
 fn explicit_compiler_intrinsic_arguments_retain_boundary_custody() {
     let source = r#"
         pub boundary trait Console {

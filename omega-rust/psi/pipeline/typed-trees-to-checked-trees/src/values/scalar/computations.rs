@@ -68,6 +68,27 @@ pub(crate) fn build_checked_scalar_computation_plans(
                     locals: &locals,
                     plans: &mut plans,
                 };
+                for (call_ordinal, site) in super::call_arguments::nested_structural_call_sites(
+                    program,
+                    flow,
+                    machine,
+                    state,
+                    statement_index,
+                ) {
+                    let crate::CallSite::Expression { call, .. } = site else {
+                        continue;
+                    };
+                    let Ok(call_ordinal) = u32::try_from(call_ordinal) else {
+                        continue;
+                    };
+                    builder.record_call_arguments(
+                        pure,
+                        statement_ordinal,
+                        call_ordinal,
+                        call.target_symbol,
+                        program.expression_table.expression_handles(call.arguments),
+                    );
+                }
                 if let StatementNode::LocalData(local) = statement {
                     let argument_roots = !local.is_mutable
                         && validation::result_initializer_call_is_supported(
@@ -84,6 +105,7 @@ pub(crate) fn build_checked_scalar_computation_plans(
                         builder.record_call_arguments(
                             pure,
                             statement_ordinal,
+                            0,
                             call.target_symbol,
                             program.expression_table.expression_handles(call.arguments),
                         );
@@ -142,6 +164,7 @@ pub(crate) fn build_checked_scalar_computation_plans(
                     builder.record_call_arguments(
                         pure,
                         statement_ordinal,
+                        0,
                         call.target_symbol,
                         program.statement_table.expression_handles(call.arguments),
                     );
@@ -160,6 +183,7 @@ pub(crate) fn build_checked_scalar_computation_plans(
                     builder.record_call_arguments(
                         pure,
                         statement_ordinal,
+                        0,
                         call.target_symbol,
                         program.expression_table.expression_handles(call.arguments),
                     );

@@ -55,7 +55,7 @@ pub(crate) fn locate_source(
         ))?;
     let (source_target, arguments, source_site) = if coordinate.call_ordinal != 0 {
         let expression =
-            nested::execution_order(checked, caller_state, coordinate.statement_index)?
+            nested::authored_postorder(checked, caller_state, coordinate.statement_index)?
                 .into_iter()
                 .find_map(|(ordinal, expression)| {
                     (ordinal == coordinate.call_ordinal).then_some(expression)

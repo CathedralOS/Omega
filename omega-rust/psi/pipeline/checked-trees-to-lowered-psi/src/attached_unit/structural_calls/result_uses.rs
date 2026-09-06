@@ -141,14 +141,6 @@ pub(crate) fn validate_consumer(
             ExpressionNode::Call(_)
         )
     });
-    if authored_nested
-        && authored.scalar_arguments.iter().any(|(expression, _)| {
-            !matches!(checked.expression_table.expression(*expression),
-            ExpressionNode::Name(name) if name.symbol.is_valid())
-        })
-    {
-        return unsupported("enclosing structural operands require bare-name scalar arguments");
-    }
     validate_nested_execution_order(checked, caller, coordinate.statement_index, authored_nested)?;
     let (_, state) = crate::scalar_source_custody::authored_state(checked, caller.state)?;
     let statements = checked.statement_table.statements(state.statement_nodes);
@@ -293,40 +285,41 @@ fn validate_nested_execution_order(
     {
         return Ok(());
     }
-    let expected = crate::call_source_custody::authored::nested::execution_order(
+    let expected = crate::call_source_custody::authored::nested::authored_postorder(
         checked,
         caller.state,
         statement_index,
     )?;
     let mut actual = Vec::new();
     for operation in &caller.operations {
-        let (coordinate, scalar_arguments) = match operation {
-            CheckedUnitEffectOperationPlan::StructuralCall {
-                coordinate,
-                scalar_arguments,
-                ..
+        let coordinate = match operation {
+            CheckedUnitEffectOperationPlan::StructuralCall { coordinate, .. }
+            | CheckedUnitEffectOperationPlan::CallUnit { coordinate, .. }
+                if coordinate.statement_index == statement_index =>
+            {
+                coordinate
             }
-            | CheckedUnitEffectOperationPlan::CallUnit {
-                coordinate,
-                scalar_arguments,
-                ..
-            } if coordinate.statement_index == statement_index => (coordinate, scalar_arguments),
             _ => continue,
         };
-        if scalar_arguments.iter().any(|argument| {
-            matches!(
-                argument,
-                checked_trees::CheckedCallScalarArgument::Computation(_)
-            )
-        }) {
-            return unsupported("nested structural calls have no ordered scalar computation plan");
-        }
         actual.push(coordinate.call_ordinal);
     }
     if !actual
         .iter()
         .copied()
-        .eq(expected.iter().map(|(ordinal, _)| *ordinal))
+        .eq(expected.iter().filter_map(|(ordinal, expression)| {
+            if let ExpressionNode::Call(call) = checked.expression_table.expression(*expression)
+                && crate::scalar_source_custody::authored_state(checked, call.target_symbol)
+                    .is_ok_and(|(_, target)| {
+                        checked
+                            .primitive_type_reference(target.return_type)
+                            .is_some()
+                    })
+            {
+                None
+            } else {
+                Some(*ordinal)
+            }
+        }))
     {
         return unsupported(
             "nested structural operations disagree with authored argument execution order",
