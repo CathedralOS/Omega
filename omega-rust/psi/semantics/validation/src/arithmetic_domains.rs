@@ -32,6 +32,7 @@ use typed_trees::types::{
 use crate::places::declared_place_type_raw;
 
 mod abstract_shift_count;
+mod bitwise;
 mod call_result_bounds;
 mod dependent_products;
 mod dependent_relations;
@@ -43,6 +44,7 @@ mod invariant_bounds;
 mod monotonic_update;
 mod ordered_values;
 mod total_specification;
+mod unsigned_representability;
 mod value_environment;
 
 use dependent_products::{refine_dependent_product, refine_dependent_product_factor};
@@ -425,6 +427,24 @@ pub(crate) fn record_assignment(
             None => interval,
         };
         env.set(path, interval);
+    }
+}
+
+/// A direct u64 literal binding retains its mathematical value beyond the
+/// interval endpoint window. Call only after invalidating the old assignment;
+/// the ordinary environment write/arrival rules retire this fact as well.
+pub(crate) fn record_unsigned_literal_assignment(
+    program: &TypedTrees,
+    env: &mut ValueEnv,
+    path: Option<String>,
+    primitive: Option<PrimitiveType>,
+    value: ExpressionHandle,
+) {
+    if primitive == Some(PrimitiveType::U64)
+        && let Some(path) = path
+        && let Some(value) = literal_u64(program, value)
+    {
+        env.mark_known_u64(path, value);
     }
 }
 

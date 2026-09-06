@@ -238,6 +238,24 @@ pub fn declared_place_type_raw(
 /// place. Expression member symbols can be synthesized accessor identities;
 /// semantic facts that name storage must retain the field/local declaration
 /// reached by the receiver's declared type instead.
+pub(crate) fn declared_member_field_symbol(
+    program: &TypedTrees,
+    machine: &typed_trees::machine::Machine,
+    state: Option<&typed_trees::state::State>,
+    expression: ExpressionHandle,
+) -> Option<symbols::SymbolHandle> {
+    let ExpressionNode::Member(member) = program.expression_table.expression(expression) else {
+        return None;
+    };
+    if member.case_variant.is_some() {
+        return None;
+    }
+    let receiver = declared_place_type_raw(program, machine, state, member.receiver)?;
+    let data = data_definition_for_type(program, receiver)?;
+    Some(data_field_or_payload(program, data, member.member.as_str())?.symbol)
+}
+
+/// Resolve a lexical place at its exact statement position.
 pub(crate) fn declared_place_leaf_symbol(
     program: &TypedTrees,
     current_machine: &typed_trees::machine::Machine,

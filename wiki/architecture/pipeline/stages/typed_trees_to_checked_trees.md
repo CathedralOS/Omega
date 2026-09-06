@@ -147,6 +147,34 @@ may instead compare repeated results conditional on normal completion, while
 its invocation retains the ordinary crash obligations. Broader call adaptations
 remain outside this concrete value-call analysis.
 
+Integer bitwise range analysis retains the exact signed or unsigned carrier
+and operand arithmetic policy. AND, OR, and XOR transfer bits fixed throughout
+each operand interval and then recover a numeric hull; evaluating only the
+interval endpoints is not sound for these operations. Complement reverses the
+carrier-bounded interval through the shared integer evaluator. Full-width
+unsigned constants remain exact even above the signed interval window.
+Bitwise results never acquire Boolean bounds, and both integer complement and
+Boolean negation validate arithmetic nested in their operands. Bitwise
+operations themselves impose no overflow-policy condition; surrounding
+arithmetic still consumes the retained operand policy.
+Exact `u64` arithmetic checks the actual unsigned carrier ceiling separately
+from its i64-backed interval projection. An unknown projected ceiling is not
+proof of representability. Direct unsigned literal bindings retain exact
+values in the flow environment, subject to the same write invalidation and
+arrival intersections as other value facts. Landed integer literals retain
+their own carrier inside larger expressions, including beneath negation or a
+wider destination.
+Resolved named operators contribute their declared integer return carrier,
+policy, and range before provider selection. This signature information does
+not establish a body result, purity, or repeatability.
+Strict live ordering also proves a bounded unsigned increment below its
+ceiling. Builtin slice/array lengths retain the exact collection operand for
+this relation and rebind through explicit state arguments; nominal fields use
+their actual field declaration rather than an occurrence's accessor symbol.
+Neither a non-strict bound nor a stale pre-write relation supplies the missing
+distance. Anonymous comparison literals retain exact mathematical values
+without acquiring a guessed carrier.
+
 Local integer guards also project immutable operand intervals through builtin
 ordered comparisons. `guard_narrowing/parameter_bounds.rs` uses the existing
 `invariant_bounds.rs` owner, retaining one-sided carrier bounds: an unrestricted

@@ -1179,6 +1179,15 @@ fn validate_state_statement_node(
                         arithmetic_domains::enforced_declared_range(program, handle)
                     }),
             );
+            if diagnostics.len() == before {
+                arithmetic_domains::record_unsigned_literal_assignment(
+                    program,
+                    value_env,
+                    arithmetic_domains::place_path(program, assignment.target),
+                    assignment_target_primitive,
+                    assignment.value,
+                );
+            }
         }
         StatementNode::Call(call) => {
             if let Some(state) = current_state {
@@ -1602,6 +1611,15 @@ fn validate_state_statement_node(
                         })
                         .flatten(),
                 );
+                if diagnostics.len() == before {
+                    arithmetic_domains::record_unsigned_literal_assignment(
+                        program,
+                        value_env,
+                        Some(local_data.name.as_str().to_owned()),
+                        program.primitive_type_reference(local_data.type_reference),
+                        local_data.initial_value,
+                    );
+                }
             }
         }
         StatementNode::Transition(transition) => {

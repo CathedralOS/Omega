@@ -105,7 +105,9 @@ fn reachable_recursive_index_proof_requires_a_valid_entry_anchor() {
                 }}
                 state visit(values: &[u64], index: u64) -> u64 {{
                     let value: u64 = values[index];
-                    let next: u64 = index + 1;
+                        // Keep the missing-entry case about index formation;
+                        // an unknown cursor also lacks an Exact overflow proof.
+                        let next: u64 = ((index as u64 in Wrapping) + 1) as u64;
                     transition next < values.len {{
                         true -> visit(values, next)
                         false -> value

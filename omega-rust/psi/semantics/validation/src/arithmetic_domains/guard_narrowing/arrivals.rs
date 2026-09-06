@@ -460,21 +460,51 @@ impl ArrivalWalk<'_, '_> {
                     let interval = self.interval(source, local.initial_value, environment);
                     let path = local.name.as_str().to_owned();
                     environment.invalidate_written_paths(std::slice::from_ref(&path));
-                    environment.set(path, interval);
+                    environment.set(path.clone(), interval);
+                    record_unsigned_literal_assignment(
+                        self.program,
+                        environment,
+                        Some(path),
+                        self.program.primitive_type_reference(local.type_reference),
+                        local.initial_value,
+                    );
                 }
                 StatementNode::Assignment(assignment) => {
                     self.expression(source, assignment.target, environment);
                     self.expression(source, assignment.value, environment);
-                    // Invalidation is sufficient here. Normal body validation
-                    // establishes the new value and checks its store domain.
-                    Self::cross_writes(
-                        environment,
-                        self.frames.and_then(|frames| {
-                            frames
-                                .assignment_write_frame(self.machine, statement)
-                                .into_complete_paths()
-                        }),
-                    );
+                    let written = self.frames.and_then(|frames| {
+                        frames
+                            .assignment_write_frame(self.machine, statement)
+                            .into_complete_paths()
+                    });
+                    let complete = written.is_some();
+                    Self::cross_writes(environment, written);
+                    // Preserve an exact direct unsigned literal only after
+                    // target/value effects and the complete store frame have
+                    // retired old facts. Other stores remain invalidation-only.
+                    if complete {
+                        let path = self.bound_place(source, assignment.target).or_else(|| {
+                            crate::exact_self_field(self.program, self.machine, assignment.target)
+                                .and_then(|_| place_path(self.program, assignment.target))
+                        });
+                        let primitive = declared_place_type_raw(
+                            self.program,
+                            self.machine,
+                            Some(source),
+                            assignment.target,
+                        )
+                        .map(|reference| {
+                            crate::places::assignment_value_type(self.program, reference)
+                        })
+                        .and_then(|reference| self.program.primitive_type_reference(reference));
+                        record_unsigned_literal_assignment(
+                            self.program,
+                            environment,
+                            path,
+                            primitive,
+                            assignment.value,
+                        );
+                    }
                 }
                 StatementNode::Call(call) => {
                     let arguments = self

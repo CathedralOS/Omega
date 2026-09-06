@@ -5282,7 +5282,10 @@ fn consuming_seq_map_specializes_recursive_machine_parameter_calls() {
         }
         data Main {}
 
-        machine increment(value: u64) -> u64 { value + 1 }
+        // This fixture checks generic specialization, not an input upper bound.
+        machine increment(value: u64) -> u64 {
+            ((value as u64 in Wrapping) + 1) as u64
+        }
 
         machine map<T, U, machine F>(items: Seq<T>) -> Seq<U>
         where machine F(value: T) -> U;
