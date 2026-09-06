@@ -3,12 +3,14 @@
 use std::collections::BTreeMap;
 
 use proof_admission::Obligation;
-use semantic_vocabulary::{ContractId, EdgeId, MachineId, OperationId, Proposition};
-use terminal_psi::{OutcomeSpecificGuard, TerminalMachine, TerminalModule};
+use semantic_vocabulary::{BlockId, ContractId, EdgeId, MachineId, OperationId, Proposition};
+use terminal_psi::{OutcomeSpecificGuard, TerminalMachine, TerminalModule, Terminator};
 
 use crate::validation::exact_payloadless_case_return_exits;
 use crate::{ModuleError, ValidatedInterpretableTerminalModule, validate_module};
 
+mod crash_field_origins;
+mod crash_paths;
 mod machine_context;
 mod machine_flow;
 mod operation_facts;
@@ -87,6 +89,38 @@ pub(super) struct ReconstructedMachineSemantics {
     pub(super) operation_obligations: Vec<ReconstructedOperationObligation>,
     pub(super) exit_axioms: Vec<Proposition>,
     pub(super) outcome_exit_axioms: BTreeMap<OutcomeSpecificGuard, Vec<Proposition>>,
+    pub(super) crash_sites: Vec<ReconstructedCrashSiteFacts>,
+}
+
+/// Private source-independent facts at an exact crash terminator. Asserted
+/// site guards are proof goals, never premises in this collection.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct ReconstructedCrashSiteFacts {
+    pub(crate) machine: MachineId,
+    pub(crate) block: BlockId,
+    pub(crate) edge: EdgeId,
+    pub(crate) semantic_axioms: Vec<Proposition>,
+}
+
+/// The caller must have completed structural, control-flow and policy
+/// validation. This bridge deliberately does not call `validate_module`:
+/// validation consumes these facts before granting its result carrier.
+pub(crate) fn reconstruct_validated_crash_site_facts(
+    module: &TerminalModule,
+) -> Result<Vec<ReconstructedCrashSiteFacts>, ModuleError> {
+    let mut sites = Vec::new();
+    for machine in module.machines.iter().filter(|machine| {
+        machine.blocks.iter().any(|block| {
+            matches!(&block.terminator, Terminator::Crash { site_guard, .. } if !site_guard.is_empty())
+        })
+    }) {
+        if machine.ranked_scc.is_some() {
+            sites.extend(reconstruct_machine_semantics_with_crash_facts(module, machine, true)?.crash_sites);
+        } else {
+            sites.extend(crash_paths::reconstruct(module, machine)?);
+        }
+    }
+    Ok(sites)
 }
 
 /// Reconstruct proof obligations owned by executable operation sites. This is
@@ -228,7 +262,15 @@ pub(super) fn reconstruct_machine_semantics(
     module: &TerminalModule,
     machine: &TerminalMachine,
 ) -> Result<ReconstructedMachineSemantics, ModuleError> {
-    let context = machine_context::MachineReconstructionContext::new(module, machine);
+    reconstruct_machine_semantics_with_crash_facts(module, machine, false)
+}
+
+fn reconstruct_machine_semantics_with_crash_facts(
+    module: &TerminalModule,
+    machine: &TerminalMachine,
+    crash_facts: bool,
+) -> Result<ReconstructedMachineSemantics, ModuleError> {
+    let context = machine_context::MachineReconstructionContext::new(module, machine, crash_facts);
     let outcome_exit_guards =
         if let Some(clause) = machine.contract.outcome_specific_ensures.first() {
             exact_payloadless_case_return_exits(machine).ok_or(
@@ -249,6 +291,7 @@ pub(super) fn reconstruct_machine_semantics(
     let mut exits = Vec::<Vec<Proposition>>::new();
     let mut outcome_exits = BTreeMap::<OutcomeSpecificGuard, Vec<Vec<Proposition>>>::new();
     let mut operation_obligations = Vec::new();
+    let mut crash_sites = Vec::new();
     let ranked_backedges = machine
         .ranked_scc
         .iter()
@@ -260,6 +303,11 @@ pub(super) fn reconstruct_machine_semantics(
             .get(&current)
             .expect("validated module contains every reached block");
         let mut axioms = machine_flow::take_guaranteed_incoming(&mut incoming, current);
+        if crash_facts {
+            axioms.retain(|proposition| {
+                crash_field_origins::retains_entry_meaning(proposition, machine)
+            });
+        }
         for operation in &block.operations {
             operation_facts::append_operation(
                 module,
@@ -270,25 +318,36 @@ pub(super) fn reconstruct_machine_semantics(
                 &mut axioms,
                 &mut operation_obligations,
             )?;
+            if crash_facts {
+                // Do not let a current mutable-field observation become an
+                // entry fact or feed a later derived crash-path predicate.
+                axioms.retain(|proposition| {
+                    crash_field_origins::retains_entry_meaning(proposition, machine)
+                });
+            }
         }
         terminator_facts::append_terminator(
             &block.terminator,
+            current,
             machine,
             &context.blocks,
             &context.machines,
             &|id| context.value_term(id),
             context.reconstruct_path_facts,
+            crash_facts,
             axioms,
             &mut incoming,
             &mut exits,
             outcome_exit_guards.get(&current).copied(),
             &mut outcome_exits,
             &mut operation_obligations,
+            &mut crash_sites,
             &ranked_backedges,
         );
     }
     Ok(ReconstructedMachineSemantics {
         operation_obligations,
+        crash_sites,
         exit_axioms: machine_flow::guaranteed_exit_facts(exits),
         outcome_exit_axioms: outcome_exits
             .into_iter()

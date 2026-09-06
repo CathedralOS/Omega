@@ -8,6 +8,9 @@ use numerics::{
 use super::*;
 
 mod entry_requirements;
+mod site_truth;
+
+pub(super) use site_truth::validate_site_guard_truth;
 
 pub(super) fn substitute_crash_routes(
     routes: &[CrashRouteBucket],

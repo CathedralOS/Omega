@@ -16,6 +16,7 @@ mod integer_forbidden_root;
 mod integer_shift;
 mod kernel;
 mod normalization;
+mod predicate_denotation;
 mod proof;
 mod recursion;
 
@@ -52,6 +53,9 @@ pub use normalization::{
     NormalizationAcceptance, NormalizationCertificate, NormalizationError,
     NormalizationLawAcceptance, NormalizationLawCertificate, NormalizationLawObligation,
     NormalizationObligation, verify_normalization,
+};
+pub use predicate_denotation::{
+    CheckedPredicateDenotations, PredicateDenotationError, check_predicate_denotations,
 };
 pub use proof::{
     AcceptedPremise, AcceptedProofRule, CertificateAcceptance, ProofError, ProofNode, ProofRule,

@@ -909,6 +909,12 @@ pub enum ModuleError {
         cause: CrashCause,
     },
     NonCanonicalCrashSiteGuard(BlockId),
+    CrashSiteReconstructionLimitExceeded(MachineId),
+    CrashSiteGuardUnproved {
+        block: BlockId,
+        edge: EdgeId,
+        predicate: usize,
+    },
     CrashRouteUncovered {
         block: BlockId,
         cause: CrashCause,

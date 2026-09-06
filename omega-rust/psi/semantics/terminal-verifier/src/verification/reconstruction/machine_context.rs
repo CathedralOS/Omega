@@ -3,7 +3,7 @@
 use std::collections::BTreeMap;
 
 use semantic_vocabulary::{BlockId, MachineId, ScalarTerm, ScalarType, ValueId};
-use terminal_psi::{Block, OperationKind, TerminalMachine, TerminalModule};
+use terminal_psi::{Block, OperationKind, TerminalMachine, TerminalModule, Terminator};
 
 pub(super) struct MachineReconstructionContext<'a> {
     pub(super) reconstruct_path_facts: bool,
@@ -13,7 +13,11 @@ pub(super) struct MachineReconstructionContext<'a> {
 }
 
 impl<'a> MachineReconstructionContext<'a> {
-    pub(super) fn new(module: &'a TerminalModule, machine: &'a TerminalMachine) -> Self {
+    pub(super) fn new(
+        module: &'a TerminalModule,
+        machine: &'a TerminalMachine,
+        crash_facts: bool,
+    ) -> Self {
         let reconstruct_path_facts = machine.blocks.iter().any(|block| {
             block.operations.iter().any(|operation| {
                 matches!(
@@ -37,7 +41,9 @@ impl<'a> MachineReconstructionContext<'a> {
                         | OperationKind::SaturatingIntegerRemainder { .. }
                 )
             })
-        });
+        }) || (crash_facts && machine.blocks.iter().any(|block| {
+            matches!(&block.terminator, Terminator::Crash { site_guard, .. } if !site_guard.is_empty())
+        }));
         let value_types = machine
             .parameters
             .iter()

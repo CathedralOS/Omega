@@ -90,28 +90,35 @@ impl<'module> ValidatedTerminalModule<'module> {
         self,
         machine: &TerminalMachine,
     ) -> Result<PropositionContext, ModuleError> {
-        PropositionContext::from_value_types_and_places(
-            machine_value_types(machine),
-            machine
-                .structural_places
-                .iter()
-                .map(|place| (place.id, place.kind))
-                .chain(
-                    affine_cleanup::nominal_cleanup_contract_receiver(self.module, machine.id).map(
-                        |receiver| {
-                            (
-                                receiver,
-                                StructuralPlaceKind::Parameter {
-                                    position: 0,
-                                    is_self: true,
-                                },
-                            )
-                        },
-                    ),
-                ),
-        )
-        .map_err(ModuleError::MalformedProposition)
+        machine_value_context(self.module, machine)
     }
+}
+
+fn machine_value_context(
+    module: &TerminalModule,
+    machine: &TerminalMachine,
+) -> Result<PropositionContext, ModuleError> {
+    PropositionContext::from_value_types_and_places(
+        machine_value_types(machine),
+        machine
+            .structural_places
+            .iter()
+            .map(|place| (place.id, place.kind))
+            .chain(
+                affine_cleanup::nominal_cleanup_contract_receiver(module, machine.id).map(
+                    |receiver| {
+                        (
+                            receiver,
+                            StructuralPlaceKind::Parameter {
+                                position: 0,
+                                is_self: true,
+                            },
+                        )
+                    },
+                ),
+            ),
+    )
+    .map_err(ModuleError::MalformedProposition)
 }
 
 pub fn validate_module(
@@ -895,6 +902,7 @@ fn validate_module_with_policy(
         ValidationPolicy::Execution | ValidationPolicy::Representation => {}
     }
 
+    crash::validate_site_guard_truth(module)?;
     Ok(())
 }
 

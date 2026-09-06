@@ -24,6 +24,19 @@ pub(in super::super) fn condition_fact(
                 }
                 expanded.push(id);
                 if let Some(definition) = defining_term(&predicate, axioms) {
+                    if matches!(definition, ScalarTerm::Value { id, .. } if expanded.contains(id))
+                        && !axioms.iter().any(|axiom| {
+                            matches!(axiom, Proposition::Equal(left, right)
+                                if left == &predicate && right != &predicate)
+                        })
+                    {
+                        // A formal may occur only on the right of a retained
+                        // edge alias. Walking that equality backwards would
+                        // return to the condition we just expanded. Keep the
+                        // exact boundary value's selected truth instead; a
+                        // genuine cycle of forward definitions still rejects.
+                        return Some(Proposition::Equal(predicate, ScalarTerm::Boolean(positive)));
+                    }
                     predicate = definition.clone();
                 } else {
                     return Some(Proposition::Equal(predicate, ScalarTerm::Boolean(positive)));

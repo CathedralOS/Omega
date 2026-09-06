@@ -10,21 +10,27 @@ use terminal_psi::OutcomeSpecificGuard;
 use terminal_psi::{Block, TerminalMachine, Terminator};
 
 use super::super::substitution::substitute_proposition_places;
-use super::{ReconstructedOperationObligation, ReconstructedTerminalObligationOwner, path_facts};
+use super::{
+    ReconstructedCrashSiteFacts, ReconstructedOperationObligation,
+    ReconstructedTerminalObligationOwner, path_facts,
+};
 
 pub(super) fn append_terminator(
     terminator: &Terminator,
+    block: BlockId,
     machine: &TerminalMachine,
     blocks: &BTreeMap<BlockId, &Block>,
     machines: &BTreeMap<MachineId, &TerminalMachine>,
     value_term: &impl Fn(ValueId) -> ScalarTerm,
     reconstruct_path_facts: bool,
+    crash_facts: bool,
     mut axioms: Vec<Proposition>,
     incoming: &mut BTreeMap<BlockId, Vec<Vec<Proposition>>>,
     exits: &mut Vec<Vec<Proposition>>,
     outcome_guard: Option<OutcomeSpecificGuard>,
     outcome_exits: &mut BTreeMap<OutcomeSpecificGuard, Vec<Vec<Proposition>>>,
     operation_obligations: &mut Vec<ReconstructedOperationObligation>,
+    crash_sites: &mut Vec<ReconstructedCrashSiteFacts>,
     ignored_backedges: &std::collections::BTreeSet<EdgeId>,
 ) {
     match terminator {
@@ -54,9 +60,9 @@ pub(super) fn append_terminator(
         } => {
             let true_fact = path_facts::condition_fact(*condition, true, &axioms, value_term);
             let false_fact = path_facts::condition_fact(*condition, false, &axioms, value_term);
-            for (successor, condition_fact) in [
-                (when_true, true_fact.as_ref()),
-                (when_false, false_fact.as_ref()),
+            for (successor, condition_fact, positive) in [
+                (when_true, true_fact.as_ref(), true),
+                (when_false, false_fact.as_ref(), false),
             ] {
                 if ignored_backedges.contains(&successor.edge) {
                     continue;
@@ -76,6 +82,19 @@ pub(super) fn append_terminator(
                     path_facts::append_successor_fact(
                         &mut arm_axioms,
                         condition_fact,
+                        target_block,
+                        &successor.arguments,
+                        value_term,
+                    );
+                }
+                if crash_facts {
+                    // Current observations still have exact SSA truth on the
+                    // selected edge even when their entry-field origin is
+                    // unavailable. Keep ordinary obligation axiom indexes
+                    // unchanged by retaining this only in the private mode.
+                    path_facts::append_successor_fact(
+                        &mut arm_axioms,
+                        &Proposition::Equal(value_term(*condition), ScalarTerm::Boolean(positive)),
                         target_block,
                         &successor.arguments,
                         value_term,
@@ -188,9 +207,27 @@ pub(super) fn append_terminator(
             }
             exits.push(axioms);
         }
-        // A crash establishes no normal-return guarantee. Its explicit
-        // frontier record is validated structurally before proof replay.
-        Terminator::Crash { .. } => {}
+        // A crash establishes no normal-return guarantee. Retain only facts
+        // reconstructed before it, not the producer's asserted site guards.
+        Terminator::Crash { edge, .. } => {
+            // Ranked reconstruction omits backedges and therefore does not
+            // establish all-path invariants at these sites. Until invariant
+            // custody is available, only independent entry requirements may
+            // prove a ranked machine's crash guards.
+            if machine.ranked_scc.is_some() {
+                axioms.clear();
+            } else if crash_facts {
+                axioms.retain(|proposition| {
+                    super::crash_field_origins::retains_entry_meaning(proposition, machine)
+                });
+            }
+            crash_sites.push(ReconstructedCrashSiteFacts {
+                machine: machine.id,
+                block,
+                edge: *edge,
+                semantic_axioms: axioms,
+            });
+        }
     }
 }
 

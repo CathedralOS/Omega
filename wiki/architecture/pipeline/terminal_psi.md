@@ -3299,9 +3299,29 @@ certificates. This sufficient coverage check does not rewrite callee routes or
 weaken exact continuation reconstruction, and it does not use body values or
 producer-supplied coverage evidence. Search is bounded to 4,096 steps and depth
 64. Equivalent Boolean spellings that need further proof rules and numeric entry
-coverage remain unfinished. Direct crash-site validation currently checks guard
-shape, scope, and published-route membership, not truth from reconstructed CFG
-facts; closing that independent verification gap remains explicit task-board work.
+coverage remain unfinished.
+
+Direct crash-site validation independently proves every asserted guard from
+invocation-entry requirements and facts reconstructed before that terminator.
+The private reconstruction retains raw branch-value polarity and bounded path
+alternatives through CFG joins, including later selection on computed Boolean
+block parameters. Every path must establish the guard or a kernel-checked
+contradiction; site guards and producer evidence never become premises.
+Each machine's traversal has independent limits of 4,096 block visits and
+4,096 generated or copied facts; exhausting either rejects without dropping
+unvisited paths.
+Bounded certificate search uses exact assumptions, semantic axioms,
+conjunctions, disjunction introduction, and equality rules. The proof owner checks
+both the certificate and fixed Boolean/integer predicate-denotation conversions;
+these private conversions add no serialized proof rule or obligation identity.
+Crash-only raw branch facts stay out of ordinary obligation reconstruction.
+
+Ranked-site proofs use only entry requirements until all-path invariant custody
+is available. Unversioned structural observations need exact shared-borrow
+parameter roots to supply entry facts; current reads on owned or mutable roots
+cannot impersonate their entry snapshots. Their raw scalar read values still
+support executable branch predicates. Broader mutable-origin transport remains
+implementation work, not a language-design decision.
 
 Resolver operand preprocessing cannot move indexed reads or cast-wrapped calls
 out of guarded transition targets or selective Boolean right operands. These
@@ -4191,8 +4211,9 @@ one cause and a canonical disjunction of route predicates over the same lowered
 values and structural places as executable Psi. Buckets normalize by cause. An
 unconditional clause contains the canonical `true` predicate.
 
-The verifier checks each crash site against the canonical guard facts carried
-by that site:
+The verifier proves the truth of every canonical guard predicate carried
+by a crash site from independent entry and per-site CFG facts and checks
+same-cause published-route coverage:
 
 ```text
 the published route is Truth, or site_guard contains
