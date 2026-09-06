@@ -168,6 +168,11 @@ meaning check grants no range, effect, or lifetime evidence by itself.
 Boolean decomposition checks each consumed child independently: an authored
 comparison in one conjunct does not erase a sufficient builtin bound in another.
 
+Selected-arm range checks feed bare dispatch conditions and Boolean-wrapped
+subject guards through that same analysis. The later bounded-argument proof
+also preserves logical-negation polarity. Guard and argument writes still
+retire stale bounds at their evaluation points.
+
 Loop-counter monotonicity also retains arithmetic policy. Wrapping updates
 need a no-wrap proof at their actual statement snapshot; the sign of a literal
 step is insufficient. Entry constants and incoming guards establish independent

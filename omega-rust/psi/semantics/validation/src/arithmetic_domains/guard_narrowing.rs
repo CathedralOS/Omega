@@ -263,14 +263,10 @@ fn negate_comparison(operator: BinaryOperator) -> Option<BinaryOperator> {
     })
 }
 
-/// S4 dominating-guard narrowing: a transition arm fires only when its guard
-/// holds, so the arm's argument arithmetic can assume that bound. Returns `base`
-/// refined by the arm's guard. The desugared arm guard is `<comparison> ==
-/// true|false`; the comparison's bound (negated for the `false` arm) is
-/// INTERSECTED with the guarded place's type range so a one-sided guard (`n >
-/// 0`) keeps the type's other end (else `n - 1` loses its `u32` upper bound).
-/// Only simple `place <OP> literal` comparisons narrow; anything else leaves the
-/// env unchanged (sound -- the arm's arithmetic then has to prove on its own).
+/// A selected transition arm establishes its whole guard, whether authored as
+/// a bare dispatch condition or a Boolean-wrapped subject comparison. The shared
+/// condition analysis retains polarity, selected operator meaning, and the
+/// intersection with existing bounds. Unknown conditions contribute no facts.
 pub(crate) fn guard_narrowed_env(
     program: &TypedTrees,
     machine: &Machine,
@@ -280,23 +276,10 @@ pub(crate) fn guard_narrowed_env(
 ) -> ValueEnv {
     use typed_trees::statement::TransitionGuardNode;
     let mut env = base.clone();
-    let TransitionGuardNode::When(guard_expr) = guard else {
+    let TransitionGuardNode::When(condition) = guard else {
         return env;
     };
-    let ExpressionNode::Binary(equality) = program.expression_table.expression(*guard_expr) else {
-        return env;
-    };
-    if equality.operator != BinaryOperator::Equal {
-        return env;
-    }
-    let ExpressionNode::Boolean(arm_true) = program.expression_table.expression(equality.right)
-    else {
-        return env;
-    };
-    if !meaning::builtin_boolean_equality(program, machine, state, *guard_expr, equality) {
-        return env;
-    }
-    narrow_env_by_condition(program, machine, state, &mut env, equality.left, *arm_true);
+    narrow_env_by_condition(program, machine, state, &mut env, *condition, true);
     env
 }
 
