@@ -3,8 +3,6 @@
 use proof_admission::{ProofNode, ProofRule};
 use semantic_vocabulary::Proposition;
 
-use super::super::integer_evidence::Citation;
-
 mod dependencies;
 
 pub(super) fn prove(
@@ -22,14 +20,14 @@ pub(super) fn prove(
 fn prove_with_cases(
     goal: &Proposition,
     assumptions: &[Proposition],
-    cases: &[(Citation, &Proposition)],
+    cases: &[dependencies::ProjectedFact<'_>],
     ordinary: &impl Fn(&[Proposition]) -> Option<ProofNode>,
 ) -> Option<ProofNode> {
     if let Some(proof) = ordinary(assumptions) {
         return Some(proof);
     }
-    for (index, (citation, proposition)) in cases.iter().enumerate() {
-        let Proposition::Disjunction(disjuncts) = proposition else {
+    for (index, fact) in cases.iter().enumerate() {
+        let Proposition::Disjunction(disjuncts) = fact.proposition else {
             unreachable!("only retained disjunctions become cases")
         };
         let branches = disjuncts
@@ -44,7 +42,7 @@ fn prove_with_cases(
             return Some(ProofNode {
                 conclusion: goal.clone(),
                 rule: ProofRule::DisjunctionElimination {
-                    disjunction: Box::new(citation.proof(proposition)),
+                    disjunction: Box::new(fact.proof()),
                     branches,
                 },
             });

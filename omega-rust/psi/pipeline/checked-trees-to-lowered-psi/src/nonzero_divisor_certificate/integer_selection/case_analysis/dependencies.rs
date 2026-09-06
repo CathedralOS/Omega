@@ -2,9 +2,63 @@
 
 use std::collections::BTreeSet;
 
+use proof_admission::{ProofNode, ProofRule};
 use semantic_vocabulary::{Proposition, ScalarTerm, ValueId};
 
 use super::super::super::integer_evidence::{Citation, cited_facts};
+
+pub(super) struct ProjectedFact<'a> {
+    citation: Citation,
+    root: &'a Proposition,
+    projection: Vec<usize>,
+    pub(super) proposition: &'a Proposition,
+}
+
+impl ProjectedFact<'_> {
+    pub(super) fn proof(&self) -> ProofNode {
+        let mut proof = self.citation.proof(self.root);
+        for &conjunct in &self.projection {
+            let Proposition::Conjunction(parts) = &proof.conclusion else {
+                unreachable!("projection follows retained conjunction children")
+            };
+            proof = ProofNode {
+                conclusion: parts[conjunct].clone(),
+                rule: ProofRule::ConjunctionElimination {
+                    conjunction: Box::new(proof),
+                    conjunct,
+                },
+            };
+        }
+        proof
+    }
+}
+
+fn projected_facts<'a>(
+    assumptions: &'a [Proposition],
+    semantic_axioms: &'a [Proposition],
+) -> Vec<ProjectedFact<'a>> {
+    let mut facts = Vec::new();
+    for (citation, root) in cited_facts(assumptions, semantic_axioms) {
+        let mut pending = vec![(root, Vec::new())];
+        while let Some((proposition, projection)) = pending.pop() {
+            if let Proposition::Conjunction(parts) = proposition {
+                for (conjunct, part) in parts.iter().enumerate().rev() {
+                    let mut child_projection = projection.clone();
+                    child_projection.push(conjunct);
+                    pending.push((part, child_projection));
+                }
+            } else {
+                facts.push(ProjectedFact {
+                    citation,
+                    root,
+                    projection,
+                    proposition,
+                });
+            }
+        }
+    }
+    facts
+}
 
 struct Dependencies {
     values: BTreeSet<ValueId>,
@@ -27,13 +81,15 @@ pub(super) fn connected_cases<'a>(
     goal: &Proposition,
     assumptions: &'a [Proposition],
     semantic_axioms: &'a [Proposition],
-) -> Vec<(Citation, &'a Proposition)> {
-    let facts = cited_facts(assumptions, semantic_axioms).collect::<Vec<_>>();
+) -> Vec<ProjectedFact<'a>> {
+    // A conjunction packages independent facts; it must not connect their
+    // value dependencies. Only its exact projected leaves become graph rows.
+    let facts = projected_facts(assumptions, semantic_axioms);
     let literals = literal_values(&facts);
     let goal = Dependencies::of(goal, &literals);
     let dependencies = facts
         .iter()
-        .map(|(_, fact)| Dependencies::of(fact, &literals))
+        .map(|fact| Dependencies::of(fact.proposition, &literals))
         .collect::<Vec<_>>();
     let mut relevant = goal.values;
     // Structural and opaque identities are outside this value-only graph.
@@ -55,25 +111,31 @@ pub(super) fn connected_cases<'a>(
             break;
         }
     }
-    let mut cases = Vec::new();
-    for ((citation, proposition), dependency) in facts.into_iter().zip(dependencies) {
+    let mut cases: Vec<ProjectedFact<'a>> = Vec::new();
+    for (fact, dependency) in facts.into_iter().zip(dependencies) {
+        let proposition = fact.proposition;
         if matches!(proposition, Proposition::Disjunction(_))
             && (retain_all
                 || !dependency.complete
                 || dependency.values.is_empty()
                 || !dependency.values.is_disjoint(&relevant))
-            && !cases.iter().any(|(_, previous)| *previous == proposition)
+            && !cases
+                .iter()
+                .any(|previous| previous.proposition == proposition)
         {
-            cases.push((citation, proposition));
+            cases.push(fact);
         }
     }
     cases
 }
 
-fn literal_values(facts: &[(Citation, &Proposition)]) -> BTreeSet<ValueId> {
+fn literal_values(facts: &[ProjectedFact<'_>]) -> BTreeSet<ValueId> {
     let mut literals = BTreeSet::new();
     let mut aliases = Vec::new();
-    let mut pending = facts.iter().map(|(_, fact)| *fact).collect::<Vec<_>>();
+    let mut pending = facts
+        .iter()
+        .map(|fact| fact.proposition)
+        .collect::<Vec<_>>();
     while let Some(fact) = pending.pop() {
         match fact {
             Proposition::Conjunction(parts) => pending.extend(parts),

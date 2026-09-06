@@ -1,6 +1,9 @@
 //! Scalar contracts over entry parameters and the normal-return result.
 
 use super::*;
+#[cfg(test)]
+use crate::contract_predicates::canonical_equality;
+use crate::contract_predicates::{PredicateTerms, connective};
 
 mod namespace;
 
@@ -37,153 +40,24 @@ pub(super) fn proposition(
     namespace: &[ValueDeclaration],
 ) -> Result<Proposition, LoweringError> {
     self::namespace::validate(predicate)?;
-    // Equality of compound predicates needs both child polarities. Bound the
-    // total expansion before allocating an exponential proposition tree.
-    proposition_with_polarity(predicate, namespace, true, &mut 4096)
+    crate::contract_predicates::proposition(predicate, &ScalarContractTerms { namespace })
 }
 
-fn proposition_with_polarity(
-    predicate: &CheckedBooleanExpression,
-    namespace: &[ValueDeclaration],
-    positive: bool,
-    remaining: &mut usize,
-) -> Result<Proposition, LoweringError> {
-    *remaining = remaining.checked_sub(1).ok_or(LoweringError::Unsupported(
-        "scalar contract Boolean expansion exceeds its lowering budget",
-    ))?;
-    match predicate {
-        CheckedBooleanExpression::IntegerComparison { kind, left, right } => {
-            let left = crate::crash_routes::checked_scalar_term(left, namespace)?;
-            let right = crate::crash_routes::checked_scalar_term(right, namespace)?;
-            Ok(match (kind, positive) {
-                (CheckedIntegerComparisonKind::Equal, true) => canonical_equality(left, right)?,
-                (CheckedIntegerComparisonKind::Equal, false) => connective(
-                    strict_result_bound(left.clone(), right.clone()),
-                    strict_result_bound(right, left),
-                    false,
-                )?,
-                (CheckedIntegerComparisonKind::LessThan, true) => strict_result_bound(left, right),
-                (CheckedIntegerComparisonKind::LessOrEqual, false) => {
-                    strict_result_bound(right, left)
-                }
-                (CheckedIntegerComparisonKind::LessOrEqual, true) => {
-                    Proposition::LessOrEqual(left, right)
-                }
-                (CheckedIntegerComparisonKind::LessThan, false) => {
-                    Proposition::LessOrEqual(right, left)
-                }
-            })
-        }
-        CheckedBooleanExpression::And { left, right }
-        | CheckedBooleanExpression::Or { left, right } => {
-            let left = proposition_with_polarity(left, namespace, positive, remaining)?;
-            let right = proposition_with_polarity(right, namespace, positive, remaining)?;
-            connective(
-                left,
-                right,
-                matches!(predicate, CheckedBooleanExpression::And { .. }) == positive,
-            )
-        }
-        CheckedBooleanExpression::Not(operand) => {
-            proposition_with_polarity(operand, namespace, !positive, remaining)
-        }
-        CheckedBooleanExpression::Constant(value) if *value == positive => Ok(Proposition::Truth),
-        CheckedBooleanExpression::Constant(_) | CheckedBooleanExpression::Parameter { .. } => {
-            canonical_equality(
-                crate::crash_routes::checked_boolean_scalar_term(predicate, namespace)?,
-                ScalarTerm::boolean(positive),
-            )
-        }
-        CheckedBooleanExpression::Equal { left, right } => {
-            if let CheckedBooleanExpression::Constant(value) = left.as_ref() {
-                return proposition_with_polarity(right, namespace, *value == positive, remaining);
-            }
-            if let CheckedBooleanExpression::Constant(value) = right.as_ref() {
-                return proposition_with_polarity(left, namespace, *value == positive, remaining);
-            }
-            if positive
-                && matches!(left.as_ref(), CheckedBooleanExpression::Parameter { .. })
-                && matches!(right.as_ref(), CheckedBooleanExpression::Parameter { .. })
-            {
-                return canonical_equality(
-                    crate::crash_routes::checked_boolean_scalar_term(left, namespace)?,
-                    crate::crash_routes::checked_boolean_scalar_term(right, namespace)?,
-                );
-            }
-            // Equality selects equal polarities; inequality selects opposite
-            // polarities. Keep logical facts in the proposition language so
-            // calls can prove them from their evaluated argument equations.
-            connective(
-                connective(
-                    proposition_with_polarity(left, namespace, true, remaining)?,
-                    proposition_with_polarity(right, namespace, positive, remaining)?,
-                    true,
-                )?,
-                connective(
-                    proposition_with_polarity(left, namespace, false, remaining)?,
-                    proposition_with_polarity(right, namespace, !positive, remaining)?,
-                    true,
-                )?,
-                false,
-            )
-        }
-        _ => unsupported("result contract has an unsupported scalar predicate"),
-    }
+struct ScalarContractTerms<'namespace> {
+    namespace: &'namespace [ValueDeclaration],
 }
 
-fn canonical_equality(left: ScalarTerm, right: ScalarTerm) -> Result<Proposition, LoweringError> {
-    let left_key = terminal_codec::canonical_scalar_term_order_key(&left)
-        .map_err(LoweringError::DebugSemanticCodec)?;
-    let right_key = terminal_codec::canonical_scalar_term_order_key(&right)
-        .map_err(LoweringError::DebugSemanticCodec)?;
-    Ok(if left_key <= right_key {
-        Proposition::Equal(left, right)
-    } else {
-        Proposition::Equal(right, left)
-    })
-}
+impl PredicateTerms for ScalarContractTerms<'_> {
+    fn integer(&self, expression: &CheckedScalarExpression) -> Result<ScalarTerm, LoweringError> {
+        crate::crash_routes::checked_scalar_term(expression, self.namespace)
+    }
 
-fn connective(
-    left: Proposition,
-    right: Proposition,
-    conjunction: bool,
-) -> Result<Proposition, LoweringError> {
-    match (&left, &right, conjunction) {
-        (Proposition::Truth, _, true) => return Ok(right),
-        (_, Proposition::Truth, true) => return Ok(left),
-        (Proposition::Truth, _, false) | (_, Proposition::Truth, false) => {
-            return Ok(Proposition::Truth);
-        }
-        _ => {}
+    fn boolean(&self, expression: &CheckedBooleanExpression) -> Result<ScalarTerm, LoweringError> {
+        crate::crash_routes::checked_boolean_scalar_term(expression, self.namespace)
     }
-    let mut parts = Vec::new();
-    for proposition in [left, right] {
-        match proposition {
-            Proposition::Conjunction(nested) if conjunction => parts.extend(nested),
-            Proposition::Disjunction(nested) if !conjunction => parts.extend(nested),
-            proposition => parts.push(proposition),
-        }
-    }
-    let mut keyed = parts
-        .into_iter()
-        .map(|proposition| {
-            terminal_codec::canonical_proposition_order_key(&proposition)
-                .map(|key| (key, proposition))
-                .map_err(LoweringError::DebugSemanticCodec)
-        })
-        .collect::<Result<Vec<_>, _>>()?;
-    keyed.sort_by(|left, right| left.0.cmp(&right.0));
-    keyed.dedup_by(|left, right| left.0 == right.0);
-    let mut parts = keyed
-        .into_iter()
-        .map(|(_, proposition)| proposition)
-        .collect::<Vec<_>>();
-    if parts.len() == 1 {
-        Ok(parts.pop().expect("one distinct predicate"))
-    } else if conjunction {
-        Ok(Proposition::Conjunction(parts))
-    } else {
-        Ok(Proposition::Disjunction(parts))
+
+    fn strict_bound(&self, left: ScalarTerm, right: ScalarTerm) -> Proposition {
+        strict_result_bound(left, right)
     }
 }
 
