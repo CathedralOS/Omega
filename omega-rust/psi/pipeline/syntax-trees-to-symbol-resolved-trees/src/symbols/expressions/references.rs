@@ -1,8 +1,9 @@
 use symbols::{SymbolHandle, SymbolKind, SymbolTable};
 
 use super::super::expression_paths::{
-    resolve_expression_table_call_target_symbol, resolve_expression_table_member_symbol,
-    resolve_expression_table_receiver_path_symbols, stamp_receiver_path_symbols_in_table,
+    needs_declared_projection, resolve_expression_table_call_target_symbol,
+    resolve_expression_table_member_symbol, resolve_expression_table_receiver_path_symbols,
+    stamp_receiver_path_symbols_in_table,
 };
 use super::super::lookup::{
     call_target_for_attached_data, child_symbol_by_kinds, diagnostic_path_source_span,
@@ -144,6 +145,7 @@ pub(super) fn assign_call_symbol(
     // method there (rung 2b). The nested-receiver storage binding is guarded by
     // the emission-planning contained-receiver blocker (rung 2a).
     if !target_symbol.is_valid()
+        && !needs_declared_projection(expression_table, receiver)
         && let Some(receiver_chain) = spelled_receiver_chain(expression_table, receiver)
     {
         target_symbol =

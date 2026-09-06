@@ -47,6 +47,7 @@ pub(super) fn assign_contract_reference_symbols(
             prior_statements: &[],
             data_definitions,
             data_members,
+            data_payload_fields: &tables.declarations.data_payload_fields,
             type_constraints: &tables.types.constraints,
         };
         let states = machine_state_handles.span_or_empty(machine.states);
@@ -98,6 +99,7 @@ pub(super) fn assign_contract_reference_symbols(
             prior_statements: &[],
             data_definitions,
             data_members,
+            data_payload_fields: &tables.declarations.data_payload_fields,
             type_constraints: &tables.types.constraints,
         };
         for signature in trait_machine_signatures.span_or_empty(trait_definition.machines) {
@@ -138,6 +140,7 @@ pub(super) fn assign_contract_reference_symbols(
             prior_statements: &[],
             data_definitions,
             data_members,
+            data_payload_fields: &tables.declarations.data_payload_fields,
             type_constraints: &tables.types.constraints,
         };
         assign_contract_span(
