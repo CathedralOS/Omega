@@ -4,6 +4,7 @@
 
 mod comparison;
 mod meaning;
+mod prefix;
 mod projection;
 
 #[cfg(test)]
@@ -79,6 +80,7 @@ pub(super) fn check_component(
     if !ranks.iter().all(|rank| rank.same_order(&ranks[0])) {
         return Err("members do not share the same ranking order");
     }
+    let frames = crate::calls::CallFrameResolver::new(program);
     let mut equal_edges = vec![Vec::new(); component.len()];
     for (position, index) in component.iter().copied().enumerate() {
         let machine = &program.machines()[index];
@@ -92,6 +94,15 @@ pub(super) fn check_component(
         let mut guards = Vec::new();
         for statement in program.statement_table.statements(state.statement_nodes) {
             let StatementNode::Transition(transition) = statement else {
+                if prefix::preserves_rank(
+                    program,
+                    machine,
+                    &ranks[position],
+                    statement,
+                    frames.as_ref(),
+                ) {
+                    continue;
+                }
                 match statement {
                     StatementNode::AssemblyFact(_) => continue,
                     StatementNode::LocalData(local)
