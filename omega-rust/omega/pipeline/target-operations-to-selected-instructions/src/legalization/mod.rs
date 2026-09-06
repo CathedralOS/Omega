@@ -87,3 +87,4 @@ pub fn validate_legalized_operations(
     };
     Ok(ValidatedLegalizedOperations { plan, receipt })
 }
+pub(crate) use source::is_ordered_scalar_call_unit;

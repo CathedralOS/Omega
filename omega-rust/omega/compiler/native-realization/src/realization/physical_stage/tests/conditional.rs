@@ -101,34 +101,38 @@ fn publish(
     target: target::NativeTarget,
     selections: &OptimizationSelections,
 ) -> machine_code::MachineCodePlan {
-    let input = terminal_psi_to_abstract_operations::lower_artifact_sections_for_optimization(
-        semantic,
-        proof,
-        &proof_admission::AdmissionProfile::default(),
-    )
-    .unwrap();
-    let optimized = crate::optimize_verified_abstract_input(
-        input,
-        crate::compiler_baseline_request_v1(selections),
-    )
-    .unwrap();
-    let validation = optimized.validation();
-    let plan = optimized.plan().clone();
-    let post_terminal = optimized.selections().project_post_terminal();
-    let target_program =
-        abstract_operations_to_target_operations::lower_optimized_to_target_operations(
-            optimized, target,
+    let build = || {
+        let input = terminal_psi_to_abstract_operations::lower_artifact_sections_for_optimization(
+            semantic,
+            proof,
+            &proof_admission::AdmissionProfile::default(),
         )
         .unwrap();
-    assert!(
-        fragment_program(&target_program),
-        "default production must use the shared stages"
-    );
-    let physical = crate::stage_optimized_verified_physical_pipeline(
-        target_program,
-        post_terminal.selections(),
-    )
-    .unwrap_or_else(|error| panic!("{target:?} {selections:?}: {error:?}"));
+        let optimized = crate::optimize_verified_abstract_input(
+            input,
+            crate::compiler_baseline_request_v1(selections),
+        )
+        .unwrap();
+        let validation = optimized.validation();
+        let plan = optimized.plan().clone();
+        let post_terminal = optimized.selections().project_post_terminal();
+        let target_program =
+            abstract_operations_to_target_operations::lower_optimized_to_target_operations(
+                optimized, target,
+            )
+            .unwrap();
+        assert!(
+            fragment_program(&target_program),
+            "default production must use the shared stages"
+        );
+        let physical = crate::stage_optimized_verified_physical_pipeline(
+            target_program,
+            post_terminal.selections(),
+        )
+        .unwrap_or_else(|error| panic!("{target:?} {selections:?}: {error:?}"));
+        (physical, plan, validation)
+    };
+    let (physical, plan, validation) = build();
     let demands =
         boundary_applications::TerminalBoundaryApplicationDemands::new(plan.psi, Vec::new())
             .unwrap();
@@ -142,9 +146,6 @@ fn publish(
     let (published, scope) = emit_optimized_fragments(
         physical,
         OptimizedFragmentPublicationRequest {
-            identity_scope: selections
-                .is_empty()
-                .then_some(native_artifact::NativePhysicalEvidenceScope::Unavailable),
             has_provider_installation: false,
             has_boundary_settlements: false,
             boundary_application_coverage: selected_lowering.then_some(&coverage),
@@ -161,9 +162,23 @@ fn publish(
             native_artifact::NativePhysicalEvidenceScope::ValidatedOptimizedProjection(_)
         ));
     }
-    image_emission::build_object_artifact(&published)
+    // Keep the previous native-record controls as a differential reference;
+    // production now consumes the object directly, not this reconstruction.
+    let emitted = machine_emission::stage_optimized_function_fragment_emission(
+        build().0.into_function_fragment_emission_source(),
+    )
+    .unwrap();
+    let legacy = machine_emission::publish_function_fragments(emitted)
+        .unwrap()
+        .into_plan();
+    let reference = image_emission::build_object_artifact(&legacy)
         .unwrap_or_else(|error| panic!("{target:?} {selections:?}: object {error:?}"));
-    published
+    assert_eq!(published.text_bytes(), reference.text_bytes());
+    assert_eq!(
+        image_emission::derive_stack_demand(&published, published.entry()).unwrap(),
+        image_emission::derive_stack_demand(&reference, reference.entry()).unwrap()
+    );
+    legacy
 }
 
 #[test]

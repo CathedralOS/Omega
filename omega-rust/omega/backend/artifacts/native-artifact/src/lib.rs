@@ -37,13 +37,9 @@ pub use physical::{
     NativePhysicalEvidenceParts, NativePhysicalOccurrence, NormalizedForeignCallRelocation,
     NormalizedForeignCallbackRelocation, NormalizedForeignCallbackRelocations,
     OptimizedBoundaryOccurrence, OptimizedOperatorOccurrence, PhysicalChildParent,
-    PhysicalRelocationDisposition, SelectedLoweringNativePublicationInput,
-    ValidatedOptimizedNativePhysicalEvidenceScope,
+    PhysicalRelocationDisposition, ValidatedOptimizedNativePhysicalEvidenceScope,
 };
-use physical::{
-    derive_physical_evidence, derive_validated_optimization_scope,
-    derive_validated_selected_lowering_optimization_scope,
-};
+use physical::{derive_physical_evidence, derive_validated_optimization_scope};
 
 const NATIVE_ARTIFACT_IDENTITY_DOMAIN: &[u8] = b"omega.native-artifact.sha256.v6\0";
 const DYNAMIC_ELF_NATIVE_ARTIFACT_IDENTITY_DOMAIN: &[u8] =
@@ -143,10 +139,10 @@ impl NativeSelectedProviderPlanDigest {
 
 /// Exact upstream scope under which this artifact may derive D32 evidence.
 ///
-/// The positive variant means the compiler supplied an unoptimized Terminal
-/// handoff with complete checked D29 coverage custody. It does not make
-/// unsupported boundary/provider mechanisms disappear: those still produce
-/// no evidence during native replay.
+/// Evidence requires complete checked D29 coverage custody, either for an
+/// unoptimized Terminal handoff or an independently validated optimized
+/// projection. Unsupported boundary/provider mechanisms still produce no
+/// evidence during native replay.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum NativePhysicalEvidenceScope {
     Unavailable,
@@ -155,6 +151,35 @@ pub enum NativePhysicalEvidenceScope {
 }
 
 impl NativePhysicalEvidenceScope {
+    /// Admit the shared fragment/object route after replaying its exact current
+    /// program and object evidence. Empty and nonempty selections use the same
+    /// join; no selected-lowering completion is invented for another phase.
+    #[allow(clippy::too_many_arguments)]
+    pub fn from_validated_fragment_publication(
+        final_plan: &AbstractOperationPlan,
+        terminal: TerminalPsiIdentity,
+        validation: OptimizedAbstractPlanProjectionIdentity,
+        final_unit: OptimizationUnitIdentity,
+        boundary_application_coverage: &TerminalBoundaryApplicationCoverage,
+        source: &object_file::StagedOptimizedRelocationFreeObjectContainer,
+        object: &image_emission::ObjectArtifact,
+    ) -> Result<Self, &'static str> {
+        let coverage_identity =
+            boundary_application_coverage_identity(Some(boundary_application_coverage))
+                .expect("present boundary-application coverage has an identity");
+        physical::derive_fragment_publication_scope(
+            final_plan,
+            terminal,
+            validation,
+            final_unit,
+            boundary_application_coverage,
+            coverage_identity,
+            source,
+            object,
+        )
+        .map(Self::ValidatedOptimizedProjection)
+    }
+
     /// Admit the exact surviving D29 operator and D41 boundary-call roster of
     /// one independently validated optimized abstract projection.
     pub fn from_validated_optimization(
@@ -175,37 +200,6 @@ impl NativePhysicalEvidenceScope {
                 final_unit,
                 boundary_application_coverage,
                 coverage_identity,
-            )?,
-        ))
-    }
-
-    /// Admit one validated selected-lowering lineage together with the exact
-    /// return-only machine plan that must reappear in the emitted object.
-    ///
-    /// This preserves the ordinary optimized projection and adds no new
-    /// backend. Native artifact construction and replay independently recover
-    /// the machine projection from [`image_emission::ObjectArtifact`]
-    /// before accepting the scope.
-    pub fn from_validated_selected_lowering_optimization(
-        final_plan: &AbstractOperationPlan,
-        terminal: TerminalPsiIdentity,
-        validation: OptimizedAbstractPlanProjectionIdentity,
-        final_unit: OptimizationUnitIdentity,
-        boundary_application_coverage: &TerminalBoundaryApplicationCoverage,
-        publication: SelectedLoweringNativePublicationInput<'_>,
-    ) -> Result<Self, &'static str> {
-        let coverage_identity =
-            boundary_application_coverage_identity(Some(boundary_application_coverage))
-                .expect("present boundary-application coverage has an identity");
-        Ok(Self::ValidatedOptimizedProjection(
-            derive_validated_selected_lowering_optimization_scope(
-                final_plan,
-                terminal,
-                validation,
-                final_unit,
-                boundary_application_coverage,
-                coverage_identity,
-                publication,
             )?,
         ))
     }

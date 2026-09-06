@@ -1,0 +1,19 @@
+// A checked boundary operator retains D29 custody through the ordinary
+// physical call pipeline without a Console settlement or provider installation.
+data CheckedMath {}
+
+boundary operator CheckedMath::select_left(left: u64, right: u64) -> u64;
+
+data CheckedMathProvider {}
+
+machine CheckedMathProvider::select_left_impl(left: u64, right: u64) -> u64
+satisfies CheckedMath::select_left
+{
+    transition { _ -> left }
+}
+
+data Main {}
+
+machine Main::main(&mut self) {
+    let result: u64 = CheckedMath::select_left(7u64, 9u64);
+}

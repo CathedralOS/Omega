@@ -5,6 +5,8 @@ use target::{Architecture, NativeTarget};
 use target_operations::CallSiteOwner;
 use terminal_psi::OperationKind;
 
+mod fragment_call;
+
 use super::model::{
     NativeByteSpan, OptimizedOperatorOccurrence, PhysicalRelocationDisposition, native_byte_span,
 };
@@ -26,12 +28,17 @@ pub(super) fn derive_operator_physical_span(
     target: NativeTarget,
     object: &image_emission::ObjectArtifact,
     image: &image::EmittedImageOutput,
+    fragment_publication: bool,
 ) -> Result<Option<OperatorPhysicalSpan>, &'static str> {
     let operation = exact_terminal_operation(module, occurrence)?;
     match realization {
         BoundaryApplicationRealization::NongenericCheckedBody { .. }
         | BoundaryApplicationRealization::SpecializedCheckedBody { .. } => {
-            derive_checked_call_span(occurrence, operation, target, object, image)
+            if fragment_publication {
+                fragment_call::derive(occurrence, operation, target, object, image)
+            } else {
+                derive_checked_call_span(occurrence, operation, target, object, image)
+            }
         }
         BoundaryApplicationRealization::ExactCompilerIntrinsic { .. } => {
             derive_fma_span(occurrence, operation, object, image)

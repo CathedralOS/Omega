@@ -10,6 +10,8 @@ pub(crate) const CHECKED_BOUNDARY_OPERATOR_PHYSICAL_CUSTODY: &str =
     "providers/checked_boundary_operator_physical_custody";
 pub(crate) const CHECKED_FIXED_OPERATOR_PHYSICAL_CUSTODY: &str =
     "providers/checked_fixed_operator_physical_custody";
+pub(crate) const CHECKED_OPERATOR_FRAGMENT_PUBLICATION: &str =
+    "providers/checked_operator_fragment_publication";
 pub(crate) const SPECIALIZED_BOUNDARY_OPERATOR_PHYSICAL_CUSTODY: &str =
     "providers/specialized_boundary_operator_physical_custody";
 pub(crate) const SPECIALIZED_FIXED_OPERATOR_PHYSICAL_CUSTODY: &str =
@@ -107,6 +109,7 @@ pub(crate) const PASS_CANARIES: &[&str] = &[
     CHECKED_FIXED_OPERATOR_DISPATCH_EXIT,
     CHECKED_BOUNDARY_OPERATOR_PHYSICAL_CUSTODY,
     CHECKED_FIXED_OPERATOR_PHYSICAL_CUSTODY,
+    CHECKED_OPERATOR_FRAGMENT_PUBLICATION,
     SPECIALIZED_BOUNDARY_OPERATOR_PHYSICAL_CUSTODY,
     SPECIALIZED_FIXED_OPERATOR_PHYSICAL_CUSTODY,
     SPECIALIZED_STRUCTURAL_FIXED_OPERATOR_TERMINAL_CUSTODY,

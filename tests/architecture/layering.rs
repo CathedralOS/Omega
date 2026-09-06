@@ -2029,7 +2029,7 @@ fn terminal_component_staging_consumes_only_the_psi_owned_artifact() {
     let api_path = realization_root.join("api.rs");
     let api = std::fs::read_to_string(&api_path)
         .unwrap_or_else(|error| panic!("failed to read {}: {error}", api_path.display()));
-    let machine_code_path = realization_root.join("machine_code.rs");
+    let machine_code_path = realization_root.join("object.rs");
     let machine_code = std::fs::read_to_string(&machine_code_path)
         .unwrap_or_else(|error| panic!("failed to read {}: {error}", machine_code_path.display()));
     let optimization_stage_path = realization_root.join("optimization_stage.rs");
@@ -2260,7 +2260,11 @@ fn terminal_component_staging_consumes_only_the_psi_owned_artifact() {
                 .contains("physical.into_function_fragment_emission_source()")
             && optimized_fragment_projection
                 .contains("stage_optimized_function_fragment_emission(")
-            && optimized_fragment_projection.contains("machine_emission::publish_function_fragments(")
+            && optimized_fragment_projection.contains("image_emission::build_function_fragment_object_artifact(")
+            && optimized_fragment_projection.contains("from_validated_fragment_publication(")
+            && !optimized_fragment_projection.split("#[cfg(test)]").next().unwrap()
+                .contains("publish_function_fragments(")
+            && machine_code.contains("pub(crate) object: image_emission::ObjectArtifact")
             && !optimized_fragment_projection.contains("MachineCodeFunction {")
             && !optimized_fragment_projection.contains("FunctionAppliedFrameProtocol")
             && !realization_root.join("optimized_fragment_unit_stack.rs").exists()

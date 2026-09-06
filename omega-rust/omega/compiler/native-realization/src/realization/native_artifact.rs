@@ -12,7 +12,7 @@ use super::{
         PreparedNativeRealizationInput, lower_realization_input,
         reopen_prepared_native_realization_input,
     },
-    machine_code::emit_realization_machine_code,
+    object::emit_realization_object,
     output::assemble_requested_native_artifact,
     providers::{AdmittedNativeProviders, admit_native_providers},
 };
@@ -111,7 +111,7 @@ fn realize_core(
         request.optimization_selections.is_empty(),
         checked_scope,
     );
-    let emitted = emit_realization_machine_code(
+    let emitted = emit_realization_object(
         input,
         installation,
         &settlements,
@@ -121,7 +121,7 @@ fn realize_core(
     )?;
     assemble_requested_native_artifact(
         artifact,
-        &emitted.machine_code,
+        emitted.object,
         executions,
         terminal_authority_policy_identity,
         terminal_authority_permission_policy_identity,

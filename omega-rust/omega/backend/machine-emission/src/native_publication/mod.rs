@@ -1,10 +1,8 @@
-//! Native publication of validated function fragments.
+//! Test-only legacy fragment-to-machine-plan reference.
 //!
-//! Frame application, byte intervals, stack custody and MachineCodeFunction
-//! construction belong to machine emission. The compiler supplies the selected
-//! execution and separately joins the result to product evidence. Publication
-//! currently accepts return-only Unit functions, scalar leaves and direct-return
-//! scalar decisions. Unsupported bodies reject without an alternate emitter.
+//! Differential controls compare return/conditional bytes and stack evidence
+//! against this former publication route. Production uses the current shared
+//! object and image-emission; this projection is not an executable fallback.
 
 mod scalar;
 mod unit_stack;

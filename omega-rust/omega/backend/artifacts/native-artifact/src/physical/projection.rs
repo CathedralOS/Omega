@@ -15,16 +15,10 @@ use super::model::{
     ValidatedOptimizedNativePhysicalEvidenceScope, native_optimization_projection,
     optimized_boundary_occurrence, optimized_operator_occurrence,
     validated_optimized_native_physical_evidence_scope,
-    validated_selected_lowering_native_physical_evidence_scope,
-};
-use super::selected_lowering::{
-    SelectedLoweringNativePublicationInput, derive_selected_lowering_publication_binding,
 };
 
 const OPTIMIZED_SCOPE_IDENTITY_DOMAIN: &[u8] =
     b"omega.native-artifact.validated-optimized-physical-scope.sha256.v1\0";
-const SELECTED_LOWERING_SCOPE_IDENTITY_DOMAIN: &[u8] =
-    b"omega.native-artifact.validated-selected-lowering-physical-scope.sha256.v1\0";
 
 #[derive(Clone, Copy)]
 struct ValidatedProjectionCoordinates {
@@ -68,36 +62,6 @@ pub(crate) fn derive_validated_optimization_scope(
         &references,
         boundary_application_coverage_identity,
     )
-}
-
-pub(crate) fn derive_validated_selected_lowering_optimization_scope(
-    final_plan: &AbstractOperationPlan,
-    terminal: TerminalPsiIdentity,
-    validation: OptimizedAbstractPlanProjectionIdentity,
-    final_unit: OptimizationUnitIdentity,
-    boundary_application_coverage: &TerminalBoundaryApplicationCoverage,
-    boundary_application_coverage_identity: [u8; 32],
-    publication: SelectedLoweringNativePublicationInput<'_>,
-) -> Result<ValidatedOptimizedNativePhysicalEvidenceScope, &'static str> {
-    let scope = derive_validated_optimization_scope(
-        final_plan,
-        terminal,
-        validation,
-        final_unit,
-        boundary_application_coverage,
-        boundary_application_coverage_identity,
-    )?;
-    let publication = derive_selected_lowering_publication_binding(terminal, publication)?;
-    let mut digest = Sha256::new();
-    digest.update(SELECTED_LOWERING_SCOPE_IDENTITY_DOMAIN);
-    digest.update(scope.identity());
-    digest.update(publication.identity());
-    let identity = digest.finalize().into();
-    Ok(validated_selected_lowering_native_physical_evidence_scope(
-        scope,
-        publication,
-        identity,
-    ))
 }
 
 fn derive_optimized_scope(

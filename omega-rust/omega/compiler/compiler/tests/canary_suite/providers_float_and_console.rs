@@ -148,7 +148,8 @@ fn assert_selected_operator_native_physical_call(
     label: &str,
     expected_role: boundary_applications::BoundaryApplicationRealizationRole,
     expected_nested_scalar_calls: usize,
-) {
+) -> Vec<CompileReport> {
+    let mut reports = Vec::new();
     for target in ["linux_x86_64", "linux_arm64"] {
         let native_report = compile_rooted_backend_canary_without_output_for_target(canary, target)
             .unwrap_or_else(|diagnostics| {
@@ -256,6 +257,68 @@ fn assert_selected_operator_native_physical_call(
             nested_scalar_calls, expected_nested_scalar_calls,
             "{label} {target} should retain exactly {expected_nested_scalar_calls} scalar calls inside emitted scalar bodies",
         );
+        reports.push(native_report);
+    }
+    reports
+}
+
+#[test]
+fn checked_operator_fragment_publication_retains_complete_d29_call_interval() {
+    let canary = pass_canary(fixture_roster::CHECKED_OPERATOR_FRAGMENT_PUBLICATION);
+    let reports = assert_selected_operator_native_physical_call(
+        &canary,
+        "checked operator fragment publication",
+        boundary_applications::BoundaryApplicationRealizationRole::NongenericCheckedBody,
+        0,
+    );
+    for (report, opcode_prefix) in reports.iter().zip([1, 0]) {
+        let native = report.retained_native_artifact().unwrap();
+        let physical = native.physical_evidence().unwrap();
+        assert!(physical.projection().boundary_occurrences().is_empty());
+        let [child] = physical.children() else {
+            panic!("the ordinary returning entry must retain exactly one D29 child")
+        };
+        let native_realization::NativePhysicalOccurrence::Operator(identity) = child.occurrence()
+        else {
+            panic!("the physical child must name the checked operator")
+        };
+        let [occurrence] = physical.projection().operator_occurrences() else {
+            panic!("the projection must retain exactly one checked operator")
+        };
+        assert_eq!(identity, occurrence.identity());
+        let caller = native.object().entry_function();
+        assert_eq!(caller.machine, occurrence.machine());
+        assert!(caller.internal_unit_scalar_calls.is_empty());
+        assert!(caller.unit_scalar_homes.is_empty());
+        let [call] = caller.unit_call_stacks.as_slice() else {
+            panic!("the shared object must retain exactly one physical call")
+        };
+        let rows = native
+            .object()
+            .semantic_code_attribution()
+            .iter()
+            .filter(|row| {
+                row.machine == occurrence.machine()
+                    && row.attribution.operation_ordinal == occurrence.operation_ordinal()
+            })
+            .collect::<Vec<_>>();
+        let [row] = rows.as_slice() else {
+            panic!("call transport and opcode must have one coalesced attribution interval")
+        };
+        assert_eq!(child.machine_span().offset(), row.attribution.code_offset);
+        assert_eq!(
+            child.machine_span().byte_count(),
+            row.attribution.byte_count
+        );
+        assert_eq!(child.object_span().offset(), row.text_offset);
+        assert_eq!(child.object_span().byte_count(), row.attribution.byte_count);
+        let opcode = call.text_offset.checked_sub(opcode_prefix).unwrap();
+        assert!(row.text_offset <= opcode);
+        assert!(call.text_offset + 4 <= row.text_offset + row.attribution.byte_count);
+        // Coalesced transport belongs to the child when allocation emits it.
+        // Constants may already occupy argument registers and an unused result
+        // needs no transfer, so a bare opcode is also the complete interval.
+        assert!(row.attribution.byte_count >= 4 + opcode_prefix);
     }
 }
 
