@@ -306,6 +306,17 @@ pub(super) fn prefix_matches(selected: &[PlaceSegment], candidate: &[PlaceSegmen
 
 pub(in crate::calls::write_frames) fn projected_type(
     program: &TypedTrees,
+    reference: TypeReferenceHandle,
+    segments: &[PlaceSegment],
+) -> Option<TypeReferenceHandle> {
+    let reference = projected_storage_type(program, reference, segments)?;
+    (!super::super::type_reference_is_reference(program, reference)).then_some(reference)
+}
+
+/// Walk owned structure up to a slot, without dereferencing a reference leaf.
+/// Exact-reference demand may then use separately frozen evidence for that slot.
+pub(in crate::calls::write_frames) fn projected_storage_type(
+    program: &TypedTrees,
     mut reference: TypeReferenceHandle,
     segments: &[PlaceSegment],
 ) -> Option<TypeReferenceHandle> {
@@ -402,8 +413,7 @@ pub(in crate::calls::write_frames) fn projected_type(
     if selected_case.is_some() {
         return None;
     }
-    let reference = unconstrained_type(program, reference)?;
-    (!super::super::type_reference_is_reference(program, reference)).then_some(reference)
+    unconstrained_type(program, reference)
 }
 
 fn unconstrained_type(

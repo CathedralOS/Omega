@@ -90,6 +90,10 @@ pub(in crate::calls::write_frames) fn reference_leaves(
         suffix,
         symbols,
         inference,
+        false,
+        &|expression, _, inference| {
+            exclusive_reference_origin(program, caller_machine, expression, symbols, inference)
+        },
         &|expression, reference, inference| {
             symbolic_reference_leaves(program, caller_machine, expression, reference, inference)
         },
@@ -106,6 +110,12 @@ pub(in crate::calls::write_frames) fn reference_leaves_with_origins(
     suffix: &str,
     symbols: &TopLevelSymbols<'_>,
     inference: &mut FrameInference,
+    include_shared: bool,
+    resolve_reference: &impl Fn(
+        ExpressionHandle,
+        TypeReferenceHandle,
+        &mut FrameInference,
+    ) -> Option<FramePlaceOrigin>,
     resolve_origins: &impl Fn(
         ExpressionHandle,
         TypeReferenceHandle,
@@ -202,19 +212,13 @@ pub(in crate::calls::write_frames) fn reference_leaves_with_origins(
             TypeReferenceNode::Reference {
                 access, referee, ..
             } => {
-                if !access.is_exclusive() {
+                if !access.is_exclusive() && !include_shared {
                     continue;
                 }
-                if !referent_has_only_owned_storage(program, *referee) {
+                if !include_shared && !referent_has_only_owned_storage(program, *referee) {
                     return None;
                 }
-                let origin = exclusive_reference_origin(
-                    program,
-                    caller_machine,
-                    expression,
-                    symbols,
-                    inference,
-                )?;
+                let origin = resolve_reference(expression, reference, inference)?;
                 let path = match origin.precision {
                     FramePathPrecision::Exact => append_place_suffix(&origin.path, suffix),
                     FramePathPrecision::CollectionCoarse => origin.path,
