@@ -294,14 +294,16 @@ fn lock_contends_then_reacquires_the_same_persistent_file_after_drop() {
     directory.write(b"persistent bytes");
     let root = directory.root();
     let other_root = directory.root();
-    let guard = root.try_lock(Path::new(RECORD)).unwrap().unwrap();
+    // Windows exclusive locks prevent byte reads through independently opened handles.
     let mut original = root.read(Path::new(RECORD), LIMITS).unwrap();
+    let guard = root.try_lock(Path::new(RECORD)).unwrap().unwrap();
     guard.verify_current().unwrap();
     assert!(other_root.try_lock(Path::new(RECORD)).unwrap().is_none());
     drop(guard);
     let reacquired = other_root.try_lock(Path::new(RECORD)).unwrap().unwrap();
-    original.verify_current(LIMITS).unwrap();
     reacquired.verify_current().unwrap();
+    drop(reacquired);
+    original.verify_current(LIMITS).unwrap();
     directory.assert_bytes(b"persistent bytes");
 }
 
@@ -312,7 +314,7 @@ fn lock_creates_a_persistent_file_and_owns_its_directory() {
     let guard = root.try_lock(Path::new(RECORD)).unwrap().unwrap();
     drop(root);
     guard.verify_current().unwrap();
-    directory.assert_bytes(b"");
+    assert_eq!(fs::metadata(directory.0.join(RECORD)).unwrap().len(), 0);
     drop(guard);
     directory.assert_bytes(b"");
     directory
