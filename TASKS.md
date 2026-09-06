@@ -182,14 +182,6 @@ the [Rust Compiler Completion Contract](wiki/releases/rust_compiler_completion_c
   chapter 3 and the
   [termination brief](wiki/design_briefs/termination_ranking_and_progress.md).
 
-- **GUARDED-FUEL-RANGES.** Preserve ordered transition guards when proving
-  state-argument ranges in Psi validation. `AccessPlan::with_bounded` in
-  `source/library/core/layout.omg` rejects `fuel - 1` passed to `advance`
-  despite the selected `fuel > 1` guard and incoming `fuel: u64 [1..=128]`.
-  Acceptance: all `compiler::calling_policy_plans` cases reach their intended
-  checks, while missing guards, stale operands, and out-of-range decrements
-  still reject. Keep the library's bounded fuel and termination contract.
-
 `omega-rust/` remains the production implementation until that contract
 closes. It may remain afterward as a differential implementation while it finds
 real bugs, but Rust agreement is not bootstrap authority and Rust-specific

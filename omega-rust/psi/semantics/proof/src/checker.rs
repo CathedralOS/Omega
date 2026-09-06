@@ -7,7 +7,7 @@ use crate::obligations::{
 use arena::HandleSpan;
 use diagnostics::Diagnostic;
 use numerics::bignum::BigInt;
-use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};
+use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode, UnaryOperator};
 use typed_trees::name::Identifier;
 use typed_trees::statement::{StatementNode, TransitionGuardNode};
 
@@ -627,6 +627,11 @@ fn apply_handle_condition_complement(
     condition: ExpressionHandle,
 ) -> IntegerRange {
     let condition = unwrap_true_guard_condition(proof_plan, condition);
+    if let ExpressionNode::Unary(unary) = proof_plan.program.expression_table.expression(condition)
+        && unary.operator == UnaryOperator::LogicalNot
+    {
+        return apply_handle_condition(proof_plan, range, argument, unary.operand);
+    }
     let ExpressionNode::Binary(binary) = proof_plan.program.expression_table.expression(condition)
     else {
         return range;
@@ -1670,6 +1675,11 @@ fn apply_handle_condition(
     argument: ExpressionHandle,
     condition: ExpressionHandle,
 ) -> IntegerRange {
+    if let ExpressionNode::Unary(unary) = proof_plan.program.expression_table.expression(condition)
+        && unary.operator == UnaryOperator::LogicalNot
+    {
+        return apply_handle_condition_complement(proof_plan, range, argument, unary.operand);
+    }
     let ExpressionNode::Binary(binary) = proof_plan.program.expression_table.expression(condition)
     else {
         return range;

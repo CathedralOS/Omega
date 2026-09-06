@@ -91,3 +91,159 @@ fn immutable_singleton_bound_is_not_a_guess_about_a_variable_limit() {
     lower_typed_trees(parse_typed_trees(source)).expect("the immutable limit is exactly five");
     rejects_range(&source.replace("limit: u32 [5..=5]", "limit: u32 [4..=6]"));
 }
+
+#[test]
+fn bare_dispatch_guards_establish_bounded_arguments() {
+    for condition in [
+        "fuel > 1",
+        "!(fuel <= 1)",
+        "!!(fuel > 1)",
+        "fuel > 1 && fuel < 100",
+    ] {
+        for target_declaration in ["machine", "state"] {
+            let target = format!(
+                "{target_declaration} advance(delivered: u64 [1..=128]) -> u64 {{ delivered }}"
+            );
+            let (local_target, external_target) = if target_declaration == "state" {
+                (target.as_str(), "")
+            } else {
+                ("", target.as_str())
+            };
+            let source = format!(
+                "machine run(fuel: u64 [1..=128]) -> u64 {{
+                    transition {{ {condition} -> advance(fuel - 1) _ -> 0 }}
+                    {local_target}
+                }} {external_target}"
+            );
+            lower_typed_trees(parse_typed_trees(&source))
+                .unwrap_or_else(|diagnostics| panic!("{source}\n{diagnostics:#?}"));
+        }
+    }
+}
+
+#[test]
+fn later_dispatch_arm_keeps_its_own_fuel_guard() {
+    let source = r#"
+        machine run(fuel: u64 [1..=128], matched: bool) -> u64 {
+            transition {
+                fuel > 1 && matched -> 0
+                fuel > 1 -> advance(fuel - 1)
+                _ -> 0
+            }
+            state advance(delivered: u64 [1..=128]) -> u64 { delivered }
+        }
+    "#;
+    lower_typed_trees(parse_typed_trees(source)).expect("the second arm supplies its own floor");
+}
+
+#[test]
+fn insufficient_dispatch_guards_cannot_deliver_a_bounded_decrement() {
+    for condition in [
+        "fuel >= 1",
+        "fuel <= 1",
+        "!(fuel > 1)",
+        "fuel > 1 || matched",
+        "matched",
+        "_",
+    ] {
+        rejects_range(&format!(
+            "machine run(fuel: u64 [1..=128], matched: bool) -> u64 {{
+                transition {{ {condition} -> advance(fuel - 1) _ -> 0 }}
+                state advance(delivered: u64 [1..=128]) -> u64 {{ delivered }}
+            }}"
+        ));
+    }
+}
+
+#[test]
+fn dispatch_guards_preserve_bounded_fuel_on_ranked_state_cycles() {
+    let source = r#"
+        machine run(fuel: u64 [1..=128]) -> u64
+        terminates by fuel;
+        {
+            transition { _ -> seek(fuel) }
+            state seek(fuel: u64 [1..=128]) -> u64 {
+                transition { fuel > 1 -> advance(fuel - 1) _ -> 0 }
+            }
+            state advance(fuel: u64 [1..=128]) -> u64 {
+                transition { fuel > 1 -> seek(fuel - 1) _ -> 0 }
+            }
+        }
+    "#;
+    lower_typed_trees(parse_typed_trees(source)).expect("bounded decreasing fuel stays in range");
+}
+
+#[test]
+fn dispatch_guard_and_argument_writes_retire_the_bounded_value() {
+    for (guard, arguments) in [
+        ("current > 0 && zero(&mut current)", "true, current"),
+        ("current > 0", "zero(&mut current), current"),
+    ] {
+        rejects_range(&format!(
+            "machine zero(target: &mut u8) -> bool {{ target = 0; true }}
+            machine run() -> u8 {{
+                let mut current: u8 = 3;
+                transition {{ {guard} -> finish({arguments}) _ -> 0 }}
+                state finish(first: bool, delivered: u8 [1..=255]) -> u8 {{ delivered }}
+            }}"
+        ));
+    }
+}
+
+#[test]
+fn authored_dispatch_operators_cannot_supply_builtin_bounds() {
+    for (declaration, condition) in [
+        (
+            "operator > u64::custom(left: u64, right: u64) -> bool;",
+            "fuel > 1",
+        ),
+        (
+            "operator == bool::custom(left: bool, right: bool) -> bool;",
+            "(fuel > 1) == true",
+        ),
+    ] {
+        rejects_range(&format!(
+            "{declaration}
+            machine run(fuel: u64 [1..=128]) -> u64 {{
+                transition {{ ({condition}) -> advance(fuel - 1) _ -> 0 }}
+                state advance(delivered: u64 [1..=128]) -> u64 {{ delivered }}
+            }}"
+        ));
+    }
+}
+
+#[test]
+fn bounded_argument_proof_independently_preserves_negation_polarity() {
+    // Exercise the proof consumer directly so rejection cannot be attributed
+    // solely to the earlier arithmetic validation pass.
+    for (condition, accepted) in [
+        ("!(fuel <= 1)", true),
+        ("!!(fuel > 1)", true),
+        ("!(fuel > 1)", false),
+        ("!!(fuel <= 1)", false),
+    ] {
+        let source = format!(
+            "machine run(fuel: u64 [1..=128]) -> u64 {{
+                transition {{ {condition} -> advance(fuel - 1) _ -> 0 }}
+                state advance(delivered: u64 [1..=128]) -> u64 {{ delivered }}
+            }}"
+        );
+        let program = parse_typed_trees(&source);
+        let plan = proof::obligations::build_proof_plan(&program);
+        match proof::checker::check_proof_plan(&plan) {
+            Ok(()) => assert!(accepted, "{source}"),
+            Err(diagnostics) => {
+                assert!(!accepted, "{source}\n{diagnostics:#?}");
+                assert!(
+                    diagnostics.iter().any(|diagnostic| {
+                        diagnostic
+                            .message
+                            .contains("cannot prove transition argument")
+                            && diagnostic.message.contains("bounded parameter")
+                    }),
+                    "{diagnostics:#?}"
+                );
+            }
+        }
+    }
+}

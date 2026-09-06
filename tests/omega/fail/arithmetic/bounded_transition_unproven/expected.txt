@@ -1,1 +1,1 @@
-cannot prove transition argument `self.health` satisfies bounded parameter `value`
+machine `Main::main` state `wounded` argument `value` stores a value not provably within its declared range
