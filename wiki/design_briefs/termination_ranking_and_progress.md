@@ -365,8 +365,8 @@ the same rule: declaration and carrier copies freeze the reference binding,
 not the referent's contents. Loading a frozen leaf needs its exact declared
 selector and source; replacing or exposing the carrier or reference slot for
 replacement prevents reuse of that evidence. Explicit state requirements may
-use an existing live qualification of the exact referent; reference identity cannot establish a
-missing or invalidated qualification.
+use an existing live qualification of the exact referent; reference identity
+cannot establish a missing or invalidated qualification.
 An unrelated reference with an unknown origin does not erase another
 reference's exact correspondence. Copies of that unknown reference remain
 unknown, and recovering its binding later does not retroactively recover them.
@@ -374,6 +374,10 @@ Unknown writes and exposed reference bindings still prevent preservation.
 Reference-returning helpers may transport an exact subject through a checked
 body relationship, including shared-reference copies and rebindings. Lifetime
 elision or a result qualification alone does not establish that relationship.
+The same relationship applies when references are returned inside owned
+carriers. An input carrier's declared reference boundary must be checked before
+substituting the caller's actual leaf; an empty write frame cannot establish
+its identity. Moving selected cases transports the cases and leaves together.
 The helper's writes remain independent evidence: returning the same reference
 after replacing a field cannot preserve the field's previous progress subject.
 

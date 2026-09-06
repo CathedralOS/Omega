@@ -30,12 +30,13 @@ pub(super) fn has_aggregate_case_shape(
 pub(super) use frozen_bindings::assignment_replaces_case_binding;
 pub(super) use frozen_bindings::statement_exposes_frozen_binding;
 
-pub(super) use projections::reference_leaves_before_statement;
+pub(super) use projections::reference_leaves_before_statement_for_query;
 pub(super) use projections::symbolic_reference_leaves;
 pub(super) use projections::{project_stored_origins, projected_storage_type, projected_type};
 pub(super) use reference_values::canonical_reference_origins;
 pub(super) use reference_values::source_reaches_leaf;
 pub(super) use type_origins::declared_origins;
+pub(super) use type_origins::declared_origins_for_query;
 pub(super) use type_origins::demand_is_declared;
 
 #[derive(Debug, Clone)]
@@ -109,10 +110,17 @@ pub(super) fn declaration_origins_for_query(
         symbols,
         inference,
         include_shared,
-        &|expression, reference, inference| {
+        &|expression, reference, implicit_borrow, inference| {
             if include_shared {
-                super::reference_subjects::initializer_origin(
-                    program, machine, expression, symbols, inference, aliases, stored,
+                super::reference_subjects::value_origin(
+                    program,
+                    machine,
+                    expression,
+                    symbols,
+                    inference,
+                    aliases,
+                    stored,
+                    implicit_borrow,
                 )
                 .or_else(|| {
                     super::reference_subjects::unknown_readonly_origin(program, reference, "")
@@ -125,7 +133,13 @@ pub(super) fn declaration_origins_for_query(
         },
         &|expression, reference, _| {
             projections::moved_reference_leaves(
-                program, state, local, expression, reference, stored,
+                program,
+                state,
+                local,
+                expression,
+                reference,
+                stored,
+                include_shared,
             )
         },
     )?;

@@ -73,6 +73,12 @@ pub(in crate::calls::write_frames) struct AggregateMove {
     pub type_reference: TypeReferenceHandle,
 }
 
+pub(in crate::calls::write_frames) type ReferenceResolver<'resolver> = dyn Fn(ExpressionHandle, TypeReferenceHandle, bool, &mut FrameInference) -> Option<FramePlaceOrigin>
+    + 'resolver;
+
+pub(in crate::calls::write_frames) type AggregateResolver<'resolver> = dyn Fn(ExpressionHandle, TypeReferenceHandle, &FrameInference) -> Option<AggregateOrigins>
+    + 'resolver;
+
 pub(in crate::calls::write_frames) fn reference_leaves(
     program: &TypedTrees,
     caller_machine: &Machine,
@@ -91,7 +97,7 @@ pub(in crate::calls::write_frames) fn reference_leaves(
         symbols,
         inference,
         false,
-        &|expression, _, inference| {
+        &|expression, _, _, inference| {
             exclusive_reference_origin(program, caller_machine, expression, symbols, inference)
         },
         &|expression, reference, inference| {
@@ -111,16 +117,8 @@ pub(in crate::calls::write_frames) fn reference_leaves_with_origins(
     symbols: &TopLevelSymbols<'_>,
     inference: &mut FrameInference,
     include_shared: bool,
-    resolve_reference: &impl Fn(
-        ExpressionHandle,
-        TypeReferenceHandle,
-        &mut FrameInference,
-    ) -> Option<FramePlaceOrigin>,
-    resolve_origins: &impl Fn(
-        ExpressionHandle,
-        TypeReferenceHandle,
-        &FrameInference,
-    ) -> Option<AggregateOrigins>,
+    resolve_reference: &ReferenceResolver<'_>,
+    resolve_origins: &AggregateResolver<'_>,
 ) -> Option<AggregateOrigins> {
     let mut pending = vec![(
         argument,
@@ -160,6 +158,9 @@ pub(in crate::calls::write_frames) fn reference_leaves_with_origins(
                     reference,
                     symbols,
                     inference,
+                    include_shared,
+                    resolve_reference,
+                    resolve_origins,
                 )?
             } else {
                 resolve_origins(expression, reference, inference)?
@@ -218,7 +219,7 @@ pub(in crate::calls::write_frames) fn reference_leaves_with_origins(
                 if !include_shared && !referent_has_only_owned_storage(program, *referee) {
                     return None;
                 }
-                let origin = resolve_reference(expression, reference, inference)?;
+                let origin = resolve_reference(expression, reference, false, inference)?;
                 let path = match origin.precision {
                     FramePathPrecision::Exact => append_place_suffix(&origin.path, suffix),
                     FramePathPrecision::CollectionCoarse => origin.path,

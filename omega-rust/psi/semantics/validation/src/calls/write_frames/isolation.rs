@@ -30,6 +30,36 @@ pub(super) fn concrete_nominal_type(
     }
 }
 
+/// Storage-origin transport compares concrete field structure, not borrow
+/// regions. An elided nominal use and an explicit lifetime-only application
+/// have the same fields; actual type arguments and constraints still require
+/// their existing exact type identity. Lifetime validation remains separate.
+pub(super) fn aggregate_storage_types_match(
+    program: &TypedTrees,
+    actual: TypeReferenceHandle,
+    expected: TypeReferenceHandle,
+) -> bool {
+    if crate::type_references::type_references_match(program, actual, expected) {
+        return true;
+    }
+    let Some((actual, _)) =
+        concrete_nominal_type(program.type_reference_table.type_reference(actual))
+    else {
+        return false;
+    };
+    let Some((expected, _)) =
+        concrete_nominal_type(program.type_reference_table.type_reference(expected))
+    else {
+        return false;
+    };
+    actual.is_valid()
+        && actual == expected
+        && program
+            .data_definitions()
+            .iter()
+            .any(|definition| definition.symbol == actual && definition.type_parameters.is_empty())
+}
+
 pub(super) fn struct_literal_field_type(
     program: &TypedTrees,
     literal: &TableStructLiteral,

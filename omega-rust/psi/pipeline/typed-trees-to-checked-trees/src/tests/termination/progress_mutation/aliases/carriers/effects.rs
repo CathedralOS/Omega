@@ -64,7 +64,13 @@ fn a_readonly_aggregate_helper_needs_result_identity_not_an_empty_write_frame() 
         true,
         false,
         "data Carrier { context: &Context; }
-         machine wrap(context: &Context) -> Carrier { Carrier { context: context } }",
+         machine choose(context: &Context, selected: bool) -> &Context {
+             transition selected { true -> context false -> context }
+         }
+         machine wrap(context: &Context) -> Carrier {
+             let chosen: &Context = choose(context, context.counter == 0);
+             Carrier { context: chosen }
+         }",
     );
     let plan = program
         .facts

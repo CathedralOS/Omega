@@ -1005,9 +1005,10 @@ Current ownership is:
   exposure retire the frozen relation. Implicit mutable receivers at the slot
   borrow the referent; receivers at an ancestor can replace the slot and remain
   opaque. Unknown shared leaves retain query-local markers without widening
-  ordinary write frames. Aggregate helper results still need separate shared
-  leaf result relations; an empty exclusive-write footprint proves no shared
-  reference identity. Name-only, untracked loaded slots, indexed selections,
+  ordinary write frames. Aggregate helper results use the same body-derived
+  leaf relation with shared discovery enabled for identity queries; an empty
+  exclusive-write footprint proves no shared reference identity.
+  Name-only, untracked loaded slots, indexed selections,
   coarse, and unresolved helper origins cannot supply exact identity.
   A returned reference identifies storage, not its old
   contents: helper writes still invalidate overlapping progress qualifications.
@@ -1191,6 +1192,20 @@ Current ownership is:
   exclusive-reference boundary with owned referent storage, either a reference
   formal or a structurally selected reference inside an owned formal.
   Callee-private leaves cannot disappear as an empty caller footprint.
+  Exact-reference result queries also retain shared leaves through literals,
+  frozen local copies, nested helper results, and by-value input moves. Their
+  body transfer seeds declared owned-input reference boundaries only after
+  checking the input slots against replacement and mutable exposure. A
+  reconstructed result validates one exact Field/Case reference boundary and
+  its owned suffix before caller substitution; it cannot select an owned
+  sibling or cross a reference-bearing referent by type alone. Possible input
+  cases still do not prove a selected payload inside the helper.
+  Caller substitution reuses the caller's frozen origins, including implicit
+  receiver borrows. Every operand retains its binding-exposure fence, even if
+  another operand supplies the returned leaf. Shared unknown leaves remain
+  explicit unknowns rather than disappearing or obscuring known siblings.
+  These result queries do not enter ordinary write-summary caches, and the
+  ordinary walker continues to collect exclusive leaves only.
   Actual arguments and attached receivers instantiate those formal origins
   with exact field suffixes or absorbing collection precision. Empty selected
   cases retain their evidence.
@@ -1203,6 +1218,9 @@ Current ownership is:
   Lifetime-only nominal applications use the same declared field structure;
   lifetime checking retains their region arguments, and actual type-generic
   carriers still require substitution before this analysis can inspect them.
+  Storage-origin comparisons accept elided and explicit lifetime-only uses of
+  the same concrete nominal declaration. They do not erase type arguments or
+  constraints or replace lifetime validation.
   This result evidence is storage information, not loan or lifetime authority.
   Reference origins retain an exact source symbol and structural selectors
   separately from their may-write footprint. Indexing may coarsen that footprint

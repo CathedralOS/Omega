@@ -24,6 +24,7 @@ pub(super) fn moved_reference_leaves(
     expression: ExpressionHandle,
     expected: TypeReferenceHandle,
     stored: &[StoredLocalOrigins],
+    include_shared: bool,
 ) -> Option<AggregateOrigins> {
     let before = program
         .statement_table
@@ -33,7 +34,7 @@ pub(super) fn moved_reference_leaves(
             matches!(statement, StatementNode::LocalData(local)
             if std::ptr::eq(local, destination))
         })?;
-    reference_leaves_before_statement(
+    reference_leaves_before_statement_for_query(
         program,
         state,
         before,
@@ -41,6 +42,7 @@ pub(super) fn moved_reference_leaves(
         expected,
         Some(stored),
         None,
+        include_shared,
     )
 }
 
@@ -77,6 +79,21 @@ pub(in crate::calls::write_frames) fn reference_leaves_before_statement(
     expected: TypeReferenceHandle,
     stored: Option<&[StoredLocalOrigins]>,
     inference: Option<&super::super::FrameInference>,
+) -> Option<AggregateOrigins> {
+    reference_leaves_before_statement_for_query(
+        program, state, before, expression, expected, stored, inference, false,
+    )
+}
+
+pub(in crate::calls::write_frames) fn reference_leaves_before_statement_for_query(
+    program: &TypedTrees,
+    state: &State,
+    before: &StatementNode,
+    expression: ExpressionHandle,
+    expected: TypeReferenceHandle,
+    stored: Option<&[StoredLocalOrigins]>,
+    inference: Option<&super::super::FrameInference>,
+    include_shared: bool,
 ) -> Option<AggregateOrigins> {
     let mut root_expression = expression;
     let root_name = loop {
@@ -139,12 +156,17 @@ pub(in crate::calls::write_frames) fn reference_leaves_before_statement(
     }
     let segments = facts.place_segments.span_or_empty(place.segments);
     let actual = projected_type(program, source_reference, segments)?;
-    if !crate::type_references::type_references_match(program, actual, expected) {
+    if !super::super::isolation::aggregate_storage_types_match(program, actual, expected) {
         return None;
     }
     let declared_origins = if parameter.is_some() || stored.is_none() {
-        let mut origins =
-            super::type_origins::declared_origins(program, root, source_name, source_reference)?;
+        let mut origins = super::type_origins::declared_origins_for_query(
+            program,
+            root,
+            source_name,
+            source_reference,
+            include_shared,
+        )?;
         if parameter.is_none() {
             if let Some(cases) = inference.and_then(|inference| inference.local_cases(root)) {
                 origins.cases = cases.to_vec();

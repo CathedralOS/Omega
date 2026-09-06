@@ -130,8 +130,30 @@ pub(super) fn initializer_origin(
     aliases: &[(String, FramePlaceOrigin)],
     stored: &[StoredLocalOrigins],
 ) -> Option<FramePlaceOrigin> {
+    value_origin(
+        program, machine, expression, symbols, inference, aliases, stored, false,
+    )
+}
+
+pub(super) fn value_origin(
+    program: &TypedTrees,
+    machine: &Machine,
+    expression: ExpressionHandle,
+    symbols: &TopLevelSymbols<'_>,
+    inference: &mut FrameInference,
+    aliases: &[(String, FramePlaceOrigin)],
+    stored: &[StoredLocalOrigins],
+    implicit_borrow: bool,
+) -> Option<FramePlaceOrigin> {
     declared_initializer_origin(
-        program, machine, expression, symbols, inference, false, aliases, stored,
+        program,
+        machine,
+        expression,
+        symbols,
+        inference,
+        implicit_borrow,
+        aliases,
+        stored,
     )?;
     let (state, _, index) = caller_aliases::caller_statement_at_site(
         program,
@@ -174,8 +196,7 @@ pub(super) fn initializer_origin(
     if origins.next().is_some() || origin.precision != FramePathPrecision::Exact {
         return None;
     }
-    let reference = source_root_type(program, machine, state, index, origin.source.root)?;
-    validate_owned_projection(program, reference, &origin.source.segments)?;
+    validate_source_projection(program, machine, state, index, &origin.source, stored)?;
     Some(origin)
 }
 
@@ -231,8 +252,7 @@ fn declared_initializer_origin(
                 )
             },
         )?;
-        let reference = source_root_type(program, machine, state, index, origin.source.root)?;
-        validate_owned_projection(program, reference, &origin.source.segments)?;
+        validate_source_projection(program, machine, state, index, &origin.source, stored)?;
         return (origin.precision == FramePathPrecision::Exact).then_some(origin);
     }
     reference_origins::declared_origin_root(program, machine, expression)?;
@@ -309,6 +329,58 @@ fn frozen_reference_origin(
     .then_some(origin)
 }
 
+/// Result queries seed owned input leaves only after the helper's frozen-input
+/// checks. Those symbolic boundaries can be exported for caller substitution;
+/// they are not concrete referents supplied by a type-only ordinary query.
+fn validate_source_projection(
+    program: &TypedTrees,
+    machine: &Machine,
+    state: &State,
+    index: usize,
+    source: &FrameSourcePlace,
+    stored: &[StoredLocalOrigins],
+) -> Option<()> {
+    let reference = source_root_type(program, machine, state, index, source.root)?;
+    if validate_owned_projection(program, reference, &source.segments).is_some() {
+        return Some(());
+    }
+    if type_reference_is_reference(program, reference)
+        || !program
+            .state_parameters(state)
+            .iter()
+            .any(|parameter| parameter.symbol == source.root && !parameter.is_self)
+        || source.segments.iter().any(|segment| {
+            !matches!(
+                segment,
+                PlaceSegment::Field { .. } | PlaceSegment::Case { .. }
+            )
+        })
+    {
+        return None;
+    }
+    let input = stored
+        .iter()
+        .find(|input| input.local_symbol == source.root)?;
+    let mut leaves = input
+        .references
+        .iter()
+        .filter(|leaf| source.segments.starts_with(&leaf.local_segments));
+    let leaf = leaves.next()?;
+    if leaves.next().is_some() {
+        return None;
+    }
+    let slot = stored_origins::projected_storage_type(program, reference, &leaf.local_segments)?;
+    if !type_reference_is_reference(program, slot)
+        || stored_origins::project_stored_origins(program, input, &leaf.local_segments, false)?
+            .references
+            .len()
+            != 1
+    {
+        return None;
+    }
+    validate_owned_projection(program, slot, &source.segments[leaf.local_segments.len()..])
+}
+
 fn source_root_type(
     program: &TypedTrees,
     machine: &Machine,
@@ -343,7 +415,7 @@ fn source_root_type(
     locals.next().is_none().then_some(local.type_reference)
 }
 
-fn validate_owned_projection(
+pub(super) fn validate_owned_projection(
     program: &TypedTrees,
     mut reference: TypeReferenceHandle,
     segments: &[PlaceSegment],

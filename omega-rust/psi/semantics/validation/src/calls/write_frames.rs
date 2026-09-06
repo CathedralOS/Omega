@@ -373,6 +373,7 @@ struct StateWritePrefix {
 enum StateWriteQuery<'statement> {
     Before(&'statement StatementNode),
     ReferenceBefore(&'statement StatementNode),
+    ReferenceResult,
     Assignment(&'statement StatementNode),
 }
 
@@ -414,9 +415,31 @@ fn walk_state_write_prefix_inner(
     let mut locals = Vec::new();
     let mut isolated_local_roots = Vec::new();
     let mut local_alias_origins = Vec::<(String, FramePlaceOrigin)>::new();
-    let mut stored = Vec::new();
+    let mut stored = if matches!(query, Some(StateWriteQuery::ReferenceResult)) {
+        parameters
+            .iter()
+            .filter(|parameter| {
+                !parameter.is_self
+                    && !type_reference_is_reference(program, parameter.type_reference)
+            })
+            .filter_map(|parameter| {
+                stored_origins::declared_origins_for_query(
+                    program,
+                    parameter.symbol,
+                    parameter.name.as_str(),
+                    parameter.type_reference,
+                    true,
+                )
+            })
+            .collect()
+    } else {
+        Vec::new()
+    };
     let mut written = Vec::new();
-    let include_shared = matches!(query, Some(StateWriteQuery::ReferenceBefore(_)));
+    let include_shared = matches!(
+        query,
+        Some(StateWriteQuery::ReferenceBefore(_) | StateWriteQuery::ReferenceResult)
+    );
 
     let mut nested_diagnostics = Vec::new();
     let machine_symbols = MachineSymbols::build(program, machine, &mut nested_diagnostics);
@@ -829,12 +852,14 @@ fn walk_state_write_prefix_inner(
         }
     }
 
-    query.is_none().then_some(StateWritePrefix {
-        written,
-        aliases: local_alias_origins,
-        stored,
-        assignment: None,
-    })
+    (query.is_none() || matches!(query, Some(StateWriteQuery::ReferenceResult))).then_some(
+        StateWritePrefix {
+            written,
+            aliases: local_alias_origins,
+            stored,
+            assignment: None,
+        },
+    )
 }
 
 /// Recover the caller-visible origin of the deliberately narrow stable local-
