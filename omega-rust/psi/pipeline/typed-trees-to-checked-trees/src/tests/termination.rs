@@ -9,6 +9,7 @@ mod operational_contracts;
 mod proof_slices;
 mod rank_ranges;
 mod ranking;
+mod scalar_call_custody;
 mod write_frame_aggregate_arguments;
 mod write_frame_aggregate_results;
 mod write_frame_array_literal_projection;

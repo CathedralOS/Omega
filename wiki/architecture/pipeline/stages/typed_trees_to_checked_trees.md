@@ -1731,7 +1731,12 @@ Current ownership is:
   unknown effects require a separate arrival judgment and are not admitted by
   this entry-parameter check. Scalar `Nat::Descending` parameters use this
   same whole-component judgment, not a separate pair-level subtraction
-  recognizer. Ranges and view arguments need their own substitution proof.
+  recognizer. Direct stores may preserve a scalar rank when the existing
+  alias-closed assignment frame proves every target disjoint from its exact
+  parameter. Both assignment operands must retain inert builtin meaning;
+  a disjoint destination cannot hide a call, borrow, or authored arithmetic
+  effect on its right-hand side. Projected ranks retain the conservative
+  write fence. Ranges and view arguments need their own substitution proof.
   The witness remains private implementation
   evidence and does not author a public completion guarantee.
   Proof-only components retain their strict structural-subterm rule. Their
