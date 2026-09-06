@@ -4,6 +4,9 @@ This is the canonical instruction file for every coding agent working in this
 repository. Agent-specific instruction files must point here rather than copy
 these rules.
 
+Repository skills are canonical in `.codex/skills/`. Read and edit skills there;
+`.claude/skills` links to that directory; do not maintain a second skill copy.
+
 Omega is a proof-carrying systems language whose programs are data-oriented
 state machines. This repository holds the language, its Rust reference
 compiler, its Omega-written product compiler, and the Alpha-to-Omega bootstrap
