@@ -117,6 +117,20 @@ return guarantees. Actual invocations retain both contract sides. A `self`
 back-edge to entry must re-establish its machine preconditions; a named-state
 back-edge owes that state's own arrival requirements.
 
+Call precondition checking can compare fixed-integer bounds from surviving
+call-entry facts through the shared strict arithmetic implication query. Direct
+immutable scalar actuals and callee formals share an atom only through their exact
+symbol handles; a same-spelled parameter supplies no relationship. Both operands
+must have the same fixed-integer carrier, literals must retain their landing, and
+the checked and typed operator selections must establish builtin comparison
+meaning with the original type references. Only a proven implication accepts.
+Prior-call postconditions and instantiated facts cannot be read as raw caller
+expressions; they need their own exact actual-argument substitution and are
+excluded from this adapter.
+Computed arguments, mutable snapshots, and structural projections remain outside
+this source adapter. Source acceptance does not supply a Terminal certificate;
+the emitted call obligation is independently reconstructed and proved afterward.
+
 Bounded integer returns consume the shared arithmetic arrival query in
 `validation/src/arithmetic_domains/guard_narrowing/arrivals.rs`. Each source
 argument binds to its exact target parameter before incoming guards are joined;

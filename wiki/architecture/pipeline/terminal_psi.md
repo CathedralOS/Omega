@@ -3163,8 +3163,13 @@ reuse those declarations. Each ordinary call substitutes its completed scalar
 arguments into the callee requirements before checking predicate totality, then
 rebases structural roots to the actual places. Requirement slots keep the callee's
 canonical order even if reordered or equal arguments change the substituted terms.
-Each call obligation currently needs an exact caller requirement as its premise;
-the independent verifier reconstructs both scalar and structural substitution.
+Each call slot becomes an obligation finalized after complete Unit or cleanup
+assembly. The shared integer certificate producer consumes the independently
+reconstructed pre-call requirements and facts; the callee's own guarantees cannot
+prove its preconditions. The independent verifier reconstructs scalar and
+structural substitution, including the exact ordering of equality operands.
+Reversed equalities carry explicit symmetry certificates instead of silently
+reordering the proof goal or its premise.
 Division nonzero and signed overflow bounds, and Exact shift count and value
 bounds, remain required. This does not add mixed projected-argument partial cleanup.
 
@@ -3211,8 +3216,8 @@ inventing a direct boundary requirement from a callee's independent call.
 
 Later structural-result initializers and returned calls still need connections
 to the shared evaluator. Structural arguments on composed internal calls,
-mixed runtime requirement proofs beyond exact caller premises (including equality
-symmetry after substitution), and caller-ceiling proofs for computed-argument
+mixed runtime requirement proofs for computed arguments and mutable snapshots,
+and caller-ceiling proofs for computed-argument
 routes remain implementation work.
 Existing control-state signature restrictions remain; operand evaluation does
 not itself add general scalar state-argument transport or computed dispatch guards.

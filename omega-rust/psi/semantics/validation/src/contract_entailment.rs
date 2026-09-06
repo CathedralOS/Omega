@@ -116,23 +116,23 @@ pub(crate) use proof_integer::{
 };
 
 /// One exact symbol substitution admitted by the strict arithmetic
-/// implication adapter. Quotient correspondence supplies canonical
-/// theorem-side atoms or exact integer constants; display spellings never
-/// select a binding.
+/// implication adapter. Call-site entailment and quotient correspondence
+/// supply exact parameter/theorem atoms or integer constants; display
+/// spellings never select a binding.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) struct StrictArithmeticSymbolBinding {
-    pub(crate) symbol: symbols::SymbolHandle,
-    pub(crate) value: StrictArithmeticBindingValue,
+pub struct StrictArithmeticSymbolBinding {
+    pub symbol: symbols::SymbolHandle,
+    pub value: StrictArithmeticBindingValue,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) enum StrictArithmeticBindingValue {
+pub enum StrictArithmeticBindingValue {
     Atom { identity: String, unsigned: bool },
     Integer(numerics::bignum::BigInt),
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum StrictArithmeticImplicationJudgment {
+pub enum StrictArithmeticImplicationJudgment {
     Proven,
     Refuted,
     Unknown,
@@ -144,7 +144,7 @@ pub(crate) enum StrictArithmeticImplicationJudgment {
 /// the arithmetic engine's language, every name must resolve through a
 /// symbol-keyed binding, and only `Proven` succeeds. In particular, the
 /// validator's sound stand-down behavior is `Unknown` here, never acceptance.
-pub(crate) fn strict_arithmetic_expression_implication(
+pub fn strict_arithmetic_expression_implication(
     program: &TypedTrees,
     context_machine: &Machine,
     hypotheses: &[ExpressionHandle],

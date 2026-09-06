@@ -220,3 +220,93 @@ fn selected_comparison_and_remainder_meanings_do_not_supply_builtin_bounds() {
         assert!(checked(&source).is_err(), "{declaration}");
     }
 }
+
+#[test]
+fn surviving_scalar_context_proves_stronger_bounds_for_statement_and_expression_calls() {
+    for primitive in ["u64", "i64"] {
+        for terminator in [";", ""] {
+            let source = format!(
+                r#"
+                data Helper {{}}
+                machine Helper::bounded(value: {primitive})
+                requires 1{primitive} <= value {{}}
+                machine caller(input: {primitive})
+                requires 2{primitive} <= input
+                {{ Helper::bounded(input){terminator} }}
+            "#
+            );
+            checked(&source).unwrap_or_else(|diagnostics| panic!("{source}: {diagnostics:#?}"));
+        }
+    }
+}
+
+#[test]
+fn surviving_scalar_context_rejects_weaker_bounds_and_other_parameter_subjects() {
+    for primitive in ["u64", "i64"] {
+        for terminator in [";", ""] {
+            for (callee_bound, caller_bound, subject) in [(2, 1, "input"), (1, 2, "other")] {
+                let source = format!(
+                    r#"
+                    data Helper {{}}
+                    machine Helper::bounded(value: {primitive})
+                    requires {callee_bound}{primitive} <= value {{}}
+                    machine caller(input: {primitive}, other: {primitive})
+                    requires {caller_bound}{primitive} <= {subject}
+                    {{ Helper::bounded(input){terminator} }}
+                "#
+                );
+                assert_call_requirement_rejected(&source);
+            }
+        }
+    }
+}
+
+#[test]
+fn surviving_scalar_context_does_not_reuse_mutable_parameter_entry_bounds_after_assignment() {
+    for primitive in ["u64", "i64"] {
+        for terminator in [";", ""] {
+            let source = format!(
+                r#"
+                data Helper {{}}
+                machine Helper::bounded(value: {primitive})
+                requires 1{primitive} <= value {{}}
+                machine caller(mut input: {primitive})
+                requires 2{primitive} <= input
+                {{ input = 0{primitive}; Helper::bounded(input){terminator} }}
+            "#
+            );
+            assert_call_requirement_rejected(&source);
+        }
+    }
+}
+
+#[test]
+fn surviving_scalar_context_does_not_apply_builtin_order_to_selected_comparators() {
+    for primitive in ["u64", "i64"] {
+        for terminator in [";", ""] {
+            let source = format!(
+                r#"
+                boundary operator <= Meaning::compare(left: {primitive}, right: {primitive}) -> bool;
+                data Helper {{}}
+                machine Helper::bounded(value: {primitive})
+                requires 1{primitive} <= value {{}}
+                machine caller(input: {primitive})
+                requires 2{primitive} <= input
+                {{ Helper::bounded(input){terminator} }}
+            "#
+            );
+            assert_call_requirement_rejected(&source);
+        }
+    }
+}
+
+fn assert_call_requirement_rejected(source: &str) {
+    let diagnostics =
+        checked(source).expect_err("caller context cannot discharge this requirement");
+    assert!(
+        diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.message.contains("cannot prove requires")),
+        "{source}: {diagnostics:#?}"
+    );
+}
