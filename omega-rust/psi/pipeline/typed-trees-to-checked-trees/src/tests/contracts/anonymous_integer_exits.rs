@@ -209,7 +209,7 @@ fn anonymous_operator_meaning_requires_intact_selection_custody() {
 }
 
 #[test]
-fn destination_landing_does_not_bless_a_shared_literal_at_an_unhandled_call_site() {
+fn destination_landing_preserves_each_shared_call_argument_destination() {
     for body in [
         "(18446744073709551615 + 1) - 1",
         "transition true { true -> ((18446744073709551615 + 1) - 1) false -> 0u64 }",
@@ -217,45 +217,57 @@ fn destination_landing_does_not_bless_a_shared_literal_at_an_unhandled_call_site
         "let mut landed: u64 = (18446744073709551615 + 1) - 1; landed",
         "let mut landed: u64 = 0; landed = (18446744073709551615 + 1) - 1; landed",
     ] {
-        let mut program = parse_typed_trees(&format!(
-            r#"
+        for (parameter_type, supported) in [("u64", true), ("f64", false)] {
+            let mut program = parse_typed_trees(&format!(
+                r#"
         machine good() -> u64 {{ {body} }}
-        machine consume(value: u64) {{}}
+        machine consume(value: {parameter_type}) {{}}
         machine bad() {{ consume(0); }}
     "#
-        ));
-        let large = program
-            .expression_table
-            .iter_expressions()
-            .find_map(|(handle, node)| match node {
-                typed_trees::expression::ExpressionNode::Integer(literal)
-                    if literal.value_u64() == Some(u64::MAX) =>
-                {
-                    Some(handle)
-                }
-                _ => None,
-            })
-            .unwrap();
-        let bad = program
-            .machines()
-            .iter()
-            .find(|machine| machine.name.as_str() == "bad")
-            .unwrap();
-        let state = &program.machine_states(bad)[0];
-        let arguments = match &program.statement_table.statements(state.statement_nodes)[0] {
-            typed_trees::statement::StatementNode::Call(call) => call.arguments,
-            _ => panic!("expected statement call"),
-        };
-        program
-            .statement_table
-            .set_expression_handle_at_offset(arguments, 0, large);
-        let diagnostics = validation::validate_program(&program)
-            .expect_err("unhandled use must retain width rejection");
-        assert!(
-            diagnostics
+            ));
+            let large = program
+                .expression_table
+                .iter_expressions()
+                .find_map(|(handle, node)| match node {
+                    typed_trees::expression::ExpressionNode::Integer(literal)
+                        if literal.value_u64() == Some(u64::MAX) =>
+                    {
+                        Some(handle)
+                    }
+                    _ => None,
+                })
+                .unwrap();
+            let bad = program
+                .machines()
                 .iter()
-                .any(|diagnostic| diagnostic.message.contains("exceeds the i64 range")),
-            "{diagnostics:#?}"
-        );
+                .find(|machine| machine.name.as_str() == "bad")
+                .unwrap();
+            let state = &program.machine_states(bad)[0];
+            let arguments = match &program.statement_table.statements(state.statement_nodes)[0] {
+                typed_trees::statement::StatementNode::Call(call) => call.arguments,
+                _ => panic!("expected statement call"),
+            };
+            program
+                .statement_table
+                .set_expression_handle_at_offset(arguments, 0, large);
+            let result = validation::validate_program(&program);
+            if supported {
+                result.unwrap_or_else(|diagnostics| {
+                    panic!("exact u64 argument destination: {diagnostics:#?}")
+                });
+                continue;
+            }
+            // Integer argument landing now handles the ordinary u64 call above.
+            // Floating argument landing is a distinct, still-unhandled width
+            // consumer; sharing with an integer exit cannot grant it that width.
+            let diagnostics =
+                result.expect_err("unhandled floating use must retain width rejection");
+            assert!(
+                diagnostics
+                    .iter()
+                    .any(|diagnostic| diagnostic.message.contains("exceeds the i64 range")),
+                "{diagnostics:#?}"
+            );
+        }
     }
 }

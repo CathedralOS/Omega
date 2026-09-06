@@ -1,6 +1,7 @@
 use super::*;
 
 mod anonymous_integer_exits;
+mod anonymous_rational_arguments;
 mod anonymous_rational_exits;
 mod assembly;
 mod assigned_values;

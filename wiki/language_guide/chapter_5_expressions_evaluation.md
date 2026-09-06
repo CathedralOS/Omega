@@ -804,12 +804,19 @@ expression-only suppression restriction.
 > **Implementation status:** these are the required language and diagnostic
 > rules, not a claim that every compiler path implements them. The shared
 > anonymous integer landing evaluator retains exact rational intermediates.
-> Fixed-integer return, local, assignment, cast, and supported mixed-operand
-> paths use this value and diagnose fractional final values. Successful integral
+> Fixed-integer return, local, assignment, cast, supported mixed-operand, and
+> resolved machine/named-state argument paths use this value and diagnose
+> fractional final values. Parameter proof consumes the same exact value;
+> the destination's arithmetic policy cannot truncate an anonymous fraction or
+> wrap an out-of-range initial value. Successful integral
 > landings report the fractional-intermediate warning through the current
-> validation diagnostic route. Argument and aggregate destinations, remaining
-> numeric policies, float and constant-argument consumers, and ordinary warning
-> suppression/report transport remain on [the execution board](../../TASKS.md).
+> validation diagnostic route. Caller result proofs can also transport a callee's
+> builtin `result == immutable_parameter` guarantee from retained closed
+> fixed-integer operands, without replaying their source expressions. General runtime argument
+> snapshots, generic/evidence-adapted and boundary destination custody, aggregate
+> elements, mutable owned parameter execution, remaining numeric policies, float
+> and constant-argument consumers, and ordinary warning suppression/report
+> transport remain on [the execution board](../../TASKS.md).
 
 ### Typed integer quotient and remainder
 

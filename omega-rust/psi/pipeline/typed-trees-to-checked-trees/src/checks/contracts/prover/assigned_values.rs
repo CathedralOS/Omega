@@ -319,6 +319,16 @@ mod tests {
             FactPayload::AssignedValue { value: arithmetic },
         );
         assert_eq!(
+            literal_at_place(
+                &program,
+                &semantic,
+                [semantic.contexts.get(nonliteral)],
+                &subject,
+            ),
+            None,
+            "a retained source occurrence is not literal-value evidence",
+        );
+        assert_eq!(
             scalar_value_at_place(
                 &program,
                 &semantic,

@@ -14,6 +14,8 @@ use super::super::{
 };
 use crate::flow::{canonical_place_from_expression_in_state, canonical_place_from_symbol};
 
+mod calls;
+
 pub(super) fn proves<'program>(
     program: &'program TypedTrees,
     facts: &CheckFacts,
@@ -215,14 +217,7 @@ impl ExitScalars<'_, '_> {
         if !stable_segments(&place.segments) {
             return None;
         }
-        scalar_value_at_place(
-            self.program,
-            &self.facts.semantic,
-            self.contexts
-                .iter()
-                .map(|context| self.facts.semantic.contexts.get(*context)),
-            &place,
-        )
+        self.value_at_place(&place)
     }
 
     fn return_value(&self) -> Option<ScalarValue> {
@@ -244,27 +239,22 @@ impl ExitScalars<'_, '_> {
             // here if evaluating the right operand may have changed it.
             return None;
         }
-        self.selected_return_value(expression).or_else(|| {
-            evaluate_scalar(self.program, expression, &mut |leaf| {
-                let place = canonical_place_from_expression_in_state(
-                    self.program,
-                    self.exit.state_symbol,
-                    self.exit.statement_index,
-                    leaf,
-                )?;
-                if !stable_segments(&place.segments) {
-                    return None;
-                }
-                scalar_value_at_place(
-                    self.program,
-                    &self.facts.semantic,
-                    self.contexts
-                        .iter()
-                        .map(|context| self.facts.semantic.contexts.get(*context)),
-                    &place,
-                )
+        self.selected_return_value(expression)
+            .or_else(|| self.closed_call_value(expression))
+            .or_else(|| {
+                evaluate_scalar(self.program, expression, &mut |leaf| {
+                    let place = canonical_place_from_expression_in_state(
+                        self.program,
+                        self.exit.state_symbol,
+                        self.exit.statement_index,
+                        leaf,
+                    )?;
+                    if !stable_segments(&place.segments) {
+                        return None;
+                    }
+                    self.value_at_place(&place)
+                })
             })
-        })
     }
 
     fn selected_return_value(&self, expression: ExpressionHandle) -> Option<ScalarValue> {
@@ -315,14 +305,7 @@ impl ExitScalars<'_, '_> {
                 symbols,
                 value_at_symbol: |symbol| {
                     let place = canonical_place_from_symbol(symbol)?;
-                    scalar_value_at_place(
-                        self.program,
-                        &self.facts.semantic,
-                        self.contexts
-                            .iter()
-                            .map(|context| self.facts.semantic.contexts.get(*context)),
-                        &place,
-                    )
+                    self.value_at_place(&place)
                 },
             },
         )

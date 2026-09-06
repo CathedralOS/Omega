@@ -53,7 +53,7 @@ pub(crate) use boundary_calls::boundary_trait_signature;
 use boundary_calls::known_boundary_call_written_paths_for_parts;
 use call_targets::discarded_primitive_internal_call_is_relationally_neutral;
 pub(crate) use call_targets::free_machine_entry_state;
-pub(super) use call_targets::machine_state_by_symbol;
+pub(crate) use call_targets::machine_state_by_symbol;
 use call_trees::{
     parameter_relative_expression_preserves_transparent_result,
     stable_alias_index_expression_preserves_origin,

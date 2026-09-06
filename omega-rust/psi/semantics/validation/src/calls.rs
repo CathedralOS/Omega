@@ -47,7 +47,7 @@ pub(crate) use recursion::{
     validate_proof_machine_recursion, validate_self_recursive_call_positions,
 };
 use result_use::validate_result_use;
-use write_frames::machine_state_by_symbol;
+pub(crate) use write_frames::machine_state_by_symbol;
 pub use write_frames::{
     AssignmentWriteTarget, CallFrameResolver, LocalWriteOrigin, frame_paths_overlap,
     state_reference_parameter_binding_is_stable,

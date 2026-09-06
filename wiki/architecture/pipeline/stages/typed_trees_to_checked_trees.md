@@ -344,6 +344,20 @@ Must own:
   receivers from the argument pairing. Direct terminal expressions and
   transition-value returns likewise use the declared result format. Explicit
   casts remain conversion boundaries.
+  Anonymous fixed-integer arguments retain exact rational intermediates until
+  the selected parameter requests an integral, in-range value. Bounded call and
+  named-state proof use that same landing query. Width custody for ordinary
+  resolved calls is attached to the exact call/argument edge, excluding implicit
+  receivers and unsupported shared uses; named transitions consume their resolved
+  target rather than recovering it by spelling.
+  Scalar exit checking can transport a closed retained operand through an exact
+  call's unconditional builtin equality between its result and an immutable
+  fixed-integer formal. It joins the call occurrence, guarantee owner, formal
+  symbol, and argument plan. A live local result may retain that call occurrence
+  as assignment provenance, but it is not literal evidence and does not authorize
+  source evaluation. Overwrites retire the provenance; runtime argument snapshots,
+  mutable-formal identities, and more general result contracts need their own
+  retained value evidence.
 - Landed float values retain their format at scalar destinations, including
   parameters, storage, and returns. Named values, field/index projections,
   resolved call results, and explicit cast outputs cannot implicitly change

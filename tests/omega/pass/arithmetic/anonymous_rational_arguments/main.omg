@@ -1,0 +1,31 @@
+machine identity(value: i32) -> i32
+ensures result == value
+{
+    value
+}
+
+machine exact_argument() -> i32
+ensures result == 7
+{
+    identity(7 / 2 * 2)
+}
+
+machine typed_argument() -> i32
+ensures result == 6
+{
+    identity(7i32 / 2 * 2)
+}
+
+machine bounded(value: i32 [7..=7]) {}
+
+machine bounded_argument()
+{
+    bounded(7 / 2 * 2);
+    bounded((18446744073709551615 + 1) - 18446744073709551609);
+}
+
+machine named_argument() -> i32
+{
+    transition { _ -> finish(7 / 2 * 2) }
+    state finish(value: i32 [7..=7]) -> i32 { value }
+}

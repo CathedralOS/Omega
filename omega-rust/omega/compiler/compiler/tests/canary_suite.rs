@@ -343,6 +343,7 @@ const CROSS_TARGET_FAIL_CANARIES: &[(&str, &str)] = &[
 /// lowering and therefore do not require a deployable `ProgramEntry` binding.
 const CHECKED_ONLY_PASS_CANARIES: &[&str] = &[
     "arithmetic/anonymous_rational_integer_landing",
+    "arithmetic/anonymous_rational_arguments",
     "slices/signed_index_and_range_lower_bounds",
     "operators/slice_index_bounds_from_operator_contract",
     "slices/bounded_slice_index_max",
@@ -719,6 +720,7 @@ const CHECKED_ONLY_PASS_CANARIES: &[&str] = &[
 
 const CHECKED_ONLY_FAIL_CANARIES: &[&str] = &[
     "arithmetic/fractional_integer_landing",
+    "arithmetic/fractional_integer_argument",
     "arithmetic/fractional_integer_operand",
     "slices/signed_slice_index_upper_only",
     "slices/signed_slice_range_upper_only",

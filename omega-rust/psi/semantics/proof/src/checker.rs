@@ -579,6 +579,11 @@ fn integer_range_for_transition_argument(
     proof_plan: &ProofPlan,
     obligation: &BoundedTransitionArgumentObligation,
 ) -> Option<IntegerRange> {
+    if let Some(range) =
+        anonymous_integer_argument_range(proof_plan, obligation.argument, obligation.base_type)
+    {
+        return Some(range);
+    }
     match proof_plan
         .program
         .expression_table
@@ -844,6 +849,11 @@ fn integer_range_for_call_argument(
     proof_plan: &ProofPlan,
     obligation: &BoundedCallArgumentObligation,
 ) -> Option<IntegerRange> {
+    if let Some(range) =
+        anonymous_integer_argument_range(proof_plan, obligation.argument, obligation.base_type)
+    {
+        return Some(range);
+    }
     match proof_plan
         .program
         .expression_table
@@ -855,6 +865,22 @@ fn integer_range_for_call_argument(
             obligation.argument_constraints,
         )),
     }
+}
+
+fn anonymous_integer_argument_range(
+    proof_plan: &ProofPlan,
+    argument: ExpressionHandle,
+    destination: typed_trees::types::TypeReferenceHandle,
+) -> Option<IntegerRange> {
+    let program = proof_plan.program;
+    let primitive = program.primitive_type_reference(destination)?;
+    let literal = validation::land_anonymous_integer_expression(
+        program,
+        argument,
+        primitive,
+        |expression| validation::has_anonymous_operator_meaning(program, expression),
+    )?;
+    integer_range_for_literal(&literal)
 }
 
 fn integer_range_for_assignment(

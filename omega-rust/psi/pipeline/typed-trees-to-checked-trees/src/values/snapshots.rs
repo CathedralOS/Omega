@@ -58,7 +58,13 @@ pub(crate) fn literal_at_place<'a>(
         .into_iter()
         .find_map(|payload| match payload {
             FactPayload::AssignedValue { value }
-                if program.expression_table.expression_is_valid(value) =>
+                if program.expression_table.expression_is_valid(value)
+                    && matches!(
+                        program.expression_table.expression(value),
+                        ExpressionNode::Integer(_)
+                            | ExpressionNode::Boolean(_)
+                            | ExpressionNode::String(_)
+                    ) =>
             {
                 Some(value)
             }

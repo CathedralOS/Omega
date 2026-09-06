@@ -9,9 +9,9 @@ use typed_trees::machine::Machine;
 use typed_trees::signature::StateParameter;
 use typed_trees::state::State;
 
-/// Check both carrier width and the declared range. Arithmetic diagnostics
-/// belong to expression validation; this consumer only adds delivery errors
-/// for an otherwise cleanly analyzed value.
+/// Check both carrier width and the declared range at the resolved parameter.
+/// A wholly anonymous argument first lands here; its integrality diagnostics
+/// cannot be discarded as if an earlier typed operation had already checked it.
 pub(super) fn report_argument_bounds(
     program: &TypedTrees,
     current_machine: &Machine,
@@ -30,6 +30,25 @@ pub(super) fn report_argument_bounds(
         "machine `{}` state `{target_name}` argument `{}`",
         current_machine.name, parameter.name,
     );
+    let before = diagnostics.len();
+    if let Some((interval, _)) = arithmetic_domains::validate_anonymous_integer_range(
+        program,
+        parameter.type_reference,
+        argument,
+        &owner,
+        diagnostics,
+    ) {
+        if diagnostics.len() == before {
+            arithmetic_domains::check_range_containment(
+                program,
+                parameter.type_reference,
+                interval,
+                &owner,
+                diagnostics,
+            );
+        }
+        return;
+    }
     arithmetic_domains::check_value_narrowing(
         program,
         current_machine,
