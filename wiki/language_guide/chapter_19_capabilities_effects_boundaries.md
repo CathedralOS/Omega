@@ -623,8 +623,9 @@ Windows import, and a firmware-table call may separately satisfy the same exact
 portable boundary requirement. The `+` operator in `reaches` remains set union,
 not provider choice or exclusive "one of" syntax.
 
-Filesystem reach is faceted by operation authority rather than collapsed into
-one `FilesystemHost` class. The portable minimum distinguishes content read,
+Filesystem terminal authority is faceted rather than collapsed into one broad
+class; source service reach still names boundary traits such as
+`FilesystemHost`. The portable authority minimum distinguishes content read,
 content write, metadata query, directory enumeration, namespace mutation, and
 metadata mutation. Exact requirement/method identity remains in evidence
 alongside the facet; facets group authority without erasing which operation was
@@ -632,6 +633,23 @@ selected. An operation controlled by runtime flags must publish the
 conservative union of every facet those flags can enable. Splitting the service
 surface improves precision only when the selected lowering also pins or proves
 the narrower argument contract.
+
+The [filesystem control/lifecycle policy](../design_briefs/effects_authority_and_observation.md#portable-filesystem-control-and-lifecycle-authority)
+classifies `read_link` as metadata query. Durability-only sync, ordinary locking,
+position/alias operations, and recognized error-state queries receive explicit
+empty sets under their accepted mechanism contracts. An ordinary close is empty
+only with an established release contract; generic raw-handle close is not
+automatically filesystem housekeeping. Requesting or arming a deletion counts
+as namespace mutation; incidental completion of another actor's already-requested
+deletion at ordinary release does not. This does not exempt deferred-deletion
+behavior attached to the released handle itself.
+
+Empty classification never hides a call from service reach. A boundary-trait
+requirement contributes its own trait identity automatically; wrappers propagate
+it, and declared ceilings constrain it. Exact operations remain in review even
+when their dangerous-authority sets are empty. These sets do not prove purity,
+noninterference, or lifecycle safety. The policy is settled; the remaining table
+rows and occurrence-specific close-proof implementation are unfinished.
 
 These facets constrain which operations code may name, not which filesystem
 objects it may touch. Today's raw integer descriptors are forgeable and carry

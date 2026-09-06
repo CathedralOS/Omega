@@ -84,37 +84,3 @@ These choices produce different checked frontier, alias, cleanup, ABI, and
 native replay obligations. This decision blocks only the first projected
 receiver-subplace ranked-countdown slice. Whole-receiver ranked countdowns and
 ranked work that does not require receiver projection may proceed unchanged.
-
-## Q3 — Portable filesystem control and lifecycle authority classes
-
-D45's six portable filesystem facets determine 36 of the current 50 raw
-`FilesystemHost` requirements, including conservative all-facet unions for
-flag-polymorphic open operations. Fourteen real operations remain semantically
-underdetermined; assigning them from readable method names would violate D45,
-and the existing class definitions do not state whether their effects count as
-one of the six filesystem authority classes or as explicit empty dispositions.
-
-Choose the portable classification for these cohorts:
-
-- `read_link`: filesystem content read, metadata query, or both;
-- `sync` and `sync_data`: content write (and, for `sync`, possibly metadata
-  mutation), or an explicit empty class set because they only request
-  durability for authority exercised by earlier writes;
-- `lock_file`, `lock_file_ex`, and `unlock_file`: metadata mutation, an
-  explicit empty set, or a new coordination/locking facet;
-- `close`, `find_close`, and `close_handle`: an explicit empty set for resource
-  release, or the conservative facets of authority that may be exercised while
-  finalizing the underlying object;
-- `seek`, `get_osfhandle`, and `duplicate`: an explicit empty set for
-  descriptor-local state/alias manipulation, or a filesystem facet that owns
-  descriptor position and duplication; and
-- `get_last_error` and `errno`: an explicit empty set for thread-local error
-  observation, or metadata query because the values are reached through the
-  filesystem boundary.
-
-This decision blocks only completion of the portable permission table and
-eventual removal of the transitional broad `Filesystem` row. It does not block
-the explicit 36-requirement consumer-policy cohort, exact schema/requirement
-custody, or engineering work on syscall/import mechanism identities and target
-classification. Raw descriptors continue to establish operation classes only,
-never object confinement.

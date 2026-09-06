@@ -4245,10 +4245,19 @@ accepted coordinates before review classifies that exact resolved symbol as
 Filesystem authority. Foreign, stale, ambiguous, and unmatched bindings reject.
 The repository policy canary partitions the complete current 50-method schema:
 36 requirements have explicit consumer-authored portable dispositions, while
-the fourteen unresolved control/lifecycle cohorts remain absent rather than
-being guessed from names. Any schema addition or omission fails that partition
+the fourteen control/lifecycle requirements remain an implementation gap under
+the settled [filesystem control/lifecycle policy](effects_authority_and_observation.md#portable-filesystem-control-and-lifecycle-authority),
+not an open convention choice. Their absence must not be read as empty
+permission. Any schema addition or omission fails that partition
 test. This is permission-authoring coverage, not object confinement and not a
 target mechanism classification.
+Completing the table preserves exact requirement and mechanism identities even
+for explicit empty dispositions. Ordinary release narrowing requires checked
+occurrence-specific handle flow and release contracts; an unconstrained generic
+closer gets a justified broad classification or remains unsupported. A broader
+known class set fails service containment, while missing classification fails
+realization admission. Neither changes source service reach or invalidates
+otherwise valid Terminal Psi.
 Package-aware checked interpretation receives an opaque routing token for that
 same compiler-resolved declaration symbol. Readable service or operation names
 cannot select filesystem dispatch, and the token rejects if substituted into a
