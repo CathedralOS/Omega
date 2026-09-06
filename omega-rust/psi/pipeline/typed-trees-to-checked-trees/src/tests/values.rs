@@ -7,6 +7,8 @@ mod guard_operator_custody;
 mod guard_parameter_bounds;
 mod index_guard_custody;
 mod initializer_call_computations;
+mod loop_arithmetic_policy;
+mod loop_counter_identity;
 mod requires_operator_custody;
 mod source_bindings;
 

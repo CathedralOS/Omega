@@ -1,0 +1,14 @@
+data Main {
+    items: [u8; 4];
+    index: i32 in Wrapping;
+}
+
+machine Main::run(&mut self) {
+    self.index = 2;
+    transition { _ -> fill() }
+    state fill(&mut self) {
+        let value: u8 = self.items[self.index];
+        self.index = self.index + 2147483647;
+        transition self.index < 4 { true -> fill() _ -> {} }
+    }
+}

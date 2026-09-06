@@ -9,6 +9,8 @@ use typed_trees::statement::{
 
 use super::facts::RangeFacts;
 
+mod update_bounds;
+
 /// A sound, inductive loop-invariant range fact for a MONOTONE counter.
 ///
 /// For a loop head `H` (a state reached by a back edge from inside its own
@@ -18,6 +20,8 @@ use super::facts::RangeFacts;
 ///   (2) modified inside the loop ONLY in one direction -- every write is a
 ///       decrement `self.i = self.i - c`, or every write is an increment
 ///       `self.i = self.i + c` (`c` a positive integer literal), nothing else,
+///       with the selected policy preserving order on normal completion
+///       (Wrapping additionally needs an independent no-wrap proof per update),
 /// satisfies a one-sided bound at every loop state:
 ///   * DECREASING (init `K`): `i < K + 1` -- entry gives `i = K < K + 1`, each
 ///     decrement preserves it. Seeded as an index UPPER bound (so `arr[i]` proves
@@ -150,7 +154,7 @@ pub(super) fn collect_loop_invariant_facts(
             };
             for statement in program.statement_table.statements(state.statement_nodes) {
                 if let StatementNode::Assignment(assignment) = statement
-                    && let Some(field) = assignment_counter_field(program, assignment)
+                    && let Some(field) = assignment_counter_field(program, machine, assignment)
                     && matches!(
                         classify_counter_write(program, machine, state, field, assignment),
                         CounterWrite::Decrement | CounterWrite::Increment
@@ -163,7 +167,8 @@ pub(super) fn collect_loop_invariant_facts(
         }
 
         for counter in candidates {
-            let Some(index_name) = counter_display_name(program, states, &loop_states, counter)
+            let Some(index_name) =
+                counter_display_name(program, machine, states, &loop_states, counter)
             else {
                 continue;
             };
@@ -196,6 +201,23 @@ pub(super) fn collect_loop_invariant_facts(
             ) else {
                 continue;
             };
+
+            // A positive literal step is not a mathematical monotonicity
+            // proof under Wrapping. Establish update snapshots independently
+            // of the invariant being proposed, then prove every update keeps
+            // its direction on normal completion.
+            if !update_bounds::updates_preserve_order(
+                program,
+                machine,
+                states,
+                &loop_states,
+                head.symbol,
+                counter,
+                min_init,
+                max_init,
+            ) {
+                continue;
+            }
 
             let kind = match direction {
                 // `i < K + 1` (G3): the weakest sound bound uses the MAX init.
@@ -461,12 +483,10 @@ fn find_state(states: &[State], symbol: SymbolHandle) -> Option<&State> {
 /// `self.field` member. Returns the field symbol.
 fn assignment_counter_field(
     program: &typed_trees::TypedTrees,
+    machine: &Machine,
     assignment: &TableAssignment,
 ) -> Option<SymbolHandle> {
-    match program.expression_table.expression(assignment.target) {
-        ExpressionNode::Member(member) => Some(member.member_symbol),
-        _ => None,
-    }
+    validation::exact_self_field(program, machine, assignment.target).map(|field| field.symbol)
 }
 
 /// Classify a single write to `counter`: a decrement `self.i = self.i - c`, an
@@ -494,7 +514,7 @@ fn classify_counter_write(
     match binary.operator {
         BinaryOperator::Subtract => {
             // Not commutative: only `self.i - c` decreases `i`.
-            if expression_is_counter_member(program, binary.left, counter)
+            if expression_is_counter_member(program, machine, binary.left, counter)
                 && is_positive_integer_literal(program, binary.right)
             {
                 CounterWrite::Decrement
@@ -503,8 +523,10 @@ fn classify_counter_write(
             }
         }
         BinaryOperator::Add => {
-            let left_is_counter = expression_is_counter_member(program, binary.left, counter);
-            let right_is_counter = expression_is_counter_member(program, binary.right, counter);
+            let left_is_counter =
+                expression_is_counter_member(program, machine, binary.left, counter);
+            let right_is_counter =
+                expression_is_counter_member(program, machine, binary.right, counter);
             if (left_is_counter && is_positive_integer_literal(program, binary.right))
                 || (right_is_counter && is_positive_integer_literal(program, binary.left))
             {
@@ -655,7 +677,7 @@ fn source_arm_to_head_relational_upper(
         {
             return None;
         }
-        let edge_upper = parse_counter_relational_upper(program, guard, counter)?;
+        let edge_upper = parse_counter_relational_upper(program, machine, guard, counter)?;
         if found.is_some() {
             return None;
         }
@@ -670,6 +692,7 @@ fn source_arm_to_head_relational_upper(
 /// and parameters deliberately do not carry across a state boundary.
 fn parse_counter_relational_upper(
     program: &typed_trees::TypedTrees,
+    machine: &Machine,
     guard: ExpressionHandle,
     counter: SymbolHandle,
 ) -> Option<RelationalUpper> {
@@ -678,22 +701,26 @@ fn parse_counter_relational_upper(
     };
     if binary.operator == BinaryOperator::Equal {
         let inner = boolean_equality_inner(program, binary.left, binary.right)?;
-        return parse_counter_relational_upper(program, inner, counter);
+        return parse_counter_relational_upper(program, machine, inner, counter);
     }
     let (possible_length, strict) = match binary.operator {
-        BinaryOperator::Less if expression_is_counter_member(program, binary.left, counter) => {
+        BinaryOperator::Less
+            if expression_is_counter_member(program, machine, binary.left, counter) =>
+        {
             (binary.right, true)
         }
         BinaryOperator::LessOrEqual
-            if expression_is_counter_member(program, binary.left, counter) =>
+            if expression_is_counter_member(program, machine, binary.left, counter) =>
         {
             (binary.right, false)
         }
-        BinaryOperator::Greater if expression_is_counter_member(program, binary.right, counter) => {
+        BinaryOperator::Greater
+            if expression_is_counter_member(program, machine, binary.right, counter) =>
+        {
             (binary.left, true)
         }
         BinaryOperator::GreaterOrEqual
-            if expression_is_counter_member(program, binary.right, counter) =>
+            if expression_is_counter_member(program, machine, binary.right, counter) =>
         {
             (binary.left, false)
         }
@@ -949,7 +976,7 @@ fn source_arm_to_head_upper_bound(
         {
             return None;
         }
-        let edge_bound = parse_counter_upper_bound(program, guard, counter)?;
+        let edge_bound = parse_counter_upper_bound(program, machine, guard, counter)?;
         if found.is_some() {
             return None; // more than one arm to head
         }
@@ -964,6 +991,7 @@ fn source_arm_to_head_upper_bound(
 /// unwrapped first (matching `seed_boolean_equality_guard_facts`). `None` otherwise.
 fn parse_counter_upper_bound(
     program: &typed_trees::TypedTrees,
+    machine: &Machine,
     guard: ExpressionHandle,
     counter: SymbolHandle,
 ) -> Option<i64> {
@@ -973,10 +1001,10 @@ fn parse_counter_upper_bound(
     if binary.operator == BinaryOperator::Equal {
         // `subject == true` -> parse the subject; `== false` is a negation (no upper bound).
         let inner = boolean_equality_inner(program, binary.left, binary.right)?;
-        return parse_counter_upper_bound(program, inner, counter);
+        return parse_counter_upper_bound(program, machine, inner, counter);
     }
-    let left_is_counter = expression_is_counter_member(program, binary.left, counter);
-    let right_is_counter = expression_is_counter_member(program, binary.right, counter);
+    let left_is_counter = expression_is_counter_member(program, machine, binary.left, counter);
+    let right_is_counter = expression_is_counter_member(program, machine, binary.right, counter);
     match binary.operator {
         BinaryOperator::Less if left_is_counter => integer_literal(program, binary.right),
         BinaryOperator::LessOrEqual if left_is_counter => {
@@ -1045,13 +1073,12 @@ fn is_positive_integer_literal(
 /// Whether `expression` is a direct `self.field` member naming `counter`.
 fn expression_is_counter_member(
     program: &typed_trees::TypedTrees,
+    machine: &Machine,
     expression: ExpressionHandle,
     counter: SymbolHandle,
 ) -> bool {
-    matches!(
-        program.expression_table.expression(expression),
-        ExpressionNode::Member(member) if member.member_symbol == counter
-    )
+    validation::exact_self_field(program, machine, expression)
+        .is_some_and(|field| field.symbol == counter)
 }
 
 /// G1: every in-loop modification of `counter` moves in ONE monotone direction.
@@ -1078,7 +1105,18 @@ fn loop_modifications_direction(
                 return None;
             }
             if let StatementNode::Assignment(assignment) = statement {
-                if assignment_counter_field(program, assignment) != Some(counter) {
+                if assignment_counter_field(program, machine, assignment) != Some(counter) {
+                    // A different syntactic receiver can alias self. Only a
+                    // complete disjoint store frame permits ignoring it.
+                    let writes = call_frames
+                        .assignment_write_frame(machine, statement)
+                        .into_complete_paths()?;
+                    if writes
+                        .iter()
+                        .any(|path| validation::frame_paths_overlap(path, counter_path))
+                    {
+                        return None;
+                    }
                     continue;
                 }
                 let observed =
@@ -1212,7 +1250,18 @@ fn probe_state_init(
             Some(false) => {}
         }
         if let StatementNode::Assignment(assignment) = statement {
-            if assignment_counter_field(program, assignment) != Some(counter) {
+            if assignment_counter_field(program, machine, assignment) != Some(counter) {
+                let disjoint = call_frames
+                    .assignment_write_frame(machine, statement)
+                    .into_complete_paths()
+                    .is_some_and(|writes| {
+                        writes
+                            .iter()
+                            .all(|path| !validation::frame_paths_overlap(path, counter_path))
+                    });
+                if !disjoint {
+                    probe = InitProbe::Unknown;
+                }
                 continue;
             }
             // Check the original RHS before interpreting an initializer as a
@@ -1270,6 +1319,7 @@ fn statement_may_write_path(
 /// from an actual monotone-write LHS so it renders identically to the index use.
 fn counter_display_name(
     program: &typed_trees::TypedTrees,
+    machine: &Machine,
     states: &[State],
     loop_states: &[SymbolHandle],
     counter: SymbolHandle,
@@ -1282,10 +1332,10 @@ fn counter_display_name(
             let StatementNode::Assignment(assignment) = statement else {
                 continue;
             };
-            if assignment_counter_field(program, assignment) != Some(counter) {
+            if assignment_counter_field(program, machine, assignment) != Some(counter) {
                 continue;
             }
-            if expression_is_counter_member(program, assignment.target, counter) {
+            if expression_is_counter_member(program, machine, assignment.target, counter) {
                 return Some(program.expression_table.display_name(assignment.target));
             }
         }
