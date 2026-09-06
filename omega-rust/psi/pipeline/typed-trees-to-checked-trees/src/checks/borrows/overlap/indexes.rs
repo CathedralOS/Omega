@@ -426,7 +426,7 @@ fn normalized_bound(
     let Some(expression) =
         validation::normalize_immutable_integer_bound_expression(program, expression)
     else {
-        return validation::computed_immutable_integer_bound_symbol(program, expression)
+        return validation::immutable_integer_bound_value_symbol(program, expression)
             .map(NormalizedBound::Symbol);
     };
     match program.expression_table.expression(expression) {

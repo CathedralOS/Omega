@@ -6,7 +6,7 @@ use typed_trees::statement::{StatementNode, TableLocalData};
 #[cfg(test)]
 mod tests;
 
-enum ImmutableLocalLookup<'program> {
+enum LocalLookup<'program> {
     Missing,
     Found(&'program TableLocalData),
     Invalid,
@@ -14,7 +14,8 @@ enum ImmutableLocalLookup<'program> {
 
 enum NormalizedBound {
     Expression(ExpressionHandle),
-    ComputedLocal(SymbolHandle),
+    LocalValue(SymbolHandle),
+    MutableValue,
 }
 
 /// Normalize an integer-bound expression through a finite chain of immutable
@@ -31,21 +32,22 @@ pub fn normalize_immutable_integer_bound_expression(
 ) -> Option<ExpressionHandle> {
     match normalize_bound(program, expression, &mut Vec::new())? {
         NormalizedBound::Expression(expression) => Some(expression),
-        NormalizedBound::ComputedLocal(_) => None,
+        NormalizedBound::LocalValue(_) | NormalizedBound::MutableValue => None,
     }
 }
 
-/// Retain the identity of one computed immutable integer binding, including
-/// through immutable copies. This establishes shared value identity, not the
-/// initializer's value or equivalence to a separately evaluated computation.
+/// Retain the identity of one immutable integer binding whose initializer is
+/// computed or reads a mutable value, including through immutable copies.
+/// This establishes shared value identity, not the initializer's value or
+/// equivalence to a separately evaluated computation.
 /// Static-index callers continue to use the expression/usize normalizers.
-pub fn computed_immutable_integer_bound_symbol(
+pub fn immutable_integer_bound_value_symbol(
     program: &TypedTrees,
     expression: ExpressionHandle,
 ) -> Option<SymbolHandle> {
     match normalize_bound(program, expression, &mut Vec::new())? {
-        NormalizedBound::ComputedLocal(symbol) => Some(symbol),
-        NormalizedBound::Expression(_) => None,
+        NormalizedBound::LocalValue(symbol) => Some(symbol),
+        NormalizedBound::Expression(_) | NormalizedBound::MutableValue => None,
     }
 }
 
@@ -80,19 +82,21 @@ fn normalize_bound(
                 return None;
             }
             if path.symbol.is_valid() && path.head_symbol == path.symbol {
-                match immutable_local_by_symbol(program, path.symbol) {
-                    ImmutableLocalLookup::Missing => Some(NormalizedBound::Expression(expression)),
-                    ImmutableLocalLookup::Found(local) => {
-                        normalize_local(program, local, seen_aliases)
+                match local_by_symbol(program, path.symbol) {
+                    LocalLookup::Missing => {
+                        if parameter_mutability(program, path.symbol)? {
+                            Some(NormalizedBound::MutableValue)
+                        } else {
+                            Some(NormalizedBound::Expression(expression))
+                        }
                     }
-                    ImmutableLocalLookup::Invalid => None,
+                    LocalLookup::Found(local) => normalize_local(program, local, seen_aliases),
+                    LocalLookup::Invalid => None,
                 }
             } else {
-                match immutable_local_by_name(program, members[0].as_str()) {
-                    ImmutableLocalLookup::Found(local) => {
-                        normalize_local(program, local, seen_aliases)
-                    }
-                    ImmutableLocalLookup::Missing | ImmutableLocalLookup::Invalid => None,
+                match local_by_name(program, members[0].as_str()) {
+                    LocalLookup::Found(local) => normalize_local(program, local, seen_aliases),
+                    LocalLookup::Missing | LocalLookup::Invalid => None,
                 }
             }
         }
@@ -108,36 +112,37 @@ fn normalize_local(
     if !local.symbol.is_valid() || seen_aliases.contains(&local.symbol) {
         return None;
     }
+    if local.is_mutable {
+        return Some(NormalizedBound::MutableValue);
+    }
     seen_aliases.push(local.symbol);
     let normalized = match program.expression_table.expression(local.initial_value) {
         ExpressionNode::Integer(_) | ExpressionNode::Name(_) => {
-            normalize_bound(program, local.initial_value, seen_aliases)
+            normalize_bound(program, local.initial_value, seen_aliases).map(|bound| match bound {
+                // The local stores a value, not a retargetable alias to its source.
+                NormalizedBound::MutableValue => NormalizedBound::LocalValue(local.symbol),
+                bound => bound,
+            })
         }
-        _ if local.initial_value.is_valid() => Some(NormalizedBound::ComputedLocal(local.symbol)),
+        _ if local.initial_value.is_valid() => Some(NormalizedBound::LocalValue(local.symbol)),
         _ => None,
     };
     seen_aliases.pop();
     normalized
 }
 
-fn immutable_local_by_symbol(
-    program: &TypedTrees,
-    symbol: SymbolHandle,
-) -> ImmutableLocalLookup<'_> {
-    immutable_local(program, |local| local.symbol == symbol)
+fn local_by_symbol(program: &TypedTrees, symbol: SymbolHandle) -> LocalLookup<'_> {
+    unique_local(program, |local| local.symbol == symbol)
 }
 
-fn immutable_local_by_name<'program>(
-    program: &'program TypedTrees,
-    name: &str,
-) -> ImmutableLocalLookup<'program> {
-    immutable_local(program, |local| local.name.as_str() == name)
+fn local_by_name<'program>(program: &'program TypedTrees, name: &str) -> LocalLookup<'program> {
+    unique_local(program, |local| local.name.as_str() == name)
 }
 
-fn immutable_local(
+fn unique_local(
     program: &TypedTrees,
     matches: impl Fn(&TableLocalData) -> bool,
-) -> ImmutableLocalLookup<'_> {
+) -> LocalLookup<'_> {
     let mut matching = None;
     for machine in program.machines() {
         for state in program.machine_states(machine) {
@@ -148,12 +153,25 @@ fn immutable_local(
                 if !matches(local) {
                     continue;
                 }
-                if matching.is_some() || local.is_mutable {
-                    return ImmutableLocalLookup::Invalid;
+                if matching.is_some() {
+                    return LocalLookup::Invalid;
                 }
                 matching = Some(local);
             }
         }
     }
-    matching.map_or(ImmutableLocalLookup::Missing, ImmutableLocalLookup::Found)
+    matching.map_or(LocalLookup::Missing, LocalLookup::Found)
+}
+
+fn parameter_mutability(program: &TypedTrees, symbol: SymbolHandle) -> Option<bool> {
+    let mut matching = program
+        .machines()
+        .iter()
+        .flat_map(|machine| program.machine_states(machine))
+        .flat_map(|state| program.state_parameters(state))
+        .filter(|parameter| parameter.symbol == symbol);
+    let is_mutable = matching
+        .next()
+        .is_some_and(|parameter| parameter.is_mutable);
+    matching.next().is_none().then_some(is_mutable)
 }

@@ -1,6 +1,7 @@
 use super::super::*;
 
 mod computed_boundaries;
+mod value_snapshots;
 
 const SYMBOLIC_ADJACENCY: &str = r#"
     data Main { items: [i32; 4]; }
