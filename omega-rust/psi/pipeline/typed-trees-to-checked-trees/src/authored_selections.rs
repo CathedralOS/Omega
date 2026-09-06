@@ -2420,6 +2420,21 @@ fn type_reference_for_symbol(
         {
             return Some(type_reference);
         }
+        // A bare attached field names the machine's inherited Field slot,
+        // not the original data member. Rejoin that exact owner/slot before
+        // inferring the type used to select a nested member declaration.
+        let declaration = program.symbols.get(symbol);
+        if declaration.kind == symbols::SymbolKind::Field
+            && declaration.parent == machine.symbol
+            && let Some(field) = validation::exact_attached_field(
+                program,
+                machine,
+                symbol,
+                program.symbols.name(symbol),
+            )
+        {
+            return Some(field.type_reference);
+        }
         for state in program.machine_states(machine) {
             if let Some(type_reference) =
                 program
