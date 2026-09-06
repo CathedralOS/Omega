@@ -246,6 +246,9 @@ pub(crate) fn guard_narrowed_env(
     else {
         return env;
     };
+    if !meaning::builtin_boolean_equality(program, machine, state, *guard_expr, equality) {
+        return env;
+    }
     narrow_env_by_condition(program, machine, state, &mut env, equality.left, *arm_true);
     env
 }
@@ -276,6 +279,9 @@ pub(crate) fn fall_through_narrowed_env(
         && let ExpressionNode::Boolean(arm_true) =
             program.expression_table.expression(equality.right)
     {
+        if !meaning::builtin_boolean_equality(program, machine, state, *guard_expr, equality) {
+            return env;
+        }
         narrow_env_by_condition(program, machine, state, &mut env, equality.left, !*arm_true);
         return env;
     }
@@ -320,6 +326,9 @@ pub(super) fn narrow_env_by_condition(
             _ => None,
         };
         if let Some((operand, value)) = wrapped {
+            if !meaning::builtin_boolean_equality(program, machine, state, condition, comparison) {
+                return;
+            }
             let operand_positive =
                 positive == (value == (comparison.operator == BinaryOperator::Equal));
             narrow_env_by_condition(program, machine, state, env, operand, operand_positive);

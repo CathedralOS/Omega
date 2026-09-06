@@ -1,0 +1,10 @@
+// Authored Boolean equality does not establish that its operand is true.
+// Its result therefore cannot discharge the exact subtraction's lower bound.
+operator == bool::custom(left: bool, right: bool) -> bool;
+
+machine decrement(n: u64) -> u64 {
+    transition (n > 0) == true {
+        true -> (n - 1)
+        false -> n
+    }
+}
