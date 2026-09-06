@@ -13,6 +13,7 @@ mod composed_prefixed_control;
 mod composed_transitive_internal_calls;
 mod free_scalar_parameters;
 mod returns;
+mod scalar_sequences;
 mod shared_convergence;
 
 use checked_trees::{

@@ -484,7 +484,7 @@ fn attached_unit_scalar_expression_local_rejects_source_coordinate_drift() {
 
     assert_eq!(
         rejection_message(&checked),
-        "Unit scalar expression local is not the next dense source binding"
+        "Unit machine operation order is not canonical source order"
     );
 }
 
@@ -553,7 +553,7 @@ fn attached_unit_scalar_result_rejects_coordinated_drift_from_original_flow_row(
 
     assert_eq!(
         rejection_message(&checked),
-        "call source custody has no authored statement"
+        "scalar source custody has no authored statement"
     );
 }
 
@@ -571,7 +571,7 @@ fn attached_unit_scalar_result_type_and_later_local_use_reject_drift() {
     };
     assert_eq!(
         rejection_message(&result_type),
-        "Unit boundary call does not match the exact checked target state, result, contract, and reach"
+        "call result binding disagrees with its authored scalar local"
     );
 
     let mut local_use = checked();

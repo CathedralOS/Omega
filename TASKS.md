@@ -493,8 +493,7 @@ Owners include
   evaluation points and activate staged loans at their evaluation points.
   Complete typed computation plans for remaining numeric policies and selected
   operator calls and borrowed/projected operands and writes.
-  Extend computed scalar call operands beyond the first immutable result
-  initializer in a single-state Unit caller to later result initializers,
+  Extend computed scalar call operands to later structural-result initializers,
   returned calls, internal Unit calls in dynamic-result and closed-sum continuations,
   and structural arguments on composed internal calls. Retain exact
   evaluation order across guards and other argument effects, including projected

@@ -47,7 +47,13 @@ pub(in crate::flow::terminal_unit) fn outer_calls<'a>(
                     .statement_table
                     .expression_handles(authored.arguments),
             ),
-            StatementNode::LocalData(local) if call.statement_index == 0 && !local.is_mutable => {
+            StatementNode::LocalData(local)
+                if !local.is_mutable
+                    && (call.statement_index == 0
+                        || program
+                            .primitive_type_reference(local.type_reference)
+                            .is_some()) =>
+            {
                 if !program
                     .expression_table
                     .expression_is_valid(local.initial_value)

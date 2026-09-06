@@ -1,4 +1,4 @@
-//! Branch-free primitive locals following one result-bearing Unit operation.
+//! Branch-free primitive locals at authored statement and dense binding positions.
 
 use super::*;
 
@@ -44,29 +44,50 @@ fn scalar_expression_locals_from(
             if local.is_mutable || !local.initial_value.is_valid() {
                 return None;
             }
-            let primitive_type = program.primitive_type_reference(local.type_reference)?;
-            let value = facts.values.scalar_expressions.expression_at(
-                state.symbol,
+            scalar_expression_local_at(
+                program,
+                facts,
+                state,
                 binding_ordinal,
-                CheckedScalarExpressionRole::LocalInitializer { binding_ordinal },
-            )?;
-            if crate::values::scalar_expression_type(value) != Some(primitive_type)
-                || matches!(
-                    value,
-                    CheckedScalarExpression::Boolean(expression)
-                        if checked_boolean_contains_short_circuit(expression)
-                )
-            {
-                return None;
-            }
-            Some((
-                CheckedUnitScalarResultBindingPlan {
-                    statement_index: binding_ordinal,
-                    binding_ordinal,
-                    primitive_type,
-                },
-                value.clone(),
-            ))
+                binding_ordinal,
+                local,
+            )
         })
         .collect()
+}
+
+pub(super) fn scalar_expression_local_at(
+    program: &TypedTrees,
+    facts: &CheckFacts,
+    state: &typed_trees::state::State,
+    statement_index: u32,
+    binding_ordinal: u32,
+    local: &typed_trees::statement::TableLocalData,
+) -> Option<(CheckedUnitScalarResultBindingPlan, CheckedScalarExpression)> {
+    if local.is_mutable
+        || !program
+            .expression_table
+            .expression_is_valid(local.initial_value)
+    {
+        return None;
+    }
+    let primitive_type = program.primitive_type_reference(local.type_reference)?;
+    let value = facts.values.scalar_expressions.expression_at(
+        state.symbol,
+        statement_index,
+        CheckedScalarExpressionRole::LocalInitializer { binding_ordinal },
+    )?;
+    if crate::values::scalar_expression_type(value) != Some(primitive_type)
+        || matches!(value, CheckedScalarExpression::Boolean(expression) if checked_boolean_contains_short_circuit(expression))
+    {
+        return None;
+    }
+    Some((
+        CheckedUnitScalarResultBindingPlan {
+            statement_index,
+            binding_ordinal,
+            primitive_type,
+        },
+        value.clone(),
+    ))
 }

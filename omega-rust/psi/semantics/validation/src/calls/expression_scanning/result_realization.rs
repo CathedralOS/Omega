@@ -135,7 +135,7 @@ fn type_reference_contains_dynamic_trait(
     }
 }
 
-/// Free scalar initializers and the first immutable result call in a Unit body
+/// Free scalar initializers and immutable scalar result calls in a Unit body
 /// retain nested operands through checked computation lowering. Other value
 /// destinations keep the realization fence until they use that evaluation path.
 pub(crate) fn report_nested_call_in_local_initializer(
@@ -159,6 +159,8 @@ pub(crate) fn report_nested_call_in_local_initializer(
 /// Source-family eligibility for the existing Unit result-local call path.
 /// Typing and ordinary call validation still own result, argument and contract
 /// compatibility; this predicate does not supply those semantic judgments.
+/// Structural results retain the first-initializer ownership route; scalar
+/// results may follow earlier statements without advancing their own namespace.
 pub fn unit_result_initializer_call_is_supported(
     program: &TypedTrees,
     machine: &Machine,
@@ -172,14 +174,27 @@ pub fn unit_result_initializer_call_is_supported(
     {
         return false;
     }
-    let Some(StatementNode::LocalData(local)) = program
+    let mut initializers = program
         .statement_table
         .statements(state.statement_nodes)
-        .first()
-    else {
+        .iter()
+        .enumerate()
+        .filter_map(|(statement_index, statement)| match statement {
+            StatementNode::LocalData(local) if local.initial_value == value => {
+                Some((statement_index, local))
+            }
+            _ => None,
+        });
+    let Some((statement_index, local)) = initializers.next() else {
         return false;
     };
-    if local.is_mutable || local.initial_value != value {
+    if initializers.next().is_some()
+        || local.is_mutable
+        || (statement_index != 0
+            && program
+                .primitive_type_reference(local.type_reference)
+                .is_none())
+    {
         return false;
     }
     let ExpressionNode::Call(call) = program.expression_table.expression(value) else {

@@ -12,6 +12,7 @@ pub(crate) fn validate_computation_calls(
     authored_root: ExpressionHandle,
 ) -> Result<(), LoweringError> {
     let expressions = authored_expressions(checked, authored_root)?;
+    validate_local_availability(checked, state, statement, &expressions)?;
     let plans = &checked.facts.values.scalar_computations;
     let control = &checked.facts.flow.control;
     let mut states = control
@@ -151,6 +152,49 @@ pub(crate) fn validate_computation_calls(
                 }
                 pending.extend(arguments.iter().rev().map(|argument| (*argument, false)));
             }
+        }
+    }
+    Ok(())
+}
+
+// A retained computation cannot make a not-yet-established source local
+// available. This checks declaration order, not pure-expression semantics.
+// Earlier mutable locals remain available to the storage-read evaluator.
+fn validate_local_availability(
+    checked: &CheckedTrees,
+    state: symbols::SymbolHandle,
+    statement: u32,
+    expressions: &[ExpressionHandle],
+) -> Result<(), LoweringError> {
+    let (_, state) = authored_state(checked, state)?;
+    let pending = checked
+        .statement_table
+        .statements(state.statement_nodes)
+        .get(statement as usize..)
+        .ok_or(LoweringError::Unsupported(
+            "computed value has no authored declaration position",
+        ))?;
+    for expression in expressions {
+        let ExpressionNode::Name(path) = checked.expression_table.expression(*expression) else {
+            continue;
+        };
+        if path.symbol.is_valid()
+            && path.head_symbol.is_valid()
+            && path.symbol != path.head_symbol
+            && checked
+                .expression_table
+                .name_path_members(path.members)
+                .len()
+                == 1
+        {
+            return unsupported("computed value has inconsistent resolved name identities");
+        }
+        if pending.iter().any(|statement| {
+            matches!(statement, StatementNode::LocalData(local)
+                if local.symbol.is_valid()
+                    && (local.symbol == path.symbol || local.symbol == path.head_symbol))
+        }) {
+            return unsupported("computed value reads a local before its establishment");
         }
     }
     Ok(())

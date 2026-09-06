@@ -7,6 +7,7 @@ use checked_trees::{
 };
 
 mod call_occurrences;
+mod scalar_sequence;
 pub(super) use call_occurrences::outer_calls;
 
 pub(crate) fn build_checked_structural_unit_control_plans(
@@ -1174,24 +1175,52 @@ fn build_checked_machine_with(
             )
         })
         .flatten();
-    let scalar_expression_locals =
-        if selected_scalar_result_local.is_some() || scalar_result_local.is_some() {
-            scalar_expression_local_suffix(program, facts, state, statements)?
-        } else {
-            super::scalar_locals::scalar_expression_local_prefix(program, facts, state, statements)
-                .unwrap_or_default()
-        };
-    let scalar_result_local_count = selected_ieee_float_fma_result_locals.as_ref().map_or_else(
-        || {
-            usize::from(
-                scalar_result_local.is_some()
-                    || selected_scalar_result_local.is_some()
-                    || selected_structural_result_local.is_some()
-                    || boundary_structural_result_local.is_some(),
-            ) + scalar_expression_locals.len()
-        },
-        Vec::len,
-    );
+    let scalar_sequence = if selected_scalar_result_local.is_none()
+        && selected_structural_result_local.is_none()
+        && boundary_structural_result_local.is_none()
+        && selected_ieee_float_fma_result_locals.is_none()
+        && construction.is_none()
+        && affine_scalar_record_local.is_none()
+        && write_only_store.is_none()
+        && structural_scalar_field_store.is_none()
+        && scalar_sequence::has_scalar_statement_shape(program, statements)
+    {
+        Some(scalar_sequence::build(
+            program,
+            facts,
+            machine,
+            state,
+            &structural_parameters,
+            &entry_claims,
+            &calls,
+        )?)
+    } else {
+        None
+    };
+    let scalar_expression_locals = if scalar_sequence.is_some() {
+        Vec::new()
+    } else if selected_scalar_result_local.is_some() || scalar_result_local.is_some() {
+        scalar_expression_local_suffix(program, facts, state, statements)?
+    } else {
+        super::scalar_locals::scalar_expression_local_prefix(program, facts, state, statements)
+            .unwrap_or_default()
+    };
+    let scalar_result_local_count = scalar_sequence
+        .as_ref()
+        .map(|sequence| sequence.local_count)
+        .unwrap_or_else(|| {
+            selected_ieee_float_fma_result_locals.as_ref().map_or_else(
+                || {
+                    usize::from(
+                        scalar_result_local.is_some()
+                            || selected_scalar_result_local.is_some()
+                            || selected_structural_result_local.is_some()
+                            || boundary_structural_result_local.is_some(),
+                    ) + scalar_expression_locals.len()
+                },
+                Vec::len,
+            )
+        });
     let has_scalar_result_local = scalar_result_local_count != 0;
     if has_scalar_result_local && (construction.is_some() || affine_scalar_record_local.is_some()) {
         return None;
@@ -1243,10 +1272,11 @@ fn build_checked_machine_with(
         let expected_call_count = call_statements.len().checked_add(usize::from(
             scalar_result_local.is_some() || boundary_structural_result_local.is_some(),
         ))?;
-        if calls.len() != expected_call_count
-            || call_statements
-                .iter()
-                .any(|statement| !matches!(statement, StatementNode::Call(_)))
+        if scalar_sequence.is_none()
+            && (calls.len() != expected_call_count
+                || call_statements
+                    .iter()
+                    .any(|statement| !matches!(statement, StatementNode::Call(_))))
         {
             return None;
         }
@@ -1365,7 +1395,10 @@ fn build_checked_machine_with(
             },
         );
     }
-    if scalar_result_local.is_none() && selected_scalar_result_local.is_none() {
+    if scalar_sequence.is_none()
+        && scalar_result_local.is_none()
+        && selected_scalar_result_local.is_none()
+    {
         operations.extend(
             scalar_expression_locals
                 .iter()
@@ -1379,7 +1412,9 @@ fn build_checked_machine_with(
         );
     }
     operations.reserve(calls.len() + 1);
-    if let Some(store) = write_only_store {
+    if let Some(sequence) = scalar_sequence {
+        operations.extend(sequence.operations);
+    } else if let Some(store) = write_only_store {
         if let Some((application, result)) = selected_scalar_result_local {
             operations.push(build_selected_operator_scalar_call(
                 program,
@@ -1552,39 +1587,6 @@ fn build_checked_machine_with(
                     completion_receipts,
                     discard_result_on_return,
                 });
-                1
-            } else if let Some(result) = scalar_result_local {
-                let call = calls.first()?;
-                if call.statement_index != usize::try_from(result.statement_index).ok()?
-                    || call.call_ordinal != 0
-                {
-                    return None;
-                }
-                let call_operation = build_call_operation(
-                    program,
-                    facts,
-                    machine,
-                    state,
-                    &structural_parameters,
-                    &local_rows,
-                    affine_scalar_record_local.as_slice(),
-                    &entry_claims,
-                    call,
-                    false,
-                    Some(ExpectedCallValueResult::Scalar(result.primitive_type)),
-                )?;
-                operations.push(bind_scalar_call_result(
-                    facts,
-                    call_operation,
-                    result,
-                    true,
-                )?);
-                operations.extend(scalar_expression_locals.iter().cloned().map(
-                    |(result, value)| CheckedUnitEffectOperationPlan::EstablishScalarLocal {
-                        result,
-                        value,
-                    },
-                ));
                 1
             } else {
                 0

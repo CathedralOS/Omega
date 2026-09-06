@@ -11,6 +11,21 @@ pub(super) fn validate_operation(
     caller_state: symbols::SymbolHandle,
     operation: &CheckedUnitEffectOperationPlan,
 ) -> Result<(), LoweringError> {
+    if let CheckedUnitEffectOperationPlan::ScalarCall { result, .. }
+    | CheckedUnitEffectOperationPlan::BoundaryScalarCall { result, .. } = operation
+    {
+        let source = crate::scalar_source_custody::locate(
+            checked,
+            caller_state,
+            result.statement_index,
+            CheckedScalarExpressionRole::LocalInitializer {
+                binding_ordinal: result.binding_ordinal,
+            },
+        )?;
+        if source.machine != caller_machine || source.primitive_type != result.primitive_type {
+            return unsupported("call result binding disagrees with its authored scalar local");
+        }
+    }
     let (coordinate, target_machine, target_state, arguments, boundary, source_site) =
         match operation {
             CheckedUnitEffectOperationPlan::CallUnit {
