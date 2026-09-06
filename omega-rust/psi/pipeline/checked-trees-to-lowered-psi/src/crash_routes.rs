@@ -1,4 +1,4 @@
-//! Crash-route, structural requirement, and canonical proposition lowering.
+//! Crash-route and canonical proposition lowering.
 
 use super::*;
 
@@ -305,7 +305,7 @@ pub(crate) fn lower_structural_member_path(
     unreachable!("nonempty structural path returns at its final field")
 }
 
-fn lower_structural_member_term(
+pub(super) fn lower_structural_member_term(
     parameter_position: u32,
     path: &[checked_trees::CheckedStructuralPredicatePathSegment],
     expected: ScalarType,
@@ -451,134 +451,6 @@ fn lower_structural_sum_subject(
         StructuralCaseSubject::new(parameter.place, terminal_path),
         structural_type,
     ))
-}
-
-pub(super) fn lower_structural_runtime_requirement(
-    expression: &CheckedBooleanExpression,
-    scalar_parameters: &[ValueDeclaration],
-    parameters: &[StructuralParameterDeclaration],
-    structural_types: &[StructuralTypeDeclaration],
-) -> Result<Proposition, LoweringError> {
-    fn integer_term(
-        expression: &CheckedScalarExpression,
-        scalar_parameters: &[ValueDeclaration],
-        parameters: &[StructuralParameterDeclaration],
-        structural_types: &[StructuralTypeDeclaration],
-    ) -> Result<ScalarTerm, LoweringError> {
-        match expression {
-            CheckedScalarExpression::Parameter { primitive_type, .. } => {
-                if *primitive_type == PrimitiveType::Addr {
-                    return unsupported("runtime requirement scalar cannot use an address carrier");
-                }
-                integer_scalar_type(*primitive_type)?;
-                checked_scalar_term(expression, scalar_parameters)
-            }
-            CheckedScalarExpression::StructuralParameterField {
-                parameter_position,
-                path,
-                primitive_type,
-            } => {
-                let ScalarType::Integer(integer_type) = integer_scalar_type(*primitive_type)?
-                else {
-                    return unsupported("structural runtime requirement member is not an integer");
-                };
-                lower_structural_member_term(
-                    *parameter_position,
-                    path,
-                    ScalarType::Integer(integer_type),
-                    parameters,
-                    structural_types,
-                )
-            }
-            CheckedScalarExpression::IntegerLiteral { literal } => {
-                let scalar_type = integer_landing_scalar_type(literal)?;
-                let ScalarType::Integer(integer_type) = scalar_type else {
-                    return unsupported("structural runtime requirement literal is not an integer");
-                };
-                ScalarTerm::integer(integer_type, integer_value(literal, scalar_type)?)
-                    .map_err(LoweringError::InvalidCrashPredicate)
-            }
-            _ => unsupported(
-                "structural runtime requirements admit only integer parameters, members, and literals",
-            ),
-        }
-    }
-
-    let CheckedBooleanExpression::IntegerComparison { kind, left, right } = expression else {
-        return unsupported(
-            "structural runtime divisor evidence must be an integer comparison requirement",
-        );
-    };
-    let mut left = integer_term(left, scalar_parameters, parameters, structural_types)?;
-    let mut right = integer_term(right, scalar_parameters, parameters, structural_types)?;
-    match kind {
-        CheckedIntegerComparisonKind::Equal => {
-            let order_key = |term: &ScalarTerm| {
-                terminal_codec::canonical_scalar_term_order_key(term).map_err(|_| {
-                    LoweringError::Unsupported(
-                        "runtime requirement equality term is not canonically encodable",
-                    )
-                })
-            };
-            if order_key(&left)? > order_key(&right)? {
-                std::mem::swap(&mut left, &mut right);
-            }
-            Ok(Proposition::Equal(left, right))
-        }
-        CheckedIntegerComparisonKind::LessThan => Ok(Proposition::LessThan(left, right)),
-        CheckedIntegerComparisonKind::LessOrEqual => Ok(Proposition::LessOrEqual(left, right)),
-    }
-}
-/// Rebind only the leaves admitted by `lower_structural_runtime_requirement`.
-/// The callee's ordered requirement slots remain unchanged after substitution.
-pub(super) fn substitute_runtime_requirement_scalar_values(
-    proposition: &mut Proposition,
-    substitutions: &BTreeMap<ValueId, ValueDeclaration>,
-) -> Result<(), LoweringError> {
-    fn substitute_term(
-        term: &ScalarTerm,
-        substitutions: &BTreeMap<ValueId, ValueDeclaration>,
-    ) -> Result<ScalarTerm, LoweringError> {
-        match term {
-            ScalarTerm::Value { id, scalar_type } => {
-                let ScalarType::Integer(integer_type) = scalar_type else {
-                    return unsupported("runtime requirement value is not an integer");
-                };
-                if integer_type.is_address() {
-                    return unsupported("runtime requirement value cannot use an address carrier");
-                }
-                let actual = substitutions.get(id).ok_or(LoweringError::Unsupported(
-                    "runtime requirement scalar formal has no exact actual argument",
-                ))?;
-                if actual.scalar_type != *scalar_type {
-                    return unsupported(
-                        "runtime requirement scalar argument changes its formal type",
-                    );
-                }
-                Ok(ScalarTerm::value(actual.id, actual.scalar_type))
-            }
-            ScalarTerm::Integer { .. } | ScalarTerm::IntegerField { .. } => Ok(term.clone()),
-            _ => unsupported(
-                "runtime requirement scalar substitution encountered an unsupported term",
-            ),
-        }
-    }
-
-    let (left, right) = match proposition {
-        Proposition::Equal(left, right)
-        | Proposition::LessThan(left, right)
-        | Proposition::LessOrEqual(left, right) => (left, right),
-        _ => {
-            return unsupported(
-                "runtime requirement scalar substitution requires an integer comparison",
-            );
-        }
-    };
-    let rebound_left = substitute_term(left, substitutions)?;
-    let rebound_right = substitute_term(right, substitutions)?;
-    *left = rebound_left;
-    *right = rebound_right;
-    Ok(())
 }
 
 fn safe_exact_structural_divisor(

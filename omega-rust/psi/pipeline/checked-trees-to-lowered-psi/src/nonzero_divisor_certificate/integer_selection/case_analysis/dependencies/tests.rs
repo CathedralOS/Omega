@@ -77,7 +77,7 @@ fn aliases_and_coupled_facts_connect_cases_transitively() {
     ];
     let selected = connected_cases(&goal, &[], &facts);
     assert_eq!(selected.len(), 1);
-    assert_eq!(selected[0].1, &relevant);
+    assert_eq!(selected[0].proposition, &relevant);
 }
 
 #[test]
@@ -138,4 +138,115 @@ fn conditional_literal_equalities_are_not_treated_as_known_constants() {
         ]),
     ];
     assert_eq!(connected_cases(&goal, &[], &facts).len(), 2);
+}
+
+#[test]
+fn conjunction_packaging_does_not_connect_independent_cases() {
+    let cases = (1..=64)
+        .map(|index| {
+            Proposition::Disjunction(vec![
+                Proposition::LessThan(value(index), value(1001)),
+                Proposition::LessThan(value(1001), value(index)),
+            ])
+        })
+        .collect::<Vec<_>>();
+    let facts = [Proposition::Conjunction(vec![
+        Proposition::Conjunction(cases.clone()),
+        Proposition::Equal(value(1001), value(1002)),
+        Proposition::Equal(value(1002), integer(0)),
+    ])];
+    let goal = Proposition::LessThan(integer(0), value(1));
+    let selected = connected_cases(&goal, &[], &facts);
+    assert_eq!(selected.len(), 1);
+    assert_eq!(selected[0].proposition, &cases[0]);
+    assert!(
+        connected_cases(&Proposition::LessThan(integer(0), value(999)), &[], &facts,).is_empty()
+    );
+}
+
+#[test]
+fn nested_boolean_cases_replay_exact_projections_and_actual_aliases() {
+    let context = PropositionContext::from_value_types(
+        (1..=4).map(|index| (ValueId::new(index).unwrap(), ScalarType::Boolean)),
+    )
+    .unwrap();
+    let boolean = |index| ScalarTerm::value(ValueId::new(index).unwrap(), ScalarType::Boolean);
+    let positive = |index| Proposition::Equal(boolean(index), ScalarTerm::boolean(true));
+    let alternatives = Proposition::Disjunction(vec![positive(1), positive(2)]);
+    let packaged = Proposition::Conjunction(vec![
+        Proposition::Truth,
+        Proposition::Conjunction(vec![alternatives.clone(), Proposition::Truth]),
+    ]);
+    let goal = Proposition::Disjunction(vec![positive(4), positive(3)]);
+    let aliases = vec![
+        Proposition::Equal(boolean(3), boolean(1)),
+        Proposition::Equal(boolean(4), boolean(2)),
+    ];
+    for semantic_origin in [false, true] {
+        let mut assumptions = vec![Proposition::Truth];
+        let mut axioms = aliases.clone();
+        if semantic_origin {
+            axioms.push(packaged.clone());
+        } else {
+            assumptions.push(packaged.clone());
+        }
+        let selected = connected_cases(&goal, &assumptions, &axioms);
+        assert_eq!(selected.len(), 1);
+        assert_eq!(selected[0].projection, vec![1, 0]);
+        let projected = selected[0].proof();
+        accept_certificate(&context, &alternatives, &assumptions, &axioms, &projected)
+            .expect("each projection retains its original premise index");
+        let proof = super::super::super::build(&context, &goal, &assumptions, &axioms)
+            .expect("reordered actuals transport through each exact Boolean case");
+        accept_certificate(&context, &goal, &assumptions, &axioms, &proof)
+            .expect("kernel replays projected cases and actual-value equations");
+
+        let mut corrupted = projected.clone();
+        let ProofRule::ConjunctionElimination { conjunct, .. } = &mut corrupted.rule else {
+            panic!("nested case retains its projection")
+        };
+        *conjunct = 1;
+        assert!(
+            accept_certificate(&context, &alternatives, &assumptions, &axioms, &corrupted).is_err()
+        );
+        let (mut missing_assumptions, mut missing_axioms) = (assumptions.clone(), axioms.clone());
+        if semantic_origin {
+            missing_axioms.pop();
+        } else {
+            missing_assumptions.pop();
+        }
+        assert!(
+            accept_certificate(
+                &context,
+                &goal,
+                &missing_assumptions,
+                &missing_axioms,
+                &proof
+            )
+            .is_err()
+        );
+        assert!(
+            super::super::super::build(&context, &goal, &missing_assumptions, &missing_axioms)
+                .is_none()
+        );
+        let (mut changed_assumptions, mut changed_axioms) = (assumptions.clone(), axioms.clone());
+        if semantic_origin {
+            *changed_axioms.last_mut().unwrap() = Proposition::Truth;
+        } else {
+            *changed_assumptions.last_mut().unwrap() = Proposition::Truth;
+        }
+        assert!(
+            accept_certificate(
+                &context,
+                &goal,
+                &changed_assumptions,
+                &changed_axioms,
+                &proof
+            )
+            .is_err()
+        );
+        let mut missing_alias = axioms.clone();
+        missing_alias[0] = Proposition::Truth;
+        assert!(accept_certificate(&context, &goal, &assumptions, &missing_alias, &proof).is_err());
+    }
 }

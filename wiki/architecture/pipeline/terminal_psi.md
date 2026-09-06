@@ -3175,7 +3175,19 @@ the call requirements. Complete supported integer entry-requirement packages
 remain present even when the caller's crash ceiling is unconditional or absent.
 Nominal cleanup retains ownership of its contextual caller and target contracts;
 the shared Unit closure does not interpret those provisional namespaces as final
-parameters. This does not extend the general runtime contract vocabulary.
+parameters.
+Ordinary Unit requirements also retain Boolean parameters and exact structural
+Boolean members, constants, negation, equality, conjunction, and disjunction.
+Scalar and Unit contracts share bounded Boolean polarity conversion; each owner
+supplies its own parameter/member namespace and integer-bound encoding. Unit
+integer comparisons keep their original strict or inclusive spelling. Scalar
+and structural actual substitution preserves requirement slots and child order;
+reordered or shared arguments do not recanonicalize the reconstructed obligation.
+These requirements use the same independently checked pre-call certificates.
+Case analysis projects nested disjunctions from conjunctions with explicit
+elimination proofs; it does not turn a conjunct into an uncited entry assumption.
+This does not establish totality from integer bounds hidden inside logical
+connectives or extend requirements to unsupported arithmetic operands.
 Arithmetic formation obligations precede the call
 obligation; the shared proof producer uses reconstructed operation equations and
 caller facts rather than replacing the argument with its authored expression or

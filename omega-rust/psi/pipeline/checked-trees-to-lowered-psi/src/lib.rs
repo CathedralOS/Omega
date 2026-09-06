@@ -107,6 +107,7 @@ mod boundary_scalar_return;
 mod call_source_custody;
 mod conformance_applications;
 mod content_conservation;
+mod contract_predicates;
 mod crash_routes;
 mod debug_map;
 mod dynamic_composed_unit;
@@ -123,6 +124,7 @@ mod quotient_correspondence;
 mod reborrow_restored_call_use;
 mod reborrow_root_handoff;
 mod retained_borrow_custody;
+mod runtime_requirements;
 mod scalar_bindings;
 mod scalar_call_closure;
 mod scalar_computations;
@@ -166,8 +168,7 @@ use crash_routes::{checked_boolean_proposition, lower_checked_crash_frontier};
 use crash_routes::{
     lower_checked_crash_exit, lower_checked_crash_predicates, lower_checked_crash_route_buckets,
     lower_checked_crash_routes, lower_structural_crash_route_buckets,
-    lower_structural_runtime_requirement, structural_crash_route_argument_prefix,
-    substitute_structural_crash_route_roots,
+    structural_crash_route_argument_prefix, substitute_structural_crash_route_roots,
 };
 use debug_map::build_debug_map;
 use evidence_lowering::lower_and_install_evidence_artifacts;
@@ -185,6 +186,7 @@ use operation_emission::{
 use payloadless_case_return::lower_payloadless_case_return_machine;
 use proof_recursion::lower_and_install_proof_recursion;
 pub use quotient_correspondence::install_non_executable_quotient_correspondences;
+use runtime_requirements::lower_structural_runtime_requirement;
 use scalar_call_closure::checked_scalar_call_closure;
 use scalar_graph_lowering::{
     KnownDirectScalar, contains_short_circuit, direct_expression_contains_short_circuit,
