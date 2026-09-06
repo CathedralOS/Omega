@@ -1,0 +1,136 @@
+{
+  "date": "2026-09-05",
+  "host": "Windows; AMD Ryzen 9 7950X; 32 logical processors",
+  "mbx": "1.8.1",
+  "worktree_head": "014327fb2ce19367a8b14468641fa78be185fc16",
+  "timing_scope": "Existing library test binaries, compilation excluded; active workstation",
+  "samples_seconds": {
+    "source_32_threads": [
+      66.1800245,
+      63.8844346,
+      62.3182548
+    ],
+    "source_8_threads": [
+      48.3315657,
+      58.1964581,
+      53.9569521
+    ],
+    "manager_32_threads": [
+      65.6082855,
+      68.2786398,
+      76.3954775
+    ],
+    "both_binaries_8_threads_each": [
+      95.65443,
+      96.5876701,
+      105.5218521
+    ]
+  },
+  "source_outcome_each_run": {
+    "passed": 150,
+    "failed": 1,
+    "ignored": 12
+  },
+  "manager_outcome_each_run": {
+    "passed": 262,
+    "failed": 0,
+    "ignored": 2
+  },
+  "full_workspace_8_threads": {
+    "seconds_including_build": 168.5218767,
+    "exit": 101,
+    "targets": 117,
+    "passed": 7681,
+    "failed": 3,
+    "ignored": 14,
+    "manager_seconds": 80.72,
+    "adopted": false
+  },
+  "nextest_experiment": {
+    "version": "0.9.140",
+    "stopped_at_seconds": 240.8460035,
+    "compilation_seconds": 57.96,
+    "complete": false,
+    "adopted": false
+  },
+  "confirmation_seconds": {
+    "source_8_threads": [
+      61.2034588,
+      64.053481
+    ],
+    "source_32_threads": [
+      64.6971634,
+      59.0511443
+    ]
+  },
+  "nextest_followup": "Adopted at user request with change selection; no full-suite speedup claimed.",
+  "migration_validation": {
+    "base": "ac3b45e9b462def078772e5bd5ca31be0a544ec0",
+    "nextest_architecture": {
+      "passed": 448,
+      "seconds_execution": 9.258
+    },
+    "nextest_libraries": {
+      "passed": 7684,
+      "failed": 3,
+      "ignored": 14,
+      "seconds_execution": 357.071
+    },
+    "selector_tests_passed": 10,
+    "format_packages_passed": 119,
+    "workspace_check_passed": true,
+    "strict_clippy_passed": false,
+    "macos_tested": false
+  },
+  "selection_validation": {
+    "example_changed_path": "omega-rust/omega/backend/instruction_set_architectures/x86-encoding/src/lib.rs",
+    "selected_packages": [
+      "compilation-report",
+      "compiler",
+      "component-candidate",
+      "component-deployment",
+      "component-publication",
+      "image",
+      "image-elf",
+      "image-emission",
+      "image-macho",
+      "image-pe",
+      "machine-emission",
+      "native-artifact",
+      "native-realization",
+      "object-file",
+      "omega",
+      "omega-native-differential-test",
+      "package-advisory",
+      "package-evidence",
+      "package-manager",
+      "trust-ledger",
+      "x86-encoding"
+    ],
+    "nextest_library_packages": [
+      "compilation-report",
+      "compiler",
+      "component-candidate",
+      "component-deployment",
+      "component-publication",
+      "image",
+      "image-elf",
+      "image-emission",
+      "image-macho",
+      "image-pe",
+      "machine-emission",
+      "native-artifact",
+      "native-realization",
+      "object-file",
+      "omega-native-differential-test",
+      "package-advisory",
+      "package-evidence",
+      "package-manager",
+      "trust-ledger",
+      "x86-encoding"
+    ],
+    "active_library_tests": 1067,
+    "full_active_library_tests": 7687,
+    "library_execution_reduction_percent": 86.119422401457
+  }
+}

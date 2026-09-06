@@ -45,9 +45,9 @@ The baseline gates for a fresh checkout are:
 mbx --version
 cargo fmt --all -- --check
 mbx clippy --workspace --all-targets -- -D warnings
-mbx test -p omega-architecture-test --all-targets
+mbx nextest run -p omega-architecture-test --all-targets --no-fail-fast
 mbx check --workspace --all-targets
-mbx test --workspace --lib --no-fail-fast
+mbx nextest run --workspace --lib --no-fail-fast
 ```
 
 The final command is the platform-portable test subset: all workspace library
@@ -223,10 +223,10 @@ Set `OMEGA_LIBRARY_ROOT` to point at a different bundled library root when testi
 
 ## Useful Commands
 
-Run tests:
+Run tests (see [local testing](wiki/testing.md) for installation and affected-test selection):
 
 ```bash
-mbx test
+mbx nextest run --workspace --lib --no-fail-fast
 ```
 
 Check a sample:
@@ -244,8 +244,8 @@ mbx run -p omega -- --target macos_arm64 samples/cli/basics/cli_mvp/main.omg
 Run focused compiler acceptance groups:
 
 ```bash
-mbx test -p compiler --test canary_suite entry_and_abi::pass_canaries_compile
-mbx test -p compiler --test canary_suite proof_and_float_suites::fail_canaries_reject_with_expected_diagnostic_fragment
+mbx nextest run -p compiler --test canary_suite entry_and_abi::pass_canaries_compile
+mbx nextest run -p compiler --test canary_suite proof_and_float_suites::fail_canaries_reject_with_expected_diagnostic_fragment
 ```
 
 ## Design Notes
