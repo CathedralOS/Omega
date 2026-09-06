@@ -1765,6 +1765,16 @@ Current ownership is:
   summaries; malformed, label-only, out-of-bounds/nonliteral/runtime-indexed,
   later/missing/duplicate/reordered/type- or symbol-substituted local,
   foreign-machine, or sibling-state-rooted correspondence fails closed.
+  `checks/termination/progress/lineage.rs` carries finite exact entry-subject
+  alternatives across local states. `lineage/transfers.rs` builds parameter
+  dependencies from resolved transition arguments. A nonempty projection edge
+  with a return path grows on a cycle; once seeded, that destination and its
+  dependents cannot supply finite caller premises. An unseeded cycle stays
+  unseen and cannot poison a reachable join. Identity cycles, parameter exchanges,
+  and acyclic projected transfers retain their exact alternatives. Unused
+  growing parameters do not prevent checked termination. The remaining
+  correspondence converges without a projection-length or iteration limit;
+  qualification receipt replay is unchanged.
   `checks/termination/progress/components.rs` closes private summaries within
   each revalidated runtime call component. Validation and this query share the
   complete call graph, including proof dependencies; a runtime subset of a

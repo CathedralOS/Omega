@@ -112,6 +112,15 @@ instantiating the machine's still-forming summary as a nested call, while its
 actual arguments still correspond exactly to the resolved state's formal
 parameters for progress-subject lineage.
 
+Local-state correspondence retains every finite entry-subject alternative.
+Identity-preserving loops can exchange parameters without making those
+subjects ambiguous. Repeated projection has no finite closure in the
+parameter-transfer graph and cannot establish the original entry
+qualification. This concerns subject correspondence, not the independently
+checked ranking. Merely forwarding an unused
+recursive reference does not add a progress dependency or prevent checking
+from finishing.
+
 The normalized enum, snapshots, and artifact discriminator spell this positive
 case `Terminates`. There is no second completion guarantee behind that name.
 
