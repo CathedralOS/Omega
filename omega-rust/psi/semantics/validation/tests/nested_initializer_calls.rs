@@ -135,22 +135,11 @@ fn unserved_initializers_keep_nested_call_realization_fence() {
          machine value(input: bool) {
              let mut saved: bool = identity(identity(input));
          }",
-        "machine identity(input: bool) -> bool { input }
-         machine value(input: bool) {
-             let before: bool = input;
-             let saved: bool = identity(identity(before));
-         }",
         "data Container { flag: bool; }
          machine identity(input: bool) -> bool { input }
          machine Container::read(&self, input: bool) -> bool { input }
          machine value(container: &Container, input: bool) {
              let saved: bool = container.read(identity(input));
-         }",
-        "data Packet { flag: bool; }
-         machine identity(input: bool) -> bool { input }
-         machine packet(input: bool) -> Packet { Packet { flag: input } }
-         machine value(input: bool) {
-             let saved: Packet = packet(identity(input));
          }",
         "machine identity(input: bool) -> bool { input }
          machine value<machine Read>(input: bool)
@@ -169,11 +158,16 @@ fn unserved_initializers_keep_nested_call_realization_fence() {
 }
 
 #[test]
-fn first_immutable_unit_result_initializers_admit_computed_scalar_operands() {
+fn immutable_unit_result_initializers_admit_computed_scalar_operands() {
     for source in [
         "machine identity(input: bool) -> bool { input }
          machine value(input: bool) {
              let saved: bool = identity(identity(input));
+         }",
+        "machine identity(input: bool) -> bool { input }
+         machine value(input: bool) {
+             let before: bool = input;
+             let saved: bool = identity(identity(before));
          }",
         "data Scalar {}
          machine identity(input: bool) -> bool { input }
@@ -203,6 +197,21 @@ fn first_immutable_unit_result_initializers_admit_computed_scalar_operands() {
         let diagnostics = diagnostics(source);
         assert!(diagnostics.is_empty(), "{source}: {diagnostics:?}");
     }
+}
+
+#[test]
+fn plain_structural_result_source_family_defers_producer_support_to_lowering() {
+    // Validation accepts the source family; it does not assert that an
+    // executable structural producer exists. The lowerer pins that boundary.
+    let messages = diagnostics(
+        "data Packet { flag: bool; }
+         machine identity(input: bool) -> bool { input }
+         machine packet(input: bool) -> Packet { Packet { flag: input } }
+         machine value(input: bool) {
+             let saved: Packet = packet(identity(input));
+         }",
+    );
+    assert!(messages.is_empty(), "{messages:?}");
 }
 
 #[test]
