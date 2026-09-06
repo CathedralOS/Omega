@@ -506,6 +506,14 @@ After the usual range-validity obligations, the identical half-open boundary
 `mid` proves adjacency without requiring literal endpoints or a separately
 authored disjointness theorem.
 
+That boundary may be a computed immutable local or a finite chain of immutable
+copies of it. The automatic identity comparison retains the binding's captured
+value identity; it does not reevaluate its initializer or prove equality between
+separately computed bindings.
+Mutable, ambiguous, and cyclic aliases remain conservative, as do inclusive
+symbolic upper bounds. Value identity alone proves neither range validity nor
+a compile-time constant index.
+
 No public `footprint(...)` contract surface follows from this rule. Most
 source contracts state ordinary value relationships such as `mid <= items.len`,
 from which the checker derives projected-place relationships. Public abstract
@@ -516,8 +524,9 @@ as an `Extent` can relate its address-interval content to a place range.
 
 > **Implementation direction (August 2026):** checked trees already retain
 > first-class loans and use borrow accesses to invalidate proof facts, but the
-> convergence is incomplete. Symbolic range comparison is still largely
-> literal-only, arbitrary valid proof facts do not yet discharge one canonical
+> convergence is incomplete. Beyond exact shared immutable boundary identities,
+> symbolic range ordering and containment remain limited. Arbitrary valid proof
+> facts do not yet discharge one canonical
 > place-compatibility obligation, and ordinary loan compatibility is not yet
 > retained as an independently replayable Terminal certificate.
 

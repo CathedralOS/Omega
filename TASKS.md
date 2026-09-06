@@ -398,8 +398,9 @@ Owners include
   following callee sees the staged write.
 
 - **BORROW-PROOF-CONVERGENCE.** Make ordinary borrow checking proof-producing
-  without allowing propositions to create or amplify authority. Normalize
-  symbolic half-open ranges, then admit explicit compatibility theorems over
+  without allowing propositions to create or amplify authority. Extend symbolic
+  range ordering and containment beyond exact shared immutable boundaries, then
+  admit explicit compatibility theorems over
   already-existing places and occurrences. Acceptance: proof evidence can
   establish disjointness/containment but cannot extend lifetime, duplicate a
   loan, or replace ownership accounting.

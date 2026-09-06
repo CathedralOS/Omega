@@ -423,7 +423,12 @@ fn normalized_bound(
     program: &typed_trees::TypedTrees,
     expression: ExpressionHandle,
 ) -> Option<NormalizedBound> {
-    let expression = validation::normalize_immutable_integer_bound_expression(program, expression)?;
+    let Some(expression) =
+        validation::normalize_immutable_integer_bound_expression(program, expression)
+    else {
+        return validation::computed_immutable_integer_bound_symbol(program, expression)
+            .map(NormalizedBound::Symbol);
+    };
     match program.expression_table.expression(expression) {
         ExpressionNode::Integer(value) => value.value_i64().map(NormalizedBound::Integer),
         ExpressionNode::Name(path) => {
@@ -732,7 +737,9 @@ mod tests {
                 }));
         install_locals(
             &mut program,
-            [(symbol(9), "computed", computed_initial, false)],
+            // Mutation prevents one binding identity from denoting a frozen
+            // value at both formations, even when its initializer is pure.
+            [(symbol(9), "computed", computed_initial, true)],
         );
         let zero = integer(&mut program, 0);
         let four = integer(&mut program, 4);
