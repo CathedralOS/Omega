@@ -287,6 +287,15 @@ pub(super) fn propagate_statement_transfers(
         );
     }
 
+    let scalar_value = scalar_values::capture_statement(
+        program,
+        semantic,
+        ctx,
+        state_symbol,
+        statement_index,
+        statement,
+        assignment_source_contexts,
+    );
     if let StatementNode::Assignment(assignment) = statement {
         byte_sequences::append_element_replacement_predicates(
             program,
@@ -298,6 +307,7 @@ pub(super) fn propagate_statement_transfers(
             statement_index,
             assignment.target,
             source_expression,
+            scalar_value.as_ref(),
             ProgramPoint::Statement {
                 machine_symbol,
                 state_symbol,
@@ -329,17 +339,7 @@ pub(super) fn propagate_statement_transfers(
         semantic.append_ref(&mut refs, fact);
     }
 
-    if stable_value_target
-        && let Some(value) = scalar_values::capture_statement(
-            program,
-            semantic,
-            ctx,
-            state_symbol,
-            statement_index,
-            statement,
-            assignment_source_contexts,
-        )
-    {
+    if stable_value_target && let Some(value) = scalar_value {
         let value = semantic.scalar_values.append(value);
         let fact = semantic.append_fact(Fact {
             place: FactPlace::Place(target_place),

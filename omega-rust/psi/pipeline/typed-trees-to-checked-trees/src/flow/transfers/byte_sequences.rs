@@ -146,6 +146,7 @@ pub(super) fn append_element_replacement_predicates(
     statement_index: usize,
     target: ExpressionHandle,
     source_expression: ExpressionHandle,
+    scalar_value: Option<&facts::ScalarValue>,
     point: ProgramPoint,
     references: &mut HandleSpan<facts::FactRef>,
 ) {
@@ -192,16 +193,24 @@ pub(super) fn append_element_replacement_predicates(
     {
         return;
     }
-    let Some(byte) = replacement_byte(
-        program,
-        semantic,
-        contexts,
-        active,
-        machine_symbol,
-        state_symbol,
-        statement_index,
-        source_expression,
-    ) else {
+    let byte = match scalar_value {
+        Some(facts::ScalarValue::Integer(value)) => {
+            value.to_i64().and_then(|value| u8::try_from(value).ok())
+        }
+        _ => None,
+    };
+    let Some(byte) = byte.or_else(|| {
+        replacement_byte(
+            program,
+            semantic,
+            contexts,
+            active,
+            machine_symbol,
+            state_symbol,
+            statement_index,
+            source_expression,
+        )
+    }) else {
         return;
     };
 
@@ -237,36 +246,38 @@ fn replacement_byte(
     statement_index: usize,
     source_expression: ExpressionHandle,
 ) -> Option<u8> {
-    let value = program
-        .expression_table
-        .constant_integer_value(source_expression)
-        .or_else(|| {
-            let place = contextual_expression_place(
-                program,
-                semantic,
-                machine_symbol,
-                state_symbol,
-                statement_index,
-                source_expression,
-            )?;
-            let subject =
-                canonical_place_from_semantic_place(program, semantic, semantic.places.get(place))?;
-            let facts::ScalarValue::Integer(value) = crate::values::scalar_value_at_place(
-                program,
-                semantic,
-                contexts
-                    .contexts
-                    .semantic_context_refs
-                    .span_or_empty(active)
-                    .iter()
-                    .map(|reference| semantic.contexts.get(reference.context)),
-                &subject,
-            )?
-            else {
-                return None;
-            };
-            value.to_i64()
-        })?;
+    // Compound source syntax carries no selected arithmetic or operator authority.
+    let literal = match program.expression_table.expression(source_expression) {
+        ExpressionNode::Integer(value) => value.value_i64(),
+        _ => None,
+    };
+    let value = literal.or_else(|| {
+        let place = contextual_expression_place(
+            program,
+            semantic,
+            machine_symbol,
+            state_symbol,
+            statement_index,
+            source_expression,
+        )?;
+        let subject =
+            canonical_place_from_semantic_place(program, semantic, semantic.places.get(place))?;
+        let facts::ScalarValue::Integer(value) = crate::values::scalar_value_at_place(
+            program,
+            semantic,
+            contexts
+                .contexts
+                .semantic_context_refs
+                .span_or_empty(active)
+                .iter()
+                .map(|reference| semantic.contexts.get(reference.context)),
+            &subject,
+        )?
+        else {
+            return None;
+        };
+        value.to_i64()
+    })?;
     u8::try_from(value).ok()
 }
 
