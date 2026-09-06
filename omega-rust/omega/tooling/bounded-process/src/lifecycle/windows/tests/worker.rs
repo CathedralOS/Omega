@@ -92,6 +92,12 @@ fn job_limit_worker() {
             }
             black_box(value);
         }
+        "spin-until-terminated" => {
+            let mut value = 0_u64;
+            loop {
+                value = black_box(value.wrapping_mul(6364136223846793005).wrapping_add(1));
+            }
+        }
         _ => panic!("unknown Windows Job test worker mode `{mode}`"),
     }
 }

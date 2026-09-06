@@ -93,11 +93,15 @@ fn job_aggregate_cpu_limit_terminates_the_job() {
     assert!(status.success(), "below-limit aggregate CPU should succeed");
     assert!(!events.contains(&JobLimitEvent::AggregateCpu));
 
-    // Keep the CPU threshold well below the worker's wall-clock spin. On a
-    // heavily loaded test host, one second of user time need not accrue during
-    // five seconds of wall time.
+    // Only the OS limit may finish this worker. A wall-clock deadline can end a
+    // worker successfully before it accrues enough user time on a loaded host.
     let limited = test_limits(2, 256, 512, Duration::from_millis(100));
-    let (status, events) = run_worker("spin", "5000", limited, Duration::from_secs(10));
+    let (status, events) = run_worker(
+        "spin-until-terminated",
+        "",
+        limited,
+        Duration::from_secs(10),
+    );
     assert!(!status.success(), "over-limit aggregate CPU must terminate");
     assert!(events.contains(&JobLimitEvent::AggregateCpu));
 }
