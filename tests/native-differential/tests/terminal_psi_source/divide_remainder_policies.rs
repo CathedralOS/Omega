@@ -336,7 +336,7 @@ fn checked_source_wrapping_divide_uses_known_nonzero_divisor() {
     };
     assert!(matches!(
         certificate.proof.rule,
-        proof_admission::ProofRule::IntegerLessOrEqualSubstitution { endpoint: 1, .. }
+        proof_admission::ProofRule::IntegerOrderSubstitution { endpoint: 1, .. }
     ));
 
     let semantic = encode_module(&lowered.semantic_module).expect("wrapping-divide semantics");
@@ -367,7 +367,7 @@ fn checked_source_wrapping_divide_uses_known_nonzero_divisor() {
     let proof_admission::EvidenceRoute::CertificateDerived(certificate) = &mut corrupt.route else {
         panic!("wrapping divide must use a checked certificate")
     };
-    let proof_admission::ProofRule::IntegerLessOrEqualSubstitution { endpoint, .. } =
+    let proof_admission::ProofRule::IntegerOrderSubstitution { endpoint, .. } =
         &mut certificate.proof.rule
     else {
         panic!("known divisor uses literal equality substitution")
@@ -488,7 +488,7 @@ fn exact_nonzero_rows_keep_the_canonical_divisor_question() {
         };
         assert!(matches!(
             certificate.proof.rule,
-            proof_admission::ProofRule::IntegerLessOrEqualSubstitution { endpoint: 1, .. }
+            proof_admission::ProofRule::IntegerOrderSubstitution { endpoint: 1, .. }
         ));
     }
 }
@@ -604,7 +604,7 @@ fn checked_source_wrapping_remainder_uses_known_nonzero_divisor() {
     };
     assert!(matches!(
         certificate.proof.rule,
-        proof_admission::ProofRule::IntegerLessOrEqualSubstitution { endpoint: 1, .. }
+        proof_admission::ProofRule::IntegerOrderSubstitution { endpoint: 1, .. }
     ));
 
     let semantic = encode_module(&lowered.semantic_module).expect("wrapping-remainder semantics");
@@ -636,7 +636,7 @@ fn checked_source_wrapping_remainder_uses_known_nonzero_divisor() {
     let proof_admission::EvidenceRoute::CertificateDerived(certificate) = &mut corrupt.route else {
         panic!("wrapping remainder must use a checked certificate")
     };
-    let proof_admission::ProofRule::IntegerLessOrEqualSubstitution { endpoint, .. } =
+    let proof_admission::ProofRule::IntegerOrderSubstitution { endpoint, .. } =
         &mut certificate.proof.rule
     else {
         panic!("known divisor uses literal equality substitution")
@@ -815,7 +815,7 @@ fn checked_source_saturating_divide_uses_known_nonzero_divisor() {
     };
     assert!(matches!(
         certificate.proof.rule,
-        proof_admission::ProofRule::IntegerLessOrEqualSubstitution { endpoint: 1, .. }
+        proof_admission::ProofRule::IntegerOrderSubstitution { endpoint: 1, .. }
     ));
 
     let semantic = encode_module(&lowered.semantic_module).expect("saturating-divide semantics");
@@ -847,7 +847,7 @@ fn checked_source_saturating_divide_uses_known_nonzero_divisor() {
     let proof_admission::EvidenceRoute::CertificateDerived(certificate) = &mut corrupt.route else {
         panic!("saturating divide must use a checked certificate")
     };
-    let proof_admission::ProofRule::IntegerLessOrEqualSubstitution { endpoint, .. } =
+    let proof_admission::ProofRule::IntegerOrderSubstitution { endpoint, .. } =
         &mut certificate.proof.rule
     else {
         panic!("known divisor uses literal equality substitution")
@@ -1040,7 +1040,7 @@ fn checked_source_saturating_remainder_uses_known_nonzero_divisor() {
     };
     assert!(matches!(
         certificate.proof.rule,
-        proof_admission::ProofRule::IntegerLessOrEqualSubstitution { endpoint: 1, .. }
+        proof_admission::ProofRule::IntegerOrderSubstitution { endpoint: 1, .. }
     ));
 
     let semantic = encode_module(&lowered.semantic_module).expect("saturating-remainder semantics");
@@ -1072,7 +1072,7 @@ fn checked_source_saturating_remainder_uses_known_nonzero_divisor() {
     let proof_admission::EvidenceRoute::CertificateDerived(certificate) = &mut corrupt.route else {
         panic!("saturating remainder must use a checked certificate")
     };
-    let proof_admission::ProofRule::IntegerLessOrEqualSubstitution { endpoint, .. } =
+    let proof_admission::ProofRule::IntegerOrderSubstitution { endpoint, .. } =
         &mut certificate.proof.rule
     else {
         panic!("known divisor uses literal equality substitution")

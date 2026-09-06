@@ -419,7 +419,7 @@ pub(crate) fn integer_exact_cast_immediate_operand_return_artifact() -> (Vec<u8>
                 proof_system_marker: ProofSystemMarker::CURRENT,
                 proof: ProofNode {
                     conclusion: goal,
-                    rule: ProofRule::IntegerLessOrEqualSubstitution {
+                    rule: ProofRule::IntegerOrderSubstitution {
                         relation: Box::new(ProofNode {
                             conclusion: closed_relation,
                             rule: ProofRule::Primitive(

@@ -2,9 +2,42 @@ use symbols::SymbolHandle;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use typed_trees::statement::StatementNode;
 
-use super::ContractExpressionEvaluator;
+use super::{BooleanExpressionOwner, ContractExpressionEvaluator};
 
 impl ContractExpressionEvaluator<'_, '_> {
+    /// Substitute a contract formal once, then retain caller ownership through
+    /// local resolution. Recursive calls share symbols but not these namespaces.
+    pub(super) fn resolved_boolean_expression(
+        &self,
+        expression: ExpressionHandle,
+        owner: BooleanExpressionOwner,
+    ) -> Option<(ExpressionHandle, BooleanExpressionOwner)> {
+        let ExpressionNode::Name(path) = self.program.expression_table.expression(expression)
+        else {
+            return None;
+        };
+        if !path.symbol.is_valid()
+            || path.head_symbol != path.symbol
+            || self
+                .program
+                .expression_table
+                .name_path_members(path.members)
+                .len()
+                != 1
+        {
+            return None;
+        }
+        let resolved = match owner {
+            BooleanExpressionOwner::Contract => {
+                self.argument_for_parameter(path.head_symbol, path.symbol, None)?
+            }
+            BooleanExpressionOwner::Caller => {
+                self.local_initializer(path.head_symbol, path.symbol, path.members)?
+            }
+        };
+        Some((resolved, BooleanExpressionOwner::Caller))
+    }
+
     pub(super) fn resolved_expression(
         &self,
         expression: ExpressionHandle,

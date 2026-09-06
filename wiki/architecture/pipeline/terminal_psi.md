@@ -3188,6 +3188,28 @@ Case analysis projects nested disjunctions from conjunctions with explicit
 elimination proofs; it does not turn a conjunct into an uncited entry assumption.
 This does not establish totality from integer bounds hidden inside logical
 connectives or extend requirements to unsupported arithmetic operands.
+Computed Boolean actuals retain their executed result IDs. Nonliteral Boolean
+operation rows declare an equation plus positive and negative polarity
+implications. Reconstruction derives each implication only from that operation's
+typed denotation, using checked Boolean conversion with no caller hypotheses.
+The original equation remains first; both implications follow before any later
+call obligation is captured. The producer cites these implications explicitly,
+proves their premises, and transports the result through exact equality proofs.
+The separate private crash-path walk retains the original operation equations,
+without adding these redundant auxiliary implications to its bounded path
+copies. It still retains authored guarantees; ordinary operation and call proof
+reconstruction independently checks the complete fact set.
+Implication search is bounded to 4,096 steps and depth 64; a cycle supplies no
+premise. Neither an authored call requirement nor a callee guarantee can supply
+the missing operation meaning.
+Source evaluation checks the selected operator meaning in the expression's
+owning machine. Substituting a callee formal switches to caller ownership once;
+the caller's argument does not inherit a callee specialization's operator
+selection. Closed Boolean equality uses that checked meaning, not the spelling
+of a selected user-defined comparison.
+Call preconditions cannot fall back to comparing an uninstantiated callee name
+with a caller fact: identically named formals do not establish anything about
+the actual argument.
 Arithmetic formation obligations precede the call
 obligation; the shared proof producer uses reconstructed operation equations and
 caller facts rather than replacing the argument with its authored expression or
@@ -4522,9 +4544,9 @@ that alternative appended to the enclosing assumptions and requires the same
 conclusion in every branch. Discharged local assumptions are not ambient
 requirements in the acceptance record. This permits signed division to use
 both nonzero signs while independently proving the `MIN / -1` exclusion.
-The current proof vocabulary uses proof-bundle format 25 and canonical
-proof-calculus trust root 25; it adds no semantic operation or proposition
-vocabulary. `EqualitySymmetry` reverses one independently proved scalar
+The current proof vocabulary uses proof-bundle format 26, canonical
+proof-calculus trust root 26, and Rust admission kernel v9; it adds no semantic
+operation or proposition vocabulary. `EqualitySymmetry` reverses one independently proved scalar
 equality, retaining its exact child citation. This lets canonical contract
 equalities participate in either direction without inventing an equality or
 depending on runtime value identity ordering.
@@ -4532,6 +4554,14 @@ depending on runtime value identity ordering.
 strict inequality and concludes `<=` over the same ordered endpoints. It also
 derives reflexive order from the existing reflexive-equality primitive; it
 neither reverses strict order nor treats Boolean equality as integer order.
+`IntegerOrderSubstitution` transports one endpoint through an independently
+proved integer equality while preserving the relation kind, `<` or `<=`.
+The other endpoint must remain identical, and equality must join the exact old
+and new endpoints in either orientation. It cannot turn non-strict order into
+strict order. Format 26 retains tag 11's child/endpoint payload shape under this
+explicitly generalized rule; format 25 bundles reject as stale. Literal strict
+comparisons use the existing closed-integer primitive followed by explicit
+substitution of evaluated operand identities, not trusted constant folding.
 Proof-node encoding, decoding, and kernel traversal use explicit pending work
 so proofs at the existing codec depth limit do not exhaust the host call stack.
 Case discovery follows transitive value dependencies; unrelated disjunctions
@@ -4924,11 +4954,9 @@ literal. The kernel replays normalization, maps the child conclusion, and
 records each landing before its definition in accepted premise closure.
 Non-order or wrong-root children, stale/reordered/malformed words,
 missing, late, redirected, ambiguous, or unused landings, target/carrier drift,
-arithmetic failure, or changed mapped conclusions reject. Proof-bundle v19
-retains tag 12 and canonically encodes the aligned optional indices; the
-registered calculus is v16 and the Rust kernel v8, with the affine and cast
-checkers included in both trust-graph source
-sets.
+arithmetic failure, or changed mapped conclusions reject. Tag 12 canonically
+encodes the aligned optional indices; the affine and cast checkers are included
+in both the calculus and Rust kernel trust-graph source sets.
 The first bounded producer family uses the rule for one to fourteen prior signed
 fixed affine definitions whose exact retained root bound maps directly to a
 canonical safe-divisor arm. Production enumerates shortest words first and
@@ -4938,8 +4966,7 @@ independently checks continuity, algebra, the mapped conclusion, and
 accepted-premise custody. Missing root custody, incomplete, reversed,
 redirected, or stale words, wrong targets, and noncanonical mapped arms reject.
 The fourteen-definition successor changes only that fixed producer-enumeration
-ceiling. Proof-bundle v19, registered calculus v16, Rust kernel v8, and logical
-and fixed-fuel accounting remain unchanged: the fourteen source arithmetic
+ceiling. Logical and fixed-fuel accounting remain unchanged: the fourteen source arithmetic
 operations retain their ordinary charges, while certificate replay adds no
 executable units.
 Root custody may now also use one exact prior landed literal or value-alias
@@ -5027,14 +5054,14 @@ search order changes.
 One exact prior value equality may also transport a completed affine bound from
 its checked target alias to the canonical goal endpoint. The producer replaces
 that one endpoint, constructs the bounded affine relation directly, and wraps
-it in `IntegerLessOrEqualSubstitution`; reconstruction repeats the same exact
+it in `IntegerOrderSubstitution`; reconstruction repeats the same exact
 identity selection. A missing, redirected, crossed, or mistyped target equality
 rejects. The affine relation builder cannot recurse into another target alias,
 so this adds one wrapper only and no alias-chain search.
 
 One fixed sibling may instead carry a completed affine bound across exactly two
 distinct same-carrier target equalities. It nests two
-`IntegerLessOrEqualSubstitution` nodes outside `IntegerAffineBound`; missing,
+`IntegerOrderSubstitution` nodes outside `IntegerAffineBound`; missing,
 reused, redirected, cyclic, or mistyped equalities reject. The constructor
 builds the affine relation directly at the final alias and never recurses
 through the general order prover, so a third target alias remains outside the
@@ -5044,7 +5071,7 @@ One bounded mixed root-custody sibling may instead compose exactly two prior
 order citations at an alias endpoint, transport that completed bound through
 exactly one retained value equality to the affine root, and then apply
 `IntegerAffineBound`. Its proof nests `IntegerLessOrEqualTransitivity` beneath
-`IntegerLessOrEqualSubstitution`; missing or disconnected order legs and absent
+`IntegerOrderSubstitution`; missing or disconnected order legs and absent
 or redirected equalities reject. The constructor calls the affine builder
 directly, so it cannot add another equality or order leg and does not introduce
 recursive path search. Three-or-more-alias and three-or-more-leg custody remain
@@ -5052,7 +5079,7 @@ outside the producer.
 
 One fixed two-alias sibling may instead transport one directly cited bound to
 the affine root through exactly two distinct retained value equalities. Its
-proof nests two `IntegerLessOrEqualSubstitution` nodes beneath
+proof nests two `IntegerOrderSubstitution` nodes beneath
 `IntegerAffineBound`; the root, middle alias, and bound alias must be distinct
 same-carrier values. A missing, reused, redirected, crossed, cyclic, or mistyped
 equality rejects. The constructor has no recursive alias walk, and a third
@@ -5098,8 +5125,8 @@ mathematical literal endpoint into the final carrier; the kernel rechecks the
 complete cast witness and conversion and records every definition in accepted
 premise closure. A non-order or wrong-root child, empty, stale, reordered,
 discontinuous, total/widening-shaped, or cyclic cast definitions,
-target/orientation drift, or a changed endpoint rejects. Proof-bundle v19
-retains tag 13; the registered calculus is v16 and the Rust kernel v8. Producer
+target/orientation drift, or a changed endpoint rejects. Tag 13 retains the
+cast word and its root-bound child. Producer
 and reconstruction independently follow the unique exact-cast SSA definition
 spine backward from the goal, reject ambiguous target definitions, and require
 its source-ordered ledger word. They perform no recursive path or permutation
@@ -5329,7 +5356,7 @@ selects the same exact equality and rechecks the bridge. Direct bounds remain
 preferred. Missing, redirected, mistyped, or weaker facts reject. One exact
 same-carrier `root == alias` citation may instead transport one directly cited
 canonical bound at that alias. Its fixed proof nests one
-`IntegerLessOrEqualSubstitution` under `IntegerCastBound`; verification repeats
+`IntegerOrderSubstitution` under `IntegerCastBound`; verification repeats
 the same exact equality/bound selection. Missing, redirected, cross-carrier, or
 weaker bounds reject. Production routes this one-alias order transport for both
 cast and affine completion through one indexed constructor; verification
@@ -5348,7 +5375,7 @@ reused, redirected, mistyped, or weaker literals reject. A second alias,
 affine/cast, shift/cast, joins, and correlated results remain outside this
 sibling. One separate fixed two-alias sibling may transport one directly cited
 canonical bound through exactly two distinct same-carrier value equalities. It
-nests two `IntegerLessOrEqualSubstitution` nodes under `IntegerCastBound`;
+nests two `IntegerOrderSubstitution` nodes under `IntegerCastBound`;
 production and verification independently enumerate that exact three-citation
 shape through their own local indexed constructor shared by cast and affine
 completion. Those fixed one-/two-alias constructors now live in dedicated,

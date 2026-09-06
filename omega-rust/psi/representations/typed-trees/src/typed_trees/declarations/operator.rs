@@ -597,8 +597,10 @@ pub fn resolve_spelling_for_operands<'program>(
 
 /// Admit builtin expression meaning only when neither declared nor selected
 /// trait meanings apply and every authored occurrence retains builtin custody.
-/// Unknown operand types stay wildcard candidates; absence of a later checked
-/// operator row is not independently evidence of builtin meaning.
+/// Declared operators treat unknown operands as wildcard candidates, whereas
+/// selected trait matching requires at least one retained operand type. Callers
+/// excluding selected trait meaning must supply the actual operand types;
+/// absence of a later checked operator row is not builtin authority.
 pub fn has_builtin_spelled_expression_meaning(
     program: &TypedTrees,
     machine_symbol: SymbolHandle,

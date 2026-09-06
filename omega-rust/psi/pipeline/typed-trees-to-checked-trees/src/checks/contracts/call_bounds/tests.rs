@@ -301,8 +301,10 @@ fn surviving_scalar_context_does_not_apply_builtin_order_to_selected_comparators
 }
 
 fn assert_call_requirement_rejected(source: &str) {
-    let diagnostics =
-        checked(source).expect_err("caller context cannot discharge this requirement");
+    let diagnostics = match checked(source) {
+        Ok(_) => panic!("caller context unexpectedly discharged this requirement:\n{source}"),
+        Err(diagnostics) => diagnostics,
+    };
     assert!(
         diagnostics
             .iter()
@@ -415,4 +417,212 @@ fn computed_scalar_argument_reflexive_requirement_needs_no_context_hypotheses() 
             checked(&source).unwrap_or_else(|diagnostics| panic!("{source}: {diagnostics:#?}"));
         }
     }
+}
+
+#[test]
+fn computed_boolean_equality_actuals_use_checked_builtin_meaning() {
+    for terminator in [";", ""] {
+        for actual in [
+            "true == true",
+            "false == false",
+            "false != true",
+            "(!false) == true",
+            "(true == true) == (!false)",
+        ] {
+            let source = format!(
+                r#"
+                data Helper {{}}
+                machine Helper::demand(flag: bool) requires flag {{}}
+                machine caller() {{ Helper::demand({actual}){terminator} }}
+            "#
+            );
+            checked(&source).unwrap_or_else(|diagnostics| panic!("{source}: {diagnostics:#?}"));
+        }
+    }
+}
+
+#[test]
+fn computed_boolean_equality_does_not_invent_true_or_symbolic_values() {
+    for terminator in [";", ""] {
+        for actual in [
+            "false",
+            "false == true",
+            "true != true",
+            "other",
+            "other == true",
+        ] {
+            let source = format!(
+                r#"
+                data Helper {{}}
+                machine Helper::demand(flag: bool) requires flag {{}}
+                machine caller(flag: bool, other: bool) requires flag
+                {{ Helper::demand({actual}){terminator} }}
+            "#
+            );
+            assert_call_requirement_rejected(&source);
+        }
+    }
+}
+
+#[test]
+fn boolean_call_requirements_forward_actual_identity_across_formal_renaming() {
+    for formal in ["flag", "accepted"] {
+        for terminator in [";", ""] {
+            let source = format!(
+                r#"
+                data Helper {{}}
+                machine Helper::demand({formal}: bool) requires {formal} {{}}
+                machine caller(flag: bool) requires flag
+                {{ Helper::demand(flag){terminator} }}
+            "#
+            );
+            checked(&source).unwrap_or_else(|diagnostics| panic!("{source}: {diagnostics:#?}"));
+        }
+    }
+}
+
+#[test]
+fn computed_boolean_equality_cannot_reinterpret_selected_comparison() {
+    for spelling in ["==", "!="] {
+        for terminator in [";", ""] {
+            let actual = if spelling == "==" {
+                "true == true"
+            } else {
+                "false != true"
+            };
+            let source = format!(
+                r#"
+                boundary operator {spelling} Meaning::compare(left: bool, right: bool) -> bool;
+                data Helper {{}}
+                machine Helper::demand(flag: bool) requires flag {{}}
+                machine caller() {{ Helper::demand({actual}){terminator} }}
+            "#
+            );
+            assert_call_requirement_rejected(&source);
+        }
+    }
+}
+
+#[test]
+fn computed_boolean_actual_does_not_inherit_callee_conformance_operator_scope() {
+    let source = r#"
+        trait Compared {
+            operator == equal(left: bool, right: bool) -> bool;
+        }
+        data Card { enabled: bool; }
+        CardEquality: Card satisfies Compared {
+            machine equal(left: bool, right: bool) -> bool { true }
+        }
+        machine demand<Element, Choice: Element satisfies Compared>(item: Element, flag: bool)
+        requires flag { let compared: bool = flag == flag; }
+        machine caller(item: Card) {
+            demand<Card, CardEquality>(item, true == true);
+        }
+    "#;
+    let checked =
+        checked(source).unwrap_or_else(|diagnostics| panic!("{source}: {diagnostics:#?}"));
+    let requirement = &checked.trait_machine_signatures(&checked.traits()[0])[0];
+    let boolean_type = checked.state_signature_parameters(requirement)[0].type_reference;
+    assert!(
+        checked
+            .typed
+            .machine_specializations
+            .iter()
+            .any(
+                |specialization| !typed_trees::operator::selected_trait_operator_meanings(
+                    &checked.typed,
+                    specialization.instance,
+                    language_core::OperatorSpelling::Equal,
+                    &[Some(boolean_type), Some(boolean_type)],
+                )
+                .is_empty()
+            ),
+        "callee really has a selected equality meaning that the caller actual must not inherit"
+    );
+}
+
+#[test]
+fn computed_boolean_selected_actual_rejects_without_later_checked_operator_rows() {
+    let source = r#"
+        trait Compared { operator == equal(left: bool, right: bool) -> bool; }
+        data Card { enabled: bool; }
+        CardEquality: Card satisfies Compared {
+            machine equal(left: bool, right: bool) -> bool { false }
+        }
+        data Helper {}
+        machine Helper::demand(flag: bool) requires true || flag {}
+        machine launch<Element, Choice: Element satisfies Compared>(item: Element) {
+            Helper::demand(true == true);
+        }
+        machine caller(item: Card) { launch<Card, CardEquality>(item); }
+    "#;
+    let checked =
+        checked(source).unwrap_or_else(|diagnostics| panic!("{source}: {diagnostics:#?}"));
+    let requirement = &checked.trait_machine_signatures(&checked.traits()[0])[0];
+    let boolean_type = checked.state_signature_parameters(requirement)[0].type_reference;
+    let owner = checked
+        .machine_specializations
+        .iter()
+        .find(|specialization| {
+            !typed_trees::operator::selected_trait_operator_meanings(
+                &checked,
+                specialization.instance,
+                language_core::OperatorSpelling::Equal,
+                &[Some(boolean_type), Some(boolean_type)],
+            )
+            .is_empty()
+        })
+        .expect("selected actual owner")
+        .instance;
+    let state = checked
+        .facts
+        .flow
+        .control
+        .states
+        .iter()
+        .find(|(_, state)| state.machine_symbol == owner)
+        .unwrap()
+        .1;
+    let call = checked
+        .facts
+        .flow
+        .control
+        .calls
+        .span_or_empty(state.calls)
+        .iter()
+        .find(|call| {
+            crate::call_target_parameters(&checked, call.target_symbol).is_some_and(|parameters| {
+                parameters.len() == 1
+                    && checked.primitive_type_reference(parameters[0].type_reference)
+                        == Some(typed_trees::types::PrimitiveType::Bool)
+            })
+        })
+        .expect("selected equality feeds the Bool callee");
+    let parameters = crate::call_target_parameters(&checked, call.target_symbol).unwrap();
+    let expression = checked.expression_table.iter_expressions().find_map(|(expression, node)|
+        matches!(node, typed_trees::expression::ExpressionNode::Name(path) if path.symbol == parameters[0].symbol).then_some(expression)).unwrap();
+    let site = crate::find_call_site(
+        &checked,
+        state.machine_symbol,
+        state.state_symbol,
+        call.statement_index,
+        call.call_ordinal,
+    )
+    .unwrap();
+    // Ask only whether the second disjunct holds. The authored full contract is
+    // tautological, so the checked source is valid without assuming this leaf.
+    // Removing later rows must not erase the typed actual's selected meaning.
+    assert!(
+        !crate::checks::contracts::evaluator::call_site_proves_boolean_contract_expression(
+            &checked,
+            &checked_trees::CheckedOperatorFacts::default(),
+            state,
+            call,
+            &site,
+            call.target_symbol,
+            parameters,
+            expression,
+        ),
+        "typed selected Boolean equality cannot be evaluated as builtin when its checked row is absent"
+    );
 }

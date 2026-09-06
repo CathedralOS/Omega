@@ -1058,7 +1058,7 @@ fn oriented_landed_zero_endpoint(
     };
     Some(ProofNode {
         conclusion,
-        rule: ProofRule::IntegerLessOrEqualSubstitution {
+        rule: ProofRule::IntegerOrderSubstitution {
             relation: Box::new(closed),
             equality: Box::new(equality),
             endpoint: usize::from(lower),

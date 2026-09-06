@@ -49,7 +49,7 @@ pub(super) fn prove(
         } else {
             Proposition::LessOrEqual(root.clone(), source_endpoint)
         },
-        rule: ProofRule::IntegerLessOrEqualSubstitution {
+        rule: ProofRule::IntegerOrderSubstitution {
             relation: Box::new(alias_bound),
             equality: Box::new(equality),
             endpoint,

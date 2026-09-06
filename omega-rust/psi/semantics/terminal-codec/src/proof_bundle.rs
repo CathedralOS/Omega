@@ -29,7 +29,7 @@ use wire::{Reader, Writer};
 
 const MAGIC: &[u8; 8] = b"PSIPRF\0\0";
 /// Single current pre-release proof vocabulary marker.
-pub(crate) const FORMAT_MARKER: u16 = 25;
+pub(crate) const FORMAT_MARKER: u16 = 26;
 const FINGERPRINT_DOMAIN: &[u8] = b"psi-terminal-proof-bundle-fingerprint\0";
 const MAX_PROPOSITION_DEPTH: usize = 256;
 const MAX_SCALAR_TERM_DEPTH: usize = 256;
@@ -379,7 +379,7 @@ fn encode_proof_node(
                             child_depth,
                         ));
                     }
-                    ProofRule::IntegerLessOrEqualSubstitution {
+                    ProofRule::IntegerOrderSubstitution {
                         relation, equality, ..
                     } => {
                         writer.u8(11);
@@ -455,8 +455,8 @@ fn encode_proof_rule_suffix(
         | ProofRule::EqualitySymmetry { .. }
         | ProofRule::IntegerOrderWeakening { .. }
         | ProofRule::IntegerLessOrEqualTransitivity { .. } => {}
-        ProofRule::IntegerLessOrEqualSubstitution { endpoint, .. } => {
-            writer.index("integer <= substitution endpoint", *endpoint)?;
+        ProofRule::IntegerOrderSubstitution { endpoint, .. } => {
+            writer.index("integer order substitution endpoint", *endpoint)?;
         }
         ProofRule::IntegerAffineBound { witness, .. } => {
             encode_scalar_term(writer, &witness.root, 0, format_marker)?;
@@ -1437,7 +1437,7 @@ fn decode_proof_rule(
             left_less_or_equal_middle: Box::new(children.next().expect("decoded first order")),
             middle_less_or_equal_right: Box::new(children.next().expect("decoded second order")),
         },
-        11 => ProofRule::IntegerLessOrEqualSubstitution {
+        11 => ProofRule::IntegerOrderSubstitution {
             relation: Box::new(children.next().expect("decoded relation")),
             equality: Box::new(children.next().expect("decoded equality")),
             endpoint: reader.index()?,

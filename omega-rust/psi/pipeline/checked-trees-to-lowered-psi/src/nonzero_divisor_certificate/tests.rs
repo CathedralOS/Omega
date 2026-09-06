@@ -550,7 +550,7 @@ fn exact_multiply_orients_a_landed_zero_for_both_target_directions() {
         assert!(
             parts
                 .iter()
-                .any(|part| matches!(part.rule, ProofRule::IntegerLessOrEqualSubstitution { .. }))
+                .any(|part| matches!(part.rule, ProofRule::IntegerOrderSubstitution { .. }))
         );
     }
 }
@@ -1469,7 +1469,7 @@ fn literal_equality_substitution_uses_only_prior_fact() {
     .expect("literal equality proves nonzero");
     assert!(matches!(
         proof.rule,
-        ProofRule::IntegerLessOrEqualSubstitution { endpoint: 1, .. }
+        ProofRule::IntegerOrderSubstitution { endpoint: 1, .. }
     ));
     assert!(
         prove_canonical_integer_proposition(
@@ -1562,7 +1562,7 @@ fn exact_division_goal_composes_runtime_negative_bound_and_landed_dividend() {
         conjuncts[0].rule,
         ProofRule::Assumption { index: 0 }
     ));
-    let ProofRule::IntegerLessOrEqualSubstitution {
+    let ProofRule::IntegerOrderSubstitution {
         relation,
         equality,
         endpoint,
@@ -1657,7 +1657,7 @@ fn exact_division_goal_composes_literal_equality_requirements() {
         &[],
     )
     .expect("literal equality requirement proves unsigned definedness");
-    let ProofRule::IntegerLessOrEqualSubstitution {
+    let ProofRule::IntegerOrderSubstitution {
         equality, endpoint, ..
     } = unsigned_proof.rule
     else {
@@ -1725,7 +1725,7 @@ fn exact_division_goal_composes_literal_equality_requirements() {
         conjuncts[0].rule,
         ProofRule::Assumption { index: 0 }
     ));
-    let ProofRule::IntegerLessOrEqualSubstitution { equality, .. } = &conjuncts[1].rule else {
+    let ProofRule::IntegerOrderSubstitution { equality, .. } = &conjuncts[1].rule else {
         panic!("dividend requirement proves its floor by substitution")
     };
     assert!(matches!(equality.rule, ProofRule::Assumption { index: 1 }));
@@ -1774,7 +1774,7 @@ fn exact_division_goal_transports_exact_bound_across_endpoint_equality() {
         &[],
     )
     .expect("exact intermediate bound transports to the unsigned divisor");
-    let ProofRule::IntegerLessOrEqualSubstitution {
+    let ProofRule::IntegerOrderSubstitution {
         relation,
         equality,
         endpoint,
@@ -1826,7 +1826,7 @@ fn exact_division_goal_transports_exact_bound_across_endpoint_equality() {
         panic!("signed endpoint transport selects its canonical arm")
     };
     assert_eq!(index, 0);
-    let ProofRule::IntegerLessOrEqualSubstitution {
+    let ProofRule::IntegerOrderSubstitution {
         relation,
         equality,
         endpoint,
@@ -1861,7 +1861,7 @@ fn exact_division_goal_transports_exact_bound_across_endpoint_equality() {
         conjuncts[0].rule,
         ProofRule::Assumption { index: 0 }
     ));
-    let ProofRule::IntegerLessOrEqualSubstitution {
+    let ProofRule::IntegerOrderSubstitution {
         relation,
         equality,
         endpoint,
@@ -1943,7 +1943,7 @@ fn exact_division_goal_composes_complete_prior_fact_proofs() {
     .expect("landed positive literal proves unsigned definedness");
     assert!(matches!(
         unsigned_proof.rule,
-        ProofRule::IntegerLessOrEqualSubstitution { endpoint: 1, .. }
+        ProofRule::IntegerOrderSubstitution { endpoint: 1, .. }
     ));
 
     let signed = IntegerType::new(IntegerSign::Signed, 8).expect("i8");
@@ -2044,7 +2044,7 @@ fn exact_division_goal_composes_complete_prior_fact_proofs() {
     assert_eq!(index, 0);
     assert!(matches!(
         disjunct.rule,
-        ProofRule::IntegerLessOrEqualSubstitution { endpoint: 0, .. }
+        ProofRule::IntegerOrderSubstitution { endpoint: 0, .. }
     ));
 
     for excluded in [0, -1] {
@@ -2084,7 +2084,7 @@ fn exact_division_goal_composes_complete_prior_fact_proofs() {
     assert!(
         conjuncts
             .iter()
-            .all(|proof| matches!(proof.rule, ProofRule::IntegerLessOrEqualSubstitution { .. }))
+            .all(|proof| matches!(proof.rule, ProofRule::IntegerOrderSubstitution { .. }))
     );
 
     let dividend_bound = Proposition::LessOrEqual(integer(signed, -127), value(1, signed));
@@ -2104,7 +2104,7 @@ fn exact_division_goal_composes_complete_prior_fact_proofs() {
     };
     assert!(matches!(
         conjuncts[0].rule,
-        ProofRule::IntegerLessOrEqualSubstitution { .. }
+        ProofRule::IntegerOrderSubstitution { .. }
     ));
     assert!(matches!(
         conjuncts[1].rule,
@@ -2257,7 +2257,7 @@ fn i1_exact_division_goal_transports_both_joint_endpoints() {
         panic!("i1 endpoint transport constructs the canonical conjunction")
     };
     assert_eq!(conjuncts.len(), 2);
-    let ProofRule::IntegerLessOrEqualSubstitution {
+    let ProofRule::IntegerOrderSubstitution {
         relation,
         equality,
         endpoint,
@@ -2268,7 +2268,7 @@ fn i1_exact_division_goal_transports_both_joint_endpoints() {
     assert_eq!(*endpoint, 0);
     assert!(matches!(relation.rule, ProofRule::Assumption { index: 0 }));
     assert!(matches!(equality.rule, ProofRule::Assumption { index: 1 }));
-    let ProofRule::IntegerLessOrEqualSubstitution {
+    let ProofRule::IntegerOrderSubstitution {
         relation,
         equality,
         endpoint,
@@ -2323,7 +2323,7 @@ fn exact_division_goal_nests_closed_transitivity_under_endpoint_transport() {
         &[],
     )
     .expect("stronger intermediate bound transports to the unsigned divisor");
-    let ProofRule::IntegerLessOrEqualSubstitution {
+    let ProofRule::IntegerOrderSubstitution {
         relation,
         equality,
         endpoint,
@@ -2396,7 +2396,7 @@ fn exact_division_goal_nests_closed_transitivity_under_endpoint_transport() {
         panic!("signed stronger transport selects its canonical arm")
     };
     assert_eq!(index, 0);
-    let ProofRule::IntegerLessOrEqualSubstitution {
+    let ProofRule::IntegerOrderSubstitution {
         relation, endpoint, ..
     } = disjunct.rule
     else {
@@ -2448,7 +2448,7 @@ fn exact_division_goal_nests_two_citation_transitivity_under_endpoint_transport(
         &[],
     )
     .expect("two cited bounds transport to the unsigned divisor");
-    let ProofRule::IntegerLessOrEqualSubstitution {
+    let ProofRule::IntegerOrderSubstitution {
         relation,
         equality,
         endpoint,
@@ -2522,7 +2522,7 @@ fn exact_division_goal_nests_two_citation_transitivity_under_endpoint_transport(
         panic!("signed two-citation transport selects its canonical arm")
     };
     assert_eq!(index, 0);
-    let ProofRule::IntegerLessOrEqualSubstitution {
+    let ProofRule::IntegerOrderSubstitution {
         relation, endpoint, ..
     } = disjunct.rule
     else {
@@ -2584,7 +2584,7 @@ fn exact_division_goal_nests_two_citation_dividend_floor_under_endpoint_transpor
         conjuncts[0].rule,
         ProofRule::Assumption { index: 0 }
     ));
-    let ProofRule::IntegerLessOrEqualSubstitution {
+    let ProofRule::IntegerOrderSubstitution {
         relation,
         equality,
         endpoint,
@@ -2658,7 +2658,7 @@ fn i1_exact_division_goal_nests_two_citation_transport_for_both_endpoints() {
     for (conjunct, endpoint, first, second, equality) in
         [(&conjuncts[0], 0, 0, 1, 2), (&conjuncts[1], 1, 3, 4, 5)]
     {
-        let ProofRule::IntegerLessOrEqualSubstitution {
+        let ProofRule::IntegerOrderSubstitution {
             relation,
             equality: equality_proof,
             endpoint: actual_endpoint,
@@ -3318,7 +3318,7 @@ fn exact_division_goal_proves_landed_literal_affine_root() {
     let ProofRule::IntegerAffineBound { root_bound, .. } = disjunct.rule else {
         panic!("landed positive divisor uses the affine-bound rule")
     };
-    let ProofRule::IntegerLessOrEqualSubstitution {
+    let ProofRule::IntegerOrderSubstitution {
         relation,
         equality,
         endpoint,
@@ -3354,7 +3354,7 @@ fn exact_division_goal_proves_landed_literal_affine_root() {
     };
     assert!(matches!(
         root_bound.rule,
-        ProofRule::IntegerLessOrEqualSubstitution { endpoint: 0, .. }
+        ProofRule::IntegerOrderSubstitution { endpoint: 0, .. }
     ));
 
     let unsafe_definition = Proposition::Equal(
@@ -3526,7 +3526,7 @@ fn exact_division_goal_maps_checked_contiguous_cast_root_bound() {
     let ProofRule::IntegerCastBound { root_bound, .. } = disjunct.rule else {
         panic!("landed cast-chain divisor uses the cast-bound rule")
     };
-    let ProofRule::IntegerLessOrEqualSubstitution {
+    let ProofRule::IntegerOrderSubstitution {
         relation,
         equality,
         endpoint,
@@ -3558,7 +3558,7 @@ fn exact_division_goal_maps_checked_contiguous_cast_root_bound() {
     };
     assert!(matches!(
         root_bound.rule,
-        ProofRule::IntegerLessOrEqualSubstitution { endpoint: 0, .. }
+        ProofRule::IntegerOrderSubstitution { endpoint: 0, .. }
     ));
 
     assert!(
@@ -3585,7 +3585,7 @@ fn exact_division_goal_maps_checked_contiguous_cast_root_bound() {
     let ProofRule::IntegerCastBound { root_bound, .. } = disjunct.rule else {
         panic!("stronger positive root uses the cast-bound rule")
     };
-    let ProofRule::IntegerLessOrEqualSubstitution { relation, .. } = root_bound.rule else {
+    let ProofRule::IntegerOrderSubstitution { relation, .. } = root_bound.rule else {
         panic!("stronger positive root uses one substitution")
     };
     assert_eq!(
@@ -3640,7 +3640,7 @@ fn exact_division_goal_maps_checked_contiguous_cast_root_bound() {
     let ProofRule::IntegerCastBound { root_bound, .. } = disjunct.rule else {
         panic!("aliased positive root uses the cast-bound rule")
     };
-    let ProofRule::IntegerLessOrEqualSubstitution {
+    let ProofRule::IntegerOrderSubstitution {
         relation,
         equality,
         endpoint,
@@ -3682,7 +3682,7 @@ fn exact_division_goal_maps_checked_contiguous_cast_root_bound() {
     let ProofRule::IntegerCastBound { root_bound, .. } = disjunct.rule else {
         panic!("stronger alias bound uses the cast-bound rule")
     };
-    let ProofRule::IntegerLessOrEqualSubstitution {
+    let ProofRule::IntegerOrderSubstitution {
         relation,
         equality,
         endpoint,
@@ -3788,7 +3788,7 @@ fn exact_division_goal_maps_checked_contiguous_cast_root_bound() {
     let ProofRule::IntegerCastBound { root_bound, .. } = disjunct.rule else {
         panic!("literal-via-alias uses the cast-bound rule")
     };
-    let ProofRule::IntegerLessOrEqualSubstitution {
+    let ProofRule::IntegerOrderSubstitution {
         relation: alias_bound,
         equality: root_equality,
         endpoint,
@@ -3801,7 +3801,7 @@ fn exact_division_goal_maps_checked_contiguous_cast_root_bound() {
         root_equality.rule,
         ProofRule::Assumption { index: 0 }
     ));
-    let ProofRule::IntegerLessOrEqualSubstitution {
+    let ProofRule::IntegerOrderSubstitution {
         relation,
         equality: literal_equality,
         endpoint,
@@ -3891,7 +3891,7 @@ fn exact_division_goal_maps_checked_contiguous_cast_root_bound() {
     let ProofRule::IntegerCastBound { root_bound, .. } = disjunct.rule else {
         panic!("two-alias bound uses the cast-bound rule")
     };
-    let ProofRule::IntegerLessOrEqualSubstitution {
+    let ProofRule::IntegerOrderSubstitution {
         relation: middle_bound,
         equality: outer_equality,
         endpoint,
@@ -3904,7 +3904,7 @@ fn exact_division_goal_maps_checked_contiguous_cast_root_bound() {
         outer_equality.rule,
         ProofRule::Assumption { index: 2 }
     ));
-    let ProofRule::IntegerLessOrEqualSubstitution {
+    let ProofRule::IntegerOrderSubstitution {
         relation,
         equality: inner_equality,
         endpoint,
@@ -4028,7 +4028,7 @@ fn exact_division_goal_lands_affine_root_literal_through_one_alias() {
     let ProofRule::IntegerAffineBound { root_bound, .. } = disjunct.rule else {
         panic!("alias-landed divisor uses the affine-bound rule")
     };
-    let ProofRule::IntegerLessOrEqualSubstitution {
+    let ProofRule::IntegerOrderSubstitution {
         relation,
         equality,
         endpoint,
@@ -4038,7 +4038,7 @@ fn exact_division_goal_lands_affine_root_literal_through_one_alias() {
     };
     assert_eq!(endpoint, 1);
     assert!(matches!(equality.rule, ProofRule::Assumption { index: 0 }));
-    let ProofRule::IntegerLessOrEqualSubstitution {
+    let ProofRule::IntegerOrderSubstitution {
         relation,
         equality,
         endpoint,
@@ -4074,7 +4074,7 @@ fn exact_division_goal_lands_affine_root_literal_through_one_alias() {
     };
     assert!(matches!(
         root_bound.rule,
-        ProofRule::IntegerLessOrEqualSubstitution { endpoint: 0, .. }
+        ProofRule::IntegerOrderSubstitution { endpoint: 0, .. }
     ));
 
     assert!(
@@ -4154,7 +4154,7 @@ fn exact_division_goal_transports_affine_bound_through_target_alias() {
         panic!("target-aliased positive divisor selects one canonical arm")
     };
     assert_eq!(index, 1);
-    let ProofRule::IntegerLessOrEqualSubstitution {
+    let ProofRule::IntegerOrderSubstitution {
         relation,
         equality,
         endpoint,
@@ -4188,7 +4188,7 @@ fn exact_division_goal_transports_affine_bound_through_target_alias() {
     assert_eq!(index, 0);
     assert!(matches!(
         disjunct.rule,
-        ProofRule::IntegerLessOrEqualSubstitution { endpoint: 0, .. }
+        ProofRule::IntegerOrderSubstitution { endpoint: 0, .. }
     ));
 
     assert!(
@@ -4258,7 +4258,7 @@ fn exact_division_goal_transports_affine_bound_through_two_target_aliases() {
         panic!("two-target-alias divisor selects one canonical arm")
     };
     assert_eq!(index, 1);
-    let ProofRule::IntegerLessOrEqualSubstitution {
+    let ProofRule::IntegerOrderSubstitution {
         relation,
         equality,
         endpoint,
@@ -4268,7 +4268,7 @@ fn exact_division_goal_transports_affine_bound_through_two_target_aliases() {
     };
     assert_eq!(endpoint, 1);
     assert!(matches!(equality.rule, ProofRule::Assumption { index: 1 }));
-    let ProofRule::IntegerLessOrEqualSubstitution {
+    let ProofRule::IntegerOrderSubstitution {
         relation,
         equality,
         endpoint,
@@ -4306,7 +4306,7 @@ fn exact_division_goal_transports_affine_bound_through_two_target_aliases() {
     assert_eq!(index, 0);
     assert!(matches!(
         disjunct.rule,
-        ProofRule::IntegerLessOrEqualSubstitution { endpoint: 0, .. }
+        ProofRule::IntegerOrderSubstitution { endpoint: 0, .. }
     ));
 
     assert!(
@@ -4398,7 +4398,7 @@ fn exact_division_goal_proves_alias_substituted_affine_root_bound() {
     else {
         panic!("alias-substituted divisor uses the affine-bound rule")
     };
-    let ProofRule::IntegerLessOrEqualSubstitution {
+    let ProofRule::IntegerOrderSubstitution {
         relation,
         equality,
         endpoint,
@@ -4492,7 +4492,7 @@ fn exact_division_goal_transports_bound_through_two_affine_root_aliases() {
     let ProofRule::IntegerAffineBound { root_bound, .. } = disjunct.rule else {
         panic!("two-alias divisor uses the affine-bound rule")
     };
-    let ProofRule::IntegerLessOrEqualSubstitution {
+    let ProofRule::IntegerOrderSubstitution {
         relation,
         equality,
         endpoint,
@@ -4502,7 +4502,7 @@ fn exact_division_goal_transports_bound_through_two_affine_root_aliases() {
     };
     assert_eq!(endpoint, 1);
     assert!(matches!(equality.rule, ProofRule::Assumption { index: 0 }));
-    let ProofRule::IntegerLessOrEqualSubstitution {
+    let ProofRule::IntegerOrderSubstitution {
         relation,
         equality,
         endpoint,
@@ -4535,7 +4535,7 @@ fn exact_division_goal_transports_bound_through_two_affine_root_aliases() {
     };
     assert!(matches!(
         root_bound.rule,
-        ProofRule::IntegerLessOrEqualSubstitution { endpoint: 0, .. }
+        ProofRule::IntegerOrderSubstitution { endpoint: 0, .. }
     ));
 
     assert!(
@@ -4624,7 +4624,7 @@ fn exact_division_goal_transports_transitive_bound_to_affine_root_alias() {
     let ProofRule::IntegerAffineBound { root_bound, .. } = disjunct.rule else {
         panic!("transitively aliased divisor uses the affine-bound rule")
     };
-    let ProofRule::IntegerLessOrEqualSubstitution {
+    let ProofRule::IntegerOrderSubstitution {
         relation,
         equality,
         endpoint,
@@ -4668,7 +4668,7 @@ fn exact_division_goal_transports_transitive_bound_to_affine_root_alias() {
     };
     assert!(matches!(
         root_bound.rule,
-        ProofRule::IntegerLessOrEqualSubstitution { endpoint: 0, .. }
+        ProofRule::IntegerOrderSubstitution { endpoint: 0, .. }
     ));
 
     assert!(

@@ -15,7 +15,7 @@ fn remainder_by_one_certificate(
         proof_system_marker: ProofSystemMarker::CURRENT,
         proof: ProofNode {
             conclusion: Proposition::LessOrEqual(literal_one.clone(), divisor_term.clone()),
-            rule: ProofRule::IntegerLessOrEqualSubstitution {
+            rule: ProofRule::IntegerOrderSubstitution {
                 relation: Box::new(ProofNode {
                     conclusion: Proposition::LessOrEqual(literal_one.clone(), literal_one.clone()),
                     rule: ProofRule::Primitive(PrimitiveJudgment::ClosedIntegerRelation),
@@ -59,7 +59,7 @@ fn signed_remainder_by_negative_one_certificate(
                        endpoint: usize,
                        axiom: usize| ProofNode {
         conclusion,
-        rule: ProofRule::IntegerLessOrEqualSubstitution {
+        rule: ProofRule::IntegerOrderSubstitution {
             relation: Box::new(ProofNode {
                 conclusion: relation,
                 rule: ProofRule::Primitive(PrimitiveJudgment::ClosedIntegerRelation),

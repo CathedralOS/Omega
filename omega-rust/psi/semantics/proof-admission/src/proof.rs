@@ -33,7 +33,7 @@ pub enum AcceptedProofRule {
     EqualitySymmetry,
     IntegerOrderWeakening,
     IntegerLessOrEqualTransitivity,
-    IntegerLessOrEqualSubstitution,
+    IntegerOrderSubstitution,
     IntegerAffineBound,
     IntegerExactAddDefinitionBound,
     IntegerCastBound,
@@ -491,84 +491,20 @@ fn check_node_locally(
                 _ => Err(ProofError::RulePremiseMismatch("integer <= transitivity")),
             }
         }
-        ProofRule::IntegerLessOrEqualSubstitution {
+        ProofRule::IntegerOrderSubstitution {
             relation,
             equality,
             endpoint,
         } => {
             acceptance
                 .rules
-                .insert(AcceptedProofRule::IntegerLessOrEqualSubstitution);
-            if let (
-                Proposition::IntegerMathLessOrEqual(relation_left, relation_right),
-                Proposition::IntegerMathEqual(equality_left, equality_right),
-                Proposition::IntegerMathLessOrEqual(conclusion_left, conclusion_right),
-            ) = (
+                .insert(AcceptedProofRule::IntegerOrderSubstitution);
+            check_integer_order_substitution(
                 &relation.conclusion,
                 &equality.conclusion,
+                *endpoint,
                 &proof.conclusion,
-            ) {
-                let (old_endpoint, new_endpoint) = match endpoint {
-                    0 => {
-                        if relation_right != conclusion_right {
-                            return Err(ProofError::IntegerOrderUnchangedEndpointMismatch);
-                        }
-                        (relation_left, conclusion_left)
-                    }
-                    1 => {
-                        if relation_left != conclusion_left {
-                            return Err(ProofError::IntegerOrderUnchangedEndpointMismatch);
-                        }
-                        (relation_right, conclusion_right)
-                    }
-                    endpoint => return Err(ProofError::UnknownIntegerOrderEndpoint(*endpoint)),
-                };
-                return ((equality_left == old_endpoint && equality_right == new_endpoint)
-                    || (equality_right == old_endpoint && equality_left == new_endpoint))
-                    .then_some(())
-                    .ok_or(ProofError::IntegerOrderSubstitutionMismatch);
-            }
-            let Proposition::LessOrEqual(relation_left, relation_right) = &relation.conclusion
-            else {
-                return Err(ProofError::RulePremiseMismatch(
-                    "integer <= substitution relation",
-                ));
-            };
-            let Proposition::Equal(equality_left, equality_right) = &equality.conclusion else {
-                return Err(ProofError::RulePremiseMismatch(
-                    "integer <= substitution equality",
-                ));
-            };
-            let normalized_conclusion = lower_integer_math_relation(&proof.conclusion)
-                .unwrap_or_else(|| proof.conclusion.clone());
-            let Proposition::LessOrEqual(conclusion_left, conclusion_right) =
-                &normalized_conclusion
-            else {
-                return Err(ProofError::RuleConclusionMismatch(
-                    "integer <= substitution",
-                ));
-            };
-            let (old_endpoint, new_endpoint) = match endpoint {
-                0 => {
-                    if relation_right != conclusion_right {
-                        return Err(ProofError::IntegerOrderUnchangedEndpointMismatch);
-                    }
-                    (relation_left, conclusion_left)
-                }
-                1 => {
-                    if relation_left != conclusion_left {
-                        return Err(ProofError::IntegerOrderUnchangedEndpointMismatch);
-                    }
-                    (relation_right, conclusion_right)
-                }
-                endpoint => return Err(ProofError::UnknownIntegerOrderEndpoint(*endpoint)),
-            };
-            if !((equality_left == old_endpoint && equality_right == new_endpoint)
-                || (equality_right == old_endpoint && equality_left == new_endpoint))
-            {
-                return Err(ProofError::IntegerOrderSubstitutionMismatch);
-            }
-            Ok(())
+            )
         }
         ProofRule::IntegerAffineBound {
             root_bound,
@@ -898,6 +834,89 @@ fn propositions_match_under_integer_math_normalization(
         || lower_integer_math_relation(retained).as_ref() == Some(requested)
 }
 
+/// Equality replaces exactly one order endpoint; it never changes strictness.
+fn check_integer_order_substitution(
+    relation: &Proposition,
+    equality: &Proposition,
+    endpoint: usize,
+    conclusion: &Proposition,
+) -> Result<(), ProofError> {
+    fn scalar_order(proposition: &Proposition) -> Option<(bool, &ScalarTerm, &ScalarTerm)> {
+        match proposition {
+            Proposition::LessThan(left, right) => Some((true, left, right)),
+            Proposition::LessOrEqual(left, right) => Some((false, left, right)),
+            _ => None,
+        }
+    }
+    fn mathematical_order(
+        proposition: &Proposition,
+    ) -> Option<(bool, &IntegerMathTerm, &IntegerMathTerm)> {
+        match proposition {
+            Proposition::IntegerMathLessThan(left, right) => Some((true, left, right)),
+            Proposition::IntegerMathLessOrEqual(left, right) => Some((false, left, right)),
+            _ => None,
+        }
+    }
+    fn check_endpoints<T: PartialEq>(
+        relation: (bool, &T, &T),
+        equality: (&T, &T),
+        endpoint: usize,
+        conclusion: (bool, &T, &T),
+    ) -> Result<(), ProofError> {
+        let (relation_strict, relation_left, relation_right) = relation;
+        let (conclusion_strict, conclusion_left, conclusion_right) = conclusion;
+        if relation_strict != conclusion_strict {
+            return Err(ProofError::IntegerOrderConclusionMismatch);
+        }
+        let (old_endpoint, new_endpoint) = match endpoint {
+            0 => {
+                if relation_right != conclusion_right {
+                    return Err(ProofError::IntegerOrderUnchangedEndpointMismatch);
+                }
+                (relation_left, conclusion_left)
+            }
+            1 => {
+                if relation_left != conclusion_left {
+                    return Err(ProofError::IntegerOrderUnchangedEndpointMismatch);
+                }
+                (relation_right, conclusion_right)
+            }
+            endpoint => return Err(ProofError::UnknownIntegerOrderEndpoint(endpoint)),
+        };
+        ((equality.0 == old_endpoint && equality.1 == new_endpoint)
+            || (equality.1 == old_endpoint && equality.0 == new_endpoint))
+            .then_some(())
+            .ok_or(ProofError::IntegerOrderSubstitutionMismatch)
+    }
+
+    if let Some(relation) = mathematical_order(relation) {
+        let Proposition::IntegerMathEqual(left, right) = equality else {
+            return Err(ProofError::RulePremiseMismatch(
+                "integer order substitution equality",
+            ));
+        };
+        let conclusion = mathematical_order(conclusion).ok_or(
+            ProofError::RuleConclusionMismatch("integer order substitution"),
+        )?;
+        return check_endpoints(relation, (left, right), endpoint, conclusion);
+    }
+    let relation = scalar_order(relation).ok_or(ProofError::RulePremiseMismatch(
+        "integer order substitution relation",
+    ))?;
+    let Proposition::Equal(left, right) = equality else {
+        return Err(ProofError::RulePremiseMismatch(
+            "integer order substitution equality",
+        ));
+    };
+    // Preserve the established fixed-to-mathematical conclusion projection.
+    let normalized_conclusion =
+        lower_integer_math_relation(conclusion).unwrap_or_else(|| conclusion.clone());
+    let conclusion = scalar_order(&normalized_conclusion).ok_or(
+        ProofError::RuleConclusionMismatch("integer order substitution"),
+    )?;
+    check_endpoints(relation, (left, right), endpoint, conclusion)
+}
+
 fn lift_fixed_integer_term(term: &ScalarTerm) -> Option<IntegerMathTerm> {
     match term {
         ScalarTerm::Value {
@@ -928,6 +947,9 @@ impl std::error::Error for ProofError {}
 
 #[cfg(test)]
 mod disjunction_elimination;
+
+#[cfg(test)]
+mod order_substitution_tests;
 
 #[cfg(test)]
 mod tests {
@@ -1267,7 +1289,7 @@ mod tests {
         let positive = Proposition::LessOrEqual(literal(1), divisor.clone());
         let positive_proof = ProofNode {
             conclusion: positive.clone(),
-            rule: ProofRule::IntegerLessOrEqualSubstitution {
+            rule: ProofRule::IntegerOrderSubstitution {
                 relation: Box::new(ProofNode {
                     conclusion: positive_literal,
                     rule: ProofRule::Primitive(PrimitiveJudgment::ClosedIntegerRelation),
@@ -1292,7 +1314,7 @@ mod tests {
             vec![
                 AcceptedProofRule::Primitive,
                 AcceptedProofRule::SemanticAxiom,
-                AcceptedProofRule::IntegerLessOrEqualSubstitution,
+                AcceptedProofRule::IntegerOrderSubstitution,
             ]
         );
         assert_eq!(
@@ -1308,7 +1330,7 @@ mod tests {
         let negative = Proposition::LessOrEqual(divisor, literal(-1));
         let negative_proof = ProofNode {
             conclusion: negative.clone(),
-            rule: ProofRule::IntegerLessOrEqualSubstitution {
+            rule: ProofRule::IntegerOrderSubstitution {
                 relation: Box::new(ProofNode {
                     conclusion: negative_literal,
                     rule: ProofRule::Primitive(PrimitiveJudgment::ClosedIntegerRelation),
@@ -1333,7 +1355,7 @@ mod tests {
             vec![
                 AcceptedProofRule::Primitive,
                 AcceptedProofRule::Assumption,
-                AcceptedProofRule::IntegerLessOrEqualSubstitution,
+                AcceptedProofRule::IntegerOrderSubstitution,
             ]
         );
     }
@@ -1365,7 +1387,7 @@ mod tests {
                      endpoint: usize,
                      conclusion: Proposition| ProofNode {
             conclusion,
-            rule: ProofRule::IntegerLessOrEqualSubstitution {
+            rule: ProofRule::IntegerOrderSubstitution {
                 relation: Box::new(relation),
                 equality: Box::new(equality),
                 endpoint,
@@ -1432,7 +1454,7 @@ mod tests {
                 std::slice::from_ref(&equality),
             ),
             Err(ProofError::RulePremiseMismatch(
-                "integer <= substitution relation"
+                "integer order substitution relation"
             )),
         );
         assert_eq!(
@@ -1442,7 +1464,7 @@ mod tests {
                 &[],
             ),
             Err(ProofError::RulePremiseMismatch(
-                "integer <= substitution equality"
+                "integer order substitution equality"
             )),
         );
         assert_eq!(
@@ -1452,7 +1474,7 @@ mod tests {
                 std::slice::from_ref(&equality),
             ),
             Err(ProofError::RuleConclusionMismatch(
-                "integer <= substitution"
+                "integer order substitution"
             )),
         );
         assert_eq!(

@@ -64,7 +64,7 @@ fn call_result_alias_preserves_divide_and_remainder_bounds() {
                 .expect("computed argument bound follows the cited result alias");
             assert!(matches!(
                 proof.rule,
-                ProofRule::IntegerLessOrEqualSubstitution { .. }
+                ProofRule::IntegerOrderSubstitution { .. }
             ));
             check_certificate(&context(), &goal, &[], &semantic_axioms, &proof).unwrap();
         }
@@ -111,7 +111,7 @@ fn canonical_reversed_alias_requires_a_new_symmetry_proof() {
     assert!(check_certificate(&context(), &goal, &[], &canonical, &original).is_err());
     let proof = prove(&context(), &goal, &[], &canonical).expect("explicit equality symmetry");
     check_certificate(&context(), &goal, &[], &canonical, &proof).unwrap();
-    let ProofRule::IntegerLessOrEqualSubstitution { equality, .. } = &proof.rule else {
+    let ProofRule::IntegerOrderSubstitution { equality, .. } = &proof.rule else {
         panic!("range transport retains equality evidence");
     };
     assert!(matches!(equality.rule, ProofRule::EqualitySymmetry { .. }));

@@ -72,6 +72,7 @@ pub(super) fn reconstruct(
                 operation,
                 &context.machines,
                 &context.value_types,
+                operation_facts::OperationFactPurpose::PrivateCrashPredicates,
                 &mut axioms,
                 &mut operation_obligations,
             )?;

@@ -154,7 +154,7 @@ fn schedule_children<'proof>(
             pending.push(Action::Enter(middle_less_or_equal_right));
             pending.push(Action::Enter(left_less_or_equal_middle));
         }
-        ProofRule::IntegerLessOrEqualSubstitution {
+        ProofRule::IntegerOrderSubstitution {
             relation, equality, ..
         } => {
             pending.push(Action::Enter(equality));

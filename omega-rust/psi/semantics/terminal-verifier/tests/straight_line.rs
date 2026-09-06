@@ -809,7 +809,7 @@ fn boolean_not_axiom_proves_the_return_contract() {
                     rule: ProofRule::EqualityTransitivity {
                         left_equals_middle: Box::new(ProofNode {
                             conclusion: Proposition::Equal(term(result), term(negated)),
-                            rule: ProofRule::SemanticAxiom { index: 1 },
+                            rule: ProofRule::SemanticAxiom { index: 3 },
                         }),
                         middle_equals_right: Box::new(ProofNode {
                             conclusion: Proposition::Equal(term(negated), not_parameter),
@@ -823,6 +823,98 @@ fn boolean_not_axiom_proves_the_return_contract() {
 
     verify_module(&module, &bundle, &AdmissionProfile::default())
         .expect("Boolean-not semantics should reconstruct operation and return axioms");
+
+    let mut polarized = module.clone();
+    let original_goal = Proposition::Equal(term(result), ScalarTerm::boolean(true));
+    let operand_fact = Proposition::Equal(term(parameter), ScalarTerm::boolean(false));
+    let result_fact = Proposition::Equal(term(negated), ScalarTerm::boolean(true));
+    let implication = Proposition::Implication {
+        premise: Box::new(operand_fact.clone()),
+        conclusion: Box::new(result_fact.clone()),
+    };
+    polarized.machines[0].contract.requires = vec![operand_fact.clone()];
+    polarized.machines[0].contract.ensures[0].proposition = original_goal.clone();
+    let mut polarized_bundle = bundle.clone();
+    let EvidenceRoute::CertificateDerived(certificate) = &mut polarized_bundle.evidence[0].route
+    else {
+        unreachable!()
+    };
+    certificate.proof = ProofNode {
+        conclusion: original_goal,
+        rule: ProofRule::EqualityTransitivity {
+            left_equals_middle: Box::new(ProofNode {
+                conclusion: Proposition::Equal(term(result), term(negated)),
+                rule: ProofRule::SemanticAxiom { index: 3 },
+            }),
+            middle_equals_right: Box::new(ProofNode {
+                conclusion: result_fact,
+                rule: ProofRule::ImplicationElimination {
+                    implication: Box::new(ProofNode {
+                        conclusion: implication.clone(),
+                        rule: ProofRule::SemanticAxiom { index: 1 },
+                    }),
+                    premise: Box::new(ProofNode {
+                        conclusion: operand_fact,
+                        rule: ProofRule::Assumption { index: 0 },
+                    }),
+                },
+            }),
+        },
+    };
+    let reconstructed = reconstruct_terminal_obligations(&polarized).unwrap();
+    let site = reconstructed
+        .obligations()
+        .iter()
+        .find(|site| site.obligation.id == obligation)
+        .unwrap();
+    assert_eq!(site.semantic_axioms.len(), 4);
+    assert_eq!(site.semantic_axioms[1], implication);
+    assert!(
+        matches!(&site.semantic_axioms[0], Proposition::Equal(left, ScalarTerm::BooleanNot { .. }) if left == &term(negated))
+    );
+    assert_eq!(
+        site.semantic_axioms[3],
+        Proposition::Equal(term(result), term(negated))
+    );
+    verify_module(&polarized, &polarized_bundle, &AdmissionProfile::default()).expect(
+        "kernel checks the original result goal through operation polarity and return alias",
+    );
+
+    let mut changed_operation = polarized.clone();
+    changed_operation.machines[0].blocks[0].operations[0].kind =
+        OperationKind::BooleanConstant { value: false };
+    assert!(
+        verify_module(
+            &changed_operation,
+            &polarized_bundle,
+            &AdmissionProfile::default()
+        )
+        .is_err()
+    );
+    let mut missing_operation = polarized.clone();
+    missing_operation.machines[0].blocks[0].operations.clear();
+    assert!(
+        verify_module(
+            &missing_operation,
+            &polarized_bundle,
+            &AdmissionProfile::default()
+        )
+        .is_err()
+    );
+    let mut redirected_result = polarized;
+    redirected_result.machines[0].blocks[0].operations[0]
+        .result
+        .scalar_mut()
+        .unwrap()
+        .id = ValueId::new(23).unwrap();
+    assert!(
+        verify_module(
+            &redirected_result,
+            &polarized_bundle,
+            &AdmissionProfile::default()
+        )
+        .is_err()
+    );
 
     let integer =
         ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 8).expect("u8 operand type"));
@@ -960,7 +1052,7 @@ fn boolean_equality_axiom_proves_the_return_contract() {
                     rule: ProofRule::EqualityTransitivity {
                         left_equals_middle: Box::new(ProofNode {
                             conclusion: Proposition::Equal(term(result), term(compared)),
-                            rule: ProofRule::SemanticAxiom { index: 1 },
+                            rule: ProofRule::SemanticAxiom { index: 3 },
                         }),
                         middle_equals_right: Box::new(ProofNode {
                             conclusion: Proposition::Equal(term(compared), equality),
@@ -1117,7 +1209,7 @@ fn integer_equality_axiom_proves_the_return_contract() {
                                 value(result, ScalarType::Boolean),
                                 value(compared, ScalarType::Boolean),
                             ),
-                            rule: ProofRule::SemanticAxiom { index: 1 },
+                            rule: ProofRule::SemanticAxiom { index: 3 },
                         }),
                         middle_equals_right: Box::new(ProofNode {
                             conclusion: Proposition::Equal(
@@ -1134,6 +1226,32 @@ fn integer_equality_axiom_proves_the_return_contract() {
 
     verify_module(&module, &bundle, &AdmissionProfile::default())
         .expect("integer-equality semantics should reconstruct operation and return axioms");
+    let reconstructed = reconstruct_terminal_obligations(&module).unwrap();
+    let site = reconstructed
+        .obligations()
+        .iter()
+        .find(|site| site.obligation.id == obligation)
+        .unwrap();
+    assert_eq!(site.semantic_axioms.len(), 4);
+    assert!(matches!(
+        &site.semantic_axioms[0],
+        Proposition::Equal(_, ScalarTerm::IntegerEqual { .. })
+    ));
+    assert!(matches!(
+        &site.semantic_axioms[1],
+        Proposition::Implication { .. }
+    ));
+    assert!(matches!(
+        &site.semantic_axioms[2],
+        Proposition::Implication { .. }
+    ));
+    assert_eq!(
+        site.semantic_axioms[3],
+        Proposition::Equal(
+            value(result, ScalarType::Boolean),
+            value(compared, ScalarType::Boolean)
+        )
+    );
 
     let signed_integer =
         IntegerType::new(IntegerSign::Signed, 8).expect("i8 mismatched operand type");
@@ -1293,7 +1411,7 @@ fn integer_ordering_axioms_prove_return_contracts() {
                                     value(result, ScalarType::Boolean),
                                     value(compared, ScalarType::Boolean),
                                 ),
-                                rule: ProofRule::SemanticAxiom { index: 1 },
+                                rule: ProofRule::SemanticAxiom { index: 3 },
                             }),
                             middle_equals_right: Box::new(ProofNode {
                                 conclusion: Proposition::Equal(
@@ -1309,6 +1427,35 @@ fn integer_ordering_axioms_prove_return_contracts() {
         };
         verify_module(&module, &bundle, &AdmissionProfile::default())
             .expect("ordering reconstructs the exact operation and return axioms");
+        let reconstructed = reconstruct_terminal_obligations(&module).unwrap();
+        let site = reconstructed
+            .obligations()
+            .iter()
+            .find(|site| site.obligation.id == obligation)
+            .unwrap();
+        assert_eq!(site.semantic_axioms.len(), 4);
+        assert!(matches!(
+            &site.semantic_axioms[0],
+            Proposition::Equal(
+                _,
+                ScalarTerm::IntegerLessThan { .. } | ScalarTerm::IntegerLessOrEqual { .. }
+            )
+        ));
+        assert!(matches!(
+            &site.semantic_axioms[1],
+            Proposition::Implication { .. }
+        ));
+        assert!(matches!(
+            &site.semantic_axioms[2],
+            Proposition::Implication { .. }
+        ));
+        assert_eq!(
+            site.semantic_axioms[3],
+            Proposition::Equal(
+                value(result, ScalarType::Boolean),
+                value(compared, ScalarType::Boolean)
+            )
+        );
 
         let mut wrong_operand = module.clone();
         wrong_operand.machines[0].contract.ensures.clear();

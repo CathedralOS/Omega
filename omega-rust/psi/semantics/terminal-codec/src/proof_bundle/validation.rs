@@ -132,7 +132,7 @@ fn validate_proof_node(node: &ProofNode, depth: usize) -> Result<(), ProofCodecE
             left_less_or_equal_middle: left_equals_middle,
             middle_less_or_equal_right: middle_equals_right,
         }
-        | ProofRule::IntegerLessOrEqualSubstitution {
+        | ProofRule::IntegerOrderSubstitution {
             relation: left_equals_middle,
             equality: middle_equals_right,
             ..

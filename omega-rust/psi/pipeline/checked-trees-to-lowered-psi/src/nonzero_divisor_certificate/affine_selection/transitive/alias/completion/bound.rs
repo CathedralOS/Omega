@@ -29,7 +29,7 @@ pub(super) fn prove(
     };
     Some(ProofNode {
         conclusion,
-        rule: ProofRule::IntegerLessOrEqualSubstitution {
+        rule: ProofRule::IntegerOrderSubstitution {
             relation: Box::new(transitive),
             equality: Box::new(equality),
             endpoint,

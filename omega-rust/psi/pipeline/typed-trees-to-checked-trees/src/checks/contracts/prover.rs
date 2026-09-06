@@ -39,6 +39,7 @@ pub(super) fn semantic_contexts_prove_boolean_expression(
 
 pub(super) fn call_entry_contexts_prove_boolean_contract_expression(
     program: &typed_trees::TypedTrees,
+    operators: &checked_trees::CheckedOperatorFacts,
     semantic: &facts::FactPlan,
     state_flow: &FlowStateFact,
     call_flow: &FlowCallFact,
@@ -73,6 +74,7 @@ pub(super) fn call_entry_contexts_prove_boolean_contract_expression(
         )
     }) || call_site_proves_boolean_contract_expression(
         program,
+        operators,
         state_flow,
         call_flow,
         &call_site,

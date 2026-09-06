@@ -216,6 +216,7 @@ pub enum ModuleError {
         operand: u32,
     },
     OperationSemanticSchema(OperationSemanticError),
+    OperationPredicateDenotation(Box<proof_admission::PredicateDenotationError>),
     InvalidPartialAffineCleanup {
         machine: MachineId,
         block: BlockId,

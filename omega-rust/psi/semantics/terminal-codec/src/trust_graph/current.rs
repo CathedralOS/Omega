@@ -1,20 +1,21 @@
 //! Exact source-bound construction of the current migration trust graph.
 
 use super::{
-    CODEC_SOURCE, CURRENT_ENTRY, EVIDENCE_PROVENANCE_SOURCE, MIGRATION_POLICY_DESCRIPTOR,
-    OBLIGATION_LEDGER_CODEC_SOURCE, PROOF_ADMISSION_EVIDENCE_SOURCE,
-    PROOF_ADMISSION_INTEGER_AFFINE_SOURCE, PROOF_ADMISSION_INTEGER_CAST_SOURCE,
-    PROOF_ADMISSION_INTEGER_FORBIDDEN_ROOT_SOURCE, PROOF_ADMISSION_JUDGMENT_SOURCE,
-    PROOF_ADMISSION_LIB_SOURCE, PROOF_ADMISSION_PROOF_SOURCE, PROOF_ADMISSION_TRAVERSAL_SOURCE,
-    PROOF_BUNDLE_SOURCE, PROOF_CODEC_SOURCE, PROPOSITION_SOURCE, PROPOSITION_VALUE_IDS_SOURCE,
-    RECONSTRUCTION_SOURCE, SUBSTITUTION_SOURCE, TERMINAL_CALL_COMPOSITION_SOURCE,
-    TERMINAL_CANONICAL_SCALAR_GOAL_SOURCE, TERMINAL_PROOF_BEARING_SCALAR_SOURCE,
-    TERMINAL_REPRESENTATION_SOURCE_CLOSURE, TERMINAL_SEMANTICS_SOURCE,
-    TERMINAL_STRUCTURAL_EFFECT_SOURCE, TrustAcceptingPolicy, TrustDependencyKind,
-    TrustDependencyNode, TrustDependencyStatus, TrustGraphError, VERIFIER_CALL_COMPOSITION_SOURCE,
-    VERIFIER_LIB_SOURCE, VERIFIER_SOURCE, VERIFIER_SOURCE_CLOSURE,
-    VERIFIER_SOURCE_CLOSURE_BUILD_SOURCE, VERIFIER_VALIDATION_SOURCE, ValidatedTerminalTrustGraph,
-    validate_terminal_trust_graph,
+    BOOLEAN_POLARITY_RECONSTRUCTION_SOURCE, CODEC_SOURCE, CURRENT_ENTRY,
+    EVIDENCE_PROVENANCE_SOURCE, MIGRATION_POLICY_DESCRIPTOR, OBLIGATION_LEDGER_CODEC_SOURCE,
+    PREDICATE_DENOTATION_BUDGET_SOURCE, PREDICATE_DENOTATION_SOURCE,
+    PROOF_ADMISSION_EVIDENCE_SOURCE, PROOF_ADMISSION_INTEGER_AFFINE_SOURCE,
+    PROOF_ADMISSION_INTEGER_CAST_SOURCE, PROOF_ADMISSION_INTEGER_FORBIDDEN_ROOT_SOURCE,
+    PROOF_ADMISSION_JUDGMENT_SOURCE, PROOF_ADMISSION_LIB_SOURCE, PROOF_ADMISSION_PROOF_SOURCE,
+    PROOF_ADMISSION_TRAVERSAL_SOURCE, PROOF_BUNDLE_SOURCE, PROOF_CODEC_SOURCE, PROPOSITION_SOURCE,
+    PROPOSITION_VALUE_IDS_SOURCE, RECONSTRUCTION_SOURCE, SUBSTITUTION_SOURCE,
+    TERMINAL_CALL_COMPOSITION_SOURCE, TERMINAL_CANONICAL_SCALAR_GOAL_SOURCE,
+    TERMINAL_PROOF_BEARING_SCALAR_SOURCE, TERMINAL_REPRESENTATION_SOURCE_CLOSURE,
+    TERMINAL_SEMANTICS_SOURCE, TERMINAL_STRUCTURAL_EFFECT_SOURCE, TrustAcceptingPolicy,
+    TrustDependencyKind, TrustDependencyNode, TrustDependencyStatus, TrustGraphError,
+    VERIFIER_CALL_COMPOSITION_SOURCE, VERIFIER_LIB_SOURCE, VERIFIER_SOURCE,
+    VERIFIER_SOURCE_CLOSURE, VERIFIER_SOURCE_CLOSURE_BUILD_SOURCE, VERIFIER_VALIDATION_SOURCE,
+    ValidatedTerminalTrustGraph, validate_terminal_trust_graph,
 };
 use crate::FORMAT_MARKER;
 use terminal_semantics::{
@@ -44,7 +45,7 @@ fn canonical_terminal_bytes_version() -> String {
 }
 
 fn canonical_proof_calculus_identity() -> &'static str {
-    "root:canonical-proof-calculus-format-25"
+    "root:canonical-proof-calculus-format-26"
 }
 
 fn canonical_proof_calculus_version() -> String {
@@ -166,7 +167,7 @@ fn proof_admission_node() -> TrustDependencyNode {
         TrustDependencyKind::TrustedImplementation,
         TrustDependencyStatus::TrustedJudgment,
         "Rust product-local proof admission and judgment checker",
-        "rust-proof-admission-v8",
+        "rust-proof-admission-v9",
         "proof-admission",
         "portable proof bundle acceptance",
         "The current Rust admission checker remains trusted until the independent low-rung checker closes the diamond.",
@@ -405,6 +406,19 @@ fn operation_semantics_nodes() -> Vec<TrustDependencyNode> {
                     TERMINAL_SEMANTICS_SOURCE,
                 ),
             ];
+            if row.goal_free_scalar_leaf().is_some_and(|schema| {
+                schema.fact()
+                    == terminal_semantics::ScalarLeafFactShape::BooleanResultEquationAndPolarityImplications
+            }) {
+                exact_sources.extend([
+                    (
+                        "terminal-verifier/verification/reconstruction/operation_facts/boolean_polarity.rs",
+                        BOOLEAN_POLARITY_RECONSTRUCTION_SOURCE,
+                    ),
+                    ("proof-admission/predicate_denotation.rs", PREDICATE_DENOTATION_SOURCE),
+                    ("proof-admission/predicate_denotation/budget.rs", PREDICATE_DENOTATION_BUDGET_SOURCE),
+                ]);
+            }
             if structural_effect.is_some() {
                 exact_sources.push((
                     "terminal-semantics/structural_effect.rs",

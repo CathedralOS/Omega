@@ -41,7 +41,7 @@ fn order_weakening_roundtrips_and_rejects_missing_or_changed_child_evidence() {
             }],
         };
         let bytes = encode_proof_bundle(&bundle).unwrap();
-        assert_eq!(&bytes[8..10], &25_u16.to_le_bytes());
+        assert_eq!(&bytes[8..10], &26_u16.to_le_bytes());
         // Header/envelope use 33 bytes; the u16 Value relation uses 27.
         assert_eq!(bytes[60], 18);
         let decoded = decode_proof_bundle(&bytes).unwrap();

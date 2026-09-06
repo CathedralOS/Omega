@@ -61,7 +61,8 @@ pub enum ProofRule {
         left_less_or_equal_middle: Box<ProofNode>,
         middle_less_or_equal_right: Box<ProofNode>,
     },
-    IntegerLessOrEqualSubstitution {
+    /// Substitute one exactly equal endpoint while preserving strict or nonstrict order.
+    IntegerOrderSubstitution {
         relation: Box<ProofNode>,
         equality: Box<ProofNode>,
         endpoint: usize,

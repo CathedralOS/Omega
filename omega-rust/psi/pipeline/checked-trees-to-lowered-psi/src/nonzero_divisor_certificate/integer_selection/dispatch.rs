@@ -13,6 +13,8 @@ use super::super::affine_custody::DefinitionIndex;
 use super::super::integer_evidence::cited_facts;
 use super::{bound, direct_add, multiply};
 
+mod strict;
+
 pub(super) fn prove_atomic(
     context: &PropositionContext,
     goal: &Proposition,
@@ -32,6 +34,7 @@ pub(super) fn prove_atomic(
             semantic_axioms,
             definitions,
         )),
+        Proposition::LessThan(_, _) => Some(strict::prove(goal, assumptions, semantic_axioms)),
         Proposition::IntegerMathEqual(_, _)
         | Proposition::IntegerMathLessThan(_, _)
         | Proposition::IntegerMathLessOrEqual(_, _) => Some(prove_math_relation(
@@ -96,7 +99,7 @@ fn prove_math_relation(
         let Proposition::LessOrEqual(left, _) = scalar_goal else {
             return None;
         };
-        ProofRule::IntegerLessOrEqualSubstitution {
+        ProofRule::IntegerOrderSubstitution {
             relation: Box::new(scalar_proof),
             equality: Box::new(ProofNode {
                 conclusion: Proposition::Equal(left.clone(), left),
