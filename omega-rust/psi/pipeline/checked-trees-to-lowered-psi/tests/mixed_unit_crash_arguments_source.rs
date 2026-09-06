@@ -33,6 +33,88 @@ const SOURCE: &str = r#"
 "#;
 
 #[test]
+fn compound_member_boolean_equality_keeps_mixed_unit_crash_namespaces() {
+    for predicate in [
+        "(flag.left && flag.right) == after",
+        "after == (flag.left && flag.right)",
+        "(flag.left && flag.right) != after",
+        "after != (flag.left && flag.right)",
+        "!(flag.left && flag.right) == after",
+        "!(flag.left || flag.right) == after",
+        "((flag.left && flag.right) == after) == before",
+        "(flag.left && before) == (flag.right || after)",
+        "(flag.left && flag.right) == (flag.left || flag.right)",
+        "!((flag.left && before) == (flag.right || after))",
+        "((flag.left && before) == (flag.right || after)) == true",
+        "false == ((flag.left && before) != (flag.right || after))",
+    ] {
+        let source = compound_member_source(predicate);
+        let lowered = roundtrip(&checked(&source));
+        let module = &lowered.semantic_module;
+        let root = module
+            .machines
+            .iter()
+            .find(|machine| machine.id == module.entry)
+            .expect("exact entry");
+        assert_eq!(root.parameters.len(), 2);
+        assert_eq!(root.structural_parameters.len(), 1);
+        let (arguments, structural_arguments, crash_continuations) = root
+            .blocks
+            .iter()
+            .flat_map(|block| &block.operations)
+            .find_map(|operation| match &operation.kind {
+                terminal_psi::OperationKind::CallUnit {
+                    arguments,
+                    structural_arguments,
+                    crash_continuations,
+                    ..
+                } => Some((arguments, structural_arguments, crash_continuations)),
+                _ => None,
+            })
+            .expect("exact mixed call");
+        assert_eq!(
+            arguments.as_slice(),
+            &[root.parameters[0].id, root.parameters[1].id]
+        );
+        assert_eq!(structural_arguments.len(), 1);
+        assert_eq!(
+            structural_arguments[0].place,
+            root.structural_parameters[0].place
+        );
+        assert_eq!(
+            crash_continuations, &root.contract.crash_routes,
+            "{predicate}"
+        );
+    }
+}
+
+fn compound_member_source(predicate: &str) -> String {
+    SOURCE
+        .replace(
+            "data Flag { enabled: bool; }",
+            "data Flag { left: bool; right: bool; }",
+        )
+        .replace("flag.enabled && after", predicate)
+}
+
+#[test]
+fn proposition_only_float_comparisons_compose_as_boolean_crash_operands() {
+    for predicate in [
+        "(flag.left == flag.right) == after",
+        "before == (flag.left != flag.right)",
+        "(flag.left != flag.right) != after",
+    ] {
+        let source = SOURCE
+            .replace(
+                "data Flag { enabled: bool; }",
+                "data Flag { left: f64; right: f64; }",
+            )
+            .replace("flag.enabled && after", predicate);
+        roundtrip(&checked(&source));
+    }
+}
+
+#[test]
 fn ordinary_unit_crash_guard_combines_interleaved_scalar_and_structural_parameters() {
     let checked = checked(SOURCE);
     roundtrip(&checked);
@@ -197,7 +279,65 @@ fn mixed_unit_calls_preserve_authored_positions_and_reordered_actuals() {
 
 #[test]
 fn mixed_unit_routes_reject_wrong_scalar_place_and_foreign_formal_bindings() {
-    let lowered = roundtrip(&checked(&reordered_source(0, true, false)));
+    assert_mixed_unit_route_bindings_reject_tampering(&reordered_source(0, true, false));
+}
+
+#[test]
+fn compound_member_routes_reject_wrong_roots_and_foreign_formal_bindings() {
+    let source = reordered_source(0, true, false)
+        .replace(
+            "left.enabled && second && (right.enabled == first)",
+            "(left.enabled && second) == (right.enabled || first)",
+        )
+        .replace(
+            "right.enabled && first && (left.enabled == second)",
+            "(right.enabled && first) == (left.enabled || second)",
+        );
+    let lowered = roundtrip(&checked(&source));
+    for first in [false, true] {
+        for second in [false, true] {
+            for fields in [[false, true], [true, false]] {
+                execute(&lowered, [first, second], fields, true);
+            }
+        }
+    }
+    assert_mixed_unit_route_bindings_reject_tampering(&source);
+}
+
+#[test]
+fn compound_member_route_field_identity_survives_artifact_encoding() {
+    let source = compound_member_source("(flag.left && before) == (flag.right || after)");
+    let lowered = roundtrip(&checked(&source));
+    let mut module = lowered.semantic_module.clone();
+    let root = module
+        .machines
+        .iter()
+        .find(|machine| machine.id == module.entry)
+        .unwrap();
+    let structural_type = root.structural_parameters[0].structural_type;
+    let declaration = module
+        .structural_types
+        .iter_mut()
+        .find(|declaration| declaration.id == structural_type)
+        .unwrap();
+    let terminal_psi::StructuralTypeShape::Record { fields } = &mut declaration.shape else {
+        panic!("exact Flag record");
+    };
+    fields.last_mut().expect("Flag fields").id =
+        semantic_vocabulary::StructuralFieldId::new(u64::MAX).unwrap();
+    assert!(
+        matches!(
+            terminal_codec::encode_module(&module),
+            Err(terminal_codec::CodecError::InvalidModule(
+                terminal_verifier::ModuleError::InvalidBooleanFieldTerm { .. }
+            ))
+        ),
+        "independent codec validation rejects the stale compound field identity before artifact publication"
+    );
+}
+
+fn assert_mixed_unit_route_bindings_reject_tampering(source: &str) {
+    let lowered = roundtrip(&checked(source));
     let module = &lowered.semantic_module;
     let owner = module
         .machines

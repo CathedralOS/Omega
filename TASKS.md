@@ -620,15 +620,14 @@ Owners include
   effects and state transfers. Acceptance: the delivered value is materialized
   once, reassignment changes subsequent reads, and a final guarantee about that
   mutable formal cannot prove equality with its earlier argument value.
-  Complete entry-requirement crash implication beyond canonical Boolean forms:
-  extend compound Boolean equality to structural predicate leaves, admit exact
-  entry hypotheses over structural predicates, and retain numeric entry
-  evidence through its totality owner. Acceptance: compound member predicates
-  survive independent verification, structural entry hypotheses cover an
-  unconditional callee under the matching crash guard, and numeric coverage
-  retains its checked totality evidence. The strict Boolean-formal entry
-  reader and structural crash-predicate owner must retain their exact namespace
-  and totality checks; current body observations are not entry hypotheses.
+  Complete entry-requirement crash implication for structural predicates and
+  numeric requirements: admit exact structural entry hypotheses and retain
+  numeric evidence through its totality owner. Acceptance: structural entry
+  hypotheses cover an unconditional callee under the matching crash guard,
+  and numeric coverage retains its checked totality evidence. The strict
+  Boolean-formal entry reader and structural crash-predicate owner must retain
+  their exact namespace and totality checks; current body observations are not
+  entry hypotheses.
   None may change the callee's exact continuation routes.
   Retain exact entry-value origins for mutable scalar guard operands and
   unversioned structural observations on owned or mutable roots so unchanged
