@@ -48,12 +48,41 @@ class SelectionTests(unittest.TestCase):
     def test_unknown_shared_manifest_and_non_source_inputs_are_full(self):
         for path in ["Cargo.lock", "crates/app/Cargo.toml", "crates/app/build.rs",
                      "source/library/core.omg", "new-crate/src/lib.rs",
-                     "crates/app/tests/fixture.rs", "AGENTS.md",
+                     "crates/app/tests/fixture.rs", "tests/fixtures/README.md",
                      "crates/app/src/fixture.txt"]:
             with self.subTest(path=path):
                 expression, _, reasons = self.select(path)
                 self.assertEqual(expression, "all()")
                 self.assertTrue(reasons)
+
+    def test_audited_docs_select_no_libraries_but_unknown_markdown_is_full(self):
+        for path in ["README.md", "TASKS.md", "AGENTS.md", "CLAUDE.md",
+                     "OWNER_QUESTIONS.md", "TASKS_BOOTSTRAP.md", "TASKS_OPTIMIZER.md",
+                     "wiki/releases/optimizer_promotions/rule.md", "wiki/new.md"]:
+            with self.subTest(path=path):
+                self.assertEqual(self.select(path), ("none()", [], []))
+        for path in ["fixtures/input.md", "wiki/input.omg", "wiki/config.toml",
+                     "source/library/README.md", "crates/app/src/input.md", "new.md"]:
+            with self.subTest(path=path):
+                self.assertEqual(self.select(path)[0], "all()")
+
+    def test_docs_do_not_hide_a_rust_change_or_unknown_input(self):
+        self.assertEqual(self.select("README.md", "crates/app/core/src/lib.rs")[1],
+                         ["app", "core"])
+        self.assertEqual(self.select("README.md", "Cargo.lock")[0], "all()")
+
+    def test_docs_plan_runs_architecture_and_exact_corpus_check_without_libraries(self):
+        with patch.object(affected, "changed_paths", return_value=["README.md"]), \
+                patch.object(affected, "output", return_value=json.dumps(
+                    dict(self.metadata, workspace_root=str(self.root)))):
+            plan = affected.make_plan(self.root, "mbx", "verified-base")
+        self.assertEqual(plan["documentation_paths"], ["README.md"])
+        self.assertEqual(len(plan["commands"]), 2)
+        architecture, corpus = plan["commands"]
+        self.assertIn("omega-architecture-test", architecture)
+        self.assertIn("test(=" + affected.DOCUMENTATION_TEST + ")", corpus)
+        self.assertEqual(corpus[corpus.index("--no-tests") + 1], "fail")
+        self.assertFalse(any("--lib" in command for command in plan["commands"]))
 
     def test_no_change_selects_no_libraries(self):
         self.assertEqual(self.select(), ("none()", [], []))

@@ -30,6 +30,7 @@ Baseline gates for a fresh checkout:
 cargo fmt --all -- --check
 mbx clippy --workspace --all-targets -- -D warnings
 mbx nextest run -p omega-architecture-test --all-targets --no-fail-fast
+mbx nextest run -p compiler --test canary_suite --no-fail-fast --no-tests fail -E 'test(=surface_and_targets::retired_domain_when_surface_is_absent_from_authored_corpus)'
 mbx check --workspace --all-targets
 mbx nextest run --workspace --lib --no-fail-fast
 ```
@@ -44,7 +45,8 @@ For rechecks against a previously verified commit, run
 selection, then repeat without `--plan` (use `python3` on macOS). This replaces
 the architecture/library test commands only. It selects changed crates and
 reverse dependencies, accounts for known source readers, always runs architecture,
-and falls back to all libraries for shared or unknown inputs. Keep fmt, Clippy,
+routes audited documentation to architecture/corpus checks, and falls back to
+all libraries for shared or unknown inputs. Keep fmt, Clippy,
 workspace check, and relevant integration/bootstrap checks. If the baseline,
 environment, or input dependencies are uncertain, use `--full`. See
 [local testing](wiki/testing.md) for the exact coverage contract and examples.

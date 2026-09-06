@@ -35,13 +35,23 @@ current working files, including staged, unstaged, deleted, moved, and untracked
 files. It compares the whole delta, including incoming main changes; it does not
 use a merge-base that could omit incoming changes. Invalid references fail.
 
-Only `.rs` changes under a known workspace crate's `src/` select narrowly.
+Rust `.rs` changes under a known workspace crate's `src/` select narrowly.
 The runner expands declared reverse dependencies (including dev, build,
 optional, and platform dependencies) and known source-reader edges. For example,
 `terminal-codec` embeds verifier and proof sources outside its own directory.
 Architecture tests always run because they inspect repository layout and source.
+Audited documentation selects architecture checks and one exact compiler corpus
+audit, without library tests: root `AGENTS.md`, `CLAUDE.md`, `README.md`,
+`OWNER_QUESTIONS.md`, `TASKS.md`, `TASKS_BOOTSTRAP.md`, `TASKS_OPTIMIZER.md`, and
+Markdown under `wiki/`. Architecture checks read release records; the corpus
+audit checks retired syntax in tracked and untracked prose. The JSON plan lists
+these paths separately as `documentation_paths`. Mixed docs/Rust changes still
+select the affected Rust libraries; docs never mask another changed input.
+
+This is a path allowlist, not an exemption for every `.md` file. Markdown in
+test fixtures or package sources can be input data and still selects all libraries.
 Manifests, build scripts, lockfiles, toolchain/config changes, shared fixtures,
-Omega library sources, docs, tooling, and unknown paths select all libraries.
+Omega library sources, tooling, and unknown paths also retain that fallback.
 No change skips only the library phase, with `none()` explicitly in the plan.
 A selection containing only binary crates may have zero library tests; nextest
 reports that explicitly and succeeds. Full runs still reject an unexpectedly
@@ -49,7 +59,9 @@ empty suite. The separate integration requirements continue to apply.
 
 This is conservative dependency-based selection, not a formal independence
 proof. Any new cross-crate source/fixture reader must be represented in
-`SOURCE_READERS` or force a full run. Review that map when changing the codec's
+`SOURCE_READERS` or force a full run. A new runtime reader of an allowed doc path
+must add its tests to the documentation route or remove that path from the allowlist.
+Review that map when changing the codec's
 source closure. Arbitrary runtime filesystem reads cannot be inferred reliably
 from Cargo metadata. Narrow selection assumes the same toolchain, host, feature
 flags, environment and external inputs as the verified baseline. If these have
@@ -59,7 +71,7 @@ The selector replaces only architecture/library test commands during a recheck.
 Formatting, Clippy, workspace checking, and relevant integration/bootstrap gates
 still apply. It does not certify a base, cache results, hide failures, or grant
 a landing reservation. Review the plan and retain its output with test results.
-Do not edit the worktree during a run. Both phases run even if architecture
+Do not edit the worktree during a run. All selected phases run even if architecture
 fails, and any failure produces a nonzero exit status.
 
 ## Full portable test baseline
@@ -72,6 +84,7 @@ Equivalent explicit commands:
 
 ```sh
 mbx nextest run --locked -p omega-architecture-test --all-targets --no-fail-fast
+mbx nextest run --locked -p compiler --test canary_suite --no-fail-fast --no-tests fail -E 'test(=surface_and_targets::retired_domain_when_surface_is_absent_from_authored_corpus)'
 mbx nextest run --locked --workspace --lib --no-fail-fast
 ```
 

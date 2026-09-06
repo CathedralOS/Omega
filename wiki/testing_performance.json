@@ -132,5 +132,25 @@
     "active_library_tests": 1067,
     "full_active_library_tests": 7687,
     "library_execution_reduction_percent": 86.119422401457
+  },
+  "documentation_selection": {
+    "samples_seconds": [
+      28.059610999998768,
+      21.888183499999286,
+      23.468955199999982
+    ],
+    "minimum_seconds": 21.888183499999286,
+    "mean_seconds": 24.472249899999344,
+    "maximum_seconds": 28.059610999998768,
+    "architecture_tests": 448,
+    "corpus_tests": 1,
+    "library_tests": 0,
+    "selector_tests_passed": 13,
+    "untracked_invalid_doc_detected": true,
+    "restored_doc_check_passed": true,
+    "focused_clippy_passed": true,
+    "compiler_format_passed": true,
+    "host": "Windows; warm builds; active workstation",
+    "scope": "Entire test_affected.py CLI for a real README-only edit, restored after trials"
   }
 }

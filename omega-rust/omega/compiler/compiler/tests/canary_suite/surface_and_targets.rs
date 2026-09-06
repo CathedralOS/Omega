@@ -33,6 +33,9 @@ fn retired_domain_when_surface_is_absent_from_authored_corpus() {
             "-C",
             root.to_str().expect("UTF-8 repository path"),
             "ls-files",
+            "--cached",
+            "--others",
+            "--exclude-standard",
             "-z",
         ])
         .output()
