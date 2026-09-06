@@ -1,18 +1,16 @@
 //! A sufficient caller ceiling proved solely from invocation-entry requirements.
 //! Callee continuations retain their independently reconstructed exact routes.
 
-use proof_admission::{
-    PrimitiveJudgment, ProofNode, ProofRule, check_certificate, check_predicate_denotations,
-};
+use proof_admission::{PrimitiveJudgment, ProofNode, ProofRule, check_predicate_denotations};
 use semantic_vocabulary::{Proposition, PropositionContext, StructuralPlaceKind};
 use terminal_psi::{CrashRouteBucket, CrashRouteGuard, TerminalMachine};
 
 const MAXIMUM_SEARCH_STEPS: usize = 4096;
 const MAXIMUM_PROOF_DEPTH: usize = 64;
 
-/// Establish one exact site predicate from invocation requirements and only
-/// the independently reconstructed facts for that site. Predicate conversion
-/// and the resulting certificate are both checked by the proof owner.
+/// Establish a crash predicate from invocation requirements and any exact
+/// independently reconstructed site facts. Call ceilings supply no site facts.
+/// Predicate conversion and the certificate are checked by the proof owner.
 pub(super) fn establishes(
     context: &PropositionContext,
     goal: &Proposition,
@@ -24,7 +22,7 @@ pub(super) fn establishes(
         return false;
     };
     let mut remaining = MAXIMUM_SEARCH_STEPS;
-    let Some(proof) = site_proof(
+    let Some(proof) = prove(
         denotations.goal(),
         denotations.requirements(),
         denotations.semantic_axioms(),
@@ -36,7 +34,7 @@ pub(super) fn establishes(
     denotations.check_certificate(context, &proof).is_ok()
 }
 
-fn site_proof(
+fn prove(
     goal: &Proposition,
     requirements: &[Proposition],
     semantic_axioms: &[Proposition],
@@ -107,12 +105,12 @@ fn site_proof(
         Proposition::Conjunction(children) => ProofRule::ConjunctionIntroduction(
             children
                 .iter()
-                .map(|child| site_proof(child, requirements, semantic_axioms, remaining, depth + 1))
+                .map(|child| prove(child, requirements, semantic_axioms, remaining, depth + 1))
                 .collect::<Option<Vec<_>>>()?,
         ),
         Proposition::Disjunction(children) => {
             let (index, proof) = children.iter().enumerate().find_map(|(index, child)| {
-                site_proof(child, requirements, semantic_axioms, remaining, depth + 1)
+                prove(child, requirements, semantic_axioms, remaining, depth + 1)
                     .map(|proof| (index, proof))
             })?;
             ProofRule::DisjunctionIntroduction {
@@ -144,20 +142,30 @@ pub(super) fn covers(caller: &TerminalMachine, published: &CrashRouteBucket) -> 
     ) else {
         return false;
     };
-    let mut remaining = MAXIMUM_SEARCH_STEPS;
-    published.alternatives.iter().any(|route| {
-        let CrashRouteGuard::Predicate(predicate) = route else {
-            return false;
-        };
-        let goal = predicate.proposition();
-        let Some(proof) = prove(goal, &caller.contract.requires, &mut remaining, 0) else {
-            return false;
-        };
-        // The search does not authorize a conclusion. The existing proof
-        // kernel checks its exact assumption/conjunction certificate without
-        // producer evidence, inferred runtime facts, or admission choices.
-        check_certificate(&context, goal, &caller.contract.requires, &[], &proof).is_ok()
-    })
+    match published.alternatives.as_slice() {
+        [] => false,
+        [CrashRouteGuard::Predicate(predicate)] => establishes(
+            &context,
+            predicate.proposition(),
+            &caller.contract.requires,
+            &[],
+        ),
+        alternatives => {
+            // A bucket publishes a union, not a chosen route. One checked
+            // union goal shares the conversion and search budgets across all
+            // alternatives, and preserves disjunctive entry requirements.
+            let goal = Proposition::Disjunction(
+                alternatives
+                    .iter()
+                    .map(|route| match route {
+                        CrashRouteGuard::Truth => Proposition::Truth,
+                        CrashRouteGuard::Predicate(predicate) => predicate.proposition().clone(),
+                    })
+                    .collect(),
+            );
+            establishes(&context, &goal, &caller.contract.requires, &[])
+        }
+    }
 }
 
 fn step(remaining: &mut usize, depth: usize) -> Option<()> {
@@ -166,50 +174,6 @@ fn step(remaining: &mut usize, depth: usize) -> Option<()> {
     }
     *remaining = remaining.checked_sub(1)?;
     Some(())
-}
-
-fn prove(
-    goal: &Proposition,
-    requirements: &[Proposition],
-    remaining: &mut usize,
-    depth: usize,
-) -> Option<ProofNode> {
-    step(remaining, depth)?;
-    for (index, requirement) in requirements.iter().enumerate() {
-        let mut path = Vec::new();
-        if projection(requirement, goal, &mut path, remaining, depth)? {
-            let mut premise = requirement;
-            let mut proof = ProofNode {
-                conclusion: premise.clone(),
-                rule: ProofRule::Assumption { index },
-            };
-            for conjunct in path {
-                let Proposition::Conjunction(conjuncts) = premise else {
-                    return None;
-                };
-                premise = conjuncts.get(conjunct)?;
-                proof = ProofNode {
-                    conclusion: premise.clone(),
-                    rule: ProofRule::ConjunctionElimination {
-                        conjunction: Box::new(proof),
-                        conjunct,
-                    },
-                };
-            }
-            return Some(proof);
-        }
-    }
-    let Proposition::Conjunction(conjuncts) = goal else {
-        return None;
-    };
-    let children = conjuncts
-        .iter()
-        .map(|conjunct| prove(conjunct, requirements, remaining, depth + 1))
-        .collect::<Option<Vec<_>>>()?;
-    Some(ProofNode {
-        conclusion: goal.clone(),
-        rule: ProofRule::ConjunctionIntroduction(children),
-    })
 }
 
 fn projection(
@@ -238,6 +202,7 @@ fn projection(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use proof_admission::check_certificate;
 
     #[test]
     fn conjunction_proof_search_exhausts_a_shared_budget() {
@@ -247,10 +212,10 @@ mod tests {
             goal.clone(),
         ])];
         let mut remaining = 2;
-        assert!(prove(&goal, &requirements, &mut remaining, 0).is_none());
+        assert!(prove(&goal, &requirements, &[], &mut remaining, 0).is_none());
         assert_eq!(remaining, 0);
         let mut remaining = MAXIMUM_SEARCH_STEPS;
-        let proof = prove(&goal, &requirements, &mut remaining, 0).unwrap();
+        let proof = prove(&goal, &requirements, &[], &mut remaining, 0).unwrap();
         check_certificate(
             &PropositionContext::default(),
             &goal,
@@ -263,13 +228,17 @@ mod tests {
 
     #[test]
     fn disjunction_is_not_projected_as_a_conjunction() {
-        let goal = Proposition::Truth;
+        let flag = semantic_vocabulary::ScalarTerm::value(
+            semantic_vocabulary::ValueId::new(1).unwrap(),
+            semantic_vocabulary::ScalarType::Boolean,
+        );
+        let goal = Proposition::Equal(flag.clone(), semantic_vocabulary::ScalarTerm::boolean(true));
         let requirements = [Proposition::Disjunction(vec![
             goal.clone(),
-            Proposition::Falsehood,
+            Proposition::Equal(flag, semantic_vocabulary::ScalarTerm::boolean(false)),
         ])];
         let mut remaining = MAXIMUM_SEARCH_STEPS;
-        assert!(prove(&goal, &requirements, &mut remaining, 0).is_none());
+        assert!(prove(&goal, &requirements, &[], &mut remaining, 0).is_none());
     }
 
     #[test]
@@ -280,7 +249,7 @@ mod tests {
             premise = Proposition::Conjunction(vec![premise]);
         }
         let mut remaining = MAXIMUM_SEARCH_STEPS;
-        assert!(prove(&goal, &[premise], &mut remaining, 0).is_none());
+        assert!(prove(&goal, &[premise], &[], &mut remaining, 0).is_none());
         assert!(remaining > 0);
     }
 }

@@ -612,11 +612,13 @@ Owners include
   effects and state transfers. Acceptance: the delivered value is materialized
   once, reassignment changes subsequent reads, and a final guarantee about that
   mutable formal cannot prove equality with its earlier argument value.
-  Extend entry-requirement crash coverage beyond exact Boolean hypotheses and
-  conjunction projection: retain numeric entry evidence through its totality
-  owner, and prove equivalent Boolean route spellings during Terminal call
-  coverage. Acceptance: `requires !flag` covers an unconditional callee under
-  `crashes Trap !flag` without changing the callee's exact continuation routes.
+  Complete entry-requirement crash implication beyond canonical Boolean forms:
+  derive common consequences of disjunctive requirements, lower equality between
+  two compound Boolean predicates, and retain numeric entry evidence through its
+  totality owner. Acceptance: `(a && b) || (a && c)` covers an unconditional
+  callee under `crashes Trap a`, compound predicate equality survives independent
+  verification, and numeric coverage retains its checked totality evidence.
+  None may change the callee's exact continuation routes.
   Retain exact entry-value origins for mutable scalar guard operands and
   unversioned structural observations on owned or mutable roots so unchanged
   entry values can establish published crash routes; a current storage predicate

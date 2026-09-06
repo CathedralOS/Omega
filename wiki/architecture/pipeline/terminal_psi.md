@@ -3454,13 +3454,23 @@ symbols and with the canonical entry ordinal; body reassignment does not change
 those hypotheses. All-crash scalar graphs retain their checked requirements
 instead of dropping the contract because no normal return exists.
 
-Independent call-ceiling validation can prove a same-cause published predicate
-from caller requirements using kernel-checked assumption and conjunction
-certificates. This sufficient coverage check does not rewrite callee routes or
-weaken exact continuation reconstruction, and it does not use body values or
-producer-supplied coverage evidence. Search is bounded to 4,096 steps and depth
-64. Equivalent Boolean spellings that need further proof rules and numeric entry
-coverage remain unfinished.
+Independent call-ceiling validation proves the union of a same-cause bucket's
+published alternatives from caller requirements. It reuses the checked Boolean
+predicate-denotation conversion and certificate search used for direct sites,
+but supplies only entry requirements, never CFG facts or current body values.
+One union goal shares the 4,096-step conversion and search limits across the
+bucket; proof depth is bounded to 64. Exact callee continuations remain unchanged.
+This also permits a disjunctive entry requirement to cover separate published
+alternatives without claiming either alternative holds by itself.
+
+Checked source coverage recognizes equivalent negation and Boolean-literal
+equality wrappers only after verifying builtin meaning and the exact entry
+formal/symbol and canonical ordinal on both requirements and authored routes.
+It retains the original published predicate identity as a proved consequence.
+Negated scalar conjunctions and disjunctions lower through logical De Morgan
+propositions, including Boolean-literal equality wrappers, not eager scalar
+operations. General disjunctive implication, equality between two compound
+Boolean predicates, and numeric entry coverage remain implementation work.
 
 Direct crash-site validation independently proves every asserted guard from
 invocation-entry requirements and facts reconstructed before that terminator.

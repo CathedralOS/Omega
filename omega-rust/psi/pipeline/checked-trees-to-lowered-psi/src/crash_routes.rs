@@ -1717,6 +1717,20 @@ pub(super) fn checked_boolean_proposition(
     values: &[ValueDeclaration],
 ) -> Result<Proposition, LoweringError> {
     match expression {
+        CheckedBooleanExpression::Not(operand) if contains_boolean_connective(operand) => {
+            checked_boolean_connective_polarity(operand, values, false)
+        }
+        CheckedBooleanExpression::Equal { left, right }
+            if contains_boolean_connective(expression) =>
+        {
+            match (left.as_ref(), right.as_ref()) {
+                (CheckedBooleanExpression::Constant(value), operand)
+                | (operand, CheckedBooleanExpression::Constant(value)) => {
+                    checked_boolean_connective_polarity(operand, values, *value)
+                }
+                _ => unsupported("compound Boolean crash equality requires logical lowering"),
+            }
+        }
         CheckedBooleanExpression::Constant(_) => {
             unsupported("constant crash predicates must normalize before terminal lowering")
         }
@@ -1765,6 +1779,102 @@ pub(super) fn checked_boolean_proposition(
             Ok(Proposition::Equal(left, right))
         }
     }
+}
+
+fn contains_boolean_connective(expression: &CheckedBooleanExpression) -> bool {
+    match expression {
+        CheckedBooleanExpression::And { .. } | CheckedBooleanExpression::Or { .. } => true,
+        CheckedBooleanExpression::Not(operand) => contains_boolean_connective(operand),
+        CheckedBooleanExpression::Equal { left, right } => {
+            contains_boolean_connective(left) || contains_boolean_connective(right)
+        }
+        _ => false,
+    }
+}
+
+/// Negation of short-circuit predicates belongs to logical propositions, not
+/// one eagerly evaluated scalar Boolean term. Keep the existing atomic leaf
+/// lowering (including numeric meanings) and only distribute Boolean polarity.
+fn checked_boolean_connective_polarity(
+    expression: &CheckedBooleanExpression,
+    values: &[ValueDeclaration],
+    positive: bool,
+) -> Result<Proposition, LoweringError> {
+    match expression {
+        CheckedBooleanExpression::Constant(_) => {
+            unsupported("constant crash predicates must normalize before terminal lowering")
+        }
+        CheckedBooleanExpression::Not(operand) => {
+            checked_boolean_connective_polarity(operand, values, !positive)
+        }
+        CheckedBooleanExpression::Equal { left, right } => match (left.as_ref(), right.as_ref()) {
+            (CheckedBooleanExpression::Constant(value), operand)
+            | (operand, CheckedBooleanExpression::Constant(value)) => {
+                checked_boolean_connective_polarity(operand, values, *value == positive)
+            }
+            _ => checked_boolean_atom_polarity(expression, values, positive),
+        },
+        CheckedBooleanExpression::And { left, right }
+        | CheckedBooleanExpression::Or { left, right } => {
+            let conjunction =
+                matches!(expression, CheckedBooleanExpression::And { .. }) == positive;
+            let mut flattened = Vec::new();
+            for operand in [left.as_ref(), right.as_ref()] {
+                let proposition = checked_boolean_connective_polarity(operand, values, positive)?;
+                match proposition {
+                    Proposition::Conjunction(children) if conjunction => flattened.extend(children),
+                    Proposition::Disjunction(children) if !conjunction => {
+                        flattened.extend(children)
+                    }
+                    proposition => flattened.push(proposition),
+                }
+            }
+            let mut keyed = flattened
+                .into_iter()
+                .map(|proposition| {
+                    terminal_codec::canonical_proposition_order_key(&proposition)
+                        .map(|key| (key, proposition))
+                        .map_err(|_| {
+                            LoweringError::Unsupported(
+                                "scalar crash connective is not canonically encodable",
+                            )
+                        })
+                })
+                .collect::<Result<Vec<_>, _>>()?;
+            keyed.sort_by(|left, right| left.0.cmp(&right.0));
+            keyed.dedup_by(|left, right| left.0 == right.0);
+            if keyed.len() == 1 {
+                return Ok(keyed.pop().expect("one distinct crash predicate").1);
+            }
+            let children = keyed
+                .into_iter()
+                .map(|(_, proposition)| proposition)
+                .collect();
+            Ok(if conjunction {
+                Proposition::Conjunction(children)
+            } else {
+                Proposition::Disjunction(children)
+            })
+        }
+        _ => checked_boolean_atom_polarity(expression, values, positive),
+    }
+}
+
+fn checked_boolean_atom_polarity(
+    expression: &CheckedBooleanExpression,
+    values: &[ValueDeclaration],
+    positive: bool,
+) -> Result<Proposition, LoweringError> {
+    if positive {
+        return checked_boolean_proposition(expression, values);
+    }
+    let mut left = ScalarTerm::boolean_not(checked_boolean_scalar_term(expression, values)?)
+        .map_err(LoweringError::InvalidCrashPredicate)?;
+    let mut right = ScalarTerm::boolean(true);
+    if left > right {
+        std::mem::swap(&mut left, &mut right);
+    }
+    Ok(Proposition::Equal(left, right))
 }
 
 pub(super) fn checked_boolean_scalar_term(
@@ -2135,6 +2245,97 @@ fn checked_boolean_scalar_term_from_lowered(
         }
         LoweredBooleanReturnExpression::And { .. } | LoweredBooleanReturnExpression::Or { .. } => {
             unsupported("short-circuit Boolean crash predicate is not one scalar terminal term")
+        }
+    }
+}
+
+#[cfg(test)]
+mod boolean_connective_tests {
+    use super::*;
+
+    #[test]
+    fn connective_constant_children_still_require_prior_normalization() {
+        let values = [ValueDeclaration {
+            id: value_id(7),
+            scalar_type: ScalarType::Boolean,
+        }];
+        for literal in [false, true] {
+            for conjunction in [false, true] {
+                let left = Box::new(CheckedBooleanExpression::Parameter { position: 0 });
+                let right = Box::new(CheckedBooleanExpression::Constant(literal));
+                let expression = if conjunction {
+                    CheckedBooleanExpression::And { left, right }
+                } else {
+                    CheckedBooleanExpression::Or { left, right }
+                };
+                for expression in [
+                    expression.clone(),
+                    CheckedBooleanExpression::Not(Box::new(expression)),
+                ] {
+                    assert!(matches!(
+                        checked_boolean_proposition(&expression, &values),
+                        Err(LoweringError::Unsupported(
+                            "constant crash predicates must normalize before terminal lowering"
+                        ))
+                    ));
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn negated_connectives_lower_to_logical_propositions_without_scalar_operations() {
+        let values = [7, 19].map(|identity| ValueDeclaration {
+            id: value_id(identity),
+            scalar_type: ScalarType::Boolean,
+        });
+        for conjunction in [false, true] {
+            let left = CheckedBooleanExpression::Parameter { position: 0 };
+            let right = CheckedBooleanExpression::Parameter { position: 1 };
+            let expression = if conjunction {
+                CheckedBooleanExpression::And {
+                    left: Box::new(left.clone()),
+                    right: Box::new(right.clone()),
+                }
+            } else {
+                CheckedBooleanExpression::Or {
+                    left: Box::new(left.clone()),
+                    right: Box::new(right.clone()),
+                }
+            };
+            let negated = CheckedBooleanExpression::Not(Box::new(expression.clone()));
+            let expected = if conjunction {
+                CheckedBooleanExpression::Or {
+                    left: Box::new(CheckedBooleanExpression::Not(Box::new(left))),
+                    right: Box::new(CheckedBooleanExpression::Not(Box::new(right))),
+                }
+            } else {
+                CheckedBooleanExpression::And {
+                    left: Box::new(CheckedBooleanExpression::Not(Box::new(left))),
+                    right: Box::new(CheckedBooleanExpression::Not(Box::new(right))),
+                }
+            };
+            let expected = checked_boolean_proposition(&expected, &values).unwrap();
+            assert_eq!(
+                checked_boolean_proposition(&negated, &values).unwrap(),
+                expected
+            );
+            assert!(checked_boolean_scalar_term(&negated, &values).is_err());
+            for wrapped in [
+                CheckedBooleanExpression::Equal {
+                    left: Box::new(negated),
+                    right: Box::new(CheckedBooleanExpression::Constant(true)),
+                },
+                CheckedBooleanExpression::Equal {
+                    left: Box::new(CheckedBooleanExpression::Constant(false)),
+                    right: Box::new(expression),
+                },
+            ] {
+                assert_eq!(
+                    checked_boolean_proposition(&wrapped, &values).unwrap(),
+                    expected
+                );
+            }
         }
     }
 }

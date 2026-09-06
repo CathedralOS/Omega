@@ -261,3 +261,191 @@ fn coverage_proof_cannot_replace_the_exact_callee_continuation() {
         );
     }
 }
+
+fn negated_boolean(position: u64) -> Proposition {
+    let negated = ScalarTerm::boolean_not(ScalarTerm::value(
+        ValueId::new(position).unwrap(),
+        ScalarType::Boolean,
+    ))
+    .unwrap();
+    let mut terms = [negated, ScalarTerm::boolean(true)];
+    terms.sort();
+    Proposition::Equal(terms[0].clone(), terms[1].clone())
+}
+
+#[test]
+fn negated_entry_requirement_covers_an_equivalently_encoded_crash_predicate() {
+    for scalar_call in [false, true] {
+        let mut module = module(scalar_call);
+        // Requires !flag uses the false polarity of the entry value; the
+        // published predicate retains the total BooleanNot expression tree.
+        module.machines[0].contract.requires = vec![boolean(1, false)];
+        module.machines[0].contract.crash_routes = vec![bucket(predicate(boolean(1, false)))];
+        verify_module(
+            &module,
+            &ProofBundle::default(),
+            &AdmissionProfile::default(),
+        )
+        .expect("the exact spelling remains a valid positive control");
+        module.machines[0].contract.crash_routes = vec![bucket(predicate(negated_boolean(1)))];
+        verify_module(
+            &module,
+            &ProofBundle::default(),
+            &AdmissionProfile::default(),
+        )
+        .expect("equivalent Boolean denotations establish caller coverage");
+    }
+}
+
+fn term_holds(term: ScalarTerm) -> Proposition {
+    let mut terms = [term, ScalarTerm::boolean(true)];
+    terms.sort();
+    Proposition::Equal(terms[0].clone(), terms[1].clone())
+}
+
+fn verify_coverage(module: &TerminalModule) {
+    verify_module(
+        module,
+        &ProofBundle::default(),
+        &AdmissionProfile::default(),
+    )
+    .unwrap();
+}
+
+#[test]
+fn nested_negations_and_boolean_equal_wrappers_preserve_entry_polarity() {
+    let flag = ScalarTerm::value(ValueId::new(1).unwrap(), ScalarType::Boolean);
+    let not_flag = ScalarTerm::boolean_not(flag.clone()).unwrap();
+    let double_not = ScalarTerm::boolean_not(not_flag.clone()).unwrap();
+    let wrapped_not =
+        ScalarTerm::boolean_equal(not_flag.clone(), ScalarTerm::boolean(true)).unwrap();
+    let reversed_not = ScalarTerm::boolean_equal(ScalarTerm::boolean(true), not_flag).unwrap();
+    let equals_false = ScalarTerm::boolean_equal(flag, ScalarTerm::boolean(false)).unwrap();
+    for (term, entry) in [
+        (double_not, true),
+        (wrapped_not, false),
+        (reversed_not, false),
+        (equals_false, false),
+    ] {
+        for scalar_call in [false, true] {
+            let mut checked = module(scalar_call);
+            checked.machines[0].contract.requires = vec![boolean(1, entry)];
+            checked.machines[0].contract.crash_routes =
+                vec![bucket(predicate(term_holds(term.clone())))];
+            verify_coverage(&checked);
+            // Conversion applies to both premises and goals, not just routes.
+            checked.machines[0].contract.requires = vec![term_holds(term.clone())];
+            checked.machines[0].contract.crash_routes = vec![bucket(predicate(boolean(1, entry)))];
+            verify_coverage(&checked);
+        }
+    }
+}
+
+#[test]
+fn equivalent_spelling_does_not_supply_missing_opposite_or_foreign_assumptions() {
+    for scalar_call in [false, true] {
+        for requirements in [
+            Vec::new(),
+            vec![boolean(1, true)],
+            vec![boolean(2, false)],
+            vec![negated_boolean(2)],
+        ] {
+            let mut checked = module(scalar_call);
+            checked.machines[0].contract.requires = requirements;
+            checked.machines[0].contract.crash_routes = vec![bucket(predicate(negated_boolean(1)))];
+            rejects_coverage(&checked);
+        }
+    }
+}
+
+#[test]
+fn entry_disjunction_covers_the_union_of_same_cause_published_alternatives() {
+    let mut disjuncts = vec![boolean(1, true), boolean(2, true)];
+    disjuncts.sort();
+    for scalar_call in [false, true] {
+        let mut checked = module(scalar_call);
+        checked.machines[0].contract.requires = vec![Proposition::Disjunction(disjuncts.clone())];
+        let mut alternatives = disjuncts.iter().cloned().map(predicate).collect::<Vec<_>>();
+        alternatives.sort();
+        checked.machines[0].contract.crash_routes = vec![CrashRouteBucket {
+            cause: CrashCause::Trap,
+            alternatives,
+        }];
+        verify_coverage(&checked);
+        checked.machines[0].contract.crash_routes = vec![bucket(predicate(boolean(1, true)))];
+        rejects_coverage(&checked);
+        // A known disjunct also establishes a single compound alternative.
+        checked.machines[0].contract.requires = vec![boolean(1, true)];
+        checked.machines[0].contract.crash_routes = vec![bucket(predicate(
+            Proposition::Disjunction(disjuncts.clone()),
+        ))];
+        verify_coverage(&checked);
+    }
+}
+
+#[test]
+fn equivalent_entry_coverage_does_not_rewrite_exact_call_continuations() {
+    for scalar_call in [false, true] {
+        let mut checked = module(scalar_call);
+        checked.machines[0].contract.requires = vec![boolean(1, false)];
+        checked.machines[0].contract.crash_routes = vec![bucket(predicate(negated_boolean(1)))];
+        verify_coverage(&checked);
+        let mut forged = checked.clone();
+        let kind = &mut forged.machines[0].blocks[0].operations[0].kind;
+        let (OperationKind::Call {
+            crash_continuations,
+            ..
+        }
+        | OperationKind::CallUnit {
+            crash_continuations,
+            ..
+        }) = kind
+        else {
+            unreachable!()
+        };
+        crash_continuations[0].alternatives = vec![predicate(negated_boolean(1))];
+        assert!(
+            matches!(validate_module(&forged), Err(ModuleError::CallCrashContinuationsMismatch { operation, .. }) if operation == OperationId::new(1).unwrap())
+        );
+
+        // The callee still has a structurally valid unconditional crash, but
+        // changing its cause invalidates the caller's retained continuation.
+        checked.machines[1].contract.crash_routes[0].cause = CrashCause::Abort;
+        let Terminator::Crash { cause, .. } = &mut checked.machines[1].blocks[0].terminator else {
+            unreachable!()
+        };
+        *cause = CrashCause::Abort;
+        assert!(
+            matches!(validate_module(&checked), Err(ModuleError::CallCrashContinuationsMismatch { operation, .. }) if operation == OperationId::new(1).unwrap())
+        );
+    }
+}
+
+#[test]
+fn proving_one_alternative_does_not_reset_the_whole_union_conversion_budget() {
+    for scalar_call in [false, true] {
+        let mut checked = module(scalar_call);
+        checked.machines[0].parameters = (10_u64..1110)
+            .map(|identity| ValueDeclaration {
+                id: ValueId::new(identity).unwrap(),
+                scalar_type: ScalarType::Boolean,
+            })
+            .collect();
+        let mut alternatives = (10_u64..1110)
+            .map(|identity| predicate(boolean(identity, true)))
+            .collect::<Vec<_>>();
+        alternatives.sort();
+        let CrashRouteGuard::Predicate(first) = &alternatives[0] else {
+            unreachable!()
+        };
+        checked.machines[0].contract.requires = vec![first.proposition().clone()];
+        checked.machines[0].contract.crash_routes = vec![bucket(alternatives[0].clone())];
+        verify_coverage(&checked);
+
+        // Every predicate is small and valid by itself, and the first is
+        // already proved. Input traversal plus normalization of the complete
+        // 1100-alternative union nevertheless exceeds the shared 4096 steps.
+        checked.machines[0].contract.crash_routes[0].alternatives = alternatives;
+        rejects_coverage(&checked);
+    }
+}

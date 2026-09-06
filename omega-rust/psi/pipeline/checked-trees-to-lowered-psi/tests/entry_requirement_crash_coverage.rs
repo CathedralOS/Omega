@@ -4,7 +4,7 @@ use proof_admission::AdmissionProfile;
 use source_files_to_tokens::Lexer;
 use symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
 use syntax_trees_to_symbol_resolved_trees::lower_syntax_trees;
-use terminal_codec::{encode_module, encode_proof_bundle};
+use terminal_codec::{decode_module, decode_proof_bundle, encode_module, encode_proof_bundle};
 use terminal_interpreter::{
     TerminalArtifactInterpretError, TerminalInterpretError, interpret_terminal_artifact,
 };
@@ -33,16 +33,33 @@ fn with_caller(declarations: &str, call: &str) -> String {
 }
 
 fn assert_trap(source: &str) {
+    assert_trap_with_module_check(source, |_| {});
+}
+
+fn assert_trap_with_module_check(
+    source: &str,
+    check_module: impl Fn(&terminal_psi::TerminalModule),
+) {
     let artifact = {
         let checked = lower_typed_trees(typed(source))
             .unwrap_or_else(|diagnostics| panic!("{source}: {diagnostics:#?}"));
         let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, "value")
             .unwrap_or_else(|error| panic!("{source}: {error:#?}"));
+        check_module(&lowered.semantic_module);
         (
             encode_module(&lowered.semantic_module).unwrap(),
             encode_proof_bundle(&lowered.proof_bundle).unwrap(),
         )
     };
+    let decoded_module = decode_module(&artifact.0).expect("decode terminal module");
+    let decoded_proof = decode_proof_bundle(&artifact.1).expect("decode proof bundle");
+    check_module(&decoded_module);
+    terminal_verifier::verify_module(
+        &decoded_module,
+        &decoded_proof,
+        &AdmissionProfile::default(),
+    )
+    .unwrap_or_else(|error| panic!("{source}: {error:#?}"));
     // A zero-argument source wrapper proves the actual call requirement. The
     // independent consumer receives only bytes, not host arguments requiring
     // some new runtime enforcement of the callee's entry contract.
@@ -54,6 +71,125 @@ fn assert_trap(source: &str) {
             if crash.cause == terminal_psi::CrashCause::Trap),
         "{source}"
     );
+}
+
+fn assert_unconditional_call_trap(source: &str) {
+    assert_trap_with_module_check(source, |module| {
+        let mut checked_calls = 0;
+        for operation in module
+            .machines
+            .iter()
+            .flat_map(|machine| &machine.blocks)
+            .flat_map(|block| &block.operations)
+        {
+            let terminal_psi::OperationKind::Call {
+                callee,
+                crash_continuations,
+                ..
+            } = &operation.kind
+            else {
+                continue;
+            };
+            let callee = module
+                .machines
+                .iter()
+                .find(|machine| machine.id == *callee)
+                .expect("exact retained call target");
+            if !callee.parameters.is_empty() {
+                continue;
+            }
+            assert_eq!(crash_continuations, &callee.contract.crash_routes);
+            assert_eq!(
+                crash_continuations,
+                &[terminal_psi::CrashRouteBucket {
+                    cause: terminal_psi::CrashCause::Trap,
+                    alternatives: vec![terminal_psi::CrashRouteGuard::Truth],
+                }]
+            );
+            checked_calls += 1;
+        }
+        assert_eq!(
+            checked_calls, 1,
+            "one unchanged unconditional trigger continuation"
+        );
+    });
+}
+
+#[test]
+fn negated_entry_requirement_covers_unconditional_call_after_mutable_reassignment() {
+    for (parameters, body) in [
+        ("flag: bool", "trigger()"),
+        ("mut flag: bool", "flag = true; trigger()"),
+    ] {
+        let declarations = format!(
+            "machine trigger() -> bool\ncrashes Trap\n{{ crash Trap; }}\n\
+             machine forward({parameters}) -> bool\nrequires !flag\ncrashes Trap !flag\n{{ {body} }}",
+        );
+        assert_unconditional_call_trap(&with_caller(&declarations, "forward(false)"));
+    }
+}
+
+#[test]
+fn false_equality_entry_requirements_cover_equivalent_negated_call_routes() {
+    for (requirement, route) in [
+        ("flag == false", "flag == false"),
+        ("flag == false", "!flag"),
+        ("!flag", "flag == false"),
+    ] {
+        for (parameters, body) in [
+            ("flag: bool", "trigger()"),
+            ("mut flag: bool", "flag = true; trigger()"),
+        ] {
+            let declarations = format!(
+                "machine trigger() -> bool\ncrashes Trap\n{{ crash Trap; }}\n\
+                 machine forward({parameters}) -> bool\nrequires {requirement}\ncrashes Trap {route}\n{{ {body} }}",
+            );
+            assert_unconditional_call_trap(&with_caller(&declarations, "forward(false)"));
+        }
+    }
+}
+
+#[test]
+fn negated_conjunction_entry_call_coverage_keeps_original_mutable_operands() {
+    for (parameters, body) in [
+        ("flag: bool, other: bool", "trigger()"),
+        (
+            "mut flag: bool, mut other: bool",
+            "flag = true; other = true; trigger()",
+        ),
+    ] {
+        for route in ["!(flag && other)", "(flag && other) == false"] {
+            for arguments in ["false, true", "true, false", "false, false"] {
+                let declarations = format!(
+                    "machine trigger() -> bool\ncrashes Trap\n{{ crash Trap; }}\n\
+                     machine forward({parameters}) -> bool\nrequires !(flag && other)\ncrashes Trap {route}\n{{ {body} }}",
+                );
+                assert_unconditional_call_trap(&with_caller(
+                    &declarations,
+                    &format!("forward({arguments})"),
+                ));
+            }
+        }
+    }
+}
+
+#[test]
+fn negated_disjunction_entry_call_coverage_keeps_original_mutable_operands() {
+    for (parameters, body) in [
+        ("flag: bool, other: bool", "trigger()"),
+        (
+            "mut flag: bool, mut other: bool",
+            "flag = true; other = true; trigger()",
+        ),
+    ] {
+        for route in ["!(flag || other)", "false == (flag || other)"] {
+            let declarations = format!(
+                "machine trigger() -> bool\ncrashes Trap\n{{ crash Trap; }}\n\
+                 machine forward({parameters}) -> bool\nrequires !(flag || other)\ncrashes Trap {route}\n{{ {body} }}",
+            );
+            assert_unconditional_call_trap(&with_caller(&declarations, "forward(false, false)"));
+        }
+    }
 }
 
 #[test]

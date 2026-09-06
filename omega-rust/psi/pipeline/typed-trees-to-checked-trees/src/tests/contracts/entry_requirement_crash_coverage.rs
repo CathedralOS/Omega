@@ -65,3 +65,47 @@ fn named_state_requirements_are_not_ambient_invocation_facts() {
         "machine value(flag: bool) -> bool\ncrashes Trap flag\n{ transition { _ -> failed(true) } state failed(flag: bool) -> bool\nrequires flag\n{ crash Trap; } }",
     );
 }
+
+#[test]
+fn entry_polarity_covers_equivalent_builtin_boolean_route_spellings() {
+    for (requirement, route) in [
+        ("!flag", "flag == false"),
+        ("!flag", "false == flag"),
+        ("!flag", "flag != true"),
+        ("!flag", "!(flag == true)"),
+        ("flag", "!flag == false"),
+        ("flag", "!!flag == true"),
+        ("!(flag || other)", "other == false"),
+    ] {
+        for call in [false, true] {
+            let body = if call { "trigger()" } else { "crash Trap;" };
+            accepts(&format!(
+                "machine trigger() -> bool\ncrashes Trap\n{{ crash Trap; }}\n\
+                 machine value(mut flag: bool, other: bool) -> bool\nrequires {requirement}\n\
+                 crashes Trap {route}\n{{ flag = true; {body} }}",
+            ));
+        }
+    }
+}
+
+#[test]
+fn equivalent_route_spelling_needs_the_complete_exact_entry_fact() {
+    for (requirement, route) in [
+        ("flag", "flag == false"),
+        ("!other", "flag == false"),
+        ("!flag", "flag == true"),
+        ("!flag", "(flag == false) && other"),
+        ("!flag", "flag == other"),
+    ] {
+        rejects_uncovered(&format!(
+            "machine trigger() -> bool\ncrashes Trap\n{{ crash Trap; }}\n\
+             machine value(mut flag: bool, other: bool) -> bool\nrequires {requirement}\n\
+             crashes Trap {route}\n{{ flag = false; trigger() }}",
+        ));
+    }
+    rejects_uncovered(
+        "machine value(mut flag: bool) -> bool\ncrashes Trap flag == false\n\
+         { flag = false; transition flag { false -> failed() true -> true }\n\
+           state failed() -> bool { crash Trap; } }",
+    );
+}
