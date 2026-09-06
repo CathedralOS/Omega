@@ -1134,6 +1134,51 @@ fn runtime_numeric_cross_signed_conversion_surface_exit_canary_runs() {
 }
 
 #[test]
+fn unsigned_to_signed_saturation_checks_and_interprets_boundary_values() {
+    let directory =
+        std::env::temp_dir().join(format!("omega-u64-i64-saturation-{}", std::process::id()));
+    fs::create_dir_all(&directory).expect("create saturation fixture");
+    for value in [
+        0,
+        1,
+        5_000_000_000,
+        i64::MAX as u64 - 1,
+        i64::MAX as u64,
+        i64::MAX as u64 + 1,
+        u64::MAX,
+    ] {
+        let expected = value.min(i64::MAX as u64);
+        fs::write(
+            directory.join("main.omg"),
+            format!(
+                r#"
+use omega::language::core::numeric_conversion;
+data Main {{}}
+machine Main::main(&mut self) -> i32 {{
+    let source: u64 = {value};
+    let converted: i64 = narrow_u64_to_i64_saturating(source);
+    transition converted == {expected} {{
+        true -> (70)
+        _ -> (71)
+    }}
+}}
+"#
+            ),
+        )
+        .expect("write saturation fixture");
+        let checked = compile_to_checked(&directory.join("main.omg"), None)
+            .unwrap_or_else(|diagnostics| panic!("{value}: {diagnostics:#?}"));
+        let outcome = interpret(&checked, &[]);
+        assert!(outcome.error.is_none(), "{value}: {:?}", outcome.error);
+        assert_eq!(
+            outcome.exit_code, 70,
+            "{value} should saturate to {expected}"
+        );
+    }
+    fs::remove_dir_all(directory).expect("remove saturation fixture");
+}
+
+#[test]
 fn numeric_cross_signed_trapping_conversions_abort() {
     for &(name, label) in fixture_roster::CROSS_SIGNED_TRAP_PASS_CANARIES {
         let canary = pass_canary(name);
