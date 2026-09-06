@@ -140,11 +140,20 @@ the [Rust Compiler Completion Contract](wiki/releases/rust_compiler_completion_c
   argument lowers to Terminal but `terminal-verifier` rejects it with
   `InvalidStructuralArgumentPath`: `resolve_structural_path` walks only
   `Structural` fields and `pause` is a `ByteSequence(BoundedOwned)` field; an
-  owned `self` stops at the same verifier site. Stores into a borrowed
-  `self` (`self.before = 7`, `win64_direct_aggregate_import_compile`) still
-  plan nothing: `build_write_only_primitive_store` and
-  `build_structural_scalar_field_store` require a non-self destination and a
-  single-store body.
+  owned `self` stops at the same verifier site. General receiver-store
+  sequences still need planning: `win64_direct_aggregate_import_compile`
+  combines scalar writes, an aggregate replacement, and a foreign-result
+  assignment. Extend the checked Unit statement sequence without dropping
+  any write or its exact frame; the bounded single-scalar-store form is not
+  a plan for that complete body.
+
+  Ordinary receiver calls must also forward the callee's retained loan.
+  `Receiver::replace(&mut self) { self.value = 17; }` has a receiver plan,
+  but `receiver.replace()` from a Unit caller still supplies no structural
+  argument and Terminal production rejects the arity mismatch. Reconcile
+  checked Unit call arguments with the retained callee signature in
+  `typed-trees-to-checked-trees/src/flow/terminal_unit/calls.rs`; do not drop
+  the callee receiver to make the counts agree.
 
   Acceptance: both tests pass, with every maintained sample reaching checked
   trees and every documented exit oracle observed on its matching host.
@@ -364,6 +373,15 @@ Owners include
   Native referent identity follows `STRUCTURAL-BORROW-IDENTITY` below; it is
   not an owner-policy blocker. Preserve write-only non-observation independently
   of the shared physical reference ABI.
+
+- **RECEIVER-WRITE-ACCESS.** Reject writes through shared `self` during source
+  checking in `typed-trees-to-checked-trees`, rather than relying on absent
+  executable plans. `data Pair { prefix: u8; value: u16; }` with
+  `machine Pair::replace(&self) { self.value = 17; }` currently passes checking;
+  Terminal production rejects because it has no writable receiver plan.
+  Acceptance: direct and projected shared-receiver writes produce source
+  diagnostics, mutable-receiver stores still check, and explicit write-only
+  access retains its non-observing rules.
 
 - **STRUCTURAL-BORROW-IDENTITY.** Enforce the settled
   [structural borrow identity contract](wiki/design_briefs/core_multiplicity_and_linearity.md#structural-borrow-identity-at-native-calls)

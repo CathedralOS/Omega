@@ -263,8 +263,11 @@ pub(crate) fn validate_structural_root_operations(
                         .iter()
                         .find(|parameter| parameter.place == destination.place)
                         == Some(destination)
-                        && destination.multiplicity
-                            == terminal_psi::StructuralMultiplicity::Unrestricted
+                        && matches!(
+                            destination.multiplicity,
+                            terminal_psi::StructuralMultiplicity::Unrestricted
+                                | terminal_psi::StructuralMultiplicity::Affine
+                        )
                         && matches!(
                             destination.access,
                             terminal_psi::StructuralAccess::MutableBorrow
@@ -272,13 +275,7 @@ pub(crate) fn validate_structural_root_operations(
                         )
                         && destination.qualifications.is_empty()
                         && destination.projected_qualifications.is_empty()
-                        && path.iter().all(|segment| {
-                            matches!(
-                                segment,
-                                terminal_psi::StructuralPathSegment::Field(identity)
-                                    if !identity.is_empty()
-                            )
-                        })
+                        && terminal_psi::is_bounded_structural_scalar_store_path(path)
                         && function
                             .entry_claim_declarations
                             .iter()
