@@ -1,8 +1,12 @@
 use super::*;
+use symbols::SymbolHandle;
 
 fn transfer(source: u32, destination: u32, projected: bool) -> ParameterTransfer {
     ParameterTransfer {
-        destination: SymbolHandle::from_arena_index(destination),
+        destination: ProgressSubject {
+            root: SymbolHandle::from_arena_index(destination),
+            projections: Vec::new(),
+        },
         source: Some(ProgressSubject {
             root: SymbolHandle::from_arena_index(source),
             projections: if projected {
@@ -12,6 +16,21 @@ fn transfer(source: u32, destination: u32, projected: bool) -> ParameterTransfer
             },
         }),
     }
+}
+
+fn grows_on_cycle(transfers: &[ParameterTransfer], candidate: &ParameterTransfer) -> bool {
+    let subjects = transfers
+        .iter()
+        .flat_map(|transfer| {
+            std::iter::once(transfer.destination.root)
+                .chain(transfer.source.iter().map(|source| source.root))
+        })
+        .map(|root| ProgressSubject {
+            root,
+            projections: Vec::new(),
+        })
+        .collect::<Vec<_>>();
+    super::grows_on_cycle(transfers, candidate, &subjects)
 }
 
 #[test]
@@ -63,7 +82,10 @@ fn a_finite_projection_chain_does_not_gain_a_cycle_from_another_parameter() {
 #[test]
 fn an_unresolved_argument_is_not_a_projection_edge() {
     let transfers = [ParameterTransfer {
-        destination: SymbolHandle::from_arena_index(1),
+        destination: ProgressSubject {
+            root: SymbolHandle::from_arena_index(1),
+            projections: Vec::new(),
+        },
         source: None,
     }];
     assert!(!grows_on_cycle(&transfers, &transfers[0]));

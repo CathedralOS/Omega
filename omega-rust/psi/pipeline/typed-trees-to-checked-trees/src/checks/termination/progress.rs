@@ -470,7 +470,6 @@ fn derive_machine_summary(
         return Some(no_guarantee(machine.symbol));
     }
 
-    let parameter_lineage = lineage::StateParameterLineage::derive(program, flow, machine);
     let entry_parameter_roots = program
         .machine_states(machine)
         .first()
@@ -493,8 +492,8 @@ fn derive_machine_summary(
         for call in flow.control.calls.span_or_empty(state_flow.calls) {
             if is_local_state_transition(program, machine, state_flow, call) {
                 // Named transitions are edges within this activation, not
-                // nested calls. Their argument correspondence is folded into
-                // `parameter_lineage` above.
+                // nested calls. Their argument correspondence is reconstructed
+                // only when an invoked operation demands a progress premise.
                 continue;
             }
             let selected = selected_call_summary(program, call.target_symbol, summaries)?;
@@ -572,7 +571,7 @@ fn derive_machine_summary(
                     call,
                     entry_instance.subject,
                 )?;
-                let instances = parameter_lineage.resolve(entry_instance)?;
+                let instances = lineage::resolve(program, flow, machine, entry_instance)?;
                 for instance in instances {
                     if !entry_parameter_roots.contains(&instance.subject.root) {
                         // Arbitrary local values still cannot become caller

@@ -1825,10 +1825,20 @@ Current ownership is:
   later/missing/duplicate/reordered/type- or symbol-substituted local,
   foreign-machine, or sibling-state-rooted correspondence fails closed.
   `checks/termination/progress/lineage.rs` carries finite exact entry-subject
-  alternatives across local states. `lineage/transfers.rs` builds parameter
-  dependencies from resolved transition arguments. A nonempty projection edge
-  with a return path grows on a cycle; once seeded, that destination and its
-  dependents cannot supply finite caller premises. An unseeded cycle stays
+  alternatives across local states. `lineage/places.rs` selects finite owned-field
+  partitions along demanded subjects. Discovery follows only their incoming
+  dependencies; unused aggregate subtrees are not expanded. A parameter may
+  borrow that aggregate; nested references, recursive proof shapes, arrays,
+  and unresolved generic
+  shapes remain opaque leaves rather than referent snapshots. The most specific
+  field partition wins even when unseen or unknown: an enclosing identity cannot
+  restore a replaced field. `lineage/transfers.rs` appends the destination's
+  field projection to the resolved argument before querying its captured origin.
+  Source rebinding consumes the matching partition prefix, so field permutations
+  and finite nested replacements retain all exact alternatives. A nonempty
+  residual projection edge with a return path grows on a cycle; once seeded,
+  that destination and its dependents cannot supply finite caller premises.
+  An unseeded cycle stays
   unseen and cannot poison a reachable join. Identity cycles, parameter exchanges,
   and acyclic projected transfers retain their exact alternatives. Unused
   growing parameters do not prevent checked termination. The remaining
@@ -1841,9 +1851,10 @@ Current ownership is:
   only disjoint subjects; same-statement calls use retained execution order,
   not authored call ordinals. The selected stored type must be reference-free:
   constrained references and reference-containing copies are not snapshots of
-  their referents. Local-state root transfers use this same origin query, but
-  a field-mutated aggregate needs per-field arrival correspondence before it
-  can regain a checked progress guarantee. Exact live receipts and build-bound
+  their referents. Local-state field transfers use this same origin query;
+  disjoint fields retain independent origins even when the aggregate's whole-value
+  correspondence is unknown. Arrivals through opaque leaves and helper-output
+  correspondence remain conservative. Exact live receipts and build-bound
   provider subjects retain their existing separate handling.
   `checks/termination/progress/components.rs` closes private summaries within
   each revalidated runtime call component. Validation and this query share the
