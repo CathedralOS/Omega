@@ -3826,10 +3826,10 @@ operation directly.
 Ordinary structural initializers can pass their results to later ordinary Unit
 calls or further claim-free affine producers. Their checked arguments name the
 exact result-binding ordinal, not a parameter or construction-local substitute.
-Call-initialized affine
-locals participate in the source permission timeline: establishment precedes
-the consuming move, and a second move is rejected. Lowering rejoins the authored
-local, producer, target parameter, and operation-result place. A transferred
+Call-initialized affine locals participate in the source permission timeline:
+establishment precedes the consuming move, and a second move is rejected.
+Lowering rejoins the authored local, producer, target parameter, and
+operation-result place. A transferred
 result has no caller disposal; the receiving machine owns its subsequent
 transfer or cleanup. Unused results still require caller cleanup, and the
 verifier rejects forged producers, uses before production, duplicate moves,
@@ -3846,10 +3846,25 @@ in reverse production order before older live parameters. Lowering checks the
 exact authored source even when substituting a different same-typed live value
 would satisfy Terminal ownership rules.
 
-This does not widen the native call ABI or admit nested structural operands,
-result projections, or borrowed/qualified/linear result obligations. Those
-source uses still need complete evaluator, storage,
-loan, and claim-transfer plans before their gates can be removed.
+Direct whole-result call expressions also supply ordinary Unit and claim-free
+affine structural calls. The same binding namespace retains these temporary
+results without inventing local names. Captured call ordinals identify authored
+preorder occurrences; the operation sequence evaluates children before their
+parent and siblings in argument order. Lowering independently rejoins that
+syntax order, every result producer, and the enclosing consuming expression.
+An anonymous result must transfer exactly once to its enclosing call, with no
+caller-return disposal. Source permission events retain both the producer's
+input transfer and the temporary expression's transfer into its consumer.
+The source eligibility gate and structural producer use the same stored-owned
+type classifier, so reference-bearing or qualified fields cannot acquire this
+route through referent normalization.
+
+This does not widen the native call ABI or admit result projections or
+borrowed/qualified/linear result obligations. Enclosing calls with structural
+operand calls currently accept scalar siblings only as existing named values;
+mixed computations still need an argument-position evaluator that preserves
+crash and fuel order. Projected results need exact residual cleanup alongside
+their retained storage, loans, and claim transfers before those gates can open.
 
 The first internal structural-call slice composes two such checked machines. A
 `CallStructural` operation owns a structural operation-result place with its

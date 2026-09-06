@@ -539,7 +539,7 @@ pub(super) fn build_call_operation(
     call: &checked_trees::FlowCallFact,
     allow_field_path_projection: bool,
     expected_call_result: Option<ExpectedCallValueResult<'_>>,
-    caller_structural_results: &[(CheckedUnitStructuralResultBindingPlan, SymbolHandle)],
+    caller_structural_results: &[(CheckedUnitStructuralResultBindingPlan, facts::PlaceRoot)],
 ) -> Option<CheckedUnitEffectOperationPlan> {
     let coordinate = CheckedUnitCallCoordinate {
         statement_index: u32::try_from(call.statement_index).ok()?,
@@ -1040,7 +1040,7 @@ pub(super) fn build_call_operation(
         } else if let Some(ordinal) = argument.source_structural_result_binding_ordinal() {
             caller_structural_results.iter().any(|(source, _)| {
                 source.binding_ordinal == ordinal
-                    && source.statement_index < coordinate.statement_index
+                    && source.statement_index <= coordinate.statement_index
                     && source.type_identity == argument.type_identity
                     && source.multiplicity == Multiplicity::Affine
             })
@@ -1759,7 +1759,7 @@ pub(super) fn structural_call_arguments(
     statement_index: usize,
     allow_fixed_index_projection: bool,
     allow_field_path_projection: bool,
-    caller_structural_results: &[(CheckedUnitStructuralResultBindingPlan, SymbolHandle)],
+    caller_structural_results: &[(CheckedUnitStructuralResultBindingPlan, facts::PlaceRoot)],
 ) -> Option<Vec<CheckedUnitStructuralArgumentPlan>> {
     let source_parameters = program.state_parameters(caller_state);
     let target_parameters = program.state_parameters(target_state);
@@ -1841,9 +1841,6 @@ pub(super) fn structural_call_arguments(
         let place = restored_alias
             .clone()
             .unwrap_or_else(|| authored_place.clone());
-        let facts::PlaceRoot::Symbol(source_symbol) = place.root else {
-            return None;
-        };
         let target_identity = if target.is_self {
             attached_data_identity(program, target_machine)?
         } else if byte_sequence_carrier(program, target.type_reference, &[]).is_some() {
@@ -1853,7 +1850,7 @@ pub(super) fn structural_call_arguments(
         };
         if let Some((result, _)) = caller_structural_results
             .iter()
-            .find(|(_, symbol)| *symbol == source_symbol)
+            .find(|(_, root)| *root == place.root)
         {
             let exact_transfer = facts.flow.ownership.permissions.iter().any(|(_, event)| {
                 event.machine_symbol == caller_machine.symbol
@@ -1869,7 +1866,7 @@ pub(super) fn structural_call_arguments(
                     && event.access == PermissionAccess::Owned
                     && event.claim_identity == PermissionClaimIdentity::Unknown
                     && !event.obligation_live
-                    && event.root == facts::PlaceRoot::Symbol(source_symbol)
+                    && event.root == place.root
                     && facts
                         .flow
                         .ownership
@@ -1884,7 +1881,9 @@ pub(super) fn structural_call_arguments(
                         .terminal_structural_returns
                         .claim_free_affine_for_machine(target_machine.symbol)
                         .is_none())
-                || usize::try_from(result.statement_index).ok()? >= call.statement_index
+                || usize::try_from(result.statement_index).ok()? > call.statement_index
+                || (matches!(place.root, facts::PlaceRoot::Symbol(_))
+                    && usize::try_from(result.statement_index).ok()? == call.statement_index)
                 || result.multiplicity != Multiplicity::Affine
                 || !place.segments.is_empty()
                 || result.type_identity != target_identity
@@ -1904,6 +1903,9 @@ pub(super) fn structural_call_arguments(
             });
             continue;
         }
+        let facts::PlaceRoot::Symbol(source_symbol) = place.root else {
+            return None;
+        };
         if let Some((local, _)) = caller_trivial_affine_locals
             .iter()
             .find(|(_, symbol)| *symbol == source_symbol)

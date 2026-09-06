@@ -3,23 +3,36 @@
 use super::*;
 use checked_trees::CheckedUnitStructuralResultBindingPlan;
 
+struct Producer<'plan> {
+    operation_index: usize,
+    coordinate: checked_trees::CheckedUnitCallCoordinate,
+    result: &'plan CheckedUnitStructuralResultBindingPlan,
+    discard: bool,
+}
+
 fn producer(
     caller: &CheckedUnitEffectMachinePlan,
     binding_ordinal: u32,
-) -> Result<(&CheckedUnitStructuralResultBindingPlan, bool), LoweringError> {
-    let mut matches = caller
-        .operations
-        .iter()
-        .filter_map(|operation| match operation {
-            CheckedUnitEffectOperationPlan::StructuralCall {
-                result,
-                discard_result_on_return,
-                ..
-            } if result.binding_ordinal == binding_ordinal => {
-                Some((result, *discard_result_on_return))
-            }
-            _ => None,
-        });
+) -> Result<Producer<'_>, LoweringError> {
+    let mut matches =
+        caller
+            .operations
+            .iter()
+            .enumerate()
+            .filter_map(|(operation_index, operation)| match operation {
+                CheckedUnitEffectOperationPlan::StructuralCall {
+                    coordinate,
+                    result,
+                    discard_result_on_return,
+                    ..
+                } if result.binding_ordinal == binding_ordinal => Some(Producer {
+                    operation_index,
+                    coordinate: *coordinate,
+                    result,
+                    discard: *discard_result_on_return,
+                }),
+                _ => None,
+            });
     let result = matches.next().ok_or(LoweringError::Unsupported(
         "Unit structural result argument has no exact ordinary producer binding",
     ))?;
@@ -33,12 +46,12 @@ pub(crate) fn validate_usage(
     caller: &CheckedUnitEffectMachinePlan,
     result: &CheckedUnitStructuralResultBindingPlan,
 ) -> Result<(), LoweringError> {
-    let (original, discard) = producer(caller, result.binding_ordinal)?;
-    if original != result {
+    let producer = producer(caller, result.binding_ordinal)?;
+    if producer.result != result {
         return unsupported("Unit structural result binding disagrees with its producer");
     }
     let mut consumed = false;
-    for operation in &caller.operations {
+    for (operation_index, operation) in caller.operations.iter().enumerate() {
         let (CheckedUnitEffectOperationPlan::CallUnit {
             coordinate,
             structural_arguments,
@@ -56,7 +69,13 @@ pub(crate) fn validate_usage(
             if argument.source_structural_result_binding_ordinal() != Some(result.binding_ordinal) {
                 continue;
             }
-            if consumed || coordinate.statement_index <= result.statement_index {
+            let source_order = if producer.coordinate.call_ordinal == 0 {
+                result.statement_index < coordinate.statement_index
+            } else {
+                result.statement_index == coordinate.statement_index
+                    && coordinate.call_ordinal < producer.coordinate.call_ordinal
+            };
+            if consumed || operation_index <= producer.operation_index || !source_order {
                 return unsupported(
                     "Unit structural result is consumed before production or twice",
                 );
@@ -71,7 +90,7 @@ pub(crate) fn validate_usage(
             consumed = true;
         }
     }
-    if discard == consumed {
+    if producer.discard == consumed || (producer.coordinate.call_ordinal != 0 && !consumed) {
         return unsupported(
             "Unit structural result cleanup disagrees with its final consuming use",
         );
@@ -107,8 +126,30 @@ pub(crate) fn validate_consumer(
     if structural_arguments.len() != target_parameters.len() {
         return unsupported("Unit structural argument arity disagrees with its target");
     }
+    let operation_index = caller
+        .operations
+        .iter()
+        .position(|candidate| candidate == operation)
+        .ok_or(LoweringError::Unsupported(
+            "structural result consumer has no operation position",
+        ))?;
     let authored =
         crate::call_source_custody::authored::locate_source(checked, caller.state, *coordinate)?;
+    let authored_nested = authored.structural_arguments.iter().any(|(_, expression)| {
+        matches!(
+            checked.expression_table.expression(*expression),
+            ExpressionNode::Call(_)
+        )
+    });
+    if authored_nested
+        && authored.scalar_arguments.iter().any(|(expression, _)| {
+            !matches!(checked.expression_table.expression(*expression),
+            ExpressionNode::Name(name) if name.symbol.is_valid())
+        })
+    {
+        return unsupported("enclosing structural operands require bare-name scalar arguments");
+    }
+    validate_nested_execution_order(checked, caller, coordinate.statement_index, authored_nested)?;
     let (_, state) = crate::scalar_source_custody::authored_state(checked, caller.state)?;
     let statements = checked.statement_table.statements(state.statement_nodes);
     for (index, (argument, parameter)) in structural_arguments
@@ -123,45 +164,95 @@ pub(crate) fn validate_consumer(
                 (*position == parameter.position).then_some(*expression)
             });
         let binding_ordinal = argument.source_structural_result_binding_ordinal();
+        if binding_ordinal.is_none()
+            && expression.is_some_and(|expression| {
+                matches!(
+                    checked.expression_table.expression(expression),
+                    ExpressionNode::Call(_)
+                )
+            })
+        {
+            return unsupported(
+                "nested structural argument has no expression-owned producer binding",
+            );
+        }
         // Check both directions: an authored result cannot be replaced with a
         // same-typed parameter or construction-local plan.
         for candidate in &caller.operations {
-            let CheckedUnitEffectOperationPlan::StructuralCall { result, .. } = candidate else {
+            let CheckedUnitEffectOperationPlan::StructuralCall {
+                coordinate: producer_coordinate,
+                source_site,
+                result,
+                ..
+            } = candidate
+            else {
                 continue;
             };
-            let Some(StatementNode::LocalData(local)) =
-                statements.get(result.statement_index as usize)
-            else {
-                return unsupported("Unit structural result producer has no authored local");
+            let names_result = if producer_coordinate.call_ordinal == 0 {
+                let Some(StatementNode::LocalData(local)) =
+                    statements.get(result.statement_index as usize)
+                else {
+                    return unsupported("Unit structural result producer has no authored local");
+                };
+                if local.is_mutable
+                    || !local.symbol.is_valid()
+                    || checked
+                        .typed
+                        .normalized_type_identity(local.type_reference)
+                        .into_string()
+                        != result.type_identity
+                {
+                    return unsupported(
+                        "Unit structural result producer disagrees with its immutable authored local",
+                    );
+                }
+                expression.is_some_and(|expression| {
+                    matches!(
+                        checked.expression_table.expression(expression),
+                        ExpressionNode::Name(name) if name.symbol == local.symbol
+                    )
+                })
+            } else {
+                let source = crate::call_source_custody::authored::locate_source(
+                    checked,
+                    caller.state,
+                    *producer_coordinate,
+                )?;
+                if source.source_site != *source_site {
+                    return unsupported(
+                        "nested structural producer has a different authored source",
+                    );
+                }
+                producer_coordinate.statement_index == coordinate.statement_index
+                    && expression.is_some_and(|expression| {
+                        source.source_site
+                            == Some(checked_trees::NominalMachineUseSite::Expression(expression))
+                    })
             };
-            if local.is_mutable
-                || !local.symbol.is_valid()
-                || checked
-                    .typed
-                    .normalized_type_identity(local.type_reference)
-                    .into_string()
-                    != result.type_identity
-            {
-                return unsupported(
-                    "Unit structural result producer disagrees with its immutable authored local",
-                );
-            }
-            let names_result = expression.is_some_and(|expression| matches!(
-                checked.expression_table.expression(expression),
-                ExpressionNode::Name(name) if local.symbol.is_valid() && name.symbol == local.symbol
-            ));
             if names_result != (binding_ordinal == Some(result.binding_ordinal)) {
-                return unsupported(
-                    "Unit structural result argument does not rejoin its exact authored local",
-                );
+                return unsupported(if producer_coordinate.call_ordinal == 0 {
+                    "Unit structural result argument does not rejoin its exact authored local"
+                } else {
+                    "Unit structural result argument does not rejoin its exact authored source"
+                });
             }
         }
         let Some(binding_ordinal) = binding_ordinal else {
             continue;
         };
-        let (result, discard) = producer(caller, binding_ordinal)?;
-        if discard
-            || result.statement_index >= coordinate.statement_index
+        let producer = producer(caller, binding_ordinal)?;
+        let result = producer.result;
+        let source_order = if producer.coordinate.call_ordinal == 0 {
+            result.statement_index < coordinate.statement_index
+        } else {
+            result.statement_index == coordinate.statement_index
+                && coordinate.call_ordinal < producer.coordinate.call_ordinal
+        };
+        if producer.discard
+            || producer.operation_index >= operation_index
+            || !source_order
+            || matches!(operation, CheckedUnitEffectOperationPlan::StructuralCall { result: consumer, .. }
+                if result.binding_ordinal >= consumer.binding_ordinal)
             || result.multiplicity != Multiplicity::Affine
             || argument.type_identity != result.type_identity
             || parameter.type_identity != result.type_identity
@@ -183,6 +274,63 @@ pub(crate) fn validate_consumer(
                 "Unit structural result argument has invalid owned claim-free custody",
             );
         }
+    }
+    Ok(())
+}
+
+fn validate_nested_execution_order(
+    checked: &CheckedTrees,
+    caller: &CheckedUnitEffectMachinePlan,
+    statement_index: u32,
+    authored_nested: bool,
+) -> Result<(), LoweringError> {
+    if !authored_nested
+        && !caller.operations.iter().any(|operation| {
+            matches!(operation,
+        CheckedUnitEffectOperationPlan::StructuralCall { coordinate, .. }
+            if coordinate.statement_index == statement_index && coordinate.call_ordinal != 0)
+        })
+    {
+        return Ok(());
+    }
+    let expected = crate::call_source_custody::authored::nested::execution_order(
+        checked,
+        caller.state,
+        statement_index,
+    )?;
+    let mut actual = Vec::new();
+    for operation in &caller.operations {
+        let (coordinate, scalar_arguments) = match operation {
+            CheckedUnitEffectOperationPlan::StructuralCall {
+                coordinate,
+                scalar_arguments,
+                ..
+            }
+            | CheckedUnitEffectOperationPlan::CallUnit {
+                coordinate,
+                scalar_arguments,
+                ..
+            } if coordinate.statement_index == statement_index => (coordinate, scalar_arguments),
+            _ => continue,
+        };
+        if scalar_arguments.iter().any(|argument| {
+            matches!(
+                argument,
+                checked_trees::CheckedCallScalarArgument::Computation(_)
+            )
+        }) {
+            return unsupported("nested structural calls have no ordered scalar computation plan");
+        }
+        actual.push(coordinate.call_ordinal);
+    }
+    if !actual
+        .iter()
+        .copied()
+        .eq(expected.iter().map(|(ordinal, _)| *ordinal))
+    {
+        return unsupported(
+            "nested structural operations disagree with authored argument execution order",
+        );
     }
     Ok(())
 }

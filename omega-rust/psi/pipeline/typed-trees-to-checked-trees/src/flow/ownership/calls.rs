@@ -62,6 +62,29 @@ pub(in crate::flow) fn append_call_ownership_events(
     let Some(declared_parameters) = declared_parameters else {
         return;
     };
+    let proof_call = declared_parameters.iter().any(|parameter| {
+        program.type_multiplicity(parameter.type_reference)
+            == language_semantics::Multiplicity::Affine
+    }) && program
+        .machines()
+        .iter()
+        .find(|target| {
+            program
+                .machine_states(target)
+                .iter()
+                .any(|target_state| target_state.symbol == borrow_call.target_symbol)
+        })
+        .is_some_and(|target| sink.proof_only(program).is_proof_machine(program, target));
+    let parameter_transfers = |parameter: &typed_trees::signature::StateParameter| {
+        type_requires_ownership(program, parameter.type_reference)
+            // Mathematical applications and citations read their affine
+            // operands. Erasure does not discharge linear Type custody,
+            // including conditional claims carried inside affine sums.
+            && !(proof_call
+                && program.type_multiplicity(parameter.type_reference)
+                    == language_semantics::Multiplicity::Affine
+                && !crate::checks::type_carries_linear_obligation(program, parameter.type_reference))
+    };
 
     // A static invocation of a consuming attached machine spells the by-value
     // self explicitly (`Receipt::ack(receipt)`). In that shape the argument
@@ -86,6 +109,9 @@ pub(in crate::flow) fn append_call_ownership_events(
     // left the original linear obligation live at scope exit.
     if !includes_explicit_self
         && borrow_call.has_receiver
+        && declared_parameters
+            .iter()
+            .any(|parameter| parameter.is_self && parameter_transfers(parameter))
         && let Some(receiver) = owned_method_receiver_place(
             program,
             state.symbol,
@@ -103,7 +129,23 @@ pub(in crate::flow) fn append_call_ownership_events(
         .filter(|parameter| includes_explicit_self || !parameter.is_self);
 
     for (parameter, argument) in parameters.zip(arguments.iter()) {
-        if !type_requires_ownership(program, parameter.type_reference) {
+        if !parameter_transfers(parameter) {
+            continue;
+        }
+
+        // A whole ordinary call result is fresh storage, not a read of its
+        // arguments. Its producer's discovered call owns those argument moves;
+        // this consuming call owns just the result expression's transfer.
+        if ordinary_affine_call_result_type(program, machine, state, *argument).is_some() {
+            append_move_event_for_place(
+                program,
+                sink,
+                CanonicalPlace {
+                    root: facts::PlaceRoot::Expression(*argument),
+                    segments: Vec::new(),
+                },
+                source,
+            );
             continue;
         }
 
@@ -116,6 +158,39 @@ pub(in crate::flow) fn append_call_ownership_events(
             source,
         );
     }
+}
+
+fn ordinary_affine_call_result_type(
+    program: &typed_trees::TypedTrees,
+    machine: &typed_trees::machine::Machine,
+    state: &typed_trees::state::State,
+    expression: ExpressionHandle,
+) -> Option<typed_trees::types::TypeReferenceHandle> {
+    let ExpressionNode::Call(call) = program.expression_table.expression(expression) else {
+        return None;
+    };
+    let (receiver_symbol, receiver_path) =
+        crate::lookup::call_receiver_parts(program, call.receiver);
+    let target = crate::lookup::resolve_state_call_target(
+        program,
+        machine,
+        state,
+        receiver_symbol,
+        call.target_symbol,
+        receiver_path.as_deref(),
+        &call.target,
+    );
+    let result = find_state(program, target)?.return_type;
+    // Retain the owned root type before any referent/qualification stripping.
+    // Linear/conditional results still need their explicit claim mapping.
+    (matches!(
+        program.type_reference_table.type_reference(result),
+        typed_trees::types::TypeReferenceNode::Named { .. }
+            | typed_trees::types::TypeReferenceNode::Generic { .. }
+            | typed_trees::types::TypeReferenceNode::FixedArray { .. }
+    ) && program.type_multiplicity(result) == language_semantics::Multiplicity::Affine
+        && !crate::checks::type_carries_linear_obligation(program, result))
+    .then_some(result)
 }
 
 /// Parameters of any callable target retained by typed trees. Boundary-trait

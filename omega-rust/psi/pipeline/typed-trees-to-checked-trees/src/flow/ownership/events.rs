@@ -22,6 +22,7 @@ pub(crate) struct DiscoveredMoveEvent {
 pub(crate) struct DirectMoveEventSink<'segments> {
     segments: &'segments mut arena::Arena<facts::PlaceSegment>,
     events: Vec<DiscoveredMoveEvent>,
+    proof_only: Option<typed_trees::proof_only::ProofOnlyClassification>,
 }
 
 impl<'segments> DirectMoveEventSink<'segments> {
@@ -29,6 +30,7 @@ impl<'segments> DirectMoveEventSink<'segments> {
         Self {
             segments,
             events: Vec::new(),
+            proof_only: None,
         }
     }
 
@@ -38,6 +40,14 @@ impl<'segments> DirectMoveEventSink<'segments> {
 }
 
 impl DirectMoveEventSink<'_> {
+    pub(super) fn proof_only(
+        &mut self,
+        program: &typed_trees::TypedTrees,
+    ) -> &typed_trees::proof_only::ProofOnlyClassification {
+        self.proof_only
+            .get_or_insert_with(|| typed_trees::proof_only::classify(program))
+    }
+
     fn append_move_event(
         &mut self,
         program: &typed_trees::TypedTrees,

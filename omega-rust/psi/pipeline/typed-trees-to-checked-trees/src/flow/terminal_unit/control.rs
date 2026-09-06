@@ -8,6 +8,7 @@ use checked_trees::{
 
 mod call_occurrences;
 mod statement_sequence;
+mod structural_operands;
 pub(super) use call_occurrences::{outer_calls, tail_call};
 
 pub(crate) fn build_checked_structural_unit_control_plans(
@@ -1036,7 +1037,24 @@ fn build_checked_machine_with(
     let structural_result_symbol = structural_result_local.as_ref().map(|(_, symbol)| *symbol);
     let has_ordinary_structural_result = statements
         .iter()
-        .any(|statement| statement_sequence::has_structural_result(program, facts, statement));
+        .any(|statement| statement_sequence::has_structural_result(program, facts, statement))
+        || state_flow(facts, machine.symbol, state.symbol).is_some_and(|flow| {
+            facts
+                .flow
+                .control
+                .calls
+                .span_or_empty(flow.calls)
+                .iter()
+                .any(|call| {
+                    call.call_ordinal != 0
+                        && facts
+                            .flow
+                            .terminal_structural_returns
+                            .claim_free_affine_machines
+                            .iter()
+                            .any(|target| target.state == call.target_symbol)
+                })
+        });
     let carries_fused_service_parameter = program.state_parameters(state).iter().any(|parameter| {
         typed_trees::service::exact_bound_service_requirement(program, parameter.type_reference)
             .is_some()
@@ -1622,7 +1640,10 @@ fn build_checked_machine_with(
                     _ => return None,
                 };
                 if let CheckedUnitEffectOperationPlan::StructuralCall { result, .. } = &operation {
-                    structural_result_bindings.push((result.clone(), structural_result_symbol?));
+                    structural_result_bindings.push((
+                        result.clone(),
+                        facts::PlaceRoot::Symbol(structural_result_symbol?),
+                    ));
                 }
                 operations.push(operation);
                 1

@@ -180,6 +180,9 @@ fn validate_partial_moves(
 
 mod temporary_results;
 
+#[cfg(test)]
+mod nested_ownership_tests;
+
 fn event_is_owned_self_projection(
     program: &typed_trees::TypedTrees,
     state: &typed_trees::state::State,
@@ -366,7 +369,10 @@ fn record_permission_events_with_incoming_guards(
         let mut places =
             initial_linear_places(program, state, state_flow.machine_symbol, state.symbol);
 
-        for place in places.iter_mut().filter(|place| place.ever_established) {
+        for place in places.iter_mut().filter(|place| {
+            place.ever_established
+                && (place.multiplicity == Multiplicity::Linear || place.conditional)
+        }) {
             let claim_identity = claim_identities.mint(
                 state_flow.machine_symbol,
                 state.symbol,
@@ -2191,7 +2197,34 @@ fn initial_linear_places(
         if parameter.is_self {
             continue;
         }
-        for claim in linear_claim_frontier(program, parameter.type_reference) {
+        let claims = linear_claim_frontier(program, parameter.type_reference);
+        // Whole claim-free affine parameters are live on entry, but establish
+        // no linear claim. Track their moves so a transferred parameter cannot
+        // be moved again or disposed by the caller at exit.
+        if claims.is_empty()
+            && type_multiplicity(program, parameter.type_reference) == Multiplicity::Affine
+            && matches!(
+                program
+                    .type_reference_table
+                    .type_reference(parameter.type_reference),
+                TypeReferenceNode::Named { .. }
+                    | TypeReferenceNode::Generic { .. }
+                    | TypeReferenceNode::FixedArray { .. }
+            )
+        {
+            places.push(LinearPlace {
+                symbol: parameter.symbol,
+                name: parameter.name.as_str().to_owned(),
+                path: Vec::new(),
+                multiplicity: Multiplicity::Affine,
+                claim_identity: None,
+                provenance: None,
+                live: true,
+                ever_established: true,
+                conditional: false,
+            });
+        }
+        for claim in claims {
             places.push(LinearPlace {
                 symbol: parameter.symbol,
                 name: claim_place_name(program, parameter.name.as_str(), &claim.path),
@@ -2589,8 +2622,13 @@ fn apply_recorded_statement_events(
                         place.name
                     )));
                 } else if !place.live {
+                    let ownership = if place.multiplicity == Multiplicity::Affine {
+                        "affine"
+                    } else {
+                        "linear"
+                    };
                     diagnostics.push(Diagnostic::error(format!(
-                        "linear value `{}` was already transferred or consumed; it cannot be moved here",
+                        "{ownership} value `{}` was already transferred or consumed; it cannot be moved here",
                         place.name
                     )));
                 } else {
@@ -2598,7 +2636,7 @@ fn apply_recorded_statement_events(
                 }
             }
             PermissionEventKind::Establish => {
-                if place.live {
+                if place.live && place.multiplicity == Multiplicity::Linear {
                     diagnostics.push(Diagnostic::error(format!(
                         "assignment would overwrite live linear value `{}`; consume or transfer the existing obligation first",
                         place.name
@@ -2801,10 +2839,50 @@ fn apply_statement_permission_production(
     // destination becomes established. The old move-only summary also
     // contains a production event *at* the destination; exclude that
     // compatibility event here rather than mistaking creation for use.
-    for event in moves
+    let calls = facts
+        .flow
+        .control
+        .states
+        .iter()
+        .find_map(|(_, state)| {
+            (state.machine_symbol == machine_symbol && state.state_symbol == state_symbol)
+                .then(|| facts.flow.control.calls.span_or_empty(state.calls))
+        })
+        .unwrap_or_default();
+    let mut statement_moves = moves
         .iter()
         .filter(|event| event_statement_index(event.source) == Some(statement_index))
-    {
+        .collect::<Vec<_>>();
+    // Call ordinals are authored preorder coordinates, not evaluation order.
+    // Reuse the captured control-flow order: nested producers execute before
+    // their consumer; an initializer's destination is established afterwards.
+    statement_moves.sort_by_key(|event| match event.source {
+        FlowOwnershipEventSource::Call {
+            statement_index,
+            call_ordinal,
+            target_symbol,
+        } => calls
+            .iter()
+            .position(|call| {
+                call.statement_index == statement_index
+                    && call.call_ordinal == call_ordinal
+                    && call.target_symbol == target_symbol
+            })
+            .unwrap_or(calls.len()),
+        FlowOwnershipEventSource::Statement { .. } => calls.len(),
+    });
+    for event in statement_moves {
+        if matches!(event.root, facts::PlaceRoot::Expression(_)) {
+            temporary_results::append_whole_affine_transfer(
+                program,
+                machine_symbol,
+                state_symbol,
+                calls,
+                event,
+                permission_events,
+            );
+            continue;
+        }
         let facts::PlaceRoot::Symbol(symbol) = event.root else {
             continue;
         };
@@ -2815,9 +2893,11 @@ fn apply_statement_permission_production(
             .span_or_empty(event.segments)
             .to_vec();
         select_static_case_alternative(symbol, &event_path, places);
-        if written_targets.iter().any(|target| {
-            target.root == event.root && target.destination_path.as_slice() == event_path
-        }) {
+        if matches!(event.source, FlowOwnershipEventSource::Statement { .. })
+            && written_targets.iter().any(|target| {
+                target.root == event.root && target.destination_path.as_slice() == event_path
+            })
+        {
             continue;
         }
         let matching = places
@@ -2888,6 +2968,26 @@ fn apply_statement_permission_production(
         let segments = facts.flow.ownership.segments.insert_many(claim_path);
         let place = &mut places[place_index];
         debug_assert_eq!(place.symbol, symbol);
+        // Replacement settles the old affine value before establishing the
+        // new one. A source transferred into the replacement call is already
+        // dead here and must not also receive a caller-side drop.
+        if place.live && place.multiplicity == Multiplicity::Affine {
+            permission_events.push(FlowPermissionEventFact {
+                machine_symbol,
+                state_symbol,
+                source: PermissionEventSource::Statement { statement_index },
+                kind: PermissionEventKind::AffineDrop,
+                multiplicity: Multiplicity::Affine,
+                access: PermissionAccess::Owned,
+                claim_identity: place
+                    .claim_identity
+                    .unwrap_or(PermissionClaimIdentity::Unknown),
+                provenance: place.provenance.unwrap_or(PermissionProvenance::Unknown),
+                root: facts::PlaceRoot::Symbol(symbol),
+                segments,
+                obligation_live: false,
+            });
+        }
         place.live = obligation_live || place.multiplicity == Multiplicity::Affine;
         place.ever_established = true;
         place.claim_identity = Some(claim_identity);

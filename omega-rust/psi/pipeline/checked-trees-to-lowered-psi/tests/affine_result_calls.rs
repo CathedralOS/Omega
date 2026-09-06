@@ -19,6 +19,9 @@ mod chains;
 #[path = "affine_result_calls/chain_custody.rs"]
 mod chain_custody;
 
+#[path = "affine_result_calls/nested.rs"]
+mod nested;
+
 const IDENTITY_CALL: &str = "data Value { number: u64; }
     machine forward(value: Value) -> Value { value }
     machine Main::caller(value: Value) { let result: Value = forward(value); }";

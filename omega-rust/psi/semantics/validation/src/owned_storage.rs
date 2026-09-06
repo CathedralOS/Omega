@@ -1,6 +1,10 @@
 //! Check source ownership before referent-oriented structural shape collection.
 
-use super::*;
+use language_semantics::Multiplicity;
+use symbols::SymbolHandle;
+use typed_trees::TypedTrees;
+use typed_trees::data::DataMember;
+use typed_trees::types::{PrimitiveType, TypeReferenceHandle, TypeReferenceNode};
 
 /// Temporary closed type arguments keep nested instantiations in their lexical
 /// environment. Reusing a declaration's parameter symbol must not capture an
@@ -22,14 +26,11 @@ impl OwnedType {
     }
 }
 
-pub(in crate::flow::terminal_unit) fn has_plain_owned_contents(
-    program: &TypedTrees,
-    reference: TypeReferenceHandle,
-) -> bool {
+pub fn has_plain_owned_contents(program: &TypedTrees, reference: TypeReferenceHandle) -> bool {
     has_plain_owned_contents_with_substitutions(program, reference, &[])
 }
 
-pub(super) fn has_plain_owned_contents_with_substitutions(
+pub fn has_plain_owned_contents_with_substitutions(
     program: &TypedTrees,
     reference: TypeReferenceHandle,
     substitutions: &[(SymbolHandle, TypeReferenceHandle)],

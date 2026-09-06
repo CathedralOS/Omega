@@ -35,6 +35,7 @@ pub(in crate::flow::terminal_unit) fn outer_calls<'a>(
     calls: &'a [checked_trees::FlowCallFact],
 ) -> Option<Vec<&'a checked_trees::FlowCallFact>> {
     let mut consumed = Vec::new();
+    let mut structural = Vec::new();
     let mut outer = Vec::new();
     for call in calls.iter().filter(|call| call.call_ordinal == 0) {
         if outer.iter().any(|prior: &&checked_trees::FlowCallFact| {
@@ -43,6 +44,16 @@ pub(in crate::flow::terminal_unit) fn outer_calls<'a>(
             return None;
         }
         outer.push(call);
+        let owner = program
+            .machines()
+            .iter()
+            .find(|owner| owner.symbol == machine)?;
+        for nested in structural_operands::for_call(program, facts, owner, state, call)? {
+            if structural.iter().any(|prior| std::ptr::eq(*prior, nested)) {
+                return None;
+            }
+            structural.push(nested);
+        }
         let statement = program
             .statement_table
             .statements(state.statement_nodes)
@@ -195,6 +206,7 @@ pub(in crate::flow::terminal_unit) fn outer_calls<'a>(
             !consumed
                 .iter()
                 .any(|handle| std::ptr::eq(facts.flow.control.calls.get(*handle), call))
+                && !structural.iter().any(|nested| std::ptr::eq(*nested, call))
         })
     {
         return None;

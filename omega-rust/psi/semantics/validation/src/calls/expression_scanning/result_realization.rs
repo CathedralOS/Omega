@@ -172,8 +172,8 @@ pub(crate) fn report_nested_call_in_local_initializer(
 /// Source-family eligibility for the existing Unit result-local call path.
 /// Typing and ordinary call validation still own result, argument and contract
 /// compatibility; this predicate does not supply those semantic judgments.
-/// Structural results retain the first-initializer ownership route; scalar
-/// results may follow earlier statements without advancing their own namespace.
+/// Ordinary scalar and structural results use the authored statement sequence;
+/// boundary structural results retain the first-initializer ownership route.
 pub fn unit_result_initializer_call_is_supported(
     program: &TypedTrees,
     machine: &Machine,
@@ -206,11 +206,38 @@ pub fn unit_result_initializer_call_is_supported(
         || (statement_index != 0
             && program
                 .primitive_type_reference(local.type_reference)
-                .is_none())
+                .is_none()
+            && !ordinary_structural_initializer(program, local))
     {
         return false;
     }
     initializer_target_is_supported(program, machine, local, true, false)
+}
+
+fn ordinary_structural_initializer(
+    program: &TypedTrees,
+    local: &typed_trees::statement::TableLocalData,
+) -> bool {
+    if program.type_multiplicity(local.type_reference) != language_semantics::Multiplicity::Affine
+        || !crate::has_plain_owned_contents(program, local.type_reference)
+    {
+        return false;
+    }
+    let ExpressionNode::Call(call) = program.expression_table.expression(local.initial_value)
+    else {
+        return false;
+    };
+    program.machines().iter().any(|owner| {
+        owner.supply_mode == language_semantics::MachineSupplyMode::CheckedBody
+            && program.machine_states(owner).first().is_some_and(|target| {
+                target.symbol == call.target_symbol
+                    && !unit_type(program, target.return_type)
+                    && program
+                        .primitive_type_reference(target.return_type)
+                        .is_none()
+                    && crate::has_plain_owned_contents(program, target.return_type)
+            })
+    })
 }
 
 fn initializer_target_is_supported(
@@ -251,12 +278,16 @@ fn initializer_target_is_supported(
                     == program.primitive_type_reference(local.type_reference))
             && (owner.supply_mode.is_boundary_declaration()
                 || (allow_ordinary
-                    && program
+                    && ((program
                         .primitive_type_reference(local.type_reference)
                         .is_some()
-                    && program
-                        .primitive_type_reference(target.return_type)
-                        .is_some()));
+                        && program
+                            .primitive_type_reference(target.return_type)
+                            .is_some())
+                        || (program
+                            .primitive_type_reference(local.type_reference)
+                            .is_none()
+                            && ordinary_structural_initializer(program, local)))));
     }
 
     let selected_parameter = program.machine_parameter_signature(call.target_symbol);
