@@ -2,6 +2,7 @@ use super::*;
 
 mod adversarial;
 mod contracts;
+mod opaque;
 
 #[test]
 fn shared_local_reference_preserves_the_exact_progress_subject() {

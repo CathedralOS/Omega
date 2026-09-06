@@ -3,6 +3,23 @@
 use super::*;
 use facts::PlaceSegment;
 
+/// Retain an unresolved read-only binding without claiming a storage identity.
+/// Only the exact-reference prefix query uses this marker, after checking RHS
+/// effects and binding exposure. Write-capable carriers must remain opaque to
+/// the whole query because their unknown origin can hide a caller write.
+pub(super) fn unknown_readonly_origin(
+    program: &TypedTrees,
+    reference: TypeReferenceHandle,
+    name: &str,
+) -> Option<FramePlaceOrigin> {
+    (type_reference_is_reference(program, reference) && !type_may_carry_write(program, reference))
+        .then(|| FramePlaceOrigin {
+            path: name.to_owned(),
+            precision: FramePathPrecision::CollectionCoarse,
+            source: FrameSourcePlace::default(),
+        })
+}
+
 pub(super) fn replaces_binding(
     program: &TypedTrees,
     machine: &Machine,
