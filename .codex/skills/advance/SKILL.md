@@ -37,14 +37,52 @@ Use an isolated worktree with a short path on Windows. Generated linker paths
 can exceed MAX_PATH even when the source path looks reasonable. Measure the
 failing path before blaming mbx or changing compiler architecture.
 
-A single bounded fix normally needs one agent. Delegate only independent useful
-work; agree on disjoint edit ownership and avoid concurrent builds on the same
-host. Delegation must not add duplicate full validation passes.
+A single bounded fix normally needs one agent. For independent useful work,
+follow the delegation steps below. Avoid concurrent builds on the same host
+and duplicate full validation passes; check for existing runs and reuse valid
+results before launching another check.
 
 Trace the shared implementation and its callers, then make the smallest change
 that fixes the behavior. Preserve the Psi/Omega firewall and proof, custody, and
 trust checks. Do not add a new representation or provider mechanism when the
 existing path can carry the required behavior.
+
+## Delegate a bounded assignment
+
+Apply [AGENTS.md](../../../AGENTS.md#agent-delegation) for model routing and
+ownership. Refine the existing board item only where its scope, design rationale,
+dependencies, or acceptance are insufficient for assignment. Keep transient
+worker IDs and progress in the conversation, not on the execution boards.
+
+Give each worker a self-contained assignment with the context required by
+AGENTS.md, its worktree/revision, and whether it owns implementation, read-only
+verification, or investigation. Resolve dependencies before assigning dependent
+implementation; independent inspection can proceed while a build runs. If a
+worker cannot call for stronger reasoning itself, it returns concrete evidence
+to the coordinator for reassignment.
+
+Call the available spawn tool and retain its returned agent ID before announcing
+dispatch. If no callable tool is available, report that limitation and continue
+locally where possible; a proposed assignment or terminal command is not a
+launched worker. Monitor actual workers through completion or a concrete blocker,
+respond to findings, and reconcile overlapping changes before integration.
+
+Inspect each returned diff, command result, or artifact against its acceptance.
+Reports identify the revision, host, exact command and exit status, failures,
+remaining dependencies, and whether work continues. Label the outcome as
+implementation completed, verification-only completed, diagnosed blocker, or
+work continuing. Verification must cover the assigned objective: package format
+or prerequisite checks do not complete assigned workspace tests or establish a
+baseline. Cancelled runs are not failed validation. Cross-emission is not target
+runtime validation; execute on available real target hosts and name missing hosts.
+
+For an assigned fix, diagnosis is an intermediate result. Continue with the same
+worker or hand off its evidence when the existing design permits implementation.
+If a dependency makes the bounded fix impossible, report that precise boundary
+and the next acceptance condition under "When the slice cannot close" below.
+Keep duplicate findings on one owning board item, and use the existing owner
+question process only for unresolved owner-level decisions. The coordinator
+reports the inspected outcome and remaining work, not merely worker confidence.
 
 ## Validate the change
 
